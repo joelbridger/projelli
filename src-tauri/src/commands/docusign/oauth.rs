@@ -11,7 +11,7 @@ use crate::commands::docusign::model::{
 };
 
 pub const DOCUSIGN_SCOPES: &str = "signature extended";
-const KEYCHAIN_SERVICE: &str = "keepance-docusign";
+const KEYCHAIN_SERVICE: &str = crate::identity::DOCUSIGN_SERVICE;
 const KEYCHAIN_CONNECTION_KEY: &str = "connection-v1";
 const DEFAULT_DEMO_CLIENT_ID: &str = "KEEPANCE_DOCUSIGN_CLIENT_ID_REQUIRED";
 

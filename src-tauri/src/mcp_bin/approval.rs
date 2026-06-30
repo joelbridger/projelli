@@ -48,7 +48,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 /// Temp directory prefix used for both request and response files.
-const APPROVAL_PREFIX: &str = "keepance-mcp";
+const APPROVAL_PREFIX: &str = keepance_lib::identity::MCP_APPROVAL_TEMP_PREFIX;
 
 /// Max time to wait for a user decision before returning `false`. Long
 /// enough for the user to walk away from the keyboard, short enough that
@@ -62,7 +62,7 @@ const POLL_INTERVAL: Duration = Duration::from_millis(100);
 /// Marker emitted on stderr immediately before the approval request is
 /// written. Parent processes grep for this to distinguish approval lines
 /// from regular log output.
-pub const APPROVAL_MARKER: &str = "keepance/approval_request";
+pub const APPROVAL_MARKER: &str = keepance_lib::identity::MCP_APPROVAL_MARKER;
 
 /// The payload mirrored into `<approval_dir>/requests/<token>.json`.
 ///
@@ -286,7 +286,8 @@ mod tests {
     #[test]
     fn wait_returns_true_when_response_file_says_approved() {
         let base = std::env::temp_dir().join(format!(
-            "keepance-mcp-test-{}",
+            "{}-test-{}",
+            keepance_lib::identity::MCP_APPROVAL_TEMP_PREFIX,
             std::process::id()
         ));
         std::fs::create_dir_all(base.join("responses")).unwrap();
@@ -306,7 +307,8 @@ mod tests {
     #[test]
     fn wait_returns_false_when_response_file_says_denied() {
         let base = std::env::temp_dir().join(format!(
-            "keepance-mcp-test-deny-{}",
+            "{}-test-deny-{}",
+            keepance_lib::identity::MCP_APPROVAL_TEMP_PREFIX,
             std::process::id()
         ));
         std::fs::create_dir_all(base.join("responses")).unwrap();

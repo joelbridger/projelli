@@ -24,8 +24,9 @@
 
 import type { WorkflowTemplate } from '@/platform/types/workflow';
 import { allWorkflows } from '.';
+import { SK_USER_WORKFLOW_TEMPLATES } from '@/config/identity';
 
-export const USER_TEMPLATES_STORAGE_KEY = 'keepance:userWorkflowTemplates';
+export const USER_TEMPLATES_STORAGE_KEY = SK_USER_WORKFLOW_TEMPLATES;
 
 // ---------------------------------------------------------------------------
 // Storage adapter — minimal interface so tests can swap in an in-memory

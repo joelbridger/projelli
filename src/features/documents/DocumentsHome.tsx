@@ -41,15 +41,16 @@ import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
 import { DocumentGridView } from './DocumentGridView';
 import { FileTree } from '@/features/documents/workspace/FileTree';
 import { scopeFileTreeToFolders } from './scopeFileTree';
+import { SK_FIRST_FILE_TRUST_SHOWN, SK_DOCS_VIEW } from '@/config/identity';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const TRUST_STORAGE_KEY = 'keepance:first-file-trust-shown';
+const TRUST_STORAGE_KEY = SK_FIRST_FILE_TRUST_SHOWN;
 const FILES_TAB_ID = '__files__';
 
 // R6-1: which Files view the user last chose (vertical expanding tree vs the
 // folder-drill grid). Persisted so the choice survives reloads.
-const DOCS_VIEW_STORAGE_KEY = 'keepance:docs-view';
+const DOCS_VIEW_STORAGE_KEY = SK_DOCS_VIEW;
 type DocsView = 'tree' | 'grid';
 
 function readDocsView(): DocsView {

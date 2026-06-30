@@ -33,11 +33,12 @@ import type {
 } from '@/platform/providers/Provider';
 import type { ChatAttachment } from '@/platform/types/ai';
 import { getDemoSessionToken, resetDemoSessionToken } from './demoSessionToken';
+import { EV_DEMO_LIMIT_HIT, EV_DEMO_MESSAGE_SENT } from '@/config/identity';
 
 const BYOK_STORAGE_KEY = 'byokKey';
 const DEMO_PROXY_PATH = '/api/demo-chat';
-const DEMO_LIMIT_EVENT = 'keepance:demo-limit-hit';
-const DEMO_MESSAGE_SENT_EVENT = 'keepance:demo-message-sent';
+const DEMO_LIMIT_EVENT = EV_DEMO_LIMIT_HIT;
+const DEMO_MESSAGE_SENT_EVENT = EV_DEMO_MESSAGE_SENT;
 
 /** Reasons surfaced to Group IV's DemoLimitGate via the window event. */
 export type DemoLimitReason =

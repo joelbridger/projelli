@@ -447,7 +447,7 @@ pub struct SetupProgressState {
 // OS keychain coordinates for cloud provider keys. The service mirrors
 // `DEFAULT_SERVICE` in commands/keychain.rs; the `bos_key_<provider>` keys are
 // written by the renderer's KeychainService (prefix `bos_key_`).
-const KEYCHAIN_SERVICE: &str = "com.keepance.app";
+const KEYCHAIN_SERVICE: &str = crate::identity::DEFAULT_KEYCHAIN_SERVICE;
 const CLOUD_KEY_NAMES: [&str; 3] = ["bos_key_anthropic", "bos_key_openai", "bos_key_google"];
 
 /// True if any cloud provider key is present (OS keychain, with an env-var

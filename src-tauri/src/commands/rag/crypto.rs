@@ -19,7 +19,7 @@ use hmac::{Hmac, Mac};
 use rand::RngCore;
 use sha2::Sha256;
 
-const KEYCHAIN_SERVICE: &str = "keepance-vectors-enc";
+const KEYCHAIN_SERVICE: &str = crate::identity::VECTORS_ENC_SERVICE;
 const KEYCHAIN_KEY: &str = "master-key-v1";
 const KEY_LEN: usize = 32;
 

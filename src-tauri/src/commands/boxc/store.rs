@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use rusqlite::{Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
 
-const BOX_DB_KEYCHAIN_SERVICE: &str = "keepance-box-enc";
+const BOX_DB_KEYCHAIN_SERVICE: &str = crate::identity::BOX_ENC_SERVICE;
 const BOX_DB_KEYCHAIN_KEY: &str = "master-key-v1";
 const KEY_LEN: usize = 32;
 
@@ -60,7 +60,7 @@ fn master_key() -> Result<[u8; KEY_LEN]> {
 
 impl BoxStore {
     pub fn db_path(workspace_root: &Path) -> PathBuf {
-        workspace_root.join(".keepance").join("box-enc.db")
+        workspace_root.join(crate::identity::WORKSPACE_DATA_DIR).join("box-enc.db")
     }
 
     pub fn open(workspace_root: &Path) -> Result<Self> {

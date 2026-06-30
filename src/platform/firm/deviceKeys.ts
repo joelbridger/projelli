@@ -29,12 +29,13 @@
 import { keychainGet, keychainSet } from '@/platform/utils/tauri-commands';
 import { isTauri } from '@tauri-apps/api/core';
 import { FirmApiClient } from './FirmApiClient';
+import { KC_DEVICE_META_SERVICE, KC_DEVICE_PREFIX } from '@/config/identity';
 
 // ── Service names & keychain keys -------------------------------------------
 
-const DEVICE_META_SERVICE = 'com.keepance.device.meta';
+const DEVICE_META_SERVICE = KC_DEVICE_META_SERVICE;
 const KC_DEVICE_ID = 'device_id';
-const KC_PRIVATE_JWK_PREFIX = 'com.keepance.device.';
+const KC_PRIVATE_JWK_PREFIX = KC_DEVICE_PREFIX;
 const KC_PRIVATE_JWK_KEY = 'private_jwk';
 const KC_PUBLIC_JWK_KEY = 'public_jwk';
 

@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use rusqlite::{Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
 
-const JOTFORM_DB_KEYCHAIN_SERVICE: &str = "keepance-jotform-enc";
+const JOTFORM_DB_KEYCHAIN_SERVICE: &str = crate::identity::JOTFORM_ENC_SERVICE;
 const JOTFORM_DB_KEYCHAIN_KEY: &str = "master-key-v1";
 const KEY_LEN: usize = 32;
 
@@ -64,7 +64,7 @@ pub struct JotformStore {
 
 impl JotformStore {
     pub fn db_path(workspace_root: &Path) -> PathBuf {
-        workspace_root.join(".keepance").join("jotform-enc.db")
+        workspace_root.join(crate::identity::WORKSPACE_DATA_DIR).join("jotform-enc.db")
     }
 
     pub fn open(workspace_root: &Path) -> Result<Self> {

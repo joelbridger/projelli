@@ -26,6 +26,7 @@ import {
 } from '@/ui/dialog';
 import { resetDemoSessionToken } from './demoSessionToken';
 import { trackDemoDownloadClicked } from './demoPlausible';
+import { SK_DEMO_MESSAGE_COUNT } from '@/config/identity';
 
 const UTM_SUFFIX =
   '?utm_source=demo&utm_campaign=v2-launch&utm_content=exit_modal';
@@ -36,7 +37,7 @@ export const DEMO_EXIT_DOWNLOAD_URLS = {
   linux: `https://keepance.com/#download${UTM_SUFFIX}&os=linux`,
 } as const;
 
-export const DEMO_MESSAGE_COUNT_STORAGE_KEY = 'keepance:demo:messageCount';
+export const DEMO_MESSAGE_COUNT_STORAGE_KEY = SK_DEMO_MESSAGE_COUNT;
 
 interface DemoExitModalProps {
   open: boolean;

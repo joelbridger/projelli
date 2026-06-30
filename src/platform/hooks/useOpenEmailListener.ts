@@ -17,6 +17,7 @@
  */
 
 import { useEffect } from 'react';
+import { EV_OPEN_EMAIL } from '@/config/identity';
 
 /** Shape of the `openTab` action from the editor store (kept structural so this
  *  hook does not depend on the store's full type). */
@@ -46,8 +47,8 @@ export function useOpenEmailListener(openTab: OpenEmailTabFn): void {
       if (!sourceId) return;
       openTab(sourceId, emailTabLabel(sourceId), '', 'email', { mailSourceId: sourceId });
     };
-    window.addEventListener('keepance:open-email', handler);
-    return () => window.removeEventListener('keepance:open-email', handler);
+    window.addEventListener(EV_OPEN_EMAIL, handler);
+    return () => window.removeEventListener(EV_OPEN_EMAIL, handler);
   }, [openTab]);
 }
 

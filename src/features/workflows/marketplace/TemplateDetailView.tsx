@@ -47,6 +47,7 @@ import type {
 } from '@/features/workflows/marketplace/svc';
 import type { TemplateManifest, TemplateFileEntry } from '@/features/workflows/types/templateManifest';
 import { validateTemplateManifest } from '@/features/workflows/marketplace/svc';
+import { EV_OPEN_AUDIT_LOG } from '@/config/identity';
 
 interface TemplateDetailViewProps {
   entry: CatalogEntry;
@@ -183,7 +184,7 @@ export function TemplateDetailView({
     // Fire a window-level event so the App shell (which owns the AuditLog
     // panel) can optionally focus / open it. No-op if no listener is wired.
     window.dispatchEvent(
-      new CustomEvent('keepance:open-audit-log', {
+      new CustomEvent(EV_OPEN_AUDIT_LOG, {
         detail: { source: 'marketplace', templateId: entry.id },
       }),
     );

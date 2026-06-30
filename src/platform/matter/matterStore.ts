@@ -57,6 +57,7 @@ import type { MatterUiSnapshot } from '@/platform/matter/matterUiStore';
 import type { MatterAtAGlanceEntry } from '@/platform/matter/matterAtAGlanceStore';
 import type { MatterSyncStatus } from '@/platform/matter/matterSyncStore';
 import type { MatterAtAGlanceResult } from '@/platform/matter/matterAtAGlance';
+import { SK_MATTERS, SK_MATTER_UI_SNAPSHOTS, SK_MATTER_AT_A_GLANCE } from '@/config/identity';
 
 /**
  * Stable id for the built-in sample matter ("Garcia v. Meridian Properties LLC").
@@ -265,9 +266,9 @@ interface PersistedMatterState {
   cache: Record<string, MatterAtAGlanceEntry>;
 }
 
-const MATTERS_KEY = 'keepance:matters';
-const UI_KEY = 'keepance:matter-ui-snapshots';
-const GLANCE_KEY = 'keepance:matter-at-a-glance';
+const MATTERS_KEY = SK_MATTERS;
+const UI_KEY = SK_MATTER_UI_SNAPSHOTS;
+const GLANCE_KEY = SK_MATTER_AT_A_GLANCE;
 const MATTERS_VERSION = 8;
 
 type MatterAuditEmitter = (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
@@ -923,7 +924,7 @@ export const useMatterStore = create<MatterState>()(
       setClientMapHubTab: (tab) => set({ clientMapHubTab: tab }),
     }),
     {
-      name: 'keepance:matters',
+      name: SK_MATTERS,
       version: MATTERS_VERSION,
       storage: multiKeyMatterStorage,
       // v1 -> v2: matters gained `mailFolderPaths`. v2 -> v3: matters gained the

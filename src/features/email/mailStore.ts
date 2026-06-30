@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import type { MailSyncProgress } from '@/platform/utils/mail-commands';
+import { SK_EMAIL_FIRST_CONNECT_CALLOUT } from '@/config/identity';
 
 // localStorage key for the first-connect TTV callout dismissal.
-const FIRST_CONNECT_CALLOUT_KEY = 'keepance:email:firstConnectCalloutSeen';
+const FIRST_CONNECT_CALLOUT_KEY = SK_EMAIL_FIRST_CONNECT_CALLOUT;
 
 interface MailState {
   connected: boolean;

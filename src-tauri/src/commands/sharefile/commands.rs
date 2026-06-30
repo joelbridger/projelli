@@ -13,7 +13,7 @@ use crate::commands::sharefile::model::{
 use crate::commands::sharefile::source::SharefileDocumentSource;
 use crate::commands::sharefile::store::SharefileStore;
 
-const KEYCHAIN_SERVICE: &str = "keepance-sharefile";
+const KEYCHAIN_SERVICE: &str = crate::identity::SHAREFILE_SERVICE;
 const KEYCHAIN_ACCESS_TOKEN_KEY: &str = "access-token";
 const KEYCHAIN_SUBDOMAIN_KEY: &str = "subdomain";
 pub const SHAREFILE_SYNC_PROGRESS_EVENT: &str = "sharefile-sync-progress";

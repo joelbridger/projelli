@@ -627,7 +627,7 @@ fn root_granted_matter_still_denies_keepance_internal_files() {
     assert_eq!(read_parsed["error"]["code"], -32602);
     let read_message = read_parsed["error"]["message"].as_str().unwrap();
     assert!(
-        read_message.contains("Keepance internal files are not exposed over MCP"),
+        read_message.contains("App internal files are not exposed over MCP"),
         "got: {read_message}"
     );
     assert!(!read_message.contains("Root Client"), "got: {read_message}");

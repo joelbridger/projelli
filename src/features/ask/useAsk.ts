@@ -61,9 +61,10 @@ import {
   isExternalExportConsentGiven,
   grantExternalExportConsent,
 } from '@/platform/rag/exportConsent';
+import { SK_ASK_RAIL_COLLAPSED, SK_ASK_FILES_ONLY } from '@/config/identity';
 
 /** localStorage key for the conversations-rail collapsed preference. */
-const ASK_RAIL_COLLAPSED_KEY = 'keepance:ask-rail-collapsed';
+const ASK_RAIL_COLLAPSED_KEY = SK_ASK_RAIL_COLLAPSED;
 
 /**
  * localStorage key for the Files-only mode lock (Decision 6). OFF by default —
@@ -73,7 +74,7 @@ const ASK_RAIL_COLLAPSED_KEY = 'keepance:ask-rail-collapsed';
  * compliance team that wants the general/drafting capability turned off
  * entirely. Persisted so the choice survives reloads.
  */
-const ASK_FILES_ONLY_KEY = 'keepance:ask-files-only';
+const ASK_FILES_ONLY_KEY = SK_ASK_FILES_ONLY;
 
 /** Join tool labels for prose: ["RightCapital"] -> "RightCapital";
  *  ["RightCapital","Jump"] -> "RightCapital and Jump". */

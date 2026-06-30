@@ -32,6 +32,7 @@ import {
   isPrivileged,
   type Privilege,
 } from '@/platform/types/privilege';
+import { SK_PRIVILEGE } from '@/config/identity';
 
 interface PrivilegeState {
   /** Normalized source id → privilege. Only non-`none` entries are stored. */
@@ -80,7 +81,7 @@ export const usePrivilegeStore = create<PrivilegeState>()(
       },
     }),
     {
-      name: 'keepance:privilege',
+      name: SK_PRIVILEGE,
       version: 1,
       // Persist ONLY the privilege map. `includePrivileged` is deliberately not
       // persisted: privileged retrieval must be re-enabled explicitly each session.

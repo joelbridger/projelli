@@ -7,7 +7,8 @@
  * The slot keeps the most recent request so the editor can consume it on
  * mount; the event stays for already-mounted editors (re-click while open).
  */
-export const SCROLL_TO_PARAGRAPH_EVENT = 'keepance:scroll-to-paragraph';
+import { EV_SCROLL_TO_PARAGRAPH } from '@/config/identity';
+export const SCROLL_TO_PARAGRAPH_EVENT = EV_SCROLL_TO_PARAGRAPH;
 
 export interface ScrollToParagraphDetail {
   path: string;

@@ -36,7 +36,7 @@ use std::path::PathBuf;
 /// Base dir mirrored from `src/bin/mcp/approval.rs`. If these two ever
 /// diverge, approval rendezvous breaks — the binary's constants are the
 /// SSOT; this copy is the host's read-side view of the same contract.
-const APPROVAL_PREFIX: &str = "keepance-mcp";
+const APPROVAL_PREFIX: &str = crate::identity::MCP_APPROVAL_TEMP_PREFIX;
 
 fn approval_base_dir() -> PathBuf {
     std::env::temp_dir().join(APPROVAL_PREFIX)
@@ -158,7 +158,7 @@ pub async fn mcp_bundle_path(
 ) -> Result<Option<String>, String> {
     use tauri::Manager;
     let target = current_target_triple();
-    let candidate_name = format!("keepance-{target}.mcpb");
+    let candidate_name = format!("{}-{target}.mcpb", crate::identity::MCP_SERVER_NAME);
 
     // Tauri resource lookup — wrapped in a catch-all so missing-resource
     // paths on dev builds don't crash the command.

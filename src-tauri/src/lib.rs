@@ -7,6 +7,10 @@
 // sub-modules; the `#[tauri::command]` wrapper fns stay host-only in
 // practice even though the module path is now public.
 pub mod commands;
+// Permanent runtime identity constants (keychain services, data-dir names,
+// MCP identifiers, OS data paths). Single source of truth for all
+// Rust-side identity strings — call sites import from here, never hard-code.
+pub mod identity;
 // Shared Sidecar trait + concrete impls (ParakeetSidecar, and later
 // PiperSidecar for Stream B TTS). The trait defines a lifecycle contract
 // (start/stop/is_running) that long-lived daemon sidecars and fire-and-forget

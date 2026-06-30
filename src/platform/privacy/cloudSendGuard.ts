@@ -18,6 +18,7 @@ import {
   CONFIDENTIALITY_MODES,
   type ConfidentialityMode,
 } from '@/platform/privacy/egress';
+import { SK_SETTINGS } from '@/config/identity';
 
 /** Thrown when a cloud AI send is attempted while Local-only mode is on. The
  *  chat/ask UI surfaces the message so the user knows why the send was blocked. */
@@ -33,7 +34,7 @@ export class LocalOnlyEgressError extends Error {
 }
 
 /** localStorage key the settings store persists under (zustand persist `name`). */
-const SETTINGS_PERSIST_KEY = 'keepance:settings';
+const SETTINGS_PERSIST_KEY = SK_SETTINGS;
 
 /**
  * Read the persisted confidentiality mode straight from storage, bypassing the

@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { X } from 'lucide-react';
 import { Button } from '@/ui/kp';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
+import { SK_SAMPLE_BRIDGE_DISMISSED, EV_OPEN_MATTER_MANAGER } from '@/config/identity';
 
 /* -------------------------------------------------------------------------- */
 /* Constants                                                                    */
 /* -------------------------------------------------------------------------- */
 
-export const SAMPLE_BRIDGE_DISMISSED_KEY = 'keepance:sample-bridge-dismissed';
+export const SAMPLE_BRIDGE_DISMISSED_KEY = SK_SAMPLE_BRIDGE_DISMISSED;
 
 /* -------------------------------------------------------------------------- */
 /* SampleBridgeCallout — gentle nudge to add real files (sample matter only)  */
@@ -27,7 +28,7 @@ export function SampleBridgeCallout() {
   };
 
   const handleAddMatter = () => {
-    window.dispatchEvent(new CustomEvent('keepance:open-matter-manager'));
+    window.dispatchEvent(new CustomEvent(EV_OPEN_MATTER_MANAGER));
   };
 
   return (

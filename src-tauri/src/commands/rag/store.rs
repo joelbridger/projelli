@@ -320,7 +320,7 @@ pub fn validate_matter_id(matter_id: &str) -> Result<&str> {
 
 /// Compute the path of the LanceDB dataset for a given workspace root.
 pub fn dataset_path(workspace_root: &Path) -> PathBuf {
-    workspace_root.join(".keepance").join("vectors")
+    workspace_root.join(crate::identity::WORKSPACE_DATA_DIR).join("vectors")
 }
 
 /// Stable id for `(path, paragraph_index)`. Hex-encoded SHA-256.
@@ -2344,13 +2344,13 @@ const INTEGRITY_UNKNOWN_FILE: &str = ".integrity_unknown";
 /// Path of the durable tombstone file. Lives in the `.keepance/` dir (the parent
 /// of `vectors/`) so a locked/unwritable LanceDB dataset dir cannot block it.
 fn unsafe_paths_path(workspace_root: &Path) -> PathBuf {
-    workspace_root.join(".keepance").join(UNSAFE_PATHS_FILE)
+    workspace_root.join(crate::identity::WORKSPACE_DATA_DIR).join(UNSAFE_PATHS_FILE)
 }
 
 /// Path of the durable integrity-unknown sentinel (sibling of `.unsafe_tokens`).
 fn integrity_unknown_path(workspace_root: &Path) -> PathBuf {
     workspace_root
-        .join(".keepance")
+        .join(crate::identity::WORKSPACE_DATA_DIR)
         .join(INTEGRITY_UNKNOWN_FILE)
 }
 
@@ -2627,7 +2627,7 @@ mod tests {
     #[test]
     fn dataset_path_lives_under_dot_keepance() {
         let p = dataset_path(Path::new("/tmp/work"));
-        assert_eq!(p, PathBuf::from("/tmp/work/.keepance/vectors"));
+        assert_eq!(p, PathBuf::from(format!("/tmp/work/{}/vectors", crate::identity::WORKSPACE_DATA_DIR)));
     }
 
     /// BUG-099 durable tombstone: the unsafe-TOKEN set round-trips through disk,
@@ -2741,7 +2741,8 @@ mod tests {
         assert!(
             result.is_ok(),
             "tombstone must persist even when the vectors dataset dir is read-only \
-             (it lives in the sibling .keepance/ dir): {result:?}"
+             (it lives in the sibling {}/ dir): {result:?}",
+            crate::identity::WORKSPACE_DATA_DIR,
         );
         assert_eq!(
             read_unsafe_tokens(root).into_tokens().len(),

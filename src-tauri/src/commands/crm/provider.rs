@@ -10,7 +10,7 @@ use crate::commands::crm::salesforce::{SalesforceClient, SalesforceTokenSet};
 use crate::commands::crm::source::CrmSource;
 
 const KEYCHAIN_TOKEN_KEY: &str = "api-token";
-const LEGACY_WEALTHBOX_SERVICE: &str = "keepance-wealthbox";
+const LEGACY_WEALTHBOX_SERVICE: &str = crate::identity::WEALTHBOX_LEGACY_SERVICE;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CrmProvider {
@@ -55,7 +55,7 @@ impl CrmProvider {
     }
 
     fn keychain_service(self) -> String {
-        format!("keepance-crm-{}", self.id())
+        crate::identity::crm_keychain_service(self.id())
     }
 
     fn legacy_keychain_service(self) -> Option<&'static str> {
@@ -243,7 +243,7 @@ mod tests {
     fn salesforce_uses_provider_scoped_keychain_slot() {
         assert_eq!(
             CrmProvider::Salesforce.keychain_service(),
-            "keepance-crm-salesforce"
+            crate::identity::crm_keychain_service("salesforce")
         );
         assert_eq!(CrmProvider::Salesforce.legacy_keychain_service(), None);
     }
@@ -252,7 +252,7 @@ mod tests {
     fn redtail_uses_provider_scoped_keychain_slot() {
         assert_eq!(
             CrmProvider::Redtail.keychain_service(),
-            "keepance-crm-redtail"
+            crate::identity::crm_keychain_service("redtail")
         );
         assert_eq!(CrmProvider::Redtail.legacy_keychain_service(), None);
     }
@@ -260,7 +260,7 @@ mod tests {
     #[test]
     fn wealthbox_token_read_falls_back_to_legacy_keychain_slot() {
         let mut slots = HashMap::new();
-        slots.insert("keepance-wealthbox".to_string(), "legacy-token".to_string());
+        slots.insert(crate::identity::WEALTHBOX_LEGACY_SERVICE.to_string(), "legacy-token".to_string());
 
         let token = read_token_from_services(CrmProvider::Wealthbox, |service| {
             slots.get(service).cloned()
@@ -273,10 +273,10 @@ mod tests {
     fn wealthbox_new_keychain_slot_wins_over_legacy_slot() {
         let mut slots = HashMap::new();
         slots.insert(
-            "keepance-crm-wealthbox".to_string(),
+            crate::identity::crm_keychain_service("wealthbox"),
             "new-token".to_string(),
         );
-        slots.insert("keepance-wealthbox".to_string(), "legacy-token".to_string());
+        slots.insert(crate::identity::WEALTHBOX_LEGACY_SERVICE.to_string(), "legacy-token".to_string());
 
         let token = read_token_from_services(CrmProvider::Wealthbox, |service| {
             slots.get(service).cloned()

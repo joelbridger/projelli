@@ -8,6 +8,7 @@ import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import { useEditorStore } from '@/platform/state/editorStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import { EV_TRASH_CHANGED } from '@/config/identity';
 
 const TRASH_METADATA_FILE = '.trash/metadata.json';
 
@@ -384,8 +385,8 @@ export function useTrash({ rootPath, workspaceServiceRef }: UseTrashOptions): Us
 
   useEffect(() => {
     const handler = () => { void refreshTrashFromDisk(); };
-    window.addEventListener('keepance:trash-changed', handler);
-    return () => { window.removeEventListener('keepance:trash-changed', handler); };
+    window.addEventListener(EV_TRASH_CHANGED, handler);
+    return () => { window.removeEventListener(EV_TRASH_CHANGED, handler); };
   }, [refreshTrashFromDisk]);
 
   // Auto-cleanup expired trash items periodically (every hour)

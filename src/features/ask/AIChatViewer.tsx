@@ -180,6 +180,7 @@ export function buildOpenFilesPromptBlock(openFiles: ExtractedContext[]): string
 
 import { ChatSourcesAccordion } from './ChatSourcesAccordion';
 import { ProposedFactsPanel } from './ProposedFactsPanel';
+import { EV_OPEN_EMAIL } from '@/config/identity';
 
 
 export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, onOpenFileAtPath, className }: AIChatViewerProps) {
@@ -895,7 +896,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
       if (sourceType === 'mail' || path.startsWith('mail:')) {
         if (typeof window !== 'undefined') {
           window.dispatchEvent(
-            new CustomEvent('keepance:open-email', {
+            new CustomEvent(EV_OPEN_EMAIL, {
               detail: { sourceId: path },
             }),
           );

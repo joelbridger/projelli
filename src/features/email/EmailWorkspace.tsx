@@ -67,6 +67,7 @@ import { AskHitCard } from './AskHitCard';
 import { NoAccountsState } from './NoAccountsState';
 import { MailRow } from './MailRow';
 import { sendDiagnosticEvent } from '@/platform/utils/diagnostics';
+import { EV_OPEN_SETTINGS } from '@/config/identity';
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -1304,7 +1305,7 @@ export function EmailWorkspace({
                     <button
                       type="button"
                       onClick={() => {
-                        window.dispatchEvent(new CustomEvent('keepance:open-settings', { detail: { category: 'ai' } }));
+                        window.dispatchEvent(new CustomEvent(EV_OPEN_SETTINGS, { detail: { category: 'ai' } }));
                         onOpenSettings?.();
                       }}
                       style={{

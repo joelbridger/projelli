@@ -10,7 +10,7 @@
 use anyhow::{Context, Result};
 use rand::RngCore;
 
-const KEYCHAIN_SERVICE: &str = "keepance-audit-enc";
+const KEYCHAIN_SERVICE: &str = crate::identity::AUDIT_ENC_SERVICE;
 const KEYCHAIN_KEY: &str = "master-key-v1";
 const KEY_LEN: usize = 32;
 

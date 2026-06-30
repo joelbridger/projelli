@@ -457,7 +457,7 @@ pub fn convert_ppt_to_pdf(input_path: String) -> Result<String, String> {
 
     // Cache dir under the OS temp dir — survives across runs of the app.
     let mut cache_dir: PathBuf = std::env::temp_dir();
-    cache_dir.push("keepance-ppt-cache");
+    cache_dir.push(crate::identity::CACHE_PPT_PREFIX);
     if !cache_dir.exists() {
         std::fs::create_dir_all(&cache_dir)
             .map_err(|e| format!("Failed to create cache dir: {}", e))?;
@@ -605,7 +605,7 @@ pub fn convert_docx_to_pdf(input_path: String) -> Result<String, String> {
     let cache_key = format!("{:016x}_{}", path_hash, mtime_secs);
 
     let mut cache_dir: PathBuf = std::env::temp_dir();
-    cache_dir.push("keepance-docx-pdf-cache");
+    cache_dir.push(crate::identity::CACHE_DOCX_PDF_PREFIX);
     if !cache_dir.exists() {
         std::fs::create_dir_all(&cache_dir)
             .map_err(|e| format!("Failed to create cache dir: {}", e))?;

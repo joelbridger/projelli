@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { EV_TELEMETRY_CONSENT_CHANGE } from '@/config/identity';
 
 const KEY = 'keepance_telemetry_consent';
 
@@ -33,7 +34,7 @@ export function setTelemetryConsent(c: TelemetryConsent): void {
   else localStorage.setItem(KEY, c);
   // Notify subscribers in this tab too — `storage` events only fire
   // cross-tab. Internal pub/sub is light enough.
-  window.dispatchEvent(new CustomEvent('keepance:telemetry-consent-change'));
+  window.dispatchEvent(new CustomEvent(EV_TELEMETRY_CONSENT_CHANGE));
 }
 
 export function useTelemetryConsent(): {
@@ -44,10 +45,10 @@ export function useTelemetryConsent(): {
 
   useEffect(() => {
     const onChange = () => setLocal(read());
-    window.addEventListener('keepance:telemetry-consent-change', onChange);
+    window.addEventListener(EV_TELEMETRY_CONSENT_CHANGE, onChange);
     window.addEventListener('storage', onChange);
     return () => {
-      window.removeEventListener('keepance:telemetry-consent-change', onChange);
+      window.removeEventListener(EV_TELEMETRY_CONSENT_CHANGE, onChange);
       window.removeEventListener('storage', onChange);
     };
   }, []);

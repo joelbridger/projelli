@@ -23,15 +23,16 @@
 
 import { keychainGet, keychainSet, keychainDelete } from '@/platform/utils/tauri-commands';
 import { isTauri } from '@tauri-apps/api/core';
+import { kcUserService, kcMatterService } from '@/config/identity';
 
 /** Service namespace for a user's auth + seat tokens. */
 export function userService(userId: string): string {
-  return `com.keepance.user.${userId}`;
+  return kcUserService(userId);
 }
 
 /** Service namespace for a matter's content key. */
 export function matterService(matterId: string): string {
-  return `com.keepance.matter.${matterId}`;
+  return kcMatterService(matterId);
 }
 
 // Keys within the user service.

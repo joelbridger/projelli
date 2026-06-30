@@ -17,7 +17,7 @@ use crate::commands::onedrive::oauth::{OAuth, TokenOutcome};
 use crate::commands::onedrive::source::GraphDocumentSource;
 use crate::commands::onedrive::store::OneDriveStore;
 
-const KEYCHAIN_SERVICE: &str = "keepance-docs-ms";
+const KEYCHAIN_SERVICE: &str = crate::identity::DOCS_MS_SERVICE;
 const KEYCHAIN_REFRESH_KEY: &str = "ms-refresh-token";
 pub const ONEDRIVE_SYNC_PROGRESS_EVENT: &str = "onedrive-sync-progress";
 

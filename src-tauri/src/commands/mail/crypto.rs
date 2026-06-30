@@ -12,7 +12,7 @@ use aes_gcm::{
 use anyhow::{Context, Result};
 use rand::RngCore;
 
-const KEYCHAIN_SERVICE: &str = "keepance-mail-enc";
+const KEYCHAIN_SERVICE: &str = crate::identity::MAIL_ENC_SERVICE;
 const KEYCHAIN_KEY: &str = "master-key-v1";
 const NONCE_LEN: usize = 12;
 const KEY_LEN: usize = 32;

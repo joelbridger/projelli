@@ -4,6 +4,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import type { ClientMap, ClientMapSection, ClientQuestion, DismissedSignature, ProposedUpdate, GapQuestion, CoreSectionKey } from './types';
 import { CORE_SECTION_ORDER, CORE_SECTION_TITLE } from './types';
 import { proposalSignature } from './updater';
+import { SK_CLIENT_MAPS } from '@/config/identity';
 
 /** v2 -> v3: the 5 core section keys were renamed to 4 sharper buckets (and the
  *  dated-events "Coming up" bucket was folded into Follow-ups). Remap any legacy
@@ -369,7 +370,7 @@ export const useClientMapStore = create<ClientMapState>()(
       clearAll: () => set({ maps: {}, clientQuestions: {} }),
     }),
     {
-      name: 'keepance:client-maps',
+      name: SK_CLIENT_MAPS,
       version: 3,
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({ maps: state.maps, clientQuestions: state.clientQuestions }),

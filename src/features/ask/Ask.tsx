@@ -44,6 +44,7 @@ import { useAsk, type UseAskProps } from './useAsk';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { IS_DEMO } from '@/web-demo/demoModeFlag';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
+import { EV_OPEN_SETTINGS } from '@/config/identity';
 
 /* -------------------------------------------------------------------------- */
 /* Main component                                                               */
@@ -332,7 +333,7 @@ export function Ask(props: UseAskProps) {
                   variant="secondary"
                   size="sm"
                   onClick={() => {
-                    window.dispatchEvent(new CustomEvent('keepance:open-settings', { detail: { category: 'ai' } }));
+                    window.dispatchEvent(new CustomEvent(EV_OPEN_SETTINGS, { detail: { category: 'ai' } }));
                   }}
                   style={{ flexShrink: 0 }}
                 >

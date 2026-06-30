@@ -14,6 +14,7 @@ import { useApiKeys } from '@/platform/hooks/useApiKeys';
 import { useFirm } from '@/platform/hooks/useFirm';
 import { mailIsConnected, gmailIsConnected, mailImapIsConnected } from '@/platform/utils/mail-commands';
 import type { SettingCategory } from '@/platform/settings/schema';
+import { EV_OPEN_ACCOUNT } from '@/config/identity';
 
 interface SetupChecklistProps {
   /** Trigger the GuidedOnboarding flow non-destructively (re-shows without clearing data). */
@@ -102,7 +103,7 @@ export function SetupChecklist({ onRestartOnboarding, onNavigate }: SetupCheckli
         label="Email connected"
         connected={emailConnected}
         onAction={() => {
-          window.dispatchEvent(new CustomEvent('keepance:open-account', { detail: { tab: 'connections' } }));
+          window.dispatchEvent(new CustomEvent(EV_OPEN_ACCOUNT, { detail: { tab: 'connections' } }));
         }}
       />
 

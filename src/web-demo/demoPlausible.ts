@@ -25,6 +25,8 @@
  * pull in extra dev deps for one analytics call).
  */
 
+import { SK_DEMO_FIRST_MESSAGE_FLAG, SK_DEMO_BYOK_REPORTED_FLAG } from '@/config/identity';
+
 type PlausibleProps = Record<string, string | number | boolean | undefined>;
 
 interface PlausibleFn {
@@ -37,8 +39,9 @@ declare global {
   }
 }
 
-const FIRST_MESSAGE_FLAG = 'keepance:demo:firstMessageReported';
-const BYOK_REPORTED_FLAG = 'keepance:demo:byokReported';
+const FIRST_MESSAGE_FLAG = SK_DEMO_FIRST_MESSAGE_FLAG;
+const BYOK_REPORTED_FLAG = SK_DEMO_BYOK_REPORTED_FLAG;
+
 
 function safeCall(eventName: string, props?: PlausibleProps): void {
   if (typeof window === 'undefined') return;

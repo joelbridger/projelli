@@ -39,7 +39,7 @@ use zeroize::Zeroize;
 /// Mirrors `com.keepance.mail-enc` / `com.keepance.vectors-enc` etc., keeping
 /// all Keepance keychain entries under the `com.keepance.*` namespace.
 fn vmk_service(id: &str) -> String {
-    format!("com.keepance.vault.{id}")
+    crate::identity::vault_keychain_service(id)
 }
 
 /// The keychain key name for the VMK entry.
@@ -813,12 +813,12 @@ fn count_eligible_files(root: &Path) -> usize {
         for entry in rd.flatten() {
             let name = entry.file_name();
             let name_str = name.to_string_lossy();
-            if name_str == ".keepance-vault.json" || name_str.starts_with(".kpv-tmp-") {
+            if name_str == crate::identity::VAULT_META_FILE || name_str.starts_with(".kpv-tmp-") {
                 continue;
             }
             let Ok(ft) = entry.file_type() else { continue; };
             if ft.is_dir() {
-                if name_str != ".keepance" {
+                if name_str != crate::identity::WORKSPACE_DATA_DIR {
                     n += count_dir(&entry.path());
                 }
             } else if ft.is_file() {
@@ -841,12 +841,12 @@ fn find_any_encrypted_file(root: &Path) -> Result<Option<PathBuf>, VaultCommandE
         for entry in rd.flatten() {
             let name = entry.file_name();
             let name_str = name.to_string_lossy();
-            if name_str == ".keepance-vault.json" || name_str.starts_with(".kpv-tmp-") {
+            if name_str == crate::identity::VAULT_META_FILE || name_str.starts_with(".kpv-tmp-") {
                 continue;
             }
             let Ok(ft) = entry.file_type() else { continue; };
             if ft.is_dir() {
-                if name_str != ".keepance" {
+                if name_str != crate::identity::WORKSPACE_DATA_DIR {
                     if let Some(p) = scan_dir(&entry.path())? {
                         return Ok(Some(p));
                     }
@@ -1100,7 +1100,7 @@ mod tests {
     #[test]
     fn vmk_service_includes_id() {
         let id = "deadbeef";
-        assert_eq!(vmk_service(id), "com.keepance.vault.deadbeef");
+        assert_eq!(vmk_service(id), crate::identity::vault_keychain_service(id));
     }
 
     // ── ZeroizedVmk ───────────────────────────────────────────────────────────

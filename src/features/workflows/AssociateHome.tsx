@@ -59,6 +59,7 @@ import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode'
 import { useActiveEgressProvider } from '@/platform/hooks/useActiveEgressProvider';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import { matterLabel } from '@/platform/rag/matterResolver';
+import { SK_WORKFLOWS_FILTER, SK_WORKFLOWS_COLLAPSED } from '@/config/identity';
 
 // ── Prop interface (kept identical to original) ────────────────────────────
 
@@ -114,8 +115,8 @@ const LAW_FEATURED_ID = 'deposition-contradiction-finder';
 
 // ── localStorage persistence ───────────────────────────────────────────────
 
-const LS_FILTER_KEY = 'keepance:workflows-filter';
-const LS_COLLAPSED_KEY = 'keepance:workflows-collapsed';
+const LS_FILTER_KEY = SK_WORKFLOWS_FILTER;
+const LS_COLLAPSED_KEY = SK_WORKFLOWS_COLLAPSED;
 
 function readStoredFilter(): FilterKey {
   try {

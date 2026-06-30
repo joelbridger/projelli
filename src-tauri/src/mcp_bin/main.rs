@@ -52,7 +52,7 @@ use protocol::{
 pub const MCP_PROTOCOL_VERSION: &str = "2025-03-26";
 
 /// Server name advertised in `initialize` and the `.mcpb` manifest.
-pub const SERVER_NAME: &str = "keepance";
+pub const SERVER_NAME: &str = keepance_lib::identity::MCP_SERVER_NAME;
 
 /// Short human description shown in clients' tool pickers.
 pub const SERVER_DESCRIPTION: &str =
@@ -111,7 +111,7 @@ fn main() {
     let ctx = match ServerCtx::from_env() {
         Ok(c) => Some(c),
         Err(e) => {
-            eprintln!("keepance-mcp: {e}");
+            eprintln!("{}: {e}", keepance_lib::identity::MCP_APPROVAL_TEMP_PREFIX);
             None
         }
     };
@@ -132,7 +132,7 @@ fn main() {
         let line = match line {
             Ok(l) => l,
             Err(e) => {
-                eprintln!("keepance-mcp: stdin read error: {e}");
+                eprintln!("{}: stdin read error: {e}", keepance_lib::identity::MCP_APPROVAL_TEMP_PREFIX);
                 break;
             }
         };
@@ -171,11 +171,11 @@ fn write_response(out: &mut impl Write, resp: &JsonRpcResponse) {
     match serde_json::to_string(resp) {
         Ok(s) => {
             if let Err(e) = writeln!(out, "{s}") {
-                eprintln!("keepance-mcp: stdout write error: {e}");
+                eprintln!("{}: stdout write error: {e}", keepance_lib::identity::MCP_APPROVAL_TEMP_PREFIX);
             }
             let _ = out.flush();
         }
-        Err(e) => eprintln!("keepance-mcp: serialize error: {e}"),
+        Err(e) => eprintln!("{}: serialize error: {e}", keepance_lib::identity::MCP_APPROVAL_TEMP_PREFIX),
     }
 }
 
@@ -321,8 +321,8 @@ pub fn resolve_workspace_path(workspace: &Path, relative: &str) -> Result<PathBu
         if part.is_empty() || part == "." {
             continue;
         }
-        if !saw_path_segment && part.eq_ignore_ascii_case(".keepance") {
-            return Err("Keepance internal files are not exposed over MCP".into());
+        if !saw_path_segment && part.eq_ignore_ascii_case(keepance_lib::identity::WORKSPACE_DATA_DIR) {
+            return Err("App internal files are not exposed over MCP".into());
         }
         saw_path_segment = true;
         if part == ".." {
@@ -406,9 +406,10 @@ mod tests {
     #[test]
     fn rejects_keepance_internal_root_path() {
         let ws = std::env::temp_dir();
-        let err = resolve_workspace_path(&ws, ".keepance/mcp-session-scope.json").unwrap_err();
+        let scope_path = format!("{}/mcp-session-scope.json", keepance_lib::identity::WORKSPACE_DATA_DIR);
+        let err = resolve_workspace_path(&ws, &scope_path).unwrap_err();
         assert!(
-            err.contains("Keepance internal files are not exposed over MCP"),
+            err.contains("App internal files are not exposed over MCP"),
             "got: {err}"
         );
     }
@@ -416,9 +417,10 @@ mod tests {
     #[test]
     fn rejects_keepance_internal_root_path_with_backslashes() {
         let ws = std::env::temp_dir();
-        let err = resolve_workspace_path(&ws, ".keepance\\mcp-session-scope.json").unwrap_err();
+        let scope_path = format!("{}\\mcp-session-scope.json", keepance_lib::identity::WORKSPACE_DATA_DIR);
+        let err = resolve_workspace_path(&ws, &scope_path).unwrap_err();
         assert!(
-            err.contains("Keepance internal files are not exposed over MCP"),
+            err.contains("App internal files are not exposed over MCP"),
             "got: {err}"
         );
     }
@@ -426,9 +428,10 @@ mod tests {
     #[test]
     fn rejects_keepance_internal_root_path_after_current_dir_segment() {
         let ws = std::env::temp_dir();
-        let err = resolve_workspace_path(&ws, "./.keepance/mcp-session-scope.json").unwrap_err();
+        let scope_path = format!("./{}/mcp-session-scope.json", keepance_lib::identity::WORKSPACE_DATA_DIR);
+        let err = resolve_workspace_path(&ws, &scope_path).unwrap_err();
         assert!(
-            err.contains("Keepance internal files are not exposed over MCP"),
+            err.contains("App internal files are not exposed over MCP"),
             "got: {err}"
         );
     }
@@ -442,7 +445,7 @@ mod tests {
 
     #[test]
     fn server_name_matches_manifest() {
-        assert_eq!(SERVER_NAME, "keepance");
+        assert_eq!(SERVER_NAME, keepance_lib::identity::MCP_SERVER_NAME);
     }
 
     #[test]

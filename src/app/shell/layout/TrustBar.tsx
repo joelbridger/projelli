@@ -28,6 +28,7 @@ import {
 } from '@/ui/tooltip';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { IconButton } from '@/ui/kp';
+import { EV_OPEN_PRIVACY_CENTER } from '@/config/identity';
 
 export function TrustBar() {
   const activeMatter = useActiveMatter();
@@ -119,7 +120,7 @@ export function TrustBar() {
         variant="ghost"
         size="xs"
         title="Privacy Center"
-        onClick={() => { window.dispatchEvent(new CustomEvent('keepance:open-privacy-center')); }}
+        onClick={() => { window.dispatchEvent(new CustomEvent(EV_OPEN_PRIVACY_CENTER)); }}
         style={{ flexShrink: 0 }}
       />
 

@@ -31,6 +31,7 @@ import { useTemplatesStore, applyTemplateToMatter } from '@/platform/clientMap/t
 import { ClientQuestionsList } from '@/features/matters/ClientQuestionsList';
 import { SourcePanel } from '@/features/ask/SourcePanel';
 import type { AnswerCitation } from '@/features/ask/askHelpers';
+import { skClientMapTab } from '@/config/identity';
 
 // ── Sources column helpers ────────────────────────────────────────────────────
 // Map the Client Map's cited sources (SourceRef) onto the Ask SourcePanel's
@@ -119,7 +120,7 @@ const IS_TEST =
   typeof window !== 'undefined' && window.location.search.includes('testMode');
 
 function tabStorageKey(matterId: string): string {
-  return `keepance:clientmap-tab:${matterId}`;
+  return skClientMapTab(matterId);
 }
 
 // ── CSS tokens ────────────────────────────────────────────────────────────────

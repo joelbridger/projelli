@@ -240,7 +240,7 @@ pub fn migrate_plaintext(workspace_root: &Path) {
     // mail.db holds message ids, folder ids, relative paths, and timestamps —
     // all metadata disclosure on a stolen laptop.  Best-effort: ignore errors
     // (file may not exist, or may already be deleted).
-    let mail_db = workspace_root.join(".keepance").join("mail.db");
+    let mail_db = workspace_root.join(crate::identity::WORKSPACE_DATA_DIR).join("mail.db");
     let _ = std::fs::remove_file(&mail_db);
 }
 
@@ -428,7 +428,7 @@ mod tests {
         assert!(!dir.path().join("Mail").exists(),
             "plaintext Mail/ dir must NOT exist when apply_page_enc is used");
         // An encrypted blob exists under .keepance/mail/blobs/
-        let blob_dir = dir.path().join(".keepance/mail/blobs");
+        let blob_dir = dir.path().join(format!("{}/mail/blobs", crate::identity::WORKSPACE_DATA_DIR));
         let blobs: Vec<_> = std::fs::read_dir(&blob_dir)
             .expect("blobs dir must exist")
             .filter_map(|e| e.ok())
@@ -452,7 +452,7 @@ mod tests {
 
         // Pre-seed: write a blob and register it.
         let blob_rel = {
-            let blob_dir = dir.path().join(".keepance/mail/blobs");
+            let blob_dir = dir.path().join(format!("{}/mail/blobs", crate::identity::WORKSPACE_DATA_DIR));
             std::fs::create_dir_all(&blob_dir).unwrap();
             let enc = crate::commands::mail::crypto::encrypt_with_key(b"old body", &key).unwrap();
             std::fs::write(blob_dir.join("m2.enc"), &enc).unwrap();
@@ -601,7 +601,7 @@ mod tests {
 
         // Pre-seed two messages.
         for id in ["del1", "del2", "kept1"] {
-            let blob_dir = dir.path().join(".keepance/mail/blobs");
+            let blob_dir = dir.path().join(format!("{}/mail/blobs", crate::identity::WORKSPACE_DATA_DIR));
             std::fs::create_dir_all(&blob_dir).unwrap();
             let enc = crate::commands::mail::crypto::encrypt_with_key(b"body", &key).unwrap();
             std::fs::write(blob_dir.join(format!("{}.enc", id)), &enc).unwrap();

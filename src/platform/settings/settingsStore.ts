@@ -18,6 +18,7 @@ import {
   sanitizeTemplateModelOverrides,
 } from '@/platform/settings/templateModelOverrides';
 import { CONFIDENTIALITY_MODE_SETTING_KEY } from '@/platform/privacy/egress';
+import { SK_SETTINGS, SK_TAB_OVERFLOW } from '@/config/identity';
 
 /**
  * BUG-026: validate an imported value against its schema definition, so a
@@ -234,7 +235,7 @@ export const useSettingsStore = create<SettingsState>()(
       },
     }),
     {
-      name: 'keepance:settings',
+      name: SK_SETTINGS,
       version: SETTINGS_PERSIST_VERSION,
       migrate: (persisted) => migratePersistedSettings(persisted),
       // Only persist `values` and the migration flag.
@@ -271,7 +272,7 @@ function migrateLegacySettings(): void {
 
   // tabOverflow -- was at "keepance:tabOverflow"
   try {
-    const oldOverflow = localStorage.getItem('keepance:tabOverflow');
+    const oldOverflow = localStorage.getItem(SK_TAB_OVERFLOW);
     if (oldOverflow && (oldOverflow === 'scroll' || oldOverflow === 'wrap')) {
       if (state.values['tabOverflow'] === undefined) {
         updates['tabOverflow'] = oldOverflow;

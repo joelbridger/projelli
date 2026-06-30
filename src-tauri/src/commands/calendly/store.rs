@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use rusqlite::{Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
 
-const CALENDLY_DB_KEYCHAIN_SERVICE: &str = "keepance-calendly-enc";
+const CALENDLY_DB_KEYCHAIN_SERVICE: &str = crate::identity::CALENDLY_ENC_SERVICE;
 const CALENDLY_DB_KEYCHAIN_KEY: &str = "master-key-v1";
 const KEY_LEN: usize = 32;
 
@@ -56,7 +56,7 @@ pub struct CalendlyStore {
 
 impl CalendlyStore {
     pub fn db_path(workspace_root: &Path) -> PathBuf {
-        workspace_root.join(".keepance").join("calendly-enc.db")
+        workspace_root.join(crate::identity::WORKSPACE_DATA_DIR).join("calendly-enc.db")
     }
 
     pub fn open(workspace_root: &Path) -> Result<Self> {

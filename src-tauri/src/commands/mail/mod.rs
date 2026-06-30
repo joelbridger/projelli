@@ -20,17 +20,17 @@ use crate::commands::mail::oauth::{OAuth, TokenOutcome};
 use crate::commands::mail::provider::MailProvider;
 use crate::commands::mail::store::{EncryptedMailStore, MailListPage, MailListQuery, MailStore};
 
-const KEYCHAIN_SERVICE: &str = "keepance-mail-ms";
+const KEYCHAIN_SERVICE: &str = crate::identity::MAIL_MS_SERVICE;
 const KEYCHAIN_REFRESH_KEY: &str = "ms-refresh-token";
 /// Account id for the single Microsoft 365 account (one refresh token today).
 /// Cursors are scoped by (provider, account, folder); see `sync_folder_provider`.
 const M365_ACCOUNT: &str = "default";
 
-const IMAP_KEYCHAIN_SERVICE: &str = "keepance-mail-imap";
+const IMAP_KEYCHAIN_SERVICE: &str = crate::identity::MAIL_IMAP_SERVICE;
 const IMAP_CONFIG_KEY: &str = "config"; // JSON {account,host,port,username}
 const IMAP_PASSWORD_KEY: &str = "password";
 
-const GMAIL_KEYCHAIN_SERVICE: &str = "keepance-mail-gmail";
+const GMAIL_KEYCHAIN_SERVICE: &str = crate::identity::MAIL_GMAIL_SERVICE;
 const GMAIL_REFRESH_KEY: &str = "refresh-token";
 const GMAIL_ACCOUNT: &str = "default"; // single Gmail account today; cursors are (provider,account,folder)-scoped
 

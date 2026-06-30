@@ -13,7 +13,7 @@ use crate::commands::addepar::model::{
     AddeparConfig, AddeparEntityDto, AddeparMatterMapEntry,
 };
 
-const KEYCHAIN_SERVICE: &str = "keepance-addepar";
+const KEYCHAIN_SERVICE: &str = crate::identity::ADDEPAR_SERVICE;
 const KEYCHAIN_CONFIG_KEY: &str = "connection-v1";
 
 pub const ADDEPAR_SYNC_PROGRESS_EVENT: &str = "addepar-sync-progress";

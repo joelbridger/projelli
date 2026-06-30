@@ -8,6 +8,7 @@
  */
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { SK_PROFILE } from '@/config/identity';
 
 interface ProfileState {
   soloName: string;
@@ -32,6 +33,6 @@ export const useProfileStore = create<ProfileState>()(
       setFirmName: (firmName) => { set({ firmName }); },
       setFirmLogo: (firmLogo) => { set({ firmLogo }); },
     }),
-    { name: 'keepance:profile' },
+    { name: SK_PROFILE },
   ),
 );

@@ -12,7 +12,7 @@ use crate::commands::calendly::client::CalendlyClient;
 use crate::commands::calendly::engine;
 use crate::commands::calendly::store::CalendlyStore;
 
-const KEYCHAIN_SERVICE: &str = "keepance-calendly";
+const KEYCHAIN_SERVICE: &str = crate::identity::CALENDLY_SERVICE;
 const KEYCHAIN_TOKEN_KEY: &str = "api-token";
 const KEYCHAIN_USER_URI_KEY: &str = "user-uri";
 

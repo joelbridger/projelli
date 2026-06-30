@@ -22,8 +22,9 @@ import { Key, X, ArrowRight, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ApiKeyWizard, type WizardProvider } from './ApiKeyWizard';
 import type { KeyProvider } from '@/platform/providers/KeychainService';
+import { SK_API_KEY_CARD_DISMISSED } from '@/config/identity';
 
-const DISMISS_STORAGE_KEY = 'keepance:apiKeyCardDismissed';
+const DISMISS_STORAGE_KEY = SK_API_KEY_CARD_DISMISSED;
 
 export function hasDismissedApiKeyCard(): boolean {
   try {

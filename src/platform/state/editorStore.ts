@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { isBinaryFile, arrayBufferToDataUrl, getMimeType } from '@/platform/utils/file-utils';
+import { SK_TAB_OVERFLOW } from '@/config/identity';
 
 /**
  * BUG-046: optional "flush this tab before it closes" hook. Registered by the
@@ -234,11 +235,11 @@ export const useEditorStore = create<EditorState>()(
 
   // UX-36: persisted tab overflow preference. Default: horizontal scroll.
   tabOverflow: (typeof localStorage !== 'undefined'
-    ? (localStorage.getItem('keepance:tabOverflow') as 'scroll' | 'wrap') ?? 'scroll'
+    ? (localStorage.getItem(SK_TAB_OVERFLOW) as 'scroll' | 'wrap') ?? 'scroll'
     : 'scroll') as 'scroll' | 'wrap',
   setTabOverflow: (mode) => {
     set({ tabOverflow: mode });
-    try { localStorage.setItem('keepance:tabOverflow', mode); } catch { /* noop */ }
+    try { localStorage.setItem(SK_TAB_OVERFLOW, mode); } catch { /* noop */ }
   },
 
   openFile: (path, name, content) => {

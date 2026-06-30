@@ -11,7 +11,7 @@ use crate::commands::boxc::model::BoxMatterMapEntry;
 use crate::commands::boxc::source::ApiBoxSource;
 use crate::commands::boxc::store::BoxStore;
 
-const KEYCHAIN_SERVICE: &str = "keepance-box";
+const KEYCHAIN_SERVICE: &str = crate::identity::BOX_SERVICE;
 const KEYCHAIN_TOKEN_KEY: &str = "developer-token-v1";
 pub const BOX_SYNC_PROGRESS_EVENT: &str = "box-sync-progress";
 

@@ -93,6 +93,7 @@ import { buildOpenFilesPromptBlock, refusalKeyForReason } from '../AIChatViewer'
 import type { APIKey } from '../AIChatViewer';
 import { sendDiagnosticEvent } from '@/platform/utils/diagnostics';
 import { getEntityLabel } from '@/platform/hooks/useEntityLabel';
+import { EV_TRASH_CHANGED } from '@/config/identity';
 
 export interface UseChatSendingDeps {
   // Props forwarded from AIChatViewer.
@@ -1240,7 +1241,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
                 // Refresh an already-open Trash panel so it shows the just-trashed
                 // file immediately (BUG-063 follow-up), matching the message below.
                 if (typeof window !== 'undefined') {
-                  window.dispatchEvent(new CustomEvent('keepance:trash-changed'));
+                  window.dispatchEvent(new CustomEvent(EV_TRASH_CHANGED));
                 }
                 onAuditLog?.({ action: 'file_delete', description: `AI deleted file: ${relativePath}`, model: chatModel ?? chatProvider, inputs: { path: relativePath }, outputs: { success: true, movedToTrash: true, trashPath: trashItem.trashPath }, userDecision: deleteGate.userDecision, metadata: { tool: 'delete_file' } });
                 return { path: relativePath, message: 'File moved to Trash (recoverable from the Trash panel)' };

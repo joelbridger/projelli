@@ -18,8 +18,9 @@
  */
 
 import { useState } from 'react';
+import { SK_ONBOARDING_V2 } from '@/config/identity';
 
-const STORAGE_KEY = 'keepance:onboardingV2';
+const STORAGE_KEY = SK_ONBOARDING_V2;
 const URL_PARAM = 'onboardingV2';
 
 /** Read the flag once (non-reactive). Safe to call anywhere, never throws. */

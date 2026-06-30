@@ -906,18 +906,18 @@ use std::io::Write;
 // ---------------------------------------------------------------------------
 
 pub async fn get_memory_facts(ctx: &ServerCtx, _args: Value) -> Result<Vec<Value>, JsonRpcError> {
-    let state = load_access_state(ctx, "mcp_read", Some(".keepance/memory.json"))?;
+    let state = load_access_state(ctx, "mcp_read", Some(keepance_lib::identity::MCP_MEMORY_PATH))?;
     deny_if_lockdown(
         ctx,
         &state,
         "mcp_read",
-        Some(".keepance/memory.json"),
+        Some(keepance_lib::identity::MCP_MEMORY_PATH),
         UNASSIGNED_MATTER_ID,
     )?;
     deny_with_audit(
         ctx,
         "mcp_read",
-        Some(".keepance/memory.json"),
+        Some(keepance_lib::identity::MCP_MEMORY_PATH),
         UNASSIGNED_MATTER_ID,
         "denied",
         "MCP access denied: durable memory is not matter-scoped yet.",
@@ -1243,7 +1243,7 @@ mod tests {
     #[test]
     fn search_hit_under_keepance_internal_dir_is_dropped_even_when_root_matter_is_granted() {
         let tmp = tempfile::tempdir().expect("tmpdir");
-        let keepance_dir = tmp.path().join(".keepance");
+        let keepance_dir = tmp.path().join(keepance_lib::identity::WORKSPACE_DATA_DIR);
         std::fs::create_dir_all(&keepance_dir).unwrap();
         let scope_path = keepance_dir.join("mcp-session-scope.json");
         std::fs::write(&scope_path, r#"{"client":"Other Client"}"#).unwrap();

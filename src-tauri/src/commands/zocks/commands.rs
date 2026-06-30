@@ -13,7 +13,7 @@ use crate::commands::zocks::engine;
 use crate::commands::zocks::model::{ZocksMatterMapEntry, ZocksSession};
 use crate::commands::zocks::store::{ZocksStore, ZocksUnassignedRow};
 
-const KEYCHAIN_SERVICE: &str = "keepance-zocks";
+const KEYCHAIN_SERVICE: &str = crate::identity::ZOCKS_SERVICE;
 const KEYCHAIN_API_KEY: &str = "api-key";
 
 pub const ZOCKS_SYNC_PROGRESS_EVENT: &str = "zocks-sync-progress";
