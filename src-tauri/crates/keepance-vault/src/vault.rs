@@ -91,18 +91,18 @@ fn should_skip_filename(name: &str) -> bool {
 
 /// Returns true if a DIRECTORY (by name) must NOT be walked into.
 ///
-/// `.keepance/` holds Keepance-internal stores that are read DIRECTLY off disk by
+/// `.lantern/` holds app-internal stores that are read DIRECTLY off disk by
 /// other subsystems — never through `WorkspaceService`/the vault layer:
-///   - `.keepance/vectors/`   the LanceDB search index (opened via `lancedb::connect`)
-///   - `.keepance/audit-enc.db`, `mail-enc.db`, `mail.db`  (opened via `rusqlite`)
-///   - `.keepance/mail/blobs/*.enc`  (already-encrypted mail blobs, read via `std::fs`)
+///   - `.lantern/vectors/`   the LanceDB search index (opened via `lancedb::connect`)
+///   - `.lantern/audit-enc.db`, `mail-enc.db`, `mail.db`  (opened via `rusqlite`)
+///   - `.lantern/mail/blobs/*.enc`  (already-encrypted mail blobs, read via `std::fs`)
 /// KPV1-wrapping any of these would corrupt those stores irrecoverably (SQLite/Lance
 /// would read the magic header as their own format). So we never descend into it.
 ///
 /// Other dot-dirs (`.versions/`, `.trash/`, `AI Chats/`) ARE walked: they are accessed
 /// only through `WorkspaceService`, so encrypting them is correct and transparent.
 fn should_skip_dirname(name: &str) -> bool {
-    name == ".keepance"
+    name == ".lantern"
 }
 
 /// Recursively encrypt every eligible file under `root` using `vmk`.

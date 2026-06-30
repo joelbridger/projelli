@@ -221,16 +221,16 @@ jobs:
             # the cargo build uses the same target.
             TARGET="${MATRIX_ARGS##*--target }"
             rustup target add "$TARGET"
-            cargo build --release --bin keepance-mcp --target "$TARGET"
-            SRC="target/$TARGET/release/keepance-mcp"
+            cargo build --release --bin lantern-mcp --target "$TARGET"
+            SRC="target/$TARGET/release/lantern-mcp"
           else
             # Linux: host triple, no cross compile.
             TARGET="$(rustc -vV | sed -n 's|host: ||p')"
-            cargo build --release --bin keepance-mcp
-            SRC="target/release/keepance-mcp"
+            cargo build --release --bin lantern-mcp
+            SRC="target/release/lantern-mcp"
           fi
           mkdir -p binaries
-          cp "$SRC" "binaries/keepance-mcp-"
+          cp "$SRC" "binaries/lantern-mcp-"
           echo "MCP_TARGET=$TARGET" >> "$GITHUB_ENV"
           ls -la binaries/
 
@@ -252,12 +252,12 @@ jobs:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         run: |
           set -euo pipefail
-          KEYCHAIN_PATH="$RUNNER_TEMP/keepance-mcp-sign.keychain-db"
+          KEYCHAIN_PATH="$RUNNER_TEMP/lantern-mcp-sign.keychain-db"
           KEYCHAIN_PASSWORD=$(openssl rand -base64 24)
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          CERT_PATH="$RUNNER_TEMP/keepance-mcp-cert.p12"
+          CERT_PATH="$RUNNER_TEMP/lantern-mcp-cert.p12"
           echo "$APPLE_CERTIFICATE" | base64 --decode > "$CERT_PATH"
           security import "$CERT_PATH" -k "$KEYCHAIN_PATH" \
             -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
@@ -322,9 +322,9 @@ jobs:
           VERSION="$(node -p "require('./package.json').version")"
           mkdir -p mcpb-dist
           node scripts/build-mcpb.mjs \
-            --binary "src-tauri/binaries/keepance-mcp-" \
+            --binary "src-tauri/binaries/lantern-mcp-" \
             --target "$TARGET" \
-            --output "mcpb-dist/keepance-.mcpb" \
+            --output "mcpb-dist/lantern-.mcpb" \
             --version "$VERSION"
           ls -la mcpb-dist/
 
@@ -456,9 +456,9 @@ jobs:
         working-directory: src-tauri
         run: |
           $host_triple = (& rustc -vV | Select-String '^host: ').ToString().Replace('host: ','').Trim()
-          cargo build --release --bin keepance-mcp
+          cargo build --release --bin lantern-mcp
           New-Item -ItemType Directory -Force -Path binaries | Out-Null
-          Copy-Item "target/release/keepance-mcp.exe" "binaries/keepance-mcp-$host_triple.exe"
+          Copy-Item "target/release/lantern-mcp.exe" "binaries/lantern-mcp-$host_triple.exe"
           "MCP_TARGET=$host_triple" | Out-File -FilePath $env:GITHUB_ENV -Append
           Get-ChildItem binaries
 
@@ -491,9 +491,9 @@ jobs:
           $version = (node -p "require('./package.json').version")
           New-Item -ItemType Directory -Force -Path mcpb-dist | Out-Null
           node scripts/build-mcpb.mjs `
-            --binary "src-tauri/binaries/keepance-mcp-${target}.exe" `
+            --binary "src-tauri/binaries/lantern-mcp-${target}.exe" `
             --target $target `
-            --output "mcpb-dist/keepance-.mcpb" `
+            --output "mcpb-dist/lantern-.mcpb" `
             --version $version
           Get-ChildItem mcpb-dist
 

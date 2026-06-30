@@ -75,18 +75,18 @@ fn unwrap_vmk_from_test_admin_escrow(
     vmk
 }
 
-/// DATA-LOSS GUARD: encrypt_all/decrypt_all must NEVER touch the `.keepance/` internal
+/// DATA-LOSS GUARD: encrypt_all/decrypt_all must NEVER touch the `.lantern/` internal
 /// store dir (LanceDB index, SQLCipher mail/audit DBs, encrypted mail blobs) — those are
 /// read raw by other subsystems and KPV1-wrapping them would corrupt them irrecoverably.
 #[test]
 fn walk_never_touches_keepance_internal_dir() {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path();
-    fs::create_dir_all(root.join(".keepance/vectors")).unwrap();
-    fs::create_dir_all(root.join(".keepance/mail/blobs")).unwrap();
-    fs::write(root.join(".keepance/vectors/data.lance"), b"LANCE-RAW-BYTES").unwrap();
-    fs::write(root.join(".keepance/mail-enc.db"), b"SQLCIPHER-RAW").unwrap();
-    fs::write(root.join(".keepance/mail/blobs/m1.enc"), b"AES-GCM-BLOB").unwrap();
+    fs::create_dir_all(root.join(".lantern/vectors")).unwrap();
+    fs::create_dir_all(root.join(".lantern/mail/blobs")).unwrap();
+    fs::write(root.join(".lantern/vectors/data.lance"), b"LANCE-RAW-BYTES").unwrap();
+    fs::write(root.join(".lantern/mail-enc.db"), b"SQLCIPHER-RAW").unwrap();
+    fs::write(root.join(".lantern/mail/blobs/m1.enc"), b"AES-GCM-BLOB").unwrap();
     fs::write(root.join("doc.txt"), b"user doc").unwrap();
 
     let vmk = [5u8; 32];
@@ -94,15 +94,15 @@ fn walk_never_touches_keepance_internal_dir() {
 
     // The user's document IS encrypted...
     assert_eq!(&fs::read(root.join("doc.txt")).unwrap()[..4], b"KPV1");
-    // ...but every .keepance internal file is byte-for-byte untouched (no KPV1 magic).
-    assert_eq!(fs::read(root.join(".keepance/vectors/data.lance")).unwrap(), b"LANCE-RAW-BYTES");
-    assert_eq!(fs::read(root.join(".keepance/mail-enc.db")).unwrap(), b"SQLCIPHER-RAW");
-    assert_eq!(fs::read(root.join(".keepance/mail/blobs/m1.enc")).unwrap(), b"AES-GCM-BLOB");
+    // ...but every .lantern internal file is byte-for-byte untouched (no KPV1 magic).
+    assert_eq!(fs::read(root.join(".lantern/vectors/data.lance")).unwrap(), b"LANCE-RAW-BYTES");
+    assert_eq!(fs::read(root.join(".lantern/mail-enc.db")).unwrap(), b"SQLCIPHER-RAW");
+    assert_eq!(fs::read(root.join(".lantern/mail/blobs/m1.enc")).unwrap(), b"AES-GCM-BLOB");
 
     // decrypt_all (escape hatch) also leaves them alone.
     decrypt_all(root, &vmk).unwrap();
-    assert_eq!(fs::read(root.join(".keepance/mail-enc.db")).unwrap(), b"SQLCIPHER-RAW");
-    assert_eq!(fs::read(root.join(".keepance/vectors/data.lance")).unwrap(), b"LANCE-RAW-BYTES");
+    assert_eq!(fs::read(root.join(".lantern/mail-enc.db")).unwrap(), b"SQLCIPHER-RAW");
+    assert_eq!(fs::read(root.join(".lantern/vectors/data.lance")).unwrap(), b"LANCE-RAW-BYTES");
 }
 
 /// Item 8: encrypt_all then decrypt_all yields byte-identical files; zero KPV1 magic remains.

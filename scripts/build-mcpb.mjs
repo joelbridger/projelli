@@ -109,7 +109,7 @@ function parseArgs() {
  *                    they can pick their workspace folder
  */
 function buildManifest({ target, version }) {
-  const binaryName = target.includes('windows') ? 'keepance-mcp.exe' : 'keepance-mcp';
+  const binaryName = target.includes('windows') ? 'lantern-mcp.exe' : 'lantern-mcp';
   return {
     dxt_version: '0.1',
     name: 'keepance',
@@ -268,7 +268,7 @@ function main() {
   }
   const binBytes = readFileSync(binary);
   const manifest = buildManifest({ target, version });
-  const binaryName = target.includes('windows') ? 'keepance-mcp.exe' : 'keepance-mcp';
+  const binaryName = target.includes('windows') ? 'lantern-mcp.exe' : 'lantern-mcp';
   const zip = buildZip([
     {
       path: 'manifest.json',
