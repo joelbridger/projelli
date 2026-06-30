@@ -21,7 +21,7 @@ import { useWorkflowRunner } from '@/app/workflow/useWorkflowRunner';
 import { useAudioRecording } from '@/app/lifecycle/useAudioRecording';
 import { useAIRulesFile } from '@/app/lifecycle/useAIRulesFile';
 import { useFileImport } from '@/app/fileOps/useFileImport';
-import { useSettingsActions } from '@/app/hooks/useSettingsActions';
+import { getSettingsActions } from '@/app/hooks/getSettingsActions';
 import { useTabOpening } from '@/app/lifecycle/useTabOpening';
 import { WorkspaceSelector } from '@/features/documents/workspace/WorkspaceSelector';
 
@@ -1048,8 +1048,9 @@ function App() {
     );
   }
 
-  // Shared Settings action handlers (extracted to useSettingsActions)
-  const { handleSettingsAction, handleSettingsRestartOnboarding } = useSettingsActions({
+  // Shared Settings action handlers (extracted to getSettingsActions — plain
+  // factory, no hooks, safe after the WorkspaceSelector early return)
+  const { handleSettingsAction, handleSettingsRestartOnboarding } = getSettingsActions({
     setApiKeyManagerOpen,
     setApiKeyWizardOpen,
     handleOpenAIRules,

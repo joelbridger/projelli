@@ -1,18 +1,18 @@
 /**
- * useSettingsActions — owns handleSettingsAction and handleSettingsRestartOnboarding.
+ * getSettingsActions — owns handleSettingsAction and handleSettingsRestartOnboarding.
  *
  * Extracted from App.tsx (Wave 5b decomposition). The function bodies are
  * copied VERBATIM from App.tsx; only the source of referenced values changed
  * (they now come from the options object instead of App's local scope).
- * Both functions are intentionally NOT memoized (matching App.tsx's original
- * plain-function declaration).
+ * Named `get*` (not `use*`) because it contains NO React hooks — plain
+ * factory function, safe to call after an early return.
  */
 import { manualUpdateCheck } from '@/platform/updater/UpdateManager';
 import { openExternal } from '@/platform/utils/openExternal';
 import { BRAND } from '@/config/brand';
 import type { useFeatureTour } from '@/platform/hooks/useFeatureTour';
 
-export interface UseSettingsActionsOptions {
+export interface GetSettingsActionsOptions {
   setApiKeyManagerOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setApiKeyWizardOpen: React.Dispatch<React.SetStateAction<boolean>>;
   handleOpenAIRules: () => Promise<void>;
@@ -22,7 +22,7 @@ export interface UseSettingsActionsOptions {
   setShowFirstRun: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-export function useSettingsActions({
+export function getSettingsActions({
   setApiKeyManagerOpen,
   setApiKeyWizardOpen,
   handleOpenAIRules,
@@ -30,7 +30,7 @@ export function useSettingsActions({
   setShowWhatsNewModalDirect,
   setTourOpen,
   setShowFirstRun,
-}: UseSettingsActionsOptions) {
+}: GetSettingsActionsOptions) {
   // Shared Settings action handler — used by BOTH the quick Settings modal and
   // the full-page Settings nav tab so every action link (Manage AI keys, Check
   // for updates, Open website, …) behaves identically in either surface.
