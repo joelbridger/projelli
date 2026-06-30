@@ -17,7 +17,7 @@
 import type { CSSProperties } from 'react';
 import { ShieldCheck, Info, PencilLine, Search } from 'lucide-react';
 import type { AnswerBlock, AnswerBlockKind } from './askHelpers';
-import { tallyBlocks } from './answerBlocks';
+import { tallyBlocks } from './answerBlockHelpers';
 import { CitationText } from './CitationText';
 
 /* eslint-disable lantern-i18n/no-hardcoded-string -- design copy matching the approved mockups; localized later with the rest of the surface */

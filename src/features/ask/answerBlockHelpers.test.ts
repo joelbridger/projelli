@@ -6,7 +6,7 @@ import {
   splitRawBlocks,
   stripBlockMarkers,
   tallyBlocks,
-} from './answerBlocks';
+} from './answerBlockHelpers';
 
 function hit(overrides: Partial<RagHit> = {}): RagHit {
   return {

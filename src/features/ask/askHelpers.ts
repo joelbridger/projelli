@@ -942,7 +942,7 @@ export async function resolveEmailCitationLabels(
 /**
  * Mutable accumulator threaded through one or more {@link bindCitationsCore}
  * calls so citation NUMBERING and DEDUP are global across spans. The Ask-smart
- * block binder ({@link bindAnswerBlocks} in answerBlocks.ts) calls the core once
+ * block binder ({@link bindAnswerBlocks} in answerBlockHelpers.ts) calls the core once
  * per FILES block sharing a single accumulator, so a source reused across blocks
  * keeps one chip number and the Sources panel stays 1..N for the whole answer.
  */

@@ -1,5 +1,5 @@
 /**
- * answerBlocks — the provenance layer for the Ask-smart "source-aware advisor
+ * answerBlockHelpers — the provenance layer for the Ask-smart "source-aware advisor
  * agent". Ask is no longer files-only; it can also answer from general
  * knowledge and write drafts. To keep the cited-trust moat intact, every answer
  * is broken into PROVENANCE-LABELLED blocks (see {@link AnswerBlock}), and the
@@ -35,8 +35,8 @@ import {
 import type { WorkspaceSource } from '@/platform/types/ai';
 import type { RagHit } from '@/platform/utils/tauri-commands';
 
-// Re-export the marker vocabulary so existing importers of `answerBlocks` keep
-// working; the literals themselves live in the dependency-free markers module.
+// Re-export the marker vocabulary so existing importers of `answerBlockHelpers`
+// keep working; the literals themselves live in the dependency-free markers module.
 export { BLOCK_MARKERS, stripBlockMarkers };
 
 /* -------------------------------------------------------------------------- */
