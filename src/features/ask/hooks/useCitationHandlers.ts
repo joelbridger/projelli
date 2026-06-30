@@ -60,14 +60,18 @@ export function useCitationHandlers({
         void onOpenFileAtPath(path, paragraphIndex, snippet);
       }
     },
-    [onOpenFileAtPath],
+    // setMissingSourceWarning is a stable useState setter, so listing it does
+    // not change the callback's identity — but as a hook argument the linter
+    // can no longer prove that, so we include it to keep the inferred deps
+    // matching (behaviour identical to the in-component [onOpenFileAtPath]).
+    [onOpenFileAtPath, setMissingSourceWarning],
   );
 
   const handleMissingSource = useCallback((basename: string) => {
     setMissingSourceWarning(
       `Source file not found: ${basename}. Retrieval may be stale. Re-indexing...`,
     );
-  }, []);
+  }, [setMissingSourceWarning]);
 
   return { handleCitationClick, handleMissingSource };
 }

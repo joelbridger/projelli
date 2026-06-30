@@ -6,16 +6,17 @@ import { useVoiceRecording } from './hooks/useVoiceRecording';
 import { useChatSending } from './hooks/useChatSending';
 import { useAIRules } from './hooks/useAIRules';
 import { useCitationHandlers } from './hooks/useCitationHandlers';
+import { ChatHeader } from './chat/ChatHeader';
+import { MessageBubble } from './chat/MessageBubble';
+import { ChatInputBanners } from './chat/ChatInputBanners';
 import { useTranslation } from 'react-i18next';
-import { Send, Square, Download, Mic, MicOff, GripVertical, Sparkles, AlertTriangle, Briefcase, Globe, ShieldAlert } from 'lucide-react';
+import { Send, Square, Mic, MicOff } from 'lucide-react';
 import { ChatInputToolbar } from '@/features/ask/chat/ChatInputToolbar';
 import { AttachmentService } from '@/features/ask/attachments/AttachmentService';
 import { sanitizeForPrompt } from '@/platform/utils/prompt-security';
 import { SUPPORTED_IMAGE_MIMES, MAX_ATTACHMENT_BYTES, isVisionModel } from '@/platform/providers/vision-capability';
 import { SUPPORTED_PDF_MIME, getPdfMode } from '@/platform/providers/pdf-capability';
 import { extractPdfText, type PdfExtractionResult } from '@/lib/pdf-extract';
-import { PdfModeChip } from '@/features/ask/chat/PdfModeChip';
-import { PdfPreviewBeforeSend } from '@/features/ask/chat/PdfPreviewBeforeSend';
 import type { ChatAttachment } from '@/platform/types/ai';
 import { Button } from '@/ui/button';
 import { Textarea } from '@/ui/textarea';
@@ -36,9 +37,7 @@ import { useAIChatStore, getDraftInput, useAskWorkspaceMode, useScopedFolder } f
 import { useActiveMatter, useActiveMatters } from '@/platform/matter/matterStore';
 import { pathInMatterScope } from '@/platform/matter/matterScopeGuard';
 import { useIncludePrivileged, usePrivilegeStore } from '@/platform/firm/privilegeStore';
-import { MatterScopeSelector } from '@/features/matters/MatterScopeSelector';
 import { MatterManagerDialog } from '@/features/matters/MatterManagerDialog';
-import { ChatModelPicker } from '@/features/ask/chat/ChatModelPicker';
 import {
   resolveNewChatDefault,
   resolveSettingsDefaults,
@@ -53,27 +52,15 @@ import {
   PROFESSION_PROVIDER_STORAGE_KEY,
   PROFESSION_MODEL_STORAGE_KEY,
 } from '@/platform/profile/professionModel';
-// F-121 (VG-5b) — explains privilege exclusion next to its toggle, with a
-// "see it work" check that runs the user's own question against their index.
-import { PrivilegeExclusionExplainer } from '@/features/ask/PrivilegeExclusionExplainer';
 import { MODEL_NOT_READY, type RetrievalScope } from '@/platform/utils/tauri-commands';
 import { useFileContextStore } from '@/platform/state/fileContextStore';
 import type { ExtractedContext } from '@/platform/utils/ai-file-context';
 import { filterByScope } from '@/platform/utils/client-boundary';
-import { ChatCostChip } from '@/features/ask/ChatCostChip';
-import { AIContextIndicator } from '@/features/ask/AIContextIndicator';
-import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
-import { ContextMeterBar } from '@/features/ask/chat/ContextMeterBar';
 import { CompressedSegmentMarker } from '@/features/ask/chat/CompressedSegmentMarker';
 import { CompressionConfirmModal } from '@/features/ask/chat/CompressionConfirmModal';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { useTrialGate } from '@/platform/hooks/useTrial';
-import {
-  renderMessageWithWorkspaceChip,
-  renderMessageWithCitations,
-  chatToMarkdown,
-} from './renderingHelpers';
-import { hasUnverifiedCitations } from '@/platform/rag/workspaceCommand';
+import { chatToMarkdown } from './renderingHelpers';
 import {
   getFactsService,
   isFactsAutoAcceptEnabled,
@@ -180,7 +167,6 @@ export function buildOpenFilesPromptBlock(openFiles: ExtractedContext[]): string
 }
 
 
-import { ChatSourcesAccordion } from './ChatSourcesAccordion';
 import { ProposedFactsPanel } from './ProposedFactsPanel';
 
 
@@ -905,108 +891,20 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   return (
     <div data-testid="ai-chat-viewer" className={cn('flex flex-col h-full', className)}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b">
-        <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <h2 data-testid="chat-title" className="text-lg font-semibold">{chatData.title}</h2>
-            {/* Provider/model picker — replaces the old display-only chip. Lets
-                the user choose which provider + model the next message uses,
-                limited to providers they hold a valid key for (and to local
-                providers when the matter is "On this computer only"). */}
-            <ChatModelPicker
-              provider={chatData.provider}
-              model={chatData.model}
-              apiKeys={apiKeys}
-              onSelect={handleSwitchProviderModel}
-            />
-          </div>
-          <p data-testid="chat-created-date" className="text-xs text-muted-foreground">
-            Created {new Date(chatData.created).toLocaleDateString()}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* WS-B/C — active-matter scope. Always visible so the user knows
-              which matter the next question is confined to. Switching it
-              changes retrieval scope; "All matters" is the explicit
-              cross-matter capability. */}
-          <MatterScopeSelector
-            onManageMatters={() => {
-              setMatterManagerOpen(true);
-            }}
-          />
-          {/* M2 — Ask my workspace toggle. When ON, every message in
-              this chat retrieves workspace context before calling the
-              model. Persisted per-chat in aiChatStore so flipping it
-              once sticks across navigation. */}
-          <Button
-            data-testid="ask-workspace-toggle"
-            data-enabled={askWorkspaceMode ? 'true' : 'false'}
-            variant={askWorkspaceMode ? 'default' : 'outline'}
-            size="sm"
-            onClick={handleToggleAskWorkspace}
-            className={cn(
-              'gap-2',
-              askWorkspaceMode && 'bg-primary text-primary-foreground',
-            )}
-            aria-pressed={askWorkspaceMode}
-            title={
-              askWorkspaceMode
-                ? t('ai.chat.ask-workspace-on-title')
-                : t('ai.chat.ask-workspace-off-title')
-            }
-          >
-            <Sparkles className="h-4 w-4" />
-            {t('ai.chat.ask-workspace')}
-          </Button>
-          {/* WS-PRIV — explicit, visible "Include privileged sources" toggle.
-              OFF by default (privileged content excluded from retrieval). Only
-              shown when retrieval is active, so the deliberate opt-in sits right
-              next to the workspace-aware control. Amber/rose accent so turning it
-              on never reads as the normal, safe state. */}
-          {askWorkspaceMode && (
-            <>
-              <Button
-                data-testid="include-privileged-toggle"
-                data-enabled={includePrivileged ? 'true' : 'false'}
-                variant="outline"
-                size="sm"
-                onClick={() => setIncludePrivileged(!includePrivileged)}
-                className={cn(
-                  'gap-2',
-                  includePrivileged
-                    ? 'border-rose-400 bg-rose-50 text-rose-700 hover:bg-rose-100'
-                    : 'text-muted-foreground',
-                )}
-                aria-pressed={includePrivileged}
-                title={
-                  includePrivileged
-                    ? 'Privileged sources ARE included in retrieval for this chat. Click to exclude them again.'
-                    : 'Privileged sources are excluded from retrieval (default). Click to include them deliberately.'
-                }
-              >
-                <ShieldAlert className="h-4 w-4" />
-                {includePrivileged ? 'Privileged: included' : 'Include privileged'}
-              </Button>
-              {/* F-121 — what the exclusion does, enforced where, and a live
-                  check the user can run against their own files. */}
-              <PrivilegeExclusionExplainer
-                query={explainerQuery}
-                scope={explainerScope}
-              />
-            </>
-          )}
-          <Button
-            data-testid="chat-export-button"
-            variant="outline"
-            size="sm"
-            onClick={handleExport}
-            className="gap-2"
-          >
-            <Download className="h-4 w-4" />
-            Export
-          </Button>
-        </div>
-      </div>
+      <ChatHeader
+        chatData={chatData}
+        apiKeys={apiKeys}
+        handleSwitchProviderModel={handleSwitchProviderModel}
+        setMatterManagerOpen={setMatterManagerOpen}
+        askWorkspaceMode={askWorkspaceMode}
+        handleToggleAskWorkspace={handleToggleAskWorkspace}
+        t={t}
+        includePrivileged={includePrivileged}
+        setIncludePrivileged={setIncludePrivileged}
+        explainerQuery={explainerQuery}
+        explainerScope={explainerScope}
+        handleExport={handleExport}
+      />
 
       {/* Messages */}
       <div data-testid="chat-messages" className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -1025,182 +923,18 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             );
           }
           return (
-          <div
-            key={idx}
-            data-testid={`chat-message-${idx}`}
-            data-role={msg.role}
-            className={cn(
-              'flex flex-col gap-1',
-              msg.role === 'user' ? 'items-end' : 'items-start'
-            )}
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-muted-foreground">
-                {msg.role === 'user' ? 'You' : 'Assistant'}
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {new Date(msg.timestamp).toLocaleTimeString()}
-              </span>
-            </div>
-            <div className="flex items-start gap-1 max-w-[85%] min-w-0">
-              {/* UX-28: assistant messages carry a drag handle so the content can
-                  be dropped onto the file tree to create a new file. The
-                  handle, not the whole bubble, is draggable so text selection
-                  inside the bubble keeps working. Errored assistant messages
-                  skip the handle to avoid offering a non-useful drag source. */}
-              {msg.role === 'assistant' && !msg.isError && msg.content.trim().length > 0 && (
-                <button
-                  type="button"
-                  data-testid={`ai-message-drag-handle-${idx}`}
-                  draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.effectAllowed = 'copy';
-                    e.dataTransfer.setData('application/x-keepance-chat-message', msg.content);
-                    e.dataTransfer.setData('text/plain', msg.content);
-                  }}
-                  title="Drag to file tree to save as a file"
-                  aria-label="Drag to file tree to save as a file"
-                  className="mt-2 shrink-0 cursor-grab active:cursor-grabbing p-1 rounded hover:bg-muted/60 text-muted-foreground/50 hover:text-muted-foreground"
-                >
-                  <GripVertical className="h-3.5 w-3.5" />
-                </button>
-              )}
-              <div
-                className={cn(
-                  'min-w-0 rounded-lg px-4 py-2 break-words overflow-wrap-anywhere',
-                  msg.role === 'user'
-                    ? 'bg-primary text-primary-foreground'
-                    : msg.isError
-                      ? 'bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-900 dark:text-red-200'
-                      : 'bg-muted'
-                )}
-              >
-                {msg.role === 'user'
-                  ? renderMessageWithWorkspaceChip(msg.content)
-                  : renderMessageWithCitations(
-                      msg.content,
-                      msg.sources,
-                      handleCitationClick,
-                      handleMissingSource,
-                    )}
-              </div>
-            </div>
-            {/* Stream A2 — PDF mode chips, shown below user messages that
-                carried one or more PDF attachments. */}
-            {msg.role === 'user' &&
-              msg.attachments &&
-              msg.attachments
-                .filter((a) => a.type === 'pdf')
-                .map((a) => (
-                  <PdfModeChip
-                    key={a.id}
-                    mode={a.metadata.extractionMode ?? 'text-extract'}
-                    className="mt-1"
-                  />
-                ))}
-            {/* M2 — grey hint below the bubble when retrieval couldn't
-                run (memory off, retrieval failed, etc.). */}
-            {msg.workspaceHint && (
-              <p
-                data-testid={`chat-message-${idx}-hint`}
-                className="text-xs text-muted-foreground italic mt-1"
-              >
-                {msg.workspaceHint}
-              </p>
-            )}
-            {/* WS-B/C — scope indicator: shows which matter the answer was
-                confined to (or the explicit cross-matter mode). Rendered on
-                assistant messages whose turn was workspace-aware. */}
-            {msg.role === 'assistant' && msg.scope && (
-              <div
-                data-testid={`chat-message-${String(idx)}-scope`}
-                data-scope-kind={msg.scope.kind}
-                className={cn(
-                  'mt-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium',
-                  msg.scope.kind === 'allMatters'
-                    ? 'bg-amber-50 text-amber-800'
-                    : 'bg-primary/10 text-primary',
-                )}
-                title={
-                  msg.scope.kind === 'allMatters'
-                    ? `This answer searched across every ${entityLabel.one}.`
-                    : `This answer was confined to the active ${entityLabel.one}. Other clients' data was not searched.`
-                }
-              >
-                {msg.scope.kind === 'allMatters' ? (
-                  <Globe className="h-3 w-3" />
-                ) : (
-                  <Briefcase className="h-3 w-3" />
-                )}
-                {msg.scope.kind === 'allMatters'
-                  ? `All ${entityLabel.other}`
-                  : (msg.scope.matterName ?? `this ${entityLabel.one}`)}
-              </div>
-            )}
-            {/* WS-B/C + BUG-065 — flag when ANY citation in this answer isn't
-                proven: a source that failed verification OR a fabricated citation
-                that resolves to no retrieved source. Only proven citations are
-                safe to present. */}
-            {msg.role === 'assistant' &&
-              msg.sources &&
-              hasUnverifiedCitations(msg.content, msg.sources) && (
-                <div
-                  data-testid={`chat-message-${String(idx)}-unverified-warning`}
-                  className="mt-1 flex items-start gap-1.5 rounded border border-red-300 bg-red-50 px-2 py-1.5 text-[11px] text-red-700 max-w-[85%]"
-                >
-                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  <span>{t('matter.citation.unverified-warning')}</span>
-                </div>
-              )}
-            {/* M2 — Sources accordion, only on assistant messages that
-                had workspace retrieval. */}
-            {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (
-              <ChatSourcesAccordion
-                sources={msg.sources}
-                onOpen={handleCitationClick}
-                onMissing={handleMissingSource}
-              />
-            )}
-            {msg.isError && idx === messages.length - 1 && (
-              <div className="mt-2 flex flex-wrap items-center gap-3">
-                <button
-                  className="text-xs text-muted-foreground hover:text-foreground underline"
-                  onClick={() => {
-                    const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
-                    if (lastUserMsg) {
-                      setInputValue(lastUserMsg.content);
-                      // Trigger send on the next tick so state is committed first
-                      setTimeout(() => handleSendMessage(), 0);
-                    }
-                  }}
-                >
-                  {t('ai.chat.retry-last-message')}
-                </button>
-                {msg.errorDiagnostic && (
-                  <button
-                    className="text-xs text-muted-foreground hover:text-foreground underline"
-                    onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(msg.errorDiagnostic ?? '');
-                        // Brief visual feedback by changing the button text
-                        const target = document.activeElement as HTMLButtonElement | null;
-                        if (target) {
-                          const original = target.textContent;
-                          target.textContent = '✓ Copied to clipboard';
-                          setTimeout(() => { target.textContent = original; }, 2000);
-                        }
-                      } catch (err) {
-                        console.error('Clipboard copy failed:', err);
-                        alert('Could not copy. The diagnostic was logged to the developer console (Ctrl+Shift+I).');
-                      }
-                    }}
-                  >
-                    {t('ai.chat.copy-diagnostic')}
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
+            <MessageBubble
+              key={idx}
+              msg={msg}
+              idx={idx}
+              messages={messages}
+              t={t}
+              entityLabel={entityLabel}
+              handleCitationClick={handleCitationClick}
+              handleMissingSource={handleMissingSource}
+              setInputValue={setInputValue}
+              handleSendMessage={handleSendMessage}
+            />
           );
         })}
         {isLoading && (
@@ -1263,142 +997,28 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
 
       {/* Input */}
       <div data-testid="chat-input-area" className="border-t p-4">
-        {/* Trial-expired banner. Sits above the input so the user knows
-             *why* the send button is disabled. */}
-        {trialGate.isLocked && (
-          <div
-            data-testid="chat-trial-expired-banner"
-            className="mb-3 px-3 py-2 rounded border border-amber-400/50 bg-amber-50 dark:bg-amber-900/20 text-amber-900 dark:text-amber-200 text-xs"
-          >
-            <strong>{t('ai.chat.trial-ended', { days: trialGate.trialDays })}</strong>{' '}
-            {t('ai.chat.trial-ended-help')}
-          </div>
-        )}
-        {/* M2 — inline toast for missing source files. Rendered as a
-             dismissable strip above the input so the user can keep
-             typing while the warning is visible. */}
-        {missingSourceWarning && (
-          <div
-            data-testid="chat-missing-source-warning"
-            className="mb-2 px-3 py-2 rounded border border-amber-400/50 bg-amber-50 dark:bg-amber-900/20 text-amber-900 dark:text-amber-200 text-xs"
-          >
-            {missingSourceWarning}
-            <button
-              type="button"
-              className="ml-2 underline hover:no-underline"
-              onClick={() => setMissingSourceWarning(null)}
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
-        {/* Q3 — real-time cost chip, anchored bottom-right of the chat pane
-             just above the input. Hover reveals today's provider breakdown.
-             Hidden unless the user opts into developer cost meters. */}
-        {showAiCostMeters && (
-          <div className="flex justify-end mb-2">
-            <ChatCostChip chatId={chatId} />
-          </div>
-        )}
-        {/* Stream A4 — context meter bar. The token / cost / "Context: N of 200K"
-            meters are hidden unless the user opts in (showAiCostMeters), but the
-            manual Compress action stays reachable for everyone, so this always
-            renders and only the meter visuals are gated (showMeters). */}
-        {(() => {
-          // Simple 4-chars-per-token heuristic for meter display.
-          const historyChars = messages.reduce((sum, m) => sum + (m.content?.length ?? 0), 0);
-          const usedTokens = Math.round((historyChars + inputValue.length) / 4);
-          const metadata = chatData.provider ? undefined : undefined; // cost lookup deferred
-          void metadata;
-          // Only price the next message when the cost meters are actually shown.
-          const costPerInputToken = showAiCostMeters ? (() => {
-            try {
-              if (!chatData.provider || !chatData.model) return null;
-              if (chatData.provider === 'anthropic') {
-                const p = new ClaudeProvider({ apiKey: '', model: chatData.model });
-                return p.getMetadata().costPerInputToken ?? null;
-              }
-              if (chatData.provider === 'openai') {
-                const p = new OpenAIProvider({ apiKey: '', model: chatData.model });
-                return p.getMetadata().costPerInputToken ?? null;
-              }
-              if (chatData.provider === 'google') {
-                const p = new GeminiProvider({ apiKey: '', model: chatData.model });
-                return p.getMetadata().costPerInputToken ?? null;
-              }
-            } catch {
-              // ignore metadata errors for cost preview
-            }
-            return null;
-          })() : null;
-          const projectedCost = costPerInputToken != null
-            ? costPerInputToken * usedTokens
-            : null;
-          const modelLabel = chatData.model
-            ? chatData.model.split('-').slice(0, 2).join('-')
-            : 'AI';
-          return (
-            <ContextMeterBar
-              usedTokens={usedTokens}
-              limitTokens={chatContextTokenLimit}
-              projectedCost={projectedCost}
-              modelLabel={modelLabel}
-              onCompressClick={handleManualCompress}
-              showMeters={showAiCostMeters}
-              className="mb-2"
-            />
-          );
-        })()}
-        {/* Stream A2 — attachment error strip (covers both image and PDF errors) */}
-        {attachmentError && (
-          <div className="mb-2 px-3 py-2 rounded border border-red-400/50 bg-red-50 dark:bg-red-900/20 text-red-900 dark:text-red-200 text-xs">
-            {attachmentError}
-          </div>
-        )}
-        {/* Stream A2 — PDF pre-send preview panel, one per pending PDF attachment */}
-        {pendingAttachments
-          .filter((a) => a.type === 'pdf')
-          .map((a) => {
-            const extraction = pdfExtractions[a.id];
-            if (!extraction) return null;
-            const mode = a.metadata.extractionMode ?? 'text-extract';
-            return (
-              <PdfPreviewBeforeSend
-                key={a.id}
-                fileName={a.fileName}
-                extractedText={extraction.pages.join('\n\n')}
-                pageCount={extraction.pageCount}
-                scanned={extraction.scanned}
-                encrypted={extraction.encrypted}
-                mode={mode}
-                className="mb-2"
-              />
-            );
-          })}
-        {/* Workstream D — "What the AI can see" indicator + cross-client warning.
-             Always visible so the user knows exactly which files are in context
-             for the next message. The cross-client warning appears when open
-             files span more than one top-level folder (different clients).
-             D1 — passes the active scopedFolder and change handler so the
-             picker and scope-active banner render correctly. */}
-        {openFiles.length > 0 && (
-          <AIContextIndicator
-            openFiles={scopedOpenFiles}
-            workspaceRoot={rootPath}
-            scopedFolder={scopedFolder}
-            onScopeChange={(folder) => setScopedFolder(chatId, folder)}
-            className="mb-2"
-          />
-        )}
-        {/* WS-C — egress indicator: states exactly where the NEXT send goes,
-             driven by the active provider + confidentiality mode. Always
-             visible right above the composer so the user can never send
-             without seeing the destination. */}
-        <EgressIndicator
-          provider={effectiveProvider}
-          assuredAvailable={assuredAvailableForChat}
-          variant="full"
-          className="mb-2"
+        <ChatInputBanners
+          trialGate={trialGate}
+          t={t}
+          missingSourceWarning={missingSourceWarning}
+          setMissingSourceWarning={setMissingSourceWarning}
+          showAiCostMeters={showAiCostMeters}
+          chatId={chatId}
+          messages={messages}
+          inputValue={inputValue}
+          chatData={chatData}
+          chatContextTokenLimit={chatContextTokenLimit}
+          handleManualCompress={handleManualCompress}
+          attachmentError={attachmentError}
+          pendingAttachments={pendingAttachments}
+          pdfExtractions={pdfExtractions}
+          openFiles={openFiles}
+          scopedOpenFiles={scopedOpenFiles}
+          rootPath={rootPath}
+          scopedFolder={scopedFolder}
+          setScopedFolder={setScopedFolder}
+          effectiveProvider={effectiveProvider}
+          assuredAvailableForChat={assuredAvailableForChat}
         />
         {/* Stream A1 — ChatInputToolbar: paperclip, paste, drop, tiles, vision warning */}
         <ChatInputToolbar
