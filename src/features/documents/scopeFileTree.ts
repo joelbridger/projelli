@@ -20,14 +20,15 @@
  *      that by resolving each tree node path to an absolute path under
  *      `workspaceRoot` (`toAbsolute`) before comparing.
  *   2. Matching/ownership then reuses the EXACT functions the indexer and chat
- *      use — `isPathInFolder` and `resolveMatterId` — which are CASE-SENSITIVE
- *      (`normalize` only swaps separators / strips a trailing slash; it does NOT
- *      lowercase). Using those same functions guarantees the Documents tab agrees
- *      byte-for-byte with how files are actually assigned to matters, so on a
- *      case-sensitive filesystem two clients whose folders differ only by case
- *      (`/Clients/Acme` vs `/Clients/acme`) stay SEPARATE — no cross-client bleed.
- *      (A previous revision compared via a lowercasing canonical key, which could
- *      have conflated such folders; that is fixed here by reusing the resolver.)
+ *      use — `isPathInFolder` and `resolveMatterId` — so the Documents tab agrees
+ *      byte-for-byte with how files are actually assigned to matters. Those share
+ *      the `appPath` comparison helpers, whose case sensitivity follows the
+ *      FILESYSTEM (inferred from path shape): POSIX paths compare CASE-SENSITIVELY
+ *      so two clients whose folders differ only by case (`/Clients/Acme` vs
+ *      `/Clients/acme`) stay SEPARATE on a case-sensitive filesystem — no
+ *      cross-client bleed; Windows drive-letter / UNC paths compare
+ *      CASE-INSENSITIVELY because the Windows filesystem is (so `C:\…\Acme` and
+ *      `c:\…\acme` are the same physical folder — they cannot coexist there).
  *   3. A matter mapped to the workspace ROOT (e.g. the onboarding sample matter,
  *      `folderPaths: [workspaceRoot]`) is naturally an include-EVERYTHING scope:
  *      `isPathInFolder(node, root)` is true for every node, and `resolveMatterId`
@@ -50,7 +51,8 @@ function isAncestorOf(path: string, folder: string): boolean {
 /**
  * Resolve a possibly-relative tree node path to an absolute path under the
  * workspace root, so it can be compared against the matters' absolute
- * `folderPaths` with the SAME case-sensitive logic the resolver/indexer use.
+ * `folderPaths` with the SAME logic the resolver/indexer use (case sensitivity
+ * follows the path's filesystem shape; see the module doc).
  *
  * - No `workspaceRoot` (back-compat / tests that use one path shape on both
  *   sides) → the path is compared as-is.
@@ -81,7 +83,7 @@ function toAbsolute(p: string, workspaceRoot?: string | null): string {
  * - **Matter isolation:** when `matters` + `scopeMatterId` are supplied, a
  *   descendant whose longest-match owner is a DIFFERENT matter (a subfolder
  *   mapped to another client, nested inside this client's folder) is DROPPED —
- *   using the shared, case-sensitive `resolveMatterId` — so one client's tab can
+ *   using the shared `resolveMatterId` — so one client's tab can
  *   never surface another client's files. Without that context the prune is
  *   purely folder-based (back-compat).
  * - `workspaceRoot` (when known) bridges absolute matter folders against relative
@@ -100,8 +102,8 @@ export function scopeFileTreeToFolders(
   const ownershipAware = matters !== undefined && scopeMatterId !== undefined;
 
   function prune(node: FileNode): FileNode | null {
-    // Compare the node in the SAME (absolute, case-sensitive) space as the
-    // matters' folderPaths and the resolver/indexer.
+    // Compare the node in the SAME absolute space as the matters' folderPaths
+    // and the resolver/indexer (case sensitivity follows path shape; module doc).
     const abs = toAbsolute(node.path, workspaceRoot);
 
     // Inside one of the matter's folders (a root-mapped folder matches all).
@@ -112,7 +114,7 @@ export function scopeFileTreeToFolders(
       }
       // Ownership-aware: a node whose longest-match owner is a DIFFERENT matter
       // (a nested foreign-client subfolder/file) must be dropped, not leaked.
-      // Reuses the exact case-sensitive resolver the indexer uses.
+      // Reuses the exact resolver the indexer uses (shape-keyed case sensitivity).
       if (resolveMatterId(abs, matters) !== scopeMatterId) {
         return null;
       }

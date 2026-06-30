@@ -221,12 +221,14 @@ describe('scopeFileTreeToFolders', () => {
       expect(childPaths).not.toContain('Clients/Caldwell, Jennifer/Shared-Beta');
     });
 
-    // Case-sensitivity (Codex review round 2). On a case-sensitive filesystem
-    // (Linux) two clients can own folders that differ ONLY by case. Ownership
-    // must stay case-sensitive — exactly like the shared resolveMatterId the
-    // indexer uses — so one client's Documents tab never surfaces the other's
-    // files. (A lowercasing comparison would conflate them = a real leak.)
-    it('keeps two case-differing client folders separate (no case-fold bleed)', () => {
+    // Case-sensitivity follows the FILESYSTEM, inferred from the path shape
+    // (Windows path fix, 2026-06-30). On a case-sensitive POSIX filesystem two
+    // clients CAN own folders that differ only by case, and ownership must keep
+    // them SEPARATE — folding would be a real cross-client leak. The shared
+    // appPath helpers (used by resolveMatterId / isPathInFolder) stay
+    // case-sensitive for POSIX paths, so this guard holds.
+    it('keeps two case-differing POSIX client folders separate (no case-fold bleed)', () => {
+      const POSIX_ROOT = '/home/jane/Advisor';
       const tree: FileNode[] = [
         folder('Clients', [
           folder('Clients/Acme', [file('Clients/Acme/upper.pdf')]),
@@ -234,16 +236,47 @@ describe('scopeFileTreeToFolders', () => {
         ]),
       ];
       const matters = [
-        matter('upper', [`${ROOT}/Clients/Acme`]),
-        matter('lower', [`${ROOT}/Clients/acme`]),
+        matter('upper', [`${POSIX_ROOT}/Clients/Acme`]),
+        matter('lower', [`${POSIX_ROOT}/Clients/acme`]),
       ];
       // Scope to the UPPER-case client.
-      const out = scopeFileTreeToFolders(tree, [`${ROOT}/Clients/Acme`], matters, 'upper', ROOT);
+      const out = scopeFileTreeToFolders(
+        tree, [`${POSIX_ROOT}/Clients/Acme`], matters, 'upper', POSIX_ROOT,
+      );
       const flat: string[] = [];
       (function rec(ns: FileNode[]) { for (const n of ns) { flat.push(n.path); if (n.children) rec(n.children); } })(out);
       expect(flat).toContain('Clients/Acme/upper.pdf');
-      // The lower-case client's folder + file must NOT bleed in.
+      // The lower-case client's folder + file must NOT bleed in (case-sensitive FS).
       expect(flat).not.toContain('Clients/acme/lower.pdf');
+      expect(flat).not.toContain('Clients/acme');
+    });
+
+    // On WINDOWS, ownership bridges drive-letter case + separator style (the
+    // volume root is case-insensitive) while keeping the client-FOLDER name
+    // case-sensitive. A matter mapped to `C:\…\Clients\Acme` surfaces its own
+    // `Clients/Acme` files (here the node paths carry the on-disk casing), and a
+    // case-only sibling `Clients/acme` (a DIFFERENT client on a case-sensitive
+    // volume) must NOT bleed in.
+    it('bridges drive/separator differences but keeps the client folder case-sensitive', () => {
+      const WIN_ROOT = 'C:\\Users\\Jane\\Advisor';
+      const tree: FileNode[] = [
+        folder('Clients', [
+          folder('Clients/Acme', [file('Clients/Acme/report.pdf')]),
+          folder('Clients/acme', [file('Clients/acme/OTHER-CLIENT.pdf')]),
+        ]),
+      ];
+      // Matter folder uses forward slashes + lower-case drive — must still match
+      // the back-slash, upper-case-drive node paths for the SAME-cased folder.
+      const matters = [matter('acme-matter', ['c:/Users/Jane/Advisor/Clients/Acme'])];
+      const out = scopeFileTreeToFolders(
+        tree, ['c:/Users/Jane/Advisor/Clients/Acme'], matters, 'acme-matter', WIN_ROOT,
+      );
+      const flat: string[] = [];
+      (function rec(ns: FileNode[]) { for (const n of ns) { flat.push(n.path); if (n.children) rec(n.children); } })(out);
+      // The client's own file is surfaced despite drive-case + separator drift…
+      expect(flat).toContain('Clients/Acme/report.pdf');
+      // …but the case-only sibling client never bleeds in.
+      expect(flat).not.toContain('Clients/acme/OTHER-CLIENT.pdf');
       expect(flat).not.toContain('Clients/acme');
     });
   });

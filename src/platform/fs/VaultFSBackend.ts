@@ -33,7 +33,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
-import type { FSBackend, FileStat } from './types';
+import type { FSBackend, FileStat, SetRootPathOptions } from './types';
 import type { FileNode } from '@/platform/types/workspace';
 
 import { VAULT_METADATA_FILENAME } from '@/config/identity';
@@ -183,7 +183,7 @@ export class VaultFSBackend implements FSBackend {
     return this.inner.getRootPath();
   }
 
-  async setRootPath(path: string): Promise<void> {
-    return this.inner.setRootPath(path);
+  async setRootPath(path: string, options?: SetRootPathOptions): Promise<void> {
+    return this.inner.setRootPath(path, options);
   }
 }

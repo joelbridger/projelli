@@ -22,6 +22,7 @@ import { MainPanel } from '@/app/shell/layout/MainPanel';
 import { SettingsContent } from '@/features/settings/SettingsContent';
 import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
 import { requestScrollToParagraph } from '@/platform/utils/scrollToParagraph';
+import { resolveWorkspacePath } from '@/platform/fs/pathResolve';
 import { isWorkflowFilePath } from '@/features/workflows/engine/workflowFile';
 import { useEditorStore } from '@/platform/state/editorStore';
 
@@ -200,10 +201,11 @@ export function AppSurfaceRouter({
       onAuditLog={addAuditEntry}
       onOpenFileAtPath={async (p, paragraphIndex, snippet) => {
         if (!rootPath) return;
-        const absPath = p.startsWith(rootPath)
-          ? p
-          : `${rootPath}/${p}`.replace(/\/+/g, '/');
-        const name = absPath.split('/').pop() ?? absPath;
+        // resolveWorkspacePath detects an already-absolute path (POSIX, drive-
+        // letter, or UNC) regardless of separator style, so a Windows path that
+        // disagrees with rootPath on `\` vs `/` is no longer double-prefixed.
+        const absPath = resolveWorkspacePath(rootPath, p);
+        const name = absPath.split(/[\\/]/).pop() ?? absPath;
         await handleFileOpen(absPath, name);
         if (typeof paragraphIndex === 'number') {
           requestScrollToParagraph({

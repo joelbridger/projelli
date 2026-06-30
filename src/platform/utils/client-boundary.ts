@@ -20,6 +20,8 @@
  * unit-tested without mounting React.
  */
 
+import { topLevelSegment } from '@/platform/fs/appPath';
+
 /** Sentinel label for files that live directly in the workspace root. */
 export const ROOT_LEVEL_SENTINEL = '<workspace root>';
 
@@ -45,35 +47,13 @@ export function getTopLevelFolder(
 ): string | null {
   if (!filePath || !workspaceRoot) return null;
 
-  // Normalise: strip trailing slashes from root, ensure consistent separators.
-  const normRoot = workspaceRoot.replace(/\/+$/, '');
-  const normFile = filePath;
-
-  // The file must start with the workspace root (plus a separator).
-  const prefix = normRoot + '/';
-  if (!normFile.startsWith(prefix)) {
-    // Also accept exact equality (file IS the root — edge-case, return sentinel)
-    if (normFile === normRoot) return ROOT_LEVEL_SENTINEL;
-    return null;
-  }
-
-  // Remainder is the path relative to the workspace root.
-  const relative = normFile.slice(prefix.length);
-
-  if (relative.length === 0) {
-    // File path was exactly the root with a trailing slash.
-    return ROOT_LEVEL_SENTINEL;
-  }
-
-  // The top-level segment is everything up to (but not including) the first
-  // slash. If there is no slash the file lives directly in the root.
-  const slashIdx = relative.indexOf('/');
-  if (slashIdx === -1) {
-    // File sits directly in the workspace root.
-    return ROOT_LEVEL_SENTINEL;
-  }
-
-  return relative.slice(0, slashIdx);
+  // Cross-platform containment + segment extraction: handles `\` vs `/`, drive
+  // letters, UNC roots, trailing separators, and (on Windows) case-insensitive
+  // comparison. An empty segment means the file IS the root or sits directly in
+  // it — both reported under the root-level sentinel.
+  const seg = topLevelSegment(workspaceRoot, filePath);
+  if (seg === null) return null;
+  return seg === '' ? ROOT_LEVEL_SENTINEL : seg;
 }
 
 /**
@@ -87,12 +67,18 @@ export function getDistinctTopLevelFolders(
   filePaths: string[],
   workspaceRoot: string,
 ): Set<string> {
+  // Distinct top-level folder NAMES, compared as-is (case-sensitively). The
+  // cross-client WARNING this feeds is a confidentiality safety net, so we lean
+  // to the fail-SAFE direction: if two paths' top folders differ by case
+  // (`Acme` vs `acme`) we treat them as DISTINCT and warn, rather than folding
+  // them and risk MISSING a genuine two-client span on a case-sensitive volume.
+  // (In practice file-tree paths carry the on-disk case consistently, so this
+  // rarely over-warns.) Containment elsewhere still folds case on Windows where
+  // that is the safe direction — see `resolveMatterId`'s ambiguity guard.
   const folders = new Set<string>();
   for (const p of filePaths) {
     const folder = getTopLevelFolder(p, workspaceRoot);
-    if (folder !== null) {
-      folders.add(folder);
-    }
+    if (folder !== null) folders.add(folder);
   }
   return folders;
 }
@@ -150,13 +136,22 @@ export function filterByScope(
   scopedFolder: string | null | undefined,
 ): string[] {
   if (!scopedFolder || !workspaceRoot) return filePaths;
-  const normRoot = workspaceRoot.replace(/\/+$/, '');
-  const prefix = `${normRoot}/${scopedFolder}/`;
-  // Also match files that ARE the folder itself (edge case)
-  const exactFolder = `${normRoot}/${scopedFolder}`;
-  return filePaths.filter(
-    (p) => p.startsWith(prefix) || p === exactFolder,
-  );
+  // A file is in scope when its TOP-LEVEL folder under the workspace root equals
+  // `scopedFolder` EXACTLY — a case-SENSITIVE comparison of the client-folder
+  // name.
+  //
+  // The top-level folder is the client privacy boundary. On a case-SENSITIVE
+  // Windows-shaped volume (NTFS per-directory case sensitivity, a WSL/network
+  // share) `Acme` and `acme` are two DIFFERENT clients, so a case-only
+  // difference here must FAIL CLOSED (exclude) — a case-insensitive match would
+  // mix one client's files into another's scope (a cross-client leak the matter
+  // tie-guard does NOT cover, because this path-list filter has no matter set).
+  // getTopLevelFolder still normalises separators and folds the WORKSPACE-ROOT
+  // prefix (the root is not a client boundary, and the same physical folder may
+  // be spelled `C:\WS` or `c:/ws`); only the client-folder name is matched
+  // case-sensitively. scopedFolder is itself derived from getTopLevelFolderNames
+  // over the same on-disk paths, so a legitimate same-client file always matches.
+  return filePaths.filter((p) => getTopLevelFolder(p, workspaceRoot) === scopedFolder);
 }
 
 /**

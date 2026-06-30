@@ -11,7 +11,9 @@ import { WorkspaceService, createWorkspaceService } from '@/platform/fs/Workspac
 import { createFSBackend, isTauriEnvironment } from '@/platform/fs/BackendFactory';
 import { vaultStatus } from '@/platform/firm/vault/vaultClient';
 import { DEFAULT_WORKSPACE_FOLDERS } from '@/platform/fs/types';
+import type { FSBackend } from '@/platform/fs/types';
 import { openExternal } from '@/platform/utils/openExternal';
+import { withTimeout } from '@/lib/withTimeout';
 import { AppLogo } from '@/ui/brand/AppLogo';
 import { GradientGlow } from '@/ui/brand/GradientGlow';
 import { VaultLockedPrompt } from '@/features/firm/vault/VaultLockedPrompt';
@@ -34,6 +36,15 @@ const GETTING_STARTED_URL = BRAND.urls.gettingStarted;
 const PREVIEW_STRUCTURE_FOLDERS = DEFAULT_WORKSPACE_FOLDERS.filter(
   (folder) => !folder.startsWith('.')
 );
+
+// BUG-002: bound the non-interactive open/create work so a hung native (Tauri)
+// call can never leave the first-run screen frozen with greyed buttons. The
+// folder picker itself is interactive and is NEVER wrapped.
+const WORKSPACE_INIT_TIMEOUT_MS = 30_000;
+const WORKSPACE_CREATE_TIMEOUT_MSG =
+  'Creating the workspace took too long and was stopped. Please try again, or pick a different folder.';
+const WORKSPACE_OPEN_TIMEOUT_MSG =
+  'Opening the workspace took too long and was stopped. Please try again, or pick a different folder.';
 
 interface WorkspaceSelectorProps {
   open: boolean;
@@ -172,21 +183,42 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
       }
     }
 
-    const backend = await createFSBackend(workspacePath);
-    const service = createWorkspaceService();
-    const workspace = await service.initialize(backend, workspacePath);
+    // Open-existing stays strict (no createIfMissing) — a missing/mistyped path
+    // surfaces an error rather than being silently created. Only the native
+    // SETUP (backend creation + initialize, which does the existence/permission
+    // checks and any native handshakes) is time-bounded — those should settle
+    // quickly, and a hung one must never freeze the screen.
+    //
+    // The recursive file-tree SCAN is deliberately NOT time-bounded: a
+    // legitimately large advisor archive, or a slow OneDrive / network folder,
+    // can take well over 30s to walk, and rejecting it would both block a valid
+    // workspace AND prune it from recents. A slow-but-valid workspace must open.
+    //
+    // IMPORTANT: do all the global-store mutations (setRootPath / setFileTree /
+    // addRecentWorkspace) and onWorkspaceSelected only AFTER everything succeeds
+    // — otherwise a timeout/throw mid-load would leave the store half-set (a
+    // non-empty rootPath with no active WorkspaceService), which App reads as a
+    // dismissible-but-broken first run.
+    const { service, workspace } = await withTimeout(
+      (async () => {
+        const backend = await createFSBackend(workspacePath);
+        const svc = createWorkspaceService();
+        const ws = await svc.initialize(backend, workspacePath);
+        return { service: svc, workspace: ws };
+      })(),
+      WORKSPACE_INIT_TIMEOUT_MS,
+      WORKSPACE_OPEN_TIMEOUT_MSG,
+    );
+    const fileTree = await service.getFileTree();
 
     setRootPath(workspace.rootPath);
-    const fileTree = await service.getFileTree();
     setFileTree(fileTree);
     expandAllFolders();
-
     addRecentWorkspace({
       path: workspace.rootPath,
       name: workspace.name,
       lastOpened: new Date(),
     });
-
     onWorkspaceSelected(service);
   };
 
@@ -274,11 +306,13 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
     setError(null);
 
     try {
-      let backend;
+      let backend: FSBackend;
       let rootPath: string;
 
       if (isTauri) {
         const { open } = await import('@tauri-apps/plugin-dialog');
+        // Interactive folder picker — deliberately NOT time-bounded (the user
+        // may take a while). Everything after this point is non-interactive.
         const selectedPath = await open({
           directory: true,
           multiple: false,
@@ -290,8 +324,16 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
           return;
         }
 
-        backend = await createFSBackend(selectedPath as string);
         rootPath = selectedPath as string;
+        // createIfMissing: this is the create-new flow, so the chosen folder is
+        // created here instead of throwing if it isn't already there. This is
+        // the fix for BUG-002's chicken-and-egg (existence required before the
+        // step that creates it).
+        backend = await withTimeout(
+          createFSBackend(rootPath, { createIfMissing: true }),
+          WORKSPACE_INIT_TIMEOUT_MS,
+          WORKSPACE_CREATE_TIMEOUT_MSG,
+        );
       } else {
         if (!WebFSBackend.isSupported()) {
           setError(
@@ -309,12 +351,25 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
       }
 
       const service = createWorkspaceService();
-      const workspace = await service.initialize(backend, rootPath, {
-        createDefaultStructure: true,
-      });
+      // Bound only the native SETUP (initialize creates the folder structure and
+      // does the native existence/permission checks) so a hung native call can't
+      // freeze the screen. The recursive file-tree SCAN runs AFTER, untimed — a
+      // newly-created workspace is small, but if the chosen folder is on a slow
+      // OneDrive/network location the walk must not be rejected for being slow.
+      // Only mutate global-store state after everything succeeds — a timeout/throw
+      // mid-create must not leave the store half-set (a non-empty rootPath with no
+      // active WorkspaceService, which App would treat as a broken first run).
+      const workspace = await withTimeout(
+        service.initialize(backend, rootPath, {
+          createIfMissing: true,
+          createDefaultStructure: true,
+        }),
+        WORKSPACE_INIT_TIMEOUT_MS,
+        WORKSPACE_CREATE_TIMEOUT_MSG,
+      );
+      const fileTree = await service.getFileTree();
 
       setRootPath(workspace.rootPath);
-      const fileTree = await service.getFileTree();
       setFileTree(fileTree);
       expandAllFolders();
 
@@ -330,7 +385,12 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
         return;
       }
       console.error('[WorkspaceSelector] Failed to create workspace:', err);
-      const errorMsg = err instanceof Error ? `${err.message}\n\nDetails: ${err.stack || 'No stack trace'}` : 'Failed to create workspace';
+      // Plain-language banner for the user; the full error/stack goes to the
+      // console above for debugging. Never leave the screen frozen.
+      const errorMsg =
+        err instanceof Error && err.message
+          ? err.message
+          : 'Could not create the workspace. Please try again, or pick a different folder.';
       setError(errorMsg);
     } finally {
       setIsLoading(false);

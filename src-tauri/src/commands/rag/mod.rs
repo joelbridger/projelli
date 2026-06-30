@@ -725,7 +725,17 @@ pub async fn rag_set_workspace(
     // (drop_table + rebuild) over and over and run memory away. Re-opening the
     // SAME already-active workspace is a no-op for indexing (the watcher keeps the
     // index live incrementally); a real switch to a DIFFERENT workspace re-arms.
-    let changed = guard.as_deref() != Some(target.as_path());
+    //
+    // Windows path-correctness: the frontend may hand us the same physical folder
+    // spelled differently across mounts — `C:\WS` vs `C:/WS` vs `c:\ws` (mixed
+    // separators / drive-letter case). A raw `PathBuf` compare treats those as
+    // DIFFERENT roots and triggers a spurious destructive full re-index. Compare
+    // the OS-canonical form of both paths so only a genuine workspace switch
+    // re-arms. `canonicalize` collapses separators + case (and resolves symlinks)
+    // on the real filesystem; we fall back to the raw path if it ever fails so a
+    // canonicalize error can't wedge activation.
+    let canon = |p: &Path| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+    let changed = guard.as_deref().map(canon) != Some(canon(&target));
     // BUG-099 durable tombstone: re-hydrate the in-memory unsafe-TOKEN set from
     // disk so the fail-closed exclusion survives an app restart (a fresh process
     // starts with an empty set while stale rows are still durable on disk).

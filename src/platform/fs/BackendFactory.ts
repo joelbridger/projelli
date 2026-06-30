@@ -1,7 +1,7 @@
 // Backend Factory
 // Detects runtime environment and returns appropriate FSBackend
 
-import type { FSBackend } from './types';
+import type { FSBackend, SetRootPathOptions } from './types';
 import { WebFSBackend } from './WebFSBackend';
 import { TauriFSBackend } from './TauriFSBackend';
 import { VaultFSBackend } from './VaultFSBackend';
@@ -23,9 +23,14 @@ export function isTauriEnvironment(): boolean {
  * In Browser: Returns WebFSBackend (File System Access API)
  *
  * @param workspacePath - Optional workspace path (used by TauriFSBackend)
+ * @param options - setRootPath options (e.g. `createIfMissing` for the
+ *                  create-new-workspace flow). Defaults to strict (must exist).
  * @returns FSBackend instance
  */
-export async function createFSBackend(workspacePath?: string): Promise<FSBackend> {
+export async function createFSBackend(
+  workspacePath?: string,
+  options?: SetRootPathOptions
+): Promise<FSBackend> {
   const isTauri = isTauriEnvironment();
 
   if (isTauri) {
@@ -35,7 +40,7 @@ export async function createFSBackend(workspacePath?: string): Promise<FSBackend
       throw new Error('TauriFSBackend requires a workspace path');
     }
     const backend = new TauriFSBackend();
-    await backend.setRootPath(workspacePath);
+    await backend.setRootPath(workspacePath, options);
     console.log('[BackendFactory] Backend initialized successfully');
 
     // Wrap in VaultFSBackend if the workspace has an active vault.

@@ -163,6 +163,21 @@ describe('PathValidator', () => {
     it('rejects names with control characters', () => {
       expect(() => validator.validateName('file\nname')).toThrow(SecurityError);
     });
+
+    it('rejects each Windows-forbidden character early', () => {
+      // These are illegal in Windows file/folder names. Catching them here gives
+      // a clear message instead of a confusing OS-level failure (or a name that
+      // works on macOS/Linux but breaks when the workspace is opened on Windows).
+      for (const ch of ['<', '>', ':', '"', '|', '?', '*']) {
+        expect(() => validator.validateName(`bad${ch}name`)).toThrow(SecurityError);
+      }
+    });
+
+    it('still accepts ordinary names that contain none of those characters', () => {
+      expect(validator.validateName('Acme Corp - 2026 Plan.docx')).toBe(
+        'Acme Corp - 2026 Plan.docx',
+      );
+    });
   });
 
   describe('validateSymlinkTarget', () => {
