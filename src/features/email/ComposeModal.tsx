@@ -33,6 +33,19 @@ export function ComposeModal({ open, onOpenChange, accounts, onOpenSettings }: C
   const [composeAttachments, setComposeAttachments] = useState<MailAttachmentInput[]>([]);
   const attachFileRef = useRef<HTMLInputElement>(null);
 
+  // Reset send result, error, and attachments each time the modal opens.
+  // Draft text fields (To/Cc/Bcc/Subject/Body) and the selected account are
+  // intentionally preserved between opens — matching the original behavior.
+  const prevOpenRef = useRef(false);
+  useEffect(() => {
+    if (open && !prevOpenRef.current) {
+      setComposeSendResult('none');
+      setComposeSendError(null);
+      setComposeAttachments([]);
+    }
+    prevOpenRef.current = open;
+  }, [open]);
+
   // Close the compose modal when Escape is pressed.
   useEffect(() => {
     if (!open) return;

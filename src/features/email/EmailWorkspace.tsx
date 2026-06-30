@@ -1144,15 +1144,13 @@ export function EmailWorkspace({
         )}
       </div>
 
-      {/* Compose modal */}
-      {composeOpen && (
-        <ComposeModal
-          open={composeOpen}
-          onOpenChange={setComposeOpen}
-          accounts={accounts}
-          onOpenSettings={onOpenSettings}
-        />
-      )}
+      {/* Compose modal — always mounted so draft text survives close/reopen */}
+      <ComposeModal
+        open={composeOpen}
+        onOpenChange={setComposeOpen}
+        accounts={accounts}
+        onOpenSettings={onOpenSettings}
+      />
     </div>
   );
 }
