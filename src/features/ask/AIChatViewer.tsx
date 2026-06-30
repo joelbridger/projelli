@@ -4,6 +4,8 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useVoiceRecording } from './hooks/useVoiceRecording';
 import { useChatSending } from './hooks/useChatSending';
+import { useAIRules } from './hooks/useAIRules';
+import { useCitationHandlers } from './hooks/useCitationHandlers';
 import { useTranslation } from 'react-i18next';
 import { Send, Square, Download, Mic, MicOff, GripVertical, Sparkles, AlertTriangle, Briefcase, Globe, ShieldAlert } from 'lucide-react';
 import { ChatInputToolbar } from '@/features/ask/chat/ChatInputToolbar';
@@ -180,7 +182,6 @@ export function buildOpenFilesPromptBlock(openFiles: ExtractedContext[]): string
 
 import { ChatSourcesAccordion } from './ChatSourcesAccordion';
 import { ProposedFactsPanel } from './ProposedFactsPanel';
-import { EV_OPEN_EMAIL } from '@/config/identity';
 
 
 export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, onOpenFileAtPath, className }: AIChatViewerProps) {
@@ -303,7 +304,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
 
   // Initialize input with saved draft (persists across navigation)
   const [inputValue, setInputValue] = useState(() => getDraftInput(chatId));
-  const [aiRules, setAiRules] = useState<string>('');
+  const aiRules = useAIRules(rootPath, workspaceServiceRef);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const { isRecording, toggleVoiceRecording } = useVoiceRecording(inputValue, setInputValue);
@@ -351,45 +352,6 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
       return `${baseRole}${buildOpenFilesPromptBlock(files)}`;
     };
   }, []);
-
-  // Load AI Rules from workspace.
-  //
-  // DEPS DISCIPLINE: `workspaceServiceRef` must NOT be in this array.
-  // Refs are stable by object identity but their `.current` mutates
-  // without signaling React; including a ref in deps trips effect
-  // re-runs on ref-pointer changes that look like deps changes to the
-  // tracker, producing a setState -> render -> setState loop (React
-  // #185). See tests/unit/ai-rules-loading.test.tsx for the regression
-  // guard.
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadAIRules = async () => {
-      if (!rootPath || !workspaceServiceRef?.current) return;
-
-      try {
-        const rulesPath = `${rootPath}/ai-rules.md`;
-        const exists = await workspaceServiceRef.current.exists(rulesPath);
-
-        if (!isMounted) return;
-        if (exists) {
-          const content = await workspaceServiceRef.current.readFile(rulesPath);
-          if (isMounted) setAiRules(content);
-        } else {
-          setAiRules('');
-        }
-      } catch (error) {
-        console.error('Failed to load AI rules:', error);
-        if (isMounted) setAiRules('');
-      }
-    };
-
-    loadAIRules();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [rootPath]);
 
   // Get messages and loading state from store
   const messages = session?.messages ?? chatData.messages;
@@ -874,55 +836,12 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     }
   }, [chatData, messages, onExport]);
 
-  // M2 — citation click handler. Invoked from both inline citation
-  // chips and the Sources accordion. Calls the caller-provided
-  // `onOpenFileAtPath` (wired up in App.tsx / MainPanel). If the
-  // callback is missing (e.g. in a unit-test mount), no-op.
-  //
-  // A3: for PDF hits, `pageNumber` is passed and used instead of
-  // `paragraphIndex` so the PDF viewer opens at the right page.
-  const handleCitationClick = useCallback(
-    (
-      path: string,
-      paragraphIndex: number,
-      sourceType?: string,
-      pageNumber?: number,
-      snippet?: string,
-    ) => {
-      setMissingSourceWarning(null);
-      // WS-B/C — email sources resolve to `mail:<message-id>`, not a file on
-      // disk. Open them via a decoupled custom event the mail viewer
-      // subscribes to, rather than the editor's file-open pipeline.
-      if (sourceType === 'mail' || path.startsWith('mail:')) {
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(
-            new CustomEvent(EV_OPEN_EMAIL, {
-              detail: { sourceId: path },
-            }),
-          );
-        }
-        return;
-      }
-      if (!onOpenFileAtPath) return;
-      if (sourceType === 'pdf' && pageNumber != null) {
-        // Open PDF viewer at the specific page using pageNumber as the
-        // navigation hint. The PDF viewer interprets the second argument
-        // as a page number when the file extension is .pdf.
-        void onOpenFileAtPath(path, pageNumber);
-      } else {
-        // F-504: forward the cited chunk's text so the editor can locate
-        // the passage by exact search instead of guessing from the index.
-        void onOpenFileAtPath(path, paragraphIndex, snippet);
-      }
-    },
-    [onOpenFileAtPath],
-  );
-
-  const handleMissingSource = useCallback((basename: string) => {
-    setMissingSourceWarning(
-      `Source file not found: ${basename}. Retrieval may be stale. Re-indexing...`,
-    );
-  }, []);
+  // M2 — citation click + missing-source handlers (shared by inline citation
+  // chips and the Sources accordion). Extracted to useCitationHandlers.
+  const { handleCitationClick, handleMissingSource } = useCitationHandlers({
+    setMissingSourceWarning,
+    onOpenFileAtPath,
+  });
 
   // M2 — Ask-my-workspace toggle handler.
   const handleToggleAskWorkspace = useCallback(() => {
