@@ -13,7 +13,7 @@ const targets = DEEP.length?DEEP:[
 const browser=await getBrowser();const page=pickPage(browser);
 page.setDefaultTimeout(0);
 const out=await page.evaluate(async(targets)=>{
-  const gen=await import('/src/platform/clientMap/generator.ts');
+  const gen=await import('/src/features/matters/clientMap/generator.ts');
   const cms=await import('/src/platform/clientMap/clientMapStore.ts');
   const res=[];
   for(const id of targets){
