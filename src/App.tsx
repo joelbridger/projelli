@@ -21,6 +21,7 @@ import { useWorkflowRunner } from '@/app/workflow/useWorkflowRunner';
 import { useAudioRecording } from '@/app/lifecycle/useAudioRecording';
 import { useAIRulesFile } from '@/app/lifecycle/useAIRulesFile';
 import { useFileImport } from '@/app/fileOps/useFileImport';
+import { useSettingsActions } from '@/app/hooks/useSettingsActions';
 import { WorkspaceSelector } from '@/features/documents/workspace/WorkspaceSelector';
 
 import { AppShellNav } from '@/app/shell/layout/AppShellNav';
@@ -33,8 +34,6 @@ import { AppSurfaceRouter } from '@/app/shell/AppSurfaceRouter';
 import { ProjectManager } from '@/features/documents/workspace/ProjectManager';
 import { Button } from '@/ui/button';
 import { Command, Moon, Monitor, Sun } from 'lucide-react';
-import { manualUpdateCheck } from '@/platform/updater/UpdateManager';
-import { openExternal } from '@/platform/utils/openExternal';
 import { TrialBanner } from '@/features/account/trial';
 import { hasCompletedOnboarding } from '@/features/onboarding';
 // FirstRunOverlay picks GuidedOnboarding (default) or the flag-gated
@@ -110,7 +109,6 @@ import { SharefileSourcePanel } from '@/features/sharefile/SharefileSourcePanel'
 import { JotformSourcePanel } from '@/features/jotform/JotformSourcePanel';
 import { ZocksSourcePanel } from '@/features/zocks/ZocksSourcePanel';
 import { AddeparSourcePanel } from '@/features/addepar/AddeparSourcePanel';
-import { BRAND } from '@/config/brand';
 
 // Module-level constants so the onboarding/tour effects have stable deps
 // and never need to be listed in exhaustive-deps disable comments.
@@ -1098,35 +1096,16 @@ function App() {
     );
   }
 
-  // Shared Settings action handler — used by BOTH the quick Settings modal and
-  // the full-page Settings nav tab so every action link (Manage AI keys, Check
-  // for updates, Open website, …) behaves identically in either surface.
-  const handleSettingsAction = (actionId: string) => {
-    if (actionId === 'open-ai-keys') {
-      // "Manage AI Account Keys" now opens the manager (list + remove + add),
-      // not the add-only wizard. The manager's "Add a provider key" button
-      // opens the wizard from there.
-      setApiKeyManagerOpen(true);
-    } else if (actionId === 'open-api-key-tutorial') {
-      setApiKeyWizardOpen(true);
-    } else if (actionId === 'open-ai-rules') {
-      void handleOpenAIRules();
-    } else if (actionId === 'updater-check-now') {
-      void manualUpdateCheck();
-    } else if (actionId === 'open-whats-new') {
-      setShowWhatsNewModalDirect(true);
-    } else if (actionId === 'open-website') {
-      void openExternal(BRAND.urls.site);
-    } else if (actionId === 'open-github') {
-      void openExternal('https://github.com/keepance/keepance');
-    } else if (actionId === 'reset-feature-tour') {
-      featureTour.restart();
-      setTimeout(() => setTourOpen(true), 300);
-    }
-  };
-  const handleSettingsRestartOnboarding = () => {
-    setShowFirstRun(true);
-  };
+  // Shared Settings action handlers (extracted to useSettingsActions)
+  const { handleSettingsAction, handleSettingsRestartOnboarding } = useSettingsActions({
+    setApiKeyManagerOpen,
+    setApiKeyWizardOpen,
+    handleOpenAIRules,
+    featureTour,
+    setShowWhatsNewModalDirect,
+    setTourOpen,
+    setShowFirstRun,
+  });
 
   // Get current project name from root path
   const currentProjectName = rootPath?.split('/').pop() ?? 'Unnamed Project';
