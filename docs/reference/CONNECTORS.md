@@ -199,13 +199,28 @@ the ones to reach for when a partner key arrives.
 | **Salesforce** (CRM) | `commands/crm/salesforce.rs` + `SalesforceConnect` UI | Needs `KEEPANCE_SALESFORCE_CLIENT_ID` (Salesforce partner app); auto-sync not fully wired. |
 | **Redtail** (CRM) | `commands/crm/redtail.rs` + `RedtailConnect` UI | Needs `KEEPANCE_REDTAIL_API_KEY` (Redtail partner integration); full parity with Wealthbox otherwise. |
 
+### Merged, gated on vendor credentials — Addepar, Box, Jotform, ShareFile, Zocks
+
+These five connectors are **fully merged into `keepance-3.0`** — both frontend UI
+(`src/features/<name>/`) and Rust backend (`src-tauri/src/commands/<name>/`) exist
+and are registered. They are gated on vendor API credentials (integrator keys /
+partner program approval), not on code.
+
+| Connector | Backend folder | Frontend folder |
+|---|---|---|
+| **Addepar** (portfolio data) | `commands/addepar/` | `src/features/addepar/` |
+| **Box** (cloud files) | `commands/boxc/` | `src/features/box/` |
+| **Jotform** (form submissions) | `commands/jotform/` | `src/features/jotform/` |
+| **ShareFile** (client file portal) | `commands/sharefile/` | `src/features/sharefile/` |
+| **Zocks** (meeting notes AI) | `commands/zocks/` | `src/features/zocks/` |
+
 ### Placeholder logos only — no backend code on this branch
 
 These appear as grayed-out "coming soon" logos in onboarding
 (`ONB_COMING_SOON_LOGOS`) but have **no** connector code in `keepance-3.0`:
-**RightCapital, eMoney, MoneyGuidePro, Holistiplan, Orion, Tamarac, Addepar,
-Nitrogen.** (Redtail, Salesforce, and DocuSign also still appear in this
-onboarding list even though their backends exist — the list is due a refresh.)
+**RightCapital, eMoney, MoneyGuidePro, Holistiplan, Orion, Tamarac, Nitrogen.**
+(Redtail, Salesforce, DocuSign, and the five merged-but-gated connectors above
+also appear in this list — the onboarding list is due a refresh.)
 
 ### Roadmap — committed, no code yet (vendor-access track)
 
@@ -214,11 +229,6 @@ deferred pending vendor API access, which is being applied for in parallel: the
 **Clio** practice-management connector, the **iManage / NetDocuments** document
 management connectors, and the **Microsoft Office add-ins**. No connector code
 exists for these on this branch.
-
-> **Note for the coordinator / next writer:** I found **no** backend or frontend
-> code on `keepance-3.0` for Box, ShareFile, Jotform, or Zocks (earlier notes
-> listed some of these as "built+queued"). If that work exists, it's on another
-> branch — it is not in `keepance-3.0`, so this doc doesn't claim it.
 
 ---
 

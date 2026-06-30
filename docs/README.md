@@ -87,16 +87,22 @@ docs/
 
 **➡️ Start here: [marketing/README.md](marketing/README.md)** — the canonical entry point for all marketing work (playbook, channels, action-packs, campaigns).
 
+## Strategy — `strategy/`
+
+**Read [`strategy/README.md`](strategy/README.md) first** — it lists the 4 current governing docs and the rest of the directory by recency. The older pre-June 23 strategy work is in `archive/`.
+
 ## Archive — `archive/`
 
 Historical documents superseded by current state, kept for reference. Notable sub-areas:
 
 | Location | Why it's archived |
 |---|---|
-| [archive/strategy-2026-06-17/](archive/strategy-2026-06-17/) | The 2026-06-17 "product is mature, stop building" strategy cluster — superseded by the 2026-06-20 Windows-testing reality check and the 2026-06-23/29 advisor re-aim. |
+| [archive/strategy-2026-06-17/](archive/strategy-2026-06-17/) | The 2026-06-17 "product is mature, stop building" strategy cluster + superseded May 2026 positioning/pricing/launch-readiness docs — all superseded by the 2026-06-23/29 advisor re-aim and 2026-06-29 board decision. |
+| [archive/build-plans/](archive/build-plans/) | Apr–Jun 2026 build-session plans from `superpowers/plans/` that are completed and superseded. |
+| [archive/session-handoffs/](archive/session-handoffs/) | SESSION_* handoffs and older *-CURRENT-STATE.md / *-NEXT-SESSION-*.md files — trust the newest `operations/2026-06-24-advisor-website-board-CURRENT-STATE.md` instead. |
 | [archive/pre-3.0-pivots/business-os-reference/](archive/pre-3.0-pivots/business-os-reference/) | Pre-v3 "Business OS" reference docs (PRD, the old ARCHITECTURE, IMPLEMENTATION) — superseded by root `ARCHITECTURE.md` + `reference/FEATURES.md`. |
 | [archive/pre-3.0-pivots/](archive/pre-3.0-pivots/) | Earlier market-pivot reports and rebrand guides. |
-| `archive/decisions/`, `archive/session-handoffs/`, `archive/quality/`, `archive/meta/` | Older ADRs, session handoffs, v1.0-era quality docs, and prior docs indexes. |
+| `archive/decisions/`, `archive/quality/`, `archive/meta/` | Older ADRs, v1.0-era quality docs, and prior docs indexes. |
 | `archive/OLD_BACKLOG_*.md`, `V1_LAUNCH_PLAN.md`, `WINDOWS_MIGRATION_*.md`, … | Done v1 plans and backlogs. |
 
 ## Repo root files

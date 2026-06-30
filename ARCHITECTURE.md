@@ -1,4 +1,4 @@
-# Keepance — Architecture
+# Advisor Prep Hero — Architecture
 
 > The canonical map of the frontend codebase (`src/`). Written for both humans
 > and AI agents. If a file's location ever disagrees with this doc, trust the
@@ -55,15 +55,30 @@ src/
 │   ├── ask/                     #   Ask + AIChatViewer + useChatSending + citations + attachments
 │   ├── documents/               #   DocumentsHome + editors + ooxml/spreadsheet viewers (media/) + workspace/ file nav
 │   ├── workflows/               #   AssociateHome + WorkflowEngine + templates (legal/tax/consulting/advisors) + marketplace
-│   ├── email/  matters/  firm/  settings/  audit/  onboarding/  dictation/  account/
+│   ├── email/                   #   EmailWorkspace — Outlook/M365, Gmail, IMAP import + search
+│   ├── onedrive/                #   OneDrive/SharePoint connector UI + sync
+│   ├── crm/                     #   Wealthbox CRM connector (households → matters)
+│   ├── calendly/                #   Calendly connector (meetings → matters)
+│   ├── docusign/                #   DocuSign connector (envelopes → matters) — gated on vendor credentials
+│   ├── addepar/                 #   Addepar connector — merged, gated on vendor credentials
+│   ├── box/                     #   Box connector — merged, gated on vendor credentials
+│   ├── jotform/                 #   Jotform connector — merged, gated on vendor credentials
+│   ├── sharefile/               #   ShareFile connector — merged, gated on vendor credentials
+│   ├── zocks/                   #   Zocks connector — merged, gated on vendor credentials
+│   ├── privacy/                 #   data-egress indicator, Data Map, consent flows
+│   ├── matters/  firm/  settings/  audit/  onboarding/  dictation/  account/
 │
 ├── platform/                    # cross-cutting capabilities (by domain)
 │   ├── providers/               #   model adapters (Claude/OpenAI/Gemini/Ollama), keychain
 │   ├── fs/                      #   WorkspaceService + FS backends + workspace stores
-│   ├── rag/                     #   LanceDB/fastembed RAG, facts/memory, ocr/
+│   ├── rag/                     #   LanceDB/fastembed RAG, facts/memory, ocr/, sourceProvenance
 │   ├── firm/                    #   firm crypto + relay clients + coedit CRDT + vault
 │   ├── matter/                  #   the unified matter store (4 slices, multi-key persist) + samples/
-│   ├── audit/  privacy/  search/  history/  licensing/  providers/  analysis/  updater/
+│   ├── clientMap/               #   Client Map feature logic (summaries, at-a-glance, timeline)
+│   ├── ai/                      #   shared AI primitives (prompt builders, structured output, eval)
+│   ├── mcp/                     #   MCP tool registration + command dispatcher
+│   ├── flags/                   #   feature-flag checks (LaunchDarkly-style, local config)
+│   ├── audit/  privacy/  search/  history/  licensing/  analysis/  updater/
 │   ├── state/                   #   shared cross-feature stores (aiChat, editor, fileContext)
 │   ├── profile/  settings/  tools/  voice/
 │   └── hooks/  utils/  types/    #   shared leaf hooks/utils/types

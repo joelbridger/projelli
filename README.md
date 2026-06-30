@@ -94,7 +94,7 @@ keepance/
 └── .github/workflows/release.yml   Tauri matrix CI for Win/Mac/Linux builds
 ```
 
-For the authoritative structure, see [`ARCHITECTURE.md`](./ARCHITECTURE.md).
+For the authoritative structure, see [`ARCHITECTURE.md`](./ARCHITECTURE.md). For a 60-second orientation (active vs. generated vs. archived, locked identifiers, read-these-first pointers), see [`REPO_GUIDE.md`](./REPO_GUIDE.md).
 
 ## Pricing
 
