@@ -21,7 +21,11 @@ import { Check, Info, X } from 'lucide-react';
 import { openExternal } from '@/platform/utils/openExternal';
 import type { KeyProvider } from '@/platform/providers/KeychainService';
 import { validateApiKeyLive } from '@/platform/providers/apiKeyValidation';
-import { useRecordConfidentialityChoice } from '@/platform/hooks/useConfidentialityMode';
+import {
+  useRecordConfidentialityChoice,
+  snapshotConfidentialityChoice,
+  restoreConfidentialityChoice,
+} from '@/platform/hooks/useConfidentialityMode';
 import { useLocalLlmModelStatus } from '@/platform/hooks/useLocalLlmModelStatus';
 
 import { PROVIDER_TUTORIALS, type ProviderId } from '../../ProviderTutorialSteps';
@@ -85,6 +89,11 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
     //  2. choiceMade is what unlocks cloud generation post-onboarding
     //     (resolveEffectiveEgress gates cloud on it). Saving a key without it
     //     leaves the provider connected but unusable.
+    // Snapshot first so a malformed/rejected/errored attempt can be rolled
+    // back below — otherwise a bad key would still leave 'direct'/choiceMade
+    // recorded with no key actually saved, which is the exact state the
+    // always-visible egress indicator promises never to misreport.
+    const priorChoice = snapshotConfidentialityChoice();
     recordChoice('direct');
     setConnecting(true);
     setError(null);
@@ -95,6 +104,7 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
     try {
       const result = await validateApiKeyLive(provider, key, ac.signal);
       if (result.outcome === 'malformed' || result.outcome === 'rejected') {
+        restoreConfidentialityChoice(priorChoice);
         setError(result.message);
         return;
       }
@@ -104,6 +114,7 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
       setConnected(true);
       onAiResolved?.();
     } catch (e) {
+      restoreConfidentialityChoice(priorChoice);
       setError(e instanceof Error ? e.message : 'Could not save your key.');
     } finally {
       clearTimeout(timeout);

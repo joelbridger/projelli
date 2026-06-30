@@ -72,3 +72,28 @@ export function getConfidentialityMode(): ConfidentialityMode {
   const value = useSettingsStore.getState().getSetting(CONFIDENTIALITY_MODE_SETTING_KEY);
   return coerceMode(value);
 }
+
+/** Snapshot of the raw stored mode + choiceMade flag, for callers that record a
+ *  tentative choice (e.g. before validating a pasted key) and need to undo it
+ *  if the attempt fails. */
+export interface ConfidentialityChoiceSnapshot {
+  mode: unknown;
+  choiceMade: unknown;
+}
+
+/** Non-reactive snapshot of the current mode + choiceMade flag. */
+export function snapshotConfidentialityChoice(): ConfidentialityChoiceSnapshot {
+  const state = useSettingsStore.getState();
+  return {
+    mode: state.getSetting(CONFIDENTIALITY_MODE_SETTING_KEY),
+    choiceMade: state.getSetting(CONFIDENTIALITY_CHOICE_MADE_KEY),
+  };
+}
+
+/** Restore a snapshot taken before a tentative `useRecordConfidentialityChoice`
+ *  write, so a failed attempt (e.g. a rejected API key) leaves no trace. */
+export function restoreConfidentialityChoice(snapshot: ConfidentialityChoiceSnapshot): void {
+  const { setSetting } = useSettingsStore.getState();
+  setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, snapshot.mode);
+  setSetting(CONFIDENTIALITY_CHOICE_MADE_KEY, snapshot.choiceMade);
+}

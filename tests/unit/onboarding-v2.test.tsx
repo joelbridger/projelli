@@ -62,6 +62,8 @@ vi.mock('@/platform/hooks/useSetupProgress', () => ({
 }));
 vi.mock('@/platform/hooks/useConfidentialityMode', () => ({
   useRecordConfidentialityChoice: () => h.recordChoice,
+  snapshotConfidentialityChoice: () => ({ mode: undefined, choiceMade: undefined }),
+  restoreConfidentialityChoice: () => {},
 }));
 vi.mock('@/platform/hooks/useLocalLlmModelStatus', () => ({
   useLocalLlmModelStatus: () => ({

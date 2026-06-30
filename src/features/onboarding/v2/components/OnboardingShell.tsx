@@ -15,7 +15,7 @@
  * forms unexpectedly).
  */
 
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 
 export interface OnboardingShellProps {
   children: ReactNode;
@@ -40,6 +40,16 @@ function isTextEntry(el: EventTarget | null): boolean {
   const tag = el.tagName;
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
 }
+
+// Focusable elements for the tab trap (mirrors the archived OnboardingStepFrame).
+const FOCUSABLE = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(', ');
 
 export function OnboardingShell({
   children,
@@ -66,9 +76,51 @@ export function OnboardingShell({
     return () => { window.removeEventListener('keydown', handler); };
   }, [onArrowNav]);
 
+  const shellRef = useRef<HTMLDivElement>(null);
+
+  // Focus the overlay on mount; restore focus to whatever had it (e.g. the
+  // WorkspaceSelector behind this modal) on unmount.
+  useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    shellRef.current?.focus();
+    return () => {
+      previouslyFocused?.focus();
+    };
+  }, []);
+
+  // Tab/Shift+Tab focus trap within the overlay, so keyboard users can't tab
+  // out to the WorkspaceSelector controls behind it while aria-modal claims
+  // focus is contained (mirrors the archived OnboardingStepFrame's trap).
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      const shell = shellRef.current;
+      if (!shell) return;
+      const focusable = Array.from(shell.querySelectorAll<HTMLElement>(FOCUSABLE));
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first || !last) return;
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => { document.removeEventListener('keydown', handleKeyDown); };
+  }, []);
+
   return (
     <div
-      className="kp-onbv2 fixed inset-0 z-50 flex flex-col"
+      ref={shellRef}
+      tabIndex={-1}
+      className="kp-onbv2 fixed inset-0 z-50 flex flex-col outline-none"
       data-testid="onboarding-v2"
       role="dialog"
       aria-modal="true"
