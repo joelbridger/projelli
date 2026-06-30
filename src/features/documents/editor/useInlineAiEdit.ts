@@ -21,9 +21,9 @@ import {
   computeLineDiff,
   applyHunks,
   stripAccidentalMarkdownFence,
-} from '@/features/documents/editor-core/aiEdit/streamingDiff';
-import { buildEditSystemPrompt } from '@/features/documents/editor-core/aiEdit/editPrompt';
-import type { DiffHunk, HunkResolution } from '@/features/documents/editor-core/aiEdit/types';
+} from '@/features/documents/editor/aiEdit/streamingDiff';
+import { buildEditSystemPrompt } from '@/features/documents/editor/aiEdit/editPrompt';
+import type { DiffHunk, HunkResolution } from '@/features/documents/editor/aiEdit/types';
 import type { Provider } from '@/platform/providers/Provider';
 import { getVersionService } from '@/features/documents/versioning/VersionService';
 import { useTrialGate } from '@/platform/hooks/useTrial';

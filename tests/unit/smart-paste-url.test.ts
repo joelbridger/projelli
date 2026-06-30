@@ -16,7 +16,7 @@ import {
   isInsideCodeBlock,
   isSingleUrl,
   resolveUrlPasteReplacement,
-} from '@/features/documents/editor-core/smartPaste';
+} from '@/features/documents/editor/smartPaste';
 
 // ---------------------------------------------------------------------
 // Pure helpers
