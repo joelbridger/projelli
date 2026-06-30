@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Why I built Keepance on Markdown instead of a database | Keepance Blog</title>
+  <title>Why I built Advisor Prep Hero on Markdown instead of a database | Advisor Prep Hero Blog</title>
   <meta name="description" content="Should chat live in a database or as plain Markdown files? Eight weeks in, why I picked Markdown, and why the obvious reasons are not the best ones.">
   <link rel="canonical" href="https://keepance.com/blog/why-i-built-keepance-on-markdown-not-a-database">
   <meta name="author" content="Jameson Daines">
   <meta property="og:type" content="article">
   <meta property="og:url" content="https://keepance.com/blog/why-i-built-keepance-on-markdown-not-a-database">
-  <meta property="og:title" content="Why I built Keepance on Markdown instead of a database">
+  <meta property="og:title" content="Why I built Advisor Prep Hero on Markdown instead of a database">
   <meta property="og:description" content="Should chat live in a database or as plain Markdown files? Eight weeks in, why I picked Markdown, and why the obvious reasons are not the best ones.">
   <meta property="og:image" content="https://keepance.com/og-image.png">
   <meta name="twitter:image" content="https://keepance.com/og-image.png">
@@ -55,12 +55,12 @@
   <div class="container">
     <a href="/blog/" class="back">← All posts</a>
 
-    <h1>Why I built Keepance on Markdown instead of a database.</h1>
+    <h1>Why I built Advisor Prep Hero on Markdown instead of a database.</h1>
     <p class="meta">By Jameson Daines · 2026-04-27 · 9 min read</p>
 
-    <p>The first real architecture decision I made for Keepance, sometime in week 1, was: where do AI conversations live on disk? The default answer for an app like this is "in a database, probably SQLite." That's what most note-taking apps do. That's what Obsidian's chat plugins do. That's what Reflect, Mem.ai, and Tana do (in their cases, in the cloud rather than locally, but the data model is the same).</p>
+    <p>The first real architecture decision I made for Advisor Prep Hero, sometime in week 1, was: where do AI conversations live on disk? The default answer for an app like this is "in a database, probably SQLite." That's what most note-taking apps do. That's what Obsidian's chat plugins do. That's what Reflect, Mem.ai, and Tana do (in their cases, in the cloud rather than locally, but the data model is the same).</p>
 
-    <p>I went with the other option. Every Keepance AI conversation is a single Markdown file in a folder you pick. Eight weeks in, I'm convinced this was the right call for reasons that took me a while to articulate. Worth writing down because the trade-offs aren't obvious until you've lived with both.</p>
+    <p>I went with the other option. Every Advisor Prep Hero AI conversation is a single Markdown file in a folder you pick. Eight weeks in, I'm convinced this was the right call for reasons that took me a while to articulate. Worth writing down because the trade-offs aren't obvious until you've lived with both.</p>
 
     <h2>The conventional architecture, briefly</h2>
 
@@ -85,11 +85,11 @@ CREATE TABLE messages (
 
     <p>This is what ChatGPT, Claude.ai, Notion AI, and basically every "modern" chat app has under the hood. It's the right shape for the things you'd naturally want to do: query messages by date, count tokens, build a chat history view, export to JSON.</p>
 
-    <p>It's also the wrong shape for what I actually wanted Keepance to be.</p>
+    <p>It's also the wrong shape for what I actually wanted Advisor Prep Hero to be.</p>
 
-    <h2>The thing I wanted Keepance to be</h2>
+    <h2>The thing I wanted Advisor Prep Hero to be</h2>
 
-    <p>I wanted a tool where, two years from now, a solo attorney or a CPA could grep across every conversation they'd had with the AI and find the one thing they'd written about a specific client matter. They could open it in Vim if Keepance stopped existing. They could put the whole thing in a git repo and version-control their evolving thinking.</p>
+    <p>I wanted a tool where, two years from now, a solo attorney or a CPA could grep across every conversation they'd had with the AI and find the one thing they'd written about a specific client matter. They could open it in Vim if Advisor Prep Hero stopped existing. They could put the whole thing in a git repo and version-control their evolving thinking.</p>
 
     <p>None of those work with a SQLite chat database. The data is technically yours. Practically, you need a tool that knows how to read the schema, and the schema is mine to change.</p>
 
@@ -97,7 +97,7 @@ CREATE TABLE messages (
 
     <ul>
       <li>Grep across conversations: <code>grep -ri "pricing" ~/keepance-workspace/</code>. Works in any terminal.</li>
-      <li>Open in Vim if Keepance disappears: open the file. Done. It's text.</li>
+      <li>Open in Vim if Advisor Prep Hero disappears: open the file. Done. It's text.</li>
       <li>Version-control: drop the workspace in a git repo. Every commit is a snapshot of your thinking that day.</li>
     </ul>
 
@@ -111,9 +111,9 @@ CREATE TABLE messages (
 
     <p>Most apps have an authoritative in-memory state that's serialized to disk for persistence. The pattern is: load on startup, modify in memory, save changes. The disk format is a serialization of the in-memory model.</p>
 
-    <p>Keepance inverts this. The file system is the source of truth. The in-memory representation is a cached projection. When you change a file from outside Keepance (in your text editor, via a script, by syncing from Dropbox), Keepance notices and updates its cached view. The disk format is human-first; the in-memory model is the secondary.</p>
+    <p>Advisor Prep Hero inverts this. The file system is the source of truth. The in-memory representation is a cached projection. When you change a file from outside Advisor Prep Hero (in your text editor, via a script, by syncing from Dropbox), Advisor Prep Hero notices and updates its cached view. The disk format is human-first; the in-memory model is the secondary.</p>
 
-    <p>Concretely: <code>.aichat</code> files are Markdown with a YAML frontmatter. The Markdown body is the conversation. The frontmatter has the provider, model, timestamps, tags. When you open Keepance, it scans the workspace folder, parses each file's frontmatter, and builds the chat list. Edit a file in TextEdit, save, the chat list updates.</p>
+    <p>Concretely: <code>.aichat</code> files are Markdown with a YAML frontmatter. The Markdown body is the conversation. The frontmatter has the provider, model, timestamps, tags. When you open Advisor Prep Hero, it scans the workspace folder, parses each file's frontmatter, and builds the chat list. Edit a file in TextEdit, save, the chat list updates.</p>
 
     <h3>2. There's no SQL</h3>
 
@@ -123,7 +123,7 @@ CREATE TABLE messages (
 
     <h3>3. Sync becomes the user's problem in a good way</h3>
 
-    <p>I'd been planning to ship a Keepance sync feature in v2. Eight weeks of using the Markdown-files approach later, I'm not going to. Users put the workspace folder in Dropbox or iCloud and sync just works. It's also more reliable than any sync I'd build myself, because Dropbox and iCloud are dedicated sync companies with hundreds of engineering years invested in the problem.</p>
+    <p>I'd been planning to ship a Advisor Prep Hero sync feature in v2. Eight weeks of using the Markdown-files approach later, I'm not going to. Users put the workspace folder in Dropbox or iCloud and sync just works. It's also more reliable than any sync I'd build myself, because Dropbox and iCloud are dedicated sync companies with hundreds of engineering years invested in the problem.</p>
 
     <p>"Use the user's existing sync layer" is a real architecture pattern. Most apps reflexively try to own sync because it sounds like a feature. For local-first single-user tools, BYO sync is genuinely better.</p>
 
@@ -145,7 +145,7 @@ CREATE TABLE messages (
 
     <h3>2. Concurrent writes are tricky</h3>
 
-    <p>If two processes write to the same file at the same time, you can lose data. With a database transaction, you don't. Keepance is single-user single-process so this is rarely an issue, but if a user runs two Keepance instances pointed at the same workspace folder (which Dropbox-synced setups can produce), you can hit conflicts.</p>
+    <p>If two processes write to the same file at the same time, you can lose data. With a database transaction, you don't. Advisor Prep Hero is single-user single-process so this is rarely an issue, but if a user runs two Advisor Prep Hero instances pointed at the same workspace folder (which Dropbox-synced setups can produce), you can hit conflicts.</p>
 
     <p>The mitigation: every file write goes through a debounce + atomic-rename pattern. Conflicts are still possible but rare. For a multi-user collaborative app, this approach would not scale; for single-user, it's fine.</p>
 
@@ -157,7 +157,7 @@ CREATE TABLE messages (
 
     <h2>The cultural side of the decision</h2>
 
-    <p>The architecture decision was also a cultural one. By choosing Markdown files, I committed Keepance to a specific worldview:</p>
+    <p>The architecture decision was also a cultural one. By choosing Markdown files, I committed Advisor Prep Hero to a specific worldview:</p>
 
     <ul>
       <li>Your data is more important than my data model</li>
@@ -174,7 +174,7 @@ CREATE TABLE messages (
 
     <h3>1. Start with the format design, not the editor</h3>
 
-    <p>I designed Keepance's <code>.aichat</code> file format somewhat opportunistically. Frontmatter, then alternating <code>## You</code> / <code>## Claude</code> sections. It works, but I'd version the format spec from day one and write a formal document about how it should be parsed by other tools. Right now the spec lives in code; that's fine for me but suboptimal for other tool builders who might want to read or write the format.</p>
+    <p>I designed Advisor Prep Hero's <code>.aichat</code> file format somewhat opportunistically. Frontmatter, then alternating <code>## You</code> / <code>## Claude</code> sections. It works, but I'd version the format spec from day one and write a formal document about how it should be parsed by other tools. Right now the spec lives in code; that's fine for me but suboptimal for other tool builders who might want to read or write the format.</p>
 
     <h3>2. Ship a CLI from day one</h3>
 
@@ -188,7 +188,7 @@ CREATE TABLE messages (
 
     <p>If no (because you're building a multi-user collaborative app, or your data model is genuinely too complex for files, or you're building for a context where SQL queries matter), databases. There are good reasons for them.</p>
 
-    <p>For Keepance specifically, the answer was clearly "files." Eight weeks of building on that foundation has been smoother than I expected, and the claim ("your data is yours") is structurally true rather than aspirationally true. That distinction matters a lot if you're a practitioner with confidentiality obligations attached to what's in those files.</p>
+    <p>For Advisor Prep Hero specifically, the answer was clearly "files." Eight weeks of building on that foundation has been smoother than I expected, and the claim ("your data is yours") is structurally true rather than aspirationally true. That distinction matters a lot if you're a practitioner with confidentiality obligations attached to what's in those files.</p>
 
     <a href="/#pricing" class="cta">Try a Markdown-first AI workspace, free for 30 days</a>
   </div>

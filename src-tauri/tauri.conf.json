@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Keepance",
+  "productName": "Advisor Prep Hero",
   "version": "3.3.5",
-  "identifier": "com.keepance.app",
+  "identifier": "com.lantern.app",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
@@ -13,7 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "Keepance",
+        "title": "Advisor Prep Hero",
         "width": 1200,
         "height": 800,
         "minWidth": 800,
@@ -50,9 +50,9 @@
     ],
     "category": "Productivity",
     "shortDescription": "Local-first AI workspace for confidential client work",
-    "longDescription": "Keepance is a local-first AI workspace for professionals who handle confidential client work. Your files stay on your machine. Bring your own API key or run AI models locally with Ollama. Supports attorneys, CPAs, consultants, and other professionals where client confidentiality is non-negotiable.",
-    "publisher": "Keepance",
-    "copyright": "Copyright 2026 Keepance",
+    "longDescription": "Advisor Prep Hero is a local-first AI workspace for financial advisors who handle confidential client work. Your files stay on your machine. Bring your own API key or run AI models locally with Ollama. Supports RIAs, advisors, CPAs, and consultants where client confidentiality is non-negotiable.",
+    "publisher": "Advisor Prep Hero",
+    "copyright": "Copyright 2026 Advisor Prep Hero",
     "windows": {
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",

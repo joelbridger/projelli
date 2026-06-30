@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Getting Started, Keepance</title>
-  <meta name="description" content="Install Keepance, create your first workspace, and run your first AI workflow in 5 minutes.">
+  <title>Getting Started, Advisor Prep Hero</title>
+  <meta name="description" content="Install Advisor Prep Hero, create your first workspace, and run your first AI workflow in 5 minutes.">
   <link rel="canonical" href="https://keepance.com/docs/getting-started">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -41,15 +41,15 @@
 
 <body>
   <div class="container">
-    <a href="/" class="back">← Back to Keepance</a>
-    <h1>Getting Started with Keepance</h1>
+    <a href="/" class="back">← Back to Advisor Prep Hero</a>
+    <h1>Getting Started with Advisor Prep Hero</h1>
     <p class="meta">A 5-minute guide from download to your first AI-generated document.</p>
 
-    <p>Keepance is a desktop app you install on your computer. It runs locally, your files never go to our servers, and your AI conversations go directly from your computer to whatever AI provider you choose. This guide walks you through installation, setup, and your first workflow.</p>
+    <p>Advisor Prep Hero is a desktop app you install on your computer. It runs locally, your files never go to our servers, and your AI conversations go directly from your computer to whatever AI provider you choose. This guide walks you through installation, setup, and your first workflow.</p>
 
     <h2>Try it in your browser first</h2>
 
-    <p>Want to kick the tires before downloading anything? The in-browser demo at <a href="/try/"><strong>keepance.com/try</strong></a> runs a real Keepance session against a pre-seeded sample workspace. No download, no API key, no signup. You can poke around for a few minutes and see what the editor + chat + workflows actually feel like.</p>
+    <p>Want to kick the tires before downloading anything? The in-browser demo at <a href="/try/"><strong>keepance.com/try</strong></a> runs a real Advisor Prep Hero session against a pre-seeded sample workspace. No download, no API key, no signup. You can poke around for a few minutes and see what the editor + chat + workflows actually feel like.</p>
 
     <p><a href="/try/" class="next-link">Open the in-browser demo &rarr;</a></p>
 
@@ -58,20 +58,20 @@
     <div class="step">
       <h3>Windows</h3>
       <ol>
-        <li>Click <a href="https://github.com/keepance/keepance/releases/latest">Download for Windows</a> and grab <code>Keepance_x.y.z_x64-setup.exe</code></li>
-        <li>Double-click the installer. There's no wizard, just a brief progress window. That's intentional. Keepance is signed via Azure Trusted Signing so SmartScreen will not warn you.</li>
-        <li>Keepance launches automatically when install finishes, and you'll find a desktop shortcut for next time.</li>
-        <li>Want the full installer wizard instead? Open a terminal and run <code>Keepance_x.y.z_x64-setup.exe /INTERACTIVE</code></li>
+        <li>Click <a href="https://github.com/keepance/keepance/releases/latest">Download for Windows</a> and grab <code>Advisor Prep Hero_x.y.z_x64-setup.exe</code></li>
+        <li>Double-click the installer. There's no wizard, just a brief progress window. That's intentional. Advisor Prep Hero is signed via Azure Trusted Signing so SmartScreen will not warn you.</li>
+        <li>Advisor Prep Hero launches automatically when install finishes, and you'll find a desktop shortcut for next time.</li>
+        <li>Want the full installer wizard instead? Open a terminal and run <code>Advisor Prep Hero_x.y.z_x64-setup.exe /INTERACTIVE</code></li>
       </ol>
     </div>
 
     <div class="step">
       <h3>macOS</h3>
       <ol>
-        <li>Click <a href="https://github.com/keepance/keepance/releases/latest">Download for macOS</a>. Pick <code>Keepance_x.y.z_aarch64.dmg</code> for Apple Silicon (M1/M2/M3/M4) or <code>Keepance_x.y.z_x64.dmg</code> for Intel Macs.</li>
-        <li>Open the DMG and drag Keepance into Applications.</li>
-        <li>The first time you launch, macOS will say <em>"Apple cannot verify Keepance is free of malware."</em> Keepance is signed with our Apple Developer ID, but Apple's notary service has been intermittently slow since spring 2026, so we're shipping signed-only for now. To open: <strong>right-click Keepance in Applications → Open → "Open Anyway"</strong>. You only need to do this once.</li>
-        <li>If the right-click flow doesn't work on your version of macOS, go to <strong>System Settings → Privacy &amp; Security</strong>, scroll to the bottom, and click "Open Anyway" next to the Keepance entry.</li>
+        <li>Click <a href="https://github.com/keepance/keepance/releases/latest">Download for macOS</a>. Pick <code>Advisor Prep Hero_x.y.z_aarch64.dmg</code> for Apple Silicon (M1/M2/M3/M4) or <code>Advisor Prep Hero_x.y.z_x64.dmg</code> for Intel Macs.</li>
+        <li>Open the DMG and drag Advisor Prep Hero into Applications.</li>
+        <li>The first time you launch, macOS will say <em>"Apple cannot verify Advisor Prep Hero is free of malware."</em> Advisor Prep Hero is signed with our Apple Developer ID, but Apple's notary service has been intermittently slow since spring 2026, so we're shipping signed-only for now. To open: <strong>right-click Advisor Prep Hero in Applications → Open → "Open Anyway"</strong>. You only need to do this once.</li>
+        <li>If the right-click flow doesn't work on your version of macOS, go to <strong>System Settings → Privacy &amp; Security</strong>, scroll to the bottom, and click "Open Anyway" next to the Advisor Prep Hero entry.</li>
       </ol>
     </div>
 
@@ -82,20 +82,20 @@
 
     <h2>Step 2: Create your first workspace</h2>
 
-    <p>The first time you launch Keepance, it asks you to pick a workspace folder. This folder is where ALL your work will live, every document, every AI conversation, every file is just a regular file inside this folder.</p>
+    <p>The first time you launch Advisor Prep Hero, it asks you to pick a workspace folder. This folder is where ALL your work will live, every document, every AI conversation, every file is just a regular file inside this folder.</p>
 
     <p><strong>Pick a folder that's easy to find and easy to back up.</strong> Common choices:</p>
     <ul>
-      <li><code>~/Documents/Keepance</code> on Mac</li>
-      <li><code>C:\Users\YourName\Documents\Keepance</code> on Windows</li>
-      <li>A folder inside Dropbox, iCloud, or OneDrive, if you do this, you get automatic sync across devices for free, since Keepance writes plain Markdown files that any sync tool can handle</li>
+      <li><code>~/Documents/Advisor Prep Hero</code> on Mac</li>
+      <li><code>C:\Users\YourName\Documents\Advisor Prep Hero</code> on Windows</li>
+      <li>A folder inside Dropbox, iCloud, or OneDrive, if you do this, you get automatic sync across devices for free, since Advisor Prep Hero writes plain Markdown files that any sync tool can handle</li>
     </ul>
 
-    <p>Click "Create Workspace" and choose your folder. Keepance will set up the folder structure (a few subdirectories for your files, audit log, and trash).</p>
+    <p>Click "Create Workspace" and choose your folder. Advisor Prep Hero will set up the folder structure (a few subdirectories for your files, audit log, and trash).</p>
 
     <h2>Step 3: Add an AI provider key</h2>
 
-    <p>Keepance works with four AI providers: Anthropic Claude, OpenAI ChatGPT, Google Gemini, and Ollama (local, free, no key needed). You bring your own API key for one of the cloud providers, or you point Keepance at a local Ollama install. This is how Keepance stays local-first and private, your AI requests go directly from your computer to the provider, never through us.</p>
+    <p>Advisor Prep Hero works with four AI providers: Anthropic Claude, OpenAI ChatGPT, Google Gemini, and Ollama (local, free, no key needed). You bring your own API key for one of the cloud providers, or you point Advisor Prep Hero at a local Ollama install. This is how Advisor Prep Hero stays local-first and private, your AI requests go directly from your computer to the provider, never through us.</p>
 
     <p>If you don't have a key yet and just want to test, the in-browser demo at <a href="/try/"><strong>keepance.com/try</strong></a> works without one. Worth trying before you sign up for an API account.</p>
 
@@ -108,7 +108,7 @@
       <li><strong>Google:</strong> <a href="https://aistudio.google.com/app/apikey">aistudio.google.com/app/apikey</a></li>
     </ul>
 
-    <p>Once you have a key, in Keepance go to <strong>Settings → API Keys</strong> and paste it in. Keys are stored in your operating system's secure keychain, Keychain on Mac, Credential Manager on Windows, Secret Service on Linux. They're never written to a file or sent to us.</p>
+    <p>Once you have a key, in Advisor Prep Hero go to <strong>Settings → API Keys</strong> and paste it in. Keys are stored in your operating system's secure keychain, Keychain on Mac, Credential Manager on Windows, Secret Service on Linux. They're never written to a file or sent to us.</p>
 
     <h2>Step 4: Run your first workflow</h2>
 
@@ -116,7 +116,7 @@
 
     <p>The workflow asks you a series of questions about your business idea (the problem, the customer, the unique angle, the go-to-market). Answer them with whatever level of detail you have, even rough ideas work.</p>
 
-    <p>When you click "Generate," Keepance sends your answers to your chosen AI provider and produces a set of real, editable Markdown files in your workspace:</p>
+    <p>When you click "Generate," Advisor Prep Hero sends your answers to your chosen AI provider and produces a set of real, editable Markdown files in your workspace:</p>
     <ul>
       <li><code>VISION.md</code>, your business vision</li>
       <li><code>PROBLEM.md</code>, the problem statement</li>
@@ -125,7 +125,7 @@
       <li><code>NEXT-STEPS.md</code>, concrete actions</li>
     </ul>
 
-    <p>These are <strong>real files</strong>. You can open them in Keepance's editor, edit them inline, and back them up however you want.</p>
+    <p>These are <strong>real files</strong>. You can open them in Advisor Prep Hero's editor, edit them inline, and back them up however you want.</p>
 
     <h2>Step 5: Iterate</h2>
 
@@ -161,7 +161,7 @@
 
   <footer class="kp-footer">
     <div class="kp-footer-inner">
-      <a href="/" class="kp-footer-brand">Keepance</a>
+      <a href="/" class="kp-footer-brand">Advisor Prep Hero</a>
       <nav class="kp-footer-links" aria-label="Footer navigation">
         <a href="/tour/">Tour</a>
         <a href="/blog/">Blog</a>

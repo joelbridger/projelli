@@ -1,10 +1,10 @@
 > **CHANNEL STRATEGY OUTDATED** — This playbook was written for Product Hunt / Hacker News / IndieHackers launch targeting indie founders. As of 2026-05-27, the ICP is attorneys, CPAs, and consultants. The new channels are bar association CLEs, AICPA/NAEA newsletters, and Umbrex/Lenny (consulting). This content needs rewriting before use.
 
-# Email Sequences, Keepance
+# Email Sequences, Advisor Prep Hero
 
 > **Status:** Draft. Ready to copy into Brevo as templates once Jameson reviews.
 > **Voice:** First-person singular, contractions, no AI tells, founder-direct.
-> **Sender:** `Jameson @ Keepance <noreply@keepanceproject.com>` for transactional, `Jameson Daines <support@keepanceproject.com>` for narrative.
+> **Sender:** `Jameson @ Advisor Prep Hero <noreply@keepanceproject.com>` for transactional, `Jameson Daines <support@keepanceproject.com>` for narrative.
 
 ---
 
@@ -41,16 +41,16 @@ All emails are plain text. No HTML templates. No images. No tracking pixels. The
 **From:** Jameson Daines <support@keepanceproject.com>
 **Subject options (A/B test):**
 - A) `Hi from Jameson, you're on the list`
-- B) `Welcome to Keepance (and a quick honest update)`
-- C) `You signed up for Keepance, here's what happens next`
+- B) `Welcome to Advisor Prep Hero (and a quick honest update)`
+- C) `You signed up for Advisor Prep Hero, here's what happens next`
 
 **Body:**
 
 ```
 Hi,
 
-Thanks for signing up for Keepance updates. I'm Jameson, the
-person who built it, not a "Keepance team," just me on
+Thanks for signing up for Advisor Prep Hero updates. I'm Jameson, the
+person who built it, not a "Advisor Prep Hero team," just me on
 weekends and evenings around a full-time job at a health-tech
 company.
 
@@ -72,7 +72,7 @@ A few honest things up front:
    SmartScreen "unknown publisher" warning that the launch will
    fix with a code-signed build.
 
-4. If you want to know what Keepance IS exactly:
+4. If you want to know what Advisor Prep Hero IS exactly:
    https://keepance.com
 
 5. If you want to talk to me about it directly, just reply to
@@ -87,7 +87,7 @@ Talk soon,
 Jameson
 
 --
-Keepance, local-first AI workspace for indie founders
+Advisor Prep Hero, local-first AI workspace for indie founders
 keepance.com · github.com/keepance/keepance
 
 You're getting this because you signed up at keepance.com.
@@ -99,14 +99,14 @@ Unsubscribe: {{unsubscribe_url}}
 ## Email 02, Pre-launch teaser (sent T+3 days after signup, OR T-3 days before launch, whichever is later)
 
 **From:** Jameson Daines <support@keepanceproject.com>
-**Subject:** `T-3: launching Keepance on Tuesday`
+**Subject:** `T-3: launching Advisor Prep Hero on Tuesday`
 
 **Body:**
 
 ```
 Quick one.
 
-Keepance launches publicly on Tuesday morning (US Pacific time).
+Advisor Prep Hero launches publicly on Tuesday morning (US Pacific time).
 Product Hunt + Show HN simultaneously.
 
 Three things you should know:
@@ -124,7 +124,7 @@ Three things you should know:
 
 What I'd actually love from you on launch day:
 
-- If Keepance looks useful, an upvote on Product Hunt is helpful
+- If Advisor Prep Hero looks useful, an upvote on Product Hunt is helpful
   but please don't feel obligated.
 - If you have feedback (good, bad, or "this isn't for me"), reply
   to this email and tell me. Honest feedback from people who
@@ -151,12 +151,12 @@ Unsubscribe: {{unsubscribe_url}}
 ## Email 03, Launch day (sent at 7 am PT on launch day)
 
 **From:** Jameson Daines <support@keepanceproject.com>
-**Subject:** `It's live: Keepance is launching today (and the Founder's Launch is $29)`
+**Subject:** `It's live: Advisor Prep Hero is launching today (and the Founder's Launch is $29)`
 
 **Body:**
 
 ```
-Keepance is live.
+Advisor Prep Hero is live.
 
 After 18 months of building and 8 weeks of commercial polish,
 the product is shipping today. Product Hunt and Show HN go up
@@ -193,7 +193,7 @@ If you want to follow the launch:
   https://keepance.com/blog/how-i-built-keepance-in-8-weeks
 
 Today is the day I find out whether 18 months of weekend work
-matters to anyone other than me. Wish me luck. And if Keepance
+matters to anyone other than me. Wish me luck. And if Advisor Prep Hero
 helps you ship something, that's the only metric I actually
 care about.
 
@@ -238,7 +238,7 @@ Founder's Launch tier is still live (__ of 100 left). After
 those 100 sell, the Lifetime tier goes to $99 and the $29 price
 disappears. No urgency tricks, that's just the math.
 
-If you tried Keepance and it didn't click for you: I'd really
+If you tried Advisor Prep Hero and it didn't click for you: I'd really
 like to know why. Reply to this email and tell me what was
 missing or what felt off. The most useful feedback I'm getting
 this week is from people who DIDN'T buy, they tell me what's
@@ -266,13 +266,13 @@ Unsubscribe: {{unsubscribe_url}}
 
 ## Email 05, Purchase confirmation + license key (sent at T+0 after LemonSqueezy webhook)
 
-**From:** Keepance <noreply@keepanceproject.com>
-**Subject:** `Your Keepance license key (and how to use it)`
+**From:** Advisor Prep Hero <noreply@keepanceproject.com>
+**Subject:** `Your Advisor Prep Hero license key (and how to use it)`
 
 **Body:**
 
 ```
-Thank you for buying Keepance.
+Thank you for buying Advisor Prep Hero.
 
 Your license key is:
 
@@ -280,14 +280,14 @@ Your license key is:
 
 To activate:
 
-1. Open Keepance on your computer.
+1. Open Advisor Prep Hero on your computer.
 2. Go to Settings → License (top-right gear icon).
 3. Paste your license key into the input field.
 4. Click "Activate."
 
 That's it. The app will validate the key with my server one
 time, then store an activation token locally. After that,
-Keepance works fully offline, no further server check-ins.
+Advisor Prep Hero works fully offline, no further server check-ins.
 
 You can use this license key on up to 3 devices that you
 personally own.
@@ -317,7 +317,7 @@ Jameson
 keepance.com
 
 --
-This is a transactional email about your Keepance purchase.
+This is a transactional email about your Advisor Prep Hero purchase.
 You'll only receive product-related messages from this address.
 For occasional updates and tips, sign up at keepance.com.
 ```
@@ -327,14 +327,14 @@ For occasional updates and tips, sign up at keepance.com.
 ## Email 06, First-day check-in (sent T+1 day after purchase)
 
 **From:** Jameson Daines <support@keepanceproject.com>
-**Subject:** `Day 1 with Keepance, quick question`
+**Subject:** `Day 1 with Advisor Prep Hero, quick question`
 
 **Body:**
 
 ```
 Hey,
 
-Yesterday you bought Keepance. Thank you.
+Yesterday you bought Advisor Prep Hero. Thank you.
 
 I'm sending this because the most useful thing I can do as a
 solo founder is talk to actual buyers in their first week.
@@ -350,7 +350,7 @@ reply, no need to write paragraphs):
    stopped you?
 
 3. Is there one thing I could fix or add this week that would
-   make Keepance more useful to you tomorrow?
+   make Advisor Prep Hero more useful to you tomorrow?
 
 If everything is great and you have nothing to say, just write
 "all good" and I'll know to leave you alone. If you've already
@@ -373,14 +373,14 @@ haven't tried it yet.
 ## Email 07, One-week feedback ask (sent T+7 days after purchase)
 
 **From:** Jameson Daines <support@keepanceproject.com>
-**Subject:** `One week in, would you tell me if you're using Keepance?`
+**Subject:** `One week in, would you tell me if you're using Advisor Prep Hero?`
 
 **Body:**
 
 ```
 Hi,
 
-You've had Keepance for a week. I'm not going to ask you to
+You've had Advisor Prep Hero for a week. I'm not going to ask you to
 do anything except answer one question, and only if you feel
 like it:
 
@@ -423,14 +423,14 @@ Unsubscribe: {{unsubscribe_url}}
 ## Email 08, One-month retention (sent T+30 days after purchase)
 
 **From:** Jameson Daines <support@keepanceproject.com>
-**Subject:** `Month 1 with Keepance, and a small ask`
+**Subject:** `Month 1 with Advisor Prep Hero, and a small ask`
 
 **Body:**
 
 ```
 Hi,
 
-You've had Keepance for a month. I want to do two things in
+You've had Advisor Prep Hero for a month. I want to do two things in
 this email:
 
 **1. Thank you, properly.**
@@ -443,7 +443,7 @@ for me to keep shipping.
 
 **2. Ask one favor.**
 
-If Keepance has been useful to you in the last 30 days, the
+If Advisor Prep Hero has been useful to you in the last 30 days, the
 single most helpful thing you can do for me is leave a public
 note about it. It doesn't have to be a review, a tweet, a
 LinkedIn post, an IndieHackers comment, a one-line note on
@@ -457,7 +457,7 @@ this works for me" is what closes that loop.
 
 If you want a template, here's one:
 
-> "I've been using Keepance for a month, it's the local-first
+> "I've been using Advisor Prep Hero for a month, it's the local-first
 >  AI workspace I'd been looking for. Every chat with Claude
 >  becomes a real Markdown file on my hard drive, with 15 founder
 >  templates baked in. Solo dev, one-time pricing, $49.
@@ -466,7 +466,7 @@ If you want a template, here's one:
 Or write whatever you actually think. The honest version is
 better than the polished version.
 
-If Keepance HASN'T been useful to you in the last 30 days,
+If Advisor Prep Hero HASN'T been useful to you in the last 30 days,
 also let me know, I'd rather know now than miss the chance
 to fix it. Just reply to this email.
 
@@ -484,14 +484,14 @@ Unsubscribe: {{unsubscribe_url}}
 ## Email 09, Refund confirmation + exit interview (sent at T+0 after refund webhook)
 
 **From:** Jameson Daines <support@keepanceproject.com>
-**Subject:** `Your Keepance refund, and one question if you have a minute`
+**Subject:** `Your Advisor Prep Hero refund, and one question if you have a minute`
 
 **Body:**
 
 ```
 Hi,
 
-Your refund for Keepance has been processed. The full amount
+Your refund for Advisor Prep Hero has been processed. The full amount
 should hit your card within 3-7 business days, depending on
 your bank.
 
@@ -535,18 +535,18 @@ keepance.com
 ## Email 10, Re-engagement (sent T+30 days after last app activity, only to paying customers)
 
 **From:** Jameson Daines <support@keepanceproject.com>
-**Subject:** `Did Keepance stop working for you?`
+**Subject:** `Did Advisor Prep Hero stop working for you?`
 
 **Body:**
 
 ```
 Hi,
 
-The Keepance license validation service hasn't seen your app
+The Advisor Prep Hero license validation service hasn't seen your app
 check in for the last 30 days. That probably means one of
 three things:
 
-1. You're using Keepance offline and it's working fine. (No
+1. You're using Advisor Prep Hero offline and it's working fine. (No
    action needed, the app validates once and then runs
    indefinitely without further checks. Ignore this email.)
 
@@ -554,7 +554,7 @@ three things:
    working. If that's you, reply to this email and tell me
    what happened. I'll fix it or refund you, your choice.
 
-3. Keepance didn't fit into your workflow and you stopped
+3. Advisor Prep Hero didn't fit into your workflow and you stopped
    using it. If that's you, no judgment. But if there was
    one specific thing missing or one moment of friction
    that made you bounce, I'd really like to know. Reply
@@ -602,7 +602,7 @@ The minimum implementation for launch is just emails 01, 03, 05, and 09. The res
 I'm not A/B testing the email body copy at this volume, the list is too small for statistical significance. The only A/B I'd run is the **subject line** of email 01 (welcome), because that's the only one with a meaningful click-through rate to optimize.
 
 Once the list crosses ~500 active subscribers, it's worth testing:
-- Email 03 launch subject line: "It's live" vs "Keepance is shipping today" vs "T-0"
+- Email 03 launch subject line: "It's live" vs "Advisor Prep Hero is shipping today" vs "T-0"
 - Email 08 retention CTA: "Leave a public note" vs "Tweet about it" vs "Tell one founder friend"
 
 Until then, the single highest-payoff optimization is the email VOICE, making sure each one sounds like Jameson and not like a marketing automation. Re-read every email out loud before saving.

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI workspace privacy: a data flow guide for attorneys, CPAs, and consultants | Keepance</title>
+  <title>AI workspace privacy: a data flow guide for attorneys, CPAs, and consultants | Advisor Prep Hero</title>
   <meta name="description" content="Where do your AI conversations actually go? A practical privacy guide for attorneys, CPAs, and consultants, with the data flows and policies to read before you trust an AI tool with client files.">
   <link rel="canonical" href="https://keepance.com/ai-workspace-privacy">
   <meta name="robots" content="index, follow">
@@ -30,7 +30,7 @@
     "image": "https://keepance.com/og-image.png",
     "publisher": {
       "@type": "Organization",
-      "name": "Keepance",
+      "name": "Advisor Prep Hero",
       "url": "https://keepance.com",
       "logo": "https://keepance.com/og-image.png"
     },
@@ -47,7 +47,7 @@
         "name": "Does ChatGPT train on my conversations?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Consumer ChatGPT (chatgpt.com) trains on conversations by default for free and Plus users; you can opt out in Settings → Data Controls. The OpenAI API (which powers BYOK tools like Keepance) does not train on inputs by default. Source: OpenAI's API data usage policy."
+          "text": "Consumer ChatGPT (chatgpt.com) trains on conversations by default for free and Plus users; you can opt out in Settings → Data Controls. The OpenAI API (which powers BYOK tools like Advisor Prep Hero) does not train on inputs by default. Source: OpenAI's API data usage policy."
         }
       },
       {
@@ -165,14 +165,14 @@
     <p class="meta">Updated 2026-04-27 · 12 min read</p>
 
     <div class="summary">
-      <p><strong>The short version.</strong> Most AI workspace tools fall into one of three privacy postures. Cloud workspaces (Notion AI, ChatGPT Plus, Reflect) store your data on their servers and route AI through their pipeline. BYOK desktop tools (Keepance, Cursor, Continue.dev) keep your data on your machine and route AI calls directly to your chosen provider with your key. Fully local AI (Ollama, LM Studio) keeps everything on your machine, including the model. The right posture depends on the threat you actually care about. This page maps each.</p>
+      <p><strong>The short version.</strong> Most AI workspace tools fall into one of three privacy postures. Cloud workspaces (Notion AI, ChatGPT Plus, Reflect) store your data on their servers and route AI through their pipeline. BYOK desktop tools (Advisor Prep Hero, Cursor, Continue.dev) keep your data on your machine and route AI calls directly to your chosen provider with your key. Fully local AI (Ollama, LM Studio) keeps everything on your machine, including the model. The right posture depends on the threat you actually care about. This page maps each.</p>
     </div>
 
     <p>I'm going to walk through where your data actually goes when you use an AI workspace tool. Not the marketing version. The technical version, with the specific terms of service that govern each path.</p>
 
     <p>Most attorneys, CPAs, and consultants I talk to are vaguely uncomfortable with putting client files and confidential work product into ChatGPT, but haven't read the terms closely enough to know what's actually true. So they either trust the marketing language ("we don't sell your data") or they don't use AI on the sensitive work at all, which means they leave a lot of value on the table. There's a better posture, and it starts with knowing the actual data flow. For attorneys, the stakes are especially concrete: ABA Formal Opinion 512 addresses competent use of AI, and <a href="https://www.gibsondunn.com/ai-privilege-waivers-sdny-rules-against-privilege-protection-for-consumer-ai-outputs/" target="_blank" rel="noopener noreferrer"><em>United States v. Heppner</em></a> (Judge Rakoff, S.D.N.Y., Feb.&nbsp;17, 2026) held that consumer AI use without attorney direction offers no privilege protection.</p>
 
-    <p style="margin: 32px 0;"><img src="/press-kit/assets/screenshot-01-workspace.png" alt="Keepance workspace: file tree, editor, and AI chat with all data on the user's hard drive" style="width:100%; border-radius:12px; box-shadow:0 8px 24px rgba(15,23,42,0.08); display:block;"></p>
+    <p style="margin: 32px 0;"><img src="/press-kit/assets/screenshot-01-workspace.png" alt="Advisor Prep Hero workspace: file tree, editor, and AI chat with all data on the user's hard drive" style="width:100%; border-radius:12px; box-shadow:0 8px 24px rgba(15,23,42,0.08); display:block;"></p>
 
     <h2>What's in your AI workspace, really</h2>
 
@@ -214,7 +214,7 @@
 
     <h3>Posture 2: Local-first desktop tool with BYOK</h3>
 
-    <p>Examples: Keepance, Cursor (with BYOK), Continue.dev, Obsidian + AI plugins.</p>
+    <p>Examples: Advisor Prep Hero, Cursor (with BYOK), Continue.dev, Obsidian + AI plugins.</p>
 
     <p>Data flow:</p>
     <ol>
@@ -234,7 +234,7 @@
 
     <h3>Posture 3: Fully local AI</h3>
 
-    <p>Examples: Ollama running Llama 3 or Mistral; LM Studio with any open-weight model; Keepance with the Ollama provider configured.</p>
+    <p>Examples: Ollama running Llama 3 or Mistral; LM Studio with any open-weight model; Advisor Prep Hero with the Ollama provider configured.</p>
 
     <p>Data flow:</p>
     <ol>
@@ -319,7 +319,7 @@
 
     <ol>
       <li><strong>Pick your AI provider's API tier (BYOK), not their consumer chatbot.</strong> Better default privacy posture, no training on your data by default.</li>
-      <li><strong>Use a local-first desktop tool</strong> that keeps your conversation history on your machine. Keepance, Cursor with BYOK, Obsidian with an AI plugin. Avoid putting client files in a cloud workspace's database.</li>
+      <li><strong>Use a local-first desktop tool</strong> that keeps your conversation history on your machine. Advisor Prep Hero, Cursor with BYOK, Obsidian with an AI plugin. Avoid putting client files in a cloud workspace's database.</li>
       <li><strong>Set a hard monthly cap</strong> on each AI provider's billing. Limits damage if a key leaks.</li>
       <li><strong>Encrypt the disk.</strong> Both macOS (FileVault) and Windows (BitLocker) make this trivial. If your laptop is stolen, the workspace folder is unreadable.</li>
       <li><strong>Don't store API keys in plaintext.</strong> Use the OS keychain (macOS) or an encrypted file (Windows / Linux) inside the desktop app.</li>
@@ -328,20 +328,20 @@
       <li><strong>Read each provider's TOS once a year.</strong> They change. Calendar reminder, 15 minutes, done.</li>
     </ol>
 
-    <h2>How Keepance implements the local-first BYOK posture</h2>
+    <h2>How Advisor Prep Hero implements the local-first BYOK posture</h2>
 
-    <p>Specifically, here's what Keepance does:</p>
+    <p>Specifically, here's what Advisor Prep Hero does:</p>
 
     <ul>
-      <li><strong>No Keepance account.</strong> No signup. No password.</li>
-      <li><strong>No Keepance servers in the data path.</strong> The desktop app talks directly to Anthropic / OpenAI / Google / your local Ollama. Keepance's server-side infrastructure (the marketing site, the license validator, the form handler) never sees your prompts or your files.</li>
+      <li><strong>No Advisor Prep Hero account.</strong> No signup. No password.</li>
+      <li><strong>No Advisor Prep Hero servers in the data path.</strong> The desktop app talks directly to Anthropic / OpenAI / Google / your local Ollama. Advisor Prep Hero's server-side infrastructure (the marketing site, the license validator, the form handler) never sees your prompts or your files.</li>
       <li><strong>API keys in OS keychain.</strong> macOS Keychain, Windows Credential Manager equivalent, Linux libsecret. Never plaintext, never in localStorage where they'd be readable by stray scripts.</li>
       <li><strong>Conversations as files in your folder.</strong> Every chat saves as a `.aichat` file in the workspace folder you chose. Open with any text editor.</li>
       <li><strong>Audit log on your machine.</strong> Every AI action, every file change, every workflow run is logged to an append-only file you can read or grep.</li>
       <li><strong>No telemetry.</strong> Zero. The desktop app never phones home. The marketing site uses Plausible (privacy-respecting, no individual tracking).</li>
       <li><strong>Update checks.</strong> The app does check for updates from GitHub Releases (signed via minisign). This is one network call to GitHub and contains no user data, only a request for the latest version manifest.</li>
       <li><strong>Multilingual UI is local.</strong> Spanish and German interface translations ship inside the app bundle. No network calls to fetch a locale.</li>
-      <li><strong>The homepage web demo is the one exception</strong> and is clearly labeled as such. It's a five-message trial running on a Keepance-managed Bun proxy that holds a shared Anthropic key. Anything you type into the demo goes through Keepance's server, which exists only so people can try the chat without grabbing an API key first. Do not put client data into the demo. The desktop app does none of this; once you've installed the real app and pasted your own key, the local-first promise applies fully.</li>
+      <li><strong>The homepage web demo is the one exception</strong> and is clearly labeled as such. It's a five-message trial running on a Advisor Prep Hero-managed Bun proxy that holds a shared Anthropic key. Anything you type into the demo goes through Advisor Prep Hero's server, which exists only so people can try the chat without grabbing an API key first. Do not put client data into the demo. The desktop app does none of this; once you've installed the real app and pasted your own key, the local-first promise applies fully.</li>
     </ul>
 
     <p>Source code is open at <a href="https://github.com/keepance/keepance" target="_blank" rel="noopener">github.com/keepance/keepance</a>. The full privacy policy is at <a href="/legal/privacy">/legal/privacy</a>.</p>
@@ -351,7 +351,7 @@
     <div class="faq">
       <details>
         <summary>Does ChatGPT train on my conversations?</summary>
-        <p>Consumer ChatGPT (chatgpt.com) trains on conversations by default for free and Plus users; you can opt out in Settings → Data Controls. The OpenAI API (which powers BYOK tools like Keepance) does not train on inputs by default. Source: OpenAI's API data usage policy.</p>
+        <p>Consumer ChatGPT (chatgpt.com) trains on conversations by default for free and Plus users; you can opt out in Settings → Data Controls. The OpenAI API (which powers BYOK tools like Advisor Prep Hero) does not train on inputs by default. Source: OpenAI's API data usage policy.</p>
       </details>
       <details>
         <summary>Does Claude train on my conversations?</summary>
@@ -384,15 +384,15 @@
       <ul>
         <li><a href="/byok-ai">BYOK AI explained: what bring-your-own-key means in practice</a></li>
         <li><a href="/local-first-ai-workspace">What is a local-first AI workspace?</a></li>
-        <li><a href="/legal/privacy">Keepance's full Privacy Policy</a></li>
+        <li><a href="/legal/privacy">Advisor Prep Hero's full Privacy Policy</a></li>
         <li><a href="/blog/why-local-first-ai-for-founders">Why local-first AI matters for attorneys, CPAs, and consultants</a></li>
       </ul>
     </div>
 
     <div class="cta-card">
       <h3>An AI workspace where the data stays yours</h3>
-      <p>Keepance is local-first. Your files are on your machine. Your API keys are in your OS keychain. Your AI conversations never touch our servers.</p>
-      <a href="/#pricing" class="cta-btn">Get Keepance</a>
+      <p>Advisor Prep Hero is local-first. Your files are on your machine. Your API keys are in your OS keychain. Your AI conversations never touch our servers.</p>
+      <a href="/#pricing" class="cta-btn">Get Advisor Prep Hero</a>
     </div>
   </div>
 

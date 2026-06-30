@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>What is a local-first AI workspace? A guide for attorneys, CPAs, and consultants | Keepance</title>
+  <title>What is a local-first AI workspace? A guide for attorneys, CPAs, and consultants | Advisor Prep Hero</title>
   <meta name="description" content="A local-first AI workspace stores your AI conversations, notes, and client files on your machine in standard formats. Here's what that means in practice, why it matters for attorneys, CPAs, and consultants, and which tools actually qualify.">
   <link rel="canonical" href="https://keepance.com/local-first-ai-workspace">
   <meta name="robots" content="index, follow">
@@ -30,7 +30,7 @@
     "image": "https://keepance.com/og-image.png",
     "publisher": {
       "@type": "Organization",
-      "name": "Keepance",
+      "name": "Advisor Prep Hero",
       "url": "https://keepance.com",
       "logo": "https://keepance.com/og-image.png"
     },
@@ -55,7 +55,7 @@
         "name": "Is Obsidian a local-first AI workspace?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Obsidian itself is local-first. With third-party AI plugins like Smart Connections or Copilot for Obsidian, it can act as a local-first AI workspace, though you assemble the AI behavior yourself. Tools like Keepance are local-first AI workspaces out of the box without plugin assembly."
+          "text": "Obsidian itself is local-first. With third-party AI plugins like Smart Connections or Copilot for Obsidian, it can act as a local-first AI workspace, though you assemble the AI behavior yourself. Tools like Advisor Prep Hero are local-first AI workspaces out of the box without plugin assembly."
         }
       },
       {
@@ -206,9 +206,9 @@
 
     <p>The phrase "local-first" gets used loosely. People say it about apps that just have an offline cache. People say it about apps that store a copy of your data on disk while keeping the source of truth in the cloud. Both of those are useful, but they're not what "local-first" originally meant, and they're not what matters when the data in question is your client files, case notes, or confidential work product.</p>
 
-    <p>I'm going to walk through the strict definition, why it matters more for AI tools than for any previous category, what trade-offs you're actually accepting, and which tools currently qualify. I built Keepance on the strict definition, so I have a stake in this. I'll be specific about where Keepance wins and where it doesn't.</p>
+    <p>I'm going to walk through the strict definition, why it matters more for AI tools than for any previous category, what trade-offs you're actually accepting, and which tools currently qualify. I built Advisor Prep Hero on the strict definition, so I have a stake in this. I'll be specific about where Advisor Prep Hero wins and where it doesn't.</p>
 
-    <p style="margin: 32px 0;"><img src="/press-kit/assets/screenshot-01-workspace.png" alt="Keepance workspace: file tree, editor, and AI chat in one screen, with all data on the user's machine" style="width:100%; border-radius:12px; box-shadow:0 8px 24px rgba(15,23,42,0.08); display:block;"></p>
+    <p style="margin: 32px 0;"><img src="/press-kit/assets/screenshot-01-workspace.png" alt="Advisor Prep Hero workspace: file tree, editor, and AI chat in one screen, with all data on the user's machine" style="width:100%; border-radius:12px; box-shadow:0 8px 24px rgba(15,23,42,0.08); display:block;"></p>
 
     <h2>What "local-first" actually means</h2>
 
@@ -265,7 +265,7 @@
       <li>The AI response: back to your machine, written into a Markdown file</li>
     </ul>
 
-    <p>Critically, the workspace tool's servers are never in the path. There's no Keepance account. There's no Reflect account. There's no Notion account. The only servers your data ever touches are the AI provider's, and only for the specific text you chose to send.</p>
+    <p>Critically, the workspace tool's servers are never in the path. There's no Advisor Prep Hero account. There's no Reflect account. There's no Notion account. The only servers your data ever touches are the AI provider's, and only for the specific text you chose to send.</p>
 
     <p>This pattern goes by a couple of names. The most common is BYOK, "bring your own key", which I covered separately at <a href="/byok-ai">/byok-ai</a>. Whatever you call it, this is the architecture that lets the workspace be honestly local-first while still doing useful AI work.</p>
 
@@ -322,7 +322,7 @@
           <td>Local-first; AI is plugin-driven</td>
         </tr>
         <tr>
-          <td><strong>Keepance</strong></td>
+          <td><strong>Advisor Prep Hero</strong></td>
           <td><span class="pill yes">Yes</span></td>
           <td><span class="pill yes">Markdown</span></td>
           <td><span class="pill yes">Yes (except AI calls)</span></td>
@@ -372,13 +372,13 @@
       </tbody>
     </table>
 
-    <p>The tools that fully qualify as local-first AI workspaces today are Obsidian (with AI plugins you assemble yourself), Logseq (with similar plugin assembly), and Keepance (where the AI is built in). Bear and Standard Notes are local-first notes but don't really do AI as a first-class feature.</p>
+    <p>The tools that fully qualify as local-first AI workspaces today are Obsidian (with AI plugins you assemble yourself), Logseq (with similar plugin assembly), and Advisor Prep Hero (where the AI is built in). Bear and Standard Notes are local-first notes but don't really do AI as a first-class feature.</p>
 
     <p>Notion AI, Reflect, Mem.ai, Tana, ChatGPT, Claude.ai, and Gemini are all useful tools, but they're cloud-first. Calling them "local-first" because they have an export button is stretching the term past usefulness.</p>
 
     <h2>The case for attorneys, CPAs, and consultants specifically</h2>
 
-    <p>I built Keepance for professionals with confidentiality obligations because that's the audience the trade-offs land best for.</p>
+    <p>I built Advisor Prep Hero for professionals with confidentiality obligations because that's the audience the trade-offs land best for.</p>
 
     <p>A solo attorney or CPA spends their day generating documents that are deeply sensitive to clients and subject to professional privilege. Draft memos. Client interview notes. Tax work papers. Case strategy outlines. Confidential financial analysis. Honest internal notes about complex matters.</p>
 
@@ -388,22 +388,22 @@
 
     <p>It also matches how independent professionals already work. Most already have a folder of client notes somewhere. Most already use Dropbox or iCloud. Most are AI-curious by 2026 standards. The mental model of "my files, my keys, my machine" is already familiar.</p>
 
-    <h2>How Keepance does this</h2>
+    <h2>How Advisor Prep Hero does this</h2>
 
-    <p>Keepance is a desktop application (Tauri 2 + React) that runs on Windows, macOS, and Linux. The shape is exactly the hybrid I described above:</p>
+    <p>Advisor Prep Hero is a desktop application (Tauri 2 + React) that runs on Windows, macOS, and Linux. The shape is exactly the hybrid I described above:</p>
 
     <ul>
       <li><strong>You pick a workspace folder</strong> on first launch. Anywhere on your disk. Could be in Dropbox, could be on a USB stick.</li>
       <li><strong>Every AI conversation produces a `.aichat` file</strong> in that folder. Open it in any text editor; it's structured Markdown with a YAML frontmatter.</li>
-      <li><strong>You bring your own API key</strong> for Anthropic, OpenAI, or Google. The keys live in your OS keychain. AI requests go directly from your machine to the provider, never through Keepance.</li>
+      <li><strong>You bring your own API key</strong> for Anthropic, OpenAI, or Google. The keys live in your OS keychain. AI requests go directly from your machine to the provider, never through Advisor Prep Hero.</li>
       <li><strong>Profession-specific workflow templates</strong> are built in for legal, tax, and consulting work. Each template runs against your own files, on your own machine.</li>
       <li><strong>Full-text search, version history, and matter-scoped cited recall</strong> all work locally. Everything indexes from the same folder structure.</li>
-      <li><strong>Local-first confidentiality by design</strong>. Documents and API keys stay on your machine; prompts go straight to the AI provider, never through Keepance servers. Solo $468/yr, Professional $948/yr (+ one profession pack), Firm $1,548/seat/yr (min 3 seats). Sold via LemonSqueezy.</li>
+      <li><strong>Local-first confidentiality by design</strong>. Documents and API keys stay on your machine; prompts go straight to the AI provider, never through Advisor Prep Hero servers. Solo $468/yr, Professional $948/yr (+ one profession pack), Firm $1,548/seat/yr (min 3 seats). Sold via LemonSqueezy.</li>
       <li><strong>Read aloud is local</strong>. Click "Read aloud" on any AI message and a local Piper TTS sidecar reads it back. No cloud TTS service. The voice ships inside the app bundle.</li>
       <li><strong>Multilingual UI is local too</strong>. The interface ships in English, Spanish, and German. The locale files are inside the app bundle; switching language doesn't make a network call.</li>
     </ul>
 
-    <p>The one managed-cloud exception is the web demo at <a href="/">keepance.com</a>. It's a five-message browser trial backed by a Keepance-managed Bun proxy with a shared Anthropic key, so people can try the chat without grabbing their own. The trial is clearly framed as such, and it's the only Keepance-run server in the entire product story. Everything else, including all v2.0 additions, runs on your machine.</p>
+    <p>The one managed-cloud exception is the web demo at <a href="/">keepance.com</a>. It's a five-message browser trial backed by a Advisor Prep Hero-managed Bun proxy with a shared Anthropic key, so people can try the chat without grabbing their own. The trial is clearly framed as such, and it's the only Advisor Prep Hero-run server in the entire product story. Everything else, including all v2.0 additions, runs on your machine.</p>
 
     <p>The full feature reference is at <a href="https://github.com/keepance/keepance/blob/master/docs/reference/FEATURES.md" target="_blank" rel="noopener">FEATURES.md</a> in the repo. Source code is open at <a href="https://github.com/keepance/keepance" target="_blank" rel="noopener">github.com/keepance/keepance</a>.</p>
 
@@ -416,7 +416,7 @@
       </details>
       <details>
         <summary>Is Obsidian a local-first AI workspace?</summary>
-        <p>Obsidian itself is local-first. With third-party AI plugins like Smart Connections or Copilot for Obsidian, it can act as a local-first AI workspace, though you assemble the AI behavior yourself. Tools like Keepance are local-first AI workspaces out of the box without plugin assembly.</p>
+        <p>Obsidian itself is local-first. With third-party AI plugins like Smart Connections or Copilot for Obsidian, it can act as a local-first AI workspace, though you assemble the AI behavior yourself. Tools like Advisor Prep Hero are local-first AI workspaces out of the box without plugin assembly.</p>
       </details>
       <details>
         <summary>Are ChatGPT and Claude.ai local-first?</summary>
@@ -436,7 +436,7 @@
       </details>
       <details>
         <summary>How do I sync my workspace across devices if there's no built-in sync?</summary>
-        <p>Put the workspace folder inside a folder that another tool already syncs: Dropbox, iCloud Drive, Google Drive, Syncthing, OneDrive. Open the same folder on each device. This works for Obsidian, Keepance, Logseq, and any other local-first workspace. It's actually more reliable than most apps' built-in sync because the sync layer is the one responsibility of those tools.</p>
+        <p>Put the workspace folder inside a folder that another tool already syncs: Dropbox, iCloud Drive, Google Drive, Syncthing, OneDrive. Open the same folder on each device. This works for Obsidian, Advisor Prep Hero, Logseq, and any other local-first workspace. It's actually more reliable than most apps' built-in sync because the sync layer is the one responsibility of those tools.</p>
       </details>
     </div>
 
@@ -445,15 +445,15 @@
       <ul>
         <li><a href="/byok-ai">BYOK explained: bring your own AI key</a></li>
         <li><a href="/blog/why-local-first-ai-for-founders">Why local-first AI matters for attorneys, CPAs, and consultants (the long version)</a></li>
-        <li><a href="/vs/notion">Keepance vs Notion: a feature-by-feature comparison</a></li>
-        <li><a href="/vs/obsidian">Keepance vs Obsidian: the closest cousin and where they differ</a></li>
+        <li><a href="/vs/notion">Advisor Prep Hero vs Notion: a feature-by-feature comparison</a></li>
+        <li><a href="/vs/obsidian">Advisor Prep Hero vs Obsidian: the closest cousin and where they differ</a></li>
       </ul>
     </div>
 
     <div class="cta-card">
       <h3>Try a local-first AI workspace</h3>
-      <p>Keepance is free to try for 30 days. Your client files stay on your machine. Bring your own API key. Prompts go straight to the AI provider.</p>
-      <a href="/#pricing" class="cta-btn">Get Keepance</a>
+      <p>Advisor Prep Hero is free to try for 30 days. Your client files stay on your machine. Bring your own API key. Prompts go straight to the AI provider.</p>
+      <a href="/#pricing" class="cta-btn">Get Advisor Prep Hero</a>
     </div>
   </div>
 

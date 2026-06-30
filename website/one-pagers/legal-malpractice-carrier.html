@@ -35,17 +35,17 @@
   </p>
 
   <h2>The tool</h2>
-  <p>I use <strong>Keepance</strong>, a local-first AI workspace for professional client work. Conversations and outputs are saved as plain text files in a folder I control on my own machine. Keepance does not store work product on its own servers.</p>
+  <p>I use <strong>Advisor Prep Hero</strong>, a local-first AI workspace for professional client work. Conversations and outputs are saved as plain text files in a folder I control on my own machine. Advisor Prep Hero does not store work product on its own servers.</p>
 
   <h2>Where client data goes</h2>
   <p><strong>Local model path (Ollama):</strong> When I use a local AI model such as Ollama, my prompts never leave my machine. The AI runs on local hardware. No data reaches any external server. This is the path I use for matters where the client has requested no external transmission, or where my own professional judgment warrants it.</p>
-  <p><strong>Cloud API key path:</strong> When I use a cloud provider (Anthropic, OpenAI, or Google), my prompts go directly from my machine to that provider under my personal API key. Keepance's servers are not in the data path. Client data is processed under that provider's API data-processing terms, not under any consumer product terms.</p>
+  <p><strong>Cloud API key path:</strong> When I use a cloud provider (Anthropic, OpenAI, or Google), my prompts go directly from my machine to that provider under my personal API key. Advisor Prep Hero's servers are not in the data path. Client data is processed under that provider's API data-processing terms, not under any consumer product terms.</p>
 
   <h2>Client matter isolation</h2>
   <p>Each matter has its own folder. When I open an AI session, it is scoped to that matter's folder only. The AI cannot see files from other matters. I do not use shared AI chat histories across matters. There is no cross-matter contamination.</p>
 
   <h2>The audit log</h2>
-  <p>Keepance maintains an append-only log of every AI action: timestamp, model, files included, and output produced. The log is per-machine and per-matter. I can produce a complete AI activity record for any matter on request. This log is retained as part of the matter file.</p>
+  <p>Advisor Prep Hero maintains an append-only log of every AI action: timestamp, model, files included, and output produced. The log is per-machine and per-matter. I can produce a complete AI activity record for any matter on request. This log is retained as part of the matter file.</p>
 
   <h2>Attorney-client privilege considerations</h2>
   <p><strong>Local model path:</strong> Because no data leaves my machine, there is no transmission to a third party. The privilege and confidentiality analysis under the local path is straightforward: the communication never left my possession.</p>
@@ -53,15 +53,15 @@
   <p><em>This section is informational, not legal advice. Verify privilege and confidentiality implications with your own bar counsel.</em></p>
 
   <h2>How this compares to the AI tool your attorney likely already uses</h2>
-  <p>The most commonly cited AI tool in legal practice right now is <strong>Clio Duo</strong>, the built-in AI layer for Clio practice management software. Clio Duo is a cloud SaaS tool with a contractual no-training policy, and it genuinely integrates tightly with matter management, billing, and deadlines inside the Clio platform. Clio also holds SOC 2 certification. For a carrier reviewing whether the attorney uses a credentialed cloud vendor, Clio Duo clears that bar in a way Keepance does not today.</p>
-  <p>The architectural difference that matters for this review: Clio Duo routes client matter content through Clio's servers. It is a third-party vendor in the data path. Under the <em><a href="https://www.gibsondunn.com/ai-privilege-waivers-sdny-rules-against-privilege-protection-for-consumer-ai-outputs/" target="_blank" rel="noopener">Heppner</a></em> analysis, transmission to a cloud vendor is the third-party contact that creates a privilege risk, regardless of the vendor's privacy commitments. Keepance with a local model has no such transmission: the AI runs on the attorney's machine and no content reaches any external server. With a cloud API key, Keepance routes prompts directly from the attorney's machine to the chosen provider under the attorney's own account, with no Keepance server in the path.</p>
-  <p>Keepance does not offer the practice-management integration, billing context, or SOC 2 credential that Clio Duo provides. Attorneys who need those features and whose confidentiality bar is met by a contractual no-training policy should use Clio Duo for that function. This document addresses the specific work for which the attorney chose a different architecture, a workspace where the data path is architecturally controlled, not contractually managed.</p>
+  <p>The most commonly cited AI tool in legal practice right now is <strong>Clio Duo</strong>, the built-in AI layer for Clio practice management software. Clio Duo is a cloud SaaS tool with a contractual no-training policy, and it genuinely integrates tightly with matter management, billing, and deadlines inside the Clio platform. Clio also holds SOC 2 certification. For a carrier reviewing whether the attorney uses a credentialed cloud vendor, Clio Duo clears that bar in a way Advisor Prep Hero does not today.</p>
+  <p>The architectural difference that matters for this review: Clio Duo routes client matter content through Clio's servers. It is a third-party vendor in the data path. Under the <em><a href="https://www.gibsondunn.com/ai-privilege-waivers-sdny-rules-against-privilege-protection-for-consumer-ai-outputs/" target="_blank" rel="noopener">Heppner</a></em> analysis, transmission to a cloud vendor is the third-party contact that creates a privilege risk, regardless of the vendor's privacy commitments. Advisor Prep Hero with a local model has no such transmission: the AI runs on the attorney's machine and no content reaches any external server. With a cloud API key, Advisor Prep Hero routes prompts directly from the attorney's machine to the chosen provider under the attorney's own account, with no Advisor Prep Hero server in the path.</p>
+  <p>Advisor Prep Hero does not offer the practice-management integration, billing context, or SOC 2 credential that Clio Duo provides. Attorneys who need those features and whose confidentiality bar is met by a contractual no-training policy should use Clio Duo for that function. This document addresses the specific work for which the attorney chose a different architecture, a workspace where the data path is architecturally controlled, not contractually managed.</p>
 
   <h2>Malpractice carrier context</h2>
-  <p>This document describes my AI data-handling architecture. The key facts for carrier review: (1) client data is never stored by Keepance; (2) I control the entire data path; (3) AI outputs are reviewed and approved by me before any use; (4) all AI actions are logged at the matter level; and (5) a fully local path exists for matters requiring zero external transmission. I am happy to provide technical architecture documentation or answer questions on request.</p>
+  <p>This document describes my AI data-handling architecture. The key facts for carrier review: (1) client data is never stored by Advisor Prep Hero; (2) I control the entire data path; (3) AI outputs are reviewed and approved by me before any use; (4) all AI actions are logged at the matter level; and (5) a fully local path exists for matters requiring zero external transmission. I am happy to provide technical architecture documentation or answer questions on request.</p>
 
   <p class="meta">
-    Keepance v2.2 &nbsp;·&nbsp;
+    Advisor Prep Hero v2.2 &nbsp;·&nbsp;
     <a href="https://keepance.com/ai-workspace-privacy/">keepance.com/ai-workspace-privacy/</a>
     &nbsp;·&nbsp; Prepared:
     <span contenteditable="true" class="firm-field" spellcheck="false">[Date prepared]</span>

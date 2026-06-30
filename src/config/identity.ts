@@ -5,10 +5,9 @@
  * ║  SINGLE SOURCE OF TRUTH for all storage-key prefixes, CustomEvent        ║
  * ║  namespaces, and renderer-owned keychain service strings.                 ║
  * ║                                                                           ║
- * ║  Phase 1 (current): still emitting "keepance" values — behaviour         ║
- * ║  is identical to before. Phase 2 flips APP_NS (and derived constants)    ║
- * ║  to the LANTERN identity. Every call site imports a named constant so     ║
- * ║  the flip propagates automatically — no hunt-and-replace.                 ║
+ * ║  Phase 2 (current): APP_NS is "lantern" — the permanent LANTERN identity.  ║
+ * ║  All derived constants emit "lantern-*" values automatically.             ║
+ * ║  DO NOT change APP_NS to a brand name. Identity ≠ brand.                  ║
  * ║                                                                           ║
  * ║  DO NOT import brand.ts here. Identity is permanent plumbing; brand is   ║
  * ║  a swappable surface. They must never share a dependency.                 ║
@@ -16,7 +15,7 @@
  */
 
 /** The permanent internal application namespace. Never a brand name. */
-const APP_NS = 'keepance';
+const APP_NS = 'lantern';
 
 // ── Renderer-owned keychain service names / namespaces ────────────────────────
 // These are service strings the renderer legitimately reads and writes via the

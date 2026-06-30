@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Why local-first AI matters if your work is confidential | Keepance</title>
+  <title>Why local-first AI matters if your work is confidential | Advisor Prep Hero</title>
   <meta name="description" content="If your work is governed by professional confidentiality obligations, attorney-client privilege, IRC §7216, or an NDA, the question of where your AI sends your data is not optional. Here's the case for local-first.">
   <link rel="canonical" href="https://keepance.com/blog/why-local-first-ai-for-founders">
   <meta name="author" content="Jameson Daines">
@@ -73,7 +73,7 @@
 
     <p>Here's the claim I want to make, and it's a pretty direct one: if you're an attorney, a CPA, or an independent consultant using ChatGPT or Notion AI to work through client matters, your client's information is sitting in someone else's infrastructure right now. Not in a "they're reading it" sense. In the literal "a copy exists on servers you do not control and cannot audit" sense.</p>
 
-    <p>I'm not writing this to scare anyone. I'm writing it because I built a tool, Keepance, that's premised on the opposite arrangement, and I want to explain why that arrangement is the right one for professionals who actually have confidentiality obligations attached to what they do every day.</p>
+    <p>I'm not writing this to scare anyone. I'm writing it because I built a tool, Advisor Prep Hero, that's premised on the opposite arrangement, and I want to explain why that arrangement is the right one for professionals who actually have confidentiality obligations attached to what they do every day.</p>
 
     <h2>What "local-first" actually means</h2>
 
@@ -106,19 +106,19 @@
 
     <p>The question most practitioners haven't asked yet is whether pasting client tax data into a cloud-based AI tool constitutes a disclosure under §7216. The answer is honestly unsettled right now. What is settled: an architecture where client data goes to no outside server at all, like a local model, is the one where the question doesn't even arise.</p>
 
-    <p>I'm not a lawyer. If you're a tax professional and you're using AI tools for client work, this is worth a conversation with your own counsel. But I built Keepance in a way where your files never leave your machine, Keepance never sees them, and if you use Ollama locally, no client data touches any third-party server at all. With a cloud model (Claude, OpenAI, Gemini), your prompt goes to that provider under your own API key, not through Keepance. The question becomes narrower: what did <em>you</em> send, and to whom.</p>
+    <p>I'm not a lawyer. If you're a tax professional and you're using AI tools for client work, this is worth a conversation with your own counsel. But I built Advisor Prep Hero in a way where your files never leave your machine, Advisor Prep Hero never sees them, and if you use Ollama locally, no client data touches any third-party server at all. With a cloud model (Claude, OpenAI, Gemini), your prompt goes to that provider under your own API key, not through Advisor Prep Hero. The question becomes narrower: what did <em>you</em> send, and to whom.</p>
 
     <h2>NDA clauses are catching up faster than anyone expected</h2>
 
     <p>Independent consultants and boutique agencies are running into this from a different direction. NDA language around AI has gotten more specific in the last 18 months. I've seen contracts from Fortune 500 procurement teams that now include explicit clauses prohibiting the use of AI tools that process or transmit confidential information, with "process or transmit" defined broadly enough to cover cloud-based AI inference.</p>
 
-    <p>The first time a consultant discovers that their standard engagement NDA covers this is usually not a great moment. Local-first plus BYOK is the architecture where you can credibly say: my client's files never left my machine, Keepance never saw them, and if I used a local model, nothing reached any outside server. If you used a cloud model with your own key, your prompts went to that provider under your account, not through a workspace vendor who also holds your client data.</p>
+    <p>The first time a consultant discovers that their standard engagement NDA covers this is usually not a great moment. Local-first plus BYOK is the architecture where you can credibly say: my client's files never left my machine, Advisor Prep Hero never saw them, and if I used a local model, nothing reached any outside server. If you used a cloud model with your own key, your prompts went to that provider under your account, not through a workspace vendor who also holds your client data.</p>
 
     <h2>What "local-first" plus BYOK actually means in practice</h2>
 
     <p>Local-first solves the data-at-rest problem: your client files, your case notes, your work product live in a folder on your hard drive, not in someone else's database. BYOK (bring your own key) solves the data-in-motion problem.</p>
 
-    <p>BYOK means: you have your own account with Anthropic or OpenAI. You paste the API key into Keepance. The app stores it in your OS keychain, Keychain on Mac, Credential Manager on Windows. When you make an AI request, it goes directly from your computer to the provider's API. Keepance is never in that request path.</p>
+    <p>BYOK means: you have your own account with Anthropic or OpenAI. You paste the API key into Advisor Prep Hero. The app stores it in your OS keychain, Keychain on Mac, Credential Manager on Windows. When you make an AI request, it goes directly from your computer to the provider's API. Advisor Prep Hero is never in that request path.</p>
 
     <p>This matters because it eliminates an entire category of vendor risk. The tool vendor cannot see your AI conversations because the tool vendor never receives them. The only thing my server ever sees is your license key on activation. After that, my server has no visibility into anything you do in the app.</p>
 
@@ -157,10 +157,10 @@
 
     <p>That's the case for local-first if your work is confidential. Nothing to do with being old-fashioned. Everything to do with the fact that your confidentiality obligations didn't pause when AI became useful.</p>
 
-    <a href="https://keepance.com/#pricing" class="cta">See Keepance, the local-first AI workspace for confidential client work</a>
+    <a href="https://keepance.com/#pricing" class="cta">See Advisor Prep Hero, the local-first AI workspace for confidential client work</a>
 
     <p style="margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border-gray); color: var(--text-muted); font-size: 0.9375rem;">
-      <em>Jameson Daines builds Keepance on weekends and evenings around a Senior Product Designer day job. <a href="/blog/how-i-built-keepance-in-8-weeks">Read about the 8-week launch</a> or get Keepance at <a href="https://keepance.com">keepance.com</a>.</em>
+      <em>Jameson Daines builds Advisor Prep Hero on weekends and evenings around a Senior Product Designer day job. <a href="/blog/how-i-built-keepance-in-8-weeks">Read about the 8-week launch</a> or get Advisor Prep Hero at <a href="https://keepance.com">keepance.com</a>.</em>
     </p>
   </div>
 </body>

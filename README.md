@@ -1,4 +1,4 @@
-# Keepance
+# Advisor Prep Hero
 
 > **The private intelligence layer for a financial advisory practice.**
 > Your clients' documents, email, and files stay on your machine, kept provably private, and answer you back with citations you can verify.
@@ -7,9 +7,9 @@
 
 ---
 
-## What is Keepance?
+## What is Advisor Prep Hero?
 
-Keepance is a desktop app (Tauri 2 + React 18 + TypeScript) where a financial advisor's confidential client work lives. It indexes a practice's documents, email, and client files locally, keeps them private by architecture, and answers questions across all of it with verifiable citations. (Internally, a client/household is a "matter" — that's the engine's name for the isolation unit; the user-facing word is client.)
+Advisor Prep Hero is a desktop app (Tauri 2 + React 18 + TypeScript) where a financial advisor's confidential client work lives. It indexes a practice's documents, email, and client files locally, keeps them private by architecture, and answers questions across all of it with verifiable citations. (Internally, a client/household is a "matter" — that's the engine's name for the isolation unit; the user-facing word is client.)
 
 It combines:
 
@@ -17,7 +17,7 @@ It combines:
 - **Client-scoped cited recall.** Ask a question and get an answer grounded in your own files and email, every claim carrying a citation you can click. Recall is scoped per client with cryptographic isolation, so one client's data can never leak into another's.
 - **Email intelligence.** Import Outlook, Gmail, or IMAP into one local index and actually find anything, with a citation, even when native search fails.
 - **Data connectors.** Read-only connectors pull a client's files and records into the local index from OneDrive/SharePoint, Microsoft 365 and Gmail email, the Wealthbox CRM, and Calendly — all shipping today. (More CRM and document sources are staged behind vendor access.)
-- **Local-first and BYOK.** Your data stays on your machine and your API keys live in your OS keychain. AI requests go straight from your machine to your provider under your own key, or through a firm zero-retention proxy in Assured mode. Keepance never holds your keys, sees your data, or routes content through a server of ours.
+- **Local-first and BYOK.** Your data stays on your machine and your API keys live in your OS keychain. AI requests go straight from your machine to your provider under your own key, or through a firm zero-retention proxy in Assured mode. Advisor Prep Hero never holds your keys, sees your data, or routes content through a server of ours.
 - **A firm tier with end-to-end-encrypted collaboration.** Shared clients, SSO, information barriers enforced by key denial, and live multi-user .docx co-editing where the relay only ever stores ciphertext.
 - **Profession workflow packs** for the real work financial advisors do (plus secondary law, tax, and consulting packs).
 
@@ -27,12 +27,12 @@ The pitch in one sentence: the private place your whole practice lives and answe
 
 - **v3.3.5** is the current version: signed installers for Windows, macOS (Apple Silicon + Intel), and Linux, all with auto-update.
 - Per-seat annual subscriptions via LemonSqueezy, license validation, the firm backend at `api.keepance.com`, and the full legal docs are all live.
-- **Positioning (current):** Keepance leads for **financial advisors** (solo/small RIA practices); law, tax, and consulting are secondary verticals. See the 2026-06-29 board decision in [`docs/strategy/2026-06-29-board-decision-leading-advisor-ai.md`](./docs/strategy/2026-06-29-board-decision-leading-advisor-ai.md).
+- **Positioning (current):** Advisor Prep Hero leads for **financial advisors** (solo/small RIA practices); law, tax, and consulting are secondary verticals. See the 2026-06-29 board decision in [`docs/strategy/2026-06-29-board-decision-leading-advisor-ai.md`](./docs/strategy/2026-06-29-board-decision-leading-advisor-ai.md).
 - See [`KEEPANCE_BUSINESS_PLAN.md`](./KEEPANCE_BUSINESS_PLAN.md) for strategy, the board dashboard at [board.jameworld.com](https://board.jameworld.com) plus [`docs/operations/2026-06-24-advisor-website-board-CURRENT-STATE.md`](./docs/operations/2026-06-24-advisor-website-board-CURRENT-STATE.md) for the authoritative current state, and [`BACKLOG.md`](./BACKLOG.md) for the task list.
 
 ## Install
 
-**Windows:** Download `Keepance_x.y.z_x64-setup.exe` from [Releases](https://github.com/keepance/keepance/releases). Double-click; the installer runs silently, then Keepance auto-launches. Signed via Azure Trusted Signing (no SmartScreen warning).
+**Windows:** Download `Advisor Prep Hero_x.y.z_x64-setup.exe` from [Releases](https://github.com/keepance/keepance/releases). Double-click; the installer runs silently, then Advisor Prep Hero auto-launches. Signed via Azure Trusted Signing (no SmartScreen warning).
 
 **macOS:** Download the DMG that matches your chip (`aarch64` for Apple Silicon, `x64` for Intel) from Releases and drag it to Applications. Signed with our Apple Developer ID and notarized.
 
@@ -108,12 +108,12 @@ A founding cohort locks 30% off for the life of the subscription. Pre-3.0 one-ti
 
 ## Privacy
 
-Keepance is local-first by design.
+Advisor Prep Hero is local-first by design.
 
 - Your files live in a folder on your machine that you choose, optionally inside an AES-256-GCM encrypted vault.
 - API keys are stored in your OS keychain (Keychain on macOS, Credential Manager on Windows, Secret Service on Linux).
 - AI calls go directly from your machine to your provider (Claude, OpenAI, Google, or a local model), or through the firm zero-retention proxy in Assured mode.
-- Keepance's servers never see your files, your prompts, or your responses. Firm collaboration syncs only end-to-end-encrypted blobs; the relay can never read content.
+- Advisor Prep Hero's servers never see your files, your prompts, or your responses. Firm collaboration syncs only end-to-end-encrypted blobs; the relay can never read content.
 - We do not hold a SOC 2 report or a signed DPA today. The privacy story is verifiable by architecture, and our honest current posture is documented at [keepance.com/security](https://keepance.com/security).
 
 Privacy policy: [https://keepance.com/legal/privacy](https://keepance.com/legal/privacy)

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>How Keepance Fits Our Reg S-P Program</title>
+  <title>How Advisor Prep Hero Fits Our Reg S-P Program</title>
   <link rel="canonical" href="https://keepance.com/one-pagers/advisor-cco-reg-sp">
   <meta name="robots" content="noindex">
   <style>
@@ -21,7 +21,7 @@
   </style>
 </head>
 <body>
-  <h1>How Keepance Fits Our Reg S-P Program</h1>
+  <h1>How Advisor Prep Hero Fits Our Reg S-P Program</h1>
 
   <p>
     <strong>Firm:</strong>
@@ -35,31 +35,31 @@
   </p>
 
   <h2>What the tool is</h2>
-  <p><strong>Keepance</strong> is a local-first AI workspace for professional client work. It is a desktop application. Every conversation and AI output is saved as a plain text file in a folder the advisor controls on their own machine. Keepance does not maintain a cloud database of client information. The tool's servers handle only licensing and product delivery, not client data.</p>
+  <p><strong>Advisor Prep Hero</strong> is a local-first AI workspace for professional client work. It is a desktop application. Every conversation and AI output is saved as a plain text file in a folder the advisor controls on their own machine. Advisor Prep Hero does not maintain a cloud database of client information. The tool's servers handle only licensing and product delivery, not client data.</p>
 
   <h2>Data path</h2>
-  <p>Keepance supports two AI paths:</p>
+  <p>Advisor Prep Hero supports two AI paths:</p>
   <p><strong>Local model (Ollama):</strong> The AI model runs on the advisor's machine. Client information never leaves the machine. There is no network transmission of client data. This path has no service-provider footprint under Reg S-P.</p>
-  <p><strong>Cloud API key:</strong> The advisor's prompts go directly from their machine to the AI provider (Anthropic, OpenAI, or Google) under the advisor's own API key. Keepance's servers are not in the data path. The network call is from the advisor's machine to the AI provider, not through any Keepance intermediary.</p>
+  <p><strong>Cloud API key:</strong> The advisor's prompts go directly from their machine to the AI provider (Anthropic, OpenAI, or Google) under the advisor's own API key. Advisor Prep Hero's servers are not in the data path. The network call is from the advisor's machine to the AI provider, not through any Advisor Prep Hero intermediary.</p>
 
   <h2>Service-provider analysis under Reg S-P</h2>
-  <p>Reg S-P Rule 30 (as amended 2024) requires firms to oversee service providers that handle customer information. Keepance itself is not a service provider in the data path for client information. It is local software running on the advisor's machine, comparable in structure to a word processor or spreadsheet application.</p>
+  <p>Reg S-P Rule 30 (as amended 2024) requires firms to oversee service providers that handle customer information. Advisor Prep Hero itself is not a service provider in the data path for client information. It is local software running on the advisor's machine, comparable in structure to a word processor or spreadsheet application.</p>
   <p><strong>Local model path:</strong> There is no service provider to diligence. Nothing leaves the machine.</p>
-  <p><strong>Cloud API key path:</strong> The AI provider (Anthropic, OpenAI, or Google) is the relevant service provider under Reg S-P, not Keepance. The firm should evaluate the chosen AI provider's API data-processing terms, incident notification commitments, and data-handling controls as part of its standard service-provider due-diligence process. Each of the major providers offers enterprise API agreements with appropriate data-handling terms for financial services firms.</p>
+  <p><strong>Cloud API key path:</strong> The AI provider (Anthropic, OpenAI, or Google) is the relevant service provider under Reg S-P, not Advisor Prep Hero. The firm should evaluate the chosen AI provider's API data-processing terms, incident notification commitments, and data-handling controls as part of its standard service-provider due-diligence process. Each of the major providers offers enterprise API agreements with appropriate data-handling terms for financial services firms.</p>
 
   <h2>Books and records</h2>
-  <p>Every Keepance output is a plain file retained under the firm's existing file-retention schedule. The Keepance audit log records each AI action (timestamp, model, files included, output produced) at the per-client level and supports Rule 204-2 documentation requirements. The advisor can export a per-client AI activity log on request.</p>
+  <p>Every Advisor Prep Hero output is a plain file retained under the firm's existing file-retention schedule. The Advisor Prep Hero audit log records each AI action (timestamp, model, files included, output produced) at the per-client level and supports Rule 204-2 documentation requirements. The advisor can export a per-client AI activity log on request.</p>
 
   <h2>What this document does not cover</h2>
-  <p>This document describes the data-path architecture of Keepance as used by an advisor at this firm. It does not constitute a Written Information Security Program (WISP), a Reg S-P risk assessment, or legal or compliance advice. Firms should have their compliance consultant review Keepance's role within the full Reg S-P program, including any required updates to the firm's service-provider due-diligence log and incident-response plan.</p>
+  <p>This document describes the data-path architecture of Advisor Prep Hero as used by an advisor at this firm. It does not constitute a Written Information Security Program (WISP), a Reg S-P risk assessment, or legal or compliance advice. Firms should have their compliance consultant review Advisor Prep Hero's role within the full Reg S-P program, including any required updates to the firm's service-provider due-diligence log and incident-response plan.</p>
 
   <h2>How this compares to the AI tool your advisor likely already uses</h2>
-  <p>The most common AI tool in this category is <strong>Jump</strong> (meetjump.com), used by more than 27,000 advisors for automated meeting notes and CRM sync. Jump is a cloud SaaS tool with a contractual no-training policy, and it genuinely wins at automating post-meeting admin. It also holds SOC 2 Type II certification and can satisfy a standard signed-DPA requirement, which Keepance cannot today. If the firm's priority is meeting transcription and automatic CRM updates, Jump is a proven choice.</p>
-  <p>The architectural difference that matters for this review: Jump routes meeting data through Jump's servers. Under Reg S-P, Jump is a service provider in the data path and requires documentation and monitoring accordingly. Keepance is not a service provider in that path. With a local model, Keepance runs entirely on the advisor's machine and there is no AI vendor to vet or monitor. With a cloud API key, the relevant service provider is the AI provider (Anthropic, OpenAI, or Google) directly, not Keepance. For a CCO whose goal is minimizing the vendor surface that touches client data, that is a meaningfully different posture, not a better meeting-notes tool.</p>
-  <p>Keepance does not have SOC 2 or a signed DPA, and does not record or transcribe meetings. Firms that need meeting-notes automation and cloud-vendor credentialing should use Jump for that function. The question for this review is whether an advisor's drafting and analysis workspace a separate layer from meeting notes needs to add another cloud vendor to the service-provider inventory at all.</p>
+  <p>The most common AI tool in this category is <strong>Jump</strong> (meetjump.com), used by more than 27,000 advisors for automated meeting notes and CRM sync. Jump is a cloud SaaS tool with a contractual no-training policy, and it genuinely wins at automating post-meeting admin. It also holds SOC 2 Type II certification and can satisfy a standard signed-DPA requirement, which Advisor Prep Hero cannot today. If the firm's priority is meeting transcription and automatic CRM updates, Jump is a proven choice.</p>
+  <p>The architectural difference that matters for this review: Jump routes meeting data through Jump's servers. Under Reg S-P, Jump is a service provider in the data path and requires documentation and monitoring accordingly. Advisor Prep Hero is not a service provider in that path. With a local model, Advisor Prep Hero runs entirely on the advisor's machine and there is no AI vendor to vet or monitor. With a cloud API key, the relevant service provider is the AI provider (Anthropic, OpenAI, or Google) directly, not Advisor Prep Hero. For a CCO whose goal is minimizing the vendor surface that touches client data, that is a meaningfully different posture, not a better meeting-notes tool.</p>
+  <p>Advisor Prep Hero does not have SOC 2 or a signed DPA, and does not record or transcribe meetings. Firms that need meeting-notes automation and cloud-vendor credentialing should use Jump for that function. The question for this review is whether an advisor's drafting and analysis workspace a separate layer from meeting notes needs to add another cloud vendor to the service-provider inventory at all.</p>
 
   <p class="meta">
-    Keepance v2.2 &nbsp;·&nbsp;
+    Advisor Prep Hero v2.2 &nbsp;·&nbsp;
     <a href="https://keepance.com/ai-workspace-privacy/">keepance.com/ai-workspace-privacy/</a>
     &nbsp;·&nbsp; Prepared:
     <span contenteditable="true" class="firm-field" spellcheck="false">[Date prepared]</span>

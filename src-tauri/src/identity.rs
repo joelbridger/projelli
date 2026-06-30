@@ -3,10 +3,9 @@
 // Single source of truth for all keychain service names, workspace data-dir
 // names, MCP protocol identifiers, and OS-level app-data paths.
 //
-// Phase 1 (current): still emitting "keepance" identity values — behaviour
-// is identical to before. Phase 2 flips app_ns!() (and all derived constants)
-// to the LANTERN identity by changing ONE place: the macro_rules below.
-// Every call site imports from here so the flip propagates automatically.
+// Phase 2: APP_NS is "lantern" — the permanent LANTERN identity.
+// All derived constants emit "lantern-*" values automatically.
+// To rename in a future rebrand, change ONE place: the macro below.
 //
 // NEVER put brand names here. Identity is permanent plumbing; brand lives in
 // brand/brand.config.json on the TS side.
@@ -16,7 +15,7 @@
 /// concat!() can inline this — DO NOT also use APP_NS in concat!() calls.
 macro_rules! app_ns {
     () => {
-        "keepance"
+        "lantern"
     };
 }
 

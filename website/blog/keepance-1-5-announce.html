@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Keepance 1.5: The AI workspace that remembers your stuff | Keepance</title>
+  <title>Advisor Prep Hero 1.5: The AI workspace that remembers your stuff | Advisor Prep Hero</title>
   <meta name="description" content="v1.5 is out. Memory, an MCP server, side-by-side AI editing, voice input, and local models. Here's what changed and why.">
   <link rel="canonical" href="https://keepance.com/blog/keepance-1-5-announce">
   <meta name="author" content="Jameson Daines">
   <meta property="og:type" content="article">
   <meta property="og:url" content="https://keepance.com/blog/keepance-1-5-announce">
-  <meta property="og:title" content="Keepance 1.5: The AI workspace that remembers your stuff">
+  <meta property="og:title" content="Advisor Prep Hero 1.5: The AI workspace that remembers your stuff">
   <meta property="og:description" content="Memory, MCP, side-by-side editing, voice, Ollama. Local-first AI workspace for confidential client work.">
   <meta property="og:image" content="https://keepance.com/og-image.png">
   <meta name="twitter:image" content="https://keepance.com/og-image.png">
@@ -68,28 +68,28 @@
   <div class="container">
     <a href="/blog/" class="back">&larr; All posts</a>
 
-    <h1>Keepance 1.5: The AI workspace that remembers your stuff</h1>
+    <h1>Advisor Prep Hero 1.5: The AI workspace that remembers your stuff</h1>
     <p class="meta">By Jameson Daines &middot; 2026-04-16 &middot; 7 min read</p>
 
-    <p>Keepance 1.5 is out today. It's the biggest release since launch, and it closes the gap between "an AI chat that produces files" (what 1.0 was) and "an AI workspace that's actually aware of what you've already written" (what 1.5 is). Four new capabilities ship together. I'll walk through each one, say what didn't make it, and explain how to upgrade.</p>
+    <p>Advisor Prep Hero 1.5 is out today. It's the biggest release since launch, and it closes the gap between "an AI chat that produces files" (what 1.0 was) and "an AI workspace that's actually aware of what you've already written" (what 1.5 is). Four new capabilities ship together. I'll walk through each one, say what didn't make it, and explain how to upgrade.</p>
 
-    <p>The short version, and the new headline: <strong>Keepance is the AI workspace that remembers your stuff</strong>. Local files. Your API keys. Every chat becomes a durable note. Available in every AI tool you use.</p>
+    <p>The short version, and the new headline: <strong>Advisor Prep Hero is the AI workspace that remembers your stuff</strong>. Local files. Your API keys. Every chat becomes a durable note. Available in every AI tool you use.</p>
 
     <h2>Flag 1: Memory that indexes your work</h2>
 
-    <p>The thing that most annoyed me about Keepance 1.0 was that every new conversation started from zero. The AI had no idea what I'd written last week. I built 1.5's memory layer to fix that.</p>
+    <p>The thing that most annoyed me about Advisor Prep Hero 1.0 was that every new conversation started from zero. The AI had no idea what I'd written last week. I built 1.5's memory layer to fix that.</p>
 
-    <p>Under the hood, Keepance now runs a local vector index over every Markdown file in your workspace. The embedder is <a href="https://huggingface.co/intfloat/e5-small-v2" target="_blank" rel="noopener">e5-small-v2</a>, running through <a href="https://github.com/Anush008/fastembed-rs" target="_blank" rel="noopener">fastembed-rs</a>. The vector store is <a href="https://lancedb.github.io/lancedb/" target="_blank" rel="noopener">LanceDB</a>. It all lives in a hidden <code>.keepance/vectors/</code> folder inside your workspace. A file watcher keeps the index in sync as you write.</p>
+    <p>Under the hood, Advisor Prep Hero now runs a local vector index over every Markdown file in your workspace. The embedder is <a href="https://huggingface.co/intfloat/e5-small-v2" target="_blank" rel="noopener">e5-small-v2</a>, running through <a href="https://github.com/Anush008/fastembed-rs" target="_blank" rel="noopener">fastembed-rs</a>. The vector store is <a href="https://lancedb.github.io/lancedb/" target="_blank" rel="noopener">LanceDB</a>. It all lives in a hidden <code>.keepance/vectors/</code> folder inside your workspace. A file watcher keeps the index in sync as you write.</p>
 
-    <p>You use it in two ways. First, type <code>@workspace</code> in any chat and Keepance retrieves the most relevant paragraphs from your workspace and injects them into the prompt as <code>&lt;workspace_context&gt;</code>. The chat response cites which file and paragraph each claim came from, and clicking a citation opens the file at the right spot. Second, Keepance extracts facts from your conversations (every 10 messages) and writes them to <code>memory.json</code>. Those facts get injected ahead of workspace context on every future chat. You can Accept, Edit, or Reject each proposed fact.</p>
+    <p>You use it in two ways. First, type <code>@workspace</code> in any chat and Advisor Prep Hero retrieves the most relevant paragraphs from your workspace and injects them into the prompt as <code>&lt;workspace_context&gt;</code>. The chat response cites which file and paragraph each claim came from, and clicking a citation opens the file at the right spot. Second, Advisor Prep Hero extracts facts from your conversations (every 10 messages) and writes them to <code>memory.json</code>. Those facts get injected ahead of workspace context on every future chat. You can Accept, Edit, or Reject each proposed fact.</p>
 
     <p>The whole thing is toggleable in Settings and opt-out per chat. See the <a href="/blog/chat-shouldnt-disappear-when-you-close-the-tab">full argument for why chat shouldn't disappear</a>.</p>
 
     <h2>Flag 2: Available in every AI tool you use</h2>
 
-    <p>Keepance 1.5 ships a <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener">Model Context Protocol</a> server. MCP is Anthropic's open spec for exposing tools and data to AI clients, and <a href="https://github.com/modelcontextprotocol/servers" target="_blank" rel="noopener">the ecosystem around it</a> has grown fast in the last six months.</p>
+    <p>Advisor Prep Hero 1.5 ships a <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener">Model Context Protocol</a> server. MCP is Anthropic's open spec for exposing tools and data to AI clients, and <a href="https://github.com/modelcontextprotocol/servers" target="_blank" rel="noopener">the ecosystem around it</a> has grown fast in the last six months.</p>
 
-    <p>The Keepance MCP server is bundled as a <code>.mcpb</code> Desktop Extension. One-click install into Claude Desktop, Cursor, or any other MCP-compatible client, and that client can now read your Keepance workspace. Five tools are exposed: <code>list_workspace_files</code>, <code>read_workspace_file</code>, <code>search_workspace</code> (reuses the same LanceDB index as Flag 1, so retrieval quality matches <code>@workspace</code>), <code>write_workspace_file</code> (requires in-app approval by default), and <code>get_memory_facts</code>.</p>
+    <p>The Advisor Prep Hero MCP server is bundled as a <code>.mcpb</code> Desktop Extension. One-click install into Claude Desktop, Cursor, or any other MCP-compatible client, and that client can now read your Advisor Prep Hero workspace. Five tools are exposed: <code>list_workspace_files</code>, <code>read_workspace_file</code>, <code>search_workspace</code> (reuses the same LanceDB index as Flag 1, so retrieval quality matches <code>@workspace</code>), <code>write_workspace_file</code> (requires in-app approval by default), and <code>get_memory_facts</code>.</p>
 
     <p>The server is a hand-rolled JSON-RPC 2.0 binary, not pulled from <a href="https://github.com/modelcontextprotocol/rust-sdk" target="_blank" rel="noopener">rmcp</a>, because five tools is tractable and I wanted the binary small. The whole sidecar is ~151 MiB stripped, dominated by the LanceDB + fastembed deps we already ship for Flag 1.</p>
 
@@ -107,7 +107,7 @@
 
     <p>First, voice input. Hold <code>Ctrl+Shift+Space</code> to dictate into whatever field is focused (chat, editor, any textarea). Hold <code>Ctrl+Shift+N</code> instead and the transcript saves to <code>Inbox/note-&lt;timestamp&gt;.md</code>. Transcription runs through a bundled <a href="https://github.com/ggerganov/whisper.cpp" target="_blank" rel="noopener">whisper.cpp</a>-family sidecar (Parakeet.cpp when a release is available) that takes WAV bytes on stdin and returns text on stdout with a 30-second timeout. Audio never leaves your machine.</p>
 
-    <p>Second, <a href="https://ollama.com/" target="_blank" rel="noopener">Ollama</a> is now a fourth provider alongside Claude, OpenAI, and Gemini. Run <code>llama3.2:3b</code> or <code>qwen2.5</code> or <code>mistral</code> or any other model you've pulled with <code>ollama pull</code>, and Keepance talks to it on <code>127.0.0.1:11434</code> with zero network round-trip. Cost is always $0. The Settings panel auto-detects whether Ollama is running and lists your installed models.</p>
+    <p>Second, <a href="https://ollama.com/" target="_blank" rel="noopener">Ollama</a> is now a fourth provider alongside Claude, OpenAI, and Gemini. Run <code>llama3.2:3b</code> or <code>qwen2.5</code> or <code>mistral</code> or any other model you've pulled with <code>ollama pull</code>, and Advisor Prep Hero talks to it on <code>127.0.0.1:11434</code> with zero network round-trip. Cost is always $0. The Settings panel auto-detects whether Ollama is running and lists your installed models.</p>
 
     <p>Together, Memory + Ollama + Voice means you can dictate "what did I say about pricing last week?" on a plane, with no internet, and get a useful answer citing your own files.</p>
 
@@ -121,10 +121,10 @@
       <li><strong>No cloud sync.</strong> Still not in 1.5. Still deliberate. See the <a href="/blog/why-local-first-ai-for-founders">local-first essay</a>.</li>
       <li><strong>No mobile app.</strong> Desktop remains the whole product.</li>
       <li><strong>No real-time collaboration.</strong> If you need two editors in the same document, Notion is still the right answer.</li>
-      <li><strong>No "AI co-founder" positioning.</strong> Keepance proposes, you accept. The AI is a contributor tracked in version history, not an autonomous decision-maker.</li>
+      <li><strong>No "AI co-founder" positioning.</strong> Advisor Prep Hero proposes, you accept. The AI is a contributor tracked in version history, not an autonomous decision-maker.</li>
     </ul>
 
-    <p>The deferred "Big Bets" (B1-B6 in the internal planning doc) include a true agent layer, multiplayer, mobile, a plugin API, and a hosted sync option. None of these are on the 2026 roadmap. Keepance stays small, local, and focused on confidential client work.</p>
+    <p>The deferred "Big Bets" (B1-B6 in the internal planning doc) include a true agent layer, multiplayer, mobile, a plugin API, and a hosted sync option. None of these are on the 2026 roadmap. Advisor Prep Hero stays small, local, and focused on confidential client work.</p>
 
     <h2>Quality-of-life extras</h2>
 
@@ -140,19 +140,19 @@
 
     <h2>How to upgrade</h2>
 
-    <p>If you're on Keepance 1.0.8 or later, the <a href="https://github.com/keepance/keepance/releases" target="_blank" rel="noopener">auto-updater</a> will deliver 1.5 within a day or two. You'll get an in-app banner when it's downloaded. Click, relaunch, you're on 1.5.</p>
+    <p>If you're on Advisor Prep Hero 1.0.8 or later, the <a href="https://github.com/keepance/keepance/releases" target="_blank" rel="noopener">auto-updater</a> will deliver 1.5 within a day or two. You'll get an in-app banner when it's downloaded. Click, relaunch, you're on 1.5.</p>
 
     <p>If you're on 1.0.0 through 1.0.7, the auto-updater won't migrate you cleanly. Grab the installer from the <a href="https://github.com/keepance/keepance/releases/latest" target="_blank" rel="noopener">releases page</a> and install over the top. Your workspace, settings, and API keys carry over.</p>
 
-    <p>If you've never installed Keepance, the <a href="/#pricing">download page</a> has the installer for Windows, Mac (Apple Silicon + Intel), and Linux. Every download starts a 30-day free trial, no card required. Pricing is one-time: Personal is $49, Professional is $149/yr and includes one practice pack, and Practice is $499/yr for up to five seats.</p>
+    <p>If you've never installed Advisor Prep Hero, the <a href="/#pricing">download page</a> has the installer for Windows, Mac (Apple Silicon + Intel), and Linux. Every download starts a 30-day free trial, no card required. Pricing is one-time: Personal is $49, Professional is $149/yr and includes one practice pack, and Practice is $499/yr for up to five seats.</p>
 
     <h2>Credit</h2>
 
-    <p>Keepance is built by me, <a href="https://jamesondaines.com" target="_blank" rel="noopener">Jameson Daines</a>, on 5-10 hours a week around a full-time day job as a Senior Product Designer at a health-tech company. Not a funded startup. Not a team. One person, nights and weekends, shipping a local-first AI workspace because the cloud tools kept losing my business plans.</p>
+    <p>Advisor Prep Hero is built by me, <a href="https://jamesondaines.com" target="_blank" rel="noopener">Jameson Daines</a>, on 5-10 hours a week around a full-time day job as a Senior Product Designer at a health-tech company. Not a funded startup. Not a team. One person, nights and weekends, shipping a local-first AI workspace because the cloud tools kept losing my business plans.</p>
 
-    <p>If this post is useful, share it. Tell one attorney, CPA, or consultant you know who's fighting their client work on ChatGPT. That's how Keepance grows.</p>
+    <p>If this post is useful, share it. Tell one attorney, CPA, or consultant you know who's fighting their client work on ChatGPT. That's how Advisor Prep Hero grows.</p>
 
-    <a href="/#pricing" class="cta">Download Keepance 1.5</a>
+    <a href="/#pricing" class="cta">Download Advisor Prep Hero 1.5</a>
 
     <p style="margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border-gray); color: var(--text-muted); font-size: 0.9375rem;">
       <em>Read the <a href="/vs/">competitive comparisons</a> or see the product in the <a href="/tour/">tour</a>.</em>
