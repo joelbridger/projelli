@@ -42,6 +42,6 @@ describe('voiceCatalog', () => {
 
   it('buildVoiceCdnUrl produces correct URL', () => {
     const url = buildVoiceCdnUrl('es_ES-mls-medium');
-    expect(url).toBe('https://keepance.com/voices/es_ES-mls-medium.tar.gz');
+    expect(url).toBe('https://advisorprephero.com/voices/es_ES-mls-medium.tar.gz');
   });
 });
