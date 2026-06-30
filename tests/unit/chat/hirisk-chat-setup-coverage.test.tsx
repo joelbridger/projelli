@@ -92,7 +92,6 @@ vi.mock('@/platform/utils/openExternal', () => ({
 
 import { AIChatViewer } from '@/features/ask/AIChatViewer';
 import { ScopeToggle } from '@/features/ask/ScopeToggle';
-import { AiSetupStep } from '@/features/onboarding/AiSetupStep';
 import type { AskScope } from '@/features/ask/askHelpers';
 import type { AIChatFile } from '@/platform/types/ai';
 import type { AuditEntry } from '@/platform/types/audit';
@@ -305,34 +304,8 @@ describe('High-risk chat/setup coverage from the current UI', () => {
     expect(systemPrompt).not.toContain('Beta retrieved fact only.');
   });
 
-  it('AS-06 shows an inline onboarding error when saving a rejected AI key', async () => {
-    const onSaveKey = vi.fn(async () => {
-      throw new Error('That key was refused by the provider.');
-    });
-    const onUseLocal = vi.fn();
-    const onSkip = vi.fn();
-
-    render(
-      <AiSetupStep
-        onBack={vi.fn()}
-        onSaveKey={onSaveKey}
-        onUseLocal={onUseLocal}
-        onSkip={onSkip}
-        onOpenDataMap={vi.fn()}
-      />,
-    );
-
-    fireEvent.click(screen.getByTestId('ai-path-own-account'));
-    fireEvent.change(screen.getByTestId('ai-setup-key-input'), {
-      target: { value: 'sk-ant-api03-rejected' },
-    });
-    fireEvent.click(screen.getByTestId('ai-setup-save-key'));
-
-    const error = await screen.findByTestId('ai-setup-save-error');
-    expect(error).toHaveTextContent('That key was refused by the provider.');
-    expect(onSaveKey).toHaveBeenCalledWith('anthropic', 'sk-ant-api03-rejected');
-    expect(onUseLocal).not.toHaveBeenCalled();
-    expect(onSkip).not.toHaveBeenCalled();
-    expect(screen.getByTestId('ai-setup-step')).toBeInTheDocument();
-  });
+  // AS-06 (inline error when saving a rejected AI key) was removed with the
+  // retired AiSetupStep; the rejected-key error path is now covered by the live
+  // AiScene in tests/unit/onboarding-v2.test.tsx
+  // ("does NOT save a rejected key and surfaces the error").
 });
