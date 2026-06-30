@@ -42,16 +42,8 @@ import { resolveMailMatter } from '@/platform/rag/matterResolver';
 import { useMailStore } from './mailStore';
 import {
   mailListMessages,
-  mailConnectedAccounts,
-  mailSyncAll,
-  MAIL_SYNC_EVENT,
   type MailListItem,
-  type ConnectedAccount,
-  type MailSyncProgress,
 } from '@/platform/utils/mail-commands';
-import { buildMailMatterMap } from '@/platform/rag/matterResolver';
-import { listen } from '@tauri-apps/api/event';
-import { isTauri } from '@tauri-apps/api/core';
 import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
 import type { RagHit, RetrievalScope } from '@/platform/utils/tauri-commands';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
@@ -63,6 +55,7 @@ import { sendDiagnosticEvent } from '@/platform/utils/diagnostics';
 import { useScrollPersistence } from './useScrollPersistence';
 import { ComposeModal } from './ComposeModal';
 import { BulkActionBar } from './BulkActionBar';
+import { useAccountSync } from './useAccountSync';
 import { EV_OPEN_SETTINGS } from '@/config/identity';
 
 // ── Props ──────────────────────────────────────────────────────────────────
@@ -78,23 +71,6 @@ export interface EmailWorkspaceProps {
    * inbox as a destination is gone — global reach is Ctrl+P + Ask citations).
    */
   embedded?: boolean;
-}
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-// (pure helpers moved to ./emailWorkspaceHelpers)
-
-function sanitizeConnectedAccounts(accounts: ConnectedAccount[]): ConnectedAccount[] {
-  const byKey = new Map<string, ConnectedAccount>();
-  for (const account of accounts) {
-    const provider = account.provider.trim();
-    const accountId = account.account.trim();
-    if (!provider || !accountId) continue;
-    const key = `${provider}:${accountId}`;
-    if (!byKey.has(key)) {
-      byKey.set(key, { ...account, provider, account: accountId });
-    }
-  }
-  return Array.from(byKey.values());
 }
 
 // ── No-accounts empty state ────────────────────────────────────────────────
@@ -118,9 +94,6 @@ export function EmailWorkspace({
   // First-connect TTV callout — shown once after the first account is connected.
   const { firstConnectCalloutSeen, dismissFirstConnectCallout } = useMailStore();
 
-  // Track whether a manual/startup sync is in flight (cross-provider aggregate).
-  const [syncing, setSyncing] = useState(false);
-
   // Scope toggle: "This matter" vs "All email" — only effective in Ask AI mode
   const [scopeAllEmail, setScopeAllEmail] = useState(false);
 
@@ -137,11 +110,6 @@ export function EmailWorkspace({
   const [dateTo, setDateTo] = useState('');
   const [hasAttachments, setHasAttachments] = useState(false);
 
-  // Connected accounts (loaded once on mount)
-  const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
-  const [accountsLoaded, setAccountsLoaded] = useState(false);
-  const hasConnectedMail = accountsLoaded && accounts.length > 0;
-
   // Keyword results
   const [items, setItems] = useState<MailListItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -156,6 +124,20 @@ export function EmailWorkspace({
   const [askHits, setAskHits] = useState<RagHit[]>([]);
   const [askLoading, setAskLoading] = useState(false);
   const [askError, setAskError] = useState<string | null>(null);
+
+  // Account sync: load accounts, startup auto-sync, sync-done listener, handleSyncNow
+  const { syncing, accounts, accountsLoaded, hasConnectedMail, handleSyncNow } = useAccountSync({
+    onNoAccounts: useCallback(() => {
+      setItems([]);
+      setTotal(0);
+      setOffset(0);
+      setError(null);
+      setAskHits([]);
+      setAskLoading(false);
+      setAskError(null);
+    }, []),
+    onSyncDone: useCallback(() => { setRetryCount((c) => c + 1); }, []),
+  });
 
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -172,92 +154,6 @@ export function EmailWorkspace({
   const latestQueryRef = useRef(0);
   // Fingerprint tracks query/filter params (not offset) to detect filter changes in Effect B
   const queryFingerprintRef = useRef('');
-
-  // Load connected accounts on mount and re-check on window focus so the view
-  // updates automatically after the user connects an account in the Account window.
-  useEffect(() => {
-    let cancelled = false;
-    const load = () => {
-      mailConnectedAccounts()
-        .then((accs) => {
-          if (!cancelled) {
-            const nextAccounts = sanitizeConnectedAccounts(accs);
-            setAccounts(nextAccounts);
-            if (nextAccounts.length === 0) {
-              setSyncing(false);
-              setItems([]);
-              setTotal(0);
-              setOffset(0);
-              setError(null);
-              setAskHits([]);
-              setAskLoading(false);
-              setAskError(null);
-            }
-            setAccountsLoaded(true);
-          }
-        })
-        .catch(() => {
-          if (!cancelled) {
-            setAccounts([]);
-            setAccountsLoaded(true);
-          }
-        });
-    };
-    load();
-    window.addEventListener('focus', load);
-    return () => {
-      cancelled = true;
-      window.removeEventListener('focus', load);
-    };
-  }, []);
-
-  // BUG-007: Auto-sync on mount when already connected but no sync has run yet.
-  // `mail_sync_all` only fires at connect-time; after an app restart the account
-  // shows as Connected but the Email tab is empty with no way to refresh. This
-  // effect fires once after accounts are resolved: if there are connected accounts
-  // and we're running inside Tauri (desktop-only), kick off a background sync.
-  // Guard: skip if already syncing (prevents double-fire on HMR / strict-mode).
-  const startupSyncFiredRef = useRef(false);
-  useEffect(() => {
-    if (!isTauri()) return;
-    if (!accountsLoaded) return;
-    if (accounts.length === 0) return;
-    if (startupSyncFiredRef.current) return;
-    startupSyncFiredRef.current = true;
-    setSyncing(true);
-    mailSyncAll(buildMailMatterMap(getMatters()))
-      .catch(() => { /* surfaced via the MAIL_SYNC_EVENT error status */ })
-      .finally(() => { setSyncing(false); });
-  }, [accountsLoaded, accounts.length]);
-
-  // Re-query the message list when a sync finishes or this window regains focus.
-  // The connectors live in a SEPARATE window, so mail imported there lands in the
-  // shared encrypted store while this window's list still shows the pre-import
-  // state — without this, an import of hundreds of messages never appears here
-  // until a manual filter change. `setRetryCount` re-runs the keyword query
-  // (Effect A) from the first page. (`accounts` is intentionally not an Effect-A
-  // dependency, so updating it alone would not refresh the list.)
-  useEffect(() => {
-    const refresh = () => setRetryCount((c) => c + 1);
-    window.addEventListener('focus', refresh);
-    let unlisten: (() => void) | undefined;
-    let disposed = false;
-    if (isTauri()) {
-      listen<MailSyncProgress>(MAIL_SYNC_EVENT, (e) => {
-        if (e.payload.status === 'done') refresh();
-      })
-        .then((u) => {
-          if (disposed) u();
-          else unlisten = u;
-        })
-        .catch(() => {});
-    }
-    return () => {
-      disposed = true;
-      window.removeEventListener('focus', refresh);
-      if (unlisten) unlisten();
-    };
-  }, []);
 
   // Effect A: fires on query/filter param changes (debounced 200ms, resets offset to 0)
   useEffect(() => {
@@ -481,17 +377,6 @@ export function EmailWorkspace({
     setOffset(0);
     setRetryCount((c) => c + 1);
   }, []);
-
-  // BUG-007: Manual "Sync now" — calls mailSyncAll for all connected providers.
-  // Disabled while a sync is already in flight (syncing state) or outside Tauri.
-  const handleSyncNow = useCallback(() => {
-    if (!isTauri()) return;
-    if (syncing) return;
-    setSyncing(true);
-    mailSyncAll(buildMailMatterMap(getMatters()))
-      .catch(() => { /* error status surfaced via MAIL_SYNC_EVENT listener */ })
-      .finally(() => { setSyncing(false); });
-  }, [syncing]);
 
   const handleClearQuery = useCallback(() => {
     setQuery('');
