@@ -14,7 +14,7 @@
 
 import { useCallback, useRef } from 'react';
 import type { useTranslation } from 'react-i18next';
-import { AttachmentService } from '@/features/ask/attachments/AttachmentService';
+import { loadAttachmentBytes } from './loadAttachmentBytes';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { estimateImageTokens } from '@/features/ask/attachments/imageTokens';
 import { estimatePdfTokens } from '@/features/ask/attachments/pdfTokens';
@@ -24,7 +24,7 @@ import type { AuditEntry, AuditScope, CitationVerdict } from '@/platform/types/a
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { resolveEgress } from '@/platform/privacy/egress';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
-import type { Provider, AttachmentBytes } from '@/platform/providers/Provider';
+import type { Provider } from '@/platform/providers/Provider';
 import { ClaudeProvider } from '@/platform/providers/ClaudeProvider';
 import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
 import { GeminiProvider } from '@/platform/providers/GeminiProvider';
@@ -76,18 +76,16 @@ import {
 import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
 import {
   DEFAULT_WORKSPACE_TOP_K,
-  buildWorkspaceContextBlock,
-  normalizeNumericCitations,
   parseWorkspaceCommand,
-  verifyCitations,
 } from '@/platform/rag/workspaceCommand';
+import { verifyCitationsInResponse } from './verifyCitationsInResponse';
+import { buildSystemPrompt } from './buildSystemPrompt';
 import {
   filterHitsForExportConsent,
   dropUnconsentedExports,
   isExternalExportConsentGiven,
 } from '@/platform/rag/exportConsent';
 import { recognizeProvenance } from '@/platform/rag/sourceProvenance';
-import { buildFactsMemoryBlock } from '@/platform/rag/FactsService';
 import { snapshotFactsForInjection } from '@/platform/rag/factsSingleton';
 import type { ChatSession, ChatCostEntry } from '@/platform/state/aiChatStore';
 // buildOpenFilesPromptBlock + refusalKeyForReason stay exported from AIChatViewer
@@ -870,8 +868,9 @@ export function useChatSending(deps: UseChatSendingDeps) {
         // and assertNoOpenDescendant take no scope, so they're imported directly.
         const pathInActiveMatter = (absPath: string): boolean =>
           pathInActiveMatterGuard(absPath, toolActiveMatterId, toolMatters);
-        const assertInActiveMatter = (absPath: string, relativePath: string): void =>
+        const assertInActiveMatter = (absPath: string, relativePath: string): void => {
           assertInActiveMatterGuard(absPath, relativePath, { toolActiveMatterId, toolMatters, activeMatterName });
+        };
 
         // BUG-060: per-action approval. Before the AI overwrites/deletes/moves
         // (or, in "always" mode, before any change), pause and show the user a
@@ -1345,41 +1344,12 @@ export function useChatSending(deps: UseChatSendingDeps) {
         // read is skipped gracefully (logged but not fatal).
         // Load bytes ONLY for sentAttachments — unconsented exports were already
         // excluded above, so their bytes are never read or handed to the provider.
-        let attachmentBytes: AttachmentBytes[] | undefined;
-        if (sentAttachments && sentAttachments.length > 0 && workspaceServiceRef?.current) {
-          const backend = workspaceServiceRef.current.getBackend();
-          const attService = backend ? new AttachmentService(backend) : null;
-          const loaded: AttachmentBytes[] = [];
-          for (const att of sentAttachments) {
-            if (!attService) continue;
-            try {
-              const bytes = await attService.read(att);
-              loaded.push({ att, bytes });
-            } catch (readErr) {
-              console.error(
-                `[AIChat] Failed to read attachment bytes for ${att.fileName}:`,
-                readErr,
-              );
-            }
-          }
-          if (loaded.length > 0) {
-            attachmentBytes = loaded;
-          }
-        }
-
-        // Build conversation history into system prompt
-        const conversationContext = messages.slice(0, -1).map(m =>
-          `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`
-        ).join('\n\n');
+        const attachmentBytes = await loadAttachmentBytes(
+          sentAttachments,
+          workspaceServiceRef?.current?.getBackend() ?? null,
+        );
 
         const hasWorkspace = hasWorkspaceForTools;
-        const workspaceInstructions = hasWorkspace
-          ? `You are running inside Advisor Prep Hero, a local-first workspace app. The user's active workspace folder is "${rootPath}". You have direct access to this workspace via tools: read_file, write_file, create_folder, move_file, delete_file, list_files, search_files. When the user asks you to create, edit, organize, or look at files, USE THESE TOOLS directly — do not refuse, do not ask the user to create the file themselves, and do not pretend you can't access files. You CAN. All file paths should be relative to the workspace root. When creating .md files (documentation, notes, plans, etc.), just write them directly using write_file. After creating or modifying files, briefly confirm what you did.\n\n`
-          : '';
-
-        const baseRole = hasWorkspace
-          ? `${workspaceInstructions}You are a helpful AI assistant with full read/write access to the user's workspace.`
-          : 'You are a helpful AI assistant.';
 
         // Append any enabled open-file contexts BEFORE the conversation
         // history. This lets the AI treat the files as background material
@@ -1396,32 +1366,20 @@ export function useChatSending(deps: UseChatSendingDeps) {
         );
         const fileBlock = buildOpenFilesPromptBlock(consentedOpenFiles);
 
-        // M2 — workspace context block goes at the very top of the
-        // system prompt so the retrieval sources are the first thing
-        // the model sees. Empty string when no retrieval ran, so the
-        // non-workspace code path is byte-identical to pre-M2.
-        const workspaceBlock = buildWorkspaceContextBlock(
-          retrievedSources.map((s) => ({
-            path: s.path,
-            chunkText: s.chunkText,
-            score: s.score,
-            paragraphIndex: s.paragraphIndex,
-            ...(s.sourceType !== undefined ? { sourceType: s.sourceType } : {}),
-            ...(s.pageNumber !== undefined ? { pageNumber: s.pageNumber } : {}),
-          })),
-        );
-        const workspacePrefix = workspaceBlock ? `${workspaceBlock}\n\n` : '';
-
-        // M3 — facts memory block sits BEFORE the workspace context
-        // block. Facts are durable; retrieval is situational. Putting
-        // the memory first frames everything the model reads after.
+        // M3 — facts are durable memory; snapshot them (async I/O) before the
+        // pure string assembly. buildSystemPrompt does the layered composition
+        // (facts → workspace context → base role → open files → history) so the
+        // exact prefix order can't drift.
         const facts = await snapshotFactsForInjection();
-        const factsBlock = buildFactsMemoryBlock(facts);
-        const factsPrefix = factsBlock ? `${factsBlock}\n\n` : '';
-
-        const systemPrompt = (conversationContext
-          ? `${factsPrefix}${workspacePrefix}${baseRole}${fileBlock} Here is the conversation history so far:\n\n${conversationContext}\n\nPlease respond to the user's latest message.`
-          : `${factsPrefix}${workspacePrefix}${baseRole}${fileBlock}`) + withheldExportNote;
+        const systemPrompt = buildSystemPrompt({
+          messages,
+          hasWorkspace,
+          rootPath,
+          fileBlock,
+          retrievedSources,
+          facts,
+          withheldExportNote,
+        });
 
         // Use streaming if available (disabled in production Tauri builds
         // because tauri-plugin-http doesn't support ReadableStream/SSE)
@@ -1537,14 +1495,12 @@ export function useChatSending(deps: UseChatSendingDeps) {
 
           // WS-B/C — verify citations against the local store now the full
           // answer is in. Update the streamed message's sources with the
-          // verification flags so unverified citations are surfaced.
-          // F-503 — repair number-keyed local-model citations BEFORE
-          // verification so the verify loop and chips see resolvable cites.
-          const normalizedAnswer = normalizeNumericCitations(accumulated, retrievedSources);
-          const verifiedStreamSources =
-            retrievedSources.length > 0
-              ? await verifyCitations(normalizedAnswer, retrievedSources, { onVerdict: emitCitationVerified, expectedMatterId: activeMatter ? activeMatter.id : null })
-              : retrievedSources;
+          // verification flags so unverified citations are surfaced. The
+          // normalize-then-verify step (incl. the per-citation audit callback)
+          // lives in verifyCitationsInResponse so it can't drift from the
+          // non-streaming path below.
+          const { normalized: normalizedAnswer, verified: verifiedStreamSources } =
+            await verifyCitationsInResponse(accumulated, retrievedSources, activeMatter, emitCitationVerified);
 
           const finalStreamingMessage: ChatMessage = {
             ...streamingMessage,
@@ -1604,14 +1560,11 @@ export function useChatSending(deps: UseChatSendingDeps) {
 
           // WS-B/C — verify the citations in the answer against the local
           // store BEFORE presenting them. Verified sources are marked safe;
-          // any citation that doesn't verify flags its source in the UI.
-          // F-503 — repair number-keyed local-model citations BEFORE
-          // verification so the verify loop and chips see resolvable cites.
-          const normalizedContent = normalizeNumericCitations(response.content, retrievedSources);
-          const verifiedSources =
-            retrievedSources.length > 0
-              ? await verifyCitations(normalizedContent, retrievedSources, { onVerdict: emitCitationVerified, expectedMatterId: activeMatter ? activeMatter.id : null })
-              : retrievedSources;
+          // any citation that doesn't verify flags its source in the UI. Shares
+          // verifyCitationsInResponse with the streaming path so the two can't
+          // drift (same normalize-then-verify order + per-citation audit).
+          const { normalized: normalizedContent, verified: verifiedSources } =
+            await verifyCitationsInResponse(response.content, retrievedSources, activeMatter, emitCitationVerified);
 
           const assistantMessage: ChatMessage = {
             role: 'assistant',

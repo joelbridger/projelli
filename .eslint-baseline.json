@@ -173,6 +173,7 @@
   "src/features/ask/CostDashboard.tsx|lantern-i18n/no-hardcoded-string|Hardcoded user-facing string (\", not by Advisor Prep Hero.\"). Wrap in t() or <Trans>, or add `// eslint-disable-next-line lantern-i18n/no-hardcoded-string` for an intentional exception.": 1,
   "src/features/ask/CostDashboard.tsx|lantern-i18n/no-hardcoded-string|Hardcoded user-facing string (\"Costs are billed directly by\"). Wrap in t() or <Trans>, or add `// eslint-disable-next-line lantern-i18n/no-hardcoded-string` for an intentional exception.": 1,
   "src/features/ask/CostDashboard.tsx|lantern-i18n/no-hardcoded-string|Hardcoded user-facing string (\"Figures come from this device only and reset when you clear \"). Wrap in t() or <Trans>, or add `// eslint-disable-next-line lantern-i18n/no-hardcoded-string` for an intentional exception.": 1,
+  "src/features/ask/hooks/buildSystemPrompt.ts|@typescript-eslint/restrict-template-expressions|Invalid type \"string | undefined\" of template literal expression.": 1,
   "src/features/ask/hooks/useChatSending.ts|@typescript-eslint/no-explicit-any|Unexpected any. Specify a different type.": 1,
   "src/features/ask/hooks/useChatSending.ts|@typescript-eslint/no-non-null-assertion|Forbidden non-null assertion.": 4,
   "src/features/ask/hooks/useChatSending.ts|@typescript-eslint/no-unsafe-argument|Unsafe argument of type `any` assigned to a parameter of type `any[]`.": 1,
