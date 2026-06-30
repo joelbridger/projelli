@@ -104,7 +104,11 @@ export function useAccountSync({ onNoAccounts, onSyncDone }: UseAccountSyncOptio
       // needs its own message — and its own cancellation.
       if (err instanceof Error && err.name === 'TimeoutError') {
         setSyncError('Email sync is taking too long and was stopped. Try again.');
-        await mailCancelSync().catch(() => { /* best-effort */ });
+        // Fire-and-forget: mailCancelSync() is itself an IPC call that could
+        // hang for the same reason the sync did. Don't await it here — the
+        // hard timeout's whole point is that the UI recovers unconditionally;
+        // it must not get re-blocked by an uncapped cancel request.
+        void mailCancelSync().catch(() => { /* best-effort */ });
       }
     } finally {
       setSyncing(false);

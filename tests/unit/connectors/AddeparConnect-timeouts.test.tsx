@@ -147,4 +147,26 @@ describe('AddeparConnect — syncNow() timeout', () => {
     // unless the backend is actually told to cancel.
     expect(mockAddeparCancel).toHaveBeenCalled();
   });
+
+  it('the button recovers even if addeparCancel() itself never resolves', async () => {
+    mockAddeparListEntities.mockResolvedValue([]);
+    mockAddeparSync.mockImplementation(() => new Promise(() => {})); // never resolves
+    mockAddeparCancel.mockImplementation(() => new Promise(() => {})); // never resolves either
+
+    render(<AddeparConnect />);
+    await act(async () => { await Promise.resolve(); });
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('Sync households'));
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15 * 60_000);
+    });
+
+    expect(screen.getByText('Sync households')).toBeInTheDocument();
+    expect(screen.getByText(/timed out/i)).toBeInTheDocument();
+    expect(mockAddeparCancel).toHaveBeenCalled();
+  });
 });

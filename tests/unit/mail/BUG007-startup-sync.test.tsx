@@ -237,4 +237,25 @@ describe('BUG-007: startup sync + manual Sync now', () => {
     expect(mockMailCancelSync).toHaveBeenCalled();
   });
 
+  // (f) The cancel call itself must not be able to re-block the UI: even if
+  // mailCancelSync() also hangs (same dead backend/IPC), the hard timeout's
+  // guarantee that the button recovers must still hold.
+  it('(f) the button recovers even if mailCancelSync() itself never resolves', async () => {
+    mockMailSyncAll.mockImplementation(() => new Promise<void>(() => {})); // never resolves
+    mockMailCancelSync.mockImplementation(() => new Promise<void>(() => {})); // never resolves either
+
+    render(<EmailWorkspace />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50);
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5 * 60_000);
+    });
+
+    expect(screen.getByTestId('email-sync-now')).not.toBeDisabled();
+    expect(screen.getByTestId('email-sync-error')).toBeInTheDocument();
+    expect(mockMailCancelSync).toHaveBeenCalled();
+  });
+
 });

@@ -137,8 +137,13 @@ export function AddeparConnect() {
       // side, so the guard would stay held and the next Sync click would
       // fail with "a sync is already in progress" even though the button
       // looks idle again. Tell the backend to actually stop.
+      //
+      // Fire-and-forget: addeparCancel() is itself an IPC call that could
+      // hang for the same reason the sync did. Don't await it here — the
+      // hard timeout's whole point is that the UI recovers unconditionally;
+      // it must not get re-blocked by an uncapped cancel request.
       if (err instanceof Error && err.name === 'TimeoutError') {
-        await addeparCancel().catch(() => { /* best-effort */ });
+        void addeparCancel().catch(() => { /* best-effort */ });
       }
     } finally {
       setSyncing(false);
