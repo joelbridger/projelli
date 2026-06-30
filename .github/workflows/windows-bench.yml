@@ -1,18 +1,18 @@
 name: Windows Bench (robot smoke)
 
-# Runs the test robot's end-to-end smoke against the REAL Keepance desktop app on a
+# Runs the test robot's end-to-end smoke against the Advisor Prep Hero desktop app on a
 # self-hosted Windows runner (the Legion). The robot drives the already-running app
 # over the WebView2 CDP port (localhost:9223), so the job only needs local network
 # access to that port — no GUI rendering in the job itself.
 #
 # Manual trigger for now (the cloud-Windows spike): gh workflow run windows-bench.yml
-# Prereq: the Keepance app is running on the bench (KeepanceDev) and CDP 9223 is up.
+# Prereq: the app is running on the bench (development build) and CDP 9223 is up.
 
 on:
   workflow_dispatch:
   schedule:
     # Nightly hands-free real-app Windows smoke (~02:00 Mountain). The bench app
-    # (KeepanceDev) and the self-hosted runner are always-on. Manual: gh workflow run.
+    # (development build) and the self-hosted runner are always-on. Manual: gh workflow run.
     - cron: '0 9 * * *'
 
 concurrency:
@@ -33,7 +33,7 @@ jobs:
         shell: pwsh
         run: |
           $c = (Get-NetTCPConnection -LocalPort 9223 -State Listen -ErrorAction SilentlyContinue | Measure-Object).Count
-          if ($c -lt 1) { Write-Error "Keepance app is not listening on CDP 9223 (start KeepanceDev)"; exit 1 }
+          if ($c -lt 1) { Write-Error "Advisor Prep Hero app is not listening on CDP 9223 (start dev build)"; exit 1 }
           Write-Output "app up on CDP 9223"
 
       - name: Run the robot smoke (Windows-native, drives the live app over CDP)

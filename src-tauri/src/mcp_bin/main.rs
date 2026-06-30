@@ -61,7 +61,7 @@ pub const SERVER_DESCRIPTION: &str =
 /// Workspace root is supplied by the parent process (the Advisor Prep Hero app or a
 /// directly-invoked Claude Desktop install) via this env var. Stored in the
 /// .mcpb manifest so clients prompt the user for it at install time.
-pub const WORKSPACE_ENV: &str = "KEEPANCE_WORKSPACE_ROOT";
+pub const WORKSPACE_ENV: &str = "LANTERN_WORKSPACE_ROOT";
 
 /// Shared immutable context handed to every tool call.
 #[derive(Clone)]

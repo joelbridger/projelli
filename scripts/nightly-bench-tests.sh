@@ -7,7 +7,7 @@
 #   3. Parses OUTPUT (not exit code) to decide pass/fail — Windows SSH exit codes are unreliable.
 #      A unique sentinel "__BENCH_RC_<n>__" is appended after cargo test so a dropped connection
 #      mid-run (after an early binary passed) is caught: missing sentinel → indeterminate/fail.
-#   4. Maintains a soft-fail STATUS FILE at ~/.local/share/keepance-bench/status.json:
+#   4. Maintains a soft-fail STATUS FILE at ~/.local/share/lantern-bench/status.json:
 #        - bench OFFLINE first night → warning log only (no critical text)
 #        - bench OFFLINE 2+ consecutive nights → critical notify (counted per UTC day, not per run)
 #        - bench test FAILURE → critical notify immediately naming the OS
@@ -21,7 +21,7 @@
 #
 # RELEASE-GATE HOOK (future):
 #   The status file records last_pass.timestamp + last_pass.commit per bench.
-#   A pre-release check can read ~/.local/share/keepance-bench/status.json and require
+#   A pre-release check can read ~/.local/share/lantern-bench/status.json and require
 #   both benches to have a recent passing run before cutting a signed build.
 #   See the update_status() / read_status() helpers below.
 #
@@ -56,7 +56,7 @@ MAC_HOST="100.113.42.26"
 # BUG-005: Use ~/keepance-bench (NOT ~/keepance) for the same reason as the Windows comment above.
 
 # ── Status file ──────────────────────────────────────────────────────────────
-STATUS_DIR="$HOME/.local/share/keepance-bench"
+STATUS_DIR="$HOME/.local/share/lantern-bench"
 STATUS_FILE="$STATUS_DIR/status.json"
 
 mkdir -p "$STATUS_DIR"
@@ -156,7 +156,7 @@ if command -v git &>/dev/null && [[ -d "$REPO_DIR/.git" ]]; then
 fi
 
 # ── Logging ───────────────────────────────────────────────────────────────────
-echo "=== Keepance bench tests $(date -u) ==="
+echo "=== Advisor Prep Hero bench tests $(date -u) ==="
 echo "Commit: $COMMIT_SHA"
 if [[ "$CHECK_MODE" -eq 1 ]]; then
   echo "(--check mode: probe + cargo --version only, no sync or full test, no status writes, no notifications)"
@@ -212,7 +212,7 @@ if probe_reachable "$WIN_USER" "$WIN_HOST"; then
   else
     # Full run: sync source then run cargo test
     echo "[windows] Syncing source via tarball ..."
-    TARBALL="/tmp/keepance-src-$(date +%Y%m%d-%H%M%S).tgz"
+    TARBALL="/tmp/lantern-src-$(date +%Y%m%d-%H%M%S).tgz"
 
     # Fix 4: check tar exit; if it fails, skip the remote test (don't risk stale code)
     if ! tar czf "$TARBALL" -C "$REPO_DIR" \
@@ -229,7 +229,7 @@ if probe_reachable "$WIN_USER" "$WIN_HOST"; then
       # scp to Windows home dir (PowerShell expands ~ to USERPROFILE)
       # Fix 4: check scp exit; if it fails, skip the remote test
       if ! scp -o BatchMode=yes -o StrictHostKeyChecking=no \
-          "$TARBALL" "${WIN_USER}@${WIN_HOST}:keepance-src.tgz" 2>&1; then
+          "$TARBALL" "${WIN_USER}@${WIN_HOST}:lantern-src.tgz" 2>&1; then
         echo "[windows] ERROR: scp failed — skipping remote test to avoid testing stale code"
         WIN_RESULT="test_fail"
         WIN_OUTPUT="[source sync failed: scp exited non-zero]"
@@ -248,7 +248,7 @@ if probe_reachable "$WIN_USER" "$WIN_HOST"; then
         echo "[windows] Extracting + running cargo test (this takes ~7 min; no short timeout) ..."
         WIN_OUTPUT="$(ssh -o BatchMode=yes -o StrictHostKeyChecking=no \
           "${WIN_USER}@${WIN_HOST}" \
-          'powershell -NonInteractive -Command { $env:Path = $env:USERPROFILE + "\.cargo\bin;C:\Strawberry\perl\bin;C:\Strawberry\c\bin;" + $env:Path; Remove-Item -Recurse -Force C:\keepance-bench -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force C:\keepance-bench | Out-Null; tar -xzf ($env:USERPROFILE + "\keepance-src.tgz") -C C:\keepance-bench; Remove-Item ($env:USERPROFILE + "\keepance-src.tgz") -ErrorAction SilentlyContinue; if (-not (Test-Path "C:\keepance-bench\src-tauri\Cargo.toml")) { Write-Output "[bench] FATAL: src-tauri/Cargo.toml missing after extract — aborting"; Write-Output "__BENCH_RC_1__"; exit 1 }; New-Item -ItemType Directory -Force C:\keepance-bench\src-tauri\binaries | Out-Null; Copy-Item C:\Windows\System32\where.exe C:\keepance-bench\src-tauri\binaries\piper-x86_64-pc-windows-msvc.exe -ErrorAction SilentlyContinue; Set-Location C:\keepance-bench\src-tauri; cargo test --workspace 2>&1; Write-Output "__BENCH_RC_$LASTEXITCODE__" }' \
+          'powershell -NonInteractive -Command { $env:Path = $env:USERPROFILE + "\.cargo\bin;C:\Strawberry\perl\bin;C:\Strawberry\c\bin;" + $env:Path; Remove-Item -Recurse -Force C:\keepance-bench -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force C:\keepance-bench | Out-Null; tar -xzf ($env:USERPROFILE + "\lantern-src.tgz") -C C:\keepance-bench; Remove-Item ($env:USERPROFILE + "\lantern-src.tgz") -ErrorAction SilentlyContinue; if (-not (Test-Path "C:\keepance-bench\src-tauri\Cargo.toml")) { Write-Output "[bench] FATAL: src-tauri/Cargo.toml missing after extract — aborting"; Write-Output "__BENCH_RC_1__"; exit 1 }; New-Item -ItemType Directory -Force C:\keepance-bench\src-tauri\binaries | Out-Null; Copy-Item C:\Windows\System32\where.exe C:\keepance-bench\src-tauri\binaries\piper-x86_64-pc-windows-msvc.exe -ErrorAction SilentlyContinue; Set-Location C:\keepance-bench\src-tauri; cargo test --workspace 2>&1; Write-Output "__BENCH_RC_$LASTEXITCODE__" }' \
           2>&1 || true)"
 
         echo "$WIN_OUTPUT"
@@ -318,7 +318,7 @@ if probe_reachable "$MAC_USER" "$MAC_HOST"; then
   else
     # Full run: sync source then run cargo test
     echo "[mac] Syncing source via tarball ..."
-    TARBALL="/tmp/keepance-src-mac-$(date +%Y%m%d-%H%M%S).tgz"
+    TARBALL="/tmp/lantern-src-mac-$(date +%Y%m%d-%H%M%S).tgz"
 
     # Fix 4: check tar exit; if it fails, skip the remote test (don't risk stale code)
     if ! tar czf "$TARBALL" -C "$REPO_DIR" \
@@ -334,7 +334,7 @@ if probe_reachable "$MAC_USER" "$MAC_HOST"; then
 
       # Fix 4: check scp exit; if it fails, skip the remote test
       if ! scp -o BatchMode=yes -o StrictHostKeyChecking=no \
-          "$TARBALL" "${MAC_USER}@${MAC_HOST}:keepance-src.tgz" 2>&1; then
+          "$TARBALL" "${MAC_USER}@${MAC_HOST}:lantern-src.tgz" 2>&1; then
         echo "[mac] ERROR: scp failed — skipping remote test to avoid testing stale code"
         MAC_RESULT="test_fail"
         MAC_OUTPUT="[source sync failed: scp exited non-zero]"
@@ -349,8 +349,8 @@ if probe_reachable "$MAC_USER" "$MAC_HOST"; then
           'export PATH="$HOME/.cargo/bin:$HOME/node/bin:$HOME/protoc/bin:$PATH";
            rm -rf ~/keepance-bench;
            mkdir -p ~/keepance-bench;
-           tar -xzf ~/keepance-src.tgz -C ~/keepance-bench;
-           rm -f ~/keepance-src.tgz;
+           tar -xzf ~/lantern-src.tgz -C ~/keepance-bench;
+           rm -f ~/lantern-src.tgz;
            if [[ ! -f ~/keepance-bench/src-tauri/Cargo.toml ]]; then
              echo "[bench] FATAL: src-tauri/Cargo.toml missing after extract — aborting";
              echo "__BENCH_RC_1__";
@@ -420,11 +420,11 @@ if [[ "$CHECK_MODE" -eq 0 ]]; then
     echo "[status] Windows: PASS — status file updated with last_pass commit $COMMIT_SHA"
 
   elif [[ "$WIN_RESULT" == "test_fail" ]]; then
-    WIN_LOG="/tmp/keepance-bench-windows-$(date +%Y%m%d).log"
+    WIN_LOG="/tmp/lantern-bench-windows-$(date +%Y%m%d).log"
     echo "${WIN_OUTPUT:-}" > "$WIN_LOG" 2>/dev/null || true
     echo "[status] Windows: TEST FAIL — notifying Jameson"
     notify-jameson \
-      --subject "[Keepance] NEED YOU: Windows bench tests failed tonight" \
+      --subject "[Advisor Prep Hero] NEED YOU: Windows bench tests failed tonight" \
       --body "Project: Keepance (~/keepance)
 Task: Nightly real-OS tests on the Windows test machine
 Result: The Windows test run found failures tonight (consecutive fail streak: ${NEW_WIN_FAIL}). Something in the Rust code is broken specifically on Windows. The full test output is saved on the server at ${WIN_LOG}
@@ -435,10 +435,10 @@ Next: Open a Claude session, have it read that log file, and fix the Windows-spe
     if [[ "${NEW_WIN_OFFLINE:-0}" -ge 2 ]]; then
       echo "[status] Windows: OFFLINE for ${NEW_WIN_OFFLINE} consecutive nights — sending critical alert"
       notify-jameson \
-        --subject "[Keepance] NEED YOU: Windows test machine unreachable ${NEW_WIN_OFFLINE} nights in a row" \
+        --subject "[Advisor Prep Hero] NEED YOU: Windows test machine unreachable ${NEW_WIN_OFFLINE} nights in a row" \
         --body "Project: Keepance (~/keepance)
 Task: Nightly real-OS tests on the Windows test machine
-Result: The Windows test machine (the Legion laptop) has been unreachable for ${NEW_WIN_OFFLINE} nights in a row, so we have not been able to confirm Keepance still works on Windows.
+Result: The Windows test machine (the Legion laptop) has been unreachable for ${NEW_WIN_OFFLINE} nights in a row, so we have not been able to confirm Advisor Prep Hero still works on Windows.
 Next: Check that the Legion is on, connected to the internet, and Tailscale is running on it. Then run 'bash scripts/nightly-bench-tests.sh --check' from the server to confirm it's reachable again." \
         --level critical --channel email,telegram || true
     else
@@ -455,11 +455,11 @@ Next: Check that the Legion is on, connected to the internet, and Tailscale is r
     echo "[status] macOS: PASS — status file updated with last_pass commit $COMMIT_SHA"
 
   elif [[ "$MAC_RESULT" == "test_fail" ]]; then
-    MAC_LOG="/tmp/keepance-bench-mac-$(date +%Y%m%d).log"
+    MAC_LOG="/tmp/lantern-bench-mac-$(date +%Y%m%d).log"
     echo "${MAC_OUTPUT:-}" > "$MAC_LOG" 2>/dev/null || true
     echo "[status] macOS: TEST FAIL — notifying Jameson"
     notify-jameson \
-      --subject "[Keepance] NEED YOU: Mac bench tests failed tonight" \
+      --subject "[Advisor Prep Hero] NEED YOU: Mac bench tests failed tonight" \
       --body "Project: Keepance (~/keepance)
 Task: Nightly real-OS tests on the Mac test machine (M1)
 Result: The Mac test run found failures tonight (consecutive fail streak: ${NEW_MAC_FAIL}). Something in the Rust code is broken specifically on macOS. The full test output is saved on the server at ${MAC_LOG}
@@ -470,10 +470,10 @@ Next: Open a Claude session, have it read that log file, and fix the Mac-specifi
     if [[ "${NEW_MAC_OFFLINE:-0}" -ge 2 ]]; then
       echo "[status] macOS: OFFLINE for ${NEW_MAC_OFFLINE} consecutive nights — sending critical alert"
       notify-jameson \
-        --subject "[Keepance] NEED YOU: Mac test machine unreachable ${NEW_MAC_OFFLINE} nights in a row" \
+        --subject "[Advisor Prep Hero] NEED YOU: Mac test machine unreachable ${NEW_MAC_OFFLINE} nights in a row" \
         --body "Project: Keepance (~/keepance)
 Task: Nightly real-OS tests on the Mac test machine (M1)
-Result: The Mac test machine (Allison's M1) has been unreachable for ${NEW_MAC_OFFLINE} nights in a row, so we have not been able to confirm Keepance still works on macOS.
+Result: The Mac test machine (Allison's M1) has been unreachable for ${NEW_MAC_OFFLINE} nights in a row, so we have not been able to confirm Advisor Prep Hero still works on macOS.
 Next: Check that the Mac is on, connected to the internet, and Tailscale is running. Then run 'bash scripts/nightly-bench-tests.sh --check' from the server to confirm it's reachable again." \
         --level critical --channel email,telegram || true
     else
