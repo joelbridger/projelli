@@ -21,7 +21,7 @@ import {
 } from '@/platform/rag/workspaceCommand';
 import type { RagHit, RetrievalScope } from '@/platform/utils/tauri-commands';
 import { useAIChatStore } from '@/platform/state/aiChatStore';
-import type { ChatMessage } from '@/platform/types/ai';
+import type { ChatMessage, WorkspaceSource } from '@/platform/types/ai';
 import type { AuditEntry, AuditScope } from '@/platform/types/audit';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { resolveEgress, isLocalProvider, type ConfidentialityMode } from '@/platform/privacy/egress';
@@ -33,12 +33,14 @@ import {
   isConfidentialityChoiceRequiredError,
   isLocalOnlyMode,
 } from '@/platform/privacy/localOnlyGuard';
-import type { AskFailureStage, AskScope, AskTurn } from './askHelpers';
+import type { AnswerBlock, AnswerCitation, AskFailureStage, AskScope, AskTurn } from './askHelpers';
 import {
   NO_EVIDENCE_DECLINE,
   buildAskSystemPrompt,
+  buildSmartAskSystemPrompt,
   scopeHintForMatter,
 } from './askPrompt';
+import { bindAnswerBlocks } from './answerBlocks';
 import {
   hasCloudKey,
   buildResolvedAskProvider,
@@ -55,6 +57,16 @@ import {
 
 /** localStorage key for the conversations-rail collapsed preference. */
 const ASK_RAIL_COLLAPSED_KEY = 'keepance:ask-rail-collapsed';
+
+/**
+ * localStorage key for the Files-only mode lock (Decision 6). OFF by default —
+ * Ask is the smart, source-aware advisor agent out of the box. When ON, Ask
+ * reverts to the strict files-only behaviour (only answers from the user's
+ * files, cited, declines when nothing is found) — the one-tap answer to a
+ * compliance team that wants the general/drafting capability turned off
+ * entirely. Persisted so the choice survives reloads.
+ */
+const ASK_FILES_ONLY_KEY = 'keepance:ask-files-only';
 
 export interface UseAskProps {
   onSaveToDocument?: (content: string) => Promise<void>;
@@ -179,6 +191,25 @@ export function useAsk({
       }
       return next;
     });
+  }, []);
+
+  // Files-only mode lock (Decision 6) — view+behaviour state, persisted. Default
+  // OFF (smart). When ON, handleAsk uses the strict files-only prompt, keeps the
+  // no-evidence decline, and skips block provenance (flat cited rendering).
+  const [filesOnly, setFilesOnlyState] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(ASK_FILES_ONLY_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const setFilesOnly = useCallback((next: boolean) => {
+    setFilesOnlyState(next);
+    try {
+      localStorage.setItem(ASK_FILES_ONLY_KEY, next ? '1' : '0');
+    } catch {
+      /* ignore storage failures (private mode / quota) */
+    }
   }, []);
 
   // On mount / chatId change: init session and reconstruct turns from persisted messages.
@@ -375,11 +406,19 @@ export function useAsk({
           const demo = getDemoAnswerForWorkspace(q, rootPath, profession);
           if (demo) {
             if (abort.signal.aborted) return;
+            // In smart mode, present the demo answer under the new "From your
+            // files" provenance label (a single files block) so the sample
+            // matter — the first thing a new advisor sees — shows the labelled
+            // design. In Files-only mode it renders flat (the green attestation).
+            const demoBlocks: AnswerBlock[] | undefined = filesOnly
+              ? undefined
+              : [{ kind: 'files', text: demo.answer, citations: demo.citations }];
             const completedTurn: AskTurn = {
               question: q,
               answer: demo.answer,
               citations: demo.citations,
               sources: [],
+              ...(demoBlocks ? { blocks: demoBlocks } : {}),
             };
             const now = new Date().toISOString();
             addMessage(chatId, { role: 'user', content: q, timestamp: now });
@@ -389,6 +428,7 @@ export function useAsk({
               timestamp: now,
               askCitations: demo.citations,
               askSources: [],
+              ...(demoBlocks ? { askBlocks: demoBlocks.map((b) => ({ kind: b.kind, text: b.text })) } : {}),
             });
             setTurns((prev) => [...prev, completedTurn]);
             setStreamingTurn(null);
@@ -479,7 +519,7 @@ export function useAsk({
 
       if (abort.signal.aborted) return;
 
-      /* BUG-016: retrieval-evidence gate.
+      /* BUG-016: retrieval-evidence gate (FILES-ONLY mode).
        * When indexing IS on but retrieval found nothing in scope, decline
        * instead of calling the model — otherwise the model free-associates a
        * confident answer and (worse) a fabricated citation, presented under the
@@ -487,8 +527,15 @@ export function useAsk({
        * runs, makes "no evidence" an honest "I couldn't find this" rather than a
        * hallucinated, fake-cited answer. (When indexing is OFF we leave the
        * existing behaviour: the UI already warns that documents aren't indexed.)
+       *
+       * Ask-smart change (Decision 3): in SMART mode we do NOT dead-end here.
+       * The model is still called, but with `hasEvidence: false`, so it leads
+       * with an honest nothing-found block and then offers clearly-labelled
+       * general help. The structural safety net is unchanged — bindAnswerBlocks
+       * binds citations ONLY inside files blocks against real retrieved chunks,
+       * so an empty context can never produce a green, fake-cited claim.
        */
-      if (memoryEnabled && hits.length === 0) {
+      if (filesOnly && memoryEnabled && hits.length === 0) {
         const declineTurn: AskTurn = {
           question: q,
           answer: NO_EVIDENCE_DECLINE,
@@ -531,11 +578,22 @@ export function useAsk({
       // doesn't resolve to a retrieved chunk. The prompt assembly lives in
       // `askPrompt.ts` so the answer-quality eval (tests/eval/ask) tests the
       // exact prompt we ship.
-      const systemPrompt = buildAskSystemPrompt({
-        scopeHint: matterHint,
-        workspaceBlock,
-        historyBlock,
-      });
+      // Files-only mode keeps the strict, hardened "answer only from context or
+      // decline" prompt. Smart mode (default) uses the source-aware advisor
+      // prompt: same scope/context scaffolding, but the block protocol + the
+      // staleness guardrails replace the no-outside-knowledge contract.
+      const systemPrompt = filesOnly
+        ? buildAskSystemPrompt({
+            scopeHint: matterHint,
+            workspaceBlock,
+            historyBlock,
+          })
+        : buildSmartAskSystemPrompt({
+            scopeHint: matterHint,
+            workspaceBlock,
+            historyBlock,
+            hasEvidence: hits.length > 0,
+          });
 
       let answerText = '';
       let resolvedProvider = await buildResolvedAskProvider();
@@ -654,28 +712,79 @@ export function useAsk({
       const expectedMatterId: string | null =
         activeMatter && askScope !== 'all-matters' ? activeMatter.id : null;
       failedStage = 'post-processing';
-      const { answer: rewritten, citations: boundCitations, sources } = bindAnswerCitations(answerText, hits, expectedMatterId);
+      // Files-only mode: bind the whole answer flatly (the existing cited path).
+      // Smart mode: parse the answer into provenance blocks and bind citations
+      // ONLY inside files blocks — the same structural grounding net, applied
+      // per-block, so a green chip can never sit over general/draft prose.
+      let rewritten: string;
+      let boundCitations: AnswerCitation[];
+      let sources: WorkspaceSource[];
+      let blocks: AnswerBlock[] | undefined;
+      if (filesOnly) {
+        const bound = bindAnswerCitations(answerText, hits, expectedMatterId);
+        rewritten = bound.answer;
+        boundCitations = bound.citations;
+        sources = bound.sources;
+      } else {
+        const bound = bindAnswerBlocks(answerText, hits, expectedMatterId);
+        rewritten = bound.answer;
+        boundCitations = bound.citations;
+        sources = bound.sources;
+        blocks = bound.blocks;
+      }
       // Cosmetic: name email citations by their subject line instead of the raw
       // `mail:<id>` message-id (display-only; path/verification untouched).
       const citations = await resolveEmailCitationLabels(boundCitations);
+      // Keep block-level citation copies in sync with the relabelled email
+      // subjects (block chips read their own citations array).
+      if (blocks) {
+        const byN = new Map(citations.map((c) => [c.n, c]));
+        blocks = blocks.map((b) => ({
+          ...b,
+          citations: b.citations.map((c) => byN.get(c.n) ?? c),
+        }));
+      }
 
       const completedTurn: AskTurn = {
         question: q,
         answer: rewritten,
         citations,
         sources,
+        ...(blocks ? { blocks } : {}),
       };
 
       // Persist to store as two ChatMessage entries.
       // A1: persist askCitations + askSources on the assistant message so that
       // clickable {n} chips and the Verified source panel survive navigation/reload.
+      // Ask-smart: also persist askBlocks (kind + text only) so the provenance
+      // labels + per-answer tally survive reload; citations re-attach to blocks
+      // from askCitations on reconstruct.
+      //
+      // PRIVACY (review P2): persist askSources ONLY when there are citations,
+      // and TRIM them to the sources a citation actually references. Retrieval
+      // runs before EVERY smart answer, so a general / draft / nothing-found
+      // reply (zero citations) must NOT store the raw retrieved client chunks
+      // that were never cited or shown — that contradicts "general answers have
+      // nothing to cite" and bloats history. Reconstruct only needs the cited
+      // sources to re-ground their citations on reload.
+      const citedSources =
+        citations.length > 0
+          ? sources.filter((s) =>
+              citations.some(
+                (c) =>
+                  c.path === s.path &&
+                  (s.paragraphIndex === c.paragraphIndex || s.pageNumber === c.paragraphIndex),
+              ),
+            )
+          : [];
       const now = new Date().toISOString();
       const userMsg: ChatMessage = { role: 'user', content: q, timestamp: now };
       const assistantMsg: ChatMessage = {
         role: 'assistant',
         content: rewritten,
         timestamp: now,
-        ...(citations.length > 0 ? { askCitations: citations, askSources: sources } : {}),
+        ...(citations.length > 0 ? { askCitations: citations, askSources: citedSources } : {}),
+        ...(blocks ? { askBlocks: blocks.map((b) => ({ kind: b.kind, text: b.text })) } : {}),
       };
       addMessage(chatId, userMsg);
       addMessage(chatId, assistantMsg);
@@ -747,7 +856,7 @@ export function useAsk({
       // on error we put it back.
       setQuestion(q);
     }
-  }, [question, status, activeMatter, turns, chatId, addMessage, rootPath, askScope, profession, onAuditLog, buildAuditScope]);
+  }, [question, status, activeMatter, turns, chatId, addMessage, rootPath, askScope, profession, filesOnly, onAuditLog, buildAuditScope]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -794,6 +903,8 @@ export function useAsk({
     railSessions,
     railCollapsed,
     toggleRailCollapsed,
+    filesOnly,
+    setFilesOnly,
     selectedCite,
     anyHasCitations,
     handleCitationSelect,

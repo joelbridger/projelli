@@ -92,11 +92,57 @@ export interface AnswerCitation {
   matterId?: string;
 }
 
+/**
+ * Source-aware advisor agent (Ask-smart): which kind of evidence a contiguous
+ * run of the answer is built from. Stored as REAL data (not inferred from
+ * colour) so labels are reliable, exports are honest, and the audit log can
+ * later prove what was grounded and what wasn't.
+ *
+ *   - 'files'         claims drawn from the user's own documents/email; every
+ *                     sentence carries a citation that can be checked.
+ *   - 'general'       the model's own knowledge — concepts, how-things-work.
+ *                     Never cited (there is nothing to cite); carries a quiet
+ *                     "rules change, verify current figures" line.
+ *   - 'draft'         something written for the user (an email, a one-pager,
+ *                     talking points). Labelled "draft, review before sending".
+ *   - 'nothing-found' the honest absence: searched the files, found nothing on
+ *                     this. Leads the answer so generic guidance below can never
+ *                     read as if it were the client's actual records.
+ */
+export type AnswerBlockKind = 'files' | 'general' | 'draft' | 'nothing-found';
+
+/**
+ * One labelled, provenance-tagged section of an answer. The single most
+ * important trust rule the block model enforces: a cited file-claim and an
+ * uncited general claim NEVER share a block, so a green "from your files" badge
+ * can never sit over an uncited sentence.
+ */
+export interface AnswerBlock {
+  kind: AnswerBlockKind;
+  /**
+   * Block prose. For 'files' blocks the {n} citation markers are already
+   * substituted; for every other kind the text is verbatim with any stray
+   * citation markers stripped (defence — a general/draft block must never carry
+   * a chip).
+   */
+  text: string;
+  /** Citations bound within THIS block ('files' blocks only; [] otherwise). */
+  citations: AnswerCitation[];
+}
+
 export interface AskTurn {
   question: string;
   answer: string;
   citations: AnswerCitation[];
   sources: WorkspaceSource[];
+  /**
+   * Ask-smart: the provenance-labelled blocks the answer is built from. Present
+   * on smart-mode answers (the source-aware agent); absent on files-only,
+   * demo, and legacy/persisted turns, which render via the flat path. When
+   * present, the renderer shows per-block labels + a per-answer tally instead of
+   * the single green/uncited attestation.
+   */
+  blocks?: AnswerBlock[];
   isStreaming?: boolean;
   error?: string;
 }
@@ -815,16 +861,42 @@ export async function resolveEmailCitationLabels(
  * keeps the Ask promise truthful without depending on a model following the
  * citation-marker instruction exactly.
  */
-export function bindAnswerCitations(
+/**
+ * Mutable accumulator threaded through one or more {@link bindCitationsCore}
+ * calls so citation NUMBERING and DEDUP are global across spans. The Ask-smart
+ * block binder ({@link bindAnswerBlocks} in answerBlocks.ts) calls the core once
+ * per FILES block sharing a single accumulator, so a source reused across blocks
+ * keeps one chip number and the Sources panel stays 1..N for the whole answer.
+ */
+export interface CitationBindAccumulator {
+  citationMap: Map<string, number>;
+  citations: AnswerCitation[];
+  chipCounter: number;
+}
+
+export function newCitationBindAccumulator(): CitationBindAccumulator {
+  return { citationMap: new Map<string, number>(), citations: [], chipCounter: 0 };
+}
+
+/**
+ * Bind citations within ONE span of answer text against the retrieved hits,
+ * accumulating into a shared {@link CitationBindAccumulator}. Returns the span's
+ * rewritten text with `{n}` markers substituted. Does NOT sort `acc.citations`
+ * — the caller sorts once after the final span.
+ *
+ * The post-hoc grounding fallback fires only when THIS span produced no
+ * marker-based citation (so an unmarked FILES block still earns chips), keyed on
+ * the accumulator's per-span delta — identical to the whole-answer behaviour
+ * when called once via {@link bindAnswerCitations}.
+ */
+export function bindCitationsCore(
   answerText: string,
   hits: RagHit[],
-  expectedMatterId: string | null = null,
-): BoundAnswerCitations {
+  expectedMatterId: string | null,
+  acc: CitationBindAccumulator,
+): string {
   const parsed = parseCitations(answerText);
   const sources = buildWorkspaceSources(hits);
-  const citationMap = new Map<string, number>();
-  const citations: AnswerCitation[] = [];
-  let chipCounter = 0;
   const decisions: { start: number; end: number; n: number | null }[] = [];
 
   for (const cite of [...parsed].sort((a, b) => a.start - b.start)) {
@@ -844,13 +916,13 @@ export function bindAnswerCitations(
 
     const key = matchedHit.id ?? `${matchedHit.path}:${String(matchedHit.paragraphIndex)}:${String(matchedHit.pageNumber ?? '')}`;
     let n: number;
-    if (citationMap.has(key)) {
-      n = citationMap.get(key) ?? chipCounter;
+    if (acc.citationMap.has(key)) {
+      n = acc.citationMap.get(key) ?? acc.chipCounter;
     } else {
-      chipCounter += 1;
-      n = chipCounter;
-      citationMap.set(key, n);
-      citations.push(citationFromHit(matchedHit, n, sources, expectedMatterId));
+      acc.chipCounter += 1;
+      n = acc.chipCounter;
+      acc.citationMap.set(key, n);
+      acc.citations.push(citationFromHit(matchedHit, n, sources, expectedMatterId));
     }
     decisions.push({ start: cite.start, end: cite.end, n });
   }
@@ -866,7 +938,13 @@ export function bindAnswerCitations(
     }
   }
 
-  if (citations.length === 0 && hits.length > 0) {
+  // Post-hoc grounding fires only when THIS span produced no MARKER-based
+  // citation. Keyed on "did any parsed marker resolve" (not on whether a NEW
+  // citation object was appended) — otherwise a later block whose only marker
+  // REUSES an earlier block's already-numbered source would still trigger the
+  // fallback and double-chip an already-cited sentence (Codex P2).
+  const anyMarkerResolved = decisions.some((d) => d.n !== null);
+  if (!anyMarkerResolved && hits.length > 0) {
     const insertions: { at: number; n: number }[] = [];
     for (const span of splitClaimSpans(rewritten)) {
       if (!isGroundableClaim(span.text)) continue;
@@ -875,13 +953,13 @@ export function bindAnswerCitations(
 
       const key = citationKey(matchedHit);
       let n: number;
-      if (citationMap.has(key)) {
-        n = citationMap.get(key) ?? chipCounter;
+      if (acc.citationMap.has(key)) {
+        n = acc.citationMap.get(key) ?? acc.chipCounter;
       } else {
-        chipCounter += 1;
-        n = chipCounter;
-        citationMap.set(key, n);
-        citations.push(citationFromHit(matchedHit, n, sources, expectedMatterId));
+        acc.chipCounter += 1;
+        n = acc.chipCounter;
+        acc.citationMap.set(key, n);
+        acc.citations.push(citationFromHit(matchedHit, n, sources, expectedMatterId));
       }
       insertions.push({ at: span.end, n });
     }
@@ -891,8 +969,159 @@ export function bindAnswerCitations(
     }
   }
 
-  citations.sort((a, b) => a.n - b.n);
-  return { answer: rewritten, citations, sources };
+  return rewritten;
+}
+
+export function bindAnswerCitations(
+  answerText: string,
+  hits: RagHit[],
+  expectedMatterId: string | null = null,
+): BoundAnswerCitations {
+  const acc = newCitationBindAccumulator();
+  const answer = bindCitationsCore(answerText, hits, expectedMatterId, acc);
+  acc.citations.sort((a, b) => a.n - b.n);
+  return { answer, citations: acc.citations, sources: buildWorkspaceSources(hits) };
+}
+
+/**
+ * Renumber an answer's surviving citations to a contiguous 1..N and rewrite the
+ * `{n}` markers in every FILES block to match. Used after a block downgrade may
+ * have dropped some citations (at bind time and on reload) so the Sources panel
+ * never starts at 2 or shows a gap — the global 1..N numbering contract holds
+ * (Codex P2). Only FILES blocks carry markers; other kinds pass through. The
+ * incoming `citations` must be the SURVIVING set (those still referenced by a
+ * files block); they are sorted by their current number to assign the new order.
+ */
+export function renumberBlocksAndCitations(
+  blocks: AnswerBlock[],
+  citations: AnswerCitation[],
+): { blocks: AnswerBlock[]; citations: AnswerCitation[] } {
+  const sorted = [...citations].sort((a, b) => a.n - b.n);
+  const remap = new Map<number, number>();
+  sorted.forEach((c, i) => remap.set(c.n, i + 1));
+  const renumberText = (t: string): string =>
+    t.replace(/\{(\d+)\}/g, (m, nStr: string) => {
+      const nn = remap.get(Number.parseInt(nStr, 10));
+      return nn !== undefined ? `{${String(nn)}}` : m;
+    });
+  const newBlocks = blocks.map((b) =>
+    b.kind === 'files'
+      ? {
+          ...b,
+          text: renumberText(b.text),
+          citations: b.citations.map((c) => ({ ...c, n: remap.get(c.n) ?? c.n })),
+        }
+      : b,
+  );
+  const newCitations = sorted.map((c) => ({ ...c, n: remap.get(c.n) ?? c.n }));
+  return { blocks: newBlocks, citations: newCitations };
+}
+
+/**
+ * TRUST BOUNDARY (review P1): split a trailing run of UNCITED general prose off
+ * an otherwise-cited files block. Smart mode lets the model add general guidance,
+ * so a malformed answer can put a general sentence INSIDE a files block — e.g.
+ * "Their income put them above the limit [tax.pdf p2]. Generally, the pro-rata
+ * rule counts pre-tax money toward a conversion." The second sentence is general
+ * knowledge, not a file claim, and must not sit under a green "From your files"
+ * label. We split AFTER the last citation marker: the cited head stays a files
+ * block (its chips preserved), and a trailing groundable claim is demoted to a
+ * general block. Splitting only the TRAILING run (the common malformation —
+ * cite the facts, then tack on general explanation) avoids false-positives on a
+ * shared-citation cluster like "A is X. B is Y {1}." where the single citation
+ * legitimately covers both sentences and nothing groundable follows it.
+ */
+export function splitTrailingGeneralFromFilesBlock(
+  text: string,
+  citations: AnswerCitation[],
+): AnswerBlock[] {
+  const whole: AnswerBlock[] = [{ kind: 'files', text: text.trim(), citations }];
+  const markers = [...text.matchAll(/\{\d+\}/g)];
+  const last = markers[markers.length - 1];
+  if (!last) return whole;
+
+  // The cited content extends to the END OF THE SENTENCE the last citation is
+  // part of — NOT just to the marker. A mid-sentence citation ("According to the
+  // plan {1}, the target is 60. Generally, …") must keep its whole sentence under
+  // the files label, and demote only the SEPARATE general sentence that follows.
+  const mEnd = last.index + last[0].length;
+  const before = text.slice(0, last.index);
+  // A terminator immediately before the marker means the marker is a trailing
+  // attribution of an already-finished sentence ("…retire at 60. {1} Generally…")
+  // — the cited sentence ends AT the marker. Otherwise the cited sentence ends at
+  // the next real sentence terminator AFTER the marker.
+  const markerIsPostPeriod = /[.!?][\p{Pe}\p{Pf}"'\s]*$/u.test(before);
+  let cutPoint: number;
+  if (markerIsPostPeriod) {
+    cutPoint = mEnd;
+  } else {
+    const rel = nextSentenceTerminator(text.slice(mEnd));
+    if (rel === null) return whole; // marker's sentence is the last sentence — no tail
+    cutPoint = mEnd + rel + 1;
+  }
+
+  let head = text.slice(0, cutPoint);
+  let tail = text.slice(cutPoint);
+  // Absorb leading terminators / closing brackets / quotes / whitespace into the
+  // head so the general tail never starts with stray punctuation.
+  const lead = /^[\s.!?\p{Pe}\p{Pf}"']+/u.exec(tail);
+  if (lead) {
+    head += lead[0];
+    tail = tail.slice(lead[0].length);
+  }
+  const tailText = tail.replace(/\{\d+\}/g, '').trim();
+  if (!tailText) return whole;
+
+  // Over-demote is the safe direction for this trust boundary, so demote the
+  // trailing run if it contains ANY sentence that is not recognised filler —
+  // including SHORT substantive claims like "Taxable." or "Not taxable." that a
+  // word-count rule would wrongly let stay under the green files label (review
+  // #2). Only an explicit acknowledgment/connective allowlist is exempt.
+  const hasTrailingClaim = splitClaimSpans(tailText).some((s) => {
+    const norm = s.text
+      .replace(/\{\d+\}/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9 ]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return norm.length > 0 && !TRAILING_FILLER.has(norm);
+  });
+  if (!hasTrailingClaim) return whole;
+
+  return [
+    { kind: 'files', text: head.trim(), citations },
+    { kind: 'general', text: tailText, citations: [] },
+  ];
+}
+
+/**
+ * Acknowledgment / connective phrases that may legitimately trail a cited
+ * sentence without being a substantive claim, so they don't force a files block
+ * to split. Anything NOT in this set is treated as a claim and demoted (the safe,
+ * over-demote direction). Normalised to lowercase alphanumerics + single spaces.
+ */
+const TRAILING_FILLER = new Set([
+  'ok', 'okay', 'got it', 'thanks', 'thank you', 'done', 'noted', 'understood',
+  'sure', 'agreed', 'right', 'exactly', 'yes', 'no', 'yep', 'nope', 'correct',
+  'indeed', 'of course', 'fyi', 'na', 'thats it', 'thats all', 'thats key',
+  'heres why', 'see below', 'more below', 'the end', 'let me know',
+]);
+
+/**
+ * Index of the next sentence-ending `.!?` in `s`, skipping a `.` that sits
+ * between two digits (a decimal like "$1.5M", so the boundary isn't taken
+ * mid-number). Returns null when there is no sentence terminator. Used to find
+ * where a cited sentence ends so trailing general prose can be split off.
+ */
+function nextSentenceTerminator(s: string): number | null {
+  const re = /[.!?]/gu;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(s)) !== null) {
+    const i = m.index;
+    if (s[i] === '.' && i > 0 && /\d/.test(s[i - 1] ?? '') && /\d/.test(s[i + 1] ?? '')) continue;
+    return i;
+  }
+  return null;
 }
 
 /** Reconstruct AskTurn[] from persisted ChatMessage pairs (user+assistant). */
@@ -944,6 +1173,71 @@ export function reconstructTurns(messages: ChatMessage[]): AskTurn[] {
             );
           return { ...c, verified: provenExact };
         });
+
+      // Ask-smart: restore the provenance blocks when this assistant message was
+      // produced by the source-aware agent. Re-ground the persisted citations
+      // (above) and re-attach the survivors to their block by the {n} markers in
+      // each block's text. Handles BOTH cited and uncited smart turns (a turn may
+      // be all general/nothing-found with zero citations and still needs its
+      // labels restored), so it runs ahead of the flat cited/uncited branches.
+      const persistedBlocks = assistantMsg.askBlocks;
+      if (persistedBlocks && persistedBlocks.length > 0) {
+        // The ORIGINAL persisted verified flag captured the matter-scope check at
+        // answer time. reconstructTurns can't re-check matter scope on reload, and
+        // BUG-065 deliberately recomputes `verified` from exact-locator match for
+        // the flat path — which would FLIP a persisted cross-matter (verified:
+        // false) citation to green. For the BLOCK path's green/downgrade decision
+        // we keep a citation "verified" only if it BOTH re-grounds AND was not
+        // persisted as unverified, so a cross-matter citation can never come back
+        // green after reload (Codex P1).
+        const originalVerified = new Map<number, boolean>();
+        // A legacy citation missing the flag is recovered downstream by `?? true`.
+        for (const c of assistantMsg.askCitations ?? []) originalVerified.set(c.n, c.verified);
+        const keepN = new Set(groundedCitations.map((c) => c.n));
+        const blocks: AnswerBlock[] = persistedBlocks.flatMap((pb): AnswerBlock[] => {
+          if (pb.kind !== 'files') {
+            return [{ kind: pb.kind, text: pb.text.replace(/\s*\{\d+\}/g, '').trim(), citations: [] }];
+          }
+          // Files block: keep only survivor markers, drop the rest.
+          const stripped = pb.text.replace(/\s*\{(\d+)\}/g, (mk, nStr: string) =>
+            keepN.has(Number.parseInt(nStr, 10)) ? mk : '',
+          );
+          const present = new Set<number>();
+          for (const mm of stripped.matchAll(/\{(\d+)\}/g)) {
+            present.add(Number.parseInt(mm[1] ?? '0', 10));
+          }
+          const blockCitations = groundedCitations
+            .filter((c) => present.has(c.n))
+            // AND the re-grounded verification with the original persisted flag.
+            .map((c) => ({ ...c, verified: c.verified && (originalVerified.get(c.n) ?? true) }));
+          // TRUST BOUNDARY (Codex P1): same downgrade rule on reload as at bind
+          // time — a persisted files block keeps its green "From your files"
+          // label ONLY if it has citations and EVERY one still re-grounds to a
+          // verified source. Zero survivors, or any unverified/out-of-matter
+          // citation, downgrades it to general (strip every leftover marker).
+          if (blockCitations.length > 0 && blockCitations.every((c) => c.verified)) {
+            // Same trailing-general split as at bind time (review P1).
+            return splitTrailingGeneralFromFilesBlock(stripped.trim(), blockCitations);
+          }
+          return [{ kind: 'general', text: stripped.replace(/\s*\{\d+\}/g, '').trim(), citations: [] }];
+        });
+        // Turn-level citations reflect only what survived in a (still-)files
+        // block; renumber to a contiguous 1..N so a downgrade can't leave a gap.
+        const kept = new Set<number>();
+        for (const b of blocks) if (b.kind === 'files') for (const c of b.citations) kept.add(c.n);
+        const survivingCitations = groundedCitations.filter((c) => kept.has(c.n));
+        const renum = renumberBlocksAndCitations(blocks, survivingCitations);
+        turns.push({
+          question: userMsg.content,
+          answer: renum.blocks.map((b) => b.text).join('\n\n').trim(),
+          citations: renum.citations,
+          sources: restoredSources,
+          blocks: renum.blocks,
+        });
+        i += 2;
+        continue;
+      }
+
       if (groundedCitations.length > 0) {
         const keep = new Set(groundedCitations.map((c) => c.n));
         // Strip markers for any dropped citation; keep survivors' markers intact.

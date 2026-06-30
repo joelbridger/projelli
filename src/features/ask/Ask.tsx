@@ -74,6 +74,8 @@ export function Ask(props: UseAskProps) {
     railSessions,
     railCollapsed,
     toggleRailCollapsed,
+    filesOnly,
+    setFilesOnly,
     handleCitationSelect,
     handleNewAsk,
     handleLoadSession,
@@ -136,6 +138,8 @@ export function Ask(props: UseAskProps) {
     submitLabel: askVerb,
     egressProvider: displayedProvider,
     egressMode: confidentialityMode,
+    filesOnly,
+    onFilesOnlyChange: setFilesOnly,
   } as const;
 
   // The SOURCES column reflects the answer the user is looking at: the turn of
@@ -202,6 +206,13 @@ export function Ask(props: UseAskProps) {
           Icon={Sparkles}
           iconColor="var(--kp-accent)"
           title="Ask"
+          description={
+            /* The honest promise (Decision 4): answers from your files are cited
+               and checkable; general help is clearly marked as not-from-files. */
+            filesOnly
+              ? 'Files-only mode — answers come only from your files, every claim cited.'
+              : 'Your private practice assistant. Answers from your files are cited; general help is clearly marked.'
+          }
           actions={
             /* The egress/privacy indicator lives top-right, on the title line.
                The short "status" form shows ONLY "Using local AI" / "Using cloud
@@ -396,6 +407,15 @@ export function Ask(props: UseAskProps) {
             selectedN={selected}
             onSelect={(n) => { handleCitationSelect(sourceTurnIdx ?? turns.length, n); }}
             {...(props.onAuditLog ? { onAuditLog: props.onAuditLog } : {})}
+            {...(filesOnly
+              ? {}
+              : {
+                  headerSuffix: 'from your files only',
+                  emptyHint:
+                    'When an answer uses your files, the cited sources appear here. General-knowledge answers have nothing to cite — that’s the point.',
+                  footerNote:
+                    'General-knowledge answers have no source card. The Sources panel only ever fills with your files.',
+                })}
           />
         </div>
       </div>

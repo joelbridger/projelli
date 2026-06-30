@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { KeyboardEvent, MouseEvent } from 'react';
+import type { KeyboardEvent, MouseEvent, ReactNode } from 'react';
 import { FileText, ShieldCheck, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
 import type { AnswerCitation } from './askHelpers';
 import { ragVerifyCitation, type CitationVerdict } from '@/platform/utils/tauri-commands';
@@ -232,6 +232,9 @@ export function SourcePanel({
   onSelect,
   onAuditLog,
   onOpenCitation,
+  headerSuffix,
+  emptyHint,
+  footerNote,
 }: {
   /** All citations for the answer the user is looking at. */
   citations: AnswerCitation[];
@@ -251,6 +254,15 @@ export function SourcePanel({
    * OneDrive / e-sign / meeting sources, which the path opener can't route).
    */
   onOpenCitation?: (cite: AnswerCitation) => void;
+  /**
+   * Ask-smart (opt-in; Client Map does not pass these): a short suffix after the
+   * SOURCES header ("· from your files only"), an empty-state node shown when an
+   * answer had no file sources, and a footer note under the cards. They make the
+   * Sources panel's honest point: general-knowledge answers add nothing here.
+   */
+  headerSuffix?: string;
+  emptyHint?: ReactNode;
+  footerNote?: ReactNode;
 }) {
   return (
     <div data-testid="source-panel">
@@ -269,7 +281,27 @@ export function SourcePanel({
       >
         <ShieldCheck size={13} strokeWidth={2} style={{ flex: 'none' }} />
         {LABEL_SOURCES}
+        {headerSuffix != null && headerSuffix !== '' && (
+          <span style={{ fontWeight: 600, letterSpacing: '0.06em' }}>· {headerSuffix}</span>
+        )}
       </div>
+
+      {citations.length === 0 && emptyHint != null && (
+        <div
+          data-testid="source-panel-empty"
+          style={{
+            border: '1px dashed var(--kp-divider-strong)',
+            borderRadius: 12,
+            padding: '18px 16px',
+            fontSize: 12.5,
+            lineHeight: 1.55,
+            color: 'var(--kp-text-faint)',
+            textAlign: 'center',
+          }}
+        >
+          {emptyHint}
+        </div>
+      )}
 
       {citations.map((c) => (
         <SourceCard
@@ -286,6 +318,15 @@ export function SourcePanel({
           {...(onAuditLog ? { onAuditLog } : {})}
         />
       ))}
+
+      {citations.length > 0 && footerNote != null && (
+        <div
+          data-testid="source-panel-footer"
+          style={{ marginTop: 4, fontSize: 11.5, lineHeight: 1.5, color: 'var(--kp-text-faint)' }}
+        >
+          {footerNote}
+        </div>
+      )}
     </div>
   );
 }
