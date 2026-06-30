@@ -22,8 +22,9 @@
 import { getInstallId } from './installId';
 import { getTelemetryConsent } from '@/platform/hooks/useTelemetryConsent';
 import { isLocalOnlyModeFailClosed } from '@/platform/privacy/localOnlyGuard';
+import { BRAND } from '@/config/brand';
 
-const ENDPOINT = 'https://keepance.com/api/forms/keepance/app-event';
+const ENDPOINT = BRAND.urls.formsTelemetry;
 const SENT_KEY = 'keepance_telemetry_sent_events';
 
 interface EventFields {

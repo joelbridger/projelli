@@ -1,4 +1,4 @@
-//! keepance-vault — at-rest encryption for workspace document files.
+//! lantern-vault — at-rest encryption for workspace document files.
 //! Pure crate: file format, atomic write, BIP39 recovery, metadata. No Tauri.
 
 pub mod format;

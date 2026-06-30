@@ -25,9 +25,10 @@ import {
   ChevronRight,
   X,
 } from 'lucide-react';
+import { BRAND } from '@/config/brand';
 
 // Public Getting Started doc URL
-const GETTING_STARTED_URL = 'https://keepance.com/docs/getting-started';
+const GETTING_STARTED_URL = BRAND.urls.gettingStarted;
 
 // Folders shown under the "New Workspace" card as a preview
 const PREVIEW_STRUCTURE_FOLDERS = DEFAULT_WORKSPACE_FOLDERS.filter(
@@ -589,7 +590,7 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
           onMouseEnter={(e) => { e.currentTarget.style.color = '#475569'; }}
           onMouseLeave={(e) => { e.currentTarget.style.color = '#475569'; }}
           onClick={() => {
-            openExternal('https://keepance.com/privacy').catch(() => {});
+            openExternal(BRAND.urls.privacy).catch(() => {});
           }}
         >
           Privacy
@@ -602,7 +603,7 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
           onMouseEnter={(e) => { e.currentTarget.style.color = '#475569'; }}
           onMouseLeave={(e) => { e.currentTarget.style.color = '#475569'; }}
           onClick={() => {
-            openExternal('https://keepance.com/terms').catch(() => {});
+            openExternal(BRAND.urls.terms).catch(() => {});
           }}
         >
           Terms

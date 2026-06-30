@@ -1,7 +1,7 @@
-//! Engine-level tests for keepance-docx — the production OOXML engine.
+//! Engine-level tests for lantern-docx — the production OOXML engine.
 //!
 //! These are written against the public crate API and run FAST in isolation
-//! (`cargo test -p keepance-docx`) — no Tauri, no lancedb, no fastembed in the
+//! (`cargo test -p lantern-docx`) — no Tauri, no lancedb, no fastembed in the
 //! graph. They are the contract for the engine:
 //!
 //!   * existing revisions + comments survive a round-trip with author/date/text

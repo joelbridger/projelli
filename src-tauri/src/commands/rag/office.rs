@@ -1,7 +1,7 @@
 //! VG-2b — office-document extraction for the semantic index: xlsx
 //! (worksheets → text sections), pptx (slides → text sections), rtf (text).
 //!
-//! Hand-rolled on `zip` + `quick-xml` at the SAME versions keepance-docx
+//! Hand-rolled on `zip` + `quick-xml` at the SAME versions lantern-docx
 //! already pins (zero new lockfile entries) — the in-house OOXML philosophy
 //! ("only generic XML/ZIP/serde crates"; calamine was rejected in planning
 //! as a new dependency tree). The host's `index_one_file` dispatch (Task 3)
@@ -9,7 +9,7 @@
 //!
 //! Defensive stance (untrusted input — these bytes come straight from the
 //! user's workspace):
-//!   - Decompression-bomb guards mirror `keepance-docx/src/package.rs`:
+//!   - Decompression-bomb guards mirror `lantern-docx/src/package.rs`:
 //!     entry-count cap, per-part byte cap, and a running total budget; the
 //!     ZIP's uncompressed-size headers are never trusted for allocation.
 //!   - Per-sheet cell cap (`MAX_SHEET_CELLS`) bounds pathological worksheets;
@@ -62,11 +62,11 @@ pub struct OfficeSection {
 }
 
 // ---------------------------------------------------------------------------
-// Bomb-guarded part access (mirrors keepance-docx/src/package.rs)
+// Bomb-guarded part access (mirrors lantern-docx/src/package.rs)
 // ---------------------------------------------------------------------------
 
 /// Selective, budgeted access to the XML parts of an OOXML ZIP. Unlike
-/// keepance-docx's `Package` (which must preserve every part), extraction
+/// lantern-docx's `Package` (which must preserve every part), extraction
 /// only ever reads the handful of parts it names, so entries are decompressed
 /// on demand and media is never touched.
 struct OoxmlParts<'a> {
@@ -129,7 +129,7 @@ impl<'a> OoxmlParts<'a> {
 // ---------------------------------------------------------------------------
 
 /// Local name (after any `:` prefix) of a qualified name — same handling as
-/// keepance-docx's `parse::local_of` (pub(crate) to that crate, so a copy).
+/// lantern-docx's `parse::local_of` (pub(crate) to that crate, so a copy).
 fn local_of(name: QName) -> String {
     let bytes = name.as_ref();
     let local = match bytes.iter().position(|&b| b == b':') {
@@ -142,7 +142,7 @@ fn local_of(name: QName) -> String {
 /// Read an attribute by local name, XML-unescaped. Attribute text that lands
 /// in the index (sheet names: `<sheet name="P&amp;L"/>`) MUST go through
 /// `unescape_value()` — raw `.value` bytes would index "P&amp;L" verbatim
-/// (the keepance-docx bug fixed after 4fe47ac). Malformed escapes fall back
+/// (the lantern-docx bug fixed after 4fe47ac). Malformed escapes fall back
 /// to the raw bytes (preserve-don't-crash).
 fn attr_unescaped(e: &BytesStart, want_local: &str) -> Option<String> {
     for a in e.attributes().with_checks(false).flatten() {
@@ -167,7 +167,7 @@ fn attr_unescaped(e: &BytesStart, want_local: &str) -> Option<String> {
 /// handle it or silently DROP characters ("P&L" losing its "&"). Numeric
 /// character references and the five predefined XML entities resolve; unknown
 /// (DTD-defined) entities resolve to nothing and are NEVER expanded
-/// (billion-laughs stays inert). Local ~8-line copy of keepance-docx's
+/// (billion-laughs stays inert). Local ~8-line copy of lantern-docx's
 /// `parse::general_ref_text` (pub(crate) to that crate).
 fn general_ref_text(r: &BytesRef) -> Option<String> {
     if let Ok(Some(ch)) = r.resolve_char_ref() {
@@ -747,7 +747,7 @@ mod tests {
 
     /// Read a matter-corpus fixture. `CARGO_MANIFEST_DIR` is `src-tauri/`;
     /// the corpus lives at the repo root (same resolution as
-    /// `keepance-docx/src/text.rs`'s helper, one level shallower).
+    /// `lantern-docx/src/text.rs`'s helper, one level shallower).
     fn read_corpus(rel: &str) -> Vec<u8> {
         let mut p = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()
@@ -874,7 +874,7 @@ mod tests {
         // Sheet NAMES are attributes (<sheet name="P&amp;L"/>). Attribute
         // text that lands in the index must go through unescape_value(),
         // never the raw bytes ("P&amp;L" indexed verbatim is the bug class
-        // fixed in keepance-docx after 4fe47ac).
+        // fixed in lantern-docx after 4fe47ac).
         let wb = workbook_xml("P&amp;L");
         let sheet = worksheet_xml(
             r#"<row r="1"><c r="A1" t="inlineStr"><is><t>P&amp;L Statement</t></is></c></row>"#,

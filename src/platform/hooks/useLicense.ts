@@ -35,6 +35,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { sendEvent } from '@/platform/utils/telemetry';
+import { BRAND } from '@/config/brand';
 
 export type LicenseTier = 'free' | 'personal' | 'professional' | 'practice';
 export type ProfessionPack = 'legal' | 'tax' | 'consulting';
@@ -78,7 +79,7 @@ export interface LicenseState {
 const STORAGE_KEY = 'keepance_license_token';
 const MACHINE_ID_KEY = 'keepance_machine_id';
 const LAST_GOOD_KEY = 'keepance_license_last_good_at';
-const LICENSE_API_BASE = 'https://licenses.keepance.com';
+const LICENSE_API_BASE = BRAND.urls.licenseApi;
 const APP_VERSION = '2.1.0';
 
 /**

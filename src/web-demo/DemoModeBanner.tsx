@@ -15,9 +15,10 @@
 import { Button } from '@/ui/button';
 import { BYOKKeyInput } from './BYOKKeyInput';
 import { trackDemoDownloadClicked } from './demoPlausible';
+import { BRAND } from '@/config/brand';
 
 const DOWNLOAD_URL =
-  'https://keepance.com/#pricing?utm_source=demo&utm_campaign=v2-launch&utm_content=banner';
+  BRAND.urls.pricing + '?utm_source=demo&utm_campaign=v2-launch&utm_content=banner';
 
 export function DemoModeBanner() {
   // `?clean` hides the demo chrome so the app can be screen-recorded for the

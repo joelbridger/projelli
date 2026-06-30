@@ -6,7 +6,7 @@ import globals from 'globals';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
-const lanternI18n = require('./packages/eslint-plugin-keepance-i18n/src/index.js');
+const lanternI18n = require('./packages/eslint-plugin-lantern-i18n/src/index.js');
 
 // Env-gated severity: warn locally so devs see the signal without blocking
 // every save, but error in CI so a hardcoded string can't sneak into main.

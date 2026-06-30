@@ -52,6 +52,7 @@ import {
   BarChart2,
   Users,
 } from 'lucide-react';
+import { BRAND } from '@/config/brand';
 
 export interface DataMapDialogProps {
   open: boolean;
@@ -138,7 +139,7 @@ export const DATA_MAP_ROWS: MapRow[] = [
     tone: 'text-violet-700 bg-violet-50 dark:text-violet-300 dark:bg-violet-950/40',
     title: 'Optional error reporting (opt-in, off by default)',
     body: 'If you turn on Optional error reporting in Settings, Advisor Prep Hero sends structured usage counts to help improve the product: which features you use, how many searches you run, which workflow template you ran, and whether you connected a provider. It never sends your content, file names, client names, prompts, or search queries. Only counts and internal ids. This is a separate opt-in from anonymous analytics, also off by default.',
-    caveat: 'To confirm what is collected: Settings > Privacy > Optional error reporting lists every field sent. Endpoint: keepance.com/api/forms/keepance/design-partner-event.',
+    caveat: `To confirm what is collected: Settings > Privacy > Optional error reporting lists every field sent. Endpoint: ${BRAND.urls.formsDiagnostics}.`,
   },
   {
     icon: HardDrive,

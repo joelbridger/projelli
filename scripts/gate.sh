@@ -9,6 +9,7 @@ FULL=0; [ "${1:-}" = "--full" ] && FULL=1
 fail=0
 step () { echo ""; echo "===== $1 ====="; shift; "$@" || { echo "❌ FAILED: $*"; fail=1; }; }
 
+step "Build assets"    node scripts/copy-build-assets.mjs
 step "TypeScript"      npm run typecheck
 step "Brand sync"      npm run brand:check
 step "Identity check"  npm run identity:check

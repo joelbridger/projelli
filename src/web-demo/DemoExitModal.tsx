@@ -27,14 +27,15 @@ import {
 import { resetDemoSessionToken } from './demoSessionToken';
 import { trackDemoDownloadClicked } from './demoPlausible';
 import { SK_DEMO_MESSAGE_COUNT } from '@/config/identity';
+import { BRAND } from '@/config/brand';
 
 const UTM_SUFFIX =
   '?utm_source=demo&utm_campaign=v2-launch&utm_content=exit_modal';
 
 export const DEMO_EXIT_DOWNLOAD_URLS = {
-  mac: `https://keepance.com/#download${UTM_SUFFIX}&os=mac`,
-  windows: `https://keepance.com/#download${UTM_SUFFIX}&os=windows`,
-  linux: `https://keepance.com/#download${UTM_SUFFIX}&os=linux`,
+  mac: `${BRAND.urls.download}${UTM_SUFFIX}&os=mac`,
+  windows: `${BRAND.urls.download}${UTM_SUFFIX}&os=windows`,
+  linux: `${BRAND.urls.download}${UTM_SUFFIX}&os=linux`,
 } as const;
 
 export const DEMO_MESSAGE_COUNT_STORAGE_KEY = SK_DEMO_MESSAGE_COUNT;

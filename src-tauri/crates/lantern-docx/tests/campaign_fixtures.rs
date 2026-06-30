@@ -5,7 +5,7 @@
 //! engine without panic or error, and that their key structural properties
 //! (tracked changes, comments, valid package structure) are as expected.
 //!
-//! Run: cargo test -p keepance-docx campaign_fixtures
+//! Run: cargo test -p lantern-docx campaign_fixtures
 //!
 //! These tests complement the Python generator scripts in
 //! `tests/fixtures/matter-corpus/generators/`; they are the contractual
@@ -17,11 +17,11 @@ use lantern_docx::package::Package;
 use lantern_docx::validate::validate_package;
 
 /// Absolute path to the matter-corpus fixture directory.
-/// `CARGO_MANIFEST_DIR` points to `src-tauri/crates/keepance-docx/`.
+/// `CARGO_MANIFEST_DIR` points to `src-tauri/crates/lantern-docx/`.
 fn corpus_path(filename: &str) -> std::path::PathBuf {
     // Walk up from the crate manifest to the repo root, then into tests/fixtures/matter-corpus/
     let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    // src-tauri/crates/keepance-docx → repo root = ../../..
+    // src-tauri/crates/lantern-docx → repo root = ../../..
     let repo_root = manifest
         .parent()         // crates/
         .and_then(|p| p.parent())  // src-tauri/

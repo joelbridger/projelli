@@ -21,6 +21,7 @@ import { Label } from '@/ui/label';
 import { CostDashboard } from '@/features/ask/CostDashboard';
 import { PricingTiers } from '@/features/settings/PricingTiers';
 import { displayName } from '@/config/pricing';
+import { BRAND } from '@/config/brand';
 
 export function LicenseSettings() {
   const { t } = useTranslation();
@@ -64,7 +65,7 @@ export function LicenseSettings() {
             components={{
               pricingLink: (
                 <a
-                  href="https://keepance.com/#pricing"
+                  href={BRAND.urls.pricing}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-primary underline"
@@ -89,7 +90,7 @@ export function LicenseSettings() {
           {entitlement.state === 'subscription-lapsed' && (
             <Button asChild size="sm" className="mt-3">
               <a
-                href="https://keepance.com/#pricing"
+                href={BRAND.urls.pricing}
                 target="_blank"
                 rel="noopener noreferrer"
                 data-testid="license-resubscribe-button"
@@ -230,7 +231,7 @@ export function LicenseSettings() {
               className="w-full text-base font-semibold h-12"
             >
               <a
-                href="https://keepance.com/#pricing"
+                href={BRAND.urls.pricing}
                 target="_blank"
                 rel="noopener noreferrer"
                 data-testid="license-buy-button"

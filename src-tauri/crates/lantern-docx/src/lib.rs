@@ -1,4 +1,4 @@
-//! keepance-docx — the in-house OOXML (.docx) document engine for Keepance 3.0
+//! lantern-docx — the in-house OOXML (.docx) document engine for Keepance 3.0
 //! (workstream A). Production promotion of `spikes/docx-roundtrip`.
 //!
 //! Faithful Microsoft Word round-trip — including **tracked changes** and

@@ -4,7 +4,7 @@
 // decision is closed by the vision gap closure plan):
 //   - TEXT_EXTENSIONS: read as raw UTF-8 (`read_text`) and chunked directly.
 //   - OFFICE_EXTENSIONS: read as bytes (`read_bytes`) and extracted natively
-//     Rust-side — docx via the keepance-docx tree walk, xlsx/pptx/rtf via
+//     Rust-side — docx via the lantern-docx tree walk, xlsx/pptx/rtf via
 //     `office.rs`. `index_one_file` dispatches on `classify`.
 //
 // PDFs are deliberately NOT here: extraction runs renderer-side (PDF.js)
@@ -30,7 +30,7 @@ pub const TEXT_EXTENSIONS: &[&str] = &[
 ];
 
 /// VG-2b — office formats the Rust indexer extracts natively (docx via the
-/// keepance-docx tree walk; xlsx/pptx/rtf via office.rs). The M1 "text
+/// lantern-docx tree walk; xlsx/pptx/rtf via office.rs). The M1 "text
 /// formats only" scope decision is closed by the vision gap closure plan.
 pub const OFFICE_EXTENSIONS: &[&str] = &["docx", "xlsx", "pptx", "rtf"];
 
@@ -40,7 +40,7 @@ pub const OFFICE_EXTENSIONS: &[&str] = &["docx", "xlsx", "pptx", "rtf"];
 pub enum IndexKind {
     /// Raw UTF-8 text (`TEXT_EXTENSIONS`) — read + chunk directly.
     Text,
-    /// Word document — keepance-docx parse + plain-text tree walk.
+    /// Word document — lantern-docx parse + plain-text tree walk.
     Docx,
     /// Workbook — per-sheet sections via `office::extract_xlsx_sections`.
     Xlsx,
@@ -116,7 +116,7 @@ pub fn read_text(path: &Path) -> Option<String> {
 /// Size cap for office packages (`read_bytes`). Larger than `MAX_FILE_BYTES`
 /// on purpose: office packages routinely carry embedded media (images in a
 /// deck, logos in a letterhead) that inflate the ZIP while the text-bearing
-/// XML parts stay small — and the extractors in `office.rs`/keepance-docx
+/// XML parts stay small — and the extractors in `office.rs`/lantern-docx
 /// have their own decompression-bomb budgets past this gate.
 pub const MAX_OFFICE_FILE_BYTES: u64 = 50 * 1024 * 1024; // 50 MiB
 
@@ -176,7 +176,7 @@ mod tests {
     #[test]
     fn office_formats_are_indexable() {
         // VG-2b closes the M1 "text formats only" scope decision: the Rust
-        // indexer extracts office documents natively (docx via keepance-docx,
+        // indexer extracts office documents natively (docx via lantern-docx,
         // xlsx/pptx/rtf via office.rs), so the walker and the watcher both
         // light up for them.
         assert!(is_indexable(&PathBuf::from("/a/x.xlsx")));
