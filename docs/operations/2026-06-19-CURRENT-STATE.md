@@ -1,4 +1,4 @@
-# Keepance — Current State (2026-06-19)
+# Advisor Prep Hero — Current State (2026-06-19)
 
 > **Authoritative handoff. Read this first.** Supersedes `2026-06-18-CURRENT-STATE.md`
 > for the latest state; the 06-18 doc remains accurate for the v3.3.5 fix history.

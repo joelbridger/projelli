@@ -1,4 +1,4 @@
-// Robust, visible first-run download for Keepance Local AI's GGUF model.
+// Robust, visible first-run download for Advisor Prep Hero Local AI's GGUF model.
 //
 // The model is intentionally not bundled in the installer. This module owns
 // the first-use network path and makes it restartable: partial bytes land in a
@@ -120,12 +120,12 @@ fn progress(
 pub fn writable_model_dir() -> PathBuf {
     if let Some(data_dir) = dirs::data_dir() {
         return data_dir
-            .join("keepance")
+            .join(crate::identity::OS_DATA_SUBDIR)
             .join("models")
             .join("qwen3-4b-instruct-2507");
     }
     std::env::temp_dir()
-        .join("keepance")
+        .join(crate::identity::OS_DATA_SUBDIR)
         .join("models")
         .join("qwen3-4b-instruct-2507")
 }

@@ -1,4 +1,4 @@
-# Keepance UI Reimagining — UX Brief
+# Advisor Prep Hero UI Reimagining — UX Brief
 ## Stream A: Research Consolidation
 
 **Date:** 2026-06-13
@@ -14,8 +14,8 @@ This brief converts the entire attorney research corpus into concrete UI require
 
 - **S1** `docs/research/2026-06-08-ux-attorney-v2.5.1/transcripts/interview-transcript.md` — 60-minute synthetic generative interview
 - **S2** `docs/research/2026-06-08-ux-attorney-v2.5.1/transcripts/usability-test-transcript.md` — hands-on think-aloud usability test
-- **S3** `docs/research/2026-06-08-ux-attorney-v2.5.1/deep-research-reports/Attorney UX Review of Keepance.md` — senior commercial-litigation / e-discovery / regulatory lens
-- **S4** `docs/research/2026-06-08-ux-attorney-v2.5.1/deep-research-reports/ChatGPT deep research attorney UX report Keepance.md` — vendor-diligence and public-record lens
+- **S3** `docs/research/2026-06-08-ux-attorney-v2.5.1/deep-research-reports/Attorney UX Review of Advisor Prep Hero.md` — senior commercial-litigation / e-discovery / regulatory lens
+- **S4** `docs/research/2026-06-08-ux-attorney-v2.5.1/deep-research-reports/ChatGPT deep research attorney UX report Advisor Prep Hero.md` — vendor-diligence and public-record lens
 - **QC** `docs/quality/2026-06-10-v3-usability-campaign/persona-findings.md` + `findings.md` + `native-findings.md` + `VISION-COVERAGE-AUDIT.md` — v3.0 quality campaign (28 findings, F-101 through F-128)
 
 The convergence rule applied throughout this brief: when a finding is supported by two or more independent lenses, it is treated as high-confidence and is marked accordingly.
@@ -96,7 +96,7 @@ See also Section 6 (Trust/Confidentiality UI Requirements) for the full treatmen
 
 Acceptance criteria:
 
-1. At the exact moment the attorney sends a prompt, a persistent, clearly visible indicator shows exactly where that prompt is going — "On your machine. Nothing leaves." (local model) or "Going to Anthropic, directly from your device — not through Keepance" (BYOK direct). Source: `analysis-and-report.md` §4.3 — *"S4's concrete fix is the best idea in either report: a highly visible egress indicator at the point of sending each prompt."* QC `persona-findings.md` Task 4 positives — *"Live egress indicator during send... Egress-comprehension probe PASSED with certainty; she could point at the screen."*
+1. At the exact moment the attorney sends a prompt, a persistent, clearly visible indicator shows exactly where that prompt is going — "On your machine. Nothing leaves." (local model) or "Going to Anthropic, directly from your device — not through Advisor Prep Hero" (BYOK direct). Source: `analysis-and-report.md` §4.3 — *"S4's concrete fix is the best idea in either report: a highly visible egress indicator at the point of sending each prompt."* QC `persona-findings.md` Task 4 positives — *"Live egress indicator during send... Egress-comprehension probe PASSED with certainty; she could point at the screen."*
 
 2. A printable, one-page Data Map — "where your data goes, in plain English" — is reachable from a persistent, labeled entry in the UI (not only from the onboarding wizard). The attorney can show it to a worried client without translating it. Source: QC `persona-findings.md` Task 5 positives — *"Data Map is a genuine firm-sale asset — 'printable so you can show a client.'"* S1 §Section 4 — *"I need to understand, in language I can actually follow, where my client's information goes and who can touch it."*
 
@@ -121,7 +121,7 @@ Acceptance criteria:
 
 3. The ethical-wall action is labeled "conflict wall" or "ethical wall" (a term she knows from conflicts checks), not a cryptographic control. The admin view shows matter names, not raw IDs or "epoch N" jargon. Source: QC `persona-findings.md` F-124 — *"'Unnamed device' and 'epoch 1' are exactly the words that make me nervous, because I can't audit what I can't read."*
 
-4. All company-facing copy uses "Keepance" as the vendor identity — never a founder's first name. Source: QC `persona-findings.md` F-119 — *"'the moment my risk committee sees 'reply to any email from Jameson,' this stops being 'a vendor' and becomes 'some guy.'"*
+4. All company-facing copy uses "Advisor Prep Hero" as the vendor identity — never a founder's first name. Source: QC `persona-findings.md` F-119 — *"'the moment my risk committee sees 'reply to any email from Jameson,' this stops being 'a vendor' and becomes 'some guy.'"*
 
 ---
 
@@ -137,7 +137,7 @@ Acceptance criteria:
 
 | | Current state | Target state |
 |---|---|---|
-| What she does | Opens Outlook. Reads the client's email. Feels the knot in her stomach. | Opens Keepance. Reads the notification in the matter feed. |
+| What she does | Opens Outlook. Reads the client's email. Feels the knot in her stomach. | Opens Advisor Prep Hero. Reads the notification in the matter feed. |
 | What she feels | "I know I have this. I just have to find it." | "I'll have this in 30 seconds." |
 | Confidence today | Low — knows Outlook will lie about what it finds | High — she has used this before and it found things Outlook could not |
 | UI in target state | Matter feed surfaces recent client activity, with the client's question linked | — |
@@ -183,7 +183,7 @@ Acceptance criteria:
 
 | | Current state | Target state |
 |---|---|---|
-| What she does | Opens the production folder in Windows Explorer. Opens the deposition transcript in Acrobat. Opens a blank legal pad. | Opens the Brennan matter in Keepance. All indexed documents are listed with their date and source. |
+| What she does | Opens the production folder in Windows Explorer. Opens the deposition transcript in Acrobat. Opens a blank legal pad. | Opens the Brennan matter in Advisor Prep Hero. All indexed documents are listed with their date and source. |
 | What she feels | "This is the job. This is going to take a while." | "Where do I start?" — the matter index gives her a snapshot of what has been indexed and when. |
 | Confidence today | Zero — has no idea which of the 1,800 pages has the contradiction she needs | Moderate — she knows the corpus is indexed and the AI can surface candidates |
 | UI in target state | Matter view shows all indexed documents with source, date, page count, and indexing status. A "Find contradictions" action is visible at the matter level — not buried in a workflow gallery. |
@@ -246,7 +246,7 @@ The legal mind is precise about language. A word the attorney does not recognize
 | **API key** | "I don't know what that is." Near-disqualifying drop-off. | "Your AI account" or "your Claude / OpenAI account password" | `analysis-and-report.md` §5 F1. QC F-105 — missing training-opt-out guidance compounds the problem. |
 | **Whiteboard** | Nothing in a law practice is a whiteboard. Signals the wrong product category. | Remove. | `vision-most-viable-keepance.md` §9 — *"Not a generic AI note-taking app."* |
 | **Brainstorm** | Not in the legal vocabulary. Implies unstructured ideation, not matter work. | "Review," "analyze," "draft," "prepare" | S1 §Section 4 — *"I'm not looking for a toy. I'm looking for two or three hours of my life back."* |
-| **Founder / "Jameson"** | A personal name in trust-critical copy signals "some guy," not a company. Fatal to firm adoption. | "Keepance" or a support alias (support@keepance.com) | QC F-119 — *"'the moment my risk committee sees 'reply to any email from Jameson,' this stops being a vendor and becomes some guy.'"* |
+| **Founder / "Jameson"** | A personal name in trust-critical copy signals "some guy," not a company. Fatal to firm adoption. | "Advisor Prep Hero" or a support alias (support@keepance.com) | QC F-119 — *"'the moment my risk committee sees 'reply to any email from Jameson,' this stops being a vendor and becomes some guy.'"* |
 | **Competitor** | Legal professionals do not use this word about opposing parties or market alternatives. | Remove entirely from user-facing copy | `vision-most-viable-keepance.md` §9 — *"Not a generic AI note-taking app or a Notion competitor."* |
 | **Business kickoff / Marketing-speak** | The word "business" and marketing idioms ("transform," "unlock," "leverage," "seamless") are audibly wrong in a legal context. | Specific, concrete nouns and verbs: "find," "draft," "prepare," "review" | `attorney-persona.md` §Signature quotes — *"She has a sharp BS detector for compliance claims."* |
 | **docs/ research/ templates/ (with trailing slashes)** | Developer file-system notation on the first-run screen. Signals "this was built by a programmer." | "Documents," "Research," "Templates" in natural language | QC F-102 — *"Slashes after folder names is how software people write, not how I write."* |
@@ -277,13 +277,13 @@ Source: `analysis-and-report.md` §Executive Summary point 4 — *"The citation 
 
 **Pass / fail evidence today:** Word round-trip PASSES (QC `native-findings.md` F-406, F-417). Markdown table conversion to Word tables PASSES (F-108 fixed in v3.2.0). PDF export PARTIAL — depends on LibreOffice being installed (QC `VISION-COVERAGE-AUDIT.md` Pillar 4). All 18 legal templates output `.docx` (F-112 fixed per `CURRENT-STATE.md` §3).
 
-Source: S1 §Section 2 — *"A document isn't real until it's in Word with my letterhead on it."* S3 Theme 4 — *"Keepance excels at the ideation and first-draft phases, it creates a severe bottleneck during the finalization phase."*
+Source: S1 §Section 2 — *"A document isn't real until it's in Word with my letterhead on it."* S3 Theme 4 — *"Advisor Prep Hero excels at the ideation and first-draft phases, it creates a severe bottleneck during the finalization phase."*
 
 ---
 
 ### Non-negotiable 3: The attorney can always explain, in one sentence, where their data is.
 
-**UI acceptance test:** After a full onboarding session with no coaching, show the attorney the Data Map dialog and ask: "Where are your client files? Who can see your email? What happens when you ask the AI a question on the Local-only setting?" All three must be answerable in one sentence each. A response that includes "I think" or "I'm not sure" FAILS. A response that confuses "Keepance's servers" with "the AI provider" FAILS.
+**UI acceptance test:** After a full onboarding session with no coaching, show the attorney the Data Map dialog and ask: "Where are your client files? Who can see your email? What happens when you ask the AI a question on the Local-only setting?" All three must be answerable in one sentence each. A response that includes "I think" or "I'm not sure" FAILS. A response that confuses "Advisor Prep Hero's servers" with "the AI provider" FAILS.
 
 **Pass / fail evidence today:** PASSES in QC `persona-findings.md` Task 1 comprehension probe — verbatim PASS. Data Map labeled "a genuine firm-sale asset" (Task 5 positives). Critical gap: the status bar shows a positive egress signal only in Local-only mode — in Direct mode, switching off the local indicator leaves silence where there should be a clear "going to your AI provider" signal (QC F-120).
 
@@ -291,9 +291,9 @@ Source: `vision-most-viable-keepance.md` §6 Non-negotiable 3 — *"The lawyer c
 
 ---
 
-### Non-negotiable 4: Only honest claims — the whole truth about provider exposure, told by Keepance first.
+### Non-negotiable 4: Only honest claims — the whole truth about provider exposure, told by Advisor Prep Hero first.
 
-**UI acceptance test:** Before any AI prompt is sent, the confidentiality mode card must include the statement: "When you use a cloud AI (Claude, OpenAI, Google), your question goes directly to that provider. Keepance never sees it, but the provider does — for roughly 30 days by default. You can turn off training in your provider's account settings." If this disclosure is absent from the key-setup flow AND from the confidentiality mode card, FAILS. If the website claims a feature that does not exist in the application (currently: Clio integration implied as a connector; in prior versions, SSO), FAILS.
+**UI acceptance test:** Before any AI prompt is sent, the confidentiality mode card must include the statement: "When you use a cloud AI (Claude, OpenAI, Google), your question goes directly to that provider. Advisor Prep Hero never sees it, but the provider does — for roughly 30 days by default. You can turn off training in your provider's account settings." If this disclosure is absent from the key-setup flow AND from the confidentiality mode card, FAILS. If the website claims a feature that does not exist in the application (currently: Clio integration implied as a connector; in prior versions, SSO), FAILS.
 
 **Pass / fail evidence today:** In-app disclosure PASSES — the confidentiality mode card includes the training-opt-out reminder (QC `persona-findings.md` Task 4 positives). BYOK key-setup walkthrough PARTIALLY FAILS — the 5-step provider key walkthrough omits the training opt-out step (QC F-105). Website Clio claim and SSO claim were both false at various points (QC `VISION-COVERAGE-AUDIT.md` Pillar 7, Moat 2) — both must be current before any redesign ships.
 
@@ -303,7 +303,7 @@ Source: `analysis-and-report.md` §4.4 — *"She is allergic to overclaims... Th
 
 ### Non-negotiable 5: It fits beside Clio, Outlook, and Word — never demands the attorney abandon her system of record.
 
-**UI acceptance test:** Present the product to an attorney who has been using Clio for 5+ years. At no point in the onboarding must any screen suggest that Keepance replaces Clio, Outlook, or Word. The copy must say where Keepance sits — "beside your existing tools, not instead of them." A screen that says "replace your practice management system" FAILS. An integration card that implies a Clio connector exists when none does FAILS.
+**UI acceptance test:** Present the product to an attorney who has been using Clio for 5+ years. At no point in the onboarding must any screen suggest that Advisor Prep Hero replaces Clio, Outlook, or Word. The copy must say where Advisor Prep Hero sits — "beside your existing tools, not instead of them." A screen that says "replace your practice management system" FAILS. An integration card that implies a Clio connector exists when none does FAILS.
 
 **Pass / fail evidence today:** Positioning copy PASSES on this test (no "replace Clio" claims visible in the app). Clio integration: PARTIAL FAIL on the honesty requirement — "fits beside Clio" is positioning only; there is no Clio matter or contact sync (QC `VISION-COVERAGE-AUDIT.md` Pillar 7). The redesign must represent the actual integration surface honestly.
 
@@ -343,7 +343,7 @@ Ranked by severity. Each item includes the screen or UI surface where it must be
 
 ### Friction 3 (Severity: P0-class / Existential / "The Gate"): Confidentiality fear and the data-location mental model
 
-**Pain:** She cannot articulate where client data goes, so she cannot use the product for real client work. Her mental model conflates "stored on Keepance's servers" with "sent to the AI provider." Both feel like "the cloud." She stopped using ChatGPT because she lay awake worrying.
+**Pain:** She cannot articulate where client data goes, so she cannot use the product for real client work. Her mental model conflates "stored on Advisor Prep Hero's servers" with "sent to the AI provider." Both feel like "the cloud." She stopped using ChatGPT because she lay awake worrying.
 
 **Surface where it must be addressed:** The egress indicator (visible on every chat prompt). The confidentiality mode selector. The Data Map dialog (reachable from a persistent UI element, not only onboarding). The status bar (Direct mode must show a positive cloud-egress signal, not silence).
 
@@ -373,7 +373,7 @@ Ranked by severity. Each item includes the screen or UI surface where it must be
 
 **UI requirement:** The AI account connection screen must never use the term "API key." Instead: "Connect your AI account" with a plain-English description ("You pay Claude or ChatGPT directly for AI use — we never handle your data or charge you for AI"). The 5-step key walkthrough must include: what training opt-out means, how to turn it off, and what the provider does with your questions (QC F-105). The "Set this up later" escape must be prominent and must work (QC Task 1 positives confirm it exists).
 
-**Research grounding:** `analysis-and-report.md` §5 F1 — *"API-key step is the #1 drop-off (severity 3 to 4). 'I don't know what that is.'"* S1 §Persona card — *"'API key' is developer jargon. She will not know what it is, why she needs one, or that she pays the AI provider, not Keepance. High risk of drop-off at setup."* QC F-105 — BYOK walkthrough omits training/retention opt-out.
+**Research grounding:** `analysis-and-report.md` §5 F1 — *"API-key step is the #1 drop-off (severity 3 to 4). 'I don't know what that is.'"* S1 §Persona card — *"'API key' is developer jargon. She will not know what it is, why she needs one, or that she pays the AI provider, not Advisor Prep Hero. High risk of drop-off at setup."* QC F-105 — BYOK walkthrough omits training/retention opt-out.
 
 ---
 
@@ -383,7 +383,7 @@ Ranked by severity. Each item includes the screen or UI surface where it must be
 
 **Surface where it must be addressed:** The trust panel / social proof surface. The pricing page. Any screen where a new user evaluates whether to put a real matter in. The attorney-facing marketing site (outside app scope but load-bearing).
 
-**UI requirement:** An in-app "attorneys using Keepance" surface — showing full name, bar association, practice area — must exist and be reachable from the first session. The trial-to-purchase path must not show a license key entry field before the pricing tiers (QC F-128). The vendor identity must be "Keepance" throughout — no "Jameson" in any user-facing string (QC F-119).
+**UI requirement:** An in-app "attorneys using Advisor Prep Hero" surface — showing full name, bar association, practice area — must exist and be reachable from the first session. The trial-to-purchase path must not show a license key entry field before the pricing tiers (QC F-128). The vendor identity must be "Advisor Prep Hero" throughout — no "Jameson" in any user-facing string (QC F-119).
 
 **Research grounding:** S1 §Section 5 — *"Other lawyers using it gets me to actually adopt. They're not the same step. I've been curious about lots of things I never adopted. The bridge from curious to adopted is almost always another lawyer I trust saying 'it's fine, I use it, here's how.'"* `analysis-and-report.md` §7 — *"Three conditions, none of them capability: proof from real attorneys, a data-safety story she can repeat to a worried client, and a real trial on one real, low-stakes matter."*
 
@@ -397,7 +397,7 @@ The following findings from the v3.0 quality campaign are directly relevant to t
 |---|---|---|---|
 | F-102: developer idiom folder names ("docs/ research/ templates/") | P3 | Workspace selector / first-run | Replace with natural-language labels; never use trailing slashes |
 | F-117: no click-through citations on AI answers | P1 | AI chat / "Ask my matter" | Every AI answer must have clickable citation chips — this is Non-negotiable 1 |
-| F-119: "Jameson" in privacy/telemetry/unsubscribe copy | P1 | Settings / privacy / trust copy | Replace all personal-name references with "Keepance" and a support alias |
+| F-119: "Jameson" in privacy/telemetry/unsubscribe copy | P1 | Settings / privacy / trust copy | Replace all personal-name references with "Advisor Prep Hero" and a support alias |
 | F-122: matters buried inside the AI chat | P1 | Sidebar navigation | Matters must be a top-level sidebar entry with its own panel — not reachable only from inside a chat |
 | F-104: "network extensions disabled" jargon | P2 | Status bar privilege pill | Rewrite in lawyer vocabulary: "Privileged matter: AI stays on your machine" |
 | F-120: no positive cloud-egress signal in Direct mode | P2 | Status bar | Show a visible "Going to [provider]" state when Direct mode is active, not just silence |
@@ -420,7 +420,7 @@ The confidentiality architecture is not a settings panel — it is the brand. Ev
 
 1. **Local-only (green):** "On your machine. Nothing leaves. This runs on your local model — no prompt or file is sent over the network." (Verified working in QC `native-findings.md` F-411.)
 
-2. **Direct BYOK (amber or neutral):** "Going to [Anthropic / OpenAI / Google], directly from your device. Keepance never sees this. Your provider receives the question and retains it for approximately 30 days by default — adjust in your account settings." (QC F-120: currently ABSENT in the status bar when Direct mode is active — this is a required addition.)
+2. **Direct BYOK (amber or neutral):** "Going to [Anthropic / OpenAI / Google], directly from your device. Advisor Prep Hero never sees this. Your provider receives the question and retains it for approximately 30 days by default — adjust in your account settings." (QC F-120: currently ABSENT in the status bar when Direct mode is active — this is a required addition.)
 
 3. **Assured (firm managed):** "Going through your firm's private relay. The relay never stores your content — only your firm's admin can see session metadata." (Required for firm tier.)
 
@@ -442,11 +442,11 @@ The confidentiality architecture is not a settings panel — it is the brand. Ev
 
 **Six required sections** (from `DataMapDialog.tsx`, verified working QC `persona-findings.md` Task 1 comprehension probe PASS):
 1. Your files stay on this computer, in a folder you chose.
-2. Your AI account key is kept in your operating system's secure keychain — Keepance never stores it.
+2. Your AI account key is kept in your operating system's secure keychain — Advisor Prep Hero never stores it.
 3. When you use a cloud AI (Claude, OpenAI, Google), your question goes directly to that provider. We never see it. The provider retains it for approximately 30 days by default.
 4. For matters where nothing must leave this machine, use Local-only mode.
-5. Your imported email is encrypted on this computer — Keepance's company servers never receive a copy.
-6. The only thing Keepance's servers ever see is a license check.
+5. Your imported email is encrypted on this computer — Advisor Prep Hero's company servers never receive a copy.
+6. The only thing Advisor Prep Hero's servers ever see is a license check.
 
 **Research grounding:** QC Task 5 positives — *"Data Map is a genuine firm-sale asset — 'printable so you can show a client,' six plain-English sections."* S1 §Section 4 — *"I'd need a plain-English, client-shareable explainer."*
 
@@ -457,7 +457,7 @@ The confidentiality architecture is not a settings panel — it is the brand. Ev
 **Requirement:** The three confidentiality modes are not global application settings to be configured once — they are per-matter choices the attorney makes when she decides how sensitive a given matter is. The UI must surface this choice at the matter level, with plain-English labels:
 
 - **Local-only:** "AI stays on this computer. Nothing leaves. Best for your most sensitive matters."
-- **Direct (your AI account):** "Questions go straight to your AI provider. Keepance never sees them. Your provider's standard terms apply."
+- **Direct (your AI account):** "Questions go straight to your AI provider. Advisor Prep Hero never sees them. Your provider's standard terms apply."
 - **Assured (firm):** "Questions go through your firm's private relay with zero retention. For matters your firm manages jointly."
 
 **Research grounding:** `vision-most-viable-keepance.md` §5 Moat 1 — *"the full spectrum and let the user pick per matter... the unfair advantage: Microsoft 365 Copilot and the other cloud assistants cannot credibly promise 'we never see your data.'"* S1 §Addendum — *"She likes that her files are 'really hers,' but when asked directly whether client files sitting readable on a laptop worry her, she wants the option to lock them."*
@@ -479,7 +479,7 @@ The confidentiality architecture is not a settings panel — it is the brand. Ev
 
 ### 6.6 The Trust Story as a Transparent Limitation, Not a Compliance Claim
 
-**Requirement:** Every piece of copy that describes the confidentiality architecture must include what Keepance does NOT handle, not only what it does. The formula is: "Here is the one slice we handle — [X]. Here is what is still on you — [Y]."
+**Requirement:** Every piece of copy that describes the confidentiality architecture must include what Advisor Prep Hero does NOT handle, not only what it does. The formula is: "Here is the one slice we handle — [X]. Here is what is still on you — [Y]."
 
 Examples of correct framing:
 - "We keep your files on your machine and route your AI questions directly to your provider. What happens at the provider — retention, training, breach — is governed by your account with them. We show you how to configure it."
@@ -502,9 +502,9 @@ Examples of correct framing:
 | Interview transcript (S1) | `docs/research/2026-06-08-ux-attorney-v2.5.1/transcripts/interview-transcript.md` | First-person pain narrative; verbatim quotes |
 | Usability test transcript (S2) | `docs/research/2026-06-08-ux-attorney-v2.5.1/transcripts/usability-test-transcript.md` | Task-by-task findings; severity ratings |
 | Analysis and report | `docs/research/2026-06-08-ux-attorney-v2.5.1/report/analysis-and-report.md` | Triangulated findings; prioritized recommendations |
-| Vision: Most Viable Keepance | `docs/research/2026-06-08-ux-attorney-v2.5.1/vision-most-viable-keepance.md` | Strategic north star; three jobs; six non-negotiables; seven pillars |
-| Attorney UX Review (S3) | `docs/research/2026-06-08-ux-attorney-v2.5.1/deep-research-reports/Attorney UX Review of Keepance.md` | E-discovery; work-product; regulatory breadth; DMS gap |
-| ChatGPT deep research (S4) | `docs/research/2026-06-08-ux-attorney-v2.5.1/deep-research-reports/ChatGPT deep research attorney UX report Keepance.md` | Provider exposure; governance inconsistency; enterprise assurance gaps |
+| Vision: Most Viable Advisor Prep Hero | `docs/research/2026-06-08-ux-attorney-v2.5.1/vision-most-viable-keepance.md` | Strategic north star; three jobs; six non-negotiables; seven pillars |
+| Attorney UX Review (S3) | `docs/research/2026-06-08-ux-attorney-v2.5.1/deep-research-reports/Attorney UX Review of Advisor Prep Hero.md` | E-discovery; work-product; regulatory breadth; DMS gap |
+| ChatGPT deep research (S4) | `docs/research/2026-06-08-ux-attorney-v2.5.1/deep-research-reports/ChatGPT deep research attorney UX report Advisor Prep Hero.md` | Provider exposure; governance inconsistency; enterprise assurance gaps |
 | Persona study findings (QC) | `docs/quality/2026-06-10-v3-usability-campaign/persona-findings.md` | 28 v3.0 findings; F-101 through F-128; Diane's verdict |
 | Quality campaign findings | `docs/quality/2026-06-10-v3-usability-campaign/findings.md` | F-001 through F-210; brand; layout; spec findings |
 | Native desktop pass | `docs/quality/2026-06-10-v3-usability-campaign/native-findings.md` | F-401 through F-426; proven and blocked items on real hardware |

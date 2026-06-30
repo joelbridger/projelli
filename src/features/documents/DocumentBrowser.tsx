@@ -154,9 +154,9 @@ function EmptyState({ onCreateDocument, onCreateFolder }: EmptyStateProps) {
           fontFamily: 'Satoshi, sans-serif',
         }}
       >
-        {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+        {/* eslint-disable lantern-i18n/no-hardcoded-string */}
         Your workspace is ready
-        {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+        {/* eslint-enable lantern-i18n/no-hardcoded-string */}
       </div>
       <div
         style={{
@@ -166,9 +166,9 @@ function EmptyState({ onCreateDocument, onCreateFolder }: EmptyStateProps) {
           lineHeight: 1.6,
         }}
       >
-        {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+        {/* eslint-disable lantern-i18n/no-hardcoded-string */}
         Real Word documents, with tracked changes and AI redlining, stored as files on your computer.
-        {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+        {/* eslint-enable lantern-i18n/no-hardcoded-string */}
       </div>
       <div
         style={{
@@ -201,9 +201,9 @@ function EmptyState({ onCreateDocument, onCreateFolder }: EmptyStateProps) {
           }}
         >
           <Plus style={{ width: 14, height: 14, strokeWidth: 2 }} />
-          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          {/* eslint-disable lantern-i18n/no-hardcoded-string */}
           New Word document
-          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+          {/* eslint-enable lantern-i18n/no-hardcoded-string */}
         </button>
         <button
           type="button"
@@ -271,9 +271,9 @@ function EmptySearchState() {
           color: 'var(--color-muted-foreground)',
         }}
       >
-        {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+        {/* eslint-disable lantern-i18n/no-hardcoded-string */}
         No files match your search. Try a different name.
-        {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+        {/* eslint-enable lantern-i18n/no-hardcoded-string */}
       </div>
     </div>
   );
@@ -849,9 +849,9 @@ export function DocumentBrowser({
             onClick={handleCreateDocument}
           >
             <Plus style={{ width: 14, height: 14, strokeWidth: 2 }} />
-            {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+            {/* eslint-disable lantern-i18n/no-hardcoded-string */}
             New Word document
-            {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+            {/* eslint-enable lantern-i18n/no-hardcoded-string */}
           </button>
 
           <button

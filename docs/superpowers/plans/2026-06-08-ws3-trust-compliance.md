@@ -8,7 +8,7 @@
 
 ## Goal
 
-Give regulated-vertical prospects (CCO, IT reviewer, malpractice carrier) something concrete to evaluate Keepance's data posture. Nothing here claims certifications we don't hold. Everything is honest about current state and gaps.
+Give regulated-vertical prospects (CCO, IT reviewer, malpractice carrier) something concrete to evaluate Advisor Prep Hero's data posture. Nothing here claims certifications we don't hold. Everything is honest about current state and gaps.
 
 ## Deliverables
 

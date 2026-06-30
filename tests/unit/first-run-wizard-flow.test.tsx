@@ -85,7 +85,7 @@ describe('FirstRunWizard — rebuilt flow', () => {
 
     expect(screen.getByTestId('ai-setup-step')).toBeInTheDocument();
     expect(
-      screen.getByText(/Keepance connects to your own AI account/i),
+      screen.getByText(/Advisor Prep Hero connects to your own AI account/i),
     ).toBeInTheDocument();
     // No raw key field until the user opts into the own-account path.
     expect(screen.queryByTestId('ai-setup-key-input')).not.toBeInTheDocument();

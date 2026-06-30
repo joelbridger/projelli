@@ -27,7 +27,7 @@
  * Localising it is a separate, careful effort.
  */
 
-/* eslint-disable keepance-i18n/no-hardcoded-string */
+/* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useEffect, useState } from 'react';
 import {
   ArrowLeft,
@@ -158,7 +158,7 @@ function ChooseView({
       {/* Plain English subtitle + data-map link. */}
       <div className="space-y-1">
         <p className="text-sm text-muted-foreground leading-relaxed">
-          Keepance connects to your own AI account. Your questions go straight there, never through us.
+          Advisor Prep Hero connects to your own AI account. Your questions go straight there, never through us.
         </p>
         <button
           type="button"
@@ -357,7 +357,7 @@ function OwnAccountView({ defaultProvider, onSaveKey, onBack, onOpenDataMap }: O
       <p className="text-xs text-muted-foreground">
         You will copy a short code called an <span className="font-medium text-foreground">account key</span>.{' '}
         <span className="italic">
-          What is that? It is like a password that lets your computer talk directly to {PROVIDER_PLAIN_NAME[provider]}. You create it on their site, paste it here once, and Keepance stores it in your computer&rsquo;s secure keychain, never on a server.
+          What is that? It is like a password that lets your computer talk directly to {PROVIDER_PLAIN_NAME[provider]}. You create it on their site, paste it here once, and Advisor Prep Hero stores it in your computer&rsquo;s secure keychain, never on a server.
         </span>
       </p>
 
@@ -469,10 +469,10 @@ function LocalView({ onUseLocal, onBack, onOpenDataMap }: LocalViewProps) {
   const setMode = useSetConfidentialityMode();
   const [status, setStatus] = useState<OllamaStatus>({ kind: 'checking' });
   const professionCopy = useProfessionCopy();
-  // The embedded Keepance Local AI engine is the PRIMARY on-device path: if its
+  // The embedded Advisor Prep Hero Local AI engine is the PRIMARY on-device path: if its
   // model is already downloaded, the user can continue right away — no Ollama
   // install required. Ollama stays as the alternative below. Downstream provider
-  // selection (Client Map + chat) already prefers Keepance Local AI when ready.
+  // selection (Client Map + chat) already prefers Advisor Prep Hero Local AI when ready.
   const localAiReady = useLocalLlmModelStatus().state === 'ready';
 
   const check = () => {
@@ -522,20 +522,20 @@ function LocalView({ onUseLocal, onBack, onOpenDataMap }: LocalViewProps) {
           A fast computer helps.
         </p>
         <p className="text-muted-foreground">
-          Choosing this turns on <span className="font-medium text-foreground">Local-only mode</span>, which keeps Keepance
+          Choosing this turns on <span className="font-medium text-foreground">Local-only mode</span>, which keeps Advisor Prep Hero
           on local models so nothing can leave your machine by accident. You can
           change this later in Settings.
         </p>
       </div>
 
-      {/* Keepance Local AI (the embedded engine) — the primary on-device path.
+      {/* Advisor Prep Hero Local AI (the embedded engine) — the primary on-device path.
           When its model is ready the user can continue with no Ollama install. */}
       {localAiReady && (
         <div
           className="rounded-lg border border-emerald-300 bg-emerald-50 p-4 text-sm text-foreground"
           data-testid="local-ai-ready-panel"
         >
-          <p className="font-medium">Keepance Local AI is installed and ready.</p>
+          <p className="font-medium">Advisor Prep Hero Local AI is installed and ready.</p>
           <p className="text-muted-foreground mt-1">
             You can continue now — everything stays on this computer. (Or use your
             own Ollama model below instead.)

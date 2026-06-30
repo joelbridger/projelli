@@ -30,7 +30,7 @@ IRC §7216 creates real exposure for tax preparers who share client data with th
 
 The piece would cover what §7216 actually requires, how that maps to current AI tool use, and what practitioners should be asking (or adding to their engagement letters) before they use AI with client data. It would also cover local-first tools as one clean way to sidestep the third-party disclosure question entirely.
 
-I'm the developer of Keepance, a local-first AI workspace, and I'll be completely transparent about that. But the article is genuinely educational, and I'm working with [CPA/EA advisor name] to ensure the tax law framing is accurate.
+I'm the developer of Advisor Prep Hero, a local-first AI workspace, and I'll be completely transparent about that. But the article is genuinely educational, and I'm working with [CPA/EA advisor name] to ensure the tax law framing is accurate.
 
 Happy to send a full draft if this sounds like a fit for the newsletter.
 
@@ -51,7 +51,7 @@ keepance.com
 
 I'm a product designer, not a CPA. Upfront.
 
-I've been building a desktop app called Keepance for tax professionals and other practitioners who work under confidentiality obligations. The core thing is that everything stays on your machine. Your client files, your API keys, everything. Nothing goes through a server I control. API requests go direct from your computer to the provider.
+I've been building a desktop app called Advisor Prep Hero for tax professionals and other practitioners who work under confidentiality obligations. The core thing is that everything stays on your machine. Your client files, your API keys, everything. Nothing goes through a server I control. API requests go direct from your computer to the provider.
 
 I just shipped a Tax Practice template pack: an Engagement Letter Builder, a 1040 Pre-Review Checklist, a §7216 Disclosure Consent Template, a Tax Research Memo Drafter, a Client Document Inventory, and an Audit Defense File Builder. These were reviewed by [CPA/EA advisor name] before shipping, but I want feedback from practitioners who will actually use this.
 
@@ -85,4 +85,4 @@ This session covers three things: what §7216 actually requires in the context o
 
 The goal is not to make you afraid of AI. The goal is to make sure you are using it in a way that you can defend if a client ever asks. Attendees will leave with a model consent clause for their engagement letter, a checklist for evaluating any AI tool, and a clear picture of where the exposure is.
 
-Presented by Jameson Daines (Keepance) and [CPA/EA advisor name, credentials].
+Presented by Jameson Daines (Advisor Prep Hero) and [CPA/EA advisor name, credentials].

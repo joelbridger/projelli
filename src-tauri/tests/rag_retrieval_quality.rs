@@ -24,8 +24,8 @@
 //! hard failure instead of a silent skip. Run it for real with:
 //!   REQUIRE_RAG_MODEL=1 cargo test -p keepance --test rag_retrieval_quality -- --nocapture
 
-use keepance_lib::commands::rag::chunker::Chunk;
-use keepance_lib::commands::rag::store::{self, SourceType, PRIVILEGE_NONE};
+use lantern_lib::commands::rag::chunker::Chunk;
+use lantern_lib::commands::rag::store::{self, SourceType, PRIVILEGE_NONE};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -36,8 +36,8 @@ const VEC_KEY: [u8; 32] = [0x5Au8; 32];
 /// Returns true when the e5-small model cache is provisioned (same resolution as
 /// the production embedder).
 fn model_is_provisioned() -> bool {
-    use keepance_lib::commands::rag::embedder::resolve_cache_dir;
-    use keepance_lib::commands::rag::model_download::model_files_cached;
+    use lantern_lib::commands::rag::embedder::resolve_cache_dir;
+    use lantern_lib::commands::rag::model_download::model_files_cached;
     model_files_cached(&resolve_cache_dir())
 }
 
@@ -100,7 +100,7 @@ async fn nearest(
     top_k: usize,
     scope: Option<&str>,
 ) -> anyhow::Result<Vec<store::StoredHit>> {
-    use keepance_lib::commands::mail::crypto::decrypt_with_key;
+    use lantern_lib::commands::mail::crypto::decrypt_with_key;
     let mut hits = store::nearest(table, query_vec, top_k, scope, false, &[]).await?;
     for h in &mut hits {
         let enc = h.path_enc.as_deref().expect("V10 rows carry path_enc");
@@ -114,7 +114,7 @@ async fn nearest(
 }
 
 async fn embed(query: &str) -> Vec<f32> {
-    keepance_lib::commands::rag::embedder::embed_query(query)
+    lantern_lib::commands::rag::embedder::embed_query(query)
         .await
         .expect("embed query")
 }
@@ -130,9 +130,9 @@ async fn build_table(dir: &std::path::Path) -> (lancedb::Table, tempfile::TempDi
 
     for (doc, matter) in read_manifest() {
         let text = std::fs::read_to_string(dir.join(&doc)).unwrap_or_else(|e| panic!("read {doc}: {e}"));
-        let chunks = keepance_lib::commands::rag::chunker::chunk_text(&doc, &text);
+        let chunks = lantern_lib::commands::rag::chunker::chunk_text(&doc, &text);
         let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
-        let vectors = keepance_lib::commands::rag::embedder::embed_documents(&texts)
+        let vectors = lantern_lib::commands::rag::embedder::embed_documents(&texts)
             .await
             .expect("embed documents");
         let rows: Vec<(Chunk, Vec<f32>)> = chunks.into_iter().zip(vectors).collect();
@@ -357,7 +357,7 @@ async fn retrieval_quality_baseline() {
 /// Decrypt a hit's chunk text exactly as `rag_retrieve` does before handing it
 /// to the reranker (WS-VEC: the `text` column is ciphertext at rest).
 fn decrypt_text(h: &store::StoredHit) -> String {
-    use keepance_lib::commands::mail::crypto::decrypt_with_key;
+    use lantern_lib::commands::mail::crypto::decrypt_with_key;
     if h.encrypted {
         hex::decode(&h.text)
             .ok()
@@ -411,7 +411,7 @@ async fn retrieval_reranker_off_vs_on() {
     skip_without_model!();
     // Reranker presence gate (mirrors the e5 gate). REQUIRE_RERANKER_MODEL=1
     // makes a missing reranker a hard failure rather than a silent skip.
-    use keepance_lib::commands::rag::reranker;
+    use lantern_lib::commands::rag::reranker;
     if !reranker::is_available() {
         if std::env::var("REQUIRE_RERANKER_MODEL").ok().filter(|v| !v.is_empty()).is_some() {
             panic!(
@@ -540,7 +540,7 @@ async fn retrieval_reranker_off_vs_on() {
 /// `nearest` helper does this for the vector pool; keyword-only candidates from
 /// `fetch_by_ids_scoped` need the same so `ranked_sources` sees clean basenames).
 fn decrypt_source_id(h: &mut store::StoredHit) {
-    use keepance_lib::commands::mail::crypto::decrypt_with_key;
+    use lantern_lib::commands::mail::crypto::decrypt_with_key;
     if let Some(enc) = h.path_enc.as_deref() {
         if let Some(plain) = hex::decode(enc)
             .ok()
@@ -556,7 +556,7 @@ fn decrypt_source_id(h: &mut store::StoredHit) {
 #[tokio::test]
 async fn retrieval_hybrid_off_vs_on() {
     skip_without_model!();
-    use keepance_lib::commands::rag::bm25_index::{rrf_fuse, Bm25Index, RRF_K};
+    use lantern_lib::commands::rag::bm25_index::{rrf_fuse, Bm25Index, RRF_K};
 
     let dir = corpus_dir();
     let (table, _tmp) = build_table(&dir).await;

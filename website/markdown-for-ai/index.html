@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Why Markdown is the right format for AI conversations | Keepance</title>
+  <title>Why Markdown is the right format for AI conversations | Advisor Prep Hero</title>
   <meta name="description" content="Most AI tools lock your chats in a proprietary database. Markdown beats them all for attorneys, CPAs, and consultants building a confidential client archive. Why, and how it works.">
   <link rel="canonical" href="https://keepance.com/markdown-for-ai">
   <meta name="robots" content="index, follow">
@@ -16,7 +16,7 @@
   <link href="https://api.fontshare.com/v2/css?f[]=satoshi@800,700,400&display=swap" rel="stylesheet">
   <script defer data-domain="keepance.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
   <script type="application/ld+json">
-  { "@context": "https://schema.org", "@type": "Article", "headline": "Why Markdown is the right format for AI conversations", "description": "A folder of Markdown files beats any chat database for a strategic archive.", "url": "https://keepance.com/markdown-for-ai", "datePublished": "2026-04-27", "dateModified": "2026-04-27", "image": "https://keepance.com/og-image.png", "publisher": { "@type": "Organization", "name": "Keepance", "url": "https://keepance.com", "logo": "https://keepance.com/og-image.png" }, "mainEntityOfPage": "https://keepance.com/markdown-for-ai" }
+  { "@context": "https://schema.org", "@type": "Article", "headline": "Why Markdown is the right format for AI conversations", "description": "A folder of Markdown files beats any chat database for a strategic archive.", "url": "https://keepance.com/markdown-for-ai", "datePublished": "2026-04-27", "dateModified": "2026-04-27", "image": "https://keepance.com/og-image.png", "publisher": { "@type": "Organization", "name": "Advisor Prep Hero", "url": "https://keepance.com", "logo": "https://keepance.com/og-image.png" }, "mainEntityOfPage": "https://keepance.com/markdown-for-ai" }
   </script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -73,16 +73,16 @@
     <p class="meta">Updated 2026-04-27 · 9 min read</p>
 
     <div class="summary">
-      <p><strong>The short version.</strong> Most AI tools store your chats in their proprietary database. Plain, open file formats store them as files you can grep across, version-control, back up, and read in 20 years. For attorneys, CPAs, and consultants building a confidential client archive, open formats are the right choice for one reason: they survive any tool and keep control in your hands. In Keepance, Word (.docx) is the primary professional editing format; Markdown and plain text are for utility files like notes, configs, and AI conversation logs. This page walks through why portable, open formats matter more for AI than for any prior knowledge-work category.</p>
+      <p><strong>The short version.</strong> Most AI tools store your chats in their proprietary database. Plain, open file formats store them as files you can grep across, version-control, back up, and read in 20 years. For attorneys, CPAs, and consultants building a confidential client archive, open formats are the right choice for one reason: they survive any tool and keep control in your hands. In Advisor Prep Hero, Word (.docx) is the primary professional editing format; Markdown and plain text are for utility files like notes, configs, and AI conversation logs. This page walks through why portable, open formats matter more for AI than for any prior knowledge-work category.</p>
     </div>
 
     <p>Every product decision about AI tools has a question hiding in it: where does the conversation go? In ChatGPT, it goes to OpenAI's database. In Claude.ai, to Anthropic's. In Notion AI, to Notion's. In Reflect, Mem.ai, Tana, into each of their respective clouds.</p>
 
-    <p>In Keepance, AI conversation logs go to a structured text file in a folder you picked. Professional documents are saved as real .docx files you can open in Microsoft Word. No database, no cloud account, no proprietary lock-in. Your work stays on your hard drive in open formats.</p>
+    <p>In Advisor Prep Hero, AI conversation logs go to a structured text file in a folder you picked. Professional documents are saved as real .docx files you can open in Microsoft Word. No database, no cloud account, no proprietary lock-in. Your work stays on your hard drive in open formats.</p>
 
     <p>I'm going to walk through why this matters specifically for AI conversations (not just for general note-taking), what the technical shape looks like, and what you can do with a Markdown archive that you can't do with any chat-database equivalent. For attorneys, this connects directly to the privilege question: a conversation stored in a vendor's database is accessible to that vendor. A conversation stored as a Markdown file on your machine is not.</p>
 
-    <p style="margin: 32px 0;"><img src="/press-kit/assets/screenshot-02-ai-chat.png" alt="Keepance AI chat mid-stream: a Markdown file appears in the file tree as the conversation produces it" style="width:100%; border-radius:12px; box-shadow:0 8px 24px rgba(15,23,42,0.08); display:block;"></p>
+    <p style="margin: 32px 0;"><img src="/press-kit/assets/screenshot-02-ai-chat.png" alt="Advisor Prep Hero AI chat mid-stream: a Markdown file appears in the file tree as the conversation produces it" style="width:100%; border-radius:12px; box-shadow:0 8px 24px rgba(15,23,42,0.08); display:block;"></p>
 
     <h2>The case against chat databases</h2>
 
@@ -115,7 +115,7 @@
 
     <h2>What a Markdown chat actually looks like</h2>
 
-    <p>The Keepance equivalent of that ChatGPT JSON is a <code>.aichat</code> file (which is just structured Markdown with YAML frontmatter):</p>
+    <p>The Advisor Prep Hero equivalent of that ChatGPT JSON is a <code>.aichat</code> file (which is just structured Markdown with YAML frontmatter):</p>
 
     <pre><code>---
 title: Client memo - Hendricks estate planning
@@ -157,7 +157,7 @@ grep -ril "client intake" ~/keepance-workspace/ | head</code></pre>
 
     <h3>2. Build a personal search engine over your chats</h3>
 
-    <p>Tools like FlexSearch, MiniSearch, Meilisearch, or even SQLite's FTS5 can index a folder of Markdown files in a few minutes. Once indexed, you can do typo-tolerant fuzzy search across the entire archive, with snippets and ranking. Keepance ships this built-in. Anyone can build it on top of a Markdown folder; almost nobody can on top of a chat database.</p>
+    <p>Tools like FlexSearch, MiniSearch, Meilisearch, or even SQLite's FTS5 can index a folder of Markdown files in a few minutes. Once indexed, you can do typo-tolerant fuzzy search across the entire archive, with snippets and ranking. Advisor Prep Hero ships this built-in. Anyone can build it on top of a Markdown folder; almost nobody can on top of a chat database.</p>
 
     <h3>3. Version control it</h3>
 
@@ -173,11 +173,11 @@ grep -ril "client intake" ~/keepance-workspace/ | head</code></pre>
 
     <h3>6. Outlive the tool that created it</h3>
 
-    <p>This is the underrated benefit. If Keepance the company disappears tomorrow, your conversations are still on your hard drive in a format any text-aware tool can read. If ChatGPT or Notion or Mem.ai disappears tomorrow, your archive depends on whatever you exported before the shutdown notice. Most users never export until it's too late.</p>
+    <p>This is the underrated benefit. If Advisor Prep Hero the company disappears tomorrow, your conversations are still on your hard drive in a format any text-aware tool can read. If ChatGPT or Notion or Mem.ai disappears tomorrow, your archive depends on whatever you exported before the shutdown notice. Most users never export until it's too late.</p>
 
     <h2>The technical shape: how chat-as-files works in practice</h2>
 
-    <p>Every Keepance AI conversation is saved as a single <code>.aichat</code> file. The format:</p>
+    <p>Every Advisor Prep Hero AI conversation is saved as a single <code>.aichat</code> file. The format:</p>
 
     <ul>
       <li><strong>YAML frontmatter</strong> at the top with title, provider, model, created/modified timestamps, and tags</li>
@@ -188,7 +188,7 @@ grep -ril "client intake" ~/keepance-workspace/ | head</code></pre>
 
     <p>The file is renderable in any Markdown viewer. Most text editors will syntax-highlight it. The frontmatter is parseable by any YAML library.</p>
 
-    <p>For folders that contain a mix of conversations, workflow runs, documents, and source notes, Keepance uses different extensions:</p>
+    <p>For folders that contain a mix of conversations, workflow runs, documents, and source notes, Advisor Prep Hero uses different extensions:</p>
 
     <ul>
       <li><code>.aichat</code> for AI conversations</li>
@@ -202,7 +202,7 @@ grep -ril "client intake" ~/keepance-workspace/ | head</code></pre>
 
     <h2>What v2.0 added on top of the Markdown layer</h2>
 
-    <p>Keepance's v2.0 release leaned hard into the chat-as-files pattern instead of replacing it. Three pieces worth flagging:</p>
+    <p>Advisor Prep Hero's v2.0 release leaned hard into the chat-as-files pattern instead of replacing it. Three pieces worth flagging:</p>
 
     <ul>
       <li><strong>PDF RAG indexes Markdown alongside PDFs.</strong> Flip on "Include PDFs in workspace index" in Settings -> Memory and the AI gets searchable context across both your <code>.md</code> notes and the PDFs sitting next to them. Embeddings live in your workspace folder (LanceDB + a 384-dim multilingual model). Nothing leaves the machine for indexing.</li>
@@ -213,7 +213,7 @@ grep -ril "client intake" ~/keepance-workspace/ | head</code></pre>
 
     <h3>"What about images and attachments?"</h3>
 
-    <p>Markdown links to images using standard syntax: <code>![description](image.png)</code>. The image lives next to the Markdown file in the workspace folder. Keepance handles this natively; drop an image into a chat and it's saved as <code>conversation-name-1.png</code> in the same folder, with a link in the chat file.</p>
+    <p>Markdown links to images using standard syntax: <code>![description](image.png)</code>. The image lives next to the Markdown file in the workspace folder. Advisor Prep Hero handles this natively; drop an image into a chat and it's saved as <code>conversation-name-1.png</code> in the same folder, with a link in the chat file.</p>
 
     <h3>"What about formatting that Markdown doesn't support?"</h3>
 
@@ -225,7 +225,7 @@ grep -ril "client intake" ~/keepance-workspace/ | head</code></pre>
 
     <h3>"What if I need real-time collaboration?"</h3>
 
-    <p>Markdown files don't support real-time multi-cursor editing. If that's the requirement, you need a cloud tool. For solo attorney, CPA, and consultant work, which is what Keepance is built for, the lack of multi-user is a feature, not a bug; the file format stays simple and tool-agnostic.</p>
+    <p>Markdown files don't support real-time multi-cursor editing. If that's the requirement, you need a cloud tool. For solo attorney, CPA, and consultant work, which is what Advisor Prep Hero is built for, the lack of multi-user is a feature, not a bug; the file format stays simple and tool-agnostic.</p>
 
     <h3>"Can AI even read Markdown well?"</h3>
 
@@ -237,7 +237,7 @@ grep -ril "client intake" ~/keepance-workspace/ | head</code></pre>
 
     <ol>
       <li><strong>Pick a workspace folder.</strong> Anywhere on your hard drive. Could be in Dropbox or iCloud for sync.</li>
-      <li><strong>Install a tool that supports Markdown chat-as-files.</strong> Keepance is the explicit "AI workspace" version. Obsidian with the Smart Connections or Copilot plugin is a more DIY version.</li>
+      <li><strong>Install a tool that supports Markdown chat-as-files.</strong> Advisor Prep Hero is the explicit "AI workspace" version. Obsidian with the Smart Connections or Copilot plugin is a more DIY version.</li>
       <li><strong>Start new conversations in the new tool.</strong> Don't bother migrating old ones initially; the new ones add up fast.</li>
       <li><strong>Export the most important old conversations.</strong> Most cloud tools have export. Save the JSON, run a small script to convert to Markdown (or paste manually for the ones you really care about), drop into the workspace.</li>
       <li><strong>Set up backup.</strong> Time Machine, B2, git. The archive only matters if it survives a hard drive failure.</li>
@@ -263,8 +263,8 @@ grep -ril "client intake" ~/keepance-workspace/ | head</code></pre>
 
     <div class="cta-card">
       <h3>An AI workspace where your work stays on your machine</h3>
-      <p>Keepance saves professional documents as real .docx files and AI conversation logs as plain text in a folder you pick. Your client files stay on your machine. Free 30-day trial. Solo $468/yr. Professional $948/yr with practice pack.</p>
-      <a href="/#pricing" class="cta-btn">Get Keepance</a>
+      <p>Advisor Prep Hero saves professional documents as real .docx files and AI conversation logs as plain text in a folder you pick. Your client files stay on your machine. Free 30-day trial. Solo $468/yr. Professional $948/yr with practice pack.</p>
+      <a href="/#pricing" class="cta-btn">Get Advisor Prep Hero</a>
     </div>
   </div>
 

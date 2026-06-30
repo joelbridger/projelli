@@ -98,7 +98,7 @@ const SAMPLE_ENTRY: CatalogEntry = {
   tags: ['investor', 'update', 'monthly'],
   installUrl: 'https://example.test/investor.tar.gz',
   manifestUrl: 'https://example.test/manifest.json',
-  minKeepanceVersion: '2.0.0',
+  minAppVersion: '2.0.0',
   publishedAt: '2026-04-28T00:00:00.000Z',
   updatedAt: '2026-04-28T00:00:00.000Z',
   checksum: 'deadbeefcafef00d',
@@ -118,7 +118,7 @@ const SAMPLE_MANIFEST: TemplateManifest = {
     { path: 'questions.json', type: 'interview-questions' },
     { path: 'workflow.json', type: 'workflow-definition' },
   ],
-  minKeepanceVersion: '2.0.0',
+  minAppVersion: '2.0.0',
 };
 
 function fakeStreamingResponse(chunks: Uint8Array[]): Response {
@@ -150,8 +150,8 @@ function buildService(fs: FakeFs, audit?: AuditService): MarketplaceService {
   const svc = new MarketplaceService({
     repoUrl: 'https://example.test',
     catalogPath: 'catalog.json',
-    cachePath: '/ws/.keepance/cache/templates.json',
-    installRoot: '/ws/.keepance/templates',
+    cachePath: '/ws/.lantern/cache/templates.json',
+    installRoot: '/ws/.lantern/templates',
     fs: fs.fs,
     provenance: 'community',
     ...(audit ? { auditService: audit } : {}),
@@ -178,7 +178,7 @@ function wireHappyPath(fs: FakeFs): void {
     if (cmd === 'extract_tarball') {
       // Simulate the Rust extractor placing manifest.json on disk.
       fs.files.set(
-        '/ws/.keepance/templates/investor-update-v1/manifest.json',
+        '/ws/.lantern/templates/investor-update-v1/manifest.json',
         JSON.stringify(SAMPLE_MANIFEST),
       );
       return ['manifest.json', 'template.md', 'questions.json', 'workflow.json'];
@@ -205,12 +205,12 @@ describe('MarketplaceService.install (happy path)', () => {
     expect(installed.id).toBe('investor-update-v1');
     expect(installed.provenance).toBe('community');
     expect(installed.manifestVersion).toBe('1.0');
-    expect(installed.installedPath).toBe('/ws/.keepance/templates/investor-update-v1');
+    expect(installed.installedPath).toBe('/ws/.lantern/templates/investor-update-v1');
     expect(installed.installedAt).toBeDefined();
 
     // installed.json index was written.
-    expect(fs.files.has('/ws/.keepance/templates/.installed.json')).toBe(true);
-    const indexRaw = fs.files.get('/ws/.keepance/templates/.installed.json')!;
+    expect(fs.files.has('/ws/.lantern/templates/.installed.json')).toBe(true);
+    const indexRaw = fs.files.get('/ws/.lantern/templates/.installed.json')!;
     const index = JSON.parse(indexRaw);
     expect(index.entries).toHaveLength(1);
     expect(index.entries[0].id).toBe('investor-update-v1');
@@ -227,7 +227,7 @@ describe('MarketplaceService.install (happy path)', () => {
     });
 
     // Tarball cleaned up at the temp path.
-    expect(fs.binaryFiles.has('/ws/.keepance/templates/.tmp/investor-update-v1.tar.gz')).toBe(false);
+    expect(fs.binaryFiles.has('/ws/.lantern/templates/.tmp/investor-update-v1.tar.gz')).toBe(false);
   });
 
   it('emits onProgress callbacks for every phase', async () => {
@@ -275,13 +275,13 @@ describe('MarketplaceService.install (failure paths)', () => {
     expect(events).not.toContain('template_installed_from_marketplace');
     // Tarball + install dir both targeted by cleanup.
     expect(fs.spies.delete).toHaveBeenCalledWith(
-      '/ws/.keepance/templates/.tmp/investor-update-v1.tar.gz',
+      '/ws/.lantern/templates/.tmp/investor-update-v1.tar.gz',
     );
     expect(fs.spies.delete).toHaveBeenCalledWith(
-      '/ws/.keepance/templates/investor-update-v1',
+      '/ws/.lantern/templates/investor-update-v1',
     );
     // No installed.json written.
-    expect(fs.files.has('/ws/.keepance/templates/.installed.json')).toBe(false);
+    expect(fs.files.has('/ws/.lantern/templates/.installed.json')).toBe(false);
   });
 
   it('audits template_install_failed when the catalog entry is missing', async () => {
@@ -310,7 +310,7 @@ describe('MarketplaceService.install (failure paths)', () => {
       if (cmd === 'extract_tarball') {
         // Write an obviously broken manifest (missing required `id`).
         fs.files.set(
-          '/ws/.keepance/templates/investor-update-v1/manifest.json',
+          '/ws/.lantern/templates/investor-update-v1/manifest.json',
           JSON.stringify({ name: 'no id here' }),
         );
         return ['manifest.json'];
@@ -339,7 +339,7 @@ describe('MarketplaceService.install (failure paths)', () => {
     mockInvoke.mockImplementation(async (cmd: string) => {
       if (cmd === 'extract_tarball') {
         fs.files.set(
-          '/ws/.keepance/templates/investor-update-v1/manifest.json',
+          '/ws/.lantern/templates/investor-update-v1/manifest.json',
           JSON.stringify(SAMPLE_MANIFEST),
         );
         return ['manifest.json'];
@@ -366,9 +366,9 @@ describe('MarketplaceService.uninstall', () => {
     await svc.uninstall('investor-update-v1');
 
     expect(fs.spies.delete).toHaveBeenCalledWith(
-      '/ws/.keepance/templates/investor-update-v1',
+      '/ws/.lantern/templates/investor-update-v1',
     );
-    const indexRaw = fs.files.get('/ws/.keepance/templates/.installed.json')!;
+    const indexRaw = fs.files.get('/ws/.lantern/templates/.installed.json')!;
     const index = JSON.parse(indexRaw);
     expect(index.entries).toHaveLength(0);
     const actions = audit.getAll().map((e) => e.action);
@@ -417,7 +417,7 @@ describe('MarketplaceService.install (concurrency)', () => {
 
     // Index should contain exactly one entry — proves the second call did not
     // re-execute the pipeline.
-    const index = JSON.parse(fs.files.get('/ws/.keepance/templates/.installed.json')!);
+    const index = JSON.parse(fs.files.get('/ws/.lantern/templates/.installed.json')!);
     expect(index.entries).toHaveLength(1);
 
     // Audit must have exactly one success event.
@@ -466,7 +466,7 @@ describe('createTemplatesMarketplaceService factory', () => {
 
     // Cache path under workspace root.
     expect(fs.spies.write).toHaveBeenCalledWith(
-      '/ws/.keepance/cache/templates.json',
+      '/ws/.lantern/cache/templates.json',
       expect.any(String),
     );
   });
@@ -480,7 +480,7 @@ describe('createTemplatesMarketplaceService factory', () => {
     );
     await svc.refresh();
     expect(fs.spies.write).toHaveBeenCalledWith(
-      '/ws/.keepance/cache/templates.json',
+      '/ws/.lantern/cache/templates.json',
       expect.any(String),
     );
   });
@@ -496,7 +496,7 @@ describe('createTemplatesMarketplaceService factory', () => {
       if (cmd === 'sha256_file') return 'deadbeefcafef00d';
       if (cmd === 'extract_tarball') {
         fs.files.set(
-          '/ws/.keepance/templates/investor-update-v1/manifest.json',
+          '/ws/.lantern/templates/investor-update-v1/manifest.json',
           JSON.stringify(SAMPLE_MANIFEST),
         );
         return ['manifest.json'];
@@ -529,8 +529,8 @@ function buildServiceWithFreshCache(
   const svc = new MarketplaceService({
     repoUrl: 'https://example.test',
     catalogPath: 'catalog.json',
-    cachePath: '/ws/.keepance/cache/templates.json',
-    installRoot: '/ws/.keepance/templates',
+    cachePath: '/ws/.lantern/cache/templates.json',
+    installRoot: '/ws/.lantern/templates',
     fs: fs.fs,
     provenance: 'community',
     ...(audit ? { auditService: audit } : {}),
@@ -550,7 +550,7 @@ function buildServiceWithFreshCache(
 
 function seedInstalled(fs: FakeFs, entries: InstalledEntry[]): void {
   fs.files.set(
-    '/ws/.keepance/templates/.installed.json',
+    '/ws/.lantern/templates/.installed.json',
     JSON.stringify({ entries }, null, 2),
   );
 }
@@ -566,7 +566,7 @@ function makeInstalledEntry(id: string, version: string, overrides: Partial<Cata
     tags: [],
     installUrl: `https://example.test/${id}.tar.gz`,
     manifestUrl: `https://example.test/${id}.json`,
-    minKeepanceVersion: '2.0.0',
+    minAppVersion: '2.0.0',
     publishedAt: '2026-04-28T00:00:00.000Z',
     updatedAt: '2026-04-28T00:00:00.000Z',
     ...overrides,
@@ -574,7 +574,7 @@ function makeInstalledEntry(id: string, version: string, overrides: Partial<Cata
   return {
     ...entry,
     installedAt: '2026-04-28T00:00:00.000Z',
-    installedPath: `/ws/.keepance/templates/${id}`,
+    installedPath: `/ws/.lantern/templates/${id}`,
     provenance: 'community',
     manifestVersion: '1.0',
   };
@@ -668,8 +668,8 @@ describe('MarketplaceService.checkForUpdates', () => {
     const svc = new MarketplaceService({
       repoUrl: 'https://example.test',
       catalogPath: 'catalog.json',
-      cachePath: '/ws/.keepance/cache/templates.json',
-      installRoot: '/ws/.keepance/templates',
+      cachePath: '/ws/.lantern/cache/templates.json',
+      installRoot: '/ws/.lantern/templates',
       fs: fs.fs,
       provenance: 'community',
     });
@@ -703,8 +703,8 @@ describe('MarketplaceService.checkForUpdates', () => {
     const svc = new MarketplaceService({
       repoUrl: 'https://example.test',
       catalogPath: 'catalog.json',
-      cachePath: '/ws/.keepance/cache/templates.json',
-      installRoot: '/ws/.keepance/templates',
+      cachePath: '/ws/.lantern/cache/templates.json',
+      installRoot: '/ws/.lantern/templates',
       fs: fs.fs,
       provenance: 'community',
     });

@@ -40,7 +40,7 @@ marked **[CONTINGENCY]** with the finding they produced. Results ledger:
 ./scripts/wedge-proof-native.sh preflight   # memory, tools, ollama, model cache, keyring pkg
 ./scripts/wedge-proof-native.sh up          # build + Xvfb + vite preview + fresh profile/workspace
 ./scripts/wedge-proof-native.sh launch &    # first boot (creates the localStorage db); blocks
-#   wait for the window:  DISPLAY=:99 xdotool search --name Keepance
+#   wait for the window:  DISPLAY=:99 xdotool search --name Advisor Prep Hero
 #   shot boot-1 → first-run wizard = expected on the unseeded profile
 ./scripts/wedge-proof-native.sh down
 ./scripts/wedge-proof-native.sh seed-localstorage   # recents + onboarding + settings (above)
@@ -152,7 +152,7 @@ indexable; see F-508).
 # selector → Recents → wedge-ws
 ```
 
-- The **model download card** renders: "Setting up private search — Keepance
+- The **model download card** renders: "Setting up private search — Advisor Prep Hero
   is downloading its private search engine (about 465 MB), one time, from
   Hugging Face. You can keep working… 0 MB so far" (`run-10-download-card`).
 - Bonus: a transient HF connection failure exercised the interrupted state —

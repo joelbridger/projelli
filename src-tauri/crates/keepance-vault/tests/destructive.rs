@@ -1,14 +1,14 @@
 /// Integration tests for the vault orchestration layer (Task 6).
 ///
 /// Destructive-failure spec §13 items 8 (escape-hatch roundtrip) and 9 (migration-resume).
-/// These are integration tests (separate binary) so they can reference `keepance_vault` as an
+/// These are integration tests (separate binary) so they can reference `lantern_vault` as an
 /// external crate, exercising the public API exactly as the Tauri command layer will.
 use aes_gcm::{
     aead::{Aead, AeadCore, KeyInit, OsRng, Payload},
     Aes256Gcm, Key, Nonce,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-use keepance_vault::vault::*;
+use lantern_vault::vault::*;
 use std::fs;
 
 const TEST_ESCROW_AAD_PREFIX: &str = "keepance-vault-test-admin-escrow:v1:epoch:";
@@ -75,18 +75,18 @@ fn unwrap_vmk_from_test_admin_escrow(
     vmk
 }
 
-/// DATA-LOSS GUARD: encrypt_all/decrypt_all must NEVER touch the `.keepance/` internal
+/// DATA-LOSS GUARD: encrypt_all/decrypt_all must NEVER touch the `.lantern/` internal
 /// store dir (LanceDB index, SQLCipher mail/audit DBs, encrypted mail blobs) — those are
 /// read raw by other subsystems and KPV1-wrapping them would corrupt them irrecoverably.
 #[test]
 fn walk_never_touches_keepance_internal_dir() {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path();
-    fs::create_dir_all(root.join(".keepance/vectors")).unwrap();
-    fs::create_dir_all(root.join(".keepance/mail/blobs")).unwrap();
-    fs::write(root.join(".keepance/vectors/data.lance"), b"LANCE-RAW-BYTES").unwrap();
-    fs::write(root.join(".keepance/mail-enc.db"), b"SQLCIPHER-RAW").unwrap();
-    fs::write(root.join(".keepance/mail/blobs/m1.enc"), b"AES-GCM-BLOB").unwrap();
+    fs::create_dir_all(root.join(".lantern/vectors")).unwrap();
+    fs::create_dir_all(root.join(".lantern/mail/blobs")).unwrap();
+    fs::write(root.join(".lantern/vectors/data.lance"), b"LANCE-RAW-BYTES").unwrap();
+    fs::write(root.join(".lantern/mail-enc.db"), b"SQLCIPHER-RAW").unwrap();
+    fs::write(root.join(".lantern/mail/blobs/m1.enc"), b"AES-GCM-BLOB").unwrap();
     fs::write(root.join("doc.txt"), b"user doc").unwrap();
 
     let vmk = [5u8; 32];
@@ -94,15 +94,15 @@ fn walk_never_touches_keepance_internal_dir() {
 
     // The user's document IS encrypted...
     assert_eq!(&fs::read(root.join("doc.txt")).unwrap()[..4], b"KPV1");
-    // ...but every .keepance internal file is byte-for-byte untouched (no KPV1 magic).
-    assert_eq!(fs::read(root.join(".keepance/vectors/data.lance")).unwrap(), b"LANCE-RAW-BYTES");
-    assert_eq!(fs::read(root.join(".keepance/mail-enc.db")).unwrap(), b"SQLCIPHER-RAW");
-    assert_eq!(fs::read(root.join(".keepance/mail/blobs/m1.enc")).unwrap(), b"AES-GCM-BLOB");
+    // ...but every .lantern internal file is byte-for-byte untouched (no KPV1 magic).
+    assert_eq!(fs::read(root.join(".lantern/vectors/data.lance")).unwrap(), b"LANCE-RAW-BYTES");
+    assert_eq!(fs::read(root.join(".lantern/mail-enc.db")).unwrap(), b"SQLCIPHER-RAW");
+    assert_eq!(fs::read(root.join(".lantern/mail/blobs/m1.enc")).unwrap(), b"AES-GCM-BLOB");
 
     // decrypt_all (escape hatch) also leaves them alone.
     decrypt_all(root, &vmk).unwrap();
-    assert_eq!(fs::read(root.join(".keepance/mail-enc.db")).unwrap(), b"SQLCIPHER-RAW");
-    assert_eq!(fs::read(root.join(".keepance/vectors/data.lance")).unwrap(), b"LANCE-RAW-BYTES");
+    assert_eq!(fs::read(root.join(".lantern/mail-enc.db")).unwrap(), b"SQLCIPHER-RAW");
+    assert_eq!(fs::read(root.join(".lantern/vectors/data.lance")).unwrap(), b"LANCE-RAW-BYTES");
 }
 
 /// Item 8: encrypt_all then decrypt_all yields byte-identical files; zero KPV1 magic remains.
@@ -166,7 +166,7 @@ fn migration_resume_never_double_encrypts() {
     let vmk = [6u8; 32];
 
     // Pre-encrypt ONE file to simulate a partially-completed migration.
-    let pre = keepance_vault::format::encrypt_file(b"already", &vmk).unwrap();
+    let pre = lantern_vault::format::encrypt_file(b"already", &vmk).unwrap();
     fs::write(root.join("y.txt"), &pre).unwrap();
 
     // encrypt_all must skip y.txt (has magic), encrypt x.txt.
@@ -187,7 +187,7 @@ fn migration_resume_never_double_encrypts() {
     );
 }
 
-/// The walk skips .keepance-vault.json (metadata file) and .kpv-tmp-* (orphan temps).
+/// The walk skips .lantern-vault.json (metadata file) and .kpv-tmp-* (orphan temps).
 /// After encrypt_all, these files must be unchanged (not encrypted).
 #[test]
 fn walk_skips_metadata_and_temp_files() {
@@ -199,7 +199,7 @@ fn walk_skips_metadata_and_temp_files() {
 
     // Metadata file — must be skipped by the walk.
     let meta_content = b"{\"version\":1}";
-    fs::write(root.join(".keepance-vault.json"), meta_content).unwrap();
+    fs::write(root.join(".lantern-vault.json"), meta_content).unwrap();
 
     // Orphan temp file — must be swept and not encrypted.
     // (sweep_temps removes these before visiting; the file won't exist after the walk.)
@@ -213,12 +213,12 @@ fn walk_skips_metadata_and_temp_files() {
     let doc_blob = fs::read(root.join("doc.txt")).unwrap();
     assert_eq!(&doc_blob[..4], b"KPV1", "doc.txt must be encrypted");
 
-    // .keepance-vault.json is NOT encrypted (not touched by the walk).
-    let meta_blob = fs::read(root.join(".keepance-vault.json")).unwrap();
+    // .lantern-vault.json is NOT encrypted (not touched by the walk).
+    let meta_blob = fs::read(root.join(".lantern-vault.json")).unwrap();
     assert_eq!(
         meta_blob.as_slice(),
         meta_content,
-        ".keepance-vault.json must not be encrypted by encrypt_all"
+        ".lantern-vault.json must not be encrypted by encrypt_all"
     );
 
     // The orphan temp was swept (removed) by sweep_temps, so it no longer exists.
@@ -232,7 +232,7 @@ fn walk_skips_metadata_and_temp_files() {
 /// is lost, without using the 24-word recovery phrase.
 #[test]
 fn escrow_recovery_decrypts_vault_without_recovery_phrase() {
-    use keepance_vault::{
+    use lantern_vault::{
         metadata::{AdminWrapJson, EscrowJson, RecoveryWrapJson, VaultMetadata},
         recovery::create_recovery,
         verifier::{check_verifier, make_verifier},

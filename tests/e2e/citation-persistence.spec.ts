@@ -68,7 +68,7 @@ async function seedAndReload(
         },
         version: 2,
       };
-      localStorage.setItem('keepance:matters', JSON.stringify(matterState));
+      localStorage.setItem('lantern:matters', JSON.stringify(matterState));
 
       if (chatId && messages) {
         const ts = new Date().toISOString();

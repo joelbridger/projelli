@@ -1,4 +1,4 @@
-# Keepance Documentation Index
+# Advisor Prep Hero Documentation Index
 
 This is the docs index. The repo **root** holds only the highest-level files
 (`README.md`, `CLAUDE.md`, `ARCHITECTURE.md`, `KEEPANCE_BUSINESS_PLAN.md`,
@@ -11,7 +11,7 @@ by purpose.
 |---|---|
 | **Find the current code** (which folder/branch is live) | [`operations/REPO-MAP-CURRENT.md`](operations/REPO-MAP-CURRENT.md) — the live branch is `keepance-3.0` |
 | **Understand the code structure** | repo-root [`ARCHITECTURE.md`](../ARCHITECTURE.md) — the authoritative 5-layer feature-first map |
-| **Know what Keepance is, who it's for, the plan** | repo-root [`KEEPANCE_BUSINESS_PLAN.md`](../KEEPANCE_BUSINESS_PLAN.md) (operating contract) |
+| **Know what Advisor Prep Hero is, who it's for, the plan** | repo-root [`KEEPANCE_BUSINESS_PLAN.md`](../KEEPANCE_BUSINESS_PLAN.md) (operating contract) |
 | **See the big-picture business state** | the **board dashboard** at board.jameworld.com (data in [`board/board-data.json`](board/board-data.json)) |
 | **Get the honest current snapshot** | the latest [`operations/2026-06-24-advisor-website-board-CURRENT-STATE.md`](operations/2026-06-24-advisor-website-board-CURRENT-STATE.md) |
 | **Know the current positioning** | financial advisors first (see [`strategy/2026-06-29-board-decision-leading-advisor-ai.md`](strategy/2026-06-29-board-decision-leading-advisor-ai.md)); law/tax/consulting are secondary |
@@ -43,14 +43,14 @@ docs/
 
 | File | What it covers |
 |---|---|
-| [FEATURES.md](reference/FEATURES.md) | Canonical "what can Keepance do" reference, code-grounded. Read first for current capabilities. |
+| [FEATURES.md](reference/FEATURES.md) | Canonical "what can Advisor Prep Hero do" reference, code-grounded. Read first for current capabilities. |
 | [CONNECTORS.md](reference/CONNECTORS.md) | Data connectors (email/CRM/OneDrive/Calendly/DocuSign): connect→sync→index, matter mapping, per-connector status. |
 | [RAG_PIPELINE.md](reference/RAG_PIPELINE.md) | The local search engine end-to-end: ingest → chunk → embed → LanceDB → retrieve → cited answer. |
 | [RUST_BACKEND.md](reference/RUST_BACKEND.md) | The Rust/Tauri backend: command layer + the `keepance-vault` / `keepance-docx` crates + encrypted stores. |
 | [SECURITY.md](reference/SECURITY.md) | Security model, threat model, and constraints. |
 | [VISION.md](reference/VISION.md) | Product vision (audience note: now advisor-first; see the banner at the top of the file). |
 | [PROJECT_VISION_ORIGINAL.md](reference/PROJECT_VISION_ORIGINAL.md) | Original founding vision — preserved for context. |
-| [COMPETITIVE_LANDSCAPE.md](reference/COMPETITIVE_LANDSCAPE.md) | How Keepance compares to other tools (audience note: now advisor-first; Jump is the key competitor). |
+| [COMPETITIVE_LANDSCAPE.md](reference/COMPETITIVE_LANDSCAPE.md) | How Advisor Prep Hero compares to other tools (audience note: now advisor-first; Jump is the key competitor). |
 | [TRADEMARK_SEARCH.md](reference/TRADEMARK_SEARCH.md) | Name/trademark search notes. |
 | [TAURI_COMMANDS.md](reference/TAURI_COMMANDS.md) | The Tauri command surface reference. |
 | [DECISIONS.md](reference/DECISIONS.md) | The early architecture-decision log (ADRs). Historical-by-design; titled from the "Business OS" era. |

@@ -270,10 +270,10 @@ async function shareNewMatter(
   sharedLocalMatterIdA = testId.replace('matter-open-notes-', '');
 
   // Capture the firm matter ID from the Zustand store via localStorage.
-  // The matterStore persists to localStorage under the key "keepance:matters".
+  // The matterStore persists to localStorage under the key "lantern:matters".
   sharedFirmMatterId = await page.evaluate((localId: string) => {
     try {
-      const raw = localStorage.getItem('keepance:matters');
+      const raw = localStorage.getItem('lantern:matters');
       if (raw) {
         const parsed = JSON.parse(raw) as {
           state?: { matters?: Array<{ id: string; firmMatterId?: string }> };

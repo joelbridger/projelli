@@ -21,7 +21,7 @@
 //           will satisfy a downstream `acceptsOutputFrom: ['personas']`).
 //       (b) The step's file artifacts (outputs: string[]) — these are not
 //           forwarded automatically but are exposed on ChainStepResult.
-//     Keepance keeps the matching shallow on purpose: more complex
+//     Advisor Prep Hero keeps the matching shallow on purpose: more complex
 //     transformations should be handled by the user in a follow-up chain
 //     (out of scope for v1.5).
 

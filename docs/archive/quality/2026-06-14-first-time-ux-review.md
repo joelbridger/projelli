@@ -1,4 +1,4 @@
-# Keepance — First-Time-User UX Review (2026-06-14)
+# Advisor Prep Hero — First-Time-User UX Review (2026-06-14)
 
 > A review of the reimagined shell from the perspective of a brand-new solo litigator,
 > oriented to the three things that matter: ease of use, adoption, and unique value.
@@ -76,7 +76,7 @@ Fold "Assured" into a firm-tier setting; it only confuses solos when it shows gr
 - Stray developer terms seen in copy: "Markdown," "embedding vectors," "MCP write blocked," "RAG"
 
 A plain-English north star for "what is this and where does my data go":
-> Keepance is a private file and AI tool that runs on your computer. Your client files stay in a folder on your hard drive; nothing is uploaded to our servers. Ask it a question and it searches your own files and answers with citations you can check. For AI help, you connect your own account with a company like Anthropic; your questions go straight from your computer to them, and Keepance is never in between. For work that must never leave your machine, you can run an AI locally. Every AI action is logged so you can prove exactly what happened.
+> Advisor Prep Hero is a private file and AI tool that runs on your computer. Your client files stay in a folder on your hard drive; nothing is uploaded to our servers. Ask it a question and it searches your own files and answers with citations you can check. For AI help, you connect your own account with a company like Anthropic; your questions go straight from your computer to them, and Advisor Prep Hero is never in between. For work that must never leave your machine, you can run an AI locally. Every AI action is logged so you can prove exactly what happened.
 
 ---
 

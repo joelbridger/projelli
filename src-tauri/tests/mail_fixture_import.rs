@@ -1,10 +1,10 @@
 use arrow_array::RecordBatchIterator;
-use keepance_lib::commands::mail::model::{BodyContentType, MailMessage, Recipient};
-use keepance_lib::commands::mail::store::{EncryptedMailStore, MailListQuery, MailStore};
-use keepance_lib::commands::mail::sync::apply_messages_enc;
-use keepance_lib::commands::rag::chunker::chunk_text;
-use keepance_lib::commands::rag::embedder::EMBEDDING_DIM;
-use keepance_lib::commands::rag::store::{self, PRIVILEGE_NONE};
+use lantern_lib::commands::mail::model::{BodyContentType, MailMessage, Recipient};
+use lantern_lib::commands::mail::store::{EncryptedMailStore, MailListQuery, MailStore};
+use lantern_lib::commands::mail::sync::apply_messages_enc;
+use lantern_lib::commands::rag::chunker::chunk_text;
+use lantern_lib::commands::rag::embedder::EMBEDDING_DIM;
+use lantern_lib::commands::rag::store::{self, PRIVILEGE_NONE};
 use std::sync::{Arc, Mutex};
 
 const MAIL_KEY: [u8; 32] = [0x42u8; 32];
@@ -83,7 +83,7 @@ fn decrypted_hit_path(hit: &store::StoredHit) -> String {
     let path_enc = hit.path_enc.as_deref().expect("mail hit should carry path_enc");
     let blob = hex::decode(path_enc).expect("path_enc should be hex");
     String::from_utf8(
-        keepance_lib::commands::mail::crypto::decrypt_with_key(&blob, &VEC_KEY)
+        lantern_lib::commands::mail::crypto::decrypt_with_key(&blob, &VEC_KEY)
             .expect("decrypt path_enc"),
     )
     .expect("path_enc should decrypt to UTF-8")
@@ -92,7 +92,7 @@ fn decrypted_hit_path(hit: &store::StoredHit) -> String {
 fn decrypted_hit_text(hit: &store::StoredHit) -> String {
     let blob = hex::decode(&hit.text).expect("mail hit text should be hex ciphertext");
     String::from_utf8(
-        keepance_lib::commands::mail::crypto::decrypt_with_key(&blob, &VEC_KEY)
+        lantern_lib::commands::mail::crypto::decrypt_with_key(&blob, &VEC_KEY)
             .expect("decrypt hit text"),
     )
     .expect("hit text should decrypt to UTF-8")

@@ -10,11 +10,11 @@
 
 Show HN titles are factual and plain. No hype words. Lead variant:
 
-> Show HN: Keepance – Local-first AI workspace where every chat becomes a real file on your disk
+> Show HN: Advisor Prep Hero – Local-first AI workspace where every chat becomes a real file on your disk
 
 Alternates:
-- Show HN: Keepance – BYOK AI workspace that writes every chat to a folder on your disk
-- Show HN: Keepance – Chat with Claude/GPT/Ollama, every conversation saved as a local file you own
+- Show HN: Advisor Prep Hero – BYOK AI workspace that writes every chat to a folder on your disk
+- Show HN: Advisor Prep Hero – Chat with Claude/GPT/Ollama, every conversation saved as a local file you own
 
 ---
 
@@ -22,9 +22,9 @@ Alternates:
 
 > I'm a product designer, not really a developer, so go easy on me. I've spent the last few months building this and I'd rather hear what HN thinks before I tell anyone it's finished.
 >
-> Keepance is a desktop AI workspace that keeps everything on your machine. You chat with Claude, GPT, Gemini, or a local Ollama model, and every conversation gets written out as a real .docx file in a folder you pick. There's no Keepance account and no Keepance server in the loop. You bring your own API key, it lives in your OS keychain, and requests go straight from your machine to whichever provider you chose.
+> Advisor Prep Hero is a desktop AI workspace that keeps everything on your machine. You chat with Claude, GPT, Gemini, or a local Ollama model, and every conversation gets written out as a real .docx file in a folder you pick. There's no Advisor Prep Hero account and no Advisor Prep Hero server in the loop. You bring your own API key, it lives in your OS keychain, and requests go straight from your machine to whichever provider you chose.
 >
-> The part I actually care about is that the chat isn't a dead end. Each conversation is a file you can edit, link to other files with [[wiki-links]], search full-text, and keep version history on. So the AI work and your own notes end up as one pile of files, sitting in a normal folder, readable without Keepance if it ever disappeared.
+> The part I actually care about is that the chat isn't a dead end. Each conversation is a file you can edit, link to other files with [[wiki-links]], search full-text, and keep version history on. So the AI work and your own notes end up as one pile of files, sitting in a normal folder, readable without Advisor Prep Hero if it ever disappeared.
 >
 > Stack, for the curious: Tauri 2 (Rust shell, not Electron), React and TypeScript on the front, CodeMirror 6 for the editor, SQLite for the index, FlexSearch for search. Installers are signed on Windows and notarized on Mac, and there's a Linux build.
 >

@@ -1,9 +1,9 @@
-# Local AI for Keepance: Research, Decision, and Implementation Plan
+# Local AI for Advisor Prep Hero: Research, Decision, and Implementation Plan
 
 **Date:** 2026-06-25
 **Author:** Claude (senior staff engineer / lead technical research), for Jameson
 **Status:** DECISION — approved by Jameson 2026-06-25 ("go with all recommendations"). Build is GREEN; production ship to paying customers still gated on Jameson's explicit go (per the no-autonomous-deploy rule).
-**Cross-checks:** Independent OpenAI Codex review (model picks + engine call) + a fact-checked multi-source web study (24 sources, 103 claims, top 25 adversarially verified, 23 confirmed) + a full read of the Keepance codebase.
+**Cross-checks:** Independent OpenAI Codex review (model picks + engine call) + a fact-checked multi-source web study (24 sources, 103 claims, top 25 adversarially verified, 23 confirmed) + a full read of the Advisor Prep Hero codebase.
 **Supersedes:** the inconsistent current guidance (app defaults to `llama3.2:3b`; `website/local-model-setup/index.html` recommends `llama3.1:8b`). After this lands, both should speak one story.
 
 ---
@@ -14,14 +14,14 @@
 - **"Trust-brand" alternative → IBM Granite 3.x Instruct** (Apache-2.0, US enterprise brand, purpose-built for cited RAG). Bigger/slower (8B-class, ~4.9 GB). Offered as a one-click "prefer a US enterprise model" switch for advisors who react to model provenance.
 - **"Sharper but slower" option → Qwen2.5-7B-Instruct** (Apache-2.0, best small-model table handling). **"Fast / old-laptop" floor → Llama 3.2 3B** (our current default, demoted).
 - **AVOID for grounded answers:** Phi-4-mini (clean MIT license but ~23.5% hallucination — ~4× our pick) and Llama-3.1-8B (~28% hallucination, worst tested).
-- **Delivery → EMBED `llama.cpp` (MIT) directly in Keepance.** One-click local AI, no separate Ollama install. Keep "connect my own Ollama" as an advanced setting. Model ships as a visible, resumable, integrity-checked first-run download (reuse the e5-small `model_download.rs` pattern).
+- **Delivery → EMBED `llama.cpp` (MIT) directly in Advisor Prep Hero.** One-click local AI, no separate Ollama install. Keep "connect my own Ollama" as an advanced setting. Model ships as a visible, resumable, integrity-checked first-run download (reuse the e5-small `model_download.rs` pattern).
 - **Honest limits:** local is meaningfully worse than cloud at grounded faithfulness (2–4× more hallucination; 12–23 pt gap on faithfulness benchmarks). RAG reduces but never eliminates it. Spreadsheet/number reasoning is the weakest area for *every* model (even Claude 3.5 Sonnet tops out ~77% on a real spreadsheet benchmark). Design around these; don't pretend them away.
 
 ---
 
 ## 1. The job the local model actually has to do
 
-Keepance's local RAG pipeline already does the hard part with **no LLM brainpower**:
+Advisor Prep Hero's local RAG pipeline already does the hard part with **no LLM brainpower**:
 
 1. The Rust backend (`src-tauri/src/commands/rag/`) embeds every file (PDF via PDF.js + OCR, Word/Excel/PowerPoint natively) with **fastembed / multilingual-e5-small** (384-dim, CPU ONNX) into **LanceDB** at `<workspace>/.keepance/vectors/`.
 2. On a query, it retrieves the **top 8 chunks** (`DEFAULT_WORKSPACE_TOP_K = 8`, `src/platform/rag/workspaceCommand.ts:39`), ~384 tokens each → roughly **3,000–6,000 tokens** of context after the envelope/history.
@@ -79,7 +79,7 @@ Faithfulness varies enormously **at the same size**, proving size isn't the leve
 
 ---
 
-## 4. Model comparison (scored for Keepance's job)
+## 4. Model comparison (scored for Advisor Prep Hero's job)
 
 | Model | Maker | Size (Q4) | RAM | CPU speed | Faithfulness (for size) | Tables | Bundleable? | Verdict |
 |---|---|---|---|---|---|---|---|---|
@@ -120,8 +120,8 @@ Qwen is made by Alibaba (China). **Technically a non-issue**: once embedded, the
 **Decision:** embed `llama.cpp` as the default local experience; keep "connect my own Ollama server" as an advanced option for power users.
 
 **Engine integration design (Codex spike, 2026-06-25 — resolved):** ship llama.cpp's `llama-server` as a **bundled sidecar binary**, NOT Rust-linked bindings (`llama-cpp-2`).
-- *Why sidecar:* matches the existing Piper sidecar pattern (`tauri.conf.json` `externalBin`, `src-tauri/src/sidecars/`); crash-isolated (a model crash kills only the helper, not Keepance); uses llama.cpp's OpenAI-compatible HTTP API (streaming + JSON mode + chat templates for free); far less Windows/macOS C++/bindgen build risk; easier to sign/notarize as a separate binary. Rust-linked bindings were rejected for v1 (build fragility + crashes could take down the whole app).
-- *Wiring:* the frontend does **not** call the sidecar directly. A new frontend provider `keepance-local` ("Keepance Local AI") implements the existing `Provider` interface but calls Rust/Tauri commands (`local_llm_chat`, `local_llm_chat_stream`, `local_llm_cancel`, `local_llm_model_status`, `local_llm_model_ensure`); Rust spawns/health-checks `llama-server` on `127.0.0.1`, started with `--ctx-size 16384 --parallel 1`, and relays tokens. This keeps the local-only egress guards, streaming, citations, and download state on one controlled path.
+- *Why sidecar:* matches the existing Piper sidecar pattern (`tauri.conf.json` `externalBin`, `src-tauri/src/sidecars/`); crash-isolated (a model crash kills only the helper, not Advisor Prep Hero); uses llama.cpp's OpenAI-compatible HTTP API (streaming + JSON mode + chat templates for free); far less Windows/macOS C++/bindgen build risk; easier to sign/notarize as a separate binary. Rust-linked bindings were rejected for v1 (build fragility + crashes could take down the whole app).
+- *Wiring:* the frontend does **not** call the sidecar directly. A new frontend provider `keepance-local` ("Advisor Prep Hero Local AI") implements the existing `Provider` interface but calls Rust/Tauri commands (`local_llm_chat`, `local_llm_chat_stream`, `local_llm_cancel`, `local_llm_model_status`, `local_llm_model_ensure`); Rust spawns/health-checks `llama-server` on `127.0.0.1`, started with `--ctx-size 16384 --parallel 1`, and relays tokens. This keeps the local-only egress guards, streaming, citations, and download state on one controlled path.
 - *Model:* `bartowski/Qwen_Qwen3-4B-Instruct-2507-GGUF` → `Qwen3-4B-Instruct-2507-Q4_K_M.gguf` (~2.5 GB), downloaded on first use into `<app data>/models/qwen3-4b-instruct-2507/` via a new `src-tauri/src/commands/local_llm/` module reusing `model_download.rs` patterns (resumable `.part`, single-download guard, disk-space check, pinned HF revision, expected size + **SHA-256** verify, atomic rename). **Not** bundled in the installer; only the `llama-server` binary is bundled.
 - *Build/release gotchas:* one sidecar binary per target triple; macOS notarization must sign it; Windows builds have broken before (test on the Legion); CI needs lightweight sidecar stubs (like Piper) so cargo tests pass; lazy-start the engine only when local AI is first used, never on app launch.
 
@@ -150,9 +150,9 @@ Core-app rule: **no shortcuts, robust over minimal, TDD, real verification, no a
 - ✅ **Model + license confirmed.** Qwen3-4B-Instruct-2507 = Apache-2.0 (verified), 4.0B params, 262K ctx. Default = Qwen; IBM Granite = US trust-brand alternative.
 - ✅ **Engine design resolved** (Codex spike): `llama-server` sidecar behind Rust commands + a `keepance-local` provider (see §6).
 - ✅ **Ollama `num_ctx` truncation bug fixed** (the advanced path). `OllamaProvider` now always sets `num_ctx = min(16384, model max)` (new `OLLAMA_WORKING_CONTEXT_WINDOW`); `context-limits.ts` gained correct windows for the shortlist models (llama3.2/qwen3/qwen2.5/granite3.x/gemma3). Unit-tested + typecheck clean.
-- ✅ **Ticket 1 — provider identity.** `keepance-local` ("Keepance Local AI") wired through the provider/privacy layer as a LOCAL provider (factory, egress, local-only guard).
+- ✅ **Ticket 1 — provider identity.** `keepance-local` ("Advisor Prep Hero Local AI") wired through the provider/privacy layer as a LOCAL provider (factory, egress, local-only guard).
 - ✅ **Tickets 2-3 — sidecar + downloader (Rust).** `LlamaServerSidecar` (lazy, `--ctx-size 16384`, health checks, hidden console, log capture) + `local_llm` first-run GGUF downloader (pinned HF revision, `.part` resume, SHA-256 verify, disk-space guard, atomic rename). `cargo test --lib llama_server` (8) + `local_llm` (9) green.
-- ✅ **Tickets 4-5 — KeepanceLocalProvider (the chat path).** Provider implements chat / streaming / structuredOutput, lazily starts the sidecar via the Rust command, and streams from its local OpenAI-compatible endpoint; wired into `createProvider`. 446 unit tests + typecheck + ESLint gate green.
+- ✅ **Tickets 4-5 — Advisor Prep HeroLocalProvider (the chat path).** Provider implements chat / streaming / structuredOutput, lazily starts the sidecar via the Rust command, and streams from its local OpenAI-compatible endpoint; wired into `createProvider`. 446 unit tests + typecheck + ESLint gate green.
 - 🔧 **Design revision (2026-06-25):** chose **frontend-direct chat** (provider → `127.0.0.1` sidecar over the CSP-allowed localhost port, reusing the proven Ollama streaming pattern) over the Codex-spiked "Rust IPC bridge". Rust still owns the sidecar LIFECYCLE (start/stop/health) and the model download; only the chat HTTP is frontend-direct — less new code, consistent with the existing local provider. This folds the original "Ticket 4 (Rust chat bridge)" into Ticket 5.
 - **All built on branch `feature/local-ai-build` (an isolated worktree), based on `feature/local-model`.**
 
@@ -164,8 +164,8 @@ Core-app rule: **no shortcuts, robust over minimal, TDD, real verification, no a
 | 2 | ✅ **DONE** Sidecar plumbing (`llama_server.rs`) | med | `cargo test` (8) |
 | 3 | ✅ **DONE** Model manifest + downloader (`local_llm/`) | med | `cargo test` (9) |
 | 4 | ✅ **DONE — folded into 5** (chose frontend-direct chat, not a Rust IPC bridge) | — | n/a |
-| 5 | ✅ **DONE** `KeepanceLocalProvider.ts` (chat / streaming / structuredOutput) | med | 446 unit + gate green |
-| 6 | **PART 1 DONE** (gate green + Codex-reviewed): `keepance-local` is a selectable provider (shown FIRST in the chat model picker once downloaded), an opt-in "Download Keepance Local AI" control in Settings → AI + an app-wide progress banner (never auto-downloads the 2.4 GB model), and provider construction in both chat send paths. **REMAINING:** onboarding rework (make it the primary local path) + Ollama → Advanced + reconcile `website/local-model-setup`. | low | gate + site deploy |
+| 5 | ✅ **DONE** `Advisor Prep HeroLocalProvider.ts` (chat / streaming / structuredOutput) | med | 446 unit + gate green |
+| 6 | **PART 1 DONE** (gate green + Codex-reviewed): `keepance-local` is a selectable provider (shown FIRST in the chat model picker once downloaded), an opt-in "Download Advisor Prep Hero Local AI" control in Settings → AI + an app-wide progress banner (never auto-downloads the 2.4 GB model), and provider construction in both chat send paths. **REMAINING:** onboarding rework (make it the primary local path) + Ollama → Advanced + reconcile `website/local-model-setup`. | low | gate + site deploy |
 | 7 | ✅ **DONE (covered)** Context sizing — Ollama `num_ctx` + embedded `--ctx-size 16384` (build_args test) + provider metadata reports the true 16K window | low | unit tests |
 | 8 | **Spreadsheet path** — deterministic Excel extraction/compute → feed computed facts to the model | med | tests + demo-sheet bench |
 | 9 | ✅ **DONE** Cited-answer test path — a repeatable Windows in-app E2E driver (`scripts/local-ai-win-e2e.mjs`, Playwright-over-CDP) that verifies the embedded local AI's cited answer end-to-end (§8.2). A tauri-driver harness spec (Mac bench) is a clean follow-up. | med | bench green |
@@ -192,12 +192,12 @@ The highest-uncertainty questions from §5/Appendix A ("does the real binary run
 
 ### 8.2 In-app end-to-end bench (2026-06-25, Legion Windows laptop) — Tickets 9 + 11
 
-§8.1 retired the engine/model risk with the raw binary. This is the full **in-app** proof: a real Windows build of Keepance (Tauri/WebView2), the embedded sidecar resolved + the model staged, driven over the Chrome DevTools Protocol exactly as a user would click. Repeatable driver: `scripts/local-ai-win-e2e.mjs`. It seeds a real on-disk advisor file (the Chen IPS: equity target 55%, plus or minus 5pp drift band) plus an Alvarez decoy at 70%, then runs the shipped path end-to-end.
+§8.1 retired the engine/model risk with the raw binary. This is the full **in-app** proof: a real Windows build of Advisor Prep Hero (Tauri/WebView2), the embedded sidecar resolved + the model staged, driven over the Chrome DevTools Protocol exactly as a user would click. Repeatable driver: `scripts/local-ai-win-e2e.mjs`. It seeds a real on-disk advisor file (the Chen IPS: equity target 55%, plus or minus 5pp drift band) plus an Alvarez decoy at 70%, then runs the shipped path end-to-end.
 
 | Check | Result |
 |---|---|
-| **Model ready via the in-app control** | `local_llm_model_ensure` (the "Download Keepance Local AI" button's command) returns `ready` (model staged from the §8.1-verified GGUF; SHA-256 re-verified byte-for-byte before use). |
-| **Provider is selectable + first** | Chat bound to `keepance-local`; the picker labels it "Keepance Local AI · qwen3-4b-instruct-2507". |
+| **Model ready via the in-app control** | `local_llm_model_ensure` (the "Download Advisor Prep Hero Local AI" button's command) returns `ready` (model staged from the §8.1-verified GGUF; SHA-256 re-verified byte-for-byte before use). |
+| **Provider is selectable + first** | Chat bound to `keepance-local`; the picker labels it "Advisor Prep Hero Local AI · qwen3-4b-instruct-2507". |
 | **Grounded, cited answer (FREE-GENERATION)** | Asked the Chen household's target equity + drift band. The local model answered **"55% … plus or minus 5 percentage points"** with a **verified** citation chip to `chen-margaret-ips.md`, and **resisted the 70% Alvarez decoy**. The app independently verifies the cited paragraph against the retrieved source, so the green "verified" state cannot be faked. |
 | **Egress shows local (in-chat)** | `egress-indicator`: `destination=local`, `severity=safe`, `dataLeaves=false`, "On your machine. Nothing leaves." |
 | **Zero cloud egress (OS-level)** | The `llama-server` engine listens on **127.0.0.1:18089 only**; `Get-NetTCPConnection` shows **0** non-loopback connections. Same rail as §8.1, now for the in-app sidecar. |
@@ -207,7 +207,7 @@ The highest-uncertainty questions from §5/Appendix A ("does the real binary run
 
 1. **Sidecar DLL bundling gap (the important one — now the core of Ticket 10).** Tauri's `externalBin` copies the engine exe to `target\debug\llama-server.exe` (and a packaged build bundles it as the sidecar), but the ~29 sibling `ggml*/llama*` DLLs the engine needs are **not** bundled. The resolved exe then dies on load with no output. For the bench the DLLs were staged next to the resolved exe; **a shippable installer MUST bundle those DLLs as resources next to the sidecar binary, or the feature crashes on first use.**
 2. **Engine spawn robustness (product fix, `llama_server.rs`).** The sidecar now redirects the engine's stdout/stderr to a log file (`<data-dir>/keepance/logs/llama-server.log`) instead of in-process pipes (a chatty multi-GB load can stall an undrained pipe), raises the health timeout 30 -> 120s (older laptops load slower, per §8.1), and surfaces the child's exit code in errors.
-3. **Privacy-copy mislabel (product fix, `EgressIndicator.tsx` + locales + a regression test).** The in-chat egress note hardcoded "(Ollama)" for any local model; it now names the actual engine ("Keepance Local AI"). (The TrustBar/PrivacyCenter mislabel via `useActiveEgressProvider.ts` remains — folded into Ticket 6 Part 2.)
+3. **Privacy-copy mislabel (product fix, `EgressIndicator.tsx` + locales + a regression test).** The in-chat egress note hardcoded "(Ollama)" for any local model; it now names the actual engine ("Advisor Prep Hero Local AI"). (The TrustBar/PrivacyCenter mislabel via `useActiveEgressProvider.ts` remains — folded into Ticket 6 Part 2.)
 
 **Bench gotchas for next time:** the persistent bench auto-reopens the Northcrest demo workspace and re-indexes its 301 PDFs on launch — that background job destabilizes UI automation, so let it settle (or don't auto-open it) before driving a chat. The bench's 30-day trial has expired (gates AI off); the driver resets `keepance_first_launch_at` to simulate an active trial / licensed user.
 

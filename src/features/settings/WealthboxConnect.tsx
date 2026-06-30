@@ -1,4 +1,4 @@
-/* eslint-disable keepance-i18n/no-hardcoded-string */
+/* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useEffect, useState } from 'react';
 import { isTauri } from '@tauri-apps/api/core';
 import {
@@ -136,7 +136,7 @@ export function WealthboxConnect() {
       // exactly how many records will be written to local encrypted storage.
       const count = households.length;
       const confirmed = await confirm(
-        `Import ${String(count)} household${count === 1 ? '' : 's'} into local encrypted storage on this device? Keepance stores this data locally — it stays on your machine.`,
+        `Import ${String(count)} household${count === 1 ? '' : 's'} into local encrypted storage on this device? Advisor Prep Hero stores this data locally — it stays on your machine.`,
         {
           title: `Import ${String(count)} Wealthbox household${count === 1 ? '' : 's'}`,
           confirmLabel: 'Import',
@@ -329,7 +329,7 @@ export function WealthboxConnect() {
         <h3 className="text-sm font-semibold text-slate-900">Wealthbox</h3>
         <p className="mt-1 text-sm text-slate-600">
           Connect your Wealthbox account to bring client household data into
-          your Client Maps. Requires the Keepance desktop app.
+          your Client Maps. Requires the Advisor Prep Hero desktop app.
         </p>
         <p className="mt-3 text-xs text-slate-400 italic">
           Available in the desktop app only.
@@ -344,7 +344,7 @@ export function WealthboxConnect() {
         <h3 className="text-sm font-semibold text-slate-900">Wealthbox</h3>
         <p className="mt-1 text-sm text-slate-600">
           Connect your Wealthbox account to bring client household data into
-          your Client Maps. Keepance imports what this Wealthbox login can see.
+          your Client Maps. Advisor Prep Hero imports what this Wealthbox login can see.
         </p>
 
         {/* B3: disconnect didn't fully remove the data/key — keep a visible retry

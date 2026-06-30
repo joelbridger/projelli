@@ -11,7 +11,7 @@ In March, [Windsurf killed its credit system](https://windsurf.com/blog/windsurf
 
 In April, [Cursor 3 launched](https://cursor.com/changelog/0-50) with a refreshed UI and an extended pricing structure. Pro at $20 still, Pro+ at $60, Ultra at $200, with each plan including a fixed dollar amount of "API usage credits" ($20 for Pro, $70 for Pro+, $400 for Ultra) on top of the subscription.
 
-I've been watching this market shift for two years now while building [Keepance](https://keepance.com), and I want to talk about what these two pricing moves mean, why they're happening at the same time, and what an attorney, CPA, or independent consultant should actually do about it. This is a follow-on to my earlier piece on [the hidden tokenizer tax](https://keepance.com/blog/claude-opus-47-tokenizer-cost-what-professionals-need-to-know). Some of the same dynamics. New evidence.
+I've been watching this market shift for two years now while building [Advisor Prep Hero](https://keepance.com), and I want to talk about what these two pricing moves mean, why they're happening at the same time, and what an attorney, CPA, or independent consultant should actually do about it. This is a follow-on to my earlier piece on [the hidden tokenizer tax](https://keepance.com/blog/claude-opus-47-tokenizer-cost-what-professionals-need-to-know). Some of the same dynamics. New evidence.
 
 ## What actually changed
 
@@ -45,7 +45,7 @@ For attorneys and CPAs, there's a sharper version of this problem. When you're r
 
 ## The BYOK answer, in 2026 specifics
 
-I built [Keepance](https://keepance.com) on a BYOK model. You bring your own [Anthropic key](https://console.anthropic.com), [OpenAI key](https://platform.openai.com/), or [Google AI key](https://aistudio.google.com/), and the requests go directly to the provider on your account. Keepance doesn't see them. Keepance doesn't take a margin on them. The pricing is transparent on the provider's invoice at the end of the month.
+I built [Advisor Prep Hero](https://keepance.com) on a BYOK model. You bring your own [Anthropic key](https://console.anthropic.com), [OpenAI key](https://platform.openai.com/), or [Google AI key](https://aistudio.google.com/), and the requests go directly to the provider on your account. Advisor Prep Hero doesn't see them. Advisor Prep Hero doesn't take a margin on them. The pricing is transparent on the provider's invoice at the end of the month.
 
 For professionals, this does two things at once. First, the cost transparency: you pay exactly what the provider charges, with no subscription markup. Second, the data chain: client information goes from your machine to Anthropic or OpenAI directly. No intermediary. No additional party in the chain. That's a data architecture you can describe clearly and defend professionally.
 
@@ -61,7 +61,7 @@ If you're a professional paying for AI tools right now, here's the playbook I'd 
 
 **Open an Anthropic and an OpenAI account with $10 in each.** Two console accounts, $20 total. You now have direct billing relationships with the two primary frontier-model providers. You can use them with any BYOK tool.
 
-**Pick one workflow to migrate first.** Not everything at once. One workflow. For most attorneys, that's memo drafting. For most CPAs, it's tax position analysis. Move it to Keepance on BYOK and see what the actual monthly cost looks like against what you were paying the subscription tool. The numbers are usually illuminating.
+**Pick one workflow to migrate first.** Not everything at once. One workflow. For most attorneys, that's memo drafting. For most CPAs, it's tax position analysis. Move it to Advisor Prep Hero on BYOK and see what the actual monthly cost looks like against what you were paying the subscription tool. The numbers are usually illuminating.
 
 **Pick the workflow where flat subscriptions punish heavy use most.** This is usually anything involving long documents or repeated passes on the same material — the kind of work attorneys and CPAs actually do. If you're hitting rate limits on any tool regularly, that workflow on BYOK is going to feel different. Your API key has no rate limit that someone else set for business reasons.
 
@@ -83,4 +83,4 @@ The honest pricing models put all four in front of the user. BYOK does this by d
 
 If you're a professional buying these tools, watch the layers between you and the cost. Each layer is a place where the math can change without you noticing — and for professionals with confidentiality obligations, each layer is also a party that may be touching your client's information.
 
-I'll keep the [Keepance pricing](https://keepance.com/#pricing) consistent with what I argue for: Professional at $149/year (one profession pack, BYOK, no markup on inference), Practice at $499 a year for up to five seats and all four packs. If you're running a different setup and seeing different math, or different compliance considerations, I'd like to hear about it.
+I'll keep the [Advisor Prep Hero pricing](https://keepance.com/#pricing) consistent with what I argue for: Professional at $149/year (one profession pack, BYOK, no markup on inference), Practice at $499 a year for up to five seats and all four packs. If you're running a different setup and seeing different math, or different compliance considerations, I'd like to hear about it.

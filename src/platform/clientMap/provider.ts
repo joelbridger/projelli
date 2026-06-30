@@ -51,7 +51,7 @@ export interface ResolvedClientMapProvider {
 }
 
 /**
- * The on-device provider for the Client Map: the embedded Keepance Local AI
+ * The on-device provider for the Client Map: the embedded Advisor Prep Hero Local AI
  * engine when its model is downloaded + ready, else a user-run Ollama daemon.
  * Delegates to the shared resolver so every surface (Ask / Chat / Client Map /
  * Glance / email / workflows) picks the same on-device engine. Both keep ALL

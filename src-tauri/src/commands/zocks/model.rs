@@ -3,7 +3,7 @@
 //! Zocks does not currently publish confirmed self-serve API docs for this
 //! connector. These structs are deliberately tolerant of missing/null fields
 //! and a few common list-response shapes so mocked fixture tests can prove the
-//! Keepance side without requiring a live Zocks account.
+//! Advisor Prep Hero side without requiring a live Zocks account.
 
 fn null_to_default<'de, D, T>(d: D) -> Result<T, D::Error>
 where

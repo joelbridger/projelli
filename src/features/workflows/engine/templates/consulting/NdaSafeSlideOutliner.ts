@@ -131,7 +131,7 @@ Every slide outline below is designed to convey the key messages without disclos
 
 ---
 
-After the Markdown outline above, output a JSON code block with the following exact format. This powers the one-click "Download structured deck" export in Keepance.
+After the Markdown outline above, output a JSON code block with the following exact format. This powers the one-click "Download structured deck" export in Advisor Prep Hero.
 
 \`\`\`json
 [

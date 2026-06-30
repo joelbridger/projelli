@@ -4,14 +4,14 @@
 // instantiate the right Provider from a `(provider, model, apiKey)` triple.
 // This centralizes that switch so the two surfaces can't drift on construction.
 // BYOK is honored exactly as the rest of the app does it: the key is the user's
-// own, and each provider talks DIRECTLY to its vendor API (no Keepance server).
+// own, and each provider talks DIRECTLY to its vendor API (no Advisor Prep Hero server).
 
 import type { Provider } from './Provider';
 import { ClaudeProvider } from './ClaudeProvider';
 import { OpenAIProvider } from './OpenAIProvider';
 import { GeminiProvider } from './GeminiProvider';
 import { OllamaProvider, OLLAMA_DEFAULT_MODEL } from './OllamaProvider';
-import { KeepanceLocalProvider, KEEPANCE_LOCAL_DEFAULT_MODEL } from './KeepanceLocalProvider';
+import { AppLocalProvider, KEEPANCE_LOCAL_DEFAULT_MODEL } from './AppLocalProvider';
 import {
   getDefaultModelForTier,
   type Provider as CloudProviderId,
@@ -31,14 +31,14 @@ import type { AssuredRoute } from '@/platform/firm/assuredInference';
  */
 export type ChatProviderId = CloudProviderId | 'ollama' | 'keepance-local'; // 'anthropic' | 'openai' | 'google' | 'ollama' | 'keepance-local'
 
-/** Default model for the embedded Keepance Local AI engine — defined in
- *  KeepanceLocalProvider and re-exported here so factory callers/tests can
+/** Default model for the embedded Advisor Prep Hero Local AI engine — defined in
+ *  AppLocalProvider and re-exported here so factory callers/tests can
  *  import it from one place (mirrors OLLAMA_DEFAULT_MODEL). */
 export { KEEPANCE_LOCAL_DEFAULT_MODEL };
 
 /**
  * True when a provider id denotes a LOCAL (on-machine) model — either the
- * embedded Keepance Local AI engine (`'keepance-local'`) or a user-run Ollama
+ * embedded Advisor Prep Hero Local AI engine (`'keepance-local'`) or a user-run Ollama
  * daemon (`'ollama'`). Both run inference on the user's machine; nothing leaves.
  */
 export function isLocalProviderId(provider: ChatProviderId): boolean {
@@ -86,11 +86,11 @@ export function createProvider(opts: CreateProviderOptions): Provider {
       return new OllamaProvider({ model, ...rulesOpt });
     }
     case 'keepance-local': {
-      // Embedded llama.cpp engine ("Keepance Local AI"). Local, keyless, $0,
+      // Embedded llama.cpp engine ("Advisor Prep Hero Local AI"). Local, keyless, $0,
       // never assured-routed. The Rust side owns the model download + sidecar
       // lifecycle; the provider streams from the local sidecar endpoint.
       const model = opts.model ?? KEEPANCE_LOCAL_DEFAULT_MODEL;
-      return new KeepanceLocalProvider({ model, ...rulesOpt });
+      return new AppLocalProvider({ model, ...rulesOpt });
     }
     case 'openai': {
       const model = opts.model ?? getDefaultModelForTier('openai', 'free');

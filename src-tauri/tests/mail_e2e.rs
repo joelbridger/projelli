@@ -12,10 +12,10 @@
 // smoke validates the OAuth + Graph + parse path that can only be exercised
 // against a real mailbox.
 
-use keepance_lib::commands::mail::graph::GraphClient;
-use keepance_lib::commands::mail::model::MailMessage;
-use keepance_lib::commands::mail::normalize::to_markdown;
-use keepance_lib::commands::mail::oauth::{OAuth, TokenOutcome};
+use lantern_lib::commands::mail::graph::GraphClient;
+use lantern_lib::commands::mail::model::MailMessage;
+use lantern_lib::commands::mail::normalize::to_markdown;
+use lantern_lib::commands::mail::oauth::{OAuth, TokenOutcome};
 
 const CLIENT_ID: &str = "845ddba0-70ab-4f90-88ba-e3522157e37a";
 

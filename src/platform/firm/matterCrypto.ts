@@ -2,7 +2,7 @@
  * matterCrypto — the per-matter content encryption the relay never sees.
  *
  * Each shared (firm) matter has a symmetric AES-256-GCM content key held in the
- * OS keychain (`com.keepance.matter.<id>`, see firmKeychain). Every Yjs update
+ * OS keychain (`com.lantern.matter.<id>`, see firmKeychain). Every Yjs update
  * (a `Uint8Array`) is sealed with this key before it is base64-encoded and
  * POSTed to the relay; incoming relay blobs are decrypted back to a Yjs update
  * and applied. The relay stores OPAQUE ciphertext only and never holds the key.

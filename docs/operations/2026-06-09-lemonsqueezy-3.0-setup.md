@@ -1,9 +1,9 @@
-# LemonSqueezy setup for Keepance 3.0 - Jameson's hands (NOT executed)
+# LemonSqueezy setup for Advisor Prep Hero 3.0 - Jameson's hands (NOT executed)
 
 > **This is a checklist, not a change.** Nothing here has been done. The live
 > LemonSqueezy store and the live v2.5 buy buttons are untouched. This document
 > is the exact set of products, variants, prices, and the founding coupon to
-> create in LemonSqueezy when Keepance 3.0 launches.
+> create in LemonSqueezy when Advisor Prep Hero 3.0 launches.
 >
 > **Source of truth for every number:** the ratified recommendation in
 > `docs/strategy/2026-06-09-keepance-3.0-pricing.md` and the canonical app config
@@ -18,7 +18,7 @@
 
 ## The model to build
 
-Keepance 3.0 is **per-seat annual subscription** with a month-to-month option at
+Advisor Prep Hero 3.0 is **per-seat annual subscription** with a month-to-month option at
 roughly a 25-30% premium. Three tiers. The wire/license tier CODE is in
 parentheses (the backend + app already speak these codes - the LemonSqueezy
 variant maps to the code, the human sees the display name).
@@ -60,7 +60,7 @@ moving parts to test on day one.
 ## Step 2 - Solo ($468/year subscription) - wire code `personal`
 
 Products → New Product → **Subscription** → billing interval **Yearly** → price
-**$468**. Name **Keepance Solo**.
+**$468**. Name **Advisor Prep Hero Solo**.
 Short description: "The complete confidential workspace for a single attorney:
 the Word-native editor, AI redlining, confidential matter-scoped cited recall,
 privilege controls, local or your own AI key. Per seat, billed annually."
@@ -70,7 +70,7 @@ privilege controls, local or your own AI key. Per seat, billed annually."
 ## Step 3 - Professional ($948/year subscription) - wire code `professional`
 
 Products → New Product → **Subscription** → billing interval **Yearly** → price
-**$948**. Name **Keepance Professional**. Mark as the featured / most-popular product.
+**$948**. Name **Advisor Prep Hero Professional**. Mark as the featured / most-popular product.
 Short description: "Everything in Solo, plus the litigation associate (deposition
 contradiction-finder, timelines, discovery triage, privilege-log drafter), version
 history, all practice packs, and priority support. Per seat, billed annually."
@@ -80,7 +80,7 @@ history, all practice packs, and priority support. Per seat, billed annually."
 ## Step 4 - Firm ($1,548/seat/year subscription, min 3 seats) - wire code `practice`
 
 Products → New Product → **Subscription** → billing interval **Yearly** → price
-**$1,548**. Name **Keepance Firm**.
+**$1,548**. Name **Advisor Prep Hero Firm**.
 Set the **minimum quantity to 3** (LemonSqueezy: enable per-seat / quantity on
 the variant and set a minimum of 3). Firm is sold by the seat with a 3-seat floor.
 Short description: "Everything in Professional, plus shared matters and

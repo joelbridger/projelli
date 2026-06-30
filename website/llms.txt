@@ -1,22 +1,22 @@
-# Keepance
+# Advisor Prep Hero
 
 > The private intelligence layer for a financial advisory practice. Find anything you have ever emailed or filed, instantly and privately, with cited answers. Draft and redline in real Word with tracked changes. An analysis assistant that reads a client's whole file and flags what needs your attention. Everything stays on the advisor's machine, confidential by architecture.
 
-## What Keepance is
+## What Advisor Prep Hero is
 
-Keepance is a desktop application (Windows, macOS, Linux) that is the private place an advisor's whole practice lives and answers back. It imports and privately indexes email, documents, prior client files, and account statements; answers plain-English questions over all of it with a clickable citation on every answer; runs an analysis assistant (open-item finder, review-timeline builder, annual-review packet drafter, meeting-prep and suitability notes); and drafts, edits, and redlines real Word and PDF files with tracked changes intact. Built with Tauri 2 + React + TypeScript.
+Advisor Prep Hero is a desktop application (Windows, macOS, Linux) that is the private place an advisor's whole practice lives and answers back. It imports and privately indexes email, documents, prior client files, and account statements; answers plain-English questions over all of it with a clickable citation on every answer; runs an analysis assistant (open-item finder, review-timeline builder, annual-review packet drafter, meeting-prep and suitability notes); and drafts, edits, and redlines real Word and PDF files with tracked changes intact. Built with Tauri 2 + React + TypeScript.
 
 The advisor never sees Markdown. Documents they read, edit, and ship are real Word and PDF on their own letterhead. Any plain-text layer is an invisible internal detail, never the deliverable.
 
-Unlike cloud AI assistants (Microsoft 365 Copilot, ChatGPT, Claude.ai, Gemini), Keepance keeps client data on the user's machine. The user picks how private each client is: a local model (nothing leaves the machine), bring-your-own-key direct to the provider (the prompt goes straight to Anthropic, OpenAI, or Google, never through Keepance servers), or, for firms, an assured zero-retention deployment (a signed DPA and SOC 2 are on the roadmap, not yet in place).
+Unlike cloud AI assistants (Microsoft 365 Copilot, ChatGPT, Claude.ai, Gemini), Advisor Prep Hero keeps client data on the user's machine. The user picks how private each client is: a local model (nothing leaves the machine), bring-your-own-key direct to the provider (the prompt goes straight to Anthropic, OpenAI, or Google, never through Advisor Prep Hero servers), or, for firms, an assured zero-retention deployment (a signed DPA and SOC 2 are on the roadmap, not yet in place).
 
-## Who Keepance is for
+## Who Advisor Prep Hero is for
 
-The center of gravity is solo and small/mid-size RIA and financial-advisory practices. The on-ramp is the confidentiality-anxious solo advisor. Keepance lands with the solo advisor and grows into the firm.
+The center of gravity is solo and small/mid-size RIA and financial-advisory practices. The on-ramp is the confidentiality-anxious solo advisor. Advisor Prep Hero lands with the solo advisor and grows into the firm.
 
 The same private architecture serves adjacent professions bound by confidentiality: tax preparers and CPAs, independent consultants and agencies, and law firms. Advisors are the focus; these are adjacent markets the same engine serves.
 
-Keepance is not a general productivity tool, not a Notion or Obsidian competitor, not a CRM replacement (it sits beside Wealthbox or Redtail), and not a custodian or financial-planning-software substitute (it sits beside eMoney or MoneyGuidePro).
+Advisor Prep Hero is not a general productivity tool, not a Notion or Obsidian competitor, not a CRM replacement (it sits beside Wealthbox or Redtail), and not a custodian or financial-planning-software substitute (it sits beside eMoney or MoneyGuidePro).
 
 ## The differentiators (the message pillars)
 
@@ -24,7 +24,7 @@ Keepance is not a general productivity tool, not a Notion or Obsidian competitor
 2. **The analysis assistant**: it reads a household's whole file and flags what needs attention. Surfaces open items and mismatches across statements, forms, and emails; builds the review timeline; drafts the annual-review packet and meeting-prep and suitability notes. It proposes, the advisor decides, and every flag is pinned to a source.
 3. **Real deliverables, Office-native**: import, generate, edit, and redline real Word and PDF on the advisor's letterhead, with tracked changes, comments, styles, numbering, and tables intact. The AI operates on the real document structure, not a flattened copy.
 4. **The trust and confidentiality layer**: the confidentiality spectrum (local, BYOK, assured), an egress indicator on every action, a one-screen plain-English data map, encryption at rest, an audit and provenance trail, and confidentiality tagging.
-5. **Honesty as the brand**: the whole truth about where data goes, told first. With a cloud key, the provider sees the prompt; Keepance says so plainly. Only a local model means nothing leaves the machine.
+5. **Honesty as the brand**: the whole truth about where data goes, told first. With a cloud key, the provider sees the prompt; Advisor Prep Hero says so plainly. Only a local model means nothing leaves the machine.
 
 ## Pricing
 
@@ -38,20 +38,20 @@ Per seat, billed annually (headline price); month-to-month available at roughly 
 
 Founding rate: the first cohort locks a 30 percent discount for the life of the subscription (Solo $27/mo, Professional $55/mo, Firm $90/seat/mo).
 
-**BYOK and total cost**: the user brings their own AI key and pays the provider directly, usually $5 to $15 a month for a solo. Keepance takes zero markup on AI usage. Run a local model with Ollama and pay nothing for AI. The subscription covers the platform, not the AI tokens.
+**BYOK and total cost**: the user brings their own AI key and pays the provider directly, usually $5 to $15 a month for a solo. Advisor Prep Hero takes zero markup on AI usage. Run a local model with Ollama and pay nothing for AI. The subscription covers the platform, not the AI tokens.
 
 **Data ownership guarantee**: your files are always yours. They are real Word and PDF files in your own folders. If you ever cancel, you keep every document, email, and client file you have made. A lapsed subscription turns off the AI features and updates, not your data.
 
-**Grandfathering**: anyone who bought the old one-time Personal, Professional, or Practice license keeps exactly what they paid for. Keepance 3.0 is a new, repositioned product at new pricing, and never claws back what a buyer already owns.
+**Grandfathering**: anyone who bought the old one-time Personal, Professional, or Practice license keeps exactly what they paid for. Advisor Prep Hero 3.0 is a new, repositioned product at new pricing, and never claws back what a buyer already owns.
 
 Sold via LemonSqueezy (merchant of record handles VAT, tax, refunds).
 
-## Where Keepance sits versus competitors
+## Where Advisor Prep Hero sits versus competitors
 
-- **Jump / Zocks (AI meeting notes)**: about $75 to $175/advisor/mo. A different job (meeting capture and CRM sync); Keepance is the private layer for confidential drafting and analysis, not a meeting-notes tool.
-- **eMoney / MoneyGuidePro AI (bundled)**: bundled into the planning suite. Runs in the vendor cloud; Keepance keeps client data on the advisor's machine.
-- **ChatGPT (free / Plus)**: $0 to $20/mo. Generic and cloud-only; with Keepance on a local model no client data leaves the machine.
-- **Microsoft 365 Copilot**: $21 to $30/mo add-on (needs base M365). Keepance Solo is at or above, with advisor-specific depth, no required base subscription, and the one thing Copilot structurally cannot offer: the document and the AI both stay private.
+- **Jump / Zocks (AI meeting notes)**: about $75 to $175/advisor/mo. A different job (meeting capture and CRM sync); Advisor Prep Hero is the private layer for confidential drafting and analysis, not a meeting-notes tool.
+- **eMoney / MoneyGuidePro AI (bundled)**: bundled into the planning suite. Runs in the vendor cloud; Advisor Prep Hero keeps client data on the advisor's machine.
+- **ChatGPT (free / Plus)**: $0 to $20/mo. Generic and cloud-only; with Advisor Prep Hero on a local model no client data leaves the machine.
+- **Microsoft 365 Copilot**: $21 to $30/mo add-on (needs base M365). Advisor Prep Hero Solo is at or above, with advisor-specific depth, no required base subscription, and the one thing Copilot structurally cannot offer: the document and the AI both stay private.
 
 The story: a fraction of the cost of cloud advisor tools, and the only one where your client files never leave your control. (Pricing references are from the providers' published rates as of June 2026 and are for comparison only.)
 
@@ -78,7 +78,7 @@ Auto-updates land via GitHub Releases with minisign-signed update bundles.
 - AI keys stored in the OS keychain (macOS), encrypted file fallback elsewhere
 - Email and documents encrypted at rest on the user's machine
 - An egress indicator shows where each action goes ("your machine only" or "Anthropic, directly from you")
-- With a local model, nothing leaves the machine; with a cloud key, the prompt goes directly to that provider and never through Keepance
+- With a local model, nothing leaves the machine; with a cloud key, the prompt goes directly to that provider and never through Advisor Prep Hero
 - See https://keepance.com/legal/privacy for the full Privacy Policy and https://keepance.com/security for data handling
 
 ## Documentation

@@ -1,4 +1,4 @@
-/* eslint-disable keepance-i18n/no-hardcoded-string */
+/* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useEffect, useState } from 'react';
 import { LineChart, X } from 'lucide-react';
 import { OPEN_ADDEPAR_EVENT } from '@/platform/clientMap/openSource';
@@ -53,7 +53,7 @@ export function AddeparSourcePanel() {
           </blockquote>
         )}
         <p className="text-xs text-slate-400">
-          Keepance imported this citation from Addepar as read-only text. Full portfolio detail is a fast-follow.
+          Advisor Prep Hero imported this citation from Addepar as read-only text. Full portfolio detail is a fast-follow.
         </p>
       </div>
     </div>

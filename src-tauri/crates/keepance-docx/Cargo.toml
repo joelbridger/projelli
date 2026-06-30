@@ -1,5 +1,5 @@
 [package]
-name = "keepance-docx"
+name = "lantern-docx"
 version = "0.1.0"
 edition = "2021"
 description = "In-house OOXML (.docx) document engine for Keepance 3.0: parse/serialize/package with track-changes, comments, and preserve-by-default fidelity. No proprietary document SDK, no external service."

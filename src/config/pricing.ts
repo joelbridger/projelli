@@ -1,5 +1,5 @@
 /**
- * pricing.ts - the ONE canonical source of truth for Keepance 3.0 pricing.
+ * pricing.ts - the ONE canonical source of truth for Advisor Prep Hero 3.0 pricing.
  *
  * Every surface that shows a price, a tier name, a feature list, the BYOK
  * framing, the data-ownership guarantee, or the competitor context reads from
@@ -17,7 +17,7 @@
  * codes on the wire. We do NOT refactor them - a license minted today must keep
  * validating.
  *
- * Keepance 3.0 gives those same three codes new DISPLAY names + new prices:
+ * Advisor Prep Hero 3.0 gives those same three codes new DISPLAY names + new prices:
  *     code 'personal'      -> display "Solo"
  *     code 'professional'  -> display "Professional"
  *     code 'practice'      -> display "Firm"
@@ -209,22 +209,22 @@ export const COMPETITOR_CONTEXT = {
     {
       product: 'Jump / Zocks (AI meeting notes)',
       price: 'about $75 to $175/advisor/mo',
-      position: 'A different job (meeting capture and CRM sync); Keepance is the private layer for confidential drafting and analysis',
+      position: 'A different job (meeting capture and CRM sync); Advisor Prep Hero is the private layer for confidential drafting and analysis',
     },
     {
       product: 'eMoney / MoneyGuidePro AI (bundled)',
       price: 'bundled into the planning suite',
-      position: 'A planning-tool add-on that runs in the vendor cloud; Keepance keeps client data on your machine',
+      position: 'A planning-tool add-on that runs in the vendor cloud; Advisor Prep Hero keeps client data on your machine',
     },
     {
       product: 'ChatGPT (free / Plus)',
       price: '$0 to $20/mo',
-      position: 'Generic and cloud-only; with Keepance on a local model no client data leaves your machine',
+      position: 'Generic and cloud-only; with Advisor Prep Hero on a local model no client data leaves your machine',
     },
     {
       product: 'Microsoft 365 Copilot',
       price: '$21 to $30/mo add-on (needs base M365)',
-      position: 'Keepance Solo is at or above, with advisor-specific depth and no required base subscription',
+      position: 'Advisor Prep Hero Solo is at or above, with advisor-specific depth and no required base subscription',
     },
   ],
 } as const;
@@ -235,7 +235,7 @@ export const COMPETITOR_CONTEXT = {
  */
 export const GRANDFATHER_POLICY = {
   blurb:
-    'Bought the old one-time Personal, Professional, or Practice license? You keep exactly what you paid for, in good faith. Keepance 3.0 is a new, repositioned product at new pricing, and we never claw back what you already own.',
+    'Bought the old one-time Personal, Professional, or Practice license? You keep exactly what you paid for, in good faith. Advisor Prep Hero 3.0 is a new, repositioned product at new pricing, and we never claw back what you already own.',
 } as const;
 
 /** Convenience: format a per-seat annual price like "$39/mo ($468/yr)". */

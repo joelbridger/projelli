@@ -2,11 +2,11 @@
 
 **Why this exists.** The single biggest conversion blocker right now is **zero social proof**. Our ICP (solo attorneys, CPAs, independent consultants) is the most risk-averse buyer alive, and nobody wants to be the first stranger to put privileged work into an unknown tool. One real customer breaks that wall; **2-3 named testimonials unlock the loud launch** (Ambrogi / Above the Law / Product Hunt). This program is how we manufacture that proof deliberately instead of waiting for it.
 
-This is the companion to the first-dollar sprint (`../2026-06-first-dollar/`). First-dollar is about *a sale*. This is about *a named reference* who actually uses Keepance for real work. They overlap, and that's the point: the first buyers are the best design-partner pool.
+This is the companion to the first-dollar sprint (`../2026-06-first-dollar/`). First-dollar is about *a sale*. This is about *a named reference* who actually uses Advisor Prep Hero for real work. They overlap, and that's the point: the first buyers are the best design-partner pool.
 
 ## The program in one paragraph
 
-Recruit **5-8 design partners** who do exactly the work Keepance is for. Give them the full app free (a comped license), a direct line to the founder, and real influence over what ships. In return, ask for two things: they actually use it on real work for a few weeks, and if it's genuinely useful, a short testimonial we can attribute by name and role. No money changes hands. The deal is access + influence for honest use + (if earned) a public reference.
+Recruit **5-8 design partners** who do exactly the work Advisor Prep Hero is for. Give them the full app free (a comped license), a direct line to the founder, and real influence over what ships. In return, ask for two things: they actually use it on real work for a few weeks, and if it's genuinely useful, a short testimonial we can attribute by name and role. No money changes hands. The deal is access + influence for honest use + (if earned) a public reference.
 
 ## Who to target (in priority order)
 

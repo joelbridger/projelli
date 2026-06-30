@@ -4,6 +4,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import type { CustomCategoryTemplate } from './types';
 import { buildCustomSection } from './customSection';
 import { useClientMapStore } from './clientMapStore';
+import { SK_CLIENT_MAP_TEMPLATES } from '@/config/identity';
 
 interface TemplatesState {
   templates: Record<string, CustomCategoryTemplate>;
@@ -37,7 +38,7 @@ export const useTemplatesStore = create<TemplatesState>()(
       listTemplates: () => Object.values(get().templates),
     }),
     {
-      name: 'keepance:client-map-templates',
+      name: SK_CLIENT_MAP_TEMPLATES,
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({ templates: state.templates }),
     },

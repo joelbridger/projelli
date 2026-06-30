@@ -35,11 +35,11 @@
   </p>
 
   <h2>The tool</h2>
-  <p>I use <strong>Keepance</strong>, a local-first AI workspace. AI conversations and every output file are saved as plain text on my own machine in a folder I control. Keepance does not operate a cloud database. Your return information is never stored on Keepance's servers.</p>
+  <p>I use <strong>Advisor Prep Hero</strong>, a local-first AI workspace. AI conversations and every output file are saved as plain text on my own machine in a folder I control. Advisor Prep Hero does not operate a cloud database. Your return information is never stored on Advisor Prep Hero's servers.</p>
 
   <h2>Where client return data goes</h2>
   <p><strong>Local model path (Ollama):</strong> When I use a local AI model such as Ollama, client return information never reaches any AI provider. The AI runs on local hardware. Nothing leaves my machine. This path eliminates any Section 7216 disclosure concern entirely, because no return information is "furnished" to a third party.</p>
-  <p><strong>Cloud API key path:</strong> When I use a cloud provider (Anthropic, OpenAI, or Google), my prompts travel directly from my machine to that provider under my personal API key. Keepance's servers are not in the path. Where return information is included in a prompt to a cloud provider, that transmission constitutes a use of return information under IRC Section 7216, and I obtain written client consent using a compliant Section 7216 consent form before any such session. I document each consent in the client file.</p>
+  <p><strong>Cloud API key path:</strong> When I use a cloud provider (Anthropic, OpenAI, or Google), my prompts travel directly from my machine to that provider under my personal API key. Advisor Prep Hero's servers are not in the path. Where return information is included in a prompt to a cloud provider, that transmission constitutes a use of return information under IRC Section 7216, and I obtain written client consent using a compliant Section 7216 consent form before any such session. I document each consent in the client file.</p>
 
   <h2>Section 7216 analysis</h2>
   <p>IRC Section 7216 prohibits the disclosure or use of tax return information without client consent, subject to defined exceptions. The two paths above map directly onto the analysis:</p>
@@ -47,18 +47,18 @@
   <p><strong>Cloud API key:</strong> Return information reaches the AI provider. I treat this as a disclosure to a service provider under Treas. Reg. Section 301.7216-2(d) and obtain a signed Section 7216 consent from each affected client before any session involving their data. The consent specifies the provider and the purpose.</p>
 
   <h2>Client isolation</h2>
-  <p>Each client has their own folder on my machine. An AI session is scoped to that client's folder only. The AI cannot reach another client's files during a session. Keepance's audit log records which files were included in each session, providing a per-client record of AI use that I retain in the client file.</p>
+  <p>Each client has their own folder on my machine. An AI session is scoped to that client's folder only. The AI cannot reach another client's files during a session. Advisor Prep Hero's audit log records which files were included in each session, providing a per-client record of AI use that I retain in the client file.</p>
 
   <h2>Audit log</h2>
   <p>Every AI action is logged automatically: timestamp, model, files included, and output produced. For any client whose return data was processed with AI assistance, I can produce a complete activity log on request. This log stays on my machine and is part of the permanent client file.</p>
 
   <h2>How this compares to the AI tool your tax preparer likely already uses</h2>
   <p>The most common AI tool in professional tax software today is <strong>Intuit Assist</strong>, bundled into Lacerte and ProConnect at no extra charge. Intuit Assist is a cloud SaaS tool with access to data points pulled directly from the return inside the Intuit platform. For preparers on Lacerte or ProConnect who want advisory planning summaries generated without additional setup, it is the lowest-friction option.</p>
-  <p>The architectural difference that matters for a Section 7216 review: Intuit Assist routes return information to Intuit's cloud servers to generate those summaries. That transmission is a disclosure of return information to a third party for purposes of IRC Section 7216, regardless of Intuit's data-handling commitments. Keepance with a local model keeps return data on my machine; nothing is furnished to any third party, and the Section 7216 consent requirement for that path does not arise. When I use a cloud API key, I treat that as a disclosure and obtain signed written consent as described in this document.</p>
-  <p>Intuit Assist is available only inside Lacerte and ProConnect. Preparers on Drake, ProSeries, or any other platform get nothing from Intuit. Keepance works alongside any tax software because it is a separate desktop application, not a plugin.</p>
+  <p>The architectural difference that matters for a Section 7216 review: Intuit Assist routes return information to Intuit's cloud servers to generate those summaries. That transmission is a disclosure of return information to a third party for purposes of IRC Section 7216, regardless of Intuit's data-handling commitments. Advisor Prep Hero with a local model keeps return data on my machine; nothing is furnished to any third party, and the Section 7216 consent requirement for that path does not arise. When I use a cloud API key, I treat that as a disclosure and obtain signed written consent as described in this document.</p>
+  <p>Intuit Assist is available only inside Lacerte and ProConnect. Preparers on Drake, ProSeries, or any other platform get nothing from Intuit. Advisor Prep Hero works alongside any tax software because it is a separate desktop application, not a plugin.</p>
 
   <p class="meta">
-    Keepance v2.2 &nbsp;·&nbsp;
+    Advisor Prep Hero v2.2 &nbsp;·&nbsp;
     <a href="https://keepance.com/ai-workspace-privacy/">keepance.com/ai-workspace-privacy/</a>
     &nbsp;·&nbsp; Prepared:
     <span contenteditable="true" class="firm-field" spellcheck="false">[Date prepared]</span>

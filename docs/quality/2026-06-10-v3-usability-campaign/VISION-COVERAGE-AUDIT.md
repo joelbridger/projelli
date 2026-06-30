@@ -1,8 +1,8 @@
-# Keepance 3.0 — North-Star Vision Coverage Audit
+# Advisor Prep Hero 3.0 — North-Star Vision Coverage Audit
 
 **Date:** 2026-06-10 · **Branch:** `keepance-3.0` · **Auditor:** read-only code + campaign cross-reference
 
-**North star audited against:** `docs/research/2026-06-08-ux-attorney-v2.5.1/vision-most-viable-keepance.md` ("The Most Viable Keepance"). Cross-referenced: the 3.0 roadmap, the 3.0 STATUS file, and the v3 usability campaign artifacts (`findings.md`, `persona-findings.md`, `native-findings.md`, `sweep-findings.md`, `FIX-WAVE-PLAN.md`, `LAUNCH-READINESS-REPORT.md`).
+**North star audited against:** `docs/research/2026-06-08-ux-attorney-v2.5.1/vision-most-viable-keepance.md` ("The Most Viable Advisor Prep Hero"). Cross-referenced: the 3.0 roadmap, the 3.0 STATUS file, and the v3 usability campaign artifacts (`findings.md`, `persona-findings.md`, `native-findings.md`, `sweep-findings.md`, `FIX-WAVE-PLAN.md`, `LAUNCH-READINESS-REPORT.md`).
 
 **Method.** Every discrete commitment in the vision (3 jobs, 6 non-negotiables, 7 pillars, 4 moat elements) was classified against the actual code in `src/`, `src-tauri/`, and `backend/`, then grounded in a campaign verification artifact where one exists. Classifications:
 
@@ -48,7 +48,7 @@
 | Commitment | Status | Evidence | Gap note |
 |---|---|---|---|
 | Draft/edit/redline in Word (.docx) with tracked changes, full fidelity | **BUILT + verified** | In-house OOXML engine `src-tauri/crates/keepance-docx/`; `DocxEditor.tsx`. Native pass: opened a 4-tracked-change + 2-comment fixture, accept-one / reject-one, save, reopen — faithful round-trip (`native-findings.md` F-406) | — |
-| AI redline arrives as tracked changes you accept/reject | **BUILT + verified** | `src/modules/docx/redline.ts` + `author.rs`. Native pass: Ollama redline produced a tracked insert attributed to "Keepance AI", accepted, saved, persisted (`native-findings.md` F-417) | — |
+| AI redline arrives as tracked changes you accept/reject | **BUILT + verified** | `src/modules/docx/redline.ts` + `author.rs`. Native pass: Ollama redline produced a tracked insert attributed to "Advisor Prep Hero AI", accepted, saved, persisted (`native-findings.md` F-417) | — |
 | Never raw Markdown the lawyer sees | **BUILT + verified** | New-file menu puts Word first; legal templates all output `.docx` (`grep outputFile templates/legal/*.ts` → 18/18 `.docx`, F-112 fixed); markdown pipe-tables now convert to real `<w:tbl>` Word tables (`docx-io.ts:724-744` + `htmlToDocxChildren`, F-108 fixed) | Residual: the markdown editor still exists for `.md` notes (`incident-summary` opened in it, F-407) — but those are internal notes, not legal deliverables, which matches the vision's "invisible internal layer" |
 | PDF export, on letterhead | **PARTIAL** | `convert_docx_to_pdf` via LibreOffice (`src-tauri/src/commands/fs.rs:196`, `lib.rs:39`); export menu offers PDF | **Depends on the user having LibreOffice installed** (`detect_libreoffice`). Not bundled. A lawyer without LibreOffice gets no PDF export. Letterhead = the user's own template; no template-management UI was surfaced |
 | Excel + PowerPoint round-trip | **PARTIAL / BUILT** | xlsx via SheetJS (`spreadsheet-io`), pptx extract + export (`pptx-io`, `export-formats.ts`); STATUS claims xlsx/pptx round-trip done (`86b21b1`) | Lower priority per vision (Word first); not exercised in the campaign |
@@ -132,7 +132,7 @@
 | DMS (NetDocuments / iManage) | **GAP / NOT BUILT** | Roadmap WS-H lists it as future | Not claimed prominently on the site; lower priority |
 | Word / Outlook add-in surface | **GAP / NOT BUILT** | Roadmap WS-H "later in the phase" | Coexistence is via file/mail import, not native add-ins |
 
-**Pillar 7 verdict: PARTIAL → mostly GAP.** Email import + Word are the real "fit." Clio (the spine of the persona's practice, named repeatedly in the research) has **no integration at all** — only the claim that Keepance "sits beside" it.
+**Pillar 7 verdict: PARTIAL → mostly GAP.** Email import + Word are the real "fit." Clio (the spine of the persona's practice, named repeatedly in the research) has **no integration at all** — only the claim that Advisor Prep Hero "sits beside" it.
 
 ---
 

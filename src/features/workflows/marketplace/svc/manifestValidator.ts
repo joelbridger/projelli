@@ -42,10 +42,10 @@ export const templateManifestSchema = z.object({
   tags: z.array(z.string()),
   screenshots: z.array(z.string().min(1)).optional(),
   files: z.array(templateFileEntrySchema).min(1, 'files must contain at least one entry'),
-  minKeepanceVersion: z.string().regex(semverRegex, 'minKeepanceVersion must be semver'),
-  maxKeepanceVersion: z
+  minAppVersion: z.string().regex(semverRegex, 'minAppVersion must be semver'),
+  maxAppVersion: z
     .string()
-    .regex(semverRegex, 'maxKeepanceVersion must be semver')
+    .regex(semverRegex, 'maxAppVersion must be semver')
     .optional(),
 });
 
@@ -70,7 +70,7 @@ export function validateTemplateManifest(
 /**
  * Compare two semver strings. Returns -1, 0, 1. Pre-release / build metadata
  * are ignored for the comparison (good enough for the "manifest needs newer
- * Keepance" check; full semver would be overkill here).
+ * Advisor Prep Hero" check; full semver would be overkill here).
  */
 export function compareSemver(a: string, b: string): number {
   const norm = (v: string) => {
@@ -89,16 +89,16 @@ export function compareSemver(a: string, b: string): number {
 }
 
 /**
- * Returns an error string if `manifest.minKeepanceVersion` is newer than the
+ * Returns an error string if `manifest.minAppVersion` is newer than the
  * current app version, otherwise null. Callers fail the install with the
  * returned message.
  */
-export function checkMinKeepanceVersion(
+export function checkMinAppVersion(
   manifest: TemplateManifest,
   currentAppVersion: string,
 ): string | null {
-  if (compareSemver(manifest.minKeepanceVersion, currentAppVersion) > 0) {
-    return `Template requires Keepance ${manifest.minKeepanceVersion} or newer (you have ${currentAppVersion}).`;
+  if (compareSemver(manifest.minAppVersion, currentAppVersion) > 0) {
+    return `Template requires Advisor Prep Hero ${manifest.minAppVersion} or newer (you have ${currentAppVersion}).`;
   }
   return null;
 }

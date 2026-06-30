@@ -24,7 +24,7 @@ const SAMPLE: CatalogEntry[] = [
     id: 'a', name: 'A', description: '', version: '1.0.0',
     author: { name: 'x' }, category: 'misc', tags: [],
     installUrl: 'http://e/a.tar.gz', manifestUrl: 'http://e/manifest.json',
-    minKeepanceVersion: '2.0.0', publishedAt: '2026-04-28', updatedAt: '2026-04-28',
+    minAppVersion: '2.0.0', publishedAt: '2026-04-28', updatedAt: '2026-04-28',
   },
 ];
 
@@ -230,7 +230,7 @@ describe('MarketplaceService.readInstalledManifest', () => {
             id: 'x', name: 'X', description: 'd', version: '1.0.0',
             author: { name: 'a' }, category: 'misc', tags: [],
             installUrl: 'http://e/x.tar.gz', manifestUrl: 'http://e/m.json',
-            minKeepanceVersion: '2.0.0', publishedAt: '2026-04-28', updatedAt: '2026-04-28',
+            minAppVersion: '2.0.0', publishedAt: '2026-04-28', updatedAt: '2026-04-28',
             installedAt: '2026-04-28T00:00:00Z',
             installedPath: '/r/x',
             provenance: 'community',
@@ -251,7 +251,7 @@ describe('MarketplaceService.readInstalledManifest', () => {
         category: 'misc',
         tags: [],
         files: [{ path: 'workflow.json', type: 'workflow-definition' }],
-        minKeepanceVersion: '2.0.0',
+        minAppVersion: '2.0.0',
       }),
     );
 
@@ -275,7 +275,7 @@ describe('MarketplaceService.readInstalledManifest', () => {
             id: 'x', name: 'X', description: 'd', version: '1.0.0',
             author: { name: 'a' }, category: 'misc', tags: [],
             installUrl: 'http://e/x.tar.gz', manifestUrl: 'http://e/m.json',
-            minKeepanceVersion: '2.0.0', publishedAt: '2026-04-28', updatedAt: '2026-04-28',
+            minAppVersion: '2.0.0', publishedAt: '2026-04-28', updatedAt: '2026-04-28',
             installedAt: '2026-04-28T00:00:00Z',
             installedPath: '/r/x',
             provenance: 'community',

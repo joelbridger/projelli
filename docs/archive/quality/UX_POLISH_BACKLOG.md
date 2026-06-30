@@ -26,7 +26,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 ### UX-01: Welcome dialog has no functional dismiss
 **Priority:** P0
 **Status:** ✅ Done — hash: `dc3f2c8`
-**Problem:** On first run with no workspace, the Welcome to Keepance dialog shows a close X button. Clicking it does nothing. Pressing Escape does nothing. Dialog stays up indefinitely. First-run users see a broken product.
+**Problem:** On first run with no workspace, the Welcome to Advisor Prep Hero dialog shows a close X button. Clicking it does nothing. Pressing Escape does nothing. Dialog stays up indefinitely. First-run users see a broken product.
 **Acceptance criteria:**
 - Clicking the X closes the dialog AND returns the user to either the workspace-selection state or an empty app state where they can still reopen the dialog via command palette
 - Escape key dismisses the dialog the same way
@@ -84,9 +84,9 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 ### UX-06: Welcome dialog copy is too thin
 **Priority:** P1
 **Status:** ✅ Done — hash: `1dc106b`
-**Problem:** "Select an existing workspace folder or create a new one to get started." Doesn't explain what a workspace is, why it matters (local-first), or what Keepance does.
+**Problem:** "Select an existing workspace folder or create a new one to get started." Doesn't explain what a workspace is, why it matters (local-first), or what Advisor Prep Hero does.
 **Acceptance criteria:**
-- Add one-sentence elevator pitch: "Keepance saves your AI chats as real files on your computer — pick a folder to save them into."
+- Add one-sentence elevator pitch: "Advisor Prep Hero saves your AI chats as real files on your computer — pick a folder to save them into."
 - Add a small "Learn more" link that opens the Getting Started doc (already exists at `website/docs/getting-started.html`)
 **Files:** `src/components/workspace/WorkspaceSelector.tsx`
 **Effort:** XS
@@ -350,7 +350,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 ### UX-27: Ctrl+P fuzzy file switcher
 **Priority:** P4
 **Status:** ✅ Done — hash: `85e04ae`
-**Problem:** Power users reach for `Ctrl+P` (VS Code, Obsidian) to quickly open files by fuzzy name. Keepance has `Ctrl+K` for commands but no separate file-open.
+**Problem:** Power users reach for `Ctrl+P` (VS Code, Obsidian) to quickly open files by fuzzy name. Advisor Prep Hero has `Ctrl+K` for commands but no separate file-open.
 **Acceptance criteria:**
 - `Ctrl+P` opens a quick-open modal with fuzzy filename matching (fuse.js or similar)
 - Arrow keys navigate, Enter opens, Esc cancels
@@ -528,7 +528,7 @@ Discovered during the v1.0.8 ship. Punted to v1.0.9.
 **Status:** 📋
 **Problem:** The `build-windows` job in `.github/workflows/release.yml` builds the Tauri app via raw `npm run tauri build` (not `tauri-action`), then signs the `.exe` and `.msi` via Azure Trusted Signing in a separate step. Tauri's updater signer never runs on Windows, so no `.exe.sig` is produced and `latest.json` has no `windows-x86_64` entry — Windows users can't auto-update. For the v1.0.8 ship this was patched manually on the server: signed the `.exe` with `npm run tauri -- signer sign -f ~/.keepance-secrets/updater.key -p '<pwd>' <file>`, uploaded the `.sig` via `gh release upload`, downloaded `latest.json`, injected the `windows-x86_64` entry with `python3` + `json`, re-uploaded. This manual patch won't scale — every release needs it.
 **Acceptance criteria:**
-- After Azure signs the `.exe`, a CI step runs `tauri signer sign` with the same `TAURI_SIGNING_PRIVATE_KEY` used by the Mac/Linux tauri-action step. Produces `Keepance_1.0.8_x64-setup.exe.sig`.
+- After Azure signs the `.exe`, a CI step runs `tauri signer sign` with the same `TAURI_SIGNING_PRIVATE_KEY` used by the Mac/Linux tauri-action step. Produces `Advisor Prep Hero_1.0.8_x64-setup.exe.sig`.
 - The Mac/Linux job uploads `latest.json` without `windows-x86_64`. After the Windows job finishes, either (a) a final "assemble latest.json" step downloads the current `latest.json`, adds the Windows entry, and re-uploads; or (b) tauri-action is extended to merge. Option (a) is simpler; python + jq can do it in 10 lines.
 - Next tagged release completes without manual intervention — Windows users on v1.0.8 get auto-updates for the first time.
 **Files:** `.github/workflows/release.yml`

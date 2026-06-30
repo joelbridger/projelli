@@ -22,8 +22,8 @@ pub fn downloaded_document_bytes_to_text(
 
     let ext = lower.rsplit_once('.').map(|(_, ext)| ext).unwrap_or("");
     let text = match ext {
-        "docx" => keepance_docx::parse_docx_bytes(bytes)
-            .map(|doc| keepance_docx::extract_paragraph_texts(&doc).join("\n\n"))
+        "docx" => lantern_docx::parse_docx_bytes(bytes)
+            .map(|doc| lantern_docx::extract_paragraph_texts(&doc).join("\n\n"))
             .map_err(anyhow::Error::from)?,
         "xlsx" => crate::commands::rag::office::extract_xlsx_sections(bytes)?
             .into_iter()

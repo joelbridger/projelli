@@ -1,7 +1,7 @@
-# Keepance — Vision Document
+# Advisor Prep Hero — Vision Document
 
 > **⚠️ Audience update (2026-06-23 / 2026-06-29).** This doc was written when the ICP
-> was "attorneys, CPAs, and consultants" (locked 2026-05-27). Since then Keepance
+> was "attorneys, CPAs, and consultants" (locked 2026-05-27). Since then Advisor Prep Hero
 > **re-aimed to financial advisors** as the lead audience (solo/small RIA practices),
 > with law, tax, and consulting kept as **secondary** verticals; the 2026-06-29 board
 > decision set the direction to compete head-on as the leading advisor-AI — a simple
@@ -23,11 +23,11 @@
 
 ## Executive Summary
 
-Keepance is a local-first, artifact-driven workspace application designed specifically for attorneys, CPAs, and consultants who cannot use cloud AI due to confidentiality obligations. Unlike typical chat-based AI interfaces, Keepance treats AI as a collaborative tool that produces, manages, and refines tangible work artifacts — documents, research, analyses, and strategic outputs — while keeping the professional firmly in control of all decisions.
+Advisor Prep Hero is a local-first, artifact-driven workspace application designed specifically for attorneys, CPAs, and consultants who cannot use cloud AI due to confidentiality obligations. Unlike typical chat-based AI interfaces, Advisor Prep Hero treats AI as a collaborative tool that produces, manages, and refines tangible work artifacts — documents, research, analyses, and strategic outputs — while keeping the professional firmly in control of all decisions.
 
-The application addresses a critical gap in the professional services toolkit: while AI chatbots can answer questions and generate text, they pipe confidential client data to vendor servers, creating real exposure under attorney-client privilege (ABA Formal Opinion 512), IRC §7216, and professional NDA obligations. Keepance provides a complete workspace where professionals can organize client work, maintain research with proper citations, run repeatable AI-powered workflows, and build a traceable record of their work — without any client data ever leaving their machine.
+The application addresses a critical gap in the professional services toolkit: while AI chatbots can answer questions and generate text, they pipe confidential client data to vendor servers, creating real exposure under attorney-client privilege (ABA Formal Opinion 512), IRC §7216, and professional NDA obligations. Advisor Prep Hero provides a complete workspace where professionals can organize client work, maintain research with proper citations, run repeatable AI-powered workflows, and build a traceable record of their work — without any client data ever leaving their machine.
 
-Built on a modern stack (React, TypeScript, Tauri, CodeMirror 6, SQLite), Keepance prioritizes offline capability, data sovereignty, and reproducibility. Every AI interaction is logged, every output is versioned, and every destructive action requires explicit approval with a diff preview. This is not a toy — it's a professional-grade tool for attorneys, CPAs, and consultants who take their confidentiality obligations seriously.
+Built on a modern stack (React, TypeScript, Tauri, CodeMirror 6, SQLite), Advisor Prep Hero prioritizes offline capability, data sovereignty, and reproducibility. Every AI interaction is logged, every output is versioned, and every destructive action requires explicit approval with a diff preview. This is not a toy — it's a professional-grade tool for attorneys, CPAs, and consultants who take their confidentiality obligations seriously.
 
 ## Vision Statement
 
@@ -130,8 +130,8 @@ The following are explicitly **NOT** included in this project:
 3. **Artifact-Driven**: Every interaction produces persistent, versioned documents.
 4. **Reproducible**: Every workflow run is replayable (inputs, prompts, tool results saved).
 5. **Auditable**: Append-only log of all AI actions — demonstrable to clients and regulators.
-6. **BYOK Forever**: Keepance never holds AI keys, never sees user data, never charges for inference.
+6. **BYOK Forever**: Advisor Prep Hero never holds AI keys, never sees user data, never charges for inference.
 
 ---
 
-*This document defines the north star for Keepance. All implementation decisions should be validated against this vision. When in doubt, choose the path that keeps the professional in control and produces auditable, persistent artifacts.*
+*This document defines the north star for Advisor Prep Hero. All implementation decisions should be validated against this vision. When in doubt, choose the path that keeps the professional in control and produces auditable, persistent artifacts.*

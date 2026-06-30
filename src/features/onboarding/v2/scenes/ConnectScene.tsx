@@ -1,4 +1,4 @@
-/* eslint-disable keepance-i18n/no-hardcoded-string */
+/* eslint-disable lantern-i18n/no-hardcoded-string */
 /**
  * ConnectScene — "2. Securely connect your data".
  *
@@ -79,7 +79,7 @@ export function ConnectScene() {
         ) : null}
       </div>
 
-      {/* Connector-access: honest "we read your exports" line. Keepance reads
+      {/* Connector-access: honest "we read your exports" line. Advisor Prep Hero reads
           the plan reports / meeting notes other tools export into the places
           just connected — it is NOT an integration with those tools. */}
       <div

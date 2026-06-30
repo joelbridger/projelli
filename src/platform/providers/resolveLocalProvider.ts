@@ -6,7 +6,7 @@
 // engine.
 //
 // THE RULE (one consistent on-device default everywhere): prefer the embedded
-// Keepance Local AI engine (llama.cpp sidecar) when its model is downloaded and
+// Advisor Prep Hero Local AI engine (llama.cpp sidecar) when its model is downloaded and
 // READY, and fall back to the user's own Ollama daemon otherwise. Both keep ALL
 // inference on the user's machine — this only ever changes WHICH local engine
 // runs, never whether anything leaves. Centralising it here means a machine with
@@ -17,7 +17,7 @@
 // throws) off-desktop; any such result falls through to Ollama.
 
 import { OllamaProvider } from '@/platform/providers/OllamaProvider';
-import { KeepanceLocalProvider } from '@/platform/providers/KeepanceLocalProvider';
+import { AppLocalProvider } from '@/platform/providers/AppLocalProvider';
 import { localLlmModelStatus } from '@/platform/utils/tauri-commands';
 import type { Provider } from '@/platform/providers/Provider';
 
@@ -28,7 +28,7 @@ export interface ResolvedLocalProvider {
 }
 
 /**
- * True when the embedded Keepance Local AI model is downloaded and ready right
+ * True when the embedded Advisor Prep Hero Local AI model is downloaded and ready right
  * now. Never throws — off-desktop or on any probe error it resolves `false`.
  *
  * Used by surfaces that resolve through a PURE helper (the workflow engine's
@@ -44,12 +44,12 @@ export async function isEmbeddedLocalModelReady(): Promise<boolean> {
 }
 
 /**
- * Resolve the local generation provider: embedded Keepance Local AI when ready,
+ * Resolve the local generation provider: embedded Advisor Prep Hero Local AI when ready,
  * else the user's Ollama daemon. See the module header for the rule.
  */
 export async function resolveLocalGenerationProvider(): Promise<ResolvedLocalProvider> {
   if (await isEmbeddedLocalModelReady()) {
-    const provider = new KeepanceLocalProvider({});
+    const provider = new AppLocalProvider({});
     return { provider, providerId: 'keepance-local', model: provider.getMetadata().model };
   }
   const provider = new OllamaProvider({});
@@ -66,7 +66,7 @@ export async function resolveLocalGenerationProvider(): Promise<ResolvedLocalPro
  */
 export async function resolveAvailableLocalGenerationProvider(): Promise<ResolvedLocalProvider | null> {
   if (await isEmbeddedLocalModelReady()) {
-    const provider = new KeepanceLocalProvider({});
+    const provider = new AppLocalProvider({});
     return { provider, providerId: 'keepance-local', model: provider.getMetadata().model };
   }
 

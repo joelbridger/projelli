@@ -58,7 +58,7 @@ describe('FirmSecurityPack — renders without crashing', () => {
   it('shows the document title', () => {
     render(<FirmSecurityPackContent />);
     const content = screen.getByTestId('firm-security-pack-content');
-    expect(content.textContent).toContain('Keepance security overview');
+    expect(content.textContent).toContain('Advisor Prep Hero security overview');
   });
 
   it('shows the opening disclaimer', () => {
@@ -196,9 +196,9 @@ describe('FirmSecurityPack — honest assurance status', () => {
 // ---------------------------------------------------------------------------
 
 describe('FirmSecurityPack — required sections', () => {
-  it('has a "What Keepance is" section', () => {
+  it('has a "What Advisor Prep Hero is" section', () => {
     const text = renderAndGetText();
-    expect(text).toContain('What Keepance is');
+    expect(text).toContain('What Advisor Prep Hero is');
   });
 
   it('has a "Where data lives" section', () => {

@@ -1,4 +1,4 @@
-# Keepance 3.0 — Codebase Reorg: Next-Session Handoff (2026-06-16)
+# Advisor Prep Hero 3.0 — Codebase Reorg: Next-Session Handoff (2026-06-16)
 
 > **Read first:** the plan `~/.claude/plans/you-are-my-ceo-spicy-pudding.md`, the
 > memory file `project_keepance_reorg.md`, then this doc. This is the

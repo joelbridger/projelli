@@ -46,7 +46,7 @@ function assertCatalogShape(catalog: unknown): asserts catalog is CatalogEntry[]
     expect(Array.isArray(entry.tags)).toBe(true);
     expect(typeof entry.installUrl).toBe('string');
     expect(typeof entry.manifestUrl).toBe('string');
-    expect(typeof entry.minKeepanceVersion).toBe('string');
+    expect(typeof entry.minAppVersion).toBe('string');
     expect(typeof entry.publishedAt).toBe('string');
     expect(typeof entry.updatedAt).toBe('string');
     expect(typeof entry.checksum).toBe('string');

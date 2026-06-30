@@ -12,7 +12,7 @@
 
 use std::io::Write as _;
 
-use keepance_docx::{open_docx_bytes, BlockContent};
+use lantern_docx::{open_docx_bytes, BlockContent};
 
 /// Helper: count paragraphs vs raw blocks in the body.
 fn count_blocks(body: &[BlockContent]) -> (usize, usize) {

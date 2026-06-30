@@ -86,9 +86,9 @@ pub fn model_files_cached(cache_dir: &Path) -> bool {
 /// the model.
 pub fn writable_cache_dir() -> PathBuf {
     if let Some(data_dir) = dirs::data_dir() {
-        return data_dir.join("keepance").join("models").join("e5-small");
+        return data_dir.join(crate::identity::OS_DATA_SUBDIR).join("models").join("e5-small");
     }
-    std::env::temp_dir().join("keepance-e5-small")
+    std::env::temp_dir().join(format!("{}-e5-small", crate::identity::OS_DATA_SUBDIR))
 }
 
 /// Emit one progress event, ignoring failures (a closed webview must not

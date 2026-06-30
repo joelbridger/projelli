@@ -36,6 +36,7 @@ import type { SettingCategory } from '@/platform/settings/schema';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
 import type { Matter } from '@/platform/types/matter';
+import { EV_OPEN_ACCOUNT, EV_OPEN_EMAIL } from '@/config/identity';
 
 export interface AppSurfaceRouterProps {
   sidebarActiveTab: AppSurface;
@@ -291,7 +292,7 @@ export function AppSurfaceRouter({
         openFile(path, finalName, docxBytesToDataUrl(bytes));
       }}
       onOpenSettings={() => {
-        window.dispatchEvent(new CustomEvent('keepance:open-account', { detail: { tab: 'connections' } }));
+        window.dispatchEvent(new CustomEvent(EV_OPEN_ACCOUNT, { detail: { tab: 'connections' } }));
       }}
       {...(opts.embedded ? { embedded: true } : {})}
     />
@@ -357,13 +358,13 @@ export function AppSurfaceRouter({
           onAuditLog={addAuditEntry}
           onOpenFileAtPath={(p) => {
             // Wave 2 — email relocation: an email citation in an Ask answer opens
-            // the light EmailViewer reading view (via keepance:open-email, the
+            // the light EmailViewer reading view (via lantern:open-email, the
             // same path the .aichat chat uses). Without this the Ask surface
             // dispatched nothing, so email citations were a dead click. Document
             // citations keep their in-place SourcePanel passage; their dedicated
             // citation viewer lands in Wave 3.
             if (typeof p === 'string' && p.startsWith('mail:')) {
-              window.dispatchEvent(new CustomEvent('keepance:open-email', { detail: { sourceId: p } }));
+              window.dispatchEvent(new CustomEvent(EV_OPEN_EMAIL, { detail: { sourceId: p } }));
             }
           }}
         />

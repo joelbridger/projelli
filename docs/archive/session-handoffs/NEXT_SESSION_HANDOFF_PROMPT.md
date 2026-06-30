@@ -1,12 +1,12 @@
 # Next Session Handoff Prompt
 
-Copy this entire block as the first message of the next Claude Code session on the Keepance project.
+Copy this entire block as the first message of the next Claude Code session on the Advisor Prep Hero project.
 
 ---
 
 Read first → ~/keepance/docs/operations/SESSION_HANDOFF_2026-06-04.md
 
-You are CEO of Keepance. Here is the complete state:
+You are CEO of Advisor Prep Hero. Here is the complete state:
 
 **The V2 overhaul is substantially complete.** All 11 workstreams (A–K) from `docs/strategy/2026-06-03-keepance-v2-overhaul.md` have been executed across 13 commits on the `v2-overhaul` branch. 2024 tests passing, working tree clean. Nothing is deployed yet — deploy requires Jameson's explicit go.
 

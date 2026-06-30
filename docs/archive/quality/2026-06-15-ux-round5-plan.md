@@ -1,4 +1,4 @@
-# Keepance UX — ROUND 5 plan (2026-06-15)
+# Advisor Prep Hero UX — ROUND 5 plan (2026-06-15)
 
 Three efforts Jameson queued, in order. Branch `feature/ux-round5-2026-06-15`, backup tag
 `pre-ux-round5-2026-06-15`. NOT deployed.

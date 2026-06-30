@@ -2,7 +2,7 @@
  * OnboardingStepFrame — the branded chrome that wraps each GuidedOnboarding step.
  *
  * Layout: fixed full-screen overlay with a frosted backdrop, a left navy rail
- * (KeepanceMark + numbered step list), and a right white card that holds the
+ * (Advisor Prep HeroMark + numbered step list), and a right white card that holds the
  * step's real content.  Matches the keepance.com brand: navy var(--kp-navy), Satoshi
  * font, pink-to-blue gradient accent.
  *
@@ -26,9 +26,9 @@ export interface OnboardingStepFrameProps {
 }
 
 // ---------------------------------------------------------------------------
-// KeepanceMark — white keep + gradient sparkle (verbatim from Spine)
+// Advisor Prep HeroMark — white keep + gradient sparkle (verbatim from Spine)
 // ---------------------------------------------------------------------------
-function KeepanceMark() {
+function AppBrandMark() {
   return (
     <svg
       viewBox="0 99 651 652"
@@ -242,8 +242,8 @@ export function OnboardingStepFrame({
       <nav style={rail} aria-label="Onboarding steps">
         <div style={railAccent} />
         <div style={railLogoRow}>
-          <KeepanceMark />
-          <span style={logoLabel}>Keepance</span>
+          <AppBrandMark />
+          <span style={logoLabel}>Advisor Prep Hero</span>
         </div>
         <ol style={stepListStyle}>
           {steps.map((step, i) => (
@@ -264,7 +264,7 @@ export function OnboardingStepFrame({
           ref={cardRef}
           role="dialog"
           aria-modal="true"
-          aria-label="Keepance setup"
+          aria-label="Advisor Prep Hero setup"
           tabIndex={-1}
           style={{ ...card, outline: 'none' }}
         >

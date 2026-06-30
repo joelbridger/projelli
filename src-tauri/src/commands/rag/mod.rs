@@ -291,8 +291,8 @@ pub async fn index_downloaded_document_bytes_as_source_type(
     let lower = filename.to_ascii_lowercase();
     let ext = lower.rsplit_once('.').map(|(_, ext)| ext).unwrap_or("");
     let text = match ext {
-        "docx" => keepance_docx::parse_docx_bytes(bytes)
-            .map(|doc| keepance_docx::extract_paragraph_texts(&doc).join("\n\n"))
+        "docx" => lantern_docx::parse_docx_bytes(bytes)
+            .map(|doc| lantern_docx::extract_paragraph_texts(&doc).join("\n\n"))
             .map_err(anyhow::Error::from)
             .context("extract downloaded docx")?,
         "xlsx" => office::extract_xlsx_sections(bytes)
@@ -908,10 +908,10 @@ fn resolve_privilege(privilege: Option<&str>) -> Result<String, String> {
 /// swallow crypto errors: the caller's existing error-handling path covers it.
 fn decrypt_if_vaulted(bytes: Vec<u8>, vault_vmk: Option<&[u8; 32]>) -> Vec<u8> {
     let Some(vmk) = vault_vmk else { return bytes; };
-    if !keepance_vault::format::has_vault_magic(&bytes) {
+    if !lantern_vault::format::has_vault_magic(&bytes) {
         return bytes;
     }
-    match keepance_vault::format::decrypt_file(&bytes, vmk) {
+    match lantern_vault::format::decrypt_file(&bytes, vmk) {
         Ok(plaintext) => plaintext,
         Err(e) => {
             // Decryption failed — log and pass the raw bytes through. The caller's
@@ -1025,8 +1025,8 @@ async fn extract_embed_one_file(
             };
             let bytes = decrypt_if_vaulted(raw_bytes, vault_vmk);
             let extracted: anyhow::Result<String> = match kind {
-                extractor::IndexKind::Docx => keepance_docx::parse_docx_bytes(&bytes)
-                    .map(|doc| keepance_docx::extract_paragraph_texts(&doc).join("\n\n"))
+                extractor::IndexKind::Docx => lantern_docx::parse_docx_bytes(&bytes)
+                    .map(|doc| lantern_docx::extract_paragraph_texts(&doc).join("\n\n"))
                     .map_err(anyhow::Error::from),
                 _ => office::extract_rtf_text(&bytes),
             };
@@ -1283,8 +1283,8 @@ async fn index_one_file(
             // insertions in, deletions out, no raw markup (text.rs); rtf
             // decodes control words/escapes to text (office.rs).
             let extracted: anyhow::Result<String> = match kind {
-                extractor::IndexKind::Docx => keepance_docx::parse_docx_bytes(&bytes)
-                    .map(|doc| keepance_docx::extract_paragraph_texts(&doc).join("\n\n"))
+                extractor::IndexKind::Docx => lantern_docx::parse_docx_bytes(&bytes)
+                    .map(|doc| lantern_docx::extract_paragraph_texts(&doc).join("\n\n"))
                     .map_err(anyhow::Error::from),
                 _ => office::extract_rtf_text(&bytes),
             };
@@ -3574,11 +3574,11 @@ mod tests {
     /// A vaulted file (KPV1 magic) is decrypted when the VMK is provided.
     ///
     /// This is the "destructive item 12" spec test: encrypt the plaintext,
-    /// write it to a temp workspace with `.keepance-vault.json`, then drive the
+    /// write it to a temp workspace with `.lantern-vault.json`, then drive the
     /// decrypt_if_vaulted seam and assert the plaintext is recovered.
     #[test]
     fn vaulted_file_decrypts_to_plaintext_with_vmk() {
-        use keepance_vault::format::encrypt_file;
+        use lantern_vault::format::encrypt_file;
 
         let vmk: [u8; 32] = [0xCC; 32];
         let plaintext = b"the quick brown fox";
@@ -3629,7 +3629,7 @@ mod tests {
     /// never panics, never returns garbage that claims to be plaintext.
     #[test]
     fn wrong_vmk_returns_original_bytes_not_garbage() {
-        use keepance_vault::format::encrypt_file;
+        use lantern_vault::format::encrypt_file;
 
         let right_vmk: [u8; 32] = [0xEE; 32];
         let wrong_vmk: [u8; 32] = [0xFF; 32];

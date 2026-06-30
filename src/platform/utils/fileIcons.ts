@@ -87,7 +87,7 @@ const ICON_MAP: Record<string, FileIconInfo> = {
   // Data / structured
   json:     { Icon: Braces,       color: 'text-amber-500',   label: 'JSON' },
 
-  // Keepance-specific
+  // Advisor Prep Hero-specific
   source:   { Icon: Link,         color: 'text-cyan-500',    label: 'Source' },
   aichat:   { Icon: Sparkles,     color: 'text-fuchsia-500', label: 'AI Chat' },
   workflow: { Icon: Workflow,     color: 'text-amber-500',   label: 'Workflow Run' },

@@ -3,7 +3,7 @@
 **Date:** 2026-06-18
 **Status:** Approved (design greenlit by Jameson 2026-06-18). Ready for implementation planning.
 **Branch:** `keepance-3.0`
-**Origin:** A meeting with Sam Andersen (Investment Partner, Element Ventures, a top Utah pre-seed fund) on 2026-06-18. Sam's key product steer: *"If you can get it so someone can download and use it on their own — without the firm having to approve it first — that would be great."* He sees bottoms-up, individual self-serve adoption as the opportunity. Keepance has been positioned top-down for small firms. This spec turns the existing product into a bottoms-up wedge that also lands-and-expands into firm deals.
+**Origin:** A meeting with Sam Andersen (Investment Partner, Element Ventures, a top Utah pre-seed fund) on 2026-06-18. Sam's key product steer: *"If you can get it so someone can download and use it on their own — without the firm having to approve it first — that would be great."* He sees bottoms-up, individual self-serve adoption as the opportunity. Advisor Prep Hero has been positioned top-down for small firms. This spec turns the existing product into a bottoms-up wedge that also lands-and-expands into firm deals.
 
 ---
 
@@ -13,10 +13,10 @@ The founder's framing question was: *"How can we make absolutely sure that indiv
 
 **You cannot make a firm employee compliant — that governance is not yours to control.** Whether a lawyer may run a given tool on client work is set by their firm's IT policy, their outside-counsel guidelines, and their own ethical duties (ABA Model Rule 1.6 on confidentiality; ABA Formal Opinion 512 on generative AI). No vendor can guarantee a user honors those. Any product claiming "guaranteed compliant" is lying, and this audience can smell it.
 
-What you **can** control, and what actually matters: the thing firms are afraid of is **client data leaking to a third party** (the "an associate pasted the complaint into ChatGPT" nightmare). Keepance's local-first + BYOK architecture already kills that specific fear. So the design does not promise compliance. It does two achievable things instead:
+What you **can** control, and what actually matters: the thing firms are afraid of is **client data leaking to a third party** (the "an associate pasted the complaint into ChatGPT" nightmare). Advisor Prep Hero's local-first + BYOK architecture already kills that specific fear. So the design does not promise compliance. It does two achievable things instead:
 
 1. **Make solo use safe-by-default** so an individual *cannot* leak client data without a deliberate, informed choice. You can guarantee the *default configuration never egresses* — and that is the firm's number-one fear, handled.
-2. **Turn the individual into the path into the firm** — give them an honest, exportable security pack to get Keepance blessed for real client work, converting a solo user into the champion of a firm sale (bottoms-up → land-and-expand).
+2. **Turn the individual into the path into the firm** — give them an honest, exportable security pack to get Advisor Prep Hero blessed for real client work, converting a solo user into the champion of a firm sale (bottoms-up → land-and-expand).
 
 The honest line that resolves the tension between "no IT ticket required" and "don't violate firm policy," held consistently across all copy:
 
@@ -82,7 +82,7 @@ The honest line that resolves the tension between "no IT ticket required" and "d
 
 **Change:** add a short, lawyer-literate trust moment to onboarding (extend step 4 Trust / step 5 AI key, reusing `DataMapContent`). Exact copy lives in `03-copy-deck.md`; the substance:
 
-> Keepance runs entirely on your computer. In Local-only mode, nothing about your matters leaves this device — not to us, not to any AI provider. Using any tool on client work may still be governed by your firm's policies. Here's exactly what Keepance does, so you can check.
+> Advisor Prep Hero runs entirely on your computer. In Local-only mode, nothing about your matters leaves this device — not to us, not to any AI provider. Using any tool on client work may still be governed by your firm's policies. Here's exactly what Advisor Prep Hero does, so you can check.
 
 No fake "compliant" badge. The honesty is the differentiator with this audience.
 
@@ -92,20 +92,20 @@ No fake "compliant" badge. The honesty is the differentiator with this audience.
 
 **Change:** a one-click action that generates a clean, professional PDF aimed at a firm's **IT / General Counsel** (a different audience than the existing client-facing Data Map). It assembles, from existing truthful sources:
 
-- What Keepance is (local-first private intelligence layer) and the architecture in plain terms.
+- What Advisor Prep Hero is (local-first private intelligence layer) and the architecture in plain terms.
 - The Data Map (reuse `DataMapContent`).
 - The three confidentiality modes and **exactly what egresses in each**.
-- The BYOK model (Keepance never holds keys or sees content).
+- The BYOK model (Advisor Prep Hero never holds keys or sees content).
 - The firm-tier security story: E2EE relay (relay only ever stores ciphertext), SSO, ethical walls enforced by key denial, DPA / SOC 2 status.
 - A short "what to ask us" / contact line for the firm's evaluator.
 
-This makes an individual's use *defensible* and converts that individual into the champion who walks Keepance into the firm. Reuses the existing print-to-PDF pattern in `DataMapDialog.tsx`.
+This makes an individual's use *defensible* and converts that individual into the champion who walks Advisor Prep Hero into the firm. Reuses the existing print-to-PDF pattern in `DataMapDialog.tsx`.
 
 **Touch points:** new component (e.g. `src/features/privacy/FirmSecurityPack.tsx`) reusing `DataMapContent` + facts from `egress.ts` + the trust/DPA docs under `docs/trust/` and `docs/legal/`; an entry point in the Privacy Center (`src/features/privacy/PrivacyCenterHome.tsx`) and/or Settings → Privacy. Keep copy accurate, no marketing language.
 
 ### Change 4 — The land-and-expand bridge
 
-**Change:** when the individual is ready to use Keepance with their firm, a clear path: **"Use this with my firm"** → create or join a firm workspace; their existing local matters come with them; the seat-based Firm tier takes over. The free-trial/solo individual becomes seat #1 of a firm deal.
+**Change:** when the individual is ready to use Advisor Prep Hero with their firm, a clear path: **"Use this with my firm"** → create or join a firm workspace; their existing local matters come with them; the seat-based Firm tier takes over. The free-trial/solo individual becomes seat #1 of a firm deal.
 
 This mostly wires the existing firm onboarding (`FirmAdminConsole`, `FirmSignIn`, the onboarding "Invite firm" step) to a discoverable, well-placed entry point for a *solo* user who started on their own — plus carrying their local matters into the firm workspace.
 
@@ -145,9 +145,9 @@ None of the safe-by-default or solo-packaging changes may alter firm-tier behavi
 
 "No IT ticket required" is in honest tension with "don't violate firm policy." The resolution, which must hold in every piece of copy (website, onboarding, security pack, emails):
 
-- An individual may freely **evaluate** Keepance on their own: local-only, their own device, their own or non-privileged data.
+- An individual may freely **evaluate** Advisor Prep Hero on their own: local-only, their own device, their own or non-privileged data.
 - The **security pack** is the path to using it for real client work at a firm.
-- We must **never** message in a way that encourages associates to put privileged client data into unapproved software on a firm-managed device. That is a real liability for them and a reputational risk for Keepance.
+- We must **never** message in a way that encourages associates to put privileged client data into unapproved software on a firm-managed device. That is a real liability for them and a reputational risk for Advisor Prep Hero.
 - The canonical line: **"Start on your own today; get it firm-approved when you're ready for client work."**
 
 Treat any copy that violates this as a defect, not a style nit.

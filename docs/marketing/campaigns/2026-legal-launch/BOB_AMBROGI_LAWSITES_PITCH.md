@@ -2,7 +2,7 @@
 
 > **Who:** Bob Ambrogi, lawsites.com. The most credible legal technology journalist covering
 > solo and small-firm practice. Runs the LawSites blog and newsletter. Not pay-to-play.
-> His audience is exactly Keepance's ICP.
+> His audience is exactly Advisor Prep Hero's ICP.
 >
 > **When to send:** After the Legal Practice pack ships publicly. That means:
 > 1. Attorney advisor has reviewed all 7 templates
@@ -28,7 +28,7 @@ Hi Bob,
 
 I'm Jameson Daines. I build software and I'm not a lawyer, which is relevant context for what I'm about to pitch.
 
-A couple of years ago I started using AI tools for client work and ran into the obvious question: where is this data going, and am I allowed to send it there? I couldn't find a good answer, so I built something that avoids the problem entirely. The result is Keepance, a local-first AI workspace where all files stay on the user's machine and API calls go directly from the user's computer to Anthropic or OpenAI, not through my servers.
+A couple of years ago I started using AI tools for client work and ran into the obvious question: where is this data going, and am I allowed to send it there? I couldn't find a good answer, so I built something that avoids the problem entirely. The result is Advisor Prep Hero, a local-first AI workspace where all files stay on the user's machine and API calls go directly from the user's computer to Anthropic or OpenAI, not through my servers.
 
 I've since built a Legal Practice pack: seven attorney-specific workflow templates reviewed by a practicing attorney. The timing felt real after ABA Formal Opinion 512 and the Heppner ruling earlier this year.
 
@@ -45,19 +45,19 @@ Use this if Bob replies asking for more detail, or as a follow-up after initial 
 
 ---
 
-**Subject:** More detail on Keepance, if useful
+**Subject:** More detail on Advisor Prep Hero, if useful
 
 Hi Bob,
 
 Thanks for the follow-up. Here's the fuller picture.
 
-**What Keepance is.** A desktop app (Windows, Mac, Linux) that combines a Word-native (.docx) document layer, AI chat, and structured workflow templates into a single workspace. The key architectural decision: nothing touches my servers. Files live on the user's machine in a folder they pick. API keys live in the user's OS, not in a database I control. When an attorney sends a prompt, that request goes from their computer directly to Anthropic or OpenAI. I never see it.
+**What Advisor Prep Hero is.** A desktop app (Windows, Mac, Linux) that combines a Word-native (.docx) document layer, AI chat, and structured workflow templates into a single workspace. The key architectural decision: nothing touches my servers. Files live on the user's machine in a folder they pick. API keys live in the user's OS, not in a database I control. When an attorney sends a prompt, that request goes from their computer directly to Anthropic or OpenAI. I never see it.
 
-**Why it matters for privilege.** The Heppner ruling (S.D.N.Y., Judge Rakoff, Feb. 2026) found that consumer AI use without attorney direction did not preserve privilege. The dicta are favorable for the opposite scenario: counsel-directed, locally-controlled workflows. I'm not a lawyer and I won't overclaim on privilege theory, but the architecture removes the third-party disclosure question entirely because there's no Keepance intermediary in the data path.
+**Why it matters for privilege.** The Heppner ruling (S.D.N.Y., Judge Rakoff, Feb. 2026) found that consumer AI use without attorney direction did not preserve privilege. The dicta are favorable for the opposite scenario: counsel-directed, locally-controlled workflows. I'm not a lawyer and I won't overclaim on privilege theory, but the architecture removes the third-party disclosure question entirely because there's no Advisor Prep Hero intermediary in the data path.
 
 **The Legal Practice pack.** Seven templates reviewed by a practicing attorney: Deposition Contradiction Finder, Evidence Gap Analyzer, Case Timeline Builder, Privilege Log Drafter, Discovery Document Triage, Patent Disclosure Draft, and Client Intake Synthesizer. These are structured workflows, not chat prompts. The attorney answers a set of questions, the template runs against their documents, and the output is a real file on their machine.
 
-**What Keepance is not.** Not a Clio competitor. Not a document management system. Not a legal research tool. It does not connect to court databases, case law, or any external service. Attorneys who need full practice management software should keep using what they have. Keepance fits in the gap between that infrastructure and the actual thinking work.
+**What Advisor Prep Hero is not.** Not a Clio competitor. Not a document management system. Not a legal research tool. It does not connect to court databases, case law, or any external service. Attorneys who need full practice management software should keep using what they have. Advisor Prep Hero fits in the gap between that infrastructure and the actual thinking work.
 
 **Pricing:** Solo $468/yr ($39/mo) / Professional $948/yr ($79/mo, one profession pack included) / Firm $1,548/seat/yr ($129/mo, min 3 seats, all packs). Annual subscription.
 
@@ -72,7 +72,7 @@ keepance.com
 
 Send one follow-up email if no response in two weeks. Keep it short:
 
-> Hi Bob, just checking in on the Keepance note from [date]. No pressure — I know you cover a lot
+> Hi Bob, just checking in on the Advisor Prep Hero note from [date]. No pressure — I know you cover a lot
 > of tools. If it's not a fit, totally fine. If timing is the issue, the offer to send a license
 > stands whenever you want it.
 
@@ -98,7 +98,7 @@ damaging the relationship over, and Bob has a long memory for people who are pes
 
 **What stands out in his coverage:**
 - A real differentiator with a clear technical explanation. "Local-first" is meaningful to his
-  readers; explain it concretely (no server intermediary, no Keepance account required).
+  readers; explain it concretely (no server intermediary, no Advisor Prep Hero account required).
 - A founder who is honest about what the product does not do. Bob respects candor. The fact that
   Jameson is not a lawyer and had the templates reviewed is worth mentioning, not hiding.
 - A legal angle with substance. ABA Opinion 512 and Heppner are real developments his readers care
@@ -107,7 +107,7 @@ damaging the relationship over, and Bob has a long memory for people who are pes
   immediately. "$468/yr" is a real differentiator in a market where comparable tools run $2,700-5,000/yr.
 
 **What to avoid:**
-- Never frame Keepance as "the next X" (next Clio, next Westlaw, next anything).
+- Never frame Advisor Prep Hero as "the next X" (next Clio, next Westlaw, next anything).
 - Never use "leveraging AI" or "empowering attorneys" or any phrase that sounds like a press release.
 - Do not ask him to share it on social or mention it in his newsletter. He decides that. Ask for
   a look, not a placement.

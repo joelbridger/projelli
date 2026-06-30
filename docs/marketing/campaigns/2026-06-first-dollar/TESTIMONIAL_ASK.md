@@ -1,6 +1,6 @@
 # Testimonial ask: Step 3
 
-**Owner: Jameson.** The moment 1-3 people buy or actively use Keepance, ask for a short testimonial and permission to name them. This is the thing that unlocks the law/tax launch (zero social proof is the #1 conversion blocker right now). Don't rush it: let them actually use the app for a few days first, then ask.
+**Owner: Jameson.** The moment 1-3 people buy or actively use Advisor Prep Hero, ask for a short testimonial and permission to name them. This is the thing that unlocks the law/tax launch (zero social proof is the #1 conversion blocker right now). Don't rush it: let them actually use the app for a few days first, then ask.
 
 ---
 

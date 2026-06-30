@@ -218,9 +218,9 @@ describe('audit-export / entriesToCSV', () => {
 });
 
 describe('audit-export / buildExportFilename', () => {
-  it('uses the keepance-audit-<iso>.<ext> format', () => {
+  it('uses the aph-audit-<iso>.<ext> format', () => {
     const name = buildExportFilename('json', new Date(2026, 3, 16, 14, 32, 7));
-    expect(name).toBe('keepance-audit-2026-04-16T14-32-07.json');
+    expect(name).toBe('aph-audit-2026-04-16T14-32-07.json');
   });
 
   it('switches extension correctly', () => {
@@ -230,7 +230,7 @@ describe('audit-export / buildExportFilename', () => {
 
   it('pads single-digit month/day/hour/minute/second with zeros', () => {
     const name = buildExportFilename('json', new Date(2026, 0, 3, 4, 5, 6));
-    expect(name).toBe('keepance-audit-2026-01-03T04-05-06.json');
+    expect(name).toBe('aph-audit-2026-01-03T04-05-06.json');
   });
 
   it('avoids colons (Windows-portable)', () => {
@@ -408,10 +408,10 @@ describe('audit-export / triggerDownload', () => {
   it('downloadAuditJSON and downloadAuditCSV return the built filename', () => {
     const now = new Date(2026, 3, 16, 9, 0, 0);
     expect(downloadAuditJSON([makeEntry()], now)).toBe(
-      'keepance-audit-2026-04-16T09-00-00.json'
+      'aph-audit-2026-04-16T09-00-00.json'
     );
     expect(downloadAuditCSV([makeEntry()], now)).toBe(
-      'keepance-audit-2026-04-16T09-00-00.csv'
+      'aph-audit-2026-04-16T09-00-00.csv'
     );
   });
 });

@@ -12,7 +12,7 @@ import { beforeEach } from 'vitest';
 beforeEach(() => {
   try {
     localStorage.setItem(
-      'keepance:settings',
+      'lantern:settings',
       JSON.stringify({ state: { values: { confidentialityMode: 'direct' } }, version: 1 }),
     );
   } catch {

@@ -1,6 +1,6 @@
 // Privilege / work-product model (WS-PRIV)
 //
-// Privilege is the LITIGATION-SAFETY boundary in Keepance 3.0, parallel to the
+// Privilege is the LITIGATION-SAFETY boundary in Advisor Prep Hero 3.0, parallel to the
 // matter (confidentiality) boundary. Because every AI chat is saved and every
 // file is searchable, a lawyer accumulates discoverable material; privileged
 // content (attorney-client communications, attorney work product) must be

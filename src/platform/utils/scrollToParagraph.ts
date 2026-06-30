@@ -1,13 +1,14 @@
 /**
  * F-504 — citation click-through scroll plumbing.
  *
- * App.tsx dispatches `keepance:scroll-to-paragraph` right after opening the
+ * App.tsx dispatches `lantern:scroll-to-paragraph` right after opening the
  * cited file, but the editor for a freshly-opened tab mounts AFTER that
  * dispatch (same-tick state update), so a bare event listener misses it.
  * The slot keeps the most recent request so the editor can consume it on
  * mount; the event stays for already-mounted editors (re-click while open).
  */
-export const SCROLL_TO_PARAGRAPH_EVENT = 'keepance:scroll-to-paragraph';
+import { EV_SCROLL_TO_PARAGRAPH } from '@/config/identity';
+export const SCROLL_TO_PARAGRAPH_EVENT = EV_SCROLL_TO_PARAGRAPH;
 
 export interface ScrollToParagraphDetail {
   path: string;

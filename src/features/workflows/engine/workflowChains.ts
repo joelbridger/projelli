@@ -9,8 +9,9 @@
 
 import type { WorkflowChain } from '@/platform/types/workflow';
 import { deserializeChain, serializeChain } from './WorkflowChainEngine';
+import { SK_WORKFLOW_CHAINS } from '@/config/identity';
 
-export const CHAIN_STORAGE_KEY = 'keepance:workflowChains';
+export const CHAIN_STORAGE_KEY = SK_WORKFLOW_CHAINS;
 
 export interface ChainStorage {
   read(): string | null;

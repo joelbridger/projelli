@@ -79,13 +79,15 @@ pub fn is_indexable(path: &Path) -> bool {
 }
 
 /// Returns true if the path lives inside a directory we always skip
-/// (`node_modules`, `.git`, `.keepance`, etc). Keeps the workspace walker
+/// (`node_modules`, `.git`, the internal data dir, etc). Keeps the workspace walker
 /// O(useful files) rather than O(every file on disk).
 pub fn is_skipped_dir_name(name: &str) -> bool {
+    if name == crate::identity::WORKSPACE_DATA_DIR {
+        return true;
+    }
     matches!(
         name,
         ".git"
-            | ".keepance"
             | "node_modules"
             | "target"
             | "dist"
@@ -227,7 +229,7 @@ mod tests {
     fn standard_skip_dirs() {
         assert!(is_skipped_dir_name(".git"));
         assert!(is_skipped_dir_name("node_modules"));
-        assert!(is_skipped_dir_name(".keepance"));
+        assert!(is_skipped_dir_name(crate::identity::WORKSPACE_DATA_DIR));
         assert!(is_skipped_dir_name("target"));
         assert!(!is_skipped_dir_name("docs"));
         assert!(!is_skipped_dir_name("src"));

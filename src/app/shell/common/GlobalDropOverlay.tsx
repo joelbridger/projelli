@@ -2,7 +2,7 @@
  * Global drag-and-drop upload (UX-19).
  *
  * Users expect to drag files into a workspace app (Notion, Obsidian, VS Code
- * all support it). This hook + overlay pair lets Keepance handle drops onto
+ * all support it). This hook + overlay pair lets Advisor Prep Hero handle drops onto
  * the window itself — not just the upload button.
  *
  * Contract:
@@ -15,7 +15,7 @@
  *     `FileTree.tsx` — it tags folder rows with `data-folder-path`), we
  *     route the files into that folder. Otherwise they land in the
  *     workspace root.
- *   - Non-file drops are ignored (e.g. dragging a Keepance tab around).
+ *   - Non-file drops are ignored (e.g. dragging a Advisor Prep Hero tab around).
  *
  * Duplicate handling, `.DS_Store` filtering, and post-drop tab opening are
  * implemented in `dropFilesIntoWorkspace` (see `fileDrop.ts`).

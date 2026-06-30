@@ -8,11 +8,11 @@ test.describe('v1.6 feature tour', () => {
 
     await page.evaluate(() => {
       localStorage.setItem('keepance_onboarding_complete', 'true');
-      const raw = localStorage.getItem('keepance:settings') ?? '{}';
+      const raw = localStorage.getItem('lantern:settings') ?? '{}';
       const parsed = JSON.parse(raw);
       parsed.state = parsed.state ?? {};
       parsed.state.featuresTourCompleted = false;
-      localStorage.setItem('keepance:settings', JSON.stringify(parsed));
+      localStorage.setItem('lantern:settings', JSON.stringify(parsed));
     });
     await page.reload();
 
@@ -44,7 +44,7 @@ test.describe('v1.6 feature tour', () => {
       .poll(
         () =>
           page.evaluate(() => {
-            const raw = localStorage.getItem('keepance:settings') ?? '{}';
+            const raw = localStorage.getItem('lantern:settings') ?? '{}';
             return JSON.parse(raw).state?.featuresTourCompleted;
           }),
         { timeout: 5000 },
@@ -56,11 +56,11 @@ test.describe('v1.6 feature tour', () => {
     await page.goto('/?testMode=true&forceTour=true');
     await page.evaluate(() => {
       localStorage.setItem('keepance_onboarding_complete', 'true');
-      const raw = localStorage.getItem('keepance:settings') ?? '{}';
+      const raw = localStorage.getItem('lantern:settings') ?? '{}';
       const parsed = JSON.parse(raw);
       parsed.state = parsed.state ?? {};
       parsed.state.featuresTourCompleted = false;
-      localStorage.setItem('keepance:settings', JSON.stringify(parsed));
+      localStorage.setItem('lantern:settings', JSON.stringify(parsed));
     });
     await page.reload();
     await expect(page.getByTestId('feature-tour-center')).toBeVisible({ timeout: 5000 });

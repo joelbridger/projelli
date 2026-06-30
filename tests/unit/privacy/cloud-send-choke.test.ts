@@ -18,7 +18,7 @@ import {
 } from '@/platform/privacy/cloudSendGuard';
 import { ClaudeProvider } from '@/platform/providers/ClaudeProvider';
 
-const PERSIST_KEY = 'keepance:settings';
+const PERSIST_KEY = 'lantern:settings';
 
 function setMode(mode: string) {
   useSettingsStore.getState().setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, mode);

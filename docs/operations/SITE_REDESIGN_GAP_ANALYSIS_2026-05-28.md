@@ -1,4 +1,4 @@
-# Keepance Site Redesign — Gap Analysis & Execution Plan
+# Advisor Prep Hero Site Redesign — Gap Analysis & Execution Plan
 **Date:** 2026-05-28  
 **Author:** Claude (CEO session)  
 **Status:** Execution in progress

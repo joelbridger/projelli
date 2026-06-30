@@ -1,4 +1,4 @@
-# Keepance Firm: Purchase to Provision Runbook
+# Advisor Prep Hero Firm: Purchase to Provision Runbook
 
 **Date:** 2026-06-10  
 **Task:** Phase 1 firm wiring, Task 5  
@@ -12,7 +12,7 @@
 
 | Field | Value |
 |---|---|
-| Product name | Keepance Firm |
+| Product name | Advisor Prep Hero Firm |
 | LS Product ID | 1131065 |
 | Variant name | Default |
 | **Variant ID** | **1769899** |
@@ -103,7 +103,7 @@ sudo systemctl restart keepance-backend
 curl https://api.keepance.com/healthz
 ```
 
-**DO NOT execute this until the orchestrator gives the release go.** The code is ready; the deploy is gate-blocked on Jameson's sign-off per the Keepance commercial deploy policy.
+**DO NOT execute this until the orchestrator gives the release go.** The code is ready; the deploy is gate-blocked on Jameson's sign-off per the Advisor Prep Hero commercial deploy policy.
 
 ---
 
@@ -191,9 +191,9 @@ The `/admin/org` route binds to `127.0.0.1` only (Caddy does not proxy it extern
    - Checks `isFirmVariant` (variant ID 1769899 matches `FIRM_VARIANT_IDS`).
    - Creates an org with `status='unclaimed'` and `seat_limit = max(3, quantity)`.
    - Stores the license key hash.
-4. **Buyer downloads Keepance** (Windows/Mac/Linux from keepance.com or GitHub releases).
+4. **Buyer downloads Advisor Prep Hero** (Windows/Mac/Linux from keepance.com or GitHub releases).
 5. **Buyer opens Settings > Firm** in the app.
-6. **Buyer clicks "I just bought Keepance Firm"** (the new claim-org panel added in this task).
+6. **Buyer clicks "I just bought Advisor Prep Hero Firm"** (the new claim-org panel added in this task).
 7. **Buyer enters:** license key (from LS email), email, password, firm name (optional).
 8. **App calls** `POST /org/claim`, which:
    - Activates the org (status: unclaimed -> active).
@@ -202,7 +202,7 @@ The `/admin/org` route binds to `127.0.0.1` only (Caddy does not proxy it extern
 9. **App signs in automatically** as admin. The activation form is pre-filled with the license key.
 10. **Buyer activates their seat** by clicking "Activate seat" (license key is pre-filled; they add a device label).
 11. **Buyer invites colleagues** via Settings > Firm > Console > Invite by email.
-12. **Each colleague** downloads Keepance, opens Settings > Firm, signs in with their credentials, and activates a seat.
+12. **Each colleague** downloads Advisor Prep Hero, opens Settings > Firm, signs in with their credentials, and activates a seat.
 
 ---
 
@@ -210,7 +210,7 @@ The `/admin/org` route binds to `127.0.0.1` only (Caddy does not proxy it extern
 
 Taken 2026-06-10 (Task 5 session):
 
-- `docs/quality/2026-06-10-v3-usability-campaign/screenshots/phase1/ls-firm-quantity.png` — Keepance Firm product details (showing Published, license keys ON, description confirming "minimum 3 seats")
+- `docs/quality/2026-06-10-v3-usability-campaign/screenshots/phase1/ls-firm-quantity.png` — Advisor Prep Hero Firm product details (showing Published, license keys ON, description confirming "minimum 3 seats")
 - `docs/quality/2026-06-10-v3-usability-campaign/screenshots/phase1/ls-webhook.png` — Webhooks settings page showing all 3 webhooks including the new `api.keepance.com` endpoint
 
 ---
@@ -219,14 +219,14 @@ Taken 2026-06-10 (Task 5 session):
 
 | Variant | LS Variant ID | LS Product ID |
 |---|---|---|
-| Keepance Firm (Default) | **1769899** | 1131065 |
+| Advisor Prep Hero Firm (Default) | **1769899** | 1131065 |
 
 Set in backend env:
 ```
 FIRM_VARIANT_IDS=1769899
 ```
 
-This is also the fallback: `isFirmVariant()` in `webhooks.ts` also matches any variant whose name contains "Firm" (case-insensitive), so even if this env var is not set, a variant named "Default" on a product named "Keepance Firm" will be caught by the name-based check.
+This is also the fallback: `isFirmVariant()` in `webhooks.ts` also matches any variant whose name contains "Firm" (case-insensitive), so even if this env var is not set, a variant named "Default" on a product named "Advisor Prep Hero Firm" will be caught by the name-based check.
 
 ---
 

@@ -496,7 +496,7 @@ describe('matterStore migration v5 -> v7', () => {
       // crmHouseholdKeys is intentionally absent
     };
     localStorage.setItem(
-      'keepance:matters',
+      'lantern:matters',
       JSON.stringify({
         state: { matters: [v5Matter], activeMatterId: null },
         version: 5,

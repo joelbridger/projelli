@@ -1,4 +1,4 @@
-# Keepance — First-Time-User UX Review, ROUND 2 (2026-06-14)
+# Advisor Prep Hero — First-Time-User UX Review, ROUND 2 (2026-06-14)
 
 Second full review, on the Round-1-improved build. Two reviewer lenses landed (first-run/returning-user
 + strategic); two (core-workflows, a11y/responsive) were cut for time and folded into a self-driven

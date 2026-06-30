@@ -1,6 +1,6 @@
 ---
 name: Marketing Asset Capture System
-description: Reproducible Playwright pipeline that produces a full library of macOS-styled product screenshots and videos for Keepance
+description: Reproducible Playwright pipeline that produces a full library of macOS-styled product screenshots and videos for Advisor Prep Hero
 type: design-spec
 status: shipped (v1 + video expansion)
 date: 2026-04-27
@@ -12,7 +12,7 @@ date: 2026-04-27
 
 ## Goal
 
-Produce a full library of marketing assets (screenshots + videos) that look like Keepance is being used on macOS, generated reproducibly from the React dev server, with a single command.
+Produce a full library of marketing assets (screenshots + videos) that look like Advisor Prep Hero is being used on macOS, generated reproducibly from the React dev server, with a single command.
 
 The library covers:
 
@@ -24,7 +24,7 @@ Tier 3 (Product Hunt gallery reframes) and Tier 4 (short social video clips) are
 
 ## Why this approach
 
-Keepance's UI is a React + Tailwind app served by Vite. Every supported platform (macOS native WebKit, Windows WebView2, Linux webkit2gtk) renders the same React tree. Capturing that React tree directly in **headless Chromium via Playwright**, then compositing macOS chrome around it in post, gives:
+Advisor Prep Hero's UI is a React + Tailwind app served by Vite. Every supported platform (macOS native WebKit, Windows WebView2, Linux webkit2gtk) renders the same React tree. Capturing that React tree directly in **headless Chromium via Playwright**, then compositing macOS chrome around it in post, gives:
 
 - The highest-fidelity rendering (Chromium ≥ webkit2gtk for text, GPU compositing, transitions)
 - Pixel-perfect reproducibility (seeded state + canned AI replay = identical output every run)
@@ -228,7 +228,7 @@ Three completed conversations stored, plus one "in progress" for shot S02:
 - OpenAI key: similarly masked
 - Gemini: blank (shows "Add key" CTA — demonstrates BYOK story)
 - Default model: Claude Opus 4.7
-- Workspace path: `/Users/jameson/Keepance/Linterly` (matches macOS path conventions for visual consistency)
+- Workspace path: `/Users/jameson/Advisor Prep Hero/Linterly` (matches macOS path conventions for visual consistency)
 
 ### Templates
 
@@ -256,7 +256,7 @@ export const linterlyFixture = {
 }
 ```
 
-`seed-state.ts` applies the fixture by calling `page.evaluate()` to write directly into the Zustand stores (or localStorage keys, depending on how Keepance persists state — verified at implementation start). Per-shot overrides are merged on top.
+`seed-state.ts` applies the fixture by calling `page.evaluate()` to write directly into the Zustand stores (or localStorage keys, depending on how Advisor Prep Hero persists state — verified at implementation start). Per-shot overrides are merged on top.
 
 ## Canned AI streaming
 

@@ -688,7 +688,7 @@ export class WorkflowEngine {
 
     if (!this.analyzeDeps) {
       throw new Error(
-        'This workflow needs matter-scoped retrieval, which is only available in the Keepance desktop app with an active matter.',
+        'This workflow needs matter-scoped retrieval, which is only available in the Advisor Prep Hero desktop app with an active matter.',
       );
     }
     if (!this.fileOps.writeFileBinary) {

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BYOK AI explained: bring your own AI key, the why and how | Keepance</title>
+  <title>BYOK AI explained: bring your own AI key, the why and how | Advisor Prep Hero</title>
   <meta name="description" content="BYOK means you supply your own Anthropic, OpenAI, or Gemini key instead of paying a subscription. What it costs, why privacy changes, how to set up.">
   <link rel="canonical" href="https://keepance.com/byok-ai">
   <meta name="robots" content="index, follow">
@@ -30,7 +30,7 @@
     "image": "https://keepance.com/og-image.png",
     "publisher": {
       "@type": "Organization",
-      "name": "Keepance",
+      "name": "Advisor Prep Hero",
       "url": "https://keepance.com",
       "logo": "https://keepance.com/og-image.png"
     },
@@ -87,7 +87,7 @@
         "name": "Which tools support BYOK?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Most desktop AI workspaces designed for power users support BYOK: Keepance, Cursor (for code), Continue.dev (for code), several Obsidian AI plugins, Raycast AI, Bring Your Own AI extensions for VS Code. Most cloud workspaces (Notion AI, ChatGPT Plus, Claude.ai Pro) do not."
+          "text": "Most desktop AI workspaces designed for power users support BYOK: Advisor Prep Hero, Cursor (for code), Continue.dev (for code), several Obsidian AI plugins, Raycast AI, Bring Your Own AI extensions for VS Code. Most cloud workspaces (Notion AI, ChatGPT Plus, Claude.ai Pro) do not."
         }
       }
     ]
@@ -210,9 +210,9 @@
 
     <p>BYOK fixes both of those, with one real trade-off (you have to set up an API key once). This page walks through what BYOK actually means, what it costs in practice, why it changes the privacy math, and how to set up your first key in about five minutes.</p>
 
-    <p>One footnote up top. As of v2.0, you can try the chat side without a key at all by visiting the homepage. It's a five-message web demo running on a Keepance-managed Bun proxy with a pre-seeded sample workspace. Honestly the right thing to do is poke at the demo for ten minutes to confirm you actually like the workflow, then come back and grab a key. The rest of the page assumes you're ready to set up your own.</p>
+    <p>One footnote up top. As of v2.0, you can try the chat side without a key at all by visiting the homepage. It's a five-message web demo running on a Advisor Prep Hero-managed Bun proxy with a pre-seeded sample workspace. Honestly the right thing to do is poke at the demo for ten minutes to confirm you actually like the workflow, then come back and grab a key. The rest of the page assumes you're ready to set up your own.</p>
 
-    <p style="margin: 32px 0;"><img src="/press-kit/assets/screenshot-06-api-keys.png" alt="Keepance Settings → API Keys: paste your Anthropic, OpenAI, or Gemini key, stored in your OS keychain" style="width:100%; border-radius:12px; box-shadow:0 8px 24px rgba(15,23,42,0.08); display:block;"></p>
+    <p style="margin: 32px 0;"><img src="/press-kit/assets/screenshot-06-api-keys.png" alt="Advisor Prep Hero Settings → API Keys: paste your Anthropic, OpenAI, or Gemini key, stored in your OS keychain" style="width:100%; border-radius:12px; box-shadow:0 8px 24px rgba(15,23,42,0.08); display:block;"></p>
 
     <h2>What BYOK actually is</h2>
 
@@ -220,7 +220,7 @@
 
     <ul>
       <li><strong>Bundled inference.</strong> You pay one flat fee, the tool handles AI calls behind the scenes, and you don't see the underlying API. Examples: ChatGPT Plus ($20/mo), Claude Pro ($20/mo), Notion AI ($20/mo on top of your Notion subscription), Cursor Pro ($20/mo), Reflect ($15/mo).</li>
-      <li><strong>BYOK.</strong> You sign up for an account at the AI provider's developer portal, generate an API key, paste it into the tool. The tool makes API calls using your key, and the AI provider bills you directly for usage. The tool charges you separately as an annual subscription. Examples: Keepance ($468/yr Solo + your API costs), Cursor (BYOK option), Continue.dev (free + your API costs), Raycast AI, several Obsidian AI plugins.</li>
+      <li><strong>BYOK.</strong> You sign up for an account at the AI provider's developer portal, generate an API key, paste it into the tool. The tool makes API calls using your key, and the AI provider bills you directly for usage. The tool charges you separately as an annual subscription. Examples: Advisor Prep Hero ($468/yr Solo + your API costs), Cursor (BYOK option), Continue.dev (free + your API costs), Raycast AI, several Obsidian AI plugins.</li>
     </ul>
 
     <p>The acronym BYOK shows up in the cloud-software world ("bring your own key") to mean a customer-managed encryption key. In the AI tools context, it means the same idea applied to your AI provider account: you're the customer of the AI provider, not of the tool wrapping it.</p>
@@ -294,13 +294,13 @@
           <td>$720</td>
         </tr>
         <tr>
-          <td><strong>Keepance (Solo $468/yr) + BYOK Claude</strong></td>
+          <td><strong>Advisor Prep Hero (Solo $468/yr) + BYOK Claude</strong></td>
           <td><strong>$468 + $5-15/mo = year 1: $528-$648; ongoing: $5-15/mo + $468/yr</strong></td>
           <td><strong>$468 + $30-50/mo = year 1: $828-$1,068; ongoing: $30-50/mo + $468/yr</strong></td>
           <td><strong>~$1,584 (light user)</strong></td>
         </tr>
         <tr>
-          <td><strong>Keepance (Professional $948/yr) + BYOK Gemini</strong></td>
+          <td><strong>Advisor Prep Hero (Professional $948/yr) + BYOK Gemini</strong></td>
           <td><strong>$948 + $3-8/mo = year 1: ~$984-$1,044; ongoing: $3-8/mo + $948/yr</strong></td>
           <td><strong>$948 + $15-30/mo = year 1: ~$1,128-$1,308; ongoing: $15-30/mo + $948/yr</strong></td>
           <td><strong>~$3,024 (light user)</strong></td>
@@ -334,7 +334,7 @@
 
     <p>With a bundled-inference tool, your prompt goes: your machine → tool's servers → AI provider → tool's servers → your machine. The tool's company sees your prompt and the response.</p>
 
-    <p>With a BYOK desktop app like Keepance, your prompt goes: your machine → AI provider → your machine. The desktop app's servers are not in the path. There's no intermediate store. Cursor, Continue.dev, Keepance, and most BYOK tools work this way. (Always check; some tools route through their own servers even with BYOK, which is a different threat model.)</p>
+    <p>With a BYOK desktop app like Advisor Prep Hero, your prompt goes: your machine → AI provider → your machine. The desktop app's servers are not in the path. There's no intermediate store. Cursor, Continue.dev, Advisor Prep Hero, and most BYOK tools work this way. (Always check; some tools route through their own servers even with BYOK, which is a different threat model.)</p>
 
     <h3>3. Your conversation history is on your machine</h3>
 
@@ -354,7 +354,7 @@
       <li>Add a payment method and put $5-20 of prepaid balance (you can set a hard monthly cap so you don't accidentally spend more)</li>
       <li>Go to Settings → API Keys → Create Key</li>
       <li>Copy the key (starts with <code>sk-ant-</code>)</li>
-      <li>Paste it into your BYOK app (in Keepance: Settings → AI → API Keys → Anthropic)</li>
+      <li>Paste it into your BYOK app (in Advisor Prep Hero: Settings → AI → API Keys → Anthropic)</li>
     </ol>
 
     <p>You're done. Claude conversations now go directly from your machine to Anthropic.</p>
@@ -399,7 +399,7 @@
 
     <p>The trade-off is quality. Open-weight models are catching up but are not at parity with Claude Sonnet, GPT-5, or Gemini 2.5 Pro for the kind of detailed legal, tax, or analytical work most attorneys, CPAs, and consultants want AI for. Drafting code? Open-weight models are competitive. Drafting a motion or a complex tax memo? You'll feel the difference.</p>
 
-    <p>The realistic 2026 answer: use BYOK with Claude/OpenAI/Gemini for high-stakes work, and use local Ollama for the volume work where 90% quality is fine. Keepance supports both: configure local Ollama as a provider alongside Claude / OpenAI / Gemini, and route per-conversation.</p>
+    <p>The realistic 2026 answer: use BYOK with Claude/OpenAI/Gemini for high-stakes work, and use local Ollama for the volume work where 90% quality is fine. Advisor Prep Hero supports both: configure local Ollama as a provider alongside Claude / OpenAI / Gemini, and route per-conversation.</p>
 
     <h2>Common concerns answered</h2>
 
@@ -431,7 +431,7 @@
       </thead>
       <tbody>
         <tr>
-          <td><strong>Keepance</strong></td>
+          <td><strong>Advisor Prep Hero</strong></td>
           <td><span class="pill yes">Yes, all 3 providers</span></td>
           <td>Local-first AI workspace for attorneys, CPAs, and consultants</td>
         </tr>
@@ -500,11 +500,11 @@
       </details>
       <details>
         <summary>Which tools support BYOK?</summary>
-        <p>Most desktop AI workspaces designed for power users support BYOK: Keepance, Cursor (for code), Continue.dev (for code), several Obsidian AI plugins, Raycast AI. Most cloud workspaces (Notion AI, ChatGPT Plus, Claude.ai Pro, Reflect, Mem.ai) do not.</p>
+        <p>Most desktop AI workspaces designed for power users support BYOK: Advisor Prep Hero, Cursor (for code), Continue.dev (for code), several Obsidian AI plugins, Raycast AI. Most cloud workspaces (Notion AI, ChatGPT Plus, Claude.ai Pro, Reflect, Mem.ai) do not.</p>
       </details>
       <details>
         <summary>Can I use multiple providers from the same tool?</summary>
-        <p>If the tool supports multiple providers, yes. Keepance ships with all three (Claude, OpenAI, Gemini) plus an Ollama integration for local models. You add keys for each, and pick which provider to use on a per-conversation basis. The advantage: if one provider is down or rate-limited, you switch in one click.</p>
+        <p>If the tool supports multiple providers, yes. Advisor Prep Hero ships with all three (Claude, OpenAI, Gemini) plus an Ollama integration for local models. You add keys for each, and pick which provider to use on a per-conversation basis. The advantage: if one provider is down or rate-limited, you switch in one click.</p>
       </details>
       <details>
         <summary>What about Ollama and local models?</summary>
@@ -516,16 +516,16 @@
       <h3>What to read next</h3>
       <ul>
         <li><a href="/local-first-ai-workspace">What is a local-first AI workspace? A guide for attorneys, CPAs, and consultants</a></li>
-        <li><a href="/docs/api-keys">Step-by-step: setting up your first API key in Keepance</a></li>
+        <li><a href="/docs/api-keys">Step-by-step: setting up your first API key in Advisor Prep Hero</a></li>
         <li><a href="/blog/byok-actual-cost-after-60-days">BYOK: the actual cost after 60 days</a></li>
-        <li><a href="/vs/notion">Keepance vs Notion: a feature-by-feature comparison</a></li>
+        <li><a href="/vs/notion">Advisor Prep Hero vs Notion: a feature-by-feature comparison</a></li>
       </ul>
     </div>
 
     <div class="cta-card">
-      <h3>Try BYOK with Keepance</h3>
+      <h3>Try BYOK with Advisor Prep Hero</h3>
       <p>Free 30-day trial. Solo $468/yr / Professional $948/yr / Firm $1,548/seat/yr (min 3 seats). Bring your own Claude / OpenAI / Gemini key. Your client data never touches our servers.</p>
-      <a href="/#pricing" class="cta-btn">Get Keepance</a>
+      <a href="/#pricing" class="cta-btn">Get Advisor Prep Hero</a>
     </div>
   </div>
 

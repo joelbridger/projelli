@@ -118,7 +118,7 @@ describe('BinaryVersionHistoryPanel', () => {
       .getAllByTestId('binary-version-author')
       .map((el) => el.textContent);
     // Newest first: the AI redline, then the user save.
-    expect(authors[0]).toContain('Keepance AI');
+    expect(authors[0]).toContain('Advisor Prep Hero AI');
     expect(authors[1]).toContain('You');
   });
 

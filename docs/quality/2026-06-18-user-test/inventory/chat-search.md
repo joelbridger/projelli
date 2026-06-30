@@ -2,7 +2,7 @@
 
 Covers the full conversational AI surface (AIChatViewer + sidebar Ask), workspace RAG retrieval, provider/model picker, attachments/vision, compression, cost tracking, artifact save, the four Ask scope modes, full-text and fuzzy-file search, the command palette, and every registered global keyboard shortcut.
 
-> Note: "11 modes" in the ticket brief refers to Career Coach, not Keepance. Keepance's Ask surface has 4 retrieval scopes (This matter / All matters / Email / Documents). These are catalogued as CHAT-06.
+> Note: "11 modes" in the ticket brief refers to Career Coach, not Advisor Prep Hero. Advisor Prep Hero's Ask surface has 4 retrieval scopes (This matter / All matters / Email / Documents). These are catalogued as CHAT-06.
 
 ---
 

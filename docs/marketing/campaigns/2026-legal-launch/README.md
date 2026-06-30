@@ -1,6 +1,6 @@
 # 2026 Legal Launch Campaign
 
-> **Goal:** Establish Keepance as the tool for attorneys who can't use cloud AI.
+> **Goal:** Establish Advisor Prep Hero as the tool for attorneys who can't use cloud AI.
 > Lead with the confidentiality problem, not the product.
 >
 > **Do not start outreach until the Legal Practice pack is built and reviewed by an attorney advisor.**

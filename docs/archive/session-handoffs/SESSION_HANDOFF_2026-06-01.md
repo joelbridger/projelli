@@ -26,7 +26,7 @@ The product is **structurally ready to take money** — app live (v2.1.1), site 
 - Deploy: `cp website-keepance/index.html website/index.html` then `bash infra/deploy.sh --skip-demo`. Latest commit ~`1a5af3c`.
 
 ### LemonSqueezy (store #340394; logged in as billing@projelli.com via the `/chrome` app)
-- **Store display name → "Keepance"** (slug stays `projelli` — **do NOT change the slug; it breaks every checkout URL**).
+- **Store display name → "Advisor Prep Hero"** (slug stays `projelli` — **do NOT change the slug; it breaks every checkout URL**).
 - **License keys enabled** on all 4 new products (verified `has_license_keys=true`).
 - **FOUNDING discount:** $50/yr off Professional, recurring **forever**, **capped 100 redemptions**. Checkout (used by the site): `https://projelli.lemonsqueezy.com/checkout/buy/78ee592e-8f8a-4ce4-9ea4-68a84032d21a?checkout%5Bdiscount_code%5D=FOUNDING` → $99/yr.
 - Separate **"Professional (Founding)" product (1101964) set to Draft** (checkout 404s) — founding runs only through the capped discount now.

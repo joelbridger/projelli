@@ -1,4 +1,4 @@
-/* eslint-disable keepance-i18n/no-hardcoded-string */
+/* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useEffect, useState } from 'react';
 import { isTauri } from '@tauri-apps/api/core';
 import {
@@ -114,7 +114,7 @@ export function CalendlyConnect() {
       <section className="rounded-lg border border-slate-200 bg-white p-4">
         <h3 className="text-sm font-semibold text-slate-900">Calendly</h3>
         <p className="mt-1 text-sm text-slate-600">
-          Import scheduled meetings and invitee intake answers into matter memory. Requires the Keepance desktop app.
+          Import scheduled meetings and invitee intake answers into matter memory. Requires the Advisor Prep Hero desktop app.
         </p>
       </section>
     );
@@ -125,7 +125,7 @@ export function CalendlyConnect() {
       <section className="rounded-lg border border-slate-200 bg-white p-4">
         <h3 className="text-sm font-semibold text-slate-900">Calendly</h3>
         <p className="mt-1 text-sm text-slate-600">
-          Import scheduled events and invitee Q&A as read-only meeting memory. Keepance uses GET requests only.
+          Import scheduled events and invitee Q&A as read-only meeting memory. Advisor Prep Hero uses GET requests only.
         </p>
         {!connected && (
           <div className="mt-3 space-y-3">

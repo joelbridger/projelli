@@ -1,4 +1,4 @@
-# Keepance Email Intelligence: "Index Everything" Technical Design
+# Advisor Prep Hero Email Intelligence: "Index Everything" Technical Design
 
 **Date:** 2026-06-06
 **Author:** CEO / lead research (for Jameson)
@@ -67,12 +67,12 @@ The same "adapter" shape (authenticate, backfill, track-changes, normalize) is h
 
 The research did not get solid third-party coverage here, so treat this as my engineering design, not a sourced finding. It's built on well-known email patterns and on what we already have.
 
-**Principle: we organize the local copy, we never touch their real mailbox.** Nothing we do moves or deletes a message in Outlook. We mirror their existing folder structure and add Keepance-side groupings on top.
+**Principle: we organize the local copy, we never touch their real mailbox.** Nothing we do moves or deletes a message in Outlook. We mirror their existing folder structure and add Advisor Prep Hero-side groupings on top.
 
 **Automatic organization, cheapest-and-most-reliable first:**
 - **By conversation/thread.** Reconstruct full back-and-forth threads. Microsoft gives us a conversation id directly; Gmail and IMAP have their own equivalents we map to one common thread id later. Deterministic, no AI needed.
 - **By correspondent (person and company domain).** "Everything with the Hendersons," "everything from anyone @meridian-property.com." Deterministic.
-- **By client/matter, the valuable one.** Lead with deterministic mapping: the user (or the AI, with their confirmation) maps email addresses and domains to the client or matter folders they *already keep in Keepance*. So imported mail auto-files alongside the documents for that client. Pure-AI topic clustering and entity extraction (NER) are a nice later enrichment, not the v1 backbone.
+- **By client/matter, the valuable one.** Lead with deterministic mapping: the user (or the AI, with their confirmation) maps email addresses and domains to the client or matter folders they *already keep in Advisor Prep Hero*. So imported mail auto-files alongside the documents for that client. Pure-AI topic clustering and entity extraction (NER) are a nice later enrichment, not the v1 backbone.
 
 **Tracking and progress (we already have most of the hooks):** we already emit live progress (processed / total / current item) and support cancel. We extend that to a real status view: per-folder sync state, last-synced bookmark, and three honest counters, "downloaded," "keyword-searchable," and "deep-AI-indexed," plus an audit log (we already have an audit service). The user sees something like: *"38,212 of 41,002 emails imported and searchable. Deep AI index 64% complete, finishing in the background."* Resumable and auditable by design.
 
@@ -122,7 +122,7 @@ This is the concrete "missing 20%." It's connectors, a normalizer, an encryption
 To honor "multiple providers" without painting ourselves into a Microsoft corner, everything flows through **one normalized internal email model** (id, account, folders/labels, thread id, from/to/cc, date, subject, body, attachments, headers, flags) fed by **per-provider adapters**:
 - **Microsoft Graph adapter** ships first.
 - **Gmail adapter** and **IMAP adapter** are added later against the same internal model.
-- **Threading is reconciled** by mapping each provider's notion of a conversation (Microsoft's conversation id, Gmail's thread id, IMAP's reply-reference headers) onto one Keepance thread.
+- **Threading is reconciled** by mapping each provider's notion of a conversation (Microsoft's conversation id, Gmail's thread id, IMAP's reply-reference headers) onto one Advisor Prep Hero thread.
 - **Cross-provider de-duplication** uses the universal `Message-ID` header, so a professional who has both an Outlook and a Gmail account doesn't get doubles.
 - **Folders and labels** are modeled as tags (a message can carry several), which absorbs the Outlook-folders-vs-Gmail-labels difference cleanly.
 

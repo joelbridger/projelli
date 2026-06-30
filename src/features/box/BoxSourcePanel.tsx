@@ -1,4 +1,4 @@
-/* eslint-disable keepance-i18n/no-hardcoded-string */
+/* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useEffect, useState } from 'react';
 import { Package, X } from 'lucide-react';
 import { OPEN_BOX_EVENT } from '@/platform/clientMap/openSource';
@@ -53,7 +53,7 @@ export function BoxSourcePanel() {
           </blockquote>
         )}
         <p className="text-xs text-slate-400">
-          Keepance imported this citation from Box as read-only text. Full cloud-document opening is a fast-follow.
+          Advisor Prep Hero imported this citation from Box as read-only text. Full cloud-document opening is a fast-follow.
         </p>
       </div>
     </div>

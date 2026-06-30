@@ -1,7 +1,7 @@
 /**
  * useTrial — 30-day full-feature trial state.
  *
- * Pricing model: Keepance is fully featured for 30 days from first launch.
+ * Pricing model: Advisor Prep Hero is fully featured for 30 days from first launch.
  * After that, the app drops into "viewer" mode — open existing files,
  * read-only — until the user activates a paid license via useLicense.
  *

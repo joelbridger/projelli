@@ -1,6 +1,6 @@
-# Keepance — User Stories & Actions Catalog
+# Advisor Prep Hero — User Stories & Actions Catalog
 
-**Purpose.** A complete, exhaustive inventory of *everything a user can do* in Keepance, so we
+**Purpose.** A complete, exhaustive inventory of *everything a user can do* in Advisor Prep Hero, so we
 can test it in the real software instead of discovering bugs only after a slow signed build.
 This is the index; the per-domain detail lives in `inventory/` (one file per domain, every row
 in the shared [SCHEMA](./SCHEMA.md): story, steps, surface + `data-testid`, precondition,
@@ -28,7 +28,7 @@ lifecycle deep-dive, and three domain inventories) + a headless real-app harness
 
 ## Personas
 
-- **Solo** — a lawyer running Keepance on one machine, BYOK. Most stories.
+- **Solo** — a lawyer running Advisor Prep Hero on one machine, BYOK. Most stories.
 - **Firm-admin** — creates/claims the org, manages seats, invites, ethical walls, SSO config.
 - **Firm-member** — joins via invite/SSO, works in shared matters, co-edits.
 - **any** — applies regardless of tier (shell, settings, files).

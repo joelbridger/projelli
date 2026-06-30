@@ -25,10 +25,10 @@
 //!   The real-Microsoft-Word open-without-repair check is Jameson's native item
 //!   (cannot be automated here).
 
-use keepance_docx::model::{BlockContent, Inline, Paragraph, RevisionMeta, Run};
-use keepance_docx::package::Package;
-use keepance_docx::validate::validate_package;
-use keepance_docx::{open_docx_bytes, parse_docx_bytes, serialize_docx_bytes, Document};
+use lantern_docx::model::{BlockContent, Inline, Paragraph, RevisionMeta, Run};
+use lantern_docx::package::Package;
+use lantern_docx::validate::validate_package;
+use lantern_docx::{open_docx_bytes, parse_docx_bytes, serialize_docx_bytes, Document};
 use std::collections::BTreeMap;
 
 // ---------------------------------------------------------------------------
@@ -129,7 +129,7 @@ fn doc_with_empty_ids() -> Document {
         },
     ]);
     Document {
-        format_version: keepance_docx::model::DOM_FORMAT_VERSION,
+        format_version: lantern_docx::model::DOM_FORMAT_VERSION,
         body: vec![BlockContent::Paragraph(para)],
         comments: BTreeMap::new(),
     }
@@ -216,7 +216,7 @@ fn test_wid_nonempty_ids_are_preserved_unchanged() {
         },
     ]);
     let doc = Document {
-        format_version: keepance_docx::model::DOM_FORMAT_VERSION,
+        format_version: lantern_docx::model::DOM_FORMAT_VERSION,
         body: vec![BlockContent::Paragraph(para)],
         comments: BTreeMap::new(),
     };
@@ -229,14 +229,14 @@ fn test_wid_nonempty_ids_are_preserved_unchanged() {
     // The insertion that had id "42" must still be "42".
     let ins = revs
         .iter()
-        .find(|(_, k, runs)| *k == keepance_docx::model::RevisionKind::Insertion && runs.iter().any(|r| r.text == "existing"))
+        .find(|(_, k, runs)| *k == lantern_docx::model::RevisionKind::Insertion && runs.iter().any(|r| r.text == "existing"))
         .expect("insertion present");
     assert_eq!(ins.0.id, "42", "pre-assigned id must not be overwritten");
 
     // The deletion that had empty id must get a fresh id that is != "42" and != "".
     let del = revs
         .iter()
-        .find(|(_, k, runs)| *k == keepance_docx::model::RevisionKind::Deletion && runs.iter().any(|r| r.text == "deleted"))
+        .find(|(_, k, runs)| *k == lantern_docx::model::RevisionKind::Deletion && runs.iter().any(|r| r.text == "deleted"))
         .expect("deletion present");
     assert!(!del.0.id.is_empty(), "empty id must be filled in");
     assert_ne!(del.0.id, "42", "fresh id must not collide with existing id 42");
@@ -403,8 +403,8 @@ fn test_fidelity_coedit_roundtrip() {
 /// change the existing ids or produce duplicate allocations.
 #[test]
 fn test_wid_allocator_noop_on_all_assigned_ids() {
-    use keepance_docx::fixture::build_fixture_model;
-    use keepance_docx::serialize_docx_bytes;
+    use lantern_docx::fixture::build_fixture_model;
+    use lantern_docx::serialize_docx_bytes;
 
     let doc = build_fixture_model();
     // Fixture has ids "101" and "102" — both non-empty.

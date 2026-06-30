@@ -1,7 +1,7 @@
 # Participant Persona: Diane Marchetti, Solo/Small-Firm Litigator
 
-> **Role in this study:** Primary research participant. The target user Keepance is built for.
-> **Persona type:** Composite, evidence-grounded. Built from Keepance's locked ICP (solo + small-firm attorneys, general practice / litigation / IP), the 2026-06-03 vertical persona audit, and the documented behavior of small-firm civil litigators. Used to drive a synthetic-but-rigorous interview and usability test for v2.5.1, and to brief real-participant recruiting later.
+> **Role in this study:** Primary research participant. The target user Advisor Prep Hero is built for.
+> **Persona type:** Composite, evidence-grounded. Built from Advisor Prep Hero's locked ICP (solo + small-firm attorneys, general practice / litigation / IP), the 2026-06-03 vertical persona audit, and the documented behavior of small-firm civil litigators. Used to drive a synthetic-but-rigorous interview and usability test for v2.5.1, and to brief real-participant recruiting later.
 > **Voice note for facilitation:** Diane is articulate, warm, blunt, time-pressured, and allergic to marketing language. She tells stories. She has a sharp BS detector for compliance claims. She is not technical but is not stupid about technology. Voice her consistently across both sessions.
 
 ---
@@ -83,7 +83,7 @@ She is not looking for a toy. She is looking for two or three hours of her life 
 ## Attitudes toward AI, privacy, and confidentiality (test these carefully)
 
 - Believes the duty of confidentiality is close to sacred and is personally proud of never having had a bar complaint. Frames AI risk in those terms, not in abstract "privacy" terms.
-- Has a working but imperfect mental model: "If it goes to the cloud, it's not mine anymore." Does not clearly distinguish between "the app stores my data on its servers" and "my prompt is sent to an AI company to get an answer." **This confusion is a key thing to probe in research.** Keepance's BYOK model (prompt goes straight to the AI provider, never through Keepance) is exactly the nuance she does not yet hold.
+- Has a working but imperfect mental model: "If it goes to the cloud, it's not mine anymore." Does not clearly distinguish between "the app stores my data on its servers" and "my prompt is sent to an AI company to get an answer." **This confusion is a key thing to probe in research.** Advisor Prep Hero's BYOK model (prompt goes straight to the AI provider, never through Advisor Prep Hero) is exactly the nuance she does not yet hold.
 - Knows the headline cases: the Avianca fake-citations sanctions, and more recently *United States v. Heppner* (S.D.N.Y., Feb. 17, 2026), where a defense lawyer's undisclosed ChatGPT use was called reckless. She cites these as reasons to be careful, not reasons to abstain forever.
 - Aware in a vague way of ABA Formal Opinion 512 (July 2024) on AI and the duties of competence and confidentiality. Has not read it. Would respect a vendor who has.
 - **Skeptical of compliance marketing.** If a product claims it "makes you ABA 512 compliant" or "solves privilege," she will roll her eyes. She knows compliance is her duty, not a feature. A vendor that *overclaims* loses her; a vendor that says "here is the one part we handle, the rest is still on you" earns her.
@@ -102,7 +102,7 @@ She is not looking for a toy. She is looking for two or three hours of her life 
 
 ## Where she will struggle in the product (predictions to validate in usability testing)
 
-- **"API key"** is developer jargon. She will not know what it is, why she needs one, or that she pays the AI provider, not Keepance. High risk of drop-off at setup.
+- **"API key"** is developer jargon. She will not know what it is, why she needs one, or that she pays the AI provider, not Advisor Prep Hero. High risk of drop-off at setup.
 - **Markdown** as the native format will read as "a programmer's tool" unless the rendered/Word-friendly story is made obvious. She judges documents by whether they look like documents.
 - **"Workspace = a folder"** is actually intuitive for her, *if* framed as folders, not as an abstract "workspace."
 - **Local-first / encryption / "nothing touches a cloud"** is her single biggest potential delight, but only if she can articulate it back correctly. If she can't explain what stays on her machine, the value evaporates.

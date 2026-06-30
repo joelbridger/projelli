@@ -1,4 +1,4 @@
-# Keepance Competitive Product Gap Analysis + Implementation Roadmap
+# Advisor Prep Hero Competitive Product Gap Analysis + Implementation Roadmap
 
 _Written: 2026-04-29 by Claude (CEO mode), in response to Jameson's request for a thorough capture of the gap assessment with implementation details._
 _Companion to `docs/marketing/strategy/11-pre-launch-gap-analysis.md` (which is launch-focused). This doc is product-engineering focused: why each gap matters competitively, how it would be implemented, what trade-offs each path involves, and what the recommended roadmap looks like to remain competitive._
@@ -10,7 +10,7 @@ _Re-review: month 1 post-launch (after first buyer cohort feedback), then quarte
 
 1. Executive summary
 2. Methodology
-3. The competitive landscape Keepance sits in
+3. The competitive landscape Advisor Prep Hero sits in
 4. The gaps, prioritized by competitive impact
    - 4.1 Multimodal AI input (HIGH)
    - 4.2 PDF as chat context (HIGH)
@@ -33,17 +33,17 @@ _Re-review: month 1 post-launch (after first buyer cohort feedback), then quarte
 
 ## 1. Executive summary
 
-Keepance's v1.7.2 product is meaningfully more substantial than its docs/FAQs claim — v1.5 shipped four headline flags (Memory/RAG, MCP server, Side-by-side AI editing, Voice + Ollama) and 18 quality-of-life features that were previously listed as "missing" in stale documentation. That gap has been closed (FEATURES.md rewritten 2026-04-29).
+Advisor Prep Hero's v1.7.2 product is meaningfully more substantial than its docs/FAQs claim — v1.5 shipped four headline flags (Memory/RAG, MCP server, Side-by-side AI editing, Voice + Ollama) and 18 quality-of-life features that were previously listed as "missing" in stale documentation. That gap has been closed (FEATURES.md rewritten 2026-04-29).
 
 The TRUE remaining product gaps relative to competitors are smaller than feared but real:
 
-**The two HIGH-severity gaps:** multimodal AI input (sending images to AI for analysis) and PDF as chat context. These are now table stakes in the AI tool category — ChatGPT, Claude.ai, Gemini, and most modern AI workspaces support both. Keepance supports image PASTE in the editor (saves to media folder) but does not send images to AI. PDFs render in the viewer but text isn't extracted into chat context. Both gaps are closeable in a single 5-7 day engineering sprint each. Both should ship within 30-45 days post-launch.
+**The two HIGH-severity gaps:** multimodal AI input (sending images to AI for analysis) and PDF as chat context. These are now table stakes in the AI tool category — ChatGPT, Claude.ai, Gemini, and most modern AI workspaces support both. Advisor Prep Hero supports image PASTE in the editor (saves to media folder) but does not send images to AI. PDFs render in the viewer but text isn't extracted into chat context. Both gaps are closeable in a single 5-7 day engineering sprint each. Both should ship within 30-45 days post-launch.
 
-**The MEDIUM-severity gaps:** mobile companion (any form), web version (browser-based), long context (>200K tokens). These are deferrable to year 2 with honest "we made this trade-off because…" answers. The existence of plain-Markdown-on-disk + iCloud-Drive workarounds gives Keepance credible Year-1 answers without major engineering investment.
+**The MEDIUM-severity gaps:** mobile companion (any form), web version (browser-based), long context (>200K tokens). These are deferrable to year 2 with honest "we made this trade-off because…" answers. The existence of plain-Markdown-on-disk + iCloud-Drive workarounds gives Advisor Prep Hero credible Year-1 answers without major engineering investment.
 
-**The deliberate non-goals:** real-time collaboration, cloud sync built-in, plugin marketplace, agentic AI workflows, mass-market subscription tier. These are documented anti-patterns in `strategy/07-anti-patterns.md`. Keepance's competitive position depends on NOT building these.
+**The deliberate non-goals:** real-time collaboration, cloud sync built-in, plugin marketplace, agentic AI workflows, mass-market subscription tier. These are documented anti-patterns in `strategy/07-anti-patterns.md`. Advisor Prep Hero's competitive position depends on NOT building these.
 
-**The bottom line:** Keepance is more competitive in v1.7.2 than competitors realize. Closing the two HIGH-severity gaps (multimodal + PDF) within 45 days post-launch puts Keepance at functional parity with ChatGPT/Claude.ai/Gemini on input modality while retaining its differentiators (local-first, BYOK, MCP server, founder workflow templates). The remaining gaps are MEDIUM-priority year-2 work or deliberate non-goals.
+**The bottom line:** Advisor Prep Hero is more competitive in v1.7.2 than competitors realize. Closing the two HIGH-severity gaps (multimodal + PDF) within 45 days post-launch puts Advisor Prep Hero at functional parity with ChatGPT/Claude.ai/Gemini on input modality while retaining its differentiators (local-first, BYOK, MCP server, founder workflow templates). The remaining gaps are MEDIUM-priority year-2 work or deliberate non-goals.
 
 ---
 
@@ -61,26 +61,26 @@ This audit was performed by:
 
 5. **Forward-looking research.** AI industry direction inferred from: model release cadence (Anthropic 200K → 1M context, OpenAI multimodal expansion, Google 1M → 2M Gemini context), MCP ecosystem growth, EU AI Act regulatory direction, Apple Intelligence / Microsoft Copilot encroachment.
 
-6. **Honest priority calibration.** Severity ratings (HIGH / MEDIUM / LOW) are based on: (a) how often the gap will be raised by buyers/critics, (b) how strongly it impacts conversion, (c) how it shapes competitive perception, (d) how feasible it is to close given Keepance's 5-10 hr/week budget and architectural constraints.
+6. **Honest priority calibration.** Severity ratings (HIGH / MEDIUM / LOW) are based on: (a) how often the gap will be raised by buyers/critics, (b) how strongly it impacts conversion, (c) how it shapes competitive perception, (d) how feasible it is to close given Advisor Prep Hero's 5-10 hr/week budget and architectural constraints.
 
 The output (this doc) is honest — gaps are described as gaps even when they're hard to fix or out-of-scope. No defensive framing. Trade-offs are surfaced.
 
 ---
 
-## 3. The competitive landscape Keepance sits in
+## 3. The competitive landscape Advisor Prep Hero sits in
 
-To evaluate gaps fairly, we need to know what we're being compared against. Keepance operates in a category that includes:
+To evaluate gaps fairly, we need to know what we're being compared against. Advisor Prep Hero operates in a category that includes:
 
-| Category | Examples | Where Keepance wins | Where they win |
+| Category | Examples | Where Advisor Prep Hero wins | Where they win |
 |---|---|---|---|
 | **Cloud-first AI workspaces** | Notion AI, Reflect, Mem.ai, Tana, NotebookLM | Local-first (data on user's machine), BYOK (no AI markup), one-time pricing, MCP server, voice + Ollama, founder workflow templates | Real-time collaboration, polished mobile, web access, larger ecosystems, brand recognition |
 | **Local-first knowledge tools** | Obsidian + Smart Connections, Logseq | Native AI integration (no plugin assembly), 4 providers + Ollama in box, founder workflow templates, MCP server, side-by-side AI editing | Plugin ecosystem (Obsidian's 5K+ plugins), open-source license (Logseq), larger user base |
 | **Cloud-first AI chat tools** | ChatGPT, Claude.ai, Gemini, Perplexity | Files on disk (vs locked in cloud), workspace context (RAG), founder workflow templates, MCP server, Ollama for offline | Multimodal input, PDF chat, brand trust, mobile apps, established brands |
 | **AI-first code/writing tools** | Cursor, Continue.dev, Codeium, Cline | Workspace + chat as files (vs code-only), founder templates, MCP server | Code-specific features, autonomous agents, IDE integration, larger funding |
 
-**Keepance's competitive position:** the only tool that combines **(local-first + BYOK + 4 AI providers + MCP server + workflow templates + side-by-side AI editing + voice)**. No competitor has this exact stack. The combination is the moat.
+**Advisor Prep Hero's competitive position:** the only tool that combines **(local-first + BYOK + 4 AI providers + MCP server + workflow templates + side-by-side AI editing + voice)**. No competitor has this exact stack. The combination is the moat.
 
-**Keepance's competitive vulnerability:** the multimodal/PDF gap is the one thing where Keepance is below baseline. Casual users discovering Keepance will assume "any AI tool can read images" and be surprised when it can't. This is the single most fixable competitive vulnerability.
+**Advisor Prep Hero's competitive vulnerability:** the multimodal/PDF gap is the one thing where Advisor Prep Hero is below baseline. Casual users discovering Advisor Prep Hero will assume "any AI tool can read images" and be surprised when it can't. This is the single most fixable competitive vulnerability.
 
 ---
 
@@ -108,9 +108,9 @@ Closely related: file attachments more broadly — PDFs, .docx, .csv as direct c
 | Cursor | Image input for code review (recent addition). |
 | Logseq | No native multimodal. |
 
-**Conclusion:** ChatGPT, Claude.ai, Gemini, Cursor all have it. Most local-first tools don't. Keepance being local-first BUT also AI-native means buyers will compare it more to ChatGPT/Claude than to Obsidian — and find the gap.
+**Conclusion:** ChatGPT, Claude.ai, Gemini, Cursor all have it. Most local-first tools don't. Advisor Prep Hero being local-first BUT also AI-native means buyers will compare it more to ChatGPT/Claude than to Obsidian — and find the gap.
 
-#### Why it matters for Keepance specifically
+#### Why it matters for Advisor Prep Hero specifically
 
 Indie founder workflows that need multimodal:
 
@@ -123,7 +123,7 @@ Indie founder workflows that need multimodal:
 - **Logo mockups** ("which of these works better?") — branding feedback
 - **Social media post drafts** ("does this look professional?") — graphic design
 
-These are HIGH-frequency founder use cases. Founders WILL try multimodal in the first 24 hours of using Keepance. When it doesn't work, they'll either work around it (paste-and-describe) or churn.
+These are HIGH-frequency founder use cases. Founders WILL try multimodal in the first 24 hours of using Advisor Prep Hero. When it doesn't work, they'll either work around it (paste-and-describe) or churn.
 
 #### How it would be implemented
 
@@ -221,7 +221,7 @@ The work is mostly provider-side message formatting. Each provider has a differe
 - **Cost transparency:** images cost real tokens (Claude ~85 tokens per 512×512, OpenAI ~85-170 tokens per image, varies). Cost-meter (already shipped v1.5) handles this transparently.
 - **Workspace storage:** every chat-attached image saves to `media/` (could grow large). Mitigation: configurable retention (auto-cleanup after N days), or "embed reference only" option.
 - **Provider variance:** Ollama vision models are weaker than cloud. Be honest in UX ("Ollama vision models work but quality varies; for best results use Claude or GPT-4o").
-- **Privacy:** image bytes go to AI provider. Audit log entry captures this. BYOK still applies (image goes direct from user → provider, never via Keepance server).
+- **Privacy:** image bytes go to AI provider. Audit log entry captures this. BYOK still applies (image goes direct from user → provider, never via Advisor Prep Hero server).
 
 #### Recommended priority and timing
 
@@ -248,7 +248,7 @@ The ability to attach a PDF to a chat and have the AI read its contents. Example
 
 **Conclusion:** Same shape as multimodal — cloud AI tools all have it; local-first tools mostly don't. Same competitive vulnerability.
 
-#### Why it matters for Keepance specifically
+#### Why it matters for Advisor Prep Hero specifically
 
 PDF is THE format for serious documents indie founders interact with:
 
@@ -362,7 +362,7 @@ Detect provider:
 
 #### Recommended priority and timing
 
-**SHIP IN v1.8 ALONGSIDE MULTIMODAL** (May-June 2026). Same launch window. Together they close the two HIGH-severity gaps and bring Keepance to functional input-modality parity with ChatGPT/Claude/Gemini.
+**SHIP IN v1.8 ALONGSIDE MULTIMODAL** (May-June 2026). Same launch window. Together they close the two HIGH-severity gaps and bring Advisor Prep Hero to functional input-modality parity with ChatGPT/Claude/Gemini.
 
 ---
 
@@ -370,7 +370,7 @@ Detect provider:
 
 #### What it is
 
-A mobile companion app for reading + light editing Keepance workspaces from iOS / iPadOS / Android.
+A mobile companion app for reading + light editing Advisor Prep Hero workspaces from iOS / iPadOS / Android.
 
 #### Who has it
 
@@ -384,13 +384,13 @@ A mobile companion app for reading + light editing Keepance workspaces from iOS 
 | Mem.ai | iOS + Android |
 | Tana | iOS app |
 | Logseq | Mobile app (limited) |
-| Cursor | Desktop only (similar position to Keepance) |
+| Cursor | Desktop only (similar position to Advisor Prep Hero) |
 | Continue.dev | Desktop only |
 | Heptabase | Desktop only |
 
-**Conclusion:** Mixed bag. The cloud-first competitors all have mobile (it's free with their cloud architecture). Local-first tools struggle (sync is the prerequisite). Desktop-only AI workspaces (Cursor, Continue, Heptabase, Keepance) are actually a coherent category — but Notion and Obsidian set the expectation that "AI workspace" includes mobile.
+**Conclusion:** Mixed bag. The cloud-first competitors all have mobile (it's free with their cloud architecture). Local-first tools struggle (sync is the prerequisite). Desktop-only AI workspaces (Cursor, Continue, Heptabase, Advisor Prep Hero) are actually a coherent category — but Notion and Obsidian set the expectation that "AI workspace" includes mobile.
 
-#### Why it matters for Keepance specifically
+#### Why it matters for Advisor Prep Hero specifically
 
 Founder workflows that need mobile:
 
@@ -420,7 +420,7 @@ Tauri 2 has experimental mobile support. Could build a native mobile app sharing
 Add optional cloud sync (S3-compatible, end-to-end encrypted). Build mobile app that pulls from cloud.
 
 - Pro: clean architecture
-- Con: introduces a Keepance-managed sync service (operational burden + violates "no Keepance server in the path")
+- Con: introduces a Advisor Prep Hero-managed sync service (operational burden + violates "no Advisor Prep Hero server in the path")
 - Con: cloud sync is anti-pattern #1 in `strategy/07-anti-patterns.md`
 
 **Recommendation:** Skip. Compromises the differentiator.
@@ -470,7 +470,7 @@ iOS Files app already lets users browse markdown in iCloud Drive. So:
 
 **Week 4: Polish + ship**
 - iOS App Store submission (initial review can take 1-2 weeks)
-- Free download (no in-app purchase initially — just a companion to Keepance desktop)
+- Free download (no in-app purchase initially — just a companion to Advisor Prep Hero desktop)
 - TestFlight beta first
 
 **Estimated total effort:** 4 weeks for read-only iOS app. Android later (similar pattern).
@@ -496,7 +496,7 @@ iOS Files app already lets users browse markdown in iCloud Drive. So:
 
 #### What it is
 
-A version of Keepance that runs in a web browser without requiring desktop install. Could be: (a) a try-it sandbox demo, (b) a full production browser app.
+A version of Advisor Prep Hero that runs in a web browser without requiring desktop install. Could be: (a) a try-it sandbox demo, (b) a full production browser app.
 
 #### Who has it
 
@@ -514,11 +514,11 @@ A version of Keepance that runs in a web browser without requiring desktop insta
 | Cursor | Desktop only |
 | Bear | Desktop + iOS only |
 
-**Conclusion:** Cloud-first competitors all have web; local-first competitors mostly don't. Same pattern as mobile — Keepance is in the local-first camp.
+**Conclusion:** Cloud-first competitors all have web; local-first competitors mostly don't. Same pattern as mobile — Advisor Prep Hero is in the local-first camp.
 
-#### Why it matters for Keepance specifically
+#### Why it matters for Advisor Prep Hero specifically
 
-The friction tax: someone discovering Keepance on Product Hunt at 2 AM wants to TRY it without committing to a 50 MB desktop install + restart. Lowers conversion at the demo step.
+The friction tax: someone discovering Advisor Prep Hero on Product Hunt at 2 AM wants to TRY it without committing to a 50 MB desktop install + restart. Lowers conversion at the demo step.
 
 Specific use cases:
 - **Try-before-you-install** (most important)
@@ -528,10 +528,10 @@ Specific use cases:
 
 #### How it would be implemented
 
-Keepance already has `WebFSBackend.ts` for browser File System Access API. The architecture supports browser. But:
+Advisor Prep Hero already has `WebFSBackend.ts` for browser File System Access API. The architecture supports browser. But:
 
 - Browser FS API only works in Chromium-based browsers (Chrome, Edge, Brave) — not Safari or Firefox
-- Browser permission prompts are intrusive ("Allow Keepance to access this folder?")
+- Browser permission prompts are intrusive ("Allow Advisor Prep Hero to access this folder?")
 - Tauri-specific features (OS keychain, voice sidecar, MCP server, RAG via Rust) don't work in browser
 - Performance differs (no native filesystem, slower IO)
 
@@ -539,7 +539,7 @@ Two paths:
 
 **Path A: Polished production browser version**
 - Promote `WebFSBackend` from "dev fallback" to "first-class shipping target"
-- Build separate "Keepance Web" landing experience
+- Build separate "Advisor Prep Hero Web" landing experience
 - Document Chrome-only requirement
 - Disable features that don't work in browser (RAG, voice, MCP server) with clear UX
 - API keys stored in browser localStorage (less secure than OS keychain)
@@ -547,7 +547,7 @@ Two paths:
 **Estimated effort:** 2-3 weeks to polish to production quality.
 
 **Path B: Demo-only browser version**
-- "Try Keepance in your browser" mode = sandbox demo
+- "Try Advisor Prep Hero in your browser" mode = sandbox demo
 - Pre-loaded sample workspace (15 founder template examples + a few demo files)
 - Sandboxed: no real save (or save to localStorage only, ephemeral)
 - AI chat works (BYOK or shared-demo-key with rate limit)
@@ -574,7 +574,7 @@ Two paths:
 
 **Path A (full browser): Don't ship in year 1 or year 2.** Splits surface area without strong demand signal. Re-evaluate at year 3 if a clear majority of buyers ask.
 
-**Honest framing for buyers:** "Keepance is a desktop product. The 30-day free trial is no-card-required and gives you the full app. If install isn't viable for you (work computer, etc.), the desktop app runs from a USB drive on Windows; Mac requires copying to /Applications. Web version is intentional non-goal because the local-first features (your data on disk, OS keychain for keys, local RAG) require desktop architecture."
+**Honest framing for buyers:** "Advisor Prep Hero is a desktop product. The 30-day free trial is no-card-required and gives you the full app. If install isn't viable for you (work computer, etc.), the desktop app runs from a USB drive on Windows; Mac requires copying to /Applications. Web version is intentional non-goal because the local-first features (your data on disk, OS keychain for keys, local RAG) require desktop architecture."
 
 ---
 
@@ -582,7 +582,7 @@ Two paths:
 
 #### What it is
 
-The ability to send very large amounts of text (workspace dumps, multiple long documents, full codebases) as chat context. Current cap in Keepance: 200K tokens (configurable in Settings → AI → Context Token Limit).
+The ability to send very large amounts of text (workspace dumps, multiple long documents, full codebases) as chat context. Current cap in Advisor Prep Hero: 200K tokens (configurable in Settings → AI → Context Token Limit).
 
 #### Who has it
 
@@ -597,7 +597,7 @@ The ability to send very large amounts of text (workspace dumps, multiple long d
 
 **Conclusion:** Anthropic and Google have shipped 1M-token windows; OpenAI is rumored to follow. Within 6-12 months, 1M context will be the new standard for top-tier models.
 
-#### Why it matters for Keepance specifically
+#### Why it matters for Advisor Prep Hero specifically
 
 Founders with rich workspaces (50+ markdown files, multi-thousand-word strategy docs, contract libraries) want the AI to consider EVERYTHING simultaneously. Current 200K cap means workspace-wide queries get truncated.
 
@@ -657,9 +657,9 @@ The AI's responses are spoken back as audio. Useful for: hands-free workflows (d
 | Gemini | Native |
 | Most other AI workspaces | No |
 
-#### Why it matters for Keepance specifically
+#### Why it matters for Advisor Prep Hero specifically
 
-Lower priority than INPUT voice (which Keepance already has, v1.5). Most users prefer reading AI responses (faster, scannable). TTS is a nice-to-have, not a competitive necessity.
+Lower priority than INPUT voice (which Advisor Prep Hero already has, v1.5). Most users prefer reading AI responses (faster, scannable). TTS is a nice-to-have, not a competitive necessity.
 
 #### How it would be implemented
 
@@ -707,7 +707,7 @@ For some users, the plugin ecosystem IS the product. Obsidian users often have 1
 
 Per `strategy/00-master-strategy.md` and `strategy/07-anti-patterns.md`:
 
-> Obsidian's plugin model is amazing for power users; it also creates the version-fragmentation problem where "install these 12 plugins to get my setup" becomes the on-ramp. Keepance ships workflow templates + AI integration + RAG + memory + MCP in the box, no plugin assembly required. Different bet.
+> Obsidian's plugin model is amazing for power users; it also creates the version-fragmentation problem where "install these 12 plugins to get my setup" becomes the on-ramp. Advisor Prep Hero ships workflow templates + AI integration + RAG + memory + MCP in the box, no plugin assembly required. Different bet.
 
 Building a plugin marketplace would:
 - Take 3-6 months of engineering
@@ -774,7 +774,7 @@ Notion has a robust template marketplace. Obsidian has community vaults.
 #### Why it matters
 
 - Power users want to share (network effect)
-- Niche use cases get covered by community (e.g., "Keepance for therapists" templates without us building it)
+- Niche use cases get covered by community (e.g., "Advisor Prep Hero for therapists" templates without us building it)
 - Marketing: every shared template is a backlink + discovery moment
 
 #### How it would be implemented
@@ -783,12 +783,12 @@ Notion has a robust template marketplace. Obsidian has community vaults.
 - Build a `templates.keepance.com` site
 - Users submit templates via web form
 - Curation queue (manual approval for v1)
-- Install button: "Add to my Keepance" → deep-links into desktop app
+- Install button: "Add to my Advisor Prep Hero" → deep-links into desktop app
 
 **Path B: GitHub-based marketplace**
 - Templates live in a public GitHub repo (`keepance/community-templates`)
 - Users PR templates
-- Keepance desktop app fetches list from GitHub on startup
+- Advisor Prep Hero desktop app fetches list from GitHub on startup
 - Lower engineering cost; community-managed
 
 **Recommended:** Path B (GitHub-based). Simpler, community-driven, no curation burden.
@@ -807,7 +807,7 @@ Per `strategy/07-anti-patterns.md` § 1: "Adding cloud sync because buyers ask."
 
 > The buyers who ask for sync are a small minority; the buyers who came specifically because there's no cloud are the larger group, and they will leave if we add cloud.
 
-**Workaround documented:** "Put your workspace folder in Dropbox / iCloud Drive / Syncthing. Keepance works the same way against any synced folder."
+**Workaround documented:** "Put your workspace folder in Dropbox / iCloud Drive / Syncthing. Advisor Prep Hero works the same way against any synced folder."
 
 Don't build. Decision is final unless full strategy retrospective.
 
@@ -819,7 +819,7 @@ Real-time multi-user editing (Google Docs / Notion / Reflect style).
 
 Per FEATURES.md § "Not yet supported":
 
-> Real-time collaboration. Out of scope. Local-first means single-user. If you want collab, use Notion. If you want your data on YOUR machine, use Keepance.
+> Real-time collaboration. Out of scope. Local-first means single-user. If you want collab, use Notion. If you want your data on YOUR machine, use Advisor Prep Hero.
 
 Don't build. Different product entirely.
 
@@ -829,57 +829,57 @@ Don't build. Different product entirely.
 
 Multi-step autonomous AI (Cursor's Composer, Claude Code, Devin, Cline). AI does multiple things in sequence without per-step approval.
 
-Per Keepance's pillar in `CLAUDE.md`: **"AI proposes, user decides; destructive ops need confirmation."**
+Per Advisor Prep Hero's pillar in `CLAUDE.md`: **"AI proposes, user decides; destructive ops need confirmation."**
 
-Don't build. Autonomous AI is a different product category. Keepance's bet is "every AI action is approved by you."
+Don't build. Autonomous AI is a different product category. Advisor Prep Hero's bet is "every AI action is approved by you."
 
-If a buyer asks: "Keepance is an editor, not an agent. If you want autonomous multi-step AI, use Cursor (for code) or Claude Code (for code) or ChatGPT Operator (for browsing). Keepance is for the workspace where you want every change reviewed before it lands."
+If a buyer asks: "Advisor Prep Hero is an editor, not an agent. If you want autonomous multi-step AI, use Cursor (for code) or Claude Code (for code) or ChatGPT Operator (for browsing). Advisor Prep Hero is for the workspace where you want every change reviewed before it lands."
 
 ---
 
 ## 5. Where the AI market is heading (forward-looking, 12-24 months)
 
-Trends Keepance should anticipate:
+Trends Advisor Prep Hero should anticipate:
 
 ### 5.1 Multimodal as default (2026)
 
-Every AI tool will assume image+text input by end of 2026. Voice input is becoming standard too. Keepance must ship multimodal in v1.8 to stay current.
+Every AI tool will assume image+text input by end of 2026. Voice input is becoming standard too. Advisor Prep Hero must ship multimodal in v1.8 to stay current.
 
 ### 5.2 Long context everywhere (2026-2027)
 
-1M+ tokens become standard. By Q4 2026, all major models will support it. Keepance's RAG advantage erodes if competitors can just shove the whole workspace into context. Counter: RAG is still cheaper + faster + more privacy-preserving (no data leaves the model boundary).
+1M+ tokens become standard. By Q4 2026, all major models will support it. Advisor Prep Hero's RAG advantage erodes if competitors can just shove the whole workspace into context. Counter: RAG is still cheaper + faster + more privacy-preserving (no data leaves the model boundary).
 
 ### 5.3 Agentic AI surge (2026-2027)
 
-Cursor, Claude Code, Devin, Cline are moving toward "AI does everything autonomously." Keepance's "AI proposes, user decides" position becomes a deliberate counter-positioning. Frame as: "If you want fast and don't care about review, use an agent. If you want every change reviewed, use Keepance."
+Cursor, Claude Code, Devin, Cline are moving toward "AI does everything autonomously." Advisor Prep Hero's "AI proposes, user decides" position becomes a deliberate counter-positioning. Frame as: "If you want fast and don't care about review, use an agent. If you want every change reviewed, use Advisor Prep Hero."
 
 ### 5.4 Local model explosion (2026-2027)
 
-Llama 4, Qwen 3, and others continue to close the gap with cloud models. Ollama support becomes more important. Keepance's "Ollama as 4th provider" lead matters more.
+Llama 4, Qwen 3, and others continue to close the gap with cloud models. Ollama support becomes more important. Advisor Prep Hero's "Ollama as 4th provider" lead matters more.
 
 ### 5.5 MCP ecosystem expansion (2026)
 
-Model Context Protocol is emerging as the standard for AI tool interop. More servers (Linear, GitHub, Stripe, Notion already exist; more coming). Keepance's "we serve MCP, not just consume it" position is unique. Push this advantage.
+Model Context Protocol is emerging as the standard for AI tool interop. More servers (Linear, GitHub, Stripe, Notion already exist; more coming). Advisor Prep Hero's "we serve MCP, not just consume it" position is unique. Push this advantage.
 
 ### 5.6 Voice-first interfaces (2026-2027)
 
-OpenAI's voice mode, Apple Intelligence voice, Google's voice — voice as input becomes more common. Keepance's local voice input (v1.5) is well-positioned.
+OpenAI's voice mode, Apple Intelligence voice, Google's voice — voice as input becomes more common. Advisor Prep Hero's local voice input (v1.5) is well-positioned.
 
 ### 5.7 AI memory standards (2026)
 
-Claude Memory, ChatGPT Memory, OpenAI's persistent context — every provider is shipping their own memory layer. Keepance's local memory (v1.5) is the privacy-preserving alternative. As cloud memory becomes ubiquitous, "your memory on your machine" becomes a sharper distinction.
+Claude Memory, ChatGPT Memory, OpenAI's persistent context — every provider is shipping their own memory layer. Advisor Prep Hero's local memory (v1.5) is the privacy-preserving alternative. As cloud memory becomes ubiquitous, "your memory on your machine" becomes a sharper distinction.
 
 ### 5.8 Privacy regulation pressure (2026-2027)
 
-EU AI Act enforcement begins 2026. US state laws follow. "Local-first" becomes regulatory advantage, not just philosophy. Keepance is well-positioned.
+EU AI Act enforcement begins 2026. US state laws follow. "Local-first" becomes regulatory advantage, not just philosophy. Advisor Prep Hero is well-positioned.
 
 ### 5.9 Apple Intelligence / Microsoft Copilot encroachment (2026-2027)
 
-OS-level AI is getting more capable. Threat: "I just use Apple Intelligence, why install Keepance?" Counter: Keepance is platform-agnostic (Mac/Win/Linux), works with multiple AI providers (not just one OS-bundled model), stores files in your folder (not buried in OS state).
+OS-level AI is getting more capable. Threat: "I just use Apple Intelligence, why install Advisor Prep Hero?" Counter: Advisor Prep Hero is platform-agnostic (Mac/Win/Linux), works with multiple AI providers (not just one OS-bundled model), stores files in your folder (not buried in OS state).
 
 ### 5.10 Apple intelligence + ChatGPT integration (2025+)
 
-Apple Intelligence calls ChatGPT for hard queries. Sets expectation that "AI is just there, baked into the OS." Counter-position: Keepance is what you use when you want to KEEP your AI conversations as files you own, not have them disappear into the OS.
+Apple Intelligence calls ChatGPT for hard queries. Sets expectation that "AI is just there, baked into the OS." Counter-position: Advisor Prep Hero is what you use when you want to KEEP your AI conversations as files you own, not have them disappear into the OS.
 
 ---
 
@@ -912,8 +912,8 @@ Apple Intelligence calls ChatGPT for hard queries. Sets expectation that "AI is 
 **Theme: Ecosystem + community.**
 
 - Templates marketplace via GitHub-based community repo (§ 4.9)
-- Notion → Keepance one-click importer
-- Obsidian → Keepance one-click importer
+- Notion → Advisor Prep Hero one-click importer
+- Obsidian → Advisor Prep Hero one-click importer
 - Web demo experience (sandbox try-it) (§ 4.4 Path B)
 - First v1.x retrospective + 6-month roadmap update
 
@@ -938,7 +938,7 @@ Apple Intelligence calls ChatGPT for hard queries. Sets expectation that "AI is 
 - Cloud sync (built-in) (anti-pattern)
 - Agentic / autonomous multi-step AI (anti-pattern)
 - Mass-market subscription tier (anti-pattern)
-- Verticalization ("Keepance for therapists / writers") (anti-pattern)
+- Verticalization ("Advisor Prep Hero for therapists / writers") (anti-pattern)
 
 ---
 
@@ -948,7 +948,7 @@ These need Jameson's call before engineering proceeds. Listed in suggested decis
 
 ### 7.1 Confirm v1.8 scope (multimodal + PDF chat) for the post-launch window
 
-**Recommendation:** Yes. These are the two HIGH-severity gaps. Closing them in 30-45 days post-launch puts Keepance at functional parity with the cloud AI tools on input modality. Both fits in a single ~10-day engineering sprint.
+**Recommendation:** Yes. These are the two HIGH-severity gaps. Closing them in 30-45 days post-launch puts Advisor Prep Hero at functional parity with the cloud AI tools on input modality. Both fits in a single ~10-day engineering sprint.
 
 **What you're agreeing to:** ~10 days of engineering time post-launch (in the Phase 4-5 window per strategy doc 02).
 
@@ -987,7 +987,7 @@ These need Jameson's call before engineering proceeds. Listed in suggested decis
 ## 8. References
 
 - `~/keepance/CHANGELOG.md` — actual shipped state (source of truth)
-- `~/keepance/docs/reference/FEATURES.md` — canonical "what does Keepance do" reference (rewritten 2026-04-29 to v1.7.2 state)
+- `~/keepance/docs/reference/FEATURES.md` — canonical "what does Advisor Prep Hero do" reference (rewritten 2026-04-29 to v1.7.2 state)
 - `~/keepance/docs/reference/COMPETITIVE_LANDSCAPE.md` — per-competitor analysis
 - `~/keepance/docs/marketing/strategy/11-pre-launch-gap-analysis.md` — companion launch-focused gap analysis
 - `~/keepance/docs/marketing/strategy/00-master-strategy.md` — strategic spine

@@ -20,7 +20,7 @@ import type { AnswerBlock, AnswerBlockKind } from './askHelpers';
 import { tallyBlocks } from './answerBlocks';
 import { CitationText } from './CitationText';
 
-/* eslint-disable keepance-i18n/no-hardcoded-string -- design copy matching the approved mockups; localized later with the rest of the surface */
+/* eslint-disable lantern-i18n/no-hardcoded-string -- design copy matching the approved mockups; localized later with the rest of the surface */
 
 const FILES = { fg: '#16654a', bg: '#e6f5ee', border: '#8fc9b0' };
 const GREY = { fg: 'var(--kp-text-dim)', bg: 'var(--kp-bg-soft)', border: 'var(--kp-divider-strong)' };
@@ -179,4 +179,4 @@ export function AnswerBlocks({
   );
 }
 
-/* eslint-enable keepance-i18n/no-hardcoded-string */
+/* eslint-enable lantern-i18n/no-hardcoded-string */

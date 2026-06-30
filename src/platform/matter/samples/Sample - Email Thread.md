@@ -1,7 +1,7 @@
 # Sample: Email Thread
 
 > Fictional household: **The Hendricks Household**, recent email correspondence.
-> This is a sample so you can see what email context looks like in Keepance. Delete it whenever you want.
+> This is a sample so you can see what email context looks like in Advisor Prep Hero. Delete it whenever you want.
 
 ---
 

@@ -354,7 +354,7 @@ pub async fn await_redirect_code(
             anyhow::bail!("state mismatch in OAuth redirect");
         }
 
-        let body = b"<html><body>Signed in. You can close this tab and return to Keepance.</body></html>";
+        let body = b"<html><body>Signed in. You can close this tab and return to Advisor Prep Hero.</body></html>";
         let response = format!(
             "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
             body.len()

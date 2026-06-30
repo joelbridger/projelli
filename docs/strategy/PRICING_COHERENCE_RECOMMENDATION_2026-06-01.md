@@ -1,4 +1,4 @@
-# Keepance — Pricing Coherence: Recommendation
+# Advisor Prep Hero — Pricing Coherence: Recommendation
 **Date:** 2026-06-01 · Author: Claude (operator) for Jameson (CEO)
 **Context:** Flagged in `LAUNCH_READINESS_AND_FIRST_DOLLAR_2026-06-01.md` (Tier 3.7). A deep-research harness run failed at synthesis; this is the operator's strategic recommendation. WTP figures below are from general market knowledge, not freshly re-verified — verify specifics before quoting publicly.
 

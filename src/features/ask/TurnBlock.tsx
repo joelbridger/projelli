@@ -165,9 +165,9 @@ export function TurnBlock({
             }}
           >
             <ShieldCheck size={14} strokeWidth={2} style={{ flex: 'none', color: '#16654a' }} />
-            {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+            {/* eslint-disable lantern-i18n/no-hardcoded-string */}
             Answered over your own files. Every cited claim can be checked against the source.
-            {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+            {/* eslint-enable lantern-i18n/no-hardcoded-string */}
           </div>
         )}
 
@@ -193,9 +193,9 @@ export function TurnBlock({
             }}
           >
             <Info size={14} strokeWidth={2} style={{ flex: 'none', color: 'var(--kp-text-dim)' }} />
-            {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+            {/* eslint-disable lantern-i18n/no-hardcoded-string */}
             This is on purpose — I only answer from your files, never from general knowledge. Ask about something in this household and I'll cite the source.
-            {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+            {/* eslint-enable lantern-i18n/no-hardcoded-string */}
           </div>
         )}
 
@@ -209,9 +209,9 @@ export function TurnBlock({
         {!usingBlocks && !isStreaming && !hasGroundedCitation && turn.answer && !isDecline && (
           <div data-testid="ask-uncited-warning">
             <Callout variant="warning" icon={AlertTriangle}>
-              {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+              {/* eslint-disable lantern-i18n/no-hardcoded-string */}
               Not cited from your files. Verify this before relying on it.
-              {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+              {/* eslint-enable lantern-i18n/no-hardcoded-string */}
             </Callout>
           </div>
         )}
@@ -222,7 +222,7 @@ export function TurnBlock({
         {!isStreaming && turn.answer && stalePlans.length > 0 && (
           <div data-testid="ask-stale-plan-warning">
             <Callout variant="warning" icon={Clock}>
-              {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+              {/* eslint-disable lantern-i18n/no-hardcoded-string */}
               This answer relies on exported plan snapshots that may be out of date:{' '}
               {stalePlans.map((s, i) => (
                 <span key={`${s.toolLabel}-${s.exportedAt}`}>
@@ -232,7 +232,7 @@ export function TurnBlock({
               ))}
               . A plan is a point-in-time snapshot, so figures may be out of date. Re-export the
               latest to refresh it.
-              {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+              {/* eslint-enable lantern-i18n/no-hardcoded-string */}
             </Callout>
           </div>
         )}
@@ -247,9 +247,9 @@ export function TurnBlock({
             onClick={() => void onSaveToDocument(turnIdx, turn.answer)}
             style={{ alignSelf: 'flex-start' }}
           >
-            {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+            {/* eslint-disable lantern-i18n/no-hardcoded-string */}
             {isSaving ? 'Saving…' : 'Save to document'}
-            {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+            {/* eslint-enable lantern-i18n/no-hardcoded-string */}
           </Button>
         )}
       </div>

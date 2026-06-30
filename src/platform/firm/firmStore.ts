@@ -44,6 +44,7 @@ import type {
   AssuredProvider,
   OrgClaimResponse,
 } from '@/platform/firm/contract';
+import { SK_FIRM_SESSION } from '@/config/identity';
 
 /** Stable per-machine id, shared with the licensing hook's convention. */
 const MACHINE_ID_KEY = 'keepance_machine_id';
@@ -465,7 +466,7 @@ export const useFirmStore = create<FirmState>()(
       },
     }),
     {
-      name: 'keepance:firm-session',
+      name: SK_FIRM_SESSION,
       version: 1,
       // Persist ONLY non-secret session metadata. Secrets stay in the keychain.
       partialize: (state) => ({ session: state.session }),

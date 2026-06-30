@@ -1,8 +1,8 @@
-# Keepance Vertical Persona Audit
+# Advisor Prep Hero Vertical Persona Audit
 
 **Date:** 2026-06-03
 **Author:** Claude (acting CEO), at Jameson's request
-**Status:** Findings of record. Feeds directly into the [Keepance V2 Overhaul Proposal](./2026-06-03-keepance-v2-overhaul.md).
+**Status:** Findings of record. Feeds directly into the [Advisor Prep Hero V2 Overhaul Proposal](./2026-06-03-keepance-v2-overhaul.md).
 **Companion document:** The overhaul proposal turns every finding below into a concrete, sequenced fix.
 
 ---
@@ -60,7 +60,7 @@ Twenty years in solo practice. Family law, civil litigation, some estate plannin
 
 **4. Outputs are Markdown files; my work product is Word and PDF.** Case timelines go to clients. Privilege logs go to opposing counsel. Deposition summaries go into my brief. None of those leave my desk as `.md`. If the answer to "how do I get a formatted Word document out" is "copy and paste," that is worse than my current workflow. *(See Reality check: DOCX and PPTX export utilities exist in the code but are not surfaced in the editor, and there is no in-app PDF export.)*
 
-**5. Nothing explains where this fits next to Clio.** Every attorney has a practice-management system. Does Keepance replace it, supplement it, or force me to run two parallel file systems? This is the first question I would ask, and the site never addresses it.
+**5. Nothing explains where this fits next to Clio.** Every attorney has a practice-management system. Does Advisor Prep Hero replace it, supplement it, or force me to run two parallel file systems? This is the first question I would ask, and the site never addresses it.
 
 **6. The Client Intake Synthesizer generates "Boolean search strings" for conflict checks, then stops.** My conflicts database is in Clio. A search string I have to run somewhere else does the easy part and leaves the hard part. An attorney will notice the gap immediately.
 
@@ -81,7 +81,7 @@ Twenty years in solo practice. Family law, civil litigation, some estate plannin
 Ten years at a boutique IP firm. Mostly prosecution (utility, design, PCT), some portfolio management and freedom-to-operate work. My single biggest AI fear is novelty destruction.
 
 ### What lands well
-- "EU absolute-novelty rule: premature disclosure to cloud AI can destroy patent rights worldwide. Keepance prevents it." This is the only line on the site that speaks to my specific professional catastrophe, and it is the exact reason I have not touched AI for prosecution work.
+- "EU absolute-novelty rule: premature disclosure to cloud AI can destroy patent rights worldwide. Advisor Prep Hero prevents it." This is the only line on the site that speaks to my specific professional catastrophe, and it is the exact reason I have not touched AI for prosecution work.
 - The Patent Disclosure Draft template is genuinely useful. Structuring an invention disclosure is real work, and AI can help if the data stays local.
 - "Point it at a local model and nothing leaves your machine at all" is the gold standard for prosecution work, where I want zero network egress.
 
@@ -111,12 +111,12 @@ Solo Enrolled Agent. Tax prep and planning only, around 180 clients, 70% individ
 ### What lands well
 - "§6713/§7216-aware" in the trust bar tells me you understand my world. Correctly separating §6713 (civil, strict-liability) from §7216 (criminal) is not obvious, and getting it right signals real research.
 - The [FTC Safeguards Rule](https://www.ftc.gov/business-guidance/resources/ftc-safeguards-rule-what-your-business-needs-know) mention is the one thing on the site I had not already connected to AI use. Genuinely informative.
-- "Keepance never sees your clients' SSNs, returns, or financial statements" is the exact promise I need, stated plainly.
+- "Advisor Prep Hero never sees your clients' SSNs, returns, or financial statements" is the exact promise I need, stated plainly.
 - Audit Defense File Builder and Tax Research Memo are the two highest-value templates for me. Audit defense is genuinely hard, and research memos could save real hours.
 
 ### Major problems
 
-**1. The API-key setup will end my trial in January.** I will try Keepance in July. I will read "bring your own API key," go to the Anthropic console, get confused by a billing dashboard, maybe create a key, then not open Keepance again until January, when I have zero time and abandon it. The seasonality of my practice means the onboarding friction is fatal unless it is removed almost entirely.
+**1. The API-key setup will end my trial in January.** I will try Advisor Prep Hero in July. I will read "bring your own API key," go to the Anthropic console, get confused by a billing dashboard, maybe create a key, then not open Advisor Prep Hero again until January, when I have zero time and abandon it. The seasonality of my practice means the onboarding friction is fatal unless it is removed almost entirely.
 
 **2. Outputs do not go anywhere useful.** My deliverables reach clients through [SafeSend](https://safesend.com/) or the Drake portal as PDFs. A research memo in Markdown that I have to copy into Word, reformat, and export to PDF is more work than typing it. I need a "generate PDF" or Word export. *(See Reality check below.)*
 
@@ -128,7 +128,7 @@ Solo Enrolled Agent. Tax prep and planning only, around 180 clients, 70% individ
 
 **6. The Quarterly Estimate Reminder template is trivially solved by every PMS.** It adds nothing over what I have and makes the pack look padded.
 
-**7. There is no screenshot of tax output anywhere.** The entire site shows legal content (Halvorsen Estate, deposition notes). Before I give you money and an API key, I need to see what a Keepance tax research memo actually looks like for my work.
+**7. There is no screenshot of tax output anywhere.** The entire site shows legal content (Halvorsen Estate, deposition notes). Before I give you money and an API key, I need to see what a Advisor Prep Hero tax research memo actually looks like for my work.
 
 ### Template and product gaps
 - No representation-engagement workflow ([Form 2848](https://www.irs.gov/forms-pubs/about-form-2848) context), no notice-response drafting (CP2000 and similar), which are high-frequency real tasks.
@@ -142,8 +142,8 @@ Solo Enrolled Agent. Tax prep and planning only, around 180 clients, 70% individ
 Twelve years independent, mid-market operations strategy. Engagements run four to six months, every one under an NDA. Three clients in the past year specifically asked whether I use AI and what I do with their data.
 
 ### What lands well
-- "Your NDAs say client data stays confidential. Your workflow depends on AI. Keepance is where those two facts coexist." This is the best single sentence on the site. It is my exact situation, in plain language, no jargon.
-- "Many client contracts now explicitly prohibit uploading work product to AI services. Keepance sidesteps the clause entirely." Also excellent, and increasingly true in the master service agreements I sign.
+- "Your NDAs say client data stays confidential. Your workflow depends on AI. Advisor Prep Hero is where those two facts coexist." This is the best single sentence on the site. It is my exact situation, in plain language, no jargon.
+- "Many client contracts now explicitly prohibit uploading work product to AI services. Advisor Prep Hero sidesteps the clause entirely." Also excellent, and increasingly true in the master service agreements I sign.
 
 ### Major problems
 
@@ -167,13 +167,13 @@ Twelve years independent, mid-market operations strategy. Engagements run four t
 Independent RIA, comprehensive financial planning. Client data (net worth, account numbers, plans) is some of the most sensitive that exists, and I am a fiduciary.
 
 ### What lands well
-- "Client financials, plans, and account details are some of the most sensitive data there is. Keepance keeps them on your machine and never sees them" is the right promise for a fiduciary.
+- "Client financials, plans, and account details are some of the most sensitive data there is. Advisor Prep Hero keeps them on your machine and never sees them" is the right promise for a fiduciary.
 
 ### Major problems
 
 **1. The homepage tells me the product is not ready for me.** The homepage "Financial advisors and RIAs" block says "an advisor-specific template pack is in the works." I came to the page for my vertical and learned the product is not built for me yet, so I leave.
 
-**Reality check (important inconsistency):** there is in fact a complete, checkout-wired landing page at `/financial-advisors/`, while there is no advisor template pack in the codebase (`src/modules/workflow/templates/` has `legal/`, `tax/`, and `consulting/`, no advisor folder). So the messaging is contradictory: the homepage undersells (says "in the works"), while a full landing page implies a pack experience that does not exist. **Decision (2026-06-03): build the advisor pack** so the vertical has a real, complete solution. Note also that Keepance has zero users today, so "advisors can use the core app now" was never a real position: nobody is using it, and without the pack it is not a complete advisor offering. Until the pack ships, the site should state plainly that it is forthcoming.
+**Reality check (important inconsistency):** there is in fact a complete, checkout-wired landing page at `/financial-advisors/`, while there is no advisor template pack in the codebase (`src/modules/workflow/templates/` has `legal/`, `tax/`, and `consulting/`, no advisor folder). So the messaging is contradictory: the homepage undersells (says "in the works"), while a full landing page implies a pack experience that does not exist. **Decision (2026-06-03): build the advisor pack** so the vertical has a real, complete solution. Note also that Advisor Prep Hero has zero users today, so "advisors can use the core app now" was never a real position: nobody is using it, and without the pack it is not a complete advisor offering. Until the pack ships, the site should state plainly that it is forthcoming.
 
 **2. Regulatory specificity is thin compared to legal and tax.** Legal gets ABA 512 and Heppner; tax gets §6713/§7216 and the Safeguards Rule. Advisors get general "sensitive data" language. My world has its own rules ([SEC Regulation S-P](https://www.sec.gov/rules-regulations/2024/05/s7-05-23), the amended safeguards and breach-notification requirements). Speak to them or I assume you did not do the homework you clearly did for the other two.
 
@@ -223,9 +223,9 @@ These affect every persona and are the highest-severity conversion killers. The 
 
 8. **The advisors vertical contradicts itself.** Homepage says "pack in the works"; a full checkout-wired landing page says otherwise; no advisor pack exists in code. Pick one honest story.
 
-9. **No "how it fits your existing stack" positioning.** Every persona already runs a system of record (Clio, Drake, PowerPoint, a CRM). The site never says whether Keepance replaces or complements it. Ambiguity here reads as "I now manage two of everything."
+9. **No "how it fits your existing stack" positioning.** Every persona already runs a system of record (Clio, Drake, PowerPoint, a CRM). The site never says whether Advisor Prep Hero replaces or complements it. Ambiguity here reads as "I now manage two of everything."
 
-10. **The deliverable pipeline gap is existential, not cosmetic.** If professionals cannot get a properly formatted Word, PDF, or PowerPoint file out, Keepance produces drafts of drafts. It does not fit into any actual professional output pipeline, which caps it at "scratchpad" no matter how good the AI is. Because the export utilities already exist, closing this gap is mostly surfacing work, which makes the low cost-to-impact ratio one of the best in the whole overhaul.
+10. **The deliverable pipeline gap is existential, not cosmetic.** If professionals cannot get a properly formatted Word, PDF, or PowerPoint file out, Advisor Prep Hero produces drafts of drafts. It does not fit into any actual professional output pipeline, which caps it at "scratchpad" no matter how good the AI is. Because the export utilities already exist, closing this gap is mostly surfacing work, which makes the low cost-to-impact ratio one of the best in the whole overhaul.
 
 11. **Research-output trust is a liability landmine for legal and tax.** A hallucinated case cite or IRC section is not a UX annoyance; it is a malpractice or Circular 230 exposure. The product needs visible source citation, confidence signaling, and "verify before relying" framing for research outputs, or sophisticated users will (correctly) refuse to trust it.
 
@@ -242,13 +242,13 @@ These affect every persona and are the highest-severity conversion killers. The 
 ## Deeper strategic analysis
 
 ### The competitive frame
-These professionals are already being pitched AI by their incumbents: Clio is adding AI, [Thomson Reuters CoCounsel](https://legal.thomsonreuters.com/en/c/cocounsel) targets lawyers, Drake and the big tax suites are adding assistants, and Microsoft 365 Copilot is in their Office. Every one of those has native workflow integration that Keepance does not. Keepance's wedge is privacy, and privacy alone. That wedge is real and defensible, but it only wins if two things are true: the privacy advantage is made overwhelming and unmistakable, and the workflow friction (API keys, export, integration) is driven as close to zero as possible. Today the privacy advantage is undersold and the friction is high. The overhaul has to invert both.
+These professionals are already being pitched AI by their incumbents: Clio is adding AI, [Thomson Reuters CoCounsel](https://legal.thomsonreuters.com/en/c/cocounsel) targets lawyers, Drake and the big tax suites are adding assistants, and Microsoft 365 Copilot is in their Office. Every one of those has native workflow integration that Advisor Prep Hero does not. Advisor Prep Hero's wedge is privacy, and privacy alone. That wedge is real and defensible, but it only wins if two things are true: the privacy advantage is made overwhelming and unmistakable, and the workflow friction (API keys, export, integration) is driven as close to zero as possible. Today the privacy advantage is undersold and the friction is high. The overhaul has to invert both.
 
 ### The trust paradox
-Keepance asks for the deepest possible trust (handle my most confidential data) by promising the opposite of trust (we never see it). That is a strong story, but it is fragile: every hedge word, every unverified claim, every missing testimonial, and every "by default" chips at it. A confidentiality product cannot afford even small trust leaks, and the site currently has several easy-to-fix ones.
+Advisor Prep Hero asks for the deepest possible trust (handle my most confidential data) by promising the opposite of trust (we never see it). That is a strong story, but it is fragile: every hedge word, every unverified claim, every missing testimonial, and every "by default" chips at it. A confidentiality product cannot afford even small trust leaks, and the site currently has several easy-to-fix ones.
 
 ### The BYOK onboarding tension
-Bring-your-own-key is excellent for the privacy story and terrible for non-technical onboarding, and it creates bill-shock risk. The tempting "fix" is a managed key (Keepance proxies the AI calls), which would erase the onboarding friction. **That fix would violate the product's own founding principle** ("BYOK forever, Keepance never holds AI keys, never sees user data") documented in `CLAUDE.md`, and it would gut the privacy wedge that is the entire reason this product exists. So the onboarding fix must come from radically better guidance and validation *within* BYOK, not from abandoning it. A managed-key option is a genuine board-level strategic question, not a tactical change, and the overhaul treats it as such (it does not recommend it).
+Bring-your-own-key is excellent for the privacy story and terrible for non-technical onboarding, and it creates bill-shock risk. The tempting "fix" is a managed key (Advisor Prep Hero proxies the AI calls), which would erase the onboarding friction. **That fix would violate the product's own founding principle** ("BYOK forever, Advisor Prep Hero never holds AI keys, never sees user data") documented in `CLAUDE.md`, and it would gut the privacy wedge that is the entire reason this product exists. So the onboarding fix must come from radically better guidance and validation *within* BYOK, not from abandoning it. A managed-key option is a genuine board-level strategic question, not a tactical change, and the overhaul treats it as such (it does not recommend it).
 
 ### Seasonality (tax)
 The tax vertical has a hard usage window: nobody adopts a new tool from January to October. Outreach and onboarding for tax pros should be timed to the off-season, and the onboarding itself must be fast enough to survive a distracted July evaluation.
@@ -260,11 +260,11 @@ The software is consistently *more capable* than the website shows (export, prof
 
 ## The core diagnosis
 
-**Keepance is a developer-grade tool wearing a professional's suit.**
+**Advisor Prep Hero is a developer-grade tool wearing a professional's suit.**
 
 The positioning, the legal and tax research, the brand, and the value proposition are all aimed squarely at sophisticated, non-technical professionals. But the experience underneath (Markdown as the native format, "bring your own API key," a file-system mental model, "back up with git") assumes the habits of a developer. The target customer is precisely the person least equipped to cross that gap.
 
-Almost every individual finding in this document is a symptom of that one mismatch. The good news, confirmed by reading the code, is that the foundation is real and more complete than it appears: the fix is less "build a new product" and more "finish translating the one you have into the language your customer actually speaks." That translation, end to end, is the [Keepance V2 Overhaul](./2026-06-03-keepance-v2-overhaul.md).
+Almost every individual finding in this document is a symptom of that one mismatch. The good news, confirmed by reading the code, is that the foundation is real and more complete than it appears: the fix is less "build a new product" and more "finish translating the one you have into the language your customer actually speaks." That translation, end to end, is the [Advisor Prep Hero V2 Overhaul](./2026-06-03-keepance-v2-overhaul.md).
 
 ---
 

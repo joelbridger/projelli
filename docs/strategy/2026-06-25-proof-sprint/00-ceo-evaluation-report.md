@@ -1,4 +1,4 @@
-# Keepance: Full Evaluation and Where to Go Next
+# Advisor Prep Hero: Full Evaluation and Where to Go Next
 
 *A CEO-level read of the whole project, June 25, 2026. Written for Jameson. Plain language on purpose.*
 
@@ -6,7 +6,7 @@
 
 ## The one-paragraph answer
 
-Keepance is a genuinely impressive, deep piece of software, and that is not the problem. The problem is that almost nobody is using it yet: zero paying customers and only a trickle of website visitors. The building is way ahead of the selling. So the demo you are working on right now is the single most important thing happening on this project, because it is your bridge to your very first real users (your wife, then her firm). The financial-advisor software world is a crowded, hard neighborhood to move into, and there is one competitor already saying almost exactly what we want to say. So my recommendation as your CEO is simple and a little uncomfortable: **stop adding big new features for a while, and instead use the demo to turn a handful of real advisors into weekly users, with at least one or two paying.** If 3 to 5 advisors are using it every week within about two months, you have a real business. If not, you will have learned that quickly and cheaply, instead of building for another year on a hunch.
+Advisor Prep Hero is a genuinely impressive, deep piece of software, and that is not the problem. The problem is that almost nobody is using it yet: zero paying customers and only a trickle of website visitors. The building is way ahead of the selling. So the demo you are working on right now is the single most important thing happening on this project, because it is your bridge to your very first real users (your wife, then her firm). The financial-advisor software world is a crowded, hard neighborhood to move into, and there is one competitor already saying almost exactly what we want to say. So my recommendation as your CEO is simple and a little uncomfortable: **stop adding big new features for a while, and instead use the demo to turn a handful of real advisors into weekly users, with at least one or two paying.** If 3 to 5 advisors are using it every week within about two months, you have a real business. If not, you will have learned that quickly and cheaply, instead of building for another year on a hunch.
 
 ---
 
@@ -22,13 +22,13 @@ Think of "how far along are we" in three separate buckets. They are at very diff
 
 **The analogy:** we have built a beautiful, powerful car. We just have not sold a single one, and only a few people have ever sat in it.
 
-This matters because it is easy to *feel* like progress (new features, fixed bugs, a nicer website) while the one number that decides whether this is a business (real users) stays at zero. Both my own research and the independent second opinion from Codex landed on the exact same verdict, in almost the same words: **Keepance is an impressive pre-traction product, not yet a proven startup.**
+This matters because it is easy to *feel* like progress (new features, fixed bugs, a nicer website) while the one number that decides whether this is a business (real users) stays at zero. Both my own research and the independent second opinion from Codex landed on the exact same verdict, in almost the same words: **Advisor Prep Hero is an impressive pre-traction product, not yet a proven startup.**
 
 ### What is actually built
-In plain terms, Keepance is a private app that lives on the advisor's own computer. You point it at a client's files and emails, and it does three useful things:
+In plain terms, Advisor Prep Hero is a private app that lives on the advisor's own computer. You point it at a client's files and emails, and it does three useful things:
 - It builds a **"Client Map"**: an automatically-assembled, always-updating profile of everything known about a client or household (their people, goals, accounts, risks, open to-do items), where every fact links back to the exact document it came from.
 - It lets you **ask questions across all of it** and get answers with clickable sources you can verify.
-- The key promise: **the client's private data never goes to a Keepance server.** The AI runs either fully on the advisor's machine, or talks straight to an AI provider using the advisor's own key.
+- The key promise: **the client's private data never goes to a Advisor Prep Hero server.** The AI runs either fully on the advisor's machine, or talks straight to an AI provider using the advisor's own key.
 
 The real catch on "what's built": the newest and best work (the Client Map, the advisor re-aim) is finished in the code but **has not been packaged into an installer customers can download yet.** The last version actually published is older. That is a deliberate choice (a real release needs your go-ahead), but it means the polished advisor product technically does not exist in customers' hands today.
 
@@ -108,7 +108,7 @@ This advisor focus is roughly the **fourth or fifth re-aim** of the same underly
 Three moves, in order. Notice that "build more features" is deliberately not on the list.
 
 **Move 1: Finish the demo, then run a "first 5 advisors" proof sprint.**
-Your wife is design partner number one. Then her firm. Then a few more advisors found through the places advisors actually hang out (advisor communities like XYPN, and the Kitces world, which is the trusted hub for advisor software). The goal is not applause. The goal is **weekly real use and one or two paid pilots.** The test that matters: would they be genuinely upset if Keepance disappeared tomorrow?
+Your wife is design partner number one. Then her firm. Then a few more advisors found through the places advisors actually hang out (advisor communities like XYPN, and the Kitces world, which is the trusted hub for advisor software). The goal is not applause. The goal is **weekly real use and one or two paid pilots.** The test that matters: would they be genuinely upset if Advisor Prep Hero disappeared tomorrow?
 
 **Move 2: Make ONE path bulletproof, and pause everything else.**
 The path: pick a client folder, build the Client Map, ask a cited question, draft a review note. Make that loop rock-solid and easy enough for a normal, non-technical advisor on a normal Windows machine. No new big features until that one loop is boring and reliable.

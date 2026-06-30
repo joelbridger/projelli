@@ -2,14 +2,14 @@
 
 **Date:** 2026-06-17
 **Prepared by:** Claude (investment-committee lens, Claude-only research, no local models)
-**Question:** Jameson asked whether Keepance's email-search capability could stand on its own as a separate piece of software, evaluated for the **mass-market / prosumer** audience (compete with Superhuman/Shortwave on speed + AI; privacy/local-first as a bonus, not the headline).
+**Question:** Jameson asked whether Advisor Prep Hero's email-search capability could stand on its own as a separate piece of software, evaluated for the **mass-market / prosumer** audience (compete with Superhuman/Shortwave on speed + AI; privacy/local-first as a bonus, not the headline).
 **Companion memo:** `2026-06-17-keepance-evaluation-path-to-traction.md`
 
 ---
 
 ## Verdict up front
 
-**As a mass-market / prosumer standalone product: no. The evidence says email search is a *feature*, not a *venture*.** Don't spin it out as a consumer product. Keep email intelligence where it already is — a wedge inside Keepance, a privacy-bound *professional* tool that owns a workflow and a relationship.
+**As a mass-market / prosumer standalone product: no. The evidence says email search is a *feature*, not a *venture*.** Don't spin it out as a consumer product. Keep email intelligence where it already is — a wedge inside Advisor Prep Hero, a privacy-bound *professional* tool that owns a workflow and a relationship.
 
 The case is not close, and it converges from four independent directions:
 
@@ -18,7 +18,7 @@ The case is not close, and it converges from four independent directions:
 3. **The market is huge at the top and thin at the till.** ~4.6B email users, but the entire paid-email-app market is only ~$2B, and the *category-defining premium player* (Superhuman) tops out at ~50,000 customers / ~$35M ARR after a decade — then got acquired.
 4. **Structure:** an AI-search "layer" riding on Gmail/Outlook is the single weakest position in software — it owns no mailbox, no identity, no switching cost, and depends entirely on the incumbent's API, which can be (and is being) closed.
 
-There is exactly one genuine white space — **truly on-device AI semantic search** — and even that is a feature, not a moat, and Apple just started giving a free version of it away. The defensible shapes for the engine are (a) a lean bootstrapped niche utility, or (b) a privacy-bound *vertical professional* tool. (b) is, almost exactly, Keepance. That is the constructive finding: **the email research independently re-derives that the engine's real home is Keepance's market, not the consumer inbox.**
+There is exactly one genuine white space — **truly on-device AI semantic search** — and even that is a feature, not a moat, and Apple just started giving a free version of it away. The defensible shapes for the engine are (a) a lean bootstrapped niche utility, or (b) a privacy-bound *vertical professional* tool. (b) is, almost exactly, Advisor Prep Hero. That is the constructive finding: **the email research independently re-derives that the engine's real home is Advisor Prep Hero's market, not the consumer inbox.**
 
 ---
 
@@ -73,32 +73,32 @@ But it is a wedge, not a moat:
 
 So even the white space lands you in the *committed-but-small* segment (Tuta/HEY economics) — a real lifestyle business, never a venture-scale one, and only durable if you **own the mailbox**, which a search layer by definition does not.
 
-## 6. The carve-out decision: spin out, or keep inside Keepance?
+## 6. The carve-out decision: spin out, or keep inside Advisor Prep Hero?
 
-**Keep it inside Keepance.** Reasons:
+**Keep it inside Advisor Prep Hero.** Reasons:
 
-1. **Inside Keepance, email is not a thin consumer layer — it is part of a workflow that owns the professional relationship.** A lawyer doesn't pay for "email search"; they pay for "find any email or document I ever filed, with a citation I can click, without my client's name leaving my machine." Email is one input to that, and the *matter-scoped, cited, local* context is the product. That is defensible in a way standalone consumer search is not.
+1. **Inside Advisor Prep Hero, email is not a thin consumer layer — it is part of a workflow that owns the professional relationship.** A lawyer doesn't pay for "email search"; they pay for "find any email or document I ever filed, with a citation I can click, without my client's name leaving my machine." Email is one input to that, and the *matter-scoped, cited, local* context is the product. That is defensible in a way standalone consumer search is not.
 2. **The buyer is regulated and pays real money.** In the consumer market, on-device privacy is a nice-to-have most won't pay for. For a lawyer (Rule 1.6, *Heppner*), a CPA (IRC §7216 — "the AI must reside in a system you can control"), or an advisor (Reg S-P), local/controlled processing is closer to a *requirement*, and they pay $40-130/seat/mo, not $5. The prosumer-email research independently recommended exactly this pivot: "toward the better-funded, less-contested wedge it's better suited to — privacy-sensitive professional/vertical search, where local is a requirement, not a nicety."
-3. **No new business to build, market, or defend.** Spinning out means a second brand, a second GTM, a second graveyard lottery ticket — against Apple/Google/Microsoft giving the core feature away. Inside Keepance, the same engine deepens an existing wedge.
+3. **No new business to build, market, or defend.** Spinning out means a second brand, a second GTM, a second graveyard lottery ticket — against Apple/Google/Microsoft giving the core feature away. Inside Advisor Prep Hero, the same engine deepens an existing wedge.
 
 ## 7. If you ever still want a standalone, the only two defensible shapes
 
 Neither is the mass-market product as framed; both are narrow on purpose:
 
 - **(a) A lean, bootstrapped niche utility** — a cross-provider local search/AI *layer* over any IMAP/Outlook/Gmail account, sold to power users who live across multiple mailboxes (something no single platform does, since each only indexes its own mail). Run for profit at $5-15/mo, Mimestream/SaneBox economics, never VC scale, with full knowledge the incumbents are closing the gap beneath you. This is a side-income business, not a company.
-- **(b) A vertical professional tool** where local/on-device is mandatory and buyers pay a premium. This is — almost exactly — **Keepance**. Building it standalone would mean rebuilding Keepance's trust story, workflow, and ICP from scratch. There is no reason to.
+- **(b) A vertical professional tool** where local/on-device is mandatory and buyers pay a premium. This is — almost exactly — **Advisor Prep Hero**. Building it standalone would mean rebuilding Advisor Prep Hero's trust story, workflow, and ICP from scratch. There is no reason to.
 
 ## 8. Build cost (you already own the hard 80%)
 
-Per the existing email-intelligence design docs (`docs/strategy/2026-06-06-email-*.md`), Phase 1 is **already built and proven** against a real Outlook mailbox: M365 import → local store → keyword search, encryption-at-rest, an IMAP adapter (so Gmail works today via app-password), and a native Gmail API path. The reusable ~80% (on-device fastembed embeddings, LanceDB, cited chat, file watcher, keychain) is the same engine Keepance already ships. The new ~20% (connector + OAuth + per-folder delta sync + normalizer) is also largely done. **This is the strongest argument for the in-Keepance path: the capability is near-complete *as a Keepance feature*, and re-homing it into a separate consumer product would throw away its only real advantage (the privacy-bound professional context) to enter the worst market in software.**
+Per the existing email-intelligence design docs (`docs/strategy/2026-06-06-email-*.md`), Phase 1 is **already built and proven** against a real Outlook mailbox: M365 import → local store → keyword search, encryption-at-rest, an IMAP adapter (so Gmail works today via app-password), and a native Gmail API path. The reusable ~80% (on-device fastembed embeddings, LanceDB, cited chat, file watcher, keychain) is the same engine Advisor Prep Hero already ships. The new ~20% (connector + OAuth + per-folder delta sync + normalizer) is also largely done. **This is the strongest argument for the in-Advisor Prep Hero path: the capability is near-complete *as a Advisor Prep Hero feature*, and re-homing it into a separate consumer product would throw away its only real advantage (the privacy-bound professional context) to enter the worst market in software.**
 
 ---
 
 ## Recommendation
 
 1. **Do not build a standalone mass-market email-search product.** The evidence is one-directional: feature, not venture; the incumbents are giving it away; the layer position is the weakest in software.
-2. **Keep email intelligence as a Keepance capability and make it a headline wedge** — which the marketing site already does ("find any email or document you ever filed, with a citation you can click"). The daily-use email pain is a genuine beachhead *for the professional buyer*, where it's defensible.
-3. **If a standalone ever tempts you,** treat it as a lean niche utility (side income) or recognize that the "serious" version is just Keepance. Don't start a second company to compete with Apple for free.
+2. **Keep email intelligence as a Advisor Prep Hero capability and make it a headline wedge** — which the marketing site already does ("find any email or document you ever filed, with a citation you can click"). The daily-use email pain is a genuine beachhead *for the professional buyer*, where it's defensible.
+3. **If a standalone ever tempts you,** treat it as a lean niche utility (side income) or recognize that the "serious" version is just Advisor Prep Hero. Don't start a second company to compete with Apple for free.
 
 ## Confidence & caveats
 

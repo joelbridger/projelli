@@ -1,7 +1,7 @@
 # SOC 2 and DPA: Decision Brief for Jameson
 
 **Date:** 2026-06-08
-**For:** Jameson Daines (founder, Keepance)
+**For:** Jameson Daines (founder, Advisor Prep Hero)
 **Status:** Decision brief -- your call. This document gives you the information; it does not make the decision.
 
 ---
@@ -68,9 +68,9 @@ These costs cover the platform only. The audit itself is additional.
 
 Realistically, you will not have a Type II report to hand a customer for 12-18 months from when you start, assuming you start now.
 
-### The Keepance-specific complication
+### The Advisor Prep Hero-specific complication
 
-Keepance's architecture reduces the audit surface. Most SOC 2 Type II controls focus on server-side data processing: who can access user data, how is it encrypted in transit and at rest on the server, what are your backup and recovery controls. Because workspace data is not on our servers, most of that surface doesn't exist.
+Advisor Prep Hero's architecture reduces the audit surface. Most SOC 2 Type II controls focus on server-side data processing: who can access user data, how is it encrypted in transit and at rest on the server, what are your backup and recovery controls. Because workspace data is not on our servers, most of that surface doesn't exist.
 
 The audit surface that does exist: the license validation server, the update-check server, and the web demo proxy. A competent auditor would scope appropriately once they understood the architecture.
 
@@ -101,11 +101,11 @@ The draft template at `docs/legal/dpa-template.md` gives you a skeleton. For a r
 
 3. **Standard Contractual Clauses (if you want EU customers).** If you want to offer a DPA to EU/UK customers, you need the right SCCs attached. These are standardized EU template documents. A lawyer selects and attaches the right module.
 
-4. **An entity to sign it.** Someone has to sign on behalf of Keepance. That is you, as the authorized representative of whatever entity you form.
+4. **An entity to sign it.** Someone has to sign on behalf of Advisor Prep Hero. That is you, as the authorized representative of whatever entity you form.
 
 ### The honest framing
 
-A DPA is really a contract about a cloud SaaS processor handling customer data on its servers. Keepance's local-first architecture doesn't fit that model cleanly. Most of what a typical DPA says (how the vendor protects data on its servers, what sub-processors it uses, how it handles deletion requests) doesn't apply to us in the normal way.
+A DPA is really a contract about a cloud SaaS processor handling customer data on its servers. Advisor Prep Hero's local-first architecture doesn't fit that model cleanly. Most of what a typical DPA says (how the vendor protects data on its servers, what sub-processors it uses, how it handles deletion requests) doesn't apply to us in the normal way.
 
 The right answer for a customer asking for a DPA is probably a disclosure document that explains the architecture and the actual data relationship honestly, rather than a standard processor DPA with most of the clauses modified to say "not applicable." Our lawyer can advise on the right framing.
 

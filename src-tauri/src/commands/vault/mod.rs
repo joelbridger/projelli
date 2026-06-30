@@ -19,7 +19,7 @@
 //! stays within the workspace root (no `..` traversal) before any disk I/O.
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-use keepance_vault::{
+use lantern_vault::{
     format::encrypt_file,
     metadata::{AdminWrapJson, EscrowJson, RecoveryWrapJson, VaultMetadata, METADATA_FILENAME},
     recovery::{create_recovery, recover_vmk},
@@ -37,9 +37,9 @@ use zeroize::Zeroize;
 /// Build the keychain service name for a given workspace id.
 ///
 /// Mirrors `com.keepance.mail-enc` / `com.keepance.vectors-enc` etc., keeping
-/// all Keepance keychain entries under the `com.keepance.*` namespace.
+/// all Advisor Prep Hero keychain entries under the `com.keepance.*` namespace.
 fn vmk_service(id: &str) -> String {
-    format!("com.keepance.vault.{id}")
+    crate::identity::vault_keychain_service(id)
 }
 
 /// The keychain key name for the VMK entry.
@@ -118,7 +118,7 @@ fn load_vmk(workspace_id: &str) -> Result<ZeroizedVmk, VaultCommandError> {
 /// Try to load the VMK for a workspace without requiring the vault to be enabled
 /// or the keychain to have an entry. Returns `None` in any of these cases:
 ///
-/// - The workspace has no `.keepance-vault.json` (vault not enabled — plaintext workspace).
+/// - The workspace has no `.lantern-vault.json` (vault not enabled — plaintext workspace).
 /// - The metadata is unreadable (vault not enabled / corrupt).
 /// - The keychain has no VMK for this workspace (vault is locked on this machine).
 /// - Any error in keychain access or base64 decoding.
@@ -131,7 +131,7 @@ fn load_vmk(workspace_id: &str) -> Result<ZeroizedVmk, VaultCommandError> {
 /// The returned `ZeroizedVmk` is zeroized when it is dropped by the caller.
 pub(crate) fn try_load_vault_vmk(workspace_root: &Path) -> Option<ZeroizedVmk> {
     // Step 1: check if the vault is enabled (metadata file must exist).
-    let meta = keepance_vault::metadata::VaultMetadata::read_from(workspace_root).ok()?;
+    let meta = lantern_vault::metadata::VaultMetadata::read_from(workspace_root).ok()?;
     // Step 2: try to load the VMK from the keychain. A `None` from `get_vmk_b64`
     // means the vault is locked (no VMK for this machine) — silent passthrough.
     let mut b64 = get_vmk_b64(&meta.vault_id).ok()??;
@@ -290,7 +290,7 @@ pub enum VaultCommandError {
     /// disabled until every file has been decrypted via `vault_decrypt_all`.
     FilesStillEncrypted(String),
     /// `vault_create` was called for a workspace that already has a
-    /// `.keepance-vault.json`. Creating again would overwrite the existing master
+    /// `.lantern-vault.json`. Creating again would overwrite the existing master
     /// key and permanently orphan already-encrypted files; disable first.
     AlreadyEnabled(String),
 }
@@ -312,26 +312,26 @@ impl std::fmt::Display for VaultCommandError {
     }
 }
 
-impl From<keepance_vault::vault::VaultError> for VaultCommandError {
-    fn from(e: keepance_vault::vault::VaultError) -> Self {
+impl From<lantern_vault::vault::VaultError> for VaultCommandError {
+    fn from(e: lantern_vault::vault::VaultError) -> Self {
         VaultCommandError::Crypto(e.to_string())
     }
 }
 
-impl From<keepance_vault::recovery::RecoveryError> for VaultCommandError {
-    fn from(e: keepance_vault::recovery::RecoveryError) -> Self {
+impl From<lantern_vault::recovery::RecoveryError> for VaultCommandError {
+    fn from(e: lantern_vault::recovery::RecoveryError) -> Self {
         match e {
-            keepance_vault::recovery::RecoveryError::InvalidPhrase => {
+            lantern_vault::recovery::RecoveryError::InvalidPhrase => {
                 VaultCommandError::InvalidPhrase(
                     "the recovery phrase failed BIP39 checksum validation".into(),
                 )
             }
-            keepance_vault::recovery::RecoveryError::DecryptFailed => {
+            lantern_vault::recovery::RecoveryError::DecryptFailed => {
                 VaultCommandError::RecoveryFailed(
                     "recovery phrase did not decrypt the vault wrap (wrong phrase or corrupted wrap)".into(),
                 )
             }
-            keepance_vault::recovery::RecoveryError::Crypto => {
+            lantern_vault::recovery::RecoveryError::Crypto => {
                 VaultCommandError::Crypto("recovery crypto error".into())
             }
         }
@@ -344,7 +344,7 @@ impl From<keepance_vault::recovery::RecoveryError> for VaultCommandError {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VaultStatus {
-    /// `true` when a `.keepance-vault.json` metadata file exists in the workspace.
+    /// `true` when a `.lantern-vault.json` metadata file exists in the workspace.
     pub enabled: bool,
     /// `true` when `enabled` and the VMK is absent from the keychain
     /// (vault needs to be unlocked before files can be read/written).
@@ -369,7 +369,7 @@ pub struct VaultCreated {
 
 /// Return the current status of the vault for a workspace.
 ///
-/// - `enabled`  = `.keepance-vault.json` exists.
+/// - `enabled`  = `.lantern-vault.json` exists.
 /// - `locked`   = enabled but no VMK in the OS keychain.
 /// - `has_escrow` = metadata contains a firm-admin escrow section.
 /// - `vault_id` = the stable workspace identifier recorded in the metadata.
@@ -408,7 +408,7 @@ pub async fn vault_status(workspace: String) -> Result<VaultStatus, VaultCommand
 /// 1. Generate 32 random bytes as the VMK.
 /// 2. Build the BIP39 recovery wrap (`create_recovery`).
 /// 3. Build a verifier blob (`make_verifier`).
-/// 4. Write `.keepance-vault.json` (atomic write via the crate).
+/// 4. Write `.lantern-vault.json` (atomic write via the crate).
 /// 5. Store the VMK in the OS keychain.
 /// 6. Return the 24-word recovery phrase **once** — it is never stored.
 ///
@@ -465,7 +465,7 @@ pub async fn vault_create(
         // Escrow section is populated later via vault_set_escrow_wraps (Task 9).
         // The `escrow` bool only signals intent here.
         escrow: if escrow {
-            Some(keepance_vault::metadata::EscrowJson {
+            Some(lantern_vault::metadata::EscrowJson {
                 epoch: 1,
                 admin_wraps: vec![],
             })
@@ -547,7 +547,7 @@ pub async fn vault_write_file(
     drop(vmk);
 
     // Atomic write (temp + fsync + rename).
-    keepance_vault::atomic::atomic_write(&abs_path, &blob)
+    lantern_vault::atomic::atomic_write(&abs_path, &blob)
         .map_err(|e| VaultCommandError::Io(e.to_string()))
 }
 
@@ -648,7 +648,7 @@ pub async fn vault_export_vmk_for_escrow(
 ///
 /// Called by the TypeScript `provisionEscrow` function after it has wrapped the VMK
 /// to each admin device's public key. This command atomically writes the new escrow
-/// section to `.keepance-vault.json`. It does NOT require the vault to be unlocked —
+/// section to `.lantern-vault.json`. It does NOT require the vault to be unlocked —
 /// the wrapped keys are opaque blobs that the JS side produced; we just persist them.
 ///
 /// `epoch` is a monotonically increasing counter (start at 1; increment on key rotation).
@@ -678,7 +678,7 @@ pub async fn vault_set_escrow_wraps(
 
 /// Encrypt every eligible file in a workspace under the VMK (migration command).
 ///
-/// Walks the workspace root recursively (skipping `.keepance/`, `.keepance-vault.json`,
+/// Walks the workspace root recursively (skipping `.keepance/`, `.lantern-vault.json`,
 /// `.kpv-tmp-*`) and encrypts each plain file atomically. Already-encrypted files
 /// (KPV1 magic) are skipped — the walk is resumable.
 ///
@@ -706,7 +706,7 @@ pub async fn vault_encrypt_all(
     emit_progress(&app, 0, total);
 
     // Run the walk. VMK is still live inside ZeroizedVmk.
-    keepance_vault::vault::encrypt_all(&root, vmk.as_bytes()).map_err(VaultCommandError::from)?;
+    lantern_vault::vault::encrypt_all(&root, vmk.as_bytes()).map_err(VaultCommandError::from)?;
 
     // VMK is dropped + zeroized at function exit. Emit completion.
     emit_progress(&app, total, total);
@@ -735,7 +735,7 @@ pub async fn vault_decrypt_all(
     let total = count_eligible_files(&root);
     emit_progress(&app, 0, total);
 
-    keepance_vault::vault::decrypt_all(&root, vmk.as_bytes()).map_err(VaultCommandError::from)?;
+    lantern_vault::vault::decrypt_all(&root, vmk.as_bytes()).map_err(VaultCommandError::from)?;
 
     emit_progress(&app, total, total);
 
@@ -745,12 +745,12 @@ pub async fn vault_decrypt_all(
 /// Disable the encrypted vault for a workspace.
 ///
 /// SAFETY: this command REFUSES with `files_still_encrypted` if any file in the
-/// workspace (excluding `.keepance/`, `.keepance-vault.json`, `.kpv-tmp-*`) still
+/// workspace (excluding `.keepance/`, `.lantern-vault.json`, `.kpv-tmp-*`) still
 /// has the KPV1 magic header. This ensures we never orphan ciphertext that cannot
 /// be recovered after the VMK is deleted.
 ///
 /// When the workspace is clean (all files decrypted):
-/// 1. Delete `.keepance-vault.json`.
+/// 1. Delete `.lantern-vault.json`.
 /// 2. Delete the keychain VMK entry.
 ///
 /// The operation is intentionally NOT gated on the vault being unlocked —
@@ -775,7 +775,7 @@ pub async fn vault_disable(workspace: String) -> Result<(), VaultCommandError> {
     let vault_id_result = vault_id_for(&root);
 
     // Delete the metadata file.
-    let meta_path = root.join(keepance_vault::metadata::METADATA_FILENAME);
+    let meta_path = root.join(lantern_vault::metadata::METADATA_FILENAME);
     if meta_path.exists() {
         std::fs::remove_file(&meta_path)
             .map_err(|e| VaultCommandError::Io(format!("failed to delete metadata: {e}")))?;
@@ -803,8 +803,8 @@ fn emit_progress(app: &tauri::AppHandle, done: usize, total: usize) {
 
 /// Count eligible files under `root` for the `total` in progress events.
 ///
-/// Uses the same exclusion rules as the crate walk: skip `.keepance/` dir,
-/// skip `.keepance-vault.json` and `.kpv-tmp-*` by filename.
+/// Uses the same exclusion rules as the crate walk: skip `.lantern/` dir,
+/// skip `.lantern-vault.json` and `.kpv-tmp-*` by filename.
 /// Returns 0 on any I/O error (best-effort; the walk itself will surface errors).
 fn count_eligible_files(root: &Path) -> usize {
     fn count_dir(dir: &Path) -> usize {
@@ -813,12 +813,12 @@ fn count_eligible_files(root: &Path) -> usize {
         for entry in rd.flatten() {
             let name = entry.file_name();
             let name_str = name.to_string_lossy();
-            if name_str == ".keepance-vault.json" || name_str.starts_with(".kpv-tmp-") {
+            if name_str == crate::identity::VAULT_META_FILE || name_str.starts_with(".kpv-tmp-") {
                 continue;
             }
             let Ok(ft) = entry.file_type() else { continue; };
             if ft.is_dir() {
-                if name_str != ".keepance" {
+                if name_str != crate::identity::WORKSPACE_DATA_DIR {
                     n += count_dir(&entry.path());
                 }
             } else if ft.is_file() {
@@ -841,12 +841,12 @@ fn find_any_encrypted_file(root: &Path) -> Result<Option<PathBuf>, VaultCommandE
         for entry in rd.flatten() {
             let name = entry.file_name();
             let name_str = name.to_string_lossy();
-            if name_str == ".keepance-vault.json" || name_str.starts_with(".kpv-tmp-") {
+            if name_str == crate::identity::VAULT_META_FILE || name_str.starts_with(".kpv-tmp-") {
                 continue;
             }
             let Ok(ft) = entry.file_type() else { continue; };
             if ft.is_dir() {
-                if name_str != ".keepance" {
+                if name_str != crate::identity::WORKSPACE_DATA_DIR {
                     if let Some(p) = scan_dir(&entry.path())? {
                         return Ok(Some(p));
                     }
@@ -855,7 +855,7 @@ fn find_any_encrypted_file(root: &Path) -> Result<Option<PathBuf>, VaultCommandE
                 let path = entry.path();
                 // Read only the first 4 bytes to check the magic header.
                 let header = read_header_bytes(&path);
-                if keepance_vault::format::has_vault_magic(&header) {
+                if lantern_vault::format::has_vault_magic(&header) {
                     return Ok(Some(path));
                 }
             }
@@ -1100,7 +1100,7 @@ mod tests {
     #[test]
     fn vmk_service_includes_id() {
         let id = "deadbeef";
-        assert_eq!(vmk_service(id), "com.keepance.vault.deadbeef");
+        assert_eq!(vmk_service(id), crate::identity::vault_keychain_service(id));
     }
 
     // ── ZeroizedVmk ───────────────────────────────────────────────────────────
@@ -1142,8 +1142,8 @@ mod tests {
     /// Round-trip: create recovery wrap → recover VMK → verifier passes.
     #[test]
     fn recovery_roundtrip_crate_level() {
-        use keepance_vault::recovery::{create_recovery, recover_vmk};
-        use keepance_vault::verifier::{check_verifier, make_verifier};
+        use lantern_vault::recovery::{create_recovery, recover_vmk};
+        use lantern_vault::verifier::{check_verifier, make_verifier};
 
         let vmk = [0x42u8; 32];
 
@@ -1165,7 +1165,7 @@ mod tests {
     /// Invalid BIP39 checksum → InvalidPhrase before any crypto.
     #[test]
     fn recovery_invalid_checksum_maps_to_invalid_phrase() {
-        use keepance_vault::recovery::{create_recovery, recover_vmk, RecoveryError};
+        use lantern_vault::recovery::{create_recovery, recover_vmk, RecoveryError};
 
         let vmk = [0x43u8; 32];
         let (_phrase, wrap) = create_recovery(&vmk).expect("create_recovery should succeed");
@@ -1189,7 +1189,7 @@ mod tests {
     /// Wrong-but-valid-checksum phrase → RecoveryFailed (GCM tag mismatch).
     #[test]
     fn recovery_wrong_phrase_maps_to_recovery_failed() {
-        use keepance_vault::recovery::{create_recovery, recover_vmk, RecoveryError};
+        use lantern_vault::recovery::{create_recovery, recover_vmk, RecoveryError};
 
         let vmk = [0x44u8; 32];
         let (_phrase, wrap) = create_recovery(&vmk).expect("create_recovery should succeed");
@@ -1213,7 +1213,7 @@ mod tests {
     /// `vault_set_escrow_wraps` — end-to-end through temp filesystem (no keychain needed).
     #[test]
     fn set_escrow_wraps_writes_and_reads_back() {
-        use keepance_vault::{
+        use lantern_vault::{
             metadata::{AdminWrapJson, EscrowJson, RecoveryWrapJson, VaultMetadata},
             recovery::create_recovery,
             verifier::make_verifier,
@@ -1279,7 +1279,7 @@ mod tests {
             return;
         }
 
-        use keepance_vault::{
+        use lantern_vault::{
             metadata::{RecoveryWrapJson, VaultMetadata},
             recovery::create_recovery,
             verifier::make_verifier,
@@ -1322,7 +1322,7 @@ mod tests {
     /// (No keychain involvement — drives crate funcs directly.)
     #[test]
     fn vault_disable_refuses_while_encrypted_and_succeeds_after_decrypt() {
-        use keepance_vault::{
+        use lantern_vault::{
             metadata::{RecoveryWrapJson, VaultMetadata},
             recovery::create_recovery,
             verifier::make_verifier,
@@ -1398,7 +1398,7 @@ mod tests {
 
         // vault_disable logic: no encrypted files → delete metadata + (keychain if present).
         // Directly simulate the disable (no async runtime, no keychain).
-        let meta_path = root.join(keepance_vault::metadata::METADATA_FILENAME);
+        let meta_path = root.join(lantern_vault::metadata::METADATA_FILENAME);
         assert!(meta_path.exists(), "metadata must exist before disable");
         std::fs::remove_file(&meta_path).unwrap();
         assert!(!meta_path.exists(), "metadata must be gone after disable");
@@ -1418,11 +1418,11 @@ mod tests {
         std::fs::write(sub.join("c.txt"), b"ccc").unwrap();
 
         // Create excluded files/dirs.
-        std::fs::write(root.join(".keepance-vault.json"), b"{}").unwrap();
+        std::fs::write(root.join(".lantern-vault.json"), b"{}").unwrap();
         std::fs::write(root.join(".kpv-tmp-somefile"), b"tmp").unwrap();
-        let keepance_dir = root.join(".keepance");
-        std::fs::create_dir_all(&keepance_dir).unwrap();
-        std::fs::write(keepance_dir.join("vectors.db"), b"lancedb").unwrap();
+        let internal_dir = root.join(".lantern");
+        std::fs::create_dir_all(&internal_dir).unwrap();
+        std::fs::write(internal_dir.join("vectors.db"), b"lancedb").unwrap();
 
         let count = count_eligible_files(root);
         assert_eq!(count, 3, "eligible file count must be 3 (a, b, c only)");
@@ -1443,7 +1443,7 @@ mod tests {
     /// find_any_encrypted_file returns Some after encrypt_file_at.
     #[test]
     fn find_any_encrypted_file_detects_kpv1_file() {
-        use keepance_vault::vault::encrypt_file_at;
+        use lantern_vault::vault::encrypt_file_at;
 
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path();
@@ -1472,7 +1472,7 @@ mod tests {
         if std::env::var_os("KEEPANCE_TEST_KEYCHAIN").is_none() {
             return;
         }
-        use keepance_vault::{
+        use lantern_vault::{
             metadata::{RecoveryWrapJson, VaultMetadata},
             recovery::create_recovery,
             verifier::make_verifier,
@@ -1502,7 +1502,7 @@ mod tests {
         // Simulate the recovery unlock flow (the logic vault_unlock_with_recovery uses).
         let meta_read = VaultMetadata::read_from(root).unwrap();
         let wrap_back = meta_read.recovery.to_wrap().unwrap();
-        let mut recovered = keepance_vault::recovery::recover_vmk(&phrase, &wrap_back).unwrap();
+        let mut recovered = lantern_vault::recovery::recover_vmk(&phrase, &wrap_back).unwrap();
 
         let vb = BASE64.decode(&meta_read.verifier_b64).unwrap();
         assert!(

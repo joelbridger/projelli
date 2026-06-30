@@ -24,7 +24,7 @@ async fn wealthbox_live_smoke() {
     let token = std::env::var("WEALTHBOX_TEST_TOKEN")
         .expect("WEALTHBOX_TEST_TOKEN must be set to run the live smoke test");
 
-    use keepance_lib::commands::crm::client::WealthboxClient;
+    use lantern_lib::commands::crm::client::WealthboxClient;
 
     let client = WealthboxClient::new(token);
 

@@ -10,7 +10,7 @@
  *     were local-only (dataLeaves === false).
  *   - If any send was BYOK-direct ('direct' mode), say plainly: prompts for
  *     those calls went to the user's own AI provider under their own key.
- *     No Keepance content server was in the path. No training by Keepance.
+ *     No Advisor Prep Hero content server was in the path. No training by Advisor Prep Hero.
  *     That provider did see the prompt.
  *   - If any send was 'assured', say it went through the firm's zero-retention
  *     proxy.
@@ -52,13 +52,13 @@ export interface ConfidentialityReport {
  *    your machine. Nothing left this machine. No third party saw this matter's
  *    data."
  *  - any direct (BYOK): "The AI calls for this matter went directly from your
- *    machine to your AI provider under your own API key. Keepance was not in
+ *    machine to your AI provider under your own API key. Advisor Prep Hero was not in
  *    the path and has no copy of these prompts. Your provider received the
- *    prompts and may retain them briefly per their data policy. No Keepance
- *    content server was involved, and Keepance does not use your data for
+ *    prompts and may retain them briefly per their data policy. No Advisor Prep Hero
+ *    content server was involved, and Advisor Prep Hero does not use your data for
  *    training."
  *  - any assured (and no direct): "The AI calls for this matter were routed
- *    through your firm's zero-retention proxy. Keepance retained no prompt or
+ *    through your firm's zero-retention proxy. Advisor Prep Hero retained no prompt or
  *    completion. Your AI provider received the prompts under your firm's
  *    agreement with them."
  *  - mixed (direct + local, or direct + assured, etc): describe each mode
@@ -100,9 +100,9 @@ export function pickAttestation(byMode: Record<string, number>): string {
     }
     parts.push(
       `${calls(directCount)} went directly from your machine to your AI provider under your own API key. ` +
-      'Keepance was not in the path and has no copy of these prompts. ' +
+      'Advisor Prep Hero was not in the path and has no copy of these prompts. ' +
       'Your provider received the prompts and may retain them briefly per their data policy. ' +
-      'Keepance does not use your data for training.'
+      'Advisor Prep Hero does not use your data for training.'
     );
     return parts.join(' ');
   }
@@ -116,7 +116,7 @@ export function pickAttestation(byMode: Record<string, number>): string {
     }
     parts.push(
       `${calls(assuredCount)} were routed through your firm's zero-retention proxy. ` +
-      'Keepance retained no prompt or completion. ' +
+      'Advisor Prep Hero retained no prompt or completion. ' +
       'Your AI provider received the prompts under your firm\'s agreement with them.'
     );
     return parts.join(' ');
@@ -131,12 +131,12 @@ export function pickAttestation(byMode: Record<string, number>): string {
   }
   if (hasDirect) {
     parts.push(
-      `${calls(directCount)} went directly from your machine to your AI provider under your own key (Keepance not in the path).`
+      `${calls(directCount)} went directly from your machine to your AI provider under your own key (Advisor Prep Hero not in the path).`
     );
   }
   if (hasAssured) {
     parts.push(
-      `${calls(assuredCount)} went through your firm's zero-retention proxy (Keepance retained nothing).`
+      `${calls(assuredCount)} went through your firm's zero-retention proxy (Advisor Prep Hero retained nothing).`
     );
   }
   return parts.join(' ');

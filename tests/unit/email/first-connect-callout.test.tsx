@@ -64,7 +64,7 @@ const FIXTURE_ACCOUNTS = [{ provider: 'm365', account: 'default', label: 'Work' 
 function resetStore() {
   // Reset Zustand store + localStorage before each test.
   if (typeof localStorage !== 'undefined') {
-    localStorage.removeItem('keepance:email:firstConnectCalloutSeen');
+    localStorage.removeItem('lantern:email:firstConnectCalloutSeen');
   }
   useMailStore.setState({
     connected: false,

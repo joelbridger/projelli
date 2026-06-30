@@ -1,6 +1,6 @@
 # 2026 Tax Q4 Campaign
 
-> **Goal:** Establish Keepance as the tool for tax professionals who can't use cloud AI with client data.
+> **Goal:** Establish Advisor Prep Hero as the tool for tax professionals who can't use cloud AI with client data.
 > The §7216 hook is the sharpest angle in the product's entire marketing arsenal.
 >
 > **Target window:** October through January 31 (active tax-prep season ramp).

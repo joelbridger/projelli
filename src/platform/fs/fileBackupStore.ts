@@ -8,7 +8,7 @@
 //
 // This store is intentionally minimal: a set of paths we've already backed up.
 // State is NOT persisted — "session" here means "since the app launched". If
-// you close and reopen Keepance, the first edit of a given file writes a new
+// you close and reopen Advisor Prep Hero, the first edit of a given file writes a new
 // backup. That's the behavior users reasonably expect.
 
 import { create } from 'zustand';

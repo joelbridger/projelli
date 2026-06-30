@@ -91,8 +91,8 @@ vi.mock('@/platform/providers/OllamaProvider', () => ({
   },
 }));
 
-vi.mock('@/platform/providers/KeepanceLocalProvider', () => ({
-  KeepanceLocalProvider: class {
+vi.mock('@/platform/providers/AppLocalProvider', () => ({
+  AppLocalProvider: class {
     kind = 'keepance-local';
     getMetadata() {
       return { model: 'qwen3-4b' };

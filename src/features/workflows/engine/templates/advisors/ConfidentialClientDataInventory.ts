@@ -95,7 +95,7 @@ This inventory documents the types of client data held by {{advisorName}} and th
 
 > **Important:** This document does not constitute a WISP or a compliance filing. Regulation S-P (the SEC's privacy rule for broker-dealers and investment advisers) and applicable state privacy laws impose specific obligations regarding the safeguarding and disposal of customer records and information. For full Regulation S-P compliance, consult your compliance consultant about your complete information-security program. This document is a starting point for that conversation, not a substitute for it.
 >
-> Keepance's local-first architecture keeps your client data on your machine. For full Regulation S-P compliance, consult your compliance consultant about your complete information-security program.
+> Advisor Prep Hero's local-first architecture keeps your client data on your machine. For full Regulation S-P compliance, consult your compliance consultant about your complete information-security program.
 
 ---
 
@@ -189,7 +189,7 @@ export const ConfidentialClientDataInventory: WorkflowTemplate = {
       config: {
         outputFile: 'CLIENT_DATA_INVENTORY.md',
         promptTemplate: confidentialClientDataInventoryPrompt,
-        systemPrompt: 'You are a financial advisory practice management assistant helping a licensed financial advisor create an inventory of the client data they hold. You are thorough and specific, you generate a complete inventory of realistic data types for an independent or small-firm financial advisor, not a generic checklist. You are careful to frame this as a starting point for compliance planning, not as a substitute for formal compliance work. You always include the Regulation S-P disclaimer and the recommendation to consult a compliance consultant. You flag concrete, specific security gaps based on what the advisor actually described, not generic boilerplate. You note that Keepance\'s local-first architecture keeps data on the advisor\'s machine, and you remind them to consult their compliance consultant for full Regulation S-P compliance.',
+        systemPrompt: 'You are a financial advisory practice management assistant helping a licensed financial advisor create an inventory of the client data they hold. You are thorough and specific, you generate a complete inventory of realistic data types for an independent or small-firm financial advisor, not a generic checklist. You are careful to frame this as a starting point for compliance planning, not as a substitute for formal compliance work. You always include the Regulation S-P disclaimer and the recommendation to consult a compliance consultant. You flag concrete, specific security gaps based on what the advisor actually described, not generic boilerplate. You note that Advisor Prep Hero\'s local-first architecture keeps data on the advisor\'s machine, and you remind them to consult their compliance consultant for full Regulation S-P compliance.',
       } as GenerateStepConfig,
     },
   ],

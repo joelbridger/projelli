@@ -1,4 +1,4 @@
-/* eslint-disable keepance-i18n/no-hardcoded-string */
+/* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useEffect, useState } from 'react';
 import { NotebookPen, X } from 'lucide-react';
 import { OPEN_ZOCKS_EVENT } from '@/platform/clientMap/openSource';
@@ -53,7 +53,7 @@ export function ZocksSourcePanel() {
           </blockquote>
         )}
         <p className="text-xs text-slate-400">
-          Keepance imported this citation from Zocks as read-only text. Full meeting detail is a fast-follow.
+          Advisor Prep Hero imported this citation from Zocks as read-only text. Full meeting detail is a fast-follow.
         </p>
       </div>
     </div>

@@ -42,7 +42,7 @@ for you. Everything below serves that.
    [Kitces AdvisorTech Map](https://www.kitces.com/fintechmap/) · [Directory](https://fintech.kitces.com/)
    Michael Kitces is the most influential voice advisors read (200k+ monthly readers), and his
    "AdvisorTech Map" (380+ tools) is literally how advisors discover software. Study where
-   Keepance would slot, then make getting listed there a goal.
+   Advisor Prep Hero would slot, then make getting listed there a goal.
 
 3. **Obviously Awesome** — April Dunford. *Book, ~$20.* [aprildunford.com/books](https://www.aprildunford.com/books)
    A step-by-step process for **positioning**. Your phrase "private client intelligence layer"
@@ -56,7 +56,7 @@ for you. Everything below serves that.
    [XYPN LIVE](https://info.xyplanningnetwork.com/xypn-live-fintech)
    A speed-pitch competition built specifically for early advisor-tech startups (you qualify:
    launched within 12 months, or under $1M revenue). The most concrete fast path to put
-   Keepance in front of hundreds of next-generation RIAs at once.
+   Advisor Prep Hero in front of hundreds of next-generation RIAs at once.
 
 ---
 
@@ -82,9 +82,9 @@ for you. Everything below serves that.
   The "Jobs to be Done" lens: focus on the *outcome* an advisor wants ("never get caught
   flat-footed by a client question"), not features. Helps turn interview notes into a roadmap.
 
-### 2. Positioning & messaging — making advisors instantly "get" Keepance
+### 2. Positioning & messaging — making advisors instantly "get" Advisor Prep Hero
 - **Obviously Awesome** — April Dunford. *Book, ~$20.* [link](https://www.aprildunford.com/books)
-  The 10-step process and Positioning Canvas to choose Keepance's category, best-fit buyer,
+  The 10-step process and Positioning Canvas to choose Advisor Prep Hero's category, best-fit buyer,
   and true differentiator.
 - **Sales Pitch** — April Dunford. *Book, ~$20.* [link](https://www.aprildunford.com/books)
   The follow-up: an 8-step structure for the actual sales conversation, including the insight
@@ -120,14 +120,14 @@ the actual entry points.
 - **Kitces Nerd's Eye View + AdvisorTech Map.** *Free.*
   [Marketing blog](https://www.kitces.com/blog/category/20-financial-advisor-marketing/) ·
   [FinTech Map](https://www.kitces.com/fintechmap/) · [Directory](https://fintech.kitces.com/)
-  The map is how advisors shop for tools; the blog is what they read. Getting Keepance accurately
+  The map is how advisors shop for tools; the blog is what they read. Getting Advisor Prep Hero accurately
   categorized (and eventually reviewed) here is a top distribution goal. The marketing section is
   also a free course in how advisors get *their* clients — so you learn their language.
 
 **Communities to embed in (where next-generation RIAs gather):**
 - **XY Planning Network (XYPN).** *Free blog/podcast; paid membership for advisors.* [xyplanningnetwork.com](https://www.xyplanningnetwork.com/)
   The leading network for small, fee-only, independent RIAs — firms exactly like your wife's.
-  They curate a recommended member tech stack; getting Keepance adopted or discounted into that
+  They curate a recommended member tech stack; getting Advisor Prep Hero adopted or discounted into that
   stack is a real distribution channel.
 - **NAPFA** ([napfa.org](https://www.napfa.org)) and the **FPA** (Financial Planning Association).
   The two large professional bodies; their regional study groups and conferences are where
@@ -162,7 +162,7 @@ the actual entry points.
 
 **Partnership/distribution angle to keep in mind:** winning advisor-tech startups rarely replace
 an advisor's whole system — they *integrate* into it (CRMs like Wealthbox/Redtail, custodians/
-platforms like Altruist, Schwab, Orion). As Keepance matures, an integration or a custodian/
+platforms like Altruist, Schwab, Orion). As Advisor Prep Hero matures, an integration or a custodian/
 network partnership can become a bigger distribution lever than any ad. Note it now; act on it
 after you have a few happy reference firms.
 

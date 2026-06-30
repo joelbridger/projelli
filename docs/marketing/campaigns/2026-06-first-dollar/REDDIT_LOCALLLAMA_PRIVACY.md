@@ -15,9 +15,9 @@
 
 > Sharing a thing I've been building, because this sub is pretty much the exact crowd I made it for.
 >
-> It's a desktop app called Keepance. You chat with an AI inside it, and every conversation gets written to disk as a file in a folder you choose. The cloud providers (Claude, GPT, Gemini) use your own API key, and the key sits in your OS keychain, so requests go straight from your machine to the provider with nothing of mine in the middle. If you'd rather stay fully local, it talks to Ollama, so you can run the whole thing against a model on your own box and nothing leaves the machine at all.
+> It's a desktop app called Advisor Prep Hero. You chat with an AI inside it, and every conversation gets written to disk as a file in a folder you choose. The cloud providers (Claude, GPT, Gemini) use your own API key, and the key sits in your OS keychain, so requests go straight from your machine to the provider with nothing of mine in the middle. If you'd rather stay fully local, it talks to Ollama, so you can run the whole thing against a model on your own box and nothing leaves the machine at all.
 >
-> There's no account and no telemetry phoning home. There's no server of mine that your data ever passes through. The files are in a normal folder, so if Keepance vanished tomorrow you'd still have everything in a format anything can read.
+> There's no account and no telemetry phoning home. There's no server of mine that your data ever passes through. The files are in a normal folder, so if Advisor Prep Hero vanished tomorrow you'd still have everything in a format anything can read.
 >
 > Beyond the chat, the files behave like a notes app: [[wiki-links]] between notes, backlinks, full-text search, version history, split panes. So the AI conversations and your own writing become one searchable pile instead of scrollback you lose.
 >
@@ -40,7 +40,7 @@ Same product, different emphasis. r/privacy cares less about model performance a
 
 > I got tired of every AI tool wanting my data on someone else's box, so I built one that doesn't.
 >
-> Keepance is a desktop app. You chat with an AI, and each conversation is saved as a file in a folder you pick. No account to make. No telemetry. No server of mine that your conversations pass through. For the cloud models (Claude, GPT, Gemini) you bring your own API key, it's stored in your OS keychain, and the request goes straight from your machine to that provider. If you don't want anything leaving your machine at all, it runs against a local Ollama model and stays fully offline.
+> Advisor Prep Hero is a desktop app. You chat with an AI, and each conversation is saved as a file in a folder you pick. No account to make. No telemetry. No server of mine that your conversations pass through. For the cloud models (Claude, GPT, Gemini) you bring your own API key, it's stored in your OS keychain, and the request goes straight from your machine to that provider. If you don't want anything leaving your machine at all, it runs against a local Ollama model and stays fully offline.
 >
 > The thing I'd point at for this sub: the output is just files. Markdown in a normal folder you control, readable and portable without my app, deletable by dragging them to the trash. There's no lock-in and no copy of your data that I'm sitting on, because I never receive it.
 >

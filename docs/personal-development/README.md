@@ -1,7 +1,7 @@
-# Personal Development — Founding Keepance Well
+# Personal Development — Founding Advisor Prep Hero Well
 
 This folder answers one question you asked: **how do I spend my free time in a way that actually
-helps me found and launch Keepance** — instead of defaulting to YouTube that's interesting but
+helps me found and launch Advisor Prep Hero** — instead of defaulting to YouTube that's interesting but
 doesn't move anything forward?
 
 It's a vetted, personalized plan: real books, courses, and hands-on exercises, every one chosen
@@ -31,7 +31,7 @@ teams agreed — which is a good sign the advice is solid, not one model's guess
 1. **Getting customers** — *(tied for #1)* learning how to find advisors, earn their trust, and get
    them to sign up and pay. This has been your bottleneck, so it gets the most weight.
 2. **The advisor world** — *(tied for #1)* deeply understanding how financial advisors work, the
-   rules they live under, and what frustrates them, so Keepance fits their life perfectly.
+   rules they live under, and what frustrates them, so Advisor Prep Hero fits their life perfectly.
 3. **Founder & startup craft** — the all-around playbook for starting and running a company.
 4. **Focus, energy & mindset** — the personal foundation that keeps the other three going.
 
@@ -47,7 +47,7 @@ Then go deeper in whichever library matches what you're working on:
 | File | What's in it |
 |---|---|
 | **`essentials.md`** | **Start here.** The ranked shortlist across all four areas + a 6-weekend plan. |
-| **`exercises.md`** | The hands-on moves — the highest-value part. Shadow your wife's firm, run advisor interviews, position Keepance, test buying intent, set your weekly rhythm. |
+| **`exercises.md`** | The hands-on moves — the highest-value part. Shadow your wife's firm, run advisor interviews, position Advisor Prep Hero, test buying intent, set your weekly rhythm. |
 | `library-01-getting-customers.md` | Full vetted library on customer discovery, positioning, founder-led sales, pricing, and the real channels to reach advisors. |
 | `library-02-advisor-world.md` | Full vetted library on how RIAs work, their software, the compliance rules, the publications/communities/conferences, and the best books. |
 | `library-03-founder-and-startup-craft.md` | Full vetted library on the startup method, the founder canon, pricing/metrics, fundraising vs. bootstrapping, and storytelling. |

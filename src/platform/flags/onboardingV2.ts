@@ -11,15 +11,16 @@
  *
  * Resolution order (URL wins so a demo can force it without clearing state):
  *   1. `?onboardingV2=1` / `?onboardingV2=0` in the URL query string.
- *   2. localStorage `keepance:onboardingV2 === '1'`.
+ *   2. localStorage `lantern:onboardingV2 === '1'`.
  *   3. Default: false.
  *
  * SSR/test-safe: returns false when `window` is absent and never throws.
  */
 
 import { useState } from 'react';
+import { SK_ONBOARDING_V2 } from '@/config/identity';
 
-const STORAGE_KEY = 'keepance:onboardingV2';
+const STORAGE_KEY = SK_ONBOARDING_V2;
 const URL_PARAM = 'onboardingV2';
 
 /** Read the flag once (non-reactive). Safe to call anywhere, never throws. */

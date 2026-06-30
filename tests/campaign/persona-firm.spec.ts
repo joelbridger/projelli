@@ -252,7 +252,7 @@ test.describe('Task 6 — firm scenario (two contexts)', () => {
     localMatterIdA = (await openNotesBtn.getAttribute('data-testid') ?? '').replace('matter-open-notes-', '');
     firmMatterId = await pageA.evaluate((localId: string) => {
       try {
-        const raw = localStorage.getItem('keepance:matters');
+        const raw = localStorage.getItem('lantern:matters');
         const parsed = raw ? JSON.parse(raw) as { state?: { matters?: Array<{ id: string; firmMatterId?: string }> } } : null;
         return parsed?.state?.matters?.find((m) => m.id === localId)?.firmMatterId ?? '';
       } catch { return ''; }

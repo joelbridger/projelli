@@ -2,7 +2,7 @@
  * Email reading view from an Ask result — Wave 2 email relocation.
  *
  * Clicking an email citation in an Ask answer must open the light EmailViewer
- * reading view. The mechanism is the existing `keepance:open-email` event
+ * reading view. The mechanism is the existing `lantern:open-email` event
  * (sourceId = the `mail:<id>` path) → useOpenEmailListener opens the email tab.
  * These tests prove BOTH entry points dispatch it:
  *   - the inline citation chip (CitationText, via onOpenFileAtPath)
@@ -38,38 +38,38 @@ function renderPanel(cite: AnswerCitation) {
 describe('SourcePanel — email reading view', () => {
   it('clicking an email citation card dispatches keepance:open-email', () => {
     const onOpen = vi.fn();
-    window.addEventListener('keepance:open-email', onOpen as EventListener);
+    window.addEventListener('lantern:open-email', onOpen as EventListener);
     renderPanel(emailCite);
     fireEvent.click(screen.getByTestId('source-card'));
     expect(onOpen).toHaveBeenCalledTimes(1);
     const detail = (onOpen.mock.calls[0]![0] as CustomEvent).detail;
     expect(detail).toEqual({ sourceId: 'mail:abc123' });
-    window.removeEventListener('keepance:open-email', onOpen as EventListener);
+    window.removeEventListener('lantern:open-email', onOpen as EventListener);
   });
 
   it('clicking a document citation card does NOT dispatch keepance:open-email', () => {
     const onOpen = vi.fn();
-    window.addEventListener('keepance:open-email', onOpen as EventListener);
+    window.addEventListener('lantern:open-email', onOpen as EventListener);
     renderPanel(docCiteWithMatter);
     fireEvent.click(screen.getByTestId('source-card'));
     expect(onOpen).not.toHaveBeenCalled();
-    window.removeEventListener('keepance:open-email', onOpen as EventListener);
+    window.removeEventListener('lantern:open-email', onOpen as EventListener);
   });
 
   it('a document citation with no matterId cannot be opened (card is not a button, click dispatches nothing)', () => {
     const onLaunch = vi.fn();
-    window.addEventListener('keepance:matter-launch', onLaunch as EventListener);
+    window.addEventListener('lantern:matter-launch', onLaunch as EventListener);
     renderPanel(docCite);
     const card = screen.getByTestId('source-card');
     expect(card).not.toHaveAttribute('role', 'button');
     fireEvent.click(card);
     expect(onLaunch).not.toHaveBeenCalled();
-    window.removeEventListener('keepance:matter-launch', onLaunch as EventListener);
+    window.removeEventListener('lantern:matter-launch', onLaunch as EventListener);
   });
 
   it('opens a document citation via keepance:matter-launch (matter-scoped, scrolls to passage)', () => {
     const onLaunch = vi.fn();
-    window.addEventListener('keepance:matter-launch', onLaunch as EventListener);
+    window.addEventListener('lantern:matter-launch', onLaunch as EventListener);
     renderPanel(docCiteWithMatter);
     fireEvent.click(screen.getByTestId('source-card'));
     expect(onLaunch).toHaveBeenCalledTimes(1);
@@ -79,16 +79,16 @@ describe('SourcePanel — email reading view', () => {
       surface: 'files',
       source: { kind: 'document', ref: 'Contracts/lease.docx', snippet: 'The tenant shall...' },
     });
-    window.removeEventListener('keepance:matter-launch', onLaunch as EventListener);
+    window.removeEventListener('lantern:matter-launch', onLaunch as EventListener);
   });
 
   it('clicking an email citation card does NOT dispatch keepance:matter-launch', () => {
     const onLaunch = vi.fn();
-    window.addEventListener('keepance:matter-launch', onLaunch as EventListener);
+    window.addEventListener('lantern:matter-launch', onLaunch as EventListener);
     renderPanel(emailCite);
     fireEvent.click(screen.getByTestId('source-card'));
     expect(onLaunch).not.toHaveBeenCalled();
-    window.removeEventListener('keepance:matter-launch', onLaunch as EventListener);
+    window.removeEventListener('lantern:matter-launch', onLaunch as EventListener);
   });
 
   it('a CRM citation is not openable as a document (crm: has its own route)', () => {
@@ -97,13 +97,13 @@ describe('SourcePanel — email reading view', () => {
       locator: '', verified: true, matterId: 'matter_demo_brennan',
     };
     const onLaunch = vi.fn();
-    window.addEventListener('keepance:matter-launch', onLaunch as EventListener);
+    window.addEventListener('lantern:matter-launch', onLaunch as EventListener);
     renderPanel(crmCite);
     const card = screen.getByTestId('source-card');
     expect(card).not.toHaveAttribute('role', 'button');
     fireEvent.click(card);
     expect(onLaunch).not.toHaveBeenCalled();
-    window.removeEventListener('keepance:matter-launch', onLaunch as EventListener);
+    window.removeEventListener('lantern:matter-launch', onLaunch as EventListener);
   });
 });
 

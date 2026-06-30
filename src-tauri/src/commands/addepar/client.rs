@@ -1,4 +1,4 @@
-//! HTTP client for the read-only Addepar API surface used by Keepance.
+//! HTTP client for the read-only Addepar API surface used by Advisor Prep Hero.
 //!
 //! Addepar's Portfolio Query API uses POST for read-only analysis queries, so
 //! the POST bodies stay isolated here. No create/update/delete endpoints are
@@ -22,7 +22,7 @@ impl AddeparClient {
     pub fn new(config: AddeparConfig) -> Self {
         Self {
             http: reqwest::Client::builder()
-                .user_agent("Keepance-Addepar-Connector/1.0")
+                .user_agent("Advisor Prep Hero-Addepar-Connector/1.0")
                 .build()
                 .expect("build Addepar reqwest client"),
             config,

@@ -36,7 +36,7 @@ describe('TauriFSBackend.list — desktop dotfile visibility', () => {
       if (abs === '/ws') {
         return [
           { name: '.gitignore', isDirectory: false, isFile: true },
-          { name: '.keepance', isDirectory: true, isFile: false },
+          { name: '.lantern', isDirectory: true, isFile: false },
           { name: '.git', isDirectory: true, isFile: false },
           { name: '.trash', isDirectory: true, isFile: false },
           { name: 'docs', isDirectory: true, isFile: false },
@@ -60,7 +60,7 @@ describe('TauriFSBackend.list — desktop dotfile visibility', () => {
     expect(names).toContain('.git');
     expect(names).toContain('.trash');
     // Keepance's internal config folder is never listed.
-    expect(names).not.toContain('.keepance');
+    expect(names).not.toContain('.lantern');
     // Shallow contract: list() reads ONLY the requested directory and never
     // walks into ANY subdirectory (so a huge .git can't slow load, no matter how
     // list() is called) — recursion is owned by WorkspaceService.listRecursive.

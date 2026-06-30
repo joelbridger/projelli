@@ -1,4 +1,4 @@
-# Keepance Documentation Index
+# Advisor Prep Hero Documentation Index
 
 **Last updated:** 2026-06-10  
 **Purpose:** Find the right docs quickly. Trust levels are based on code inspection (code ≠ docs = lower trust).

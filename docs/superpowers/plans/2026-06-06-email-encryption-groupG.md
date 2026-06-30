@@ -1665,7 +1665,7 @@ Add nudge below the main description paragraph (only shown when status is 'off')
 ```tsx
 {fdeStatus === 'off' && (
   <p className="mt-2 text-xs text-amber-700 bg-amber-50 rounded px-2 py-1">
-    Full-disk encryption is off on this machine. Keepance encrypts your mail, but enabling
+    Full-disk encryption is off on this machine. Advisor Prep Hero encrypts your mail, but enabling
     FileVault (macOS) or BitLocker (Windows) adds a second layer of protection if your device is stolen.
   </p>
 )}

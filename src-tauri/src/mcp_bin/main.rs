@@ -1,4 +1,4 @@
-// Keepance MCP server (M4, v1.5 Flag 2) — hand-rolled JSON-RPC 2.0 over stdio.
+// Advisor Prep Hero MCP server (M4, v1.5 Flag 2) — hand-rolled JSON-RPC 2.0 over stdio.
 //
 // Why hand-rolled instead of the `rmcp` crate:
 //   - MCP's wire protocol is straightforward JSON-RPC 2.0 with a small handful
@@ -8,7 +8,7 @@
 //     and leaves the tests plain-Rust rather than macro-heavy.
 //   - rmcp pulls `schemars` + `tokio-util` + `pastey` + a dozen proc-macros
 //     we don't need anywhere else in the host crate. Hand-rolling keeps the
-//     `keepance-mcp` release binary small (under 10 MiB stripped) so the
+//     `lantern-mcp` release binary small (under 10 MiB stripped) so the
 //     .mcpb bundle stays a friendly download.
 //   - A plain stdio JSON-RPC loop is trivial to exercise in the integration
 //     test (spawn child, write JSON, read lines) — no SDK harness needed.
@@ -18,7 +18,7 @@
 //     blob to a platform temp directory (`approval-requests/<token>.json`),
 //     prints a `keepance/approval_request` line to stderr, and polls for
 //     `approval-responses/<token>.json` for up to 60s.
-//   - The Keepance desktop app launches the binary as a child, reads stderr
+//   - The Advisor Prep Hero desktop app launches the binary as a child, reads stderr
 //     line-by-line, shows the approval modal, then drops the decision file.
 //
 // Protocol version: we advertise `2025-03-26` in the initialize handshake,
@@ -34,7 +34,7 @@ use std::sync::{Arc, Mutex};
 // Reuse the pure sub-modules of the main Tauri crate so the binary and the
 // host app share one implementation of the vector store + embedder + file
 // extractor. See `src-tauri/src/lib.rs` — `commands` is `pub` for this reason.
-use keepance_lib::commands::rag::{crypto, embedder, extractor, store};
+use lantern_lib::commands::rag::{crypto, embedder, extractor, store};
 
 mod access;
 mod approval;
@@ -52,16 +52,16 @@ use protocol::{
 pub const MCP_PROTOCOL_VERSION: &str = "2025-03-26";
 
 /// Server name advertised in `initialize` and the `.mcpb` manifest.
-pub const SERVER_NAME: &str = "keepance";
+pub const SERVER_NAME: &str = lantern_lib::identity::MCP_SERVER_NAME;
 
 /// Short human description shown in clients' tool pickers.
 pub const SERVER_DESCRIPTION: &str =
-    "Read your Keepance workspace (files + memory + semantic search) from any MCP client.";
+    "Read your Advisor Prep Hero workspace (files + memory + semantic search) from any MCP client.";
 
-/// Workspace root is supplied by the parent process (the Keepance app or a
+/// Workspace root is supplied by the parent process (the Advisor Prep Hero app or a
 /// directly-invoked Claude Desktop install) via this env var. Stored in the
 /// .mcpb manifest so clients prompt the user for it at install time.
-pub const WORKSPACE_ENV: &str = "KEEPANCE_WORKSPACE_ROOT";
+pub const WORKSPACE_ENV: &str = "LANTERN_WORKSPACE_ROOT";
 
 /// Shared immutable context handed to every tool call.
 #[derive(Clone)]
@@ -111,7 +111,7 @@ fn main() {
     let ctx = match ServerCtx::from_env() {
         Ok(c) => Some(c),
         Err(e) => {
-            eprintln!("keepance-mcp: {e}");
+            eprintln!("{}: {e}", lantern_lib::identity::MCP_APPROVAL_TEMP_PREFIX);
             None
         }
     };
@@ -132,7 +132,7 @@ fn main() {
         let line = match line {
             Ok(l) => l,
             Err(e) => {
-                eprintln!("keepance-mcp: stdin read error: {e}");
+                eprintln!("{}: stdin read error: {e}", lantern_lib::identity::MCP_APPROVAL_TEMP_PREFIX);
                 break;
             }
         };
@@ -171,11 +171,11 @@ fn write_response(out: &mut impl Write, resp: &JsonRpcResponse) {
     match serde_json::to_string(resp) {
         Ok(s) => {
             if let Err(e) = writeln!(out, "{s}") {
-                eprintln!("keepance-mcp: stdout write error: {e}");
+                eprintln!("{}: stdout write error: {e}", lantern_lib::identity::MCP_APPROVAL_TEMP_PREFIX);
             }
             let _ = out.flush();
         }
-        Err(e) => eprintln!("keepance-mcp: serialize error: {e}"),
+        Err(e) => eprintln!("{}: serialize error: {e}", lantern_lib::identity::MCP_APPROVAL_TEMP_PREFIX),
     }
 }
 
@@ -193,7 +193,7 @@ async fn dispatch(req: &JsonRpcRequest, ctx: Option<&ServerCtx>) -> Option<JsonR
             None => Some(JsonRpcResponse::error(
                 id,
                 ERROR_INTERNAL,
-                format!("{WORKSPACE_ENV} is not configured — restart Keepance and try again"),
+                format!("{WORKSPACE_ENV} is not configured — restart Advisor Prep Hero and try again"),
             )),
         },
         // `notifications/cancelled`, `logging/setLevel`, etc. — swallow quietly.
@@ -321,8 +321,8 @@ pub fn resolve_workspace_path(workspace: &Path, relative: &str) -> Result<PathBu
         if part.is_empty() || part == "." {
             continue;
         }
-        if !saw_path_segment && part.eq_ignore_ascii_case(".keepance") {
-            return Err("Keepance internal files are not exposed over MCP".into());
+        if !saw_path_segment && part.eq_ignore_ascii_case(lantern_lib::identity::WORKSPACE_DATA_DIR) {
+            return Err("App internal files are not exposed over MCP".into());
         }
         saw_path_segment = true;
         if part == ".." {
@@ -406,9 +406,10 @@ mod tests {
     #[test]
     fn rejects_keepance_internal_root_path() {
         let ws = std::env::temp_dir();
-        let err = resolve_workspace_path(&ws, ".keepance/mcp-session-scope.json").unwrap_err();
+        let scope_path = format!("{}/mcp-session-scope.json", lantern_lib::identity::WORKSPACE_DATA_DIR);
+        let err = resolve_workspace_path(&ws, &scope_path).unwrap_err();
         assert!(
-            err.contains("Keepance internal files are not exposed over MCP"),
+            err.contains("App internal files are not exposed over MCP"),
             "got: {err}"
         );
     }
@@ -416,9 +417,10 @@ mod tests {
     #[test]
     fn rejects_keepance_internal_root_path_with_backslashes() {
         let ws = std::env::temp_dir();
-        let err = resolve_workspace_path(&ws, ".keepance\\mcp-session-scope.json").unwrap_err();
+        let scope_path = format!("{}\\mcp-session-scope.json", lantern_lib::identity::WORKSPACE_DATA_DIR);
+        let err = resolve_workspace_path(&ws, &scope_path).unwrap_err();
         assert!(
-            err.contains("Keepance internal files are not exposed over MCP"),
+            err.contains("App internal files are not exposed over MCP"),
             "got: {err}"
         );
     }
@@ -426,9 +428,10 @@ mod tests {
     #[test]
     fn rejects_keepance_internal_root_path_after_current_dir_segment() {
         let ws = std::env::temp_dir();
-        let err = resolve_workspace_path(&ws, "./.keepance/mcp-session-scope.json").unwrap_err();
+        let scope_path = format!("./{}/mcp-session-scope.json", lantern_lib::identity::WORKSPACE_DATA_DIR);
+        let err = resolve_workspace_path(&ws, &scope_path).unwrap_err();
         assert!(
-            err.contains("Keepance internal files are not exposed over MCP"),
+            err.contains("App internal files are not exposed over MCP"),
             "got: {err}"
         );
     }
@@ -442,7 +445,7 @@ mod tests {
 
     #[test]
     fn server_name_matches_manifest() {
-        assert_eq!(SERVER_NAME, "keepance");
+        assert_eq!(SERVER_NAME, lantern_lib::identity::MCP_SERVER_NAME);
     }
 
     #[test]

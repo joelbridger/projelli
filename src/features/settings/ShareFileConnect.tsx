@@ -1,4 +1,4 @@
-/* eslint-disable keepance-i18n/no-hardcoded-string */
+/* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useEffect, useState } from 'react';
 import { isTauri } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -183,10 +183,10 @@ export function ShareFileConnect() {
           <div>
             <h3 className="text-sm font-semibold text-slate-900">ShareFile documents</h3>
             <p className="mt-1 max-w-xl text-xs text-slate-500">
-              Import documents this ShareFile token can read. Keepance downloads supported Office and text files, extracts text locally, and stores encrypted search chunks by client.
+              Import documents this ShareFile token can read. Advisor Prep Hero downloads supported Office and text files, extracts text locally, and stores encrypted search chunks by client.
             </p>
             <p className="mt-2 text-xs text-slate-500">
-              Read-only: Keepance lists folders and downloads files. It never uploads, edits, moves, or deletes anything in ShareFile.
+              Read-only: Advisor Prep Hero lists folders and downloads files. It never uploads, edits, moves, or deletes anything in ShareFile.
             </p>
           </div>
         </div>

@@ -63,7 +63,7 @@ describe('deviceKeys — getOrCreateDeviceKeypair', () => {
     fetchMock.mockReset();
     invokeMock.mockClear();
     _resetDeviceCache();
-    // The global test harness (tests/setup.ts) seeds a 'keepance:settings'
+    // The global test harness (tests/setup.ts) seeds a 'lantern:settings'
     // entry into localStorage so cloud-send tests aren't blocked by the
     // fail-closed guard. Clear it here so the "no localStorage fallback"
     // security assertion below reads a true value — i.e. it proves the

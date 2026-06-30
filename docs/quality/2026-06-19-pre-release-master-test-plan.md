@@ -1,4 +1,4 @@
-# Keepance Pre-Release Master Test Plan
+# Advisor Prep Hero Pre-Release Master Test Plan
 
 _2026-06-19. **The complete checklist that must pass before cutting + publishing an official signed release.** Ties the existing test layers together with the new real-OS benches._
 _Companions: `docs/operations/2026-06-19-test-bench-operations-guide.md` (how to drive the benches) · `docs/quality/full-user-test-playbook.md` · `docs/quality/2026-06-19-linux-vs-windows-coverage.md` · `docs/quality/DEFINITION_OF_DONE.md`._
@@ -46,7 +46,7 @@ _Companions: `docs/operations/2026-06-19-test-bench-operations-guide.md` (how to
 - [ ] **Gmail** connects and imports AND the mail appears in the Email tab
 - [ ] The two provider panels never show each other's count/error
 - [ ] The import count does not restart from 0
-- [ ] The installer/uninstaller say "Keepance" (not "Projelli") — needs a bundle build (§F)
+- [ ] The installer/uninstaller say "Advisor Prep Hero" (not "Projelli") — needs a bundle build (§F)
 
 ### D. Live connector auth — needs Jameson's hands
 - [ ] **Outlook** final sign-in (hardware passkey on jamesondaines@outlook.com)
@@ -61,7 +61,7 @@ _Companions: `docs/operations/2026-06-19-test-bench-operations-guide.md` (how to
 - [ ] The Windows signed build itself (known tripwire: Unix-only shell steps in npm prebuild — keep cross-platform)
 
 ### G. Microsoft Word interop
-- [ ] Open a Keepance-edited / co-edited `.docx` in **real Microsoft Word**; tracked changes + formatting survive
+- [ ] Open a Advisor Prep Hero-edited / co-edited `.docx` in **real Microsoft Word**; tracked changes + formatting survive
 
 ### H. Firm / collaboration (the remaining sliver)
 - [ ] Two real desktop instances co-edit a shared matter; convergence + ethical-wall key-denial (logic already covered by `firm-collaboration.spec.ts` 8/8; the two-desktop-instance OS-keychain path is the sliver)

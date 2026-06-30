@@ -540,14 +540,14 @@ describe('AssociateHome — localStorage persistence', () => {
     render(<AssociateHome {...persistProps()} />);
     fireEvent.click(screen.getByTestId('associate-filter-tax'));
 
-    expect(localStorage.getItem('keepance:workflows-filter')).toBe('tax');
+    expect(localStorage.getItem('lantern:workflows-filter')).toBe('tax');
   });
 
   it('writes collapsed state to localStorage when a section is toggled', () => {
     render(<AssociateHome {...persistProps()} />);
     fireEvent.click(screen.getByTestId('associate-section-toggle-legal'));
 
-    const stored = JSON.parse(localStorage.getItem('keepance:workflows-collapsed') ?? '{}') as Record<string, boolean>;
+    const stored = JSON.parse(localStorage.getItem('lantern:workflows-collapsed') ?? '{}') as Record<string, boolean>;
     expect(stored['legal']).toBe(true);
   });
 });

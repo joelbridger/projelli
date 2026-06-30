@@ -48,11 +48,11 @@
  *
  *   soloOrTeamDesc
  *     Subtitle on the Firm step describing what "solo vs team" looks like.
- *     legal:            "Keepance works just as well for a solo practitioner as it does for a full firm."
- *     tax:              "Keepance works just as well for a solo practice as it does for an accounting firm."
- *     consulting:       "Keepance works just as well on your own as it does for a consulting team."
- *     advisor:          "Keepance works just as well for a solo advisor as it does for a full advisory team."
- *     other:            "Keepance works just as well on your own as it does for a team."
+ *     legal:            "Advisor Prep Hero works just as well for a solo practitioner as it does for a full firm."
+ *     tax:              "Advisor Prep Hero works just as well for a solo practice as it does for an accounting firm."
+ *     consulting:       "Advisor Prep Hero works just as well on your own as it does for a consulting team."
+ *     advisor:          "Advisor Prep Hero works just as well for a solo advisor as it does for a full advisory team."
+ *     other:            "Advisor Prep Hero works just as well on your own as it does for a team."
  *
  *   estimatedCostDesc
  *     Short sentence used in the AI-setup cloud path card.
@@ -126,7 +126,7 @@ const COPY: Record<Profession, ProfessionCopy> = {
     clientWorkPhrase: 'your client matters',
     sensitiveWorkDesc: 'your most sensitive client matters',
     practiceNoun: 'practice',
-    soloOrTeamDesc: 'Keepance works just as well for a solo practitioner as it does for a full firm.',
+    soloOrTeamDesc: 'Advisor Prep Hero works just as well for a solo practitioner as it does for a full firm.',
     estimatedCostDesc: 'Most solo practitioners spend about $2 to $5 a month, billed by your AI provider, not us.',
     clientWorkNoun: 'legal work',
     complexWorkDesc: 'legal drafting and analysis',
@@ -138,7 +138,7 @@ const COPY: Record<Profession, ProfessionCopy> = {
     clientWorkPhrase: 'your client tax files',
     sensitiveWorkDesc: 'your most sensitive returns',
     practiceNoun: 'practice',
-    soloOrTeamDesc: 'Keepance works just as well for a solo practice as it does for an accounting firm.',
+    soloOrTeamDesc: 'Advisor Prep Hero works just as well for a solo practice as it does for an accounting firm.',
     estimatedCostDesc: 'Most tax practitioners spend about $2 to $5 a month, billed by your AI provider, not us.',
     clientWorkNoun: 'tax work',
     complexWorkDesc: 'tax research and analysis',
@@ -150,7 +150,7 @@ const COPY: Record<Profession, ProfessionCopy> = {
     clientWorkPhrase: 'your client engagements',
     sensitiveWorkDesc: 'your most sensitive engagements',
     practiceNoun: 'practice',
-    soloOrTeamDesc: 'Keepance works just as well on your own as it does for a consulting team.',
+    soloOrTeamDesc: 'Advisor Prep Hero works just as well on your own as it does for a consulting team.',
     estimatedCostDesc: 'Most consultants spend about $2 to $5 a month, billed by your AI provider, not us.',
     clientWorkNoun: 'consulting work',
     complexWorkDesc: 'analysis and deliverables',
@@ -162,7 +162,7 @@ const COPY: Record<Profession, ProfessionCopy> = {
     clientWorkPhrase: 'your client files',
     sensitiveWorkDesc: 'your most sensitive client files',
     practiceNoun: 'practice',
-    soloOrTeamDesc: 'Keepance works just as well for a solo advisor as it does for a full advisory team.',
+    soloOrTeamDesc: 'Advisor Prep Hero works just as well for a solo advisor as it does for a full advisory team.',
     estimatedCostDesc: 'Most advisors spend about $2 to $5 a month, billed by your AI provider, not us.',
     clientWorkNoun: 'client work',
     complexWorkDesc: 'in-depth financial analysis and drafting',
@@ -174,7 +174,7 @@ const COPY: Record<Profession, ProfessionCopy> = {
     clientWorkPhrase: 'your client work',
     sensitiveWorkDesc: 'your most sensitive work',
     practiceNoun: 'work',
-    soloOrTeamDesc: 'Keepance works just as well on your own as it does for a team.',
+    soloOrTeamDesc: 'Advisor Prep Hero works just as well on your own as it does for a team.',
     estimatedCostDesc: 'Most users spend about $2 to $5 a month, billed by your AI provider, not us.',
     clientWorkNoun: 'client work',
     complexWorkDesc: 'in-depth analysis and drafting',

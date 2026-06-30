@@ -17,7 +17,7 @@ test.describe("What's new toast (UX-20)", () => {
   test('first-time user sees no toast', async ({ page }) => {
     await page.addInitScript(() => {
       try {
-        localStorage.removeItem('keepance:lastSeenVersion');
+        localStorage.removeItem('lantern:lastSeenVersion');
       } catch {
         /* no-op */
       }
@@ -31,7 +31,7 @@ test.describe("What's new toast (UX-20)", () => {
   test('upgrade from older version shows toast and modal', async ({ page }) => {
     await page.addInitScript(() => {
       try {
-        localStorage.setItem('keepance:lastSeenVersion', '0.0.1');
+        localStorage.setItem('lantern:lastSeenVersion', '0.0.1');
       } catch {
         /* no-op */
       }
@@ -56,7 +56,7 @@ test.describe("What's new toast (UX-20)", () => {
   test('dismissing the toast persists the version', async ({ page }) => {
     await page.addInitScript(() => {
       try {
-        localStorage.setItem('keepance:lastSeenVersion', '0.0.1');
+        localStorage.setItem('lantern:lastSeenVersion', '0.0.1');
       } catch {
         /* no-op */
       }
@@ -80,7 +80,7 @@ test.describe("What's new toast (UX-20)", () => {
     // The dismiss action should have written the current version. Read it
     // back from localStorage directly.
     const stored = await page.evaluate(() =>
-      localStorage.getItem('keepance:lastSeenVersion')
+      localStorage.getItem('lantern:lastSeenVersion')
     );
     expect(stored).toBe(currentVersion);
   });
@@ -89,7 +89,7 @@ test.describe("What's new toast (UX-20)", () => {
     // Inject the same version the app reads from the bundled changelog.
     await page.addInitScript((version) => {
       try {
-        localStorage.setItem('keepance:lastSeenVersion', version);
+        localStorage.setItem('lantern:lastSeenVersion', version);
       } catch {
         /* no-op */
       }

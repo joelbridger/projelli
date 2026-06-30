@@ -654,7 +654,7 @@ function folderPathLeafName(folderPath: string): string {
  *
  * This is deliberately stricter than a fuzzy search: a household may claim a
  * folder only when its normalized name matches exactly one workspace folder's
- * leaf name. Duplicate same-name folders stay unassigned so Keepance never
+ * leaf name. Duplicate same-name folders stay unassigned so Advisor Prep Hero never
  * guesses across client privacy boundaries.
  */
 export function resolveFolderForHousehold(

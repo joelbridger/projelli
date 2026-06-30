@@ -41,7 +41,7 @@ a finance person. It is to give you three things designers usually lack:
 
 3. **Obviously Awesome** — April Dunford. *Book, ~$20.* [aprildunford.com/books](https://www.aprildunford.com/books)
    The best practical book on **positioning** (deciding what category you're in and who
-   you beat). This directly answers your hardest open question — *what is Keepance to an
+   you beat). This directly answers your hardest open question — *what is Advisor Prep Hero to an
    advisor, and what does it replace?* (Also appears in the Getting Customers library —
    that's how important it is.)
 
@@ -96,11 +96,11 @@ a finance person. It is to give you three things designers usually lack:
 ### 4. Raising money vs. funding it yourself
 - **The SaaS Playbook** — Rob Walling. *Book, ~$25.* [saasplaybook.com](https://saasplaybook.com/)
   The clearest how-to for building a profitable software business *without* investors —
-  the most realistic path for a solo, niche, compliance-focused product like Keepance.
+  the most realistic path for a solo, niche, compliance-focused product like Advisor Prep Hero.
 - **Venture Deals** — Brad Feld & Jason Mendelson. *Book, ~$25-30.* [venturedeals.com](https://venturedeals.com/the-book/)
   If you ever consider raising money, this teaches the language of the deal so you're not
   negotiating blind. Read it *only if/when* you decide to fundraise.
-- **My honest take for Keepance:** default to bootstrapping. A solo designer, a niche
+- **My honest take for Advisor Prep Hero:** default to bootstrapping. A solo designer, a niche
   advisor market, and a trust/compliance-sensitive sale all point toward a focused,
   profitable, self-funded business — not the swing-for-the-fences bet that investor
   money requires. Read *The SaaS Playbook* first; keep *Venture Deals* "in case."
@@ -109,7 +109,7 @@ a finance person. It is to give you three things designers usually lack:
 - **"The Greatest Sales Deck I've Ever Seen"** — Andy Raskin. *Free essay.* [Medium](https://medium.com/the-mission/the-greatest-sales-deck-ive-ever-seen-4f4ef3391ba0)
   A 5-part template (name the big shift in the world → winners vs. losers → the promised
   land → your product as the bridge → proof) — the best framework for explaining *why
-  Keepance, why now*. Your design skills make you unusually able to execute this.
+  Advisor Prep Hero, why now*. Your design skills make you unusually able to execute this.
 - **Building a StoryBrand** — Donald Miller. *Book, ~$20.*
   "Make the customer the hero, your product the guide." Useful for website and onboarding
   copy once your positioning is set. Optional — Dunford + Raskin are the higher-signal pair.
@@ -124,5 +124,5 @@ a finance person. It is to give you three things designers usually lack:
 
 ---
 
-*See `exercises.md` for the hands-on "write a one-page Keepance strategy & narrative"
+*See `exercises.md` for the hands-on "write a one-page Advisor Prep Hero strategy & narrative"
 exercise that puts the positioning and story ideas above into practice.*

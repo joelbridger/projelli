@@ -1,8 +1,8 @@
-# Keepance Marketing Asset Library — Implementation Plan
+# Advisor Prep Hero Marketing Asset Library — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a Playwright-driven pipeline that produces 11 macOS-styled product screenshots and a 30-second deterministic demo video for Keepance, runnable with one command on this Linux server.
+**Goal:** Build a Playwright-driven pipeline that produces 11 macOS-styled product screenshots and a 30-second deterministic demo video for Advisor Prep Hero, runnable with one command on this Linux server.
 
 **Architecture:** A self-contained Node project at `~/keepance/scripts/marketing-capture/` that drives `npm run dev` (the Vite-served React app) via headless Chromium. Each shot seeds Zustand stores with a "Linterly" fixture, injects a macOS CSS overlay, intercepts AI fetch calls with canned SSE replays, takes a 2x-DPI screenshot, and composites a macOS Sequoia window frame around it.
 
@@ -125,7 +125,7 @@ out/raw/
 - [ ] **Step 4: Write `scripts/marketing-capture/README.md`:**
 
 ```
-# Keepance Marketing Capture
+# Advisor Prep Hero Marketing Capture
 
 Produces the marketing asset library (11 stills + 1 video) reproducibly
 from headless Chromium.
@@ -152,7 +152,7 @@ See ../docs/marketing/asset-capture/SPEC.md for design details.
 
 ---
 
-### Task 3: Add the marketing-capture bridge to the Keepance app
+### Task 3: Add the marketing-capture bridge to the Advisor Prep Hero app
 
 **Files:**
 - Create: `src/dev/marketing-capture-bridge.ts`
@@ -280,7 +280,7 @@ Run: `cd ~/keepance/scripts/marketing-capture && npx tsx /tmp/verify-bridge.ts`.
       <div class="traffic-lights">
         <span class="dot close"></span><span class="dot min"></span><span class="dot max"></span>
       </div>
-      <div class="title" id="title">Keepance</div>
+      <div class="title" id="title">Advisor Prep Hero</div>
     </div>
     <div class="content"><img id="screenshot" alt=""></div>
   </div>
@@ -299,7 +299,7 @@ test('composeChrome wraps PNG in macOS frame at expected dimensions', async () =
     create: { width: 1280, height: 800, channels: 3, background: { r: 255, g: 0, b: 0 } }
   }).png().toBuffer();
 
-  const out = await composeChrome(fakeScreenshot, { title: 'Keepance — Test' });
+  const out = await composeChrome(fakeScreenshot, { title: 'Advisor Prep Hero — Test' });
   const meta = await sharp(out).metadata();
   expect(meta.format).toBe('png');
   expect(meta.width).toBeGreaterThan(1280);
@@ -338,13 +338,13 @@ export async function composeChrome(
   screenshot: Buffer,
   opts: ComposeChromeOptions = {}
 ): Promise<Buffer> {
-  const { title = 'Keepance', padding = 80 } = opts;
+  const { title = 'Advisor Prep Hero', padding = 80 } = opts;
   const ownsBrowser = !opts.browser;
   const browser = opts.browser ?? await chromium.launch();
 
   try {
     const html = loadTemplate().replace(
-      '<div class="title" id="title">Keepance</div>',
+      '<div class="title" id="title">Advisor Prep Hero</div>',
       `<div class="title" id="title">${escapeHtml(title)}</div>`
     );
 
@@ -462,7 +462,7 @@ export function macStyles(): string {
 ```ts
 import type { FileNode } from '../../../src/types/workspace';
 
-const ROOT = '/Users/jameson/Keepance/Linterly';
+const ROOT = '/Users/jameson/Advisor Prep Hero/Linterly';
 
 const fileContents: Record<string, string> = {
   'Vision.md': `# Linterly — Vision\n\n... (see SPEC § State seeding)`,
@@ -744,7 +744,7 @@ export async function captureStill(opts: StillShotOptions): Promise<string> {
     const raw = await page.screenshot({ type: 'png', fullPage: false });
     const final = opts.raw
       ? raw
-      : await composeChrome(raw, { title: opts.windowTitle ?? 'Keepance', browser });
+      : await composeChrome(raw, { title: opts.windowTitle ?? 'Advisor Prep Hero', browser });
 
     mkdirSync(ASSETS_DIR, { recursive: true });
     const outPath = path.join(ASSETS_DIR, opts.outputName);
@@ -781,7 +781,7 @@ export async function shot01() {
     outputName: 'screenshot-01-workspace.png',
     pressKit: true,
     viewport: { width: 1280, height: 800 },
-    windowTitle: 'Linterly — Keepance',
+    windowTitle: 'Linterly — Advisor Prep Hero',
   });
 }
 
@@ -815,7 +815,7 @@ export async function shot02() {
     pressKit: true,
     viewport: { width: 1280, height: 800 },
     aiReplay: 'launch-plan-stream',
-    windowTitle: 'Linterly — Keepance',
+    windowTitle: 'Linterly — Advisor Prep Hero',
     beforeShot: async (page: Page) => {
       await page.getByTestId('chat-input').fill(
         'Draft a brand voice doc based on Vision.md and Customers.md.'
@@ -856,7 +856,7 @@ export async function shot03() {
     outputName: 'screenshot-03-wikilinks.png',
     pressKit: true,
     viewport: { width: 1280, height: 800 },
-    windowTitle: 'Linterly — Keepance',
+    windowTitle: 'Linterly — Advisor Prep Hero',
     beforeShot: async (page: Page) => {
       await page.getByTestId('toggle-backlinks').click();
       await page.waitForFunction(() => {
@@ -892,7 +892,7 @@ export async function shot04() {
     outputName: 'screenshot-04-templates.png',
     pressKit: true,
     viewport: { width: 1280, height: 800 },
-    windowTitle: 'Linterly — Keepance',
+    windowTitle: 'Linterly — Advisor Prep Hero',
   });
 }
 
@@ -929,7 +929,7 @@ export async function shot05() {
     outputName: 'screenshot-05-multi-model.png',
     pressKit: true,
     viewport: { width: 1440, height: 900 },
-    windowTitle: 'Linterly — Keepance',
+    windowTitle: 'Linterly — Advisor Prep Hero',
     beforeShot: async (page: Page) => {
       await page.evaluate(({ left, right }) => {
         (window as any).__keepance_seed!({
@@ -975,7 +975,7 @@ export async function shot06() {
     outputName: 'screenshot-06-api-keys.png',
     pressKit: true,
     viewport: { width: 1280, height: 800 },
-    windowTitle: 'Settings — Keepance',
+    windowTitle: 'Settings — Advisor Prep Hero',
     beforeShot: async (page: Page) => {
       await page.getByTestId('open-settings').click();
       await page.getByTestId('settings-tab-api-keys').click();
@@ -1076,7 +1076,7 @@ This shot needs binary fixtures (xlsx, pptx) so the editor has something to rend
 
 **Option A — Skip Office binary rendering. Show only the .md tab as active, with `.xlsx` and `.pptx` tabs visible but inactive.** Cheap, works today.
 
-**Option B — Generate minimal valid .xlsx/.pptx files with sample content.** Use `exceljs` and `pptxgenjs` (both small npm deps). Requires Keepance's editor to actually render those formats — verify before investing.
+**Option B — Generate minimal valid .xlsx/.pptx files with sample content.** Use `exceljs` and `pptxgenjs` (both small npm deps). Requires Advisor Prep Hero's editor to actually render those formats — verify before investing.
 
 - [ ] **Step 1: Decide A vs B.** Default: **A** (cheaper, ships sooner).
 
@@ -1091,7 +1091,7 @@ export async function shot10() {
     shotKey: 'documentSuite',
     outputName: 'feature-document-suite.png',
     viewport: { width: 1280, height: 800 },
-    windowTitle: 'Linterly — Keepance',
+    windowTitle: 'Linterly — Advisor Prep Hero',
     beforeShot: async (page: Page) => {
       // The fixture seeds 3 tabs; ensure they're visible in the strip.
       await page.waitForFunction(() => {
@@ -1166,7 +1166,7 @@ export async function shot11() {
     .png().toBuffer();
 
   // 4) Wrap in macOS chrome.
-  const final = await composeChrome(composited, { title: 'Linterly — Keepance' });
+  const final = await composeChrome(composited, { title: 'Linterly — Advisor Prep Hero' });
 
   mkdirSync(ASSETS_DIR, { recursive: true });
   const outPath = path.join(ASSETS_DIR, 'feature-local-first.png');

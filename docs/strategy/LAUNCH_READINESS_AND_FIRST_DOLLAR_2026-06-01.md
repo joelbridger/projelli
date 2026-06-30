@@ -1,4 +1,4 @@
-# Keepance — Launch Readiness Read + First-Dollar Plan
+# Advisor Prep Hero — Launch Readiness Read + First-Dollar Plan
 **Date:** 2026-06-01 · Author: Claude (operator) for Jameson (CEO)
 **Companion:** `docs/operations/SESSION_HANDOFF_2026-05-31.md`, `~/.claude/.../memory/project_keepance_v2_1_release.md`
 

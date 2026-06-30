@@ -517,7 +517,7 @@ export async function modelEnsure(): Promise<string> {
 }
 
 // --------------------------------------------------------------------
-// Keepance Local AI (embedded llama.cpp engine) — first-run GGUF download
+// Advisor Prep Hero Local AI (embedded llama.cpp engine) — first-run GGUF download
 // and lazy llama-server sidecar lifecycle. Mirrors the e5-small model
 // download pattern above. Rust side: src-tauri/src/commands/local_llm/.
 // --------------------------------------------------------------------
@@ -676,7 +676,7 @@ export async function transcribeAudio(
 }
 
 // ---------------------------------------------------------------------------
-// Keepance 3.0 — encrypted, append-only audit store (the "defense file").
+// Advisor Prep Hero 3.0 — encrypted, append-only audit store (the "defense file").
 //
 // On the desktop the AuditService persists to a SQLCipher-encrypted store
 // (`src-tauri/src/commands/audit/`). In the browser these wrappers short-circuit

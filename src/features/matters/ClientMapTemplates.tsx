@@ -116,7 +116,7 @@ export function ClientMapTemplates({ matterId, onApplied }: ClientMapTemplatesPr
 
       {/* ── Save as template form ── */}
       <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 16 }}>
-        {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
+        {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string */}
         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)', marginBottom: 10 }}>Save a section as a template</div>
         <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <input

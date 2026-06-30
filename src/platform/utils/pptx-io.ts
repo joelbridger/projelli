@@ -2,7 +2,7 @@
 //
 // Helpers for creating `.pptx` files and extracting text from existing ones.
 //
-// PowerPoint preview inside Keepance is handled via LibreOffice → PDF
+// PowerPoint preview inside Advisor Prep Hero is handled via LibreOffice → PDF
 // conversion (see `src-tauri/src/commands/fs.rs::convert_ppt_to_pdf` and
 // `PresentationViewer`). This file only covers the JS-side concerns:
 //

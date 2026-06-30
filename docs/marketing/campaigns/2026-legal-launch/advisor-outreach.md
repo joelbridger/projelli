@@ -13,7 +13,7 @@ Send one or the other, not both. They're cold outreach, so keep it exactly this 
 
 Hi [Name],
 
-I build software. For the last year and a half I've been working on something called Keepance, a local-first AI workspace that stores everything on your own hard drive, not on my servers. The AI calls go directly from your machine to Claude or OpenAI, never through me. Zero telemetry, no training pipeline, nothing leaves your office.
+I build software. For the last year and a half I've been working on something called Advisor Prep Hero, a local-first AI workspace that stores everything on your own hard drive, not on my servers. The AI calls go directly from your machine to Claude or OpenAI, never through me. Zero telemetry, no training pipeline, nothing leaves your office.
 
 I'm building a Legal Practice template pack for it, aimed specifically at solo and small-firm attorneys who genuinely can't pipe client files into ChatGPT but also aren't in the market for a Harvey license. The product is actually designed for this use case. But I'm a designer, not a lawyer, and I need someone to read what I've built and tell me where I got it wrong.
 
@@ -36,7 +36,7 @@ jamesondaines@outlook.com
 
 Hi [Name],
 
-I build software. For the last year and a half I've been working on something called Keepance, a local-first AI workspace that keeps everything on your machine. No servers, no training pipeline, no third-party eyes on your client files. The AI calls route directly from your computer to whatever model you use.
+I build software. For the last year and a half I've been working on something called Advisor Prep Hero, a local-first AI workspace that keeps everything on your machine. No servers, no training pipeline, no third-party eyes on your client files. The AI calls route directly from your computer to whatever model you use.
 
 I'm building a template pack specifically for IP attorneys. The reason I think it's actually worth something to patent practitioners is a thing I didn't fully understand until recently: using a cloud AI with an invention disclosure before filing might constitute prior disclosure in jurisdictions that require absolute novelty. Europe. Japan. Most of the world outside the US. That's not a hypothetical risk. It's the kind of thing that ends a filing.
 

@@ -15,6 +15,7 @@ import { AccountIdentity } from './AccountIdentity';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { IconButton } from '@/ui/kp';
+import { EV_OPEN_ACCOUNT, EV_OPEN_MATTER_MANAGER, EV_MATTER_LAUNCH } from '@/config/identity';
 
 type SpineTab = 'matters' | 'files' | 'search' | 'workflows' | 'audit' | 'email' | 'settings' | 'privacy';
 
@@ -35,8 +36,8 @@ interface SpineProps {
   onCollapsedChange?: ((next: boolean) => void) | undefined;
 }
 
-/** The Keepance keep-mark from keepance.com — white keep + gradient sparkle. */
-function KeepanceMark() {
+/** The Advisor Prep Hero keep-mark from keepance.com — white keep + gradient sparkle. */
+function AppBrandMark() {
   return (
     <svg viewBox="0 99 651 652" width="22" height="22" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style={{ flex: 'none' }}>
       <defs>
@@ -111,7 +112,7 @@ export function Spine({
           </button>
         ))}
         <div style={{ flex: 1 }} />
-        <AccountIdentity collapsed onOpen={() => { window.dispatchEvent(new CustomEvent('keepance:open-account')); }} />
+        <AccountIdentity collapsed onOpen={() => { window.dispatchEvent(new CustomEvent(EV_OPEN_ACCOUNT)); }} />
         <div style={{ height: 'var(--kp-space-xs)' }} />
       </nav>
     );
@@ -124,8 +125,8 @@ export function Spine({
         style={{ width: 212, background: 'var(--kp-side-bg)', color: 'var(--kp-side-fg)', display: 'flex', flexDirection: 'column', minHeight: 0, position: 'relative', flex: 'none' }}>
         <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 2, background: 'var(--kp-side-edge)', opacity: 1 }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-xs)', padding: 'var(--kp-space-md) var(--kp-space-md) var(--kp-space-2xs)' }}>
-          <KeepanceMark />
-          <span style={{ fontWeight: 'var(--kp-weight-bold)', fontSize: 'var(--kp-font-xl)', letterSpacing: '-0.02em' }}>Keepance</span>
+          <AppBrandMark />
+          <span style={{ fontWeight: 'var(--kp-weight-bold)', fontSize: 'var(--kp-font-xl)', letterSpacing: '-0.02em' }}>Advisor Prep Hero</span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: 'var(--kp-space-xs) 10px', flex: 'none' }}>
           {nav.map(({ id, label, Icon }) => {
@@ -155,7 +156,7 @@ export function Spine({
                 {entityLabel.Other}
               </span>
               <button type="button" data-testid="spine-new-client" title={newClientLabel} aria-label={newClientLabel}
-                onClick={() => { window.dispatchEvent(new CustomEvent('keepance:open-matter-manager')); }}
+                onClick={() => { window.dispatchEvent(new CustomEvent(EV_OPEN_MATTER_MANAGER)); }}
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 'var(--radius-md)', border: 0, background: 'transparent', color: 'var(--kp-side-fg-dim)', cursor: 'pointer', flex: 'none' }}>
                 <Plus size={15} strokeWidth={2} />
               </button>
@@ -167,7 +168,7 @@ export function Spine({
                   onClick={() => {
                     // Return to this matter: App restores its last working
                     // surface + focused document (no explicit surface here).
-                    window.dispatchEvent(new CustomEvent('keepance:matter-launch', { detail: { matterId: m.id } }));
+                    window.dispatchEvent(new CustomEvent(EV_MATTER_LAUNCH, { detail: { matterId: m.id } }));
                   }}
                   style={{ display: 'block', width: '100%', textAlign: 'left', border: 0, cursor: 'pointer', background: on ? 'var(--kp-side-active-bg)' : 'transparent', color: 'var(--kp-side-fg)', padding: 'var(--kp-space-xs) var(--kp-space-sm)', borderRadius: 'var(--radius-md)', position: 'relative' }}>
                   {on && <span style={{ position: 'absolute', left: 3, top: 8, bottom: 8, width: 3, borderRadius: 3, background: 'var(--kp-side-accent)' }} />}
@@ -183,7 +184,7 @@ export function Spine({
           // handles the main canvas).
           <div style={{ flex: 1, minHeight: 0, padding: 'var(--kp-space-md) 12px', borderTop: '1px solid var(--kp-side-border)' }}>
             <button type="button" data-testid="spine-new-client" title={newClientLabel} aria-label={newClientLabel}
-              onClick={() => { window.dispatchEvent(new CustomEvent('keepance:open-matter-manager')); }}
+              onClick={() => { window.dispatchEvent(new CustomEvent(EV_OPEN_MATTER_MANAGER)); }}
               style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-xs)', width: '100%', padding: 'var(--kp-space-sm)', border: '1px dashed var(--kp-side-border)', borderRadius: 'var(--radius-md)', background: 'transparent', color: 'var(--kp-side-fg-dim)', cursor: 'pointer', fontSize: 'var(--kp-font-sm)', fontWeight: 'var(--kp-weight-medium)' }}>
               <Plus size={15} strokeWidth={2} style={{ flex: 'none' }} />
               <span>{newClientLabel}</span>
@@ -191,7 +192,7 @@ export function Spine({
           </div>
         )}
         <div style={{ display: 'flex', alignItems: 'stretch', borderTop: '1px solid var(--kp-side-border)', flex: 'none' }}>
-          <AccountIdentity onOpen={() => { window.dispatchEvent(new CustomEvent('keepance:open-account')); }} />
+          <AccountIdentity onOpen={() => { window.dispatchEvent(new CustomEvent(EV_OPEN_ACCOUNT)); }} />
           <button type="button" onClick={() => onCollapsedChange?.(true)} title="Collapse sidebar" aria-label="Collapse sidebar"
             style={{ border: 0, borderLeft: '1px solid var(--kp-side-border)', background: 'transparent', color: 'var(--kp-side-fg-faint)', cursor: 'pointer', padding: '0 var(--kp-space-sm)', display: 'flex', alignItems: 'center', flex: 'none' }}>
             <ChevronLeft size={16} />

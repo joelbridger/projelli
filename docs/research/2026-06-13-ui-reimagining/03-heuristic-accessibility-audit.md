@@ -1,4 +1,4 @@
-# Heuristic + Accessibility Audit — Keepance Current UI
+# Heuristic + Accessibility Audit — Advisor Prep Hero Current UI
 **Date:** 2026-06-13  
 **Stream:** C (Objective Research — Design Principles)  
 **Scope:** Light-mode UI at HEAD. Evaluation against Nielsen's 10 Usability Heuristics and WCAG 2.1 AA.  
@@ -52,8 +52,8 @@ All ratios computed from the HSL definitions in `src/styles/globals.css` using t
 
 ### H2 — Match Between System and the Real World
 
-**Finding H2-A (P2): "Workspace" metaphor is developer-centric.** Onboarding (e.g. `FirstRunWizard.tsx:263-299`) refers to "workspace," "folder path," and provides example paths like `~/Dropbox/Keepance`. A non-technical attorney does not think in folder paths.  
-*Direction:* Rename to "Your Keepance folder" or "Your practice folder"; provide a file-picker CTA rather than path-input as the primary path.
+**Finding H2-A (P2): "Workspace" metaphor is developer-centric.** Onboarding (e.g. `FirstRunWizard.tsx:263-299`) refers to "workspace," "folder path," and provides example paths like `~/Dropbox/Advisor Prep Hero`. A non-technical attorney does not think in folder paths.  
+*Direction:* Rename to "Your Advisor Prep Hero folder" or "Your practice folder"; provide a file-picker CTA rather than path-input as the primary path.
 
 **Finding H2-B (P2): Sidebar has developer-pattern tabs.** `Sidebar.tsx:115-128`. Ten tabs include "Research," "Whiteboard," "Workflows," "Audit," and "Plugins" — concepts alien to a litigation attorney's daily vocabulary. "AI Assistant" is buried 5th.  
 *Direction:* Restructure into attorney-domain groupings: Matters, Documents, Ask AI; relegate power-user features to a secondary pane or settings.

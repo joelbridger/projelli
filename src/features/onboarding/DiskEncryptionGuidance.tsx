@@ -1,5 +1,5 @@
 /**
- * VG-6d-v1 — disk-encryption guidance. Keepance stores documents as normal
+ * VG-6d-v1 — disk-encryption guidance. Advisor Prep Hero stores documents as normal
  * files; at-rest protection comes from the OS's full-disk encryption. This
  * callout makes that explicit and tells the user how to CHECK it is on,
  * per platform. The encrypted workspace vault (VG-6d-v2) supersedes the

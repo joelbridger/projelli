@@ -1,10 +1,10 @@
-# Keepance landing page — conversion research brief
+# Advisor Prep Hero landing page — conversion research brief
 
 Compiled 2026-04-28 from focused web research into landing-page conversion patterns
 for indie-tool / prosumer SaaS products with skeptical technical audiences. Used to
 drive the rewrite committed alongside this file.
 
-## Section A — Top 12 conversion principles for Keepance's audience
+## Section A — Top 12 conversion principles for Advisor Prep Hero's audience
 
 1. **The H1 must name a sharp outcome for a specific person, not the product category.**
    What to do: replace category/metaphor headlines with a one-line outcome statement.
@@ -30,13 +30,13 @@ drive the rewrite committed alongside this file.
 
 5. **Specificity beats adjectives.** What to do: every benefit on the page should be
    a number, a noun, or a screenshot. Replace "powerful" with "15 templates";
-   replace "private" with "files in `~/Documents/Keepance/`". Why: technical buyers
+   replace "private" with "files in `~/Documents/Advisor Prep Hero/`". Why: technical buyers
    need lowest-possible level of abstraction; aggressive sales language triggers
    skepticism while concrete claims build trust.
 
 6. **Use problem-first storytelling, not feature lists.** What to do: lead each
    section with the pain ("You re-explain your project to ChatGPT every morning"),
-   then the mechanism ("Keepance remembers"), then the proof (screenshot). Why:
+   then the mechanism ("Advisor Prep Hero remembers"), then the proof (screenshot). Why:
    Evil Martians' 100-page study ranked storytelling hierarchies — function lists
    were weakest; problem-oriented stories produced "better emotional resonance."
 
@@ -86,7 +86,7 @@ drive the rewrite committed alongside this file.
 control].`
 
 **Primary CTA:** OS-specific ("Download for Mac" / "Download for Windows") —
-removes a click and pre-qualifies. Better than bare "Download Keepance."
+removes a click and pre-qualifies. Better than bare "Download Advisor Prep Hero."
 
 **Secondary CTA:** "See it work · 60s" — sets a time expectation, which is a
 documented friction-reducer. Better than vague "Watch the tour."
@@ -97,7 +97,7 @@ appearing in the workspace folder, (3) user opens the file in another editor
 (VS Code). Proves four claims simultaneously: AI chat, real files, files on
 disk, standard Markdown.
 
-## Section C — Most likely conversion killers on Keepance specifically
+## Section C — Most likely conversion killers on Advisor Prep Hero specifically
 
 1. **Hero metaphor "Chat that leaves something behind."** Vague metaphors are
    the #1 documented conversion killer for technical audiences.
@@ -108,8 +108,8 @@ disk, standard Markdown.
 4. **"Your data lives on your computer" without proof.** Add a literal
    screenshot of Finder/Explorer showing the workspace folder.
 5. **No named social proof above the fold.**
-6. **"Free 30-day trial" + "Download Keepance" mismatch.** Reads like
-   bait-and-switch. Either rename CTA to "Try Keepance free for 30 days" or
+6. **"Free 30-day trial" + "Download Advisor Prep Hero" mismatch.** Reads like
+   bait-and-switch. Either rename CTA to "Try Advisor Prep Hero free for 30 days" or
    make the trial mechanic immediately visible.
 
 ## Section D — Sources actually fetched

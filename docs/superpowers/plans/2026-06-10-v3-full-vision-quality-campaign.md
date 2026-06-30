@@ -1,8 +1,8 @@
-# Keepance 3.0 Full-Vision Quality Campaign (umbrella plan)
+# Advisor Prep Hero 3.0 Full-Vision Quality Campaign (umbrella plan)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Take Keepance 3.0 from "launched with known defects and an unreachable Firm tier" to "full vision working, exhaustively tested by an attorney persona, every found defect fixed, v3.1.0 release candidate ready for Jameson's publish go."
+**Goal:** Take Advisor Prep Hero 3.0 from "launched with known defects and an unreachable Firm tier" to "full vision working, exhaustively tested by an attorney persona, every found defect fixed, v3.1.0 release candidate ready for Jameson's publish go."
 
 **Architecture:** Three sequenced efforts. (1) Fix the 8 founder-confirmed bugs on a green baseline. (2) Build the missing Firm desktop layer (shared-matter lifecycle, member/seat/org management, live collaboration, purchase-to-provision) against the already-live backend at api.keepance.com, developed against a local backend instance. (3) Run one comprehensive usability campaign on the feature-complete product: Diane Marchetti persona protocol + firm scenario, mechanical every-control sweep against a coverage ledger, native Tauri pass, then triage, fix wave, and v3.1.0 RC.
 

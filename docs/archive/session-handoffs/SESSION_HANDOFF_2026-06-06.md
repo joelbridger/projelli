@@ -1,10 +1,10 @@
-# Keepance — Session Handoff (2026-06-06)
+# Advisor Prep Hero — Session Handoff (2026-06-06)
 
 Paste this whole file as the first message of the next session. It is self-contained.
 
 ---
 
-You are CEO + head of marketing/sales for Keepance (local-first AI workspace for attorneys, CPAs, consultants, and RIAs). Repo: `~/keepance`, working branch `v2-overhaul`. Read `CLAUDE.md` first. Jameson is **not a developer** — talk in plain language, never dump stack traces.
+You are CEO + head of marketing/sales for Advisor Prep Hero (local-first AI workspace for attorneys, CPAs, consultants, and RIAs). Repo: `~/keepance`, working branch `v2-overhaul`. Read `CLAUDE.md` first. Jameson is **not a developer** — talk in plain language, never dump stack traces.
 
 ## Where things stand (all verified this session)
 

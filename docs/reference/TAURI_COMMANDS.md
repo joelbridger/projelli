@@ -1,6 +1,6 @@
 # Tauri commands reference
 
-> Canonical list of every Rust-backed Tauri command Keepance exposes to the
+> Canonical list of every Rust-backed Tauri command Advisor Prep Hero exposes to the
 > frontend. Phase 2 of the v1.5 release added the Rust/Tauri foundation
 > (`http`, `keychain`, `rag`, `watcher`) on top of the pre-existing
 > filesystem helpers.

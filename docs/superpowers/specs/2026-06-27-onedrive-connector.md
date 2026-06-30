@@ -5,7 +5,7 @@
 **Read first:** `docs/superpowers/specs/2026-06-27-connector-program-foundation.md` (§1, §2, §6 landmines) + this doc.
 
 ## Goal
-Read-only, one-way sync of a OneDrive/SharePoint user's documents into Keepance: list files, download supported types, extract text REUSING the existing extractors, index as encrypted matter-scoped `onedrive` chunks → the Client Map + Ask light up automatically. Incremental via Graph delta. Mirrors the mail/CRM connector pattern.
+Read-only, one-way sync of a OneDrive/SharePoint user's documents into Advisor Prep Hero: list files, download supported types, extract text REUSING the existing extractors, index as encrypted matter-scoped `onedrive` chunks → the Client Map + Ask light up automatically. Incremental via Graph delta. Mirrors the mail/CRM connector pattern.
 
 ## Auth — reuse the Microsoft login, but ISOLATED from email
 - **Own scope string:** `offline_access openid User.Read Files.Read.All Sites.Read.All`.

@@ -61,9 +61,10 @@ import {
   isExternalExportConsentGiven,
   grantExternalExportConsent,
 } from '@/platform/rag/exportConsent';
+import { SK_ASK_RAIL_COLLAPSED, SK_ASK_FILES_ONLY } from '@/config/identity';
 
 /** localStorage key for the conversations-rail collapsed preference. */
-const ASK_RAIL_COLLAPSED_KEY = 'keepance:ask-rail-collapsed';
+const ASK_RAIL_COLLAPSED_KEY = SK_ASK_RAIL_COLLAPSED;
 
 /**
  * localStorage key for the Files-only mode lock (Decision 6). OFF by default —
@@ -73,7 +74,7 @@ const ASK_RAIL_COLLAPSED_KEY = 'keepance:ask-rail-collapsed';
  * compliance team that wants the general/drafting capability turned off
  * entirely. Persisted so the choice survives reloads.
  */
-const ASK_FILES_ONLY_KEY = 'keepance:ask-files-only';
+const ASK_FILES_ONLY_KEY = SK_ASK_FILES_ONLY;
 
 /** Join tool labels for prose: ["RightCapital"] -> "RightCapital";
  *  ["RightCapital","Jump"] -> "RightCapital and Jump". */
@@ -299,7 +300,7 @@ export function useAsk({
 
   // Fix #8: resolve the active provider NAME for the pre-send EgressIndicator.
   // It must name the SAME engine the send will actually use — the embedded
-  // Keepance Local AI when it is ready (not a generic "Ollama"), and the local
+  // Advisor Prep Hero Local AI when it is ready (not a generic "Ollama"), and the local
   // engine in Local-only mode regardless of any cloud key. resolveActiveAskProviderId
   // mirrors buildResolvedAskProvider's destination decision so the two can't drift.
   //
@@ -596,7 +597,7 @@ export function useAsk({
         if (!alreadyConsented) {
           const toolsLabel = formatToolList(recognizedTools);
           const consented = await confirmExportConsent(
-            `Keepance found a report you exported or saved from ${toolsLabel} among the files it would use to answer. Keepance reads exported files; it is not connected to ${toolsLabel}. Confirm your firm permits you to store this exported report in Keepance and use your chosen AI on it.`,
+            `Advisor Prep Hero found a report you exported or saved from ${toolsLabel} among the files it would use to answer. Advisor Prep Hero reads exported files; it is not connected to ${toolsLabel}. Confirm your firm permits you to store this exported report in Advisor Prep Hero and use your chosen AI on it.`,
             {
               title: `Use exported reports from ${toolsLabel}?`,
               confirmLabel: 'Yes, my firm permits this',

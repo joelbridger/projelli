@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use rusqlite::{Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
 
-const SHAREFILE_DB_KEYCHAIN_SERVICE: &str = "keepance-sharefile-enc";
+const SHAREFILE_DB_KEYCHAIN_SERVICE: &str = crate::identity::SHAREFILE_ENC_SERVICE;
 const SHAREFILE_DB_KEYCHAIN_KEY: &str = "master-key-v1";
 const KEY_LEN: usize = 32;
 
@@ -63,7 +63,7 @@ fn master_key() -> Result<[u8; KEY_LEN]> {
 
 impl SharefileStore {
     pub fn db_path(workspace_root: &Path) -> PathBuf {
-        workspace_root.join(".keepance").join("sharefile-enc.db")
+        workspace_root.join(crate::identity::WORKSPACE_DATA_DIR).join("sharefile-enc.db")
     }
 
     pub fn open(workspace_root: &Path) -> Result<Self> {

@@ -29,8 +29,8 @@ The product is **structurally complete**. The CRM outreach machine is live. 7 pe
 
 ### Site
 - **`/financial-advisors/` live** (4th vertical): honest data-path framing only, advisor pack "in the works," compliance claims deliberately softened until a securities-compliance reviewer signs off. In homepage nav + a card.
-- **5 UX fixes deployed:** (1) subpage pricing now shows all 3 tiers consistently (fixed critical bug: advisors page "Buy Personal ($49)" was linked to the Practice checkout URL); (2) download trial is a real visible button; (3) favicon replaced (Projelli jellybean → Keepance folder/shield icon + SVG for modern browsers); (4) vertical cards in a clean 2×2 grid; (5) hero video ~55% wider.
-- **Site-wide accuracy pass:** "your data never leaves your machine" was overclaiming for cloud-AI use. Fixed across all pages to the honest framing: "Keepance never sees your work; files stay local; AI requests go to the provider you chose."
+- **5 UX fixes deployed:** (1) subpage pricing now shows all 3 tiers consistently (fixed critical bug: advisors page "Buy Personal ($49)" was linked to the Practice checkout URL); (2) download trial is a real visible button; (3) favicon replaced (Projelli jellybean → Advisor Prep Hero folder/shield icon + SVG for modern browsers); (4) vertical cards in a clean 2×2 grid; (5) hero video ~55% wider.
+- **Site-wide accuracy pass:** "your data never leaves your machine" was overclaiming for cloud-AI use. Fixed across all pages to the honest framing: "Advisor Prep Hero never sees your work; files stay local; AI requests go to the provider you chose."
 - **Plausible analytics fixed:** site was registered as `projelli.com` in Plausible since the rebrand — all events were being dropped. Fixed and added Buy Click + Download goals.
 - **Packs claim softened:** changed from "reviewed by practicing attorneys/CPAs" → "maintained and current" until advisors actually sign off.
 - **PIVOT-16 shipped:** profession picker now surfaces the user's pack first in the workflow picker (wires the previously-dead `getOnboardingProfession()`).
@@ -70,7 +70,7 @@ The product is **structurally complete**. The CRM outreach machine is live. 7 pe
 ---
 
 ## Key IDs / quick reference
-- LS store: `#340394` (slug: `projelli`, display: "Keepance")
+- LS store: `#340394` (slug: `projelli`, display: "Advisor Prep Hero")
 - Products: Personal `1101937`, Professional `1101955`, Practice `1101967`
 - Checkout URLs: Personal `4df43939`, Professional `78ee592e`, Practice `b4c6865f`
 - Founding discount: `FOUNDING` code on Professional → $99/yr (100-redemption cap)

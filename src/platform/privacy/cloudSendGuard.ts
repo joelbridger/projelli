@@ -9,7 +9,7 @@
  * The guarantee: in private mode (Local-only) no AI prompt or file is ever sent
  * to a cloud AI. Every cloud provider's send methods call `assertCloudSendAllowed`
  * as their first statement, so the rule is enforced in ONE place for every
- * current and future call path. Local providers (Ollama / Keepance Local AI) do
+ * current and future call path. Local providers (Ollama / Advisor Prep Hero Local AI) do
  * NOT call it, so on-device inference is unaffected.
  */
 
@@ -18,6 +18,7 @@ import {
   CONFIDENTIALITY_MODES,
   type ConfidentialityMode,
 } from '@/platform/privacy/egress';
+import { SK_SETTINGS } from '@/config/identity';
 
 /** Thrown when a cloud AI send is attempted while Local-only mode is on. The
  *  chat/ask UI surfaces the message so the user knows why the send was blocked. */
@@ -33,7 +34,7 @@ export class LocalOnlyEgressError extends Error {
 }
 
 /** localStorage key the settings store persists under (zustand persist `name`). */
-const SETTINGS_PERSIST_KEY = 'keepance:settings';
+const SETTINGS_PERSIST_KEY = SK_SETTINGS;
 
 /**
  * Read the persisted confidentiality mode straight from storage, bypassing the

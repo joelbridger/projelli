@@ -22,9 +22,9 @@ import { useMatterUiStore } from '@/platform/matter/matterUiStore';
 import { useMatterAtAGlanceStore } from '@/platform/matter/matterAtAGlanceStore';
 import { useMatterSyncStore } from '@/platform/matter/matterSyncStore';
 
-const MATTERS_KEY = 'keepance:matters';
-const UI_KEY = 'keepance:matter-ui-snapshots';
-const GLANCE_KEY = 'keepance:matter-at-a-glance';
+const MATTERS_KEY = 'lantern:matters';
+const UI_KEY = 'lantern:matter-ui-snapshots';
+const GLANCE_KEY = 'lantern:matter-at-a-glance';
 
 function seed(key: string, value: unknown): void {
   localStorage.setItem(key, JSON.stringify(value));

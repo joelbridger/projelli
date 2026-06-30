@@ -1,7 +1,7 @@
 /**
  * professionStore — the reactive source of truth for the user's profession.
  *
- * The lead ICP is now financial advisors: Keepance is "the private intelligence
+ * The lead ICP is now financial advisors: Advisor Prep Hero is "the private intelligence
  * layer for your advisory practice." The profession the user picked in onboarding
  * (stored under `keepance_profession`) decides whether the founder-era surfaces
  * (Research, Whiteboard, founder templates) appear at all. Before this store,

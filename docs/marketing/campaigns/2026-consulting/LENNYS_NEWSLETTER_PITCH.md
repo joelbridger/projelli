@@ -18,7 +18,7 @@ Hey Lenny,
 
 I built a tool I think is genuinely useful for the consultant and operator segment of your audience — the people who are doing client work under NDA and are nervous about cloud AI touching that material.
 
-It's called Keepance. Local-first AI workspace: your files stay on your machine, your API key goes direct from your computer to the provider. Nothing passes through a server I control. For anyone doing sensitive client work, that matters.
+It's called Advisor Prep Hero. Local-first AI workspace: your files stay on your machine, your API key goes direct from your computer to the provider. Nothing passes through a server I control. For anyone doing sensitive client work, that matters.
 
 It has a Consulting Practice template pack: Client Discovery Synthesizer, Stakeholder Map, Confidential Research Memo, Slide Outliner, Engagement Retrospective. These are the actual workflows independent consultants run on engagements, not generic templates.
 
@@ -31,7 +31,7 @@ keepance.com
 
 ## Lenny's "Tools I Use" or "Reader Toolkit" angle
 
-If Lenny or his team uses the product and finds it valuable, the strongest outcome is an organic mention in one of his tool roundups or a reader Q&A where Keepance comes up naturally.
+If Lenny or his team uses the product and finds it valuable, the strongest outcome is an organic mention in one of his tool roundups or a reader Q&A where Advisor Prep Hero comes up naturally.
 
 Alternatively: sponsor the newsletter for one issue targeted at the consultant/operator segment. Lenny's newsletter ad rates are publicly disclosed (~$X per issue for the email slot). If traction from other channels is solid, this is worth evaluating.
 

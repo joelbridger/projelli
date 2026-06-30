@@ -1,5 +1,5 @@
 /**
- * useGlobalEventBus — centralizes the app-wide `keepance:*` CustomEvent wiring
+ * useGlobalEventBus — centralizes the app-wide `lantern:*` CustomEvent wiring
  * that surfaces (the matter hub, the rail account chip, get-started cards, the
  * navy spine) dispatch on `window` to drive the shell.
  * Extracted from App.tsx (Phase 3 decomposition). Uses the latest-handlers-ref
@@ -14,6 +14,13 @@ import { useMatterUiStore } from '@/platform/matter/matterUiStore';
 import { useEditorStore } from '@/platform/state/editorStore';
 import { openSourceDocument } from '@/platform/clientMap/openSource';
 import { getActiveWorkspaceService } from '@/app/fileOps/flushDirtyTabs';
+import {
+  EV_OPEN_MATTER_MANAGER,
+  EV_OPEN_SETTINGS,
+  EV_OPEN_ACCOUNT,
+  EV_MATTER_LAUNCH,
+  EV_OPEN_PRIVACY_CENTER,
+} from '@/config/identity';
 /** The shell's left-nav surfaces (the `sidebarActiveTab` union). */
 export type AppSurface =
   | 'files'
@@ -103,7 +110,7 @@ export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
       const matterId = detail.matterId;
 
       // Client Map source link -> open the EXACT cited document and scroll to
-      // the cited spot. (Email sources open via keepance:open-email, so only
+      // the cited spot. (Email sources open via lantern:open-email, so only
       // document sources arrive here.) Falls back to the document browser if the
       // file can't be opened.
       const source = detail.source;
@@ -172,17 +179,17 @@ export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
     // Privacy Center shortcut: jump straight to the privacy surface.
     const onOpenPrivacyCenter = () => ref.current.setSidebarActiveTab('privacy');
 
-    window.addEventListener('keepance:open-matter-manager', onOpenMatterManager);
-    window.addEventListener('keepance:open-settings', onOpenSettings);
-    window.addEventListener('keepance:open-account', onOpenAccount);
-    window.addEventListener('keepance:matter-launch', onMatterLaunch);
-    window.addEventListener('keepance:open-privacy-center', onOpenPrivacyCenter);
+    window.addEventListener(EV_OPEN_MATTER_MANAGER, onOpenMatterManager);
+    window.addEventListener(EV_OPEN_SETTINGS, onOpenSettings);
+    window.addEventListener(EV_OPEN_ACCOUNT, onOpenAccount);
+    window.addEventListener(EV_MATTER_LAUNCH, onMatterLaunch);
+    window.addEventListener(EV_OPEN_PRIVACY_CENTER, onOpenPrivacyCenter);
     return () => {
-      window.removeEventListener('keepance:open-matter-manager', onOpenMatterManager);
-      window.removeEventListener('keepance:open-settings', onOpenSettings);
-      window.removeEventListener('keepance:open-account', onOpenAccount);
-      window.removeEventListener('keepance:matter-launch', onMatterLaunch);
-      window.removeEventListener('keepance:open-privacy-center', onOpenPrivacyCenter);
+      window.removeEventListener(EV_OPEN_MATTER_MANAGER, onOpenMatterManager);
+      window.removeEventListener(EV_OPEN_SETTINGS, onOpenSettings);
+      window.removeEventListener(EV_OPEN_ACCOUNT, onOpenAccount);
+      window.removeEventListener(EV_MATTER_LAUNCH, onMatterLaunch);
+      window.removeEventListener(EV_OPEN_PRIVACY_CENTER, onOpenPrivacyCenter);
     };
   }, []);
 }

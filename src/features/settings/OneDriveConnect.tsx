@@ -1,4 +1,4 @@
-/* eslint-disable keepance-i18n/no-hardcoded-string */
+/* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useEffect, useState } from 'react';
 import {
   oneDriveCancel,
@@ -119,12 +119,12 @@ export function OneDriveConnect() {
         OneDrive and SharePoint documents
       </h3>
       <p className="mt-1 text-sm text-slate-600">
-        Imports documents this Microsoft login can read. Keepance downloads
+        Imports documents this Microsoft login can read. Advisor Prep Hero downloads
         supported Office and text files, extracts text locally, and stores
         encrypted search chunks by matter.
       </p>
       <p className="mt-2 text-xs text-slate-500">
-        Read-only: Keepance only asks Microsoft for files. It never edits,
+        Read-only: Advisor Prep Hero only asks Microsoft for files. It never edits,
         uploads, moves, or deletes anything in OneDrive or SharePoint.
       </p>
       {localOnly && (

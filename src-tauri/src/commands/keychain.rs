@@ -13,62 +13,63 @@
 
 use serde::{Deserialize, Serialize};
 
-const DEFAULT_SERVICE: &str = "com.keepance.app";
+use crate::identity;
+
 const INTERNAL_EXACT_SERVICES: &[&str] = &[
     // Encrypted database master keys. These are Rust-owned infrastructure
     // secrets; renderer code must never read, write, or delete them through
     // the generic keychain bridge.
-    "keepance-audit-enc",
-    "keepance-mail-enc",
-    "keepance-vectors-enc",
+    identity::AUDIT_ENC_SERVICE,
+    identity::MAIL_ENC_SERVICE,
+    identity::VECTORS_ENC_SERVICE,
     // Mail connector tokens/config are managed by Rust mail commands.
-    "keepance-mail-ms",
-    "keepance-mail-imap",
-    "keepance-mail-gmail",
+    identity::MAIL_MS_SERVICE,
+    identity::MAIL_IMAP_SERVICE,
+    identity::MAIL_GMAIL_SERVICE,
     // OneDrive connector: the Microsoft refresh token lives under this exact
     // service (it does NOT share the `keepance-onedrive-` prefix below). The
     // connector's SQLCipher master key uses `keepance-onedrive-enc`, covered
     // by the prefix. Both are Rust-owned and read via keyring::Entry directly.
-    "keepance-docs-ms",
+    identity::DOCS_MS_SERVICE,
     // CRM connector legacy Wealthbox token slot (pre-`keepance-crm-` naming).
     // The live slots all use the `keepance-crm-` prefix below.
-    "keepance-wealthbox",
+    identity::WEALTHBOX_LEGACY_SERVICE,
     // Bonus connector token slots (Box / ShareFile / Jotform / Zocks / Addepar).
     // Each connector's API token / access token / dev token lives under its exact
     // service name; the matching SQLCipher master keys (`keepance-<name>-enc`) and
     // any future per-connector secret are covered by the prefixes below. All are
     // Rust-owned and read via keyring::Entry directly — the renderer bridge must
     // never read, write, or delete them.
-    "keepance-box",
-    "keepance-sharefile",
-    "keepance-jotform",
-    "keepance-zocks",
-    "keepance-addepar",
+    identity::BOX_SERVICE,
+    identity::SHAREFILE_SERVICE,
+    identity::JOTFORM_SERVICE,
+    identity::ZOCKS_SERVICE,
+    identity::ADDEPAR_SERVICE,
 ];
 const INTERNAL_SERVICE_PREFIXES: &[&str] = &[
     // Vault VMKs are Rust-owned. Firm collaboration keys use
     // com.keepance.matter/user/device and intentionally remain renderer-owned.
-    "com.keepance.vault.",
+    identity::VAULT_KEYCHAIN_PREFIX,
     // CRM connector namespace. Covers every per-provider token slot
     // (`keepance-crm-wealthbox` / `-salesforce` / `-redtail`, built as
-    // `format!("keepance-crm-{}", id)` in crm/provider.rs) and the SQLCipher
+    // `identity::crm_keychain_service(id)` in crm/provider.rs) and the SQLCipher
     // master key (`keepance-crm-enc`). Prefix-based so a future CRM provider
     // under the same namespace is denied to the renderer by default.
-    "keepance-crm-",
+    identity::CRM_SERVICE_PREFIX,
     // OneDrive connector namespace. Covers the SQLCipher master key
     // (`keepance-onedrive-enc`) and any future OneDrive-scoped secret. The
     // refresh token's exact service `keepance-docs-ms` is listed above.
-    "keepance-onedrive-",
+    identity::ONEDRIVE_SERVICE_PREFIX,
     // Bonus connector namespaces. Each covers the connector's SQLCipher master
     // key (`keepance-<name>-enc`) plus any future per-connector secret. The bare
     // token slots (`keepance-<name>`) are listed in the exact set above. These
     // do not collide with renderer-owned services (which use the `com.keepance.*`
     // namespace).
-    "keepance-box-",
-    "keepance-sharefile-",
-    "keepance-jotform-",
-    "keepance-zocks-",
-    "keepance-addepar-",
+    identity::BOX_SERVICE_PREFIX,
+    identity::SHAREFILE_SERVICE_PREFIX,
+    identity::JOTFORM_SERVICE_PREFIX,
+    identity::ZOCKS_SERVICE_PREFIX,
+    identity::ADDEPAR_SERVICE_PREFIX,
 ];
 
 /// Structured error returned to the frontend. Separating "not found" from
@@ -120,7 +121,7 @@ pub fn map_keyring_error(err: &keyring::Error) -> KeychainError {
 fn resolve_service(service: Option<String>) -> String {
     service
         .filter(|s| !s.trim().is_empty())
-        .unwrap_or_else(|| DEFAULT_SERVICE.to_string())
+        .unwrap_or_else(|| identity::DEFAULT_KEYCHAIN_SERVICE.to_string())
 }
 
 fn is_internal_service(service: &str) -> bool {
@@ -145,7 +146,7 @@ fn is_internal_service(service: &str) -> bool {
 fn validate_renderer_service_access(service: &str) -> Result<(), KeychainError> {
     if is_internal_service(service) {
         return Err(KeychainError::Denied(format!(
-            "service '{service}' is reserved for Keepance internal storage"
+            "service '{service}' is reserved for Advisor Prep Hero internal storage"
         )));
     }
     Ok(())
@@ -196,41 +197,43 @@ pub async fn keychain_delete(service: Option<String>, key: String) -> Result<(),
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::identity;
 
     #[test]
     fn resolves_default_service_when_none_or_blank() {
-        assert_eq!(resolve_service(None), DEFAULT_SERVICE);
-        assert_eq!(resolve_service(Some("".to_string())), DEFAULT_SERVICE);
-        assert_eq!(resolve_service(Some("   ".to_string())), DEFAULT_SERVICE);
+        assert_eq!(resolve_service(None), identity::DEFAULT_KEYCHAIN_SERVICE);
+        assert_eq!(resolve_service(Some("".to_string())), identity::DEFAULT_KEYCHAIN_SERVICE);
+        assert_eq!(resolve_service(Some("   ".to_string())), identity::DEFAULT_KEYCHAIN_SERVICE);
     }
 
     #[test]
     fn resolves_custom_service_when_provided() {
+        let custom = format!("{}.sync", identity::KC_FIRM_NS);
         assert_eq!(
-            resolve_service(Some("com.keepance.sync".to_string())),
-            "com.keepance.sync"
+            resolve_service(Some(custom.clone())),
+            custom.as_str()
         );
     }
 
     #[test]
     fn internal_service_names_are_denied_before_keychain_access() {
         assert!(matches!(
-            validate_renderer_service_access("keepance-audit-enc")
+            validate_renderer_service_access(identity::AUDIT_ENC_SERVICE)
                 .expect_err("internal service must be denied"),
             KeychainError::Denied(_)
         ));
         assert!(matches!(
-            validate_renderer_service_access("keepance-mail-enc")
+            validate_renderer_service_access(identity::MAIL_ENC_SERVICE)
                 .expect_err("internal service must be denied"),
             KeychainError::Denied(_)
         ));
         assert!(matches!(
-            validate_renderer_service_access("keepance-vectors-enc")
+            validate_renderer_service_access(identity::VECTORS_ENC_SERVICE)
                 .expect_err("internal service must be denied"),
             KeychainError::Denied(_)
         ));
         assert!(matches!(
-            validate_renderer_service_access("com.keepance.vault.workspace-1")
+            validate_renderer_service_access(&identity::vault_keychain_service("workspace-1"))
                 .expect_err("internal service must be denied"),
             KeychainError::Denied(_)
         ));
@@ -241,32 +244,40 @@ mod tests {
     /// a compromised renderer must not be able to read them via keychain_get.
     #[test]
     fn connector_secret_services_are_denied() {
+        // CRM provider service names are dynamic (prefix + provider id), so build them at runtime.
+        let crm_wealthbox = identity::crm_keychain_service("wealthbox");
+        let crm_salesforce = identity::crm_keychain_service("salesforce");
+        let crm_redtail = identity::crm_keychain_service("redtail");
+        // Future connectors under the same namespace prefixes must also be denied.
+        let future_crm = identity::crm_keychain_service("newprovider");
+        let future_onedrive = format!("{}future-secret", identity::ONEDRIVE_SERVICE_PREFIX);
+        let future_box = format!("{}future-secret", identity::BOX_SERVICE_PREFIX);
         // Every connector service name that exists in the codebase today.
-        let denied = [
+        let denied: &[&str] = &[
             // OneDrive
-            "keepance-docs-ms",      // MS refresh token (exact)
-            "keepance-onedrive-enc", // SQLCipher master key (prefix)
+            identity::DOCS_MS_SERVICE,      // MS refresh token (exact)
+            identity::ONEDRIVE_ENC_SERVICE, // SQLCipher master key (prefix)
             // CRM (Wealthbox / Salesforce / Redtail) + legacy slot
-            "keepance-crm-wealthbox",
-            "keepance-crm-salesforce",
-            "keepance-crm-redtail",
-            "keepance-crm-enc", // SQLCipher master key
-            "keepance-wealthbox", // legacy Wealthbox slot (exact)
+            &crm_wealthbox,
+            &crm_salesforce,
+            &crm_redtail,
+            identity::CRM_ENC_SERVICE,           // SQLCipher master key
+            identity::WEALTHBOX_LEGACY_SERVICE,  // legacy Wealthbox slot (exact)
             // Bonus connectors: token slot (exact) + SQLCipher DB key (prefix).
-            "keepance-box",
-            "keepance-box-enc",
-            "keepance-sharefile",
-            "keepance-sharefile-enc",
-            "keepance-jotform",
-            "keepance-jotform-enc",
-            "keepance-zocks",
-            "keepance-zocks-enc",
-            "keepance-addepar",
+            identity::BOX_SERVICE,
+            identity::BOX_ENC_SERVICE,
+            identity::SHAREFILE_SERVICE,
+            identity::SHAREFILE_ENC_SERVICE,
+            identity::JOTFORM_SERVICE,
+            identity::JOTFORM_ENC_SERVICE,
+            identity::ZOCKS_SERVICE,
+            identity::ZOCKS_ENC_SERVICE,
+            identity::ADDEPAR_SERVICE,
             // Future connectors under the same namespaces must be denied by default.
-            "keepance-crm-newprovider",
-            "keepance-onedrive-future-secret",
-            "keepance-box-future-secret",
-            "keepance-addepar-enc",
+            &future_crm,
+            &future_onedrive,
+            &future_box,
+            identity::ADDEPAR_ENC_SERVICE,
         ];
         for svc in denied {
             assert!(
@@ -297,10 +308,13 @@ mod tests {
     /// real secret. Fail closed: any control char => denied.
     #[test]
     fn control_chars_in_service_are_denied() {
+        let nul_docs_ms = format!("{}\0x", identity::DOCS_MS_SERVICE);
+        let nul_wealthbox = format!("{}\0", identity::WEALTHBOX_LEGACY_SERVICE);
+        let nul_injection = format!("{}\0{}", identity::DEFAULT_KEYCHAIN_SERVICE, identity::DOCS_MS_SERVICE);
         for svc in [
-            "keepance-docs-ms\0x",
-            "keepance-wealthbox\0",
-            "com.keepance.app\0keepance-docs-ms",
+            nul_docs_ms.as_str(),
+            nul_wealthbox.as_str(),
+            nul_injection.as_str(),
             "normal\u{007f}name",
             "tab\tname",
         ] {
@@ -317,8 +331,8 @@ mod tests {
 
     #[test]
     fn user_key_service_is_not_denied() {
-        let svc = resolve_service(Some("com.keepance.app".to_string()));
-        assert_eq!(svc, "com.keepance.app");
+        let svc = resolve_service(Some(identity::DEFAULT_KEYCHAIN_SERVICE.to_string()));
+        assert_eq!(svc, identity::DEFAULT_KEYCHAIN_SERVICE);
         assert!(!is_internal_service(&svc));
     }
 
@@ -327,13 +341,14 @@ mod tests {
     /// denials must NOT accidentally deny these.
     #[test]
     fn renderer_owned_services_remain_allowed() {
-        for svc in [
-            "com.keepance.app",
-            "com.keepance.user.abc123",
-            "com.keepance.matter.matter-42",
-            "com.keepance.device.dev-9",
-            "com.keepance.device.meta",
-        ] {
+        let allowed = [
+            identity::DEFAULT_KEYCHAIN_SERVICE.to_string(),
+            format!("{}.user.abc123", identity::KC_FIRM_NS),
+            format!("{}.matter.matter-42", identity::KC_FIRM_NS),
+            format!("{}.device.dev-9", identity::KC_FIRM_NS),
+            format!("{}.device.meta", identity::KC_FIRM_NS),
+        ];
+        for svc in &allowed {
             assert!(
                 !is_internal_service(svc),
                 "renderer-owned service '{svc}' must stay allowed"
@@ -398,9 +413,9 @@ mod tests {
         if std::env::var_os("KEEPANCE_TEST_KEYCHAIN").is_none() {
             return;
         }
-        let svc = "com.keepance.app.test";
+        let svc = format!("{}.test", identity::DEFAULT_KEYCHAIN_SERVICE);
         let key = "phase2-keychain-test";
-        let entry = keyring::Entry::new(svc, key).expect("entry should build on this platform");
+        let entry = keyring::Entry::new(&svc, key).expect("entry should build on this platform");
         entry
             .set_password("hello")
             .expect("set should succeed with secret-service available");

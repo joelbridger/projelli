@@ -198,7 +198,7 @@ describe('MattersHome — B4 quick-actions visible at rest', () => {
 
     const events: CustomEvent[] = [];
     const handler = (e: Event) => { events.push(e as CustomEvent); };
-    window.addEventListener('keepance:matter-launch', handler);
+    window.addEventListener('lantern:matter-launch', handler);
 
     render(<MattersHome />);
 
@@ -207,7 +207,7 @@ describe('MattersHome — B4 quick-actions visible at rest', () => {
     expect(events[0]!.detail.surface).toBe('search');
     expect(events[0]!.detail.matterId).toBe(matter.id);
 
-    window.removeEventListener('keepance:matter-launch', handler);
+    window.removeEventListener('lantern:matter-launch', handler);
   });
 });
 
@@ -662,13 +662,13 @@ describe('MattersHome — GetStartedCard create-matter step', () => {
   it('dispatches keepance:open-matter-manager when create button is clicked', () => {
     const events: Event[] = [];
     const handler = (e: Event) => { events.push(e); };
-    window.addEventListener('keepance:open-matter-manager', handler);
+    window.addEventListener('lantern:open-matter-manager', handler);
 
     render(<MattersHome />);
 
     fireEvent.click(screen.getByTestId('get-started-create-matter'));
     expect(events).toHaveLength(1);
 
-    window.removeEventListener('keepance:open-matter-manager', handler);
+    window.removeEventListener('lantern:open-matter-manager', handler);
   });
 });

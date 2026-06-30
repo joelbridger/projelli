@@ -12,7 +12,7 @@ use crate::commands::jotform::engine;
 use crate::commands::jotform::model::{JotformForm, JotformMatterMapEntry};
 use crate::commands::jotform::store::{JotformStore, JotformUnassignedRow};
 
-const KEYCHAIN_SERVICE: &str = "keepance-jotform";
+const KEYCHAIN_SERVICE: &str = crate::identity::JOTFORM_SERVICE;
 const KEYCHAIN_API_KEY: &str = "api-key";
 
 pub const JOTFORM_SYNC_PROGRESS_EVENT: &str = "jotform-sync-progress";

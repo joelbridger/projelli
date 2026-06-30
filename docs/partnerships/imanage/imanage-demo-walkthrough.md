@@ -16,15 +16,15 @@
 - It is reviewed by their **Product team**, so speak to product value + a clean, safe technical shape.
 
 ## The one-line story
-"iManage is where the firm's documents live and stay governed. Keepance sits beside it on
+"iManage is where the firm's documents live and stay governed. Advisor Prep Hero sits beside it on
 the lawyer's machine and answers questions across their matter, with a citation back to the
 exact source. Version one only reads from iManage. Nothing is ever written back."
 
 ## Pre-call setup (do this 30 minutes before)
-- [ ] Open Keepance on a clean workspace with the **sample matter** present (Garcia v. Meridian) plus, ideally, one realistic matter with a few real documents.
+- [ ] Open Advisor Prep Hero on a clean workspace with the **sample matter** present (Garcia v. Meridian) plus, ideally, one realistic matter with a few real documents.
 - [ ] Confirm the reimagined shell is showing (navy left rail: Matters / Search / Documents / Email / Workflows / Activity Log / Settings).
 - [ ] Have an AI key connected so live answers work (have the no-key "aha" as a backup if the network is flaky).
-- [ ] Close noisy apps, silence notifications, full-screen Keepance.
+- [ ] Close noisy apps, silence notifications, full-screen Advisor Prep Hero.
 - [ ] Have the deck open in a second window to flip to the architecture slide.
 - [ ] One sentence ready if anything breaks: "That's the dev build talking, let me show you the slide for this part."
 
@@ -33,7 +33,7 @@ exact source. Version one only reads from iManage. Nothing is ever written back.
 ## The demo, beat by beat
 
 ### 1. Frame it first (30 sec, before sharing the app)
-> "Quick context: Keepance is a local-first desktop app, the private intelligence layer for a
+> "Quick context: Advisor Prep Hero is a local-first desktop app, the private intelligence layer for a
 > law practice. A firm's documents, email, and matters stay on their own machine, the AI runs
 > on their own key, and every answer is cited so they can verify it. Today I'll show you the
 > product, then exactly how I see it sitting on top of iManage."
@@ -57,7 +57,7 @@ exact source. Version one only reads from iManage. Nothing is ever written back.
 - Click **"Where does my data go?" / Open the Data Map**. Walk the rows: files stay local, the
   key lives in the OS keychain, the cloud prompt goes directly to the provider on the firm's own
   account, local-only mode sends nothing.
-- Talk track: "Keepance never holds the firm's data or their AI key. We are not a content server.
+- Talk track: "Advisor Prep Hero never holds the firm's data or their AI key. We are not a content server.
   For iManage this matters: we don't become a second copy of the repository or a new place data
   can leak. We read, we index locally, we answer."
 - Show **matter isolation** (the Isolated badge / local-only) briefly.
@@ -72,12 +72,12 @@ exact source. Version one only reads from iManage. Nothing is ever written back.
 
 - Flip to the **architecture slide** in the deck.
 - Talk track: "Here's how I see it working, and I'd want your Product team's view on the cleanest shape:
-  1. The lawyer connects their iManage account inside Keepance and browses their iManage workspaces and matters.
-  2. They pick the documents or a workspace to bring into a matched Keepance matter.
-  3. Keepance imports a copy and indexes it locally, so the firm's private AI can answer matter-scoped
+  1. The lawyer connects their iManage account inside Advisor Prep Hero and browses their iManage workspaces and matters.
+  2. They pick the documents or a workspace to bring into a matched Advisor Prep Hero matter.
+  3. Advisor Prep Hero imports a copy and indexes it locally, so the firm's private AI can answer matter-scoped
      questions with citations.
   4. **Version one is read-only. Nothing is written back to iManage.** iManage stays the system of record
-     and the governed repository. Keepance is the intelligence layer on top.
+     and the governed repository. Advisor Prep Hero is the intelligence layer on top.
   - We'd build against your APIs the right way, honor your permissions model, and never store iManage
     credentials on a server, only in the user's OS keychain."
 - Land it: "So the value to a mutual customer is: they keep everything governed in iManage, and they get

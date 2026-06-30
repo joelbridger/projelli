@@ -1,4 +1,4 @@
-# Competitor one-pager: FutureVault vs Keepance
+# Competitor one-pager: FutureVault vs Advisor Prep Hero
 
 *Prepared 2026-06-25, for Jameson (internal). This is our closest competitor. The point of this doc is one crisp sentence: why an advisor should choose us over them.*
 
@@ -6,7 +6,7 @@
 
 ## FutureVault in one line
 
-FutureVault is an enterprise, **cloud-hosted** "digital vault" for banks, broker-dealers, and large RIAs, with an AI layer bolted on top of client documents. It's the closest competitor to Keepance's "Client Map" *idea* — but the **opposite** of Keepance on the two things that matter most: where the data lives (their cloud vs. the advisor's own machine) and who can buy it (big enterprises vs. solo advisors).
+FutureVault is an enterprise, **cloud-hosted** "digital vault" for banks, broker-dealers, and large RIAs, with an AI layer bolted on top of client documents. It's the closest competitor to Advisor Prep Hero's "Client Map" *idea* — but the **opposite** of Advisor Prep Hero on the two things that matter most: where the data lives (their cloud vs. the advisor's own machine) and who can buy it (big enterprises vs. solo advisors).
 
 ## What they are / what they do
 
@@ -29,13 +29,13 @@ On **March 10, 2026** they launched the **AI Advisor Insights Engine** — the p
 
 ## Their weaknesses (for OUR buyer: the privacy-conscious solo / small RIA)
 
-- **Client data sits in FutureVault's cloud.** For an advisor whose whole reason to buy is "client data never leaves my control," this is a deal-breaker — FutureVault *is* exactly the outside cloud vendor they'd have to vet and monitor. Keepance removes that vendor from the picture entirely.
+- **Client data sits in FutureVault's cloud.** For an advisor whose whole reason to buy is "client data never leaves my control," this is a deal-breaker — FutureVault *is* exactly the outside cloud vendor they'd have to vet and monitor. Advisor Prep Hero removes that vendor from the picture entirely.
 - **Not solo-buyable:** enterprise sales, custom quotes, slow onboarding, and an enterprise price point that almost certainly dwarfs our $468–$1,548/yr.
 - **It's a portal first, a private workspace second:** great for storing, sharing, and compliance; it is not a private, advisor-side place to think and draft, and the AI lives in *their* governed cloud (no bring-your-own-key, no local model).
 
 ## Head-to-head
 
-| Dimension | FutureVault | Keepance |
+| Dimension | FutureVault | Advisor Prep Hero |
 |---|---|---|
 | **Data location / privacy** | Client data on FutureVault's cloud; privacy by contract | On the advisor's own machine; privacy by architecture (local-first + bring-your-own-key) |
 | **Deployment** | Cloud SaaS, white-labeled | Desktop app (Windows/Mac/Linux), offline except the AI call |
@@ -44,13 +44,13 @@ On **March 10, 2026** they launched the **AI Advisor Insights Engine** — the p
 | **Price** | Custom enterprise quote, not public (likely $$$) | Public: $468 / $948 / $1,548 per seat/yr |
 | **Trust artifacts** | SOC 2 Type II + PCI DSS (their advantage) | None yet (our gap) — but no vendor cloud to certify in the first place |
 
-## Why Keepance over FutureVault
+## Why Advisor Prep Hero over FutureVault
 
 **One sentence:**
-> With FutureVault, your clients' most sensitive documents live on FutureVault's servers and only an enterprise can buy it. With Keepance, the data never leaves your own machine, and a solo advisor can start today.
+> With FutureVault, your clients' most sensitive documents live on FutureVault's servers and only an enterprise can buy it. With Advisor Prep Hero, the data never leaves your own machine, and a solo advisor can start today.
 
 **Honest version:**
-> FutureVault is the better fit for a large broker-dealer or RIA aggregator that wants a client-facing, certified document portal with AI on top — they're bigger, funded, and certified. But for the independent advisor who specifically refuses to put client data in someone else's cloud, FutureVault *is* the cloud they're trying to avoid, sold through a process they can't access. Keepance wins on the one thing that buyer cares about most — the data stays in their control — at a price they can buy themselves.
+> FutureVault is the better fit for a large broker-dealer or RIA aggregator that wants a client-facing, certified document portal with AI on top — they're bigger, funded, and certified. But for the independent advisor who specifically refuses to put client data in someone else's cloud, FutureVault *is* the cloud they're trying to avoid, sold through a process they can't access. Advisor Prep Hero wins on the one thing that buyer cares about most — the data stays in their control — at a price they can buy themselves.
 
 ## What to watch (how they could beat us)
 

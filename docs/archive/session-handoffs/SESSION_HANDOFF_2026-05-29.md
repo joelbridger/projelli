@@ -13,7 +13,7 @@ This morning the store had a polished front and dead plumbing. Now it's function
 - `website-content-lint` test is GREEN (dead `/templates/` founder stubs deleted, homepage copy cleaned).
 
 ## What's BUILD-READY (one `git tag` from shipping, on Jameson's go)
-- App rebranded Projelli → Keepance in source. Version bumped to **2.1.0** (package.json + tauri.conf.json). `npm run build` passes clean.
+- App rebranded Projelli → Advisor Prep Hero in source. Version bumped to **2.1.0** (package.json + tauri.conf.json). `npm run build` passes clean.
 - Legal/tax packs ship marked **"Preview, pending review"** (registry-level in `src/modules/workflow/index.ts`); consulting + general unmarked.
 - **In-app licensing rewritten** to Personal/Professional/Practice + `packs` + `seats` (`useLicense`, `tierHasFeature` = `tier!=='free'`, `hasPack()`); consumers + en/de/es locales updated; `tests/unit/license-tiers.test.ts` added; the 30-day trial (`useTrial`) is untouched. QA: `?fakeLicense=professional&fakePacks=legal`.
 
@@ -38,13 +38,13 @@ This morning the store had a polished front and dead plumbing. Now it's function
 
 ### 3. When Jameson says "tag v2.1" (the release go)
 - Confirm versions are 2.1.0 (done), finalize the CHANGELOG `[2.1.0]` date.
-- `git tag v2.1.0 && git push origin v2.1.0` → CI (`.github/workflows/release.yml`) builds + signs Win/Mac/Linux installers and publishes the GitHub release + `latest.json` (auto-updater). Watch the run. This replaces the old downloadable "Projelli v2.0.0" with the rebranded Keepance v2.1.
+- `git tag v2.1.0 && git push origin v2.1.0` → CI (`.github/workflows/release.yml`) builds + signs Win/Mac/Linux installers and publishes the GitHub release + `latest.json` (auto-updater). Watch the run. This replaces the old downloadable "Projelli v2.0.0" with the rebranded Advisor Prep Hero v2.1.
 - Rename the GitHub releases from "Projelli" if any remain.
 
 ### 4. Bio: Jameson confirms the Samsung/AstraZeneca/Tesla + UCL claims before press outreach.
 
 ## Live infra changes made this session that are OUTSIDE git (don't lose / be aware)
-- **form-handler** (`~/services/form-handler/server.ts`, :5180): added a `keepance` site + Keepance welcome email; fixed the systemd unit's stale `~/projelli/sign-ups` path (was crashing ALL site forms on restart). Charter signups → `~/keepance/sign-ups/keepance-charter-list-YYYY-MM.jsonl`.
+- **form-handler** (`~/services/form-handler/server.ts`, :5180): added a `keepance` site + Advisor Prep Hero welcome email; fixed the systemd unit's stale `~/projelli/sign-ups` path (was crashing ALL site forms on restart). Charter signups → `~/keepance/sign-ups/keepance-charter-list-YYYY-MM.jsonl`.
 - **Caddy** (`/etc/caddy/Caddyfile`, keepance.com block): added `handle /api/demo-status` + `/api/demo-chat` → `127.0.0.1:5183`. Backup at `/etc/caddy/Caddyfile.bak-*`.
 - **demo-proxy**: systemd `projelli-demo-proxy` (:5183), token header `x-projelli-demo-token`, $50/mo Anthropic budget. Internal "projelli" naming is harmless (client + proxy match); cosmetic rename optional.
 

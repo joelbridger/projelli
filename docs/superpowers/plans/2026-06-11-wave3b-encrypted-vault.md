@@ -699,7 +699,7 @@ Implements §9 — without this, search silently breaks over vaulted files.
 
 Implements §10 + §11 Fork 3 (mandatory confirmed ceremony). Light theme.
 
-- [ ] **Step 1: Write the ceremony test** — render with a 24-word phrase; assert (a) the phrase is shown, (b) the "Keepance cannot recover this for you" warning is present, (c) the Activate/Continue button is **disabled** until the user re-enters 3 specific requested words correctly (the confirmation), (d) entering them wrong keeps it disabled, (e) correct entry enables it and calls `onConfirmed`.
+- [ ] **Step 1: Write the ceremony test** — render with a 24-word phrase; assert (a) the phrase is shown, (b) the "Advisor Prep Hero cannot recover this for you" warning is present, (c) the Activate/Continue button is **disabled** until the user re-enters 3 specific requested words correctly (the confirmation), (d) entering them wrong keeps it disabled, (e) correct entry enables it and calls `onConfirmed`.
 - [ ] **Step 2: Run red**, then implement `RecoveryPhraseCeremony.tsx` (props: `phrase: string`, `onConfirmed: () => void`): display the numbered 24 words, the bold warning, a copy button, and a confirm step asking for 3 random word positions; enable Activate only when all 3 match. `vaultStore.ts` (Zustand) holds `{ status, phase, error }` and actions `enableVault(escrow)` (calls `vault_create` → ceremony → `vault_encrypt_all` → optional `provisionEscrow`), `unlockWithRecovery(phrase)`. `VaultEnableFlow.tsx` orchestrates: explain → ceremony → (firm) escrow consent → encrypt-all progress.
 - [ ] **Step 3: Run green** + tsc + `npm run test -- tests/unit/vault/`.
 - [ ] **Step 4: Commit.** `git add -A && git commit -m "feat(vault): enable flow + mandatory confirmed recovery-phrase ceremony"`
@@ -725,7 +725,7 @@ Implements §10 + §11 Fork 3 (mandatory confirmed ceremony). Light theme.
 - Modify: `src/components/privacy/DataMapDialog.tsx`, `src/locales/{en,de,es}.json`
 - Test: update `tests/unit/i18n/en-json-snapshot.test.ts` inventory + count; any DataMap test
 
-- [ ] **Step 1:** Add a Data Map row (icon `KeyRound` or `Lock`) — "Keepance encrypts this workspace's files": contents AES-256-GCM at rest, **file names remain visible**, the recovery phrase is the only solo backstop, firm escrow exists. i18n ALL vault UI strings under a `vault.*` namespace across en/de/es (real translations matching the existing tone). NO em dashes (the i18n snapshot guard enforces this).
+- [ ] **Step 1:** Add a Data Map row (icon `KeyRound` or `Lock`) — "Advisor Prep Hero encrypts this workspace's files": contents AES-256-GCM at rest, **file names remain visible**, the recovery phrase is the only solo backstop, firm escrow exists. i18n ALL vault UI strings under a `vault.*` namespace across en/de/es (real translations matching the existing tone). NO em dashes (the i18n snapshot guard enforces this).
 - [ ] **Step 2:** Update `tests/unit/i18n/en-json-snapshot.test.ts` namespace inventory + leaf count for the new keys (run `npm run test -- en-json-snapshot --update` for the inline snapshot; bump the `toBe(...)` count manually).
 - [ ] **Step 3: Run** `npm run test -- tests/unit/i18n/ tests/unit/privacy/` → green; validate all 3 locale JSONs parse.
 - [ ] **Step 4: Commit.** `git add -A && git commit -m "feat(vault): Data Map row + vault i18n (en/de/es)"`

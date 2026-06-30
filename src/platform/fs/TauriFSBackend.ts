@@ -4,6 +4,7 @@
 import type { FSBackend, FileStat } from './types';
 import { FileOperationError } from './types';
 import type { FileNode } from '@/platform/types/workspace';
+import { WORKSPACE_DATA_DIR } from '@/config/identity';
 
 // Tauri fs plugin types (imported dynamically to avoid browser errors)
 interface TauriFsModule {
@@ -358,12 +359,12 @@ export class TauriFSBackend implements FSBackend {
       const nodes: FileNode[] = [];
 
       for (const entry of entries) {
-        // Only Keepance's own internal config folder is dropped here (and never
+        // Only Advisor Prep Hero's own internal config folder is dropped here (and never
         // recursed into); the UI's hiddenNodes helper hides it everywhere too.
         // Ordinary dotfiles like .gitignore are NOT dropped at the backend — the
         // UI / "Show Hidden Files" setting decides about those (matching the
         // WebFS backend). The .trash folder keeps its existing handling.
-        if (entry.name === '.keepance') {
+        if (entry.name === WORKSPACE_DATA_DIR) {
           continue;
         }
 

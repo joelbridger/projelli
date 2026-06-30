@@ -1,10 +1,10 @@
-# Next session: Keepance 3.0 software bug review
+# Next session: Advisor Prep Hero 3.0 software bug review
 
 **Read this first.** This is the entry point for the bug-focused session. The launch is done; the next job is finding and fixing **actual software bugs** in the 3.0 app.
 
 ## Where things stand (do NOT redo this)
 
-Keepance 3.0 is **launched and live**:
+Advisor Prep Hero 3.0 is **launched and live**:
 - **App:** `v3.0.0` published (signed Win/Mac/Linux installers + auto-update). Released from branch `keepance-3.0`.
 - **Website:** keepance.com on the 3.0 positioning + pricing, with working Subscribe links.
 - **Firm backend:** live at `https://api.keepance.com`.

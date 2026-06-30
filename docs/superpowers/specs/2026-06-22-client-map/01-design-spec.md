@@ -15,7 +15,7 @@ The Client Map is a living profile of each client that the app builds *for* you,
 
 ## 1. The core insight (read this first)
 
-Keepance already answers questions across a lawyer's documents and email with cited answers, scoped to one matter. But every answer starts from a cold question. The lawyer still carries the *client picture* in their head, and re-builds it every time they re-open a matter after weeks away.
+Advisor Prep Hero already answers questions across a lawyer's documents and email with cited answers, scoped to one matter. But every answer starts from a cold question. The lawyer still carries the *client picture* in their head, and re-builds it every time they re-open a matter after weeks away.
 
 The Client Map turns that picture into a **persistent, structured, source-linked artifact** the app maintains for them. It is the difference between "a private search engine over my files" and "a private intelligence layer that actually knows my clients" — which is exactly the repositioning.
 
@@ -30,7 +30,7 @@ Crucially, the seed already exists. `matterAtAGlance.ts` already does a matter-s
 | 1 | **Core job of v1** | **"Catch me up fast"** — an instant briefing of where the client stands | Delivers value on first open with zero data entry; the other ideas hang off it |
 | 2 | **Durability** | **Saved and living** — a stored profile the app keeps current; not rewritten on the fly | Instant on open; editable/correctable; gives Context Completeness a stable thing to measure |
 | 3 | **Update model** | **Approve-first** — AI drafts updates into a review tray; you accept/tweak; nothing silent; your edits never overwritten | "AI proposes, the professional decides" made literal |
-| 4 | **Sourcing** | **Every item links to the exact document or email it came from** | The Keepance promise: nothing floats unsourced |
+| 4 | **Sourcing** | **Every item links to the exact document or email it came from** | The Advisor Prep Hero promise: nothing floats unsourced |
 | 5 | **Custom categories** | Users add their own sections; the AI populates them from content per the user's plain-language description | Shapes the map to how each professional thinks |
 | 6 | **Category reach** | **Three levels:** (1) this client, (2) saved personal template reusable across your clients, (3) firm-wide standard (= Firm Philosophy). v1 ships levels 1–2; level 3 lands with firm work | Custom categories and Firm Philosophy are the same machine at different zoom |
 | 7 | **Context Completeness** | **Three honest lists** (what I know / what I'm assuming / what to ask) + a **coarse level** (Thin · Getting there · Solid). **No percentage.** | This audience distrusts false precision; a "73%" on a legal matter overclaims |

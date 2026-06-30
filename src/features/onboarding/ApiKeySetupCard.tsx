@@ -2,7 +2,7 @@
 //
 // Displayed in the MainPanel's "no file open" slot immediately after a user
 // picks a workspace folder when they still don't have an AI key saved.
-// Keepance's core value prop is AI + local files, and without a key the AI
+// Advisor Prep Hero's core value prop is AI + local files, and without a key the AI
 // side is dead. Silent dead-ends are the #1 first-run complaint, so this
 // card tells users exactly what's missing and gives them one click to fix it.
 //
@@ -22,8 +22,9 @@ import { Key, X, ArrowRight, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ApiKeyWizard, type WizardProvider } from './ApiKeyWizard';
 import type { KeyProvider } from '@/platform/providers/KeychainService';
+import { SK_API_KEY_CARD_DISMISSED } from '@/config/identity';
 
-const DISMISS_STORAGE_KEY = 'keepance:apiKeyCardDismissed';
+const DISMISS_STORAGE_KEY = SK_API_KEY_CARD_DISMISSED;
 
 export function hasDismissedApiKeyCard(): boolean {
   try {

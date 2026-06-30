@@ -14,7 +14,7 @@ Hey [Name],
 
 I'm Jameson. [One sentence of how you know them / who connected you.]
 
-I'm building a desktop app called Keepance, and I think I need about an hour of your time, honestly.
+I'm building a desktop app called Advisor Prep Hero, and I think I need about an hour of your time, honestly.
 
 The short version: it's a local-first AI workspace for attorneys and other professionals who can't pipe their work into ChatGPT. Everything stays on your machine. Your API keys go direct from your computer to the provider and never touch a server I control. Basically the anti-cloud version of Notion AI.
 
@@ -38,7 +38,7 @@ Hey [Name],
 
 I'm Jameson Daines, a product designer based in [city/remote]. I found you through [Lawyerist / r/LawFirm / your firm's website / LinkedIn] and I'm hoping this is a reasonable cold ask.
 
-I'm building a desktop app called Keepance for attorneys and other professionals who can't use cloud AI because of client confidentiality. The whole point is that your files stay on your machine. No server I control ever sees your work.
+I'm building a desktop app called Advisor Prep Hero for attorneys and other professionals who can't use cloud AI because of client confidentiality. The whole point is that your files stay on your machine. No server I control ever sees your work.
 
 I'm finishing a Legal Practice template pack for the next release: a Deposition Contradiction Finder, Privilege Log Drafter, Case Timeline Builder, and a few others. The templates are built around how I think solo and small-firm attorneys work, but I'd rather have a real practitioner read them before I ship them to people who will know immediately if I got something wrong.
 

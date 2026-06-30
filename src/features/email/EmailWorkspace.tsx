@@ -7,7 +7,7 @@
  *   Ask AI  — MemoryService.retrieve() scoped to mail: sourceIds; results
  *             ranked by similarity score.
  *
- * Per-row actions: Open (dispatches keepance:open-email), File to matter
+ * Per-row actions: Open (dispatches lantern:open-email), File to matter
  * (popover with matter picker — calls mailRetagMessageMatter per message),
  * Privilege (dropdown), Export (mailGetMessage + onSaveToWorkspace).
  *
@@ -67,6 +67,7 @@ import { AskHitCard } from './AskHitCard';
 import { NoAccountsState } from './NoAccountsState';
 import { MailRow } from './MailRow';
 import { sendDiagnosticEvent } from '@/platform/utils/diagnostics';
+import { EV_OPEN_SETTINGS } from '@/config/identity';
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -706,9 +707,9 @@ export function EmailWorkspace({
           aria-label="Sync email now"
           style={syncing ? { opacity: 0.6 } : undefined}
         >
-          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          {/* eslint-disable lantern-i18n/no-hardcoded-string */}
           {syncing ? 'Syncing…' : 'Sync now'}
-          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+          {/* eslint-enable lantern-i18n/no-hardcoded-string */}
         </Button>
 
         {/* 5. Search field — grows to fill remaining space, always last */}
@@ -816,7 +817,7 @@ export function EmailWorkspace({
 
       {/* First-connect TTV callout — shown exactly once after the first account connects */}
       {hasConnectedMail && !firstConnectCalloutSeen && (
-        /* eslint-disable keepance-i18n/no-hardcoded-string */
+        /* eslint-disable lantern-i18n/no-hardcoded-string */
         <div style={{ padding: `var(--kp-space-sm) var(--kp-gutter) 0`, flexShrink: 0 }}>
           <div data-testid="first-connect-callout">
           <Callout
@@ -850,7 +851,7 @@ export function EmailWorkspace({
           </Callout>
           </div>
         </div>
-        /* eslint-enable keepance-i18n/no-hardcoded-string */
+        /* eslint-enable lantern-i18n/no-hardcoded-string */
       )}
 
       {/* Body */}
@@ -881,7 +882,7 @@ export function EmailWorkspace({
                   fontWeight: 'var(--kp-weight-medium)',
                 }}
               >
-                {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                {/* eslint-disable lantern-i18n/no-hardcoded-string */}
                 <span style={{ flex: 1 }}>
                   {selectedIds.size} selected
                 </span>
@@ -911,7 +912,7 @@ export function EmailWorkspace({
                 >
                   Clear selection
                 </Button>
-                {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                {/* eslint-enable lantern-i18n/no-hardcoded-string */}
               </div>
             )}
 
@@ -968,9 +969,9 @@ export function EmailWorkspace({
                   }}
                 />
                 <p style={{ margin: 0, fontSize: 'var(--kp-font-sm)', color: 'var(--color-foreground)', fontWeight: 'var(--kp-weight-medium)' }}>
-                  {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                  {/* eslint-disable lantern-i18n/no-hardcoded-string */}
                   Could not load email
-                  {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                  {/* eslint-enable lantern-i18n/no-hardcoded-string */}
                 </p>
                 <p style={{ margin: 0, fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)', maxWidth: 340 }}>
                   {error}
@@ -1010,9 +1011,9 @@ export function EmailWorkspace({
                   }}
                 />
                 <p style={{ margin: 0, fontSize: 'var(--kp-font-sm)', color: 'var(--color-foreground)', fontWeight: 'var(--kp-weight-medium)' }}>
-                  {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                  {/* eslint-disable lantern-i18n/no-hardcoded-string */}
                   No emails found
-                  {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                  {/* eslint-enable lantern-i18n/no-hardcoded-string */}
                 </p>
                 <p style={{ margin: 0, fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
                   { }
@@ -1210,7 +1211,7 @@ export function EmailWorkspace({
                   textAlign: 'center',
                 }}
               >
-                {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                {/* eslint-disable lantern-i18n/no-hardcoded-string */}
                 <div
                   style={{
                     fontSize: 'var(--kp-font-lg)',
@@ -1282,7 +1283,7 @@ export function EmailWorkspace({
                     </button>
                   ))}
                 </div>
-                {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                {/* eslint-enable lantern-i18n/no-hardcoded-string */}
               </div>
             )}
 
@@ -1297,14 +1298,14 @@ export function EmailWorkspace({
                   lineHeight: 'var(--kp-leading-relaxed)',
                 }}
               >
-                {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                {/* eslint-disable lantern-i18n/no-hardcoded-string */}
                 {!isMemoryEnabled() ? (
                   <span>
                     AI search needs memory enabled.{' '}
                     <button
                       type="button"
                       onClick={() => {
-                        window.dispatchEvent(new CustomEvent('keepance:open-settings', { detail: { category: 'ai' } }));
+                        window.dispatchEvent(new CustomEvent(EV_OPEN_SETTINGS, { detail: { category: 'ai' } }));
                         onOpenSettings?.();
                       }}
                       style={{
@@ -1351,7 +1352,7 @@ export function EmailWorkspace({
                 ) : (
                   'No matching email found for your question.'
                 )}
-                {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                {/* eslint-enable lantern-i18n/no-hardcoded-string */}
               </div>
             )}
 
@@ -1380,7 +1381,7 @@ export function EmailWorkspace({
             }
           }}
         >
-          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          {/* eslint-disable lantern-i18n/no-hardcoded-string */}
           <div
             style={{
               background: '#fff',
@@ -1754,7 +1755,7 @@ export function EmailWorkspace({
               </button>
             </div>
           </div>
-          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+          {/* eslint-enable lantern-i18n/no-hardcoded-string */}
         </div>
       )}
     </div>

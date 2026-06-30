@@ -3,34 +3,34 @@
   "_readme": "SINGLE SOURCE OF TRUTH for the product's brand. Edit THIS file, drop new images into brand/assets/, then run `npm run brand:sync`. Every surface (the app, the website, the press kit, email, app metadata) reads from here. Plain-language guide: ../HOW-TO-REBRAND.md. Do NOT hand-edit generated files (src/config/brand.ts, src/styles/brand-tokens.css, website/styles/brand.css) — change this and re-run sync.",
   "version": 1,
 
-  "name": "Keepance",
-  "nameShort": "Keepance",
-  "legalName": "Keepance",
-  "possessive": "Keepance's",
+  "name": "Advisor Prep Hero",
+  "nameShort": "APH",
+  "legalName": "Advisor Prep Hero",
+  "possessive": "Advisor Prep Hero's",
 
   "tagline": "The private intelligence layer for a financial advisory practice.",
   "taglineShort": "Local-first workspace for confidential client work.",
   "positioning": "the private place your whole practice lives, and it answers you back",
 
   "descriptions": {
-    "store": "Keepance is a local-first AI workspace for professionals who handle confidential client work. Your files stay on your machine. Bring your own API key or run AI models locally with Ollama. Supports attorneys, CPAs, consultants, and other professionals where client confidentiality is non-negotiable.",
+    "store": "Advisor Prep Hero is a local-first AI workspace for financial advisors who handle confidential client work. Your files stay on your machine. Bring your own API key or run AI models locally with Ollama. Supports RIAs, advisors, CPAs, and consultants where client confidentiality is non-negotiable.",
     "shortStore": "Local-first AI workspace for confidential client work",
     "meta": "Find anything you have ever emailed or filed, with cited answers. Redline in real Word. Your client files never leave your machine. Built for financial advisors and RIAs."
   },
 
   "colors": {
     "_readme": "The four primitive brand colors. Everything else (alpha tints, sidebar, action buttons) is DERIVED from these in src/styles/globals.css via the --kp-navy-rgb / --kp-accent-rgb triples, so changing a value here propagates everywhere. Use 6-digit lowercase hex.",
-    "navy": "#0a2540",
-    "pink": "#ff3ce8",
-    "blue": "#5dc6ff",
-    "accent": "#1f74c4"
+    "navy": "#2b2d42",
+    "pink": "#ef233c",
+    "blue": "#8d99ae",
+    "accent": "#ef233c"
   },
 
   "messaging": {
     "_readme": "Identity-bearing strings the app and exports show. Body copy keeps living in the UI and references the name via BRAND.name; only the identity hooks live here.",
     "onboardingHeadline": "Your private intelligence layer",
-    "redlineAuthor": "Keepance AI",
-    "exportWatermark": "Prepared with Keepance"
+    "redlineAuthor": "Advisor Prep Hero AI",
+    "exportWatermark": "Prepared with Advisor Prep Hero"
   },
 
   "urls": {
@@ -51,25 +51,25 @@
   },
 
   "lockedIdentifiers": {
-    "_readme": "🚨 DO NOT change these to rebrand. They are LOAD-BEARING — changing one breaks auto-updates, saved API keys/logins, encrypted data, or payments for existing users. brand-sync READS them only to ASSERT they are still present and untouched in the codebase; it never writes them. Changing any of these is a founder + ops decision that needs a migration release. See HOW-TO-REBRAND.md § 'The locked layer'.",
-    "tauriBundleId": "com.keepance.app",
-    "cargoBinaryName": "keepance",
+    "_readme": "🚨 These are the LANTERN permanent-plumbing values (pre-launch flip 2026-06-30 — no migration needed, no existing users). brand-sync READS them only to ASSERT they are still present and untouched in the codebase. Changing any after launch is a founder + ops decision that needs a migration release. See HOW-TO-REBRAND.md § 'The locked layer'.",
+    "tauriBundleId": "com.lantern.app",
+    "cargoBinaryName": "lantern",
     "keychainServices": [
-      "com.keepance.app",
-      "com.keepance.vault.",
-      "keepance-audit-enc",
-      "keepance-mail-enc",
-      "keepance-vectors-enc",
-      "keepance-mail-ms",
-      "keepance-mail-imap",
-      "keepance-mail-gmail",
-      "keepance-docs-ms",
-      "keepance-onedrive-",
-      "keepance-crm-"
+      "com.lantern.app",
+      "com.lantern.vault.",
+      "lantern-audit-enc",
+      "lantern-mail-enc",
+      "lantern-vectors-enc",
+      "lantern-mail-ms",
+      "lantern-mail-imap",
+      "lantern-mail-gmail",
+      "lantern-docs-ms",
+      "lantern-onedrive-",
+      "lantern-crm-"
     ],
-    "storageKeyPrefix": "keepance:",
-    "appDataDir": ".keepance",
-    "vaultMetaFile": ".keepance-vault.json",
+    "storageKeyPrefix": "lantern:",
+    "appDataDir": ".lantern",
+    "vaultMetaFile": ".lantern-vault.json",
     "updaterEndpoint": "https://github.com/keepance/keepance/releases/latest/download/latest.json",
     "licenseApi": "https://licenses.keepance.com",
     "firmApi": "https://api.keepance.com",

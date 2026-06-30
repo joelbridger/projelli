@@ -14,7 +14,7 @@
  * explanation on demand (tooltip). The always-visible two-line paragraph is
  * removed; the meaning (three confidentiality states, color-coded) stays.
  */
-/* eslint-disable keepance-i18n/no-hardcoded-string */
+/* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useState } from 'react';
 import { Briefcase, Globe, Map as MapIcon, Info, Lock } from 'lucide-react';
 import { useActiveMatter } from '@/platform/matter/matterStore';
@@ -28,6 +28,7 @@ import {
 } from '@/ui/tooltip';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { IconButton } from '@/ui/kp';
+import { EV_OPEN_PRIVACY_CENTER } from '@/config/identity';
 
 export function TrustBar() {
   const activeMatter = useActiveMatter();
@@ -47,8 +48,8 @@ export function TrustBar() {
     confidentialityMode === 'local-only'
       ? 'On this computer only: AI runs on your machine. No AI prompt or file is sent to a cloud AI.'
       : confidentialityMode === 'assured'
-        ? 'Assured: requests route through your firm\'s zero-retention proxy. Keepance never sees content.'
-        : 'Sent to your AI provider account. Sent straight from your machine to your provider with your own API key. Keepance is not in between. Your provider receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your provider account.';
+        ? 'Assured: requests route through your firm\'s zero-retention proxy. Advisor Prep Hero never sees content.'
+        : 'Sent to your AI provider account. Sent straight from your machine to your provider with your own API key. Advisor Prep Hero is not in between. Your provider receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your provider account.';
 
   return (
     <div
@@ -119,7 +120,7 @@ export function TrustBar() {
         variant="ghost"
         size="xs"
         title="Privacy Center"
-        onClick={() => { window.dispatchEvent(new CustomEvent('keepance:open-privacy-center')); }}
+        onClick={() => { window.dispatchEvent(new CustomEvent(EV_OPEN_PRIVACY_CENTER)); }}
         style={{ flexShrink: 0 }}
       />
 

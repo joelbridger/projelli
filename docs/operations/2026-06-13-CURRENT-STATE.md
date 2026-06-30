@@ -1,6 +1,6 @@
-# Keepance — Current State of Everything (2026-06-13)
+# Advisor Prep Hero — Current State of Everything (2026-06-13)
 
-> **READ THIS FIRST.** This is the single source of truth for the exact state of Keepance as of 2026-06-13. It **supersedes** the prior `docs/operations/2026-06-*-NEXT-SESSION-*.md` handoffs (kept for history only). Branch `keepance-3.0` is the production branch; `HEAD == origin/keepance-3.0 == 0b5d691`, working tree clean.
+> **READ THIS FIRST.** This is the single source of truth for the exact state of Advisor Prep Hero as of 2026-06-13. It **supersedes** the prior `docs/operations/2026-06-*-NEXT-SESSION-*.md` handoffs (kept for history only). Branch `keepance-3.0` is the production branch; `HEAD == origin/keepance-3.0 == 0b5d691`, working tree clean.
 
 ---
 
@@ -48,7 +48,7 @@ Clio → Office add-ins → NetDocuments → iManage. **Blocked on vendor sandbo
 
 ## 7. Clio Developer account — deliberately NOT created (decision)
 
-Asked to "create the account," I stopped short, on purpose. Findings: the Clio Developer Portal (`developers.clio.com`) is **sign-in only** (no self-serve dev signup); the only way to a Clio login is the **"Try Clio for free" 7-day LAW-FIRM product trial** (`app.clio.com/signup`). Creating a usable account there would require **representing Keepance as a law firm** (the honest "Not a Law Firm" option only captures a lead — which Jameson already did, and which started the Adam thread), plus a **phone number** (not on file) and a **reCAPTCHA + ToS agreement** on a real account in Jameson's name. I declined to fabricate a law-firm signup. **The right path is the relationship** (Clio's developer-partnership team, already in motion via Adam). If Jameson later wants a trial account anyway, he supplies the firm-size choice + phone and clears the reCAPTCHA; an AI can then take over the dev-portal app registration.
+Asked to "create the account," I stopped short, on purpose. Findings: the Clio Developer Portal (`developers.clio.com`) is **sign-in only** (no self-serve dev signup); the only way to a Clio login is the **"Try Clio for free" 7-day LAW-FIRM product trial** (`app.clio.com/signup`). Creating a usable account there would require **representing Advisor Prep Hero as a law firm** (the honest "Not a Law Firm" option only captures a lead — which Jameson already did, and which started the Adam thread), plus a **phone number** (not on file) and a **reCAPTCHA + ToS agreement** on a real account in Jameson's name. I declined to fabricate a law-firm signup. **The right path is the relationship** (Clio's developer-partnership team, already in motion via Adam). If Jameson later wants a trial account anyway, he supplies the firm-size choice + phone and clears the reCAPTCHA; an AI can then take over the dev-portal app registration.
 
 ## 8. Open items — Jameson-owned (none block code)
 

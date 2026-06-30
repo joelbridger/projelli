@@ -1,6 +1,6 @@
 > **CHANNEL STRATEGY OUTDATED** — This playbook was written for Product Hunt / Hacker News / IndieHackers launch targeting indie founders. As of 2026-05-27, the ICP is attorneys, CPAs, and consultants. The new channels are bar association CLEs, AICPA/NAEA newsletters, and Umbrex/Lenny (consulting). This content needs rewriting before use.
 
-# Marketing Playbook, Keepance Launch
+# Marketing Playbook, Advisor Prep Hero Launch
 
 > **Status:** Index of all marketing assets produced 2026-04-09.
 > **Audience:** Future Claude sessions, Jameson reviewing during launch ramp.
@@ -119,7 +119,7 @@ Follow the timeline in `PRODUCT_HUNT_LAUNCH.md` § Launch day timeline. The full
 | T+2 | Send first newsletter outreach pitches (Tier 1: BetaList, MakerNews, Console.dev) | Jameson | `NEWSLETTER_OUTREACH.md` |
 | T+3 | Submit to AlternativeTo | Jameson |, (web form) |
 | T+3 | Reddit post sequence: r/SideProject, r/Entrepreneur, r/SaaS, r/LocalLLaMA, r/ChatGPTPro (1 per day, customized) | Jameson |, |
-| T+5 | Publish first blog post: "How I built Keepance in 8 weeks" | Both | `website/blog/how-i-built-keepance-in-8-weeks.html` |
+| T+5 | Publish first blog post: "How I built Advisor Prep Hero in 8 weeks" | Both | `website/blog/how-i-built-keepance-in-8-weeks.html` |
 | T+6 | Send week-1 retention email + week-1 IH update post | Both | `EMAIL_SEQUENCES.md` + `INDIE_HACKERS_LAUNCH.md` |
 | T+7 | Post-launch debrief, fill in numbers in `PRODUCT_HUNT_LAUNCH.md` debrief table | Both | `PRODUCT_HUNT_LAUNCH.md` |
 | T+7 | Publish second blog post: "Why local-first AI for founders" | Both | `website/blog/why-local-first-ai-for-founders.html` |
@@ -131,7 +131,7 @@ Follow the timeline in `PRODUCT_HUNT_LAUNCH.md` § Launch day timeline. The full
 
 The 8 marketing docs are intentionally cross-referencing. Here's how to navigate them:
 
-- **If someone asks "how is Keepance different from X?"** → Open `COMPETITIVE_LANDSCAPE.md`, find the relevant "vs X" paragraph, copy.
+- **If someone asks "how is Advisor Prep Hero different from X?"** → Open `COMPETITIVE_LANDSCAPE.md`, find the relevant "vs X" paragraph, copy.
 - **If something needs to go on Product Hunt** → Open `PRODUCT_HUNT_LAUNCH.md`, lift directly. The maker comment, gallery captions, and FAQ replies are launch-ready.
 - **If something needs to go on Hacker News** → Open `SHOW_HN_LAUNCH.md`. DO NOT use the PH copy on HN, different audience, different rules.
 - **If the IndieHackers narrative needs writing** → Open `INDIE_HACKERS_LAUNCH.md`. Lift the body, fill in the post-launch numbers, post.
@@ -153,7 +153,7 @@ Even after this playbook, there are things that aren't here yet. Most of them de
 | **Launch retrospective post** | Need real numbers | Day 7-10 post-launch |
 | **30-day post-launch update post** | Need a month of data | Day 30 post-launch |
 | **First customer testimonials** | Need first customers | Day 14 post-launch |
-| **Case study: how Founder X uses Keepance** | Need at least one customer who's willing | Month 2 |
+| **Case study: how Founder X uses Advisor Prep Hero** | Need at least one customer who's willing | Month 2 |
 | **Blog post: lessons from the first 100 customers** | Need 100 customers | When it happens |
 
 ### Things that need decisions before they can be written
@@ -163,7 +163,7 @@ Even after this playbook, there are things that aren't here yet. Most of them de
 | **Affiliate program copy** | Yes/no on standing up an affiliate program in LemonSqueezy | Jameson |
 | **Public roadmap** | Yes/no on publishing a roadmap (incompatible with "build what users actually ask for") | Jameson |
 | **v1.1 launch announcement** | When v1.1 ships | Both |
-| **"Keepance Lite" open-source funnel** | Per Decision #15: explicitly NOT in v1, possibly never | Future |
+| **"Advisor Prep Hero Lite" open-source funnel** | Per Decision #15: explicitly NOT in v1, possibly never | Future |
 
 ### Things that need different channels
 

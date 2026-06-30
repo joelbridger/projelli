@@ -157,10 +157,10 @@ describe('BUG-016 — Ask grounding', () => {
     // Pin Files-only mode: this suite tests the strict cited-or-decline grounding
     // net, which is exactly Files-only mode's contract. (Smart mode is the
     // default and is covered in ask-smart-agent.test.tsx.)
-    localStorage.setItem('keepance:ask-files-only', '1');
+    localStorage.setItem('lantern:ask-files-only', '1');
   });
   afterEach(() => {
-    localStorage.removeItem('keepance:ask-files-only');
+    localStorage.removeItem('lantern:ask-files-only');
   });
 
   it('declines (no fabricated figure, no banner) when retrieval is empty', async () => {

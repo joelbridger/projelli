@@ -16,10 +16,10 @@
 - **Also fixed Windows auto-update** (which had never worked): the updater signature was being generated on the *unsigned* installer, before Azure signing. `release.yml` now (a) regenerates the Tauri updater `.sig` over the FINAL Azure-signed installer via `tauri signer sign`, (b) uploads it, (c) runs a new `finalize-updater-manifest` job that merges a `windows-x86_64` entry into `latest.json`.
 - **Verified:** the public `releases/latest/download/latest.json` serves **2.1.1** with `windows-x86_64` (valid 420-char signature, correct setup.exe URL); v2.1.1 is marked **Latest**.
 - Workflow + version-bump change is commit `651ba9f` on master.
-- *Minor, deferred (cosmetic):* the `.mcpb` asset is misnamed `keepance-.mcpb` (empty platform triple); the portable exe is `Keepance__x64-portable.exe` (missing version).
+- *Minor, deferred (cosmetic):* the `.mcpb` asset is misnamed `keepance-.mcpb` (empty platform triple); the portable exe is `Advisor Prep Hero__x64-portable.exe` (missing version).
 
 ### 2. LemonSqueezy products created (#1 of the paid funnel): DONE
-Store **#340394** (`projelli` slug). Note: this store also hosts **Guesslet Pro $19.99**, so anything consuming this store's webhooks must filter to Keepance products. All four published:
+Store **#340394** (`projelli` slug). Note: this store also hosts **Guesslet Pro $19.99**, so anything consuming this store's webhooks must filter to Advisor Prep Hero products. All four published:
 
 | Product | Price | Checkout URL |
 |---|---|---|

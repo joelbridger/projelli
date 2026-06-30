@@ -91,10 +91,10 @@ describe('useTelemetryConsent', () => {
 
   it('fires a cross-tab custom event when consent changes', () => {
     const listener = vi.fn();
-    window.addEventListener('keepance:telemetry-consent-change', listener);
+    window.addEventListener('lantern:telemetry-consent-change', listener);
     setTelemetryConsent('enabled');
     expect(listener).toHaveBeenCalledOnce();
-    window.removeEventListener('keepance:telemetry-consent-change', listener);
+    window.removeEventListener('lantern:telemetry-consent-change', listener);
   });
 
   it('getTelemetryConsent returns correct tri-state', () => {
@@ -120,7 +120,7 @@ describe('sendEvent', () => {
   beforeEach(() => {
     store = mockLocalStorage();
     // Non-private mode so the fail-closed kill-switch doesn't skip the send.
-    store['keepance:settings'] = JSON.stringify({ state: { values: { confidentialityMode: 'direct' } }, version: 1 });
+    store['lantern:settings'] = JSON.stringify({ state: { values: { confidentialityMode: 'direct' } }, version: 1 });
     fetchCalls = [];
     fetchBodies = [];
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
@@ -202,7 +202,7 @@ describe('sendEventOnce', () => {
     fetchCallCount = 0;
     store['keepance_telemetry_consent'] = 'enabled';
     // Non-private mode so the fail-closed kill-switch doesn't skip the send.
-    store['keepance:settings'] = JSON.stringify({ state: { values: { confidentialityMode: 'direct' } }, version: 1 });
+    store['lantern:settings'] = JSON.stringify({ state: { values: { confidentialityMode: 'direct' } }, version: 1 });
     vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       fetchCallCount++;
       return new Response('{}', { status: 200 });

@@ -1,4 +1,4 @@
-# Real Keepance Desktop Headless Harness Probe
+# Real Advisor Prep Hero Desktop Headless Harness Probe
 
 This directory proves that the Linux debug build can be driven as the real Tauri desktop app without a signed installer.
 
@@ -35,7 +35,7 @@ The driver creates a W3C WebDriver session through `tauri-driver`, launches the 
 - the status bar is visible (`data-testid="status-bar"`)
 - a real file from the temp filesystem workspace, `probe.md`, is visible in the app
 
-That path exercises the Tauri desktop webview and Tauri filesystem backend. It avoids the native folder picker by pre-seeding Keepance's own recent-workspace localStorage, then opening that workspace normally through the app.
+That path exercises the Tauri desktop webview and Tauri filesystem backend. It avoids the native folder picker by pre-seeding Advisor Prep Hero's own recent-workspace localStorage, then opening that workspace normally through the app.
 
 ## Data isolation
 
@@ -48,7 +48,7 @@ XDG_CONFIG_HOME=<tmp>/xdg-config
 XDG_CACHE_HOME=<tmp>/xdg-cache
 ```
 
-The probe workspace is `<tmp>/workspace`. This keeps WebKit profile data, Keepance app data, keychain fallback files, and `~/.keepance`-style state away from Jameson's real home directory. The only repo writes are evidence files in this directory.
+The probe workspace is `<tmp>/workspace`. This keeps WebKit profile data, Advisor Prep Hero app data, keychain fallback files, and `~/.keepance`-style state away from Jameson's real home directory. The only repo writes are evidence files in this directory.
 
 ## Evidence
 
@@ -61,6 +61,6 @@ The latest successful run writes:
 
 ## Gotchas
 
-The debug binary is configured with `devUrl: http://localhost:5173`, so a Keepance Vite server must be available on port `5173`. The harness starts one if the port is free. If the port is already in use, it reuses it only if the page title is Keepance.
+The debug binary is configured with `devUrl: http://localhost:5173`, so a Advisor Prep Hero Vite server must be available on port `5173`. The harness starts one if the port is free. If the port is already in use, it reuses it only if the page title is Advisor Prep Hero.
 
 Linux WebKitGTK prints DRI3 and a11y-bus warnings under Xvfb. They are noisy but non-fatal for this harness.

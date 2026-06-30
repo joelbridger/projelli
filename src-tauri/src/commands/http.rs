@@ -159,7 +159,7 @@ pub async fn fetch_url_title(url: String) -> Result<String, String> {
     let client = match reqwest::Client::builder()
         .timeout(Duration::from_secs(5))
         .redirect(reqwest::redirect::Policy::limited(5))
-        .user_agent("KeepanceTitleFetcher/1.0")
+        .user_agent("Advisor Prep HeroTitleFetcher/1.0")
         .build()
     {
         Ok(c) => c,

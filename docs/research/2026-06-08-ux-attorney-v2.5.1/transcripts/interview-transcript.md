@@ -5,7 +5,7 @@
 | **Session** | 1 of 2 (Generative interview; Session 2 is the hands-on app test) |
 | **Date** | 2026-06-08 |
 | **Participant** | P1 = Diane Marchetti, Owner/Principal Attorney, Marchetti Law LLC (Cleveland, OH) |
-| **Moderator** | Dr. Lena Whitfield, Principal UX Researcher (fractional), Keepance |
+| **Moderator** | Dr. Lena Whitfield, Principal UX Researcher (fractional), Advisor Prep Hero |
 | **Format** | Remote video call, recorded with consent. Semi-structured, ~60 minutes. No interface shown; concept presented verbally only in Section 6. |
 | **Note** | This is the SYNTHETIC Pass A participant. Diane is an evidence-grounded composite persona, voiced for a rigorous synthetic interview to pressure-test the v2.5.1 study design before real-participant recruiting. Findings here are directional, not proof. |
 
@@ -337,7 +337,7 @@ It's a desktop app for confidential work. Your files stay on your own computer, 
 
 **LW:** That's the idea. I want to make sure I understand your understanding, though. What does that mean to you, if it's true?
 
-**DM:** Well, if it's true, and I'm being honest that I'm still wrapping my head around it, it means, I think, that you, Keepance, you never see my client's information. The question goes around you, straight to the AI company. Which is, huh. That's actually different from what I assumed. I assumed any app like this is the middleman, that everything I do flows through your servers and you've got it all sitting there. You're telling me you don't even have it, because it doesn't come to you, it goes straight past you to the AI. That's, okay, that's a relief, if I'm understanding it. That's a smaller scary box than I thought.
+**DM:** Well, if it's true, and I'm being honest that I'm still wrapping my head around it, it means, I think, that you, Advisor Prep Hero, you never see my client's information. The question goes around you, straight to the AI company. Which is, huh. That's actually different from what I assumed. I assumed any app like this is the middleman, that everything I do flows through your servers and you've got it all sitting there. You're telling me you don't even have it, because it doesn't come to you, it goes straight past you to the AI. That's, okay, that's a relief, if I'm understanding it. That's a smaller scary box than I thought.
 
 But here's where my brain snags, and you should know this. Even if it skips you, it still goes to the AI company. To Claude, to OpenAI. So my client's question, or the bits of the email I'm asking about, those still land on the AI company's servers, right? Which is the exact thing that scared me with ChatGPT. So part of me hears "it doesn't go through us" and feels relieved, and then the other part of me goes, but it still goes to them, the AI people, and that was the whole problem in the first place. So I'm, I'll be honest, I'm a little tangled up. The "not through us" helps, but it doesn't fully untangle the "but it still goes to the AI" knot in my head. Does that make sense? I'm not sure I've got it clean.
 

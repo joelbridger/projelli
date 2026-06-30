@@ -4,7 +4,7 @@
 >
 > **Read first, in order:** `01-design-spec.md` (this folder), `~/keepance/CLAUDE.md` (esp. the model/effort policy + voice rules), `~/keepance/ARCHITECTURE.md` (the 5-layer DAG), and the named source files at the top of each phase. Jameson is **not a developer** — never surface raw stack traces to him; translate.
 
-**Goal:** Turn Keepance into a bottoms-up wedge an individual can download and use safely on their own, that lands-and-expands into firm deals — without ever claiming "firm-compliant" or leaking client data by default.
+**Goal:** Turn Advisor Prep Hero into a bottoms-up wedge an individual can download and use safely on their own, that lands-and-expands into firm deals — without ever claiming "firm-compliant" or leaking client data by default.
 
 **Architecture:** Extend existing surfaces, do not build new infrastructure. The crux is flipping the confidentiality default from `direct` (cloud) to a no-egress-until-informed-choice state for personal installs, then layering an honesty moment, a firm-ready security PDF, a solo→firm bridge, and frictionless paid-trial packaging on top. Firm-tier behavior must remain unchanged.
 
@@ -189,7 +189,7 @@ git commit -m "feat(privacy): add personal-install safe-by-default egress resolv
 
 ### Task 3.1: Build the firm security-pack document
 - [ ] Read `DataMapDialog.tsx` to reuse its print-to-PDF mechanism and `DataMapContent`.
-- [ ] Create `src/features/privacy/FirmSecurityPack.tsx`: a print-optimized document aimed at firm IT/GC, assembling (from real sources, no marketing language): what Keepance is, the architecture, `DataMapContent`, the three modes + exact per-mode egress, BYOK, the firm-tier security story (E2EE relay, SSO, ethical walls by key denial, DPA/SOC 2 **actual** status), and a "what to ask us" contact line. All copy from `03-copy-deck.md`.
+- [ ] Create `src/features/privacy/FirmSecurityPack.tsx`: a print-optimized document aimed at firm IT/GC, assembling (from real sources, no marketing language): what Advisor Prep Hero is, the architecture, `DataMapContent`, the three modes + exact per-mode egress, BYOK, the firm-tier security story (E2EE relay, SSO, ethical walls by key denial, DPA/SOC 2 **actual** status), and a "what to ask us" contact line. All copy from `03-copy-deck.md`.
 - [ ] Add an entry point in `PrivacyCenterHome.tsx` (and/or Settings → Privacy): "Generate a security overview for my firm".
 - [ ] Tests: renders without crashing; contains the per-mode egress facts; passes the no-em-dash + no-"guaranteed compliant" assertion (add a test that the string "guaranteed compliant" / "fully compliant" never appears).
 - [ ] Commit `feat(privacy): one-click firm security pack (PDF) for IT/GC review`.

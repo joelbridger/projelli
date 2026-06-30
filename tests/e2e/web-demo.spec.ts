@@ -7,7 +7,7 @@
  *   2. Mocks the proxy at /api/demo-chat so we can drive the limit gate
  *      without a real Anthropic key.
  *   3. Triggers the limit modal directly via the
- *      `keepance:demo-limit-hit` window event (the same hook DemoLimitGate
+ *      `lantern:demo-limit-hit` window event (the same hook DemoLimitGate
  *      listens for from the proxy). This avoids a 5-message UI walk and
  *      keeps the test stable across product UI changes.
  *   4. Verifies download buttons in the modal carry UTM params.
@@ -78,7 +78,7 @@ test.describe('Web demo sandbox (/try)', () => {
     // not depend on a chat surface render path that may still be evolving.
     await page.evaluate(() => {
       window.dispatchEvent(
-        new CustomEvent('keepance:demo-limit-hit', {
+        new CustomEvent('lantern:demo-limit-hit', {
           detail: { reason: 'rate-limited', message: 'mock' },
         }),
       );
@@ -113,11 +113,11 @@ test.describe('Web demo sandbox (/try)', () => {
     await expect(page.getByTestId('demo-mode-banner')).toBeVisible();
 
     // Simulate five successful proxy sends by dispatching the contract
-    // `keepance:demo-message-sent` event the way demoAIProvider does on
+    // `lantern:demo-message-sent` event the way demoAIProvider does on
     // success. After the fifth one, DemoLimitGate opens the modal.
     await page.evaluate(() => {
       for (let i = 0; i < 5; i++) {
-        window.dispatchEvent(new CustomEvent('keepance:demo-message-sent'));
+        window.dispatchEvent(new CustomEvent('lantern:demo-message-sent'));
       }
     });
 

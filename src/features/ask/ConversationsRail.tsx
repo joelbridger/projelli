@@ -212,9 +212,9 @@ export function ConversationsRail({
               lineHeight: 1.5,
             }}
           >
-            {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+            {/* eslint-disable lantern-i18n/no-hardcoded-string */}
             Your conversations will appear here.
-            {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+            {/* eslint-enable lantern-i18n/no-hardcoded-string */}
           </p>
         ) : (
           groups.map((group) =>

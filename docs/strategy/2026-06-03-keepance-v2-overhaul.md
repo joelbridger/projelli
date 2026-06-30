@@ -1,10 +1,10 @@
-# Keepance V2 Overhaul Proposal
+# Advisor Prep Hero V2 Overhaul Proposal
 
 > **For Jameson:** this is a proposal to read and approve, not code to run. It is written in plain language with the technical detail tucked into clearly marked *Implementation notes* so a future engineer (or a Claude session) can execute it. Nothing here ships until you give the word.
 
 > **For agentic workers:** this is a program-level proposal spanning multiple independent subsystems. Per the `superpowers:writing-plans` scope check, each workstream below becomes its own bite-sized, test-driven execution plan under `docs/superpowers/plans/YYYY-MM-DD-<workstream>.md` at the time it is greenlit. Do not execute directly from this document; generate the per-workstream plan first.
 
-**Goal:** Close the gap between who Keepance is *for* (sophisticated, non-technical professionals bound by confidentiality) and how Keepance currently *feels* (a developer-grade tool), so that a named reviewer can land on the site, install the app, reach real value, and produce a real deliverable without hitting a wall.
+**Goal:** Close the gap between who Advisor Prep Hero is *for* (sophisticated, non-technical professionals bound by confidentiality) and how Advisor Prep Hero currently *feels* (a developer-grade tool), so that a named reviewer can land on the site, install the app, reach real value, and produce a real deliverable without hitting a wall.
 
 **Source of findings:** [Vertical Persona Audit, 2026-06-03](./2026-06-03-vertical-persona-audit.md). Every fix in this proposal traces back to a numbered finding there; the [traceability matrix](#appendix-traceability-matrix) at the end proves full coverage.
 
@@ -20,7 +20,7 @@ Jameson reviewed the audit and made three calls that govern everything below. Th
 2. **Build the advisor pack.** Advisors are a serious vertical in their own right, not a fast-follow. The Advisor Practice Pack is now a committed build (Workstream H, Advisors), grounded in Regulation S-P (the amended safeguards and breach-notification rules) and fiduciary confidentiality duties, matching the depth of the legal and tax packs.
 3. **Nothing goes to market until the entire overhaul is done to a "perfect" bar.** No reviewer outreach, no cold drafts, no launch of any kind until every workstream here is complete and verified. This document is the definition of done. Reviewer-draft approval is paused until then, and is not to be raised again as a priority until the work is finished.
 
-**Context that sharpens the bar:** Keepance has zero users today. There is no installed base to protect and no migration risk, so we have full freedom to change anything. It also means every future user is a first-time user, so the website and the first-run experience have to be right for everyone, not just forgiving early adopters. "Advisors can use the core app today" is therefore not a real position: nobody is using it, and without the pack it is not a complete advisor solution. That is why we are building the pack.
+**Context that sharpens the bar:** Advisor Prep Hero has zero users today. There is no installed base to protect and no migration risk, so we have full freedom to change anything. It also means every future user is a first-time user, so the website and the first-run experience have to be right for everyone, not just forgiving early adopters. "Advisors can use the core app today" is therefore not a real position: nobody is using it, and without the pack it is not a complete advisor solution. That is why we are building the pack.
 
 ---
 
@@ -40,7 +40,7 @@ Each workstream has: the **problem** (in the persona's words), the **root cause*
 
 - **Impact:** High / Medium / Low (effect on trial-to-activation, activation-to-purchase, or trust).
 - **Effort:** S / M / L (relative build size; no time estimates per house style).
-- **Autonomy:** who is needed. `auto` = I build and commit it without asking. `deploy-gate` = built autonomously, but going live needs your explicit go (standing rule for commercial Keepance). `Jameson` = needs a fact or decision only you have. `advisor` = needs the bar-active attorney or CPA/EA reviewer. `board` = a strategic decision to make together.
+- **Autonomy:** who is needed. `auto` = I build and commit it without asking. `deploy-gate` = built autonomously, but going live needs your explicit go (standing rule for commercial Advisor Prep Hero). `Jameson` = needs a fact or decision only you have. `advisor` = needs the bar-active attorney or CPA/EA reviewer. `board` = a strategic decision to make together.
 
 ---
 
@@ -74,7 +74,7 @@ Each workstream has: the **problem** (in the persona's words), the **root cause*
 **Root cause.** The onboarding wizard already asks the profession, offers a workspace folder, and walks through getting an Anthropic key with a console link, but it presumes the user knows what an API key *is*, offers no way to confirm the key works, and does not connect the profession choice to anything the user then sees.
 
 **Fixes.**
-1. Add a plain-English **"What is an API key (and why Keepance works this way)"** step and a matching short website page: a key is like a password that lets your computer talk directly to the AI company, which is exactly what keeps your work off our servers. Two sentences, no jargon, framed as a privacy feature rather than a technical chore.
+1. Add a plain-English **"What is an API key (and why Advisor Prep Hero works this way)"** step and a matching short website page: a key is like a password that lets your computer talk directly to the AI company, which is exactly what keeps your work off our servers. Two sentences, no jargon, framed as a privacy feature rather than a technical chore.
 2. Add a **"Test this key"** button that makes one tiny real call and returns a green check or a plain-English error ("that key looks incomplete," "that key was rejected by Anthropic"). Removing the "did I do this right?" anxiety is most of the battle.
 3. Set **cost expectations during setup**: a one-line "most solo users spend roughly $5 to $15 a month in AI costs, billed by Anthropic, not us," linking to the cost explainer (Workstream F).
 4. **Wire the profession choice to the experience**: after the user picks Legal / Tax / Consulting, load the matching templates and a matching sample document, so the first thing they see is *their* work, not a generic file. (The profession is already stored; it just is not connected yet.)
@@ -90,7 +90,7 @@ Each workstream has: the **problem** (in the persona's words), the **root cause*
 
 ## Workstream C: The deliverable pipeline (output that fits real work)
 
-**Problem.** "Outputs are Markdown; my work product is Word, PDF, and PowerPoint" (attorney, CPA, consultant). Without this, Keepance is a scratchpad, not a tool that fits any professional output pipeline. This is existential.
+**Problem.** "Outputs are Markdown; my work product is Word, PDF, and PowerPoint" (attorney, CPA, consultant). Without this, Advisor Prep Hero is a scratchpad, not a tool that fits any professional output pipeline. This is existential.
 
 **Root cause.** The export *capability* already exists (Word and PowerPoint utilities, plus a Markdown-to-PowerPoint converter), but the editor exposes only a single "Download" button that saves the file in its current format, and there is no in-app PDF export. The gap is surfacing plus one real build (PDF).
 
@@ -99,7 +99,7 @@ Each workstream has: the **problem** (in the persona's words), the **root cause*
 2. **Add in-app PDF export.** This is the one genuine build. (Tauri can shell to a bundled renderer; the browser build can use a client-side HTML-to-PDF path. Decide per platform in the execution plan.)
 3. **Profession-aware output formatting**: a privilege log exports as a clean table, a tax research memo in standard memo format, a consulting deliverable as titled slides. The formatting lives with each template's output spec.
 4. Add **"Copy as formatted"** (rich text to clipboard) for the common case of pasting a section straight into Word or an email.
-5. Add a simple **letterhead / firm-name header** option so exported documents look like the firm's, not Keepance's.
+5. Add a simple **letterhead / firm-name header** option so exported documents look like the firm's, not Advisor Prep Hero's.
 
 **Affected files.** `src/components/editor/FormattingToolbar.tsx` (the export menu), `src/utils/docx-io.ts`, `src/utils/pptx-io.ts`, `src/utils/saveFile.ts`, a new PDF export utility, and per-template output formatting in `src/modules/workflow/templates/`. Tauri side: `src-tauri/src/commands/` if a native renderer is used.
 
@@ -119,7 +119,7 @@ Each workstream has: the **problem** (in the persona's words), the **root cause*
 3. Add a **cross-boundary warning**: if a chat's context would include files from two different top-level client folders, show a clear confirmation ("This chat can see files from both Client A and Client B. Continue?").
 4. **Document the data model** plainly, on the site and in-app: one client per top-level folder, scoping on by default, here is how isolation works. This turns a hidden risk into a stated safeguard and a selling point.
 
-**Affected files.** `src/stores/aiChatStore.ts`, `src/components/ai/AIChatViewer.tsx`, `src/utils/ai-file-context.ts` (context assembly and the open-files block), plus settings for default scoping in `src/stores/settingsStore.ts`. Website: a short "How Keepance keeps clients separated" section on the legal/consulting pages.
+**Affected files.** `src/stores/aiChatStore.ts`, `src/components/ai/AIChatViewer.tsx`, `src/utils/ai-file-context.ts` (context assembly and the open-files block), plus settings for default scoping in `src/stores/settingsStore.ts`. Website: a short "How Advisor Prep Hero keeps clients separated" section on the legal/consulting pages.
 
 **Impact:** High (it is the integrity of the core promise). **Effort:** M to L (needs careful design and tests). **Autonomy:** `auto` to build, `deploy-gate` to release. This is high-stakes; the execution plan gets extra test coverage and a review checkpoint.
 
@@ -136,7 +136,7 @@ Each workstream has: the **problem** (in the persona's words), the **root cause*
 2. **Verify the founder bio.** "Eight years at Samsung, AstraZeneca, Tesla, University College London" is live and unverified; a reviewer will Google it before replying. Confirm and adjust the copy to match exactly. `Jameson` input required, and this should land before reviewer outreach scales.
 3. **De-hedge the telemetry copy.** Reality is opt-in with nothing collected until enabled, which is stronger than the current phrasing. Replace "no telemetry by default" with a plain, unhedged statement of the opt-in posture. This converts a liability into an asset.
 4. **Fix disclaimer placement.** Lead each compliance section with the "verify with your bar counsel / tax advisor" caveat, then give the specifics, so the caveat is actually read.
-5. **Add a backup story.** One honest paragraph on the site and a plain in-app line: "Your Keepance files are ordinary files in a folder you chose. Back them up the way you back up everything else (Time Machine, OneDrive, an external drive)." Remove "back up with git" from the tour.
+5. **Add a backup story.** One honest paragraph on the site and a plain in-app line: "Your Advisor Prep Hero files are ordinary files in a folder you chose. Back them up the way you back up everything else (Time Machine, OneDrive, an external drive)." Remove "back up with git" from the tour.
 6. **Add per-vertical case studies** as reviewers and early users accumulate (longer than a testimonial, a real before/after).
 7. **Expand the "see exactly where your data goes" page** (it exists on the legal page) into a standalone architecture-transparency page a security-conscious buyer can forward to their IT or their managing partner.
 8. **Add a longevity line.** One honest sentence on the business model and commitment, to answer "will this exist in eighteen months."
@@ -254,12 +254,12 @@ Each workstream has: the **problem** (in the persona's words), the **root cause*
 
 ## Workstream K: "How it fits your stack" positioning
 
-**Problem.** Every persona already runs a system of record (Clio, Drake, PowerPoint, a CRM) and the site never says whether Keepance replaces or complements it, which reads as "two of everything."
+**Problem.** Every persona already runs a system of record (Clio, Drake, PowerPoint, a CRM) and the site never says whether Advisor Prep Hero replaces or complements it, which reads as "two of everything."
 
 **Fixes.**
-1. Add a **"How Keepance fits your existing tools"** page and a short per-vertical block: it complements Clio/Drake/Office, it does not replace them; here is the round trip (bring a document in, work on it privately, export it back).
+1. Add a **"How Advisor Prep Hero fits your existing tools"** page and a short per-vertical block: it complements Clio/Drake/Office, it does not replace them; here is the round trip (bring a document in, work on it privately, export it back).
 2. Lean on the existing **import support** (Word, PowerPoint, Excel, PDF in) plus the new export menu (Workstream C) to make the round trip concrete and credible.
-3. Frame Keepance explicitly as **"the private place your AI work happens,"** sitting beside the system of record rather than competing with it.
+3. Frame Advisor Prep Hero explicitly as **"the private place your AI work happens,"** sitting beside the system of record rather than competing with it.
 
 **Affected files.** A new page under `website/`; per-vertical blocks on the landing pages; references to the import utilities (`docx-io`, `pptx-io`, `spreadsheet-io`) for the round-trip claim.
 
@@ -334,7 +334,7 @@ How we will know V2 worked. Most of these are already trackable via the existing
 | Category | Who | Examples |
 |---|---|---|
 | Build and commit | `auto` | All website copy/assets, app features, template work, demo, onboarding, export, scoping |
-| Going live | `deploy-gate` | Any website deploy or app release needs your explicit go (standing rule for commercial Keepance) |
+| Going live | `deploy-gate` | Any website deploy or app release needs your explicit go (standing rule for commercial Advisor Prep Hero) |
 | Facts only you have | `Jameson` | Founder-bio verification; any personal-contact warm intros |
 | Expert sign-off | `advisor` | Statutory-claim templates; research-reliability standards before the legal/tax research templates ship |
 | Strategic decisions | `board` | Any pricing/tier/founding-offer change (managed-key and advisor-pack questions already decided, see Decisions locked) |

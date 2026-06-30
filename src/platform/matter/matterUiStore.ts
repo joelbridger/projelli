@@ -6,7 +6,7 @@
  * UI types and the pure `isWorkingSurface` helper, and re-exports the store as
  * `useMatterUiStore` so existing importers are unchanged. Persistence is
  * unchanged: the merged store's multi-key adapter still writes localStorage
- * `keepance:matter-ui-snapshots`.
+ * `lantern:matter-ui-snapshots`.
  *
  * Remembers, for each matter, the last "working" surface the user was on
  * (Search / Documents / Email / Workflows / Activity Log) and the document tab

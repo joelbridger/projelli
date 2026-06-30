@@ -5,8 +5,8 @@
 | **Session** | 2 of 2 (Moderated Usability Test) |
 | **Date** | 2026-06-08 |
 | **Participant** | P1: Diane Marchetti, Owner/Principal Attorney, Marchetti Law LLC (Cleveland, OH) |
-| **Moderator** | Dr. Lena Whitfield, Principal UX Researcher (fractional), Keepance |
-| **Build under test** | Keepance v2.5.1 (signed desktop build) |
+| **Moderator** | Dr. Lena Whitfield, Principal UX Researcher (fractional), Advisor Prep Hero |
+| **Build under test** | Advisor Prep Hero v2.5.1 (signed desktop build) |
 | **Method** | Moderated, task-based, concurrent think-aloud, screen-shared and recorded |
 | **Environment** | Fresh install on participant's Windows 11 machine, clean test license, provided test AI API key available, test Microsoft 365 mailbox preloaded with realistic but NON-confidential messages, bundled legal sample workspace |
 | **Duration** | ~60 minutes |
@@ -24,7 +24,7 @@ Speaker labels: **LW** = Dr. Lena Whitfield (moderator). **DM** = Diane Marchett
 
 **DM:** Yes, that's fine. Record away. I signed the thing.
 
-**LW:** Perfect. And can you see your whole Keepance window on the screen? I want to make sure your screen share is showing me the entire application, not just a corner of it.
+**LW:** Perfect. And can you see your whole Advisor Prep Hero window on the screen? I want to make sure your screen share is showing me the entire application, not just a corner of it.
 
 **DM:** [drags window, maximizes] There. It's filling the whole screen now. You can see the whole thing?
 
@@ -58,13 +58,13 @@ Speaker labels: **LW** = Dr. Lena Whitfield (moderator). **DM** = Diane Marchett
 
 **[0:04]**
 
-**LW:** Here's the setup. You just downloaded and installed Keepance because a colleague mentioned it. You're a litigator, the way you really are. Go ahead and get yourself set up the way you'd want it for real, and talk me through everything you see. I want you to get to the point where you feel you could actually start working. Whenever you're ready.
+**LW:** Here's the setup. You just downloaded and installed Advisor Prep Hero because a colleague mentioned it. You're a litigator, the way you really are. Go ahead and get yourself set up the way you'd want it for real, and talk me through everything you see. I want you to get to the point where you feel you could actually start working. Whenever you're ready.
 
-**DM:** Okay. So I'm going to double-click this. [double-clicks Keepance icon on desktop] Here we go.
+**DM:** Okay. So I'm going to double-click this. [double-clicks Advisor Prep Hero icon on desktop] Here we go.
 
 [Application launches. FirstRunWizard opens to the Welcome screen.]
 
-**DM:** All right. It opened. There's a, it's a clean screen. It says "Welcome to Keepance." And underneath, "Local-first AI workspace for confidential client work." And then, "Your files stay on your machine." [reads aloud, slows down] Huh. Okay. "Your files stay on your machine." That's, that's the thing I care about, so they're leading with it. Good. I'll give them that. Whether it's true is a different question, but at least they know what I'm afraid of.
+**DM:** All right. It opened. There's a, it's a clean screen. It says "Welcome to Advisor Prep Hero." And underneath, "Local-first AI workspace for confidential client work." And then, "Your files stay on your machine." [reads aloud, slows down] Huh. Okay. "Your files stay on your machine." That's, that's the thing I care about, so they're leading with it. Good. I'll give them that. Whether it's true is a different question, but at least they know what I'm afraid of.
 
 **LW:** Say more about that reaction.
 
@@ -84,11 +84,11 @@ Speaker labels: **LW** = Dr. Lena Whitfield (moderator). **DM** = Diane Marchett
 
 **[0:07]**
 
-**DM:** Now it says, "Choose your workspace." And there's a button, "Pick a folder." And some text. Let me read it. [reads aloud] "Your workspace is a folder on your computer where Keepance keeps your files. You can pick an existing folder or make a new one." [pause, 5 seconds]
+**DM:** Now it says, "Choose your workspace." And there's a button, "Pick a folder." And some text. Let me read it. [reads aloud] "Your workspace is a folder on your computer where Advisor Prep Hero keeps your files. You can pick an existing folder or make a new one." [pause, 5 seconds]
 
 **DM:** Hmm. "Workspace." See, "workspace" is one of those words. When an app says "workspace" my brain goes, uh oh, is this a thing I have to live inside now, is this another Slack, another portal, another place I have to log into and learn. I've got Clio, I've got Outlook, I've got the NAS. I do not want another "workspace." [longer pause, 6 seconds, re-reads the screen]
 
-**DM:** But, wait. It says it's a folder. "A folder on your computer where Keepance keeps your files." So, it's, it's just a folder? Like a regular folder, on my actual computer?
+**DM:** But, wait. It says it's a folder. "A folder on your computer where Advisor Prep Hero keeps your files." So, it's, it's just a folder? Like a regular folder, on my actual computer?
 
 **LW:** What are you thinking right now?
 
@@ -96,11 +96,11 @@ Speaker labels: **LW** = Dr. Lena Whitfield (moderator). **DM** = Diane Marchett
 
 [Clicks "Pick a folder." Native OS folder picker opens.]
 
-**DM:** Okay, the regular Windows folder thing came up, the one I know. Good, this is familiar. I'm going to make a new folder. [navigates, clicks New folder, types "Keepance Test"] I'll call it Keepance Test for now. [selects folder, clicks Select Folder]
+**DM:** Okay, the regular Windows folder thing came up, the one I know. Good, this is familiar. I'm going to make a new folder. [navigates, clicks New folder, types "Advisor Prep Hero Test"] I'll call it Advisor Prep Hero Test for now. [selects folder, clicks Select Folder]
 
 [Folder picker closes. Wizard shows the selected path and a "Continue" button.]
 
-**DM:** And it's showing me the path, C colon, Users, Diane, Keepance Test. That's, yes, that's where I put it. Okay. I like that it showed me the actual path. It's not hiding where my stuff goes. Continuing.
+**DM:** And it's showing me the path, C colon, Users, Diane, Advisor Prep Hero Test. That's, yes, that's where I put it. Okay. I like that it showed me the actual path. It's not hiding where my stuff goes. Continuing.
 
 **LW:** Before you continue, let me ask. A second ago you tensed up at the word "workspace," and then you relaxed when you realized it meant a folder. If you'd never read that explainer text, what would you have thought "workspace" meant?
 
@@ -124,9 +124,9 @@ Speaker labels: **LW** = Dr. Lena Whitfield (moderator). **DM** = Diane Marchett
 
 **DM:** [exhales] Okay, but let me not be a baby about it and actually read what's on the screen instead of just reacting to the scary word. [leans in, reads the explainer aloud]
 
-**DM:** "An API key is how Keepance talks to the AI on your behalf. It's like a password from the AI company, Claude, OpenAI, or Google, that lets this app use your account. You paste it in once. Your key stays on your machine, in your computer's secure keychain. Keepance never sees it and never charges you for AI. You pay the AI company directly for what you use." [pause]
+**DM:** "An API key is how Advisor Prep Hero talks to the AI on your behalf. It's like a password from the AI company, Claude, OpenAI, or Google, that lets this app use your account. You paste it in once. Your key stays on your machine, in your computer's secure keychain. Advisor Prep Hero never sees it and never charges you for AI. You pay the AI company directly for what you use." [pause]
 
-**DM:** Hm. Okay. So. [pause] So an API key is, it's like a password the AI company gives me, and I'm pasting it in so the app can use the AI as me. And, and the part that matters, "you pay the AI company directly." So I'm not paying Keepance for the AI part. I'm paying, OpenAI or whoever, directly. [pause] That's, okay. That's actually clearer than I expected. The "it's like a password" line helped. I get passwords.
+**DM:** Hm. Okay. So. [pause] So an API key is, it's like a password the AI company gives me, and I'm pasting it in so the app can use the AI as me. And, and the part that matters, "you pay the AI company directly." So I'm not paying Advisor Prep Hero for the AI part. I'm paying, OpenAI or whoever, directly. [pause] That's, okay. That's actually clearer than I expected. The "it's like a password" line helped. I get passwords.
 
 **LW:** What's your reaction to that explanation?
 
@@ -188,7 +188,7 @@ Speaker labels: **LW** = Dr. Lena Whitfield (moderator). **DM** = Diane Marchett
 
 **[0:17]**
 
-**DM:** [pause] Where are they. They're, well, they're in the folder I made. Keepance Test, on my C drive. So, on my computer. That part I'm, I'm fairly confident about, because it made me pick the folder and it showed me the path. So my files are on my machine. [pause]
+**DM:** [pause] Where are they. They're, well, they're in the folder I made. Advisor Prep Hero Test, on my C drive. So, on my computer. That part I'm, I'm fairly confident about, because it made me pick the folder and it showed me the path. So my files are on my machine. [pause]
 
 **LW:** And who can see them?
 
@@ -196,11 +196,11 @@ Speaker labels: **LW** = Dr. Lena Whitfield (moderator). **DM** = Diane Marchett
 
 **LW:** Tell me more about the uncertainty.
 
-**DM:** It's, okay, here's my problem. There's two things and I can't cleanly tell them apart. There's "my documents are stored on Keepance's computers somewhere" versus "my documents are on my computer but my questions get sent out to the AI." Those are really different things for me, ethically. The first one is, my client's files are sitting on some company's server, that's the thing that keeps me up at night. The second one is, a specific question I asked got sent to an AI to answer. Both involve "something leaving," but they're not the same animal. And right now I, I couldn't swear to you which one this is. The folder thing makes me think my files are mine. But that green check, when I tested the key, that means it phoned out to Claude. So something connects to the outside. I just don't know what, exactly, or when.
+**DM:** It's, okay, here's my problem. There's two things and I can't cleanly tell them apart. There's "my documents are stored on Advisor Prep Hero's computers somewhere" versus "my documents are on my computer but my questions get sent out to the AI." Those are really different things for me, ethically. The first one is, my client's files are sitting on some company's server, that's the thing that keeps me up at night. The second one is, a specific question I asked got sent to an AI to answer. Both involve "something leaving," but they're not the same animal. And right now I, I couldn't swear to you which one this is. The folder thing makes me think my files are mine. But that green check, when I tested the key, that means it phoned out to Claude. So something connects to the outside. I just don't know what, exactly, or when.
 
 **LW:** And the money side. A moment ago you read that you pay the AI company directly. Where does that leave you on who you're paying?
 
-**DM:** [pause] So, the screen said I pay the AI company, not Keepance, for the AI. So I think I, I bought, or will buy, Keepance once, the software, and then the AI usage I pay, OpenAI or Claude, separately. [pause] I think. Honestly that's the part I'd want spelled out on, like, a single screen with small words, because "you pay them separately" is exactly the kind of thing where I get a surprise bill and I'm furious. So intellectually I read it and it made sense in the moment, but if you asked me to bet money on whether I've got it exactly right, I'd hesitate. I half-think there might be some way my stuff is "in the system somewhere," and I couldn't tell you why I think that, I just have a residual nervous feeling about it.
+**DM:** [pause] So, the screen said I pay the AI company, not Advisor Prep Hero, for the AI. So I think I, I bought, or will buy, Advisor Prep Hero once, the software, and then the AI usage I pay, OpenAI or Claude, separately. [pause] I think. Honestly that's the part I'd want spelled out on, like, a single screen with small words, because "you pay them separately" is exactly the kind of thing where I get a surprise bill and I'm furious. So intellectually I read it and it made sense in the moment, but if you asked me to bet money on whether I've got it exactly right, I'd hesitate. I half-think there might be some way my stuff is "in the system somewhere," and I couldn't tell you why I think that, I just have a residual nervous feeling about it.
 
 **LW:** That's really useful, thank you. That residual nervous feeling is exactly the kind of thing I'm listening for. Last thing for this task. On a scale of one to seven, where seven is very easy and one is very difficult, how easy or difficult was it to get yourself set up just now?
 
@@ -216,7 +216,7 @@ Speaker labels: **LW** = Dr. Lena Whitfield (moderator). **DM** = Diane Marchett
 
 **[0:20]**
 
-**LW:** Let's do something more concrete. Here's the scenario. A new client just came in. You want to turn your intake notes into a clean intake summary, and ultimately you need it as a Word document, the kind you'd put on your letterhead. Use Keepance to do that, and talk me through it.
+**LW:** Let's do something more concrete. Here's the scenario. A new client just came in. You want to turn your intake notes into a clean intake summary, and ultimately you need it as a Word document, the kind you'd put on your letterhead. Use Advisor Prep Hero to do that, and talk me through it.
 
 **DM:** Okay. A new client intake into a Word doc. That's, that's a real thing I do, so good. Um. Where would I, okay. There was a tab called Workflows. That sounds like where the "do a task" stuff is. Let me click that. [clicks "Workflows" in the sidebar]
 
@@ -326,9 +326,9 @@ Speaker labels: **LW** = Dr. Lena Whitfield (moderator). **DM** = Diane Marchett
 
 **[0:36]**
 
-**DM:** Okay. "Microsoft 365." Yeah, that's me. And there's a "Sign in with Microsoft" button. And some text under it, let me read it. [reads aloud] "Connect your Microsoft 365 mailbox so you can search and ask AI about your email. Keepance imports the folders you choose, stores them encrypted on this computer, and never uploads your mail to Keepance's servers. Read-only for now." [pause]
+**DM:** Okay. "Microsoft 365." Yeah, that's me. And there's a "Sign in with Microsoft" button. And some text under it, let me read it. [reads aloud] "Connect your Microsoft 365 mailbox so you can search and ask AI about your email. Advisor Prep Hero imports the folders you choose, stores them encrypted on this computer, and never uploads your mail to Advisor Prep Hero's servers. Read-only for now." [pause]
 
-**DM:** Okay. "Stores them encrypted on this computer, never uploads your mail to Keepance's servers." That, that's the sentence I needed to read. Whether I believe it is another matter, but they're at least claiming the thing I'd need them to claim. And "read-only for now," good, I don't want it sending email as me, God no. Okay. Let me click "Sign in with Microsoft." [clicks "Sign in with Microsoft"]
+**DM:** Okay. "Stores them encrypted on this computer, never uploads your mail to Advisor Prep Hero's servers." That, that's the sentence I needed to read. Whether I believe it is another matter, but they're at least claiming the thing I'd need them to claim. And "read-only for now," good, I don't want it sending email as me, God no. Okay. Let me click "Sign in with Microsoft." [clicks "Sign in with Microsoft"]
 
 [A device-code dialog appears in-app: a code (e.g., "GXKR-7TQM"), instructions to go to microsoft.com/devicelogin, a "code expires in 15 minutes" line, and an "Open browser" button.]
 
@@ -338,31 +338,31 @@ Speaker labels: **LW** = Dr. Lena Whitfield (moderator). **DM** = Diane Marchett
 
 **LW:** [silent, waits]
 
-**DM:** [pause, 6 seconds] I mean, I don't, this is a little, this is making me nervous in the way that, you know how sometimes a screen gives you a code and you can't tell if it's legitimate or if it's one of those scam things where they tell you to type a code somewhere? I get warnings from the bar about that stuff. [pause] But, okay, it says microsoft.com/devicelogin, and that's, that's a Microsoft address, and I'm the one who clicked "sign in with Microsoft," so. I think this is just how Microsoft does the login. It's, it's going to send me to Microsoft's own page to type the code, so that Keepance never sees my password. [pause] Actually, wait, that's, if I think about it that way, that's, that's kind of good? It means I'm not typing my Microsoft password into this app, I'm typing it into Microsoft. Okay. I think. Let me click "Open browser" and see.
+**DM:** [pause, 6 seconds] I mean, I don't, this is a little, this is making me nervous in the way that, you know how sometimes a screen gives you a code and you can't tell if it's legitimate or if it's one of those scam things where they tell you to type a code somewhere? I get warnings from the bar about that stuff. [pause] But, okay, it says microsoft.com/devicelogin, and that's, that's a Microsoft address, and I'm the one who clicked "sign in with Microsoft," so. I think this is just how Microsoft does the login. It's, it's going to send me to Microsoft's own page to type the code, so that Advisor Prep Hero never sees my password. [pause] Actually, wait, that's, if I think about it that way, that's, that's kind of good? It means I'm not typing my Microsoft password into this app, I'm typing it into Microsoft. Okay. I think. Let me click "Open browser" and see.
 
 **LW:** What made you land on "this is probably fine"?
 
-**DM:** The Microsoft address, and the fact that I started this. If a random app had popped this up out of nowhere I'd have slammed the laptop shut. But I clicked "sign in with Microsoft," so a Microsoft login flow showing up is, that tracks. And the part about not typing my password into Keepance directly, the more I think about it the more I actually prefer that, I just, the code thing threw me for a second because it's not what I'm used to. I'm used to a username and password box. Okay. Opening the browser. [clicks "Open browser"]
+**DM:** The Microsoft address, and the fact that I started this. If a random app had popped this up out of nowhere I'd have slammed the laptop shut. But I clicked "sign in with Microsoft," so a Microsoft login flow showing up is, that tracks. And the part about not typing my password into Advisor Prep Hero directly, the more I think about it the more I actually prefer that, I just, the code thing threw me for a second because it's not what I'm used to. I'm used to a username and password box. Okay. Opening the browser. [clicks "Open browser"]
 
 [A browser window opens to microsoft.com/devicelogin.]
 
 **DM:** Okay, a browser window opened, and it's Microsoft's page, asking for the code. [the code may be pre-filled or she types it] Okay it, it actually carried the code over for me, I just have to confirm it. [confirms the code] And now it's, it's asking me to sign in to my Microsoft account. [signs into the test M365 account] Okay, signing in with the test account you gave me. [completes sign-in]
 
-[A Microsoft consent screen appears, listing the permissions Keepance is requesting, e.g., read access to mail.]
+[A Microsoft consent screen appears, listing the permissions Advisor Prep Hero is requesting, e.g., read access to mail.]
 
 **[0:39]**
 
-**DM:** And now there's a, a permissions screen. Microsoft's asking me, "Keepance wants to: read your mail." [reads] And it lists, "Read your mail," and "maintain access to data you've given it access to." [pause] Okay. So it's telling me exactly what it's asking for. "Read your mail." Not, not "read and send," not "delete," just read. Which matches what the app said, read-only. Okay, I, that, that consistency actually helps. The app said read-only, and now Microsoft's confirming it's read-only. If the app had said read-only and then Microsoft asked for permission to send and delete, I'd be out. But they match. So I'll, I'll accept. [clicks Accept]
+**DM:** And now there's a, a permissions screen. Microsoft's asking me, "Advisor Prep Hero wants to: read your mail." [reads] And it lists, "Read your mail," and "maintain access to data you've given it access to." [pause] Okay. So it's telling me exactly what it's asking for. "Read your mail." Not, not "read and send," not "delete," just read. Which matches what the app said, read-only. Okay, I, that, that consistency actually helps. The app said read-only, and now Microsoft's confirming it's read-only. If the app had said read-only and then Microsoft asked for permission to send and delete, I'd be out. But they match. So I'll, I'll accept. [clicks Accept]
 
 [The consent screen confirms, and the browser shows a "you can return to the app" message.]
 
-**DM:** Okay, and now it says I can go back to the app. [switches back to Keepance]
+**DM:** Okay, and now it says I can go back to the app. [switches back to Advisor Prep Hero]
 
-[Back in Keepance, the device-code dialog has resolved. A folder/scope selection screen now appears, listing mailbox folders with checkboxes, e.g., Inbox, Sent Items, specific subfolders, with a note about what will be imported.]
+[Back in Advisor Prep Hero, the device-code dialog has resolved. A folder/scope selection screen now appears, listing mailbox folders with checkboxes, e.g., Inbox, Sent Items, specific subfolders, with a note about what will be imported.]
 
 **[0:40]**
 
-**DM:** Okay, I'm back in Keepance and it, it knows I'm signed in now. And now it's, oh, this is good. It's showing me my folders and asking me which ones I want to bring in. [reads] There's checkboxes. "Inbox." "Sent Items." And then some, some subfolders, looks like the test account has a couple. And it says, "Choose which folders to import. You can change this later." [pause] Okay. I like this. I like this a lot, actually. It's, it's not just grabbing everything, it's letting me choose. Because in real life, my mailbox has, has stuff I would not want anywhere near an AI, personal things, HR things, stuff that isn't client matters. The fact that I can say "just bring in these folders," that's, that's control. That's the kind of control I need to even consider this.
+**DM:** Okay, I'm back in Advisor Prep Hero and it, it knows I'm signed in now. And now it's, oh, this is good. It's showing me my folders and asking me which ones I want to bring in. [reads] There's checkboxes. "Inbox." "Sent Items." And then some, some subfolders, looks like the test account has a couple. And it says, "Choose which folders to import. You can change this later." [pause] Okay. I like this. I like this a lot, actually. It's, it's not just grabbing everything, it's letting me choose. Because in real life, my mailbox has, has stuff I would not want anywhere near an AI, personal things, HR things, stuff that isn't client matters. The fact that I can say "just bring in these folders," that's, that's control. That's the kind of control I need to even consider this.
 
 **LW:** Say more about why that control matters to you.
 
@@ -374,15 +374,15 @@ Speaker labels: **LW** = Dr. Lena Whitfield (moderator). **DM** = Diane Marchett
 
 **DM:** Okay, it's, it's doing it. There's a progress bar. "Importing, 140-something of, of three hundred eighty messages." And it's, it's climbing. And there's a "Stop" button, so I could stop it if I needed to. [watches] Okay, that's, it's reasonably quick. [pause] There's a little, there's a line down here, let me read it. [reads] "Your mail is being encrypted and stored on this computer." Okay. So it's telling me, while it's doing it, that it's encrypting. Good. That's, that's the reassurance I want to see, although, I'll come back to that, because "it says it's encrypting" and "I understand what that means for me" are two different things. [watches progress complete] Okay, it finished. It says, "Import complete. 380 messages." And it's, the folders are showing up now.
 
-**LW:** [Note: in this build a one-line disk-encryption nudge may appear if BitLocker is off. On this test machine BitLocker is on, so no nudge shown. Participant not exposed to that signal this session; flag for a session where it does appear.] Before we go on, I want to do the comprehension check again, because this is the part that matters most for your world. Walk me through what just happened to your email. Where is it now? Could Keepance read it? Could the AI?
+**LW:** [Note: in this build a one-line disk-encryption nudge may appear if BitLocker is off. On this test machine BitLocker is on, so no nudge shown. Participant not exposed to that signal this session; flag for a session where it does appear.] Before we go on, I want to do the comprehension check again, because this is the part that matters most for your world. Walk me through what just happened to your email. Where is it now? Could Advisor Prep Hero read it? Could the AI?
 
 **[0:44]**
 
 **DM:** [pause] Okay. Where is it. It, it pulled my email, the folders I picked, Inbox and Sent, and it, it put them, here. On this computer. In, in that folder, or near it. So my email is now, there's a copy of it on my machine. That part I'm, I'm fairly solid on, because it made me pick folders and it showed me a progress bar of it coming down onto my computer, and it said "stored on this computer." So, mail is on my machine now. Good.
 
-**LW:** And could Keepance, the company, read it?
+**LW:** And could Advisor Prep Hero, the company, read it?
 
-**DM:** [pause, 5 seconds] I, the screen said it never uploads to Keepance's servers. So, going by what it told me, no, Keepance the company can't read it, because it never went to them, it came straight from Microsoft to my computer. [pause] I, I think that's right. That's what it said. Do I, do I know that in my bones? No. I'm taking their word for it. But that's what they're claiming, that it went Microsoft-to-me and didn't stop at their place.
+**DM:** [pause, 5 seconds] I, the screen said it never uploads to Advisor Prep Hero's servers. So, going by what it told me, no, Advisor Prep Hero the company can't read it, because it never went to them, it came straight from Microsoft to my computer. [pause] I, I think that's right. That's what it said. Do I, do I know that in my bones? No. I'm taking their word for it. But that's what they're claiming, that it went Microsoft-to-me and didn't stop at their place.
 
 **LW:** And the AI? Could the AI read it?
 
@@ -402,7 +402,7 @@ Speaker labels: **LW** = Dr. Lena Whitfield (moderator). **DM** = Diane Marchett
 
 **DM:** [pause] The doing of it, I'd put at a, the actual clicking-through, maybe a five. But you're asking me overall, and overall I have to weight in the fact that I came out of it not understanding the most important thing about it. So I'll say four. Four out of seven. Because, look, if I sail through a process smoothly but at the end I can't answer "is my client's data safe and who saw it," then it wasn't really easy, it was, it was easy to operate and hard to trust. And for me those aren't separate. So, four. It worked, and it left me uneasy, and the unease is the part that counts.
 
-**LW:** Thank you. [Field note: Task 3 = Success on the mechanical task, PARTIAL on comprehension. SEQ 4/7. Time band: expected. Device-code flow caused initial confusion ("why a code, why a browser") with a mild scam-pattern association, then self-resolved positively once she recognized the Microsoft domain and reframed it as "I'm not giving Keepance my password," a latent positive worth surfacing. Consent-screen/app-claim CONSISTENCY (read-only matches) actively built trust, a positive. Folder scoping landed strongly as control, a positive ("the difference between no and maybe"). The encryption/local-storage reassurances exist but are delivered as transient gray microcopy during sync and did NOT consolidate into an explainable mental model. CRITICAL: she cannot articulate what the AI does or does not see, and explicitly cannot separate "data at rest locally" from "data sent to provider." Per protocol, a wrong/uncertain belief about data location and exposure is severity 4 (liability-class). Gap is COMMUNICATION, not capability: the product reportedly does the right thing; the user cannot tell. Her own articulated fix: a single, plain-English, screenshot-able "here is exactly where your data is and who can see it."]
+**LW:** Thank you. [Field note: Task 3 = Success on the mechanical task, PARTIAL on comprehension. SEQ 4/7. Time band: expected. Device-code flow caused initial confusion ("why a code, why a browser") with a mild scam-pattern association, then self-resolved positively once she recognized the Microsoft domain and reframed it as "I'm not giving Advisor Prep Hero my password," a latent positive worth surfacing. Consent-screen/app-claim CONSISTENCY (read-only matches) actively built trust, a positive. Folder scoping landed strongly as control, a positive ("the difference between no and maybe"). The encryption/local-storage reassurances exist but are delivered as transient gray microcopy during sync and did NOT consolidate into an explainable mental model. CRITICAL: she cannot articulate what the AI does or does not see, and explicitly cannot separate "data at rest locally" from "data sent to provider." Per protocol, a wrong/uncertain belief about data location and exposure is severity 4 (liability-class). Gap is COMMUNICATION, not capability: the product reportedly does the right thing; the user cannot tell. Her own articulated fix: a single, plain-English, screenshot-able "here is exactly where your data is and who can see it."]
 
 ---
 
@@ -410,7 +410,7 @@ Speaker labels: **LW** = Dr. Lena Whitfield (moderator). **DM** = Diane Marchett
 
 **[0:48]**
 
-**LW:** Okay. Now the part that matters. Picture it: a client is on the phone, right now, asking you what you agreed to about a deadline, back in the spring. Using your email here in Keepance, find the answer. Do it however feels natural to you.
+**LW:** Okay. Now the part that matters. Picture it: a client is on the phone, right now, asking you what you agreed to about a deadline, back in the spring. Using your email here in Advisor Prep Hero, find the answer. Do it however feels natural to you.
 
 **DM:** Oh, this, okay. This is the thing. This is literally my Tuesday. This is the 25-minute Outlook hunt I told you about last time, the settlement-number question, where I know it's in an email from the spring and Outlook gives me 250 results and none of them are it and I find it eventually by remembering a phrase the client used. If this can do this, this is, this is the whole reason I'd be here. Okay. So. Client wants to know what we agreed about a deadline in the spring. How would I, naturally? [pause] There's a Search tab. My instinct is search, because that's what I do in Outlook, I search. But you also said I could ask the AI. Hm. Let me, let me start with search, because that's my muscle memory. [clicks the "Search" tab]
 
@@ -492,7 +492,7 @@ Speaker labels: **LW** = Dr. Lena Whitfield (moderator). **DM** = Diane Marchett
 
 **[1:00]**
 
-**DM:** Right, the, the cost. So each row has a little cost on it, and there's, [looks around] there's a, up top there's a little chip thing that says, a total for, "today," looks like. And it's, it's pennies so far, like, thirty cents or something. [pause] Okay so, the cost thing, this is, this connects to the thing you, the BYOK thing, where I pay the AI company directly. So this is showing me what I'm racking up with, with Claude. [pause] And, okay, the honest part, the part where Keepance isn't taking a cut, where I'm just paying the actual AI company the actual cost, I, intellectually I respect that. A lot, actually. That's, that's not a company nickel-and-diming me, that's, here's the real cost, you pay it directly, we don't touch it. That's honest. After a career of vendors with hidden fees, that, that lands as integrity.
+**DM:** Right, the, the cost. So each row has a little cost on it, and there's, [looks around] there's a, up top there's a little chip thing that says, a total for, "today," looks like. And it's, it's pennies so far, like, thirty cents or something. [pause] Okay so, the cost thing, this is, this connects to the thing you, the BYOK thing, where I pay the AI company directly. So this is showing me what I'm racking up with, with Claude. [pause] And, okay, the honest part, the part where Advisor Prep Hero isn't taking a cut, where I'm just paying the actual AI company the actual cost, I, intellectually I respect that. A lot, actually. That's, that's not a company nickel-and-diming me, that's, here's the real cost, you pay it directly, we don't touch it. That's honest. After a career of vendors with hidden fees, that, that lands as integrity.
 
 **LW:** But?
 
@@ -641,6 +641,6 @@ Speaker labels: **LW** = Dr. Lena Whitfield (moderator). **DM** = Diane Marchett
 6. **Audit log framing is double-edged (severity 2, communication).** First read = surveillance; she self-reframed to "protective / my defense file." A one-line protective header would prevent the negative first read.
 7. **Cost unpredictability worries a budget-conscious small firm (severity 2 to 3, mixed).** BYOK honesty respected; wants a forecast and/or spend cap.
 
-**Positives to bank:** workspace-as-folder (once explained) lands as anti-lock-in; profession picker speaks her language; "test this key" green check earns explicit praise; device-code flow nets positive once understood ("I'm not giving Keepance my password"); consent-screen/app-claim consistency builds trust; folder scoping reads as control ("the difference between no and maybe").
+**Positives to bank:** workspace-as-folder (once explained) lands as anti-lock-in; profession picker speaks her language; "test this key" green check earns explicit praise; device-code flow nets positive once understood ("I'm not giving Advisor Prep Hero my password"); consent-screen/app-claim consistency builds trust; folder scoping reads as control ("the difference between no and maybe").
 
 **Adoption verdict:** Cautious yes, gated on three conditions, all communication/proof, none capability: (1) real attorneys vouching / CLE / bar presence, (2) a believable, repeatable, client-shareable data-safety story, (3) a real trial on one low-stakes matter (sample insufficient). The single highest-leverage fix per the participant: the believable plain-English data-safety story plus social proof.

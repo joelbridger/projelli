@@ -323,14 +323,14 @@ function WorkspaceEmptyState({ onCreateDocument, onCreateFolder }: WorkspaceEmpt
         body="Real Word documents, with tracked changes and AI redlining, stored as files on your computer."
         actions={
           <>
-            {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+            {/* eslint-disable lantern-i18n/no-hardcoded-string */}
             <Button variant="primary" size="md" iconLeft={Plus} onClick={onCreateDocument}>
               New Word document
             </Button>
             <Button variant="secondary" size="md" onClick={onCreateFolder}>
               New folder
             </Button>
-            {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+            {/* eslint-enable lantern-i18n/no-hardcoded-string */}
           </>
         }
       />
@@ -674,14 +674,14 @@ export function DocumentGridView({
                 onCreateFolder={handleCreateFolder}
               />
             ) : filteredNodes.length === 0 && searchQuery.trim() ? (
-              /* eslint-disable keepance-i18n/no-hardcoded-string */
+              /* eslint-disable lantern-i18n/no-hardcoded-string */
               <EmptyState
                 icon={Search}
                 title="No results"
                 body="No files match your search. Try a different name."
                 compact
               />
-              /* eslint-enable keepance-i18n/no-hardcoded-string */
+              /* eslint-enable lantern-i18n/no-hardcoded-string */
             ) : filteredNodes.length === 0 ? (
               <WorkspaceEmptyState
                 onCreateDocument={handleCreateDocument}

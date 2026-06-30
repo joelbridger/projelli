@@ -17,6 +17,7 @@ import { formatRelativeDate, slugify } from './emailWorkspaceHelpers';
 import { MatterPickerPopover } from './MatterPickerPopover';
 import { MailRowPrivilege } from './MailRowPrivilege';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
+import { EV_OPEN_EMAIL } from '@/config/identity';
 
 export interface MailRowProps {
   item: MailListItem;
@@ -38,7 +39,7 @@ export function MailRow({ item, selected, anySelected, onToggleSelect, onSaveToW
   const handleOpen = useCallback(() => {
     const sourceId = `mail:${item.id}`;
     window.dispatchEvent(
-      new CustomEvent('keepance:open-email', {
+      new CustomEvent(EV_OPEN_EMAIL, {
         detail: { sourceId },
       }),
     );

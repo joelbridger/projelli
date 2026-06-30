@@ -8,6 +8,7 @@ import type { AuditEntry } from '@/platform/types/audit';
 import { provenanceBadgeLabel, isStalePlan } from '@/platform/rag/sourceProvenance';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { EXTERNAL_EXPORT_STALE_DAYS_KEY } from '@/platform/settings/schema';
+import { EV_OPEN_EMAIL, EV_MATTER_LAUNCH } from '@/config/identity';
 
 /* -------------------------------------------------------------------------- */
 /* SourcePanel — the SOURCES column. A list of clean white numbered cards,     */
@@ -24,14 +25,14 @@ const LABEL_VERIFY = 'Verify against source';
 /** Open the cited source (document → contextual editor; email → reading view). */
 function openCitation(cite: AnswerCitation): void {
   if (cite.path?.startsWith('mail:')) {
-    window.dispatchEvent(new CustomEvent('keepance:open-email', { detail: { sourceId: cite.path } }));
+    window.dispatchEvent(new CustomEvent(EV_OPEN_EMAIL, { detail: { sourceId: cite.path } }));
     return;
   }
   if (cite.path && !cite.path.startsWith('crm:') && cite.matterId) {
     const source: { kind: 'document'; ref: string; snippet?: string } = { kind: 'document', ref: cite.path };
     if (cite.excerpt) source.snippet = cite.excerpt;
     window.dispatchEvent(
-      new CustomEvent('keepance:matter-launch', {
+      new CustomEvent(EV_MATTER_LAUNCH, {
         detail: { matterId: cite.matterId, surface: 'files', source },
       }),
     );
@@ -74,7 +75,7 @@ function ProvenanceBadge({ cite }: { cite: AnswerCitation }) {
       title={
         stale
           ? 'This plan is an exported snapshot and may be out of date. Re-export from the tool for the latest.'
-          : 'Keepance reads the file you exported or saved from this tool. It is a point-in-time snapshot, not a live connection.'
+          : 'Advisor Prep Hero reads the file you exported or saved from this tool. It is a point-in-time snapshot, not a live connection.'
       }
       style={{
         display: 'inline-flex',

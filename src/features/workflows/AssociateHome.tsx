@@ -59,6 +59,7 @@ import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode'
 import { useActiveEgressProvider } from '@/platform/hooks/useActiveEgressProvider';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import { matterLabel } from '@/platform/rag/matterResolver';
+import { SK_WORKFLOWS_FILTER, SK_WORKFLOWS_COLLAPSED } from '@/config/identity';
 
 // ── Prop interface (kept identical to original) ────────────────────────────
 
@@ -114,8 +115,8 @@ const LAW_FEATURED_ID = 'deposition-contradiction-finder';
 
 // ── localStorage persistence ───────────────────────────────────────────────
 
-const LS_FILTER_KEY = 'keepance:workflows-filter';
-const LS_COLLAPSED_KEY = 'keepance:workflows-collapsed';
+const LS_FILTER_KEY = SK_WORKFLOWS_FILTER;
+const LS_COLLAPSED_KEY = SK_WORKFLOWS_COLLAPSED;
 
 function readStoredFilter(): FilterKey {
   try {
@@ -430,7 +431,7 @@ function CategorySection({
                 lineHeight: 'var(--kp-leading-normal)',
               }}
             >
-              {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+              {/* eslint-disable lantern-i18n/no-hardcoded-string */}
               {String(hiddenBySearch)} more hidden by search.{' '}
               <button
                 type="button"
@@ -449,7 +450,7 @@ function CategorySection({
               >
                 Clear search
               </button>
-              {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+              {/* eslint-enable lantern-i18n/no-hardcoded-string */}
             </div>
           )}
         </>
@@ -751,9 +752,9 @@ export function AssociateHome({
           style={{ margin: 'var(--kp-space-sm) var(--kp-gutter) 0' }}
         >
           <Callout variant="warning" icon={AlertTriangle}>
-            {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+            {/* eslint-disable lantern-i18n/no-hardcoded-string */}
             <strong>Trial ended.</strong> Activate a license to run workflows. Your work is still here and fully accessible.
-            {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+            {/* eslint-enable lantern-i18n/no-hardcoded-string */}
           </Callout>
         </div>
       )}
@@ -770,17 +771,17 @@ export function AssociateHome({
               <span style={{ flex: 1 }}>
                 {providerError === 'ollama-unreachable' ? (
                   <span>
-                    {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                    {/* eslint-disable lantern-i18n/no-hardcoded-string */}
                     <strong>Local AI unreachable.</strong>
-                    {' Keepance Local AI is not responding. Make sure it has finished setting up, then try again.'}
-                    {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                    {' Advisor Prep Hero Local AI is not responding. Make sure it has finished setting up, then try again.'}
+                    {/* eslint-enable lantern-i18n/no-hardcoded-string */}
                   </span>
                 ) : (
                   <span>
-                    {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                    {/* eslint-disable lantern-i18n/no-hardcoded-string */}
                     <strong>No AI provider configured.</strong>
-                    {' Add an API key or set up Keepance Local AI to run workflows.'}
-                    {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                    {' Add an API key or set up Advisor Prep Hero Local AI to run workflows.'}
+                    {/* eslint-enable lantern-i18n/no-hardcoded-string */}
                   </span>
                 )}
               </span>
@@ -836,7 +837,7 @@ export function AssociateHome({
 
         {/* Template groups */}
         {groups.every((g) => g.templates.length === 0) ? (
-          // eslint-disable keepance-i18n/no-hardcoded-string
+          // eslint-disable lantern-i18n/no-hardcoded-string
           <EmptyState
             data-testid="associate-empty"
             icon={Search}
@@ -848,7 +849,7 @@ export function AssociateHome({
               </Button>
             }
           />
-          // eslint-enable keepance-i18n/no-hardcoded-string
+          // eslint-enable lantern-i18n/no-hardcoded-string
         ) : (
           groups.map(({ config, templates: groupTemplates, totalCount }) => (
             <CategorySection

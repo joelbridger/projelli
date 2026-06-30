@@ -3,17 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Run Keepance with a local Ollama model: zero network egress setup | Keepance</title>
-  <meta name="description" content="Step-by-step guide to running Keepance with a local Ollama model. No API key, no provider account, no outbound AI traffic. The right setup for patent prosecution and sensitive professional work.">
+  <title>Run Advisor Prep Hero with a local Ollama model: zero network egress setup | Advisor Prep Hero</title>
+  <meta name="description" content="Step-by-step guide to running Advisor Prep Hero with a local Ollama model. No API key, no provider account, no outbound AI traffic. The right setup for patent prosecution and sensitive professional work.">
   <link rel="canonical" href="https://keepance.com/local-model-setup">
   <meta name="robots" content="index, follow">
   <meta property="og:type" content="article">
   <meta property="og:url" content="https://keepance.com/local-model-setup">
-  <meta property="og:title" content="Run Keepance with a local Ollama model: zero network egress setup">
-  <meta property="og:description" content="No API key, no provider account, no outbound AI traffic. Step-by-step setup for Ollama with Keepance.">
+  <meta property="og:title" content="Run Advisor Prep Hero with a local Ollama model: zero network egress setup">
+  <meta property="og:description" content="No API key, no provider account, no outbound AI traffic. Step-by-step setup for Ollama with Advisor Prep Hero.">
   <meta property="og:image" content="https://keepance.com/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Local Ollama model setup for Keepance">
+  <meta name="twitter:title" content="Local Ollama model setup for Advisor Prep Hero">
   <meta name="twitter:description" content="Zero network egress. No API key. No provider. Your model runs on your hardware.">
   <meta name="twitter:image" content="https://keepance.com/og-image.png">
   <link href="https://api.fontshare.com/v2/css?f[]=satoshi@800,700,400&display=swap" rel="stylesheet">
@@ -22,8 +22,8 @@
   {
     "@context": "https://schema.org",
     "@type": "HowTo",
-    "name": "Run Keepance with a local Ollama model",
-    "description": "Install Ollama, pull a model, and point Keepance at it for fully local AI with zero outbound traffic.",
+    "name": "Run Advisor Prep Hero with a local Ollama model",
+    "description": "Install Ollama, pull a model, and point Advisor Prep Hero at it for fully local AI with zero outbound traffic.",
     "totalTime": "PT15M",
     "step": [
       {
@@ -43,7 +43,7 @@
       },
       {
         "@type": "HowToStep",
-        "name": "Add the provider in Keepance",
+        "name": "Add the provider in Advisor Prep Hero",
         "text": "Open Settings, go to AI Models, click Add Provider, and select Local (Ollama). Enter http://localhost:11434 as the base URL. Select your model from the dropdown."
       },
       {
@@ -64,7 +64,7 @@
         "name": "Does Ollama send my prompts to the internet?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "No. Ollama runs entirely on your machine. When you send a prompt, it goes from Keepance to Ollama's local API at 127.0.0.1:11434 — no outbound network traffic, no external server, no provider logging."
+          "text": "No. Ollama runs entirely on your machine. When you send a prompt, it goes from Advisor Prep Hero to Ollama's local API at 127.0.0.1:11434 — no outbound network traffic, no external server, no provider logging."
         }
       },
       {
@@ -175,11 +175,11 @@
 </head>
 <body>
 <div class="container">
-  <h1>Run Keepance with a local Ollama model.</h1>
+  <h1>Run Advisor Prep Hero with a local Ollama model.</h1>
   <p class="meta">Updated 2026-06-04 · 10 min read</p>
 
   <div class="summary">
-    <p><strong>The short version.</strong> Ollama runs an AI model directly on your computer. When you point Keepance at it, your files, your prompts, and your AI responses stay entirely on your machine. No API key. No provider account. No outbound network traffic. This is the setup for patent prosecution, matter-sensitive drafting, and any professional work where even encrypted transit to a cloud provider is not acceptable.</p>
+    <p><strong>The short version.</strong> Ollama runs an AI model directly on your computer. When you point Advisor Prep Hero at it, your files, your prompts, and your AI responses stay entirely on your machine. No API key. No provider account. No outbound network traffic. This is the setup for patent prosecution, matter-sensitive drafting, and any professional work where even encrypted transit to a cloud provider is not acceptable.</p>
   </div>
 
   <h2>Why this matters</h2>
@@ -188,14 +188,14 @@
 
   <p>For some work, it is not. Patent prosecution is the clearest case: transmitting an invention disclosure to any external party before filing can raise questions under absolute-novelty regimes, including at the European Patent Office. An attorney or agent working on pre-filing prosecution wants the analysis to stay local. A local model means there is no API call, no outbound packet, no third-party server involved at any point.</p>
 
-  <p>That is what Ollama gives you. The model runs on your CPU or GPU. Keepance connects to it over localhost. Nothing leaves the machine.</p>
+  <p>That is what Ollama gives you. The model runs on your CPU or GPU. Advisor Prep Hero connects to it over localhost. Nothing leaves the machine.</p>
 
   <h2>What you need before starting</h2>
 
   <ul>
     <li>A computer with at least 8GB of RAM (16GB recommended)</li>
     <li>About 5GB of free disk space for the model files</li>
-    <li>Keepance installed and open</li>
+    <li>Advisor Prep Hero installed and open</li>
   </ul>
 
   <p>The setup takes about 15 minutes, mostly spent waiting for the model to download. The commands below are the same on Mac, Windows, and Linux.</p>
@@ -226,7 +226,7 @@
     <div class="code-block">ollama pull mistral</div>
     <p>Mistral 7B is a smaller, faster model with lower RAM requirements. Good for editing and shorter drafts.</p>
 
-    <p>You can pull more than one model and switch between them inside Keepance. Models store in <code>~/.ollama/models</code> on Mac/Linux and in your user directory on Windows.</p>
+    <p>You can pull more than one model and switch between them inside Advisor Prep Hero. Models store in <code>~/.ollama/models</code> on Mac/Linux and in your user directory on Windows.</p>
   </div>
 
   <h2>Step 3: Verify Ollama is running</h2>
@@ -239,18 +239,18 @@
     <p>Ollama's API listens at <code>http://localhost:11434</code>. You can confirm it is up by opening that address in a browser. You should see a response from the Ollama API. If you do not, check that the Ollama process is running.</p>
   </div>
 
-  <h2>Step 4: Connect Keepance to Ollama</h2>
+  <h2>Step 4: Connect Advisor Prep Hero to Ollama</h2>
 
   <div class="step-card">
-    <h3><span class="step-num">4</span> Add the local provider in Keepance</h3>
+    <h3><span class="step-num">4</span> Add the local provider in Advisor Prep Hero</h3>
     <ol>
-      <li>Open Keepance</li>
+      <li>Open Advisor Prep Hero</li>
       <li>Go to <strong>Settings</strong> (gear icon or <code>Ctrl+,</code> on Windows/Linux, <code>Cmd+,</code> on Mac)</li>
       <li>Click <strong>AI Models</strong></li>
       <li>Click <strong>Add Provider</strong></li>
       <li>Select <strong>Local (Ollama)</strong> from the provider list</li>
       <li>Enter <code>http://localhost:11434</code> as the base URL</li>
-      <li>Click <strong>Fetch Models</strong> — Keepance will query Ollama and populate the model dropdown automatically</li>
+      <li>Click <strong>Fetch Models</strong> — Advisor Prep Hero will query Ollama and populate the model dropdown automatically</li>
       <li>Select the model you pulled in Step 2</li>
       <li>Click <strong>Save</strong></li>
     </ol>
@@ -261,7 +261,7 @@
 
   <div class="step-card">
     <h3><span class="step-num">5</span> Confirm it works</h3>
-    <p>Open any file in Keepance and start an AI chat. Send a short message like "Summarize this document in two sentences." If the model responds, you are running fully local.</p>
+    <p>Open any file in Advisor Prep Hero and start an AI chat. Send a short message like "Summarize this document in two sentences." If the model responds, you are running fully local.</p>
     <p>Response time will be slower than a cloud model, especially the first prompt after startup. That is normal. The model loads into memory on the first call. Subsequent prompts in the same session are faster.</p>
   </div>
 
@@ -321,7 +321,7 @@
   <div class="faq">
     <details>
       <summary>Does Ollama send my prompts to the internet?</summary>
-      <p>No. Ollama runs entirely on your machine. When you send a prompt, it goes from Keepance to Ollama's local API at <code>127.0.0.1:11434</code>. No outbound network traffic, no external server, no provider logging.</p>
+      <p>No. Ollama runs entirely on your machine. When you send a prompt, it goes from Advisor Prep Hero to Ollama's local API at <code>127.0.0.1:11434</code>. No outbound network traffic, no external server, no provider logging.</p>
     </details>
     <details>
       <summary>Do I need an API key?</summary>
@@ -336,12 +336,12 @@
       <p>Cloud models are more capable for complex reasoning, broad knowledge retrieval, and tasks that require deep domain expertise. An 8B local model is sufficient for drafting, structuring, editing, and synthesizing documents where you are providing the substantive content and asking the model to organize or refine it. Many practitioners use Ollama for sensitive first drafts and a cloud model for research and analysis.</p>
     </details>
     <details>
-      <summary>What if Keepance can't connect to Ollama?</summary>
-      <p>Check that Ollama is running: look for the menu bar icon on Mac, or run <code>ollama serve</code> on Linux/Windows. Confirm the base URL in Keepance is exactly <code>http://localhost:11434</code> with no trailing slash. If you are on Windows and using Windows Subsystem for Linux, the localhost address may differ — check Ollama's documentation for the WSL networking note.</p>
+      <summary>What if Advisor Prep Hero can't connect to Ollama?</summary>
+      <p>Check that Ollama is running: look for the menu bar icon on Mac, or run <code>ollama serve</code> on Linux/Windows. Confirm the base URL in Advisor Prep Hero is exactly <code>http://localhost:11434</code> with no trailing slash. If you are on Windows and using Windows Subsystem for Linux, the localhost address may differ — check Ollama's documentation for the WSL networking note.</p>
     </details>
     <details>
-      <summary>Can I switch between Ollama and a cloud model in Keepance?</summary>
-      <p>Yes. Keepance lets you add multiple providers. You can have Claude, OpenAI, and Ollama all configured. Each AI chat session uses whichever provider and model you select when starting it. You can keep Ollama as your default for sensitive work and switch to a cloud model when you want faster or more capable responses on non-sensitive tasks.</p>
+      <summary>Can I switch between Ollama and a cloud model in Advisor Prep Hero?</summary>
+      <p>Yes. Advisor Prep Hero lets you add multiple providers. You can have Claude, OpenAI, and Ollama all configured. Each AI chat session uses whichever provider and model you select when starting it. You can keep Ollama as your default for sensitive work and switch to a cloud model when you want faster or more capable responses on non-sensitive tasks.</p>
     </details>
   </div>
 
@@ -350,15 +350,15 @@
     <ul>
       <li><a href="/byok-ai">BYOK AI explained: bring your own key, the why and how</a></li>
       <li><a href="/api-key-setup-guide/">Set up a cloud API key (Claude, OpenAI, Gemini)</a></li>
-      <li><a href="/legal/">Keepance for patent attorneys and legal professionals</a></li>
+      <li><a href="/legal/">Advisor Prep Hero for patent attorneys and legal professionals</a></li>
       <li><a href="/local-first-ai-workspace/">What is a local-first AI workspace?</a></li>
     </ul>
   </div>
 
   <div class="cta-card">
-    <h3>Try Keepance with your own model</h3>
+    <h3>Try Advisor Prep Hero with your own model</h3>
     <p>Solo is $468/yr. Professional (with practice pack) is $948/yr. Works with Ollama, Claude, OpenAI, and Gemini. Your data never touches our servers.</p>
-    <a href="/#pricing" class="cta-btn">Get Keepance</a>
+    <a href="/#pricing" class="cta-btn">Get Advisor Prep Hero</a>
   </div>
 </div>
 

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document covers the Playwright E2E testing infrastructure for Keepance, established during v1.0.1 verification. All tests follow strict rules for reliability and accessibility.
+This document covers the Playwright E2E testing infrastructure for Advisor Prep Hero, established during v1.0.1 verification. All tests follow strict rules for reliability and accessibility.
 
 ## Testing Rules
 

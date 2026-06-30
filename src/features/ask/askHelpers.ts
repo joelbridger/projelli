@@ -234,7 +234,7 @@ export async function hasCloudKey(): Promise<boolean> {
 
 /**
  * The local engine the Ask / Search surface should use when no cloud provider is
- * chosen: the embedded Keepance Local AI when it is downloaded and READY,
+ * chosen: the embedded Advisor Prep Hero Local AI when it is downloaded and READY,
  * otherwise the user's own Ollama daemon. Delegates to the shared resolver so
  * every surface (Ask / Chat / Client Map / Glance / email / workflows) prefers
  * the same on-device engine — and so Local-only mode is honest about WHICH local
@@ -387,7 +387,7 @@ export async function buildResolvedAskProvider(): Promise<ResolvedAskProvider> {
   }
   // No usable cloud provider (no key, or no explicit choice yet). In Direct /
   // Assured mode, only claim a local route after proving one exists: embedded
-  // Keepance Local AI ready, else a reachable Ollama daemon.
+  // Advisor Prep Hero Local AI ready, else a reachable Ollama daemon.
   const localProvider = await resolveAvailableLocalAskProvider();
   if (localProvider) return localProvider;
   throw new Error(NO_ASK_PROVIDER_CONNECTED_MESSAGE);
@@ -427,7 +427,7 @@ function buildDemoAskProvider(): ResolvedAskProvider {
  *              provider call actually started (false => the failure was in the
  *              file-search/index stage, not the AI/key).
  */
-/* eslint-disable keepance-i18n/no-hardcoded-string */
+/* eslint-disable lantern-i18n/no-hardcoded-string */
 export function friendlyErrorMessage(
   raw: string,
   opts?: { mode?: string; reachedProvider?: boolean; failedStage?: AskFailureStage },
@@ -486,7 +486,7 @@ export function friendlyErrorMessage(
     ? "The local AI couldn't answer, and your data stayed on your machine. Make sure your private AI finished setting up, then try again. You can also search by keyword instead."
     : "I couldn't get an answer from your AI. Try again in a moment, or search by keyword instead.";
 }
-/* eslint-enable keepance-i18n/no-hardcoded-string */
+/* eslint-enable lantern-i18n/no-hardcoded-string */
 
 /** Build conversation history block for system prompt (last N turns). */
 export function buildHistoryBlock(turns: AskTurn[], maxTurns = 6): string {

@@ -36,7 +36,7 @@ function setMode(mode: string) {
 function persistRawModeButLeaveStoreUnhydrated(mode: string) {
   useSettingsStore.setState({ values: {} }); // in-memory empty (unhydrated)
   localStorage.setItem(
-    'keepance:settings',
+    'lantern:settings',
     JSON.stringify({ state: { values: { [CONFIDENTIALITY_MODE_SETTING_KEY]: mode } }, version: 1 }),
   );
 }

@@ -1,4 +1,4 @@
-# Next-session handoff — Keepance, 2026-06-11
+# Next-session handoff — Advisor Prep Hero, 2026-06-11
 
 **Read this first.** Branch `keepance-3.0`, everything committed + pushed (`HEAD == origin/keepance-3.0 == 165499d`, working tree clean). This session ran a long autonomous push toward **100% of the north-star vision** (board mandate Q7-revised: zero exceptions). Plan of record: `docs/strategy/2026-06-10-vision-gap-closure-plan.md`. Project memory: `~/.claude/projects/-home-jameson/memory/project_keepance_3_0.md` (updated this session).
 

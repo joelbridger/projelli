@@ -20,7 +20,7 @@
 
 I'm a product designer, not a tax professional. I want to say that upfront.
 
-For about a year I've been building a desktop app called Keepance. The basic idea: professionals who work with confidential client data shouldn't have to choose between using AI and keeping that data private. Your API key connects directly from your machine to Anthropic or OpenAI. Your files stay on your hard drive. No server I control ever sees them.
+For about a year I've been building a desktop app called Advisor Prep Hero. The basic idea: professionals who work with confidential client data shouldn't have to choose between using AI and keeping that data private. Your API key connects directly from your machine to Anthropic or OpenAI. Your files stay on your hard drive. No server I control ever sees them.
 
 The reason I'm posting here is that I just shipped a Tax Practice pack and I want to get it in front of practitioners before filing season so I can fix what's wrong.
 

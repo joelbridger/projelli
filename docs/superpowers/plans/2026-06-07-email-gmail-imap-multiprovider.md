@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Extend Keepance's email import beyond Microsoft 365 to Gmail and generic IMAP, behind one shared provider seam, so adding a provider is writing one adapter — not touching the sync/encryption/index engine.
+**Goal:** Extend Advisor Prep Hero's email import beyond Microsoft 365 to Gmail and generic IMAP, behind one shared provider seam, so adding a provider is writing one adapter — not touching the sync/encryption/index engine.
 
 **Architecture:** Introduce a `MailProvider` trait that abstracts authenticate → list folders → fetch changes (backfill + incremental) → normalized `MailMessage`. Refactor the existing Microsoft 365 code to implement it (no behavior change, regression-guarded). Then add a `GmailProvider` (Gmail API) and an `ImapProvider` (async-imap). All three feed the existing `EncryptedMailStore` + RAG/keyword index unchanged — encryption is already solved and provider-agnostic.
 

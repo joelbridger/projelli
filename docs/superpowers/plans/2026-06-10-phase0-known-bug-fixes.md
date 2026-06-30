@@ -21,14 +21,14 @@
 
 ---
 
-### Task 1: Replace Projelli icon set with the Keepance logo
+### Task 1: Replace Projelli icon set with the Advisor Prep Hero logo
 
 **Files:**
 - Modify: `src-tauri/icons/icon.ico` (stale Projelli art; PNGs in the same dir were regenerated June 3 but the .ico was not)
 - Verify/possibly modify: `src-tauri/icons/icon.icns`, every PNG listed in `src-tauri/tauri.conf.json` bundle.icon, any tray icon path in `src-tauri/src/` (`grep -rn "tray" src-tauri/src/ src-tauri/tauri.conf.json`)
 - Test: `tests/unit/branding-icons.test.ts` (new)
 
-- [ ] **Step 1: Locate the canonical new Keepance logo.** Check `website/` (favicon/og assets), `public/`, and `src-tauri/icons/128x128.png` (dated June 3, believed new-brand). Confirm visually by exporting to PNG and inspecting: the old Projelli mark is a pink jelly-bean blob; the new Keepance mark is the current brand. If `128x128.png` is new-brand, it is the master source.
+- [ ] **Step 1: Locate the canonical new Advisor Prep Hero logo.** Check `website/` (favicon/og assets), `public/`, and `src-tauri/icons/128x128.png` (dated June 3, believed new-brand). Confirm visually by exporting to PNG and inspecting: the old Projelli mark is a pink jelly-bean blob; the new Advisor Prep Hero mark is the current brand. If `128x128.png` is new-brand, it is the master source.
 - [ ] **Step 2: Write the failing check.** A unit test cannot see pixels; use a content-hash guard so regressions are caught:
 
 ```typescript
@@ -37,11 +37,11 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 
-// icon.ico must be regenerated from the 2026-06 Keepance brand master.
+// icon.ico must be regenerated from the 2026-06 Advisor Prep Hero brand master.
 // The stale Projelli .ico this guards against hashed to STALE_HASH below.
 const STALE_PROJELLI_ICO_SHA256 = '<fill with sha256 of current stale icon.ico before replacing>';
 
-describe('app icons are Keepance brand', () => {
+describe('app icons are Advisor Prep Hero brand', () => {
   it('icon.ico is not the stale Projelli icon', () => {
     const buf = readFileSync('src-tauri/icons/icon.ico');
     const hash = createHash('sha256').update(buf).digest('hex');
@@ -111,9 +111,9 @@ Adapt the JSON path to the real nesting (read `en.json` first; keys may be flat 
 
 ```json
 "welcome": {
-  "title": "Welcome to Keepance",
+  "title": "Welcome to Advisor Prep Hero",
   "subtitle": "The private place your work lives, that answers you back.",
-  "body-1": "Keepance keeps your documents and email on your own machine, lets you ask questions across all of it, and gives you answers with citations you can check. Your files stay real files in a folder you control.",
+  "body-1": "Advisor Prep Hero keeps your documents and email on your own machine, lets you ask questions across all of it, and gives you answers with citations you can check. Your files stay real files in a folder you control.",
   "body-2": "This setup takes about 2 minutes. I'll help you pick a folder, choose how you want AI to work, and run your first workflow.",
   "step-1": "Step 1. Pick a workspace folder",
   "step-2": "Step 2. Choose your AI setup (optional)",
@@ -127,7 +127,7 @@ Adapt the JSON path to the real nesting (read `en.json` first; keys may be flat 
 "demo": {
   "title": "Run your first workflow",
   "subtitle": "See the magic moment in action.",
-  "body-1": "The fastest way to understand what Keepance does is to run a workflow. Pick any template from the Workflows tab, answer the questions it asks, and watch it produce a real, editable document in your workspace.",
+  "body-1": "The fastest way to understand what Advisor Prep Hero does is to run a workflow. Pick any template from the Workflows tab, answer the questions it asks, and watch it produce a real, editable document in your workspace.",
   "step-1": "Click <s>Workflows</s> in the sidebar",
   "step-2": "Pick any template that fits your work",
   "step-3": "Answer the questions and click <s>Generate</s>",
@@ -311,8 +311,8 @@ import { resolveWorkspacePath } from '../../src/modules/workspace/pathResolve';
 
 describe('resolveWorkspacePath', () => {
   it('prefixes workspace-relative paths with the root', () => {
-    expect(resolveWorkspacePath('C:/Users/j/Keepance 1', 'docs/The Supreme Court.docx'))
-      .toBe('C:/Users/j/Keepance 1/docs/The Supreme Court.docx');
+    expect(resolveWorkspacePath('C:/Users/j/Advisor Prep Hero 1', 'docs/The Supreme Court.docx'))
+      .toBe('C:/Users/j/Advisor Prep Hero 1/docs/The Supreme Court.docx');
   });
   it('leaves absolute windows and posix paths alone', () => {
     expect(resolveWorkspacePath('C:/root', 'C:/elsewhere/a.docx')).toBe('C:/elsewhere/a.docx');
@@ -416,7 +416,7 @@ Reuse the workflow-launch steps from the existing `workflows-panel.spec.ts`. Run
 - [ ] `cd src-tauri && cargo test` green (Tasks 5-7 touch Rust)
 - [ ] Affected e2e specs pass: `npx playwright test tests/e2e/<new specs>`
 - [ ] Commit per cluster with conventional messages:
-  - `fix(brand): regenerate Windows/macOS icons from Keepance logo`
+  - `fix(brand): regenerate Windows/macOS icons from Advisor Prep Hero logo`
   - `fix(onboarding): 3.0 copy, accordion data map, centered step badges`
   - `fix(docx): blank documents open editable; absolute path resolution for binary opens`
   - `fix(files): Open on Desktop targets the selected folder`

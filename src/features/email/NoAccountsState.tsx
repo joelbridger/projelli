@@ -11,7 +11,7 @@ export interface NoAccountsStateProps {
 export function NoAccountsState({ onOpenSettings }: NoAccountsStateProps) {
   const entityLabel = useEntityLabel();
   return (
-    /* eslint-disable keepance-i18n/no-hardcoded-string */
+    /* eslint-disable lantern-i18n/no-hardcoded-string */
     <div data-testid="no-accounts-state">
       <EmptyState
         icon={Mail}
@@ -26,6 +26,6 @@ export function NoAccountsState({ onOpenSettings }: NoAccountsStateProps) {
         }
       />
     </div>
-    /* eslint-enable keepance-i18n/no-hardcoded-string */
+    /* eslint-enable lantern-i18n/no-hardcoded-string */
   );
 }

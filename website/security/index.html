@@ -3,18 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Security and data handling | Keepance</title>
-  <meta name="description" content="How Keepance handles your data: local-first storage, OS keychain key management, append-only audit log, opt-in telemetry, and honest disclosure of what we don't have yet. Forwardable to a CCO or IT reviewer.">
+  <title>Security and data handling | Advisor Prep Hero</title>
+  <meta name="description" content="How Advisor Prep Hero handles your data: local-first storage, OS keychain key management, append-only audit log, opt-in telemetry, and honest disclosure of what we don't have yet. Forwardable to a CCO or IT reviewer.">
   <link rel="canonical" href="https://keepance.com/security">
   <meta name="robots" content="index, follow">
   <meta property="og:type" content="article">
   <meta property="og:url" content="https://keepance.com/security">
-  <meta property="og:title" content="Security and data handling | Keepance">
-  <meta property="og:description" content="How Keepance handles your data: local-first storage, OS keychain key management, append-only audit log, and opt-in telemetry. Forwardable to a CCO or IT reviewer.">
+  <meta property="og:title" content="Security and data handling | Advisor Prep Hero">
+  <meta property="og:description" content="How Advisor Prep Hero handles your data: local-first storage, OS keychain key management, append-only audit log, and opt-in telemetry. Forwardable to a CCO or IT reviewer.">
   <meta property="og:image" content="https://keepance.com/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Security and data handling | Keepance">
-  <meta name="twitter:description" content="How Keepance handles your data: local-first, BYOK, OS keychain key storage, append-only audit log, opt-in telemetry. Honest about what we don't have yet.">
+  <meta name="twitter:title" content="Security and data handling | Advisor Prep Hero">
+  <meta name="twitter:description" content="How Advisor Prep Hero handles your data: local-first, BYOK, OS keychain key storage, append-only audit log, opt-in telemetry. Honest about what we don't have yet.">
   <meta name="twitter:image" content="https://keepance.com/og-image.png">
   <link href="https://api.fontshare.com/v2/css?f[]=satoshi@800,700,400&display=swap" rel="stylesheet">
   <script defer data-domain="keepance.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
@@ -101,61 +101,61 @@
   <p class="meta">Updated 2026-06-08 · Forwardable to a CCO, IT reviewer, or malpractice carrier</p>
 
   <div class="summary">
-    <p><strong>The short version.</strong> Your documents and data are stored on your machine. Your API key is in your OS keychain. AI requests go directly from your machine to your chosen provider. Keepance's servers are not in the data path. With a local model such as Ollama, nothing leaves your machine at all. This page states our current posture honestly, including what we don't have yet.</p>
+    <p><strong>The short version.</strong> Your documents and data are stored on your machine. Your API key is in your OS keychain. AI requests go directly from your machine to your chosen provider. Advisor Prep Hero's servers are not in the data path. With a local model such as Ollama, nothing leaves your machine at all. This page states our current posture honestly, including what we don't have yet.</p>
   </div>
 
   <p>This page is written for attorneys, CPAs, consultants, and the IT or compliance staff who review tools on their behalf. It covers where data is stored, who can see it, how API keys are handled, what the audit trail looks like, and what certifications and agreements we currently hold (and don't). If you have a specific technical question not answered here, email <a href="mailto:security@keepance.com">security@keepance.com</a>.</p>
 
-  <h2>What Keepance does with your data</h2>
+  <h2>What Advisor Prep Hero does with your data</h2>
 
   <div class="check-grid">
     <div class="check-item">
       <div class="check-icon"></div>
       <div class="check-item-text">
         <strong>Documents stay on your machine</strong>
-        <p>Keepance stores all your notes, drafts, chat histories, and workspace files as plain files in a folder you choose on your own hard drive. No Keepance server holds a copy.</p>
+        <p>Advisor Prep Hero stores all your notes, drafts, chat histories, and workspace files as plain files in a folder you choose on your own hard drive. No Advisor Prep Hero server holds a copy.</p>
       </div>
     </div>
     <div class="check-item">
       <div class="check-icon"></div>
       <div class="check-item-text">
         <strong>API keys in your OS keychain</strong>
-        <p>When you configure a cloud AI provider, Keepance stores your API key in the OS keychain: macOS Keychain, Windows Credential Manager, or Linux libsecret. Keys are never written to a config file in plaintext and never transmitted to Keepance's servers.</p>
+        <p>When you configure a cloud AI provider, Advisor Prep Hero stores your API key in the OS keychain: macOS Keychain, Windows Credential Manager, or Linux libsecret. Keys are never written to a config file in plaintext and never transmitted to Advisor Prep Hero's servers.</p>
       </div>
     </div>
     <div class="check-item">
       <div class="check-icon"></div>
       <div class="check-item-text">
         <strong>AI requests go directly to your provider</strong>
-        <p>When you send a message to a cloud AI provider (Anthropic, OpenAI, Google), the request travels from your machine directly to that provider's API using your key. Keepance's servers are not in this path and never see the content of your prompts or responses.</p>
+        <p>When you send a message to a cloud AI provider (Anthropic, OpenAI, Google), the request travels from your machine directly to that provider's API using your key. Advisor Prep Hero's servers are not in this path and never see the content of your prompts or responses.</p>
       </div>
     </div>
     <div class="check-item">
       <div class="check-icon"></div>
       <div class="check-item-text">
         <strong>Local model option: nothing leaves your machine</strong>
-        <p>When you configure Keepance to use a local model (such as Ollama running on your machine), AI inference runs entirely on your hardware. No data reaches any external server. This path is available to any Keepance user and is the appropriate choice for content that must not leave your machine. Note: cloud BYOK keys still send your prompt to the cloud provider; only the local model path produces zero external egress.</p>
+        <p>When you configure Advisor Prep Hero to use a local model (such as Ollama running on your machine), AI inference runs entirely on your hardware. No data reaches any external server. This path is available to any Advisor Prep Hero user and is the appropriate choice for content that must not leave your machine. Note: cloud BYOK keys still send your prompt to the cloud provider; only the local model path produces zero external egress.</p>
       </div>
     </div>
     <div class="check-item">
       <div class="check-icon"></div>
       <div class="check-item-text">
         <strong>Email stays local and encrypted at rest</strong>
-        <p>If you use Keepance's email import feature, imported messages are encrypted at rest on your device and searchable locally. Email is never routed through a Keepance server.</p>
+        <p>If you use Advisor Prep Hero's email import feature, imported messages are encrypted at rest on your device and searchable locally. Email is never routed through a Advisor Prep Hero server.</p>
       </div>
     </div>
     <div class="check-item">
       <div class="check-icon"></div>
       <div class="check-item-text">
         <strong>Append-only audit log</strong>
-        <p>Keepance writes an append-only log of every AI action: timestamp, model, files included, and output produced. The log lives on your machine, is per-workspace, and can be produced for any matter on request. It is retained as long as your workspace folder exists.</p>
+        <p>Advisor Prep Hero writes an append-only log of every AI action: timestamp, model, files included, and output produced. The log lives on your machine, is per-workspace, and can be produced for any matter on request. It is retained as long as your workspace folder exists.</p>
       </div>
     </div>
     <div class="check-item">
       <div class="check-icon"></div>
       <div class="check-item-text">
         <strong>Telemetry is opt-in; default is nothing</strong>
-        <p>The Keepance desktop app collects no usage telemetry by default. If you choose to enable anonymous usage reporting in Settings, it can be turned off at any time. The marketing site uses <a href="https://plausible.io" target="_blank" rel="noopener">Plausible Analytics</a> (no individual tracking, no cookies).</p>
+        <p>The Advisor Prep Hero desktop app collects no usage telemetry by default. If you choose to enable anonymous usage reporting in Settings, it can be turned off at any time. The marketing site uses <a href="https://plausible.io" target="_blank" rel="noopener">Plausible Analytics</a> (no individual tracking, no cookies).</p>
       </div>
     </div>
   </div>
@@ -166,21 +166,21 @@
 
   <h3>Path A: Cloud provider (Anthropic, OpenAI, Google) with your API key</h3>
   <ol>
-    <li>You type a prompt in Keepance.</li>
-    <li>Keepance reads your API key from the OS keychain.</li>
+    <li>You type a prompt in Advisor Prep Hero.</li>
+    <li>Advisor Prep Hero reads your API key from the OS keychain.</li>
     <li>Your machine sends the prompt directly to the provider's API endpoint, under your account.</li>
     <li>The provider returns a response directly to your machine.</li>
-    <li>Keepance saves the conversation to a file in your workspace folder.</li>
+    <li>Advisor Prep Hero saves the conversation to a file in your workspace folder.</li>
   </ol>
-  <p>Who has a copy: you and the AI provider. Keepance is not in this path.</p>
+  <p>Who has a copy: you and the AI provider. Advisor Prep Hero is not in this path.</p>
   <p>Your prompts are governed by your chosen provider's API data-processing terms, not consumer product terms. Neither Anthropic nor OpenAI uses API inputs to train models by default. See each provider's current API usage policy for the precise retention and data-handling terms.</p>
 
   <h3>Path B: Local model (Ollama or similar)</h3>
   <ol>
-    <li>You type a prompt in Keepance.</li>
-    <li>Keepance sends the prompt to the local model running on your machine (typically at <code>localhost:11434</code> for Ollama).</li>
+    <li>You type a prompt in Advisor Prep Hero.</li>
+    <li>Advisor Prep Hero sends the prompt to the local model running on your machine (typically at <code>localhost:11434</code> for Ollama).</li>
     <li>The model generates a response on your hardware.</li>
-    <li>Keepance saves the conversation to a file in your workspace folder.</li>
+    <li>Advisor Prep Hero saves the conversation to a file in your workspace folder.</li>
   </ol>
   <p>Who has a copy: you. No network call is made.</p>
   <p>This is the strictest posture available. Nothing reaches any external server. If your professional obligations, an NDA, or client instructions prohibit any external data transmission, the local model path meets that requirement literally.</p>
@@ -197,17 +197,17 @@
     </thead>
     <tbody>
       <tr>
-        <td>Documents stored on a Keepance server?</td>
+        <td>Documents stored on a Advisor Prep Hero server?</td>
         <td><span class="pill no">No</span></td>
         <td><span class="pill no">No</span></td>
       </tr>
       <tr>
-        <td>API key visible to Keepance?</td>
+        <td>API key visible to Advisor Prep Hero?</td>
         <td><span class="pill no">No</span></td>
         <td>N/A</td>
       </tr>
       <tr>
-        <td>Prompts visible to Keepance?</td>
+        <td>Prompts visible to Advisor Prep Hero?</td>
         <td><span class="pill no">No</span></td>
         <td><span class="pill no">No</span></td>
       </tr>
@@ -239,21 +239,21 @@
     </tbody>
   </table>
 
-  <h2>What Keepance's servers do handle</h2>
+  <h2>What Advisor Prep Hero's servers do handle</h2>
 
-  <p>A few narrow functions do go through Keepance infrastructure:</p>
+  <p>A few narrow functions do go through Advisor Prep Hero infrastructure:</p>
 
   <ul>
-    <li><strong>License validation.</strong> When you activate a license, Keepance checks your license key against our license server (LemonSqueezy). This call contains your license key only, not your workspace data.</li>
+    <li><strong>License validation.</strong> When you activate a license, Advisor Prep Hero checks your license key against our license server (LemonSqueezy). This call contains your license key only, not your workspace data.</li>
     <li><strong>Update checks.</strong> The app periodically checks GitHub Releases for a newer version manifest. This is a GET request that contains no user data.</li>
-    <li><strong>The web demo (keepance.com homepage).</strong> The five-message demo on the marketing site runs through a Keepance-managed proxy that holds a shared API key. This exists so visitors can try the interface without an API key. The desktop app does not use this proxy once you install it and add your own key. Do not put client data into the web demo.</li>
+    <li><strong>The web demo (keepance.com homepage).</strong> The five-message demo on the marketing site runs through a Advisor Prep Hero-managed proxy that holds a shared API key. This exists so visitors can try the interface without an API key. The desktop app does not use this proxy once you install it and add your own key. Do not put client data into the web demo.</li>
   </ul>
 
   <p>That is the complete list. Everything else stays on your machine.</p>
 
   <h2>Key storage</h2>
 
-  <p>Keepance uses the OS-native keychain to store API keys:</p>
+  <p>Advisor Prep Hero uses the OS-native keychain to store API keys:</p>
 
   <ul>
     <li><strong>macOS:</strong> macOS Keychain (the same store used by Safari and 1Password).</li>
@@ -269,33 +269,33 @@
   <div class="honest-box">
     <h3>Current gaps: honest disclosure for reviewers</h3>
     <ul>
-      <li><strong>No SOC 2 certification.</strong> Keepance has not completed a SOC 2 Type I or Type II audit. We do not hold any active SOC 2 report. We are evaluating whether to pursue this; the SOC 2 question in the FAQ below explains our thinking. If SOC 2 is a hard requirement for your vendor approval process, we cannot satisfy that requirement today.</li>
+      <li><strong>No SOC 2 certification.</strong> Advisor Prep Hero has not completed a SOC 2 Type I or Type II audit. We do not hold any active SOC 2 report. We are evaluating whether to pursue this; the SOC 2 question in the FAQ below explains our thinking. If SOC 2 is a hard requirement for your vendor approval process, we cannot satisfy that requirement today.</li>
       <li><strong>No signed DPA.</strong> We do not have a standard signed Data Processing Agreement available for customer execution yet. A draft template is in preparation and under legal review. If your organization requires a signed DPA before procurement, contact <a href="mailto:legal@keepance.com">legal@keepance.com</a> and we will update you on timeline.</li>
       <li><strong>No penetration test report.</strong> We have not commissioned an independent third-party penetration test. The codebase is open source at <a href="https://github.com/keepance/keepance" target="_blank" rel="noopener">github.com/keepance/keepance</a> and can be reviewed directly.</li>
-      <li><strong>No enterprise SSO / SAML.</strong> Keepance is a single-user desktop application. There is no enterprise directory integration today.</li>
+      <li><strong>No enterprise SSO / SAML.</strong> Advisor Prep Hero is a single-user desktop application. There is no enterprise directory integration today.</li>
     </ul>
   </div>
 
-  <p>We believe being direct about these gaps is more useful than burying them. The security story for Keepance is architectural: most of the threats that SOC 2 and a DPA guard against (unauthorized access to vendor servers, vendor breach, data shared with third parties) are substantially reduced by having no vendor servers in your data path to begin with. That's a meaningful substitute posture, not a compliance certification. They are different things, and we're not going to pretend otherwise.</p>
+  <p>We believe being direct about these gaps is more useful than burying them. The security story for Advisor Prep Hero is architectural: most of the threats that SOC 2 and a DPA guard against (unauthorized access to vendor servers, vendor breach, data shared with third parties) are substantially reduced by having no vendor servers in your data path to begin with. That's a meaningful substitute posture, not a compliance certification. They are different things, and we're not going to pretend otherwise.</p>
 
   <h2>Frequently asked questions</h2>
 
   <div class="faq">
     <details>
-      <summary>Can Keepance read my documents?</summary>
-      <p>No. Your documents are stored as files on your hard drive in the folder you chose. Keepance does not upload them to any server. The app reads them locally to display them in the editor. The only time any content leaves your machine is when you send a specific message to a cloud AI provider, and at that point it goes directly to the provider under your account, not through Keepance.</p>
+      <summary>Can Advisor Prep Hero read my documents?</summary>
+      <p>No. Your documents are stored as files on your hard drive in the folder you chose. Advisor Prep Hero does not upload them to any server. The app reads them locally to display them in the editor. The only time any content leaves your machine is when you send a specific message to a cloud AI provider, and at that point it goes directly to the provider under your account, not through Advisor Prep Hero.</p>
     </details>
     <details>
       <summary>If I use Anthropic as my AI provider, does Anthropic train on my prompts?</summary>
-      <p>No. The API tier (which is what BYOK tools like Keepance use) does not train on inputs by default per Anthropic's commercial API terms. This is different from Claude.ai consumer accounts, which have different terms. Read <a href="https://www.anthropic.com/legal/commercial-terms" target="_blank" rel="noopener">Anthropic's Commercial Terms of Service</a> for the current precise language.</p>
+      <p>No. The API tier (which is what BYOK tools like Advisor Prep Hero use) does not train on inputs by default per Anthropic's commercial API terms. This is different from Claude.ai consumer accounts, which have different terms. Read <a href="https://www.anthropic.com/legal/commercial-terms" target="_blank" rel="noopener">Anthropic's Commercial Terms of Service</a> for the current precise language.</p>
     </details>
     <details>
       <summary>What if I want literally nothing to leave my machine?</summary>
-      <p>Use the local model path. Configure Keepance to use Ollama with an open-weight model (Llama, Mistral, Phi, or similar) running on your hardware. With a local model configured, Keepance makes no outbound AI calls. Your prompts are processed entirely on your machine. This is the appropriate setup for content that must not reach any external server, period.</p>
+      <p>Use the local model path. Configure Advisor Prep Hero to use Ollama with an open-weight model (Llama, Mistral, Phi, or similar) running on your hardware. With a local model configured, Advisor Prep Hero makes no outbound AI calls. Your prompts are processed entirely on your machine. This is the appropriate setup for content that must not reach any external server, period.</p>
     </details>
     <details>
       <summary>Is there a server-side copy of my workspace?</summary>
-      <p>No. There is no cloud sync, no backup to Keepance's servers, and no account-linked storage. Your workspace exists only in the folder you chose on your machine. If your hard drive fails and you have no local backup, your workspace is gone. We recommend disk encryption (FileVault on macOS, BitLocker on Windows) and a local backup routine on top of Keepance.</p>
+      <p>No. There is no cloud sync, no backup to Advisor Prep Hero's servers, and no account-linked storage. Your workspace exists only in the folder you chose on your machine. If your hard drive fails and you have no local backup, your workspace is gone. We recommend disk encryption (FileVault on macOS, BitLocker on Windows) and a local backup routine on top of Advisor Prep Hero.</p>
     </details>
     <details>
       <summary>What is in the audit log?</summary>
@@ -303,15 +303,15 @@
     </details>
     <details>
       <summary>Do you have a Data Processing Agreement?</summary>
-      <p>Not a finalized, signed version yet. A draft template is in preparation under legal review. If you need a DPA for vendor approval, email <a href="mailto:legal@keepance.com">legal@keepance.com</a>. Because Keepance does not process your data on its servers (it's stored on your machine), the traditional DPA framing that governs a cloud SaaS processor does not apply cleanly to our architecture. We'll work through the appropriate framing with counsel.</p>
+      <p>Not a finalized, signed version yet. A draft template is in preparation under legal review. If you need a DPA for vendor approval, email <a href="mailto:legal@keepance.com">legal@keepance.com</a>. Because Advisor Prep Hero does not process your data on its servers (it's stored on your machine), the traditional DPA framing that governs a cloud SaaS processor does not apply cleanly to our architecture. We'll work through the appropriate framing with counsel.</p>
     </details>
     <details>
       <summary>Do you have SOC 2?</summary>
       <p>No. We do not hold a SOC 2 report today. If you need to understand our controls in detail, the source code is open at <a href="https://github.com/keepance/keepance" target="_blank" rel="noopener">github.com/keepance/keepance</a>. The short architectural answer: a SOC 2 audit focuses heavily on controls around a vendor's server-side data processing. Because we don't process your data server-side, most of the controls an auditor would test simply don't apply. We're evaluating whether to pursue an audit scoped to the parts that do (license server, update server, web demo proxy). That's a cost and timeline decision that isn't finalized yet.</p>
     </details>
     <details>
-      <summary>What happens to my data if Keepance shuts down?</summary>
-      <p>Nothing changes. Your files are on your machine in plain Markdown and .aichat (JSON) format. They don't move. If Keepance disappears tomorrow, you still have your files, readable with any text editor. This is a deliberate design choice: your data should outlive the tool.</p>
+      <summary>What happens to my data if Advisor Prep Hero shuts down?</summary>
+      <p>Nothing changes. Your files are on your machine in plain Markdown and .aichat (JSON) format. They don't move. If Advisor Prep Hero disappears tomorrow, you still have your files, readable with any text editor. This is a deliberate design choice: your data should outlive the tool.</p>
     </details>
     <details>
       <summary>Do you support multi-user or enterprise deployments?</summary>
@@ -331,15 +331,15 @@
       <li><a href="/ai-workspace-privacy">AI workspace privacy: a data flow guide for attorneys, CPAs, and consultants</a></li>
       <li><a href="/byok-ai">BYOK AI: what bring-your-own-key means in practice</a></li>
       <li><a href="/local-first-ai-workspace">What is a local-first AI workspace?</a></li>
-      <li><a href="/local-model-setup">Setting up a local AI model with Keepance</a></li>
-      <li><a href="/legal/privacy">Keepance Privacy Policy</a></li>
+      <li><a href="/local-model-setup">Setting up a local AI model with Advisor Prep Hero</a></li>
+      <li><a href="/legal/privacy">Advisor Prep Hero Privacy Policy</a></li>
     </ul>
   </div>
 
   <div class="cta-card">
     <h3>An AI workspace designed around your data staying yours</h3>
-    <p>Local-first. BYOK. No Keepance servers in the data path. Try it free for 30 days.</p>
-    <a href="/#pricing" class="cta-btn">Get Keepance</a>
+    <p>Local-first. BYOK. No Advisor Prep Hero servers in the data path. Try it free for 30 days.</p>
+    <a href="/#pricing" class="cta-btn">Get Advisor Prep Hero</a>
   </div>
 </div>
 

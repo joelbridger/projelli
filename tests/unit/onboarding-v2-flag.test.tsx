@@ -32,7 +32,7 @@ describe('FirstRunOverlay flag gating', () => {
   });
 
   it('renders OnboardingV2 when the flag is ON via localStorage', () => {
-    localStorage.setItem('keepance:onboardingV2', '1');
+    localStorage.setItem('lantern:onboardingV2', '1');
     render(<FirstRunOverlay {...props} />);
     expect(screen.getByTestId('v2-stub')).toBeTruthy();
     expect(screen.queryByTestId('guided-stub')).toBeNull();

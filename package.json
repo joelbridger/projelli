@@ -1,5 +1,5 @@
 {
-  "name": "keepance",
+  "name": "advisor-prep-hero",
   "private": true,
   "version": "3.3.5",
   "type": "module",
@@ -31,6 +31,7 @@
     "gate:full": "bash scripts/gate.sh --full",
     "brand:sync": "node scripts/brand-sync.mjs",
     "brand:check": "node scripts/brand-sync.mjs --check",
+    "identity:check": "node scripts/identity-check.mjs",
     "lint:gate": "node scripts/eslint-gate.mjs",
     "prepare": "bash scripts/install-git-hooks.sh || true",
     "i18n:check": "node ./node_modules/.bin/i18next --config i18next-parser.check.config.js --fail-on-warnings",
@@ -122,7 +123,7 @@
     "@vitest/coverage-v8": "^4.0.18",
     "autoprefixer": "^10.4.23",
     "eslint": "^9.39.2",
-    "eslint-plugin-keepance-i18n": "file:./packages/eslint-plugin-keepance-i18n",
+    "eslint-plugin-lantern-i18n": "file:./packages/eslint-plugin-keepance-i18n",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.26",
     "globals": "^17.1.0",

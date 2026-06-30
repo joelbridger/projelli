@@ -1,4 +1,4 @@
-// Integration test for the `keepance-mcp` sidecar binary.
+// Integration test for the `lantern-mcp` sidecar binary.
 //
 // Spawns the binary as a child process with a stubbed workspace, writes a
 // canonical MCP handshake (`initialize` → `tools/list`) to its stdin, and
@@ -17,62 +17,62 @@ use std::time::Duration;
 
 const TEST_AUDIT_KEY_HEX: &str = "4242424242424242424242424242424242424242424242424242424242424242";
 
-/// Locate the compiled `keepance-mcp` binary for the current profile. Cargo
+/// Locate the compiled `lantern-mcp` binary for the current profile. Cargo
 /// sets `CARGO_BIN_EXE_<name>` when running integration tests, so no need
 /// to hard-code the target dir layout.
 fn binary_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_BIN_EXE_keepance-mcp"))
+    PathBuf::from(env!("CARGO_BIN_EXE_lantern-mcp"))
 }
 
 /// Spawn the binary with a fresh temp workspace. Returns the child so the
 /// caller can speak JSON-RPC over its stdin/stdout.
 fn spawn_with_workspace() -> (std::process::Child, tempfile::TempDir) {
     let tmp = tempfile::Builder::new()
-        .prefix("keepance-mcp-it-")
+        .prefix("lantern-mcp-it-")
         .tempdir()
         .expect("tmpdir");
     let child = Command::new(binary_path())
-        .env("KEEPANCE_WORKSPACE_ROOT", tmp.path())
+        .env("LANTERN_WORKSPACE_ROOT", tmp.path())
         .env("KEEPANCE_MCP_AUDIT_KEY_HEX", TEST_AUDIT_KEY_HEX)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("spawn keepance-mcp");
+        .expect("spawn lantern-mcp");
     (child, tmp)
 }
 
 fn spawn_scoped_workspace(lockdown: bool) -> (std::process::Child, tempfile::TempDir) {
     let tmp = tempfile::Builder::new()
-        .prefix("keepance-mcp-scoped-")
+        .prefix("lantern-mcp-scoped-")
         .tempdir()
         .expect("tmpdir");
     write_scope_state(tmp.path(), "matter-a", &["matter-a"], lockdown);
     let child = Command::new(binary_path())
-        .env("KEEPANCE_WORKSPACE_ROOT", tmp.path())
+        .env("LANTERN_WORKSPACE_ROOT", tmp.path())
         .env("KEEPANCE_MCP_AUDIT_KEY_HEX", TEST_AUDIT_KEY_HEX)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("spawn keepance-mcp");
+        .expect("spawn lantern-mcp");
     (child, tmp)
 }
 
 fn spawn_root_granted_workspace() -> (std::process::Child, tempfile::TempDir) {
     let tmp = tempfile::Builder::new()
-        .prefix("keepance-mcp-root-granted-")
+        .prefix("lantern-mcp-root-granted-")
         .tempdir()
         .expect("tmpdir");
     write_root_scope_state(tmp.path(), false);
     let child = Command::new(binary_path())
-        .env("KEEPANCE_WORKSPACE_ROOT", tmp.path())
+        .env("LANTERN_WORKSPACE_ROOT", tmp.path())
         .env("KEEPANCE_MCP_AUDIT_KEY_HEX", TEST_AUDIT_KEY_HEX)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("spawn keepance-mcp");
+        .expect("spawn lantern-mcp");
     (child, tmp)
 }
 
@@ -127,7 +127,7 @@ fn write_scope_state_with_updated_at(
             }
         ]
     });
-    let dir = workspace.join(".keepance");
+    let dir = workspace.join(".lantern");
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(
         dir.join("mcp-session-scope.json"),
@@ -154,7 +154,7 @@ fn write_root_scope_state(workspace: &std::path::Path, network_lockdown: bool) {
             }
         ]
     });
-    let dir = workspace.join(".keepance");
+    let dir = workspace.join(".lantern");
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(
         dir.join("mcp-session-scope.json"),
@@ -172,7 +172,7 @@ fn write_deny_all_scope_state(workspace: &std::path::Path) {
         "networkLockdown": true,
         "matters": []
     });
-    let dir = workspace.join(".keepance");
+    let dir = workspace.join(".lantern");
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(
         dir.join("mcp-session-scope.json"),
@@ -186,7 +186,7 @@ fn audit_actions(workspace: &std::path::Path) -> Vec<(String, serde_json::Value)
     let mut key = [0u8; 32];
     key.copy_from_slice(&key_bytes);
     let store =
-        keepance_lib::commands::audit::store::EncryptedAuditStore::open_with_key(workspace, &key)
+        lantern_lib::commands::audit::store::EncryptedAuditStore::open_with_key(workspace, &key)
             .expect("open audit store");
     store
         .list(None, None)
@@ -224,7 +224,7 @@ fn initialize_returns_server_info_and_protocol_version() {
     assert_eq!(parsed["id"], 1);
     // Server-info + protocol version + capabilities are mandatory.
     let info = &parsed["result"]["serverInfo"];
-    assert_eq!(info["name"], "keepance");
+    assert_eq!(info["name"], "lantern");
     assert!(info["version"].is_string(), "got {info:?}");
     assert_eq!(parsed["result"]["protocolVersion"], "2025-03-26");
     assert!(parsed["result"]["capabilities"]["tools"].is_object());
@@ -336,7 +336,7 @@ fn read_workspace_file_denies_cross_matter_path() {
 #[test]
 fn read_workspace_file_denies_active_matter_without_explicit_grant() {
     let tmp = tempfile::Builder::new()
-        .prefix("keepance-mcp-active-not-granted-")
+        .prefix("lantern-mcp-active-not-granted-")
         .tempdir()
         .expect("tmpdir");
     write_scope_state(tmp.path(), "matter-a", &[], false);
@@ -346,13 +346,13 @@ fn read_workspace_file_denies_active_matter_without_explicit_grant() {
     )
     .unwrap();
     let mut child = Command::new(binary_path())
-        .env("KEEPANCE_WORKSPACE_ROOT", tmp.path())
+        .env("LANTERN_WORKSPACE_ROOT", tmp.path())
         .env("KEEPANCE_MCP_AUDIT_KEY_HEX", TEST_AUDIT_KEY_HEX)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("spawn keepance-mcp");
+        .expect("spawn lantern-mcp");
 
     let resp = exchange(
         &mut child,
@@ -415,7 +415,7 @@ fn read_workspace_file_allows_in_scope_path() {
 #[test]
 fn stale_scope_state_denies_read_and_audits() {
     let tmp = tempfile::Builder::new()
-        .prefix("keepance-mcp-stale-scope-")
+        .prefix("lantern-mcp-stale-scope-")
         .tempdir()
         .expect("tmpdir");
     let stale = (chrono::Utc::now() - chrono::Duration::minutes(5)).to_rfc3339();
@@ -426,13 +426,13 @@ fn stale_scope_state_denies_read_and_audits() {
     )
     .unwrap();
     let mut child = Command::new(binary_path())
-        .env("KEEPANCE_WORKSPACE_ROOT", tmp.path())
+        .env("LANTERN_WORKSPACE_ROOT", tmp.path())
         .env("KEEPANCE_MCP_AUDIT_KEY_HEX", TEST_AUDIT_KEY_HEX)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("spawn keepance-mcp");
+        .expect("spawn lantern-mcp");
 
     let resp = exchange(
         &mut child,
@@ -497,7 +497,7 @@ fn missing_scope_state_denies_read_and_audits() {
 #[test]
 fn future_scope_state_denies_read_and_audits() {
     let tmp = tempfile::Builder::new()
-        .prefix("keepance-mcp-future-scope-")
+        .prefix("lantern-mcp-future-scope-")
         .tempdir()
         .expect("tmpdir");
     let future = (chrono::Utc::now() + chrono::Duration::minutes(2)).to_rfc3339();
@@ -508,13 +508,13 @@ fn future_scope_state_denies_read_and_audits() {
     )
     .unwrap();
     let mut child = Command::new(binary_path())
-        .env("KEEPANCE_WORKSPACE_ROOT", tmp.path())
+        .env("LANTERN_WORKSPACE_ROOT", tmp.path())
         .env("KEEPANCE_MCP_AUDIT_KEY_HEX", TEST_AUDIT_KEY_HEX)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("spawn keepance-mcp");
+        .expect("spawn lantern-mcp");
 
     let resp = exchange(
         &mut child,
@@ -619,7 +619,7 @@ fn root_granted_matter_still_denies_keepance_internal_files() {
 
     let read_resp = exchange(
         &mut child,
-        r#"{"jsonrpc":"2.0","id":331,"method":"tools/call","params":{"name":"read_workspace_file","arguments":{"path":".keepance/mcp-session-scope.json"}}}"#,
+        r#"{"jsonrpc":"2.0","id":331,"method":"tools/call","params":{"name":"read_workspace_file","arguments":{"path":".lantern/mcp-session-scope.json"}}}"#,
     );
     let read_parsed: serde_json::Value = serde_json::from_str(&read_resp).expect("valid JSON");
     assert_eq!(read_parsed["id"], 331);
@@ -627,7 +627,7 @@ fn root_granted_matter_still_denies_keepance_internal_files() {
     assert_eq!(read_parsed["error"]["code"], -32602);
     let read_message = read_parsed["error"]["message"].as_str().unwrap();
     assert!(
-        read_message.contains("Keepance internal files are not exposed over MCP"),
+        read_message.contains("App internal files are not exposed over MCP"),
         "got: {read_message}"
     );
     assert!(!read_message.contains("Root Client"), "got: {read_message}");
@@ -646,7 +646,7 @@ fn root_granted_matter_still_denies_keepance_internal_files() {
         .as_str()
         .unwrap();
     assert!(list_text.contains("visible.md"), "got: {list_text}");
-    assert!(!list_text.contains(".keepance"), "got: {list_text}");
+    assert!(!list_text.contains(".lantern"), "got: {list_text}");
     assert!(
         !list_text.contains("mcp-session-scope.json"),
         "got: {list_text}"
@@ -656,7 +656,7 @@ fn root_granted_matter_still_denies_keepance_internal_files() {
     assert!(
         actions.iter().any(|(a, payload)| {
             a == "mcp_read"
-                && payload["metadata"]["path"] == ".keepance/mcp-session-scope.json"
+                && payload["metadata"]["path"] == ".lantern/mcp-session-scope.json"
                 && payload["metadata"]["result"] == "denied"
                 && payload["metadata"]["reason"] == "invalid_path"
         }),

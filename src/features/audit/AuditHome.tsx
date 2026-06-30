@@ -280,7 +280,7 @@ export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, 
     >
       {/* Header — hidden when embedded as a per-client tab (the hub header
           covers it). No subtitle on any tab header. */}
-      {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+      {/* eslint-disable lantern-i18n/no-hardcoded-string */}
       {!embedded && (
       <div style={{ padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--kp-divider)', flexShrink: 0 }}>
         <SurfaceHeader
@@ -315,7 +315,7 @@ export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, 
         )}
       </div>
       )}
-      {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+      {/* eslint-enable lantern-i18n/no-hardcoded-string */}
 
       {/* Toolbar */}
       <SurfaceToolbar>
@@ -329,9 +329,9 @@ export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, 
           title={filteredEntries.length === 0 ? 'No activity to export yet' : 'Export as CSV'}
           aria-label="Export audit log as CSV"
         >
-          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          {/* eslint-disable lantern-i18n/no-hardcoded-string */}
           CSV
-          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+          {/* eslint-enable lantern-i18n/no-hardcoded-string */}
         </Button>
         <Button
           variant="secondary"
@@ -343,9 +343,9 @@ export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, 
           title={filteredEntries.length === 0 ? 'No activity to export yet' : 'Export as JSON'}
           aria-label="Export audit log as JSON"
         >
-          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          {/* eslint-disable lantern-i18n/no-hardcoded-string */}
           JSON
-          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+          {/* eslint-enable lantern-i18n/no-hardcoded-string */}
         </Button>
         <FilterToggle
           open={showFilters}
@@ -379,9 +379,9 @@ export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, 
             flexShrink: 0,
           }}
         >
-          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          {/* eslint-disable lantern-i18n/no-hardcoded-string */}
           Stored in your browser, not encrypted. Use the desktop app for confidential work.
-          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+          {/* eslint-enable lantern-i18n/no-hardcoded-string */}
         </div>
       )}
 
@@ -424,7 +424,7 @@ export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, 
               {String(filteredEntries.length)} of {String(entries.length)} shown
             </span>
           )}
-          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          {/* eslint-disable lantern-i18n/no-hardcoded-string */}
           {filteredEntries.length > 0 && (
             <span
               data-testid="audit-export-scope-note"
@@ -468,7 +468,7 @@ export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, 
               </button>
             </span>
           )}
-          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+          {/* eslint-enable lantern-i18n/no-hardcoded-string */}
         </div>
       )}
 
@@ -522,14 +522,14 @@ export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, 
                     data-testid="audit-load-more"
                     onClick={() => { setVisibleCount((v) => v + PAGE_SIZE); }}
                   >
-                    {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                    {/* eslint-disable lantern-i18n/no-hardcoded-string */}
                     Load {String(Math.min(PAGE_SIZE, filteredEntries.length - visibleCount))} more
-                    {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                    {/* eslint-enable lantern-i18n/no-hardcoded-string */}
                   </Button>
                   <span style={{ marginLeft: 12, fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
-                    {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                    {/* eslint-disable lantern-i18n/no-hardcoded-string */}
                     showing {String(visibleEntries.length)} of {String(filteredEntries.length)}
-                    {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                    {/* eslint-enable lantern-i18n/no-hardcoded-string */}
                   </span>
                 </div>
               )}

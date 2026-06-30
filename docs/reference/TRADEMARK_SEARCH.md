@@ -1,4 +1,4 @@
-# Trademark Search: "Keepance"
+# Trademark Search: "Advisor Prep Hero"
 
 > **Status:** Initial clearance search complete. **No conflicts found.**
 > **Date:** 2026-04-08
@@ -6,7 +6,7 @@
 
 ## TL;DR
 
-The "Keepance" name appears to be **clean** for software/SaaS use. No matching trademarks found in the USPTO database, no commercial uses on Google, no conflicting domains. **Safe to launch under this name.**
+The "Advisor Prep Hero" name appears to be **clean** for software/SaaS use. No matching trademarks found in the USPTO database, no commercial uses on Google, no conflicting domains. **Safe to launch under this name.**
 
 A formal trademark application should be filed with USPTO once revenue clears $1K/mo (per the business plan, deferred to Month 2). At that point, hire a trademark attorney for a rigorous full search before filing — this informal clearance is sufficient for soft launch but not for the formal filing.
 

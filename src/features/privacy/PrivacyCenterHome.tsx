@@ -69,10 +69,10 @@ export function PrivacyCenterHome({ auditEntries, activeMatter }: PrivacyCenterH
         <SurfaceHeader
           Icon={Lock}
           title="Where your data is"
-          description="How Keepance handles your information and your AI requests, in plain language you can share with a client."
+          description="How Advisor Prep Hero handles your information and your AI requests, in plain language you can share with a client."
           actions={
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              {/* eslint-disable keepance-i18n/no-hardcoded-string -- trust-document button copy, English-canonical */}
+              {/* eslint-disable lantern-i18n/no-hardcoded-string -- trust-document button copy, English-canonical */}
               <Button
                 variant="secondary"
                 size="sm"
@@ -82,7 +82,7 @@ export function PrivacyCenterHome({ auditEntries, activeMatter }: PrivacyCenterH
                 <FileText className="h-3.5 w-3.5 mr-1.5" />
                 Generate a security overview for my firm
               </Button>
-              {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+              {/* eslint-enable lantern-i18n/no-hardcoded-string */}
               <Button
                 variant="primary"
                 size="sm"

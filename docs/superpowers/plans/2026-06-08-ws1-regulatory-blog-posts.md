@@ -35,7 +35,7 @@ All four posts are deploy-gated: files are built and ready; Jameson approves bef
 3. What the rule/ruling does NOT mean (the important carve-out or nuance)
 4. The practical alternatives (from worst to best)
 5. The architectural solution (local model as the cleanest answer)
-6. Soft Keepance tie-in (honest, no overclaims)
+6. Soft Advisor Prep Hero tie-in (honest, no overclaims)
 
 ### Shared caveat (every post ends with this paragraph, before the CTA)
 > "This is informational, not legal, tax, or compliance advice. Verify any regulatory question with your own counsel or compliance officer."
@@ -66,7 +66,7 @@ Say "built with input from practicing [attorneys/CPAs/advisors/consultants]" —
 3. The Kovel analogy: attorney-directed use is a different analysis.
 4. What Heppner does NOT mean: later courts are diverging to a fact-specific approach; enterprise/zero-retention tiers are factually different from consumer; this is a cautionary leading case, not settled black-letter law.
 5. Practical steps: avoid consumer tiers for client work; prefer tools where client data never reaches a vendor at all; local model as the cleanest answer.
-6. Soft Keepance tie-in.
+6. Soft Advisor Prep Hero tie-in.
 
 **Sources:**
 - Gibson Dunn alert: `https://www.gibsondunn.com/ai-privilege-waivers-sdny-rules-against-privilege-protection-for-consumer-ai-outputs/`
@@ -86,7 +86,7 @@ Say "built with input from practicing [attorneys/CPAs/advisors/consultants]" —
 3. The consent path: it exists, but most preparers do not want to manage per-tool §7216 consents.
 4. The local-model alternative: nothing leaves the machine, so there is no third-party disclosure to consent around.
 5. The WISP / Safeguards Rule angle in one paragraph.
-6. Soft Keepance tie-in; note it works with Drake (which ships no AI of its own).
+6. Soft Advisor Prep Hero tie-in; note it works with Drake (which ships no AI of its own).
 
 **Sources:**
 - IRS §7216 information center: `https://www.irs.gov/tax-professionals/section-7216-information-center`
@@ -106,7 +106,7 @@ Say "built with input from practicing [attorneys/CPAs/advisors/consultants]" —
 3. Service-provider oversight in practice: Jump, Zocks, ChatGPT all become vendors you must vet, monitor, and document.
 4. The zero-vendor-surface option: with a local model there is no AI vendor in the data path.
 5. The books-and-records angle: plain Markdown files the firm already controls.
-6. Soft Keepance tie-in.
+6. Soft Advisor Prep Hero tie-in.
 
 **Sources:**
 - Federal Register Reg S-P amendments: `https://www.federalregister.gov/documents/2024/05/16/2024-07367/regulation-s-p-privacy-of-consumer-financial-information-and-safeguarding-customer-information`
@@ -126,7 +126,7 @@ Say "built with input from practicing [attorneys/CPAs/advisors/consultants]" —
 3. Why ChatGPT Plus and Claude Pro train by default, and why enterprise tiers and Copilot still upload to a vendor cloud.
 4. The local-model answer: nothing leaves the machine; a strict clause is honored literally.
 5. Per-client isolation as the second NDA risk: cross-contamination between client contexts.
-6. Soft Keepance tie-in; honest note that the final deck still gets built in PowerPoint or Gamma.
+6. Soft Advisor Prep Hero tie-in; honest note that the final deck still gets built in PowerPoint or Gamma.
 
 **Sources:**
 - Roth Jackson NDA-AI commentary: `https://www.rothjackson.com/blog/ai-confidentiality-clauses-in-nda-agreements`

@@ -1,4 +1,4 @@
-# Keepance Pricing Recommendation (2026-05-29)
+# Advisor Prep Hero Pricing Recommendation (2026-05-29)
 
 > **DECIDED 2026-05-29 (Jameson):** Go with the subscription model (the research's pick,
 > written below as "Alternative"). Professional becomes a **$149/year subscription**;
@@ -108,7 +108,7 @@ recommendation captures much of the recurring upside without spending the pillar
   is a rounding error, and fully tax-deductible the year they buy it.
 - **The category gap is real.** Legal AI tools (Spellbook, CoCounsel, Gavel) are almost
   all enterprise, quote-based, demo-gated, and priced for 5+ attorney firms. A solo can
-  barely buy them. Keepance is genuinely the only locally-running, private, legal-aware
+  barely buy them. Advisor Prep Hero is genuinely the only locally-running, private, legal-aware
   AI workspace a solo can buy in two clicks. That is worth more than $129.
 - **Perpetual works for professionals.** Scrivener has sold a $49 one-time license with
   paid major upgrades for years and writers love it. Obsidian made its commercial
@@ -116,10 +116,10 @@ recommendation captures much of the recurring upside without spending the pillar
   anyway; their revenue is optional add-ons. The lesson: on a local-first tool, lean on
   goodwill + optional paid currency, not hard gates.
 - **Early-adopter timing.** Only ~19% of solo/small-firm attorneys were using AI as of
-  the 2024 Legal Trends Report. The ones who seek out Keepance now are the high-value,
+  the 2024 Legal Trends Report. The ones who seek out Advisor Prep Hero now are the high-value,
   tech-forward early adopters, exactly the buyer who pays for the good tier.
 - **BYOK context.** Our buyers already pay $20/month for Claude Pro or ChatGPT Plus.
-  The Keepance purchase sits on top as "make the key I already pay for do
+  The Advisor Prep Hero purchase sits on top as "make the key I already pay for do
   profession-specific work." It is not competing with that $20; it is leveraging it.
 
 ## What ratifying a change would require (so the cost is visible)

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ship a read-only Wealthbox connector: an advisor pastes their Wealthbox API token, Keepance backfills their households/people/profile/notes into a durable local store, renders them to searchable RAG chunks, auto-creates one Matter per household, and the Client Map fills in — with clickable Wealthbox citations and a manual "Sync now."
+**Goal:** Ship a read-only Wealthbox connector: an advisor pastes their Wealthbox API token, Advisor Prep Hero backfills their households/people/profile/notes into a durable local store, renders them to searchable RAG chunks, auto-creates one Matter per household, and the Client Map fills in — with clickable Wealthbox citations and a manual "Sync now."
 
 **Architecture:** A CRM-specific, **object-level** sync engine (NOT a clone of the mail connector's folder-shaped provider trait). Pull each Wealthbox object type in bulk via `updated_since`, upsert into a durable encrypted SQLCipher store (`crm-enc.db`), compute affected households, render **granular per-object records + a household summary**, and index them as `source_type='crm'` RAG chunks under the household's `matter_id`. Reuse the mail connector's *infrastructure* (keychain, AES-GCM-at-rest, bounded-concurrency indexing, the `index_*_text_internal` delete-then-insert bridge, Tauri progress events) verbatim where possible.
 
@@ -134,7 +134,7 @@
 - [ ] `useCrmSync.ts` + `crmStore.ts` (clone `useMailSync.ts`/`mailStore.ts`).
 
 ### Task 1C.2: `WealthboxConnect.tsx` + mount
-- [ ] Clone `MailConnect.tsx`: paste-token field + "Test connection" (`crmConnect` → show workspace+plan) → "Connected ✓" + progress + "Sync now"/"Stop"/"Disconnect". **Onboarding copy:** "Keepance imports what this Wealthbox login can see." Light theme, no em dashes.
+- [ ] Clone `MailConnect.tsx`: paste-token field + "Test connection" (`crmConnect` → show workspace+plan) → "Connected ✓" + progress + "Sync now"/"Stop"/"Disconnect". **Onboarding copy:** "Advisor Prep Hero imports what this Wealthbox login can see." Light theme, no em dashes.
 - [ ] Mount in `AccountWindow.tsx` connections tab (`:292-300`) + import.
 
 ### Task 1C.3: household → matter mapping + auto-create

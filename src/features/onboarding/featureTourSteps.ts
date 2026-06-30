@@ -1,7 +1,7 @@
 /**
  * Feature tour steps shown AFTER the first-run wizard completes.
  *
- * 11-step onboarding sequence for Keepance 3.0's 3-tab Spine navigation
+ * 11-step onboarding sequence for Advisor Prep Hero 3.0's 3-tab Spine navigation
  * (Client Map · Ask · Workflows). The relocated surfaces — Documents, Email,
  * Activity Log, Privacy Center, Settings — are taught against where they now
  * live: inside a client (Client Map), the Ask source filter, and the gear menu.
@@ -22,14 +22,14 @@ export const FEATURE_TOUR_STEPS: FeatureTourStep[] = [
   {
     id: 'intro',
     title: 'A quick look at the new layout',
-    body: 'Keepance is built around your clients, not loose files. This tour covers the main areas worth knowing. Skip any time with Esc, step back with the left arrow key. You can restart from Settings, Onboarding.',
+    body: 'Advisor Prep Hero is built around your clients, not loose files. This tour covers the main areas worth knowing. Skip any time with Esc, step back with the left arrow key. You can restart from Settings, Onboarding.',
     targetSelector: null,
     placement: 'center',
   },
   {
     id: 'matters',
     title: 'Your Client Map',
-    body: 'Keepance leads with your clients, not loose files. Each client gets their own private space, and opening one shows their Client Map: documents, emails, and AI conversations all stay inside that client boundary so the wrong client never sees the wrong file. Create one with the plus button next to Clients.',
+    body: 'Advisor Prep Hero leads with your clients, not loose files. Each client gets their own private space, and opening one shows their Client Map: documents, emails, and AI conversations all stay inside that client boundary so the wrong client never sees the wrong file. Create one with the plus button next to Clients.',
     targetSelector: '[data-testid="spine-nav-matters"]',
     placement: 'right',
   },
@@ -50,7 +50,7 @@ export const FEATURE_TOUR_STEPS: FeatureTourStep[] = [
   {
     id: 'email',
     title: 'Email, imported and searchable',
-    body: 'Connect your Microsoft 365 or Gmail inbox and Keepance imports your client emails. Filter Ask to Email to search across them and cite them in your answers. Your email stays encrypted on your machine; nothing is uploaded to Keepance servers.',
+    body: 'Connect your Microsoft 365 or Gmail inbox and Advisor Prep Hero imports your client emails. Filter Ask to Email to search across them and cite them in your answers. Your email stays encrypted on your machine; nothing is uploaded to Advisor Prep Hero servers.',
     targetSelector: '[data-testid="spine-nav-search"]',
     placement: 'right',
   },

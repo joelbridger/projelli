@@ -59,7 +59,7 @@ use super::store::PRIVILEGE_NONE;
 use crate::commands::mail::crypto::{decrypt_with_key, encrypt_with_key};
 
 /// On-disk file name for the encrypted keyword index, kept beside the LanceDB
-/// dataset in the workspace's `.keepance/vectors/` directory. The `-v1` lets a
+/// dataset in the workspace's `.lantern/vectors/` directory. The `-v1` lets a
 /// future format change ship a new name and ignore the old one fail-closed.
 pub const INDEX_FILE_NAME: &str = "bm25-index-v1.enc";
 

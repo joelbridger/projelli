@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use chrono::{DateTime, Duration, Utc};
 use serde::Deserialize;
 
-pub const SCOPE_STATE_REL_PATH: &str = ".keepance/mcp-session-scope.json";
+pub const SCOPE_STATE_REL_PATH: &str = lantern_lib::identity::MCP_SCOPE_STATE_PATH;
 pub const UNASSIGNED_MATTER_ID: &str = "unassigned";
 const MAX_SCOPE_STATE_AGE_SECONDS: i64 = 30;
 const MAX_SCOPE_STATE_FUTURE_SKEW_SECONDS: i64 = 5;

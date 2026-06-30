@@ -1,4 +1,4 @@
-# Persona Study Findings — Diane Marchetti × Keepance 3.0 (F-101+)
+# Persona Study Findings — Diane Marchetti × Advisor Prep Hero 3.0 (F-101+)
 
 **Source:** `persona-study-transcript.md` (same directory). Synthetic moderated usability study, 2026-06-10, branch `keepance-3.0`, browser build at 1366×768 (firm scenario 1536×864).
 **Severity:** P0 = blocks task or causes a wrong belief about where data goes; P1 = major, impedes completion or trust; P2 = minor; P3 = cosmetic.
@@ -62,7 +62,7 @@
 
 ### F-103 · P3 · inconsistency · DataMapDialog
 **Title:** British "licence" (×3) in the data-map's license-check section; every other surface uses American "license" (68 files).
-**Repro:** Onboarding data-map step → expand "The only thing Keepance's own servers ever see is a licence check". Source: `src/components/privacy/DataMapDialog.tsx:99-100`.
+**Repro:** Onboarding data-map step → expand "The only thing Advisor Prep Hero's own servers ever see is a licence check". Source: `src/components/privacy/DataMapDialog.tsx:99-100`.
 **Screenshot:** `persona/t1-06-data-map-expanded.png`
 **Diane:** "It says 'licence' like a British solicitor wrote that one paragraph."
 **Label:** communication.
@@ -144,7 +144,7 @@
 
 ### F-113 · P1 · inconsistency · Settings → Integrations (browser build)
 **Title:** Desktop-app requirement is disclosed on the Gmail card only; Microsoft 365 and IMAP cards let the user fill in credentials and click Connect before failing with "Email connect is only available in the desktop app."
-**Repro:** Browser build → Settings → Integrations → fill IMAP form (any values) → Connect → inline error after submit. Gmail card states "Requires the Keepance desktop app" up front; M365/IMAP cards do not. Guards: `src/utils/mail-commands.ts` (`mailImapConnect`, `mailBeginLogin`).
+**Repro:** Browser build → Settings → Integrations → fill IMAP form (any values) → Connect → inline error after submit. Gmail card states "Requires the Advisor Prep Hero desktop app" up front; M365/IMAP cards do not. Guards: `src/utils/mail-commands.ts` (`mailImapConnect`, `mailBeginLogin`).
 **Screenshot:** `persona/t3-01-integrations-panel.png`, `persona/t3-02-imap-filled.png`, `persona/t3-03-imap-after-connect.png`
 **Diane:** "Why did it take my password first? Tell me at the top of the card — like the Gmail one does."
 **Label:** communication (one consistent precondition banner across all three mail cards). Aggravator: it accepts a real password into a form that can never succeed in this build.
@@ -165,7 +165,7 @@
 
 **BLOCKED (recorded, not failed):** bounded import / folder scoping UI, sync progress, encrypted-store verification, FDE nudge firing, mail viewer — all desktop-only (`isTauri()` guards). The seeded GreenMail IMAP at 127.0.0.1:3143 was alive and answering throughout. These need a desktop (Tauri + WebDriver) pass; flagged for the campaign owners.
 
-**Task 3 positives logged for summary:** "Bring your Outlook mail into Keepance so you can actually find it" is the single best line of copy in the product for this persona (names the bleeding wound); the encrypted-local story is repeated consistently (onboarding data map ↔ integrations cards); the failure message is plain-language; the Ollama card's "Zero cost. Zero network. Zero data sharing." lands; comprehension probe PASSED on copy alone.
+**Task 3 positives logged for summary:** "Bring your Outlook mail into Advisor Prep Hero so you can actually find it" is the single best line of copy in the product for this persona (names the bleeding wound); the encrypted-local story is repeated consistently (onboarding data map ↔ integrations cards); the failure message is plain-language; the Ollama card's "Zero cost. Zero network. Zero data sharing." lands; comprehension probe PASSED on copy alone.
 
 ---
 
@@ -209,7 +209,7 @@
 **Repro:** Settings → Privacy → read the Anonymous usage stats + Email updates sections. Source: `src/locales/en.json:179,185,586` (+ lines 12, 67) and `de.json:298,308,949` (+16,112).
 **Screenshot:** `persona/t5-02-privacy-settings.png`
 **Diane:** "The moment my risk committee sees 'reply to any email from Jameson,' this stops being 'a vendor' and becomes 'some guy.' Put a company name there — that one line could lose you the firm sale."
-**Label:** communication. For a $468–1,548/yr legal product sold on trust ("trust before features"), a personal-name leak in the privacy disclosure is a direct firm-sale blocker. Low-effort fix (string replace → "Keepance" / a support alias), high credibility impact.
+**Label:** communication. For a $468–1,548/yr legal product sold on trust ("trust before features"), a personal-name leak in the privacy disclosure is a direct firm-sale blocker. Low-effort fix (string replace → "Advisor Prep Hero" / a support alias), high credibility impact.
 
 ### F-120 · P2 · ux-improvement · No positive cloud-egress signal in the status bar for Direct mode
 **Title:** The always-on status bar shows a "Privileged Matter Mode: network extensions disabled" pill in Local-only, but switching to Direct (your key) simply removes the pill — nothing replaces it to state "prompts now go to your cloud provider." The reassuring (safe) state is loud; the cautionary (egress) state is signaled only by absence.
@@ -282,14 +282,14 @@
 **Label:** capability (browser RAG) + defect: a workflow given sufficient inline inputs should not hard-require RAG; it should use the pasted excerpts or refuse before the user does the work. Most damaging because it's the Professional-tier marquee feature (per the pricing page).
 
 ### F-127 · P2 · ux-improvement · Tracked-changes editing is desktop-only with no in-context "why / what you're missing"
-**Title:** In the browser build the DocxEditor is read-only ("Editing Word documents with tracked changes is only available in the Keepance desktop app"), with no tracked-change rendering and no review pane — so a prospect cannot experience accept/reject redlining, a core sell, anywhere in the trial-able web build.
+**Title:** In the browser build the DocxEditor is read-only ("Editing Word documents with tracked changes is only available in the Advisor Prep Hero desktop app"), with no tracked-change rendering and no review pane — so a prospect cannot experience accept/reject redlining, a core sell, anywhere in the trial-able web build.
 **Repro:** Open any tracked-changes .docx (fixture `engagement-letter-tracked.docx`) in the browser build → read-only banner; 0 insertion/deletion marks; no `docx-review-pane`.
 **Screenshot:** `persona/t7b-01-docx-loaded.png`
 **Diane:** "Accepting and rejecting redlines IS my job on an engagement letter. I can't judge that from a read-only preview."
 **Label:** capability boundary (desktop-only) — flagged as a go-to-market gap: the redline round-trip and contradiction finder (F-126) are the two features she'd pay for, and neither is demonstrable in the web build. The committed Rust `campaign_fixtures.rs` validates the engine; the in-app UX round-trip needs desktop verification.
 
 ### F-128 · P3 · ux-improvement · Trial chip → pricing is good; "Upgrade" lands on a key-entry License panel, not the tiers, on first click
-**Title:** Clicking the status-bar "Upgrade" chip opens the License panel ("Activate Keepance with a license key purchased at keepance.com") with the pricing tiers below; a buyer who hasn't purchased sees an activation field first. Minor ordering nit — pricing/value should lead for a not-yet-customer.
+**Title:** Clicking the status-bar "Upgrade" chip opens the License panel ("Activate Advisor Prep Hero with a license key purchased at keepance.com") with the pricing tiers below; a buyer who hasn't purchased sees an activation field first. Minor ordering nit — pricing/value should lead for a not-yet-customer.
 **Repro:** Status bar "Free trial · 30 days left · Upgrade" → License settings; pricing-tiers render but below the activation copy.
 **Screenshot:** `persona/t7f-01-license-settings.png`, `persona/t7f-02-pricing-tiers.png`
 **Diane:** "Honest pricing once I scroll to it; just lead with what I get, not with a key box for a key I don't have yet."
@@ -336,8 +336,8 @@ So: **for just me, on my own laptop, on the local model — I'd put a real, low-
 5. **Matter management hidden inside the AI chat** (F-122 / F-009) — the practice's organizing concept has no front door; undiscoverable unaided.
 
 ## Comprehension-probe quotes (verbatim)
-- **Task 1 — "where are your files now, who can see them?"** *(PASS)*: "On this computer, in a folder I picked. Real files, Word-friendly. Keepance the company never sees them; the only thing their server ever hears is 'is her licence paid.' If I use the cloud AI, the question I type goes to that AI company directly — which is why there's a local mode where nothing leaves at all. I'd put the privileged matters on local mode."
-- **Task 3 — "where did your email go? could Keepance read it? the AI?"** *(PASS on copy)*: "Keepance pulls a copy of my mailbox onto THIS computer and scrambles it — encrypted, on my machine. Keepance the company never has it; the only thing their server hears is whether I paid. The AI sees a piece of mail only when I ask about it — and on the local model, even that never leaves the building."
+- **Task 1 — "where are your files now, who can see them?"** *(PASS)*: "On this computer, in a folder I picked. Real files, Word-friendly. Advisor Prep Hero the company never sees them; the only thing their server ever hears is 'is her licence paid.' If I use the cloud AI, the question I type goes to that AI company directly — which is why there's a local mode where nothing leaves at all. I'd put the privileged matters on local mode."
+- **Task 3 — "where did your email go? could Advisor Prep Hero read it? the AI?"** *(PASS on copy)*: "Advisor Prep Hero pulls a copy of my mailbox onto THIS computer and scrambles it — encrypted, on my machine. Advisor Prep Hero the company never has it; the only thing their server hears is whether I paid. The AI sees a piece of mail only when I ask about it — and on the local model, even that never leaves the building."
 - **Task 3 — storage-at-rest**: "The mail's encrypted. My documents are regular Word files in a regular folder, so whoever has the laptop has them unless the disk itself is locked — and I don't know if my office machine's disk is. If your product knows it isn't, that's a thing I'd want it to nag me about."
 - **Task 4 — egress "where did your question go?"** *(PASS, with certainty)*: "On my machine. The green bar said so while I typed it — local model, nothing over the network. Nobody could read it. And I'm certain because the software told me at the right moment, not in a help article."
 

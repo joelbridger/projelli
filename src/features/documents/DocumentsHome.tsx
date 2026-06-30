@@ -41,15 +41,16 @@ import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
 import { DocumentGridView } from './DocumentGridView';
 import { FileTree } from '@/features/documents/workspace/FileTree';
 import { scopeFileTreeToFolders } from './scopeFileTree';
+import { SK_FIRST_FILE_TRUST_SHOWN, SK_DOCS_VIEW } from '@/config/identity';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const TRUST_STORAGE_KEY = 'keepance:first-file-trust-shown';
+const TRUST_STORAGE_KEY = SK_FIRST_FILE_TRUST_SHOWN;
 const FILES_TAB_ID = '__files__';
 
 // R6-1: which Files view the user last chose (vertical expanding tree vs the
 // folder-drill grid). Persisted so the choice survives reloads.
-const DOCS_VIEW_STORAGE_KEY = 'keepance:docs-view';
+const DOCS_VIEW_STORAGE_KEY = SK_DOCS_VIEW;
 type DocsView = 'tree' | 'grid';
 
 function readDocsView(): DocsView {
@@ -181,9 +182,9 @@ function TrustBanner({ onDismiss }: TrustBannerProps) {
       }}
     >
       <Callout variant="info" icon={FileText} onDismiss={onDismiss}>
-        {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+        {/* eslint-disable lantern-i18n/no-hardcoded-string */}
         Indexed on your machine. Nothing was uploaded.
-        {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+        {/* eslint-enable lantern-i18n/no-hardcoded-string */}
       </Callout>
     </div>
   );
@@ -618,7 +619,7 @@ export function DocumentsHome({
       {/* ── Files toolbar — shown above the tab strip when Files tab is active */}
       {showFilesGrid && (
         <SurfaceToolbar data-testid="documents-toolbar">
-          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          {/* eslint-disable lantern-i18n/no-hardcoded-string */}
 
           {/* 1. Action buttons — files view only */}
           {activeView === 'files' && (
@@ -741,7 +742,7 @@ export function DocumentsHome({
             />
           )}
 
-          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+          {/* eslint-enable lantern-i18n/no-hardcoded-string */}
         </SurfaceToolbar>
       )}
 

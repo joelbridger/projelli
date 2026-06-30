@@ -1,6 +1,6 @@
-# Keepance Board Dashboard
+# Advisor Prep Hero Board Dashboard
 
-A private, board-level view of where Keepance is and where it's going — the place
+A private, board-level view of where Advisor Prep Hero is and where it's going — the place
 for strategy, research, insights, and decisions that span more than one work session.
 Jameson reads it as the **Board of Directors**; Claude reports into it as **CEO**.
 

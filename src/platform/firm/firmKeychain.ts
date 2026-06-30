@@ -5,9 +5,9 @@
  * never `localStorage` (this is the explicit fix the backend README + the old
  * `useLicense` TODO call out):
  *
- *   - the access + refresh tokens   -> service `com.keepance.user.<user_id>`
- *   - the signed Ed25519 seat token -> service `com.keepance.user.<user_id>`
- *   - the per-matter AES content key -> service `com.keepance.matter.<matter_id>`
+ *   - the access + refresh tokens   -> service `com.lantern.user.<user_id>`
+ *   - the signed Ed25519 seat token -> service `com.lantern.user.<user_id>`
+ *   - the per-matter AES content key -> service `com.lantern.matter.<matter_id>`
  *
  * On the desktop (Tauri) these go to the real OS keychain via the existing
  * `keychain_*` commands (macOS Keychain / Windows Credential Manager / Linux
@@ -23,15 +23,16 @@
 
 import { keychainGet, keychainSet, keychainDelete } from '@/platform/utils/tauri-commands';
 import { isTauri } from '@tauri-apps/api/core';
+import { kcUserService, kcMatterService } from '@/config/identity';
 
 /** Service namespace for a user's auth + seat tokens. */
 export function userService(userId: string): string {
-  return `com.keepance.user.${userId}`;
+  return kcUserService(userId);
 }
 
 /** Service namespace for a matter's content key. */
 export function matterService(matterId: string): string {
-  return `com.keepance.matter.${matterId}`;
+  return kcMatterService(matterId);
 }
 
 // Keys within the user service.

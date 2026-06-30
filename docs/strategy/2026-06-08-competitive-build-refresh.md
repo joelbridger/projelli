@@ -8,20 +8,20 @@ of this refresh is folding email in.
 
 ## 1. Email is now a first-class wedge (shipped in v2.5.0, 2026-06-08)
 
-Multi-provider email (Microsoft 365 + IMAP + Gmail) is imported INTO Keepance,
+Multi-provider email (Microsoft 365 + IMAP + Gmail) is imported INTO Advisor Prep Hero,
 kept on the user's machine, encrypted at rest, searchable locally, never routed
-through a Keepance server. It is the one capability the cloud-AI incumbents
+through a Advisor Prep Hero server. It is the one capability the cloud-AI incumbents
 structurally cannot copy. Fold it into each build item:
 
 - **Item 1 (per-vertical comparison sections):** add an email line to each
-  vertical's "How Keepance compares to the AI you already have" table:
-  *Keepance* = "Your email, imported and searchable on your machine"; the
+  vertical's "How Advisor Prep Hero compares to the AI you already have" table:
+  *Advisor Prep Hero* = "Your email, imported and searchable on your machine"; the
   incumbent = how it handles mail (most read/process it in their cloud). Sharpest
   vs Microsoft 365 Copilot, which reads Outlook mail in Microsoft's cloud.
 - **Item 2 (/vs/ incumbent pages):** for **Copilot (M365)**, make the email
-  contrast a lead row (Copilot reads your Outlook in the cloud; Keepance imports +
+  contrast a lead row (Copilot reads your Outlook in the cloud; Advisor Prep Hero imports +
   searches it locally). For Clio Duo / CoCounsel / Jump / Intuit Assist / Gamma,
-  add an "email, local + searchable" row (a Keepance-only capability where they
+  add an "email, local + searchable" row (a Advisor Prep Hero-only capability where they
   don't offer it; the local-vs-cloud contrast where they do). Add the same row to
   the `/vs/index.html` comparison if one exists.
 - **Item 3 (hero):** the local-model, zero-egress story now extends to email.
@@ -47,7 +47,7 @@ building price-citing tables):
 - `website/docs/faq.html` (text calling Practice a one-time purchase -> yearly).
 - Any app EULA / other surface that still says Practice is one-time.
 
-Comparison tables: pull Keepance's price from these canonical values; competitor
+Comparison tables: pull Advisor Prep Hero's price from these canonical values; competitor
 prices = approximate bands + "approximate, as of 2026, check vendor" footnote +
 outbound link. Never hardcode a hard competitor price.
 

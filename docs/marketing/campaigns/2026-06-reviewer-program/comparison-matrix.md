@@ -1,4 +1,4 @@
-# Keepance vs the field: reviewer comparison matrix
+# Advisor Prep Hero vs the field: reviewer comparison matrix
 
 **For:** journalists, bloggers, podcast hosts, and vertical-community reviewers
 **As of:** June 2026
@@ -8,7 +8,7 @@
 
 ## The one-line version
 
-Every serious AI tool in the legal, tax, consulting, and advisor markets is cloud SaaS. Their privacy story is a contract ("we don't train on your data"). Keepance with a local Ollama model is the only option in any of these markets where the claim is architectural: nothing reaches any server other than the machine on the user's desk.
+Every serious AI tool in the legal, tax, consulting, and advisor markets is cloud SaaS. Their privacy story is a contract ("we don't train on your data"). Advisor Prep Hero with a local Ollama model is the only option in any of these markets where the claim is architectural: nothing reaches any server other than the machine on the user's desk.
 
 ---
 
@@ -20,7 +20,7 @@ All competitor figures are approximate bands, as of June 2026. Verify with each 
 
 ## Master matrix
 
-| Dimension | Keepance | Clio Duo | CoCounsel | Intuit Assist | Blue J | M365 Copilot | Gamma | Jump | Zocks | ChatGPT (consumer) |
+| Dimension | Advisor Prep Hero | Clio Duo | CoCounsel | Intuit Assist | Blue J | M365 Copilot | Gamma | Jump | Zocks | ChatGPT (consumer) |
 |---|---|---|---|---|---|---|---|---|---|---|
 | **Local / zero-egress option** | Yes (Ollama; local model = nothing leaves the machine) | No | No | No | No | No | No | No | No | No |
 | **Cloud BYOK (your key, direct to provider)** | Yes | No | No | No | No | No | No | No | No | No |
@@ -51,9 +51,9 @@ All competitor figures are approximate bands, as of June 2026. Verify with each 
 
 **Where Clio Duo wins:** Already inside the firm's workflow. Knows matters, billing codes, client names, and deadlines. SOC 2 Type II. One-click setup for existing Clio subscribers.
 
-**Where Keepance wins:** Local zero-egress with Ollama, own-your-files architecture, much deeper legal profession templates, and roughly 4-10x cheaper for a solo attorney.
+**Where Advisor Prep Hero wins:** Local zero-egress with Ollama, own-your-files architecture, much deeper legal profession templates, and roughly 4-10x cheaper for a solo attorney.
 
-**Pick Clio Duo when:** the primary pain is AI that understands your matter and billing context. Keepance and Clio Duo run alongside each other.
+**Pick Clio Duo when:** the primary pain is AI that understands your matter and billing context. Advisor Prep Hero and Clio Duo run alongside each other.
 
 ---
 
@@ -64,9 +64,9 @@ All competitor figures are approximate bands, as of June 2026. Verify with each 
 
 **Where CoCounsel wins:** Westlaw-grounded research with Shepard's citation verification. Deep litigation drafting and doc-review. Strong bar-association recognition. Zero retention at the LLM layer.
 
-**Where Keepance wins:** Price (roughly 20x cheaper), zero-egress option via local model, own-your-files.
+**Where Advisor Prep Hero wins:** Price (roughly 20x cheaper), zero-egress option via local model, own-your-files.
 
-**Pick CoCounsel when:** you need citation-verified, Westlaw-grounded research. Keepance does not have a research database and does not compete on this.
+**Pick CoCounsel when:** you need citation-verified, Westlaw-grounded research. Advisor Prep Hero does not have a research database and does not compete on this.
 
 ---
 
@@ -77,9 +77,9 @@ All competitor figures are approximate bands, as of June 2026. Verify with each 
 
 **Where Intuit Assist wins:** Already paid for. Pulls 60+ return data points for planning conversations. Zero incremental cost.
 
-**Where Keepance wins:** Local zero-egress with Ollama removes the IRC §7216 third-party disclosure question. Keepance works with Drake (about a third of small-firm tax market; Intuit Assist does not reach Drake users). Explicit §7216-consent and WISP templates included.
+**Where Advisor Prep Hero wins:** Local zero-egress with Ollama removes the IRC §7216 third-party disclosure question. Advisor Prep Hero works with Drake (about a third of small-firm tax market; Intuit Assist does not reach Drake users). Explicit §7216-consent and WISP templates included.
 
-**Pick Intuit Assist when:** you are on Lacerte / ProConnect and want advisory planning AI at no extra cost. Keepance is the companion for drafting, regulatory documentation, and Drake compatibility.
+**Pick Intuit Assist when:** you are on Lacerte / ProConnect and want advisory planning AI at no extra cost. Advisor Prep Hero is the companion for drafting, regulatory documentation, and Drake compatibility.
 
 ---
 
@@ -90,9 +90,9 @@ All competitor figures are approximate bands, as of June 2026. Verify with each 
 
 **Where Blue J wins:** Genuine primary-tax-authority research with predictive confidence scoring. Cited, auditable research trail. SOC 2.
 
-**Where Keepance wins:** Price (about 10x cheaper), local zero-egress option, and general practice workflows (notices, engagements, WISP templates) that Blue J does not cover.
+**Where Advisor Prep Hero wins:** Price (about 10x cheaper), local zero-egress option, and general practice workflows (notices, engagements, WISP templates) that Blue J does not cover.
 
-**Pick Blue J when:** primary-authority tax research with citations is the job. Many CPAs use Blue J for research and Keepance for drafting.
+**Pick Blue J when:** primary-authority tax research with citations is the job. Many CPAs use Blue J for research and Advisor Prep Hero for drafting.
 
 ---
 
@@ -103,7 +103,7 @@ All competitor figures are approximate bands, as of June 2026. Verify with each 
 
 **Where M365 Copilot wins:** Lives inside Word, PowerPoint, Outlook, and Teams. Generates real formatted PPTX. Enterprise tenant isolation and no-training policy (enterprise tier).
 
-**Where Keepance wins:** A cloud tenant still uploads to Microsoft's servers. Only a local model satisfies a strict NDA no-upload clause. Per-client folder isolation and profession-specific templates.
+**Where Advisor Prep Hero wins:** A cloud tenant still uploads to Microsoft's servers. Only a local model satisfies a strict NDA no-upload clause. Per-client folder isolation and profession-specific templates.
 
 **Pick M365 Copilot when:** the deliverable lives in Word or PowerPoint and the client's NDA does not require zero-upload.
 
@@ -116,9 +116,9 @@ All competitor figures are approximate bands, as of June 2026. Verify with each 
 
 **Where Gamma wins:** Polished, designed AI decks in minutes. Best deck-from-prompt output in the market. Free and Plus tiers train by default (Team+ no-training).
 
-**Where Keepance wins:** Everything before the deck: research, client analysis, draft narrative, per-client notes folder. Only a local model honors a strict no-upload clause during the confidential thinking phase.
+**Where Advisor Prep Hero wins:** Everything before the deck: research, client analysis, draft narrative, per-client notes folder. Only a local model honors a strict no-upload clause during the confidential thinking phase.
 
-**Recommended workflow:** think and draft in Keepance (local or BYOK), finish the deck in Gamma.
+**Recommended workflow:** think and draft in Advisor Prep Hero (local or BYOK), finish the deck in Gamma.
 
 ---
 
@@ -129,9 +129,9 @@ All competitor figures are approximate bands, as of June 2026. Verify with each 
 
 **Where Jump wins:** Purpose-built meeting notes with 30+ CRM integrations. SOC 2 Type II and HIPAA. Category leader (27,000+ advisors).
 
-**Where Keepance wins:** With a local Ollama model, there is no AI vendor surface for Reg S-P service-provider oversight. Own-your-files. Price (roughly 6-14x cheaper). General drafting and analysis outside the meeting workflow.
+**Where Advisor Prep Hero wins:** With a local Ollama model, there is no AI vendor surface for Reg S-P service-provider oversight. Own-your-files. Price (roughly 6-14x cheaper). General drafting and analysis outside the meeting workflow.
 
-**Pick Jump when:** the primary pain is meeting notes, follow-ups, and CRM sync, and the practice is ready for formal vendor approval. Keepance covers pre- and post-meeting thinking that Jump does not address.
+**Pick Jump when:** the primary pain is meeting notes, follow-ups, and CRM sync, and the practice is ready for formal vendor approval. Advisor Prep Hero covers pre- and post-meeting thinking that Jump does not address.
 
 ---
 
@@ -142,9 +142,9 @@ All competitor figures are approximate bands, as of June 2026. Verify with each 
 
 **Where Zocks wins:** Privacy-forward meeting notes: no audio or video stored. Native eMoney sync and Smarsh / Global Relay archiving. SOC 2 Type II.
 
-**Where Keepance wins:** "Notes only" still means notes reached Zocks's cloud. With Keepance on a local model, nothing reaches any server. Reg S-P vendor-oversight surface is zero. Own-your-files.
+**Where Advisor Prep Hero wins:** "Notes only" still means notes reached Zocks's cloud. With Advisor Prep Hero on a local model, nothing reaches any server. Reg S-P vendor-oversight surface is zero. Own-your-files.
 
-**Pick Zocks when:** meeting notes with no audio retention and proven archiving integration are the requirements. Keepance covers drafting and analysis outside the meeting workflow.
+**Pick Zocks when:** meeting notes with no audio retention and proven archiving integration are the requirements. Advisor Prep Hero covers drafting and analysis outside the meeting workflow.
 
 ---
 
@@ -155,13 +155,13 @@ All competitor figures are approximate bands, as of June 2026. Verify with each 
 
 **Where ChatGPT wins:** Zero setup. Broadest consumer AI capability. Native image generation, voice mode, code interpreter. Fast for one-off general questions with no sensitive data.
 
-**Where Keepance wins:** Consumer Free / Plus tiers train on input by default. Every conversation goes to OpenAI's servers. No conversation becomes a file the practitioner owns. The privilege (US v. Heppner), §7216, Reg S-P, and NDA risks are at their highest with consumer ChatGPT.
+**Where Advisor Prep Hero wins:** Consumer Free / Plus tiers train on input by default. Every conversation goes to OpenAI's servers. No conversation becomes a file the practitioner owns. The privilege (US v. Heppner), §7216, Reg S-P, and NDA risks are at their highest with consumer ChatGPT.
 
 **Pick ChatGPT when:** the question is general-knowledge, the data is not client-sensitive, and you do not need the answer as a persistent file. ChatGPT Business / Enterprise (no-training tiers) are a meaningfully different product when confidentiality matters.
 
 ---
 
-## Where Keepance wins (summary)
+## Where Advisor Prep Hero wins (summary)
 
 - The only product in any of these four markets with a zero-egress local-model option
 - Own your files in plain Markdown: no vendor lock-in, no disappearing history
@@ -174,18 +174,18 @@ All competitor figures are approximate bands, as of June 2026. Verify with each 
 
 - Proprietary research databases: CoCounsel / Westlaw (legal citation); Blue J / Checkpoint (tax authority)
 - Deep practice-management integration: Clio Duo (matter/billing context); Intuit Assist (return-data-aware planning)
-- Meeting-notes and CRM sync: Jump and Zocks are purpose-built; Keepance is not
+- Meeting-notes and CRM sync: Jump and Zocks are purpose-built; Advisor Prep Hero is not
 - Polished deck output: Gamma and M365 Copilot-in-PowerPoint produce designed, print-ready decks
-- SOC 2 and signed DPAs: formal vendor approval at RIA firms and multi-lawyer firms requires these; Keepance is pursuing SOC 2 but does not have it yet
+- SOC 2 and signed DPAs: formal vendor approval at RIA firms and multi-lawyer firms requires these; Advisor Prep Hero is pursuing SOC 2 but does not have it yet
 
 ---
 
 ## Guardrails for reviewers
 
-- "Nothing leaves your machine" applies specifically to users running a local AI model (Ollama). With a cloud BYOK key (Anthropic, OpenAI, Google), the prompt goes to that provider under the user's own API key. Keepance never sees that data; the provider does.
+- "Nothing leaves your machine" applies specifically to users running a local AI model (Ollama). With a cloud BYOK key (Anthropic, OpenAI, Google), the prompt goes to that provider under the user's own API key. Advisor Prep Hero never sees that data; the provider does.
 - Regulatory references (US v. Heppner, IRC §7216, SEC Reg S-P) are informational only, not legal or compliance advice. Practitioners should verify with their own counsel.
 - US v. Heppner (Rakoff, S.D.N.Y., Feb 17 2026; defendant convicted May 7 2026) is a real and significant ruling but is a leading cautionary case, not settled black-letter law. Later courts are applying a fact-specific approach.
-- Keepance pricing: Solo $468/yr ($39/mo) / Professional $948/yr ($79/mo, includes one practice pack) / Firm $1,548/seat/yr ($129/mo, min 3 seats, all packs). Founding cohort gets 30% off for life. Annual subscriptions only — do not quote the old one-time figures.
+- Advisor Prep Hero pricing: Solo $468/yr ($39/mo) / Professional $948/yr ($79/mo, includes one practice pack) / Firm $1,548/seat/yr ($129/mo, min 3 seats, all packs). Founding cohort gets 30% off for life. Annual subscriptions only — do not quote the old one-time figures.
 - All competitor pricing is approximate, as of June 2026. Verify with vendor before publishing.
 
 ---

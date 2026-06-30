@@ -12,7 +12,7 @@ let fetchSpy: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   useSettingsStore.setState({ values: {} });
-  try { localStorage.removeItem('keepance:settings'); } catch { /* jsdom */ }
+  try { localStorage.removeItem('lantern:settings'); } catch { /* jsdom */ }
   fetchSpy = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({}) }));
   vi.stubGlobal('fetch', fetchSpy);
 });

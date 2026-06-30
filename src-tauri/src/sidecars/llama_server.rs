@@ -2,7 +2,7 @@
 //
 // Lifecycle shape: long-lived daemon, but strictly lazy.
 // The process is not started during app setup. Callers start it only after the
-// user chooses Keepance Local AI and the GGUF model is present on disk.
+// user chooses Advisor Prep Hero Local AI and the GGUF model is present on disk.
 //
 // Binary contract:
 //   llama-server --host 127.0.0.1 --port <port>
@@ -298,7 +298,7 @@ impl Sidecar for LlamaServerSidecar {
 /// `<data-dir>/keepance/logs/llama-server.log`.
 fn default_log_path() -> PathBuf {
     let base = dirs::data_dir().unwrap_or_else(std::env::temp_dir);
-    base.join("keepance").join("logs").join("llama-server.log")
+    base.join(crate::identity::OS_DATA_SUBDIR).join("logs").join("llama-server.log")
 }
 
 /// Read up to the last `max_lines` non-empty lines from `path` (best-effort).

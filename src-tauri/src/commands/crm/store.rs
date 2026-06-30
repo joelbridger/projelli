@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 // Key management — dedicated keychain entry (NOT shared with mail or vectors)
 // ---------------------------------------------------------------------------
 
-const CRM_KEYCHAIN_SERVICE: &str = "keepance-crm-enc";
+const CRM_KEYCHAIN_SERVICE: &str = crate::identity::CRM_ENC_SERVICE;
 const CRM_KEYCHAIN_KEY: &str = "master-key-v1";
 const KEY_LEN: usize = 32;
 
@@ -94,7 +94,7 @@ pub struct CrmStore {
 impl CrmStore {
     /// Canonical path for the encrypted CRM DB inside a workspace.
     pub fn db_path(workspace_root: &Path) -> PathBuf {
-        workspace_root.join(".keepance").join("crm-enc.db")
+        workspace_root.join(crate::identity::WORKSPACE_DATA_DIR).join("crm-enc.db")
     }
 
     /// Open (or create) the SQLCipher database keyed with `key`.

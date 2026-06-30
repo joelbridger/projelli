@@ -1,4 +1,4 @@
-# Wealthbox → Keepance Connector — Research & Design
+# Wealthbox → Advisor Prep Hero Connector — Research & Design
 
 **Status:** Design (research complete; independently reviewed by Codex; awaiting final scope sign-off before plan/implementation)
 **Date:** 2026-06-25
@@ -9,13 +9,13 @@
 
 ## 0. Plain-language summary (read this first)
 
-We're building a **connector** — a bridge — that pulls a financial advisor's client and family information **out of Wealthbox** (a popular CRM/contact database built for advisors) **into Keepance**, drops it into each client's **Client Map**, makes it **searchable**, and then **keeps it fresh** by checking back on a schedule.
+We're building a **connector** — a bridge — that pulls a financial advisor's client and family information **out of Wealthbox** (a popular CRM/contact database built for advisors) **into Advisor Prep Hero**, drops it into each client's **Client Map**, makes it **searchable**, and then **keeps it fresh** by checking back on a schedule.
 
 **Two decisions are locked:**
-- **Read-only, one-way.** Wealthbox stays the source of truth. Keepance only *reads* a copy; it never changes anything in Wealthbox. Zero risk of corrupting an advisor's live records.
-- **"Paste-a-key" first.** The advisor copies a secret access key from their Wealthbox settings and pastes it into Keepance once. This works *today* with no waiting. Later we add the polished one-click "Connect with Wealthbox" button (which requires becoming an official Wealthbox partner — a slower, approval-gated path). The connector is designed so that button slots in behind the same machinery without a rewrite.
+- **Read-only, one-way.** Wealthbox stays the source of truth. Advisor Prep Hero only *reads* a copy; it never changes anything in Wealthbox. Zero risk of corrupting an advisor's live records.
+- **"Paste-a-key" first.** The advisor copies a secret access key from their Wealthbox settings and pastes it into Advisor Prep Hero once. This works *today* with no waiting. Later we add the polished one-click "Connect with Wealthbox" button (which requires becoming an official Wealthbox partner — a slower, approval-gated path). The connector is designed so that button slots in behind the same machinery without a rewrite.
 
-**The core idea that makes this elegant:** Keepance's Client Map already builds itself by reading *text* about a client and pulling out the people, the money picture, and the story. So the connector keeps a small local copy of the raw Wealthbox records, turns them into clean readable text (the individual records **plus** a short household profile), feeds that into Keepance's existing search/index, and the Client Map lights up **automatically** — no changes to the Client Map itself.
+**The core idea that makes this elegant:** Advisor Prep Hero's Client Map already builds itself by reading *text* about a client and pulling out the people, the money picture, and the story. So the connector keeps a small local copy of the raw Wealthbox records, turns them into clean readable text (the individual records **plus** a short household profile), feeds that into Advisor Prep Hero's existing search/index, and the Client Map lights up **automatically** — no changes to the Client Map itself.
 
 **Four honest limits of Wealthbox** we design around: (1) no instant change-alerts, so we poll on a schedule; (2) no file/document downloads through the API; (3) no live investment-account balances (only what the advisor typed in); (4) a tight speed limit (~1 request/second), so the first big import takes a little while but staying in sync afterward is cheap.
 
@@ -24,7 +24,7 @@ We're building a **connector** — a bridge — that pulls a financial advisor's
 ## 1. Goal & scope
 
 ### Goal
-Let an advisor connect their Wealthbox account so that **every household/client and the knowledge attached to them** (people, relationships, financial profile, key dates, notes, upcoming meetings/tasks) appears inside Keepance — integrated into the **Client Map**, **searchable** via Ask/RAG, and **kept up to date** on a regular cadence.
+Let an advisor connect their Wealthbox account so that **every household/client and the knowledge attached to them** (people, relationships, financial profile, key dates, notes, upcoming meetings/tasks) appears inside Advisor Prep Hero — integrated into the **Client Map**, **searchable** via Ask/RAG, and **kept up to date** on a regular cadence.
 
 ### In scope (v1)
 - Read-only, one-way sync from Wealthbox via its public REST API (`https://api.crmworkspace.com/v1`).
@@ -32,7 +32,7 @@ Let an advisor connect their Wealthbox account so that **every household/client 
 - Pull the **client-knowledge core**: households + member people (+ trusts/orgs in a household), their full contact/financial/relationship profile, notes, tasks, events. (Exact breadth = the one open product decision, §8.)
 - A **durable local copy** of the synced Wealthbox objects, rendered into matter-scoped RAG chunks (granular per-record + a household summary) → flows into the Client Map + search.
 - Initial full backfill + **delta sync** on a cadence, with manual "Sync now."
-- Map **one Wealthbox household → one Keepance Matter** (the advisor's "client/household" unit).
+- Map **one Wealthbox household → one Advisor Prep Hero Matter** (the advisor's "client/household" unit).
 
 ### Out of scope (v1 — explicitly deferred)
 - Writing anything back to Wealthbox (no two-way).
@@ -50,10 +50,10 @@ Let an advisor connect their Wealthbox account so that **every household/client 
 | Sync direction | **Read-only, one-way** | Safety (never corrupt a live CRM), simplicity, matches the ask. |
 | Auth method (v1) | **Paste Personal API Token** | Ships immediately; no dependency on Wealthbox partner approval. Good for first pilot advisors. |
 | Auth method (later) | **OAuth 2.0 one-click** (Phase 3) | Polished UX + marketplace listing, but gated behind manual Wealthbox partner onboarding (email → build → demo → approve). |
-| Architecture pattern | **Reuse the mail connector's *infrastructure ideas*** (keychain, bounded indexing, progress events, single-flight, the RAG bridge) — but a **CRM-specific, object-level sync engine**, not a literal household-as-folder clone | Keepance already has proven external-data plumbing; the *orchestration* must match Wealthbox's object model (see §5). |
+| Architecture pattern | **Reuse the mail connector's *infrastructure ideas*** (keychain, bounded indexing, progress events, single-flight, the RAG bridge) — but a **CRM-specific, object-level sync engine**, not a literal household-as-folder clone | Advisor Prep Hero already has proven external-data plumbing; the *orchestration* must match Wealthbox's object model (see §5). |
 | Client unit | **Household → Matter** (one matter per household; per-person matter for unhouseholded individual clients) | Matches the advisor pivot's "client/household" unit; `matter_id` is the locked isolation key. |
 | Data breadth (v1) | **Client-knowledge core** (households/people/profile/notes/upcoming); skip opportunities/workflows/projects | Richest Client Map without operational noise; **advisor-adjustable import scope to follow** (Phase 2/3). |
-| Workspace isolation | **Dedicated worktree `feat/wealthbox-connector`** | Three other sessions are actively building Keepance; never collide. |
+| Workspace isolation | **Dedicated worktree `feat/wealthbox-connector`** | Three other sessions are actively building Advisor Prep Hero; never collide. |
 
 **Independently reviewed (Codex, 2026-06-25).** An independent engine (OpenAI Codex) adversarially reviewed this design against the live code. It **confirmed** the core integration target (Client Map reads matter-scoped RAG; `matter_id` is the isolation key; the mail trait/sync/indexing pieces exist; `SourceType` needs a new `Crm` variant) and surfaced refinements now folded into §5: (1) the sync engine is **object-level**, not a household-as-folder clone of the mail provider; (2) a **durable CRM object store** is required (deletions / re-render need prior state); (3) index **granular per-object records** plus a household summary (not one lossy mega-brief); (4) add **failure recovery** (separate "fetched" vs "indexed" status + backfill markers); (5) citations need a **virtual Wealthbox source viewer** (there's no workspace file to open); (6) onboarding must say "imports what this Wealthbox user can see" (the API can't prove full firm visibility).
 
@@ -116,7 +116,7 @@ A cloud CRM built specifically for financial advisors / RIAs (Starburst Labs, 20
 
 ---
 
-## 4. Keepance architecture (where this plugs in)
+## 4. Advisor Prep Hero architecture (where this plugs in)
 
 > Read-only exploration of `keepance-3.0`. Full map: `scratchpad/keepance-map.md`.
 
@@ -135,7 +135,7 @@ A cloud CRM built specifically for financial advisors / RIAs (Starburst Labs, 20
 ### 4.3 The Matter = the client unit (no separate Client/Household entity)
 - `matter_id` (`matter_<uuid>`) is the confidentiality/isolation key threaded everywhere — **LOCKED, never rename** (ARCHITECTURE.md L80-83). `Matter` type: `src/platform/types/matter.ts`. Store: `src/platform/matter/matterStore.ts` (`createMatter()` mints the id; persisted to `keepance:matters`).
 - A "household"/"client" is a Matter with cosmetic profession labeling (`useEntityLabel.ts` → advisor: one='client', group='household'). People & accounts are **not structured records** — they surface as AI-extracted text inside Client Map sections.
-- **⇒ One Wealthbox household → one Keepance Matter. Members/notes/events → indexed text under that `matter_id` → Client Map fills in automatically.**
+- **⇒ One Wealthbox household → one Advisor Prep Hero Matter. Members/notes/events → indexed text under that `matter_id` → Client Map fills in automatically.**
 
 ### 4.4 Search & indexing (RAG)
 - `chunks` table (`rag/store.rs` `build_schema()`): `id, path(HMAC token), matter_id (NOT NULL, plaintext prefilter), source_id (NOT NULL), paragraph_index, text (AES-256-GCM at rest), vector[384], source_type, page_number, encrypted, privilege (NOT NULL), locator, path_enc`.
@@ -165,7 +165,7 @@ What **not** to copy: the `MailProvider` trait is **folder-shaped** (`provider.r
 - **`commands.rs` + token storage:** `crm_connect` (validate token via `GET /v1/me`, store in keychain `com.keepance.wealthbox`), `crm_sync_all`, `crm_sync_status`, `crm_disconnect`.
 
 **Frontend:**
-- `src/features/settings/WealthboxConnect.tsx` (UI reference: `MailConnect.tsx`): paste-token field with clear steps + "Test connection" (`GET /v1/me` → show workspace name + plan) → "Connected ✓" → kick off sync. **Onboarding copy states honestly:** "Keepance imports what this Wealthbox login can see." (We cannot detect privately-scoped records.)
+- `src/features/settings/WealthboxConnect.tsx` (UI reference: `MailConnect.tsx`): paste-token field with clear steps + "Test connection" (`GET /v1/me` → show workspace name + plan) → "Connected ✓" → kick off sync. **Onboarding copy states honestly:** "Advisor Prep Hero imports what this Wealthbox login can see." (We cannot detect privately-scoped records.)
 - `src/platform/utils/wealthbox-commands.ts` (clone `mail-commands.ts`).
 - **Household↔Matter mapping:** add `crmHouseholdKeys?: string[]` to `Matter` (mirroring `mailFolderPaths`) + a helper mirroring `buildMailMatterMap`. Review/merge UI reuses `MatterManagerDialog.tsx`. **Do not invent a Household entity** — map to a Matter; `useEntityLabel` shows "Household."
 - **Citations / source viewer:** add `'crm'` to `SourceRef.kind` (`clientMap/types.ts`, currently only `'document'|'email'`) **and** a virtual viewer path so a CRM citation opens a **Wealthbox record panel** rather than trying to open a workspace file (today `openSource.ts` falls back to opening a file). Display label: "Wealthbox · <household/record>".
@@ -206,7 +206,7 @@ All share the household's `matter_id`. Re-rendering on change re-writes only the
 - **Failure recovery:** the CRM store tracks **fetched vs indexed** per object; a startup/backfill repair re-indexes anything fetched-but-not-indexed (mirrors mail's backfill-needed path) so an embed failure or model-not-ready never leaves search silently empty.
 - **Cadence:** background poll (default §8) + manual "Sync now"; single-flight guard; progress events to the UI; "last synced" shown.
 
-### 5.5 Privacy & security posture (Keepance is local-first)
+### 5.5 Privacy & security posture (Advisor Prep Hero is local-first)
 - All Wealthbox data (the CRM store **and** the chunks) lives **locally** on the advisor's machine, **encrypted at rest** (SQLCipher + the vector master key; use `build_batch_*`, never write plaintext chunks).
 - The token lives only in the **OS keychain**, never logged.
 - Respect **Local-only mode** (the Client Map provider already forces local AI there); client PII is **Reg S-P** data, so the local-only egress guard must cover CRM-derived content too.
@@ -228,11 +228,11 @@ The engine/store split means Phase 3's OAuth is a *swap of the auth front-end* o
 
 | Risk | Mitigation |
 |---|---|
-| **Per-user visibility** silently under-fetches a firm's book (and `/v1/me` can't prove what's hidden) | Fine for solo/pilot. Onboarding states honestly that Keepance imports what *this Wealthbox login* sees; for firms, recommend connecting a full-visibility user. |
+| **Per-user visibility** silently under-fetches a firm's book (and `/v1/me` can't prove what's hidden) | Fine for solo/pilot. Onboarding states honestly that Advisor Prep Hero imports what *this Wealthbox login* sees; for firms, recommend connecting a full-visibility user. |
 | **Tight ~1 rps + no webhooks** → slow first import, limited freshness | Token-bucket + object-level bulk pulls + checkpoint/resume; cadence tuned to book size; "last synced" shown. |
 | **Uneven deletions** (only contacts tombstoned) | Contacts via `deleted_since`; store-diff (known ids vs full id pull) for the rest. |
 | **Uneven `order` support / unproven paging stability** | Timestamp-window paging + `(updated_at,id)` dedupe; empirically test per endpoint before hardening. |
-| **No files / no live AUM via API** | Set expectations in UI copy; documents still enter Keepance normally; AUM is a future custodian/portfolio integration, not Wealthbox. |
+| **No files / no live AUM via API** | Set expectations in UI copy; documents still enter Advisor Prep Hero normally; AUM is a future custodian/portfolio integration, not Wealthbox. |
 | **Re-render leaving stale chunks** | `index_crm_text_internal` clears a source id's chunks before re-insert; CRM store tracks render/index state. |
 | **Indexing "succeeds" but search stays empty** (embed fail / model not ready) | Fetched-vs-indexed status + backfill-repair on startup (mirrors mail). |
 | **OAuth partner approval is a schedule dependency** | Paste-key ships now; start partner application in parallel (needs Jameson's go — outward-facing). |
@@ -258,7 +258,7 @@ The engine/store split means Phase 3's OAuth is a *swap of the auth front-end* o
 
 ## 9. Pointers (read these first when implementing)
 - **Wealthbox facts:** `scratchpad/wealthbox-research.md` (this session) + https://dev.wealthbox.com/
-- **Keepance seams:** `scratchpad/keepance-map.md`; then in-repo: `mail/mod.rs` (`index_mail_text_internal` ~1281, backfill-repair ~698, `spawn_mail_rag_index` ~1402) → `rag/store.rs` (`build_schema`, `build_batch_mail`, `SourceType`) → `mail/store.rs` (encrypted SQLCipher pattern → model for `crm-enc.db`) → `useMemoryWiring.ts` → `clientMap/generator.ts` (TOP_K=8 queries) → `clientMap/types.ts` + `clientMap/openSource.ts` (citations) → `types/matter.ts` + `matter/matterStore.ts`. *Reference only — don't clone the `mail/provider.rs` folder trait.*
+- **Advisor Prep Hero seams:** `scratchpad/keepance-map.md`; then in-repo: `mail/mod.rs` (`index_mail_text_internal` ~1281, backfill-repair ~698, `spawn_mail_rag_index` ~1402) → `rag/store.rs` (`build_schema`, `build_batch_mail`, `SourceType`) → `mail/store.rs` (encrypted SQLCipher pattern → model for `crm-enc.db`) → `useMemoryWiring.ts` → `clientMap/generator.ts` (TOP_K=8 queries) → `clientMap/types.ts` + `clientMap/openSource.ts` (citations) → `types/matter.ts` + `matter/matterStore.ts`. *Reference only — don't clone the `mail/provider.rs` folder trait.*
 - **Landmines:** never rename `matter_id`; `matter_id`/`privilege` are NON-NULL plaintext (pass a real id or `"unassigned"`); chunk text must be encrypted via `build_batch_*`; cap bulk indexing concurrency; respect Local-only mode.
 - **Earlier abandoned prototype** (reference only, do not build on): `/home/jameson/kp-wt-wealthbox` (branch `feat/advisor-wealthbox`), a 2-day-old stale sketch.
 

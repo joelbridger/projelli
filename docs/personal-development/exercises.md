@@ -8,7 +8,7 @@ is sized to fit one or two of your uninterrupted weekend blocks.
 > kill for — a real financial advisory firm (your wife's) you can learn from up close.
 > These exercises turn that access into a product spec, your first customer conversations,
 > and a clear story. The books make you better at these exercises; the exercises are what
-> actually move Keepance forward.
+> actually move Advisor Prep Hero forward.
 
 ---
 
@@ -20,7 +20,7 @@ not pitch. Capture, in a simple diagram, every place a client document is **crea
 received, named, stored, and found again** — custodian statements, signed forms, financial
 plans, meeting notes, emails.
 
-Then trace the **compliance** angle (this is the heart of why Keepance exists):
+Then trace the **compliance** angle (this is the heart of why Advisor Prep Hero exists):
 - Where do they keep the records the SEC requires them to keep for years?
 - If a regulator asked for a specific client email from two years ago, how would they find it?
 - Who can open client files, and what's their plan if data leaks? (This is the new
@@ -42,10 +42,10 @@ sit. Then ask the killer question:
 > *"When a client calls, where do you look first — and what's never written down anywhere?"*
 
 That gap — the knowledge that only exists in someone's head or buried in old email — is
-exactly the "institutional memory" Keepance claims to be.
+exactly the "institutional memory" Advisor Prep Hero claims to be.
 
 **Output:** a stack inventory plus a short list of knowledge that lives only in people's
-heads. This tells you precisely what Keepance must capture to be indispensable rather than
+heads. This tells you precisely what Advisor Prep Hero must capture to be indispensable rather than
 just another folder.
 
 ---
@@ -56,7 +56,7 @@ just another folder.
 This is the highest-leverage skill you can build. The trap (from *The Mom Test*): people
 lie to be polite. So you ask about their *real life and past behavior*, never about your idea.
 
-1. Write a one-page interview guide. **Rule: zero questions about Keepance.** Ask only about
+1. Write a one-page interview guide. **Rule: zero questions about Advisor Prep Hero.** Ask only about
    *their* world. Good questions:
    - "Walk me through the last time a client asked you something and you couldn't find the
      answer fast."
@@ -73,21 +73,21 @@ steer the launch.*
 
 ---
 
-## Exercise 4 — Position Keepance and write its one-page story
+## Exercise 4 — Position Advisor Prep Hero and write its one-page story
 *(One weekend · free · read* Obviously Awesome *and Andy Raskin's sales-deck essay first)*
 
-After the interviews, you'll finally have the raw material to answer "what *is* Keepance?"
+After the interviews, you'll finally have the raw material to answer "what *is* Advisor Prep Hero?"
 
 1. **Positioning** (from Dunford's canvas):
    - What do advisors use *today* instead? (Probably a CRM plus folders plus memory — or
      "nothing, we just wing it.")
-   - What does Keepance do meaningfully better?
+   - What does Advisor Prep Hero do meaningfully better?
    - Exactly which advisor cares most? (Likely a small fee-only firm worried about the new
      compliance rules — like your wife's.)
    - What category should they file you under?
 2. **Story** (from Raskin's 5 beats): the big shift hitting advisors (rising compliance
    pressure + scattered client knowledge) → who wins vs. loses → the promised land (an
-   advisor who can answer any client or compliance question in seconds) → Keepance as the
+   advisor who can answer any client or compliance question in seconds) → Advisor Prep Hero as the
    bridge → one piece of proof.
 3. **The one metric that matters right now:** pre-launch, it is *not* revenue. Pick a single
    demand signal you can move this quarter — for example, **the number of real advisors who
@@ -107,7 +107,7 @@ they'd repeat to a peer instead.
 ## Exercise 5 — The reverse-demo test
 *(One weekend · free · do after you have a rough demo)*
 
-Using only fake or anonymized data, build one sample client household inside Keepance. Then
+Using only fake or anonymized data, build one sample client household inside Advisor Prep Hero. Then
 sit your wife (or a friendly advisor) in front of it and ask five blunt questions:
 
 - "Would this actually help you prepare for a client review?"

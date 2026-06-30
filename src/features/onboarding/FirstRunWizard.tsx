@@ -291,8 +291,8 @@ export function FirstRunWizard({ onComplete, onSkip, workspace, onSaveApiKey }: 
                   <div className="rounded-lg border border-border bg-muted/30 p-4">
                     <p className="text-xs font-medium text-foreground mb-2">{t('onboarding.first-run.workspace.common-choices')}</p>
                     <ul className="text-xs space-y-1 font-mono">
-                      <li>~/Documents/Keepance</li>
-                      <li>~/Dropbox/Keepance</li>
+                      <li>~/Documents/Advisor Prep Hero</li>
+                      <li>~/Dropbox/Advisor Prep Hero</li>
                       <li>{t('onboarding.first-run.workspace.icloud-path')}</li>
                     </ul>
                   </div>
@@ -343,9 +343,9 @@ export function FirstRunWizard({ onComplete, onSkip, workspace, onSaveApiKey }: 
                     onClick={() => setStep('ai-setup')}
                     size="lg"
                   >
-                    {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                    {/* eslint-disable lantern-i18n/no-hardcoded-string */}
                     Connect an AI provider
-                    {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                    {/* eslint-enable lantern-i18n/no-hardcoded-string */}
                   </Button>
                 </div>
               }

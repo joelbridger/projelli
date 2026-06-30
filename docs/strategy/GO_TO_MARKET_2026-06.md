@@ -1,4 +1,4 @@
-# Keepance Go-To-Market: founder-led, tool-powered
+# Advisor Prep Hero Go-To-Market: founder-led, tool-powered
 
 **Date:** 2026-06-02 · Author: Claude (operator, acting as strategist / sales+marketing lead) for Jameson (CEO)
 **Supersedes the "Claude drafts, Jameson sends everything" model.** New capability: the Jameworld CRM (`~/services/crm`, gated email + contacts) and the always-on Chrome let me actually *run* outreach, not just draft it. This is the plan for how.
@@ -13,7 +13,7 @@ The product and the money path are **built and proven** (signed app, live checko
 
 That profile dictates the motion. We can't out-spend or out-market incumbents like Clio or TaxDome. We win the only way this kind of company ever does: **founder-led, trust-first, narrow then wide.** One real relationship at a time until we have proof, then amplify the proof. The founder's authenticity is the asset, not polish. But to a lawyer, "authentic" still has to sit on top of "this is a real company that won't disappear with my client files."
 
-So the whole strategy is a balance of two trust signals: **Jameson the person** (warm, credible, "I built this because I had this problem") and **Keepance the company** (real domain, real product, won't vanish). The art is knowing which one to lead with in each context. That is exactly the personal-vs-company question, and it has a clean answer.
+So the whole strategy is a balance of two trust signals: **Jameson the person** (warm, credible, "I built this because I had this problem") and **Advisor Prep Hero the company** (real domain, real product, won't vanish). The art is knowing which one to lead with in each context. That is exactly the personal-vs-company question, and it has a clean answer.
 
 ---
 
@@ -53,7 +53,7 @@ So the order is **reviewers first, packs right, then vertical launch.** Everythi
 
 ## 2. The identity framework (personal vs @keepance.com)
 
-**The deciding question for any message: who does this specific recipient trust more right now, Jameson the person or Keepance the company?** Lead with that one.
+**The deciding question for any message: who does this specific recipient trust more right now, Jameson the person or Advisor Prep Hero the company?** Lead with that one.
 
 | Audience / channel | Send from | Why |
 |---|---|---|
@@ -79,7 +79,7 @@ The shift: outreach was assets in a folder. Now it's a running operation. I buil
 
 **Phase A: Stand up the machine.** (Mostly me; needs some Jameson input.)
 - Add `jameson@keepance.com` as a verified founder sender (CRM + Brevo), with replies routed to a monitored inbox (CRM Phase-2 inbox or his inbox).
-- Seed the Keepance project in the CRM with contact lists: warm network, ICP targets, advisor targets, press, design-partner candidates.
+- Seed the Advisor Prep Hero project in the CRM with contact lists: warm network, ICP targets, advisor targets, press, design-partner candidates.
 - Agree autonomy levels (which flows are `--auto` vs gated).
 
 **Phase B: Warm + design partners.** (Real Outlook + personal.)

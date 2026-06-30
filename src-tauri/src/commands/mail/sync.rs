@@ -171,7 +171,7 @@ where
 /// Differences from `apply_page`:
 ///   - Does NOT write Mail/*.md plaintext files.
 ///   - Writes each message body as an AES-256-GCM blob under
-///     `.keepance/mail/blobs/<sha256(provider,account,id)>.enc` using `key`.
+///     `.lantern/mail/blobs/<sha256(provider,account,id)>.enc` using `key`.
 ///   - After writing the blob, calls `index_callback(id, markdown_plaintext)`
 ///     so the caller can feed the decrypted text to the RAG indexer and keyword
 ///     index in memory without the text ever touching disk.
@@ -220,7 +220,7 @@ where
 /// Called once at the start of `mail_sync_all`. If a plaintext `Mail/` directory
 /// from Phase 1 exists under `workspace_root`, it is deleted entirely. The next
 /// sync will re-download and import all messages as encrypted blobs under
-/// `.keepance/mail/blobs/*.enc`. This is safe because:
+/// `.lantern/mail/blobs/*.enc`. This is safe because:
 ///   - Phase 1 data was only used on test accounts (no production mail yet).
 ///   - All data is re-downloadable from Microsoft Graph on the next sync.
 ///   - `EncryptedMailStore` uses `mail-enc.db`; the old `mail.db` (SqliteMailStore)
@@ -240,7 +240,7 @@ pub fn migrate_plaintext(workspace_root: &Path) {
     // mail.db holds message ids, folder ids, relative paths, and timestamps —
     // all metadata disclosure on a stolen laptop.  Best-effort: ignore errors
     // (file may not exist, or may already be deleted).
-    let mail_db = workspace_root.join(".keepance").join("mail.db");
+    let mail_db = workspace_root.join(crate::identity::WORKSPACE_DATA_DIR).join("mail.db");
     let _ = std::fs::remove_file(&mail_db);
 }
 
@@ -427,8 +427,8 @@ mod tests {
         // NO plaintext .md anywhere under Mail/
         assert!(!dir.path().join("Mail").exists(),
             "plaintext Mail/ dir must NOT exist when apply_page_enc is used");
-        // An encrypted blob exists under .keepance/mail/blobs/
-        let blob_dir = dir.path().join(".keepance/mail/blobs");
+        // An encrypted blob exists under .lantern/mail/blobs/
+        let blob_dir = dir.path().join(format!("{}/mail/blobs", crate::identity::WORKSPACE_DATA_DIR));
         let blobs: Vec<_> = std::fs::read_dir(&blob_dir)
             .expect("blobs dir must exist")
             .filter_map(|e| e.ok())
@@ -452,11 +452,11 @@ mod tests {
 
         // Pre-seed: write a blob and register it.
         let blob_rel = {
-            let blob_dir = dir.path().join(".keepance/mail/blobs");
+            let blob_dir = dir.path().join(format!("{}/mail/blobs", crate::identity::WORKSPACE_DATA_DIR));
             std::fs::create_dir_all(&blob_dir).unwrap();
             let enc = crate::commands::mail::crypto::encrypt_with_key(b"old body", &key).unwrap();
             std::fs::write(blob_dir.join("m2.enc"), &enc).unwrap();
-            ".keepance/mail/blobs/m2.enc".to_string()
+            ".lantern/mail/blobs/m2.enc".to_string()
         };
         store.upsert(&crate::commands::mail::store::MailRecord {
             id: "m2".into(), folder_id: "inbox".into(),
@@ -601,14 +601,14 @@ mod tests {
 
         // Pre-seed two messages.
         for id in ["del1", "del2", "kept1"] {
-            let blob_dir = dir.path().join(".keepance/mail/blobs");
+            let blob_dir = dir.path().join(format!("{}/mail/blobs", crate::identity::WORKSPACE_DATA_DIR));
             std::fs::create_dir_all(&blob_dir).unwrap();
             let enc = crate::commands::mail::crypto::encrypt_with_key(b"body", &key).unwrap();
             std::fs::write(blob_dir.join(format!("{}.enc", id)), &enc).unwrap();
             store.upsert(&crate::commands::mail::store::MailRecord {
                 id: id.to_string(), folder_id: "inbox".into(),
                 internet_message_id: None,
-                relative_path: format!(".keepance/mail/blobs/{}.enc", id),
+                relative_path: format!(".lantern/mail/blobs/{}.enc", id),
                 received_date_time: None,
                 provider: "m365".into(), account: "default".into(),
                 subject: String::new(), from_addr: String::new(),
@@ -699,11 +699,11 @@ mod tests {
     #[test]
     fn migrate_plaintext_does_not_delete_encrypted_blobs() {
         let dir = tempfile::TempDir::new().unwrap();
-        // Create Mail/ plaintext dir AND .keepance/mail/blobs/ encrypted dir.
+        // Create Mail/ plaintext dir AND .lantern/mail/blobs/ encrypted dir.
         let mail_dir = dir.path().join("Mail").join("inbox");
         std::fs::create_dir_all(&mail_dir).unwrap();
         std::fs::write(mail_dir.join("m1.md"), "hello").unwrap();
-        let enc_dir = dir.path().join(".keepance").join("mail").join("blobs");
+        let enc_dir = dir.path().join(".lantern").join("mail").join("blobs");
         std::fs::create_dir_all(&enc_dir).unwrap();
         std::fs::write(enc_dir.join("m1.enc"), b"fake-encrypted-blob").unwrap();
 
@@ -713,7 +713,7 @@ mod tests {
         assert!(!dir.path().join("Mail").exists(), "Mail/ must be deleted");
         // Encrypted blobs must remain untouched.
         assert!(
-            dir.path().join(".keepance/mail/blobs/m1.enc").exists(),
+            dir.path().join(".lantern/mail/blobs/m1.enc").exists(),
             ".enc blob must not be deleted by migration"
         );
     }
@@ -728,16 +728,16 @@ mod tests {
         let mail_dir = dir.path().join("Mail").join("inbox");
         std::fs::create_dir_all(&mail_dir).unwrap();
         std::fs::write(mail_dir.join("m1.md"), "hello").unwrap();
-        let keepance_dir = dir.path().join(".keepance");
+        let keepance_dir = dir.path().join(".lantern");
         std::fs::create_dir_all(&keepance_dir).unwrap();
         std::fs::write(keepance_dir.join("mail.db"), b"SQLite format 3\0...").unwrap();
-        assert!(dir.path().join(".keepance/mail.db").exists());
+        assert!(dir.path().join(".lantern/mail.db").exists());
 
         migrate_plaintext(dir.path());
 
         // mail.db must be removed.
         assert!(
-            !dir.path().join(".keepance/mail.db").exists(),
+            !dir.path().join(".lantern/mail.db").exists(),
             "mail.db must be deleted by migration"
         );
     }
@@ -747,20 +747,20 @@ mod tests {
     fn migrate_plaintext_deletes_mail_db_even_without_mail_dir() {
         let dir = tempfile::TempDir::new().unwrap();
         // No Mail/ dir, but mail.db exists (partial cleanup scenario).
-        let keepance_dir = dir.path().join(".keepance");
+        let keepance_dir = dir.path().join(".lantern");
         std::fs::create_dir_all(&keepance_dir).unwrap();
         std::fs::write(keepance_dir.join("mail.db"), b"SQLite format 3\0...").unwrap();
 
         migrate_plaintext(dir.path());
 
         assert!(
-            !dir.path().join(".keepance/mail.db").exists(),
+            !dir.path().join(".lantern/mail.db").exists(),
             "mail.db must be deleted even when Mail/ is absent"
         );
     }
 
     /// S1: migration must NOT touch the encrypted database (mail-enc.db) or
-    /// encrypted blobs (.keepance/mail/blobs/). Only Mail/ and mail.db are Phase-1
+    /// encrypted blobs (.lantern/mail/blobs/). Only Mail/ and mail.db are Phase-1
     /// plaintext artifacts.
     #[test]
     fn migrate_plaintext_preserves_encrypted_db_and_blobs() {
@@ -770,7 +770,7 @@ mod tests {
         let mail_dir = dir.path().join("Mail");
         std::fs::create_dir_all(&mail_dir).unwrap();
         std::fs::write(mail_dir.join("m1.md"), "hello").unwrap();
-        let keepance_dir = dir.path().join(".keepance");
+        let keepance_dir = dir.path().join(".lantern");
         std::fs::create_dir_all(&keepance_dir).unwrap();
         std::fs::write(keepance_dir.join("mail.db"), b"SQLite format 3\0...").unwrap();
         std::fs::write(keepance_dir.join("mail-enc.db"), b"SQLCipher DB").unwrap();
@@ -782,14 +782,14 @@ mod tests {
 
         // Plaintext artifacts removed.
         assert!(!dir.path().join("Mail").exists(), "Mail/ must be deleted");
-        assert!(!dir.path().join(".keepance/mail.db").exists(), "mail.db must be deleted");
+        assert!(!dir.path().join(".lantern/mail.db").exists(), "mail.db must be deleted");
         // Encrypted artifacts preserved.
         assert!(
-            dir.path().join(".keepance/mail-enc.db").exists(),
+            dir.path().join(".lantern/mail-enc.db").exists(),
             "mail-enc.db must NOT be deleted"
         );
         assert!(
-            dir.path().join(".keepance/mail/blobs/m1.enc").exists(),
+            dir.path().join(".lantern/mail/blobs/m1.enc").exists(),
             ".enc blobs must NOT be deleted"
         );
     }
@@ -810,7 +810,7 @@ mod tests {
         let mail_dir = workspace.join("Mail");
         std::fs::create_dir_all(&mail_dir).unwrap();
         std::fs::write(mail_dir.join("m1.md"), "hello").unwrap();
-        let keepance_dir = workspace.join(".keepance");
+        let keepance_dir = workspace.join(".lantern");
         std::fs::create_dir_all(&keepance_dir).unwrap();
         std::fs::write(keepance_dir.join("mail.db"), b"SQLite format 3\0...").unwrap();
 
@@ -818,7 +818,7 @@ mod tests {
 
         // Workspace plaintext must be gone.
         assert!(!workspace.join("Mail").exists());
-        assert!(!workspace.join(".keepance/mail.db").exists());
+        assert!(!workspace.join(".lantern/mail.db").exists());
         // Sibling data must be completely untouched.
         assert!(
             sibling.join("secret.txt").exists(),

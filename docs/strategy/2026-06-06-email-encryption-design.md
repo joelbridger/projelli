@@ -1,4 +1,4 @@
-# Keepance Email Encryption-at-Rest: Design & Decision (Group G)
+# Advisor Prep Hero Email Encryption-at-Rest: Design & Decision (Group G)
 
 **Date:** 2026-06-06
 **Status:** Decision, for build
@@ -24,7 +24,7 @@ Out of scope for v1 (documented, not solved now): a compromised OS while the app
 
 1. **Master key.** 32-byte random key created on first mail connect, stored via the existing `keychain` commands (service `keepance-mail-enc`). All mail encryption derives from it. Crypto: `aes-gcm` crate (AES-256-GCM, AEAD, per-blob random nonce). No hand-rolled crypto.
 
-2. **Email bodies → encrypted blobs.** Stop writing plaintext `Mail/*.md` into the workspace. Each message's normalized Markdown is encrypted and written to `.keepance/mail/blobs/<safe-id>.enc` (nonce ‖ ciphertext ‖ tag). The store maps message-id → blob path. **No plaintext email file ever touches disk.** (Trade-off: email is no longer browsable as loose files in the workspace tree — it is read through Keepance's UI. Acceptable and arguably better for confidentiality hygiene.)
+2. **Email bodies → encrypted blobs.** Stop writing plaintext `Mail/*.md` into the workspace. Each message's normalized Markdown is encrypted and written to `.keepance/mail/blobs/<safe-id>.enc` (nonce ‖ ciphertext ‖ tag). The store maps message-id → blob path. **No plaintext email file ever touches disk.** (Trade-off: email is no longer browsable as loose files in the workspace tree — it is read through Advisor Prep Hero's UI. Acceptable and arguably better for confidentiality hygiene.)
 
 3. **Metadata → SQLCipher.** Switch the mail metadata DB to SQLCipher (rusqlite `bundled-sqlcipher` feature), keyed from the master key via `PRAGMA key`. Holds message metadata + per-folder delta cursors, all encrypted. Implemented as an `EncryptedMailStore` behind the existing `MailStore` trait, so `sync.rs` is unchanged.
 

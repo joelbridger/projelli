@@ -1,13 +1,13 @@
-# Keepance Strategic Positioning — Research Library & Index
+# Advisor Prep Hero Strategic Positioning — Research Library & Index
 
 **Created:** 2026-06-24
-**Why this exists:** Jameson's concern that Keepance hadn't clearly defined its *role inside an advisor's already-crowded software stack*, so advisors could overcome the real hesitancy to add "yet another tool" (direct feedback from his wife's advisory firm). This folder holds the deep research behind a clear, honest answer.
+**Why this exists:** Jameson's concern that Advisor Prep Hero hadn't clearly defined its *role inside an advisor's already-crowded software stack*, so advisors could overcome the real hesitancy to add "yet another tool" (direct feedback from his wife's advisory firm). This folder holds the deep research behind a clear, honest answer.
 
 ---
 
 ## ⭐ Start here
 
-**[`WHERE-KEEPANCE-FITS.md`](./WHERE-KEEPANCE-FITS.md)** — the headline conclusion. The honest re-assessment of Keepance's role, the point-by-point answer to "why add another tool?", competitive defensibility vs every incumbent's AI, a recommended lead positioning, and a draft of the website "Where does Keepance fit?" section. **This is the decision document.** (One open decision is flagged for Jameson at the end.)
+**[`WHERE-KEEPANCE-FITS.md`](./WHERE-KEEPANCE-FITS.md)** — the headline conclusion. The honest re-assessment of Advisor Prep Hero's role, the point-by-point answer to "why add another tool?", competitive defensibility vs every incumbent's AI, a recommended lead positioning, and a draft of the website "Where does Advisor Prep Hero fit?" section. **This is the decision document.** (One open decision is flagged for Jameson at the end.)
 
 For the "what AI does every tool ship today" answer: **[`research/ai-features-across-the-advisor-stack.md`](./research/ai-features-across-the-advisor-stack.md)**.
 
@@ -51,4 +51,4 @@ Two **independent** research paths were run and then compared, so the conclusion
 
 ## The conclusion in one paragraph
 
-Advisors are drowning in tools ("tech bloat"), and every category of their stack now ships AI, so "we have AI" is no longer a wedge and "another tool" is the default objection. Keepance's bet — a private, cross-source, cited intelligence + drafting layer over the whole client file — is now a *validated but crowded* category (Jump, Orion, Advisor360, Microsoft Copilot are racing for it with more funding and distribution). Keepance's only defensible position is the one those players structurally can't occupy: **truly local-first / no-vendor-server + bring-your-own-key, cross-source, cited, and Word-native, for the solo/small RIA who won't consolidate into one platform and won't feed client data to cloud AI.** The fix to the "another tool" problem is to stop selling Keepance as a *new tool* (or "AI assistant") and start selling it as **the private layer that makes the stack they already pay for finally answer them — switching them away from nothing.**
+Advisors are drowning in tools ("tech bloat"), and every category of their stack now ships AI, so "we have AI" is no longer a wedge and "another tool" is the default objection. Advisor Prep Hero's bet — a private, cross-source, cited intelligence + drafting layer over the whole client file — is now a *validated but crowded* category (Jump, Orion, Advisor360, Microsoft Copilot are racing for it with more funding and distribution). Advisor Prep Hero's only defensible position is the one those players structurally can't occupy: **truly local-first / no-vendor-server + bring-your-own-key, cross-source, cited, and Word-native, for the solo/small RIA who won't consolidate into one platform and won't feed client data to cloud AI.** The fix to the "another tool" problem is to stop selling Advisor Prep Hero as a *new tool* (or "AI assistant") and start selling it as **the private layer that makes the stack they already pay for finally answer them — switching them away from nothing.**

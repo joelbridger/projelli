@@ -1,7 +1,7 @@
 # Sample: Matter Overview
 
 > Fictional matter: **Garcia v. Meridian Properties LLC**, commercial lease dispute.
-> This is a sample so you can see what a finished matter overview looks like in Keepance. Delete it whenever you want.
+> This is a sample so you can see what a finished matter overview looks like in Advisor Prep Hero. Delete it whenever you want.
 
 ---
 

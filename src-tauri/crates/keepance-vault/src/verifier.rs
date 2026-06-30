@@ -24,7 +24,7 @@ const VERIFIER_PLAINTEXT: &[u8] = b"keepance-vault-verifier:v1";
 /// Produce a verifier blob by encrypting `VERIFIER_PLAINTEXT` under `vmk`.
 ///
 /// The returned blob is in KPV1 format and is safe to store in plain text in
-/// `.keepance-vault.json` (base64-encoded). Its secrecy is not required;
+/// `.lantern-vault.json` (base64-encoded). Its secrecy is not required;
 /// only `vmk` needs to be secret.
 pub fn make_verifier(vmk: &[u8; 32]) -> Result<Vec<u8>, VaultFormatError> {
     encrypt_file(VERIFIER_PLAINTEXT, vmk)

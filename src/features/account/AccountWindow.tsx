@@ -1,4 +1,4 @@
-/* eslint-disable keepance-i18n/no-hardcoded-string */
+/* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useRef, useState } from 'react';
 import { Upload, User, Building2, X } from 'lucide-react';
 import {
@@ -274,7 +274,7 @@ export function AccountWindow({ open, onOpenChange, auditEntries, initialTab }: 
                     <Building2 size={20} style={{ color: 'var(--color-primary)', flexShrink: 0, marginTop: 2 }} aria-hidden />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontWeight: 600, fontSize: 'var(--kp-font-sm)' }}>
-                        Use Keepance with your firm
+                        Use Advisor Prep Hero with your firm
                       </p>
                       <p style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)', margin: '4px 0 8px' }}>
                         Start a firm or join one, then bring your matters over. You choose for each matter whether it stays private or is shared with colleagues.
@@ -323,7 +323,7 @@ export function AccountWindow({ open, onOpenChange, auditEntries, initialTab }: 
                 <SalesforceConnect />
                 <RedtailConnect />
                 <OllamaSettingsSection />
-                {/* Developer tools — connecting Keepance to outside AI clients
+                {/* Developer tools — connecting Advisor Prep Hero to outside AI clients
                     (Claude Desktop, Cursor) via MCP. This is power-user
                     plumbing, not something a typical advisor needs, so it's
                     tucked behind a closed disclosure by default and stays one

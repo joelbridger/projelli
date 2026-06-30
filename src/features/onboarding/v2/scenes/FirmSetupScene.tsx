@@ -1,4 +1,4 @@
-/* eslint-disable keepance-i18n/no-hardcoded-string */
+/* eslint-disable lantern-i18n/no-hardcoded-string */
 /**
  * FirmSetupScene — "3. Setting up your firm".
  *
@@ -156,7 +156,7 @@ export function FirmSetupScene() {
         </div>
       </div>
 
-      {/* Things you can ask Keepance */}
+      {/* Things you can ask Advisor Prep Hero */}
       <div className="mt-8 w-full max-w-[760px]">
         <div className="text-sm font-bold text-[var(--kp-navy)]">{C.asksHeader}</div>
         <div className="kp-onbv2-scroll mt-3 flex max-h-28 flex-wrap justify-center gap-2 overflow-y-auto">

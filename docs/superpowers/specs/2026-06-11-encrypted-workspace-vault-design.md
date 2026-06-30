@@ -8,7 +8,7 @@
 
 ## 1. Goal
 
-An **optional, per-workspace** encrypted vault. When enabled, a workspace's document files are stored on disk as AES-256-GCM ciphertext; Keepance decrypts them transparently on open/edit; the file tree, search, and editing keep working. A one-click "decrypt everything" returns plain files and turns the vault off, so *"your files are always yours"* stays literally true.
+An **optional, per-workspace** encrypted vault. When enabled, a workspace's document files are stored on disk as AES-256-GCM ciphertext; Advisor Prep Hero decrypts them transparently on open/edit; the file tree, search, and editing keep working. A one-click "decrypt everything" returns plain files and turns the vault off, so *"your files are always yours"* stays literally true.
 
 This is **v2** of VG-6d. v1 (unmissable OS-disk-encryption guidance — onboarding step + Data Map row) already shipped in Wave 1 and stays; the vault is the belt to that suspenders.
 
@@ -52,7 +52,7 @@ No mnemonic/KDF code exists in the repo today; this is added.
 - Derive the **Recovery KEK** = `HKDF-SHA256(ikm = the 256-bit BIP39 entropy, salt = random 16 B [stored in metadata], info = "keepance-vault-recovery-kek:v1")` → 32 bytes.
   - *Why HKDF, not Argon2id:* a memory-hard KDF exists to slow brute force of **low-entropy** secrets. The recovery phrase carries the **full 256 bits** of entropy, so brute force is already infeasible by ~2^256 and a memory-hard stretch buys nothing while adding a heavy dependency. HKDF over full-entropy IKM is the correct, lighter choice. (Argon2id was considered and dropped for this reason; recorded so the decision is closed.)
 - Wrap the VMK: `recovery_wrap = AES-256-GCM(key = Recovery KEK, nonce = random 12 B, plaintext = VMK, aad = "keepance-vault-recovery:v1")`. Store `recovery_wrap` (nonce‖ct‖tag) + the HKDF salt in the metadata file.
-- **The phrase is shown exactly once**, at creation, with a mandatory "Keepance cannot recover this for you" ceremony (§11 Fork 3). It is never stored anywhere by Keepance.
+- **The phrase is shown exactly once**, at creation, with a mandatory "Advisor Prep Hero cannot recover this for you" ceremony (§11 Fork 3). It is never stored anywhere by Advisor Prep Hero.
 - **Recover:** user enters the 24 words → validate the BIP39 checksum → re-derive Recovery KEK → AES-GCM-decrypt `recovery_wrap` → VMK → re-store VMK in the keychain → unlocked. A wrong/invalid phrase fails the BIP39 checksum or the GCM tag and is rejected cleanly (no partial state).
 
 ### 4.4 Firm-admin escrow (firm tier) — **reuses existing `keyWrap.ts`**
@@ -82,7 +82,7 @@ The body reuses the canonical Rust helper `encrypt_with_key`/`decrypt_with_key` 
 
 The **magic header** is load-bearing: it lets any reader tell a vaulted file from a plain one in O(4 bytes). That makes the enable-migration and the escape-hatch **idempotent and resumable** (skip files already in the target state) and lets `vault_read_file` transparently pass through a not-yet-encrypted file during migration instead of erroring.
 
-Files keep their **original name and extension** (a `contract.docx` vault file is named `contract.docx` and is ciphertext; opening it outside Keepance shows encrypted bytes — the intended behavior).
+Files keep their **original name and extension** (a `contract.docx` vault file is named `contract.docx` and is ciphertext; opening it outside Advisor Prep Hero shows encrypted bytes — the intended behavior).
 
 ## 6. Atomic write protocol (the kill-mid-write guarantee)
 
@@ -137,7 +137,7 @@ The Data Map notes this honestly: vaulted file contents are decrypted in memory 
 
 - **Enable flow:** explain what the vault does and its limits → generate + display the 24-word recovery phrase with the mandatory ceremony (§11 Fork 3) → (firm) confirm admin escrow with a plain statement that a firm admin can recover it → `vault_encrypt_all` with a progress UI. Crash-safe and resumable.
 - **Locked state:** if the VMK isn't in the keychain (new machine), a clear "This workspace is locked. Enter your recovery phrase to unlock." flow (firm members may instead be unlocked via escrow).
-- **Data Map:** a new row — "Keepance encrypts this workspace's files" — stating contents are AES-256-GCM at rest, file **names remain visible**, the recovery phrase is the only solo backstop, and (firm) escrow exists.
+- **Data Map:** a new row — "Advisor Prep Hero encrypts this workspace's files" — stating contents are AES-256-GCM at rest, file **names remain visible**, the recovery phrase is the only solo backstop, and (firm) escrow exists.
 - **Escape hatch:** "Decrypt this workspace and turn off the vault" → `vault_decrypt_all` then `vault_disable`, with a confirmation that explains files return to normal unencrypted files.
 
 ## 11. Decisions (the three strategic forks — approved 2026-06-11)
@@ -201,5 +201,5 @@ Per the hard rule, these are authored and run red/green first. They live in the 
 
 - The VMK is `zeroize`d in Rust after use where the type allows; the transient escrow export is the only path it reaches JS, and only on an unlocked vault by the owner.
 - The metadata file holds only wrapped/derived material (recovery wrap, escrow wraps, salt, verifier) — safe to sit in the workspace and be backed up.
-- No key material is ever logged. The recovery phrase is returned exactly once from `vault_create` and never persisted by Keepance.
+- No key material is ever logged. The recovery phrase is returned exactly once from `vault_create` and never persisted by Advisor Prep Hero.
 - All GCM uses fresh random nonces; AAD binds purpose/epoch where relevant (recovery, escrow), matching the existing `matterCrypto`/`keyWrap` conventions.

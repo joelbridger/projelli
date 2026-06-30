@@ -83,32 +83,32 @@ pub fn decrypt_file_to_disk(path: impl AsRef<Path>, vmk: &[u8; 32]) -> Result<()
 /// Returns true if a filename should be excluded from vault walks.
 ///
 /// Excluded:
-/// - `.keepance-vault.json` — the vault metadata file
+/// - `.lantern-vault.json` — the vault metadata file
 /// - `.kpv-tmp-*`           — orphan temp files (handled by `sweep_temps`)
 fn should_skip_filename(name: &str) -> bool {
-    name == ".keepance-vault.json" || name.starts_with(".kpv-tmp-")
+    name == ".lantern-vault.json" || name.starts_with(".kpv-tmp-")
 }
 
 /// Returns true if a DIRECTORY (by name) must NOT be walked into.
 ///
-/// `.keepance/` holds Keepance-internal stores that are read DIRECTLY off disk by
+/// `.lantern/` holds app-internal stores that are read DIRECTLY off disk by
 /// other subsystems — never through `WorkspaceService`/the vault layer:
-///   - `.keepance/vectors/`   the LanceDB search index (opened via `lancedb::connect`)
-///   - `.keepance/audit-enc.db`, `mail-enc.db`, `mail.db`  (opened via `rusqlite`)
-///   - `.keepance/mail/blobs/*.enc`  (already-encrypted mail blobs, read via `std::fs`)
+///   - `.lantern/vectors/`   the LanceDB search index (opened via `lancedb::connect`)
+///   - `.lantern/audit-enc.db`, `mail-enc.db`, `mail.db`  (opened via `rusqlite`)
+///   - `.lantern/mail/blobs/*.enc`  (already-encrypted mail blobs, read via `std::fs`)
 /// KPV1-wrapping any of these would corrupt those stores irrecoverably (SQLite/Lance
 /// would read the magic header as their own format). So we never descend into it.
 ///
 /// Other dot-dirs (`.versions/`, `.trash/`, `AI Chats/`) ARE walked: they are accessed
 /// only through `WorkspaceService`, so encrypting them is correct and transparent.
 fn should_skip_dirname(name: &str) -> bool {
-    name == ".keepance"
+    name == ".lantern"
 }
 
 /// Recursively encrypt every eligible file under `root` using `vmk`.
 ///
 /// - Sweeps orphan `.kpv-tmp-*` files before visiting each directory.
-/// - Skips `.keepance-vault.json` and `.kpv-tmp-*` by filename.
+/// - Skips `.lantern-vault.json` and `.kpv-tmp-*` by filename.
 /// - Already-encrypted files (KPV1 magic) are silently skipped (resumable).
 /// - A single unreadable/unencryptable file is a hard error (fail closed).
 pub fn encrypt_all(root: impl AsRef<Path>, vmk: &[u8; 32]) -> Result<(), VaultError> {
@@ -118,7 +118,7 @@ pub fn encrypt_all(root: impl AsRef<Path>, vmk: &[u8; 32]) -> Result<(), VaultEr
 /// Recursively decrypt every eligible vaulted file under `root` using `vmk`.
 ///
 /// - Sweeps orphan `.kpv-tmp-*` files before visiting each directory.
-/// - Skips `.keepance-vault.json` and `.kpv-tmp-*` by filename.
+/// - Skips `.lantern-vault.json` and `.kpv-tmp-*` by filename.
 /// - Files without KPV1 magic are silently skipped (already plaintext).
 /// - A single unreadable/undecryptable file is a hard error (fail closed).
 pub fn decrypt_all(root: impl AsRef<Path>, vmk: &[u8; 32]) -> Result<(), VaultError> {

@@ -1,5 +1,5 @@
 /**
- * useLicense — license activation, validation, and tier-gating hook for Keepance.
+ * useLicense — license activation, validation, and tier-gating hook for Advisor Prep Hero.
  *
  * Talks to the licenses.keepance.com Bun service. The desktop app stores the
  * activation token in localStorage (would ideally be in the OS keychain, same

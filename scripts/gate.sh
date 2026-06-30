@@ -11,6 +11,7 @@ step () { echo ""; echo "===== $1 ====="; shift; "$@" || { echo "❌ FAILED: $*"
 
 step "TypeScript"      npm run typecheck
 step "Brand sync"      npm run brand:check
+step "Identity check"  npm run identity:check
 # i18n is deferred (KNOWN-I18N-01) — report drift but don't fail the gate.
 # Re-add as a blocking `step` once the locale key drift is fixed (NOT via
 # i18n:extract, which is destructive).

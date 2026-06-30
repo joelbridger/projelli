@@ -3,7 +3,7 @@
 Date: 2026-06-11  
 Status: **DONE — LIVE HAPPY PATH GREEN, REJECTIONS PROVEN**  
 IdP: Dex v2.46.0 (real OIDC provider, not a mock)  
-Backend: Keepance firm backend v0.1.0 at `http://127.0.0.1:5192`
+Backend: Advisor Prep Hero firm backend v0.1.0 at `http://127.0.0.1:5192`
 
 ---
 
@@ -21,7 +21,7 @@ Backend: Keepance firm backend v0.1.0 at `http://127.0.0.1:5192`
 | 3 | `config/get` never returns `client_secret` | PASS | Response has `has_secret:true` but no `client_secret` field |
 | 4 | `/auth/sso/start` fetches Dex discovery, returns real Dex `auth_url` | PASS | auth_url begins with `http://127.0.0.1:5556/dex/auth?...` with PKCE S256 code_challenge + nonce + login_hint |
 | 4 | Dex login form renders for valid `auth_url` | PASS | Screenshot: Dex "Log in to Your Account" form visible in Chrome (see screenshots/) |
-| 4 | Dex consent "Grant Access" screen shown after login | PASS | Screenshot: "Keepance would like to: View basic profile information / View your email address" |
+| 4 | Dex consent "Grant Access" screen shown after login | PASS | Screenshot: "Advisor Prep Hero would like to: View basic profile information / View your email address" |
 | 4 | Dex issues auth code, redirects to backend callback | PASS | `Location: http://172.20.0.1:5192/auth/sso/callback?code=f3ogiacxtfrhmzummeejg6ssw&state=...` |
 | 4 | Backend callback: fetches Dex discovery (fresh) | PASS | Discovery re-fetched from real Dex at `http://127.0.0.1:5556/dex/.well-known/openid-configuration` |
 | 4 | Backend callback: exchanges code at Dex token endpoint | PASS | POSTs `client_id`, `client_secret`, `code`, `code_verifier`, `redirect_uri` to Dex token endpoint; receives `id_token` |
@@ -49,7 +49,7 @@ The full authenticate-via-Dex flow completed end-to-end:
 
 1. `/auth/sso/start` fetched the real Dex discovery doc and built an auth_url with PKCE + nonce
 2. User authenticated at the real Dex login page (typed `jane@weston.test` / `Password123!`)
-3. Dex showed a "Grant Access" consent screen identifying "Keepance" as the relying party
+3. Dex showed a "Grant Access" consent screen identifying "Advisor Prep Hero" as the relying party
 4. After consent, Dex issued a real authorization code and redirected to the backend callback
 5. The backend exchanged the code at Dex's token endpoint, received a real RS256-signed id_token
 6. The backend fetched Dex's real JWKS, found the matching key by `kid`, verified the RS256 signature using `node:crypto`

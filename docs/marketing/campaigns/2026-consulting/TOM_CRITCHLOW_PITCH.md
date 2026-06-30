@@ -2,7 +2,7 @@
 
 > **About Tom Critchlow:** tomcritchlow.com/newsletter. He writes The Strategic Independent for independent consultants. His work is genuinely serious: the economics of indie consulting, client relationship structure, how to build a sustainable practice. Not hustle content. His readers are practitioners who think carefully about how their business works.
 >
-> **Audience fit:** Direct overlap with Keepance's consulting ICP. Independent strategists and boutique agency owners who care about their work and their tools.
+> **Audience fit:** Direct overlap with Advisor Prep Hero's consulting ICP. Independent strategists and boutique agency owners who care about their work and their tools.
 >
 > **What to pitch:** A guest post, product mention, or "tools I use" placement. Guest post is the highest value if he'll consider it. Lead with something genuine about his work before getting to the ask.
 
@@ -18,7 +18,7 @@ I've been reading The Strategic Independent for a while now, mostly because the 
 
 I'm writing because I think I have something relevant to your readers.
 
-I've been building a desktop tool called Keepance for independent consultants (and attorneys and CPAs, but that's a different pitch). The core premise: your API key talks directly to Anthropic or OpenAI. Your files never leave your machine. Nothing passes through a server I control. For consultants specifically, the problem I'm solving is this: NDA and engagement letter language is increasingly including explicit AI clauses. Clients are asking whether their strategy documents might end up in a training corpus. The answer with a cloud AI tool is complicated. With a local-first tool, it isn't.
+I've been building a desktop tool called Advisor Prep Hero for independent consultants (and attorneys and CPAs, but that's a different pitch). The core premise: your API key talks directly to Anthropic or OpenAI. Your files never leave your machine. Nothing passes through a server I control. For consultants specifically, the problem I'm solving is this: NDA and engagement letter language is increasingly including explicit AI clauses. Clients are asking whether their strategy documents might end up in a training corpus. The answer with a cloud AI tool is complicated. With a local-first tool, it isn't.
 
 I'd love to offer a guest post for the newsletter. The angle I have in mind: the growing trend of AI clauses in independent consulting agreements, what they actually say, and what consultants should be doing about it now before it becomes a standard negotiating point. It's practical and it's timed right, I think. The clauses are already appearing in M&A and private equity engagements, and they're going to move downstream.
 

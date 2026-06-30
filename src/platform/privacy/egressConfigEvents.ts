@@ -9,8 +9,9 @@
  * KeychainService to read key presence).
  */
 
+import { EV_EGRESS_CONFIG_CHANGE } from '@/config/identity';
 /** Same-tab event name. The cross-tab `storage` event covers other tabs. */
-export const EGRESS_CONFIG_CHANGE_EVENT = 'keepance:egress-config-change';
+export const EGRESS_CONFIG_CHANGE_EVENT = EV_EGRESS_CONFIG_CHANGE;
 
 /**
  * Notify egress surfaces that the configured keys / default provider changed.

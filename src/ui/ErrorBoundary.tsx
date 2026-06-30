@@ -71,7 +71,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             maxWidth: 560,
           }}
         >
-          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          {/* eslint-disable lantern-i18n/no-hardcoded-string */}
           <div style={{ fontSize: 'var(--kp-font-md, 15px)', fontWeight: 700, marginBottom: 6 }}>
             {what} couldn&apos;t be displayed
           </div>
@@ -105,7 +105,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           >
             Try again
           </button>
-          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+          {/* eslint-enable lantern-i18n/no-hardcoded-string */}
         </div>
       );
     }

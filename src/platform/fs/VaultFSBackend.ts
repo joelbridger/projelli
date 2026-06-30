@@ -36,8 +36,10 @@ import { invoke } from '@tauri-apps/api/core';
 import type { FSBackend, FileStat } from './types';
 import type { FileNode } from '@/platform/types/workspace';
 
+import { VAULT_METADATA_FILENAME } from '@/config/identity';
+
 /** Vault metadata filename — never surfaced to callers via list(). */
-const VAULT_METADATA = '.keepance-vault.json';
+const VAULT_METADATA = VAULT_METADATA_FILENAME;
 
 /** Prefix for atomic-write temporary files — also hidden from list(). */
 const KPV_TMP_PREFIX = '.kpv-tmp-';

@@ -267,7 +267,7 @@ export function FormattingToolbar({ editorRef, className, isPreviewMode, onToggl
 
         case 'pdf': {
           // PDF uses the print-to-PDF path: no binary file is produced by
-          // Keepance; the OS print dialog handles writing the file.
+          // Advisor Prep Hero; the OS print dialog handles writing the file.
           await exportMarkdownAsPdf(fileContent, fileName);
           break;
         }

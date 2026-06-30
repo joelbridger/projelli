@@ -1,8 +1,8 @@
-# Keepance Development Workflow
+# Advisor Prep Hero Development Workflow
 
 ## 🎯 Overview
 
-This guide explains how to continue developing, testing, and updating Keepance after the v1.0.0 launch.
+This guide explains how to continue developing, testing, and updating Advisor Prep Hero after the v1.0.0 launch.
 
 ---
 
@@ -115,11 +115,11 @@ npm run tauri build
 **Step 3: Create GitHub Release**
 - Go to: https://github.com/keepance/keepance/releases/new
 - Select tag: `v1.0.1`
-- Title: "Keepance v1.0.1 - [Brief description]"
+- Title: "Advisor Prep Hero v1.0.1 - [Brief description]"
 - Description: List of changes/fixes
 - Upload files:
-  - `src-tauri\target\release\bundle\nsis\Keepance_1.0.1_x64-setup.exe`
-  - `src-tauri\target\release\bundle\msi\Keepance_1.0.1_x64_en-US.msi`
+  - `src-tauri\target\release\bundle\nsis\Advisor Prep Hero_1.0.1_x64-setup.exe`
+  - `src-tauri\target\release\bundle\msi\Advisor Prep Hero_1.0.1_x64_en-US.msi`
 - **Publish release**
 
 **Step 4: Update Website Download Links** (WSL2)
@@ -128,9 +128,9 @@ cd /mnt/c/Users/james/Projects/keepance
 
 # Edit website/index.html
 # Find all occurrences of:
-#   v1.0.0/Keepance_1.0.0_x64-setup.exe
+#   v1.0.0/Advisor Prep Hero_1.0.0_x64-setup.exe
 # Replace with:
-#   v1.0.1/Keepance_1.0.1_x64-setup.exe
+#   v1.0.1/Advisor Prep Hero_1.0.1_x64-setup.exe
 
 git add website/index.html
 git commit -m "Update website to v1.0.1 download links"

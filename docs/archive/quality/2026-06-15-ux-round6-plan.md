@@ -1,4 +1,4 @@
-# Keepance UX — ROUND 6 plan (2026-06-15)
+# Advisor Prep Hero UX — ROUND 6 plan (2026-06-15)
 
 Jameson's live testing feedback on the Files tab + Settings. Branch `feature/ux-round6-2026-06-15`,
 backup tag `pre-ux-round6-2026-06-15`. NOT deployed. R6-1 then R6-2 (both touch App.tsx, so SEQUENTIAL).

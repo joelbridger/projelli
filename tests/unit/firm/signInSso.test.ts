@@ -26,20 +26,20 @@ const SSO_LOGIN_RESPONSE = {
 const invokeMock = vi.fn(async (cmd: string, args: Record<string, unknown> = {}) => {
   // Keychain commands
   if (cmd === 'keychain_set') {
-    const svc = (args.service as string) ?? 'com.keepance.app';
+    const svc = (args.service as string) ?? 'com.lantern.app';
     const key = args.key as string;
     keychainStore.set(`${svc}::${key}`, args.value as string);
     return undefined;
   }
   if (cmd === 'keychain_get') {
-    const svc = (args.service as string) ?? 'com.keepance.app';
+    const svc = (args.service as string) ?? 'com.lantern.app';
     const key = args.key as string;
     const id = `${svc}::${key}`;
     if (!keychainStore.has(id)) throw { kind: 'notFound', message: 'no entry' };
     return keychainStore.get(id);
   }
   if (cmd === 'keychain_delete') {
-    const svc = (args.service as string) ?? 'com.keepance.app';
+    const svc = (args.service as string) ?? 'com.lantern.app';
     const key = args.key as string;
     keychainStore.delete(`${svc}::${key}`);
     return undefined;
@@ -135,8 +135,8 @@ describe('firmStore.signInSso', () => {
 
     await useFirmStore.getState().signInSso('jane@weston.com');
 
-    expect(keychainStore.get('com.keepance.user.u-sso-1::access_token')).toBe('SSO_ACCESS');
-    expect(keychainStore.get('com.keepance.user.u-sso-1::refresh_token')).toBe('SSO_REFRESH');
+    expect(keychainStore.get('com.lantern.user.u-sso-1::access_token')).toBe('SSO_ACCESS');
+    expect(keychainStore.get('com.lantern.user.u-sso-1::refresh_token')).toBe('SSO_REFRESH');
 
     // Secrets must NOT be in localStorage
     const lsDump = JSON.stringify(

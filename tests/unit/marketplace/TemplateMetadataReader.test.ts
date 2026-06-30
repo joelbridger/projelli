@@ -26,7 +26,7 @@ const VALID_MANIFEST: TemplateManifest = {
     { path: 'manifest.json', type: 'markdown' },
     { path: 'workflow.json', type: 'workflow-definition' },
   ],
-  minKeepanceVersion: '2.0.0',
+  minAppVersion: '2.0.0',
 };
 
 const VALID_WORKFLOW = {
@@ -79,7 +79,7 @@ function makeInstalled(
     tags: [],
     installUrl: `http://e/${id}.tar.gz`,
     manifestUrl: `http://e/${id}/manifest.json`,
-    minKeepanceVersion: '2.0.0',
+    minAppVersion: '2.0.0',
     publishedAt: '2026-04-28',
     updatedAt: '2026-04-28',
     installedAt: '2026-05-03',

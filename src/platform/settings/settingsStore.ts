@@ -1,7 +1,7 @@
 /**
  * Settings Store -- Zustand + persist middleware.
  *
- * Persisted to localStorage under `keepance:settings`.
+ * Persisted to localStorage under `lantern:settings`.
  * Defaults derive from the schema. `getSetting` returns the stored value or
  * the schema default if not yet set.
  *
@@ -18,6 +18,7 @@ import {
   sanitizeTemplateModelOverrides,
 } from '@/platform/settings/templateModelOverrides';
 import { CONFIDENTIALITY_MODE_SETTING_KEY } from '@/platform/privacy/egress';
+import { SK_SETTINGS, SK_TAB_OVERFLOW } from '@/config/identity';
 
 /**
  * BUG-026: validate an imported value against its schema definition, so a
@@ -51,7 +52,7 @@ const SETTINGS_PERSIST_VERSION = 1;
 const defByKey = new Map(SETTINGS_SCHEMA.map((d) => [d.key, d]));
 
 const PRIVACY_CRITICAL_SAFE_DEFAULTS: Record<string, unknown> = {
-  // If this value is stale or corrupt, Keepance must fail closed: local model
+  // If this value is stale or corrupt, Advisor Prep Hero must fail closed: local model
   // only, so confidential legal data does not silently route to a cloud model.
   [CONFIDENTIALITY_MODE_SETTING_KEY]: 'local-only',
 };
@@ -234,7 +235,7 @@ export const useSettingsStore = create<SettingsState>()(
       },
     }),
     {
-      name: 'keepance:settings',
+      name: SK_SETTINGS,
       version: SETTINGS_PERSIST_VERSION,
       migrate: (persisted) => migratePersistedSettings(persisted),
       // Only persist `values` and the migration flag.
@@ -269,9 +270,9 @@ function migrateLegacySettings(): void {
     }
   } catch { /* noop */ }
 
-  // tabOverflow -- was at "keepance:tabOverflow"
+  // tabOverflow -- was at "lantern:tabOverflow"
   try {
-    const oldOverflow = localStorage.getItem('keepance:tabOverflow');
+    const oldOverflow = localStorage.getItem(SK_TAB_OVERFLOW);
     if (oldOverflow && (oldOverflow === 'scroll' || oldOverflow === 'wrap')) {
       if (state.values['tabOverflow'] === undefined) {
         updates['tabOverflow'] = oldOverflow;

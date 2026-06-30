@@ -1,4 +1,4 @@
-# Keepance Component Library
+# Advisor Prep Hero Component Library
 
 > The **component layer** of the design system. The token layer (color, spacing, type, elevation, sizing, motion in `globals.css`) is the vocabulary; this is the finished sentences. Every shared control — buttons, inputs, filters, badges, cards — is built once here, so two buttons that do the same job are the same size *by construction*, now and as the app grows.
 >

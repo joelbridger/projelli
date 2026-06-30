@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Google Drive setup, Keepance</title>
-  <meta name="description" content="Step-by-step: read your Keepance workspace on Android or iPhone using Google Drive. Requires the Google Drive desktop app.">
+  <title>Google Drive setup, Advisor Prep Hero</title>
+  <meta name="description" content="Step-by-step: read your Advisor Prep Hero workspace on Android or iPhone using Google Drive. Requires the Google Drive desktop app.">
   <link rel="canonical" href="https://keepance.com/docs/mobile-access/google-drive">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -50,7 +50,7 @@
     <h1>Google Drive setup</h1>
     <p class="meta">Best on Android. Works on iOS too. Requires the Google Drive desktop app.</p>
 
-    <p>If you have an Android phone or already pay for Google One, Google Drive is a natural fit. The catch is that Keepance needs to write to a regular folder on your computer, so you must install the <strong>Google Drive for desktop</strong> app and let it mirror Drive to a local folder.</p>
+    <p>If you have an Android phone or already pay for Google One, Google Drive is a natural fit. The catch is that Advisor Prep Hero needs to write to a regular folder on your computer, so you must install the <strong>Google Drive for desktop</strong> app and let it mirror Drive to a local folder.</p>
 
     <h2>Step 1: Install Google Drive for desktop</h2>
 
@@ -58,29 +58,29 @@
       <ol>
         <li>Download <strong>Google Drive for desktop</strong> from <a href="https://www.google.com/drive/download/" target="_blank" rel="noopener">google.com/drive/download</a>.</li>
         <li>Install and sign in with your Google account.</li>
-        <li>When asked, choose <strong>Mirror files</strong> (not "Stream files"). Mirror keeps a real local copy of every file, which is what Keepance needs. Stream stores files only in the cloud and downloads on demand, which Keepance can't reliably read from.</li>
+        <li>When asked, choose <strong>Mirror files</strong> (not "Stream files"). Mirror keeps a real local copy of every file, which is what Advisor Prep Hero needs. Stream stores files only in the cloud and downloads on demand, which Advisor Prep Hero can't reliably read from.</li>
         <li>Pick a local folder for the mirror. The default is <code>~/Library/CloudStorage/GoogleDrive-you@example.com/My Drive/</code> on Mac or <code>G:\My Drive\</code> on Windows.</li>
       </ol>
     </div>
 
     <div class="warning">
-      <strong>The "Mirror files" option is critical.</strong> If you accidentally chose "Stream files," Keepance will see an empty folder or a folder of cloud-only placeholder files it can't open. Re-run the Drive setup wizard and switch to Mirror mode.
+      <strong>The "Mirror files" option is critical.</strong> If you accidentally chose "Stream files," Advisor Prep Hero will see an empty folder or a folder of cloud-only placeholder files it can't open. Re-run the Drive setup wizard and switch to Mirror mode.
     </div>
 
-    <h2>Step 2: Point Keepance at your Drive folder</h2>
+    <h2>Step 2: Point Advisor Prep Hero at your Drive folder</h2>
 
     <div class="step">
       <ol>
-        <li>In Keepance, open <strong>File → Open Workspace</strong>.</li>
+        <li>In Advisor Prep Hero, open <strong>File → Open Workspace</strong>.</li>
         <li>Navigate into your mirrored Google Drive folder.</li>
-        <li>Create a folder called <strong>Keepance</strong> inside Drive.</li>
+        <li>Create a folder called <strong>Advisor Prep Hero</strong> inside Drive.</li>
         <li>Select that folder as your workspace and click <strong>Open</strong>.</li>
       </ol>
     </div>
 
     <figure>
-      <div class="placeholder">[Screenshot: Keepance with workspace pointing at the mirrored Google Drive folder]</div>
-      <figcaption>TODO: real screenshot of Keepance's workspace selector pointing at the Google Drive folder.</figcaption>
+      <div class="placeholder">[Screenshot: Advisor Prep Hero with workspace pointing at the mirrored Google Drive folder]</div>
+      <figcaption>TODO: real screenshot of Advisor Prep Hero's workspace selector pointing at the Google Drive folder.</figcaption>
     </figure>
 
     <h2>Step 3: Wait for sync</h2>
@@ -94,7 +94,7 @@
       <ol>
         <li>The Google Drive app comes preinstalled on most Android phones. If it isn't, get it from the <a href="https://play.google.com/store/apps/details?id=com.google.android.apps.docs" target="_blank" rel="noopener">Play Store</a>.</li>
         <li>Open the app, sign in with the same Google account you use on your computer.</li>
-        <li>Tap <strong>Files</strong> at the bottom, then navigate to your <strong>Keepance</strong> folder.</li>
+        <li>Tap <strong>Files</strong> at the bottom, then navigate to your <strong>Advisor Prep Hero</strong> folder.</li>
         <li>Tap any <code>.md</code> file. Drive on Android renders Markdown as plain text. For nicer rendering, install <a href="https://play.google.com/store/apps/details?id=net.gsantner.markor" target="_blank" rel="noopener">Markor</a> and open the file with that.</li>
       </ol>
     </div>
@@ -103,14 +103,14 @@
       <h3>iPhone</h3>
       <ol>
         <li>Install <a href="https://apps.apple.com/us/app/google-drive/id507874739" target="_blank" rel="noopener">Google Drive for iOS</a> from the App Store.</li>
-        <li>Sign in and navigate to your <strong>Keepance</strong> folder.</li>
+        <li>Sign in and navigate to your <strong>Advisor Prep Hero</strong> folder.</li>
         <li>Tap any <code>.md</code> file to read it. The iOS app renders Markdown as plain text.</li>
       </ol>
     </div>
 
     <figure>
-      <div class="placeholder">[Screenshot: Google Drive Android app showing the synced Keepance workspace]</div>
-      <figcaption>TODO: real screenshot of the Google Drive Android app browsing the Keepance folder.</figcaption>
+      <div class="placeholder">[Screenshot: Google Drive Android app showing the synced Advisor Prep Hero workspace]</div>
+      <figcaption>TODO: real screenshot of the Google Drive Android app browsing the Advisor Prep Hero folder.</figcaption>
     </figure>
 
     <h2>Limitations to know</h2>
@@ -120,8 +120,8 @@
     </div>
 
     <ul>
-      <li><strong>Free tier is 15 GB</strong> shared across Drive, Gmail, and Photos. A Keepance workspace fits comfortably; just check that your overall Google storage isn't already full.</li>
-      <li><strong>Mirror mode uses local disk space.</strong> Every file in your Drive lives on your hard drive. If your Drive is large and your laptop SSD is small, this matters; you can use Stream mode for the rest of Drive and switch only the Keepance folder to "Available offline" instead.</li>
+      <li><strong>Free tier is 15 GB</strong> shared across Drive, Gmail, and Photos. A Advisor Prep Hero workspace fits comfortably; just check that your overall Google storage isn't already full.</li>
+      <li><strong>Mirror mode uses local disk space.</strong> Every file in your Drive lives on your hard drive. If your Drive is large and your laptop SSD is small, this matters; you can use Stream mode for the rest of Drive and switch only the Advisor Prep Hero folder to "Available offline" instead.</li>
       <li><strong>Drive's Android app shows a "Open in" sheet for unrecognized formats.</strong> Tapping a <code>.md</code> file may prompt you to pick an app to open it with. Pick a Markdown reader once and Android remembers your choice.</li>
     </ul>
 
@@ -134,7 +134,7 @@
 
   <footer class="kp-footer">
     <div class="kp-footer-inner">
-      <a href="/" class="kp-footer-brand">Keepance</a>
+      <a href="/" class="kp-footer-brand">Advisor Prep Hero</a>
       <nav class="kp-footer-links" aria-label="Footer navigation">
         <a href="/tour/">Tour</a>
         <a href="/blog/">Blog</a>

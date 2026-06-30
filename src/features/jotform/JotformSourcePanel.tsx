@@ -1,4 +1,4 @@
-/* eslint-disable keepance-i18n/no-hardcoded-string */
+/* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useEffect, useState } from 'react';
 import { ClipboardList, X } from 'lucide-react';
 import { OPEN_JOTFORM_EVENT } from '@/platform/clientMap/openSource';
@@ -53,7 +53,7 @@ export function JotformSourcePanel() {
           </blockquote>
         )}
         <p className="text-xs text-slate-400">
-          Keepance imported this citation from Jotform as read-only text. Full submission detail is a fast-follow.
+          Advisor Prep Hero imported this citation from Jotform as read-only text. Full submission detail is a fast-follow.
         </p>
       </div>
     </div>

@@ -1,4 +1,4 @@
-# Keepance UX — ROUND 7 plan (2026-06-15, Jameson asleep — max autonomous)
+# Advisor Prep Hero UX — ROUND 7 plan (2026-06-15, Jameson asleep — max autonomous)
 
 Branch `feature/ux-round7-2026-06-15`, backup tag `pre-ux-round7-2026-06-15`. NOT deployed.
 

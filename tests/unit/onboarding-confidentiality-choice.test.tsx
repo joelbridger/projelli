@@ -159,7 +159,7 @@ describe('ConfidentialityChoiceStep — renders the informed choice screen', () 
     navigateToChoiceStep();
 
     expect(screen.getByTestId('onboarding-confidentiality-choice')).toBeInTheDocument();
-    expect(screen.getByText(/How should Keepance handle your AI\?/i)).toBeInTheDocument();
+    expect(screen.getByText(/How should Advisor Prep Hero handle your AI?/i)).toBeInTheDocument();
     expect(screen.getByTestId('confidentiality-choice-local')).toBeInTheDocument();
     expect(screen.getByTestId('confidentiality-choice-cloud')).toBeInTheDocument();
     expect(screen.getByTestId('confidentiality-choice-later')).toBeInTheDocument();
@@ -350,7 +350,7 @@ describe('TrustStep — trust sentence', () => {
 
     expect(screen.getByTestId('onboarding-trust-sentence')).toBeInTheDocument();
     expect(screen.getByTestId('onboarding-trust-sentence').textContent)
-      .toMatch(/Keepance runs on your computer/i);
+      .toMatch(/Advisor Prep Hero runs on your computer/i);
     expect(screen.getByTestId('onboarding-trust-sentence').textContent)
       .toMatch(/In Local-only mode/i);
     expect(screen.getByTestId('onboarding-trust-sentence').textContent)

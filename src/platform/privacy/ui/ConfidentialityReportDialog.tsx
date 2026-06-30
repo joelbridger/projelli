@@ -7,7 +7,7 @@
  *
  * Uses the exact same hidden-iframe print pattern as DataMapDialog.
  */
-/* eslint-disable keepance-i18n/no-hardcoded-string */
+/* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useCallback } from 'react';
 import { Printer, X, ShieldCheck } from 'lucide-react';
 import type { ConfidentialityReport } from '@/platform/privacy/confidentialityReport';
@@ -72,7 +72,7 @@ export function ConfidentialityReportDialog({ open, onOpenChange, report }: Conf
       return;
     }
 
-    doc.title = `Confidentiality Report: ${report.matterName} (Keepance)`;
+    doc.title = `Confidentiality Report: ${report.matterName} (Advisor Prep Hero)`;
 
     const style = doc.createElement('style');
     style.textContent = [
@@ -250,7 +250,7 @@ export function ConfidentialityReportDialog({ open, onOpenChange, report }: Conf
 
             {/* Footer note */}
             <div className="foot mt-6 text-xs text-muted-foreground border-t border-border pt-4 leading-relaxed">
-              This report reflects the architecture-level data flow recorded by Keepance. It is based on audit log entries from your local machine. Keepance holds no copies of your prompts. For questions about your AI provider's data handling, refer to their published data processing policies. This report is not professional or compliance advice and does not certify compliance with any specific regulation.
+              This report reflects the architecture-level data flow recorded by Advisor Prep Hero. It is based on audit log entries from your local machine. Advisor Prep Hero holds no copies of your prompts. For questions about your AI provider's data handling, refer to their published data processing policies. This report is not professional or compliance advice and does not certify compliance with any specific regulation.
             </div>
           </div>
         </div>

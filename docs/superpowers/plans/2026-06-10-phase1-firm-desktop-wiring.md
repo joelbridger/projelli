@@ -89,9 +89,9 @@ One Yjs doc per shared matter (the doc MatterSyncClient already syncs): `doc.get
 
 ### Task 5: Purchase → provision client + LS dashboard + Assured E2E + staging smoke
 
-**Files:** `src/components/firm/FirmSignIn.tsx` (add the claim-org path: "I just bought Keepance Firm" → license key + email + password + org name → /org/claim → signed in as admin → activate seat), locales, `docs/operations/2026-06-10-firm-provisioning.md` (runbook: webhook config, claim flow, ops org-creation fallback).
+**Files:** `src/components/firm/FirmSignIn.tsx` (add the claim-org path: "I just bought Advisor Prep Hero Firm" → license key + email + password + org name → /org/claim → signed in as admin → activate seat), locales, `docs/operations/2026-06-10-firm-provisioning.md` (runbook: webhook config, claim flow, ops org-creation fallback).
 
-- [ ] LS dashboard (Chrome automation via chrome-cdp, session per memory gotchas): add per-seat quantity (min 3) to the Keepance Firm product/variant AND register a second webhook pointing at https://api.keepance.com/webhooks/lemonsqueezy with the signing secret stored in the backend env. If the dashboard defeats automation, write the exact 2-minute manual steps into the runbook and flag NEED-JAMESON in the report.
+- [ ] LS dashboard (Chrome automation via chrome-cdp, session per memory gotchas): add per-seat quantity (min 3) to the Advisor Prep Hero Firm product/variant AND register a second webhook pointing at https://api.keepance.com/webhooks/lemonsqueezy with the signing secret stored in the backend env. If the dashboard defeats automation, write the exact 2-minute manual steps into the runbook and flag NEED-JAMESON in the report.
 - [ ] Assured E2E against the LOCAL backend: set a managed Anthropic key (the server holds a real one in its env; use it only against the local proxy), confidentiality=assured, send a chat, assert the request hit /assured/infer, the response streamed, and the egress indicator showed the Assured wording.
 - [ ] Staging smoke against LIVE api.keepance.com, read-only + additive only: /healthz, seat-pubkey, then full exit-gate against LOCAL backend only.
 - [ ] Deploy note: the live backend needs the new tables/endpoints; prepare the deploy (systemd restart per backend/deploy/RUNBOOK.md) but DO NOT touch the live service until the orchestrator says so (it gates with Jameson's release go).

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Build a Keepance `.mcpb` Desktop Extension bundle for one platform.
+// Build a Lantern MCP `.mcpb` Desktop Extension bundle for one platform.
 //
 // Anthropic's DXT (".mcpb") spec:
 //   https://github.com/anthropics/dxt
@@ -8,16 +8,16 @@
 //   manifest.json     — declares the server, required env vars, MCP version
 //   server/<binary>   — pre-built platform-specific binary
 //
-// Output: `dist/keepance-<platform>.mcpb` (one per target triple).
+// Output: `dist/lantern-<platform>.mcpb` (one per target triple).
 //
 // Usage:
 //   node scripts/build-mcpb.mjs \
-//     --binary src-tauri/binaries/keepance-mcp-aarch64-apple-darwin \
+//     --binary src-tauri/binaries/lantern-mcp-aarch64-apple-darwin \
 //     --target aarch64-apple-darwin \
-//     --output dist/keepance-aarch64-apple-darwin.mcpb
+//     --output dist/lantern-aarch64-apple-darwin.mcpb
 //
 // The GitHub release workflow invokes this after `cargo build --bin
-// keepance-mcp`. For a local smoke test, run it the same way with a local
+// lantern-mcp`. For a local smoke test, run it the same way with a local
 // build output.
 //
 // Zero third-party deps: uses the shipped `fflate` via `zlib` crypto-ish
@@ -109,18 +109,18 @@ function parseArgs() {
  *                    they can pick their workspace folder
  */
 function buildManifest({ target, version }) {
-  const binaryName = target.includes('windows') ? 'keepance-mcp.exe' : 'keepance-mcp';
+  const binaryName = target.includes('windows') ? 'lantern-mcp.exe' : 'lantern-mcp';
   return {
     dxt_version: '0.1',
-    name: 'keepance',
-    display_name: 'Keepance Workspace',
+    name: 'lantern',
+    display_name: 'Advisor Prep Hero Workspace',
     version,
     description:
-      'Read your Keepance workspace (files + memory + semantic search) from any MCP client.',
+      'Read your Advisor Prep Hero workspace (files + memory + semantic search) from any MCP client.',
     long_description:
-      'Exposes five tools over the Model Context Protocol: list files, read files, semantic search (using the same local embeddings Keepance uses for @workspace), get memory facts, and (with your approval) write files back. Everything stays on your machine.',
+      'Exposes five tools over the Model Context Protocol: list files, read files, semantic search (using the same local embeddings Advisor Prep Hero uses for @workspace), get memory facts, and (with your approval) write files back. Everything stays on your machine.',
     author: {
-      name: 'Keepance',
+      name: 'Advisor Prep Hero',
       url: 'https://keepance.com',
     },
     homepage: 'https://keepance.com',
@@ -134,16 +134,16 @@ function buildManifest({ target, version }) {
         env: {
           // Populated from `user_config.workspace_root` at install time by
           // Claude Desktop — the double-brace is the DXT template syntax.
-          KEEPANCE_WORKSPACE_ROOT: '${user_config.workspace_root}',
+          LANTERN_WORKSPACE_ROOT: '${user_config.workspace_root}',
         },
       },
     },
     user_config: {
       workspace_root: {
         type: 'directory',
-        title: 'Keepance workspace folder',
+        title: 'Advisor Prep Hero workspace folder',
         description:
-          'The folder Keepance opens as your workspace (the same folder you pick inside the Keepance app).',
+          'The folder Advisor Prep Hero opens as your workspace (the same folder you pick inside the app).',
         required: true,
       },
     },
@@ -268,7 +268,7 @@ function main() {
   }
   const binBytes = readFileSync(binary);
   const manifest = buildManifest({ target, version });
-  const binaryName = target.includes('windows') ? 'keepance-mcp.exe' : 'keepance-mcp';
+  const binaryName = target.includes('windows') ? 'lantern-mcp.exe' : 'lantern-mcp';
   const zip = buildZip([
     {
       path: 'manifest.json',

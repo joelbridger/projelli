@@ -1,9 +1,9 @@
-/* eslint-disable keepance-i18n/no-hardcoded-string */
+/* eslint-disable lantern-i18n/no-hardcoded-string */
 /**
  * CrmSourcePanel — v1 citation viewer for Wealthbox `crm:` source links.
  *
  * When the user clicks a `crm:` citation in a Client Map, `dispatchOpenSource`
- * fires a `keepance:open-crm` window CustomEvent with `{ sourceId, snippet? }`.
+ * fires a `lantern:open-crm` window CustomEvent with `{ sourceId, snippet? }`.
  * This component listens for that event and shows a lightweight read-only panel
  * with the Wealthbox record id and the cited snippet.
  *

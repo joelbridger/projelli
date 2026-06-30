@@ -19,7 +19,7 @@ const ENTRY: CatalogEntry = {
   ],
   installUrl: 'https://example.test/x.tar.gz',
   manifestUrl: 'https://example.test/x.json',
-  minKeepanceVersion: '2.0.0',
+  minAppVersion: '2.0.0',
   publishedAt: '2026-04-28T00:00:00.000Z',
   updatedAt: '2026-04-28T00:00:00.000Z',
 };
@@ -250,10 +250,10 @@ describe('TemplateDetailView — install flow', () => {
     );
 
     const handler = vi.fn();
-    window.addEventListener('keepance:open-audit-log', handler);
+    window.addEventListener('lantern:open-audit-log', handler);
     fireEvent.click(screen.getByTestId('template-detail-view-audit-log'));
     expect(handler).toHaveBeenCalledTimes(1);
-    window.removeEventListener('keepance:open-audit-log', handler);
+    window.removeEventListener('lantern:open-audit-log', handler);
   });
 
   it('dismiss button hides the success outcome panel', async () => {

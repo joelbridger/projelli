@@ -17,7 +17,7 @@
 
 Hi Will,
 
-I'm Jameson Daines. I build software, and I've been building a tool called Keepance specifically for independent consultants and other professionals who can't use cloud AI with client material.
+I'm Jameson Daines. I build software, and I've been building a tool called Advisor Prep Hero specifically for independent consultants and other professionals who can't use cloud AI with client material.
 
 The short version: it's a local-first AI workspace. Everything runs on your machine. Client files, API keys, research notes — none of it touches a server I control. You bring your own API key (Anthropic, OpenAI, or Google) and requests go direct from your computer to the provider. The "your client data in our AI" conversation never has to happen.
 
@@ -37,6 +37,6 @@ keepance.com
 
 **Proposed title:** "The AI conversation your clients are about to start having with you"
 
-**Angle:** More client contracts are starting to include AI disclosure clauses or outright prohibitions on AI use with client data. Independent consultants who haven't thought about this are going to get caught off guard. The piece would cover what's actually in those clauses, what the confidentiality exposure is when cloud AI tools receive client data, and what local-first tools are and why they sidestep the issue. Disclose Keepance connection upfront.
+**Angle:** More client contracts are starting to include AI disclosure clauses or outright prohibitions on AI use with client data. Independent consultants who haven't thought about this are going to get caught off guard. The piece would cover what's actually in those clauses, what the confidentiality exposure is when cloud AI tools receive client data, and what local-first tools are and why they sidestep the issue. Disclose Advisor Prep Hero connection upfront.
 
 **Length:** 600-800 words.

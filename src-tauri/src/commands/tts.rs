@@ -10,7 +10,7 @@
 //   - `tts_stop()` -- kill the resident Piper process immediately (user pressed
 //     stop).
 //   - `tts_download_voice(voice_id)` -- download a lazy-loaded voice from
-//     Keepance CDN, returning progress events. Spanish and German voices use
+//     Advisor Prep Hero CDN, returning progress events. Spanish and German voices use
 //     this path on first selection.
 //
 // Binary resolution:
@@ -177,7 +177,7 @@ pub async fn tts_stop(state: tauri::State<'_, TtsState>) -> Result<(), String> {
     sidecar.stop().map_err(|e| e.to_string())
 }
 
-/// Download a lazy-loaded voice from Keepance CDN.
+/// Download a lazy-loaded voice from Advisor Prep Hero CDN.
 /// Returns the local path to the downloaded .onnx file on success.
 #[tauri::command]
 pub async fn tts_download_voice(app: AppHandle, voice_id: String) -> Result<String, String> {

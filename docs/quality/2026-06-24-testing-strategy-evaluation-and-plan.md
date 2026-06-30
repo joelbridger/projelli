@@ -1,9 +1,9 @@
-# Keepance Testing — Evaluation & Improvement Plan
+# Advisor Prep Hero Testing — Evaluation & Improvement Plan
 
 **For:** Jameson
 **From:** your lead engineer
 **Date:** 2026-06-24
-**What this is:** a full, plain-language evaluation of how we test Keepance today, what's slowing us down, and exactly what to change — plus a straight answer on whether to buy Windows computers.
+**What this is:** a full, plain-language evaluation of how we test Advisor Prep Hero today, what's slowing us down, and exactly what to change — plus a straight answer on whether to buy Windows computers.
 
 > You asked me to optimize for two things: **shipping faster**, and **stopping the same bugs from getting caught over and over**. Cost (AI usage) is not a concern. This report is built around those two goals. It draws on our own honest write-up of how we test, two outside research reports (ChatGPT and Gemini), the *actual* test scripts in our codebase, and an independent review by a second AI engineer (a different model) that I had argue against all of it.
 

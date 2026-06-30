@@ -1,4 +1,4 @@
-# Keepance 3.0 Quality Campaign — Findings Log
+# Advisor Prep Hero 3.0 Quality Campaign — Findings Log
 
 Severity: P0 ship-blocker / P1 fix before release / P2 fix soon / P3 polish.
 Type: bug / inconsistency / copy / ux-improvement.
@@ -6,7 +6,7 @@ Status: open / fixed / wontfix / needs-verify.
 
 | ID | Sev | Type | Status | Finding | Evidence | Notes |
 |---|---|---|---|---|---|---|
-| F-001 | P2 | inconsistency | fixed | Website + public/ favicons still OLD Projelli brand (`website/android-chrome-512x512.png`, `public/favicon-256x256.png`) while the app now ships the Keepance K-shield. Brand mismatch between site and app. | Worker E visual audit 2026-06-10 | Website icons (android-chrome 192/512, apple-touch) regenerated from the brand SVG 2026-06-10; `public/favicon-256x256.png` deferred to the fix wave (swapping a public/ asset mid-campaign can force-reload the dev app under the live test agents). |
+| F-001 | P2 | inconsistency | fixed | Website + public/ favicons still OLD Projelli brand (`website/android-chrome-512x512.png`, `public/favicon-256x256.png`) while the app now ships the Advisor Prep Hero K-shield. Brand mismatch between site and app. | Worker E visual audit 2026-06-10 | Website icons (android-chrome 192/512, apple-touch) regenerated from the brand SVG 2026-06-10; `public/favicon-256x256.png` deferred to the fix wave (swapping a public/ asset mid-campaign can force-reload the dev app under the live test agents). |
 | F-011 | P2 | copy | open | website/og-image.png carries the pre-3.0 positioning ("The AI workspace for work that can't leave your machine", "attorneys, CPAs & consultants") while the site sells the 3.0 law-practice positioning. Social shares show the old story. | og-image visual check 2026-06-10 | Fix wave: regenerate the og card with the 3.0 line (private intelligence layer for a law practice); brand mark on it is already current. |
 | F-002 | P3 | bug | needs-verify | Possible es/de locale loss on relative navigation in the e2e harness (`?lang=es` reported dropped, app falls back to English). Full Playwright locale projects pass, so this may be invocation-specific; if real in-app, locale switching may not survive navigation. | Fix-agent report 2026-06-10; contradicted by green locale-matrix runs | Verify during mechanical sweep (Phase 5) with an in-app language-switch journey. |
 | F-003 | P2 | bug | fixed | macOS `.icns` was stale Projelli since June 3 icon pass; now regenerated via `tauri icon` (fixed alongside Bug 1), but NO automated guard exists for `.icns` brand drift (hash test covers `.ico` only). | `src-tauri/icons/icon.icns` regenerated 2026-06-10 | Extend `tests/unit/branding-icons.test.ts` with an icns hash guard during fix wave. |

@@ -5,13 +5,13 @@
 
 ## What was done (live, verified)
 
-Created in the live Keepance store (LemonSqueezy id `340394`, slug `projelli`, checkout host `projelli.lemonsqueezy.com`) as published subscriptions, each yearly with "Generate license keys" ON (activation limit 5):
+Created in the live Advisor Prep Hero store (LemonSqueezy id `340394`, slug `projelli`, checkout host `projelli.lemonsqueezy.com`) as published subscriptions, each yearly with "Generate license keys" ON (activation limit 5):
 
 | Product | Price | Wire code (validator) | Checkout URL |
 |---|---|---|---|
-| **Keepance Solo** | $468.00/year | `personal` | https://projelli.lemonsqueezy.com/checkout/buy/f919f658-c063-4f9e-ba86-80e1e6fa79de |
-| **Keepance Professional** | $948.00/year | `professional` | https://projelli.lemonsqueezy.com/checkout/buy/638f8163-4381-4388-a02d-a1ccd3cf8c1b |
-| **Keepance Firm** | $1,548.00/year | `practice` | https://projelli.lemonsqueezy.com/checkout/buy/7a87840c-214f-4b1e-879e-a851db197e7c |
+| **Advisor Prep Hero Solo** | $468.00/year | `personal` | https://projelli.lemonsqueezy.com/checkout/buy/f919f658-c063-4f9e-ba86-80e1e6fa79de |
+| **Advisor Prep Hero Professional** | $948.00/year | `professional` | https://projelli.lemonsqueezy.com/checkout/buy/638f8163-4381-4388-a02d-a1ccd3cf8c1b |
+| **Advisor Prep Hero Firm** | $1,548.00/year | `practice` | https://projelli.lemonsqueezy.com/checkout/buy/7a87840c-214f-4b1e-879e-a851db197e7c |
 
 Prices were confirmed on the public storefront (what the customer sees). The `license-validator` already maps these names to the wire codes (`tiers.ts`: Solo->personal, Firm->practice; Professional already matched) and already classifies subscription lifecycle webhooks. Existing legacy products (Personal/Professional/Practice one-time, Guesslet Pro) were left untouched.
 
@@ -33,7 +33,7 @@ Either Jameson does this, or grants explicit go for me to regenerate + swap the 
 - **Wire the 3 checkout URLs into the website pricing CTAs** (`website/` pricing section) + redeploy. Held until the key fix so we never take an unvalidatable payment.
 - **Founding coupons** (not yet created; the LS API is test-mode so they must be made in the dashboard, or via a live API key): `FOUNDING` 30% recurring, cap 100, for Solo + Professional; `FOUNDINGFIRM` 30% recurring, cap 10, for Firm (the separate-coupon option, per the recommendation).
 - **Firm per-seat / minimum 3 seats:** the base form has no quantity control; per-seat quantity (min 3) is a variant-level setting, and the LS subscription quantity must drive the firm backend org `seat_limit` (`POST /admin/org`). Until then Firm is purchasable as a single $1,548 seat. Solo + Professional are single-seat and fully functional once the key is fixed.
-- **Final real test purchase** (Jameson's real-money gate): buy Solo with a real card, confirm the license activates Keepance end to end.
+- **Final real test purchase** (Jameson's real-money gate): buy Solo with a real card, confirm the license activates Advisor Prep Hero end to end.
 
 ## UPDATE 2026-06-10: validator live key swapped + subscribe links wired
 
@@ -43,9 +43,9 @@ Jameson said "swap it yourself," so:
 - **Website subscribe links wired + deployed.** Solo + Professional pricing cards now link directly to their checkout (the in-app subscribe flow opens `keepance.com/#pricing`, so those cards are the conversion landing point). Trial stays the primary CTA. Deployed to keepance.com.
 
 ### Still remaining
-- **Founding coupon products.** The existing `FOUNDING` coupon is restricted to the OLD "Professional" product. I switched its amount to 30% in the editor but the LS product-restriction picker would not open via automation, so I cancelled (left it untouched). The website founding note now says "email support@keepance.com to lock it in" (honest, manual for the founding cohort). To make it self-serve: edit FOUNDING → Percentage 30% → set Products to Keepance Solo + Professional (+ Firm) → ensure "applies forever" → redemption limit 100. ~2 minutes in the dashboard.
+- **Founding coupon products.** The existing `FOUNDING` coupon is restricted to the OLD "Professional" product. I switched its amount to 30% in the editor but the LS product-restriction picker would not open via automation, so I cancelled (left it untouched). The website founding note now says "email support@keepance.com to lock it in" (honest, manual for the founding cohort). To make it self-serve: edit FOUNDING → Percentage 30% → set Products to Advisor Prep Hero Solo + Professional (+ Firm) → ensure "applies forever" → redemption limit 100. ~2 minutes in the dashboard.
 - **Firm multi-seat.** Firm is a single-seat $1,548 product; per-seat quantity (min 3) is variant-level, and the quantity must drive the firm backend org `seat_limit`. Firm card stays "Talk to us" until then.
-- **Real test purchase (Jameson, real money):** buy Solo with a real card, confirm the license activates Keepance end to end. This is the only remaining proof.
+- **Real test purchase (Jameson, real money):** buy Solo with a real card, confirm the license activates Advisor Prep Hero end to end. This is the only remaining proof.
 
 ## Reference
 Spec: `docs/operations/2026-06-09-lemonsqueezy-3.0-setup.md`. Pricing: `docs/strategy/2026-06-09-keepance-3.0-pricing.md`.

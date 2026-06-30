@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { Card } from '@/ui/kp';
 import type { RagHit } from '@/platform/utils/tauri-commands';
 import type { MailListItem } from '@/platform/utils/mail-commands';
+import { EV_OPEN_EMAIL } from '@/config/identity';
 
 // ── AskHit card ────────────────────────────────────────────────────────────
 
@@ -23,7 +24,7 @@ export function AskHitCard({ hit, rank, items }: AskHitCardProps) {
 
   const handleOpen = useCallback(() => {
     window.dispatchEvent(
-      new CustomEvent('keepance:open-email', {
+      new CustomEvent(EV_OPEN_EMAIL, {
         detail: { sourceId: sid },
       }),
     );

@@ -1,4 +1,4 @@
-// SQLCipher-encrypted, append-only audit store for Keepance 3.0.
+// SQLCipher-encrypted, append-only audit store for Advisor Prep Hero 3.0.
 //
 // The audit log is the user's "defense file": an append-only record of every
 // AI action (what was searched, which matter it was confined to, whether
@@ -412,7 +412,7 @@ pub struct EncryptedAuditStore {
 impl EncryptedAuditStore {
     /// Canonical path for the encrypted audit DB inside a workspace.
     pub fn db_path(workspace_root: &Path) -> PathBuf {
-        workspace_root.join(".keepance").join("audit-enc.db")
+        workspace_root.join(crate::identity::WORKSPACE_DATA_DIR).join("audit-enc.db")
     }
 
     /// Open (or create) the SQLCipher database keyed with `key`.

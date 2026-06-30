@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MCP explained: the Model Context Protocol for AI workspaces | Keepance</title>
+  <title>MCP explained: the Model Context Protocol for AI workspaces | Advisor Prep Hero</title>
   <meta name="description" content="MCP (Model Context Protocol) is an open standard that lets AI tools talk to data sources, files, and other apps in a consistent way. Here's what MCP is, what problem it actually solves, how it works, and which tools support it.">
   <link rel="canonical" href="https://keepance.com/mcp-explained">
   <meta name="robots" content="index, follow">
@@ -30,7 +30,7 @@
     "image": "https://keepance.com/og-image.png",
     "publisher": {
       "@type": "Organization",
-      "name": "Keepance",
+      "name": "Advisor Prep Hero",
       "url": "https://keepance.com",
       "logo": "https://keepance.com/og-image.png"
     },
@@ -63,7 +63,7 @@
         "name": "What's the difference between an MCP client and an MCP server?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "An MCP client is the AI tool the user interacts with (Claude Desktop, Keepance, Cursor, Continue.dev). An MCP server is a small program that exposes a specific data source or capability (a file system, a database, a SaaS API) over the MCP protocol. Clients connect to servers; the AI in the client uses the server's capabilities."
+          "text": "An MCP client is the AI tool the user interacts with (Claude Desktop, Advisor Prep Hero, Cursor, Continue.dev). An MCP server is a small program that exposes a specific data source or capability (a file system, a database, a SaaS API) over the MCP protocol. Clients connect to servers; the AI in the client uses the server's capabilities."
         }
       },
       {
@@ -79,7 +79,7 @@
         "name": "Which AI tools currently support MCP?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Claude Desktop is the canonical MCP client. Other supporting clients include Cursor, Continue.dev, Cody, and Keepance. The MCP server registry at github.com/modelcontextprotocol/servers lists hundreds of community-built servers covering filesystems, databases, GitHub, Slack, Google Drive, Notion, and more."
+          "text": "Claude Desktop is the canonical MCP client. Other supporting clients include Cursor, Continue.dev, Cody, and Advisor Prep Hero. The MCP server registry at github.com/modelcontextprotocol/servers lists hundreds of community-built servers covering filesystems, databases, GitHub, Slack, Google Drive, Notion, and more."
         }
       },
       {
@@ -163,12 +163,12 @@
     <p class="meta">Updated 2026-04-27 · 10 min read</p>
 
     <div class="summary">
-      <p><strong>The short version.</strong> MCP (Model Context Protocol) is an open standard that lets AI tools talk to your files, databases, and other apps in a consistent way. Anthropic introduced it in November 2024. Think of it as a USB-C connector for AI: a single spec, so any compatible client can work with any compatible server. Today there are MCP servers for filesystems, GitHub, Slack, Notion, Google Drive, Postgres, and hundreds more. Keepance speaks MCP, so do Claude Desktop, Cursor, Continue.dev, and a growing list of clients.</p>
+      <p><strong>The short version.</strong> MCP (Model Context Protocol) is an open standard that lets AI tools talk to your files, databases, and other apps in a consistent way. Anthropic introduced it in November 2024. Think of it as a USB-C connector for AI: a single spec, so any compatible client can work with any compatible server. Today there are MCP servers for filesystems, GitHub, Slack, Notion, Google Drive, Postgres, and hundreds more. Advisor Prep Hero speaks MCP, so do Claude Desktop, Cursor, Continue.dev, and a growing list of clients.</p>
     </div>
 
-    <p>If you've heard MCP referenced and wondered whether it matters or if it's just another acronym, this is the page. I'll cover what problem MCP actually solves, how it works mechanically, what you can do with it today, and how Keepance uses it.</p>
+    <p>If you've heard MCP referenced and wondered whether it matters or if it's just another acronym, this is the page. I'll cover what problem MCP actually solves, how it works mechanically, what you can do with it today, and how Advisor Prep Hero uses it.</p>
 
-    <p style="margin: 32px 0;"><img src="/press-kit/assets/screenshot-01-workspace.png" alt="Keepance workspace where MCP servers extend the AI's reach into external data sources" style="width:100%; border-radius:12px; box-shadow:0 8px 24px rgba(15,23,42,0.08); display:block;"></p>
+    <p style="margin: 32px 0;"><img src="/press-kit/assets/screenshot-01-workspace.png" alt="Advisor Prep Hero workspace where MCP servers extend the AI's reach into external data sources" style="width:100%; border-radius:12px; box-shadow:0 8px 24px rgba(15,23,42,0.08); display:block;"></p>
 
     <h2>The problem MCP solves</h2>
 
@@ -181,7 +181,7 @@
     <p>Concretely:</p>
     <ul>
       <li><strong>Before MCP.</strong> Your AI tool can read files in its own special way. To add it to a different tool, you start over.</li>
-      <li><strong>With MCP.</strong> Your filesystem MCP server works for any MCP client: Claude Desktop, Cursor, Keepance, the next tool that comes along.</li>
+      <li><strong>With MCP.</strong> Your filesystem MCP server works for any MCP client: Claude Desktop, Cursor, Advisor Prep Hero, the next tool that comes along.</li>
     </ul>
 
     <p>That's it. The acronym is intimidating; the underlying idea is the kind of plumbing the web has been doing for decades.</p>
@@ -191,7 +191,7 @@
     <p>MCP defines three roles:</p>
 
     <ul>
-      <li><strong>Host.</strong> The desktop app the user actually interacts with (Claude Desktop, Keepance). The host runs the AI conversation and manages connections to MCP servers.</li>
+      <li><strong>Host.</strong> The desktop app the user actually interacts with (Claude Desktop, Advisor Prep Hero). The host runs the AI conversation and manages connections to MCP servers.</li>
       <li><strong>Client.</strong> The bit of the host that speaks the MCP protocol to a specific server. A host can run many clients, one per connected server.</li>
       <li><strong>Server.</strong> A small program that exposes a capability (read files, query a DB, fetch from an API). Servers can run as a local subprocess, an HTTP service, or any transport that supports JSON-RPC.</li>
     </ul>
@@ -280,23 +280,23 @@
 
     <p>Most are 50-300 lines of TypeScript or Python and run locally as a subprocess of the host app. Setup is typically: install the server (npm install or pip install), add a snippet to the host's MCP config file, restart the host.</p>
 
-    <h2>How Keepance uses MCP</h2>
+    <h2>How Advisor Prep Hero uses MCP</h2>
 
-    <p>Keepance is both an MCP client and exposes itself as an MCP-compatible workspace.</p>
+    <p>Advisor Prep Hero is both an MCP client and exposes itself as an MCP-compatible workspace.</p>
 
-    <p>As a client: Keepance can connect to any MCP server you configure. That means you can wire your Keepance workspace to your GitHub account (via the GitHub server), your Slack (via the Slack server), your Postgres (via the database server), or any custom internal data source you build a server for. The AI conversations in Keepance can then read from and write to those external sources, with Keepance's standard "ask before destructive operations" approval flow.</p>
+    <p>As a client: Advisor Prep Hero can connect to any MCP server you configure. That means you can wire your Advisor Prep Hero workspace to your GitHub account (via the GitHub server), your Slack (via the Slack server), your Postgres (via the database server), or any custom internal data source you build a server for. The AI conversations in Advisor Prep Hero can then read from and write to those external sources, with Advisor Prep Hero's standard "ask before destructive operations" approval flow.</p>
 
-    <p>As a workspace: every Keepance workspace is already a folder of Markdown files. Tools that can read files (any MCP filesystem server, any other text-aware tool) can access your Keepance workspace without any special integration. Your data in, data out.</p>
+    <p>As a workspace: every Advisor Prep Hero workspace is already a folder of Markdown files. Tools that can read files (any MCP filesystem server, any other text-aware tool) can access your Advisor Prep Hero workspace without any special integration. Your data in, data out.</p>
 
-    <p>For the technically-minded: Keepance uses the official Anthropic MCP SDK. Server config is exposed in Settings → AI → MCP Servers. Each server runs as a separate subprocess that Keepance manages.</p>
+    <p>For the technically-minded: Advisor Prep Hero uses the official Anthropic MCP SDK. Server config is exposed in Settings → AI → MCP Servers. Each server runs as a separate subprocess that Advisor Prep Hero manages.</p>
 
-    <h2>MCP and Keepance's built-in AI are complementary</h2>
+    <h2>MCP and Advisor Prep Hero's built-in AI are complementary</h2>
 
-    <p>One question that comes up a lot: does MCP make Keepance's built-in AI redundant? No. They operate at different layers.</p>
+    <p>One question that comes up a lot: does MCP make Advisor Prep Hero's built-in AI redundant? No. They operate at different layers.</p>
 
-    <p>MCP exposes external data sources <em>to</em> AI agents. Your filesystem, your GitHub, your Postgres become AI-readable surfaces, and any compatible client (Claude Desktop, Cursor, Keepance) can connect. The protocol is the bridge from outside-data to inside-AI.</p>
+    <p>MCP exposes external data sources <em>to</em> AI agents. Your filesystem, your GitHub, your Postgres become AI-readable surfaces, and any compatible client (Claude Desktop, Cursor, Advisor Prep Hero) can connect. The protocol is the bridge from outside-data to inside-AI.</p>
 
-    <p>Keepance's built-in AI goes the other direction. It acts on your workspace directly: drafting documents, running profession-specific workflow templates, applying cited recall across your matters. Keepance's profession packs for legal, tax, consulting, and advisory work run locally and produce real files in your folder, no external server needed.</p>
+    <p>Advisor Prep Hero's built-in AI goes the other direction. It acts on your workspace directly: drafting documents, running profession-specific workflow templates, applying cited recall across your matters. Advisor Prep Hero's profession packs for legal, tax, consulting, and advisory work run locally and produce real files in your folder, no external server needed.</p>
 
     <h2>Should you care about MCP?</h2>
 
@@ -345,7 +345,7 @@ await server.connect(transport);</code></pre>
       </details>
       <details>
         <summary>What's the difference between an MCP client and an MCP server?</summary>
-        <p>An MCP client is the AI tool the user interacts with (Claude Desktop, Keepance, Cursor, Continue.dev). An MCP server is a small program that exposes a specific data source or capability (a file system, a database, a SaaS API) over the MCP protocol. Clients connect to servers; the AI in the client uses the server's capabilities.</p>
+        <p>An MCP client is the AI tool the user interacts with (Claude Desktop, Advisor Prep Hero, Cursor, Continue.dev). An MCP server is a small program that exposes a specific data source or capability (a file system, a database, a SaaS API) over the MCP protocol. Clients connect to servers; the AI in the client uses the server's capabilities.</p>
       </details>
       <details>
         <summary>Does MCP support require an internet connection?</summary>
@@ -353,7 +353,7 @@ await server.connect(transport);</code></pre>
       </details>
       <details>
         <summary>Which AI tools currently support MCP?</summary>
-        <p>Claude Desktop is the canonical MCP client. Other supporting clients include Cursor, Continue.dev, Cody, and Keepance. The MCP server registry at <a href="https://github.com/modelcontextprotocol/servers" target="_blank" rel="noopener">github.com/modelcontextprotocol/servers</a> lists hundreds of community-built servers covering filesystems, databases, GitHub, Slack, Google Drive, Notion, and more.</p>
+        <p>Claude Desktop is the canonical MCP client. Other supporting clients include Cursor, Continue.dev, Cody, and Advisor Prep Hero. The MCP server registry at <a href="https://github.com/modelcontextprotocol/servers" target="_blank" rel="noopener">github.com/modelcontextprotocol/servers</a> lists hundreds of community-built servers covering filesystems, databases, GitHub, Slack, Google Drive, Notion, and more.</p>
       </details>
       <details>
         <summary>Should I build my own MCP server?</summary>
@@ -361,7 +361,7 @@ await server.connect(transport);</code></pre>
       </details>
       <details>
         <summary>Is MCP a security risk?</summary>
-        <p>MCP itself is just a protocol; the security depends on how the host handles tool approvals. Good clients (Claude Desktop, Keepance) ask the user before allowing destructive operations and clearly show which servers are connected. Read operations are typically auto-approved. The risk surface is similar to any other AI tool that can take actions, with the standard mitigation: don't connect servers you don't trust, and review tool call prompts before approving.</p>
+        <p>MCP itself is just a protocol; the security depends on how the host handles tool approvals. Good clients (Claude Desktop, Advisor Prep Hero) ask the user before allowing destructive operations and clearly show which servers are connected. Read operations are typically auto-approved. The risk surface is similar to any other AI tool that can take actions, with the standard mitigation: don't connect servers you don't trust, and review tool call prompts before approving.</p>
       </details>
     </div>
 
@@ -377,8 +377,8 @@ await server.connect(transport);</code></pre>
 
     <div class="cta-card">
       <h3>An MCP-aware local-first AI workspace</h3>
-      <p>Keepance speaks MCP. Connect filesystem, GitHub, Slack, Notion, Postgres, or any custom MCP server you build. Local data, your API keys, sold once.</p>
-      <a href="/#pricing" class="cta-btn">Get Keepance</a>
+      <p>Advisor Prep Hero speaks MCP. Connect filesystem, GitHub, Slack, Notion, Postgres, or any custom MCP server you build. Local data, your API keys, sold once.</p>
+      <a href="/#pricing" class="cta-btn">Get Advisor Prep Hero</a>
     </div>
   </div>
 

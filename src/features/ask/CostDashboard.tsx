@@ -7,7 +7,7 @@
  *   - This calendar month
  *
  * Also surfaces a plain-English note clarifying that these costs come
- * directly from the user's API provider, not from Keepance.
+ * directly from the user's API provider, not from Advisor Prep Hero.
  *
  * Intentionally self-contained: no audit-log dependency, no props needed
  * beyond an optional `now` override for deterministic tests.
@@ -74,7 +74,7 @@ export function CostDashboard({ now, className }: CostDashboardProps) {
       <div className="mb-3">
         <h3 className="text-sm font-semibold">AI Usage</h3>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Costs are billed directly by {providerPhrase}, not by Keepance.
+          Costs are billed directly by {providerPhrase}, not by Advisor Prep Hero.
         </p>
       </div>
 

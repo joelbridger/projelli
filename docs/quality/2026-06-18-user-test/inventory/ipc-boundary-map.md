@@ -173,4 +173,4 @@ These are "no automated integrated desktop coverage" gaps. Some have unit, mocke
 - Should the native desktop harness use Tauri WebDriver, Playwright against the webview debug port, or a command-level harness plus screenshots? The current repo has browser Playwright depth but no obvious desktop UI driver.
 - Should firm relay tests run against `api.keepance.com` staging or a local disposable backend? For destructive wall/seat/key tests, local/staging is safer than production.
 - Should live mail import tests use real Outlook/Gmail accounts, fixture IMAP only, or both? Recommendation: fixture IMAP on every run, OAuth smoke on scheduled/manual runs.
-- Should vault recovery tests deliberately wipe only Keepance keychain entries or run under a throwaway OS user/keyring? Recommendation: isolated app data plus explicit Keepance service-prefix cleanup.
+- Should vault recovery tests deliberately wipe only Advisor Prep Hero keychain entries or run under a throwaway OS user/keyring? Recommendation: isolated app data plus explicit Advisor Prep Hero service-prefix cleanup.

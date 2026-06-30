@@ -356,7 +356,7 @@ pub struct SqliteMailStore {
 impl SqliteMailStore {
     /// Canonical path for the mail DB inside a workspace.
     pub fn db_path(workspace_root: &Path) -> PathBuf {
-        workspace_root.join(".keepance").join("mail.db")
+        workspace_root.join(crate::identity::WORKSPACE_DATA_DIR).join("mail.db")
     }
 
     /// Open (or create) the database at `<workspace_root>/.keepance/mail.db`.
@@ -578,7 +578,8 @@ pub(crate) fn encrypted_blob_filename(provider: &str, account: &str, id: &str) -
 
 pub(crate) fn encrypted_blob_relative_path(provider: &str, account: &str, id: &str) -> String {
     format!(
-        ".keepance/mail/blobs/{}",
+        "{}/mail/blobs/{}",
+        crate::identity::WORKSPACE_DATA_DIR,
         encrypted_blob_filename(provider, account, id)
     )
 }
@@ -586,7 +587,7 @@ pub(crate) fn encrypted_blob_relative_path(provider: &str, account: &str, id: &s
 impl EncryptedMailStore {
     /// Canonical path for the encrypted mail DB.
     pub fn db_path(workspace_root: &Path) -> PathBuf {
-        workspace_root.join(".keepance").join("mail-enc.db")
+        workspace_root.join(crate::identity::WORKSPACE_DATA_DIR).join("mail-enc.db")
     }
 
     /// Open (or create) the SQLCipher database keyed with `key`.
@@ -650,7 +651,7 @@ impl EncryptedMailStore {
         Self::open_with_key(workspace_root, &key)
     }
 
-    /// Encrypt `plaintext` and write to `.keepance/mail/blobs/<sha256>.enc`
+    /// Encrypt `plaintext` and write to `.lantern/mail/blobs/<sha256>.enc`
     /// (relative to `workspace_root`). Returns the relative path.
     pub fn write_blob_with_key(
         &self,
@@ -925,7 +926,7 @@ mod tests {
             id: id.into(),
             folder_id: folder.into(),
             internet_message_id: None,
-            relative_path: format!(".keepance/mail/blobs/{}.enc", id),
+            relative_path: format!("{}/mail/blobs/{}.enc", crate::identity::WORKSPACE_DATA_DIR, id),
             received_date_time: None,
             provider: provider.into(),
             account: account.into(),
@@ -954,7 +955,7 @@ mod tests {
             id: id.into(),
             folder_id: folder.into(),
             internet_message_id: None,
-            relative_path: format!(".keepance/mail/blobs/{}.enc", id),
+            relative_path: format!("{}/mail/blobs/{}.enc", crate::identity::WORKSPACE_DATA_DIR, id),
             received_date_time: Some(date.into()),
             provider: provider.into(),
             account: account.into(),
@@ -1072,7 +1073,7 @@ mod tests {
         let rec = MailRecord {
             id: "m1".into(), folder_id: "inbox".into(),
             internet_message_id: Some("<x@y>".into()),
-            relative_path: ".keepance/mail/blobs/m1.enc".into(),
+            relative_path: format!("{}/mail/blobs/m1.enc", crate::identity::WORKSPACE_DATA_DIR),
             received_date_time: Some("2026-05-01T00:00:00Z".into()),
             provider: "m365".into(), account: "default".into(),
             subject: String::new(), from_addr: String::new(),
@@ -1313,7 +1314,7 @@ mod tests {
         let key = [0x42u8; 32];
         let rel = s.write_blob_with_key("AAMk-123/../../etc", b"x", &key).unwrap();
         // Path-traversal chars must be sanitized; blob must land under blobs/.
-        assert!(rel.starts_with(".keepance/mail/blobs/"));
+        assert!(rel.starts_with(&format!("{}/mail/blobs/", crate::identity::WORKSPACE_DATA_DIR)));
         assert!(!rel.contains(".."));
     }
 
@@ -1341,7 +1342,7 @@ mod tests {
 
         assert_ne!(gmail, m365);
         assert_ne!(gmail, other_account);
-        assert!(gmail.starts_with(".keepance/mail/blobs/"));
+        assert!(gmail.starts_with(".lantern/mail/blobs/"));
         assert!(gmail.ends_with(".enc"));
     }
 
@@ -1371,7 +1372,7 @@ mod tests {
             s.upsert(&MailRecord {
                 id: "persisted".into(), folder_id: "inbox".into(),
                 internet_message_id: Some("<persisted@test>".into()),
-                relative_path: ".keepance/mail/blobs/persisted.enc".into(),
+                relative_path: format!("{}/mail/blobs/persisted.enc", crate::identity::WORKSPACE_DATA_DIR),
                 received_date_time: Some("2026-06-06T00:00:00Z".into()),
                 provider: "m365".into(), account: "default".into(),
                 subject: String::new(), from_addr: String::new(),

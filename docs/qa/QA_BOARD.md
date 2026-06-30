@@ -1,4 +1,4 @@
-# Keepance QA Board — parallel QA control doc
+# Advisor Prep Hero QA Board — parallel QA control doc
 
 **This is the shared map for accelerated, PARALLEL QA work.** Multiple isolated
 agents (Claude worktree agents + Codex) work scoped tickets at the same time; one
@@ -94,7 +94,7 @@ Do NOT fix unrelated issues or refactor beyond the root cause.
    SMALLEST root-cause fix that makes it pass (green). TDD.
 3. Verify: run the scoped tests + `npm run typecheck` + `node scripts/eslint-gate.mjs`
    (your delta must be zero net-new lint). For core/data-loss code, take the ROBUST
-   route, not a quick patch (Keepance rule).
+   route, not a quick patch (Advisor Prep Hero rule).
 4. Report back: the BUG-ID, the files changed, the exact verification COMMANDS you
    ran and their pass/fail output, and any residual risk. Do NOT claim done without
    that evidence. Do NOT commit/push/merge — the lead does that after review.
@@ -102,7 +102,7 @@ Constraints: light theme; i18n kebab-case + snapshot counts if you add keys;
 NO build/deploy.
 ```
 
-Keepance also has a **`ticket` skill** that encodes this "exactly one backlog
+Advisor Prep Hero also has a **`ticket` skill** that encodes this "exactly one backlog
 ticket, strict scope" pattern — fix-agents can invoke it.
 
 ---
@@ -133,13 +133,13 @@ _Update as tickets move. Keep one row per active ticket._
 
 **Round-4 queued (not yet dispatched — cap ~2 heavy):** audit cluster (BUG-077/079/080/081/082/069/068), export-scrub cluster (BUG-066/067, Rust), settings cluster (BUG-089/090/091), BUG-070 (Assured stream flag); TEST-001..005. **🔴 flagged for a focused effort:** BUG-078 (audit hash-chain — schema migration + scope confirm), BUG-083 (MCP read/search audit — fold into OPEN BUG-038/039).
 
-**Live Windows bench pass (2026-06-22, real Legion, KeepanceTest workspace):** app healthy + renders correctly (light theme; egress indicator = "Sent to your OpenAI account" → BUG-001 holding). **BUG-081 live-confirmed** — AI redline logs a `Model Call` but NO "AI Request Sent" (egress) row, while chat logs both. **BUG-080 signal** — a workflow generating live produced no new Activity Log entry (newest = Jun 20). Email/privilege/file-to-matter flows render correctly.
+**Live Windows bench pass (2026-06-22, real Legion, Advisor Prep HeroTest workspace):** app healthy + renders correctly (light theme; egress indicator = "Sent to your OpenAI account" → BUG-001 holding). **BUG-081 live-confirmed** — AI redline logs a `Model Call` but NO "AI Request Sent" (egress) row, while chat logs both. **BUG-080 signal** — a workflow generating live produced no new Activity Log entry (newest = Jun 20). Email/privilege/file-to-matter flows render correctly.
 
 ---
 
 ## 7. Test-coverage map + gap-tickets
 
-**Audited 2026-06-22.** Reality check: Keepance is ALREADY heavily tested
+**Audited 2026-06-22.** Reality check: Advisor Prep Hero is ALREADY heavily tested
 (3661 vitest + 40+ Playwright E2E with traces/video-on-failure + a desktop
 harness driving the real app + Rust crate tests + backend bun tests). The guide
 assumed an under-tested app — that's not us. Coverage is solid at the

@@ -27,7 +27,7 @@
     },
     "bug-report": {
       "title": "Report a bug",
-      "description": "Tell us what went wrong. Reports go straight to the Keepance team.",
+      "description": "Tell us what went wrong. Reports go straight to the Advisor Prep Hero team.",
       "success": "Thanks, your report landed. If you left an email I'll reply when there's something to share.",
       "email-label": "Your email",
       "email-optional": "(optional, so we can reply)",
@@ -83,7 +83,7 @@
       "modified": "Modified",
       "tabs-open_one": "{{count}} file open",
       "tabs-open_other": "{{count}} files open",
-      "bug-report-title": "Report a bug, sends directly to the Keepance team",
+      "bug-report-title": "Report a bug, sends directly to the Advisor Prep Hero team",
       "bug-report-cta": "Something broken? Let us know!"
     },
     "main-panel": {
@@ -113,7 +113,7 @@
   "settings": {
     "modal": {
       "title": "Settings",
-      "description": "Configure Keepance preferences",
+      "description": "Configure Advisor Prep Hero preferences",
       "search-placeholder": "Search settings...",
       "clear-search-aria": "Clear search",
       "close-aria": "Close settings",
@@ -134,7 +134,7 @@
     },
     "license": {
       "title": "License",
-      "description": "A license keeps AI chat, workflows, and all Keepance features running after your trial. Keys are available at <pricingLink>keepance.com</pricingLink>.",
+      "description": "A license keeps AI chat, workflows, and all Advisor Prep Hero features running after your trial. Keys are available at <pricingLink>keepance.com</pricingLink>.",
       "deactivate-confirm": "Deactivate this license? You will lose access to paid features until you re-activate.",
       "badge": {
         "activated": "ACTIVATED",
@@ -164,12 +164,12 @@
       "activate-success": "License activated successfully.",
       "activate-to-continue": "Activate to continue",
       "trial-expired-detail": "Your {{days}}-day free trial ended on <endDateBold>{{endDate}}</endDateBold>. AI chat and workflows are paused. Your existing files are still here, fully readable. Activate a license to keep building.",
-      "trial-active-detail": "You're on the free trial. Every Keepance feature is unlocked for {{days}} days from first launch, bring your own AI keys, run workflows, edit files, the works. When the trial ends, AI chat and workflows pause until you activate a license; your files stay accessible.",
+      "trial-active-detail": "You're on the free trial. Every Advisor Prep Hero feature is unlocked for {{days}} days from first launch, bring your own AI keys, run workflows, edit files, the works. When the trial ends, AI chat and workflows pause until you activate a license; your files stay accessible.",
       "days-left_one": "1 day left",
       "days-left_other": "{{count}} days left",
       "get-license-cta": "Get a license at keepance.com",
       "already-have-key": "Already have a license key?",
-      "recovery-heading": "Already bought Keepance?",
+      "recovery-heading": "Already bought Advisor Prep Hero?",
       "recovery-detail": "Enter your license code to restore it on this computer. No account needed.",
       "recovery-restore": "Restore",
       "recovery-restoring": "Restoring...",
@@ -188,10 +188,10 @@
     },
     "privacy": {
       "title": "Privacy",
-      "description": "Keepance is local-first. Your files, your AI prompts, and your account keys never leave your machine. Any opt-ins below are the only data Keepance ever collects, and all default to off.",
+      "description": "Advisor Prep Hero is local-first. Your files, your AI prompts, and your account keys never leave your machine. Any opt-ins below are the only data Advisor Prep Hero ever collects, and all default to off.",
       "design-partner": {
         "title": "Optional error reporting",
-        "description": "You are among the first advisors using Keepance in practice. With this on, Keepance sends structured usage counts only: which features you use and where you get stuck. Never your content, file names, client names, or prompts. Off by default; turn it off any time.",
+        "description": "You are among the first advisors using Advisor Prep Hero in practice. With this on, Advisor Prep Hero sends structured usage counts only: which features you use and where you get stuck. Never your content, file names, client names, or prompts. Off by default; turn it off any time.",
         "enabled": "Enabled",
         "disabled": "Disabled",
         "what-is-sent": "What is sent, exactly:",
@@ -203,31 +203,31 @@
       },
       "telemetry": {
         "title": "Anonymous usage stats",
-        "description": "Help improve Keepance by sending lifecycle events: app launches, trial start, trial end, license activated, license deactivated. No content, no files, no AI prompts, no email.",
+        "description": "Help improve Advisor Prep Hero by sending lifecycle events: app launches, trial start, trial end, license activated, license deactivated. No content, no files, no AI prompts, no email.",
         "enabled": "Enabled",
         "disabled": "Disabled",
         "what-is-sent": "What is sent, exactly:",
         "field-install-id": "<c>install_id</c>: a random UUID generated on this machine (visible below). Not tied to your email or license.",
-        "field-app-version": "<c>app_version</c>, <c>platform</c>: which build of Keepance, and macOS / Windows / Linux.",
+        "field-app-version": "<c>app_version</c>, <c>platform</c>: which build of Advisor Prep Hero, and macOS / Windows / Linux.",
         "field-event": "<c>event</c>: one of <c>app_launch</c>, <c>trial_start</c>, <c>trial_end</c>, <c>license_activated</c>, <c>license_deactivated</c>.",
         "field-license-tier": "<c>license_tier</c> (when relevant): trial, personal, professional, practice.",
-        "endpoint-note": "Endpoint: <c>keepance.com/api/forms/keepance/app-event</c>. JSONL stored on Keepance's server. Used only for funnel metrics and roadmap decisions.",
+        "endpoint-note": "Endpoint: <c>keepance.com/api/forms/keepance/app-event</c>. JSONL stored on Advisor Prep Hero's server. Used only for funnel metrics and roadmap decisions.",
         "install-id-display": "Your install ID: <c>{{id}}</c>"
       },
       "email": {
         "title": "Email updates",
         "intro": "If you opted into email updates at first launch (or via the website), you'll get launch announcements and discount codes. No drip campaigns, no weekly newsletters.",
-        "unsub": "To remove yourself from the list, reply <c>UNSUB</c> to any Keepance email. All replies go straight to support."
+        "unsub": "To remove yourself from the list, reply <c>UNSUB</c> to any Advisor Prep Hero email. All replies go straight to support."
       },
       "data-map": {
         "title": "Where your data lives and who can see it",
-        "description": "A plain-English map of what stays on your machine, what is sent to your AI provider, and what Keepance’s own servers see (only a license check). You can print it or save it as a PDF to show a client.",
+        "description": "A plain-English map of what stays on your machine, what is sent to your AI provider, and what Advisor Prep Hero’s own servers see (only a license check). You can print it or save it as a PDF to show a client.",
         "cta": "Open the data map"
       }
     },
     "mcp": {
       "title": "MCP server",
-      "description": "Expose your Keepance workspace to any MCP-compatible AI client. Install once, then ask Claude Desktop, Cursor, or any other client about your notes, chats, and memory facts without copy-pasting.",
+      "description": "Expose your Advisor Prep Hero workspace to any MCP-compatible AI client. Install once, then ask Claude Desktop, Cursor, or any other client about your notes, chats, and memory facts without copy-pasting.",
       "copied-status": "Copied bundle path to clipboard: {{path}}",
       "status": {
         "loading": "Looking up bundle path...",
@@ -243,8 +243,8 @@
         "step-download": "Click <b>Download .mcpb</b> above to copy the bundle path to your clipboard.",
         "step-open-claude": "Open Claude Desktop.",
         "step-config": "Open <b>Settings, Developer, Edit Config</b>, or drag the <c>.mcpb</c> file into the Claude Desktop window.",
-        "step-pick-folder": "When prompted for a workspace folder, pick the same folder you opened in Keepance.",
-        "after-install": "After install, ask Claude \"search my Keepance workspace for X\" or \"read notes/plan.md\" and watch it work."
+        "step-pick-folder": "When prompted for a workspace folder, pick the same folder you opened in Advisor Prep Hero.",
+        "after-install": "After install, ask Claude \"search my Advisor Prep Hero workspace for X\" or \"read notes/plan.md\" and watch it work."
       }
     },
     "mcp-approval": {
@@ -264,7 +264,7 @@
     },
     "ollama": {
       "title": "Ollama (local models)",
-      "description": "Run AI models directly on your machine: free, offline, private. Keepance talks to a locally running Ollama daemon on <c>127.0.0.1:11434</c>.",
+      "description": "Run AI models directly on your machine: free, offline, private. Advisor Prep Hero talks to a locally running Ollama daemon on <c>127.0.0.1:11434</c>.",
       "status": {
         "checking": "Checking Ollama...",
         "ready_one": "Ollama ready, {{count}} model installed",
@@ -298,7 +298,7 @@
     },
     "mobile-page": {
       "title": "Mobile",
-      "description": "Read your Keepance workspace on your phone today. Point Keepance at a synced folder on your computer (iCloud, Dropbox, Syncthing, or Google Drive) and the same files show up on your phone in the matching app. The dedicated Keepance mobile reader is in beta and lands in the v2.0 cycle.",
+      "description": "Read your Advisor Prep Hero workspace on your phone today. Point Advisor Prep Hero at a synced folder on your computer (iCloud, Dropbox, Syncthing, or Google Drive) and the same files show up on your phone in the matching app. The dedicated Advisor Prep Hero mobile reader is in beta and lands in the v2.0 cycle.",
       "heads-up-label": "Heads up:",
       "heads-up-text": "Treat your phone as read-only while using the cloud sync workaround. Editing the same file on two devices in quick succession can produce a conflict copy.",
       "setup-steps": "Setup steps",
@@ -594,9 +594,9 @@
       "skip-for-now": "Skip for now",
       "back": "Back",
       "welcome": {
-        "title": "Welcome to Keepance",
+        "title": "Welcome to Advisor Prep Hero",
         "subtitle": "The private place your practice lives, that answers you back.",
-        "body-1": "Keepance keeps your clients' files, documents, and email on your own machine. Ask a question across your whole practice and get back a cited answer you can verify. Your files stay real files in a folder you control.",
+        "body-1": "Advisor Prep Hero keeps your clients' files, documents, and email on your own machine. Ask a question across your whole practice and get back a cited answer you can verify. Your files stay real files in a folder you control.",
         "body-2": "Setup takes about 2 minutes. I'll help you pick a folder for your work, connect your AI provider account (optional), and run your first workflow.",
         "step-1": "Step 1. Pick a folder for your work",
         "step-2": "Step 2. Connect your AI provider account (optional)",
@@ -609,14 +609,14 @@
         "body-1": "This is where your client work will live: real Word documents, PDFs, and notes in a normal folder on your hard drive. Nothing is uploaded anywhere. Pick a location that's easy to find and easy to back up.",
         "body-2": "Pro tip: a folder inside Dropbox, iCloud, or OneDrive syncs across devices, but that also means your files sit with that provider. For client-confidential work, keep the folder local.",
         "common-choices": "Common choices:",
-        "icloud-path": "~/iCloud Drive/Keepance",
+        "icloud-path": "~/iCloud Drive/Advisor Prep Hero",
         "body-3": "The next screen will let you actually pick the folder. For now, just confirm you understand what we're about to ask.",
         "cta": "Got it"
       },
       "apikey": {
         "title": "Add an AI provider key",
         "subtitle": "Optional, but you'll need one to use the AI features.",
-        "body-1": "Keepance is a \"bring your own key\" tool. You sign up with an AI provider directly and paste their account key here. Your keys are stored in your operating system's secure keychain and never leave your computer.",
+        "body-1": "Advisor Prep Hero is a \"bring your own key\" tool. You sign up with an AI provider directly and paste their account key here. Your keys are stored in your operating system's secure keychain and never leave your computer.",
         "body-2": "The fastest way to get started is with <s>Anthropic Claude</s>:",
         "step-go-to": "Go to <a>console.anthropic.com</a>",
         "step-signup": "Sign up (free, $5 in credits to start)",
@@ -628,7 +628,7 @@
       "demo": {
         "title": "Run your first workflow",
         "subtitle": "See a real deliverable come together in seconds.",
-        "body-1": "The fastest way to see what Keepance does is to run a workflow. Pick any template from the Workflows tab, answer the questions it asks, and watch it produce a finished Word document in your folder.",
+        "body-1": "The fastest way to see what Advisor Prep Hero does is to run a workflow. Pick any template from the Workflows tab, answer the questions it asks, and watch it produce a finished Word document in your folder.",
         "step-1": "Click <s>Workflows</s> in the sidebar",
         "step-2": "Pick any template that fits your practice",
         "step-3": "Answer the questions and click <s>Generate</s>",
@@ -642,14 +642,14 @@
     },
     "disk-encryption": {
       "title": "One thing to check: your disk encryption",
-      "body": "Keepance keeps your documents as normal files in your workspace folder, on your machine. If the laptop is lost or stolen, your operating system's full-disk encryption is what protects them. It takes a minute to confirm it is on.",
+      "body": "Advisor Prep Hero keeps your documents as normal files in your workspace folder, on your machine. If the laptop is lost or stolen, your operating system's full-disk encryption is what protects them. It takes a minute to confirm it is on.",
       "check-windows": "Windows: Settings, then Privacy & security, then Device encryption (or search for BitLocker). It should say On.",
       "check-macos": "Mac: System Settings, then Privacy & Security, then FileVault. It should say FileVault is turned on.",
       "check-linux": "Linux: most installers offer LUKS full-disk encryption. Check your distribution's disk settings, or run lsblk and look for a crypt entry."
     },
     "api-key-card": {
       "title": "Next step: add your AI account key",
-      "description": "Keepance uses your own account key from Anthropic, OpenAI, or Google, so your AI usage goes straight to your provider with no markup from us. Your Keepance plan covers the software.",
+      "description": "Advisor Prep Hero uses your own account key from Anthropic, OpenAI, or Google, so your AI usage goes straight to your provider with no markup from us. Your Advisor Prep Hero plan covers the software.",
       "walk-me-through": "Walk me through it",
       "add-key": "Add account key",
       "keys-local": "Account keys are stored locally on your computer. Never sent to us."
@@ -659,7 +659,7 @@
         "body": "Click the button below to open <s>{{dashboard}}</s> in your browser. You'll need to sign in (or sign up) to get to the keys page."
       },
       "step-2-ollama": {
-        "body": "Download Ollama for your OS, then in a terminal run <c>ollama pull llama3.2</c> (or any model you want). Keepance auto-detects Ollama on the next step."
+        "body": "Download Ollama for your OS, then in a terminal run <c>ollama pull llama3.2</c> (or any model you want). Advisor Prep Hero auto-detects Ollama on the next step."
       },
       "ollama-running": "Ollama is running",
       "ollama-models-ready_one": "1 model ready",
@@ -672,11 +672,11 @@
       "direct-urls": "Direct URLs (click to open in your browser):"
     },
     "welcome": {
-      "title": "Welcome to Keepance",
+      "title": "Welcome to Advisor Prep Hero",
       "description": "A couple of optional things, both off by default. Skip if you'd rather not.",
       "email-optin-label": "Email me launch updates, tips, and discount codes",
-      "email-optin-help": "Real updates only, no drip campaigns, no weekly newsletters. Unsubscribe any time. Goes straight to the Keepance team.",
-      "telemetry-label": "Help improve Keepance with anonymous usage stats",
+      "email-optin-help": "Real updates only, no drip campaigns, no weekly newsletters. Unsubscribe any time. Goes straight to the Advisor Prep Hero team.",
+      "telemetry-label": "Help improve Advisor Prep Hero with anonymous usage stats",
       "telemetry-help": "Sends a random install ID, the app version, your platform, and lifecycle events (trial started, license activated, etc.). No content, no files, no AI prompts, no email. You can turn this off in Settings, Privacy."
     }
   },
@@ -716,7 +716,7 @@
       "could-not-open": "Couldn't open {{fileName}}",
       "formatting-warning": "Some advanced formatting (tables, images, page headers) may not be preserved when saving. A backup of the original file is created before your first edit.",
       "opening": "Opening {{fileName}}...",
-      "desktop-only": "Editing Word documents with tracked changes is only available in the Keepance desktop app. Showing a read-only preview here.",
+      "desktop-only": "Editing Word documents with tracked changes is only available in the Advisor Prep Hero desktop app. Showing a read-only preview here.",
       "reviewing": "Reviewing",
       "reviewing-hint": "Show tracked changes (insertions, deletions). Turn off for a clean final view.",
       "review": "Review",
@@ -745,9 +745,9 @@
       "redline-close": "Close",
       "redline-dismiss": "Dismiss",
       "redline-egress-note": "Sends document text directly to your AI provider with your own key.",
-      "redline-summary-headline": "Keepance AI proposed {{applied}} tracked change(s).",
+      "redline-summary-headline": "Advisor Prep Hero AI proposed {{applied}} tracked change(s).",
       "redline-skipped": "· {{skipped}} could not be placed",
-      "redline-no-changes": "Keepance AI suggested no changes.",
+      "redline-no-changes": "Advisor Prep Hero AI suggested no changes.",
       "redline-op-insert": "Inserted text",
       "redline-op-delete": "Deleted text",
       "redline-op-replace": "Replaced text",
@@ -767,7 +767,7 @@
       "export-saved-clean-final": "Saved a clean final copy: changes accepted, comments and hidden metadata removed.",
       "export-dismiss": "Dismiss",
       "pdf-needs-libreoffice-title": "PDF export needs LibreOffice",
-      "pdf-needs-libreoffice-body": "Keepance converts Word to PDF locally using LibreOffice, a free program. Nothing leaves your machine. Install it, then run the export again.",
+      "pdf-needs-libreoffice-body": "Advisor Prep Hero converts Word to PDF locally using LibreOffice, a free program. Nothing leaves your machine. Install it, then run the export again.",
       "pdf-libreoffice-copy": "Copy link",
       "pdf-libreoffice-copied": "Copied"
     },
@@ -806,33 +806,33 @@
   },
   "model-download": {
     "title": "Setting up your private AI (1 of 2: search)",
-    "body": "Keepance is downloading the part that searches your files (about 465 MB), one time. You can keep working. Search and AI answers from your files switch on when it finishes.",
+    "body": "Advisor Prep Hero is downloading the part that searches your files (about 465 MB), one time. You can keep working. Search and AI answers from your files switch on when it finishes.",
     "verifying": "Checking the downloaded files",
     "progress": "{{done}} MB of {{total}} MB",
     "progress-unknown": "{{done}} MB so far",
-    "stalled": "The download looks stuck. Restarting Keepance resumes it where it stopped.",
+    "stalled": "The download looks stuck. Restarting Advisor Prep Hero resumes it where it stopped.",
     "error-title": "The search engine download was interrupted",
     "error-body": "Nothing is lost. The download resumes where it stopped.",
     "retry": "Resume download"
   },
   "local-ai-download": {
     "title": "Setting up your private AI (2 of 2: the AI that writes answers)",
-    "body": "Keepance is downloading the part that writes answers (about 2.4 GB), one time. You can keep working. It runs fully offline once it's ready.",
+    "body": "Advisor Prep Hero is downloading the part that writes answers (about 2.4 GB), one time. You can keep working. It runs fully offline once it's ready.",
     "verifying": "Checking the downloaded model",
     "progress": "{{done}} MB of {{total}} MB",
     "progress-unknown": "{{done}} MB so far",
-    "stalled": "The download looks stuck. Restarting Keepance resumes it where it stopped.",
-    "error-title": "The Keepance Local AI download was interrupted",
+    "stalled": "The download looks stuck. Restarting Advisor Prep Hero resumes it where it stopped.",
+    "error-title": "The Advisor Prep Hero Local AI download was interrupted",
     "error-body": "Nothing is lost. The download resumes where it stopped.",
     "retry": "Resume download"
   },
   "local-ai-settings": {
-    "title": "Keepance Local AI",
+    "title": "Advisor Prep Hero Local AI",
     "description": "A private AI that runs entirely on this computer. Your files and questions never leave the machine. It's slightly less sharp than the cloud models, but nothing you ask ever goes online. One-time download, about 2.4 GB.",
-    "download": "Download Keepance Local AI",
+    "download": "Download Advisor Prep Hero Local AI",
     "downloading": "Downloading… {{pct}}%",
     "verifying": "Checking the download…",
-    "ready": "Installed and ready. Pick \"Keepance Local AI\" as your model in any chat.",
+    "ready": "Installed and ready. Pick \"Advisor Prep Hero Local AI\" as your model in any chat.",
     "error": "The download was interrupted. Nothing is lost.",
     "retry": "Resume download"
   },
@@ -845,7 +845,7 @@
       "version": "Version",
       "versions": "versions",
       "author-user": "You",
-      "author-ai": "Keepance AI",
+      "author-ai": "Advisor Prep Hero AI",
       "preview": "Preview",
       "this-version": "This version",
       "current": "Current",
@@ -854,7 +854,7 @@
       "restore-confirm": "Restore the file to the version from {{date}}? Your current version is saved first, so nothing is lost.",
       "diff-loading": "Building diff...",
       "docx-text-diff-note": "Showing a text comparison. Word formatting and tracked-change detail are compared as plain text here.",
-      "docx-diff-desktop-only": "Comparing Word documents needs the Keepance desktop app."
+      "docx-diff-desktop-only": "Comparing Word documents needs the Advisor Prep Hero desktop app."
     }
   },
   "updater": {
@@ -884,7 +884,7 @@
       "see-whats-new": "See what's new"
     },
     "modal": {
-      "title": "What's new in Keepance",
+      "title": "What's new in Advisor Prep Hero",
       "description": "Highlights from the most recent releases."
     }
   },
@@ -944,7 +944,7 @@
       "privileged-label": "Network lockdown for this client",
       "privileged-hint": "When this client is active, network plugins and MCP servers are turned off so nothing can leave your machine through an extension. Unrelated to email sensitivity tagging.",
       "mcp-access-label": "Allow connected external AI tools to access this client's files",
-      "mcp-access-hint": "Off by default. Turning this on lets external AI tools connected to Keepance (via the MCP protocol) read this client's files, even when another client is active.",
+      "mcp-access-hint": "Off by default. Turning this on lets external AI tools connected to Advisor Prep Hero (via the MCP protocol) read this client's files, even when another client is active.",
       "mcp-access-badge": "External AI access allowed",
       "firm-share-section": "Share with my firm",
       "firm-shared-section": "Shared with my firm",
@@ -1037,7 +1037,7 @@
       "role-label": "Role",
       "seat-label": "Seat",
       "signout": "Sign out",
-      "just-bought-link": "I just bought Keepance Firm",
+      "just-bought-link": "I just bought Advisor Prep Hero Firm",
       "back-to-signin": "Back to sign in"
     },
     "claim": {
@@ -1164,7 +1164,7 @@
       "privileged-confirm-accept": "Share it"
     },
     "bridge": {
-      "heading": "Use Keepance with your firm",
+      "heading": "Use Advisor Prep Hero with your firm",
       "intro": "Pick how you want to get into a firm. Then you can bring your existing clients over, choosing for each one whether to keep it private or share it with colleagues.",
       "door-create-title": "Start a firm",
       "door-create-body": "You become the admin and the first seat. Invite colleagues, share clients, set up single sign-on and the firm security.",
@@ -1176,8 +1176,8 @@
       "cancel": "Not now"
     },
     "prompt": {
-      "title": "Use Keepance with your firm",
-      "body": "Bring colleagues in and share clients, or join a firm that already uses Keepance. Your private clients stay private.",
+      "title": "Use Advisor Prep Hero with your firm",
+      "body": "Bring colleagues in and share clients, or join a firm that already uses Advisor Prep Hero. Your private clients stay private.",
       "action": "Use this with my firm",
       "dismiss": "Dismiss"
     }
@@ -1190,15 +1190,15 @@
       },
       "direct": {
         "label": "Sent to your {{provider}} account",
-        "note": "Sent straight from your machine to {{provider}} with your own account key. Keepance is not in between. {{provider}} receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your {{provider}} account."
+        "note": "Sent straight from your machine to {{provider}} with your own account key. Advisor Prep Hero is not in between. {{provider}} receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your {{provider}} account."
       },
       "demo": {
         "label": "Browser demo. Do not use with client data",
-        "note": "In this online demo, messages pass through a shared Keepance relay. The desktop app never does this. Do not enter confidential or client information here."
+        "note": "In this online demo, messages pass through a shared Advisor Prep Hero relay. The desktop app never does this. Do not enter confidential or client information here."
       },
       "checking": {
         "label": "Checking AI destination",
-        "note": "Keepance is confirming where this request will go before sending."
+        "note": "Advisor Prep Hero is confirming where this request will go before sending."
       },
       "none": {
         "label": "No AI connected",
@@ -1229,11 +1229,11 @@
     "control": {
       "checking": "Checking vault status",
       "on-title": "Vault is on",
-      "on-body": "This workspace's files are encrypted at rest. Keepance decrypts them transparently, so your work is unchanged.",
+      "on-body": "This workspace's files are encrypted at rest. Advisor Prep Hero decrypts them transparently, so your work is unchanged.",
       "locked-note": "This vault is locked. Reopen the workspace to unlock it with your recovery phrase."
     },
     "ceremony": {
-      "cannot-recover-warning": "Keepance cannot recover this for you. If you lose this phrase and your device's keychain, your encrypted files will be permanently inaccessible.",
+      "cannot-recover-warning": "Advisor Prep Hero cannot recover this for you. If you lose this phrase and your device's keychain, your encrypted files will be permanently inaccessible.",
       "phrase-label": "Your 24-word recovery phrase",
       "copy-phrase": "Copy phrase",
       "copied": "Copied",
@@ -1244,8 +1244,8 @@
     },
     "enable": {
       "title": "Encrypt this workspace",
-      "subtitle": "AES-256 at rest, transparent in Keepance",
-      "detail": "When enabled, every document file in this workspace is stored as ciphertext on disk. Keepance decrypts them transparently so your workflow is unchanged.",
+      "subtitle": "AES-256 at rest, transparent in Advisor Prep Hero",
+      "detail": "When enabled, every document file in this workspace is stored as ciphertext on disk. Advisor Prep Hero decrypts them transparently so your workflow is unchanged.",
       "bullet-names-visible": "File names and folder structure remain visible",
       "bullet-phrase-once": "A 24-word recovery phrase is generated once. You must save it.",
       "bullet-no-recovery": "If you lose the phrase and the keychain, files cannot be recovered",
@@ -1267,7 +1267,7 @@
     "locked": {
       "title": "Vault locked",
       "subtitle": "This workspace is encrypted and the key is not on this machine.",
-      "explanation": "Enter your 24-word recovery phrase to unlock this vault. Keepance will restore the key to your keychain so you can open this workspace normally from now on.",
+      "explanation": "Enter your 24-word recovery phrase to unlock this vault. Advisor Prep Hero will restore the key to your keychain so you can open this workspace normally from now on.",
       "phrase-hint": "Recovery phrases are 24 words separated by spaces.",
       "phrase-label": "Recovery phrase",
       "phrase-placeholder": "word1 word2 word3 ...",

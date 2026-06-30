@@ -1,4 +1,4 @@
-# Keepance — Knowledge Gathering Document
+# Advisor Prep Hero — Knowledge Gathering Document
 
 **Prepared by:** Jameson Daines, founder  
 **For:** [Advisor name] — confidential, for professional review and annotation  
@@ -9,7 +9,7 @@
 
 ## What this document is
 
-I am building a commercial software product called Keepance. It is a local-first AI workspace designed specifically for attorneys, CPAs, enrolled agents, and independent consultants who cannot or should not transmit client data to cloud-based AI services.
+I am building a commercial software product called Advisor Prep Hero. It is a local-first AI workspace designed specifically for attorneys, CPAs, enrolled agents, and independent consultants who cannot or should not transmit client data to cloud-based AI services.
 
 This document exists because I need expert input across legal ethics, tax regulation, and professional practice before I can responsibly market or ship several components of this product. My current knowledge in these domains comes from public sources, primary texts, and secondary analysis. I need a practitioner with direct experience to pressure-test my assumptions, correct my errors, and fill the gaps I do not know exist.
 
@@ -19,9 +19,9 @@ There is no time pressure on your response. I would rather have accurate answers
 
 ## Product overview
 
-### What Keepance does
+### What Advisor Prep Hero does
 
-Keepance is a desktop application (Windows and macOS) that gives professionals an AI workspace where all data remains on their local machine. The user connects their own AI provider account — Anthropic (Claude), OpenAI (GPT-4o), or Google (Gemini) — and all AI requests are sent directly from the user's computer to the provider's API. Keepance's servers never receive, process, store, or log any user content, client data, or AI conversation output.
+Advisor Prep Hero is a desktop application (Windows and macOS) that gives professionals an AI workspace where all data remains on their local machine. The user connects their own AI provider account — Anthropic (Claude), OpenAI (GPT-4o), or Google (Gemini) — and all AI requests are sent directly from the user's computer to the provider's API. Advisor Prep Hero's servers never receive, process, store, or log any user content, client data, or AI conversation output.
 
 Every AI conversation produces persistent Markdown files saved to a folder the user controls on their own hard drive. The application includes a document editor, full-text search across the local file library, PDF ingestion and querying, and a workflow template engine that guides users through structured multi-step document production tasks.
 
@@ -35,24 +35,24 @@ The following architecture details are material to several of the questions belo
 3. The application constructs an API request containing the prompt and any file context
 4. That request is transmitted via HTTPS directly from the user's machine to the selected AI provider's API endpoint (e.g., `api.anthropic.com`)
 5. The provider returns a response; the application writes it to a local Markdown file
-6. No copy of the request, the response, or the file context passes through any server owned or operated by Keepance
+6. No copy of the request, the response, or the file context passes through any server owned or operated by Advisor Prep Hero
 
-**What Keepance's servers do and do not receive:**
-- Keepance operates a license validation service (`licenses.keepance.com`) that receives only a license key and an anonymous machine identifier on each application launch. It receives no content, no prompts, no filenames, and no user data of any kind.
-- Keepance does not operate any AI proxy, relay, or caching layer.
+**What Advisor Prep Hero's servers do and do not receive:**
+- Advisor Prep Hero operates a license validation service (`licenses.keepance.com`) that receives only a license key and an anonymous machine identifier on each application launch. It receives no content, no prompts, no filenames, and no user data of any kind.
+- Advisor Prep Hero does not operate any AI proxy, relay, or caching layer.
 
 **API key handling:**
-- The user's AI provider API key is stored in the operating system's native credential store (Windows Credential Manager / macOS Keychain). It is never written to disk in plaintext, never transmitted to Keepance, and never logged.
+- The user's AI provider API key is stored in the operating system's native credential store (Windows Credential Manager / macOS Keychain). It is never written to disk in plaintext, never transmitted to Advisor Prep Hero, and never logged.
 
 **Local audit log:**
 - The application maintains an append-only local audit log of all AI actions (prompt sent, model used, output file written, timestamp). This log is stored in the user's workspace folder and is never transmitted anywhere.
 
 **No cloud sync:**
-- Keepance has no cloud sync, no remote backup, no collaboration features. All data is local by design and by architecture.
+- Advisor Prep Hero has no cloud sync, no remote backup, no collaboration features. All data is local by design and by architecture.
 
 ### Profession-specific template packs
 
-Keepance ships with three profession-specific workflow template packs. Each template is a structured multi-step workflow that interviews the user (collects relevant matter details), then generates a professional document using the AI. All generated documents are saved locally and are explicitly marked as drafts requiring attorney or preparer review before any professional use.
+Advisor Prep Hero ships with three profession-specific workflow template packs. Each template is a structured multi-step workflow that interviews the user (collects relevant matter details), then generates a professional document using the AI. All generated documents are saved locally and are explicitly marked as drafts requiring attorney or preparer review before any professional use.
 
 **Legal Practice pack (7 templates — draft, pending attorney review):**
 1. Deposition Contradiction Finder
@@ -103,7 +103,7 @@ The 2012 amendment to Comment 8 of Model Rule 1.1 established that competent rep
 
 **Q2.** Does competence require affirmative disclosure to a client when AI tools assist in preparing a work product? If so, at what level of specificity — that AI was used generally, that a specific provider was used, the data architecture of the tool? Is this currently governed by ethics opinions, state bar guidance, or individual engagement letter practice?
 
-**Q3.** If a solo practitioner uses Keepance (with the architecture described above), and the AI output is reviewed and substantially edited by the attorney before filing or sending, does that constitute competent use under the current state of opinion? What distinguishes competent from incompetent AI use in the drafting context?
+**Q3.** If a solo practitioner uses Advisor Prep Hero (with the architecture described above), and the AI output is reviewed and substantially edited by the attorney before filing or sending, does that constitute competent use under the current state of opinion? What distinguishes competent from incompetent AI use in the drafting context?
 
 ---
 
@@ -113,7 +113,7 @@ Rule 1.6(c) requires lawyers to "make reasonable efforts to prevent the inadvert
 
 **Q4.** The routing of client information through a cloud AI provider's API — even one with strong contractual data confidentiality provisions — has been characterized by some as a potential Rule 1.6 issue. In your view, does transmitting client information to Anthropic, OpenAI, or Google via their API constitute "disclosure" for purposes of Rule 1.6, or does it fall within the "reasonable efforts" safe harbor given the contractual protections those providers offer?
 
-**Q5.** Where does the local-first architecture described above land on the Rule 1.6 analysis, in your view? The client data never leaves the user's machine to any Keepance server — it goes only from the user's machine to the AI provider's API endpoint. Does this create a meaningfully different 1.6 posture than a cloud-based tool that routes through an intermediate server?
+**Q5.** Where does the local-first architecture described above land on the Rule 1.6 analysis, in your view? The client data never leaves the user's machine to any Advisor Prep Hero server — it goes only from the user's machine to the AI provider's API endpoint. Does this create a meaningfully different 1.6 posture than a cloud-based tool that routes through an intermediate server?
 
 **Q6.** Which state bars have issued guidance on AI and confidentiality that is stricter than the ABA model? California, New York, Texas, and Florida all have large attorney populations we are trying to reach. Are there 1.6-equivalent provisions in any of those states' rules that would affect the analysis differently?
 
@@ -133,7 +133,7 @@ What is the current state of authority on whether transmitting privileged commun
 
 **Q11.** How does the work product doctrine apply in this context? Work product protection is generally broader than privilege (it protects attorney mental impressions, not just communications). Does transmitting attorney work product to a cloud AI API carry the same waiver risk as transmitting privileged communications, or does the doctrine apply differently?
 
-**Q12.** If an attorney uses Keepance to draft a document — and the AI conversation log is stored locally on the attorney's machine as part of Keepance's audit trail — is that log discoverable in litigation? Does the answer depend on whether the log contains privileged communications, work product, or merely procedural metadata (timestamp, model used, output filename)?
+**Q12.** If an attorney uses Advisor Prep Hero to draft a document — and the AI conversation log is stored locally on the attorney's machine as part of Advisor Prep Hero's audit trail — is that log discoverable in litigation? Does the answer depend on whether the log contains privileged communications, work product, or merely procedural metadata (timestamp, model used, output filename)?
 
 ---
 
@@ -143,7 +143,7 @@ What is the current state of authority on whether transmitting privileged commun
 
 Is this analogy currently endorsed in any formal bar opinion or ethics authority you are aware of? What does that supervisory obligation require in practice — a full independent re-draft, a substantive review of each assertion, or something else?
 
-**Q14.** If an attorney uses Keepance's Deposition Contradiction Finder template, which ingests deposition transcript excerpts and identifies potential inconsistencies, and then relies on the output without independently cross-checking each flagged passage, would that constitute a failure of supervisory duty under the Rule 5.3 analogy? What standard would a disciplinary panel apply?
+**Q14.** If an attorney uses Advisor Prep Hero's Deposition Contradiction Finder template, which ingests deposition transcript excerpts and identifies potential inconsistencies, and then relies on the output without independently cross-checking each flagged passage, would that constitute a failure of supervisory duty under the Rule 5.3 analogy? What standard would a disciplinary panel apply?
 
 ---
 
@@ -151,7 +151,7 @@ Is this analogy currently endorsed in any formal bar opinion or ethics authority
 
 **Q15.** Rule 1.15 governs an attorney's obligation to safeguard client property in their possession. Client documents provided to an attorney during representation are generally considered property subject to 1.15.
 
-If a client provides an attorney with documents, and the attorney ingests those documents into Keepance for AI analysis, does that trigger any safekeeping obligation beyond the physical/digital security of the originals? Does the creation of an AI-generated analysis of those documents (which is stored locally) affect the Rule 1.15 analysis?
+If a client provides an attorney with documents, and the attorney ingests those documents into Advisor Prep Hero for AI analysis, does that trigger any safekeeping obligation beyond the physical/digital security of the originals? Does the creation of an AI-generated analysis of those documents (which is stored locally) affect the Rule 1.15 analysis?
 
 ---
 
@@ -161,7 +161,7 @@ If a client provides an attorney with documents, and the attorney ingests those 
 
 **Q17.** Has any state bar disciplinary body issued a formal opinion or taken a disciplinary action arising from an attorney's use of AI tools in client matters? (The Mata v. Avianca hallucination sanctions are widely cited, but that is a sanctions issue, not a disciplinary proceeding.) Are there any bar discipline cases we should be aware of?
 
-**Q18.** If an attorney uses Keepance to produce a document that contains a factual error (AI hallucination), reviews it without catching the error, and submits it in a client matter where it causes harm — what is the malpractice exposure? How does the AI-assisted origin of the error affect the standard of care analysis?
+**Q18.** If an attorney uses Advisor Prep Hero to produce a document that contains a factual error (AI hallucination), reviews it without catching the error, and submits it in a client matter where it causes harm — what is the malpractice exposure? How does the AI-assisted origin of the error affect the standard of care analysis?
 
 ---
 
@@ -179,7 +179,7 @@ Is our current understanding correct? Are there specific jurisdictions (EPO memb
 
 ### I-H. Discovery implications
 
-**Q21.** Keepance maintains a local audit log of all AI operations: timestamp, model used, prompt summary (not the full prompt), and output filename. This log is stored in the user's workspace folder on their local machine.
+**Q21.** Advisor Prep Hero maintains a local audit log of all AI operations: timestamp, model used, prompt summary (not the full prompt), and output filename. This log is stored in the user's workspace folder on their local machine.
 
 If a client's matter goes to litigation and discovery is served on the attorney, is this audit log discoverable? Does the answer depend on whether the log is considered a "document" within the scope of FRCP Rule 34 (or state equivalents), or whether it is protected as attorney work product?
 
@@ -193,7 +193,7 @@ If a client's matter goes to litigation and discovery is served on the attorney,
 
 IRC §7216 prohibits a "tax return preparer" from "disclos[ing] any information furnished to him for, or in connection with, the preparation of any such return" without consent. Violation is a criminal misdemeanor: up to $1,000 fine and one year imprisonment.
 
-**Q23.** The threshold question for our product is whether a tax preparer who uses a local-first AI tool — where client return data is transmitted from the preparer's machine to an AI provider's API endpoint but never to any Keepance server — is "disclosing" return information within the meaning of §7216.
+**Q23.** The threshold question for our product is whether a tax preparer who uses a local-first AI tool — where client return data is transmitted from the preparer's machine to an AI provider's API endpoint but never to any Advisor Prep Hero server — is "disclosing" return information within the meaning of §7216.
 
 Our current framing: we describe the risk as "an open question worth thinking through" rather than "a confirmed statutory violation," because we are not aware of any IRS ruling, PLR, or enforcement action applying §7216 to AI API calls. Is this framing accurate? Is there authority that more definitively resolves whether an API call to Anthropic or OpenAI constitutes "disclosure" under §7216?
 
@@ -277,21 +277,21 @@ Which of these would a working CPA or EA actually use? Which are designed around
 
 **Q44.** What does the software purchasing decision look like at a solo or two-person law firm or CPA practice? Does the attorney or CPA make the decision individually, or does it go through a bookkeeper, office manager, or practice management platform vendor? Is a one-time payment model (as opposed to monthly SaaS) a meaningful benefit or a risk signal?
 
-**Q45.** What objections would a sophisticated solo practitioner raise upon first hearing about Keepance? We anticipate: (a) "I don't trust AI output for professional work"; (b) "How is this different from ChatGPT?"; (c) "If I'm the one sending data to Anthropic's API, doesn't Anthropic still have my data?"; (d) "What happens if the AI hallucinates?". Are there objections we are not anticipating?
+**Q45.** What objections would a sophisticated solo practitioner raise upon first hearing about Advisor Prep Hero? We anticipate: (a) "I don't trust AI output for professional work"; (b) "How is this different from ChatGPT?"; (c) "If I'm the one sending data to Anthropic's API, doesn't Anthropic still have my data?"; (d) "What happens if the AI hallucinates?". Are there objections we are not anticipating?
 
-**Q46.** What would cause a solo attorney or CPA to recommend Keepance to a colleague? What would need to be true about their experience with the product for them to mention it unprompted?
+**Q46.** What would cause a solo attorney or CPA to recommend Advisor Prep Hero to a colleague? What would need to be true about their experience with the product for them to mention it unprompted?
 
 ---
 
 ### IV-B. Product design questions requiring professional input
 
-**Q47.** Keepance's local audit log records AI operations (timestamp, model, output file) but does not capture the full content of prompts or AI responses (those are captured in the workspace files themselves). For professional liability purposes, what should the audit log capture? Is there a retention period for AI-assisted work records that parallels the existing record-keeping obligations for attorney work product (typically five to seven years) or tax preparer records (three years — likely under Treas. Reg. §1.6107-1, which covers preparer copy/retention requirements; note that §1.6060-1 covers preparer reporting lists, not copy/retention — flag for tax advisor confirmation)?
+**Q47.** Advisor Prep Hero's local audit log records AI operations (timestamp, model, output file) but does not capture the full content of prompts or AI responses (those are captured in the workspace files themselves). For professional liability purposes, what should the audit log capture? Is there a retention period for AI-assisted work records that parallels the existing record-keeping obligations for attorney work product (typically five to seven years) or tax preparer records (three years — likely under Treas. Reg. §1.6107-1, which covers preparer copy/retention requirements; note that §1.6060-1 covers preparer reporting lists, not copy/retention — flag for tax advisor confirmation)?
 
 **Q48.** Should we build a client consent workflow directly into the application — a formal step that generates and records a client's consent to AI tool use before any matter is opened? Or is this an engagement-letter-level matter that is better handled outside the tool?
 
 **Q49.** Our current workspace design does not enforce isolation between client matters — an attorney could theoretically open multiple client files in the same workspace and run a workflow that ingests both. Should we architect per-matter workspace isolation as a default, or is the attorney's judgment about what goes into each prompt sufficient? Is matter isolation a professional responsibility requirement, a best practice, or an aspirational design choice?
 
-**Q50.** If an attorney or CPA uses Keepance to generate a document, should the output document carry metadata or a visible disclosure indicating it was generated with AI assistance? Is there a professional standard emerging for such disclosure — either in bar guidance, court rules, or practice norms?
+**Q50.** If an attorney or CPA uses Advisor Prep Hero to generate a document, should the output document carry metadata or a visible disclosure indicating it was generated with AI assistance? Is there a professional standard emerging for such disclosure — either in bar guidance, court rules, or practice norms?
 
 ---
 

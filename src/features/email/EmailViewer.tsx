@@ -1,5 +1,5 @@
 /**
- * EmailViewer (Keepance 3.0) — read-only viewer for ONE stored email.
+ * EmailViewer (Advisor Prep Hero 3.0) — read-only viewer for ONE stored email.
  *
  * Given a message id (or a `mail:<id>` citation source id), it calls the
  * `mail_get_message` Tauri command, which reads the encrypted blob, decrypts it,
@@ -19,7 +19,7 @@
  * TEXT content (never `dangerouslySetInnerHTML`), which React escapes.
  * `stripResidualTags` is a defensive second layer.
  *
- * Light theme, navy accent, lean — matches the rest of Keepance.
+ * Light theme, navy accent, lean — matches the rest of Advisor Prep Hero.
  */
 
 import { useEffect, useState, useCallback } from 'react';
@@ -112,7 +112,7 @@ export async function buildProviderAsync(): Promise<Provider> {
   // BUG-021 (privacy): "Draft with AI" sends the email body to the provider, so
   // it must honour Local-only mode — force the local model instead of picking a
   // cloud key, so an email never leaves the machine when the indicator says so.
-  // F-503 — the local engine is the embedded Keepance Local AI when ready, else
+  // F-503 — the local engine is the embedded Advisor Prep Hero Local AI when ready, else
   // Ollama (the same on-device resolution Ask / Chat / Client Map use).
   if (isLocalOnlyMode()) {
     return (await resolveLocalGenerationProvider()).provider;
@@ -379,7 +379,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
         className={`flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-slate-600 ${className ?? ''}`}
       >
         <AlertTriangle className="h-8 w-8 text-amber-500" />
-        {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
+        {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string */}
         <p className="text-sm font-medium text-slate-800">This email could not be opened</p>
         <p className="max-w-md text-xs text-slate-500">
           {error ?? 'Message not found. It may not be synced yet.'}
@@ -480,9 +480,9 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
                 ))}
               </div>
             ) : (
-              /* eslint-disable keepance-i18n/no-hardcoded-string */
+              /* eslint-disable lantern-i18n/no-hardcoded-string */
               <span className="text-xs text-slate-500">This message has attachments. Open it in your mail app to download them.</span>
-              /* eslint-enable keepance-i18n/no-hardcoded-string */
+              /* eslint-enable lantern-i18n/no-hardcoded-string */
             )}
           </div>
         )}
@@ -539,7 +539,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
           data-testid="email-file-to-matter"
           className="mt-4 rounded-md border border-slate-200 bg-white px-3 py-2"
         >
-          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          {/* eslint-disable lantern-i18n/no-hardcoded-string */}
           <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-slate-600">
             <FolderInput className="h-3.5 w-3.5 shrink-0 text-slate-500" />
             File to {entityLabel.one}
@@ -609,7 +609,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
               })}
             </div>
           )}
-          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+          {/* eslint-enable lantern-i18n/no-hardcoded-string */}
         </div>
 
         {/* Body */}
@@ -627,7 +627,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
           data-testid="email-reply-area"
           className="mt-6 rounded-md border border-slate-200 bg-white"
         >
-          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          {/* eslint-disable lantern-i18n/no-hardcoded-string */}
           <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2">
             <Mail className="h-3.5 w-3.5 shrink-0 text-slate-400" />
             <span className="text-xs font-medium text-slate-600">Reply</span>
@@ -823,7 +823,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
               )}
             </div>
           )}
-          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+          {/* eslint-enable lantern-i18n/no-hardcoded-string */}
         </div>
       </div>
     </div>

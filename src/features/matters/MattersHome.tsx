@@ -24,9 +24,10 @@ import type { AuditEntry } from '@/platform/types/audit';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { Button, SearchField, Badge, Eyebrow, Card, EmptyState, Callout, SurfaceToolbar } from '@/ui/kp';
+import { SK_SETUP_CARD_DISMISSED, EV_OPEN_SETTINGS, EV_OPEN_MATTER_MANAGER, EV_MATTER_LAUNCH } from '@/config/identity';
 
 /** localStorage key for dismissing the setup card. */
-const SETUP_CARD_DISMISSED_KEY = 'keepance:setup-card-dismissed';
+const SETUP_CARD_DISMISSED_KEY = SK_SETUP_CARD_DISMISSED;
 
 /** Number of matters above which the search box is shown. */
 const SEARCH_THRESHOLD = 5;
@@ -114,7 +115,7 @@ function GetStartedCard() {
   if (dismissed || (hasMatter && aiConnected && emailConnected === true)) return null;
 
   const navigateTo = (category: 'ai' | 'integrations') => {
-    window.dispatchEvent(new CustomEvent('keepance:open-settings', { detail: { category } }));
+    window.dispatchEvent(new CustomEvent(EV_OPEN_SETTINGS, { detail: { category } }));
   };
 
   const stepStyle: React.CSSProperties = {
@@ -148,7 +149,7 @@ function GetStartedCard() {
             ? <CheckCircle2 style={iconDone} />
             : <Circle style={iconTodo} />
           }
-          {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
+          {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string */}
           <span style={stepLabel}>Create your first {entityLabel.one}</span>
           {!hasMatter && (
             <Button
@@ -156,7 +157,7 @@ function GetStartedCard() {
               size="sm"
               data-testid="get-started-create-matter"
               onClick={() => {
-                window.dispatchEvent(new CustomEvent('keepance:open-matter-manager'));
+                window.dispatchEvent(new CustomEvent(EV_OPEN_MATTER_MANAGER));
               }}
             >
               Create
@@ -170,7 +171,7 @@ function GetStartedCard() {
             ? <CheckCircle2 style={iconDone} />
             : <Circle style={iconTodo} />
           }
-          {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
+          {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string */}
           <span style={stepLabel}>Connect an AI</span>
           {!aiConnected && (
             <Button
@@ -268,7 +269,7 @@ function MatterRow({ matter, isActive, showConfidentialityColumn, onSelect, onAr
     e.stopPropagation();
     onSelect(matter.id);
     window.dispatchEvent(
-      new CustomEvent('keepance:matter-launch', {
+      new CustomEvent(EV_MATTER_LAUNCH, {
         detail: { matterId: matter.id, surface },
       }),
     );
@@ -488,7 +489,7 @@ function MattersEmptyState({ entityOne, entityOther }: MattersEmptyStateProps) {
               // Full matter creation requires folder-picking; the MatterManagerDialog
               // is the canonical entry point. Dispatching a custom event lets any
               // parent listening (e.g. App.tsx) open that dialog without a prop chain.
-              window.dispatchEvent(new CustomEvent('keepance:open-matter-manager'));
+              window.dispatchEvent(new CustomEvent(EV_OPEN_MATTER_MANAGER));
             }}
           >
             New {entityOne}
@@ -745,7 +746,7 @@ export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEma
           size="md"
           iconLeft={Plus}
           onClick={() => {
-            window.dispatchEvent(new CustomEvent('keepance:open-matter-manager'));
+            window.dispatchEvent(new CustomEvent(EV_OPEN_MATTER_MANAGER));
           }}
         >
           New {entityLabel.one}
@@ -796,7 +797,7 @@ export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEma
                         textAlign: 'center',
                       }}
                     >
-                      {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
+                      {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string */}
                       No {entityLabel.other} match your search.
                     </div>
                   ) : (

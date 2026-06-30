@@ -6,9 +6,9 @@
 // specific email (a mail message id). Clicking it should land on that exact
 // item, not just the general Documents / Email surface.
 //
-//   - Email  -> the dedicated `keepance:open-email` action, which opens a
+//   - Email  -> the dedicated `lantern:open-email` action, which opens a
 //     self-fetching read-only email tab for the cited message id.
-//   - Document -> a `keepance:matter-launch` event carrying the exact path +
+//   - Document -> a `lantern:matter-launch` event carrying the exact path +
 //     snippet; the shell event bus (useGlobalEventBus) calls
 //     `openSourceDocument` to read and open that file, then scroll to the
 //     cited spot. This reuses the same primitives as the app's file-open
@@ -20,6 +20,19 @@ import { useMatterStore } from '@/platform/matter/matterStore';
 import { pathInMatterScope } from '@/platform/matter/matterScopeGuard';
 import { isBinaryFile, getMimeType, arrayBufferToDataUrl } from '@/platform/utils/file-utils';
 import { requestScrollToParagraph } from '@/platform/utils/scrollToParagraph';
+import {
+  EV_OPEN_EMAIL,
+  EV_OPEN_CRM,
+  EV_OPEN_ONEDRIVE,
+  EV_OPEN_ESIGN,
+  EV_OPEN_MEETING,
+  EV_OPEN_BOX,
+  EV_OPEN_JOTFORM,
+  EV_OPEN_SHAREFILE,
+  EV_OPEN_ZOCKS,
+  EV_OPEN_ADDEPAR,
+  EV_MATTER_LAUNCH,
+} from '@/config/identity';
 
 /** The slice of the workspace service this module needs to read a document.
  *  Injected by the app-layer caller so this platform module never imports the
@@ -29,19 +42,19 @@ export interface DocumentReader {
   readFileBinary(path: string): Promise<ArrayBuffer>;
 }
 
-export const OPEN_EMAIL_EVENT = 'keepance:open-email';
-export const OPEN_CRM_EVENT = 'keepance:open-crm';
-export const OPEN_ONEDRIVE_EVENT = 'keepance:open-onedrive';
-export const OPEN_ESIGN_EVENT = 'keepance:open-esign';
-export const OPEN_MEETING_EVENT = 'keepance:open-meeting';
-export const OPEN_BOX_EVENT = 'keepance:open-box';
-export const OPEN_JOTFORM_EVENT = 'keepance:open-jotform';
-export const OPEN_SHAREFILE_EVENT = 'keepance:open-sharefile';
-export const OPEN_ZOCKS_EVENT = 'keepance:open-zocks';
-export const OPEN_ADDEPAR_EVENT = 'keepance:open-addepar';
-export const MATTER_LAUNCH_EVENT = 'keepance:matter-launch';
+export const OPEN_EMAIL_EVENT = EV_OPEN_EMAIL;
+export const OPEN_CRM_EVENT = EV_OPEN_CRM;
+export const OPEN_ONEDRIVE_EVENT = EV_OPEN_ONEDRIVE;
+export const OPEN_ESIGN_EVENT = EV_OPEN_ESIGN;
+export const OPEN_MEETING_EVENT = EV_OPEN_MEETING;
+export const OPEN_BOX_EVENT = EV_OPEN_BOX;
+export const OPEN_JOTFORM_EVENT = EV_OPEN_JOTFORM;
+export const OPEN_SHAREFILE_EVENT = EV_OPEN_SHAREFILE;
+export const OPEN_ZOCKS_EVENT = EV_OPEN_ZOCKS;
+export const OPEN_ADDEPAR_EVENT = EV_OPEN_ADDEPAR;
+export const MATTER_LAUNCH_EVENT = EV_MATTER_LAUNCH;
 
-/** The document-source payload carried on a `keepance:matter-launch` event. */
+/** The document-source payload carried on a `lantern:matter-launch` event. */
 export interface MatterLaunchSource {
   kind: 'document';
   ref: string;
@@ -56,42 +69,42 @@ export interface MatterLaunchSource {
 export function dispatchOpenSource(matterId: string, ref: SourceRef): void {
   if (typeof window === 'undefined') return;
   if (ref.kind === 'email') {
-    window.dispatchEvent(new CustomEvent(OPEN_EMAIL_EVENT, { detail: { sourceId: ref.ref } }));
+    window.dispatchEvent(new CustomEvent(EV_OPEN_EMAIL, { detail: { sourceId: ref.ref } }));
     return;
   }
   if (ref.kind === 'crm') {
-    window.dispatchEvent(new CustomEvent(OPEN_CRM_EVENT, { detail: { sourceId: ref.ref } }));
+    window.dispatchEvent(new CustomEvent(EV_OPEN_CRM, { detail: { sourceId: ref.ref } }));
     return;
   }
   if (ref.kind === 'onedrive') {
-    window.dispatchEvent(new CustomEvent(OPEN_ONEDRIVE_EVENT, { detail: { sourceId: ref.ref } }));
+    window.dispatchEvent(new CustomEvent(EV_OPEN_ONEDRIVE, { detail: { sourceId: ref.ref } }));
     return;
   }
   if (ref.kind === 'esign') {
-    window.dispatchEvent(new CustomEvent(OPEN_ESIGN_EVENT, { detail: { sourceId: ref.ref } }));
+    window.dispatchEvent(new CustomEvent(EV_OPEN_ESIGN, { detail: { sourceId: ref.ref } }));
     return;
   }
   if (ref.kind === 'meeting') {
-    window.dispatchEvent(new CustomEvent(OPEN_MEETING_EVENT, { detail: { sourceId: ref.ref } }));
+    window.dispatchEvent(new CustomEvent(EV_OPEN_MEETING, { detail: { sourceId: ref.ref } }));
     return;
   }
   // The new connector panels render detail.snippet as the cited passage, so the
   // snippet must ride along on the event (not just the opaque sourceId).
   if (ref.kind === 'box') {
     window.dispatchEvent(
-      new CustomEvent(OPEN_BOX_EVENT, { detail: { sourceId: ref.ref, snippet: ref.snippet } }),
+      new CustomEvent(EV_OPEN_BOX, { detail: { sourceId: ref.ref, snippet: ref.snippet } }),
     );
     return;
   }
   if (ref.kind === 'jotform') {
     window.dispatchEvent(
-      new CustomEvent(OPEN_JOTFORM_EVENT, { detail: { sourceId: ref.ref, snippet: ref.snippet } }),
+      new CustomEvent(EV_OPEN_JOTFORM, { detail: { sourceId: ref.ref, snippet: ref.snippet } }),
     );
     return;
   }
   if (ref.kind === 'sharefile') {
     window.dispatchEvent(
-      new CustomEvent(OPEN_SHAREFILE_EVENT, {
+      new CustomEvent(EV_OPEN_SHAREFILE, {
         detail: { sourceId: ref.ref, snippet: ref.snippet },
       }),
     );
@@ -99,20 +112,20 @@ export function dispatchOpenSource(matterId: string, ref: SourceRef): void {
   }
   if (ref.kind === 'zocks') {
     window.dispatchEvent(
-      new CustomEvent(OPEN_ZOCKS_EVENT, { detail: { sourceId: ref.ref, snippet: ref.snippet } }),
+      new CustomEvent(EV_OPEN_ZOCKS, { detail: { sourceId: ref.ref, snippet: ref.snippet } }),
     );
     return;
   }
   if (ref.kind === 'addepar') {
     window.dispatchEvent(
-      new CustomEvent(OPEN_ADDEPAR_EVENT, { detail: { sourceId: ref.ref, snippet: ref.snippet } }),
+      new CustomEvent(EV_OPEN_ADDEPAR, { detail: { sourceId: ref.ref, snippet: ref.snippet } }),
     );
     return;
   }
   const source: MatterLaunchSource = { kind: 'document', ref: ref.ref };
   if (ref.snippet) source.snippet = ref.snippet;
   window.dispatchEvent(
-    new CustomEvent(MATTER_LAUNCH_EVENT, { detail: { matterId, surface: 'files', source } }),
+    new CustomEvent(EV_MATTER_LAUNCH, { detail: { matterId, surface: 'files', source } }),
   );
 }
 

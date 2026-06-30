@@ -2,7 +2,7 @@
  * Stream D-web Group IV · Task 4.3
  *
  * Full-screen modal shown when the demo session reaches its limit (5 messages,
- * 10 minutes elapsed, or a `keepance:demo-limit-hit` event from the proxy).
+ * 10 minutes elapsed, or a `lantern:demo-limit-hit` event from the proxy).
  *
  * The modal frames the moment as success, not failure: the user has explored
  * the product. Three OS-specific download buttons make conversion obvious.
@@ -26,6 +26,7 @@ import {
 } from '@/ui/dialog';
 import { resetDemoSessionToken } from './demoSessionToken';
 import { trackDemoDownloadClicked } from './demoPlausible';
+import { SK_DEMO_MESSAGE_COUNT } from '@/config/identity';
 
 const UTM_SUFFIX =
   '?utm_source=demo&utm_campaign=v2-launch&utm_content=exit_modal';
@@ -36,7 +37,7 @@ export const DEMO_EXIT_DOWNLOAD_URLS = {
   linux: `https://keepance.com/#download${UTM_SUFFIX}&os=linux`,
 } as const;
 
-export const DEMO_MESSAGE_COUNT_STORAGE_KEY = 'keepance:demo:messageCount';
+export const DEMO_MESSAGE_COUNT_STORAGE_KEY = SK_DEMO_MESSAGE_COUNT;
 
 interface DemoExitModalProps {
   open: boolean;
@@ -77,17 +78,17 @@ export function DemoExitModal({
         }}
       >
         <DialogHeader>
-          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          {/* eslint-disable lantern-i18n/no-hardcoded-string */}
           <DialogTitle>What's one caught mistake worth?</DialogTitle>
           <DialogDescription>
-            You just watched Keepance catch a beneficiary designation still
+            You just watched Advisor Prep Hero catch a beneficiary designation still
             pointing at an ex-spouse — the kind of miss that surfaces years
             later, in front of a client or a regulator. Catching one of those
             pays for the tool many times over. On your own client files, the
             desktop app gives you unlimited AI with your own key, every answer
             cited to its source, and nothing leaving your machine.
           </DialogDescription>
-          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+          {/* eslint-enable lantern-i18n/no-hardcoded-string */}
         </DialogHeader>
 
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">

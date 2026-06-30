@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   validateTemplateManifest,
-  checkMinKeepanceVersion,
+  checkMinAppVersion,
   compareSemver,
 } from '@/features/workflows/marketplace/svc/manifestValidator';
 import type { TemplateManifest } from '@/features/workflows/types/templateManifest';
@@ -21,7 +21,7 @@ const VALID: TemplateManifest = {
     { path: 'questions.json', type: 'interview-questions' },
     { path: 'workflow.json', type: 'workflow-definition' },
   ],
-  minKeepanceVersion: '2.0.0',
+  minAppVersion: '2.0.0',
 };
 
 describe('validateTemplateManifest', () => {
@@ -45,7 +45,7 @@ describe('validateTemplateManifest', () => {
       category: 'misc',
       tags: [],
       files: [{ path: 'template.md', type: 'markdown' }],
-      minKeepanceVersion: '2.0.0',
+      minAppVersion: '2.0.0',
     };
     const res = validateTemplateManifest(minimal);
     expect(res.ok).toBe(true);
@@ -113,19 +113,19 @@ describe('validateTemplateManifest', () => {
   });
 });
 
-describe('checkMinKeepanceVersion', () => {
+describe('checkMinAppVersion', () => {
   it('returns null when current app version equals min', () => {
-    expect(checkMinKeepanceVersion(VALID, '2.0.0')).toBeNull();
+    expect(checkMinAppVersion(VALID, '2.0.0')).toBeNull();
   });
 
   it('returns null when current app version exceeds min', () => {
-    expect(checkMinKeepanceVersion(VALID, '2.1.0')).toBeNull();
-    expect(checkMinKeepanceVersion(VALID, '3.0.0')).toBeNull();
+    expect(checkMinAppVersion(VALID, '2.1.0')).toBeNull();
+    expect(checkMinAppVersion(VALID, '3.0.0')).toBeNull();
   });
 
   it('returns an error string when manifest needs a future Keepance version', () => {
-    const futureManifest = { ...VALID, minKeepanceVersion: '99.0.0' };
-    const err = checkMinKeepanceVersion(futureManifest, '2.0.0');
+    const futureManifest = { ...VALID, minAppVersion: '99.0.0' };
+    const err = checkMinAppVersion(futureManifest, '2.0.0');
     expect(err).not.toBeNull();
     expect(err).toContain('99.0.0');
     expect(err).toContain('2.0.0');

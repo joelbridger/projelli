@@ -13,7 +13,7 @@
 
 Hey [Name],
 
-I'm Jameson Daines. I'm a product designer building a desktop app called Keepance, and I'm working on a template specifically for patent attorneys that I want to get in front of someone who actually does prosecution work before I publish it.
+I'm Jameson Daines. I'm a product designer building a desktop app called Advisor Prep Hero, and I'm working on a template specifically for patent attorneys that I want to get in front of someone who actually does prosecution work before I publish it.
 
 The product is a local-first AI workspace. Everything runs on your machine. No cloud, no server I control, API keys go direct from your computer to the provider. The confidentiality angle for patent work is actually more acute than for any other legal specialty, I think, because of how the EU absolute-novelty rule works. If you upload a draft application to a cloud AI tool before filing, you've potentially made a prior-art disclosure that can kill the patent internationally. That's a pretty serious thing to get wrong.
 

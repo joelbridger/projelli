@@ -1,6 +1,6 @@
 // Sidecar trait — shared lifecycle contract for all bundled helper binaries.
 //
-// Keepance bundles small native binaries for specialized work that can't
+// Advisor Prep Hero bundles small native binaries for specialized work that can't
 // happen inside the Wasm/JS sandbox:
 //
 //   - ParakeetSidecar  : voice transcription (parakeet / whisper.cpp)

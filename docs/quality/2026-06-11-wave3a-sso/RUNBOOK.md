@@ -3,7 +3,7 @@
 Date: 2026-06-11  
 Scope: End-to-end OIDC relying-party verification against Dex (real IdP), happy path + authenticate-only rejection  
 IdP used: Dex v2.46.0 (`ghcr.io/dexidp/dex:latest`)  
-Backend: Keepance firm backend (`backend/src/server.ts`) at PORT=5192
+Backend: Advisor Prep Hero firm backend (`backend/src/server.ts`) at PORT=5192
 
 ---
 
@@ -13,7 +13,7 @@ Backend: Keepance firm backend (`backend/src/server.ts`) at PORT=5192
 - Bun 1.3.4+ on host
 - Python 3 with `bcrypt` (`pip install bcrypt`)
 - Port 5192, 5556 free on host (adjust if occupied)
-- Keepance backend repo at `/home/jameson/keepance/backend`
+- Advisor Prep Hero backend repo at `/home/jameson/keepance/backend`
 
 ---
 
@@ -52,7 +52,7 @@ enablePasswordDB: true
 staticClients:
   - id: keepance-test
     secret: keepance-test-secret
-    name: Keepance
+    name: Advisor Prep Hero
     redirectURIs:
       - http://172.20.0.1:5192/auth/sso/callback
 

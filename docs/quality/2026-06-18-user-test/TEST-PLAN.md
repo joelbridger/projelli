@@ -1,4 +1,4 @@
-# Keepance — Layered Test Plan (break the build/fix loop)
+# Advisor Prep Hero — Layered Test Plan (break the build/fix loop)
 
 **The problem.** Bugs in the desktop-only paths (firm login, .docx, mail import, vault,
 multi-window) only showed up *after* a slow signed cross-platform build, so every fix meant
@@ -87,7 +87,7 @@ the firm co-editing/ethical-wall stories (two profiles, two users, one matter).
 A short checklist, run once at the eventual signed build — deliberately tiny and visual, never
 logic:
 
-- Installer + uninstaller show "Keepance" branding/icons (not "Projelli").
+- Installer + uninstaller show "Advisor Prep Hero" branding/icons (not "Projelli").
 - No OS console window flashes on child-process spawns.
 - Auto-updater serves + applies the new version; `latest.json` correct.
 - Code-sign / notarize valid on Win + macOS.

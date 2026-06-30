@@ -21,7 +21,7 @@ Don't binge-buy all of this. Read one, apply it, move on.
 2. **Indistractable** — Nir Eyal. *Book, ~$15.* [nirandfar.com](https://www.nirandfar.com/indistractable/)
    The direct fix for your stated problem. It explains *why* you reach for YouTube (it's
    about escaping discomfort, not the videos themselves) and gives concrete tactics to
-   redirect that pull back into Keepance.
+   redirect that pull back into Advisor Prep Hero.
 
 3. **Atomic Habits** — James Clear. *Book, ~$15.* [jamesclear.com](https://jamesclear.com/atomic-habits)
    A launch is a marathon of small repeated actions. This gives you the system to keep
@@ -43,7 +43,7 @@ Don't binge-buy all of this. Read one, apply it, move on.
 ### 1. Deep focus / attention (and the YouTube habit)
 - **"The Top Idea in Your Mind"** — Paul Graham. *Free essay, ~10 min.* [paulgraham.com/top.html](https://www.paulgraham.com/top.html)
   The sharpest short read here: your mind only deeply works *one* idea at a time, so your
-  real job is making sure Keepance — not YouTube, not worry — is that top idea. Read this first.
+  real job is making sure Advisor Prep Hero — not YouTube, not worry — is that top idea. Read this first.
 - **Digital Minimalism** — Cal Newport. *Book, ~$15.* [Amazon](https://www.amazon.com/Digital-Minimalism-Choosing-Focused-Noisy/dp/0525536515)
   Goes deeper on rebuilding your whole relationship with screens (including a 30-day reset).
   Optional if *Indistractable* already does the job.
@@ -59,7 +59,7 @@ Don't binge-buy all of this. Read one, apply it, move on.
   The best fit for the lonely, emotional side of solo founding — the "CEO whisperer"
   writes directly about doubt, isolation, and tying your self-worth to the company.
 - **The Hard Thing About Hard Things** — Ben Horowitz. *Book, ~$15.* [a16z.com](https://a16z.com/books/the-hard-thing-about-hard-things/)
-  Blunt founder memoir on making hard calls under pressure. More relevant once Keepance
+  Blunt founder memoir on making hard calls under pressure. More relevant once Advisor Prep Hero
   has users and stakes — skim "The Struggle" chapter now, save the rest for later.
 
 ### 4. Physical foundation (evidence-based, not fads)

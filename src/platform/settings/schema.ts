@@ -141,7 +141,7 @@ export function resolveSection(cat: string): SectionCategory {
 
 /**
  * Connector-access: one-time firm consent to store and AI-process the exported
- * reports/notes Keepance recognizes from outside tools (RightCapital, Jump).
+ * reports/notes Advisor Prep Hero recognizes from outside tools (RightCapital, Jump).
  * Set the first time such an export would be used to answer (a deliberate
  * checkbox, also recorded in the audit log) and revocable here in Settings.
  * Lives in the schema (not free-form state) so it survives persistence — the
@@ -173,7 +173,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     key: 'startupBehavior',
     category: 'workspace',
     label: 'On Startup',
-    description: 'What happens when you launch Keepance.',
+    description: 'What happens when you launch Advisor Prep Hero.',
     type: 'select',
     defaultValue: 'reopen',
     options: [
@@ -185,7 +185,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     key: 'showWhatsNew',
     category: 'workspace',
     label: 'Show Update Notifications',
-    description: 'Display a toast when a new version of Keepance is available.',
+    description: 'Display a toast when a new version of Advisor Prep Hero is available.',
     type: 'toggle',
     defaultValue: true,
   },
@@ -387,7 +387,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     category: 'ai-privacy',
     label: 'Allow exported reports from other tools',
     description:
-      'When on, Keepance may store and use your chosen AI on the reports and notes you export or save from outside tools like RightCapital and Jump (recognized automatically from the files you import). Keepance reads these exported files; it is not connected to those tools. You are asked once before this is first used, and that choice is recorded in your audit log. Turn off to stop using them.',
+      'When on, Advisor Prep Hero may store and use your chosen AI on the reports and notes you export or save from outside tools like RightCapital and Jump (recognized automatically from the files you import). Advisor Prep Hero reads these exported files; it is not connected to those tools. You are asked once before this is first used, and that choice is recorded in your audit log. Turn off to stop using them.',
     type: 'toggle',
     defaultValue: false,
   },
@@ -396,7 +396,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     category: 'ai-privacy',
     label: 'Flag exported plans older than (days)',
     description:
-      'A financial plan you export from a tool like RightCapital is a point-in-time snapshot. When a plan Keepance used to answer is older than this many days, it is flagged as possibly out of date in the sources and the answer. Meeting notes are never flagged on age.',
+      'A financial plan you export from a tool like RightCapital is a point-in-time snapshot. When a plan Advisor Prep Hero used to answer is older than this many days, it is flagged as possibly out of date in the sources and the answer. Meeting notes are never flagged on age.',
     type: 'number',
     defaultValue: 90,
     min: 7,
@@ -586,7 +586,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     key: 'autoUpdateCheck',
     category: 'advanced',
     label: 'Check for updates automatically',
-    description: 'When enabled, Keepance checks GitHub Releases for new versions in the background and prompts you when one is available.',
+    description: 'When enabled, Advisor Prep Hero checks GitHub Releases for new versions in the background and prompts you when one is available.',
     type: 'toggle',
     defaultValue: true,
   },
@@ -629,7 +629,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
 
   // ── Advanced: Smarter search re-ranking (experimental, default OFF) ─────
   {
-    // WS3d-A. When ON, Keepance runs a second, more careful scorer over the
+    // WS3d-A. When ON, Advisor Prep Hero runs a second, more careful scorer over the
     // documents the first search finds, re-ordering them so the most relevant
     // passage rises to the top. It needs a one-time model download and adds a
     // little time per search. OFF by default: search behaves exactly as it
@@ -667,7 +667,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     key: 'resetFeatureTour',
     category: 'help',
     label: 'Feature Tour',
-    description: 'Replay the guided tour that introduces the Keepance workspace.',
+    description: 'Replay the guided tour that introduces the Advisor Prep Hero workspace.',
     type: 'text',
     defaultValue: '',
     action: { label: 'Start tour', actionId: 'reset-feature-tour' },
@@ -678,7 +678,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     key: 'aboutWhatsNew',
     category: 'help',
     label: "What's new",
-    description: 'See highlights from the most recent Keepance releases.',
+    description: 'See highlights from the most recent Advisor Prep Hero releases.',
     type: 'text',
     defaultValue: '',
     action: { label: "What's new", actionId: 'open-whats-new' },

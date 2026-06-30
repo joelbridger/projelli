@@ -4,7 +4,7 @@ _2026-06-19. Branch `keepance-3.0`._
 
 ## The question
 
-Keepance is developed and tested on this Linux server, but ships signed for
+Advisor Prep Hero is developed and tested on this Linux server, but ships signed for
 Windows / macOS / Linux. Before doing a real Windows test pass, what else can we
 verify on Linux, and how confident are we that Windows won't surprise us?
 
@@ -106,12 +106,12 @@ All five items done. Commits on `keepance-3.0`: `01b6b0e` (mail), `508b5d7`
 3. **Real Gmail/Outlook OAuth — ✅ validated to Microsoft's auth gate; one stale
    test fixed.** The live smoke (`mail_e2e`) was bit-rotted (didn't compile) →
    rewritten to the production parse pipeline. Drove the logged-in Chrome through the
-   real device-code flow: the Keepance side works end-to-end (real device code, app
-   registered as "Keepance Desktop", personal accounts offered, account-select +
+   real device-code flow: the Advisor Prep Hero side works end-to-end (real device code, app
+   registered as "Advisor Prep Hero Desktop", personal accounts offered, account-select +
    device-confirm reached). The **final token grant is gated by Microsoft's own user
    auth** (a hardware passkey on the personal account; the work-account confirm
    doesn't complete under headless automation) — a real-device one-tap, not a
-   Keepance bug. Gmail uses the auth-code+secret flow (not this device-code smoke).
+   Advisor Prep Hero bug. Gmail uses the auth-code+secret flow (not this device-code smoke).
 
 4. **es/de locales — ✅ checked; found a real gap.** Key parity is solid
    (`tests/unit/i18n` 29/29) and the JSON is ~95% translated, BUT the running app

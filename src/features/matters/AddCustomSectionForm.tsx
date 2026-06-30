@@ -88,7 +88,7 @@ export function AddCustomSectionForm({ matterId, onAdded }: AddCustomSectionForm
         />
       </div>
       <div>
-        {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
+        {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string */}
         <label htmlFor="custom-section-description">What to track (plain language)</label>
         <input
           id="custom-section-description"

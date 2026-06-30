@@ -1,4 +1,4 @@
-# Showing Keepance to your wife: the design-partner session plan
+# Showing Advisor Prep Hero to your wife: the design-partner session plan
 
 *Written 2026-06-25, for Jameson. This is your playbook for the single most important meeting of the proof sprint.*
 
@@ -10,7 +10,7 @@ You are NOT trying to sell her. You are trying to learn two things:
 1. **Would she actually use this every week on her real clients?**
 2. **What would stop her, or her firm, from using it?**
 
-And if it goes well, you want one outcome: **she becomes user #1** — meaning she puts a real client's files into Keepance and uses it before a real meeting, within about a week.
+And if it goes well, you want one outcome: **she becomes user #1** — meaning she puts a real client's files into Advisor Prep Hero and uses it before a real meeting, within about a week.
 
 That's it. A "wow, this is so cool" with no follow-up action is a *failure*, not a success.
 
@@ -82,7 +82,7 @@ This is the most important 10 minutes. Watching a real advisor try to use it her
 
 Don't settle for enthusiasm. The real win is a small, concrete commitment:
 
-> Within ~1 week, she imports one real client's files and uses Keepance to prep for one real meeting — then tells you what happened (what worked, what was wrong).
+> Within ~1 week, she imports one real client's files and uses Advisor Prep Hero to prep for one real meeting — then tells you what happened (what worked, what was wrong).
 
 If she does that, you have your first true user. If she won't, that's the most important signal of all, and you want to understand *why* (too clunky? compliance worry? not actually a real pain?).
 
@@ -113,7 +113,7 @@ Green/red flag verdict:
 
 Your wife is also your scout into her firm. Use her to learn:
 - **How does her firm actually buy software?** Who decides? Is there a compliance gatekeeper or an "approved vendor list"?
-- **What tools do they already use** (CRM, planning, custodian)? Where would Keepance fit, and what would it need to *not* fight?
+- **What tools do they already use** (CRM, planning, custodian)? Where would Advisor Prep Hero fit, and what would it need to *not* fight?
 - **Then ask for one warm intro** — to a colleague at her firm, or to one advisor friend at another firm. One good intro beats fifty cold emails.
 
 ## The 60-day scoreboard (pin this somewhere)

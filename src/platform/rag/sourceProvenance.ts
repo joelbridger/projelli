@@ -2,10 +2,10 @@
  * sourceProvenance — recognize the OUTPUT of external advisor tools inside the
  * generic evidence pile.
  *
- * Keepance does NOT integrate with RightCapital or Jump. It reads the files and
+ * Advisor Prep Hero does NOT integrate with RightCapital or Jump. It reads the files and
  * notes those tools *export or sync* — a RightCapital plan PDF the advisor saved
  * into a client folder, a Jump meeting note that arrived in Wealthbox or a
- * SharePoint folder — once they have landed in a place Keepance already watches
+ * SharePoint folder — once they have landed in a place Advisor Prep Hero already watches
  * (files, email, CRM, cloud drive). This module is the "this came from
  * RightCapital / Jump" recognizer the strategy doc calls for:
  *
@@ -29,7 +29,7 @@
  * connector.
  */
 
-/** The external tools whose output Keepance recognizes. */
+/** The external tools whose output Advisor Prep Hero recognizes. */
 export type ExternalTool = 'rightcapital' | 'jump';
 
 /** What the recognized export is. */
@@ -331,7 +331,7 @@ export function formatExportDate(exportedAt: string): string {
   return `${mon} ${String(Number(day))}, ${year}`;
 }
 
-/** The verb that honestly describes how the artifact reached Keepance. */
+/** The verb that honestly describes how the artifact reached Advisor Prep Hero. */
 function provenanceVerb(p: RecognizedProvenance): string {
   return p.kind === 'plan' ? 'exported' : 'saved';
 }

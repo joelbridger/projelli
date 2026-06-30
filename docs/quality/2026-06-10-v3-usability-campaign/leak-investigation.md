@@ -1,4 +1,4 @@
-# F-301 Memory Leak Investigation — Keepance 3.0 desktop (Linux, Tauri 2 / webkit2gtk)
+# F-301 Memory Leak Investigation — Advisor Prep Hero 3.0 desktop (Linux, Tauri 2 / webkit2gtk)
 
 **Started:** 2026-06-10 ~12:35 UTC. Investigator: leak-debug agent (systematic-debugging discipline).
 **Bug:** compiled desktop app leaked to ~24 GB anon-rss (total-vm 113 GB), kernel OOM-killed PID 1942633 at 08:05 UTC; a second runaway froze the host ~12:09–12:15 (hard power cycle).

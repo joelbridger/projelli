@@ -29,7 +29,7 @@ function Harness({ handlers }: { handlers: GlobalEventBusHandlers }) {
 }
 
 function launch(detail: Record<string, unknown>) {
-  window.dispatchEvent(new CustomEvent('keepance:matter-launch', { detail }));
+  window.dispatchEvent(new CustomEvent('lantern:matter-launch', { detail }));
 }
 
 beforeEach(() => {

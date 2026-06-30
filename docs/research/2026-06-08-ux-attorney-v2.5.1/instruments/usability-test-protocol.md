@@ -1,6 +1,6 @@
 # Usability Test Protocol: Moderated, Think-Aloud (Session 2, ~60 min)
 
-**Study:** Keepance v2.5.1, attorney segment
+**Study:** Advisor Prep Hero v2.5.1, attorney segment
 **Moderator:** Dr. Lena Whitfield
 **Method:** Moderated, task-based, concurrent think-aloud, screen-shared and recorded. Participant drives; moderator observes and prompts minimally.
 **Environment (Pass B):** Live signed v2.5.1 build on the participant's own computer, fresh install, clean test license, a provided test AI API key available if needed, and a **test email account preloaded with realistic but non-confidential messages** (never the participant's real client mail during a recorded session). Participant uses the bundled legal sample workspace.
@@ -26,7 +26,7 @@
 
 ## Task 1: First run: get from install to a working workspace (target 8-10 min)
 
-**Scenario (read aloud):** "You just downloaded and installed Keepance because a colleague mentioned it. You're a litigator. Go ahead and get yourself set up the way you'd want it for real, and talk me through what you see. Get to the point where you feel you could start working."
+**Scenario (read aloud):** "You just downloaded and installed Advisor Prep Hero because a colleague mentioned it. You're a litigator. Go ahead and get yourself set up the way you'd want it for real, and talk me through what you see. Get to the point where you feel you could start working."
 
 **What this tests:** Onboarding wizard, profession picker (Legal), workspace = folder concept, **the API key step (documented #1 drop-off)**, and whether "local-first / your keys stay on your machine" is understood.
 
@@ -35,11 +35,11 @@
 **Success criteria:**
 - *Success (unassisted):* reaches a working workspace; either sets up a valid key with the test button or makes a conscious, informed choice to skip ("I'll do this later").
 - *Partial:* reaches workspace but is confused about the API key, skips it without understanding, or can't explain what a workspace is.
-- *Fail:* abandons during setup, or believes she's set up but is not (e.g., thinks Keepance hosts her files, or thinks she's paying Keepance for AI).
+- *Fail:* abandons during setup, or believes she's set up but is not (e.g., thinks Advisor Prep Hero hosts her files, or thinks she's paying Advisor Prep Hero for AI).
 
 **Observe / likely friction:**
 - Does "API key" stop her cold? Does the plain-English explainer and the "test this key" button rescue her, or not?
-- Does she grasp that she pays the AI provider directly, not Keepance?
+- Does she grasp that she pays the AI provider directly, not Advisor Prep Hero?
 - Does "workspace" read as "a folder I control" or as something abstract/cloud?
 - Comprehension check (after, not during): "In your own words, where are your files now, and who can see them?"
 
@@ -49,7 +49,7 @@
 
 ## Task 2: Produce a real deliverable: run a legal workflow and get it into Word (target 10-12 min)
 
-**Scenario:** "A new client just came in. You want to turn your intake notes into a clean intake summary, and ultimately you need it as a Word document on your letterhead. Use Keepance to do that, and talk me through it."
+**Scenario:** "A new client just came in. You want to turn your intake notes into a clean intake summary, and ultimately you need it as a Word document on your letterhead. Use Advisor Prep Hero to do that, and talk me through it."
 
 **What this tests:** Workflows (Legal pack: Client Intake Synthesizer or Case Timeline Builder), the interview-form model, AI generation, the verification framing on research templates, and the **Markdown-to-Word concern** (does the output meet her "it has to look like a real document" bar, and can she find the export?).
 
@@ -76,20 +76,20 @@
 
 *(Pass B: use the provided test M365 account. Never real client mail on a recorded call.)*
 
-**What this tests:** The Integrations/email connect flow (device-code sign-in), folder selection / bounded import, the sync/progress experience, and most importantly **whether she correctly understands the privacy model**: mail is pulled to her machine, encrypted at rest, never sent to Keepance.
+**What this tests:** The Integrations/email connect flow (device-code sign-in), folder selection / bounded import, the sync/progress experience, and most importantly **whether she correctly understands the privacy model**: mail is pulled to her machine, encrypted at rest, never sent to Advisor Prep Hero.
 
 **Happy path:** Settings → Integrations → Microsoft 365 → "Sign in with Microsoft" → device-code flow in browser → consent → pick folders / scope → sync runs with progress → completes.
 
 **Success criteria:**
-- *Success:* completes the connection and sync, and can correctly articulate that her mail is now stored encrypted on her own machine and not on Keepance's servers.
+- *Success:* completes the connection and sync, and can correctly articulate that her mail is now stored encrypted on her own machine and not on Advisor Prep Hero's servers.
 - *Partial:* connects successfully but cannot explain where the mail went or whether it's safe ("I think it's on the cloud? I'm not sure").
-- *Fail:* cannot complete the connection, abandons over a trust concern, or believes her mail was uploaded to Keepance/the AI.
+- *Fail:* cannot complete the connection, abandons over a trust concern, or believes her mail was uploaded to Advisor Prep Hero/the AI.
 
 **Observe / likely friction:**
 - Does the device-code flow (a code, a browser, "expires in 15 minutes") confuse or reassure her?
 - Folder selection: does she understand she can scope it? Does unbounded import worry her?
 - The encryption story: is there a visible, plain-English signal that her mail is encrypted and local? Does she notice the full-disk-encryption nudge if shown?
-- Comprehension check (after): "Walk me through what happened to your email. Where is it? Could Keepance read it? Could the AI?"
+- Comprehension check (after): "Walk me through what happened to your email. Where is it? Could Advisor Prep Hero read it? Could the AI?"
 
 **SEQ + note.**
 
@@ -97,7 +97,7 @@
 
 ## Task 4: The payoff: find what a client said (target 8-10 min)
 
-**Scenario:** "Now the part that matters. A client is on the phone asking what you agreed to about a deadline back in the spring. Using your email in Keepance, find the answer. Do it however feels natural."
+**Scenario:** "Now the part that matters. A client is on the phone asking what you agreed to about a deadline back in the spring. Using your email in Advisor Prep Hero, find the answer. Do it however feels natural."
 
 **What this tests:** The wedge moment. Full-text mail search and/or asking the AI a natural-language question and getting the **actual email back with a citation**. This is the make-or-break "finally, I can find my email" experience.
 

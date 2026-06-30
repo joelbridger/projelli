@@ -32,13 +32,13 @@ v2.1.3 is shipped (all 4 platforms live; download flow + SmartScreen guidance do
 **Research backing (102-agent deep research run, adversarially verified):**
 - EV certs no longer bypass SmartScreen (since 2024 — don't buy one).
 - Azure Artifact Signing = identical to OV, no accelerated reputation.
-- macOS is fine: Keepance is notarized, Gatekeeper friction is minimal.
+- macOS is fine: Advisor Prep Hero is notarized, Gatekeeper friction is minimal.
 - SmartScreen clears on its own as downloads accumulate (weeks + hundreds of installs). Communication is the only fix.
 
 ### v2.1.3 — brand polish app release (CI in progress)
 
 **What changed in the app:**
-- **App icons:** All Tauri icon assets (`icon.png`, `icon.ico`, `icon.icns`, all size variants) regenerated from the Keepance shield PNG. The jellybean from Projelli was still showing in Windows taskbar, title bar, and installer.
+- **App icons:** All Tauri icon assets (`icon.png`, `icon.ico`, `icon.icns`, all size variants) regenerated from the Advisor Prep Hero shield PNG. The jellybean from Projelli was still showing in Windows taskbar, title bar, and installer.
 - **Accent color:** `hsl(6 100% 72%)` coral → `hsl(210 73% 15%)` navy (`#0A2540`) in both light and dark mode (`src/styles/globals.css`). All primary buttons, focus rings, highlights.
 - **Tour step 4:** "Pricing Strategy, Competitor Analysis, Weekly Review" → "Client Intake, Matter Summary, Weekly Client Update" — now reflects the actual ICP.
 
@@ -77,7 +77,7 @@ Any personal contacts Jameson can send — even non-ICP — I'll queue warm outr
 
 ## Key IDs / quick reference (unchanged)
 
-- LS store: `#340394` (slug: `projelli`, display: "Keepance")
+- LS store: `#340394` (slug: `projelli`, display: "Advisor Prep Hero")
 - Products: Personal `1101937`, Professional `1101955`, Practice `1101967`
 - Checkout URLs: Personal `4df43939`, Professional `78ee592e`, Practice `b4c6865f`
 - Founding discount: `FOUNDING` code on Professional → $99/yr (100-redemption cap)

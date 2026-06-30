@@ -1,7 +1,7 @@
 /**
  * deviceKeys — per-device ECDH P-256 keypair management.
  *
- * Each Keepance installation generates ONE ECDH P-256 keypair. The PUBLIC key
+ * Each Advisor Prep Hero installation generates ONE ECDH P-256 keypair. The PUBLIC key
  * is registered with the firm backend (POST /device/register) so other members
  * can wrap matter keys to this device. The PRIVATE key never leaves this
  * machine.
@@ -9,7 +9,7 @@
  * Key storage:
  *   On Tauri (production), the private key is stored NON-EXTRACTABLE in the
  *   WebCrypto key store and the wrapped-JWK blob is persisted in the OS
- *   keychain at service `com.keepance.device.<device_id>`, key `private_jwk`.
+ *   keychain at service `com.lantern.device.<device_id>`, key `private_jwk`.
  *   Because the keychain accepts strings, we export the private key as JWK
  *   and import it back as non-extractable on load.
  *
@@ -22,19 +22,20 @@
  *
  * Device ID:
  *   A stable UUID generated once and persisted alongside the private key in
- *   the keychain (service `com.keepance.device.<device_id>`, key `device_id`).
+ *   the keychain (service `com.lantern.device.<device_id>`, key `device_id`).
  *   We use a UUIDv4-shaped string from crypto.getRandomValues.
  */
 
 import { keychainGet, keychainSet } from '@/platform/utils/tauri-commands';
 import { isTauri } from '@tauri-apps/api/core';
 import { FirmApiClient } from './FirmApiClient';
+import { KC_DEVICE_META_SERVICE, KC_DEVICE_PREFIX } from '@/config/identity';
 
 // ── Service names & keychain keys -------------------------------------------
 
-const DEVICE_META_SERVICE = 'com.keepance.device.meta';
+const DEVICE_META_SERVICE = KC_DEVICE_META_SERVICE;
 const KC_DEVICE_ID = 'device_id';
-const KC_PRIVATE_JWK_PREFIX = 'com.keepance.device.';
+const KC_PRIVATE_JWK_PREFIX = KC_DEVICE_PREFIX;
 const KC_PRIVATE_JWK_KEY = 'private_jwk';
 const KC_PUBLIC_JWK_KEY = 'public_jwk';
 
@@ -246,7 +247,7 @@ export async function registerDevice(client: FirmApiClient): Promise<void> {
 
   // machine_id and label are best-effort; they help the admin identify devices.
   const machineId = deviceId; // Use deviceId as stable machine_id (no Tauri machine API needed)
-  const label = typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 80) : 'Keepance Desktop';
+  const label = typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 80) : 'Advisor Prep Hero Desktop';
 
   await client.registerDevice(deviceId, machineId, label, publicJwk);
 }

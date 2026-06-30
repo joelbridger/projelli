@@ -4,12 +4,12 @@
  * The single source of truth for matter state. It carries FOUR slices that used
  * to be four separate stores (merged 2026-06-17 for the 3.0 reorg):
  *   1. matters     — the user's matters + the active matter (persisted under
- *                    `keepance:matters`). One client matter = one confidentiality
+ *                    `lantern:matters`). One client matter = one confidentiality
  *                    boundary, mapped to one or more workspace folders.
  *   2. snapshots   — per-matter UI working-surface memory (persisted under
- *                    `keepance:matter-ui-snapshots`).
+ *                    `lantern:matter-ui-snapshots`).
  *   3. cache       — AI at-a-glance summary cache (persisted under
- *                    `keepance:matter-at-a-glance`).
+ *                    `lantern:matter-at-a-glance`).
  *   4. statusByMatterId — live per-matter sync status; EPHEMERAL, never persisted.
  *
  * Persistence preserves all three legacy localStorage keys byte-compatibly via a
@@ -57,6 +57,7 @@ import type { MatterUiSnapshot } from '@/platform/matter/matterUiStore';
 import type { MatterAtAGlanceEntry } from '@/platform/matter/matterAtAGlanceStore';
 import type { MatterSyncStatus } from '@/platform/matter/matterSyncStore';
 import type { MatterAtAGlanceResult } from '@/platform/matter/matterAtAGlance';
+import { SK_MATTERS, SK_MATTER_UI_SNAPSHOTS, SK_MATTER_AT_A_GLANCE } from '@/config/identity';
 
 /**
  * Stable id for the built-in sample matter ("Garcia v. Meridian Properties LLC").
@@ -139,7 +140,7 @@ export interface CreateMatterInput {
 }
 
 interface MatterState {
-  // ── matters slice (persisted → keepance:matters) ──────────────────────────
+  // ── matters slice (persisted → lantern:matters) ──────────────────────────
   matters: Matter[];
   /** Active matter id, or `null` for the explicit "all matters" scope. */
   activeMatterId: string | null;
@@ -209,14 +210,14 @@ interface MatterState {
   /** Update the user's role on a shared matter (e.g. after a members/list refresh). */
   setMatterRole: (id: string, role: 'owner' | 'editor' | 'viewer') => void;
 
-  // ── UI slice (persisted → keepance:matter-ui-snapshots) ───────────────────
+  // ── UI slice (persisted → lantern:matter-ui-snapshots) ───────────────────
   /** Per-matter memory of the last working surface + focused tab. */
   snapshots: Record<string, MatterUiSnapshot>;
   saveSnapshot: (matterId: string, snapshot: MatterUiSnapshot) => void;
   getSnapshot: (matterId: string) => MatterUiSnapshot | undefined;
   clearSnapshot: (matterId: string) => void;
 
-  // ── At-a-glance slice (persisted → keepance:matter-at-a-glance) ───────────
+  // ── At-a-glance slice (persisted → lantern:matter-at-a-glance) ───────────
   /** AI-generated at-a-glance summaries, keyed by matter id. */
   cache: Record<string, MatterAtAGlanceEntry>;
   setEntry: (matterId: string, result: MatterAtAGlanceResult) => void;
@@ -265,9 +266,9 @@ interface PersistedMatterState {
   cache: Record<string, MatterAtAGlanceEntry>;
 }
 
-const MATTERS_KEY = 'keepance:matters';
-const UI_KEY = 'keepance:matter-ui-snapshots';
-const GLANCE_KEY = 'keepance:matter-at-a-glance';
+const MATTERS_KEY = SK_MATTERS;
+const UI_KEY = SK_MATTER_UI_SNAPSHOTS;
+const GLANCE_KEY = SK_MATTER_AT_A_GLANCE;
 const MATTERS_VERSION = 8;
 
 type MatterAuditEmitter = (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
@@ -923,7 +924,7 @@ export const useMatterStore = create<MatterState>()(
       setClientMapHubTab: (tab) => set({ clientMapHubTab: tab }),
     }),
     {
-      name: 'keepance:matters',
+      name: SK_MATTERS,
       version: MATTERS_VERSION,
       storage: multiKeyMatterStorage,
       // v1 -> v2: matters gained `mailFolderPaths`. v2 -> v3: matters gained the

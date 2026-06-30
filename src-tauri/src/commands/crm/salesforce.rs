@@ -221,7 +221,7 @@ impl SalesforceClient {
         let body: serde_json::Value = resp.json().await.context("parse Salesforce refresh JSON")?;
         let refreshed = parse_salesforce_token_response(status, &body, Some(refresh_token))?;
         if let Ok(json) = serde_json::to_string(&refreshed) {
-            let _ = keyring::Entry::new("keepance-crm-salesforce", "api-token")
+            let _ = keyring::Entry::new(&crate::identity::crm_keychain_service("salesforce"), "api-token")
                 .and_then(|entry| entry.set_password(&json));
         }
         Ok(refreshed)

@@ -19,7 +19,7 @@ const h = vi.hoisted(() => {
       _mode = m;
       try {
         localStorage.setItem(
-          'keepance:settings',
+          'lantern:settings',
           JSON.stringify({ state: { values: { confidentialityMode: m } }, version: 1 }),
         );
       } catch {
@@ -91,8 +91,8 @@ vi.mock('@/platform/providers/OllamaProvider', () => ({
     getMetadata() { return { model: 'ollama-test' }; }
   },
 }));
-vi.mock('@/platform/providers/KeepanceLocalProvider', () => ({
-  KeepanceLocalProvider: class {
+vi.mock('@/platform/providers/AppLocalProvider', () => ({
+  AppLocalProvider: class {
     kind = 'keepance-local';
     getMetadata() { return { model: 'qwen3-4b' }; }
   },

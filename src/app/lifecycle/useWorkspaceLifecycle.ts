@@ -105,7 +105,7 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
       setRootPath(newRootPath);
     }
 
-    // Keepance 3.0 — point the encrypted audit store at this workspace and load
+    // Advisor Prep Hero 3.0 — point the encrypted audit store at this workspace and load
     // any persisted "defense file" entries. On desktop this opens the SQLCipher
     // store under `<workspace>/.keepance/audit-enc.db`; in the browser it is a
     // no-op (localStorage already loaded). Seed the live view newest-first to

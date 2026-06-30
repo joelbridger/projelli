@@ -16,7 +16,7 @@ End-to-end with a **real** LemonSqueezy license key (`BB18…A00A`), exercising 
 | New activation after refund | **blocked** by LS: `/activate` → "license key is expired" (403) |
 | Revocation **logic** (manual signed `license_key_updated(status=expired)`) | token → `valid: false, reason: revoked` |
 
-Also verified: validator healthy, tries both API keys, 31 tier/revocation unit tests green, HMAC signature verification works, and **cross-product isolation** holds (a Guesslet refund on the shared store is ignored and does not touch Keepance licenses, and vice versa).
+Also verified: validator healthy, tries both API keys, 31 tier/revocation unit tests green, HMAC signature verification works, and **cross-product isolation** holds (a Guesslet refund on the shared store is ignored and does not touch Advisor Prep Hero licenses, and vice versa).
 
 ## ✅ RESOLVED (2026-06-01, same day): the webhook gap is fixed + verified live
 

@@ -1,4 +1,4 @@
-/* Hero animation for Keepance new design — RAF state machine.
+/* Hero animation for Advisor Prep Hero new design — RAF state machine.
  *
  * Story (~15s loop):
  *   t=0    — reset all animated elements to hidden

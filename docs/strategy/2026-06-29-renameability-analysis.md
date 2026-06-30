@@ -1,13 +1,13 @@
-# Making Keepance cleanly + easily renameable — analysis, recommendation & rename plan
+# Making Advisor Prep Hero cleanly + easily renameable — analysis, recommendation & rename plan
 
 > **Date:** 2026-06-29 · **Status:** research + plan (READ-ONLY analysis — nothing renamed yet) ·
 > **Author:** worker session (coordinator-driven) · **For:** Jameson (founder)
 >
-> **One-line ask:** "Keepance" is wired into a lot of the code. What's the cleanest way to make
+> **One-line ask:** "Advisor Prep Hero" is wired into a lot of the code. What's the cleanest way to make
 > the *whole* codebase renameable — including the parts the branding system deliberately walls
 > off — and what's the plan to actually do the rename to the new brand?
 >
-> **The fact that changes everything:** Keepance is **pre-launch — zero outside users, nothing
+> **The fact that changes everything:** Advisor Prep Hero is **pre-launch — zero outside users, nothing
 > shipped to anyone.** The usual reason you *can't* rename the deep "locked" identifiers (it
 > breaks existing users' installs, saved keys, on-disk data, auto-update, subscriptions) is
 > **moot right now.** There is nobody to break. That window is the whole opportunity.
@@ -16,7 +16,7 @@
 
 ## 0. TL;DR (read this if you read nothing else)
 
-- **There are two different layers of "Keepance" in the code, and they're in completely
+- **There are two different layers of "Advisor Prep Hero" in the code, and they're in completely
   different shape.**
   - **The brand layer** (the name/colours/logo/taglines users *see*) is already solved: one
     file (`brand/brand.config.json`) + one command (`npm run brand:sync`) drives it everywhere.
@@ -87,7 +87,7 @@ light/dark), and the social PNG cards — all listed in `HOW-TO-REBRAND.md` and 
 
 > **Note for the coordinator:** the new brand assets the task referenced
 > (`brand/assets/AdvisorPrepHeroLogo.svg`, `brand/assets/APHColorScheme.svg`) are **NOT present in
-> this checkout** (`keepance-3.0` / `kp-coord`). `brand/assets/` still holds the *Keepance* assets
+> this checkout** (`keepance-3.0` / `kp-coord`). `brand/assets/` still holds the *Advisor Prep Hero* assets
 > (favicon.svg, logo.svg, wordmark.svg, icon-source.png, og-image.png). The new assets are
 > presumably on a different branch/worktree or not yet committed here. This doesn't affect the
 > analysis (it's name-agnostic), but the new assets must be dropped in with the **same filenames**
@@ -145,7 +145,7 @@ and #6 on some platforms). These are exactly the three that are *cheap to get ri
 - **`src-tauri/Cargo.toml`** + the two member crate manifests — names per #3.
 - **`package.json`** (name + local plugin) + **`backend/package.json`** (`keepance-firm-backend`).
 - **`.github/workflows/`** — `release.yml` (repo refs, signing resource names, externalBin paths,
-  release title `"Keepance $tag"`), `ci.yml` (branch name `keepance-3.0`).
+  release title `"Advisor Prep Hero $tag"`), `ci.yml` (branch name `keepance-3.0`).
 - **`infra/`** — `deploy.sh`, the systemd unit `backend/deploy/keepance-backend.service`,
   `projelli-demo-proxy.service`, Caddy/cloudflared snippets, community-repo seed manifests.
 - **`scripts/`** — `brand-sync.mjs` (the `lockedIdentifiers` *assertions* — these must be updated
@@ -222,7 +222,7 @@ constant** so they always move together (today they don't — 28 separate litera
 | | Approach | What it is | Effort | Risk | Reversible? | Serves *future* rebrands? |
 |---|---|---|---|---|---|---|
 | **(i)** | **Extend the brand-config layer to also drive identifiers** | Add the bundle id / keychain namespace / data dir / storage prefix / hosts to `brand.config.json` and have `brand:sync` generate them into the code (like it does for `BRAND`). | Medium | Medium — `brand:sync` would now be able to write load-bearing values; needs strong guards so a casual colour tweak can't silently move the data dir. | Yes | **Partly.** Makes them *one-edit*, but if they track the *brand name* every future rebrand still moves the data dir/keychain → a migration each time. |
-| **(ii)** | **One-time scripted/codemod global hard-rename** (pre-launch) | A big find-and-replace (smart codemod) that flips every `keepance` token to the new brand, once. | Low–Medium (one push) | Medium — easy to miss a casing or a `format!("keepance-…")`; partial rename of #5/#6 silently corrupts. | Hard once shipped | **No.** It just trades "Keepance" for "AdvisorPrep" everywhere; the *next* rebrand is the same hard project again. Doesn't fix the scatter. |
+| **(ii)** | **One-time scripted/codemod global hard-rename** (pre-launch) | A big find-and-replace (smart codemod) that flips every `keepance` token to the new brand, once. | Low–Medium (one push) | Medium — easy to miss a casing or a `format!("keepance-…")`; partial rename of #5/#6 silently corrupts. | Hard once shipped | **No.** It just trades "Advisor Prep Hero" for "AdvisorPrep" everywhere; the *next* rebrand is the same hard project again. Doesn't fix the scatter. |
 | **(iii)** | **Neutral internal codename + brand only at the edges** | Give the plumbing a **brand-free, permanent codename** (one namespace). Centralize it into a single constants module (TS + Rust). The *visible* brand stays in `brand.config` and floats on top. | Medium–High (the centralization refactor is the cost) | Low *after* it's done — and the refactor is mechanical + test-guarded. | n/a (it's the stable base) | **Yes — fully.** Future rebrands touch only the brand layer; the plumbing never moves again → **no migration, ever.** |
 | **(iv)** | **Hybrid: (iii) for plumbing + (i) for the brand-facing build fields** | Plumbing → neutral, centralized, permanent (iii). Brand-*facing* build fields that users legitimately see (`productName`, window title, installer name, publisher, copyright) → driven by `brand.config` (i). | Medium–High | Low | n/a | **Yes — best of both.** Visible brand fully tracks the config; invisible plumbing is permanent. |
 
@@ -407,5 +407,5 @@ confirm the *new* hidden metadata dir exists while `.keepance` does not, plus co
 
 > **Net:** two independent engineers (this analysis + Codex `gpt-5.5`) converged on the same answer:
 > **hard-rename now while it's free, but build the identity single-source-of-truth first and give the
-> plumbing a neutral, permanent name** — so this is the *last* deep rename Keepance/AdvisorPrep ever
+> plumbing a neutral, permanent name** — so this is the *last* deep rename Advisor Prep Hero/AdvisorPrep ever
 > needs, not the first of many.

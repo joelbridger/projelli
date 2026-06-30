@@ -1,7 +1,7 @@
 /**
  * Updater store
  *
- * Centralizes auto-updater state for Keepance's check-then-prompt UI:
+ * Centralizes auto-updater state for Advisor Prep Hero's check-then-prompt UI:
  *
  *   idle → checking → available → downloading → ready-to-restart
  *                  ↘ error                    ↗

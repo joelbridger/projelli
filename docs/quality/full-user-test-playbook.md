@@ -1,6 +1,6 @@
-# Keepance Full User-Test Playbook
+# Advisor Prep Hero Full User-Test Playbook
 
-A repeatable "drive it like a real user" test of the Keepance desktop app. It catches the class
+A repeatable "drive it like a real user" test of the Advisor Prep Hero desktop app. It catches the class
 of bugs unit tests miss: unreachable features, broken provider selection, modal sizing, silent
 failures, copy issues. **Run it before any release candidate.** First run (2026-06-18) found a
 critical bug (AI chat was 100% unreachable) plus several real gaps, none of which any unit test
@@ -13,7 +13,7 @@ caught.
 
 ## Why a browser, and the browser-vs-desktop boundary
 
-Keepance ships as a Tauri desktop app, but the React UI runs in the Vite dev server, where
+Advisor Prep Hero ships as a Tauri desktop app, but the React UI runs in the Vite dev server, where
 Playwright can drive it like a user. About 80% of user journeys are testable this way. The other
 20% are Tauri-native; they degrade gracefully in the browser and are validated separately.
 

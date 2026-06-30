@@ -1,10 +1,9 @@
 {
-  "name": "Keepance",
+  "name": "Advisor Prep Hero",
   "syncedColors": {
-    "_readme": "The four primitive brand colors. Everything else (alpha tints, sidebar, action buttons) is DERIVED from these in src/styles/globals.css via the --kp-navy-rgb / --kp-accent-rgb triples, so changing a value here propagates everywhere. Use 6-digit lowercase hex.",
-    "navy": "#0a2540",
-    "pink": "#ff3ce8",
-    "blue": "#5dc6ff",
-    "accent": "#1f74c4"
+    "navy": "#2b2d42",
+    "pink": "#ef233c",
+    "blue": "#8d99ae",
+    "accent": "#ef233c"
   }
 }

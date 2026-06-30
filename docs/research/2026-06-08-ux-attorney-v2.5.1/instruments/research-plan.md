@@ -1,8 +1,8 @@
-# Keepance v2.5.1: UX Research Plan (Attorney Segment)
+# Advisor Prep Hero v2.5.1: UX Research Plan (Attorney Segment)
 
 **Prepared by:** Dr. Lena Whitfield, Principal UX Researcher
 **Date:** 2026-06-08
-**Product version under study:** Keepance 2.5.1 (email-intelligence release; in final build at time of writing)
+**Product version under study:** Advisor Prep Hero 2.5.1 (email-intelligence release; in final build at time of writing)
 **Segment:** Solo and small-firm attorneys (primary locked ICP)
 
 ---
@@ -22,16 +22,16 @@ It is being run in two passes:
 
 ## 1. Background
 
-Keepance is a local-first, desktop AI workspace for confidential professional work. Its bet is that privilege- and confidentiality-bound professionals (lawyers first) cannot safely pipe client work into cloud AI, and that a local-first, bring-your-own-key tool removes the vendor from the data path. v2.5.1 adds the strategic wedge: **local-first email import, search, and AI retrieval** (Microsoft 365, IMAP, Gmail), with encryption at rest, aimed squarely at the universal attorney pain of "I can't find anything in Outlook."
+Advisor Prep Hero is a local-first, desktop AI workspace for confidential professional work. Its bet is that privilege- and confidentiality-bound professionals (lawyers first) cannot safely pipe client work into cloud AI, and that a local-first, bring-your-own-key tool removes the vendor from the data path. v2.5.1 adds the strategic wedge: **local-first email import, search, and AI retrieval** (Microsoft 365, IMAP, Gmail), with encryption at rest, aimed squarely at the universal attorney pain of "I can't find anything in Outlook."
 
-A prior internal persona audit (2026-06-03) role-played five verticals and concluded the core problem is not capability but translation: *"Keepance is a developer-grade tool wearing a professional's suit."* This study exists to pressure-test that conclusion with research-grade method, against the email release specifically, and to convert it into a prioritized action plan.
+A prior internal persona audit (2026-06-03) role-played five verticals and concluded the core problem is not capability but translation: *"Advisor Prep Hero is a developer-grade tool wearing a professional's suit."* This study exists to pressure-test that conclusion with research-grade method, against the email release specifically, and to convert it into a prioritized action plan.
 
 ---
 
 ## 2. Objectives
 
 1. Understand the target attorney's real world: workflows, tools, goals, and ranked pains, in her own language.
-2. Test whether Keepance's core value proposition (local-first, your data stays yours, AI without third-party disclosure) is *understood and believed*, not merely stated.
+2. Test whether Advisor Prep Hero's core value proposition (local-first, your data stays yours, AI without third-party disclosure) is *understood and believed*, not merely stated.
 3. Evaluate the critical path to first value: install to workspace to API key to first useful output. Locate where it breaks.
 4. Evaluate the v2.5.1 email wedge end to end: connect, encrypt comprehension, search, and ask-the-AI-about-your-mail. Does it deliver the "finally" moment?
 5. Separate capability gaps from communication gaps, because they need opposite fixes.
@@ -43,11 +43,11 @@ A prior internal persona audit (2026-06-03) role-played five verticals and concl
 ## 3. Research questions
 
 **Strategic / positioning (high-level)**
-- RQ1. What is the most acute, frequent, fundable pain in this attorney's week, and is it the one Keepance leads with?
+- RQ1. What is the most acute, frequent, fundable pain in this attorney's week, and is it the one Advisor Prep Hero leads with?
 - RQ2. Does "local-first / your data never leaves your machine" register as a *purchase driver*, a *nice-to-have*, or *noise*? Can she articulate it back correctly?
 - RQ3. Is the email wedge a strong enough reason to adopt on its own, or only in combination with the workspace and workflows?
 - RQ4. How does the compliance/regulatory framing land: as trustworthy specificity, or as overclaiming that triggers her skepticism?
-- RQ5. Where does Keepance sit in her stack relative to Clio, Outlook, and Word, and is that position clear?
+- RQ5. Where does Advisor Prep Hero sit in her stack relative to Clio, Outlook, and Word, and is that position clear?
 
 **Tactical / usability (low-level)**
 - RQ6. Can a non-technical attorney complete onboarding (workspace + API key) unaided? Where exactly is the friction?

@@ -13,7 +13,7 @@ test.describe('Shell empty states (UX-07)', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
       try {
-        localStorage.setItem('keepance:docs-view', 'grid');
+        localStorage.setItem('lantern:docs-view', 'grid');
       } catch {
         /* no-op */
       }

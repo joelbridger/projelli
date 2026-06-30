@@ -1,4 +1,4 @@
-# Keepance — Current State: Advisor Re-aim (Website + Board + App)
+# Advisor Prep Hero — Current State: Advisor Re-aim (Website + Board + App)
 **Date:** 2026-06-24 · **Author:** Claude (Opus 4.8) session · **Audience:** the next human or AI picking this up
 
 > Read this first. It's the honest snapshot of what's live, where everything lives, and what's left.
@@ -8,7 +8,7 @@
 
 ## 1. TL;DR (what's true right now)
 
-Keepance is re-aimed from **law firms → financial advisors**. As of today three things are **live**:
+Advisor Prep Hero is re-aimed from **law firms → financial advisors**. As of today three things are **live**:
 
 1. **keepance.com** — fully advisor-focused homepage (no attorney/tax/consultant funnel).
 2. **board.jameworld.com** — the private board dashboard now has a **Demo** tab (the advisor demo walkthrough).
@@ -29,8 +29,8 @@ This is Jameson's hand-built version (hero: *"Secure client intelligence for hig
 - Feature rows incl. **"Meet with confidence"** (walk into meetings knowing the client; cited pre-meeting recall demo).
 - A live **Client Map animation** (scroll-loaded iframe, `#client-map`) — see §4.
 - 3 **compliance columns** (data out of a vendor's hands / Reg S-P verify with counsel / work product yours to keep).
-- **"How Keepance fits"** (the comparison table vs Jump / eMoney AI / ChatGPT) — was "How Keepance compares".
-- **Advisor Practice Pack** (7 templates, streamlined) — now sits *below* "How Keepance fits".
+- **"How Advisor Prep Hero fits"** (the comparison table vs Jump / eMoney AI / ChatGPT) — was "How Advisor Prep Hero compares".
+- **Advisor Practice Pack** (7 templates, streamlined) — now sits *below* "How Advisor Prep Hero fits".
 - Pricing, footer.
 
 **Standalone profession pages:** `/legal/`, `/tax/`, `/consulting/` page files are **kept on disk but unlinked** from the advisor funnel (so the **live lawyer-outreach campaign** links to `/legal/` still work). `/financial-advisors/` was **deleted** (its 3 best sections were folded into the homepage); it now serves a clean "page not found".

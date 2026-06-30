@@ -8,7 +8,7 @@
 > [`ARCHITECTURE.md`](../../ARCHITECTURE.md) and
 > [`CLAUDE.md`](../../CLAUDE.md) alongside this.
 
-Keepance is a **Tauri 2 desktop app**: a Rust backend (`src-tauri/`) and a React
+Advisor Prep Hero is a **Tauri 2 desktop app**: a Rust backend (`src-tauri/`) and a React
 18 + TypeScript 5 + Vite 6 frontend (`src/`), plus a small Node/Bun firm backend
 (`backend/`). You can run the UI in a plain browser for fast iteration, or as the
 real desktop app.

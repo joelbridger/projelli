@@ -1,10 +1,10 @@
-# Keepance Financial Model (rebuilt for subscription pricing) — 2026-06-17
+# Advisor Prep Hero Financial Model (rebuilt for subscription pricing) — 2026-06-17
 
 > Replaces the stale model in `KEEPANCE_BUSINESS_PLAN.md`, which the 2026-06-17 evaluation correctly called fiction: it modeled the retired one-time $49/$99 pricing and a $10K-MRR target with no CAC/LTV. This rebuilds the unit economics around the live per-seat annual subscription and, honestly, frames the *decision* (and the kill-criterion) rather than forecasting revenue we have no data to forecast. Pricing source of truth: `src/config/pricing.ts`.
 
 ## 1. Unit economics — the one structural advantage: BYOK means ~zero COGS
 
-Keepance never pays for inference (the user brings their own AI key and pays the provider directly). So variable cost per customer is essentially just the merchant-of-record fee, and gross margin is unusually high for software.
+Advisor Prep Hero never pays for inference (the user brings their own AI key and pays the provider directly). So variable cost per customer is essentially just the merchant-of-record fee, and gross margin is unusually high for software.
 
 | Tier | List price | Variable COGS (LemonSqueezy MoR ~5% + ~$0.50) | Net/yr | Gross margin |
 |---|---|---|---|---|
@@ -44,7 +44,7 @@ At ~95% margin, the revenue-to-take-home conversion is high, so the lifestyle th
 
 ## 5. The kill-criterion (the model's real job)
 
-Because conversion/churn/CAC are **assumptions, not data**, the model's job today is to frame the go/no-go, not to predict revenue. Per the evaluation: commit to a fixed window of disciplined hand-selling to the litigation ICP (Jameson sets the window). **If it yields no paying customers and no named design-partner testimonials, the thesis "litigators will pay for local-first" is probably wrong** → the live options are to pivot the wedge (CPA / IRC §7216 — the cleanest regulatory fit and where the only real pain signal came from) or accept Keepance as a solo/lifestyle product. Define the window and the bar explicitly; don't let "keep building" be the escape hatch.
+Because conversion/churn/CAC are **assumptions, not data**, the model's job today is to frame the go/no-go, not to predict revenue. Per the evaluation: commit to a fixed window of disciplined hand-selling to the litigation ICP (Jameson sets the window). **If it yields no paying customers and no named design-partner testimonials, the thesis "litigators will pay for local-first" is probably wrong** → the live options are to pivot the wedge (CPA / IRC §7216 — the cleanest regulatory fit and where the only real pain signal came from) or accept Advisor Prep Hero as a solo/lifestyle product. Define the window and the bar explicitly; don't let "keep building" be the escape hatch.
 
 ## 6. Honest caveats
 
@@ -52,4 +52,4 @@ Because conversion/churn/CAC are **assumptions, not data**, the model's job toda
 - **Re-run with real data after the first ~10 customers** (the evaluation's Step 7): replace the assumed demo→close and retention with measured ones; only then is a forward MRR projection meaningful.
 - **The margin advantage (BYOK ≈ zero COGS) is real and durable** — it's the one number here that isn't an assumption, and it's why this can work at solo/lifestyle scale even if it never reaches venture scale.
 
-*Author: Keepance build session (Claude, Opus 4.8), 2026-06-17. This frames the decision; it is not a revenue forecast. Supersedes the financial section of `KEEPANCE_BUSINESS_PLAN.md` until that doc is updated.*
+*Author: Advisor Prep Hero build session (Claude, Opus 4.8), 2026-06-17. This frames the decision; it is not a revenue forecast. Supersedes the financial section of `KEEPANCE_BUSINESS_PLAN.md` until that doc is updated.*

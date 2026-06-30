@@ -173,16 +173,13 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      # Phase 2 (v1.5) - stage the stub MCP sidecar binary so tauri build
-      # can bundle it via externalBin. Phase 4 (M4) swaps the stub for a
-      # real MCP server; the real implementation lands in src/mcp_bin/.
-      #
-      # Cargo builds keepance-mcp into
-      # src-tauri/target/<target?>/release/keepance-mcp[.exe]. Tauri's
-      # externalBin expects src-tauri/binaries/keepance-mcp-<target-triple>
-      # so we copy + rename here. The externalBin array in
-      # tauri.conf.json is still empty in Phase 2 - wiring it in Phase 4
-      # will flip these builds from "nice to have" to "required".
+      # The lantern-mcp sidecar is built separately and uploaded as a .mcpb
+      # bundle (see "Build .mcpb bundle" step below). It is NOT wired into
+      # tauri externalBin — it is a companion download, not bundled in the
+      # app installer. Cargo builds lantern-mcp into
+      # src-tauri/target/<target?>/release/lantern-mcp[.exe]; we copy it to
+      # src-tauri/binaries/lantern-mcp-<target-triple> so build-mcpb.mjs
+      # can find it at the expected path.
       #
       # Phase 4 M6 voice sidecar: the `Fetch voice sidecar binary` step
       # below stages Parakeet.cpp (or whisper.cpp as fallback) into
@@ -208,7 +205,7 @@ jobs:
           TARGET_TRIPLE="$TARGET" bash scripts/fetch-llama-sidecar.sh
           ls -la src-tauri/binaries/
 
-      - name: Build Keepance MCP stub binary (Mac/Linux)
+      - name: Build Lantern MCP sidecar binary (Mac/Linux)
         shell: bash
         working-directory: src-tauri
         env:
@@ -221,16 +218,16 @@ jobs:
             # the cargo build uses the same target.
             TARGET="${MATRIX_ARGS##*--target }"
             rustup target add "$TARGET"
-            cargo build --release --bin keepance-mcp --target "$TARGET"
-            SRC="target/$TARGET/release/keepance-mcp"
+            cargo build --release --bin lantern-mcp --target "$TARGET"
+            SRC="target/$TARGET/release/lantern-mcp"
           else
             # Linux: host triple, no cross compile.
             TARGET="$(rustc -vV | sed -n 's|host: ||p')"
-            cargo build --release --bin keepance-mcp
-            SRC="target/release/keepance-mcp"
+            cargo build --release --bin lantern-mcp
+            SRC="target/release/lantern-mcp"
           fi
           mkdir -p binaries
-          cp "$SRC" "binaries/keepance-mcp-"
+          cp "$SRC" "binaries/lantern-mcp-"
           echo "MCP_TARGET=$TARGET" >> "$GITHUB_ENV"
           ls -la binaries/
 
@@ -252,12 +249,12 @@ jobs:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         run: |
           set -euo pipefail
-          KEYCHAIN_PATH="$RUNNER_TEMP/keepance-mcp-sign.keychain-db"
+          KEYCHAIN_PATH="$RUNNER_TEMP/lantern-mcp-sign.keychain-db"
           KEYCHAIN_PASSWORD=$(openssl rand -base64 24)
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          CERT_PATH="$RUNNER_TEMP/keepance-mcp-cert.p12"
+          CERT_PATH="$RUNNER_TEMP/lantern-mcp-cert.p12"
           echo "$APPLE_CERTIFICATE" | base64 --decode > "$CERT_PATH"
           security import "$CERT_PATH" -k "$KEYCHAIN_PATH" \
             -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
@@ -309,7 +306,7 @@ jobs:
             echo "No voice sidecar binary found in archive; skipping"
           fi
 
-      # Phase 4 M4 (v1.5 Flag 2) - Bundle the keepance-mcp binary into a
+      # Bundle the lantern-mcp binary into a
       # `.mcpb` Desktop Extension archive. Claude Desktop installs these
       # with a double-click; other MCP clients can unpack and register the
       # binary directly. One archive per platform so the download stays
@@ -322,9 +319,9 @@ jobs:
           VERSION="$(node -p "require('./package.json').version")"
           mkdir -p mcpb-dist
           node scripts/build-mcpb.mjs \
-            --binary "src-tauri/binaries/keepance-mcp-" \
+            --binary "src-tauri/binaries/lantern-mcp-" \
             --target "$TARGET" \
-            --output "mcpb-dist/keepance-.mcpb" \
+            --output "mcpb-dist/lantern-.mcpb" \
             --version "$VERSION"
           ls -la mcpb-dist/
 
@@ -363,7 +360,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: 'Keepance ${{ github.ref_name }}'
+          releaseName: 'Advisor Prep Hero ${{ github.ref_name }}'
           releaseBody: |
             Auto-generated release. See `CHANGELOG.md` for changes.
 
@@ -372,7 +369,7 @@ jobs:
             - **macOS Apple Silicon:** `.dmg` (signed with Developer ID + notarized by Apple — opens cleanly with no Gatekeeper warning)
             - **macOS Intel:** `.dmg` (signed with Developer ID + notarized by Apple — opens cleanly with no Gatekeeper warning)
             - **Linux:** `.AppImage` or `.deb`
-            - **MCP bundle: `keepance-<platform>.mcpb`` (install into Claude Desktop)
+            - **MCP bundle: `lantern-<platform>.mcpb`` (install into Claude Desktop)
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
@@ -391,7 +388,7 @@ jobs:
           TAG="${{ github.ref_name }}"
           TARGET="${MCP_TARGET}"
           gh release upload "$TAG" \
-            "mcpb-dist/keepance-.mcpb" \
+            "mcpb-dist/lantern-.mcpb" \
             --clobber --repo keepance/keepance
 
   # Windows job: separate from the matrix because we don't use Tauri's
@@ -449,16 +446,16 @@ jobs:
           TARGET_TRIPLE=x86_64-pc-windows-msvc bash scripts/fetch-llama-sidecar.sh
           ls -la src-tauri/binaries/
 
-      # Phase 2 (v1.5) - stage the stub MCP sidecar binary. See the Mac/Linux
+      # Build the lantern-mcp sidecar binary. See the Mac/Linux
       # job above for rationale. Windows uses the MSVC host triple.
-      - name: Build Keepance MCP stub binary (Windows)
+      - name: Build Lantern MCP sidecar binary (Windows)
         shell: pwsh
         working-directory: src-tauri
         run: |
           $host_triple = (& rustc -vV | Select-String '^host: ').ToString().Replace('host: ','').Trim()
-          cargo build --release --bin keepance-mcp
+          cargo build --release --bin lantern-mcp
           New-Item -ItemType Directory -Force -Path binaries | Out-Null
-          Copy-Item "target/release/keepance-mcp.exe" "binaries/keepance-mcp-$host_triple.exe"
+          Copy-Item "target/release/lantern-mcp.exe" "binaries/lantern-mcp-$host_triple.exe"
           "MCP_TARGET=$host_triple" | Out-File -FilePath $env:GITHUB_ENV -Append
           Get-ChildItem binaries
 
@@ -491,9 +488,9 @@ jobs:
           $version = (node -p "require('./package.json').version")
           New-Item -ItemType Directory -Force -Path mcpb-dist | Out-Null
           node scripts/build-mcpb.mjs `
-            --binary "src-tauri/binaries/keepance-mcp-${target}.exe" `
+            --binary "src-tauri/binaries/lantern-mcp-${target}.exe" `
             --target $target `
-            --output "mcpb-dist/keepance-.mcpb" `
+            --output "mcpb-dist/lantern-.mcpb" `
             --version $version
           Get-ChildItem mcpb-dist
 
@@ -515,13 +512,13 @@ jobs:
           Write-Host "=== MSI bundles ==="
           Get-ChildItem -Path src-tauri/target/release/bundle/msi -Recurse -ErrorAction SilentlyContinue | Format-Table FullName,Length
           Write-Host "=== standalone binary ==="
-          Get-ChildItem -Path src-tauri/target/release/keepance.exe -ErrorAction SilentlyContinue | Format-Table FullName,Length
+          Get-ChildItem -Path src-tauri/target/release/lantern.exe -ErrorAction SilentlyContinue | Format-Table FullName,Length
 
       # v1.6 W-PX: stage the portable .exe.
-      # Tauri produces target/release/keepance.exe as the native app binary
+      # Tauri produces target/release/lantern.exe as the native app binary
       # before NSIS wraps it into an installer. That same exe IS the portable
       # version, we just rename it + sign it + upload it alongside the
-      # installer. Data still lives in %APPDATA%\Keepance (true portable
+      # installer. Data still lives in %APPDATA%\lantern (true portable
       # data dir requires Rust refactor; v1.7).
       - name: Copy portable Windows .exe
         shell: pwsh
@@ -530,7 +527,7 @@ jobs:
           $version = (node -p "require('../package.json').version")
           $portableDir = "target/release/portable"
           New-Item -ItemType Directory -Force -Path $portableDir | Out-Null
-          Copy-Item "target/release/keepance.exe" "$portableDir/Keepance__x64-portable.exe"
+          Copy-Item "target/release/lantern.exe" "$portableDir/Advisor_Prep_Hero__x64-portable.exe"
           Get-ChildItem $portableDir | Format-Table Name,Length
 
       # azure/trusted-signing-action installs the TrustedSigning PowerShell
@@ -636,7 +633,7 @@ jobs:
           }
           if ($attempt -eq $maxAttempts) {
             Write-Host "Draft release didn't appear in time. Creating it ourselves."
-            gh release create $tag --draft --title "Keepance $tag" --notes "Auto-generated release. See CHANGELOG.md for changes." --repo keepance/keepance
+            gh release create $tag --draft --title "Advisor Prep Hero $tag" --notes "Auto-generated release. See CHANGELOG.md for changes." --repo keepance/keepance
           }
 
       - name: Upload signed Windows artifacts to release
@@ -670,7 +667,7 @@ jobs:
         run: |
           $tag = "${{ github.ref_name }}"
           $target = $env:MCP_TARGET
-          $mcpb = "mcpb-dist/keepance-.mcpb"
+          $mcpb = "mcpb-dist/lantern-.mcpb"
           if (-not (Test-Path $mcpb)) {
             Write-Error "No .mcpb bundle found at $mcpb"
             exit 1

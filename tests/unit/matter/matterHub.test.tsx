@@ -228,7 +228,7 @@ describe('MatterHub — sub-tab workspace', () => {
     // A global matter-launch must NOT fire when switching sub-tabs.
     const events: CustomEvent[] = [];
     const handler = (e: Event) => { events.push(e as CustomEvent); };
-    window.addEventListener('keepance:matter-launch', handler);
+    window.addEventListener('lantern:matter-launch', handler);
 
     render(
       <MatterHub
@@ -256,7 +256,7 @@ describe('MatterHub — sub-tab workspace', () => {
     expect(screen.getByTestId('hub-panel-clientmap')).toBeInTheDocument();
 
     expect(events).toHaveLength(0);
-    window.removeEventListener('keepance:matter-launch', handler);
+    window.removeEventListener('lantern:matter-launch', handler);
   });
 
   it('a sub-tab with no supplied surface shows a graceful placeholder', () => {

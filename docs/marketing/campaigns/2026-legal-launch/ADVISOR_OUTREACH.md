@@ -1,6 +1,6 @@
-# Legal Advisor Outreach: Keepance Legal Practice Pack
+# Legal Advisor Outreach: Advisor Prep Hero Legal Practice Pack
 
-**What this file is:** Three cold/warm outreach email drafts for recruiting a practicing attorney to do an async review of the Keepance Legal Practice template pack before launch. This is not product marketing. It is a collaborator recruitment pitch.
+**What this file is:** Three cold/warm outreach email drafts for recruiting a practicing attorney to do an async review of the Advisor Prep Hero Legal Practice template pack before launch. This is not product marketing. It is a collaborator recruitment pitch.
 
 **How to use it:**
 - Email 1: Send to solo or small-firm generalist attorneys (cold, found via r/LawFirm, Lawyerist, state bar listservs, LinkedIn).
@@ -19,9 +19,9 @@
 
 Hi [Name],
 
-I'm a product designer, not a lawyer. I've been building a desktop app called Keepance, and I'm about to ship a Legal Practice template pack for it. I need a practicing attorney to read the templates before they go out.
+I'm a product designer, not a lawyer. I've been building a desktop app called Advisor Prep Hero, and I'm about to ship a Legal Practice template pack for it. I need a practicing attorney to read the templates before they go out.
 
-The short version of the app: Keepance runs AI models locally on your machine or through your own API keys. Nothing goes to my servers. Client files stay where they are. The ABA issued Formal Opinion 512 last July specifically blessing local-first AI tools like this one. Additionally, an SDNY ruling from February 2026 confirms that consumer cloud AI usage without attorney direction may waive attorney-client privilege: *United States v. Heppner*, No. 1:25-cr-00503-JSR (S.D.N.Y. Feb. 17, 2026), Dkt. No. 27 (Rakoff, J.). Those two data points are part of why I think this tool has a real place in solo and small-firm practice. But I'm not a lawyer, and I could be wrong about how it all fits together.
+The short version of the app: Advisor Prep Hero runs AI models locally on your machine or through your own API keys. Nothing goes to my servers. Client files stay where they are. The ABA issued Formal Opinion 512 last July specifically blessing local-first AI tools like this one. Additionally, an SDNY ruling from February 2026 confirms that consumer cloud AI usage without attorney direction may waive attorney-client privilege: *United States v. Heppner*, No. 1:25-cr-00503-JSR (S.D.N.Y. Feb. 17, 2026), Dkt. No. 27 (Rakoff, J.). Those two data points are part of why I think this tool has a real place in solo and small-firm practice. But I'm not a lawyer, and I could be wrong about how it all fits together.
 
 The templates are: Deposition Contradiction Finder, Evidence Gap Analyzer, Case Timeline Builder, Privilege Log Drafter, Discovery Document Triage, and Client Intake Synthesizer. Seven total. I know what I want them to do. I don't know whether they reflect how a real practice actually operates, or whether the language would make a practitioner close the tab in two seconds.
 
@@ -46,7 +46,7 @@ jamesondaines@outlook.com
 
 Hi [Name],
 
-I'm a product designer building a desktop app called Keepance. It runs AI models locally on your machine or through your own API keys. Nothing goes to my servers, nothing is logged, client files stay wherever you put them.
+I'm a product designer building a desktop app called Advisor Prep Hero. It runs AI models locally on your machine or through your own API keys. Nothing goes to my servers, nothing is logged, client files stay wherever you put them.
 
 I'm building a template pack specifically for IP attorneys, and there's one angle I keep coming back to that I haven't seen anyone talk about clearly: using a cloud AI with an invention disclosure before filing might constitute prior disclosure under the absolute novelty rule. Europe, Japan, Korea, most of the PCT world. If an inventor describes their invention to ChatGPT or Claude.ai to work through a patent disclosure draft, and that conversation is stored on a third-party server, the question of whether that's a public disclosure is genuinely unsettled. The safe answer is to not find out the hard way. The template I care most about is a Patent Disclosure Draft tool built to run completely offline before any external API call happens.
 
@@ -77,7 +77,7 @@ Hi [Name],
 
 Thanks for being open to this. [Mutual contact] told me you were the right person to ask, and I think they're right.
 
-The short version: I'm a product designer building a local-first AI desktop app called Keepance. Files stay on your machine, nothing goes to my servers, AI calls go directly from your computer to whatever model you use. I'm shipping a Legal Practice template pack, and I need a practicing attorney to read the seven draft templates before they go out.
+The short version: I'm a product designer building a local-first AI desktop app called Advisor Prep Hero. Files stay on your machine, nothing goes to my servers, AI calls go directly from your computer to whatever model you use. I'm shipping a Legal Practice template pack, and I need a practicing attorney to read the seven draft templates before they go out.
 
 Templates: Deposition Contradiction Finder, Evidence Gap Analyzer, Case Timeline Builder, Privilege Log Drafter, Discovery Document Triage, Patent Disclosure Draft, and Client Intake Synthesizer. I want to know what's wrong with them, specifically what doesn't reflect how a real practitioner works.
 

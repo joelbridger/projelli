@@ -1,4 +1,4 @@
-# Keepance Launch Readiness — 2026-05-28
+# Advisor Prep Hero Launch Readiness — 2026-05-28
 
 > **Purpose:** Systematic record of where things stand, what's left, and who does what.
 > Scored by area. Updated after each major work session.
@@ -25,7 +25,7 @@ The product, copy, templates, and marketing content are all done. What's left is
 | Product (app itself) | Fully functional. v1.5 live on Windows, macOS RC. All profession packs wired in. | ✅ 95% |
 | CI / signed builds | Win (Azure), Mac (Apple Developer ID), Linux all building cleanly. | ✅ 90% |
 | Infrastructure | Cloudflare tunnel, Caddy, license validator, form handler all live. | ✅ 95% |
-| Codebase branding | All Projelli → Keepance renames complete. Zero stale references in live code. | ✅ 100% |
+| Codebase branding | All Projelli → Advisor Prep Hero renames complete. Zero stale references in live code. | ✅ 100% |
 | In-app copy (strings) | All founder/startup/MRR strings purged. Locale files (en/de/es) updated. | ✅ 100% |
 | ICP + positioning | Locked 2026-05-27. POSITIONING.md written. All docs updated. | ✅ 100% |
 | Sample workspace | Replaced with solo law practice examples (Okafor Law, PLLC). | ✅ 100% |
@@ -100,7 +100,7 @@ All CRITICAL unverified warnings have been removed from campaign docs. The legal
 
 ### 4. Add Plausible conversion goals — 5-minute browser task
 
-Log into `analytics.jamesondaines.com`, navigate to Keepance site goals, and add:
+Log into `analytics.jamesondaines.com`, navigate to Advisor Prep Hero site goals, and add:
 
 - `/legal-practice/` → goal: `Legal Practice Page Visit`
 - `/tax-practice/` → goal: `Tax Practice Page Visit`

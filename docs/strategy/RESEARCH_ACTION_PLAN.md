@@ -1,9 +1,9 @@
 # Research Action Plan — 2026-05-28
 
 > **Source:** Three AI research reports ingested from `docs/strategy/`:
-> - `ChatGPT Deep Research on Keepance Knowledge Questions.md`
-> - `Claude - Keepance_Research_Response.md`
-> - `Gemini Deep Research - Pressure-Testing Keepance Product Assumptions.md`
+> - `ChatGPT Deep Research on Advisor Prep Hero Knowledge Questions.md`
+> - `Claude - Advisor Prep Hero_Research_Response.md`
+> - `Gemini Deep Research - Pressure-Testing Advisor Prep Hero Product Assumptions.md`
 >
 > **Purpose:** Translate research findings into concrete product/copy/template changes. Separate
 > what can be done now from what requires a licensed professional to confirm.
@@ -102,7 +102,7 @@ Add a note that work-product entries require separate treatment if the underlyin
 **Problem:** AI document review is only viable at small scale (dozens to low hundreds of documents) without proper eDiscovery infrastructure. Attorneys expecting this to replace Relativity/Logikcell on a 50,000-doc production will be disappointed or harmed.
 
 **Fix:** Add a disclaimer block at the top of the template output:
-> "This template is designed for small document sets (under ~500 pages). For large productions, use this output as a first-pass triage guide — not a replacement for eDiscovery review platforms. Keepance processes files locally; upload only documents you have authority to analyze."
+> "This template is designed for small document sets (under ~500 pages). For large productions, use this output as a first-pass triage guide — not a replacement for eDiscovery review platforms. Advisor Prep Hero processes files locally; upload only documents you have authority to analyze."
 
 Also: add a "privilege flag" step that instructs the model to flag any document that may be privileged for human review before any further analysis or production.
 
@@ -121,10 +121,10 @@ Also: add a "privilege flag" step that instructs the model to flag any document 
 United States v. Heppner, No. 1:25-cr-00503-JSR (S.D.N.Y. Feb. 17, 2026), Dkt. No. 27 (Rakoff, J.)
 ```
 
-**Framing guidance:** The ruling is favorable dicta for counsel-directed, confidentiality-preserving use (Kovel theory). Do not claim it as a holding about what prevents waiver — claim it as evidence of the risk of *unprotected* AI use, which Keepance addresses.
+**Framing guidance:** The ruling is favorable dicta for counsel-directed, confidentiality-preserving use (Kovel theory). Do not claim it as a holding about what prevents waiver — claim it as evidence of the risk of *unprotected* AI use, which Advisor Prep Hero addresses.
 
 **Suggested marketing language:**
-> "A February 2026 SDNY ruling found that a defendant's consumer Claude use, without attorney direction or confidentiality safeguards, did not preserve privilege. Keepance is designed for counsel-directed workflows."
+> "A February 2026 SDNY ruling found that a defendant's consumer Claude use, without attorney direction or confidentiality safeguards, did not preserve privilege. Advisor Prep Hero is designed for counsel-directed workflows."
 
 **Files to update:** `docs/strategy/POSITIONING.md`, all three landing pages, all campaign docs that reference Heppner.
 
@@ -134,10 +134,10 @@ United States v. Heppner, No. 1:25-cr-00503-JSR (S.D.N.Y. Feb. 17, 2026), Dkt. N
 
 **Current claim (approximate):** "Local-first architecture is specifically designed to satisfy ABA Formal Opinion 512."
 
-**Problem:** Overclaims. Opinion 512's concern is what happens at the AI *provider's* API — data still leaves the user's machine when they call Anthropic/OpenAI/Google. Local-first removes Keepance from the data path but doesn't remove the provider.
+**Problem:** Overclaims. Opinion 512's concern is what happens at the AI *provider's* API — data still leaves the user's machine when they call Anthropic/OpenAI/Google. Local-first removes Advisor Prep Hero from the data path but doesn't remove the provider.
 
 **Fix — suggested replacement:**
-> "ABA Formal Opinion 512 (July 2024) requires attorneys to understand where client data goes and to take reasonable precautions. Keepance removes itself from that data path: no Keepance server ever sees your client information. Your API calls go directly from your machine to your AI provider under your account."
+> "ABA Formal Opinion 512 (July 2024) requires attorneys to understand where client data goes and to take reasonable precautions. Advisor Prep Hero removes itself from that data path: no Advisor Prep Hero server ever sees your client information. Your API calls go directly from your machine to your AI provider under your account."
 
 This is accurate, defensible, and still strong.
 
@@ -164,10 +164,10 @@ Then add: "In cases of knowing or reckless disclosure, §7216 makes it a federal
 
 #### 4. FTC Safeguards Rule — add as a product hook (currently missing)
 
-The FTC Safeguards Rule (16 CFR Part 314) applies to solo CPAs and EAs. There is no small-practitioner exemption. Every covered financial institution must have a Written Information Security Program (WISP). Keepance's local-first architecture is directly relevant to WISP compliance.
+The FTC Safeguards Rule (16 CFR Part 314) applies to solo CPAs and EAs. There is no small-practitioner exemption. Every covered financial institution must have a Written Information Security Program (WISP). Advisor Prep Hero's local-first architecture is directly relevant to WISP compliance.
 
 **Add to tax landing page:**
-> "The FTC Safeguards Rule requires every tax professional — including solo practitioners — to maintain a Written Information Security Program. Keepance keeps client data off third-party servers, which simplifies your WISP documentation and reduces your breach surface."
+> "The FTC Safeguards Rule requires every tax professional — including solo practitioners — to maintain a Written Information Security Program. Advisor Prep Hero keeps client data off third-party servers, which simplifies your WISP documentation and reduces your breach surface."
 
 **Add to tax campaign docs:** NAEA pitch should reference Safeguards Rule compliance angle.
 
@@ -286,7 +286,7 @@ This list is intentionally short. Everything on it cannot be resolved by AI rese
 
 ### 5. EU absolute-novelty rule framing in Patent Disclosure Draft
 
-**Why human-only:** Patent law is jurisdiction-specific and technical. The EU absolute-novelty rule framing in the Patent Disclosure Draft template and the marketing copy must be reviewed by a registered patent practitioner (USPTO registration + EPC familiarity) before it goes to patent attorneys. A single wrong sentence on novelty bars could make Keepance look incompetent to the exact audience we're trying to win.
+**Why human-only:** Patent law is jurisdiction-specific and technical. The EU absolute-novelty rule framing in the Patent Disclosure Draft template and the marketing copy must be reviewed by a registered patent practitioner (USPTO registration + EPC familiarity) before it goes to patent attorneys. A single wrong sentence on novelty bars could make Advisor Prep Hero look incompetent to the exact audience we're trying to win.
 
 **Who answers it:** A registered patent attorney or patent agent with international filing experience.
 

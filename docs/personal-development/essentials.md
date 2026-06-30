@@ -10,7 +10,7 @@ are there when you want to go deeper — but this page is the spine.
 
 Your bottleneck is **getting customers**, and the fastest fix is not more reading — it's **real
 conversations with advisors, then a sharp story, then a direct ask for a paid pilot.** Reading
-makes you *better* at those moves. The moves themselves are what move Keepance forward.
+makes you *better* at those moves. The moves themselves are what move Advisor Prep Hero forward.
 
 Two separate research passes — my own researchers and a fully independent second AI (Codex) —
 landed on the *same* path without talking to each other. That's a good sign it's right:
@@ -38,7 +38,7 @@ Full instructions are in `exercises.md`.
 ### Priority 1 — Getting customers *(tied for most important)*
 1. **The Mom Test** — Rob Fitzpatrick *(book, ~$15-20)* — how to get the truth from advisors.
 2. **Obviously Awesome** (and its follow-up **Sales Pitch**) — April Dunford *(books, ~$20 each)* —
-   make advisors instantly "get" what Keepance is.
+   make advisors instantly "get" what Advisor Prep Hero is.
 3. **Founding Sales** — Pete Kazanjy *(free online)* — selling for a founder who isn't a salesperson.
 4. **Live inside Kitces** *(free)* — the blog advisors read + the AdvisorTech map they shop from.
 5. **Apply to the XYPN LIVE FinTech competition** *(low cost)* — pitch to a room full of small RIAs.
@@ -46,7 +46,7 @@ Full instructions are in `exercises.md`.
 ### Priority 1 — The advisor world *(tied for most important)*
 1. **Immerse at your wife's firm** — the shadow + mapping exercises above.
 2. **Live inside Kitces** *(free)* — same source, now for understanding their world.
-3. **Read the two rules Keepance exists for** *(free)* — Books-and-Records (Rule 204-2) and Reg S-P;
+3. **Read the two rules Advisor Prep Hero exists for** *(free)* — Books-and-Records (Rule 204-2) and Reg S-P;
    start with the plain-English **Reg S-P Small Entity Compliance Guide**.
 4. **Bob Veres** *(paid)* — start with his short *History of the Financial Planning Profession* book;
    subscribe to *Inside Information* if you want the ongoing insider read.
@@ -75,7 +75,7 @@ A concrete plan so you always know what to open. It front-loads your two top pri
 |---|---|
 | **1** | Read *The Mom Test* (it's short) and skim Kitces' "Start Here" + the AdvisorTech map. Set up your weekly rhythm (Exercise 7). |
 | **2** | Shadow your wife's firm; do the document/compliance map and software inventory (Exercises 1-2). |
-| **3** | Read *Obviously Awesome*; draft Keepance's positioning and one-page story (Exercise 4). |
+| **3** | Read *Obviously Awesome*; draft Advisor Prep Hero's positioning and one-page story (Exercise 4). |
 | **4** | Read the Reg S-P Small Entity guide and skim the Books-and-Records rule; build your interview list from the XYPN/NAPFA directories. |
 | **5** | Run the first 5 discovery interviews (Exercise 3). Read *Founding Sales* alongside. |
 | **6** | Finish interviews; do the reverse-demo test (Exercise 5) and make the paid design-partner ask to your 3 warmest advisors (Exercise 6). |

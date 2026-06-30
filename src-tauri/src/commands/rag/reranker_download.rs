@@ -81,9 +81,9 @@ pub fn model_files_cached(cache_dir: &Path) -> bool {
 /// subdir distinct from the embedder's.
 pub fn writable_cache_dir() -> PathBuf {
     if let Some(data_dir) = dirs::data_dir() {
-        return data_dir.join("keepance").join("models").join("reranker");
+        return data_dir.join(crate::identity::OS_DATA_SUBDIR).join("models").join("reranker");
     }
-    std::env::temp_dir().join("keepance-reranker")
+    std::env::temp_dir().join(format!("{}-reranker", crate::identity::OS_DATA_SUBDIR))
 }
 
 fn emit(app: &AppHandle, p: RerankerDownloadProgress) {

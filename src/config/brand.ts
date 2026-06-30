@@ -19,28 +19,28 @@
  */
 
 export const BRAND = {
-  "name": "Keepance",
-  "nameShort": "Keepance",
-  "legalName": "Keepance",
-  "possessive": "Keepance's",
+  "name": "Advisor Prep Hero",
+  "nameShort": "APH",
+  "legalName": "Advisor Prep Hero",
+  "possessive": "Advisor Prep Hero's",
   "tagline": "The private intelligence layer for a financial advisory practice.",
   "taglineShort": "Local-first workspace for confidential client work.",
   "positioning": "the private place your whole practice lives, and it answers you back",
   "descriptions": {
-    "store": "Keepance is a local-first AI workspace for professionals who handle confidential client work. Your files stay on your machine. Bring your own API key or run AI models locally with Ollama. Supports attorneys, CPAs, consultants, and other professionals where client confidentiality is non-negotiable.",
+    "store": "Advisor Prep Hero is a local-first AI workspace for financial advisors who handle confidential client work. Your files stay on your machine. Bring your own API key or run AI models locally with Ollama. Supports RIAs, advisors, CPAs, and consultants where client confidentiality is non-negotiable.",
     "shortStore": "Local-first AI workspace for confidential client work",
     "meta": "Find anything you have ever emailed or filed, with cited answers. Redline in real Word. Your client files never leave your machine. Built for financial advisors and RIAs."
   },
   "colors": {
-    "navy": "#0a2540",
-    "pink": "#ff3ce8",
-    "blue": "#5dc6ff",
-    "accent": "#1f74c4"
+    "navy": "#2b2d42",
+    "pink": "#ef233c",
+    "blue": "#8d99ae",
+    "accent": "#ef233c"
   },
   "messaging": {
     "onboardingHeadline": "Your private intelligence layer",
-    "redlineAuthor": "Keepance AI",
-    "exportWatermark": "Prepared with Keepance"
+    "redlineAuthor": "Advisor Prep Hero AI",
+    "exportWatermark": "Prepared with Advisor Prep Hero"
   },
   "urls": {
     "site": "https://keepance.com",

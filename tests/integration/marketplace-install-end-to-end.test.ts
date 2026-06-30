@@ -117,7 +117,7 @@ const CATALOG: CatalogEntry[] = [
     tags: ['kickoff', 'community'],
     installUrl: 'https://example.test/kickoff-lite-1.0.0.tar.gz',
     manifestUrl: 'https://example.test/kickoff-lite-1.0.0/manifest.json',
-    minKeepanceVersion: '2.0.0',
+    minAppVersion: '2.0.0',
     publishedAt: '2026-04-28T00:00:00.000Z',
     updatedAt: '2026-04-28T00:00:00.000Z',
     checksum: 'abc123checksum',
@@ -137,7 +137,7 @@ const MANIFEST: TemplateManifest = {
     { path: 'manifest.json', type: 'markdown' },
     { path: 'workflow.json', type: 'workflow-definition' },
   ],
-  minKeepanceVersion: '2.0.0',
+  minAppVersion: '2.0.0',
 };
 
 // Simple two-step workflow: ask one interview question, then generate a
@@ -257,7 +257,7 @@ beforeEach(() => {
     localStorage.clear();
     // Non-private mode so the fail-closed cloud-send guard lets the engine run.
     localStorage.setItem(
-      'keepance:settings',
+      'lantern:settings',
       JSON.stringify({ state: { values: { confidentialityMode: 'direct' } }, version: 1 }),
     );
   }

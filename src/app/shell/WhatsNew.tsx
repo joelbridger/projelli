@@ -3,7 +3,7 @@
  *
  * Flow:
  *   1. On app load, `useWhatsNew` reads the current version from the bundled
- *      changelog and compares against `localStorage['keepance:lastSeenVersion']`.
+ *      changelog and compares against `localStorage['lantern:lastSeenVersion']`.
  *   2. If the stored value is MISSING → this is a first-time user; we do
  *      NOT show the toast. We write the current version so they only see it
  *      on future updates.
@@ -26,10 +26,11 @@ import {
 } from '@/ui/dialog';
 import { Sparkles, X } from 'lucide-react';
 import { CHANGELOG_ENTRIES, currentChangelog } from '@/content/changelog';
+import { SK_LAST_SEEN_VERSION } from '@/config/identity';
 
 /** localStorage key for last-seen version. Prefixed so the app can pick
  * it out of mixed keys without matching heuristics. */
-const LAST_SEEN_KEY = 'keepance:lastSeenVersion';
+const LAST_SEEN_KEY = SK_LAST_SEEN_VERSION;
 
 export interface WhatsNewState {
   toastOpen: boolean;

@@ -1,7 +1,7 @@
 /**
- * WS-B/C — the `keepance:open-email` listener.
+ * WS-B/C — the `lantern:open-email` listener.
  *
- * Clicking an email citation in chat dispatches a `keepance:open-email` window
+ * Clicking an email citation in chat dispatches a `lantern:open-email` window
  * event; `useOpenEmailListener` must open an `email` tab for that exact message,
  * carrying the source id in `metadata.mailSourceId` so the viewer can fetch it.
  *
@@ -20,7 +20,7 @@ import {
 
 function dispatchOpenEmail(sourceId: unknown) {
   window.dispatchEvent(
-    new CustomEvent('keepance:open-email', { detail: { sourceId } }),
+    new CustomEvent('lantern:open-email', { detail: { sourceId } }),
   );
 }
 

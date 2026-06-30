@@ -117,7 +117,7 @@ class FakeFSBackend implements FSBackend {
     // Return a mix that includes vault-private names for filter testing.
     return [
       { id: 'a.txt', name: 'a.txt', type: 'file', path: 'a.txt' },
-      { id: '.keepance-vault.json', name: '.keepance-vault.json', type: 'file', path: '.keepance-vault.json' },
+      { id: '.lantern-vault.json', name: '.lantern-vault.json', type: 'file', path: '.lantern-vault.json' },
       { id: '.kpv-tmp-abc123', name: '.kpv-tmp-abc123', type: 'file', path: '.kpv-tmp-abc123' },
       { id: 'docs', name: 'docs', type: 'folder', path: 'docs' },
       { id: '.kpv-tmp-xyz', name: '.kpv-tmp-xyz', type: 'file', path: '.kpv-tmp-xyz' },
@@ -266,7 +266,7 @@ describe('VaultFSBackend — list filtering', () => {
   it('delegates list to inner and filters .keepance-vault.json', async () => {
     const nodes = await vault.list('');
     const names = nodes.map((n) => n.name);
-    expect(names).not.toContain('.keepance-vault.json');
+    expect(names).not.toContain('.lantern-vault.json');
   });
 
   it('filters all .kpv-tmp-* entries', async () => {

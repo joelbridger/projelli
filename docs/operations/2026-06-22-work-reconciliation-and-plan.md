@@ -31,7 +31,7 @@ sequencing options, and (d) record the chosen plan. Plain-language summary for J
 
 ### Stream B — Mission 1: "Start on your own" bottoms-up wedge (from marketing)
 Spec: `docs/superpowers/specs/2026-06-18-bottoms-up-wedge/` (README, 01-design, 02-impl-plan, 03-copy-deck,
-00-START-HERE). Let an individual safely download and use Keepance alone, and make that the path into a firm sale.
+00-START-HERE). Let an individual safely download and use Advisor Prep Hero alone, and make that the path into a firm sale.
 - **Phase 1 — Safe-by-default (the crux, 4 tasks).** Personal (non-firm) installs cannot send client text
   to a cloud AI until the user makes an explicit, logged, informed choice. Local retrieval/search/citations
   keep working out of the box. Medium size, fully specified with code. Net-new file:
@@ -125,7 +125,7 @@ Branch keepance-3.0. Mission 1 build via subagent-driven-development (ledger: `.
 ## Plain-language summary for Jameson
 - The scary Windows bug (answers not showing where they came from) is **already fixed and proven** on the
   test laptop. What's left there is small and behind-the-scenes.
-- The website is now promising two things: people can **use Keepance safely on their own**, and a **Client
+- The website is now promising two things: people can **use Advisor Prep Hero safely on their own**, and a **Client
   Map** is coming. The product needs to make both true.
 - **Recommendation:** build the "use it safely on your own" features first (they make the new website honest),
   then sit down together to design the Client Map. Meanwhile let the second AI engineer (Codex) quietly finish

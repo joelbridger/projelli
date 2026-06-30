@@ -55,7 +55,7 @@ describe('useModelList Local-only kill-switch', () => {
     // In-memory store empty (unhydrated) + persisted Local-only in storage.
     useSettingsStore.setState({ values: {} });
     localStorage.setItem(
-      'keepance:settings',
+      'lantern:settings',
       JSON.stringify({ state: { values: { [CONFIDENTIALITY_MODE_SETTING_KEY]: 'local-only' } }, version: 1 }),
     );
     renderHook(() => useModelList(KEYS));

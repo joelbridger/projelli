@@ -10,7 +10,7 @@ Screenshots of every v2 screen are in `keepance-coordination/ux-audit/onboarding
 
 ## The one idea behind this rewrite
 
-The old onboarding had **12 screens, and 9 of them only talked.** They explained Keepance.
+The old onboarding had **12 screens, and 9 of them only talked.** They explained Advisor Prep Hero.
 You read, you clicked Continue, you read more. By the time you actually *did* anything, you
 were eight screens deep.
 
@@ -29,7 +29,7 @@ The 8 screens I cut all failed that test. They were nice to know, not need to kn
 |---|--------|---------------------------------------------|
 | 1 | **Intro** ("A private AI that actually knows your clients") | Make you want the next three steps in one breath: it knows your clients, every answer is cited, and your data stays yours. |
 | 2 | **Power your AI** | Get you set up with intelligence, your way: paste your own AI key, or run the AI on your own computer. Two options, shown as equals. |
-| 3 | **Connect your clients' world** | Point Keepance at the data it should read (files, email, Wealthbox) so its answers are about *your* clients, not nothing. |
+| 3 | **Connect your clients' world** | Point Advisor Prep Hero at the data it should read (files, email, Wealthbox) so its answers are about *your* clients, not nothing. |
 | 4 | **Ask your first question** | The payoff. One click on a sample client returns a real answer with sources you can open. You feel the value before you've done any work. |
 
 ---
@@ -43,7 +43,7 @@ surviving screen), and **cut** (it was teaching, not doing).
 |---|---|---|
 | 1. welcome | **Folded → Intro** | Kept the logo + one-line hook + the 3 value pills. |
 | 2. clients ("knows the household") | **Folded → Intro + Screen 4** | The promise moved to the intro sub-line; the *proof* of it became the live answer on Screen 4. |
-| 3. advisors (who it's for) | **Cut** | A person installing Keepance already knows they're an advisor. Telling them who it's for is a marketing-page job, not a setup job. |
+| 3. advisors (who it's for) | **Cut** | A person installing Advisor Prep Hero already knows they're an advisor. Telling them who it's for is a marketing-page job, not a setup job. |
 | 4. ecosystem (8 partner logos) | **Folded → Screen 3** | The logos now sit on the *connect* screen where they're an action ("connect this"), not a poster. The 5 we don't connect yet show small as "also reads across." |
 | 5. teach1 ("AI isn't scary") | **Folded → Screen 2 sub-line** | Its one real point ("the only thing that matters is where the data goes") is now a single sentence above the two choices. |
 | 6. teach2 (two safe ways) | **Folded → Screen 2** | This *is* Screen 2 now, except you pick instead of read. |
@@ -65,8 +65,8 @@ The old welcome said: *"Everything stays on your computer, never in someone else
 That isn't literally true once you use your own AI key or connect Outlook/Wealthbox, so I removed it.
 
 The precise, always-true version is now split across the flow:
-- **Intro pill + sub-line:** "Your data stays yours" + "Your questions go to the AI you pick, never through Keepance."
-- **Screen 2, card 1 (your own key):** "Your questions go straight to your provider with your own key. They never pass through Keepance."
+- **Intro pill + sub-line:** "Your data stays yours" + "Your questions go to the AI you pick, never through Advisor Prep Hero."
+- **Screen 2, card 1 (your own key):** "Your questions go straight to your provider with your own key. They never pass through Advisor Prep Hero."
 - **Screen 2, card 2 (on your computer):** "Your client data never leaves it, not even to an AI company."
 
 So instead of one sweeping claim that breaks, each mode states exactly what happens to the data.

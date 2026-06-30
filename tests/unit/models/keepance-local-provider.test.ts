@@ -10,11 +10,11 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
-  KeepanceLocalProvider,
+  AppLocalProvider as KeepanceLocalProvider,
   parseSseChunk,
   KEEPANCE_LOCAL_DEFAULT_MODEL,
   KEEPANCE_LOCAL_CONTEXT_WINDOW,
-} from '@/platform/providers/KeepanceLocalProvider';
+} from '@/platform/providers/AppLocalProvider';
 
 const ENDPOINT = 'http://127.0.0.1:18089';
 const fakeStart = () => Promise.resolve(ENDPOINT);
@@ -28,7 +28,7 @@ describe('KeepanceLocalProvider', () => {
     it('reports providerId, $0 cost, streaming, no vision, the real ctx window', () => {
       const meta = provider().getMetadata();
       expect(meta.providerId).toBe('keepance-local');
-      expect(meta.name).toBe('Keepance Local AI');
+      expect(meta.name).toBe('Advisor Prep Hero Local AI');
       expect(meta.costPerInputToken).toBe(0);
       expect(meta.costPerOutputToken).toBe(0);
       expect(meta.capabilities?.streaming).toBe(true);
