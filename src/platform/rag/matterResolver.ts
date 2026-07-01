@@ -20,7 +20,7 @@
  */
 
 import { UNASSIGNED_MATTER_ID, type Matter } from '@/platform/types/matter';
-import { sameOrInside } from '@/platform/fs/appPath';
+import { isAbsolutePath, sameOrInside } from '@/platform/fs/appPath';
 
 /** Normalise a path for comparison: backslashes to slashes, strip trailing slashes. */
 export function normalize(p: string): string {
@@ -288,6 +288,12 @@ export function filterCrmMatterMapForProvider(
 export interface OneDriveMatterMapEntry {
   folderKey: string;
   matterId: string;
+  /**
+   * Workspace-relative folder to MATERIALIZE this client's OneDrive files into on
+   * disk, so they show in the client's Documents tab and index via the normal
+   * local-file pipeline. Empty string keeps the legacy RAG-only behaviour.
+   */
+  destFolder: string;
 }
 
 export interface BoxMatterMapEntry {
@@ -378,13 +384,62 @@ function buildConnectorMatterMap<T extends { matterId: string }>(
   return out;
 }
 
+/**
+ * The workspace-RELATIVE folder a client's OneDrive files are materialized into
+ * on disk. Prefers the matter's own on-disk folder (`folderPaths[0]`, resolved
+ * relative to the workspace root); falls back to `Clients/<client name>` when the
+ * matter has no folder yet. Empty string means "no safe destination" (the backend
+ * then keeps the file as RAG-only). Exported so the connector can register the
+ * same folder on the matter, keeping Documents scoping and the write path aligned.
+ */
+export function oneDriveDestFolderForMatter(
+  matter: Pick<Matter, 'folderPaths' | 'client' | 'name'>,
+  workspaceRoot?: string | null,
+): string {
+  const first = (matter.folderPaths ?? []).find(Boolean);
+  if (first) {
+    const rel = toWorkspaceRelativeFolder(first, workspaceRoot);
+    if (rel) return rel;
+  }
+  const name = (matter.client || matter.name || '').trim();
+  const safe = name.replace(/[\\/:*?"<>|\r\n]/g, ' ').replace(/\s+/g, ' ').trim();
+  return safe ? `Clients/${safe}` : '';
+}
+
+/** Resolve a possibly-absolute matter folder to a workspace-relative path.
+ *  Returns '' for an absolute path that is not under the workspace root. */
+function toWorkspaceRelativeFolder(
+  folderPath: string,
+  workspaceRoot?: string | null,
+): string {
+  const p = normalize(folderPath);
+  if (!isAbsolutePath(p)) return p.replace(/^\/+/, '');
+  if (!workspaceRoot) return '';
+  const root = normalize(workspaceRoot);
+  const lp = p.toLowerCase();
+  const lr = root.toLowerCase();
+  if (lp === lr) return '';
+  if (lp.startsWith(`${lr}/`)) return p.slice(root.length).replace(/^\/+/, '');
+  return '';
+}
+
 export function buildOneDriveMatterMap(
-  matters: Matter[]
+  matters: Matter[],
+  workspaceRoot?: string | null,
 ): OneDriveMatterMapEntry[] {
+  const destByMatter = new Map<string, string>();
+  for (const m of matters) {
+    if (m.id === UNASSIGNED_MATTER_ID) continue;
+    destByMatter.set(m.id, oneDriveDestFolderForMatter(m, workspaceRoot));
+  }
   return buildConnectorMatterMap(
     matters,
     (m) => m.onedriveFolderKeys,
-    (folderKey, matterId) => ({ folderKey, matterId })
+    (folderKey, matterId) => ({
+      folderKey,
+      matterId,
+      destFolder: destByMatter.get(matterId) ?? '',
+    })
   ).sort(
     (a, b) =>
       oneDriveFolderPathLength(b.folderKey) -
@@ -544,6 +599,24 @@ export function isTopLevelOneDriveClientFolder(
   const path = normalizeOneDriveCloudPath(folder.path);
   const segments = path.split('/').filter(Boolean);
   return segments.length === 2 && segments[0] === 'clients';
+}
+
+/**
+ * A OneDrive folder is a candidate for auto-linking to a same-name client when it
+ * is EITHER a `Clients/<name>` folder OR a top-level `<name>` folder (a client
+ * whose OneDrive folder sits at the drive root, named exactly after them — the
+ * common real-world layout). Linking itself stays strict: `resolveMatterForOneDriveFolder`
+ * only links an unambiguous exact name match, so a top-level "Documents" or
+ * "Desktop" folder never links unless a client is literally named that.
+ */
+export function isLinkableOneDriveClientFolder(
+  folder: Pick<OneDriveFolderIdentity, 'path'>
+): boolean {
+  if (isTopLevelOneDriveClientFolder(folder)) return true;
+  const segments = normalizeOneDriveCloudPath(folder.path)
+    .split('/')
+    .filter(Boolean);
+  return segments.length === 1;
 }
 
 /**
