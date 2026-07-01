@@ -125,8 +125,11 @@ impl BoxClient {
                     continue;
                 }
             }
+            // Never surface the raw Box response body to the caller/UI (or
+            // the log): it can carry file/folder names or other PII.
             let body = resp.text().await.unwrap_or_default();
-            anyhow::bail!("Box GET {url} failed with HTTP {status}: {body}");
+            crate::util::http_log::log_http_failure(&format!("Box GET {url}"), status, &body);
+            anyhow::bail!("Box GET {url} failed (HTTP {status})");
         }
         anyhow::bail!("Box GET {url} failed after retries")
     }
@@ -149,6 +152,8 @@ fn enc_path_segment(s: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn read_only_client_declares_no_write_calls() {
         let src = include_str!("client.rs");
@@ -161,5 +166,45 @@ mod tests {
                 forbidden
             );
         }
+    }
+
+    // ── error responses never leak the raw body ──────────────────────────────
+
+    #[tokio::test]
+    async fn get_bytes_failure_never_surfaces_raw_body_pii() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        // A Box error body shaped like the real API, carrying a PII-bearing
+        // free-text message (a file name / owner email).
+        let pii_body = serde_json::json!({
+            "type": "error",
+            "status": 404,
+            "code": "not_found",
+            "message": "file owned by alice@example.com not found"
+        })
+        .to_string();
+        Mock::given(method("GET"))
+            .and(path("/files/abc/content"))
+            .respond_with(ResponseTemplate::new(404).set_body_raw(pii_body, "application/json"))
+            .mount(&server)
+            .await;
+
+        let client = BoxClient::new_with_base("AT".into(), server.uri());
+        let err = client
+            .download_content("abc")
+            .await
+            .expect_err("should fail on 404");
+        let msg = format!("{err:#}");
+        assert!(
+            !msg.contains("alice@example.com"),
+            "error must never contain the raw response body: {msg}"
+        );
+        assert!(
+            !msg.contains("not found"),
+            "error must never contain the raw response message text: {msg}"
+        );
+        assert!(msg.contains("404"), "error should retain the status: {msg}");
     }
 }

@@ -51,9 +51,9 @@ impl GmailClient {
             let status = resp.status();
             let body = resp.text().await?;
             if !status.is_success() {
-                // Never surface the raw Gmail response body to the caller/UI:
-                // it can carry mailbox addresses or other PII.
-                log::warn!("gmail request failed (HTTP {}): {}", status, body);
+                // Never surface the raw Gmail response body to the caller/UI
+                // (or the log): it can carry mailbox addresses or other PII.
+                crate::util::http_log::log_http_failure("gmail GET", status, &body);
                 anyhow::bail!("Gmail API request failed (HTTP {})", status);
             }
             return Ok(serde_json::from_str(&body)?);
@@ -226,7 +226,9 @@ impl GmailClient {
             let status = resp.status();
             let body_text = resp.text().await?;
             if !status.is_success() {
-                log::warn!("gmail POST failed (HTTP {}): {}", status, body_text);
+                // Never surface the raw Gmail response body to the caller/UI
+                // (or the log): it can carry mailbox addresses or other PII.
+                crate::util::http_log::log_http_failure("gmail POST", status, &body_text);
                 anyhow::bail!("Gmail API request failed (HTTP {})", status);
             }
             return Ok(serde_json::from_str(&body_text).unwrap_or(serde_json::json!({})));
