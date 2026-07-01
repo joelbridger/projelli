@@ -12,7 +12,7 @@ import { vaultStatus } from '@/platform/firm/vault/vaultClient';
  * @returns true if __TAURI__ global is present
  */
 export function isTauriEnvironment(): boolean {
-  // @ts-ignore - __TAURI__ is injected by Tauri runtime
+  // __TAURI__ is injected by the Tauri runtime; not in the `Window` type.
   return typeof window !== 'undefined' && '__TAURI__' in window;
 }
 
