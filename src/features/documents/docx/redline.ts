@@ -112,7 +112,12 @@ export const REDLINE_SCHEMA: OutputSchema = {
           newText: {
             type: 'string',
             description:
-              'The text to insert (for "insert") or the replacement text (for "replace"). Omit for "delete".',
+              'The text to insert (for "insert") or the replacement text (for "replace"). Omit for "delete". ' +
+              'If this text is a TABLE, it MUST be a single complete GFM Markdown table in ONE edit — a ' +
+              'header row, a `| --- | --- |` separator row directly under it (one column per header cell), ' +
+              'then the data rows — e.g. "| Name | Value |\\n| --- | --- |\\n| Alpha | 42 |". ' +
+              'Never split a table across multiple edits, never omit the separator row, and never mix a ' +
+              'table with surrounding prose in the same edit.',
           },
           reason: {
             type: 'string',
@@ -185,7 +190,10 @@ export function buildRedlinePrompt(
       '"insert", "delete", or "replace"; set "paragraphIndex" to the [P#] number; ' +
       'and for delete/replace copy "anchorText" VERBATIM from that paragraph so it ' +
       'can be located exactly. Include a short "reason" for each edit. If no change ' +
-      'is warranted, return { "edits": [] }.',
+      'is warranted, return { "edits": [] }. If you are adding a TABLE, put the ' +
+      'ENTIRE table in ONE insert edit as a complete GFM Markdown table WITH a ' +
+      '`| --- | --- |` separator row under the header — never split it across ' +
+      'edits and never drop the separator row.',
   );
   return lines.join('\n');
 }

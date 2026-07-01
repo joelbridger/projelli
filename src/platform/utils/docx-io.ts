@@ -999,6 +999,122 @@ export function isStandaloneMarkdownTable(markdown: string): boolean {
 }
 
 /**
+ * Split a pipe-table row into trimmed cell strings, tolerating BOTH outer-pipe
+ * (`| a | b |`) and no-outer-pipe (`a | b`) styles — mirrors the converter's own
+ * `splitTableRow` so detection and rendering agree on the column count.
+ */
+function splitPipeCells(line: string): string[] {
+  const t = line.trim();
+  const inner = t.replace(/^\|/, '').replace(/\|$/, '');
+  return inner.split('|').map((c) => c.trim());
+}
+
+/**
+ * Column count of a pipe-table row (0 when the line has no `|` at all, so a
+ * pipe-free prose line is never mistaken for a one-cell row).
+ */
+function pipeColumnCount(line: string): number {
+  return line.includes('|') ? splitPipeCells(line).length : 0;
+}
+
+/** True when a trimmed line is a GFM separator row (`|---|`, `--- | ---`, …). */
+function isSeparatorRow(line: string): boolean {
+  const t = line.trim();
+  return /^[|\s:-]+$/.test(t) && t.includes('-') && t.includes('|');
+}
+
+/**
+ * True when `text` contains a BLOCK of at least two consecutive pipe-table rows
+ * — WITH or WITHOUT a `|---|` separator row, WITH or WITHOUT outer pipes — that
+ * share the same column count (≥2 columns). This is broader than {@link
+ * containsMarkdownTable} (which requires a separator row) on purpose: real model
+ * output for "add a small table" frequently OMITS the separator row
+ * (`|Name|Value|` / `|Alpha|42|`, or `Name | Value` / `Alpha | 42`), and that
+ * MUST still be recognized as a table so it becomes a real `<w:tbl>` (or is
+ * rejected) rather than leaking as literal pipe text. The "same column count on
+ * two adjacent lines" rule is what keeps ordinary prose with a single stray pipe
+ * ("$50k | year") from being mistaken for a table.
+ */
+export function containsPipeTableLikeBlock(text: string): boolean {
+  const lines = text.replace(/\r\n/g, '\n').split('\n');
+  for (let i = 1; i < lines.length; i++) {
+    const prev = pipeColumnCount(lines[i - 1] ?? '');
+    const cur = pipeColumnCount(lines[i] ?? '');
+    if (prev >= 2 && cur >= 2 && prev === cur) return true;
+  }
+  return false;
+}
+
+/**
+ * If `text` is a CLEAN, standalone pipe table — every non-blank line is a pipe
+ * row, at least two rows, no interleaved prose or blank lines — return it as a
+ * canonical GFM Markdown table (outer pipes on every row, with a proper `|---|`
+ * separator row synthesized from the header's column count when the model
+ * omitted one) that {@link markdownToRedlineBlocks} converts to a real
+ * `<w:tbl>`. Otherwise return `null` so the caller REJECTS the edit rather than
+ * risk leaking literal pipes or silently losing text.
+ *
+ * Handles every shape models actually emit: outer/no-outer pipes, tight/spaced
+ * separators, and a missing separator row. For a separator-less block it also
+ * requires a CONSISTENT column count across all rows — a rectangular table, not
+ * ragged prose — as the anti-false-positive guard. This is the normalization the
+ * AI redliner runs BEFORE converting a table, closing the gap between what
+ * models emit and what the converter needs, without ever passing pipe syntax
+ * through as prose.
+ */
+export function normalizeStandalonePipeTable(text: string): string | null {
+  const raw = text.replace(/\r\n/g, '\n').split('\n');
+  let start = 0;
+  let end = raw.length;
+  while (start < end && (raw[start] ?? '').trim() === '') start++;
+  while (end > start && (raw[end - 1] ?? '').trim() === '') end--;
+  const lines = raw.slice(start, end).map((l) => l.trim());
+  // Need a header + at least one more row, no internal blank lines, and every
+  // line must contain a `|` (a prose line with no pipe means this isn't a clean
+  // standalone table — reject rather than fold/drop it).
+  if (lines.length < 2) return null;
+  if (lines.some((l) => l === '' || !l.includes('|'))) return null;
+
+  const cols = pipeColumnCount(lines[0] ?? '');
+  if (cols < 1) return null;
+
+  const sepIndex = lines.findIndex((l) => isSeparatorRow(l));
+  let bodyLines: string[];
+  if (sepIndex >= 0) {
+    // A separator row is an unambiguous table signal (so even a one-column table
+    // is honored) — but it must sit directly under the header (GFM), else the
+    // "header" is really prose above a table.
+    if (sepIndex !== 1) return null;
+    // The separator declares the column count; if it disagrees with the header
+    // the table is malformed/ambiguous — reject rather than guess.
+    if (pipeColumnCount(lines[1] ?? '') !== cols) return null;
+    bodyLines = lines.slice(2);
+  } else {
+    // No separator row → the table shape is a guess. Require a RECTANGULAR block
+    // of at least two columns (every row the same column count) so two lines of
+    // prose that merely share a stray pipe aren't turned into a table.
+    if (cols < 2) return null;
+    if (!lines.every((l) => pipeColumnCount(l) === cols)) return null;
+    bodyLines = lines.slice(1);
+  }
+
+  // Data-loss guard: a body row with MORE cells than the header would be
+  // truncated by canonicalization, silently dropping text. Reject instead.
+  // (Fewer cells is fine — GFM pads the row with empty cells, losing nothing.)
+  if (bodyLines.some((l) => pipeColumnCount(l) > cols)) return null;
+
+  const rowToCanonical = (cells: string[]): string => {
+    const padded = cells.slice(0, cols);
+    while (padded.length < cols) padded.push('');
+    return `| ${padded.join(' | ')} |`;
+  };
+  const header = rowToCanonical(splitPipeCells(lines[0] ?? ''));
+  const separator = `|${Array.from({ length: cols }, () => ' --- ').join('|')}|`;
+  const body = bodyLines.map((l) => rowToCanonical(splitPipeCells(l)));
+  return [header, separator, ...body].join('\n');
+}
+
+/**
  * Convert an arbitrary Markdown fragment into an ORDERED list of {@link
  * RedlineBlock}s, reusing the proven `markdownToDocxBytes` converter. This is how
  * the AI redliner turns a Markdown pipe table (optionally with surrounding text)
