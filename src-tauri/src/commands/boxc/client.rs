@@ -126,12 +126,16 @@ impl BoxClient {
                 }
             }
             // Never surface the raw Box response body to the caller/UI (or
-            // the log): it can carry file/folder names or other PII.
+            // the log): it can carry file/folder names or other PII. Match
+            // the sibling connectors' convention (DocuSign/Jotform/Zocks):
+            // a generic context, no per-request URL/id in either surface —
+            // a Box file/folder id in a long-lived log is itself an
+            // indirect PII correlation risk.
             let body = resp.text().await.unwrap_or_default();
-            crate::util::http_log::log_http_failure(&format!("Box GET {url}"), status, &body);
-            anyhow::bail!("Box GET {url} failed (HTTP {status})");
+            crate::util::http_log::log_http_failure("Box GET", status, &body);
+            anyhow::bail!("Box request failed (HTTP {status})");
         }
-        anyhow::bail!("Box GET {url} failed after retries")
+        anyhow::bail!("Box request failed after retries")
     }
 }
 
@@ -204,6 +208,10 @@ mod tests {
         assert!(
             !msg.contains("not found"),
             "error must never contain the raw response message text: {msg}"
+        );
+        assert!(
+            !msg.contains("/files/abc/content"),
+            "error must never contain the request URL/file id: {msg}"
         );
         assert!(msg.contains("404"), "error should retain the status: {msg}");
     }
