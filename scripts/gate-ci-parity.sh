@@ -21,8 +21,9 @@ skip () { echo ""; echo "===== $1 ====="; echo "⚠️  SKIPPED: $2"; }
 step "Frontend coverage floor (matches ci.yml quality job)" npm run test:coverage
 
 if command -v bun >/dev/null 2>&1; then
-  step "Backend typecheck (matches ci.yml backend job)" bash -c "cd backend && bun run typecheck"
-  step "Backend tests (matches ci.yml backend job)"      bash -c "cd backend && bun install --frozen-lockfile && bun test"
+  step "Backend install (matches ci.yml backend job)"    bash -c "cd backend && bun install --frozen-lockfile"
+  step "Backend typecheck (matches ci.yml backend job)"  bash -c "cd backend && bun run typecheck"
+  step "Backend tests (matches ci.yml backend job)"      bash -c "cd backend && bun test"
 else
   skip "Backend typecheck + tests (matches ci.yml backend job)" "bun not found on PATH — install from https://bun.sh to run this locally"
 fi
