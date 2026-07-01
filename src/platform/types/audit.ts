@@ -53,6 +53,8 @@ export type AuditActionType =
   | 'wealthbox.connect'
   | 'wealthbox.sync'
   | 'wealthbox.disconnect'
+  // OneDrive / SharePoint document connector lifecycle events.
+  | 'onedrive.sync'
   | 'salesforce.connect'
   | 'salesforce.sync'
   | 'salesforce.disconnect'

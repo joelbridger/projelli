@@ -58,11 +58,18 @@ pub struct DeltaPage {
     pub delta_link: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct OneDriveMatterMapEntry {
     pub folder_key: String,
     pub matter_id: String,
+    /// Workspace-relative folder to MATERIALIZE this client's OneDrive files into
+    /// on disk, so they appear in the client's Documents tab and are indexed by
+    /// the normal local-file pipeline (the file watcher). An empty value keeps the
+    /// legacy behaviour of indexing the downloaded bytes into the RAG store only
+    /// (no on-disk copy), which is what unmapped files still do.
+    #[serde(default)]
+    pub dest_folder: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -189,6 +196,52 @@ pub fn item_folder_path(item: &DriveItem) -> String {
     } else {
         parent
     }
+}
+
+/// Sanitize a single path segment before joining it into an on-disk workspace
+/// path. Rejects traversal (`.`/`..`), path separators, and control/null bytes so
+/// a hostile OneDrive folder or file name can never escape the destination folder
+/// (matter-isolation + path-traversal guard, per the security requirements).
+pub fn sanitize_path_segment(seg: &str) -> Option<String> {
+    let s = seg.trim();
+    if s.is_empty() || s == "." || s == ".." {
+        return None;
+    }
+    if s.contains('/') || s.contains('\\') || s.contains('\0') {
+        return None;
+    }
+    // A bare drive letter or a leading colon would let a Windows path re-root.
+    if s.contains(':') {
+        return None;
+    }
+    Some(s.to_string())
+}
+
+/// The original-case path segments of `item`'s parent folder that lie BELOW the
+/// matched OneDrive folder (whose normalized path is `matched_norm`). Returns an
+/// empty vector when the file sits directly in the matched folder. Used to mirror
+/// the client's OneDrive sub-folder structure into their workspace folder on disk.
+pub fn subpath_below_matched(item: &DriveItem, matched_norm: &str) -> Vec<String> {
+    let matched_depth = normalize_cloud_path(matched_norm)
+        .split('/')
+        .filter(|s| !s.is_empty())
+        .count();
+    let raw = item
+        .parent_reference
+        .as_ref()
+        .and_then(|p| p.path.as_deref())
+        .unwrap_or("")
+        .replace('\\', "/");
+    let after_root = match raw.find("root:") {
+        Some(i) => &raw[(i + "root:".len())..],
+        None => raw.as_str(),
+    };
+    after_root
+        .split('/')
+        .filter(|s| !s.is_empty())
+        .skip(matched_depth)
+        .map(|s| s.to_string())
+        .collect()
 }
 
 pub fn folder_key(account: &str, site_id: Option<&str>, drive_id: &str, path: &str) -> String {

@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { OneDriveConnect } from '@/platform/connectors/onedrive/OneDriveConnect';
 import { useMatterStore } from '@/platform/matter/matterStore';
+import type { OneDriveSyncReport } from '@/platform/utils/onedrive-commands';
 
 const oneDriveConnect = vi.fn();
 const oneDriveDisconnect = vi.fn();
@@ -28,6 +29,23 @@ vi.mock('@/platform/hooks/useConfidentialityMode', () => ({
   useConfidentialityMode: () => 'direct',
 }));
 
+function report(overrides: Partial<OneDriveSyncReport> = {}): OneDriveSyncReport {
+  return {
+    seen: 0,
+    downloaded: 0,
+    imported: 0,
+    indexed: 0,
+    skippedUnchanged: 0,
+    removed: 0,
+    pendingPdf: 0,
+    unsupported: 0,
+    repaired: 0,
+    deltaReset: false,
+    cancelled: false,
+    ...overrides,
+  };
+}
+
 describe('OneDriveConnect folder auto-linking', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -36,21 +54,10 @@ describe('OneDriveConnect folder auto-linking', () => {
     oneDriveConnect.mockResolvedValue(undefined);
     oneDriveDisconnect.mockResolvedValue(undefined);
     oneDriveCancel.mockResolvedValue(undefined);
-    oneDriveSync.mockResolvedValue({
-      seen: 0,
-      downloaded: 0,
-      indexed: 0,
-      skippedUnchanged: 0,
-      removed: 0,
-      pendingPdf: 0,
-      unsupported: 0,
-      repaired: 0,
-      deltaReset: false,
-      cancelled: false,
-    });
+    oneDriveSync.mockResolvedValue(report());
   });
 
-  it('auto-links top-level /Clients folders by name before syncing', async () => {
+  it('auto-links a client folder and sends a disk destination to the backend', async () => {
     const matter = useMatterStore.getState().createMatter({
       name: 'Patel, Priya',
       client: 'Patel, Priya',
@@ -78,15 +85,99 @@ describe('OneDriveConnect folder auto-linking', () => {
     );
 
     await waitFor(() => {
+      // The map now carries a workspace-relative `destFolder` so the backend
+      // materializes the files into the client's folder on disk.
       expect(oneDriveSync).toHaveBeenCalledWith([
         {
           folderKey: 'm365/default/drive-a:/clients/patel, priya',
           matterId: matter.id,
+          destFolder: 'Clients/Patel, Priya',
         },
       ]);
     });
     expect(useMatterStore.getState().matters[0]?.onedriveFolderKeys).toEqual([
       'm365/default/drive-a:/clients/patel, priya',
     ]);
+    // A matter with no folder gets an on-disk home so imports show in Documents.
+    expect(useMatterStore.getState().matters[0]?.folderPaths).toContain(
+      'Clients/Patel, Priya'
+    );
+  });
+
+  it('auto-links a TOP-LEVEL client-named folder (not only Clients/<name>)', async () => {
+    const matter = useMatterStore.getState().createMatter({
+      name: 'Webb, Marcus & Tanya',
+      client: 'Webb, Marcus & Tanya',
+    });
+    oneDriveListFolders.mockResolvedValue([
+      {
+        key: 'm365/default/drive-a:/webb, marcus & tanya',
+        driveId: 'drive-a',
+        itemId: 'folder-webb',
+        name: 'Webb, Marcus & Tanya',
+        path: '/webb, marcus & tanya',
+      },
+    ]);
+
+    render(<OneDriveConnect />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Connect OneDrive' })
+    );
+
+    await waitFor(() => {
+      expect(useMatterStore.getState().matters[0]?.onedriveFolderKeys).toEqual([
+        'm365/default/drive-a:/webb, marcus & tanya',
+      ]);
+    });
+    expect(oneDriveSync).toHaveBeenCalledWith([
+      {
+        folderKey: 'm365/default/drive-a:/webb, marcus & tanya',
+        matterId: matter.id,
+        destFolder: 'Clients/Webb, Marcus & Tanya',
+      },
+    ]);
+  });
+});
+
+describe('OneDriveConnect honest sync feedback', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useMatterStore.setState({ matters: [], activeMatterId: null });
+    oneDriveConnect.mockResolvedValue(undefined);
+    oneDriveDisconnect.mockResolvedValue(undefined);
+    oneDriveCancel.mockResolvedValue(undefined);
+    oneDriveListFolders.mockResolvedValue([]);
+  });
+
+  it('shows a clear "no new files" message when zero files import', async () => {
+    oneDriveIsConnected.mockResolvedValue(true);
+    oneDriveSync.mockResolvedValue(report({ seen: 12, imported: 0 }));
+
+    render(<OneDriveConnect />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Sync now' }));
+
+    expect(await screen.findByText(/No new files came in/i)).toBeTruthy();
+  });
+
+  it('shows the imported count when files import', async () => {
+    oneDriveIsConnected.mockResolvedValue(true);
+    oneDriveSync.mockResolvedValue(report({ seen: 5, imported: 3 }));
+
+    render(<OneDriveConnect />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Sync now' }));
+
+    expect(
+      await screen.findByText(/Imported 3 files into your client folders/i)
+    ).toBeTruthy();
+  });
+
+  it('surfaces a sync error instead of a silent success', async () => {
+    oneDriveIsConnected.mockResolvedValue(true);
+    oneDriveSync.mockRejectedValue(new Error('graph 500'));
+
+    render(<OneDriveConnect />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Sync now' }));
+
+    expect(await screen.findByText(/ran into a problem/i)).toBeTruthy();
   });
 });

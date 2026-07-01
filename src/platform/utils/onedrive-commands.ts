@@ -22,6 +22,8 @@ export interface OneDriveFolder {
 export interface OneDriveSyncReport {
   seen: number;
   downloaded: number;
+  /** Files written into a client's workspace folder (visible in Documents). */
+  imported: number;
   indexed: number;
   skippedUnchanged: number;
   removed: number;
@@ -37,6 +39,7 @@ export type OneDriveSyncEventStatus = 'syncing' | 'done' | 'error' | 'cancelled'
 export interface OneDriveSyncProgress {
   status: OneDriveSyncEventStatus;
   seen?: number;
+  imported?: number;
   indexed?: number;
   pendingPdf?: number;
 }

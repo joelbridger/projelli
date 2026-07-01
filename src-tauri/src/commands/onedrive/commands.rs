@@ -505,6 +505,7 @@ pub async fn onedrive_sync(
         serde_json::json!({
             "status": status,
             "seen": report.seen,
+            "imported": report.imported,
             "indexed": report.indexed,
             "pendingPdf": report.pending_pdf,
         }),
@@ -544,6 +545,7 @@ mod tests {
         let map = vec![OneDriveMatterMapEntry {
             folder_key: folder_key(DEFAULT_ACCOUNT, None, "shared-drive", "/Clients/Acme"),
             matter_id: "matter-a".into(),
+            dest_folder: String::new(),
         }];
         let drives = vec![Drive {
             id: "business-drive".into(),
@@ -573,6 +575,7 @@ mod tests {
         let map = vec![OneDriveMatterMapEntry {
             folder_key: folder_key(DEFAULT_ACCOUNT, None, "personal-drive", "/Clients/Acme"),
             matter_id: "matter-a".into(),
+            dest_folder: String::new(),
         }];
         let drives = vec![Drive {
             id: "personal-drive".into(),

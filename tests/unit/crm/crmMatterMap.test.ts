@@ -143,8 +143,8 @@ describe('additive connector matter-map shells', () => {
     ];
 
     expect(buildOneDriveMatterMap(matters)).toEqual([
-      { folderKey: 'drive-folder-1', matterId: 'm1' },
-      { folderKey: 'drive-folder-2', matterId: 'm2' },
+      { folderKey: 'drive-folder-1', matterId: 'm1', destFolder: 'Clients/m1' },
+      { folderKey: 'drive-folder-2', matterId: 'm2', destFolder: 'Clients/m2' },
     ]);
     expect(buildEsignMatterMap(matters)).toEqual([
       { esignKey: 'envelope-1', matterId: 'm1' },
@@ -189,8 +189,8 @@ describe('additive connector matter-map shells', () => {
     ];
 
     expect(buildOneDriveMatterMap(matters)).toEqual([
-      { folderKey: 'folder-dup', matterId: 'm1' },
-      { folderKey: 'folder-2', matterId: 'm2' },
+      { folderKey: 'folder-dup', matterId: 'm1', destFolder: 'Clients/m1' },
+      { folderKey: 'folder-2', matterId: 'm2', destFolder: 'Clients/m2' },
     ]);
   });
 
@@ -208,8 +208,13 @@ describe('additive connector matter-map shells', () => {
       {
         folderKey: 'm365/default/drive-a:/clients/acme/pleadings',
         matterId: 'child',
+        destFolder: 'Clients/child',
       },
-      { folderKey: 'm365/default/drive-a:/clients/acme', matterId: 'parent' },
+      {
+        folderKey: 'm365/default/drive-a:/clients/acme',
+        matterId: 'parent',
+        destFolder: 'Clients/parent',
+      },
     ]);
   });
 
@@ -227,10 +232,12 @@ describe('additive connector matter-map shells', () => {
       {
         folderKey: 'm365/default/drive-a:/clients/acme',
         matterId: 'drive-a-matter',
+        destFolder: 'Clients/drive-a-matter',
       },
       {
         folderKey: 'm365/default/drive-b:/clients/acme',
         matterId: 'drive-b-matter',
+        destFolder: 'Clients/drive-b-matter',
       },
     ]);
   });

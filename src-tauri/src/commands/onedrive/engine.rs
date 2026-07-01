@@ -4,13 +4,14 @@
 //! drive delta pages and downloads completely offline.
 
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
 use sha2::{Digest, Sha256};
 
 use crate::commands::onedrive::model::{
-    parent_folder_path, parse_folder_key, DriveItem, OneDriveMatterMapEntry, DEFAULT_ACCOUNT,
+    parent_folder_path, parse_folder_key, sanitize_path_segment, subpath_below_matched, DriveItem,
+    OneDriveMatterMapEntry, DEFAULT_ACCOUNT,
 };
 use crate::commands::onedrive::source::{is_delta_gone, DocumentSource};
 use crate::commands::onedrive::store::OneDriveStore;
@@ -22,6 +23,9 @@ use crate::commands::rag::{index_downloaded_document_bytes, DownloadedDocumentIn
 pub struct OneDriveSyncReport {
     pub seen: u32,
     pub downloaded: u32,
+    /// Files written into a client's workspace folder on disk. These show in the
+    /// client's Documents tab and are indexed by the normal local-file pipeline.
+    pub imported: u32,
     pub indexed: u32,
     pub skipped_unchanged: u32,
     pub removed: u32,
@@ -36,6 +40,7 @@ impl OneDriveSyncReport {
     pub fn merge_from(&mut self, other: OneDriveSyncReport) {
         self.seen += other.seen;
         self.downloaded += other.downloaded;
+        self.imported += other.imported;
         self.indexed += other.indexed;
         self.skipped_unchanged += other.skipped_unchanged;
         self.removed += other.removed;
@@ -51,11 +56,30 @@ pub fn content_hash(bytes: &[u8]) -> String {
     hex::encode(Sha256::digest(bytes))
 }
 
+/// Where a mapped item should be materialized on disk: the matter's workspace
+/// folder plus the normalized OneDrive path of the folder that matched (so the
+/// sub-structure below it can be mirrored).
+#[derive(Debug, Clone)]
+pub struct MatchedDest {
+    pub dest_folder: String,
+    pub matched_path: String,
+}
+
 pub fn resolve_matter_for_item(item: &DriveItem, matter_map: &[OneDriveMatterMapEntry]) -> String {
+    resolve_matter_and_dest_for_item(item, matter_map).0
+}
+
+/// Resolve the matter id for an item AND, when the winning mapping declares a
+/// disk destination (`dest_folder`), where to materialize the file. The longest
+/// matching folder wins, mirroring `resolve_matter_for_item`.
+pub fn resolve_matter_and_dest_for_item(
+    item: &DriveItem,
+    matter_map: &[OneDriveMatterMapEntry],
+) -> (String, Option<MatchedDest>) {
     let drive_id = item.drive_id();
     let site_id = item.site_id();
     let folder_path = parent_folder_path(item);
-    let mut best: Option<(&str, usize)> = None;
+    let mut best: Option<(&OneDriveMatterMapEntry, String, usize)> = None;
     for entry in matter_map {
         let Some(parts) = parse_folder_key(&entry.folder_key) else {
             continue;
@@ -68,13 +92,56 @@ pub fn resolve_matter_for_item(item: &DriveItem, matter_map: &[OneDriveMatterMap
         }
         if path_prefix_matches(&folder_path, &parts.path) {
             let len = parts.path.len();
-            if best.map(|(_, best_len)| len > best_len).unwrap_or(true) {
-                best = Some((entry.matter_id.as_str(), len));
+            if best.as_ref().map(|(_, _, bl)| len > *bl).unwrap_or(true) {
+                best = Some((entry, parts.path, len));
             }
         }
     }
-    best.map(|(matter_id, _)| matter_id.to_string())
-        .unwrap_or_else(|| UNASSIGNED_MATTER.to_string())
+    match best {
+        Some((entry, matched_path, _)) => {
+            let dest = if entry.dest_folder.trim().is_empty() {
+                None
+            } else {
+                Some(MatchedDest {
+                    dest_folder: entry.dest_folder.clone(),
+                    matched_path,
+                })
+            };
+            (entry.matter_id.clone(), dest)
+        }
+        None => (UNASSIGNED_MATTER.to_string(), None),
+    }
+}
+
+/// The subfolder under a client's folder where imported OneDrive/SharePoint files
+/// are materialized. Namespacing them keeps the connector's mirror from ever
+/// overwriting the client's own same-named local documents, and makes the
+/// provenance obvious in the Documents tree.
+const ONEDRIVE_IMPORT_SUBFOLDER: &str = "OneDrive";
+
+/// Build the absolute on-disk path a downloaded item is materialized to, keeping
+/// it strictly under `workspace/<dest_folder>/OneDrive`. Every path segment is
+/// sanitized, so a hostile folder or file name cannot traverse out of the
+/// destination. Returns `None` when any segment is unsafe (the caller then falls
+/// back to RAG-only indexing).
+fn safe_workspace_path(
+    workspace: &Path,
+    dest_folder: &str,
+    subpath: &[String],
+    name: &str,
+) -> Option<PathBuf> {
+    let mut p = workspace.to_path_buf();
+    for seg in dest_folder.replace('\\', "/").split('/').filter(|s| !s.is_empty()) {
+        p.push(sanitize_path_segment(seg)?);
+    }
+    // Namespace the connector's files so they never clobber the client's own
+    // local documents that happen to share a name.
+    p.push(ONEDRIVE_IMPORT_SUBFOLDER);
+    for seg in subpath {
+        p.push(sanitize_path_segment(seg)?);
+    }
+    p.push(sanitize_path_segment(name)?);
+    Some(p)
 }
 
 fn site_ids_match_for_item(item_site_id: Option<&str>, folder_site_id: Option<&str>) -> bool {
@@ -126,6 +193,12 @@ pub async fn sync_documents(
 
         let key = item.source_key();
         if item.deleted.is_some() {
+            // Remove the materialized on-disk copy first (best-effort). The
+            // workspace watcher then drops its RAG chunks; we also delete any
+            // remaining external chunks for items that were RAG-only.
+            if let Some(local) = store.get_local_path(&key.source_id)? {
+                let _ = std::fs::remove_file(workspace.join(&local));
+            }
             store.mark_deleted(&key.source_id)?;
             rag_store::delete_path(&table, &key.source_id, rag_key).await?;
             report.removed += 1;
@@ -135,26 +208,42 @@ pub async fn sync_documents(
             continue;
         }
 
-        let matter_id = resolve_matter_for_item(item, matter_map);
+        let (matter_id, dest) = resolve_matter_and_dest_for_item(item, matter_map);
         let parent_path = parent_folder_path(item);
         let remote_signature = item.remote_signature();
         let existing = store.get_item(&key.source_id)?;
+
+        // For a mapped item, the on-disk path it should be materialized to. `None`
+        // means "index bytes into RAG only" (unmapped, or a name we cannot safely
+        // place on disk).
+        let local_target: Option<PathBuf> = dest.as_ref().and_then(|d| {
+            let sub = subpath_below_matched(item, &d.matched_path);
+            safe_workspace_path(workspace, &d.dest_folder, &sub, &item.name)
+        });
 
         let needs_repair = existing
             .as_ref()
             .map(|row| !row.indexed && !row.pending_pdf)
             .unwrap_or(false);
-        if existing
-            .as_ref()
-            .map(|row| {
-                row.remote_signature == remote_signature
-                    && row.indexed
-                    && row.matter_id == matter_id
-                    && row.parent_path == parent_path
-                    && row.drive_id == key.drive_id
-                    && row.site_id == key.site_id
-            })
-            .unwrap_or(false)
+        // Unchanged fast-path. A materialized item is only truly unchanged if its
+        // on-disk copy still exists — otherwise we must re-download it so a file
+        // the user (or a failed prior sync) removed comes back.
+        let disk_still_present = match &local_target {
+            Some(target) => target.exists(),
+            None => true,
+        };
+        if disk_still_present
+            && existing
+                .as_ref()
+                .map(|row| {
+                    row.remote_signature == remote_signature
+                        && row.indexed
+                        && row.matter_id == matter_id
+                        && row.parent_path == parent_path
+                        && row.drive_id == key.drive_id
+                        && row.site_id == key.site_id
+                })
+                .unwrap_or(false)
         {
             report.skipped_unchanged += 1;
             continue;
@@ -187,6 +276,80 @@ pub async fn sync_documents(
             report.repaired += 1;
         }
         let hash = content_hash(&bytes);
+
+        // MAPPED to a client with an on-disk destination: materialize the file
+        // into the client's workspace folder. It then shows in the client's
+        // Documents tab and is indexed for search by the normal local-file
+        // watcher — exactly like a file the user dropped in themselves. This
+        // covers PDFs too (visible immediately; text indexed by the PDF path).
+        if let Some(target) = &local_target {
+            // Honour a Stop pressed DURING this file's download (the top-of-loop
+            // check already passed): don't commit the write, mark the row for
+            // retry, and stop before the cursor is advanced.
+            if cancel.load(Ordering::SeqCst) {
+                if existing.is_some() {
+                    store.mark_needs_index(&key.source_id)?;
+                }
+                report.cancelled = true;
+                break;
+            }
+            if let Some(parent) = target.parent() {
+                std::fs::create_dir_all(parent).map_err(|e| {
+                    anyhow::anyhow!("create client folder {}: {e}", parent.display())
+                })?;
+            }
+            let rel = target
+                .strip_prefix(workspace)
+                .ok()
+                .map(|p| p.to_string_lossy().replace('\\', "/"));
+            // If this item was previously materialized at a DIFFERENT path (a
+            // remote rename or move keeps the same source_id), remove the old copy
+            // so it can't linger as stale content in the client's Documents.
+            if let Some(old) = store.get_local_path(&key.source_id)? {
+                if rel.as_deref() != Some(old.as_str()) {
+                    let _ = std::fs::remove_file(workspace.join(&old));
+                }
+            }
+            std::fs::write(target, &bytes)
+                .map_err(|e| anyhow::anyhow!("write {}: {e}", target.display()))?;
+            // If this item was previously indexed RAG-only (unmapped), drop those
+            // chunks so the on-disk copy (indexed by the watcher under its disk
+            // path) is not duplicated by stale `onedrive:` chunks.
+            rag_store::delete_path(&table, &key.source_id, rag_key).await?;
+            store.upsert_item(
+                &key.source_id,
+                &key.drive_id,
+                key.site_id.as_deref(),
+                &key.item_id,
+                &item.name,
+                &parent_path,
+                item.web_url.as_deref(),
+                &remote_signature,
+                &hash,
+                &matter_id,
+                true,
+                false,
+            )?;
+            if let Some(rel) = rel {
+                store.set_local_path(&key.source_id, &rel)?;
+            }
+            report.imported += 1;
+            continue;
+        }
+
+        // UNMAPPED (or a name we can't safely place on disk): keep the legacy
+        // behaviour of indexing the bytes into the encrypted RAG store, so the
+        // content is still searchable in the All-clients scope.
+        //
+        // If this item WAS previously materialized to a client's folder (its
+        // folder has since been unlinked or remapped away from a disk
+        // destination), remove the stale on-disk copy and forget it — otherwise
+        // it keeps showing under the old client's Documents and a later tombstone
+        // would act on an obsolete path.
+        if let Some(old) = store.get_local_path(&key.source_id)? {
+            let _ = std::fs::remove_file(workspace.join(&old));
+            store.clear_local_path(&key.source_id)?;
+        }
         let outcome = index_downloaded_document_bytes(
             &table,
             &key.source_id,
@@ -440,14 +603,17 @@ mod tests {
             OneDriveMatterMapEntry {
                 folder_key: folder_key(DEFAULT_ACCOUNT, None, "drive-a", "/clients/acme"),
                 matter_id: "matter-parent".into(),
+                dest_folder: String::new(),
             },
             OneDriveMatterMapEntry {
                 folder_key: folder_key(DEFAULT_ACCOUNT, None, "drive-a", "/clients/acme/pleadings"),
                 matter_id: "matter-child".into(),
+                dest_folder: String::new(),
             },
             OneDriveMatterMapEntry {
                 folder_key: folder_key(DEFAULT_ACCOUNT, None, "drive-b", "/clients/acme/pleadings"),
                 matter_id: "wrong-drive".into(),
+                dest_folder: String::new(),
             },
         ];
         assert_eq!(resolve_matter_for_item(&item, &map), "matter-child");
@@ -472,6 +638,7 @@ mod tests {
                 "/clients/acme",
             ),
             matter_id: "matter-sharepoint".into(),
+            dest_folder: String::new(),
         }];
 
         assert_eq!(resolve_matter_for_item(&item, &map), "matter-sharepoint");
@@ -524,6 +691,7 @@ mod tests {
         let matter_map = vec![OneDriveMatterMapEntry {
             folder_key: folder_key(DEFAULT_ACCOUNT, None, "drive-a", "/clients/acme"),
             matter_id: "matter-a".into(),
+            dest_folder: String::new(),
         }];
         let report = sync_documents(
             &source,
@@ -756,6 +924,7 @@ mod tests {
         let matter_map = vec![OneDriveMatterMapEntry {
             folder_key: folder_key(DEFAULT_ACCOUNT, None, "drive-a", "/clients/acme"),
             matter_id: "matter-a".into(),
+            dest_folder: String::new(),
         }];
         let report = sync_documents(
             &source,
@@ -815,6 +984,7 @@ mod tests {
         let first_map = vec![OneDriveMatterMapEntry {
             folder_key: folder_key(DEFAULT_ACCOUNT, None, "drive-a", "/clients/acme"),
             matter_id: "matter-a".into(),
+            dest_folder: String::new(),
         }];
         sync_documents(
             &first_source,
@@ -845,6 +1015,7 @@ mod tests {
         let second_map = vec![OneDriveMatterMapEntry {
             folder_key: folder_key(DEFAULT_ACCOUNT, None, "drive-a", "/clients/acme"),
             matter_id: "matter-b".into(),
+            dest_folder: String::new(),
         }];
         let report = sync_documents(
             &second_source,
@@ -923,6 +1094,7 @@ mod tests {
         let matter_map = vec![OneDriveMatterMapEntry {
             folder_key: folder_key(DEFAULT_ACCOUNT, None, "drive-shared", "/clients/shared"),
             matter_id: "matter-shared".into(),
+            dest_folder: String::new(),
         }];
 
         let report = sync_documents(
@@ -997,6 +1169,7 @@ mod tests {
         let matter_map = vec![OneDriveMatterMapEntry {
             folder_key: folder_key(DEFAULT_ACCOUNT, None, "drive-a", "/clients/acme"),
             matter_id: "matter-a".into(),
+            dest_folder: String::new(),
         }];
 
         let report = sync_documents(
@@ -1019,5 +1192,455 @@ mod tests {
         let row = store.get_item("onedrive:drive-a:item-1").unwrap().unwrap();
         assert!(!row.indexed, "cancelled item must retry on the next sync");
         assert_eq!(row.remote_signature, "old-sig|||0");
+    }
+
+    // A mapping whose `dest_folder` is set materializes the file into the
+    // client's workspace folder on disk (so it appears in the Documents tab and
+    // is indexed by the normal local-file watcher). This is the core OneDrive
+    // real-file-import fix: before it, a matched file was never written to disk.
+    #[tokio::test]
+    async fn mapped_file_is_written_into_client_workspace_folder() {
+        let dir = TempDir::new().unwrap();
+        let store = OneDriveStore::open_with_key(dir.path(), &[0x44; 32]).unwrap();
+        let page = DeltaPage {
+            value: vec![file_item(
+                "item-1",
+                "Risk Assessment.docx",
+                "drive-a",
+                "/drive/root:/Clients/Webb, Marcus & Tanya",
+                "v1",
+            )],
+            delta_link: Some("delta-next".into()),
+            ..Default::default()
+        };
+        let source = FakeSource::new(page)
+            .with_download("item-1", b"real client document bytes")
+            .await;
+        let matter_map = vec![OneDriveMatterMapEntry {
+            folder_key: folder_key(
+                DEFAULT_ACCOUNT,
+                None,
+                "drive-a",
+                "/clients/webb, marcus & tanya",
+            ),
+            matter_id: "matter-webb".into(),
+            dest_folder: "Clients/Webb, Marcus & Tanya".into(),
+        }];
+
+        let report = sync_documents(
+            &source,
+            &store,
+            dir.path(),
+            &matter_map,
+            &AtomicBool::new(false),
+            &[0x55; 32],
+            &AtomicU32::new(0),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(report.imported, 1, "the mapped file must be imported");
+        assert_eq!(report.downloaded, 1);
+        // Materialized under an `OneDrive` subfolder of the client folder so it can
+        // never clobber the client's own same-named local document.
+        let written = dir
+            .path()
+            .join("Clients/Webb, Marcus & Tanya/OneDrive/Risk Assessment.docx");
+        assert!(
+            written.exists(),
+            "mapped OneDrive file must be written into the client's workspace folder"
+        );
+        assert_eq!(
+            std::fs::read(&written).unwrap(),
+            b"real client document bytes"
+        );
+        // The store remembers where it landed so a later remote-delete can remove
+        // the local copy.
+        assert_eq!(
+            store.get_local_path("onedrive:drive-a:item-1").unwrap(),
+            Some("Clients/Webb, Marcus & Tanya/OneDrive/Risk Assessment.docx".to_string())
+        );
+    }
+
+    // The connector must never overwrite the client's OWN same-named local file:
+    // its imports land under the `OneDrive` subfolder, leaving local files intact.
+    #[tokio::test]
+    async fn mapped_file_does_not_clobber_existing_client_file() {
+        let dir = TempDir::new().unwrap();
+        let store = OneDriveStore::open_with_key(dir.path(), &[0x44; 32]).unwrap();
+        // A pre-existing local file the user owns.
+        let user_file = dir.path().join("Clients/Acme/memo.docx");
+        std::fs::create_dir_all(user_file.parent().unwrap()).unwrap();
+        std::fs::write(&user_file, b"USER'S OWN EDITS").unwrap();
+
+        let page = DeltaPage {
+            value: vec![file_item(
+                "item-1",
+                "memo.docx",
+                "drive-a",
+                "/drive/root:/Clients/Acme",
+                "v1",
+            )],
+            delta_link: Some("d".into()),
+            ..Default::default()
+        };
+        let source = FakeSource::new(page)
+            .with_download("item-1", b"cloud copy")
+            .await;
+        let matter_map = vec![OneDriveMatterMapEntry {
+            folder_key: folder_key(DEFAULT_ACCOUNT, None, "drive-a", "/clients/acme"),
+            matter_id: "matter-acme".into(),
+            dest_folder: "Clients/Acme".into(),
+        }];
+        sync_documents(
+            &source,
+            &store,
+            dir.path(),
+            &matter_map,
+            &AtomicBool::new(false),
+            &[0x55; 32],
+            &AtomicU32::new(0),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            std::fs::read(&user_file).unwrap(),
+            b"USER'S OWN EDITS",
+            "the user's own local file must not be overwritten"
+        );
+        assert!(dir.path().join("Clients/Acme/OneDrive/memo.docx").exists());
+    }
+
+    // A remote rename keeps the same source_id; the stale old on-disk copy must be
+    // removed so it can't linger as duplicate content.
+    #[tokio::test]
+    async fn remote_rename_removes_stale_disk_copy() {
+        let dir = TempDir::new().unwrap();
+        let store = OneDriveStore::open_with_key(dir.path(), &[0x44; 32]).unwrap();
+        let matter_map = vec![OneDriveMatterMapEntry {
+            folder_key: folder_key(DEFAULT_ACCOUNT, None, "drive-a", "/clients/acme"),
+            matter_id: "matter-acme".into(),
+            dest_folder: "Clients/Acme".into(),
+        }];
+        let first = FakeSource::new(DeltaPage {
+            value: vec![file_item(
+                "item-1",
+                "old.docx",
+                "drive-a",
+                "/drive/root:/Clients/Acme",
+                "v1",
+            )],
+            delta_link: Some("d1".into()),
+            ..Default::default()
+        })
+        .with_download("item-1", b"bytes")
+        .await;
+        sync_documents(
+            &first,
+            &store,
+            dir.path(),
+            &matter_map,
+            &AtomicBool::new(false),
+            &[0x55; 32],
+            &AtomicU32::new(0),
+        )
+        .await
+        .unwrap();
+        assert!(dir.path().join("Clients/Acme/OneDrive/old.docx").exists());
+
+        // Same item id, new name + signature (a rename).
+        let second = FakeSource::new(DeltaPage {
+            value: vec![file_item(
+                "item-1",
+                "new.docx",
+                "drive-a",
+                "/drive/root:/Clients/Acme",
+                "v2",
+            )],
+            delta_link: Some("d2".into()),
+            ..Default::default()
+        })
+        .with_download("item-1", b"bytes")
+        .await;
+        sync_documents(
+            &second,
+            &store,
+            dir.path(),
+            &matter_map,
+            &AtomicBool::new(false),
+            &[0x55; 32],
+            &AtomicU32::new(0),
+        )
+        .await
+        .unwrap();
+        assert!(dir.path().join("Clients/Acme/OneDrive/new.docx").exists());
+        assert!(
+            !dir.path().join("Clients/Acme/OneDrive/old.docx").exists(),
+            "the pre-rename copy must be removed"
+        );
+    }
+
+    // Unlinking a folder (the item no longer maps to a client with a disk
+    // destination) removes the stale materialized copy and forgets its path, so it
+    // stops showing under the old client. Uses an empty .txt so the RAG fallback
+    // needs no embedding model.
+    #[tokio::test]
+    async fn unmapping_removes_stale_materialized_file() {
+        let dir = TempDir::new().unwrap();
+        let store = OneDriveStore::open_with_key(dir.path(), &[0x44; 32]).unwrap();
+        let mapped = vec![OneDriveMatterMapEntry {
+            folder_key: folder_key(DEFAULT_ACCOUNT, None, "drive-a", "/clients/acme"),
+            matter_id: "matter-acme".into(),
+            dest_folder: "Clients/Acme".into(),
+        }];
+        let page = || DeltaPage {
+            value: vec![file_item(
+                "item-1",
+                "memo.txt",
+                "drive-a",
+                "/drive/root:/Clients/Acme",
+                "v1",
+            )],
+            delta_link: Some("d".into()),
+            ..Default::default()
+        };
+        // First sync: materialized to disk under the client.
+        let first = FakeSource::new(page()).with_download("item-1", b"").await;
+        sync_documents(
+            &first,
+            &store,
+            dir.path(),
+            &mapped,
+            &AtomicBool::new(false),
+            &[0x55; 32],
+            &AtomicU32::new(0),
+        )
+        .await
+        .unwrap();
+        let on_disk = dir.path().join("Clients/Acme/OneDrive/memo.txt");
+        assert!(on_disk.exists());
+
+        // Second sync with the folder UNLINKED (empty map) → no disk destination.
+        let second = FakeSource::new(page()).with_download("item-1", b"").await;
+        sync_documents(
+            &second,
+            &store,
+            dir.path(),
+            &[],
+            &AtomicBool::new(false),
+            &[0x55; 32],
+            &AtomicU32::new(0),
+        )
+        .await
+        .unwrap();
+        assert!(
+            !on_disk.exists(),
+            "unlinking must remove the stale materialized copy"
+        );
+        assert_eq!(
+            store.get_local_path("onedrive:drive-a:item-1").unwrap(),
+            None,
+            "the forgotten path must be cleared"
+        );
+    }
+
+    // Stop pressed while a MAPPED file is downloading must not commit the write,
+    // mark it indexed, or advance the cursor.
+    #[tokio::test]
+    async fn cancel_during_materialize_does_not_write_or_advance() {
+        let dir = TempDir::new().unwrap();
+        let store = OneDriveStore::open_with_key(dir.path(), &[0x44; 32]).unwrap();
+        let cancel = Arc::new(AtomicBool::new(false));
+        let page = DeltaPage {
+            value: vec![file_item(
+                "item-1",
+                "big.docx",
+                "drive-a",
+                "/drive/root:/Clients/Acme",
+                "v1",
+            )],
+            delta_link: Some("new-delta".into()),
+            ..Default::default()
+        };
+        let source = FakeSource::new(page)
+            .with_cancel_on_download(cancel.clone())
+            .with_download("item-1", b"partial")
+            .await;
+        let matter_map = vec![OneDriveMatterMapEntry {
+            folder_key: folder_key(DEFAULT_ACCOUNT, None, "drive-a", "/clients/acme"),
+            matter_id: "matter-acme".into(),
+            dest_folder: "Clients/Acme".into(),
+        }];
+
+        let report = sync_documents(
+            &source,
+            &store,
+            dir.path(),
+            &matter_map,
+            &cancel,
+            &[0x55; 32],
+            &AtomicU32::new(0),
+        )
+        .await
+        .unwrap();
+
+        assert!(report.cancelled);
+        assert_eq!(report.imported, 0);
+        assert!(
+            !dir.path().join("Clients/Acme/OneDrive/big.docx").exists(),
+            "a cancelled mapped download must not write the file"
+        );
+        assert!(
+            store.get_cursor("m365/default/me").unwrap().is_none(),
+            "the cursor must not advance on cancel"
+        );
+    }
+
+    // A mapped nested file mirrors its OneDrive sub-folder structure under the
+    // client's workspace folder.
+    #[tokio::test]
+    async fn mapped_nested_file_mirrors_subfolder_structure() {
+        let dir = TempDir::new().unwrap();
+        let store = OneDriveStore::open_with_key(dir.path(), &[0x44; 32]).unwrap();
+        let page = DeltaPage {
+            value: vec![file_item(
+                "item-2",
+                "2023.pdf",
+                "drive-a",
+                "/drive/root:/Clients/Acme/Tax",
+                "v1",
+            )],
+            delta_link: Some("d".into()),
+            ..Default::default()
+        };
+        let source = FakeSource::new(page)
+            .with_download("item-2", b"pdf bytes")
+            .await;
+        let matter_map = vec![OneDriveMatterMapEntry {
+            folder_key: folder_key(DEFAULT_ACCOUNT, None, "drive-a", "/clients/acme"),
+            matter_id: "matter-acme".into(),
+            dest_folder: "Clients/Acme".into(),
+        }];
+
+        let report = sync_documents(
+            &source,
+            &store,
+            dir.path(),
+            &matter_map,
+            &AtomicBool::new(false),
+            &[0x55; 32],
+            &AtomicU32::new(0),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(report.imported, 1);
+        assert!(dir.path().join("Clients/Acme/OneDrive/Tax/2023.pdf").exists());
+    }
+
+    // An empty delta (no matching files) reports zero imports and zero seen, so
+    // the UI can honestly say "no files found" instead of a false "imported".
+    #[tokio::test]
+    async fn empty_delta_reports_zero_imported() {
+        let dir = TempDir::new().unwrap();
+        let store = OneDriveStore::open_with_key(dir.path(), &[0x44; 32]).unwrap();
+        let page = DeltaPage {
+            value: vec![],
+            delta_link: Some("d".into()),
+            ..Default::default()
+        };
+        let source = FakeSource::new(page);
+        let report = sync_documents(
+            &source,
+            &store,
+            dir.path(),
+            &[],
+            &AtomicBool::new(false),
+            &[0x55; 32],
+            &AtomicU32::new(0),
+        )
+        .await
+        .unwrap();
+        assert_eq!(report.imported, 0);
+        assert_eq!(report.seen, 0);
+        assert_eq!(report.downloaded, 0);
+    }
+
+    // A delta error is surfaced to the caller (never a silent success).
+    #[tokio::test]
+    async fn delta_error_is_surfaced_not_silent() {
+        let dir = TempDir::new().unwrap();
+        let store = OneDriveStore::open_with_key(dir.path(), &[0x44; 32]).unwrap();
+        let source =
+            FakeSource::with_pages(vec![Err(anyhow::anyhow!("graph 500 while listing"))]);
+        let result = sync_documents(
+            &source,
+            &store,
+            dir.path(),
+            &[],
+            &AtomicBool::new(false),
+            &[0x55; 32],
+            &AtomicU32::new(0),
+        )
+        .await;
+        assert!(result.is_err(), "a delta failure must not be a silent no-op");
+    }
+
+    // A remote delete removes the materialized on-disk copy too.
+    #[tokio::test]
+    async fn tombstone_removes_materialized_disk_file() {
+        let dir = TempDir::new().unwrap();
+        let store = OneDriveStore::open_with_key(dir.path(), &[0x44; 32]).unwrap();
+        let matter_map = vec![OneDriveMatterMapEntry {
+            folder_key: folder_key(DEFAULT_ACCOUNT, None, "drive-a", "/clients/acme"),
+            matter_id: "matter-acme".into(),
+            dest_folder: "Clients/Acme".into(),
+        }];
+        let first = FakeSource::new(DeltaPage {
+            value: vec![file_item(
+                "item-1",
+                "memo.docx",
+                "drive-a",
+                "/drive/root:/Clients/Acme",
+                "v1",
+            )],
+            delta_link: Some("d1".into()),
+            ..Default::default()
+        })
+        .with_download("item-1", b"bytes")
+        .await;
+        sync_documents(
+            &first,
+            &store,
+            dir.path(),
+            &matter_map,
+            &AtomicBool::new(false),
+            &[0x55; 32],
+            &AtomicU32::new(0),
+        )
+        .await
+        .unwrap();
+        let on_disk = dir.path().join("Clients/Acme/OneDrive/memo.docx");
+        assert!(on_disk.exists());
+
+        let second = FakeSource::new(DeltaPage {
+            value: vec![deleted_item("item-1", "memo.docx", "drive-a", "/drive/root:/Clients/Acme")],
+            delta_link: Some("d2".into()),
+            ..Default::default()
+        });
+        let report = sync_documents(
+            &second,
+            &store,
+            dir.path(),
+            &matter_map,
+            &AtomicBool::new(false),
+            &[0x55; 32],
+            &AtomicU32::new(0),
+        )
+        .await
+        .unwrap();
+        assert_eq!(report.removed, 1);
+        assert!(!on_disk.exists(), "remote delete must remove the local copy");
     }
 }

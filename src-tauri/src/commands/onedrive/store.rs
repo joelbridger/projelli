@@ -96,7 +96,8 @@ impl OneDriveStore {
                 indexed          INTEGER NOT NULL DEFAULT 0,
                 pending_pdf      INTEGER NOT NULL DEFAULT 0,
                 deleted          INTEGER NOT NULL DEFAULT 0,
-                updated_at       TEXT NOT NULL DEFAULT ''
+                updated_at       TEXT NOT NULL DEFAULT '',
+                local_path       TEXT
              );
              CREATE INDEX IF NOT EXISTS idx_onedrive_items_drive ON onedrive_items(drive_id);
              CREATE INDEX IF NOT EXISTS idx_onedrive_items_indexed ON onedrive_items(indexed, deleted);
@@ -109,6 +110,10 @@ impl OneDriveStore {
                 value TEXT NOT NULL
              );",
         )?;
+        // Best-effort migration for stores created before the on-disk materialize
+        // path existed. `ALTER TABLE ... ADD COLUMN` errors if the column is
+        // already present (fresh DBs created by the CREATE above), so ignore it.
+        let _ = conn.execute("ALTER TABLE onedrive_items ADD COLUMN local_path TEXT", []);
         Ok(Self {
             conn: std::sync::Mutex::new(conn),
             workspace_root: workspace_root.to_path_buf(),
@@ -180,6 +185,43 @@ impl OneDriveStore {
             row_to_item,
         )
         .optional()
+        .map_err(anyhow::Error::from)
+    }
+
+    /// Record the workspace-relative path a downloaded item was materialized to
+    /// on disk, so a later remote-delete can remove the local copy too.
+    pub fn set_local_path(&self, source_id: &str, local_path: &str) -> Result<()> {
+        let c = self.conn.lock().unwrap();
+        c.execute(
+            "UPDATE onedrive_items SET local_path = ?2 WHERE source_id = ?1",
+            rusqlite::params![source_id, local_path],
+        )?;
+        Ok(())
+    }
+
+    /// Forget the recorded on-disk path for an item (after its local copy has been
+    /// removed because it no longer maps to a client with a disk destination).
+    pub fn clear_local_path(&self, source_id: &str) -> Result<()> {
+        let c = self.conn.lock().unwrap();
+        c.execute(
+            "UPDATE onedrive_items SET local_path = NULL WHERE source_id = ?1",
+            [source_id],
+        )?;
+        Ok(())
+    }
+
+    /// The workspace-relative on-disk path a downloaded item was written to, if it
+    /// was materialized to disk (mapped-to-a-client files). `None` for RAG-only
+    /// items and older rows.
+    pub fn get_local_path(&self, source_id: &str) -> Result<Option<String>> {
+        let c = self.conn.lock().unwrap();
+        c.query_row(
+            "SELECT local_path FROM onedrive_items WHERE source_id = ?1",
+            [source_id],
+            |r| r.get::<_, Option<String>>(0),
+        )
+        .optional()
+        .map(|opt| opt.flatten())
         .map_err(anyhow::Error::from)
     }
 
