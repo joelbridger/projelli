@@ -999,6 +999,80 @@ export function isStandaloneMarkdownTable(markdown: string): boolean {
 }
 
 /**
+ * True when a trimmed line is a FULL pipe-table row — it both starts and ends
+ * with `|` and has at least two pipes (so `|a|`, `|a|b|`, `| --- | --- |` all
+ * count). Deliberately requires the OUTER pipes so ordinary prose with a stray
+ * mid-line `|` ("$50k | year") is NOT mistaken for a table row.
+ */
+function isFullPipeRow(line: string): boolean {
+  const t = line.trim();
+  return /^\|.*\|$/.test(t) && (t.match(/\|/g)?.length ?? 0) >= 2;
+}
+
+/** True when a trimmed line is a GFM separator row (`|---|`, `| :--- |`, …). */
+function isSeparatorRow(line: string): boolean {
+  const t = line.trim();
+  return /^[|\s:-]+$/.test(t) && t.includes('-') && t.includes('|');
+}
+
+/**
+ * True when `text` contains a BLOCK of at least two consecutive full pipe-table
+ * rows — with OR without a `|---|` separator row. This is broader than {@link
+ * containsMarkdownTable} (which requires a separator row) on purpose: real model
+ * output for "add a small table" frequently OMITS the separator row entirely
+ * (`|Name|Value|` / `|Alpha|42|`), and that MUST still be recognized as a table
+ * so it is converted to a real `<w:tbl>` (or rejected) rather than leaking as
+ * literal pipe text. Prose with a single stray pipe stays false (needs two
+ * adjacent full pipe rows).
+ */
+export function containsPipeTableLikeBlock(text: string): boolean {
+  const lines = text.replace(/\r\n/g, '\n').split('\n');
+  for (let i = 1; i < lines.length; i++) {
+    if (isFullPipeRow(lines[i] ?? '') && isFullPipeRow(lines[i - 1] ?? '')) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * If `text` is a CLEAN, standalone pipe table — every non-blank line is a full
+ * pipe row, at least two rows, no interleaved prose or blank lines — return it
+ * as a canonical GFM Markdown table (with a proper `|---|` separator row,
+ * synthesized from the header's column count when the model omitted one) that
+ * {@link markdownToRedlineBlocks} converts to a real `<w:tbl>`. Otherwise return
+ * `null` so the caller REJECTS the edit rather than risk leaking literal pipes
+ * or silently losing text.
+ *
+ * This is the normalization the AI redliner runs BEFORE converting a table: it
+ * closes the gap between what models actually emit (tight pipes, no separator)
+ * and what the converter needs, without ever passing pipe syntax through as prose.
+ */
+export function normalizeStandalonePipeTable(text: string): string | null {
+  const raw = text.replace(/\r\n/g, '\n').split('\n');
+  let start = 0;
+  let end = raw.length;
+  while (start < end && (raw[start] ?? '').trim() === '') start++;
+  while (end > start && (raw[end - 1] ?? '').trim() === '') end--;
+  const lines = raw.slice(start, end).map((l) => l.trim());
+  // Need at least a header + one more row; every line must be a full pipe row
+  // (no prose, no internal blank lines) — otherwise it isn't a standalone table.
+  if (lines.length < 2) return null;
+  if (!lines.every((l) => isFullPipeRow(l))) return null;
+
+  // Already has a separator directly under the header → canonical enough.
+  if (isSeparatorRow(lines[1] ?? '')) return lines.join('\n');
+
+  // No separator row at all → synthesize one from the header's column count.
+  // (A separator that isn't line two would make this not a clean table; reject.)
+  if (lines.some((l) => isSeparatorRow(l))) return null;
+  const headerCells = (lines[0] ?? '').replace(/^\|/, '').replace(/\|$/, '').split('|');
+  const colCount = Math.max(1, headerCells.length);
+  const separator = `|${Array.from({ length: colCount }, () => ' --- ').join('|')}|`;
+  return [lines[0], separator, ...lines.slice(1)].join('\n');
+}
+
+/**
  * Convert an arbitrary Markdown fragment into an ORDERED list of {@link
  * RedlineBlock}s, reusing the proven `markdownToDocxBytes` converter. This is how
  * the AI redliner turns a Markdown pipe table (optionally with surrounding text)

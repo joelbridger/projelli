@@ -25,7 +25,8 @@ import { resolveWorkspacePath } from '@/platform/fs/pathResolve';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import {
   containsMarkdownTable,
-  isStandaloneMarkdownTable,
+  containsPipeTableLikeBlock,
+  normalizeStandalonePipeTable,
   markdownToRedlineBlocks,
   type RedlineBlock,
 } from '@/platform/utils/docx-io';
@@ -263,10 +264,26 @@ export async function expandRedlineEditsForTables(
   const plan: RedlineEditPlan[] = [];
 
   for (const e of edits) {
+    const isTextInsertOrReplace =
+      (e.op === 'insert' || e.op === 'replace') && typeof e.newText === 'string';
+    const text = isTextInsertOrReplace ? (e.newText as string) : '';
+    // HARD INVARIANT gate: recognize pipe-table-shaped text in ANY form the model
+    // actually emits, so it can NEVER slip through as prose. This is BROADER than
+    // the old `containsMarkdownTable` (which required a `|---|` separator row):
+    //   - `containsMarkdownTable`        → a GFM table WITH a separator row,
+    //   - `containsPipeTableLikeBlock`   → ≥2 adjacent pipe rows even with NO
+    //                                      separator row (the shape models most
+    //                                      often emit for a small table),
+    //   - a single full pipe row         → a table split one-row-per-edit; can't
+    //                                      form a table alone, so it's rejected
+    //                                      below (never leaked as literal pipes).
+    // The old detector missed the latter two, so real AI table output was
+    // classified as ordinary prose and its literal `|` syntax reached the file.
+    const isLonePipeRow =
+      isTextInsertOrReplace && /^\s*\|.*\|\s*$/.test(text.trim()) && !text.trim().includes('\n');
     const hasTable =
-      (e.op === 'insert' || e.op === 'replace') &&
-      typeof e.newText === 'string' &&
-      containsMarkdownTable(e.newText);
+      isTextInsertOrReplace &&
+      (containsMarkdownTable(text) || containsPipeTableLikeBlock(text) || isLonePipeRow);
 
     if (!hasTable) {
       plan.push({ kind: 'passthrough', wireIndex: wireEdits.length });
@@ -287,17 +304,22 @@ export async function expandRedlineEditsForTables(
       continue;
     }
 
-    // Only convert a CLEAN, standalone table. Judge the INPUT, not the converted
-    // output: prose with a stray `|` would be silently absorbed/dropped by the
-    // lenient converter, so an output-only check could pass while losing text.
-    if (!isStandaloneMarkdownTable(e.newText as string)) {
+    // Normalize to a CLEAN, standalone GFM table (synthesizing a `|---|`
+    // separator row when the model omitted one). Judge the INPUT, not the
+    // converted output: a table mixed with prose (or a lone unconvertible pipe
+    // row) returns null here, and we REJECT rather than leak literal pipes or
+    // silently fold/drop the surrounding prose.
+    const normalizedTable = normalizeStandalonePipeTable(text);
+    if (!normalizedTable) {
+      console.warn('[Redline] table rejected (not a clean standalone table)');
       plan.push({ kind: 'rejected', error: TABLE_MIXED_REJECT_MESSAGE });
       continue;
     }
+    console.log('[Redline] table detected → converting to a real <w:tbl>');
 
     let blocks: RedlineBlock[];
     try {
-      blocks = await convert(e.newText as string);
+      blocks = await convert(normalizedTable);
     } catch {
       plan.push({ kind: 'rejected', error: TABLE_CONVERT_REJECT_MESSAGE });
       continue;
