@@ -35,7 +35,7 @@ const claims = {
   tier: 'practice' as const,
   packs: ['legal'] as Array<'legal'>,
   seats: 5,
-  iss: 'licenses.keepance.com',
+  iss: 'licenses.lanternplatform.app',
   sub: 'user-1',
   iat: NOW - 100,
   exp: NOW + 3600,

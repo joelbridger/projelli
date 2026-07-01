@@ -45,8 +45,8 @@ export const BRAND = {
   "urls": {
     "site": "https://advisorprephero.com",
     "docsBase": "https://advisorprephero.com/docs",
-    "supportEmail": "support@keepance.com",
-    "developersEmail": "developers@keepance.com",
+    "supportEmail": "support@advisorprephero.com",
+    "developersEmail": "developers@advisorprephero.com",
     "pricing": "https://advisorprephero.com/#pricing",
     "download": "https://advisorprephero.com/download/",
     "privacy": "https://advisorprephero.com/legal/privacy/",
@@ -54,12 +54,12 @@ export const BRAND = {
     "gettingStarted": "https://advisorprephero.com/docs/getting-started",
     "mobileDocsBase": "https://advisorprephero.com/docs/mobile-access",
     "voices": "https://advisorprephero.com/voices",
-    "formsBugReport": "https://keepance.com/api/forms/keepance/bug-report",
-    "formsAiSetupHelp": "https://keepance.com/api/forms/keepance/ai-setup-help",
-    "formsTelemetry": "https://keepance.com/api/forms/keepance/app-event",
-    "formsDiagnostics": "https://keepance.com/api/forms/keepance/design-partner-event",
-    "licenseApi": "https://licenses.keepance.com",
-    "firmApi": "https://api.keepance.com"
+    "formsBugReport": "https://forms.lanternplatform.app/api/forms/keepance/bug-report",
+    "formsAiSetupHelp": "https://forms.lanternplatform.app/api/forms/keepance/ai-setup-help",
+    "formsTelemetry": "https://forms.lanternplatform.app/api/forms/keepance/app-event",
+    "formsDiagnostics": "https://forms.lanternplatform.app/api/forms/keepance/design-partner-event",
+    "licenseApi": "https://licenses.lanternplatform.app",
+    "firmApi": "https://api.lanternplatform.app"
   }
 } as const;
 

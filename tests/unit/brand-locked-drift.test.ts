@@ -24,7 +24,7 @@ import { detectLockedDrift } from '../../scripts/brand-sync.mjs';
 
 const LOCKED = {
   tauriBundleId: 'com.keepance.app',
-  updaterEndpoint: 'https://github.com/keepance/keepance/releases/latest/download/latest.json',
+  updaterEndpoint: 'https://github.com/lanternplatform/lantern/releases/latest/download/latest.json',
   cargoBinaryName: 'keepance',
   keychainServices: ['com.keepance.app', 'keepance-audit-enc'],
 };

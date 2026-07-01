@@ -14,7 +14,7 @@ name: Release Tauri builds
 # them.
 #
 # After the workflow finishes:
-#   1. Go to https://github.com/keepance/keepance/releases
+#   1. Go to https://github.com/lanternplatform/lantern/releases
 #   2. Find the draft release
 #   3. Edit the description with the changelog from CHANGELOG.md
 #   4. Click "Publish release"
@@ -43,7 +43,7 @@ name: Release Tauri builds
 # click. The tag-push path is unaffected.
 #
 # TODO (Jameson — GitHub settings change): for stronger protection, create a
-# GitHub Environment named "release-signing" on the keepance/keepance repo
+# GitHub Environment named "release-signing" on the lanternplatform/lantern repo
 # (Settings → Environments → New environment), add yourself as a required
 # reviewer, then assign that environment to the `gate` job below. That forces
 # a manual approval pop-up in the GitHub UI before any build runs, even on
@@ -389,7 +389,7 @@ jobs:
           TARGET="${MCP_TARGET}"
           gh release upload "$TAG" \
             "mcpb-dist/lantern-.mcpb" \
-            --clobber --repo keepance/keepance
+            --clobber --repo lanternplatform/lantern
 
   # Windows job: separate from the matrix because we don't use Tauri's
   # signCommand. Build with raw npm + sign with Microsoft's official action
@@ -622,7 +622,7 @@ jobs:
           $maxAttempts = 60
           $attempt = 0
           while ($attempt -lt $maxAttempts) {
-            $exists = gh release view $tag --repo keepance/keepance 2>$null
+            $exists = gh release view $tag --repo lanternplatform/lantern 2>$null
             if ($LASTEXITCODE -eq 0) {
               Write-Host "Draft release exists for $tag"
               break
@@ -633,7 +633,7 @@ jobs:
           }
           if ($attempt -eq $maxAttempts) {
             Write-Host "Draft release didn't appear in time. Creating it ourselves."
-            gh release create $tag --draft --title "Advisor Prep Hero $tag" --notes "Auto-generated release. See CHANGELOG.md for changes." --repo keepance/keepance
+            gh release create $tag --draft --title "Advisor Prep Hero $tag" --notes "Auto-generated release. See CHANGELOG.md for changes." --repo lanternplatform/lantern
           }
 
       - name: Upload signed Windows artifacts to release
@@ -656,7 +656,7 @@ jobs:
           }
           foreach ($f in $files) {
             Write-Host "Uploading $($f.FullName) to release $tag"
-            gh release upload $tag $f.FullName --clobber --repo keepance/keepance
+            gh release upload $tag $f.FullName --clobber --repo lanternplatform/lantern
           }
 
       # Phase 4 M4 (v1.5 Flag 2) - Upload the Windows `.mcpb` bundle.
@@ -673,7 +673,7 @@ jobs:
             exit 1
           }
           Write-Host "Uploading $mcpb to release $tag"
-          gh release upload $tag $mcpb --clobber --repo keepance/keepance
+          gh release upload $tag $mcpb --clobber --repo lanternplatform/lantern
 
   # Auto-update: the Mac/Linux `build` job writes latest.json but only for its own
   # platforms; build-windows uploads the Azure-signed installer plus its
@@ -693,16 +693,16 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p manifest && cd manifest
-          gh release download "$TAG" --repo keepance/keepance \
+          gh release download "$TAG" --repo lanternplatform/lantern \
             --pattern 'latest.json' --pattern '*-setup.exe.sig' --clobber
           SIGFILE="$(ls *-setup.exe.sig)"
           EXE="${SIGFILE%.sig}"
           SIG="$(cat "$SIGFILE")"
-          URL="https://github.com/keepance/keepance/releases/download/${TAG}/${EXE}"
+          URL="https://github.com/lanternplatform/lantern/releases/download/${TAG}/${EXE}"
           echo "Windows installer asset: $EXE"
           jq --arg sig "$SIG" --arg url "$URL" \
             '.platforms["windows-x86_64"] = {signature: $sig, url: $url}' \
             latest.json > latest.merged.json
           mv latest.merged.json latest.json
           echo "Merged platform keys:"; jq -r '.platforms | keys[]' latest.json
-          gh release upload "$TAG" latest.json --clobber --repo keepance/keepance
+          gh release upload "$TAG" latest.json --clobber --repo lanternplatform/lantern

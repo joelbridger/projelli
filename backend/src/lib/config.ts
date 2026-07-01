@@ -157,12 +157,12 @@ export const config = {
 
   /** JWT issuer claim. Kept identical to the legacy validator's audience so the
    *  client treats tokens uniformly; the seat-token issuer is the firm host. */
-  issuer: str("TOKEN_ISSUER", "licenses.keepance.com"),
+  issuer: str("TOKEN_ISSUER", "licenses.lanternplatform.app"),
 
   // ---- SSO (OIDC) — Wave 3a -------------------------------------------------
   /** Public base URL the IdP redirects back to: `${ssoCallbackBase}/auth/sso/callback`.
    *  Must match the redirect URI the firm registers with their IdP. */
-  ssoCallbackBase: str("SSO_CALLBACK_BASE", "https://api.keepance.com"),
+  ssoCallbackBase: str("SSO_CALLBACK_BASE", "https://api.lanternplatform.app"),
   ssoStateTtlSeconds: num("SSO_STATE_TTL_SECONDS", 600),
   ssoCodeTtlSeconds: num("SSO_CODE_TTL_SECONDS", 120),
 

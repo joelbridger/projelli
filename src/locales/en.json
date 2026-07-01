@@ -199,7 +199,7 @@
         "field-workflow-id": "Which workflow template you ran (the template id, not the output).",
         "field-search-count": "How many searches you ran. No query text.",
         "field-install-id": "Your anonymous install id plus app version and platform.",
-        "endpoint-note": "Endpoint: keepance.com/api/forms/keepance/design-partner-event. Used only to improve the product for your practice."
+        "endpoint-note": "Endpoint: forms.lanternplatform.app/api/forms/keepance/design-partner-event. Used only to improve the product for your practice."
       },
       "telemetry": {
         "title": "Anonymous usage stats",
@@ -211,7 +211,7 @@
         "field-app-version": "<c>app_version</c>, <c>platform</c>: which build of Advisor Prep Hero, and macOS / Windows / Linux.",
         "field-event": "<c>event</c>: one of <c>app_launch</c>, <c>trial_start</c>, <c>trial_end</c>, <c>license_activated</c>, <c>license_deactivated</c>.",
         "field-license-tier": "<c>license_tier</c> (when relevant): trial, personal, professional, practice.",
-        "endpoint-note": "Endpoint: <c>keepance.com/api/forms/keepance/app-event</c>. JSONL stored on Advisor Prep Hero's server. Used only for funnel metrics and roadmap decisions.",
+        "endpoint-note": "Endpoint: <c>forms.lanternplatform.app/api/forms/keepance/app-event</c>. JSONL stored on Advisor Prep Hero's server. Used only for funnel metrics and roadmap decisions.",
         "install-id-display": "Your install ID: <c>{{id}}</c>"
       },
       "email": {

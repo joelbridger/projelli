@@ -2,7 +2,7 @@
  * VG-6b — Assured mode: the egress-indicator half, proven deterministically.
  *
  * The live scripted exercise (scripts/assured-live-exercise.sh) proves the
- * backend proxy + zero-retention path against api.keepance.com. This file
+ * backend proxy + zero-retention path against api.lanternplatform.app. This file
  * proves the CLIENT half the audit cares about: once the firm has a managed
  * key, Assured is a real, SELECTABLE mode (no more "coming soon"), and the
  * egress indicator renders the honest zero-retention story. It also pins the

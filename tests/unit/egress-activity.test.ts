@@ -125,7 +125,7 @@ describe('getCorsSafeFetch egress instrumentation', () => {
       .mockImplementation(() => d.promise);
     try {
       const fetchFn = await getCorsSafeFetch({ signalEgress: false });
-      const pending = fetchFn('https://api.keepance.com/v1/org/roster');
+      const pending = fetchFn('https://api.lanternplatform.app/v1/org/roster');
       expect(activeCount()).toBe(0);
       d.resolve(new Response('{}'));
       await pending;
