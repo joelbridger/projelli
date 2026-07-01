@@ -26,7 +26,7 @@ import { waitForTestModeLoad, hardClick, openAIAssistantPane } from './helpers/t
 
 async function openMemorySettings(page: import('@playwright/test').Page) {
   await hardClick(page.getByTestId('settings-gear'));
-  await expect(page.getByTestId('settings-modal')).toBeVisible();
+  await expect(page.getByTestId('settings-page')).toBeVisible();
   await hardClick(page.getByTestId('settings-category-ai-privacy'));
   await hardClick(page.getByTestId('subheader-memory-heading'));
   await expect(page.getByTestId('settings-facts-section')).toBeVisible();

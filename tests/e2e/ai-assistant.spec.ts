@@ -15,6 +15,18 @@ import {
 
 test.describe('AI Assistant', () => {
   test.beforeEach(async ({ page }) => {
+    // Send is gated on a connected provider (effectiveChatProvider resolves
+    // to 'none' with no valid key, and send stays disabled even with text —
+    // see providerModelResolution.ts). Seed a valid key so these tests
+    // exercise the text-gating behavior they're actually named for, not the
+    // separate "no provider connected" gate covered by v1.5-error-paths.spec.ts.
+    await page.addInitScript(() => {
+      localStorage.setItem('bos_key_anthropic', btoa('sk-ant-test-key-for-e2e'));
+      localStorage.setItem(
+        'bos_key_metadata',
+        JSON.stringify([{ provider: 'anthropic', keyPrefix: 'sk-ant-t', addedAt: new Date(0).toISOString() }])
+      );
+    });
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
     await openAIAssistantPane(page);
