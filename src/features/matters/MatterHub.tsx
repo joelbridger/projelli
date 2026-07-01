@@ -24,6 +24,8 @@ import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode'
 import { useActiveEgressProvider } from '@/platform/hooks/useActiveEgressProvider';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import { useClientMap } from '@/features/matters/useClientMap';
+import { usePromptDialog } from '@/platform/hooks/usePromptDialog';
+import { PromptDialog } from '@/ui/PromptDialog';
 import { ClientMapPanel } from '@/features/matters/ClientMapPanel';
 import { GuidedInterview } from '@/features/matters/GuidedInterview';
 import { ClientMapUpdatesTray } from '@/features/matters/ClientMapUpdatesTray';
@@ -164,6 +166,11 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
   // The Client Map is the hero of the Overview tab — always expanded.
   const [showInterview, setShowInterview] = useState(false);
 
+  // In-app prompt dialog (WebView2-safe: native window.prompt is dead in the
+  // Tauri Windows build, so Client Map edits/answers go through the in-DOM
+  // dialog instead).
+  const { prompt, dialogProps: promptDialogProps } = usePromptDialog();
+
   // Open the EXACT cited source (the specific document, scrolled to the cited
   // spot, or the specific email), not just the general Documents/Email surface.
   const handleOpenSource = useCallback((ref: SourceRef) => {
@@ -171,16 +178,18 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
   }, [matterId]);
 
   const handleEditItem = useCallback((sectionKey: string, itemId: string) => {
-    // BUG-105: prefill the prompt with the item's current text so the user can
-    // tweak it instead of retyping the whole thing from a blank box.
-    const current = useClientMapStore.getState().getMap(matterId);
-    const existingText =
-      current?.sections.find((sec) => sec.key === sectionKey)?.items.find((it) => it.id === itemId)?.text ?? '';
-    const text = window.prompt('Edit item:', existingText);
-    if (text !== null && text.trim() !== '') {
-      useClientMapStore.getState().editItem(matterId, sectionKey, itemId, text.trim());
-    }
-  }, [matterId]);
+    void (async () => {
+      // BUG-105: prefill the prompt with the item's current text so the user can
+      // tweak it instead of retyping the whole thing from a blank box.
+      const current = useClientMapStore.getState().getMap(matterId);
+      const existingText =
+        current?.sections.find((sec) => sec.key === sectionKey)?.items.find((it) => it.id === itemId)?.text ?? '';
+      const text = await prompt('Edit item:', existingText, { title: 'Edit item', confirmLabel: 'Save' });
+      if (text !== null && text.trim() !== '') {
+        useClientMapStore.getState().editItem(matterId, sectionKey, itemId, text.trim());
+      }
+    })();
+  }, [matterId, prompt]);
 
   if (!matter) {
     return (
@@ -440,10 +449,15 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                     onOpenSource={handleOpenSource}
                     onEditItem={handleEditItem}
                     onAnswerQuestion={(gap) => {
-                      const a = window.prompt(`${LABEL_YOUR_ANSWER_PROMPT} ${gap.text}`);
-                      if (a != null && a.trim() !== '') {
-                        answerQuestion(matterId, gap.sectionKey, a.trim(), gap.text);
-                      }
+                      void (async () => {
+                        const a = await prompt(`${LABEL_YOUR_ANSWER_PROMPT} ${gap.text}`, undefined, {
+                          title: 'Your answer',
+                          confirmLabel: 'Save',
+                        });
+                        if (a != null && a.trim() !== '') {
+                          answerQuestion(matterId, gap.sectionKey, a.trim(), gap.text);
+                        }
+                      })();
                     }}
                     onFlagForClient={(gap) => { flagForClient(matterId, gap.text); }}
                     onStartInterview={() => { setShowInterview((v) => !v); }}
@@ -472,6 +486,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
           </div>
         )}
       </div>
+      <PromptDialog {...promptDialogProps} />
     </div>
   );
 }

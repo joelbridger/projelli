@@ -46,8 +46,9 @@ describe('ApiKeyManager — list + remove saved keys (Fix 2)', () => {
   it('Remove deletes the key via the keychain and drops the row', async () => {
     const keychain = createKeychainService('localStorage');
     await keychain.setKey('anthropic', VALID_ANTHROPIC_KEY);
-    // Auto-confirm the "are you sure" prompt.
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    // Native window.confirm is dead in the WebView2 build; the remove flow now
+    // uses the in-app ConfirmDialog. Guard that we never call the native one.
+    const nativeConfirm = vi.spyOn(window, 'confirm');
     const onKeyRemoved = vi.fn();
 
     render(
@@ -63,6 +64,10 @@ describe('ApiKeyManager — list + remove saved keys (Fix 2)', () => {
     await screen.findByTestId('api-key-manager-row-anthropic');
     fireEvent.click(screen.getByTestId('api-key-manager-remove-anthropic'));
 
+    // Confirm through the in-app dialog.
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove' }));
+    expect(nativeConfirm).not.toHaveBeenCalled();
+
     // The underlying keychain no longer has the key...
     await waitFor(async () => expect(await keychain.hasKey('anthropic')).toBe(false));
     // ...the row is gone (empty state shows)...
@@ -77,7 +82,6 @@ describe('ApiKeyManager — list + remove saved keys (Fix 2)', () => {
   it('does not remove the key when the confirm prompt is cancelled', async () => {
     const keychain = createKeychainService('localStorage');
     await keychain.setKey('anthropic', VALID_ANTHROPIC_KEY);
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
 
     render(
       <ApiKeyManager open onOpenChange={vi.fn()} keychainService={keychain} onAddKey={vi.fn()} />,
@@ -85,6 +89,9 @@ describe('ApiKeyManager — list + remove saved keys (Fix 2)', () => {
 
     await screen.findByTestId('api-key-manager-row-anthropic');
     fireEvent.click(screen.getByTestId('api-key-manager-remove-anthropic'));
+
+    // Cancel through the in-app dialog → nothing is removed.
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }));
 
     // Still present.
     expect(await keychain.hasKey('anthropic')).toBe(true);

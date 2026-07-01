@@ -72,6 +72,9 @@ function renderLifecycle() {
       setSourceCards: vi.fn(),
       loadChatFiles: vi.fn(async () => []),
       setChatFiles: vi.fn(),
+      // These flows have no dirty tabs, so the guard never fires; a stub keeps
+      // the required option satisfied.
+      confirm: vi.fn(async () => true),
     });
   });
 }

@@ -22,6 +22,8 @@ import { CostDashboard } from '@/features/ask/CostDashboard';
 import { PricingTiers } from '@/features/settings/PricingTiers';
 import { displayName } from '@/config/pricing';
 import { BRAND } from '@/config/brand';
+import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
+import { ConfirmDialog } from '@/ui/ConfirmDialog';
 
 export function LicenseSettings() {
   const { t } = useTranslation();
@@ -30,6 +32,9 @@ export function LicenseSettings() {
   const entitlement = useEntitlement();
   const [licenseKeyInput, setLicenseKeyInput] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
+  // In-app confirm dialog (native window.confirm is dead in the Tauri WebView2
+  // build, so the deactivate confirmation renders in the DOM instead).
+  const { confirm, dialogProps: confirmDialogProps } = useConfirmDialog();
 
   // A calm, non-alarming status line driven by the central entitlement layer.
   // Surfaced for grandfathered, lapsed/degraded, and offline-grace states so
@@ -50,9 +55,15 @@ export function LicenseSettings() {
   };
 
   const handleDeactivate = () => {
-    if (window.confirm(t('settings.license.deactivate-confirm'))) {
-      deactivate();
-    }
+    void (async () => {
+      const confirmed = await confirm(t('settings.license.deactivate-confirm'), {
+        title: t('settings.license.deactivate'),
+        variant: 'destructive',
+      });
+      if (confirmed) {
+        deactivate();
+      }
+    })();
   };
 
   return (
@@ -298,6 +309,7 @@ export function LicenseSettings() {
           <p className="text-sm text-green-700 dark:text-green-400">{t('settings.license.activate-success')}</p>
         </div>
       )}
+      <ConfirmDialog {...confirmDialogProps} />
     </div>
   );
 }

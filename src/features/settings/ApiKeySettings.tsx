@@ -20,6 +20,8 @@ import {
 import type { KeyProvider, StoredKey } from '@/platform/providers/KeychainService';
 import { ApiKeyExplainer } from '@/features/onboarding/ApiKeyExplainer';
 import { ApiKeyTester } from '@/features/onboarding/ApiKeyTester';
+import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
+import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import type { ValidationProvider } from '@/platform/providers/apiKeyValidation';
 
 interface ApiKeySettingsProps {
@@ -126,6 +128,10 @@ function ProviderKeyCard({
   const [showKey, setShowKey] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  // In-app confirm dialog (native window.confirm is dead + returns a truthy
+  // object in the Tauri WebView2 build, so a bare confirm() would delete the
+  // key without the user ever seeing a prompt).
+  const { confirm, dialogProps: confirmDialogProps } = useConfirmDialog();
 
   const loadKeyStatus = useCallback(async () => {
     setIsLoading(true);
@@ -172,7 +178,12 @@ function ProviderKeyCard({
   }, [newKey, keychainService, provider.id, loadKeyStatus, onKeyChanged]);
 
   const handleDelete = useCallback(async () => {
-    if (!confirm('Are you sure you want to remove this account key?')) {
+    const confirmed = await confirm('Are you sure you want to remove this account key?', {
+      title: 'Remove key',
+      confirmLabel: 'Remove',
+      variant: 'destructive',
+    });
+    if (!confirmed) {
       return;
     }
 
@@ -186,7 +197,7 @@ function ProviderKeyCard({
     } finally {
       setIsLoading(false);
     }
-  }, [keychainService, provider.id, loadKeyStatus, onKeyChanged]);
+  }, [keychainService, provider.id, loadKeyStatus, onKeyChanged, confirm]);
 
   const handleCancel = useCallback(() => {
     setIsEditing(false);
@@ -324,6 +335,7 @@ function ProviderKeyCard({
           </Button>
         )}
       </CardContent>
+      <ConfirmDialog {...confirmDialogProps} />
     </Card>
   );
 }

@@ -101,6 +101,7 @@ import { useMailSync } from '@/features/email/useMailSync';
 
 import type { MailIndexChunk } from '@/platform/utils/mail-commands';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
+import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { usePromptDialog } from '@/platform/hooks/usePromptDialog';
 import { useUndoToast } from '@/app/shell/common/UndoToast';
 import { CrmSourcePanel } from '@/features/crm/CrmSourcePanel';
@@ -730,7 +731,7 @@ function App() {
     workspaceServiceRef, auditServiceRef, templatesMarketplaceServiceRef, templatesMetadataReaderRef,
     setShowWorkspaceSelector, setAuditEntries, setAuditIntegrity, setRootPath,
     loadTrashMetadata, setTrashItems, setTrashStats,
-    loadSourceCards, setSourceCards, loadChatFiles, setChatFiles,
+    loadSourceCards, setSourceCards, loadChatFiles, setChatFiles, confirm,
   });
 
   // First-run workspace-first step. The onboarding overlay (OnboardingV2) calls
@@ -1166,6 +1167,12 @@ function App() {
           onDismiss={canDismiss ? () => setShowWorkspaceSelector(false) : undefined}
         />
         {firstRunOverlay}
+        {/* The shared confirm dialog must be mounted in THIS branch too, not
+            only in AppDialogs (main-shell branch). Switching workspaces from the
+            selector runs handleWorkspaceSelected, whose unsaved-changes guard
+            awaits confirm(); without the renderer here that await would hang
+            (native window.confirm used to work without a mounted component). */}
+        <ConfirmDialog {...confirmDialogProps} />
       </>
     );
   }

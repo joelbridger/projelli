@@ -49,6 +49,8 @@ import {
   setSystemPrompt,
 } from '@/features/workflows/engine/userTemplates';
 import { ChainBuilderModal } from './ChainBuilderModal';
+import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
+import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { prioritizeByProfession } from '@/features/workflows/engine/prioritizeByProfession';
 import { useProfessionStore, isLawExperience } from '@/platform/profile/professionStore';
 import { useTrialGate } from '@/platform/hooks/useTrial';
@@ -169,6 +171,10 @@ export function WorkflowPanel({
 
   // Q19 — fork modal state.
   const [forkOriginal, setForkOriginal] = useState<WorkflowTemplate | null>(null);
+  // In-app confirm dialog (native window.confirm is dead + returns a truthy
+  // object in the Tauri WebView2 build, so a bare window.confirm() would delete
+  // the template without the user ever seeing a prompt).
+  const { confirm, dialogProps: confirmDialogProps } = useConfirmDialog();
 
   // F1 — route start clicks through the estimate modal.
   const handleStartClick = (template: WorkflowTemplate) => {
@@ -199,17 +205,18 @@ export function WorkflowPanel({
   const handleDelete = useCallback(
     (template: WorkflowTemplate) => {
       if (!template.isUser) return;
-      if (
-        typeof window !== 'undefined' &&
-        typeof window.confirm === 'function' &&
-        !window.confirm(`Delete template "${template.name}"? This cannot be undone.`)
-      ) {
-        return;
-      }
-      deleteUserTemplate(template.id);
-      refreshTemplates();
+      void (async () => {
+        const confirmed = await confirm(`Delete template "${template.name}"? This cannot be undone.`, {
+          title: 'Delete template',
+          confirmLabel: 'Delete',
+          variant: 'destructive',
+        });
+        if (!confirmed) return;
+        deleteUserTemplate(template.id);
+        refreshTemplates();
+      })();
     },
-    [refreshTemplates]
+    [refreshTemplates, confirm]
   );
 
   const handleForkSaved = useCallback(() => {
@@ -399,6 +406,8 @@ export function WorkflowPanel({
         onConfirm={handleEstimateConfirm}
         onCancel={handleEstimateCancel}
       />
+
+      <ConfirmDialog {...confirmDialogProps} />
     </div>
   );
 }

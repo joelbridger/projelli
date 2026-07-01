@@ -38,6 +38,8 @@ import {
   type ValidationProvider,
 } from '@/platform/providers/apiKeyValidation';
 import { markKeyVerified, markKeyInvalid, clearKeyStatus } from '@/platform/providers/keyVerification';
+import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
+import { ConfirmDialog } from '@/ui/ConfirmDialog';
 
 // Both the list load and the per-row "Check" call go through the OS keychain
 // and/or a live network request — neither has a built-in deadline, so a
@@ -96,6 +98,10 @@ export function ApiKeyManager({
 }: ApiKeyManagerProps) {
   const [rows, setRows] = useState<KeyRow[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // In-app confirm dialog (native window.confirm is dead + returns a truthy
+  // object in the Tauri WebView2 build, so a bare confirm() would remove the
+  // key without the user ever seeing a prompt).
+  const { confirm, dialogProps: confirmDialogProps } = useConfirmDialog();
   // Aborts any in-flight per-row checks when the dialog closes / unmounts.
   const abortRefs = useRef<Map<KeyProvider, AbortController>>(new Map());
 
@@ -214,7 +220,11 @@ export function ApiKeyManager({
 
   const handleRemove = useCallback(
     async (provider: KeyProvider) => {
-      if (!confirm(`Remove the ${PROVIDER_NAMES[provider]} key? You can add it again at any time.`)) {
+      const confirmed = await confirm(
+        `Remove the ${PROVIDER_NAMES[provider]} key? You can add it again at any time.`,
+        { title: 'Remove key', confirmLabel: 'Remove', variant: 'destructive' },
+      );
+      if (!confirmed) {
         return;
       }
       abortRefs.current.get(provider)?.abort();
@@ -224,7 +234,7 @@ export function ApiKeyManager({
       await loadRows();
       onKeyRemoved?.(provider);
     },
-    [keychainService, loadRows, onKeyRemoved],
+    [keychainService, loadRows, onKeyRemoved, confirm],
   );
 
   return (
@@ -351,6 +361,7 @@ export function ApiKeyManager({
           </Button>
         </div>
       </DialogContent>
+      <ConfirmDialog {...confirmDialogProps} />
     </Dialog>
   );
 }

@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { useMatterStore, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
 import { useProfessionStore } from '@/platform/profile/professionStore';
 
@@ -279,7 +279,7 @@ describe('MatterManagerDialog — B1 sample badge + guarded delete', () => {
     expect(screen.queryByTestId('matter-manager-sample-badge')).not.toBeInTheDocument();
   });
 
-  it('deletes sample matter only after window.confirm returns true', () => {
+  it('deletes sample matter only after the in-app confirm is accepted', async () => {
     useMatterStore.setState({
       matters: [
         {
@@ -294,23 +294,26 @@ describe('MatterManagerDialog — B1 sample badge + guarded delete', () => {
       activeMatterId: null,
     });
 
-    // Confirm returns true
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValueOnce(true);
+    // Native window.confirm is dead in the WebView2 build; the delete flow now
+    // uses the in-app ConfirmDialog. Guard we never call the native one.
+    const nativeConfirm = vi.spyOn(window, 'confirm');
 
     render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
 
-    const deleteBtn = screen.getByTestId(`matter-delete-${SAMPLE_MATTER_ID}`);
-    fireEvent.click(deleteBtn);
+    fireEvent.click(screen.getByTestId(`matter-delete-${SAMPLE_MATTER_ID}`));
 
-    expect(confirmSpy).toHaveBeenCalledOnce();
-    expect(confirmSpy.mock.calls[0]![0]).toContain('demo questions will stop working');
-    // Matter should be deleted
-    expect(useMatterStore.getState().matters).toHaveLength(0);
+    // The in-app dialog appears with the sample-specific warning.
+    expect(await screen.findByText(/demo questions will stop working/)).toBeInTheDocument();
+    expect(nativeConfirm).not.toHaveBeenCalled();
 
-    confirmSpy.mockRestore();
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
+
+    await waitFor(() => expect(useMatterStore.getState().matters).toHaveLength(0));
+
+    nativeConfirm.mockRestore();
   });
 
-  it('does NOT delete sample matter when window.confirm returns false', () => {
+  it('does NOT delete sample matter when the in-app confirm is cancelled', async () => {
     useMatterStore.setState({
       matters: [
         {
@@ -325,54 +328,42 @@ describe('MatterManagerDialog — B1 sample badge + guarded delete', () => {
       activeMatterId: null,
     });
 
-    // Confirm returns false (user cancelled)
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValueOnce(false);
-
     render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
 
-    const deleteBtn = screen.getByTestId(`matter-delete-${SAMPLE_MATTER_ID}`);
-    fireEvent.click(deleteBtn);
+    fireEvent.click(screen.getByTestId(`matter-delete-${SAMPLE_MATTER_ID}`));
 
-    expect(confirmSpy).toHaveBeenCalledOnce();
-    // Matter should NOT be deleted
+    // Cancel through the in-app dialog → nothing is deleted.
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }));
+
     expect(useMatterStore.getState().matters).toHaveLength(1);
-
-    confirmSpy.mockRestore();
   });
 
-  it('confirms before deleting a normal matter, and deletes only on confirm (Codex QA)', () => {
+  it('confirms before deleting a normal matter, and deletes only on confirm (Codex QA)', async () => {
     useMatterStore.getState().createMatter({ name: 'Normal', client: 'Client' });
     const matter = useMatterStore.getState().matters[0]!;
-
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValueOnce(true);
-
-    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
-
-    const deleteBtn = screen.getByTestId(`matter-delete-${matter.id}`);
-    fireEvent.click(deleteBtn);
-
-    // A real matter now requires confirmation (accidental-deletion guard).
-    expect(confirmSpy).toHaveBeenCalledOnce();
-    expect(confirmSpy.mock.calls[0]![0]).toMatch(/Normal|can't be undone/i);
-    expect(useMatterStore.getState().matters).toHaveLength(0);
-
-    confirmSpy.mockRestore();
-  });
-
-  it('does NOT delete a normal matter when the confirm is cancelled (Codex QA)', () => {
-    useMatterStore.getState().createMatter({ name: 'Normal', client: 'Client' });
-    const matter = useMatterStore.getState().matters[0]!;
-
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValueOnce(false);
 
     render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
 
     fireEvent.click(screen.getByTestId(`matter-delete-${matter.id}`));
 
-    expect(confirmSpy).toHaveBeenCalledOnce();
-    expect(useMatterStore.getState().matters).toHaveLength(1); // not deleted
+    // A real matter now requires confirmation (accidental-deletion guard).
+    expect(await screen.findByText(/Normal|can't be undone/i)).toBeInTheDocument();
 
-    confirmSpy.mockRestore();
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
+    await waitFor(() => expect(useMatterStore.getState().matters).toHaveLength(0));
+  });
+
+  it('does NOT delete a normal matter when the confirm is cancelled (Codex QA)', async () => {
+    useMatterStore.getState().createMatter({ name: 'Normal', client: 'Client' });
+    const matter = useMatterStore.getState().matters[0]!;
+
+    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
+
+    fireEvent.click(screen.getByTestId(`matter-delete-${matter.id}`));
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }));
+
+    expect(useMatterStore.getState().matters).toHaveLength(1); // not deleted
   });
 });
 
