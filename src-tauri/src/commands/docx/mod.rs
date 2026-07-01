@@ -189,7 +189,10 @@ pub fn author_revision_core(
 
 /// The wire shape of one AI-proposed edit, matching the structured-output schema
 /// the model returns (see `src/modules/docx/redline.ts`). `op` is
-/// `"insert"` | `"delete"` | `"replace"`. `anchorText` is the verbatim substring
+/// `"insert"` | `"delete"` | `"replace"` | `"insertBlock"`. `insertBlock` is
+/// synthesized on the frontend (never by the model): it carries a real `<w:tbl>`
+/// in `xml`, produced by converting a Markdown pipe table, so table text is never
+/// inserted as literal pipe characters. `anchorText` is the verbatim substring
 /// to locate (required for delete/replace; optional for insert — when omitted the
 /// insertion is appended at the paragraph end, UNLESS `atParagraphStart` is set).
 /// `atParagraphStart` (insert only) places the insertion at the literal start of
@@ -209,6 +212,11 @@ pub struct EditInput {
     pub new_text: Option<String>,
     #[serde(default)]
     pub at_paragraph_start: bool,
+    /// Raw block-level OOXML for the `insertBlock` op (a real `<w:tbl>` produced
+    /// on the frontend from a Markdown pipe table). Required for `insertBlock`,
+    /// ignored by the other ops.
+    #[serde(default)]
+    pub xml: Option<String>,
     #[serde(default)]
     pub reason: Option<String>,
 }
@@ -271,7 +279,14 @@ fn edit_input_to_edit(e: EditInput) -> Result<Edit, String> {
                 .new_text
                 .ok_or("replace edit requires `newText`")?,
         }),
-        other => Err(format!("unknown edit op {other:?} (expected insert/delete/replace)")),
+        "insertBlock" => Ok(Edit::InsertBlock {
+            paragraph_index: e.paragraph_index,
+            anchor_text: e.anchor_text,
+            xml: e.xml.ok_or("insertBlock edit requires `xml`")?,
+        }),
+        other => Err(format!(
+            "unknown edit op {other:?} (expected insert/delete/replace/insertBlock)"
+        )),
     }
 }
 
@@ -865,6 +880,47 @@ mod tests {
         assert!(!out.results[0].applied);
         assert!(out.results[0].error.as_deref().unwrap().contains("not found"));
         assert!(out.results[1].applied);
+    }
+
+    #[test]
+    fn author_revisions_batch_insert_block_adds_a_real_table() {
+        // The `insertBlock` wire op (synthesized on the frontend from a Markdown
+        // pipe table) must add a real <w:tbl> block after the paragraph — and
+        // must NOT leak any literal pipe text into the saved document.
+        let json = serde_json::json!({
+            "formatVersion": 1,
+            "body": [{
+                "kind": "paragraph",
+                "inlines": [ { "kind": "run", "text": "Here is a table:" } ]
+            }],
+            "comments": {}
+        });
+        let tbl = "<w:tbl><w:tr><w:tc><w:p><w:r><w:t>Name</w:t></w:r></w:p></w:tc>\
+<w:tc><w:p><w:r><w:t>Value</w:t></w:r></w:p></w:tc></w:tr>\
+<w:tr><w:tc><w:p><w:r><w:t>Alpha</w:t></w:r></w:p></w:tc>\
+<w:tc><w:p><w:r><w:t>42</w:t></w:r></w:p></w:tc></w:tr></w:tbl>";
+        let edits = serde_json::json!([
+            { "op": "insertBlock", "paragraphIndex": 0, "xml": tbl, "reason": "add table" }
+        ]);
+        let out = author_revisions_core(json, edits, "Advisor Prep Hero AI", "2026-06-09T00:00:00Z")
+            .expect("batch author");
+        assert!(out.results[0].applied, "{:?}", out.results[0].error);
+        let doc = lantern_docx::document_from_value(out.document).unwrap();
+        assert_eq!(doc.body.len(), 2, "table block should be appended");
+        assert!(matches!(&doc.body[1], lantern_docx::model::BlockContent::Raw { .. }));
+        let serialized = lantern_docx::serialize::serialize_document(&doc).unwrap();
+        assert!(serialized.contains("<w:tbl>"), "no real table in output");
+        assert!(!serialized.contains('|'), "literal pipe leaked into output");
+    }
+
+    #[test]
+    fn author_revisions_batch_insert_block_requires_xml() {
+        let json = document_to_value(&build_fixture_model()).unwrap();
+        let edits = serde_json::json!([
+            { "op": "insertBlock", "paragraphIndex": 0 }
+        ]);
+        let err = author_revisions_core(json, edits, "X", "d").unwrap_err();
+        assert!(err.contains("insertBlock edit requires `xml`"), "got: {err}");
     }
 
     #[test]

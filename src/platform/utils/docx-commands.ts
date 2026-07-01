@@ -17,11 +17,18 @@ import { invoke, isTauri } from '@tauri-apps/api/core';
 import type {
   DocumentJson,
   DocxAiEdit,
+  DocxAiEditOutcome,
   DocxAuthorRevisionsResult,
   DocxResolveAction,
 } from '@/platform/types/docx';
 import { resolveWorkspacePath } from '@/platform/fs/pathResolve';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import {
+  containsMarkdownTable,
+  isStandaloneMarkdownTable,
+  markdownToRedlineBlocks,
+  type RedlineBlock,
+} from '@/platform/utils/docx-io';
 
 /**
  * Resolve `path` to an absolute path using the workspace root from the store.
@@ -151,11 +158,222 @@ export async function docxAuthorRevisions(
   opts: { author?: string; date?: string } = {},
 ): Promise<DocxAuthorRevisionsResult> {
   if (!isTauri()) throw new Error(BROWSER_ERROR);
-  return invoke<DocxAuthorRevisionsResult>('docx_author_revisions', {
+  // HARD INVARIANT: a Markdown pipe table in an insert/replace `newText` must
+  // become a REAL Word table, never literal pipe text. We expand those edits
+  // into `insertBlock` wire ops (carrying real `<w:tbl>` XML) BEFORE the engine
+  // sees them, then collapse the engine's per-wire results back to one result
+  // per original edit so the results panel is unchanged.
+  const { wireEdits, plan } = await expandRedlineEditsForTables(edits);
+  const raw = await invoke<DocxAuthorRevisionsResult>('docx_author_revisions', {
     document,
-    edits,
+    edits: wireEdits,
     author: opts.author ?? null,
     date: opts.date ?? null,
+  });
+  return {
+    document: raw.document,
+    results: collapseRedlineResults(plan, raw.results),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// AI-redline table expansion (Markdown pipe table → real <w:tbl>)
+// ---------------------------------------------------------------------------
+
+/**
+ * A single edit as sent on the wire to the `docx_author_revisions` command.
+ * Superset of {@link DocxAiEdit}: adds the synthesized `insertBlock` op (which
+ * the model never emits) carrying raw block OOXML in `xml`.
+ */
+export interface RedlineWireEdit {
+  op: 'insert' | 'delete' | 'replace' | 'insertBlock';
+  paragraphIndex: number;
+  anchorText?: string;
+  newText?: string;
+  atParagraphStart?: boolean;
+  xml?: string;
+  reason?: string;
+}
+
+/** How one ORIGINAL edit was routed onto the wire (used to collapse results). */
+export type RedlineEditPlan =
+  | { kind: 'passthrough'; wireIndex: number }
+  | { kind: 'expanded'; wireIndices: number[] }
+  | { kind: 'rejected'; error: string };
+
+/** Plain-language message shown when a proposed table can't be converted. */
+export const TABLE_CONVERT_REJECT_MESSAGE =
+  "This table couldn't be turned into a Word table, so it was skipped and " +
+  'nothing was inserted. Try asking again or simplifying the table.';
+
+/**
+ * Plain-language message when the model asks to REPLACE existing text WITH a
+ * table. We don't support that as one reversible tracked change: the engine
+ * models a table as an opaque block (not a tracked insertion), so a paired
+ * "strike the text + add the table" could leave the table behind if the user
+ * rejects the change. We reject rather than risk that inconsistent state.
+ */
+export const TABLE_REPLACE_REJECT_MESSAGE =
+  "I can add a table, but I can't replace existing text with one in a single " +
+  'reviewable change yet — so this was skipped and nothing was changed. Ask me ' +
+  'to add the table instead, then delete the old text separately.';
+
+/**
+ * Plain-language message when the model returns a table WITH surrounding prose
+ * in one edit. The engine models a table as an opaque block and has no
+ * block-level revision model, so the surrounding prose can't be added as a
+ * cleanly-reviewable tracked paragraph — rather than half-apply it (prose that
+ * won't reject cleanly, or literal pipe text), we skip and ask for just the table.
+ */
+export const TABLE_MIXED_REJECT_MESSAGE =
+  'I can add a table on its own, but this suggestion mixed the table with other ' +
+  'text, so I skipped it and nothing was inserted. Ask me to add just the table.';
+
+/**
+ * Plain-language message when a table is asked to go at the very START of a
+ * paragraph (`atParagraphStart`). A table can only be added AFTER a whole
+ * paragraph, never before its first character, so we skip rather than silently
+ * move it below the paragraph.
+ */
+export const TABLE_POSITION_REJECT_MESSAGE =
+  "I can add a table after a paragraph, but I can't place one at the very start " +
+  'of a paragraph, so this was skipped and nothing was inserted.';
+
+/**
+ * Rewrite any INSERT whose `newText` is (only) a Markdown pipe table into
+ * `insertBlock` wire ops carrying real `<w:tbl>` XML (added after the target
+ * paragraph). Everything else is rejected rather than half-applied, so literal
+ * pipe text can NEVER reach the saved `.docx` and no surrounding text is ever
+ * silently lost:
+ *   - a table-bearing REPLACE (can't be one reversible change),
+ *   - a table mixed with ANY other text — detected on the INPUT via
+ *     {@link isStandaloneMarkdownTable}, because prose containing a `|` would be
+ *     silently folded into/dropped by the lenient converter (prose also can't be
+ *     a clean tracked paragraph here),
+ *   - a table that fails to convert.
+ * Non-table edits pass through unchanged (so plain-text inserts never regress).
+ *
+ * `convert` is injectable for testing; it defaults to the real converter.
+ */
+export async function expandRedlineEditsForTables(
+  edits: DocxAiEdit[],
+  convert: (markdown: string) => Promise<RedlineBlock[]> = markdownToRedlineBlocks,
+): Promise<{ wireEdits: RedlineWireEdit[]; plan: RedlineEditPlan[] }> {
+  const wireEdits: RedlineWireEdit[] = [];
+  const plan: RedlineEditPlan[] = [];
+
+  for (const e of edits) {
+    const hasTable =
+      (e.op === 'insert' || e.op === 'replace') &&
+      typeof e.newText === 'string' &&
+      containsMarkdownTable(e.newText);
+
+    if (!hasTable) {
+      plan.push({ kind: 'passthrough', wireIndex: wireEdits.length });
+      wireEdits.push({ ...e });
+      continue;
+    }
+
+    // Replacing text WITH a table can't be represented as one reversible change.
+    if (e.op === 'replace') {
+      plan.push({ kind: 'rejected', error: TABLE_REPLACE_REJECT_MESSAGE });
+      continue;
+    }
+
+    // A table block can only be appended AFTER a paragraph — never before its
+    // first character — so a start-of-paragraph placement can't be honored.
+    if (e.atParagraphStart) {
+      plan.push({ kind: 'rejected', error: TABLE_POSITION_REJECT_MESSAGE });
+      continue;
+    }
+
+    // Only convert a CLEAN, standalone table. Judge the INPUT, not the converted
+    // output: prose with a stray `|` would be silently absorbed/dropped by the
+    // lenient converter, so an output-only check could pass while losing text.
+    if (!isStandaloneMarkdownTable(e.newText as string)) {
+      plan.push({ kind: 'rejected', error: TABLE_MIXED_REJECT_MESSAGE });
+      continue;
+    }
+
+    let blocks: RedlineBlock[];
+    try {
+      blocks = await convert(e.newText as string);
+    } catch {
+      plan.push({ kind: 'rejected', error: TABLE_CONVERT_REJECT_MESSAGE });
+      continue;
+    }
+
+    const tables = blocks.filter(
+      (b): b is Extract<RedlineBlock, { kind: 'table' }> => b.kind === 'table',
+    );
+    // Defense-in-depth: a standalone table should convert to exactly table
+    // block(s). If anything else slipped through, reject rather than half-apply.
+    if (tables.length === 0) {
+      plan.push({ kind: 'rejected', error: TABLE_CONVERT_REJECT_MESSAGE });
+      continue;
+    }
+    if (tables.length !== blocks.length) {
+      plan.push({ kind: 'rejected', error: TABLE_MIXED_REJECT_MESSAGE });
+      continue;
+    }
+
+    // Carry the original insert's anchor (if any) onto every table block as a
+    // DRIFT-SAFETY gate: if the paragraph changed while the AI call was in flight,
+    // the engine skips these just like it would a normal anchored insert whose
+    // anchor vanished — never landing a stale table elsewhere.
+    const anchor = e.anchorText;
+    const wireIndices: number[] = [];
+    for (const block of tables) {
+      wireIndices.push(wireEdits.length);
+      wireEdits.push({
+        op: 'insertBlock',
+        paragraphIndex: e.paragraphIndex,
+        xml: block.xml,
+        ...(anchor ? { anchorText: anchor } : {}),
+      });
+    }
+    plan.push({ kind: 'expanded', wireIndices });
+  }
+
+  return { wireEdits, plan };
+}
+
+/**
+ * Collapse the engine's per-WIRE-edit outcomes back to one outcome per ORIGINAL
+ * edit, following `plan`. An expanded (table) edit counts as applied only if
+ * EVERY part applied; a rejected edit reports the reject message and applied:false.
+ */
+export function collapseRedlineResults(
+  plan: RedlineEditPlan[],
+  wireResults: DocxAiEditOutcome[],
+): DocxAiEditOutcome[] {
+  return plan.map((entry, index): DocxAiEditOutcome => {
+    if (entry.kind === 'rejected') {
+      return { index, applied: false, revisionId: null, error: entry.error };
+    }
+    if (entry.kind === 'passthrough') {
+      const r = wireResults[entry.wireIndex];
+      return {
+        index,
+        applied: r?.applied ?? false,
+        revisionId: r?.revisionId ?? null,
+        error: r ? r.error : 'edit result missing',
+      };
+    }
+    // Expanded: applied only if every wire part applied.
+    const parts = entry.wireIndices.map((wi) => wireResults[wi]);
+    const allApplied = parts.length > 0 && parts.every((p) => p?.applied);
+    const firstError =
+      parts.find((p) => p && !p.applied && p.error)?.error ?? null;
+    return {
+      index,
+      applied: allApplied,
+      revisionId: null,
+      error: allApplied
+        ? null
+        : firstError ??
+          (parts.length > 0 ? 'part of this edit could not be applied' : 'edit result missing'),
+    };
   });
 }
 
