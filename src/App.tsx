@@ -785,19 +785,18 @@ function App() {
           root = opened;
         }
 
-        // 1b. Register the workspace in Recents — the SAME store path the normal
-        //     Workspace Selector uses (workspaceStore.addRecentWorkspace, which
-        //     persists to `keepance_recent_workspaces`). Without this, the
-        //     first-run gate (`!hasCompletedOnboarding() && recentWorkspaces
-        //     .length === 0`) stayed true after the sample/own workspace was
-        //     created, so any re-evaluation of the gate re-triggered onboarding
-        //     and the user looped back to the intro. Dedupes by path, so calling
-        //     it for an already-open workspace is harmless.
-        useWorkspaceStore.getState().addRecentWorkspace({
-          path: root,
-          name: root.split(/[/\\]+/).filter(Boolean).pop() ?? root,
-          lastOpened: new Date(),
-        });
+        // NB: registering the workspace in Recents is NOT done here anymore.
+        //     It is now done canonically inside handleWorkspaceSelected (see
+        //     useWorkspaceLifecycle.ts), the shared lifecycle boundary that
+        //     reliably runs for BOTH this onboarding path AND the normal
+        //     Workspace Selector open. A prior fix called addRecentWorkspace
+        //     right here, but on the real Windows first-run flow that call
+        //     never fired (its `[RecentWorkspaces] Saved` log never appeared),
+        //     so the first-run gate stayed unsatisfied and the sample path
+        //     looped back to the intro. Moving it to the lifecycle boundary
+        //     fixes that. The `existingService && existingRoot` fast-path above
+        //     also flows through handleWorkspaceSelected on its original open,
+        //     so it is already in Recents by the time we reach here.
 
         // 2. Sample path: write the Hendricks sample + seed its Client Map so
         //    the Client Map tab is populated in minute one (no AI/network).

@@ -78,8 +78,27 @@ type LifecycleOpts = {
   setRootPath: (p: string) => void;
   workspaceServiceRef: { current: unknown };
 };
+// Faithful stand-in for the REAL handleWorkspaceSelected: it does exactly what
+// the real hook does that matters to App's render + first-run gate — sets
+// rootPath, clears the workspace selector, AND registers the workspace in
+// Recents (the real registration now lives at that shared boundary; see
+// useWorkspaceLifecycle-recents.test.tsx, which verifies it against the UNMOCKED
+// hook). Because the hook is mocked here, THIS file's job is the App-level LOOP
+// behaviour, not to prove the real registration. Setting rootPath + clearing the
+// selector is the exact combination that flipped App's render branch and
+// remounted OnboardingV2 at the intro in the buggy build.
+const faithfulLifecycleImpl = async (svc: unknown, opts: LifecycleOpts) => {
+  opts.workspaceServiceRef.current = svc;
+  opts.setShowWorkspaceSelector(false);
+  opts.setRootPath('/ws');
+  useWorkspaceStore.getState().addRecentWorkspace({
+    path: '/ws',
+    name: 'ws',
+    lastOpened: new Date(),
+  });
+};
 let handleWorkspaceSelectedImpl: (svc: unknown, opts: LifecycleOpts) => Promise<void> =
-  async () => {};
+  faithfulLifecycleImpl;
 vi.mock('@/app/lifecycle/useWorkspaceLifecycle', () => ({
   useWorkspaceLifecycle: (opts: LifecycleOpts) => ({
     handleWorkspaceSelected: (svc: unknown) => handleWorkspaceSelectedImpl(svc, opts),
@@ -110,7 +129,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
   sessionStorage.clear();
-  handleWorkspaceSelectedImpl = async () => {};
+  handleWorkspaceSelectedImpl = faithfulLifecycleImpl;
   // Reset the shared workspace store so recents/rootPath don't leak between tests.
   useWorkspaceStore.setState({ recentWorkspaces: [], rootPath: null });
 });
@@ -152,17 +171,10 @@ describe('OnboardingV2 sample/own start — recents + no intro loop', () => {
   });
 
   it('does NOT loop back to the intro once the workspace loads (rootPath set)', async () => {
-    // Simulate the real workspace load: handleWorkspaceSelected sets rootPath
-    // AND clears the workspace selector — the combination that, in the buggy
-    // build, flipped App to the main shell and remounted OnboardingV2 at the
-    // intro. (Setting only rootPath wouldn't flip, because showWorkspaceSelector
-    // starts true; the real handler clears it too.)
-    handleWorkspaceSelectedImpl = async (svc, opts) => {
-      opts.workspaceServiceRef.current = svc;
-      opts.setShowWorkspaceSelector(false);
-      opts.setRootPath('/ws');
-    };
-
+    // Uses the faithful default impl (beforeEach): it sets rootPath AND clears
+    // the workspace selector — the combination that, in the buggy build, flipped
+    // App to the main shell and remounted OnboardingV2 at the intro — and also
+    // registers the workspace in Recents (as the real hook now does).
     await openOnboarding();
     await goToChooseStartAndPick('choose-start-own');
 
