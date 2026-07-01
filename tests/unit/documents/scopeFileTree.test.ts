@@ -257,6 +257,153 @@ describe('scopeFileTreeToFolders', () => {
     // `Clients/Acme` files (here the node paths carry the on-disk casing), and a
     // case-only sibling `Clients/acme` (a DIFFERENT client on a case-sensitive
     // volume) must NOT bleed in.
+    // ── BUG R17 regression (Legion bench, 2026-07-01) ──────────────────────
+    // The CRM auto-backfill (`attachCrmHouseholdFolderIfUnmapped`) sources a
+    // household's folder from `collectFolderPaths(fileTree)`, whose node paths
+    // are workspace-RELATIVE. So the matter's `folderPaths` can be RELATIVE
+    // (`Clients/Webb, Marcus & Tanya`) even though the prune resolves each tree
+    // node to ABSOLUTE before comparing. The folder side was never resolved to
+    // absolute, so an absolute node path never matched a relative folder →
+    // EVERY CRM-linked client's Documents tab showed "No documents yet" even
+    // though the files were on disk (Ask/RAG were unaffected). The fix resolves
+    // BOTH the folder-containment check AND the ownership `resolveMatterId` check
+    // into the same absolute space. These assert the FIXED behavior.
+    describe('BUG R17: RELATIVE matter folderPaths (CRM backfill) must still scope', () => {
+      const R17_ROOT = 'C:/KeepanceWorkspaces/Northcrest Wealth Partners';
+      const relTreeR17: FileNode[] = [
+        folder('Clients', [
+          folder('Clients/Webb, Marcus & Tanya', [
+            file('Clients/Webb, Marcus & Tanya/529 plan.docx'),
+            folder('Clients/Webb, Marcus & Tanya/Statements', [
+              file('Clients/Webb, Marcus & Tanya/Statements/2026-Q1.pdf'),
+            ]),
+          ]),
+          folder('Clients/Nakamura, David & Susan', [
+            file('Clients/Nakamura, David & Susan/1031.docx'),
+          ]),
+        ]),
+      ];
+
+      it('folder-based only: relative folderPaths + relative tree returns files (was empty)', () => {
+        const out = scopeFileTreeToFolders(
+          relTreeR17,
+          ['Clients/Webb, Marcus & Tanya'],
+          undefined,
+          undefined,
+          R17_ROOT,
+        );
+        // Ancestor "Clients" kept, leading to Webb; Nakamura dropped.
+        expect(out.map((n) => n.path)).toEqual(['Clients']);
+        expect(out[0]!.children?.map((c) => c.path)).toEqual(['Clients/Webb, Marcus & Tanya']);
+        const webb = out[0]!.children![0]!;
+        expect(webb.children?.map((c) => c.path)).toEqual([
+          'Clients/Webb, Marcus & Tanya/529 plan.docx',
+          'Clients/Webb, Marcus & Tanya/Statements',
+        ]);
+      });
+
+      it('ownership-aware: relative folderPaths + relative matters returns files (the exact prod bug)', () => {
+        // This is the precise production scenario: scopeFolderPaths AND every
+        // matter.folderPaths are workspace-RELATIVE (CRM backfill), scopeMatterId
+        // is set. Before the fix, resolveMatterId(abs, matters) compared an
+        // absolute node path against relative matter folders → UNASSIGNED for
+        // every node → every file pruned → empty tab.
+        const matters = [
+          matter('webb', ['Clients/Webb, Marcus & Tanya']),
+          matter('nakamura', ['Clients/Nakamura, David & Susan']),
+        ];
+        const out = scopeFileTreeToFolders(
+          relTreeR17,
+          ['Clients/Webb, Marcus & Tanya'],
+          matters,
+          'webb',
+          R17_ROOT,
+        );
+        const flat: string[] = [];
+        (function rec(ns: FileNode[]) { for (const n of ns) { flat.push(n.path); if (n.children) rec(n.children); } })(out);
+        expect(flat).toContain('Clients/Webb, Marcus & Tanya/529 plan.docx');
+        expect(flat).toContain('Clients/Webb, Marcus & Tanya/Statements/2026-Q1.pdf');
+        // The other client never bleeds in.
+        expect(flat).not.toContain('Clients/Nakamura, David & Susan/1031.docx');
+      });
+
+      it('ownership-aware isolation holds: nested foreign client dropped (relative folderPaths)', () => {
+        // Webb owns her folder; a nested foreign client (Beta) is mapped to a
+        // subfolder inside it — also via a RELATIVE folderPath. Beta must not leak.
+        const nested: FileNode[] = [
+          folder('Clients', [
+            folder('Clients/Webb, Marcus & Tanya', [
+              file('Clients/Webb, Marcus & Tanya/own.docx'),
+              folder('Clients/Webb, Marcus & Tanya/Shared-Beta', [
+                file('Clients/Webb, Marcus & Tanya/Shared-Beta/secret.docx'),
+              ]),
+            ]),
+          ]),
+        ];
+        const matters = [
+          matter('webb', ['Clients/Webb, Marcus & Tanya']),
+          matter('beta', ['Clients/Webb, Marcus & Tanya/Shared-Beta']),
+        ];
+        const out = scopeFileTreeToFolders(
+          nested,
+          ['Clients/Webb, Marcus & Tanya'],
+          matters,
+          'webb',
+          R17_ROOT,
+        );
+        const flat: string[] = [];
+        (function rec(ns: FileNode[]) { for (const n of ns) { flat.push(n.path); if (n.children) rec(n.children); } })(out);
+        expect(flat).toContain('Clients/Webb, Marcus & Tanya/own.docx');
+        expect(flat).not.toContain('Clients/Webb, Marcus & Tanya/Shared-Beta');
+        expect(flat).not.toContain('Clients/Webb, Marcus & Tanya/Shared-Beta/secret.docx');
+      });
+
+      it('mixed: absolute tree nodes + relative folderPaths still scope', () => {
+        const absTree: FileNode[] = [
+          folder(`${R17_ROOT}/Clients`, [
+            folder(`${R17_ROOT}/Clients/Webb, Marcus & Tanya`, [
+              file(`${R17_ROOT}/Clients/Webb, Marcus & Tanya/529 plan.docx`),
+            ]),
+          ]),
+        ];
+        const out = scopeFileTreeToFolders(
+          absTree,
+          ['Clients/Webb, Marcus & Tanya'],
+          undefined,
+          undefined,
+          R17_ROOT,
+        );
+        expect(out[0]!.children?.map((c) => c.path)).toEqual([
+          `${R17_ROOT}/Clients/Webb, Marcus & Tanya`,
+        ]);
+      });
+
+      it('mixed matters: one relative + one absolute folderPath, ownership still correct', () => {
+        // The reconcile case: matters carry a mix of shapes. Both must resolve to
+        // the same absolute space so ownership attributes each file correctly.
+        const matters = [
+          matter('webb', ['Clients/Webb, Marcus & Tanya']), // relative (CRM backfill)
+          matter('nakamura', [`${R17_ROOT}/Clients/Nakamura, David & Susan`]), // absolute
+        ];
+        const outWebb = scopeFileTreeToFolders(
+          relTreeR17, ['Clients/Webb, Marcus & Tanya'], matters, 'webb', R17_ROOT,
+        );
+        const flatWebb: string[] = [];
+        (function rec(ns: FileNode[]) { for (const n of ns) { flatWebb.push(n.path); if (n.children) rec(n.children); } })(outWebb);
+        expect(flatWebb).toContain('Clients/Webb, Marcus & Tanya/529 plan.docx');
+        expect(flatWebb).not.toContain('Clients/Nakamura, David & Susan/1031.docx');
+
+        // And the absolute-mapped Nakamura matter still lists ITS own files.
+        const outNak = scopeFileTreeToFolders(
+          relTreeR17, [`${R17_ROOT}/Clients/Nakamura, David & Susan`], matters, 'nakamura', R17_ROOT,
+        );
+        const flatNak: string[] = [];
+        (function rec(ns: FileNode[]) { for (const n of ns) { flatNak.push(n.path); if (n.children) rec(n.children); } })(outNak);
+        expect(flatNak).toContain('Clients/Nakamura, David & Susan/1031.docx');
+        expect(flatNak).not.toContain('Clients/Webb, Marcus & Tanya/529 plan.docx');
+      });
+    });
+
     it('bridges drive/separator differences but keeps the client folder case-sensitive', () => {
       const WIN_ROOT = 'C:\\Users\\Jane\\Advisor';
       const tree: FileNode[] = [
