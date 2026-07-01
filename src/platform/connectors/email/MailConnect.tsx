@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { outlookConnect, mailIsConnected, mailDisconnect, mailSyncAll, mailCancelSync, mailFdeStatus } from '@/platform/utils/mail-commands';
+import { outlookConnect, outlookConnectCancel, mailIsConnected, mailDisconnect, mailSyncAll, mailCancelSync, mailFdeStatus } from '@/platform/utils/mail-commands';
 import { useMailSync } from '@/platform/connectors/email/useMailSync';
 import { useMailStore } from '@/platform/connectors/email/mailStore';
 import { getMatters } from '@/platform/matter/matterStore';
@@ -65,11 +65,22 @@ export function MailConnect() {
         setConnectError(typeof err === 'string' ? err : err instanceof Error ? err.message : 'Mail sync could not start. Please try again.');
       });
     } catch (err) {
-      setConnectError(typeof err === 'string' ? err : err instanceof Error ? err.message : 'Could not connect. Please try again.');
+      const message = typeof err === 'string' ? err : err instanceof Error ? err.message : 'Could not connect. Please try again.';
+      // The user clicked Cancel — this is an intentional exit, not a failure,
+      // so don't show a red error for it (and any prior working connection
+      // was never touched).
+      if (message !== 'cancelled') setConnectError(message);
     } finally {
       setConnecting(false);
       endOAuth();
     }
+  }
+
+  // Abort a pending sign-in immediately instead of leaving the user stuck on
+  // the "Reconnecting…" spinner for the full 5-minute server-side OAuth
+  // timeout with no way out. The prior connection (if any) is left untouched.
+  function cancelConnect() {
+    outlookConnectCancel().catch(() => {});
   }
 
   // Disconnect: cancel any in-flight sync, drop the Microsoft 365 refresh token
@@ -123,14 +134,26 @@ export function MailConnect() {
             </div>
           )}
 
-          <button
-            type="button"
-            disabled={connecting}
-            onClick={() => void connect()}
-            className="rounded-md bg-[var(--kp-navy)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
-          >
-            {connecting ? 'Waiting for sign-in in your browser…' : 'Connect Microsoft 365'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={connecting}
+              onClick={() => void connect()}
+              className="rounded-md bg-[var(--kp-navy)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
+            >
+              {connecting ? 'Waiting for sign-in in your browser…' : 'Connect Microsoft 365'}
+            </button>
+            {connecting && (
+              <button
+                type="button"
+                data-testid="mail-m365-cancel-connect"
+                onClick={cancelConnect}
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -167,6 +190,16 @@ export function MailConnect() {
             >
               {connecting ? 'Reconnecting…' : 'Reconnect'}
             </button>
+            {connecting && (
+              <button
+                type="button"
+                data-testid="mail-m365-cancel-connect"
+                onClick={cancelConnect}
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+            )}
             <button
               type="button"
               data-testid="mail-m365-disconnect"

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 
 const mockOutlookConnect = vi.fn();
+const mockOutlookConnectCancel = vi.fn();
 const mockMailSyncAll = vi.fn();
 const mockMailCancelSync = vi.fn();
 const mockMailIsConnected = vi.fn();
@@ -10,6 +11,7 @@ const mockMailFdeStatus = vi.fn();
 
 vi.mock('@/platform/utils/mail-commands', () => ({
   get outlookConnect() { return mockOutlookConnect; },
+  get outlookConnectCancel() { return mockOutlookConnectCancel; },
   get mailIsConnected() { return mockMailIsConnected; },
   get mailDisconnect() { return mockMailDisconnect; },
   get mailSyncAll() { return mockMailSyncAll; },
@@ -34,6 +36,7 @@ describe('MailConnect (one-click M365 flow)', () => {
     mockProgress = undefined;
     mockMailIsConnected.mockResolvedValue(false);
     mockOutlookConnect.mockResolvedValue(undefined);
+    mockOutlookConnectCancel.mockResolvedValue(undefined);
     mockMailSyncAll.mockResolvedValue(undefined);
     mockMailCancelSync.mockResolvedValue(undefined);
     // G6: default to 'unknown' so FDE nudge is hidden in existing tests.
@@ -103,6 +106,7 @@ describe('MailConnect — BUG-008 Reconnect button', () => {
     mockProgress = undefined;
     mockMailIsConnected.mockResolvedValue(true);
     mockOutlookConnect.mockResolvedValue(undefined);
+    mockOutlookConnectCancel.mockResolvedValue(undefined);
     mockMailSyncAll.mockResolvedValue(undefined);
     mockMailCancelSync.mockResolvedValue(undefined);
     mockMailFdeStatus.mockResolvedValue({ status: 'unknown', platform: 'Linux', detail: null });
@@ -133,6 +137,55 @@ describe('MailConnect — BUG-008 Reconnect button', () => {
     fireEvent.click(btn);
     await waitFor(() => expect(btn).toHaveTextContent('Reconnecting…'));
     expect(btn).toBeDisabled();
+  });
+
+  // The bug this fixes: reconnect used to hang on "Reconnecting…" for the full
+  // 5-minute server-side OAuth timeout with no way out. Cancel must abort it
+  // immediately and restore the UI (Continue/Reconnect re-enabled), leaving the
+  // prior connection intact.
+  it('shows a Cancel button while reconnecting', async () => {
+    mockOutlookConnect.mockReturnValue(new Promise(() => {}));
+    render(<MailConnect />);
+    await waitFor(() => expect(mockMailIsConnected).toHaveBeenCalled());
+    fireEvent.click(await screen.findByTestId('mail-m365-reconnect'));
+    expect(await screen.findByTestId('mail-m365-cancel-connect')).toBeInTheDocument();
+  });
+
+  it('does not show a Cancel button when not connecting', async () => {
+    render(<MailConnect />);
+    await waitFor(() => expect(mockMailIsConnected).toHaveBeenCalled());
+    await screen.findByTestId('mail-m365-reconnect');
+    expect(screen.queryByTestId('mail-m365-cancel-connect')).not.toBeInTheDocument();
+  });
+
+  it('clicking Cancel calls outlookConnectCancel and, once the pending connect settles, restores the UI instead of leaving it stuck', async () => {
+    let rejectConnect: (err: unknown) => void = () => {};
+    mockOutlookConnect.mockReturnValue(new Promise((_resolve, reject) => { rejectConnect = reject; }));
+    render(<MailConnect />);
+    await waitFor(() => expect(mockMailIsConnected).toHaveBeenCalled());
+    const reconnectBtn = await screen.findByTestId('mail-m365-reconnect');
+    fireEvent.click(reconnectBtn);
+    await waitFor(() => expect(reconnectBtn).toHaveTextContent('Reconnecting…'));
+
+    const cancelBtn = await screen.findByTestId('mail-m365-cancel-connect');
+    fireEvent.click(cancelBtn);
+    await waitFor(() => expect(mockOutlookConnectCancel).toHaveBeenCalledTimes(1));
+
+    // Simulate the backend's outlook_connect promise settling with the
+    // "cancelled" error once the abort takes effect (the real Rust side of
+    // this fix — see await_redirect_code_or_cancel in mail/mod.rs).
+    act(() => { rejectConnect('cancelled'); });
+
+    // The Reconnect button (== onboarding's Continue-gate) re-enables and the
+    // Cancel button disappears — the user is never left stuck.
+    await waitFor(() => expect(reconnectBtn).not.toBeDisabled());
+    expect(reconnectBtn).toHaveTextContent('Reconnect');
+    expect(screen.queryByTestId('mail-m365-cancel-connect')).not.toBeInTheDocument();
+    // A user-initiated cancel is not a "Something went wrong" failure.
+    expect(screen.queryByText(/cancelled/i)).not.toBeInTheDocument();
+    // The prior working connection was never touched.
+    expect(mockMailDisconnect).not.toHaveBeenCalled();
+    expect(screen.getByText(/connected\./i)).toBeInTheDocument();
   });
 });
 

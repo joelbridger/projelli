@@ -316,6 +316,15 @@ export async function outlookConnect(): Promise<void> {
   await invoke('outlook_connect');
 }
 
+/** Abort a pending outlookConnect() sign-in immediately (user clicked Cancel,
+ *  or closed the Microsoft popup and gave up) instead of leaving it to hit the
+ *  5-minute server-side timeout. No-op outside Tauri. Never touches an
+ *  already-working connection. */
+export async function outlookConnectCancel(): Promise<void> {
+  if (!isTauri()) return;
+  await invoke('outlook_connect_cancel');
+}
+
 // Disconnect the Microsoft 365 account (delete its refresh token from the
 // keychain). Mirrors gmailDisconnect; the BUG-008 follow-up so a stale M365
 // sign-in can be removed, not only re-authenticated.

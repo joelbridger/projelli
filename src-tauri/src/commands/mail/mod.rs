@@ -108,6 +108,11 @@ pub struct MailState {
     pub workspace: tokio::sync::Mutex<Option<std::path::PathBuf>>,
     pub cancel: Arc<AtomicBool>,
     pub is_syncing: Arc<AtomicBool>,
+    /// Separate from `cancel` (which cancels an in-flight mail *sync*): this
+    /// flag lets the frontend abort a pending interactive OAuth sign-in
+    /// (`outlook_connect`'s wait for the browser redirect) without touching
+    /// sync state. See `outlook_connect_cancel`.
+    pub oauth_cancel: Arc<AtomicBool>,
 }
 
 pub fn manage_state(app: &tauri::App) {
@@ -115,6 +120,7 @@ pub fn manage_state(app: &tauri::App) {
         workspace: tokio::sync::Mutex::new(None),
         cancel: Arc::new(AtomicBool::new(false)),
         is_syncing: Arc::new(AtomicBool::new(false)),
+        oauth_cancel: Arc::new(AtomicBool::new(false)),
     });
 }
 
@@ -975,20 +981,56 @@ pub async fn mail_backfill_rag(
     Ok(indexed)
 }
 
+/// Race `await_redirect_code` against `cancel` being set, polling every 150ms.
+/// Lets a pending interactive OAuth wait be aborted immediately (user clicked
+/// Cancel, or closed the browser tab and gave up) instead of sitting on the
+/// full `timeout`. Returns `Err("cancelled")` when the cancel flag wins.
+///
+/// NOTE: there is no reliable cross-platform way to detect the user closing
+/// the *browser tab/window* itself — `outlook_connect` opens the system's
+/// default browser (a separate OS process we don't control a handle to), not
+/// an embedded webview we could hook a close event on. The Cancel button is
+/// the escape hatch instead: it flips `cancel` and this loop notices within
+/// one poll tick.
+async fn await_redirect_code_or_cancel(
+    listener: tokio::net::TcpListener,
+    expected_state: &str,
+    timeout: std::time::Duration,
+    cancel: Arc<AtomicBool>,
+) -> anyhow::Result<String> {
+    use crate::commands::mail::gmail::oauth::await_redirect_code;
+
+    let redirect_fut = await_redirect_code(listener, expected_state, timeout);
+    tokio::pin!(redirect_fut);
+    loop {
+        tokio::select! {
+            res = &mut redirect_fut => return res,
+            _ = tokio::time::sleep(std::time::Duration::from_millis(150)) => {
+                if cancel.load(Ordering::SeqCst) {
+                    anyhow::bail!("cancelled");
+                }
+            }
+        }
+    }
+}
+
 /// Run the Microsoft loopback+PKCE sign-in: open the browser, catch the
 /// redirect, exchange the code (no client_secret — MS treats this as a public
 /// client), and store the refresh token under the SAME keychain entry the
 /// existing `OAuth::refresh` path reads, so `fresh_access_token` keeps working
-/// unchanged. Blocks until the user finishes (or a 5-minute timeout).
+/// unchanged. Blocks until the user finishes, cancels (see
+/// `outlook_connect_cancel`), or a 5-minute timeout elapses.
 ///
 /// NOTE for Azure portal: the app registration must have
 /// `http://localhost` listed as a Mobile and desktop redirect URI.
 #[tauri::command]
-pub async fn outlook_connect() -> Result<(), String> {
-    use crate::commands::mail::gmail::oauth::{
-        bind_loopback_host, gen_pkce, gen_state, open_browser, await_redirect_code,
-    };
+pub async fn outlook_connect(state: State<'_, MailState>) -> Result<(), String> {
+    use crate::commands::mail::gmail::oauth::{bind_loopback_host, gen_pkce, gen_state, open_browser};
     use crate::commands::mail::oauth::{build_ms_auth_url, ms_exchange_code, MS_TOKEN_ENDPOINT};
+
+    // Reset from any prior cancelled/finished attempt before starting a new one.
+    state.oauth_cancel.store(false, Ordering::SeqCst);
+    let cancel = state.oauth_cancel.clone();
 
     let (verifier, challenge) = gen_pkce();
     let state_token = gen_state();
@@ -1001,7 +1043,7 @@ pub async fn outlook_connect() -> Result<(), String> {
     let (listener, redirect_uri) = bind_loopback_host("localhost").await.map_err(|e| e.to_string())?;
     let url = build_ms_auth_url(&client_id(), &redirect_uri, &challenge, &state_token);
     open_browser(&url);
-    let code = await_redirect_code(listener, &state_token, std::time::Duration::from_secs(300))
+    let code = await_redirect_code_or_cancel(listener, &state_token, std::time::Duration::from_secs(300), cancel)
         .await
         .map_err(|e| e.to_string())?;
     let tokens = ms_exchange_code(&client_id(), &code, &verifier, &redirect_uri, MS_TOKEN_ENDPOINT)
@@ -1011,6 +1053,17 @@ pub async fn outlook_connect() -> Result<(), String> {
         .map_err(|e| e.to_string())?
         .set_password(&tokens.refresh)
         .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Abort a pending `outlook_connect` interactive sign-in immediately (e.g. the
+/// user clicked Cancel on the "Reconnecting…" spinner, or closed the popup and
+/// gave up) instead of leaving them stuck on the 5-minute server-side timeout.
+/// A no-op if no sign-in is in flight. Never touches the existing stored
+/// refresh token — an already-working connection is left intact.
+#[tauri::command]
+pub async fn outlook_connect_cancel(state: State<'_, MailState>) -> Result<(), String> {
+    state.oauth_cancel.store(true, Ordering::SeqCst);
     Ok(())
 }
 
@@ -2146,9 +2199,86 @@ async fn send_imap(
 
 #[cfg(test)]
 mod tests {
-    use super::{frontmatter_subject, get_message_with_key, resolve_effective_matter, resolve_mail_matter, should_sync_provider, yaml_unescape, MailMatterMapEntry};
+    use super::{await_redirect_code_or_cancel, frontmatter_subject, get_message_with_key, resolve_effective_matter, resolve_mail_matter, should_sync_provider, yaml_unescape, MailMatterMapEntry};
     use crate::commands::mail::store::EncryptedMailStore;
     use crate::commands::rag::store::UNASSIGNED_MATTER;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    // ── OAuth cancel — the "Reconnect hangs 5 minutes with no cancel" fix ────
+
+    #[tokio::test]
+    async fn await_redirect_code_or_cancel_returns_immediately_when_cancelled() {
+        // Nobody ever connects to the listener (simulates the user closing the
+        // OAuth popup, or never completing it) and the cancel flag is already
+        // set — this must return quickly, NOT sit on the 300s server timeout.
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let cancel = Arc::new(AtomicBool::new(true));
+
+        let started = tokio::time::Instant::now();
+        let result = tokio::time::timeout(
+            Duration::from_secs(2),
+            await_redirect_code_or_cancel(listener, "state", Duration::from_secs(300), cancel),
+        )
+        .await
+        .expect("must not hit the 2s outer test timeout — cancellation should be near-instant");
+
+        assert!(result.is_err(), "a cancelled wait must return an error, not a code");
+        assert!(started.elapsed() < Duration::from_secs(1), "cancellation must be detected within one poll tick, not the full timeout");
+    }
+
+    #[tokio::test]
+    async fn await_redirect_code_or_cancel_returns_the_code_when_not_cancelled() {
+        // The happy path must still work unchanged: a real redirect completes
+        // normally when cancel is never set.
+        use tokio::io::AsyncWriteExt;
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let cancel = Arc::new(AtomicBool::new(false));
+
+        let task = tokio::spawn(await_redirect_code_or_cancel(
+            listener,
+            "TEST_STATE",
+            Duration::from_secs(5),
+            cancel,
+        ));
+
+        let mut stream = tokio::net::TcpStream::connect(format!("127.0.0.1:{port}")).await.unwrap();
+        let request = "GET /?code=REALCODE&state=TEST_STATE HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n";
+        stream.write_all(request.as_bytes()).await.unwrap();
+        stream.flush().await.unwrap();
+
+        let code = task.await.unwrap().expect("must succeed when never cancelled");
+        assert_eq!(code, "REALCODE");
+    }
+
+    #[tokio::test]
+    async fn await_redirect_code_or_cancel_notices_a_late_cancel() {
+        // Cancel flips AFTER the wait has started (mirrors clicking Cancel
+        // mid-wait, not just a pre-set flag) — must still bail out promptly
+        // instead of waiting for the full timeout.
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let cancel = Arc::new(AtomicBool::new(false));
+        let cancel_setter = cancel.clone();
+
+        let task = tokio::spawn(await_redirect_code_or_cancel(
+            listener,
+            "state",
+            Duration::from_secs(300),
+            cancel,
+        ));
+
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        cancel_setter.store(true, Ordering::SeqCst);
+
+        let result = tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .expect("must not hit the 2s outer test timeout")
+            .unwrap();
+        assert!(result.is_err(), "a late cancel must still abort the wait");
+    }
 
     #[test]
     fn resolve_effective_matter_real_override_wins_over_folder() {
