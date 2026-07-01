@@ -607,6 +607,53 @@ describe('DocxEditor — accept / reject flow', () => {
       expect(screen.getByTestId('docx-no-changes')).toBeInTheDocument(),
     );
   });
+
+  // CLUSTER-C3 P2 (Codex review): a document whose ONLY tracked changes live
+  // inside a table (raw block) must still let the user click Accept All —
+  // countRevisions() previously only saw paragraph revisions, so this
+  // document showed "0 changes" and the button was disabled, even though the
+  // engine's resolve_all now genuinely resolves table content too.
+  it('Accept all is enabled and works for a document whose only tracked changes are inside a table', async () => {
+    const tableOnlyDoc: DocumentJson = {
+      formatVersion: 1,
+      body: [
+        { kind: 'paragraph', inlines: [{ kind: 'run', text: 'No paragraph-level changes here.' }] },
+        {
+          kind: 'raw',
+          xml: '<w:tbl><w:tr><w:tc><w:p><w:del w:id="1" w:author="A" w:date="2026-01-01T00:00:00Z"><w:r><w:delText>client name</w:delText></w:r></w:del></w:p></w:tc></w:tr></w:tbl>',
+        },
+      ],
+      comments: {},
+    };
+    const cleared: DocumentJson = {
+      formatVersion: 1,
+      body: [
+        { kind: 'paragraph', inlines: [{ kind: 'run', text: 'No paragraph-level changes here.' }] },
+        { kind: 'raw', xml: '<w:tbl><w:tr><w:tc><w:p/></w:tc></w:tr></w:tbl>' },
+      ],
+      comments: {},
+    };
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'docx_open') return Promise.resolve(tableOnlyDoc);
+      if (cmd === 'docx_resolve_all') return Promise.resolve(cleared);
+      return Promise.resolve(undefined);
+    });
+
+    renderEditor();
+    await screen.findByTestId('docx-document-body');
+
+    const acceptAll = await screen.findByTestId('docx-accept-all');
+    expect(acceptAll).not.toBeDisabled();
+
+    fireEvent.click(acceptAll);
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith('docx_resolve_all', {
+        document: expect.any(Object),
+        action: 'accept',
+      }),
+    );
+  });
 });
 
 describe('DocxEditor — AI redline (A4)', () => {

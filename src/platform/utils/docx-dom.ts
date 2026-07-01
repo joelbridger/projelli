@@ -254,9 +254,41 @@ export function groupRevisions(doc: DocumentJson): GroupedRevision[] {
   return ordered;
 }
 
-/** Count of distinct tracked changes (grouped by id). */
+/**
+ * Cheap presence check for `w:ins` / `w:del` (which also matches
+ * `w:delText`, since it starts with the same prefix) inside a raw
+ * (unmodeled) block's XML. Used only to decide whether the Accept All /
+ * Reject All buttons should be enabled — see `countRevisions` below. A
+ * substring scan, not a parse: `DocxRawBlock`'s xml is deliberately never
+ * parsed on the frontend (preserve-by-default — see its doc comment), and
+ * this only needs to answer "might there be something to resolve," not
+ * itemize it. False positives are effectively impossible (these are
+ * namespaced OOXML element names); a false positive would just make Accept
+ * All a harmless no-op for that block.
+ */
+function rawBlockHasTrackedChangeMarkup(xml: string): boolean {
+  return xml.includes('<w:ins') || xml.includes('<w:del');
+}
+
+/**
+ * Count of distinct tracked changes (grouped by id) in paragraphs, PLUS 1 if
+ * any raw (unmodeled) block — e.g. a table — appears to carry tracked-change
+ * markup (CLUSTER-C3 P2, Codex review). Without this, a document whose ONLY
+ * tracked changes live inside a table showed "0 changes" and disabled the
+ * Accept All / Reject All buttons even though the engine's `resolve_all` now
+ * genuinely resolves tracked changes inside raw blocks too (`resolve.rs`) —
+ * making that engine-side fix unreachable from the UI for an all-table
+ * document. The `+1` (not an exact raw-revision count) is deliberate: the
+ * review pane's per-revision list only itemizes paragraph revisions (raw XML
+ * is never parsed here), so this only needs to unblock the buttons, not
+ * claim a precise total.
+ */
 export function countRevisions(doc: DocumentJson): number {
-  return groupRevisions(doc).length;
+  const paragraphCount = groupRevisions(doc).length;
+  const hasRawRevisions = doc.body.some(
+    (block) => block.kind === 'raw' && rawBlockHasTrackedChangeMarkup(block.xml),
+  );
+  return paragraphCount + (hasRawRevisions ? 1 : 0);
 }
 
 /** All comments as an array, sorted by date ascending then id for stability. */

@@ -235,28 +235,52 @@ fn raw_attr(e: &BytesStart<'_>, want_local: &str) -> Option<String> {
 
 /// Collect the `w:id` of every `w:ins`/`w:del` in a raw XML fragment (`None`
 /// for one missing an `id` attribute — malformed, but still a real revision
-/// that must be counted, not silently dropped from the total). Used by
-/// [`resolve_revision`]'s "does this id exist anywhere" check and by
-/// [`resolve_all`]'s revision count — the count MUST include id-less entries
-/// so a raw block whose only tracked change is malformed doesn't make
-/// `resolve_all` early-exit as if there were nothing to resolve. Malformed XML
-/// is treated as having no revisions (preserve-don't-crash; the normal
-/// save/serialize path is the one responsible for XML validity, not this
-/// best-effort scan).
+/// that must be counted, not silently dropped from the total), PLUS a `None`
+/// entry for every stray `w:delText` with no enclosing `w:del` at all (also
+/// malformed, also a real "deleted content" marker `resolve_raw_xml`'s
+/// `treat_missing_id_as_match` fail-closed path will strip — Codex review).
+/// Used by [`resolve_revision`]'s "does this id exist anywhere" check and by
+/// [`resolve_all`]'s revision count — the count MUST include every id-less /
+/// wrapper-less entry so a raw block whose only tracked change is malformed
+/// doesn't make `resolve_all` early-exit as if there were nothing to resolve.
+/// Malformed XML is treated as having no revisions (preserve-don't-crash; the
+/// normal save/serialize path is the one responsible for XML validity, not
+/// this best-effort scan).
 fn raw_xml_revision_ids(xml: &str) -> Vec<Option<String>> {
     let mut reader = Reader::from_str(xml);
     reader.config_mut().trim_text(false);
     let mut ids = Vec::new();
+    // Depth of `w:del` nesting — a `delText` inside one is already counted
+    // via the `del` itself, so only a depth-0 `delText` is "stray".
+    let mut del_depth: usize = 0;
     loop {
         let event = match reader.read_event() {
             Ok(ev) => ev,
             Err(_) => break,
         };
         match event {
-            Event::Start(e) | Event::Empty(e) => {
+            Event::Start(e) => {
                 let ln = local_of(e.name());
                 if ln == "ins" || ln == "del" {
                     ids.push(raw_attr(&e, "id"));
+                    if ln == "del" {
+                        del_depth += 1;
+                    }
+                } else if ln == "delText" && del_depth == 0 {
+                    ids.push(None);
+                }
+            }
+            Event::Empty(e) => {
+                let ln = local_of(e.name());
+                if ln == "ins" || ln == "del" {
+                    ids.push(raw_attr(&e, "id"));
+                } else if ln == "delText" && del_depth == 0 {
+                    ids.push(None);
+                }
+            }
+            Event::End(e) => {
+                if local_of(e.name()) == "del" && del_depth > 0 {
+                    del_depth -= 1;
                 }
             }
             Event::Eof => break,
@@ -388,6 +412,29 @@ pub(crate) fn resolve_raw_xml(
                     }
                     writer.write_event(Event::Start(new_e)).map_err(xml_write_err)?;
                     stack.push(RawFrame::RenameToPlainText);
+                } else if !in_restore && ln == "delText" && treat_missing_id_as_match {
+                    // Stray `w:delText` with NO enclosing `w:del` at all
+                    // (malformed/third-party markup) — a bulk caller
+                    // (accept-all / final-clean) must not let deleted-tagged
+                    // text survive just because its wrapper is missing.
+                    // Codex review: the original scrubber stripped ANY
+                    // `delText` unconditionally as a fail-closed net; mirror
+                    // that here for both actions (Accept drops it, Reject
+                    // restores it as plain text — same as a matched `w:del`'s
+                    // delText would be treated).
+                    changed = true;
+                    match action {
+                        ResolveAction::Accept => stack.push(RawFrame::Drop),
+                        ResolveAction::Reject => {
+                            let new_name = renamed_qname(e.name(), "t");
+                            let mut new_e = BytesStart::new(new_name);
+                            for a in e.attributes().with_checks(false).flatten() {
+                                new_e.push_attribute(a);
+                            }
+                            writer.write_event(Event::Start(new_e)).map_err(xml_write_err)?;
+                            stack.push(RawFrame::RenameToPlainText);
+                        }
+                    }
                 } else {
                     writer.write_event(Event::Start(e.borrow())).map_err(xml_write_err)?;
                     stack.push(RawFrame::Keep);
@@ -413,6 +460,20 @@ pub(crate) fn resolve_raw_xml(
                         new_e.push_attribute(a);
                     }
                     writer.write_event(Event::Empty(new_e)).map_err(xml_write_err)?;
+                } else if !in_restore && ln == "delText" && treat_missing_id_as_match {
+                    // Stray, empty delText: same fail-closed handling as above.
+                    changed = true;
+                    match action {
+                        ResolveAction::Accept => {}
+                        ResolveAction::Reject => {
+                            let new_name = renamed_qname(e.name(), "t");
+                            let mut new_e = BytesStart::new(new_name);
+                            for a in e.attributes().with_checks(false).flatten() {
+                                new_e.push_attribute(a);
+                            }
+                            writer.write_event(Event::Empty(new_e)).map_err(xml_write_err)?;
+                        }
+                    }
                 } else {
                     writer.write_event(Event::Empty(e.borrow())).map_err(xml_write_err)?;
                 }
@@ -869,4 +930,70 @@ mod tests {
         );
     }
 
+    // Codex review round 2 on CLUSTER-C3: a STRAY `w:delText` with no
+    // enclosing `w:del` at all (malformed) must also be stripped by a bulk
+    // accept/final-clean, and must not make `resolve_all` early-exit as if
+    // there were nothing to resolve.
+
+    #[test]
+    fn resolve_raw_xml_accept_strips_a_stray_del_text_with_no_del_wrapper() {
+        let xml = "<w:tbl><w:tr><w:tc><w:p><w:r><w:delText>client name</w:delText></w:r></w:p></w:tc></w:tr></w:tbl>";
+        let (resolved, changed) =
+            resolve_raw_xml(xml, ResolveAction::Accept, &|_| true, true).unwrap();
+        assert!(changed);
+        assert!(
+            !resolved.contains("client name") && !resolved.contains("delText"),
+            "a stray delText must not survive a bulk accept: {resolved}"
+        );
+    }
+
+    #[test]
+    fn resolve_raw_xml_reject_restores_a_stray_del_text_with_no_del_wrapper() {
+        let xml = "<w:tbl><w:tr><w:tc><w:p><w:r><w:delText>client name</w:delText></w:r></w:p></w:tc></w:tr></w:tbl>";
+        let (resolved, changed) =
+            resolve_raw_xml(xml, ResolveAction::Reject, &|_| true, true).unwrap();
+        assert!(changed);
+        assert!(resolved.contains("client name"));
+        assert!(!resolved.contains("delText"), "must be renamed to w:t, not left as delText: {resolved}");
+        assert!(resolved.contains("<w:t>client name</w:t>"));
+    }
+
+    #[test]
+    fn resolve_raw_xml_with_missing_id_false_leaves_stray_del_text_untouched() {
+        let xml = "<w:tbl><w:tr><w:tc><w:p><w:r><w:delText>client name</w:delText></w:r></w:p></w:tc></w:tr></w:tbl>";
+        let (resolved, changed) =
+            resolve_raw_xml(xml, ResolveAction::Accept, &|id| id == "999", false).unwrap();
+        assert!(!changed);
+        assert_eq!(resolved, xml);
+    }
+
+    #[test]
+    fn resolve_all_strips_a_stray_del_text_and_does_not_early_exit() {
+        // A raw block whose ONLY content is an orphaned delText — no w:ins/
+        // w:del at all — must still count as a revision, or resolve_all's
+        // `resolved == 0` early exit would skip the block entirely.
+        let xml = "<w:tbl><w:tr><w:tc><w:p><w:r><w:delText>client name</w:delText></w:r></w:p></w:tc></w:tr></w:tbl>";
+        let mut doc = Document {
+            body: vec![BlockContent::Raw { xml: xml.to_string() }],
+            ..Default::default()
+        };
+        let n = resolve_all(&mut doc, ResolveAction::Accept);
+        assert_eq!(n, 1, "the stray delText must count as one revision");
+        let BlockContent::Raw { xml } = &doc.body[0] else {
+            panic!("expected raw block");
+        };
+        assert!(!xml.contains("client name"), "accept-all must strip it: {xml}");
+    }
+
+    #[test]
+    fn resolve_all_does_not_double_count_del_text_nested_inside_a_matched_del() {
+        // Sanity check for the del_depth tracking in raw_xml_revision_ids:
+        // a delText INSIDE a w:del must count once (via the del), not twice.
+        let xml = "<w:tbl><w:tr><w:tc><w:p><w:del w:id=\"1\" w:author=\"A\" w:date=\"d\"><w:r><w:delText>x</w:delText></w:r></w:del></w:p></w:tc></w:tr></w:tbl>";
+        let mut doc = Document {
+            body: vec![BlockContent::Raw { xml: xml.to_string() }],
+            ..Default::default()
+        };
+        assert_eq!(resolve_all(&mut doc, ResolveAction::Accept), 1);
+    }
 }

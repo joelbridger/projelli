@@ -1717,6 +1717,50 @@ fn test_final_clean_strips_a_malformed_ids_less_deletion_inside_a_raw_table() {
     assert!(document_xml.contains("Before") && document_xml.contains("After"));
 }
 
+/// Codex review round 2: a STRAY `w:delText` with no enclosing `w:del` at all
+/// (even more malformed than an id-less `w:del`) must also be stripped by the
+/// final-clean export — the original scrubber dropped `del` OR `delText`
+/// unconditionally, at any depth.
+fn build_package_with_stray_del_text_in_table() -> Vec<u8> {
+    let document_xml = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:tbl><w:tr><w:tc><w:p><w:r><w:t>Before </w:t></w:r><w:r><w:delText>SECRET OTHER MATTER</w:delText></w:r><w:r><w:t> After</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:sectPr/></w:body></w:document>"#;
+    let content_types = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>"#;
+    let root_rels = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>"#;
+
+    let mut pkg = Package::new();
+    pkg.insert("[Content_Types].xml", content_types.as_bytes().to_vec());
+    pkg.insert("_rels/.rels", root_rels.as_bytes().to_vec());
+    pkg.insert("word/document.xml", document_xml.as_bytes().to_vec());
+    pkg.write_to_bytes().expect("zip package with a stray delText in a table")
+}
+
+#[test]
+fn test_final_clean_strips_a_stray_del_text_with_no_del_wrapper_inside_a_raw_table() {
+    let original = build_package_with_stray_del_text_in_table();
+    let opened = open_docx_bytes(&original).expect("open stray delText table");
+
+    let bytes = clean_copy_bytes(&opened, ScrubOptions::final_clean()).expect("final clean copy");
+    let pkg = Package::read_from_bytes(&bytes).expect("final clean copy is valid zip");
+    assert!(
+        validate_package(&pkg).ok(),
+        "final clean copy invalid: {:?}",
+        validate_package(&pkg).errors
+    );
+
+    let document_xml = pkg.get_str("word/document.xml").expect("document part");
+    assert!(
+        !document_xml.contains("SECRET OTHER MATTER"),
+        "a stray delText's deleted table text leaked into final clean copy: {document_xml}"
+    );
+    assert!(
+        !document_xml.contains("delText"),
+        "stray delText tag survived final clean copy: {document_xml}"
+    );
+    assert!(document_xml.contains("Before") && document_xml.contains("After"));
+}
+
 #[test]
 fn test_clean_copy_preserves_unmodeled_parts() {
     // Preserve-by-default still holds through a clean copy: the unmodeled
