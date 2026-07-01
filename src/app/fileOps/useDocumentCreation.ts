@@ -43,7 +43,17 @@ export function useDocumentCreation(options: UseDocumentCreationOptions) {
   // Handle create plain text file in a target folder (defaults to docs folder).
   const handleCreateTextFileAtRoot = useCallback(async (parentPath?: string) => {
     if (!workspaceServiceRef.current || !rootPath) return;
-    const destDir = parentPath ?? `${rootPath}/docs`;
+    // Defensive (2026-07-01 re-fix): only a real string may be a create target.
+    // A non-string `parentPath` (e.g. a corrupted matter folder object) would
+    // otherwise stringify into `destDir` as the literal "[object Object]" and
+    // create a garbage folder. Coerce anything non-string back to the default.
+    const safeParent = typeof parentPath === 'string' ? parentPath : undefined;
+    const destDir = safeParent ?? `${rootPath}/docs`;
+    // Bench diagnostic — confirms `destDir` is a real path, never "[object
+    // Object]". DEV-only: the path can contain client-identifying folder names,
+    // which must not leak into production WebView logs (Codex review). The bench
+    // runs the dev build, so it still sees this.
+    if (import.meta.env.DEV) console.log('[DocCreate] text destDir:', destDir);
     // BUG (2026-07-01): the default value used to be '' — 'my-notes' was only
     // the placeholder, so pressing OK on the default silently created nothing
     // (name === '' fails the `!name` check below with no error). Seed a REAL,
@@ -98,7 +108,14 @@ export function useDocumentCreation(options: UseDocumentCreationOptions) {
     if (!workspaceServiceRef.current || !rootPath) return;
     // R6-1: create in the folder the user has open when provided; otherwise
     // fall back to the canonical `<root>/docs` folder.
-    const destDir = parentPath ?? `${rootPath}/docs`;
+    // Defensive (2026-07-01 re-fix): only a real string may be a create target —
+    // a non-string `parentPath` (a corrupted matter folder object) would
+    // stringify to the literal "[object Object]" and write to a garbage folder.
+    const safeParent = typeof parentPath === 'string' ? parentPath : undefined;
+    const destDir = safeParent ?? `${rootPath}/docs`;
+    // Bench diagnostic (see handleCreateTextFileAtRoot) — DEV-only so a
+    // client-identifying path never reaches production logs.
+    if (import.meta.env.DEV) console.log('[DocCreate] docx destDir:', destDir);
     // BUG (2026-07-01): default value used to be '' — 'my-document' was only
     // the placeholder shown in the (unfilled) input and the live preview, so
     // clicking OK without typing anything confirmed an EMPTY name, which the

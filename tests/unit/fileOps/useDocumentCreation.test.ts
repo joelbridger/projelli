@@ -125,6 +125,32 @@ describe('useDocumentCreation — handleCreateDocxAtRoot', () => {
     });
     expect(svc.writeFileBinary).not.toHaveBeenCalled();
   });
+
+  it('a non-string parentPath (corrupted matter folder object) falls back to <root>/docs — never "[object Object]"', async () => {
+    // 2026-07-01 re-fix: the scoped create path can be handed a corrupted matter
+    // folder value (an object). If it stringified into destDir it would write to
+    // a real garbage folder named "[object Object]" (and the default-name create
+    // would then land somewhere the scoped view can't see — the bench "no file"
+    // symptom). The handler must coerce a non-string target back to the default.
+    const { result, svc } = setup();
+    await act(async () => {
+      // Cast: an untyped JS caller can slip an object past the `string` type.
+      await result.current.handleCreateDocxAtRoot({ path: '/workspace/Clients/Acme' } as unknown as string);
+    });
+    expect(svc.writeFileBinary).toHaveBeenCalledTimes(1);
+    const [path] = svc.writeFileBinary.mock.calls[0] as [string, ArrayBuffer];
+    expect(path).toBe('/workspace/docs/my-document.docx');
+    expect(path).not.toContain('[object Object]');
+  });
+
+  it('a real string parentPath is honored (default name creates a file inside it)', async () => {
+    const { result, svc } = setup();
+    await act(async () => {
+      await result.current.handleCreateDocxAtRoot('/workspace/Clients/Acme');
+    });
+    const [path] = svc.writeFileBinary.mock.calls[0] as [string, ArrayBuffer];
+    expect(path).toBe('/workspace/Clients/Acme/my-document.docx');
+  });
 });
 
 describe('useDocumentCreation — handleCreateFolderAtRoot', () => {

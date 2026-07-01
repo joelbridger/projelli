@@ -39,7 +39,12 @@ export interface MattersHomeProps {
    * shell (AppSurfaceRouter), which owns each surface's handler wiring. Forwarded
    * verbatim to the MatterHub. Absent when MattersHome is rendered standalone.
    */
-  renderClientDocuments?: () => ReactNode;
+  /**
+   * Handed the exact `Matter` the open hub is rendering (from MatterHub), so the
+   * scoped Documents surface reads its `folderPaths`/id from the client actually
+   * on screen, not a stale outer "active matter" closure in the shell.
+   */
+  renderClientDocuments?: (matter: Matter | null) => ReactNode;
   renderClientEmail?: () => ReactNode;
   renderClientActivity?: () => ReactNode;
 }

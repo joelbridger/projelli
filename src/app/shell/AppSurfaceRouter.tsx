@@ -327,11 +327,15 @@ export function AppSurfaceRouter({
       {sidebarActiveTab ==='matters' ? (
         <MattersHome
           onAuditLog={addAuditEntry}
-          renderClientDocuments={() =>
+          renderClientDocuments={(hubMatter) =>
+            // Use the EXACT matter MatterHub is rendering (passed in), not the
+            // outer `activeMatter` closure, which can lag behind the hub's client
+            // on a switch. This guarantees `scopeFolderPaths`/`scopeMatterId`
+            // describe the client actually on screen (2026-07-01 re-fix).
             buildDocumentsHome({
               embedded: true,
-              scopeFolderPaths: activeMatter?.folderPaths ?? [],
-              ...(activeMatter ? { scopeMatterId: activeMatter.id } : {}),
+              scopeFolderPaths: hubMatter?.folderPaths ?? [],
+              ...(hubMatter ? { scopeMatterId: hubMatter.id } : {}),
             })
           }
           renderClientEmail={() =>
