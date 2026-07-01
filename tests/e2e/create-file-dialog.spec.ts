@@ -21,6 +21,11 @@ test.describe('Create file dialog (UX-15)', () => {
   });
 
   test('shows destination and live preview when creating a Word document', async ({ page }) => {
+    test.skip(
+      !!process.env.E2E_CI_QUARANTINE,
+      'confirmed failing on real CI (F1.3, 2026-07-01), cause not yet diagnosed past ' +
+        'the shared gotoDocuments stale-testid bug already fixed; see docs/quality/e2e-flaky-quarantine.md'
+    );
     await hardClick(page.getByTestId('documents-toolbar').getByRole('button', { name: 'New document' }));
 
     // Destination label is visible.

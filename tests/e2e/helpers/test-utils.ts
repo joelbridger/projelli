@@ -73,12 +73,27 @@ export async function waitForTestModeLoad(page: Page) {
 export async function gotoDocuments(page: Page, matterId = 'matter_demo_brennan') {
   await hardClick(page.getByTestId('spine-nav-matters'));
 
-  const shortcut = page.getByTestId('hub-shortcut-documents');
-  if (!(await shortcut.isVisible().catch(() => false))) {
-    await hardClick(page.getByTestId(`matter-row-${matterId}`));
+  // Landing here shows either the matter hub directly (its Documents sub-tab
+  // already in the DOM) or a matters list to pick from first (matter-row-*) —
+  // which one depends on app state, not timing. Wait for whichever actually
+  // appears instead of guessing from a snapshot taken right after the click.
+  //
+  // STALE-TESTID FIX (F1.3, 2026-07-01): this used to target a
+  // `hub-shortcut-documents` shortcut card, which the Client Map redesign
+  // (MatterHub.tsx) replaced with a `hub-subtab-documents` tab in the hub's
+  // sub-tab bar — the old id no longer exists anywhere in src/, so every
+  // caller of this helper failed 100% of the time, on any machine, at any
+  // speed. Not a CI-timing flake.
+  const documentsTab = page.getByTestId('hub-subtab-documents');
+  const matterRow = page.getByTestId(`matter-row-${matterId}`);
+  await expect(documentsTab.or(matterRow)).toBeVisible({ timeout: 15_000 });
+
+  if (await matterRow.isVisible().catch(() => false)) {
+    await hardClick(matterRow);
+    await expect(documentsTab).toBeVisible({ timeout: 15_000 });
   }
 
-  await hardClick(page.getByTestId('hub-shortcut-documents'));
+  await hardClick(documentsTab);
   await expect(page.getByTestId('documents-toolbar')).toBeVisible({ timeout: 10_000 });
 }
 

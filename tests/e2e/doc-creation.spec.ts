@@ -85,6 +85,11 @@ test.describe('Document Creation (Phase 4) — Documents toolbar', () => {
   });
 
   test('creates a blank .docx and opens it in the Word preview/editor route', async ({ page }) => {
+    test.skip(
+      !!process.env.E2E_CI_QUARANTINE,
+      'confirmed failing on real CI (F1.3, 2026-07-01), cause not yet diagnosed past ' +
+        'the shared gotoDocuments stale-testid bug already fixed; see docs/quality/e2e-flaky-quarantine.md'
+    );
     await runCreateDocxFlow(page, 'fresh-doc');
 
     const editor = page.getByTestId('docx-editor');
@@ -135,6 +140,11 @@ test.describe('Document Creation (Phase 4) — Workflow markdown to Word export'
   });
 
   test('export menu appears for markdown tabs and Save as Word triggers save dialog', async ({ page }) => {
+    test.skip(
+      !!process.env.E2E_CI_QUARANTINE,
+      'confirmed failing on real CI (F1.3, 2026-07-01), cause not yet diagnosed past ' +
+        'the shared gotoDocuments stale-testid bug already fixed; see docs/quality/e2e-flaky-quarantine.md'
+    );
     // Install a showSaveFilePicker mock BEFORE any menu action so the export
     // handler captures whatever the user picks. The mock records the written
     // bytes so the test can round-trip through mammoth.

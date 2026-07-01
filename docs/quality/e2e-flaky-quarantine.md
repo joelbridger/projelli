@@ -48,6 +48,62 @@ onboarding / timing / visual), not a confirmed diagnosis, unless marked
 | `search-content.spec.ts` | search depends on the index (browser index is desktop-only) | fix-plan-F1.3-followup | 2026-07-31 |
 | `accessibility.spec.ts` — only `main app UI passes a11y checks (test mode)` (in-spec `test.skip`, not file-level `CI_QUARANTINE`; `workspace selector passes a11y checks` in the same file is unaffected and keeps running in CI) | **confirmed**: real WCAG AA color-contrast failures in the sidebar nav (`Ask`/`Workflows`/`+ New client` labels ~4.2:1, `Solo account` subtitle + empty-state copy ~2.6:1, all need 4.5:1) — a design/CSS token fix in `src/`, out of the F1.3 CI-lane scope | fix-plan-F1.3-followup | 2026-07-15 |
 
+### Added 2026-07-01 (F1.3) — from a real GitHub Actions CI run, post-sharding
+
+Sharding the `e2e` job (6-way matrix) fixed the documented tail-timeout
+mechanism (`e2e-suite-batching.md`) but did **not** get the gate green: a real
+CI run on this branch still failed 83 of ~1130 test-instances across 31 spec
+files, consistently across shards. One shared root cause was found and fixed
+in this change — a widely-used test helper (`gotoDocuments` in
+`tests/e2e/helpers/test-utils.ts`) targeted `hub-shortcut-documents`, a
+test-id that no longer exists anywhere in `src/` (removed by the Client Map
+tab redesign in `MatterHub.tsx`, replaced by `hub-subtab-documents`) — a
+100%-deterministic stale reference, not a timing flake, that broke every
+caller. Fixing it turned some failures green outright; for the rest, spot
+checks found **at least two distinct further causes**, not one: a real
+product-behavior drift (`theme-system.spec.ts` expects the first-run theme
+default to be `"system"`; the app now defaults to `"light"` — plausibly
+intentional per Jameson's stated no-dark-mode preference, but that's a
+product call, not a CI-lane call) and a real conditional-rendering mismatch
+(`docs-trash-toggle` is intentionally hidden in the embedded per-matter
+Documents view — see the `empty-states.spec.ts` row below). The remaining
+rows below were **not** individually root-caused past this point — that's
+real, scoped follow-up work, not something to guess at inside this CI-fix.
+
+| Spec | Suspected cause | Owner | Fix-or-delete by |
+|---|---|---|---|
+| `create-file-dialog.spec.ts` — only `shows destination and live preview when creating a Word document` (in-spec `test.skip`; `shows destination when creating a folder` passes and keeps running in CI) | not yet diagnosed past the gotoDocuments fix | fix-plan-F1.3-followup | 2026-07-31 |
+| `doc-creation.spec.ts` — only `creates a blank .docx…` and `export menu appears for markdown tabs…` (in-spec `test.skip`; `filename prefill…` passes and keeps running in CI) | `creates a blank .docx…` fails a `toBe(true)` boolean assertion (not visibility/timing) — a real logic mismatch, not diagnosed further | fix-plan-F1.3-followup | 2026-07-31 |
+| `empty-states.spec.ts` — only `Search empty state renders…` and `Trash empty state renders…` (in-spec `test.skip`; the other 2 tests pass and keep running in CI) | **confirmed** for Trash: `docs-trash-toggle` is intentionally hidden in the embedded per-matter Documents view (`DocumentsHome.tsx` `!embedded` gate) that `gotoDocuments` reaches — needs a non-embedded documents route or a product decision, not diagnosed for Search | fix-plan-F1.3-followup | 2026-07-31 |
+| `tab-bar-scroll.spec.ts` | not yet diagnosed past the gotoDocuments fix (only test in file, still red after the fix) | fix-plan-F1.3-followup | 2026-07-31 |
+| `undo-delete-ctrlz.spec.ts` | one of its 2 tests hits the same **confirmed** `docs-trash-toggle`/embedded-view mismatch as `empty-states.spec.ts` above; the other not diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
+| `theme-system.spec.ts` | **confirmed**: `first run defaults to system theme` expects `data-theme="system"`, app now renders `"light"` — real product drift (possibly intentional, see note above), not a timing issue | fix-plan-F1.3-followup | 2026-07-31 |
+| `ai-assistant-tab.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
+| `api-keys-panel.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
+| `auto-save-indicator.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
+| `breadcrumbs.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
+| `doc-editing.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
+| `doc-legacy.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
+| `doc-viewers.spec.ts` | not yet diagnosed; `spreadsheet-viewer` timeout despite an existing 20s explicit wait — may be genuine CI-runner rendering-perf, not just a missing wait | fix-plan-F1.3-followup | 2026-07-31 |
+| `editor-toolbar-overflow.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
+| `history-hidden-nonversioned.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
+| `image-attachment.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
+| `presentation-viewer.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
+| `spreadsheet-improvements.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
+| `updater.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
+| `v1.5-canvas-stress.spec.ts` | heavy stress spec (already the documented pattern in `e2e-suite-batching.md`); not yet individually diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
+| `v1.5-error-paths.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
+| `v1.5-flag-canvas.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
+| `v1.5-flag-memory.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
+| `v1.5-flag-voice.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
+| `v1.5-memory-stress.spec.ts` | heavy stress spec; not yet individually diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
+| `v1.5-voice-ollama-stress.spec.ts` | heavy stress spec; not yet individually diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
+| `wedge-proof.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
+| `welcome-dialog.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
+| `word-count-md-txt.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
+| `workflow-persistence.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
+| `workflow-tab-overflow.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
+
 ## How to work the list
 
 1. Reproduce locally with retries off to see the real failure:
