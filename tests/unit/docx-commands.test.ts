@@ -88,7 +88,12 @@ describe('docx-commands (Tauri available)', () => {
   });
 
   it('docxAuthorRevisions passes the document, edits, and null defaults', async () => {
-    const result = { document: doc, results: [] };
+    // Plain-text (non-table) edits pass through unchanged onto the wire; the
+    // wrapper collapses the engine's per-edit results back one-to-one.
+    const result = {
+      document: doc,
+      results: [{ index: 0, applied: true, revisionId: '5', error: null }],
+    };
     invokeMock.mockResolvedValue(result);
     const edits: DocxAiEdit[] = [
       { op: 'replace', paragraphIndex: 0, anchorText: 'hi', newText: 'hello', reason: 'expand' },
@@ -100,7 +105,8 @@ describe('docx-commands (Tauri available)', () => {
       author: null,
       date: null,
     });
-    expect(out).toBe(result);
+    expect(out.document).toBe(doc);
+    expect(out.results).toEqual([{ index: 0, applied: true, revisionId: '5', error: null }]);
   });
 
   it('docxAuthorRevisions forwards an explicit author', async () => {

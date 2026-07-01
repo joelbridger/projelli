@@ -929,6 +929,132 @@ export async function markdownToDocxBytes(
   return serializeDocx(html, fileName, options);
 }
 
+/** The WordprocessingML main namespace, bound as `w:` at the document root. */
+const WORD_MAIN_NS =
+  'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+
+/**
+ * True when `markdown` contains a GFM pipe table — i.e. a separator row
+ * (`|---|---|`, dashes/colons/pipes only, at least one dash) immediately
+ * preceded by a header row that has at least one pipe. Deliberately stricter
+ * than a bare `|` scan so ordinary prose with a stray pipe is NOT treated as a
+ * table (which would wrongly divert a plain-text redline through the table path).
+ */
+export function containsMarkdownTable(markdown: string): boolean {
+  const lines = markdown.replace(/\r\n/g, '\n').split('\n');
+  for (let i = 1; i < lines.length; i++) {
+    const sep = (lines[i] ?? '').trim();
+    const header = (lines[i - 1] ?? '').trim();
+    if (
+      /^[|\s:-]+$/.test(sep) &&
+      sep.includes('-') &&
+      sep.includes('|') &&
+      header.includes('|')
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * One body-level block produced from a Markdown fragment for the AI redliner:
+ * either a paragraph (carrying its plain text, so the redliner can add it as a
+ * TRACKED, editable paragraph) or a table (carrying real `<w:tbl>` XML, added as
+ * a preserved raw block — the engine has no block-level revision model, so a
+ * table can't itself be a tracked change).
+ */
+export type RedlineBlock =
+  | { kind: 'paragraph'; text: string }
+  | { kind: 'table'; xml: string };
+
+/**
+ * True when `markdown` is EXACTLY one GFM pipe table and nothing else (ignoring
+ * leading/trailing blank lines). STRICTER than {@link containsMarkdownTable}:
+ * used to gate AI-redline table inserts so we only ever convert a clean,
+ * standalone table. Any surrounding prose — even a single line, even prose that
+ * merely contains a `|` (which the lenient converter would silently fold into,
+ * or drop from, the table) — makes this false, so the caller rejects the edit
+ * instead of losing or reshaping that text.
+ *
+ * Requires, after trimming outer blank lines: at least two lines, NO internal
+ * blank line, every line contains a `|`, and the SECOND line is a GFM separator
+ * row (dashes/colons/pipes with at least one dash). The "separator must be line
+ * two" rule is what rejects `Note A | B\n| H | I |\n|---|---|` — prose that would
+ * otherwise masquerade as the table's header row.
+ */
+export function isStandaloneMarkdownTable(markdown: string): boolean {
+  const raw = markdown.replace(/\r\n/g, '\n').split('\n');
+  let start = 0;
+  let end = raw.length;
+  while (start < end && (raw[start] ?? '').trim() === '') start++;
+  while (end > start && (raw[end - 1] ?? '').trim() === '') end--;
+  const lines = raw.slice(start, end).map((l) => l.trim());
+  if (lines.length < 2) return false;
+  // No blank lines inside, and every line must look like a pipe row.
+  if (lines.some((l) => l === '' || !l.includes('|'))) return false;
+  // The SECOND line must be the separator row (header, separator, body...).
+  const sep = lines[1] ?? '';
+  return /^[|\s:-]+$/.test(sep) && sep.includes('-');
+}
+
+/**
+ * Convert an arbitrary Markdown fragment into an ORDERED list of {@link
+ * RedlineBlock}s, reusing the proven `markdownToDocxBytes` converter. This is how
+ * the AI redliner turns a Markdown pipe table (optionally with surrounding text)
+ * into a REAL Word table instead of leaking literal pipe text into a paragraph.
+ *
+ * Implementation: render the fragment to a throwaway `.docx`, unzip
+ * `word/document.xml`, and walk the DIRECT children of `<w:body>` in order. A
+ * `<w:tbl>` becomes a `table` block (raw XML, embedded under the engine's
+ * `<w:document xmlns:w="…">` wrapper — any redundant root `xmlns:w` the serializer
+ * adds is stripped). A `<w:p>` becomes a `paragraph` block carrying its plain
+ * text. The trailing `<w:sectPr>` and paragraphs NESTED inside table cells are
+ * naturally excluded (we only look at `<w:body>`'s direct children). Empty
+ * paragraphs are dropped so blank lines don't create stray blocks.
+ *
+ * @throws if the fragment can't be rendered/parsed — callers MUST treat a throw
+ *   as "reject this edit" and insert nothing (never fall back to literal text).
+ */
+export async function markdownToRedlineBlocks(markdown: string): Promise<RedlineBlock[]> {
+  const bytes = await markdownToDocxBytes(markdown, 'redline-block.docx');
+  const zip = await JSZip.loadAsync(bytes);
+  const file = zip.file('word/document.xml');
+  if (!file) throw new Error('generated .docx is missing word/document.xml');
+  const documentXml = await file.async('string');
+
+  const dom = new DOMParser().parseFromString(documentXml, 'application/xml');
+  if (dom.getElementsByTagName('parsererror').length > 0) {
+    throw new Error('failed to parse generated word/document.xml');
+  }
+  const body = dom.getElementsByTagName('w:body').item(0);
+  if (!body) throw new Error('generated .docx has no <w:body>');
+
+  const serializer = new XMLSerializer();
+  const out: RedlineBlock[] = [];
+  for (const child of Array.from(body.childNodes)) {
+    if (child.nodeType !== 1 /* ELEMENT_NODE */) continue;
+    const el = child as Element;
+    if (el.nodeName === 'w:tbl') {
+      out.push({ kind: 'table', xml: stripRedundantWordNs(serializer.serializeToString(el)) });
+    } else if (el.nodeName === 'w:p') {
+      const text = (el.textContent ?? '').trim();
+      if (text.length > 0) out.push({ kind: 'paragraph', text });
+    }
+  }
+  return out;
+}
+
+/**
+ * Remove a redundant root-level `xmlns:w="…"` declaration that `XMLSerializer`
+ * adds when serializing a `w:`-prefixed element in isolation. The engine's
+ * document wrapper already binds `w:`, so a duplicate (identical-URI) decl is
+ * valid but noisy — strip just the first occurrence (the block's root tag).
+ */
+function stripRedundantWordNs(xml: string): string {
+  return xml.replace(` xmlns:w="${WORD_MAIN_NS}"`, '');
+}
+
 // ---------------------------------------------------------------------------
 // WS-D — Structured litigation deliverable: contradictions table → .docx
 // ---------------------------------------------------------------------------

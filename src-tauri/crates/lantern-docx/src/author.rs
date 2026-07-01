@@ -190,6 +190,27 @@ pub enum Edit {
         anchor_text: String,
         new_text: String,
     },
+    /// Insert a whole block-level element (e.g. a real `<w:tbl>`) as a new
+    /// [`BlockContent::Raw`] immediately AFTER the target paragraph. `xml` is the
+    /// verbatim, self-contained block OOXML (using the `w:` prefix bound at the
+    /// document root) and is re-emitted byte-for-byte by the serializer.
+    ///
+    /// This is how the AI redliner adds a REAL Word table: the frontend converts
+    /// a Markdown pipe table into `<w:tbl>` XML (reusing the proven
+    /// markdown→.docx converter) and hands it here, so literal pipe text never
+    /// leaks into a paragraph run. Unlike the in-paragraph ops this does not
+    /// anchor to substring text — it always lands after the whole paragraph.
+    InsertBlock {
+        paragraph_index: usize,
+        /// Optional drift-safety gate: if set, the block is inserted only when
+        /// this substring is still present in the target paragraph's plain text
+        /// (else the edit is SKIPPED, exactly like an anchored [`Edit::Insert`]
+        /// whose anchor disappeared). The block always lands after the WHOLE
+        /// paragraph — the anchor is a "is this still the paragraph the AI saw?"
+        /// check, not a position within it.
+        anchor_text: Option<String>,
+        xml: String,
+    },
 }
 
 impl Edit {
@@ -202,6 +223,9 @@ impl Edit {
                 paragraph_index, ..
             }
             | Edit::Replace {
+                paragraph_index, ..
+            }
+            | Edit::InsertBlock {
                 paragraph_index, ..
             } => *paragraph_index,
         }
@@ -291,9 +315,12 @@ pub fn apply_edits(
     // Group pending edits per body paragraph index.
     use std::collections::BTreeMap;
     let mut by_para: BTreeMap<usize, Vec<Pending>> = BTreeMap::new();
-    // New-paragraph inserts are deferred so paragraph indices stay stable.
-    // (Reserved for a future "whole new paragraph" insert mode; empty today.)
-    let deferred_new_paras: Vec<(usize, Edit, String)> = Vec::new();
+    // Block inserts (Edit::InsertBlock) are deferred so paragraph indices stay
+    // stable through the in-paragraph pass: each adds a NEW body block (a real
+    // <w:tbl>, preserved verbatim) AFTER its target paragraph. Deferring keeps the
+    // snapshotted `para_body_idx` valid. Tuple: (input index, original target body
+    // index, raw block XML).
+    let mut deferred_blocks: Vec<(usize, usize, String)> = Vec::new();
 
     // Occurrence-aware anchor matching: when several edits in the SAME paragraph
     // quote the SAME anchor text, map them to the 1st, 2nd, ... occurrence in
@@ -325,6 +352,57 @@ pub fn apply_edits(
             };
             continue;
         };
+
+        // A block insert lands after the WHOLE paragraph, not at a substring —
+        // defer it to after the in-paragraph pass so paragraph indices stay
+        // stable, then splice the new block in (in input order). An optional
+        // `anchor_text` carries the original insert's anchor and is checked
+        // against the CURRENT paragraph text:
+        //   * not present  → SKIP (drift safety: a concurrent edit changed the
+        //     paragraph while the AI call was in flight — don't land a stale
+        //     block), matching anchored `Edit::Insert`.
+        //   * present but NOT at the paragraph end → SKIP: the model asked to
+        //     place content after a mid-paragraph substring, but a block can only
+        //     go after the whole paragraph, so honoring "after the anchor" would
+        //     silently move the table PAST the paragraph's trailing text. Reject
+        //     rather than mis-position (a table can only be appended after a
+        //     paragraph, never spliced mid-paragraph).
+        // An absent anchor means "append after the paragraph", which is exactly
+        // where the block lands — no check needed.
+        if let Edit::InsertBlock { anchor_text, xml, .. } = edit {
+            if let Some(a) = anchor_text {
+                let plain = paragraph_plain_text(para);
+                match plain.rfind(a.as_str()) {
+                    None => {
+                        results[i] = EditResult {
+                            index: i,
+                            applied: false,
+                            revision_id: None,
+                            error: Some(format!("anchor {a:?} not found in paragraph {para_idx}")),
+                        };
+                        continue;
+                    }
+                    Some(pos) => {
+                        // Anything other than trailing whitespace after the last
+                        // occurrence means the anchor is mid-paragraph.
+                        if !plain[pos + a.len()..].trim().is_empty() {
+                            results[i] = EditResult {
+                                index: i,
+                                applied: false,
+                                revision_id: None,
+                                error: Some(format!(
+                                    "table anchor {a:?} is mid-paragraph {para_idx}; a table can only be added after the whole paragraph"
+                                )),
+                            };
+                            continue;
+                        }
+                    }
+                }
+            }
+            deferred_blocks.push((i, body_idx, xml.clone()));
+            continue;
+        }
+
         let plain = paragraph_plain_text(para);
 
         // Find the next unconsumed occurrence of `anchor` in this paragraph.
@@ -380,6 +458,8 @@ pub fn apply_edits(
                     }
                 }
             }
+            // Deferred above (never reaches anchor resolution).
+            Edit::InsertBlock { .. } => unreachable!("InsertBlock is deferred, not anchored"),
         };
 
         by_para.entry(body_idx).or_default().push(Pending {
@@ -448,6 +528,10 @@ pub fn apply_edits(
                     date,
                     &p.id,
                 ),
+                // Deferred above (never bucketed into a paragraph).
+                Edit::InsertBlock { .. } => {
+                    unreachable!("InsertBlock is deferred, not applied in-paragraph")
+                }
             };
             results[p.input_index] = if applied {
                 EditResult {
@@ -467,27 +551,29 @@ pub fn apply_edits(
         }
     }
 
-    // Finally apply deferred new-paragraph inserts (none today, but keeps the
-    // structure honest if Insert gains a "whole paragraph" mode later).
-    for (para_idx, edit, id) in deferred_new_paras {
-        if let Edit::Insert { new_text, .. } = edit {
-            // Reuse the existing helper but with our pre-allocated id by inlining.
-            let ins = Inline::Insertion {
-                meta: RevisionMeta {
-                    id: id.clone(),
-                    author: author.into(),
-                    date: date.into(),
-                },
-                runs: vec![Run {
-                    text: new_text.clone(),
-                    preserve_space: new_text != new_text.trim(),
-                    properties_xml: None,
-                }],
-            };
-            let new_para = BlockContent::Paragraph(Paragraph::from_inlines(vec![ins]));
-            match para_body_idx.get(para_idx) {
-                Some(&b) => doc.body.insert(b + 1, new_para),
-                None => doc.body.push(new_para),
+    // Apply deferred block inserts (AI-redline tables). Each inserts a
+    // BlockContent::Raw (a real <w:tbl>) immediately AFTER its target paragraph.
+    // We group by the ORIGINAL target body index and apply groups in DESCENDING
+    // body-index order, so splicing a block in for one paragraph never shifts the
+    // (lower) body index recorded for another group. Within a group, blocks land
+    // contiguously after the paragraph, in INPUT order.
+    if !deferred_blocks.is_empty() {
+        let mut by_body: BTreeMap<usize, Vec<(usize, String)>> = BTreeMap::new();
+        for (input_index, body_idx, xml) in deferred_blocks {
+            by_body.entry(body_idx).or_default().push((input_index, xml));
+        }
+        // BTreeMap iterates ascending; reverse for descending body-index order.
+        for (body_idx, group) in by_body.into_iter().rev() {
+            let mut at = body_idx + 1;
+            for (input_index, xml) in group {
+                doc.body.insert(at, BlockContent::Raw { xml });
+                results[input_index] = EditResult {
+                    index: input_index,
+                    applied: true,
+                    revision_id: None,
+                    error: None,
+                };
+                at += 1;
             }
         }
     }
@@ -1144,5 +1230,141 @@ mod tests {
         let res = apply_edits(&mut doc, &edits, AUTH, DATE);
         assert!(res[0].applied);
         assert!(visible(&doc, 0).ends_with("for all losses. Appended."));
+    }
+
+    // ── InsertBlock (AI-redline tables) ──────────────────────────────────────
+
+    const TBL_XML: &str = "<w:tbl><w:tr><w:tc><w:p><w:r><w:t>Name</w:t></w:r></w:p></w:tc>\
+<w:tc><w:p><w:r><w:t>Value</w:t></w:r></w:p></w:tc></w:tr>\
+<w:tr><w:tc><w:p><w:r><w:t>Alpha</w:t></w:r></w:p></w:tc>\
+<w:tc><w:p><w:r><w:t>42</w:t></w:r></w:p></w:tc></w:tr></w:tbl>";
+
+    #[test]
+    fn insert_block_inserts_a_raw_block_after_the_target_paragraph() {
+        let mut doc = doc_two_paras(); // body: [para0, para1]
+        let edits = vec![Edit::InsertBlock {
+            paragraph_index: 0,
+            anchor_text: None,
+            xml: TBL_XML.into(),
+        }];
+        let res = apply_edits(&mut doc, &edits, AUTH, DATE);
+        assert!(res[0].applied, "{:?}", res[0].error);
+        // The raw block lands immediately AFTER paragraph 0 (body index 1).
+        assert_eq!(doc.body.len(), 3);
+        match &doc.body[1] {
+            BlockContent::Raw { xml } => assert_eq!(xml, TBL_XML),
+            other => panic!("expected Raw block after para 0, got {other:?}"),
+        }
+        // Serialized document contains a REAL <w:tbl> and NO literal pipe text.
+        let serialized = crate::serialize::serialize_document(&doc).unwrap();
+        assert!(serialized.contains("<w:tbl>"), "no <w:tbl> in output");
+        assert!(!serialized.contains('|'), "literal pipe leaked into output");
+    }
+
+    #[test]
+    fn multiple_insert_blocks_after_same_paragraph_keep_input_order() {
+        let mut doc = doc_two_paras();
+        let edits = vec![
+            Edit::InsertBlock {
+                paragraph_index: 0,
+                anchor_text: None,
+                xml: "<w:p><w:r><w:t>FIRST</w:t></w:r></w:p>".into(),
+            },
+            Edit::InsertBlock {
+                paragraph_index: 0,
+                anchor_text: None,
+                xml: "<w:tbl><w:tr><w:tc><w:p><w:r><w:t>SECOND</w:t></w:r></w:p></w:tc></w:tr></w:tbl>"
+                    .into(),
+            },
+            Edit::InsertBlock {
+                paragraph_index: 0,
+                anchor_text: None,
+                xml: "<w:p><w:r><w:t>THIRD</w:t></w:r></w:p>".into(),
+            },
+        ];
+        let res = apply_edits(&mut doc, &edits, AUTH, DATE);
+        assert!(res.iter().all(|r| r.applied));
+        // Order after para0: FIRST, SECOND (table), THIRD, then original para1.
+        let serialized = crate::serialize::serialize_document(&doc).unwrap();
+        let first = serialized.find("FIRST").unwrap();
+        let second = serialized.find("SECOND").unwrap();
+        let third = serialized.find("THIRD").unwrap();
+        assert!(first < second && second < third, "blocks out of order");
+    }
+
+    #[test]
+    fn insert_block_and_in_paragraph_edits_coexist_drift_safely() {
+        // An insert into para0 plus a table block after para0: the in-paragraph
+        // edit still anchors against the ORIGINAL text, and the block still lands
+        // right after para0 (not shifted by the in-paragraph mutation).
+        let mut doc = doc_two_paras();
+        let edits = vec![
+            Edit::Insert {
+                paragraph_index: 0,
+                anchor_text: Some("indemnify the Client".into()),
+                new_text: " and affiliates".into(),
+                at_paragraph_start: false,
+            },
+            Edit::InsertBlock {
+                paragraph_index: 0,
+                anchor_text: None,
+                xml: TBL_XML.into(),
+            },
+        ];
+        let res = apply_edits(&mut doc, &edits, AUTH, DATE);
+        assert!(res[0].applied, "{:?}", res[0].error);
+        assert!(res[1].applied, "{:?}", res[1].error);
+        assert_eq!(doc.body.len(), 3);
+        assert!(matches!(&doc.body[1], BlockContent::Raw { .. }));
+    }
+
+    #[test]
+    fn insert_block_out_of_range_paragraph_is_skipped_not_fatal() {
+        let mut doc = doc_two_paras();
+        let edits = vec![Edit::InsertBlock {
+            paragraph_index: 99,
+            anchor_text: None,
+            xml: TBL_XML.into(),
+        }];
+        let res = apply_edits(&mut doc, &edits, AUTH, DATE);
+        assert!(!res[0].applied);
+        assert!(res[0].error.as_deref().unwrap().contains("out of range"));
+        assert_eq!(doc.body.len(), 2); // nothing inserted
+    }
+
+    #[test]
+    fn insert_block_anchor_gate_end_applies_mid_and_missing_skip() {
+        // para1 = "This Agreement is governed by Delaware law." (anchor at END)
+        // para0 = "The Company shall indemnify the Client for all losses." (mid).
+        let mut doc = doc_two_paras();
+        let edits = vec![
+            // (a) Anchor at the paragraph end → the table appends after it: APPLY.
+            Edit::InsertBlock {
+                paragraph_index: 1,
+                anchor_text: Some("Delaware law.".into()),
+                xml: TBL_XML.into(),
+            },
+            // (b) Anchor mid-paragraph (trailing text after it) → SKIP: a block
+            // can't be spliced mid-paragraph without silently mis-positioning.
+            Edit::InsertBlock {
+                paragraph_index: 0,
+                anchor_text: Some("indemnify the Client".into()),
+                xml: TBL_XML.into(),
+            },
+            // (c) Anchor not present at all (drift) → SKIP.
+            Edit::InsertBlock {
+                paragraph_index: 0,
+                anchor_text: Some("TEXT THAT IS NOT THERE".into()),
+                xml: TBL_XML.into(),
+            },
+        ];
+        let res = apply_edits(&mut doc, &edits, AUTH, DATE);
+        assert!(res[0].applied, "end anchor should apply: {:?}", res[0].error);
+        assert!(!res[1].applied, "mid-paragraph anchor must skip");
+        assert!(res[1].error.as_deref().unwrap().contains("mid-paragraph"));
+        assert!(!res[2].applied, "missing anchor must skip");
+        assert!(res[2].error.as_deref().unwrap().contains("not found"));
+        // Exactly one block inserted (after para1); nothing landed on para0.
+        assert_eq!(doc.body.len(), 3);
     }
 }
