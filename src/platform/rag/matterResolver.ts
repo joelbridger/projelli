@@ -396,7 +396,7 @@ export function oneDriveDestFolderForMatter(
   matter: Pick<Matter, 'folderPaths' | 'client' | 'name'>,
   workspaceRoot?: string | null,
 ): string {
-  const first = (matter.folderPaths ?? []).find(Boolean);
+  const first = matter.folderPaths.find(Boolean);
   if (first) {
     const rel = toWorkspaceRelativeFolder(first, workspaceRoot);
     if (rel) return rel;

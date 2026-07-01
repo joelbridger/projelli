@@ -69,7 +69,7 @@ function ensureOneDriveDestFolders(
 ): void {
   for (const m of matters) {
     if (!(m.onedriveFolderKeys ?? []).length) continue;
-    if ((m.folderPaths ?? []).some(Boolean)) continue;
+    if (m.folderPaths.some(Boolean)) continue;
     const dest = oneDriveDestFolderForMatter(m, workspaceRoot);
     if (dest) addFolderPath(m.id, dest);
   }
@@ -236,7 +236,7 @@ export function OneDriveConnect() {
           <p className="font-medium text-green-700">Connected.</p>
           {syncing && (
             <div className="mt-1 flex items-center gap-3">
-              <p>Importing... {progress?.seen ?? 0} items checked.</p>
+              <p>Importing... {progress.seen ?? 0} items checked.</p>
               <button
                 type="button"
                 onClick={() => {
