@@ -378,6 +378,50 @@ describe('scopeFileTreeToFolders', () => {
         ]);
       });
 
+      it('fails closed: an absolute PARENT-of-root matter folder captures NOTHING (isolation)', () => {
+        // Isolation guard (Codex review). A stale/legacy persisted folderPath can
+        // be an absolute path OUTSIDE the current workspace root — e.g. a PARENT
+        // directory of it. Since toAbsolute now preserves absolutes verbatim, such
+        // a parent would otherwise make every workspace file "inside" this client
+        // and expose the WHOLE workspace under the wrong client. It must be
+        // dropped, so the tab shows NO files rather than everyone's.
+        const PARENT = 'C:/KeepanceWorkspaces'; // parent of R17_ROOT
+        const matters = [
+          matter('bad', [PARENT]),
+          matter('webb', ['Clients/Webb, Marcus & Tanya']),
+        ];
+        const out = scopeFileTreeToFolders(relTreeR17, [PARENT], matters, 'bad', R17_ROOT);
+        expect(out).toEqual([]);
+        // And folder-based-only (no ownership) must fail closed too.
+        const outNoOwner = scopeFileTreeToFolders(relTreeR17, [PARENT], undefined, undefined, R17_ROOT);
+        expect(outNoOwner).toEqual([]);
+      });
+
+      it('fails closed: an absolute OUTSIDE-root matter folder captures NOTHING', () => {
+        const OUTSIDE = 'D:/SomeoneElse/Workspace';
+        const out = scopeFileTreeToFolders(relTreeR17, [OUTSIDE], undefined, undefined, R17_ROOT);
+        expect(out).toEqual([]);
+      });
+
+      it('a stale parent-of-root matter cannot steal a legit client\'s files via ownership', () => {
+        // Viewing WEBB's tab, a co-existing garbage matter mapped to the
+        // parent-of-root must not win ownership of Webb's files (which would drop
+        // them from Webb's own tab) nor surface them anywhere it shouldn't.
+        const PARENT = 'C:/KeepanceWorkspaces';
+        const matters = [
+          matter('bad', [PARENT]),
+          matter('webb', ['Clients/Webb, Marcus & Tanya']),
+        ];
+        const out = scopeFileTreeToFolders(
+          relTreeR17, ['Clients/Webb, Marcus & Tanya'], matters, 'webb', R17_ROOT,
+        );
+        const flat: string[] = [];
+        (function rec(ns: FileNode[]) { for (const n of ns) { flat.push(n.path); if (n.children) rec(n.children); } })(out);
+        // Webb still sees her own files — the garbage parent matter is ignored.
+        expect(flat).toContain('Clients/Webb, Marcus & Tanya/529 plan.docx');
+        expect(flat).not.toContain('Clients/Nakamura, David & Susan/1031.docx');
+      });
+
       it('mixed matters: one relative + one absolute folderPath, ownership still correct', () => {
         // The reconcile case: matters carry a mix of shapes. Both must resolve to
         // the same absolute space so ownership attributes each file correctly.

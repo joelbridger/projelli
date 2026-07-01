@@ -90,6 +90,35 @@ export function toAbsolute(p: string, workspaceRoot?: string | null): string {
 }
 
 /**
+ * Resolve a scope/ownership folder to absolute space, then FAIL CLOSED on an
+ * absolute folder that is not the workspace root or inside it.
+ *
+ * A persisted `Matter.folderPaths` entry can be stale or garbage — we have seen
+ * `[object Object]`, and legacy absolute values that point OUTSIDE the current
+ * workspace root (e.g. a PARENT directory of it, from a workspace that was moved
+ * or re-rooted). Now that `toAbsolute` preserves an absolute path verbatim, such
+ * a parent path would make `isPathInFolder(everyWorkspaceFile, f)` true and
+ * capture the ENTIRE workspace under the WRONG client — a matter-isolation leak.
+ * (The previous `toAbsolute` masked this by accidentally mangling out-of-root
+ * absolutes into a non-matching doubled path; the correct behavior is an
+ * explicit guard.) So when we know the workspace root, keep an absolute folder
+ * only when it is same-or-inside that root; drop anything else. Relative folders
+ * always resolve UNDER the root, so they always pass. With no workspace root
+ * (back-compat / single-shape tests) there is nothing to bound against, so the
+ * resolved path is returned as-is.
+ *
+ * Returns `null` when the folder must be dropped (never allowed to scope).
+ */
+function resolveScopeFolderInRoot(
+  folder: string,
+  workspaceRoot?: string | null,
+): string | null {
+  const abs = toAbsolute(folder, workspaceRoot);
+  if (workspaceRoot && !isPathInFolder(abs, workspaceRoot)) return null;
+  return abs;
+}
+
+/**
  * Return a pruned copy of `tree` limited to the given `folderPaths`.
  *
  * - `folderPaths` empty → returns `[]` (a client with no mapped folders has no
@@ -171,17 +200,23 @@ export function scopeFileTreeToFolders(
   // space (`toAbsolute(node.path)` below), so the folder side must be resolved
   // to the SAME space or an absolute node path never matches a relative folder —
   // which made every CRM-linked client's Documents tab show empty (bench R17).
-  const absFolders = folders.map((f) => toAbsolute(f, workspaceRoot));
+  // `resolveScopeFolderInRoot` also fails closed on an absolute folder outside
+  // the workspace root, so a stale parent-of-root path can't capture everything.
+  const absFolders = folders
+    .map((f) => resolveScopeFolderInRoot(f, workspaceRoot))
+    .filter((f): f is string => f !== null);
 
   // Ownership resolution (`resolveMatterId`) reads each matter's `folderPaths`
   // directly, so those must live in the same absolute space too — otherwise the
   // node's own matter fails to match and every file is pruned as "foreign".
-  // Resolve each matter's folders (preserving empties, which resolveMatterId
-  // skips) without mutating the input matters. Only consulted in the
-  // ownership-aware branch below.
+  // Resolve each matter's folders (dropping empties + out-of-root garbage, which
+  // must never participate in ownership) without mutating the input matters.
+  // Only consulted in the ownership-aware branch below.
   const resolvedMatters: Matter[] = (matters ?? []).map((m) => ({
     ...m,
-    folderPaths: m.folderPaths.map((f) => (f ? toAbsolute(f, workspaceRoot) : f)),
+    folderPaths: m.folderPaths
+      .map((f) => (f ? resolveScopeFolderInRoot(f, workspaceRoot) : null))
+      .filter((f): f is string => f !== null),
   }));
 
   function prune(node: FileNode): FileNode | null {
