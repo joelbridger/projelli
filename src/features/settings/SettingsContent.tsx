@@ -94,6 +94,8 @@ import {
   NumberStepper,
   AboutHeader,
 } from './settingsContentPrimitives';
+import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
+import { ConfirmDialog } from '@/ui/ConfirmDialog';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -827,6 +829,10 @@ export function SettingsContent({
 
   const [activeSection, setActiveSection] = useState<SectionCategory>(resolveInitial(initialCategory));
 
+  // In-app confirm dialog (native window.confirm is dead in the Tauri WebView2
+  // build, so the "reset settings" confirmation renders in the DOM instead).
+  const { confirm, dialogProps: confirmDialogProps } = useConfirmDialog();
+
   // Which nested "extra" section (Privacy Center / Activity Log) is open, or
   // null when a normal settings section is shown. Lives outside the
   // SectionCategory machinery so the schema-driven search/scoring is untouched.
@@ -983,10 +989,17 @@ export function SettingsContent({
   );
 
   const handleReset = useCallback(() => {
-    if (window.confirm('Reset all settings to their defaults? This cannot be undone.')) {
-      resetAll();
-    }
-  }, [resetAll]);
+    void (async () => {
+      const confirmed = await confirm('Reset all settings to their defaults? This cannot be undone.', {
+        title: 'Reset settings',
+        confirmLabel: 'Reset',
+        variant: 'destructive',
+      });
+      if (confirmed) {
+        resetAll();
+      }
+    })();
+  }, [resetAll, confirm]);
 
   const [showApiKeyTutorial, setShowApiKeyTutorial] = useState(false);
 
@@ -1210,6 +1223,7 @@ export function SettingsContent({
           tutorialOnly
         />
       )}
+      <ConfirmDialog {...confirmDialogProps} />
     </>
   );
 }

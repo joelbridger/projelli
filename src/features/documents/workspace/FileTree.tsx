@@ -28,6 +28,8 @@ import {
   FileText,
 } from 'lucide-react';
 import { getFileIcon } from '@/platform/utils/fileIcons';
+import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
+import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { Button } from '@/ui/button';
 import {
   DropdownMenu,
@@ -121,9 +123,13 @@ interface FileTreeProps {
    */
   onSetLetterheadTemplate?: (path: string) => void;
   /**
-   * UX-16: optional confirm dialog. When provided, replaces the
-   * built-in window.confirm() for bulk delete with a proper modal. If
-   * not provided, falls back to window.confirm() (test mode / storybook).
+   * UX-16: optional confirm dialog for bulk delete. When provided, the parent
+   * supplies the modal. If omitted, FileTree falls back to its OWN in-app
+   * ConfirmDialog (below) — NOT native window.confirm, which is dead in the
+   * Tauri WebView2 build and returns a truthy object, so a bare confirm would
+   * bulk-delete files to Trash without the user ever seeing a prompt. Real app
+   * callers (DocumentsHome) don't pass this, so the internal fallback is the
+   * production path.
    */
   onConfirm?: (
     message: string,
@@ -194,6 +200,11 @@ export function FileTree({
   const fileTree = fileTreeOverride ?? storeFileTree;
   const { t } = useTranslation();
   const [dragOverPath, setDragOverPath] = useState<string | null>(null);
+
+  // In-app confirm dialog used as the bulk-delete fallback when the parent does
+  // not supply `onConfirm`. Replaces the dead native window.confirm so the
+  // destructive flow always shows a real prompt in the WebView2 build.
+  const { confirm: fallbackConfirm, dialogProps: confirmDialogProps } = useConfirmDialog();
 
   // Handle dropping on the root area (empty space)
   const handleRootDragOver = useCallback((e: React.DragEvent) => {
@@ -286,13 +297,11 @@ export function FileTree({
     // accessible (Radix Dialog, proper a11y, keyboard-trap).
     const count = selectedPaths.size;
     const message = `Move ${count} file${count === 1 ? '' : 's'} to Trash?`;
-    const confirmed = onConfirm
-      ? await onConfirm(message, {
-          title: 'Delete selected files',
-          confirmLabel: `Move ${count} to Trash`,
-          variant: 'destructive',
-        })
-      : window.confirm(message);
+    const confirmed = await (onConfirm ?? fallbackConfirm)(message, {
+      title: 'Delete selected files',
+      confirmLabel: `Move ${count} to Trash`,
+      variant: 'destructive',
+    });
 
     if (!confirmed) return;
 
@@ -303,7 +312,7 @@ export function FileTree({
     }
 
     clearSelection();
-  }, [selectedPaths, onDelete, clearSelection, onConfirm]);
+  }, [selectedPaths, onDelete, clearSelection, onConfirm, fallbackConfirm]);
 
   const handleBatchDownload = useCallback(async () => {
     if (!onDownload || selectedPaths.size === 0) return;
@@ -610,6 +619,7 @@ export function FileTree({
           </Button>
         </div>
       )}
+      <ConfirmDialog {...confirmDialogProps} />
     </div>
   );
 }

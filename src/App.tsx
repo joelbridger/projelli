@@ -730,7 +730,7 @@ function App() {
     workspaceServiceRef, auditServiceRef, templatesMarketplaceServiceRef, templatesMetadataReaderRef,
     setShowWorkspaceSelector, setAuditEntries, setAuditIntegrity, setRootPath,
     loadTrashMetadata, setTrashItems, setTrashStats,
-    loadSourceCards, setSourceCards, loadChatFiles, setChatFiles,
+    loadSourceCards, setSourceCards, loadChatFiles, setChatFiles, confirm,
   });
 
   // First-run workspace-first step. The onboarding overlay (OnboardingV2) calls

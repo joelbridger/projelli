@@ -63,6 +63,8 @@ import { openMatterNotes } from '@/features/matters/logic/openMatterNotes';
 import { stopMatterSync } from '@/features/matters/logic/matterNotesSync';
 import { promoteMatterToShared } from '@/features/matters/logic/promoteMatterToShared';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
+import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
+import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { collectFolderPaths, relLabel, audit, folderPathsMatch } from './matterManagerDialogHelpers';
 import { MemberRoster } from './MemberRoster';
 
@@ -93,6 +95,11 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
     setMatterArchived,
     unlinkFirmMatter,
   } = useMatterStore();
+
+  // In-app confirm dialog (native window.confirm is dead + returns a truthy
+  // object in the Tauri WebView2 build, so a bare window.confirm() would delete
+  // the matter without the user ever seeing a prompt).
+  const { confirm, dialogProps: confirmDialogProps } = useConfirmDialog();
 
   // Archive section collapse state
   const [archivedExpanded, setArchivedExpanded] = useState(false);
@@ -524,9 +531,15 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                           m.id === SAMPLE_MATTER_ID
                             ? `This removes the sample ${entityLabel.one}, and the demo questions will stop working. Continue?`
                             : `Remove the ${entityLabel.one} "${m.name || m.client || `this ${entityLabel.one}`}"? Your files stay on your computer, but this ${entityLabel.one}'s folder and email mappings, notes, and saved state are cleared. This can't be undone.`;
-                        const confirmed = window.confirm(message);
-                        if (!confirmed) return;
-                        deleteMatter(m.id);
+                        void (async () => {
+                          const confirmed = await confirm(message, {
+                            title: `Remove ${entityLabel.one}`,
+                            confirmLabel: 'Remove',
+                            variant: 'destructive',
+                          });
+                          if (!confirmed) return;
+                          deleteMatter(m.id);
+                        })();
                       }}
                       aria-label={`Delete ${entityLabel.one}`}
                       title={`Delete ${entityLabel.one}`}
@@ -950,6 +963,7 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
           </div>
         )}
       </DialogContent>
+      <ConfirmDialog {...confirmDialogProps} />
     </Dialog>
   );
 }

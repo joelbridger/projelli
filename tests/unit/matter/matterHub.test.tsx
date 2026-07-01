@@ -7,6 +7,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { useMatterStore, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
+import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
+import { emptyClientMap } from '@/platform/clientMap/types';
 
 // ── Mail commands (async probes used by GetStartedCard) ───────────────────────
 vi.mock('@/platform/utils/mail-commands', () => ({
@@ -266,6 +268,90 @@ describe('MatterHub — sub-tab workspace', () => {
 
     fireEvent.click(screen.getByTestId('hub-subtab-documents'));
     expect(screen.getByTestId('hub-subtab-unavailable')).toBeInTheDocument();
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Client Map "Edit" — the headline WebView2 fix. Native window.prompt is dead
+  // in the Tauri Windows build, so the Edit button used to do literally nothing.
+  // It must now open the in-app PromptDialog (prefilled with the item's text)
+  // and save via editItem on confirm.
+  // ───────────────────────────────────────────────────────────────────────────
+
+  it('Client Map "Edit" opens the in-app prompt prefilled, and saves via editItem', async () => {
+    useMatterStore.getState().createMatter({ name: 'Edit Co', client: 'Edit Co' });
+    const matter = useMatterStore.getState().matters[0]!;
+
+    // Seed a Client Map whose first section has an editable, sourced fact so the
+    // map renders "ready" and the SectionPanel shows the item's Edit button.
+    const map = emptyClientMap(matter.id);
+    map.sections[0]!.items.push({
+      id: 'item-1',
+      text: 'Client owns a rental property',
+      origin: 'ai',
+      isAssumption: false,
+      sources: [{ kind: 'document', ref: '/docs/deed.pdf', snippet: 'deed' }],
+      updatedAt: 't',
+    });
+    act(() => {
+      useClientMapStore.getState().setMap(matter.id, map);
+    });
+
+    // Guard: the fix must NOT fall back to the dead native prompt.
+    const nativePrompt = vi.spyOn(window, 'prompt');
+
+    render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
+
+    // Click the item's Edit button.
+    fireEvent.click(screen.getAllByTestId('clientmap-item-edit')[0]!);
+
+    // The in-app prompt appears, prefilled with the current text.
+    const input = (await screen.findByDisplayValue('Client owns a rental property')) as HTMLInputElement;
+    expect(input).toBeInTheDocument();
+    expect(nativePrompt).not.toHaveBeenCalled();
+
+    // Edit and save.
+    fireEvent.change(input, { target: { value: 'Client owns TWO rental properties' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    // The edit is persisted through editItem (real store update).
+    await waitFor(() => {
+      const updated = useClientMapStore.getState().getMap(matter.id);
+      const item = updated?.sections[0]?.items.find((it) => it.id === 'item-1');
+      expect(item?.text).toBe('Client owns TWO rental properties');
+    });
+
+    nativePrompt.mockRestore();
+  });
+
+  it('Client Map "Edit" cancel leaves the item unchanged', async () => {
+    useMatterStore.getState().createMatter({ name: 'Cancel Co', client: 'Cancel Co' });
+    const matter = useMatterStore.getState().matters[0]!;
+
+    const map = emptyClientMap(matter.id);
+    map.sections[0]!.items.push({
+      id: 'item-1',
+      text: 'Original fact',
+      origin: 'ai',
+      isAssumption: false,
+      sources: [{ kind: 'document', ref: '/docs/deed.pdf', snippet: 'deed' }],
+      updatedAt: 't',
+    });
+    act(() => {
+      useClientMapStore.getState().setMap(matter.id, map);
+    });
+
+    render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
+
+    fireEvent.click(screen.getAllByTestId('clientmap-item-edit')[0]!);
+    const input = await screen.findByDisplayValue('Original fact');
+    fireEvent.change(input, { target: { value: 'Should be discarded' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    await waitFor(() => {
+      expect(screen.queryByDisplayValue('Should be discarded')).not.toBeInTheDocument();
+    });
+    const after = useClientMapStore.getState().getMap(matter.id);
+    expect(after?.sections[0]?.items[0]?.text).toBe('Original fact');
   });
 
   it('opens directly on a requested sub-tab from the client-list quick-action signal', async () => {

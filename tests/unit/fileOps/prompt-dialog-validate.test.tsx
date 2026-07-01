@@ -6,7 +6,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { PromptDialog } from '@/app/shell/common/PromptDialog';
+import { PromptDialog } from '@/ui/PromptDialog';
 
 describe('PromptDialog — validate', () => {
   it('confirms normally when no validate is provided (back-compat)', () => {

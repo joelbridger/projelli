@@ -26,9 +26,17 @@ import { CRM_AUDIT_APPENDED_EVENT } from '@/platform/utils/wealthbox-commands';
 import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import type { SourceCard } from '@/features/ask/types/research';
 import type { AIChatFile } from '@/platform/types/ai';
+import type { ConfirmOptions } from '@/platform/hooks/useConfirmDialog';
 
 export interface UseWorkspaceLifecycleOptions {
   workspaceServiceRef: React.MutableRefObject<WorkspaceService | null>;
+  /**
+   * In-app confirm dialog. Native window.confirm is dead in the Tauri WebView2
+   * Windows build (renders nothing AND returns a truthy object), so the
+   * "lose unsaved changes?" guard below MUST use the in-DOM dialog or it would
+   * silently proceed and drop the user's work.
+   */
+  confirm: (message: string, options?: ConfirmOptions) => Promise<boolean>;
   auditServiceRef: React.MutableRefObject<AuditService>;
   templatesMarketplaceServiceRef: React.MutableRefObject<MarketplaceService | null>;
   templatesMetadataReaderRef: React.MutableRefObject<TemplateMetadataReader | null>;
@@ -50,7 +58,7 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
     workspaceServiceRef, auditServiceRef, templatesMarketplaceServiceRef, templatesMetadataReaderRef,
     setShowWorkspaceSelector, setAuditEntries, setAuditIntegrity, setRootPath,
     loadTrashMetadata, setTrashItems, setTrashStats,
-    loadSourceCards, setSourceCards, loadChatFiles, setChatFiles,
+    loadSourceCards, setSourceCards, loadChatFiles, setChatFiles, confirm,
   } = options;
 
   const handleWorkspaceSelected = useCallback(async (service: WorkspaceService) => {
@@ -68,9 +76,15 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
         .openTabs.filter((t) => t.isDirty)
         .map((t) => t.name);
       if (unsaved.length > 0) {
-        const proceed = window.confirm(
+        const proceed = await confirm(
           `Some open files could not be saved (${unsaved.join(', ')}). ` +
             `Switching workspaces will lose those unsaved changes. Switch anyway?`,
+          {
+            title: 'Unsaved changes',
+            confirmLabel: 'Switch anyway',
+            cancelLabel: 'Keep editing',
+            variant: 'destructive',
+          },
         );
         if (!proceed) return; // abort the switch; keep the current workspace + tabs
       }
@@ -290,6 +304,7 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
     }
   }, [
     auditServiceRef,
+    confirm,
     loadChatFiles,
     loadSourceCards,
     loadTrashMetadata,

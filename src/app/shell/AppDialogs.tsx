@@ -27,7 +27,7 @@ import { ShortcutsOverlay } from '@/app/shell/ShortcutsOverlay';
 import { QuickOpen } from '@/app/shell/QuickOpen';
 import { AudioRecorderModal } from '@/features/dictation/audio/AudioRecorderModal';
 import { ConfirmDialog, type ConfirmDialogProps } from '@/ui/ConfirmDialog';
-import { PromptDialog, type PromptDialogProps } from '@/app/shell/common/PromptDialog';
+import { PromptDialog, type PromptDialogProps } from '@/ui/PromptDialog';
 import { UndoToastRenderer, type UndoToastController } from '@/app/shell/common/UndoToast';
 import { GlobalDropOverlay } from '@/app/shell/common/GlobalDropOverlay';
 import { WhatsNewToast, WhatsNewModal, useWhatsNew } from '@/app/shell/WhatsNew';

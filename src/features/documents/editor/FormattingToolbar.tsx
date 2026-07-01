@@ -31,6 +31,8 @@ import {
   MoreHorizontal,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { usePromptDialog } from '@/platform/hooks/usePromptDialog';
+import { PromptDialog } from '@/ui/PromptDialog';
 import { saveFile } from '@/platform/utils/saveFile';
 import { markdownToDocxBytes } from '@/platform/utils/docx-io';
 import { markdownToPptxBytes } from '@/platform/utils/pptx-io';
@@ -162,6 +164,9 @@ export function FormattingToolbar({ editorRef, className, isPreviewMode, onToggl
   const showBoldItalic = showRichControls;
   const showMarkdownOnlyControls = showRichControls; // headings/lists/link/More — valid for docx too
   const showPreview = (fileType === 'md' || fileType === 'other') && Boolean(onTogglePreview);
+  // In-app prompt dialog (native window.prompt is dead in the Tauri WebView2
+  // Windows build, so the "Enter URL" prompt renders in the DOM instead).
+  const { prompt, dialogProps: promptDialogProps } = usePromptDialog();
   // Keyboard shortcut: Alt+Z to toggle preview
   useEffect(() => {
     if (!onTogglePreview) return;
@@ -334,8 +339,10 @@ export function FormattingToolbar({ editorRef, className, isPreviewMode, onToggl
         return () => { execCommand('formatBlock', 'BLOCKQUOTE'); };
       case 'Link':
         return () => {
-          const url = prompt('Enter URL:');
-          if (url) execCommand('createLink', url);
+          void (async () => {
+            const url = await prompt('Enter URL:', undefined, { title: 'Insert link', placeholder: 'https://…', confirmLabel: 'Insert' });
+            if (url) execCommand('createLink', url);
+          })();
         };
       case 'Horizontal Rule':
         return () => { execCommand('insertHorizontalRule'); };
@@ -379,6 +386,7 @@ export function FormattingToolbar({ editorRef, className, isPreviewMode, onToggl
   })();
 
   return (
+    <>
     <div className={cn('flex flex-nowrap items-center gap-0.5 px-2 py-1 border-b bg-muted/30 overflow-x-auto', className)}>
       {/* Primary (common) buttons — filtered by fileType (A5) */}
       {filteredPrimaryButtons.map((button, index) => {
@@ -521,6 +529,8 @@ export function FormattingToolbar({ editorRef, className, isPreviewMode, onToggl
         );
       })()}
     </div>
+    <PromptDialog {...promptDialogProps} />
+    </>
   );
 }
 
