@@ -16,8 +16,12 @@ quarantined past its date. Quarantining a NEW spec means adding a row here in th
 same change.
 
 > Quarantined specs **still run locally** (`npx playwright test`) — they are only
-> skipped in the `E2E_CI_QUARANTINE=1` CI gate. Source of truth for the list is
-> the `CI_QUARANTINE` array in `playwright.config.ts`; this file tracks ownership.
+> skipped in the `E2E_CI_QUARANTINE=1` CI gate. Source of truth for whole-file
+> quarantines is the `CI_QUARANTINE` array in `playwright.config.ts`; a few rows
+> below quarantine a single test in an otherwise-healthy file via an in-spec
+> `test.skip(!!process.env.E2E_CI_QUARANTINE, '…')` instead, so the file's other
+> passing tests aren't dropped from CI too — the row says which mechanism
+> applies. This file tracks ownership either way.
 
 ## Quarantined specs
 
@@ -42,7 +46,7 @@ onboarding / timing / visual), not a confirmed diagnosis, unless marked
 | `status-bar.spec.ts` | status-bar state/visual | fix-plan-F1.3-followup | 2026-07-31 |
 | `sidebar-a11y.spec.ts` | sidebar a11y tree timing | fix-plan-F1.3-followup | 2026-07-31 |
 | `search-content.spec.ts` | search depends on the index (browser index is desktop-only) | fix-plan-F1.3-followup | 2026-07-31 |
-| `accessibility.spec.ts` | **confirmed**: real WCAG AA color-contrast failures in the sidebar nav (`Ask`/`Workflows`/`+ New client` labels ~4.2:1, `Solo account` subtitle + empty-state copy ~2.6:1, all need 4.5:1) — a design/CSS token fix in `src/`, out of the F1.3 CI-lane scope | fix-plan-F1.3-followup | 2026-07-15 |
+| `accessibility.spec.ts` — only `main app UI passes a11y checks (test mode)` (in-spec `test.skip`, not file-level `CI_QUARANTINE`; `workspace selector passes a11y checks` in the same file is unaffected and keeps running in CI) | **confirmed**: real WCAG AA color-contrast failures in the sidebar nav (`Ask`/`Workflows`/`+ New client` labels ~4.2:1, `Solo account` subtitle + empty-state copy ~2.6:1, all need 4.5:1) — a design/CSS token fix in `src/`, out of the F1.3 CI-lane scope | fix-plan-F1.3-followup | 2026-07-15 |
 
 ## How to work the list
 
