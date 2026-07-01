@@ -1,9 +1,39 @@
 // src/platform/clientMap/guidedInterview.ts
-import type { ClientMap, GapQuestion } from '@/platform/clientMap/types';
+import type { ClientMap, ContextCompleteness, GapQuestion } from '@/platform/clientMap/types';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
+import { deriveCompleteness } from '@/platform/clientMap/completeness';
 
 function normalizeGap(text: string): string {
   return text.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function withoutResolvedGaps(map: ClientMap, gaps: GapQuestion[]): GapQuestion[] {
+  const resolved = new Set((map.resolvedGaps ?? []).map(normalizeGap));
+  return gaps.filter((g) => !resolved.has(normalizeGap(g.text)));
+}
+
+/**
+ * `completeness.ask`, pruned of gaps the user has already answered or flagged
+ * (tracked in `map.resolvedGaps`, BUG-106). This is what the "What I'm
+ * missing" panel (D1) should render — `completeness.ask` itself is the raw
+ * AI-detected gap list and is not re-filtered as gaps get resolved.
+ */
+export function unresolvedAskGaps(map: ClientMap): GapQuestion[] {
+  return withoutResolvedGaps(map, map.completeness.ask);
+}
+
+/**
+ * The completeness to actually show the user, recomputed against unresolved
+ * gaps only. `map.completeness.level` is derived (by `deriveCompleteness`) in
+ * part from the raw gap count, so once every remaining gap has been answered
+ * or flagged, the stored level can stay stuck (e.g. "Getting there") even
+ * though nothing outstanding remains from the user's point of view — the same
+ * staleness D1 fixed for the gap list itself, just one level up. `know` /
+ * `assuming` come out identical to `map.completeness` (they only depend on
+ * sections, already kept current); `level` and `ask` reflect unresolved gaps.
+ */
+export function displayCompleteness(map: ClientMap): ContextCompleteness {
+  return deriveCompleteness(map.sections, unresolvedAskGaps(map));
 }
 
 /**
@@ -24,8 +54,7 @@ export function interviewQuestions(map: ClientMap): GapQuestion[] {
       gaps.push({ text: sec.prompt, sectionKey: sec.key });
     }
   }
-  const resolved = new Set((map.resolvedGaps ?? []).map(normalizeGap));
-  return gaps.filter((g) => !resolved.has(normalizeGap(g.text)));
+  return withoutResolvedGaps(map, gaps);
 }
 
 /**

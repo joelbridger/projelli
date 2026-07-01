@@ -24,7 +24,7 @@ import type {
   CompletenessLevel,
   GapQuestion,
 } from '@/platform/clientMap/types';
-import { flagForClient } from '@/features/matters/clientMap/guidedInterview';
+import { flagForClient, unresolvedAskGaps, displayCompleteness } from '@/features/matters/clientMap/guidedInterview';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { buildCustomSection } from '@/features/matters/clientMap/customSection';
 import { useTemplatesStore, applyTemplateToMatter } from '@/features/matters/clientMap/templatesStore';
@@ -505,8 +505,12 @@ function MissingPanel({
   onAnswerQuestion?: ((question: GapQuestion) => void) | undefined;
   onFlagForClient?: ((question: GapQuestion) => void) | undefined;
 }) {
-  const c = map.completeness;
-  const hasGaps = c.ask.length > 0;
+  // Recomputed against unresolved gaps only (Codex review of D1): otherwise the
+  // level chip can stay stuck (e.g. "Getting there") after every remaining gap
+  // has been answered or flagged, even though nothing is outstanding anymore.
+  const c = displayCompleteness(map);
+  const askGaps = c.ask;
+  const hasGaps = askGaps.length > 0;
   const hasAssumptions = c.assuming.length > 0;
   return (
     <div data-testid="clientmap-completeness">
@@ -532,7 +536,7 @@ function MissingPanel({
 
       {hasGaps && (
         <div style={{ marginBottom: hasAssumptions ? 'var(--kp-space-lg)' : 0 }}>
-          {c.ask.map((q, i) => (
+          {askGaps.map((q, i) => (
             <div
               key={i}
               data-testid="clientmap-ask"
@@ -606,8 +610,7 @@ function AddSectionPanel({
   const [error, setError] = useState<string | null>(null);
 
   const addCustomSection = useClientMapStore((s) => s.addCustomSection);
-  const setMap = useClientMapStore((s) => s.setMap);
-  const getMap = useClientMapStore((s) => s.getMap);
+  const mergeSectionItems = useClientMapStore((s) => s.mergeSectionItems);
   const removeSection = useClientMapStore((s) => s.removeSection);
   const templates = useTemplatesStore(useShallow((s) => Object.values(s.templates)));
   const [applying, setApplying] = useState<string | null>(null);
@@ -663,15 +666,11 @@ function AddSectionPanel({
       } else {
         populated = await buildCustomSection(matterId, sectionId, t, p);
       }
-      const currentMap = getMap(matterId);
-      if (currentMap) {
-        setMap(matterId, {
-          ...currentMap,
-          sections: currentMap.sections.map((sec) =>
-            sec.id === sectionId ? populated : sec,
-          ),
-        });
-      }
+      // D3: merge the AI-populated items into the section rather than replacing
+      // it wholesale — the section started empty, so anything already in it here
+      // (e.g. a user item added while generation was in flight) is the user's
+      // and must survive, not get clobbered by the generated draft.
+      mergeSectionItems(matterId, sectionId, populated.items);
       setTitle('');
       setPrompt('');
       onCreated(sectionId);
@@ -919,7 +918,7 @@ export function ClientMapPanel({
   };
 
   const activeSection = sectionList.find((s) => s.key === activeKey);
-  const missingCount = map.completeness.ask.length;
+  const missingCount = unresolvedAskGaps(map).length;
 
   // The Sources column reflects whatever the user is currently viewing: the
   // cited sources behind the active section's facts (or, on "What I'm missing",

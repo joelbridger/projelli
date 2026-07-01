@@ -3,7 +3,7 @@ import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
 import { buildWorkspaceContextBlock } from '@/platform/rag/workspaceCommand';
 import { filterHitsForExportConsent } from '@/platform/rag/exportConsent';
 import { buildResolvedProviderForClientMap } from './provider';
-import { deriveCompleteness } from './completeness';
+import { deriveCompleteness } from '@/platform/clientMap/completeness';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { resolveEgress } from '@/platform/privacy/egress';
 import { assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';

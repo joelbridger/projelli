@@ -57,4 +57,41 @@ describe('AddCustomSectionForm — failed populate (BUG-107)', () => {
     });
     expect(screen.queryByTestId('custom-section-error')).not.toBeInTheDocument();
   });
+
+  // D3: generation runs async behind an empty placeholder section. If the user
+  // adds their own item to that section before generation resolves, the AI
+  // result must merge in alongside it, not replace the section and lose it.
+  it('does not clobber a user item added to the section while generation is still in flight (D3)', async () => {
+    let resolveBuild!: (v: unknown) => void;
+    buildMock.mockImplementation(() => new Promise((resolve) => { resolveBuild = resolve; }));
+
+    render(<AddCustomSectionForm matterId="m1" onAdded={vi.fn()} />);
+    fireEvent.change(screen.getByTestId('custom-section-title'), { target: { value: 'Insurance coverage' } });
+    fireEvent.click(screen.getByTestId('custom-section-submit'));
+
+    // The empty placeholder section lands synchronously.
+    let sectionKey = '';
+    await waitFor(() => {
+      const custom = useClientMapStore.getState().getMap('m1')!.sections.filter((s) => s.kind === 'custom');
+      expect(custom).toHaveLength(1);
+      sectionKey = custom[0]!.key;
+    });
+
+    // The user adds their own note to the section while the AI populate is
+    // still pending — this must survive the eventual merge.
+    useClientMapStore.getState().addUserItem('m1', sectionKey, 'User note added during generation');
+
+    resolveBuild({
+      id: sectionKey, kind: 'custom', key: sectionKey, title: 'Insurance coverage', prompt: 'p', scope: 'matter',
+      items: [{ id: 'ai1', text: 'AI generated fact', origin: 'ai', isAssumption: false, sources: [], updatedAt: 't' }],
+    });
+
+    await waitFor(() => {
+      const section = useClientMapStore.getState().getMap('m1')!.sections.find((s) => s.key === sectionKey)!;
+      expect(section.items.map((i) => i.text)).toContain('AI generated fact');
+    });
+
+    const section = useClientMapStore.getState().getMap('m1')!.sections.find((s) => s.key === sectionKey)!;
+    expect(section.items.map((i) => i.text)).toContain('User note added during generation');
+  });
 });
