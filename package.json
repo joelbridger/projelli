@@ -11,6 +11,7 @@
     "prebuild": "node scripts/copy-build-assets.mjs",
     "predev": "node scripts/copy-build-assets.mjs",
     "pretest": "node scripts/copy-build-assets.mjs",
+    "pretest:coverage": "node scripts/copy-build-assets.mjs",
     "build": "tsc -b && vite build",
     "build:web-demo": "vite build --config vite.config.web-demo.ts && mv dist-web-demo/index.demo.html dist-web-demo/index.html",
     "capture:all": "cd scripts/marketing-capture && npm install --silent && npm run run-all",

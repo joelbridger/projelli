@@ -118,15 +118,19 @@ jobs:
           sudo apt-get install -y protobuf-compiler
       - name: Install Linux/webkit deps
         run: sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev libfuse2
-      - name: Stage Piper sidecar stub (tauri externalBin existence check)
-        # tauri's build validates bundle.externalBin (binaries/piper) BEFORE
-        # compiling tests; on a clean runner binaries/ has only .gitkeep, so a
-        # stub file must exist or cargo test fails. Tests never execute it.
+      - name: Stage sidecar stubs (tauri externalBin existence check)
+        # tauri's build validates bundle.externalBin (binaries/piper AND
+        # binaries/llama-server) BEFORE compiling tests; on a clean runner
+        # binaries/ has only .gitkeep, so both stub files must exist or cargo
+        # test fails build.rs with "resource path ... doesn't exist". Tests
+        # never execute them. Mirrors the release.yml gate's stub step.
         run: |
           protoc --version
           mkdir -p src-tauri/binaries
           printf '#!/bin/sh\nexit 0\n' > src-tauri/binaries/piper-x86_64-unknown-linux-gnu
+          printf '#!/bin/sh\nexit 0\n' > src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu
           chmod +x src-tauri/binaries/piper-x86_64-unknown-linux-gnu
+          chmod +x src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu
       - name: cargo test (hermetic; ignored/live/stress tests excluded by default)
         working-directory: ./src-tauri
         env:
