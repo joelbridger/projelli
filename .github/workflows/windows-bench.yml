@@ -93,7 +93,7 @@ jobs:
             $cdp = 0
             try { $cdp = (Invoke-WebRequest http://127.0.0.1:9223/json/version -UseBasicParsing -TimeoutSec 4).StatusCode } catch {}
             $vite = (Get-NetTCPConnection -LocalPort 5173 -State Listen -ErrorAction SilentlyContinue | Measure-Object).Count
-            Write-Output "poll $i: cdp=$cdp vite=$vite"
+            Write-Output "poll ${i}: cdp=$cdp vite=$vite"
             if ($cdp -eq 200 -and $vite -ge 1) { $ok = $true; break }
           }
           if (-not $ok) {
