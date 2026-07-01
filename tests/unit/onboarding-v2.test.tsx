@@ -14,12 +14,15 @@ import { render, screen, fireEvent, act } from '@testing-library/react';
 import { EMPTY_SETUP_PROGRESS } from '@/platform/utils/setup-progress-commands';
 import type { SetupProgress } from '@/platform/utils/setup-progress-commands';
 import { hasDeferredAiSetup } from '@/features/onboarding/aiSetupState';
+import { markKeyVerified, isKeyVerified } from '@/platform/providers/keyVerification';
+import { useOAuthPendingStore } from '@/platform/connectors/oauthPending';
 
 const h = vi.hoisted(() => ({
   validate: vi.fn(),
   start: vi.fn(),
   recordChoice: vi.fn(),
   openExternal: vi.fn(),
+  retryFailedModelDownloads: vi.fn(),
   progress: null as SetupProgress | null,
   localState: 'absent' as string,
 }));
@@ -49,6 +52,13 @@ vi.mock('@/features/onboarding/AiSetupHelpLink', () => ({
 vi.mock('@/features/onboarding/ApiKeyTester', () => ({
   ApiKeyTester: () => <div data-testid="tester-stub" />,
 }));
+vi.mock('@/platform/utils/setup-progress-commands', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/platform/utils/setup-progress-commands')>();
+  return {
+    ...actual,
+    retryFailedModelDownloads: (...a: unknown[]) => h.retryFailedModelDownloads(...a),
+  };
+});
 
 // --- Platform hooks / functions controllable from tests ---
 vi.mock('@/platform/utils/openExternal', () => ({
@@ -62,6 +72,8 @@ vi.mock('@/platform/hooks/useSetupProgress', () => ({
 }));
 vi.mock('@/platform/hooks/useConfidentialityMode', () => ({
   useRecordConfidentialityChoice: () => h.recordChoice,
+  snapshotConfidentialityChoice: () => ({ mode: undefined, choiceMade: undefined }),
+  restoreConfidentialityChoice: () => {},
 }));
 vi.mock('@/platform/hooks/useLocalLlmModelStatus', () => ({
   useLocalLlmModelStatus: () => ({
@@ -89,7 +101,10 @@ function renderFlow() {
   return { onSaveKey, onComplete };
 }
 
-const goToAi = () => fireEvent.click(screen.getByTestId('onboarding-v2-go'));
+const goToAi = () => {
+  fireEvent.click(screen.getByTestId('onboarding-v2-go'));
+  fireEvent.click(screen.getByTestId('choose-start-own'));
+};
 const clickContinue = () => fireEvent.click(screen.getByTestId('onboarding-v2-continue'));
 
 describe('OnboardingV2 navigation', () => {
@@ -98,6 +113,8 @@ describe('OnboardingV2 navigation', () => {
     vi.clearAllMocks();
     h.progress = null;
     h.localState = 'absent';
+    h.retryFailedModelDownloads.mockResolvedValue(undefined);
+    useOAuthPendingStore.setState({ count: 0 });
   });
 
   it('opens on the intro and advances to "1. Connect your AI" on Go', () => {
@@ -146,7 +163,7 @@ describe('AiScene real key wiring', () => {
     h.localState = 'absent';
   });
 
-  it('validates then persists a pasted key via onSaveKey', async () => {
+  it('validates then persists a pasted key via onSaveKey, and marks it verified', async () => {
     h.validate.mockResolvedValue({ outcome: 'ok', message: 'ok' });
     const { onSaveKey } = renderFlow();
     goToAi();
@@ -160,6 +177,31 @@ describe('AiScene real key wiring', () => {
     expect(h.validate).toHaveBeenCalledWith('anthropic', 'sk-ant-test123', expect.anything());
     expect(onSaveKey).toHaveBeenCalledWith('anthropic', 'sk-ant-test123');
     expect(await screen.findByTestId('ai-connected')).toBeTruthy();
+    // A real live check passed -> the key is now genuinely verified.
+    expect(isKeyVerified('anthropic')).toBe(true);
+  });
+
+  it('on a NETWORK failure saves the key, does NOT mark verified, and clears a stale verified marker', async () => {
+    // A PRIOR key for this provider was verified; saving a new key that can't be
+    // live-checked must not let the new (unverified) key inherit that status.
+    markKeyVerified('anthropic');
+    expect(isKeyVerified('anthropic')).toBe(true);
+
+    h.validate.mockResolvedValue({ outcome: 'network', message: 'could not reach provider' });
+    const { onSaveKey } = renderFlow();
+    goToAi();
+    fireEvent.change(screen.getByTestId('ai-key-input'), { target: { value: 'sk-ant-net' } });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('ai-connect'));
+    });
+    // The key is saved (it looks valid)...
+    expect(onSaveKey).toHaveBeenCalledWith('anthropic', 'sk-ant-net');
+    // ...but we must NOT claim "connected" — it's only "saved, not verified".
+    expect(screen.queryByTestId('ai-connected')).toBeNull();
+    expect(screen.getByTestId('ai-saved-unverified')).toBeTruthy();
+    // The stale verified marker is cleared so the new unverified key can't
+    // inherit it (Codex P2).
+    expect(isKeyVerified('anthropic')).toBe(false);
   });
 
   it('does NOT save a rejected key and surfaces the error', async () => {
@@ -191,6 +233,30 @@ describe('AiScene real key wiring', () => {
     goToAi();
     fireEvent.click(screen.getByTestId('ai-open-console'));
     expect(h.openExternal).toHaveBeenCalledWith('https://console.anthropic.com/settings/keys');
+  });
+
+  it('a dot jump cannot skip past Connect while an OAuth sign-in is pending (even after Back)', () => {
+    renderFlow();
+    goToAi(); // intro -> choose-start(own) -> AI
+    fireEvent.click(screen.getByTestId('onboarding-v2-continue')); // AI -> Connect
+    expect(screen.getByTestId('onboarding-v2-connect')).toBeTruthy();
+
+    // A Microsoft/Gmail/OneDrive sign-in starts (pending)...
+    act(() => { useOAuthPendingStore.getState().begin(); });
+    // ...the user clicks Back to the AI scene...
+    fireEvent.click(screen.getByTestId('onboarding-v2-back')); // Connect -> AI
+    expect(screen.getByTestId('onboarding-v2-ai')).toBeTruthy();
+
+    // ...then tries to dot-jump straight to Firm setup (step 4). The forward
+    // lock must hold from this earlier scene too, NOT just on the Connect step.
+    fireEvent.click(screen.getByRole('button', { name: 'Go to step 4' }));
+    expect(screen.queryByTestId('onboarding-v2-firm')).toBeNull();
+    expect(screen.getByTestId('onboarding-v2-ai')).toBeTruthy();
+
+    // Once the sign-in settles, navigation is allowed again.
+    act(() => { useOAuthPendingStore.getState().end(); });
+    fireEvent.click(screen.getByRole('button', { name: 'Go to step 4' }));
+    expect(screen.getByTestId('onboarding-v2-firm')).toBeTruthy();
   });
 });
 
@@ -235,7 +301,9 @@ describe('FirmSetupScene drives bars from useSetupProgress', () => {
     expect(screen.getByTestId('firm-progress-idle')).toBeTruthy();
   });
 
-  it('renders a ready cloud AI row and a syncing email row from real progress', () => {
+  it('renders a ready cloud AI row (verified key) and a syncing email row from real progress', () => {
+    // A cloud key only reads as "ready" once it has passed a real live check.
+    markKeyVerified('anthropic');
     h.progress = makeProgress({
       ai: {
         mode: 'cloud',
@@ -255,5 +323,44 @@ describe('FirmSetupScene drives bars from useSetupProgress', () => {
     const emailRow = screen.getByTestId('firm-row-email');
     expect(emailRow.textContent).toContain('128 imported');
     expect(emailRow.querySelector('[data-testid="progress-status"]')?.textContent).toBe('Working...');
+  });
+
+  it('shows "not verified" for a cloud key that was saved but never live-checked', () => {
+    // No verified marker in localStorage: cloudKeyPresent but unverified (e.g.
+    // saved while the provider was unreachable). We must NOT claim "ready".
+    h.progress = makeProgress({
+      ai: {
+        mode: 'cloud',
+        state: 'ready',
+        percent: null,
+        cloudKeyPresent: true,
+        localLlm: { state: 'none', percent: null },
+        searchModel: { state: 'ready', percent: null },
+      },
+    });
+    gotoFirm();
+    const aiRow = screen.getByTestId('firm-row-ai');
+    expect(aiRow.textContent).toContain('AI key saved — not verified yet');
+    expect(aiRow.querySelector('[data-testid="progress-status"]')?.textContent).toBe('Not verified');
+  });
+
+  it('shows a failed AI setup row and retries failed model downloads', () => {
+    h.progress = makeProgress({
+      ai: {
+        mode: 'local',
+        state: 'failed',
+        percent: null,
+        cloudKeyPresent: false,
+        localLlm: { state: 'failed', percent: null },
+        searchModel: { state: 'failed', percent: null },
+      },
+    });
+    gotoFirm();
+    const aiRow = screen.getByTestId('firm-row-ai');
+    expect(aiRow.textContent).toContain('AI setup needs a retry');
+    expect(aiRow.querySelector('[data-testid="progress-status"]')?.textContent).toBe('Failed');
+
+    fireEvent.click(screen.getByRole('button', { name: /retry/i }));
+    expect(h.retryFailedModelDownloads).toHaveBeenCalledWith(h.progress);
   });
 });

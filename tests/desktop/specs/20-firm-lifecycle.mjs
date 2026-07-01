@@ -145,40 +145,36 @@ async function openSeededRecentWorkspace(session, _app) {
   await session.maybeClickTestid('feature-tour-skip');
 }
 
-async function clickFirstButtonInside(session, testId) {
-  const button = await session.find('xpath', `//*[@data-testid=${JSON.stringify(testId)}]//button[1]`, 15_000);
-  await session.click(button);
-}
+/**
+ * Walk first-run OnboardingV2 to completion without resolving AI or
+ * connectors (mirrors the old "decide later" / "connect later" paths). The
+ * 4-step flow has no firm-claim step — claiming a firm now happens in the
+ * Account window's Firm tab (see openAccountFirmTab / claimOrgThroughUi
+ * below), reached only after onboarding finishes and a workspace is open.
+ */
+async function driveOnboardingThroughV2(session) {
+  await session.testid('onboarding-v2', 45_000);
+  await session.testid('onboarding-v2-intro', 15_000);
+  await session.clickTestid('onboarding-v2-go', 15_000);
 
-async function driveOnboardingToFirmCreate(session) {
-  await session.testid('onboarding-step-welcome', 45_000);
-  await session.clickTestid('onboarding-next-welcome', 15_000);
+  await session.testid('onboarding-v2-ai', 15_000);
+  await session.clickTestid('onboarding-v2-continue', 15_000);
 
-  await session.clickTestid('profession-card-legal', 15_000);
-  await session.clickTestid('onboarding-next-profession', 15_000);
+  await session.testid('onboarding-v2-connect', 15_000);
+  await session.clickTestid('onboarding-v2-continue', 15_000);
 
-  await session.typeTestid('onboarding-identity-name', 'Desktop Firm Tester', 15_000);
-  await session.clickTestid('onboarding-identity-next', 15_000);
-
-  await session.testid('onboarding-step-workspace', 15_000);
-  await session.clickTestid('onboarding-workspace-next', 15_000);
-
-  await session.testid('onboarding-step-trust', 15_000);
-  await session.clickTestid('onboarding-data-continue', 15_000);
-
-  await session.testid('ai-setup-step', 20_000);
-  await session.clickTestid('ai-path-later', 15_000);
-
-  await session.testid('onboarding-step-email', 20_000);
-  await session.clickTestid('email-connect-later', 15_000);
-
-  await session.testid('onboarding-step-firm', 20_000);
-  await session.testid('firm-option-create', 15_000);
-  await clickFirstButtonInside(session, 'firm-option-create');
-  await session.testid('firm-claim-form', 15_000);
+  // Last scene's Continue reads "Continue to the app" and completes
+  // onboarding directly (no separate "Done" step).
+  await session.testid('onboarding-v2-firm', 15_000);
+  await session.clickTestid('onboarding-v2-continue', 15_000);
 }
 
 async function claimOrgThroughUi(session) {
+  // Reached via the Account window's Firm tab now (see openAccountFirmTab),
+  // starting from the default sign-in panel — switch to the claim panel first.
+  await session.clickTestid('firm-just-bought', 15_000);
+  await session.testid('firm-claim-form', 15_000);
+
   await session.typeTestid('firm-claim-license-key', CLAIM_LICENSE_KEY, 15_000);
   await session.typeTestid('firm-claim-email', CLAIM_EMAIL, 15_000);
   await session.typeTestid('firm-claim-password', CLAIM_PASSWORD, 15_000);
@@ -186,13 +182,13 @@ async function claimOrgThroughUi(session) {
   await session.typeTestid('firm-claim-org-name', CLAIM_ORG_NAME, 15_000);
   await session.clickTestid('firm-claim-submit', 15_000);
 
-  // A successful claim in onboarding lands on the firm-admin console
-  // (firm-admin-content). The transient firm-claim-success message is quickly
-  // replaced by it, so accept either. firm-email-display + the seat tools live on
-  // the Account-window Firm tab and are verified there after onboarding.
+  // A successful claim switches FirmSignIn to its signed-in branch
+  // (firm-email-display) and reveals the sibling FirmAdminConsole
+  // (firm-admin-console) in the same Firm tab. The transient
+  // firm-claim-success message is quickly replaced by it, so accept either.
   await session.waitFor(
     async (s) =>
-      (await s.hasTestid('firm-admin-content', 500)) ||
+      (await s.hasTestid('firm-admin-console', 500)) ||
       (await s.hasTestid('firm-claim-success', 500)) ||
       (await s.hasTestid('firm-claim-error', 500)),
     { timeoutMs: 30_000, label: 'firm claim admin console or error' },
@@ -201,7 +197,7 @@ async function claimOrgThroughUi(session) {
     const body = await session.bodyText();
     throw new Error(`firm org claim failed in UI. Visible body:\n${body}`);
   }
-  await session.testid('firm-admin-content', 20_000);
+  await session.testid('firm-admin-console', 20_000);
 }
 
 async function activateSeatThroughUi(session) {
@@ -222,14 +218,6 @@ async function activateSeatThroughUi(session) {
   await session.testid('firm-seat-id', 15_000);
   await session.testid('firm-admin-console', 20_000);
   await session.testid('firm-seat-list', 20_000);
-}
-
-async function finishOnboardingAndOpenWorkspace(session, app) {
-  await session.clickTestid('onboarding-firm-continue', 15_000);
-  await session.testid('onboarding-step-done', 20_000);
-  await session.clickTestid('onboarding-samples-toggle', 15_000);
-  await session.clickTestid('onboarding-done-confirm', 15_000);
-  await openSeededRecentWorkspace(session, app);
 }
 
 async function openAccountFirmTab(session) {
@@ -267,16 +255,18 @@ export default {
     if (!hasTauri) throw new Error('window.__TAURI__ missing; not the desktop webview.');
 
     await seedRecentWorkspaceAndForceOnboarding(session, workspace);
-    await driveOnboardingToFirmCreate(session);
+    await driveOnboardingThroughV2(session);
+    await openSeededRecentWorkspace(session, app);
 
     await provisionUnclaimedOrg();
     log(`Provisioned disposable local org ${CLAIM_ORG_NAME} with license ${CLAIM_LICENSE_KEY}.`);
 
-    await claimOrgThroughUi(session);
-    await finishOnboardingAndOpenWorkspace(session, app);
-
-    // Seat activation + the full firm console live in the Account window Firm tab.
+    // Claiming a firm now happens in the Account window's Firm tab (onboarding
+    // no longer has a firm-claim step) — open it, then claim.
     await openAccountFirmTab(session);
+    await claimOrgThroughUi(session);
+
+    // Seat activation + the full firm console live in the same Firm tab.
     await activateSeatThroughUi(session);
     await assertFirmHydrated(session);
 

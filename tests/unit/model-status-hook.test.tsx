@@ -99,6 +99,16 @@ describe('useModelStatus', () => {
     expect(invokeMock).not.toHaveBeenCalledWith('model_ensure');
   });
 
+  it('reports error from the status probe without auto-retrying', async () => {
+    invokeMock.mockImplementation(async (cmd: string) => {
+      if (cmd === 'model_status') return 'error';
+      return undefined;
+    });
+    const { result } = renderHook(() => useModelStatus());
+    await waitFor(() => expect(result.current.state).toBe('error'));
+    expect(invokeMock).not.toHaveBeenCalledWith('model_ensure');
+  });
+
   it('retry() re-invokes model_ensure', async () => {
     invokeMock.mockImplementation(async (cmd: string) => {
       if (cmd === 'model_status') return 'absent';

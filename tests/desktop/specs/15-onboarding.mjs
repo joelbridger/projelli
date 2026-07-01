@@ -1,11 +1,16 @@
 /**
- * 15-onboarding — real first-run GuidedOnboarding path.
+ * 15-onboarding — real first-run OnboardingV2 path.
+ *
+ * Updated 2026-06-30: the old 9-step GuidedOnboarding was retired in favor of
+ * the 4-step OnboardingV2 (intro -> AI -> connect -> firm setup), which
+ * FirstRunOverlay now renders unconditionally.
  *
  * This intentionally does NOT use app.bootToWorkspace(), because that helper
  * seeds localStorage and bypasses the first-run onboarding gate. The journey
- * starts from a fresh desktop profile, completes onboarding without adding an
- * AI key, then verifies the real headless blocker: workspace creation/opening
- * requires Tauri's native folder picker, which WebDriver cannot select from.
+ * starts from a fresh desktop profile, completes onboarding without resolving
+ * the AI step (mirrors "decide later"), then verifies the real headless
+ * blocker: workspace creation/opening requires Tauri's native folder picker,
+ * which WebDriver cannot select from.
  */
 
 export default {
@@ -17,57 +22,39 @@ export default {
     await session.testid('workspace-selector-dialog', 30_000);
     await session.testid('welcome-dialog-pitch', 30_000);
 
-    // App mounts GuidedOnboarding over the workspace selector after a short
-    // first-run delay. The frame is the stable first-run root; individual
-    // welcome copy is asserted as visible text because older blind specs used a
-    // guessed step id here.
-    await session.testid('guided-onboarding-frame', 45_000);
-    await session.waitForBodyText('Your private intelligence layer', { timeoutMs: 15_000 });
-    await session.testid('onboarding-next-welcome', 15_000);
-    await session.clickTestid('onboarding-next-welcome', 15_000);
+    // App mounts OnboardingV2 over the workspace selector after a short
+    // first-run delay. "onboarding-v2" is the stable shell root for every
+    // scene; "onboarding-v2-intro" is the first scene's content.
+    await session.testid('onboarding-v2', 45_000);
+    await session.testid('onboarding-v2-intro', 15_000);
+    await session.waitForBodyText('A private AI that knows your clients.', { timeoutMs: 15_000 });
+    await session.testid('onboarding-v2-go', 15_000);
+    await session.clickTestid('onboarding-v2-go', 15_000);
 
-    await session.testid('onboarding-step-profession', 15_000);
-    await session.waitForBodyText('What kind of work do you do?', { timeoutMs: 15_000 });
-    await session.testid('profession-card-legal', 15_000);
-    await session.clickTestid('profession-card-legal', 15_000);
-    await session.clickTestid('onboarding-next-profession', 15_000);
+    // Scene 1 — Connect your AI. Leave it unresolved (no key, no local
+    // download) so Continue marks AI setup deferred, mirroring the old
+    // spec's "decide later" path.
+    await session.testid('onboarding-v2-ai', 15_000);
+    await session.waitForBodyText('1. Connect your AI', { timeoutMs: 15_000 });
+    await session.testid('ai-card-cloud', 15_000);
+    await session.testid('ai-card-local', 15_000);
+    await session.clickTestid('onboarding-v2-continue', 15_000);
 
-    await session.testid('onboarding-step-identity', 15_000);
-    await session.testid('onboarding-identity-name', 15_000);
-    await session.testid('onboarding-identity-file', 15_000);
-    await session.clickTestid('onboarding-identity-next', 15_000);
+    // Scene 2 — Securely connect your data. The real connector cards mount;
+    // leave everything unconnected and continue.
+    await session.testid('onboarding-v2-connect', 15_000);
+    await session.waitForBodyText('2. Securely connect your data', { timeoutMs: 15_000 });
+    await session.testid('connect-m365', 15_000);
+    await session.testid('connect-onedrive', 15_000);
+    await session.testid('connect-wealthbox', 15_000);
+    await session.clickTestid('onboarding-v2-continue', 15_000);
 
-    await session.testid('onboarding-step-workspace', 15_000);
-    await session.testid('workspace-choice-documents', 15_000);
-    await session.clickTestid('onboarding-workspace-next', 15_000);
-
-    await session.testid('onboarding-step-trust', 15_000);
-    await session.testid('onboarding-trust-open-data-map', 15_000);
-    await session.clickTestid('onboarding-data-continue', 15_000);
-
-    await session.testid('onboarding-step-ai-key', 15_000);
-    await session.testid('ai-setup-step', 15_000);
-    await session.testid('ai-path-own-account', 15_000);
-    await session.testid('ai-path-local', 15_000);
-    await session.clickTestid('ai-path-later', 15_000);
-
-    await session.testid('onboarding-step-email', 20_000);
-    await session.testid('email-tab-m365', 15_000);
-    await session.testid('email-connect-later', 15_000);
-    await session.clickTestid('onboarding-email-continue', 15_000);
-
-    await session.testid('onboarding-step-firm', 15_000);
-    await session.waitForBodyText('How do you practice?', { timeoutMs: 15_000 });
-    await session.testid('firm-option-create', 15_000);
-    await session.testid('firm-option-join', 15_000);
-    await session.testid('firm-option-solo', 15_000);
-    await session.testid('onboarding-firm-continue', 15_000);
-    await session.clickTestid('firm-solo-skip', 15_000);
-
-    await session.testid('onboarding-step-done', 15_000);
-    await session.testid('onboarding-samples-toggle', 15_000);
-    await session.testid('onboarding-done-no-ai-note', 15_000);
-    await session.clickTestid('onboarding-done-confirm', 15_000);
+    // Scene 3 — Setting up your firm (live setup-progress bars). The last
+    // scene's Continue button reads "Continue to the app" and completes
+    // onboarding directly (no separate "Done" step).
+    await session.testid('onboarding-v2-firm', 15_000);
+    await session.waitForBodyText('3. Setting up your firm', { timeoutMs: 15_000 });
+    await session.clickTestid('onboarding-v2-continue', 15_000);
 
     // On a real desktop first run, completing onboarding leaves the user at the
     // workspace selector until they choose or create a folder. Both available

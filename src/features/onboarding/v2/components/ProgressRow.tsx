@@ -5,6 +5,7 @@
  *   - `pct == null` while `active` renders an indeterminate sweeping bar
  *     (used for counts with no known total, e.g. email/CRM imports)
  *   - `done` forces a solid full green bar
+ *   - `failed` renders a red failed state with an optional retry action
  */
 
 import type { ReactNode } from 'react';
@@ -18,14 +19,29 @@ export interface ProgressRowProps {
   active: boolean;
   /** Right-aligned status text (e.g. "64%", "Working...", "Done"). */
   status: string;
+  failed?: boolean | undefined;
+  retryLabel?: string | undefined;
+  onRetry?: (() => void) | undefined;
   /** Optional sub-detail under the label (e.g. "128 imported"). */
   detail?: string | undefined;
   testId?: string;
 }
 
-export function ProgressRow({ label, pct, done, active, status, detail, testId }: ProgressRowProps) {
+export function ProgressRow({
+  label,
+  pct,
+  done,
+  active,
+  status,
+  failed = false,
+  retryLabel,
+  onRetry,
+  detail,
+  testId,
+}: ProgressRowProps) {
   const indeterminate = active && pct == null && !done;
-  const width = done ? 100 : Math.max(0, Math.min(100, pct ?? 0));
+  const width = failed || done ? 100 : Math.max(0, Math.min(100, pct ?? 0));
+  const fillClass = failed ? 'bg-[#d64545]' : 'bg-[#1fa971]';
 
   return (
     <div className="flex items-center gap-4" data-testid={testId}>
@@ -38,8 +54,8 @@ export function ProgressRow({ label, pct, done, active, status, detail, testId }
           <div className="kp-onbv2-indet" data-testid="progress-indeterminate" />
         ) : (
           <div
-            className={`relative h-full rounded-full bg-[#1fa971] transition-[width] duration-500 ${
-              active && !done ? 'kp-onbv2-shimmer' : ''
+            className={`relative h-full rounded-full ${fillClass} transition-[width] duration-500 ${
+              active && !done && !failed ? 'kp-onbv2-shimmer' : ''
             }`}
             style={{ width: `${String(width)}%` }}
             data-testid="progress-fill"
@@ -47,8 +63,19 @@ export function ProgressRow({ label, pct, done, active, status, detail, testId }
           />
         )}
       </div>
-      <div className="w-20 shrink-0 text-right text-sm font-medium text-[#5b6b80]" data-testid="progress-status">
-        {status}
+      <div className="flex w-24 shrink-0 items-center justify-end gap-2 text-right text-sm font-medium text-[#5b6b80]">
+        <span className={failed ? 'text-[#b83232]' : ''} data-testid="progress-status">
+          {status}
+        </span>
+        {failed && onRetry && retryLabel ? (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="rounded border border-[#d64545]/30 px-2 py-1 text-xs font-bold text-[#b83232] hover:bg-[#d64545]/10"
+          >
+            {retryLabel}
+          </button>
+        ) : null}
       </div>
     </div>
   );

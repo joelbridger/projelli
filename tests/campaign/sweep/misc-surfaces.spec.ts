@@ -200,30 +200,11 @@ test.describe('Additional surfaces: onboarding + updater (L-203..L-209)', () => 
     await page.keyboard.press('Escape');
   });
 
-  test('L-206 AiSetupStep in onboarding settings', async ({ page, browserName: _b }, testInfo) => {
-    const getErrors = collectConsoleErrors(page);
-    await page.goto('/?testMode=true');
-    await waitForTestModeLoad(page);
-    const opened = await openSettingsCategory(page, 'onboarding');
-    if (opened) {
-      await snap(page, testInfo, 'L-206-ai-setup-step');
-    }
-    await snap(page, testInfo, 'L-206-ai-setup-checked');
-    const errors = getErrors();
-    expect(errors, 'console errors L-206').toHaveLength(0);
-    await page.keyboard.press('Escape');
-  });
-
-  test('L-207 FirstRunWizard: suppressed in testMode', async ({ page, browserName: _b }, testInfo) => {
-    const getErrors = collectConsoleErrors(page);
-    await page.goto('/?testMode=true');
-    await waitForTestModeLoad(page);
-    // In testMode the FirstRunWizard is suppressed — verify normal UI loads
-    await expect(page.getByTestId('sidebar')).toBeVisible();
-    await snap(page, testInfo, 'L-207-first-run-wizard-suppressed');
-    const errors = getErrors();
-    expect(errors, 'console errors L-207').toHaveLength(0);
-  });
+  // L-206 (AiSetupStep settings surface) and L-207 (FirstRunWizard suppression)
+  // were removed with the retired AiSetupStep/FirstRunWizard onboarding flows.
+  // First-run onboarding is now OnboardingV2; its first-run mount + testMode
+  // suppression are covered by tests/unit/first-run-mount.test.tsx and
+  // tests/unit/onboarding-v2.test.tsx.
 
   test('L-208 UpdateBanner: native-only (requires Tauri updater)', async ({ page, browserName: _b }, testInfo) => {
     await page.goto('/?testMode=true');

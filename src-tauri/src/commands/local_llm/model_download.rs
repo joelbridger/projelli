@@ -138,6 +138,27 @@ fn part_file_path(model_dir: &Path, spec: &ModelDownloadSpec) -> PathBuf {
     model_dir.join(format!("{}.part", spec.filename))
 }
 
+/// Resolve the model's status string for the setup-progress probe:
+/// `"ready"` when the GGUF is present, `"error"` when the persisted manifest
+/// records a failed download (so the failure surfaces in onboarding and offers a
+/// retry), else `"absent"`.
+fn model_status_in(model_dir: &Path, spec: &ModelDownloadSpec) -> String {
+    if model_ready_in(model_dir, spec) {
+        "ready".to_string()
+    } else if matches!(
+        read_manifest(model_dir),
+        Ok(Some(manifest))
+            if manifest.model_id == spec.model_id
+                && manifest.filename == spec.filename
+                && manifest.revision == spec.revision
+                && manifest.status == LocalModelStatus::Error
+    ) {
+        "error".to_string()
+    } else {
+        "absent".to_string()
+    }
+}
+
 pub fn model_ready_in(model_dir: &Path, spec: &ModelDownloadSpec) -> bool {
     let path = model_dir.join(spec.filename);
     if !path.exists() {
@@ -354,15 +375,9 @@ pub async fn local_llm_model_status_value() -> Result<String> {
 
     let dir = writable_model_dir();
     let spec = ModelDownloadSpec::production();
-    tokio::task::spawn_blocking(move || {
-        if model_ready_in(&dir, &spec) {
-            Ok("ready".to_string())
-        } else {
-            Ok("absent".to_string())
-        }
-    })
-    .await
-    .context("model status task join failed")?
+    tokio::task::spawn_blocking(move || Ok(model_status_in(&dir, &spec)))
+        .await
+        .context("model status task join failed")?
 }
 
 #[tauri::command]
@@ -395,6 +410,11 @@ pub async fn local_llm_model_ensure(app: AppHandle) -> Result<String, String> {
         return Ok("downloading".to_string());
     }
     let _guard = DownloadingGuard;
+
+    // Persist a Downloading manifest up front so a crash/kill mid-transfer (or a
+    // retry after a prior Error manifest) leaves a coherent status rather than a
+    // stale "error" that would block the retry path.
+    let _ = write_manifest(&dir, &spec.manifest(LocalModelStatus::Downloading));
 
     let app_for_sink = app.clone();
     let result = download_model_to_dir(&dir, &spec, move |p| emit(&app_for_sink, p)).await;
@@ -532,6 +552,20 @@ mod tests {
             model_ready_in(tmp.path(), &spec),
             "model_ready_in must flip true once the Ready manifest replaces the Downloading one"
         );
+    }
+
+    #[test]
+    fn error_manifest_reports_error_status() {
+        let tmp = tempfile::tempdir().unwrap();
+        let bytes = b"tiny fake gguf bytes";
+        let spec = tiny_spec("http://unused".to_string(), bytes);
+
+        // No file, no manifest -> absent.
+        assert_eq!(model_status_in(tmp.path(), &spec), "absent");
+        // A persisted Error manifest must surface as "error" so onboarding can
+        // show a Failed row + Retry instead of hiding the failure as "absent".
+        write_manifest(tmp.path(), &spec.manifest(LocalModelStatus::Error)).unwrap();
+        assert_eq!(model_status_in(tmp.path(), &spec), "error");
     }
 
     #[tokio::test]

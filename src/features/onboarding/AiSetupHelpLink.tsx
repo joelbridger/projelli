@@ -210,6 +210,10 @@ export function AiSetupHelpDialog({
     };
     if (ticket.email) payload.email = ticket.email;
 
+    // Bound the POST so a down/slow help endpoint can't leave the button stuck
+    // on "Sending..." forever.
+    const ac = new AbortController();
+    const timer = setTimeout(() => { ac.abort(); }, 15_000);
     try {
       // The help ticket goes to Advisor Prep Hero infrastructure, not the user's AI
       // provider — opt out of the "Sending to your AI provider" pulse.
@@ -218,6 +222,7 @@ export function AiSetupHelpDialog({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
+        signal: ac.signal,
       });
       if (!res.ok) throw new Error(`server responded ${String(res.status)}`);
       setStatus('success');
@@ -225,6 +230,8 @@ export function AiSetupHelpDialog({
     } catch (err) {
       console.error('[AiSetupHelpDialog] submit failed', err);
       setStatus('error');
+    } finally {
+      clearTimeout(timer);
     }
   }, [message, email, provider, context, t]);
 

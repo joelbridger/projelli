@@ -96,6 +96,12 @@ export function WealthboxConnect() {
       setConnectedInfo(info);
       setConnected(true);
       setToken('');
+      // Connect = IMPORT: kick off the household sync immediately, the same way
+      // Microsoft/Gmail/OneDrive start importing right after auth. runSync()
+      // fetches the household list, confirms the local-storage import, creates
+      // the matters, and drives the setup-progress bars. Without this, "Connect"
+      // only stored the API key and never imported anything (Cluster-3 finding).
+      void runSync();
     } catch (err) {
       setConnectError(
         typeof err === 'string'

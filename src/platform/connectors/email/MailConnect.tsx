@@ -5,6 +5,7 @@ import { useMailSync } from '@/platform/connectors/email/useMailSync';
 import { useMailStore } from '@/platform/connectors/email/mailStore';
 import { getMatters } from '@/platform/matter/matterStore';
 import { buildMailMatterMap } from '@/platform/rag/matterResolver';
+import { beginOAuth, endOAuth } from '@/platform/connectors/oauthPending';
 
 export function MailConnect() {
   const { t } = useTranslation();
@@ -50,6 +51,9 @@ export function MailConnect() {
   async function connect() {
     setConnecting(true);
     setConnectError(null);
+    // Mark an interactive OAuth sign-in pending so onboarding disables Continue
+    // until this multi-minute browser flow settles.
+    beginOAuth();
     try {
       await outlookConnect();
       setConnected(true);
@@ -64,6 +68,7 @@ export function MailConnect() {
       setConnectError(typeof err === 'string' ? err : err instanceof Error ? err.message : 'Could not connect. Please try again.');
     } finally {
       setConnecting(false);
+      endOAuth();
     }
   }
 

@@ -506,7 +506,7 @@ export interface ModelDownloadProgress {
   message: string | null;
 }
 
-/** Cheap model presence probe: 'ready' | 'absent' | 'downloading'. */
+/** Cheap model presence probe: 'ready' | 'absent' | 'downloading' | 'error'. */
 export async function modelStatus(): Promise<string> {
   return invoke<string>('model_status');
 }
@@ -535,7 +535,7 @@ export interface LocalLlmDownloadProgress {
   message: string | null;
 }
 
-/** Local AI model presence probe: 'ready' | 'absent' | 'downloading'. */
+/** Local AI model presence probe: 'ready' | 'absent' | 'downloading' | 'error'. */
 export async function localLlmModelStatus(): Promise<string> {
   if (!isTauri()) return 'absent';
   return invoke<string>('local_llm_model_status');

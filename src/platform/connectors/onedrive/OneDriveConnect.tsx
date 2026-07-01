@@ -19,6 +19,7 @@ import { useOneDriveSync } from '@/platform/connectors/onedrive/useOneDriveSync'
 import { useOneDriveStore } from '@/platform/connectors/onedrive/onedriveStore';
 import { assertLocalOnlyAllowsExternal } from '@/platform/privacy/localOnlyGuard';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
+import { beginOAuth, endOAuth } from '@/platform/connectors/oauthPending';
 import type { Matter } from '@/platform/types/matter';
 
 function linkOneDriveClientFoldersToMatters(
@@ -61,6 +62,9 @@ export function OneDriveConnect() {
   async function connect() {
     setConnecting(true);
     setError(null);
+    // Mark an interactive OAuth sign-in pending so onboarding disables Continue
+    // until this multi-minute browser flow settles.
+    beginOAuth();
     try {
       assertLocalOnlyAllowsExternal('OneDrive document sync');
       await oneDriveConnect();
@@ -76,6 +80,7 @@ export function OneDriveConnect() {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setConnecting(false);
+      endOAuth();
     }
   }
 

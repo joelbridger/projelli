@@ -55,6 +55,8 @@ pub enum ModelState {
     None,
     /// Currently downloading.
     Downloading,
+    /// A download was attempted and failed; retry should resume/restart it.
+    Failed,
     /// Present and usable.
     Ready,
 }
@@ -208,8 +210,9 @@ pub(crate) fn compute_percent(done: u64, total: u64) -> Option<f64> {
     Some(pct.clamp(0.0, 100.0).round())
 }
 
-/// Map a model-status string (`"ready"|"absent"|"downloading"`) plus optional
-/// live download bytes into a `ModelSlot`. Unknown/`"absent"` -> `None`.
+/// Map a model-status string (`"ready"|"absent"|"downloading"|"error"`) plus
+/// optional live download bytes into a `ModelSlot`. `"error"` -> `Failed`;
+/// unknown/`"absent"` -> `None`.
 pub(crate) fn model_slot_from_status(
     status: &str,
     downloaded: Option<u64>,
@@ -221,6 +224,7 @@ pub(crate) fn model_slot_from_status(
             state: ModelState::Downloading,
             percent: downloaded.and_then(|d| compute_percent(d, total)),
         },
+        "error" => ModelSlot { state: ModelState::Failed, percent: None },
         _ => ModelSlot { state: ModelState::None, percent: None },
     }
 }
@@ -245,6 +249,8 @@ pub(crate) fn ai_progress(
         (ModelState::Ready, None)
     } else if local.state == ModelState::Downloading {
         (ModelState::Downloading, local.percent)
+    } else if local.state == ModelState::Failed {
+        (ModelState::Failed, None)
     } else {
         (ModelState::None, None)
     };

@@ -169,6 +169,8 @@ export function useLocalLlmModelStatus(): LocalLlmStatusSnapshot {
           // A download is already in flight (started before this mount):
           // reflect it immediately rather than waiting for the next event.
           setSnap((s) => ({ ...s, state: 'downloading', stalled: false, probed: true }));
+        } else if (status === 'error') {
+          setSnap((s) => ({ ...s, state: 'error', stalled: false, probed: true }));
         } else {
           // 'absent' (or anything unexpected) — show the opt-in prompt and do
           // NOT auto-start the 2.4 GB transfer.

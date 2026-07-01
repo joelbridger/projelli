@@ -13,8 +13,11 @@
  * onboarding while these imports keep running in the background.
  */
 
+import { useState } from 'react';
 import { useSetupProgress } from '@/platform/hooks/useSetupProgress';
 import type { SetupProgress } from '@/platform/utils/setup-progress-commands';
+import { retryFailedModelDownloads } from '@/platform/utils/setup-progress-commands';
+import { getVerifiedProviders } from '@/platform/providers/keyVerification';
 
 import { ProgressRow } from '../components/ProgressRow';
 import { ONB_COPY, ONB_EXAMPLE_QUESTIONS } from '../copy';
@@ -25,24 +28,45 @@ interface Area {
   pct: number | null;
   done: boolean;
   active: boolean;
+  failed?: boolean;
   status: string;
   detail?: string | undefined;
 }
 
-function statusText(done: boolean, active: boolean, pct: number | null): string {
+function statusText(done: boolean, active: boolean, pct: number | null, failed = false): string {
+  if (failed) return 'Failed';
   if (done) return 'Done';
   if (active) return pct != null ? `${String(pct)}%` : 'Working...';
   return 'Not started';
 }
 
-/** AI brain row (cloud key = instantly ready; local = live download percent). */
+/** AI brain row (cloud key = ready only once verified; local = live download
+ *  percent). A cloud key that was saved but never passed a live check (e.g.
+ *  saved while the provider was unreachable) is "saved, not verified" — NOT
+ *  "ready" — so we don't over-promise. It verifies on first real use. */
 function aiArea(p: SetupProgress): Area {
   const { ai } = p;
-  const done = ai.state === 'ready';
+  const failed =
+    ai.searchModel.state === 'failed' ||
+    ai.state === 'failed' ||
+    (!ai.cloudKeyPresent && ai.localLlm.state === 'failed');
+  // The Rust side reports a cloud key as ai.state === 'ready' the moment a key is
+  // present. Honesty gate: a cloud key is only truly "ready" once a real live
+  // check verified it (keyVerification marker).
+  const cloudUnverified =
+    !failed && ai.mode === 'cloud' && ai.cloudKeyPresent && getVerifiedProviders().size === 0;
+  const done = !failed && !cloudUnverified && ai.state === 'ready';
   const active = ai.state === 'downloading';
-  const pct = done ? 100 : active ? (ai.percent ?? null) : 0;
-  const label = ai.mode === 'cloud' ? 'Your AI provider is connected' : ONB_COPY.firm.aiLabel;
-  return { key: 'ai', label, pct, done, active, status: statusText(done, active, pct) };
+  const pct = failed || done ? 100 : active ? (ai.percent ?? null) : 0;
+  const label = failed
+    ? 'AI setup needs a retry'
+    : cloudUnverified
+      ? 'AI key saved — not verified yet'
+      : ai.mode === 'cloud'
+        ? 'Your AI provider is connected'
+        : ONB_COPY.firm.aiLabel;
+  const status = cloudUnverified ? 'Not verified' : statusText(done, active, pct, failed);
+  return { key: 'ai', label, pct, done, active, failed, status };
 }
 
 function importAreas(p: SetupProgress): Area[] {
@@ -88,12 +112,18 @@ function importAreas(p: SetupProgress): Area[] {
 export function FirmSetupScene() {
   const C = ONB_COPY.firm;
   const progress = useSetupProgress();
+  const [retryingModels, setRetryingModels] = useState(false);
 
   // Client Map "building" callout. building is effectively always 0 from this
   // hook, so derive "in progress" from built < total.
   const cmTotal = progress?.clientMap.total ?? 0;
   const cmBuilt = progress?.clientMap.built ?? 0;
   const cmDone = cmTotal > 0 && cmBuilt === cmTotal;
+  // Only show the animated "building" bar when there are maps actually being
+  // built. With nothing queued (e.g. the "connect my own data" path before any
+  // client is opened), an endless sweep would over-promise — so we show the
+  // honest static note instead: maps build when you open each client.
+  const cmBuilding = cmTotal > 0 && !cmDone;
 
   return (
     <div className="flex w-full flex-col items-center" data-testid="onboarding-v2-firm">
@@ -117,7 +147,19 @@ export function FirmSetupScene() {
                     pct={a.pct}
                     done={a.done}
                     active={a.active}
+                    failed={a.failed}
                     status={a.status}
+                    retryLabel={retryingModels ? 'Retrying...' : 'Retry'}
+                    onRetry={
+                      a.failed
+                        ? () => {
+                            setRetryingModels(true);
+                            void retryFailedModelDownloads(progress).finally(() => {
+                              setRetryingModels(false);
+                            });
+                          }
+                        : undefined
+                    }
                     testId={`firm-row-${a.key}`}
                   />
                 );
@@ -146,13 +188,21 @@ export function FirmSetupScene() {
         <div className="mt-7 rounded-2xl border border-[#1fa971]/25 bg-[#1fa971]/[0.06] p-4" data-testid="firm-client-maps">
           <div className="text-sm font-bold text-[var(--kp-navy)]">{C.clientMapTitle}</div>
           <div className="text-xs text-[#5b6b80]">{C.clientMapSub}</div>
-          <div className="relative mt-3 h-2.5 overflow-hidden rounded-full bg-[rgba(var(--kp-navy-rgb),0.10)]">
-            {cmDone ? (
-              <div className="h-full rounded-full bg-[#1fa971]" style={{ width: '100%' }} />
-            ) : (
-              <div className="kp-onbv2-indet" />
-            )}
-          </div>
+          {cmDone || cmBuilding ? (
+            <div className="relative mt-3 h-2.5 overflow-hidden rounded-full bg-[rgba(var(--kp-navy-rgb),0.10)]">
+              {cmDone ? (
+                <div className="h-full rounded-full bg-[#1fa971]" style={{ width: '100%' }} />
+              ) : (
+                <div className="kp-onbv2-indet" />
+              )}
+            </div>
+          ) : (
+            // Nothing queued yet — be honest rather than animate a sweep that
+            // isn't backing any real work. This is the true behavior.
+            <div className="mt-2 text-xs text-[#5b6b80]" data-testid="firm-client-maps-note">
+              I build a Client Map for each client automatically the first time you open them.
+            </div>
+          )}
         </div>
       </div>
 

@@ -11,10 +11,10 @@
  * note-taking capability. For 'other' profession the three original generic
  * samples are used (unchanged behavior).
  *
- * Wired into FirstRunWizard. When the "Populate workspace with samples" toggle
- * is ON (default), these files are copied into the selected workspace root at
- * the end of the wizard. The wizard skips files that already exist rather than
- * overwrite, so re-running the wizard is safe.
+ * Wired into the first-run flow (OnboardingV2's "Start with a sample practice"
+ * path) via `writeSampleFiles`: these files are copied into the chosen workspace
+ * root, then the sample matter + a seeded Client Map are created. Existing files
+ * are skipped rather than overwritten, so re-running onboarding is safe.
  */
 
 import pricingStrategy from './Sample - Pricing Strategy.md?raw';

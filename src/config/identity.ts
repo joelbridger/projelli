@@ -45,7 +45,6 @@ export const SK_TAB_OVERFLOW                 = `${APP_NS}:tabOverflow`;
 export const SK_FIRM_SESSION                 = `${APP_NS}:firm-session`;
 export const SK_PRIVILEGE                    = `${APP_NS}:privilege`;
 export const SK_PROFILE                      = `${APP_NS}:profile`;
-export const SK_ONBOARDING_V2                = `${APP_NS}:onboardingV2`;
 export const SK_MATTERS                      = `${APP_NS}:matters`;
 export const SK_MATTER_UI_SNAPSHOTS          = `${APP_NS}:matter-ui-snapshots`;
 export const SK_MATTER_AT_A_GLANCE           = `${APP_NS}:matter-at-a-glance`;
