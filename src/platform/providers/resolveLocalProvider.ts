@@ -16,7 +16,8 @@
 // `localLlmModelStatus` is desktop-only and returns a non-'ready' value (or
 // throws) off-desktop; any such result falls through to Ollama.
 
-import { createProvider } from '@/platform/providers/providerFactory';
+import { OllamaProvider } from '@/platform/providers/OllamaProvider';
+import { AppLocalProvider } from '@/platform/providers/AppLocalProvider';
 import { localLlmModelStatus } from '@/platform/utils/tauri-commands';
 import type { Provider } from '@/platform/providers/Provider';
 
@@ -48,10 +49,10 @@ export async function isEmbeddedLocalModelReady(): Promise<boolean> {
  */
 export async function resolveLocalGenerationProvider(): Promise<ResolvedLocalProvider> {
   if (await isEmbeddedLocalModelReady()) {
-    const provider = createProvider({ provider: 'keepance-local' });
+    const provider = new AppLocalProvider({});
     return { provider, providerId: 'keepance-local', model: provider.getMetadata().model };
   }
-  const provider = createProvider({ provider: 'ollama' });
+  const provider = new OllamaProvider({});
   return { provider, providerId: 'ollama', model: provider.getMetadata().model };
 }
 
@@ -65,7 +66,7 @@ export async function resolveLocalGenerationProvider(): Promise<ResolvedLocalPro
  */
 export async function resolveAvailableLocalGenerationProvider(): Promise<ResolvedLocalProvider | null> {
   if (await isEmbeddedLocalModelReady()) {
-    const provider = createProvider({ provider: 'keepance-local' });
+    const provider = new AppLocalProvider({});
     return { provider, providerId: 'keepance-local', model: provider.getMetadata().model };
   }
 
@@ -77,6 +78,6 @@ export async function resolveAvailableLocalGenerationProvider(): Promise<Resolve
     return null;
   }
 
-  const provider = createProvider({ provider: 'ollama' });
+  const provider = new OllamaProvider({});
   return { provider, providerId: 'ollama', model: provider.getMetadata().model };
 }

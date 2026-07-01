@@ -1273,7 +1273,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
           // the narrow cast at this one boundary.
           if (!isLocalProviderId(chatProvider)) {
             if (hasWorkspaceForTools) {
-              (provider as {
+              (provider as unknown as {
                 setTools: (tools: typeof FILE_ACCESS_TOOLS, executor: typeof toolExecutor) => void;
               }).setTools(FILE_ACCESS_TOOLS, toolExecutor);
               console.log('[AIChat DIAGNOSTIC] Tools registered on', chatProvider, 'provider:', FILE_ACCESS_TOOLS.length, 'tools');

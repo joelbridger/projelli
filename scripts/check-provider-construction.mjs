@@ -30,7 +30,6 @@ import { dirname, join, relative, sep } from 'node:path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dirname, '..');
-const srcRoot = join(repoRoot, 'src');
 
 // `new <Upper>…Provider(` — matches ClaudeProvider, OpenAIProvider,
 // GeminiProvider, OllamaProvider, AppLocalProvider, MockProvider,
@@ -84,36 +83,53 @@ function inLineComment(line, idx) {
   return commentAt !== -1 && commentAt < idx;
 }
 
-const violations = [];
-
-for (const file of collectSources(srcRoot)) {
-  const relPath = toPosix(relative(repoRoot, file));
-  if (isAllowed(relPath)) continue;
-  const lines = readFileSync(file, 'utf8').split('\n');
-  lines.forEach((line, i) => {
-    const m = CONSTRUCT_RE.exec(line);
-    if (m && !inLineComment(line, m.index)) {
-      violations.push({ relPath, line: i + 1, text: line.trim() });
-    }
-  });
-}
-
-if (violations.length > 0) {
-  console.error(
-    '❌ Provider construction outside the factory (fix F2.2 — the "one front door" rule).\n' +
-      '   Every AI provider must be built through createProvider() in\n' +
-      '   src/platform/providers/providerFactory.ts, so all surfaces agree on\n' +
-      '   which AI they talk to and the egress indicator can never lie.\n' +
-      `   Replace each raw \`new …Provider(\` below with createProvider({ … }):\n`,
-  );
-  for (const v of violations) {
-    console.error(`   ${v.relPath}:${v.line}  ${v.text}`);
+/**
+ * Scan `src/` and return every `new …Provider(` construction that lives outside
+ * the allowed provider layer. Exported so the contract unit test
+ * (tests/unit/provider-front-door.test.ts) enforces the same invariant inside
+ * `vitest run`, not only in scripts/gate.sh — one source of truth for the rule.
+ */
+export function findProviderConstructionViolations(root = repoRoot) {
+  const srcRoot = join(root, 'src');
+  const found = [];
+  for (const file of collectSources(srcRoot)) {
+    const relPath = toPosix(relative(root, file));
+    if (isAllowed(relPath)) continue;
+    const lines = readFileSync(file, 'utf8').split('\n');
+    lines.forEach((line, i) => {
+      const m = CONSTRUCT_RE.exec(line);
+      if (m && !inLineComment(line, m.index)) {
+        found.push({ relPath, line: i + 1, text: line.trim() });
+      }
+    });
   }
-  console.error(
-    `\n   ${violations.length} violation(s). Allowed to construct directly: ` +
-      'src/platform/providers/**, src/web-demo/demoAIProvider.ts, and *.test/*.spec files.',
-  );
-  process.exit(1);
+  return found;
 }
 
-console.log('✅ Provider construction: one front door (createProvider) — no drift.');
+// Run the CLI/gate check only when executed directly (not when imported by the
+// contract test).
+const invokedDirectly =
+  process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+
+if (invokedDirectly) {
+  const violations = findProviderConstructionViolations();
+  if (violations.length > 0) {
+    console.error(
+      '❌ Provider construction outside the factory (fix F2.2 — the "one front door" rule).\n' +
+        '   Every AI provider must be built through createProvider() in\n' +
+        '   src/platform/providers/providerFactory.ts, so all surfaces agree on\n' +
+        '   which AI they talk to and the egress indicator can never lie.\n' +
+        `   Replace each raw \`new …Provider(\` below with createProvider({ … }):\n`,
+    );
+    for (const v of violations) {
+      console.error(`   ${v.relPath}:${v.line}  ${v.text}`);
+    }
+    console.error(
+      `\n   ${violations.length} violation(s). Allowed to construct directly: ` +
+        'src/platform/providers/**, src/web-demo/demoAIProvider.ts, and *.test/*.spec files.',
+    );
+    process.exit(1);
+  }
+
+  console.log('✅ Provider construction: one front door (createProvider) — no drift.');
+}
