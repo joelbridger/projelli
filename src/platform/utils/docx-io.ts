@@ -1085,6 +1085,9 @@ export function normalizeStandalonePipeTable(text: string): string | null {
     // is honored) — but it must sit directly under the header (GFM), else the
     // "header" is really prose above a table.
     if (sepIndex !== 1) return null;
+    // The separator declares the column count; if it disagrees with the header
+    // the table is malformed/ambiguous — reject rather than guess.
+    if (pipeColumnCount(lines[1] ?? '') !== cols) return null;
     bodyLines = lines.slice(2);
   } else {
     // No separator row → the table shape is a guess. Require a RECTANGULAR block
@@ -1094,6 +1097,11 @@ export function normalizeStandalonePipeTable(text: string): string | null {
     if (!lines.every((l) => pipeColumnCount(l) === cols)) return null;
     bodyLines = lines.slice(1);
   }
+
+  // Data-loss guard: a body row with MORE cells than the header would be
+  // truncated by canonicalization, silently dropping text. Reject instead.
+  // (Fewer cells is fine — GFM pads the row with empty cells, losing nothing.)
+  if (bodyLines.some((l) => pipeColumnCount(l) > cols)) return null;
 
   const rowToCanonical = (cells: string[]): string => {
     const padded = cells.slice(0, cols);

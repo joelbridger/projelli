@@ -123,6 +123,21 @@ describe('normalizeStandalonePipeTable', () => {
     expect((out ?? '').split('\n').length).toBe(3);
   });
 
+  it('REJECTS a malformed table where a row has MORE cells than the header (no data loss)', () => {
+    // Header declares 1 column but the separator/body carry 2 — canonicalizing
+    // would silently truncate "VIP". Reject instead of losing text.
+    expect(normalizeStandalonePipeTable('| Client |\n| --- | --- |\n| Acme | VIP |')).toBeNull();
+    expect(normalizeStandalonePipeTable('| A |\n| --- |\n| x | y |')).toBeNull();
+  });
+
+  it('pads a ragged row that has FEWER cells than the header (no text lost)', () => {
+    const out = normalizeStandalonePipeTable('| A | B |\n| --- | --- |\n| x |');
+    expect(out).not.toBeNull();
+    expect(out).toContain('x');
+    // Every original cell value survives; only empty padding is added.
+    expect((out ?? '').split('\n').length).toBe(3);
+  });
+
   it('returns null for a lone pipe row (cannot form a table)', () => {
     expect(normalizeStandalonePipeTable('|Name|Value|')).toBeNull();
   });
