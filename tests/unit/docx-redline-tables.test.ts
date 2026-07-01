@@ -115,6 +115,14 @@ describe('normalizeStandalonePipeTable', () => {
     expect(out).toContain('Alpha');
   });
 
+  it('honors a one-column table when a separator row makes it unambiguous', () => {
+    const out = normalizeStandalonePipeTable('| Client |\n| --- |\n| Acme |');
+    expect(out).not.toBeNull();
+    expect(out).toContain('Client');
+    expect(out).toContain('Acme');
+    expect((out ?? '').split('\n').length).toBe(3);
+  });
+
   it('returns null for a lone pipe row (cannot form a table)', () => {
     expect(normalizeStandalonePipeTable('|Name|Value|')).toBeNull();
   });

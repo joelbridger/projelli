@@ -1076,19 +1076,21 @@ export function normalizeStandalonePipeTable(text: string): string | null {
   if (lines.some((l) => l === '' || !l.includes('|'))) return null;
 
   const cols = pipeColumnCount(lines[0] ?? '');
-  if (cols < 2) return null;
+  if (cols < 1) return null;
 
   const sepIndex = lines.findIndex((l) => isSeparatorRow(l));
   let bodyLines: string[];
   if (sepIndex >= 0) {
-    // A separator row is an unambiguous table signal — but it must sit directly
-    // under the header (GFM), else the "header" is really prose above a table.
+    // A separator row is an unambiguous table signal (so even a one-column table
+    // is honored) — but it must sit directly under the header (GFM), else the
+    // "header" is really prose above a table.
     if (sepIndex !== 1) return null;
     bodyLines = lines.slice(2);
   } else {
-    // No separator: require a rectangular block (every row the same column count)
-    // so two lines of prose that merely share a stray pipe aren't turned into a
-    // table.
+    // No separator row → the table shape is a guess. Require a RECTANGULAR block
+    // of at least two columns (every row the same column count) so two lines of
+    // prose that merely share a stray pipe aren't turned into a table.
+    if (cols < 2) return null;
     if (!lines.every((l) => pipeColumnCount(l) === cols)) return null;
     bodyLines = lines.slice(1);
   }
