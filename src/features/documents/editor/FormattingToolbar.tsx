@@ -339,9 +339,23 @@ export function FormattingToolbar({ editorRef, className, isPreviewMode, onToggl
         return () => { execCommand('formatBlock', 'BLOCKQUOTE'); };
       case 'Link':
         return () => {
+          // Opening the in-DOM prompt focuses its input, which COLLAPSES the
+          // contenteditable selection that execCommand('createLink') needs.
+          // (The old synchronous window.prompt didn't touch the DOM selection.)
+          // Snapshot the current range before awaiting, then restore it right
+          // before applying the link so the user's selected text is wrapped.
+          const selection = window.getSelection();
+          const savedRange =
+            selection && selection.rangeCount > 0 ? selection.getRangeAt(0).cloneRange() : null;
           void (async () => {
             const url = await prompt('Enter URL:', undefined, { title: 'Insert link', placeholder: 'https://…', confirmLabel: 'Insert' });
-            if (url) execCommand('createLink', url);
+            if (!url) return;
+            if (savedRange) {
+              const sel = window.getSelection();
+              sel?.removeAllRanges();
+              sel?.addRange(savedRange);
+            }
+            execCommand('createLink', url);
           })();
         };
       case 'Horizontal Rule':
