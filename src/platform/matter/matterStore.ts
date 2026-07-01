@@ -1132,10 +1132,13 @@ export const useMatterStore = create<MatterState>()(
           // hydrates from a later user/session action, after this store's
           // `persist` middleware has already run its `migrate` step) — when
           // it isn't known, `canonicalizeFolderPath` leaves a relative entry
-          // relative (still shape-clean) rather than dropping it, and the
-          // write-time choke-point (`createMatter`/`setFolderPaths`/
-          // `addFolderPath`) resolves it to absolute the next time that
-          // matter's folders are touched with a workspace open.
+          // relative (still shape-clean) rather than dropping it. The
+          // `useWorkspaceStore.subscribe` reconciliation just below this store
+          // definition re-runs the same canonicalization the FIRST time a
+          // workspace root becomes known after this migration ran, so an
+          // existing install's affected matters get fixed on next open rather
+          // than only if the user happens to touch that matter's folders again
+          // (Codex review #1, F2.3).
           //
           // Not gated on `import.meta.env.DEV` (that block is stripped from
           // `vite build`) — this line is the real-path proof a later bench
@@ -1170,6 +1173,53 @@ export const useMatterStore = create<MatterState>()(
     }
   )
 );
+
+/**
+ * Reconcile `folderPaths` the moment a workspace root becomes known.
+ *
+ * The v9 -> v10 migration above canonicalizes `folderPaths` to absolute, but it
+ * runs during this store's OWN `persist` hydration — which happens before
+ * `workspaceStore` has a `rootPath` (that's set later by a user/session action
+ * opening a workspace). So a matter whose `folderPaths` were left relative by
+ * that migration (no root known yet) would otherwise stay relative FOREVER
+ * unless the user happens to touch that specific matter's folders again
+ * (`createMatter`/`setFolderPaths`/`addFolderPath` are the only other places
+ * that canonicalize) — silently leaving the exact CRM-auto-backfill bug this
+ * fix targets unresolved for existing installs (Codex review, F2.3). This
+ * subscription re-runs the same canonicalization the moment `rootPath`
+ * transitions to a real value, so every matter gets fixed the first time a
+ * workspace opens after this fix ships, not "maybe, if the user happens to
+ * edit that matter's folders." `canonicalizeFolderPath` is idempotent for an
+ * already-absolute entry (passthrough), so re-running this on every workspace
+ * switch is safe and self-correcting rather than only a one-shot.
+ *
+ * Wrapped defensively like `getWorkspaceRootNonReactive`: several unit tests
+ * mock `@/platform/fs/workspaceStore` as a bare selector FUNCTION (the
+ * `useWorkspaceStore(selector)` calling convention) rather than the full
+ * Zustand store object, which has no `.subscribe`. That shape is a valid test
+ * double for the reactive hook usage elsewhere in the app; it just isn't
+ * subscribable, so skip the reconciliation wiring rather than throw at module
+ * load in those suites.
+ */
+try {
+  useWorkspaceStore.subscribe((state, prevState) => {
+    if (!state.rootPath || state.rootPath === prevState.rootPath) return;
+    const root = state.rootPath;
+    useMatterStore.setState((s) => {
+      const matters = s.matters.map((m) => {
+        const canon = dedupeFolderPaths(m.folderPaths, root);
+        const same =
+          canon.length === m.folderPaths.length &&
+          canon.every((p, i) => p === m.folderPaths[i]);
+        return same ? m : { ...m, folderPaths: canon };
+      });
+      const changed = matters.some((m, i) => m !== s.matters[i]);
+      return changed ? { matters } : s;
+    });
+  });
+} catch {
+  /* see doc comment above: some test doubles stub workspaceStore without `.subscribe` */
+}
 
 // ─────────────────────────────────────────────────────────────────────
 // Non-reactive accessors (for the indexer hook and event listeners)

@@ -139,6 +139,45 @@ describe('matter-store merge — v9 -> v10 folderPaths canonicalization', () => 
     // workspace root open) is NOT force-canonicalized just by rehydrating again.
     expect(useMatterStore.getState().matters[0]!.folderPaths).toEqual(['Clients/Hollings']);
   });
+
+  it('reconciles a relative folderPaths entry the FIRST time the workspace root becomes known (Codex review #1)', async () => {
+    // Simulate the migration having run before a workspace root was open: the
+    // entry survives shape-clean but relative (matches the real bootstrap
+    // ordering — workspaceStore hydrates its rootPath from a LATER user action,
+    // after this store's persist migration has already completed).
+    seed(MATTERS_KEY, {
+      state: { matters: [{ ...sampleMatterV4, folderPaths: ['Clients/Hollings'] }], activeMatterId: 'm1' },
+      version: 10,
+    });
+    await useMatterStore.persist.rehydrate();
+    expect(useMatterStore.getState().matters[0]!.folderPaths).toEqual(['Clients/Hollings']);
+
+    // The user now opens a workspace — rootPath transitions from null to a
+    // real value. Without this reconciliation, the entry would stay relative
+    // forever unless the user happened to edit this matter's folders again.
+    useWorkspaceStore.setState({ rootPath: 'C:/workspaces/Northcrest' });
+
+    expect(useMatterStore.getState().matters[0]!.folderPaths).toEqual([
+      'C:/workspaces/Northcrest/Clients/Hollings',
+    ]);
+  });
+
+  it('does not re-write matters when the workspace root changes but folderPaths are already canonical', async () => {
+    seed(MATTERS_KEY, {
+      state: {
+        matters: [{ ...sampleMatterV4, folderPaths: ['C:/workspaces/Northcrest/Clients/Hollings'] }],
+        activeMatterId: 'm1',
+      },
+      version: 10,
+    });
+    await useMatterStore.persist.rehydrate();
+    const beforeMatters = useMatterStore.getState().matters;
+
+    useWorkspaceStore.setState({ rootPath: 'C:/workspaces/Northcrest' });
+
+    // Same array reference (or at least identical content) — no spurious churn.
+    expect(useMatterStore.getState().matters).toEqual(beforeMatters);
+  });
 });
 
 describe('matter-store merge — hydration from each legacy key', () => {
