@@ -85,12 +85,41 @@ function newMatterId(): string {
   return `matter_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
-/** Normalise and dedupe folder paths with the same rules the resolver uses. */
-function dedupeFolderPaths(paths: string[]): string[] {
+/**
+ * Coerce a single persisted folderPaths entry to a plain string path, or `null`
+ * if it can't be. `Matter.folderPaths` is TYPED `string[]`, but persisted data
+ * from an older/buggy write (or a folder-picker object that leaked through) can
+ * carry a non-string — an object stringifies to the literal `"[object Object]"`,
+ * which then becomes a real garbage folder when used as a create target
+ * (2026-07-01 QA: "Creating in [object Object]/"). Pull a `.path`/`.folderPath`
+ * off an object shape; skip anything else. Never returns a stringified object.
+ */
+function coerceFolderPathValue(value: unknown): string | null {
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object') {
+    const obj = value as { path?: unknown; folderPath?: unknown };
+    if (typeof obj.path === 'string') return obj.path;
+    if (typeof obj.folderPath === 'string') return obj.folderPath;
+  }
+  return null;
+}
+
+/**
+ * Normalise and dedupe folder paths with the same rules the resolver uses.
+ *
+ * Accepts `unknown[]` (not just `string[]`) so it doubles as the runtime
+ * sanitiser for persisted/legacy data: a non-string entry is coerced via
+ * `coerceFolderPathValue` and dropped if it can't become a real path, so an
+ * object can never survive into `folderPaths` and later stringify to
+ * `"[object Object]"`.
+ */
+function dedupeFolderPaths(paths: unknown[]): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
-  for (const path of paths) {
-    const normalized = normalizeMatterPath(path);
+  for (const value of paths) {
+    const raw = coerceFolderPathValue(value);
+    if (raw === null) continue;
+    const normalized = normalizeMatterPath(raw);
     if (!normalized || seen.has(normalized)) continue;
     seen.add(normalized);
     out.push(normalized);
@@ -269,7 +298,7 @@ interface PersistedMatterState {
 const MATTERS_KEY = SK_MATTERS;
 const UI_KEY = SK_MATTER_UI_SNAPSHOTS;
 const GLANCE_KEY = SK_MATTER_AT_A_GLANCE;
-const MATTERS_VERSION = 8;
+const MATTERS_VERSION = 9;
 
 type MatterAuditEmitter = (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
 
@@ -934,7 +963,10 @@ export const useMatterStore = create<MatterState>()(
       // for the Wealthbox connector. v6 -> v7: matters gained additive external
       // connector slots (`onedriveFolderKeys`, `esignKeys`, `meetingKeys`).
       // v7 -> v8: matters gained additive connector mapping slots for Box,
-      // Jotform, ShareFile, Zocks, and Addepar.
+      // Jotform, ShareFile, Zocks, and Addepar. v8 -> v9: re-validate
+      // `folderPaths` — coerce any non-string entry to a real path and drop what
+      // can't be, so a corrupted/legacy object can never stringify to
+      // `"[object Object]"` and become a garbage create target.
       // Backfill defaults so older persisted matters parse cleanly (missing
       // values are tolerated by readers, but normalising here keeps the shape
       // consistent). Only the `matters` slice is versioned;
@@ -1003,6 +1035,25 @@ export const useMatterStore = create<MatterState>()(
             sharefileFolderKeys: m.sharefileFolderKeys ?? [],
             zocksKeys: m.zocksKeys ?? [],
             addeparKeys: m.addeparKeys ?? [],
+          }));
+        }
+        if (version < 9) {
+          // v8 -> v9: SANITISE `folderPaths` (2026-07-01 QA re-fix). Earlier
+          // migrations only ADDED fields; none ever re-validated the existing
+          // `folderPaths`. `folderPaths` is TYPED `string[]`, but a persisted
+          // matter could carry a NON-STRING entry (a folder-picker object, or a
+          // corrupted write). Left alone it survives into `folderPaths[0]` and
+          // stringifies to the literal `"[object Object]"` when used as a
+          // create target — the exact bug where scoped "New document" wrote to a
+          // real garbage folder named `[object Object]` and the scoped
+          // Grid/Tree showed empty. `dedupeFolderPaths` now coerces each entry
+          // to a real string path and drops anything that can't be, so every
+          // persisted matter comes back with a clean `string[]`.
+          state.matters = state.matters.map((m) => ({
+            ...m,
+            folderPaths: dedupeFolderPaths(
+              Array.isArray(m.folderPaths) ? (m.folderPaths as unknown[]) : [],
+            ),
           }));
         }
         return state as PersistedMatterState;

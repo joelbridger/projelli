@@ -294,3 +294,56 @@ describe('DocumentsHome — Grid view with relative tree paths (real bug shape)'
     expect(screen.getByText('Clients')).toBeTruthy();
   });
 });
+
+describe('DocumentsHome — [object Object] defensive boundary (2026-07-01 re-fix)', () => {
+  // A corrupted/legacy matter can pass a NON-STRING scopeFolderPaths entry (an
+  // object). Left alone it becomes the create target and stringifies to the
+  // literal "[object Object]", creating a real garbage folder at the workspace
+  // root — and the scoped Grid/Tree then show empty. DocumentsHome must coerce
+  // it so only a real string path can ever reach a create/import handler.
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockStoreFileTree = mockFileTree;
+  });
+
+  it('an object folderPaths entry with a usable .path behaves exactly like the string path', () => {
+    const onImportFiles = vi.fn();
+    render(
+      <DocumentsHome
+        {...buildProps({ onImportFiles })}
+        embedded
+        // The corrupted shape the bug produced, e.g. a folder-picker {path,name}.
+        scopeFolderPaths={[{ path: `${ROOT}/Clients/Acme`, name: 'Acme' } as unknown as string]}
+        scopeMatterId="acme"
+      />,
+    );
+    // Grid still shows the client's file (coerced path pruned the tree correctly).
+    expect(screen.getByText('deal.docx')).toBeTruthy();
+    // And the import target is the real STRING path — never the object / "[object Object]".
+    fireEvent.click(screen.getByTestId('add-files-btn'));
+    expect(onImportFiles).toHaveBeenCalledWith(`${ROOT}/Clients/Acme`);
+    const arg = onImportFiles.mock.calls[0]?.[0];
+    expect(typeof arg).toBe('string');
+    expect(String(arg)).not.toContain('[object Object]');
+  });
+
+  it('an unusable object entry never reaches a create handler as "[object Object]"', () => {
+    const onCreateDefaultDocument = vi.fn();
+    render(
+      <DocumentsHome
+        {...buildProps({ onCreateDefaultDocument })}
+        embedded
+        // No `.path`/`.folderPath` — nothing usable, so it is dropped entirely.
+        scopeFolderPaths={[{ nope: true } as unknown as string]}
+        scopeMatterId="acme"
+      />,
+    );
+    fireEvent.click(screen.getByText('New document'));
+    expect(onCreateDefaultDocument).toHaveBeenCalledTimes(1);
+    const arg = onCreateDefaultDocument.mock.calls[0]?.[0] as unknown;
+    // Falls back to undefined (→ the canonical <root>/docs downstream), NEVER the
+    // stringified object.
+    expect(arg === undefined || typeof arg === 'string').toBe(true);
+    expect(String(arg)).not.toContain('[object Object]');
+  });
+});

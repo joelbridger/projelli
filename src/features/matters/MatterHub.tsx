@@ -34,6 +34,7 @@ import { answerQuestion, flagForClient } from '@/features/matters/clientMap/guid
 import { dispatchOpenSource } from '@/features/matters/clientMap/openSource';
 import type { SourceRef } from '@/platform/clientMap/types';
 import type { AuditEntry } from '@/platform/types/audit';
+import type { Matter } from '@/platform/types/matter';
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -46,8 +47,14 @@ export interface MatterHubProps {
    * many handlers). Each is rendered only when its sub-tab is active, so the
    * heavy surface (and its effects) mounts on demand, not on every hub open.
    * Absent (e.g. in isolated component tests) → the sub-tab shows a placeholder.
+   *
+   * `renderDocuments` is handed THIS hub's exact `matter` (the one resolved from
+   * `matterId` below), so the scoped Documents surface reads its `folderPaths` /
+   * id from the client actually being rendered — never from a stale outer
+   * "active matter" closure in the shell (2026-07-01 re-fix: a stale/mismatched
+   * matter was one way a wrong/empty `scopeFolderPaths` reached the scoped tab).
    */
-  renderDocuments?: () => ReactNode;
+  renderDocuments?: (matter: Matter | null) => ReactNode;
   renderEmail?: () => ReactNode;
   renderActivity?: () => ReactNode;
 }
@@ -449,7 +456,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
 
         {subTab === 'documents' && (
           <div data-testid="hub-subtab-panel-documents" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-            {renderDocuments ? renderDocuments() : <SubTabUnavailable label="Documents" />}
+            {renderDocuments ? renderDocuments(matter) : <SubTabUnavailable label="Documents" />}
           </div>
         )}
 

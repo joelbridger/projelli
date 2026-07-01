@@ -148,6 +148,42 @@ function isEditorSurfaceTab(type: string): boolean {
   return EDITOR_TAB_TYPES.has(type);
 }
 
+/**
+ * Defensive boundary (2026-07-01 re-fix): coerce a scoped-folders prop to a
+ * clean `string[]`. `scopeFolderPaths` is TYPED `string[]` (it comes from
+ * `Matter.folderPaths`), but a corrupted/legacy matter can carry a NON-STRING
+ * entry — an object that stringifies to the literal `"[object Object]"`. The
+ * matter-store migration sanitises persisted data, but this is the
+ * belt-and-suspenders guard so such a value can NEVER reach a create/import
+ * target (`destDir`) at runtime, where it would create a real garbage folder
+ * named `[object Object]`. Returns `undefined` untouched (the unscoped, global
+ * browser); a provided-but-dirty array is filtered to real string paths.
+ */
+function coerceScopeFolderPaths(
+  paths: string[] | undefined,
+): string[] | undefined {
+  if (paths === undefined) return undefined;
+  const out: string[] = [];
+  for (const value of paths as unknown[]) {
+    const raw =
+      typeof value === 'string'
+        ? value
+        : value && typeof value === 'object'
+          ? ((value as { path?: unknown }).path ??
+             (value as { folderPath?: unknown }).folderPath)
+          : null;
+    if (typeof raw === 'string' && raw.trim()) {
+      out.push(raw);
+    } else if (value != null) {
+      console.warn(
+        '[DocumentsHome] dropped a non-string scopeFolderPaths entry (would have become "[object Object]"):',
+        value,
+      );
+    }
+  }
+  return out;
+}
+
 function hasTrustBeenShown(): boolean {
   try {
     return localStorage.getItem(TRUST_STORAGE_KEY) === '1';
@@ -352,6 +388,15 @@ export function DocumentsHome({
   // Used (only when scoping) to drop nested foreign-client folders from the tree.
   const matters = useMatterStore((s) => s.matters);
 
+  // Defensive boundary: sanitise the scoped-folders prop to clean strings ONCE
+  // so no `[object Object]` can leak into the tree prune, the scope check, or a
+  // create/import target below. Every internal use reads `safeScopeFolderPaths`,
+  // never the raw prop. `undefined` (the unscoped global browser) is preserved.
+  const safeScopeFolderPaths = useMemo(
+    () => coerceScopeFolderPaths(scopeFolderPaths),
+    [scopeFolderPaths],
+  );
+
   // Per-client scoping: when `scopeFolderPaths` is provided, prune the workspace
   // tree to just this client's folders — and, with the matter list + id, drop
   // any subfolder owned by another client — then feed that pruned tree to both
@@ -359,10 +404,10 @@ export function DocumentsHome({
   // never mutated and we don't reprune on every render.
   const scopedFileTree = useMemo(
     () =>
-      scopeFolderPaths
-        ? scopeFileTreeToFolders(storeFileTree, scopeFolderPaths, matters, scopeMatterId, rootPath)
+      safeScopeFolderPaths
+        ? scopeFileTreeToFolders(storeFileTree, safeScopeFolderPaths, matters, scopeMatterId, rootPath)
         : undefined,
-    [scopeFolderPaths, storeFileTree, matters, scopeMatterId, rootPath],
+    [safeScopeFolderPaths, storeFileTree, matters, scopeMatterId, rootPath],
   );
 
   // Trust banner state
@@ -509,13 +554,13 @@ export function DocumentsHome({
   // navigation.
   const [hasSettledScopedFolder, setHasSettledScopedFolder] = useState(() => storeFileTree.length > 0);
   const [currentFolderPath, setCurrentFolderPath] = useState<string | null>(() => {
-    const firstScopeFolder = embedded ? scopeFolderPaths?.[0] : undefined;
+    const firstScopeFolder = embedded ? safeScopeFolderPaths?.[0] : undefined;
     return firstScopeFolder ? toScopedFolderPath(scopedFileTree ?? [], firstScopeFolder, rootPath) : null;
   });
 
   if (!hasSettledScopedFolder && storeFileTree.length > 0) {
     setHasSettledScopedFolder(true);
-    const firstScopeFolder = embedded ? scopeFolderPaths?.[0] : undefined;
+    const firstScopeFolder = embedded ? safeScopeFolderPaths?.[0] : undefined;
     if (firstScopeFolder) {
       setCurrentFolderPath(toScopedFolderPath(scopedFileTree ?? [], firstScopeFolder, rootPath));
     }
@@ -545,10 +590,10 @@ export function DocumentsHome({
   // scope" check, not just "does the app consider it embedded".
   const isWithinEmbeddedScope = useCallback(
     (absPath: string): boolean => {
-      if (!embedded || !scopeFolderPaths || scopeFolderPaths.length === 0) return true;
-      return scopeFolderPaths.some((folder) => isPathInFolder(absPath, folder));
+      if (!embedded || !safeScopeFolderPaths || safeScopeFolderPaths.length === 0) return true;
+      return safeScopeFolderPaths.some((folder) => isPathInFolder(absPath, folder));
     },
-    [embedded, scopeFolderPaths],
+    [embedded, safeScopeFolderPaths],
   );
 
   const createTargetPath = (() => {
@@ -582,7 +627,9 @@ export function DocumentsHome({
   // client with MULTIPLE mapped folders can still reach the root + its sibling
   // folders (Codex P2 — clamping navigation made those unreachable).
   const embeddedCreateFallback =
-    embedded && scopeFolderPaths && scopeFolderPaths.length > 0 ? (scopeFolderPaths[0] ?? null) : null;
+    embedded && safeScopeFolderPaths && safeScopeFolderPaths.length > 0
+      ? (safeScopeFolderPaths[0] ?? null)
+      : null;
 
   // ── Add-files / trust-note logic ─────────────────────────────────────────
 
