@@ -22,6 +22,7 @@ vi.mock('@/platform/utils/mail-commands', () => ({
   mailRetagMessageMatter: vi.fn(),
   mailSend: vi.fn(),
   mailSyncAll: vi.fn(),
+  mailCancelSync: vi.fn().mockResolvedValue(undefined),
   MAIL_SYNC_EVENT: 'mail-sync-progress',
   MAIL_INDEX_CHUNK_EVENT: 'mail-index-chunk',
 }));
@@ -66,6 +67,7 @@ import {
   mailListMessages,
   mailConnectedAccounts,
   mailSyncAll,
+  mailCancelSync,
 } from '@/platform/utils/mail-commands';
 import { buildMailMatterMap } from '@/platform/rag/matterResolver';
 import { getMatters } from '@/platform/matter/matterStore';
@@ -76,6 +78,7 @@ import { EmailWorkspace } from '@/features/email/EmailWorkspace';
 const mockMailListMessages = mailListMessages as ReturnType<typeof vi.fn>;
 const mockMailConnectedAccounts = mailConnectedAccounts as ReturnType<typeof vi.fn>;
 const mockMailSyncAll = mailSyncAll as ReturnType<typeof vi.fn>;
+const mockMailCancelSync = mailCancelSync as ReturnType<typeof vi.fn>;
 const mockBuildMailMatterMap = buildMailMatterMap as ReturnType<typeof vi.fn>;
 const mockGetMatters = getMatters as ReturnType<typeof vi.fn>;
 
@@ -93,6 +96,7 @@ beforeEach(() => {
   mockMailListMessages.mockResolvedValue({ items: [], total: 0 });
   // mailSyncAll resolves immediately by default (simulates a fast sync)
   mockMailSyncAll.mockResolvedValue(undefined);
+  mockMailCancelSync.mockResolvedValue(undefined);
   mockBuildMailMatterMap.mockReturnValue([]);
   mockGetMatters.mockReturnValue([]);
 });
@@ -187,6 +191,71 @@ describe('BUG-007: startup sync + manual Sync now', () => {
     await waitForInitialLoad();
 
     expect(mockMailSyncAll).not.toHaveBeenCalled();
+  });
+
+  // (e) A sync that never resolves no longer leaves "Syncing…" stuck forever:
+  // a stall warning appears first, then the hard timeout resets the button
+  // and surfaces a clear error.
+  it('(e) recovers from a sync that never resolves: stall warning, then hard-timeout reset', async () => {
+    mockMailSyncAll.mockImplementation(() => new Promise<void>(() => {})); // never resolves
+
+    render(<EmailWorkspace />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50);
+    });
+
+    const syncBtn = screen.getByTestId('email-sync-now');
+    expect(syncBtn).toBeDisabled();
+    expect(screen.queryByTestId('email-sync-stalled')).not.toBeInTheDocument();
+
+    // Before the 90s stall threshold: still syncing, no warning yet.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(89_000);
+    });
+    expect(screen.queryByTestId('email-sync-stalled')).not.toBeInTheDocument();
+    expect(syncBtn).toBeDisabled();
+
+    // Past the 90s stall threshold: warning shows, button still disabled
+    // (the sync may still legitimately finish).
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+    expect(screen.getByTestId('email-sync-stalled')).toBeInTheDocument();
+    expect(screen.getByTestId('email-sync-now')).toBeDisabled();
+
+    // Past the hard timeout (5 min total): the button resets and a clear
+    // error is shown instead of spinning forever.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5 * 60_000);
+    });
+    expect(screen.getByTestId('email-sync-now')).not.toBeDisabled();
+    expect(screen.getByTestId('email-sync-error')).toBeInTheDocument();
+
+    // The backend sync must actually be told to stop — otherwise it keeps
+    // holding the single-sync guard and the next click fails with "a sync
+    // is already in progress" even though the button looks idle again.
+    expect(mockMailCancelSync).toHaveBeenCalled();
+  });
+
+  // (f) The cancel call itself must not be able to re-block the UI: even if
+  // mailCancelSync() also hangs (same dead backend/IPC), the hard timeout's
+  // guarantee that the button recovers must still hold.
+  it('(f) the button recovers even if mailCancelSync() itself never resolves', async () => {
+    mockMailSyncAll.mockImplementation(() => new Promise<void>(() => {})); // never resolves
+    mockMailCancelSync.mockImplementation(() => new Promise<void>(() => {})); // never resolves either
+
+    render(<EmailWorkspace />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50);
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5 * 60_000);
+    });
+
+    expect(screen.getByTestId('email-sync-now')).not.toBeDisabled();
+    expect(screen.getByTestId('email-sync-error')).toBeInTheDocument();
+    expect(mockMailCancelSync).toHaveBeenCalled();
   });
 
 });

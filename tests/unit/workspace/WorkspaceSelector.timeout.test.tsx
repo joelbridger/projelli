@@ -27,13 +27,17 @@ vi.mock('@/platform/firm/vault/vaultClient', () => ({
 }));
 
 // withTimeout with a forced short window — if getFileTree were wrapped by it,
-// a slow scan would reject. After the fix only initialize is wrapped.
+// a slow scan would reject. After the fix only initialize is wrapped. Mirrors
+// the real helper's message format ("<label> timed out after Ns") since the
+// component now passes a short label, not a full sentence, as the 3rd arg.
 vi.mock('@/lib/withTimeout', () => ({
   TimeoutError: class TimeoutError extends Error {},
-  withTimeout: (p: Promise<unknown>, _ms: number, msg: string) =>
+  withTimeout: (p: Promise<unknown>, ms: number, label: string) =>
     Promise.race([
       p,
-      new Promise((_res, rej) => setTimeout(() => rej(new Error(msg)), 100)),
+      new Promise((_res, rej) =>
+        setTimeout(() => rej(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)), 100),
+      ),
     ]),
 }));
 
@@ -76,7 +80,7 @@ describe('WorkspaceSelector — Part C: large/slow workspace is not rejected', (
     });
     expect(getFileTree).toHaveBeenCalledTimes(1);
     // No error banner shown.
-    expect(screen.queryByText(/took too long/i)).toBeNull();
+    expect(screen.queryByText(/timed out/i)).toBeNull();
   });
 });
 
@@ -90,6 +94,26 @@ describe('WorkspaceSelector — Part B.1: cancelling the picker resets loading',
     fireEvent.click(openBtn);
 
     await waitFor(() => expect(openBtn.disabled).toBe(false));
+    expect(onWorkspaceSelected).not.toHaveBeenCalled();
+  });
+});
+
+describe('WorkspaceSelector — withTimeout label wiring', () => {
+  it('shows the formatted "<label> timed out after Ns" message when native setup hangs', async () => {
+    const onWorkspaceSelected = vi.fn();
+    dialogOpen.mockResolvedValue('/Users/jane/BigArchive');
+    // Native setup itself hangs — must reject via the mocked 100ms window
+    // instead of leaving the screen frozen.
+    initialize.mockImplementation(() => new Promise(() => {}));
+
+    render(<WorkspaceSelector open onWorkspaceSelected={onWorkspaceSelected} />);
+    fireEvent.click(screen.getByTestId('open-existing-workspace'));
+
+    // The error banner includes a "Details: <stack>" block, so match the
+    // formatted message as a prefix rather than the whole node's text.
+    await waitFor(() =>
+      expect(screen.getByText(/^Opening the workspace timed out after 30s/)).toBeInTheDocument(),
+    );
     expect(onWorkspaceSelected).not.toHaveBeenCalled();
   });
 });

@@ -1,38 +1,46 @@
 /**
- * Wrap a promise so it can never hang the UI forever.
+ * withTimeout — race a promise against a deadline so a hung backend call
+ * (keychain, Tauri IPC, network fetch) can never leave the UI stuck on a
+ * spinner forever. Always rejects with a TimeoutError (never resolves
+ * silently), so callers get a clear, user-surfaceable message.
  *
- * Background (BUG-002): on Windows the create-new-workspace step could leave the
- * first-run screen silently frozen — buttons greyed forever — when an
- * underlying native (Tauri IPC) call never settled. A try/catch/finally only
- * recovers if the awaited promise eventually resolves or rejects; a promise
- * that never settles defeats it. This helper bounds such calls: if the work
- * has not settled within `ms`, the returned promise rejects with a clear,
- * plain-language message so the caller's normal error handling runs (clears the
- * loading state, shows the error) instead of spinning forever.
- *
- * Do NOT wrap user-interactive steps (e.g. a native folder picker the user may
- * sit on for a while) — only the non-interactive work that should complete
- * quickly.
+ * When the underlying work supports real cancellation, pass `controller` —
+ * it's aborted as soon as the deadline fires, so the in-flight work actually
+ * stops instead of finishing unobserved in the background.
  */
+
 export class TimeoutError extends Error {
-  constructor(message: string) {
-    super(message);
+  constructor(label: string, ms: number) {
+    super(`${label} timed out after ${String(Math.round(ms / 1000))}s`);
     this.name = 'TimeoutError';
   }
+}
+
+export interface WithTimeoutOptions {
+  /** Aborted when the deadline fires, for calls that support cancellation. */
+  controller?: AbortController;
 }
 
 export function withTimeout<T>(
   promise: Promise<T>,
   ms: number,
-  message: string
+  label: string,
+  options?: WithTimeoutOptions,
 ): Promise<T> {
-  let timer: ReturnType<typeof setTimeout>;
-  const timeout = new Promise<never>((_resolve, reject) => {
-    timer = setTimeout(() => {
-      reject(new TimeoutError(message));
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      options?.controller?.abort();
+      reject(new TimeoutError(label, ms));
     }, ms);
-  });
-  return Promise.race([promise, timeout]).finally(() => {
-    clearTimeout(timer);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err: unknown) => {
+        clearTimeout(timer);
+        reject(err instanceof Error ? err : new Error(String(err)));
+      },
+    );
   });
 }

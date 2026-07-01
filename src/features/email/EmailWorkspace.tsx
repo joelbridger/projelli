@@ -126,7 +126,7 @@ export function EmailWorkspace({
   const [askError, setAskError] = useState<string | null>(null);
 
   // Account sync: load accounts, startup auto-sync, sync-done listener, handleSyncNow
-  const { syncing, accounts, accountsLoaded, hasConnectedMail, handleSyncNow } = useAccountSync({
+  const { syncing, syncStalled, syncError, accounts, accountsLoaded, hasConnectedMail, handleSyncNow } = useAccountSync({
     onNoAccounts: useCallback(() => {
       setItems([]);
       setTotal(0);
@@ -674,6 +674,25 @@ export function EmailWorkspace({
           </div>
         </div>
         /* eslint-enable lantern-i18n/no-hardcoded-string */
+      )}
+
+      {/* Sync stall / timeout warnings — surfaced separately from the per-row
+          search error below since a stuck sync is not a search failure. */}
+      {syncStalled && (
+        /* eslint-disable lantern-i18n/no-hardcoded-string */
+        <div data-testid="email-sync-stalled" style={{ padding: `var(--kp-space-sm) var(--kp-gutter) 0`, flexShrink: 0 }}>
+          <Callout variant="warning" icon={AlertTriangle}>
+            This is taking longer than expected. The sync is still running in the background.
+          </Callout>
+        </div>
+        /* eslint-enable lantern-i18n/no-hardcoded-string */
+      )}
+      {syncError && (
+        <div data-testid="email-sync-error" style={{ padding: `var(--kp-space-sm) var(--kp-gutter) 0`, flexShrink: 0 }}>
+          <Callout variant="error" icon={AlertTriangle}>
+            {syncError}
+          </Callout>
+        </div>
       )}
 
       {/* Body */}

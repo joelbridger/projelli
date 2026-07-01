@@ -4,6 +4,8 @@
 //! the POST bodies stay isolated here. No create/update/delete endpoints are
 //! exposed by this connector.
 
+use std::time::Duration;
+
 use anyhow::{Context, Result};
 use serde_json::json;
 
@@ -23,6 +25,13 @@ impl AddeparClient {
         Self {
             http: reqwest::Client::builder()
                 .user_agent("Advisor Prep Hero-Addepar-Connector/1.0")
+                // Without these, a stalled connection or a non-responding
+                // Addepar host left every "Connecting…"/"Syncing…" state in
+                // the UI hung forever, with no error and no way to recover
+                // short of restarting the app. Matches the other connector
+                // clients (docusign, boxc, crm, zocks, jotform, calendly).
+                .timeout(Duration::from_secs(60))
+                .connect_timeout(Duration::from_secs(15))
                 .build()
                 .expect("build Addepar reqwest client"),
             config,

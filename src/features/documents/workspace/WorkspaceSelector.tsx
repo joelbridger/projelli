@@ -39,12 +39,12 @@ const PREVIEW_STRUCTURE_FOLDERS = DEFAULT_WORKSPACE_FOLDERS.filter(
 
 // BUG-002: bound the non-interactive open/create work so a hung native (Tauri)
 // call can never leave the first-run screen frozen with greyed buttons. The
-// folder picker itself is interactive and is NEVER wrapped.
+// folder picker itself is interactive and is NEVER wrapped. withTimeout()
+// formats its own message from a short label ("<label> timed out after Ns"),
+// so these are labels, not full sentences.
 const WORKSPACE_INIT_TIMEOUT_MS = 30_000;
-const WORKSPACE_CREATE_TIMEOUT_MSG =
-  'Creating the workspace took too long and was stopped. Please try again, or pick a different folder.';
-const WORKSPACE_OPEN_TIMEOUT_MSG =
-  'Opening the workspace took too long and was stopped. Please try again, or pick a different folder.';
+const WORKSPACE_CREATE_LABEL = 'Creating the workspace';
+const WORKSPACE_OPEN_LABEL = 'Opening the workspace';
 
 interface WorkspaceSelectorProps {
   open: boolean;
@@ -207,7 +207,7 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
         return { service: svc, workspace: ws };
       })(),
       WORKSPACE_INIT_TIMEOUT_MS,
-      WORKSPACE_OPEN_TIMEOUT_MSG,
+      WORKSPACE_OPEN_LABEL,
     );
     const fileTree = await service.getFileTree();
 
@@ -332,7 +332,7 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
         backend = await withTimeout(
           createFSBackend(rootPath, { createIfMissing: true }),
           WORKSPACE_INIT_TIMEOUT_MS,
-          WORKSPACE_CREATE_TIMEOUT_MSG,
+          WORKSPACE_CREATE_LABEL,
         );
       } else {
         if (!WebFSBackend.isSupported()) {
@@ -365,7 +365,7 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
           createDefaultStructure: true,
         }),
         WORKSPACE_INIT_TIMEOUT_MS,
-        WORKSPACE_CREATE_TIMEOUT_MSG,
+        WORKSPACE_CREATE_LABEL,
       );
       const fileTree = await service.getFileTree();
 
