@@ -33,6 +33,12 @@ export interface PromptDialogProps {
    * already typed the extension, it's not duplicated.
    */
   previewExtension?: string;
+  /**
+   * When provided, runs on confirm; a returned (non-empty) string is shown
+   * inline and the dialog stays open instead of resolving — so a required
+   * field can never be confirmed empty as a silent no-op.
+   */
+  validate?: (value: string) => string | undefined;
 }
 
 export function PromptDialog({
@@ -48,13 +54,16 @@ export function PromptDialog({
   onCancel,
   destinationPath,
   previewExtension,
+  validate,
 }: PromptDialogProps) {
   const [value, setValue] = useState(defaultValue);
+  const [error, setError] = useState<string | undefined>(undefined);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
       setValue(defaultValue);
+      setError(undefined);
       // Focus input after dialog opens
       setTimeout(() => {
         inputRef.current?.focus();
@@ -64,6 +73,11 @@ export function PromptDialog({
   }, [open, defaultValue]);
 
   const handleConfirm = () => {
+    const message = validate?.(value);
+    if (message) {
+      setError(message);
+      return;
+    }
     onConfirm(value);
     onOpenChange(false);
   };
@@ -121,10 +135,19 @@ export function PromptDialog({
           <Input
             ref={inputRef}
             value={value}
-            onChange={(e) => setValue(e.target.value)}
+            onChange={(e) => {
+              setValue(e.target.value);
+              if (error) setError(undefined);
+            }}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
+            aria-invalid={error ? true : undefined}
           />
+          {error && (
+            <p data-testid="prompt-dialog-error" className="text-xs text-destructive">
+              {error}
+            </p>
+          )}
           {/* UX-15: live filename preview (optional). */}
           {previewExtension !== undefined && (
             <div

@@ -90,6 +90,51 @@ function toAbsolute(p: string, workspaceRoot?: string | null): string {
  *   tree node paths. Always pass it from the live workspace; omit only in pure
  *   tests that use one path shape on both sides.
  */
+/**
+ * Find the folder node in `tree` (a `scopeFileTreeToFolders` result) whose
+ * absolute path matches `folderPath` (the `Matter.folderPaths` shape) and
+ * return its RAW `node.path` — whatever shape THIS tree actually uses.
+ *
+ * `scopeFileTreeToFolders` preserves `node.path` verbatim from the store
+ * tree, and that shape depends on the FS backend (workspace-RELATIVE in
+ * production; some callers/tests already use absolute-shaped paths — see
+ * `toAbsolute`'s doc). A strict-equality tree lookup
+ * (`node.path === currentFolderPath`) needs a value in that SAME shape, so
+ * rather than assume one shape, this walks the actual tree and matches in
+ * absolute-space (the same comparison the prune above uses) — whichever
+ * shape is really in play, the returned value is one the lookup can find.
+ * Without this bridge, a raw absolute `folderPaths[0]` seeded directly as
+ * `currentFolderPath` never equals a relative `node.path`, so the scoped
+ * Grid view renders empty even though the scoped tree has files.
+ *
+ * Returns `null` when `folderPath` resolves to the workspace root itself (an
+ * include-everything scope, e.g. the onboarding sample matter) OR when no
+ * matching folder node is found in `tree` — both cases fall back to the
+ * scoped root (`currentFolderPath === null`), never a dead-end lookup.
+ */
+export function toScopedFolderPath(
+  tree: FileNode[],
+  folderPath: string,
+  workspaceRoot?: string | null,
+): string | null {
+  const target = toAbsolute(folderPath, workspaceRoot);
+  if (workspaceRoot && target === normalize(workspaceRoot)) return null;
+
+  function search(nodes: FileNode[]): string | null {
+    for (const node of nodes) {
+      if (node.type !== 'folder') continue;
+      if (toAbsolute(node.path, workspaceRoot) === target) return node.path;
+      if (node.children) {
+        const found = search(node.children);
+        if (found !== null) return found;
+      }
+    }
+    return null;
+  }
+
+  return search(tree);
+}
+
 export function scopeFileTreeToFolders(
   tree: FileNode[],
   folderPaths: string[],

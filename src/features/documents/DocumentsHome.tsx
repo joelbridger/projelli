@@ -40,7 +40,7 @@ import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
 import { DocumentGridView } from './DocumentGridView';
 import { FileTree } from '@/features/documents/workspace/FileTree';
-import { scopeFileTreeToFolders } from './scopeFileTree';
+import { scopeFileTreeToFolders, toScopedFolderPath } from './scopeFileTree';
 import { SK_FIRST_FILE_TRUST_SHOWN, SK_DOCS_VIEW } from '@/config/identity';
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -485,9 +485,19 @@ export function DocumentsHome({
   // at the workspace root, where they'd immediately vanish from this scoped
   // view (Codex review P2). This component remounts on each sub-tab open, so the
   // initializer reliably re-seeds the target each time.
-  const [currentFolderPath, setCurrentFolderPath] = useState<string | null>(
-    () => (embedded && scopeFolderPaths && scopeFolderPaths.length > 0 ? (scopeFolderPaths[0] ?? null) : null),
-  );
+  // BUG (2026-07-01): `scopeFolderPaths` is ABSOLUTE (Matter.folderPaths shape)
+  // while `scopedFileTree` node paths preserve whatever shape the store tree
+  // used (workspace-RELATIVE in production). Seeding this state with the raw
+  // absolute path meant DocumentGridView's `node.path === currentFolderPath`
+  // lookup never matched, so the Grid view (the default view) rendered empty
+  // even though the scoped tree had files — Tree view worked because it
+  // renders the tree directly. `toScopedFolderPath` bridges the two shapes by
+  // finding the actual matching node in `scopedFileTree` (null = the scoped
+  // root).
+  const [currentFolderPath, setCurrentFolderPath] = useState<string | null>(() => {
+    const firstScopeFolder = embedded ? scopeFolderPaths?.[0] : undefined;
+    return firstScopeFolder ? toScopedFolderPath(scopedFileTree ?? [], firstScopeFolder, rootPath) : null;
+  });
 
   // Embedded (per-client): clamp only the create/import TARGET — not navigation.
   // At the scoped root (currentFolderPath === null, e.g. the "All files"

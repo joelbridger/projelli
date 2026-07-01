@@ -455,7 +455,10 @@ export function DocumentGridView({
     currentNodes = fileTree;
   } else {
     const folderNode = findNodeByPath(fileTree, currentFolderPath);
-    currentNodes = folderNode?.children ?? [];
+    // A folder path that doesn't resolve in this tree (e.g. a stale or
+    // differently-shaped path) should never render an empty grid when the
+    // scoped/global tree actually has files — fall back to the root instead.
+    currentNodes = folderNode ? (folderNode.children ?? []) : fileTree;
   }
 
   // Folders first, then files, each group alphabetically

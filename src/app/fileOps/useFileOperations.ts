@@ -14,6 +14,7 @@ import { saveFile } from '@/platform/utils/saveFile';
 import { isBinaryFile } from '@/platform/utils/file-utils';
 import { writeTabContentToDisk } from '@/app/fileOps/flushDirtyTabs';
 import { createFileTreeSnapshot } from '@/platform/fs/FileSystemWatcher';
+import { findUniqueDefaultName } from './uniqueDefaultName';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { FileSystemWatcher } from '@/platform/fs/FileSystemWatcher';
 import type { FileNode } from '@/platform/types/workspace';
@@ -113,12 +114,23 @@ export function useFileOperations(options: UseFileOperationsOptions) {
   // Handle create new file
   const handleCreateFile = useCallback(
     async (parentPath: string) => {
-      const name = await prompt('Enter file name:', '', {
+      // BUG (2026-07-01): default value used to be '' — 'myfile.txt' was only
+      // the placeholder, so OK-on-default confirmed an empty name and the
+      // `!name` guard below silently no-op'd. Seed a real, collision-free
+      // default (full name here — unlike the docx/text-file creators, this
+      // dialog uses the returned value verbatim as the filename).
+      const defaultName = await findUniqueDefaultName(
+        (fullName) => workspaceServiceRef.current?.exists(`${parentPath}/${fullName}`) ?? Promise.resolve(false),
+        'untitled',
+        '.txt',
+      );
+      const name = await prompt('Enter file name:', `${defaultName}.txt`, {
         title: 'Create File',
         placeholder: 'myfile.txt',
         // UX-15: show the user which folder they're creating into. For
         // subfolder-right-click-create this is the most useful info.
         destinationPath: `${parentPath}/`,
+        validate: (v) => (v.trim() ? undefined : 'Enter a file name.'),
       });
       if (!name || !workspaceServiceRef.current) return;
 
@@ -141,12 +153,16 @@ export function useFileOperations(options: UseFileOperationsOptions) {
     async (parentPath: string) => {
       const targetParentPath = parentPath || useWorkspaceStore.getState().rootPath;
       if (!targetParentPath) return;
-
-      const name = await prompt('Enter folder name:', '', {
+      const defaultName = await findUniqueDefaultName(
+        (fullName) => workspaceServiceRef.current?.exists(`${targetParentPath}/${fullName}`) ?? Promise.resolve(false),
+        'my-folder',
+      );
+      const name = await prompt('Enter folder name:', defaultName, {
         title: 'Create Folder',
         placeholder: 'my-folder',
         // UX-15: also show destination for folder creation.
         destinationPath: `${targetParentPath}/`,
+        validate: (v) => (v.trim() ? undefined : 'Enter a folder name.'),
       });
       if (!name || !workspaceServiceRef.current) return;
 
@@ -175,6 +191,7 @@ export function useFileOperations(options: UseFileOperationsOptions) {
       const currentName = path.split('/').pop() ?? '';
       const newName = await prompt('Enter new name:', currentName, {
         title: 'Rename',
+        validate: (v) => (v.trim() ? undefined : 'Enter a name.'),
       });
       if (!newName || newName === currentName || !workspaceServiceRef.current) return;
 
