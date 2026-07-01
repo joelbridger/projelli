@@ -32,6 +32,7 @@ import {
   kindFromMarker,
   stripBlockMarkers,
 } from './answerBlockMarkers';
+import { normalizeNumericCitations } from '@/platform/rag/workspaceCommand';
 import type { WorkspaceSource } from '@/platform/types/ai';
 import type { RagHit } from '@/platform/utils/tauri-commands';
 
@@ -126,6 +127,46 @@ function scrubCitationMarkers(text: string): string {
     .trim();
 }
 
+/** A raw `[file paragraph N]` / `[file page N]` / `[file §N]` citation marker. */
+const RAW_CITATION_MARKER_RE = /\[[^[\]\n]+?\s+(?:paragraph\s+|page\s+|§\s*)\d+\]/i;
+
+/**
+ * A number-keyed citation as a small local model emits it: `[1 paragraph 3]`,
+ * `[1 §3]`, or a bare `[1]` (excluding `[1](url)` markdown links and array/
+ * footnote syntax preceded by a word char or `]`). Mirrors the forms
+ * {@link normalizeNumericCitations} repairs, so a nothing-found block that cites
+ * this way is recognized as carrying a real, groundable claim.
+ */
+const NUMERIC_CITATION_MARKER_RE =
+  /\[\d{1,3}\s+(?:paragraph\s+|page\s+|§\s*)\d+\]|(?<![\w\]])\[\d{1,3}\](?!\()/i;
+
+/**
+ * The longest a genuine nothing-found block should be: it is only ever a brief
+ * "I didn't find that in their files" acknowledgment (the actual guidance goes
+ * in a SEPARATE general block, per the prompt contract). A small local model
+ * routinely ignores that split and stuffs a full real answer under the
+ * `[[BLOCK:NOTHING_FOUND]]` marker — which is exactly what produced the observed
+ * "From your files — nothing found" header sitting over a real, asserted answer.
+ */
+const MAX_BRIEF_NOTHING_FOUND_CHARS = 220;
+
+/**
+ * Whether a `nothing-found` block actually carries real answer content (a
+ * mislabel by a small model) rather than a brief absence statement. Such a block
+ * must NOT keep the "nothing found" label over a real answer; the caller routes
+ * it through the files-binding path so it becomes either a properly-cited files
+ * block or honest uncited general prose — never a contradictory header.
+ */
+function nothingFoundBlockHasRealContent(text: string): boolean {
+  // Any citation — filename-form OR the small-local-model number-keyed form
+  // (`[1]`, `[1 paragraph 3]`) — means the model asserted a sourced claim, even
+  // in a short block, so route it to the grounding path rather than leaving a
+  // "nothing found" header over it.
+  if (RAW_CITATION_MARKER_RE.test(text)) return true;
+  if (NUMERIC_CITATION_MARKER_RE.test(text)) return true;
+  return scrubCitationMarkers(text).length > MAX_BRIEF_NOTHING_FOUND_CHARS;
+}
+
 export interface BoundAnswerBlocks {
   /** The provenance-labelled blocks, in answer order. */
   blocks: AnswerBlock[];
@@ -158,38 +199,72 @@ export function bindAnswerBlocks(
   const acc = newCitationBindAccumulator();
   const blocks: AnswerBlock[] = [];
 
+  // Bind a block's prose against the retrieved hits and return the resulting
+  // provenance blocks: a green FILES block (optionally with trailing general
+  // prose split off) when its citations all ground in scope, else an honest,
+  // scrubbed general block. Shared by real FILES blocks and by mislabeled
+  // nothing-found blocks that actually carry a real answer.
+  const bindAsFilesBlock = (rawText: string): AnswerBlock[] => {
+    // F-503: small local models (Qwen3-4B) cite the source NUMBER from the
+    // context block (`[1]`, `[1 paragraph 3]`) instead of copying the filename,
+    // so those citations never bind and the answer renders with no chips / empty
+    // Sources even though the context WAS retrieved. Repair number-keyed
+    // citations to `[<filename> paragraph N]` HERE — inside the files-bind path
+    // only. Doing it per files block (not globally on the whole smart answer) is
+    // deliberate: a general/draft block may legitimately contain bracketed
+    // numeric text like `[1]` (a footnote or list/form reference); rewriting
+    // that into a file citation would then get it scrubbed as a non-file block,
+    // silently deleting user-visible prose. No-op for filename citations (cloud)
+    // and when nothing was retrieved.
+    const text = bindCitationsCore(
+      normalizeNumericCitations(rawText, hits),
+      hits,
+      expectedMatterId,
+      acc,
+    );
+    // Which citation numbers actually landed in THIS block's text (a source
+    // reused across blocks should chip in each block it appears in).
+    const present = new Set<number>();
+    for (const mm of text.matchAll(/\{(\d+)\}/g)) present.add(Number.parseInt(mm[1] ?? '0', 10));
+    const blockCitations = acc.citations.filter((c) => present.has(c.n));
+    // TRUST BOUNDARY (Codex P1): a block earns the green "From your files"
+    // label ONLY if it has at least one citation and EVERY one of them actually
+    // GROUNDED to a retrieved chunk IN SCOPE (verified). This rejects three
+    // ways a green badge could otherwise sit over un-trustworthy text:
+    //   - zero citations (fabricated/unbound, incl. the unmarked-answer
+    //     fallback that inferred 'files' from the mere presence of hits);
+    //   - a MIXED block where one citation is cross-matter/unverified — the
+    //     "every cited claim can be checked" attestation would then over-claim,
+    //     and another client's file must never read as "from your files".
+    // Anything that fails the test is the model's own prose — downgrade to a
+    // general block and scrub every marker.
+    // B1: gate on `grounded` (resolves to a real retrieved chunk IN SCOPE),
+    // not `verified`. `grounded` keeps the SAME trust boundary that mattered
+    // here — a cross-client citation is not grounded, so it still downgrades
+    // the block — while letting an honest post-hoc "source found, not
+    // verified" chip stay in its files block instead of being scrubbed away.
+    // (Pre-B1 citations have no `grounded`; fall back to `verified`.)
+    if (blockCitations.length > 0 && blockCitations.every((c) => c.grounded ?? c.verified)) {
+      // Keep the cited content green, but split off any trailing UNCITED
+      // general prose into its own general block (review P1).
+      return splitTrailingGeneralFromFilesBlock(text, blockCitations);
+    }
+    return [{ kind: 'general', text: scrubCitationMarkers(text), citations: [] }];
+  };
+
   for (const rb of rawBlocks) {
-    if (rb.kind === 'files') {
-      const text = bindCitationsCore(rb.text, hits, expectedMatterId, acc);
-      // Which citation numbers actually landed in THIS block's text (a source
-      // reused across blocks should chip in each block it appears in).
-      const present = new Set<number>();
-      for (const mm of text.matchAll(/\{(\d+)\}/g)) present.add(Number.parseInt(mm[1] ?? '0', 10));
-      const blockCitations = acc.citations.filter((c) => present.has(c.n));
-      // TRUST BOUNDARY (Codex P1): a block earns the green "From your files"
-      // label ONLY if it has at least one citation and EVERY one of them actually
-      // GROUNDED to a retrieved chunk IN SCOPE (verified). This rejects three
-      // ways a green badge could otherwise sit over un-trustworthy text:
-      //   - zero citations (fabricated/unbound, incl. the unmarked-answer
-      //     fallback that inferred 'files' from the mere presence of hits);
-      //   - a MIXED block where one citation is cross-matter/unverified — the
-      //     "every cited claim can be checked" attestation would then over-claim,
-      //     and another client's file must never read as "from your files".
-      // Anything that fails the test is the model's own prose — downgrade to a
-      // general block and scrub every marker.
-      // B1: gate on `grounded` (resolves to a real retrieved chunk IN SCOPE),
-      // not `verified`. `grounded` keeps the SAME trust boundary that mattered
-      // here — a cross-client citation is not grounded, so it still downgrades
-      // the block — while letting an honest post-hoc "source found, not
-      // verified" chip stay in its files block instead of being scrubbed away.
-      // (Pre-B1 citations have no `grounded`; fall back to `verified`.)
-      if (blockCitations.length > 0 && blockCitations.every((c) => c.grounded ?? c.verified)) {
-        // Keep the cited content green, but split off any trailing UNCITED
-        // general prose into its own general block (review P1).
-        blocks.push(...splitTrailingGeneralFromFilesBlock(text, blockCitations));
-      } else {
-        blocks.push({ kind: 'general', text: scrubCitationMarkers(text), citations: [] });
-      }
+    // A nothing-found block that actually carries a real answer (a small local
+    // model ignoring the "brief absence only" contract and stuffing the answer
+    // under the marker) must never render a "nothing found" header over that
+    // answer. Route it through the same grounding path as a files block so it
+    // becomes properly-cited files content — recovering the citations the model
+    // did emit — or honest uncited general prose. Genuinely brief absence
+    // statements keep their nothing-found label.
+    const treatAsFiles =
+      rb.kind === 'files' ||
+      (rb.kind === 'nothing-found' && nothingFoundBlockHasRealContent(rb.text));
+    if (treatAsFiles) {
+      blocks.push(...bindAsFilesBlock(rb.text));
     } else {
       blocks.push({ kind: rb.kind, text: scrubCitationMarkers(rb.text), citations: [] });
     }

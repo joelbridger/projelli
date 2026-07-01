@@ -233,6 +233,22 @@ async fn append_download(
         .await
         .with_context(|| format!("download {}", spec.source_url))?;
 
+    if already_done > 0 && resp.status() == reqwest::StatusCode::RANGE_NOT_SATISFIABLE {
+        // The CDN has nothing to send from this offset. If the bytes already on
+        // disk are the full expected size, the transfer simply finished on a
+        // prior run — treat the 416 as "already complete" and let the caller
+        // verify + finalize, rather than bailing. (download_model_to_dir also
+        // skips the resume request entirely when the .part file is exactly
+        // spec.size; this guards the stale-length / race case defensively.)
+        let on_disk = tokio::fs::metadata(part_path)
+            .await
+            .map(|m| m.len())
+            .unwrap_or(0);
+        if on_disk == spec.size {
+            return Ok(());
+        }
+        bail!("resume failed: HTTP {}", resp.status());
+    }
     if already_done > 0 && resp.status() == reqwest::StatusCode::OK {
         bail!("server ignored resume request for local AI model download");
     }
@@ -304,7 +320,14 @@ pub async fn download_model_to_dir(
     }
     let partial_len = std::fs::metadata(&part_path).map(|m| m.len()).unwrap_or(0);
 
-    ensure_disk_space(model_dir, partial_len, spec.size)?;
+    // A `.part` file already at the full expected size needs no more bytes — only
+    // a hash + rename to finalize — so skip the free-space reserve check for it.
+    // Otherwise a machine left with < the 256 MB reserve right after pulling the
+    // 2.5 GB model would be unable to finalize an already-complete download.
+    let already_complete = partial_len == spec.size;
+    if !already_complete {
+        ensure_disk_space(model_dir, partial_len, spec.size)?;
+    }
 
     write_manifest(model_dir, &spec.manifest(LocalModelStatus::Downloading))?;
     sink(progress(
@@ -314,13 +337,21 @@ pub async fn download_model_to_dir(
         None,
     ));
 
-    let client = reqwest::Client::builder()
-        .connect_timeout(std::time::Duration::from_secs(20))
-        .timeout(std::time::Duration::from_secs(60 * 60))
-        .build()
-        .context("build local AI model download client")?;
+    // When the .part file already holds the full expected byte count, the
+    // transfer finished on a prior run (or the app was killed/backgrounded after
+    // the last byte landed but before finalization). Skip the resume request
+    // entirely: asking the CDN for bytes at/past EOF earns a 416, which the code
+    // used to treat as fatal, permanently wedging an already-complete download.
+    // Fall straight through to the shared verify → rename → Ready-manifest path.
+    if !already_complete {
+        let client = reqwest::Client::builder()
+            .connect_timeout(std::time::Duration::from_secs(20))
+            .timeout(std::time::Duration::from_secs(60 * 60))
+            .build()
+            .context("build local AI model download client")?;
 
-    append_download(&client, spec, &part_path, partial_len, &sink).await?;
+        append_download(&client, spec, &part_path, partial_len, &sink).await?;
+    }
 
     let actual_size = std::fs::metadata(&part_path)
         .with_context(|| format!("stat {}", part_path.display()))?
@@ -497,6 +528,30 @@ mod tests {
         (url, handle)
     }
 
+    /// A server that answers every request (range or not) with 416 Range Not
+    /// Satisfiable — mimics Hugging Face's CDN reply to a `Range: bytes=<eof>-`
+    /// request for a file we've already fully downloaded.
+    async fn fake_416_server(body_len: usize) -> (String, tokio::task::JoinHandle<()>) {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let url = format!("http://{}/model.gguf", listener.local_addr().unwrap());
+        let handle = tokio::spawn(async move {
+            loop {
+                let Ok((mut socket, _)) = listener.accept().await else {
+                    break;
+                };
+                tokio::spawn(async move {
+                    let mut buf = vec![0_u8; 4096];
+                    let _ = socket.read(&mut buf).await;
+                    let resp = format!(
+                        "HTTP/1.1 416 Range Not Satisfiable\r\ncontent-range: bytes */{body_len}\r\ncontent-length: 0\r\n\r\n"
+                    );
+                    let _ = socket.write_all(resp.as_bytes()).await;
+                });
+            }
+        });
+        (url, handle)
+    }
+
     #[test]
     fn production_manifest_uses_pinned_hugging_face_revision() {
         let spec = ModelDownloadSpec::production();
@@ -611,6 +666,74 @@ mod tests {
         assert_eq!(std::fs::read(&path).unwrap(), bytes);
         assert!(!part.exists());
         assert!(model_ready_in(tmp.path(), &spec));
+        server.abort();
+    }
+
+    /// Bug 2 (primary): a `.part` file already at the full expected size must be
+    /// finalized WITHOUT issuing a resume request. The source URL points at a
+    /// closed port, so if `append_download` were called at all the download would
+    /// error — proving the resume request is skipped entirely.
+    #[tokio::test]
+    async fn complete_part_finalizes_without_contacting_server() {
+        let bytes = b"tiny fake gguf bytes".to_vec();
+        // Port 1 refuses instantly; any network attempt here fails.
+        let spec = tiny_spec("http://127.0.0.1:1/model.gguf".to_string(), &bytes);
+        let tmp = tempfile::tempdir().unwrap();
+        let part = part_file_path(tmp.path(), &spec);
+        std::fs::write(&part, &bytes).unwrap();
+
+        let path = download_model_to_dir(tmp.path(), &spec, |_| {})
+            .await
+            .expect("a complete .part file must finalize without a resume request");
+
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
+        assert!(!part.exists(), ".part must be renamed to the final file");
+        assert!(model_ready_in(tmp.path(), &spec));
+        let manifest = read_manifest(tmp.path()).unwrap().unwrap();
+        assert_eq!(manifest.status, LocalModelStatus::Ready);
+    }
+
+    /// Bug 2 (defense-in-depth): if the resume request itself comes back 416 but
+    /// the on-disk `.part` is already the full expected size, treat it as done
+    /// rather than fatal — don't corrupt or re-download a good file.
+    #[tokio::test]
+    async fn resume_416_on_complete_part_is_treated_as_done() {
+        let bytes = b"0123456789abcdef".to_vec();
+        let (url, server) = fake_416_server(bytes.len()).await;
+        let spec = tiny_spec(url, &bytes);
+        let tmp = tempfile::tempdir().unwrap();
+        let part = part_file_path(tmp.path(), &spec);
+        std::fs::write(&part, &bytes).unwrap();
+        let client = reqwest::Client::new();
+
+        append_download(&client, &spec, &part, bytes.len() as u64, &|_| {})
+            .await
+            .expect("416 on an already-complete file must be treated as done");
+
+        // Bytes are untouched — not re-downloaded or corrupted.
+        assert_eq!(std::fs::read(&part).unwrap(), bytes);
+        server.abort();
+    }
+
+    /// A 416 on an INCOMPLETE `.part` (bytes on disk are short of expected) is
+    /// still a genuine failure and must bail — we don't silently finalize a
+    /// truncated file.
+    #[tokio::test]
+    async fn resume_416_on_incomplete_part_bails() {
+        let bytes = b"0123456789abcdef".to_vec();
+        let (url, server) = fake_416_server(bytes.len()).await;
+        let spec = tiny_spec(url, &bytes);
+        let tmp = tempfile::tempdir().unwrap();
+        let part = part_file_path(tmp.path(), &spec);
+        std::fs::write(&part, &bytes[..7]).unwrap();
+        let client = reqwest::Client::new();
+
+        let err = append_download(&client, &spec, &part, 7, &|_| {})
+            .await
+            .unwrap_err()
+            .to_string();
+
+        assert!(err.contains("resume failed"), "{err}");
         server.abort();
     }
 

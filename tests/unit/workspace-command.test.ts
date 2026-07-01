@@ -311,6 +311,25 @@ describe('normalizeNumericCitations (F-503)', () => {
     );
   });
 
+  it('captures the PDF [N page M] form and binds it to the exact chunk ordinal', () => {
+    // Codex P2: PDF/scan sources are labelled "page N" in the context block, so
+    // a local model can emit `[1 page 2]`. It repairs through the source's
+    // UNIQUE per-chunk paragraphIndex — so two chunks on the SAME page keep
+    // distinct targets (the resolved hit still renders as "page N" to the user).
+    const pdfSources = [
+      { path: '/ws/matter/filing.pdf', paragraphIndex: 200 }, // page 2, chunk A
+      { path: '/ws/matter/filing.pdf', paragraphIndex: 201 }, // page 2, chunk B
+    ];
+    // `[1 page 2]` and `[2 page 2]` bind to DIFFERENT chunks, not the same page.
+    expect(normalizeNumericCitations('First [1 page 2], second [2 page 2].', pdfSources)).toBe(
+      'First [filing.pdf paragraph 200], second [filing.pdf paragraph 201].',
+    );
+    // Bare [2] also resolves to the second source ordinal, not the first same-page chunk.
+    expect(normalizeNumericCitations('See [2].', pdfSources)).toBe(
+      'See [filing.pdf paragraph 201].',
+    );
+  });
+
   it('leaves filename citations, out-of-range numbers, and markdown links alone', () => {
     const text = 'Cited [notes.md paragraph 2], [9 paragraph 1], [3], and [1](https://x).';
     expect(normalizeNumericCitations(text, sources)).toBe(

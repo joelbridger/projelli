@@ -171,6 +171,106 @@ describe('bindAnswerBlocks', () => {
     expect(result.blocks.every((b) => b.citations.length === 0)).toBe(true);
   });
 
+  // Bug 3 (header/body contradiction): a small local model routinely stuffs a
+  // real, cited answer UNDER a [[BLOCK:NOTHING_FOUND]] marker instead of a brief
+  // absence line, producing a "From your files — nothing found" header sitting
+  // over a real answer with an empty Sources panel. A nothing-found block that
+  // actually carries grounded content must become a proper files block.
+  it('recovers a real cited answer mislabeled as nothing-found into a files block', () => {
+    const raw = [
+      BLOCK_MARKERS.nothingFound,
+      'The old 401(k) still lists Jessica Reyes as the sole primary beneficiary ' +
+        '[beneficiary.docx paragraph 3]. This should be reviewed before the rollover.',
+    ].join('\n');
+
+    const result = bindAnswerBlocks(raw, [hit()], 'webb');
+    // No "nothing found" header over a real answer.
+    expect(result.blocks.some((b) => b.kind === 'nothing-found')).toBe(false);
+    // The citation the model DID emit is recovered and the source is attached.
+    expect(result.blocks[0]?.kind).toBe('files');
+    expect(result.citations.length).toBe(1);
+    expect(result.sources.length).toBe(1);
+  });
+
+  // Codex P2: a SHORT mislabeled nothing-found block that cites a bare source
+  // number `[1]` (the local model's exact style, under the 220-char brief
+  // threshold) must still be recognized as real content and routed to the
+  // grounding path — otherwise the "nothing found" header + empty Sources bug
+  // persists for this common short-answer case.
+  it('recovers a short nothing-found block with a bare [1] citation into a files block', () => {
+    const raw = [
+      BLOCK_MARKERS.nothingFound,
+      'The old 401(k) names Jessica Reyes as the primary beneficiary [1].',
+    ].join('\n');
+
+    const result = bindAnswerBlocks(raw, [hit()], 'webb');
+    expect(result.blocks.some((b) => b.kind === 'nothing-found')).toBe(false);
+    expect(result.blocks[0]?.kind).toBe('files');
+    expect(result.citations.length).toBe(1);
+    expect(result.sources.length).toBe(1);
+  });
+
+  // Bug 3 (inconsistent citation attachment): a small local model cites the
+  // source NUMBER from the context block (`[1]`) instead of the filename, so the
+  // citation never binds and the answer renders with no chips / empty Sources —
+  // even though the context WAS retrieved. bindAnswerBlocks now repairs
+  // number-keyed citations INSIDE its files-bind path, so a bare `[1]` binds.
+  it('binds a local model bare-numeric [1] citation inside a files block', () => {
+    const rawLocalAnswer =
+      'The old 401(k) still lists Jessica Reyes as the sole primary beneficiary [1].';
+    const result = bindAnswerBlocks(rawLocalAnswer, [hit()], 'webb');
+    expect(result.blocks[0]?.kind).toBe('files');
+    expect(result.citations.length).toBe(1);
+    expect(result.sources.length).toBe(1);
+  });
+
+  // Content-integrity (independent Codex finding): the numeric-citation repair
+  // must run ONLY on file-citing blocks, never on general/draft prose. A
+  // general or draft block can legitimately contain bracketed numeric text like
+  // `[1]` (a footnote or list/form reference) — rewriting that into a file
+  // citation would then get it scrubbed as a non-file block, silently deleting
+  // user-visible answer text. The files block must still bind; the general/draft
+  // `[1]` must be preserved verbatim.
+  it('preserves bracketed [1] in general/draft blocks while binding the files block', () => {
+    const raw = [
+      BLOCK_MARKERS.files,
+      'The beneficiary is Jessica Reyes [1].',
+      BLOCK_MARKERS.general,
+      'Review checklist item [1] before the next meeting.',
+      BLOCK_MARKERS.draft,
+      'Hi Marcus — please confirm point [1] on the form.',
+    ].join('\n');
+
+    const result = bindAnswerBlocks(raw, [hit()], 'webb');
+    const kinds = result.blocks.map((b) => b.kind);
+    expect(kinds).toEqual(['files', 'general', 'draft']);
+    // Files block bound its citation.
+    expect(result.citations.length).toBe(1);
+    expect(result.blocks[0]?.text).toContain('{1}');
+    // General + draft blocks keep their literal [1] — not rewritten, not scrubbed.
+    expect(result.blocks[1]?.text).toContain('[1]');
+    expect(result.blocks[1]?.text).toContain('checklist item [1]');
+    expect(result.blocks[2]?.text).toContain('[1]');
+    expect(result.blocks[2]?.text).toContain('point [1] on the form');
+  });
+
+  // The same mislabel but with NO grounded citation (uncited prose under the
+  // marker) must not read as "nothing found" either — it becomes honest,
+  // chip-free general prose.
+  it('demotes a substantive uncited nothing-found block to general (no contradiction)', () => {
+    const raw = [
+      BLOCK_MARKERS.nothingFound,
+      'A 1031 exchange lets an owner defer capital gains by rolling proceeds from ' +
+        'one investment property into another like-kind property within strict deadlines, ' +
+        'which is a common strategy ahead of a business or real-estate sale.',
+    ].join('\n');
+
+    const result = bindAnswerBlocks(raw, []);
+    expect(result.blocks.map((b) => b.kind)).toEqual(['general']);
+    expect(result.blocks[0]?.text).not.toContain('{');
+    expect(result.citations).toEqual([]);
+  });
+
   it('downgrades a FILES block to general when no citation grounds (fabricated source)', () => {
     const raw = [
       BLOCK_MARKERS.files,
