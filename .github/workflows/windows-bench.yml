@@ -57,18 +57,25 @@ jobs:
 
           # Additive sync only (no /MIR): never delete bench-local files we don't
           # track here (e.g. anything hand-placed on the Legion outside the repo).
-          # Bare-name excludes only — robocopy silently ignores nested-path excludes.
-          robocopy $src $dst /E /XD node_modules target dist dist-node scripts binaries voices .git /NFL /NDL /NJH /NJS /R:2 /W:5
-          if ($LASTEXITCODE -ge 8) { Write-Error "robocopy failed (exit $LASTEXITCODE)"; exit 1 }
+          # `scripts/` IS synced — `npm run dev`'s predev hook
+          # (scripts/copy-build-assets.mjs) needs current code to boot the app at
+          # all. Bare-name excludes only — robocopy silently ignores nested-path excludes.
+          robocopy $src $dst /E /XD node_modules target dist dist-node binaries voices .git /NFL /NDL /NJH /NJS /R:2 /W:5
+          $robocopyExit = $LASTEXITCODE
+          if ($robocopyExit -ge 8) { Write-Error "robocopy failed (exit $robocopyExit)"; exit 1 }
+          # robocopy returns 0-7 on success (nonzero = "files were copied", not an
+          # error) — clear it so pwsh doesn't treat this step as failed.
+          $global:LASTEXITCODE = 0
           Write-Output "synced tip -> C:\keepance (dependency lockfile changed: $lockChanged)"
 
           if ($lockChanged) {
             Write-Output "package-lock.json changed — running npm install"
             Push-Location $dst
             npm install --no-audit --no-fund
-            if ($LASTEXITCODE -ne 0) { Write-Error "npm install failed"; exit 1 }
+            if ($LASTEXITCODE -ne 0) { Write-Error "npm install failed"; Pop-Location; exit 1 }
             Pop-Location
           }
+          exit 0
 
       - name: Restart the dev app (KeepanceDev) and wait for CDP 9223 + Vite 5173
         shell: pwsh
