@@ -1128,38 +1128,43 @@ export const useMatterStore = create<MatterState>()(
           }));
         }
         if (version < 10) {
-          // v9 -> v10: CANONICALIZE `folderPaths` to the ABSOLUTE shape the
-          // type declares (2026-07 path-shape-discipline fix, F2.3). v9 only
-          // sanitised the STRING shape (dropped non-strings); it never
-          // resolved a workspace-RELATIVE entry to absolute. The CRM
-          // auto-backfill sources candidate folders from the file tree's own
-          // relative node paths and used to write them straight into
-          // `folderPaths` unresolved (bench R17 — every CRM-linked client's
-          // Documents tab rendered empty until the read-time
-          // `resolveScopeFolderInRoot` bridge in scopeFileTree.ts papered over
-          // it). This migration is BEST-EFFORT: the workspace root is not
-          // reliably known this early in app bootstrap (`workspaceStore`
-          // hydrates from a later user/session action, after this store's
-          // `persist` middleware has already run its `migrate` step) — when
-          // it isn't known, `canonicalizeFolderPath` leaves a relative entry
-          // relative (still shape-clean) rather than dropping it. The
-          // `useWorkspaceStore.subscribe` reconciliation just below this store
-          // definition re-runs the same canonicalization the FIRST time a
-          // workspace root becomes known after this migration ran, so an
-          // existing install's affected matters get fixed on next open rather
-          // than only if the user happens to touch that matter's folders again
-          // (Codex review #1, F2.3).
+          // v9 -> v10: re-validate `folderPaths` SHAPE ONLY (2026-07
+          // path-shape-discipline fix, F2.3) — coerce/drop non-strings and
+          // dedupe, same as v9, but this version bump exists to carry the
+          // real-path-proof log below. It deliberately does NOT attempt to
+          // resolve a surviving workspace-RELATIVE entry to absolute here.
+          //
+          // Earlier drafts of this fix DID call `getWorkspaceRootNonReactive()`
+          // at this exact point and resolved relative -> absolute against
+          // whatever root that returned. Codex review #3 flagged that as
+          // unsound: `workspaceStore`'s `rootPath` is *usually* still null this
+          // early in bootstrap (this store's `persist` migration runs before
+          // the app opens a workspace), but isn't GUARANTEED to be — under an
+          // unusual module/HMR ordering it could already be set to some OTHER
+          // previously-open workspace, and resolving a relative entry against
+          // it here would bind it to the wrong workspace with NO validation
+          // that the folder actually exists there — reintroducing exactly the
+          // ambiguity the tree-validated reconciliation below (Codex review
+          // #2) exists to prevent, through a second, unguarded code path.
+          //
+          // So this migration always passes `workspaceRoot: null` — a
+          // surviving relative entry stays relative (shape-clean, not
+          // dropped) — and the ONLY place that binds a legacy relative entry
+          // to a workspace is the `useWorkspaceStore.subscribe` reconciliation
+          // just below, which verifies the folder actually exists in that
+          // workspace's tree before doing so. One source of truth for a
+          // decision that can otherwise silently corrupt matter-folder
+          // mapping.
           //
           // Not gated on `import.meta.env.DEV` (that block is stripped from
           // `vite build`) — this line is the real-path proof a later bench
           // pass greps for to confirm the migration actually ran in the
           // shipped app, not just in tests.
-          const workspaceRootAtMigration = getWorkspaceRootNonReactive();
           let canonicalizedCount = 0;
           let droppedCount = 0;
           state.matters = state.matters.map((m) => {
             const before = Array.isArray(m.folderPaths) ? (m.folderPaths as unknown[]) : [];
-            const after = dedupeFolderPaths(before, workspaceRootAtMigration);
+            const after = dedupeFolderPaths(before, null);
             canonicalizedCount += after.length;
             droppedCount += before.length - after.length;
             return { ...m, folderPaths: after };

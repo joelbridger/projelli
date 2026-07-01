@@ -62,8 +62,14 @@ beforeEach(async () => {
 });
 
 describe('matter-store merge — v9 -> v10 folderPaths canonicalization', () => {
-  it('resolves a workspace-relative folderPaths entry to absolute when the workspace root is already known at migration time', async () => {
-    useWorkspaceStore.setState({ rootPath: 'C:/workspaces/Northcrest' });
+  it('never resolves a relative folderPaths entry to absolute during migration itself, even if a workspace root already happens to be set (Codex review #3)', async () => {
+    // The migration deliberately does NOT attempt root-resolution — see the
+    // v9->v10 `migrate` doc comment. Binding a legacy relative entry to a
+    // workspace root is done ONLY by the tree-validated reconciliation
+    // subscription below, never by the migration directly (that would
+    // reintroduce the "bind to whichever workspace happens to be open, with no
+    // proof the folder exists there" risk through a second, unguarded path).
+    useWorkspaceStore.setState({ rootPath: 'C:/workspaces/Northcrest', fileTree: [] });
     seed(MATTERS_KEY, {
       state: {
         matters: [{ ...sampleMatterV4, folderPaths: ['Clients/Hollings'] }],
@@ -72,6 +78,14 @@ describe('matter-store merge — v9 -> v10 folderPaths canonicalization', () => 
       version: 9,
     });
     await useMatterStore.persist.rehydrate();
+    expect(useMatterStore.getState().matters[0]!.folderPaths).toEqual(['Clients/Hollings']);
+
+    // Only the reconciliation subscription (fired by a REAL workspace-store
+    // change, with a tree that verifies the folder) can bind it.
+    useWorkspaceStore.setState({
+      rootPath: 'C:/workspaces/Northcrest',
+      fileTree: [{ id: 'h', name: 'Hollings', path: 'Clients/Hollings', type: 'folder' }],
+    });
     expect(useMatterStore.getState().matters[0]!.folderPaths).toEqual([
       'C:/workspaces/Northcrest/Clients/Hollings',
     ]);
