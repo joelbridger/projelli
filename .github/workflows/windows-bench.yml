@@ -1,18 +1,23 @@
 name: Windows Bench (robot smoke)
 
-# Runs the test robot's end-to-end smoke against the Advisor Prep Hero desktop app on a
-# self-hosted Windows runner (the Legion). The robot drives the already-running app
-# over the WebView2 CDP port (localhost:9223), so the job only needs local network
-# access to that port — no GUI rendering in the job itself.
+# Runs the test robot's end-to-end smoke against the Keepance desktop app on a
+# self-hosted Windows runner (the Legion). The robot drives the app over the
+# WebView2 CDP port (localhost:9223), so the job only needs local network access
+# to that port — no GUI rendering in the job itself.
 #
-# Manual trigger for now (the cloud-Windows spike): gh workflow run windows-bench.yml
-# Prereq: the app is running on the bench (development build) and CDP 9223 is up.
+# This job is SELF-SUFFICIENT: it does not assume the app (or even Windows'
+# power state) is already correct. It (1) sets the Legion to never sleep, (2)
+# syncs the checked-out tip into the dev app directory so the smoke always
+# tests current code — not whatever was last hand-deployed, (3) restarts the
+# dev app and waits for it to come up, THEN runs the smoke. On failure it
+# writes a job-summary so a red run is loud, never silent.
+#
+# Manual trigger: gh workflow run windows-bench.yml
 
 on:
   workflow_dispatch:
   schedule:
-    # Nightly hands-free real-app Windows smoke (~02:00 Mountain). The bench app
-    # (development build) and the self-hosted runner are always-on. Manual: gh workflow run.
+    # Nightly hands-free real-app Windows smoke (~02:00 Mountain). Manual: gh workflow run.
     - cron: '0 9 * * *'
 
 concurrency:
@@ -22,19 +27,74 @@ concurrency:
 jobs:
   robot-smoke:
     runs-on: [self-hosted, windows-bench]
-    timeout-minutes: 15
+    # Generous budget: a cold Rust rebuild (Legion idle a long time) can take
+    # ~20 min; the smoke itself is a few minutes. Most runs finish far sooner.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Playwright package (no browser download — robot connects over CDP)
-        run: npm install --no-audit --no-fund --no-save playwright
-
-      - name: Confirm the app is listening on CDP 9223
+      - name: Keep the Legion awake (insurance against the runner going offline again)
         shell: pwsh
         run: |
-          $c = (Get-NetTCPConnection -LocalPort 9223 -State Listen -ErrorAction SilentlyContinue | Measure-Object).Count
-          if ($c -lt 1) { Write-Error "Advisor Prep Hero app is not listening on CDP 9223 (start dev build)"; exit 1 }
-          Write-Output "app up on CDP 9223"
+          powercfg /change standby-timeout-ac 0
+          powercfg /change hibernate-timeout-ac 0
+          powercfg /change monitor-timeout-ac 0
+          Write-Output "Power policy set: never sleep/hibernate/monitor-off on AC."
+
+      - name: Sync current tip into C:\keepance (the dev app the robot drives)
+        shell: pwsh
+        run: |
+          $src = $env:GITHUB_WORKSPACE
+          $dst = "C:\keepance"
+          New-Item -ItemType Directory -Force -Path $dst | Out-Null
+
+          $lockChanged = $true
+          if (Test-Path "$dst\package-lock.json") {
+            $oldHash = (Get-FileHash "$dst\package-lock.json" -Algorithm SHA256).Hash
+            $newHash = (Get-FileHash "$src\package-lock.json" -Algorithm SHA256).Hash
+            $lockChanged = ($oldHash -ne $newHash)
+          }
+
+          # Additive sync only (no /MIR): never delete bench-local files we don't
+          # track here (e.g. anything hand-placed on the Legion outside the repo).
+          # Bare-name excludes only — robocopy silently ignores nested-path excludes.
+          robocopy $src $dst /E /XD node_modules target dist dist-node scripts binaries voices .git /NFL /NDL /NJH /NJS /R:2 /W:5
+          if ($LASTEXITCODE -ge 8) { Write-Error "robocopy failed (exit $LASTEXITCODE)"; exit 1 }
+          Write-Output "synced tip -> C:\keepance (dependency lockfile changed: $lockChanged)"
+
+          if ($lockChanged) {
+            Write-Output "package-lock.json changed — running npm install"
+            Push-Location $dst
+            npm install --no-audit --no-fund
+            if ($LASTEXITCODE -ne 0) { Write-Error "npm install failed"; exit 1 }
+            Pop-Location
+          }
+
+      - name: Restart the dev app (KeepanceDev) and wait for CDP 9223 + Vite 5173
+        shell: pwsh
+        run: |
+          Stop-Process -Name node,cargo,keepance,Keepance,msedgewebview2 -Force -ErrorAction SilentlyContinue
+          Start-Sleep -Seconds 6
+          Start-ScheduledTask -TaskName KeepanceDev
+
+          $ok = $false
+          for ($i = 0; $i -lt 120; $i++) {
+            Start-Sleep -Seconds 10
+            $cdp = 0
+            try { $cdp = (Invoke-WebRequest http://127.0.0.1:9223/json/version -UseBasicParsing -TimeoutSec 4).StatusCode } catch {}
+            $vite = (Get-NetTCPConnection -LocalPort 5173 -State Listen -ErrorAction SilentlyContinue | Measure-Object).Count
+            Write-Output "poll $i: cdp=$cdp vite=$vite"
+            if ($cdp -eq 200 -and $vite -ge 1) { $ok = $true; break }
+          }
+          if (-not $ok) {
+            Write-Error "App never came up on CDP 9223 / Vite 5173 within budget."
+            Get-Content C:\tauri-dev.log -Tail 80 -ErrorAction SilentlyContinue
+            exit 1
+          }
+          Write-Output "app up: CDP 9223 + Vite 5173"
+
+      - name: Install Playwright package (no browser download — robot connects over CDP)
+        run: npm install --no-audit --no-fund --no-save playwright
 
       - name: Run the robot smoke (Windows-native, drives the live app over CDP)
         shell: pwsh
@@ -42,3 +102,11 @@ jobs:
           ROBOT_LOCAL: '1'
           DESKTOP_CDP_PORT: '9223'
         run: node scripts/robot/smoke.mjs
+
+      - name: Failure summary (make a red run loud, never silent)
+        if: failure()
+        shell: pwsh
+        run: |
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "## :x: Windows Bench smoke FAILED"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value ""
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "Check the failing step's log above. Common causes: the app never reached CDP 9223 / Vite 5173 (see \`C:\tauri-dev.log\`), a robot verb assertion failed (real product bug), or the Legion went offline again (self-hosted runner status: \`gh api repos/keepance/keepance/actions/runners\`)."
