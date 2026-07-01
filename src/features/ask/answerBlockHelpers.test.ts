@@ -192,6 +192,24 @@ describe('bindAnswerBlocks', () => {
     expect(result.sources.length).toBe(1);
   });
 
+  // Codex P2: a SHORT mislabeled nothing-found block that cites a bare source
+  // number `[1]` (the local model's exact style, under the 220-char brief
+  // threshold) must still be recognized as real content and routed to the
+  // grounding path — otherwise the "nothing found" header + empty Sources bug
+  // persists for this common short-answer case.
+  it('recovers a short nothing-found block with a bare [1] citation into a files block', () => {
+    const raw = [
+      BLOCK_MARKERS.nothingFound,
+      'The old 401(k) names Jessica Reyes as the primary beneficiary [1].',
+    ].join('\n');
+
+    const result = bindAnswerBlocks(raw, [hit()], 'webb');
+    expect(result.blocks.some((b) => b.kind === 'nothing-found')).toBe(false);
+    expect(result.blocks[0]?.kind).toBe('files');
+    expect(result.citations.length).toBe(1);
+    expect(result.sources.length).toBe(1);
+  });
+
   // Bug 3 (inconsistent citation attachment): a small local model cites the
   // source NUMBER from the context block (`[1]`) instead of the filename, so the
   // citation never binds and the answer renders with no chips / empty Sources —

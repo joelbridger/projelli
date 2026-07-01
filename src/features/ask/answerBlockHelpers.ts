@@ -131,6 +131,16 @@ function scrubCitationMarkers(text: string): string {
 const RAW_CITATION_MARKER_RE = /\[[^[\]\n]+?\s+(?:paragraph\s+|page\s+|§\s*)\d+\]/i;
 
 /**
+ * A number-keyed citation as a small local model emits it: `[1 paragraph 3]`,
+ * `[1 §3]`, or a bare `[1]` (excluding `[1](url)` markdown links and array/
+ * footnote syntax preceded by a word char or `]`). Mirrors the forms
+ * {@link normalizeNumericCitations} repairs, so a nothing-found block that cites
+ * this way is recognized as carrying a real, groundable claim.
+ */
+const NUMERIC_CITATION_MARKER_RE =
+  /\[\d{1,3}\s+(?:paragraph\s+|§\s*)\d+\]|(?<![\w\]])\[\d{1,3}\](?!\()/i;
+
+/**
  * The longest a genuine nothing-found block should be: it is only ever a brief
  * "I didn't find that in their files" acknowledgment (the actual guidance goes
  * in a SEPARATE general block, per the prompt contract). A small local model
@@ -148,7 +158,12 @@ const MAX_BRIEF_NOTHING_FOUND_CHARS = 220;
  * block or honest uncited general prose — never a contradictory header.
  */
 function nothingFoundBlockHasRealContent(text: string): boolean {
+  // Any citation — filename-form OR the small-local-model number-keyed form
+  // (`[1]`, `[1 paragraph 3]`) — means the model asserted a sourced claim, even
+  // in a short block, so route it to the grounding path rather than leaving a
+  // "nothing found" header over it.
   if (RAW_CITATION_MARKER_RE.test(text)) return true;
+  if (NUMERIC_CITATION_MARKER_RE.test(text)) return true;
   return scrubCitationMarkers(text).length > MAX_BRIEF_NOTHING_FOUND_CHARS;
 }
 
