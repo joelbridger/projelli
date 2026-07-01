@@ -311,6 +311,25 @@ describe('normalizeNumericCitations (F-503)', () => {
     );
   });
 
+  it('rewrites [N page M] and bare [N] to the PDF source page locator', () => {
+    // Codex P2: PDF/scan sources are labelled "page N" in the context block, so
+    // a local model can emit `[1 page 2]` — which must repair to the source's
+    // real page locator (bound by pageNumber), not a paragraph form.
+    const pdfSources = [
+      { path: '/ws/matter/filing.pdf', paragraphIndex: 100, pageNumber: 2 },
+      { path: '/ws/matter/notes.md', paragraphIndex: 4 },
+    ];
+    expect(normalizeNumericCitations('The award was $73,250 [1 page 2].', pdfSources)).toBe(
+      'The award was $73,250 [filing.pdf page 2].',
+    );
+    // Bare [1] on a PDF source also uses the page locator.
+    expect(normalizeNumericCitations('See [1].', pdfSources)).toBe('See [filing.pdf page 2].');
+    // A text source in the same list still uses paragraph.
+    expect(normalizeNumericCitations('See [2 paragraph 1].', pdfSources)).toBe(
+      'See [notes.md paragraph 4].',
+    );
+  });
+
   it('leaves filename citations, out-of-range numbers, and markdown links alone', () => {
     const text = 'Cited [notes.md paragraph 2], [9 paragraph 1], [3], and [1](https://x).';
     expect(normalizeNumericCitations(text, sources)).toBe(

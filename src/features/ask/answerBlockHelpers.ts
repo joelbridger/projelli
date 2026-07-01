@@ -138,7 +138,7 @@ const RAW_CITATION_MARKER_RE = /\[[^[\]\n]+?\s+(?:paragraph\s+|page\s+|§\s*)\d+
  * this way is recognized as carrying a real, groundable claim.
  */
 const NUMERIC_CITATION_MARKER_RE =
-  /\[\d{1,3}\s+(?:paragraph\s+|§\s*)\d+\]|(?<![\w\]])\[\d{1,3}\](?!\()/i;
+  /\[\d{1,3}\s+(?:paragraph\s+|page\s+|§\s*)\d+\]|(?<![\w\]])\[\d{1,3}\](?!\()/i;
 
 /**
  * The longest a genuine nothing-found block should be: it is only ever a brief

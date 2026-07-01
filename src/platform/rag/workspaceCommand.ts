@@ -257,22 +257,31 @@ export function parseCitations(content: string): ParsedCitation[] {
  * (`[1 paragraph 3]`, `[1 §3]`, or bare `[1]`) instead of the filename, so
  * resolution, live verification, and click-through all fail. Rewrite the
  * number through the message's ordered sources to the real
- * `[<basename> paragraph <paragraphIndex>]`. Pure text -> text; citations
- * that already carry a filename are untouched; bare `[N]` is only rewritten
- * when 1 <= N <= sources.length (markdown links `[1](url)` excluded).
+ * `[<basename> paragraph <paragraphIndex>]` — or `[<basename> page <pageNumber>]`
+ * when the numbered source is a PDF/scan (the context block labels those
+ * "page N", so a model can emit `[1 page 2]`). Using the source's OWN locator
+ * also corrects a model that copied the wrong number. Pure text -> text;
+ * citations that already carry a filename are untouched; bare `[N]` is only
+ * rewritten when 1 <= N <= sources.length (markdown links `[1](url)` excluded).
  */
 export function normalizeNumericCitations(
   content: string,
-  sources: ReadonlyArray<{ path: string; paragraphIndex: number }>,
+  sources: ReadonlyArray<{ path: string; paragraphIndex: number; pageNumber?: number | null }>,
 ): string {
   if (sources.length === 0) return content;
   const rewrite = (n: number): string | null => {
     const src = sources[n - 1];
     if (!src) return null;
-    return `[${citationBasename(src.path)} paragraph ${String(src.paragraphIndex)}]`;
+    // Emit the source's own locator: a PDF/scan cites "page N" (bound by
+    // pageNumber), a text source "paragraph N" (bound by paragraphIndex).
+    const locator =
+      src.pageNumber != null
+        ? `page ${String(src.pageNumber)}`
+        : `paragraph ${String(src.paragraphIndex)}`;
+    return `[${citationBasename(src.path)} ${locator}]`;
   };
   let out = content.replace(
-    /\[(\d{1,3})\s+(?:paragraph\s+|§\s*)\d+\]/gi,
+    /\[(\d{1,3})\s+(?:paragraph\s+|page\s+|§\s*)\d+\]/gi,
     (match, nStr: string) => rewrite(Number.parseInt(nStr, 10)) ?? match,
   );
   // Bare-[N] hardening (Task 4 review): `items[1]`, `terms[1]` in quoted
