@@ -785,6 +785,20 @@ function App() {
           root = opened;
         }
 
+        // 1b. Register the workspace in Recents — the SAME store path the normal
+        //     Workspace Selector uses (workspaceStore.addRecentWorkspace, which
+        //     persists to `keepance_recent_workspaces`). Without this, the
+        //     first-run gate (`!hasCompletedOnboarding() && recentWorkspaces
+        //     .length === 0`) stayed true after the sample/own workspace was
+        //     created, so any re-evaluation of the gate re-triggered onboarding
+        //     and the user looped back to the intro. Dedupes by path, so calling
+        //     it for an already-open workspace is harmless.
+        useWorkspaceStore.getState().addRecentWorkspace({
+          path: root,
+          name: root.split(/[/\\]+/).filter(Boolean).pop() ?? root,
+          lastOpened: new Date(),
+        });
+
         // 2. Sample path: write the Hendricks sample + seed its Client Map so
         //    the Client Map tab is populated in minute one (no AI/network).
         if (mode === 'sample') {
@@ -1120,7 +1134,18 @@ function App() {
   ) : null;
 
   // The WorkspaceSelector is now a full-viewport branded page — no wrapper needed.
-  if (!IS_TEST_MODE && (showWorkspaceSelector || !rootPath) && !(IS_DEMO_MODE && !demoOpenFailed)) {
+  //
+  // `|| showFirstRun`: while the first-run overlay is up we deliberately STAY on
+  // this branch, even once a workspace has loaded (rootPath set). The overlay is
+  // a fixed full-screen layer that renders in BOTH this branch and the main
+  // shell; switching branches mid-onboarding would remount OnboardingV2 and reset
+  // its internal `scene` state back to the intro — the exact loop QA hit on the
+  // "sample practice" path (create workspace → rootPath set → branch flips →
+  // wizard remounts at the intro forever). Keeping the branch stable until the
+  // wizard finishes (which clears showFirstRun) keeps the wizard mounted and
+  // advancing. This matches the documented design: "the wizard layers over the
+  // workspace selector as a full-screen overlay."
+  if (!IS_TEST_MODE && (showWorkspaceSelector || !rootPath || showFirstRun) && !(IS_DEMO_MODE && !demoOpenFailed)) {
     const canDismiss = Boolean(rootPath);
     return (
       <>

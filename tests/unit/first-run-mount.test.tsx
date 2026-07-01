@@ -110,6 +110,7 @@ vi.mock('@/platform/providers/KeychainService', () => ({
 import App from '@/App';
 import { hasCompletedOnboarding } from '@/features/onboarding/onboardingState';
 import { hasDeferredAiSetup } from '@/features/onboarding/aiSetupState';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 
 const ONBOARDING_FLAG = 'keepance_onboarding_complete';
 
@@ -118,6 +119,12 @@ beforeEach(() => {
   validateApiKeyLive.mockResolvedValue({ outcome: 'ok', message: 'ok' });
   localStorage.clear();
   sessionStorage.clear();
+  // The workspace store is a module-level Zustand store: localStorage.clear()
+  // does NOT reset its in-memory `recentWorkspaces`. Reset it here so a recent
+  // registered by one test (the ChooseStart step now records the new workspace
+  // in Recents) can't leak into the next test's first-run gate
+  // (`recentWorkspaces.length === 0`) and suppress onboarding.
+  useWorkspaceStore.setState({ recentWorkspaces: [], rootPath: null });
 });
 
 /**
