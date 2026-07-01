@@ -34,22 +34,27 @@ test.describe('Workflows surface', () => {
     await expect(page.getByTestId('associate-toolbar')).toBeVisible();
     await expect(page.getByTestId('associate-search')).toBeVisible();
 
-    await expect(page.getByTestId('associate-section-legal')).toBeVisible();
-    await expect(page.getByTestId('associate-card-legal-evidence-gap-analyzer')).toBeVisible();
+    // Default profession is 'advisor' (see professionStore.ts) — and
+    // prioritizeByProfession.ts's PIVOT-A5 branch deliberately EXCLUDES the
+    // legal pack entirely for advisors ("no deposition/contradiction
+    // pipeline, no legal-specific templates"), floating 'advisors' to the
+    // top instead. Assert against the category that's actually shown.
+    await expect(page.getByTestId('associate-section-advisors')).toBeVisible();
+    await expect(page.getByTestId('associate-card-advisors-annual-review-packet')).toBeVisible();
   });
 
   test('search filters the workflow grid', async ({ page }) => {
     const search = page.getByTestId('associate-search');
     await expect(search).toBeVisible();
 
-    await expect(page.getByTestId('associate-card-legal-evidence-gap-analyzer')).toBeVisible();
+    await expect(page.getByTestId('associate-card-advisors-annual-review-packet')).toBeVisible();
 
     await safeFill(search, '___nomatchterm___');
     await expect(page.getByTestId('associate-empty')).toBeVisible();
   });
 
   test('category sections can collapse and expand', async ({ page }) => {
-    const toggle = page.getByTestId('associate-section-toggle-legal');
+    const toggle = page.getByTestId('associate-section-toggle-advisors');
     await expect(toggle).toHaveAttribute('aria-expanded', 'true');
     await hardClick(toggle);
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
@@ -58,7 +63,7 @@ test.describe('Workflows surface', () => {
   });
 
   test('workflow cards expose stable run buttons', async ({ page }) => {
-    await expect(page.getByTestId('associate-card-legal-evidence-gap-analyzer')).toBeVisible();
-    await expect(page.getByTestId('associate-run-legal-evidence-gap-analyzer')).toBeVisible();
+    await expect(page.getByTestId('associate-card-advisors-annual-review-packet')).toBeVisible();
+    await expect(page.getByTestId('associate-run-advisors-annual-review-packet')).toBeVisible();
   });
 });
