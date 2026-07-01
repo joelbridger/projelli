@@ -61,43 +61,18 @@ beforeEach(async () => {
   useWorkspaceStore.setState({ rootPath: null });
 });
 
-describe('matter-store merge — reconciliation covers an already-loaded workspace at first import (Codex review #4)', () => {
-  it('reconciles legacy relative folderPaths against a workspace that was ALREADY loaded before matterStore evaluated', async () => {
-    // A `subscribe` callback only fires on a CHANGE. If `workspaceStore`
-    // already had its rootPath/fileTree loaded by the time matterStore's
-    // module evaluates and registers the subscription — a real possible
-    // startup ordering, not just this store's own persist migration finishing
-    // first — waiting for the next change would leave an affected matter
-    // relative indefinitely. Simulate that ordering with a fresh module graph.
-    vi.resetModules();
-    seed(MATTERS_KEY, {
-      state: { matters: [{ ...sampleMatterV4, folderPaths: ['Clients/Hollings'] }], activeMatterId: 'm1' },
-      version: 10,
-    });
-
-    const { useWorkspaceStore: freshWorkspaceStore } = await import('@/platform/fs/workspaceStore');
-    freshWorkspaceStore.setState({
-      rootPath: 'C:/workspaces/Northcrest',
-      fileTree: [{ id: 'h', name: 'Hollings', path: 'Clients/Hollings', type: 'folder' }],
-    });
-
-    // matterStore's module body runs NOW, with workspaceStore already settled.
-    const { useMatterStore: freshMatterStore } = await import('@/platform/matter/matterStore');
-
-    expect(freshMatterStore.getState().matters[0]!.folderPaths).toEqual([
-      'C:/workspaces/Northcrest/Clients/Hollings',
-    ]);
-  });
-});
-
-describe('matter-store merge — v9 -> v10 folderPaths canonicalization', () => {
-  it('never resolves a relative folderPaths entry to absolute during migration itself, even if a workspace root already happens to be set (Codex review #3)', async () => {
-    // The migration deliberately does NOT attempt root-resolution — see the
-    // v9->v10 `migrate` doc comment. Binding a legacy relative entry to a
-    // workspace root is done ONLY by the tree-validated reconciliation
-    // subscription below, never by the migration directly (that would
-    // reintroduce the "bind to whichever workspace happens to be open, with no
-    // proof the folder exists there" risk through a second, unguarded path).
+describe('matter-store merge — v9 -> v10 folderPaths canonicalization (shape-only; NEVER resolves relative -> absolute)', () => {
+  it('never resolves a relative folderPaths entry to absolute during migration, even if a workspace root already happens to be set', async () => {
+    // The migration deliberately does NOT attempt root-resolution at all —
+    // see the v9->v10 `migrate` doc comment. A prior draft of this fix DID
+    // auto-bind a surviving relative entry once a workspace opened (via a
+    // tree-existence check); that was removed after independent review found
+    // it could permanently mis-bind a matter to the WRONG workspace when two
+    // workspaces happen to share folder structure (see the "no automatic
+    // reconciliation" note in matterStore.ts). There is now NO mechanism that
+    // auto-converts a legacy relative entry to absolute — only the write-time
+    // choke-point (`createMatter`/`setFolderPaths`/`addFolderPath`), which is
+    // unambiguous by construction (only one workspace is ever in play there).
     useWorkspaceStore.setState({ rootPath: 'C:/workspaces/Northcrest', fileTree: [] });
     seed(MATTERS_KEY, {
       state: {
@@ -108,16 +83,6 @@ describe('matter-store merge — v9 -> v10 folderPaths canonicalization', () => 
     });
     await useMatterStore.persist.rehydrate();
     expect(useMatterStore.getState().matters[0]!.folderPaths).toEqual(['Clients/Hollings']);
-
-    // Only the reconciliation subscription (fired by a REAL workspace-store
-    // change, with a tree that verifies the folder) can bind it.
-    useWorkspaceStore.setState({
-      rootPath: 'C:/workspaces/Northcrest',
-      fileTree: [{ id: 'h', name: 'Hollings', path: 'Clients/Hollings', type: 'folder' }],
-    });
-    expect(useMatterStore.getState().matters[0]!.folderPaths).toEqual([
-      'C:/workspaces/Northcrest/Clients/Hollings',
-    ]);
   });
 
   it('leaves a relative folderPaths entry relative (shape-clean, not dropped) when the workspace root is not yet known', async () => {
@@ -182,111 +147,77 @@ describe('matter-store merge — v9 -> v10 folderPaths canonicalization', () => 
     // workspace root open) is NOT force-canonicalized just by rehydrating again.
     expect(useMatterStore.getState().matters[0]!.folderPaths).toEqual(['Clients/Hollings']);
   });
+});
 
-  it('reconciles a relative folderPaths entry once the workspace root AND its matching tree are known (Codex review #1)', async () => {
-    // Simulate the migration having run before a workspace root was open: the
-    // entry survives shape-clean but relative (matches the real bootstrap
-    // ordering — workspaceStore hydrates its rootPath from a LATER user action,
-    // after this store's persist migration has already completed).
+describe('matter-store merge — legacy relative folderPaths are NEVER auto-bound to a workspace (independent review finding, F2.3)', () => {
+  it('a legacy relative entry stays relative no matter how many times the workspace changes, even when the current workspace genuinely contains a matching folder', async () => {
+    // Earlier drafts of this fix bound a relative entry to whichever
+    // workspace was open IF a folder at that relative path existed in its
+    // tree. That is folder-NAME evidence, not workspace-IDENTITY evidence —
+    // removed entirely (see the "no automatic reconciliation" note in
+    // matterStore.ts). Opening a workspace, even one that happens to contain
+    // "Clients/Hollings", must never rewrite this matter's folderPaths.
     seed(MATTERS_KEY, {
       state: { matters: [{ ...sampleMatterV4, folderPaths: ['Clients/Hollings'] }], activeMatterId: 'm1' },
       version: 10,
     });
     await useMatterStore.persist.rehydrate();
-    expect(useMatterStore.getState().matters[0]!.folderPaths).toEqual(['Clients/Hollings']);
 
-    // The user now opens a workspace — rootPath transitions from null to a
-    // real value, and the tree loads with a folder at that exact relative
-    // path (verifying the entry genuinely belongs to THIS workspace, not a
-    // same-named coincidence elsewhere — Codex review #2). Without this
-    // reconciliation, the entry would stay relative forever unless the user
-    // happened to edit this matter's folders again.
     useWorkspaceStore.setState({
       rootPath: 'C:/workspaces/Northcrest',
-      fileTree: [
-        {
-          id: 'clients',
-          name: 'Clients',
-          path: 'Clients',
-          type: 'folder',
-          children: [{ id: 'hollings', name: 'Hollings', path: 'Clients/Hollings', type: 'folder' }],
-        },
-      ],
+      fileTree: [{ id: 'h', name: 'Hollings', path: 'Clients/Hollings', type: 'folder' }],
     });
+    expect(useMatterStore.getState().matters[0]!.folderPaths).toEqual(['Clients/Hollings']);
 
+    // Switching workspaces again (including back and forth) never touches it.
+    useWorkspaceStore.setState({ rootPath: 'C:/workspaces/Other', fileTree: [] });
+    expect(useMatterStore.getState().matters[0]!.folderPaths).toEqual(['Clients/Hollings']);
+  });
+
+  it('two DIFFERENT workspaces that both contain "Clients/Hollings" never cross-bind a legacy relative entry to either one (coordinator regression test)', async () => {
+    // The core risk this test locks in: a firm with a "Production" and a
+    // "Sandbox" workspace, both mirroring the same client folder structure.
+    // A relative folderPaths entry belonging to (say) Production must NEVER
+    // get silently rewritten to point at Sandbox's absolute path just because
+    // Sandbox happens to be opened first and also has a same-named folder —
+    // that would scope a matter's documents/RAG retrieval at the WRONG
+    // workspace's files, a confidentiality-adjacent correctness bug, and
+    // (once rewritten absolute) could never self-correct even when the
+    // correct workspace opens later.
+    seed(MATTERS_KEY, {
+      state: { matters: [{ ...sampleMatterV4, folderPaths: ['Clients/Hollings'] }], activeMatterId: 'm1' },
+      version: 10,
+    });
+    await useMatterStore.persist.rehydrate();
+
+    const sameShapedTree = [
+      { id: 'h', name: 'Hollings', path: 'Clients/Hollings', type: 'folder' as const },
+    ];
+
+    // Sandbox opens FIRST — same folder structure, wrong workspace.
+    useWorkspaceStore.setState({ rootPath: 'C:/workspaces/Sandbox', fileTree: sameShapedTree });
+    expect(useMatterStore.getState().matters[0]!.folderPaths).toEqual(['Clients/Hollings']);
+
+    // Production opens next — ALSO matches. Still must not bind to EITHER.
+    useWorkspaceStore.setState({ rootPath: 'C:/workspaces/Production', fileTree: sameShapedTree });
+    expect(useMatterStore.getState().matters[0]!.folderPaths).toEqual(['Clients/Hollings']);
+
+    // Switching back to Sandbox again — still relative, still never bound.
+    useWorkspaceStore.setState({ rootPath: 'C:/workspaces/Sandbox', fileTree: sameShapedTree });
+    expect(useMatterStore.getState().matters[0]!.folderPaths).toEqual(['Clients/Hollings']);
+
+    // The ONLY way this ever resolves is the unambiguous write-time
+    // choke-point: the user explicitly maps this matter's folder while the
+    // CORRECT workspace is open (Production, in this scenario) — a real,
+    // deliberate user action, not a name-matching guess.
+    useWorkspaceStore.setState({ rootPath: 'C:/workspaces/Production', fileTree: sameShapedTree });
+    useMatterStore.getState().addFolderPath('m1', 'Clients/Hollings');
     expect(useMatterStore.getState().matters[0]!.folderPaths).toEqual([
-      'C:/workspaces/Northcrest/Clients/Hollings',
+      'C:/workspaces/Production/Clients/Hollings',
     ]);
   });
 
-  it('leaves a relative folderPaths entry untouched when it does not exist in the opened workspace tree (Codex review #2 — avoid binding to the wrong workspace)', async () => {
-    // The relative entry actually belongs to a DIFFERENT workspace the user
-    // has in their recent-workspaces list. If they open THIS (unrelated)
-    // workspace first, the entry must NOT be permanently bound to it — that
-    // would corrupt the mapping when the user later opens the right workspace.
-    seed(MATTERS_KEY, {
-      state: { matters: [{ ...sampleMatterV4, folderPaths: ['Clients/Hollings'] }], activeMatterId: 'm1' },
-      version: 10,
-    });
-    await useMatterStore.persist.rehydrate();
-
-    useWorkspaceStore.setState({
-      rootPath: 'C:/workspaces/UnrelatedWorkspace',
-      fileTree: [
-        { id: 'other', name: 'Other Client', path: 'Other Client', type: 'folder' },
-      ],
-    });
-
-    // Still relative — not bound to the wrong workspace.
-    expect(useMatterStore.getState().matters[0]!.folderPaths).toEqual(['Clients/Hollings']);
-
-    // Now the RIGHT workspace opens, with the matching folder — it claims it.
-    useWorkspaceStore.setState({
-      rootPath: 'C:/workspaces/Northcrest',
-      fileTree: [
-        { id: 'clients-hollings', name: 'Hollings', path: 'Clients/Hollings', type: 'folder' },
-      ],
-    });
-    expect(useMatterStore.getState().matters[0]!.folderPaths).toEqual([
-      'C:/workspaces/Northcrest/Clients/Hollings',
-    ]);
-  });
-
-  it('does not bind a legacy relative entry using a STALE tree from the PREVIOUS workspace when rootPath changes before fileTree does (Codex review #5)', async () => {
-    // Every real workspace-open call site sets rootPath FIRST and fileTree
-    // LATER (sometimes much later, after an await-gapped folder-creation
-    // pass) — see WorkspaceSelector.tsx / useWorkspaceLifecycle.ts. Simulate
-    // that exact sequence: a PREVIOUS workspace's tree (which happens to
-    // coincidentally contain a same-named folder) is still in the store when
-    // the NEW root is set; only later does the NEW tree replace it.
-    useWorkspaceStore.setState({
-      rootPath: 'C:/workspaces/PreviousWorkspace',
-      fileTree: [{ id: 'coincidence', name: 'Hollings', path: 'Clients/Hollings', type: 'folder' }],
-    });
-    seed(MATTERS_KEY, {
-      state: { matters: [{ ...sampleMatterV4, folderPaths: ['Clients/Hollings'] }], activeMatterId: 'm1' },
-      version: 10,
-    });
-    await useMatterStore.persist.rehydrate();
-    expect(useMatterStore.getState().matters[0]!.folderPaths).toEqual(['Clients/Hollings']);
-
-    // rootPath changes to the NEW workspace, but fileTree is untouched here —
-    // still the PREVIOUS workspace's tree, which coincidentally also has a
-    // "Clients/Hollings" folder. A rootPath-triggered reconciliation would
-    // wrongly bind the entry to this NEW (wrong) root using that stale tree.
-    useWorkspaceStore.setState({ rootPath: 'C:/workspaces/NewWorkspace' });
-    expect(useMatterStore.getState().matters[0]!.folderPaths).toEqual(['Clients/Hollings']);
-
-    // Only once the NEW workspace's own (different, non-matching) tree loads
-    // does anything reconcile — and it correctly does NOT match, since this
-    // new workspace has no "Clients/Hollings" folder.
-    useWorkspaceStore.setState({
-      fileTree: [{ id: 'unrelated', name: 'Someone Else', path: 'Clients/Someone Else', type: 'folder' }],
-    });
-    expect(useMatterStore.getState().matters[0]!.folderPaths).toEqual(['Clients/Hollings']);
-  });
-
-  it('does not re-write matters when the workspace root changes but folderPaths are already canonical', async () => {
+  it('does not re-write matters when the workspace changes but folderPaths are already canonical', async () => {
     seed(MATTERS_KEY, {
       state: {
         matters: [{ ...sampleMatterV4, folderPaths: ['C:/workspaces/Northcrest/Clients/Hollings'] }],
@@ -299,7 +230,6 @@ describe('matter-store merge — v9 -> v10 folderPaths canonicalization', () => 
 
     useWorkspaceStore.setState({ rootPath: 'C:/workspaces/Northcrest', fileTree: [] });
 
-    // Same array reference (or at least identical content) — no spurious churn.
     expect(useMatterStore.getState().matters).toEqual(beforeMatters);
   });
 });

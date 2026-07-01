@@ -43,7 +43,6 @@ import type { PersistStorage, StorageValue } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 import type { Matter, MatterScope } from '@/platform/types/matter';
 import type { AuditEntry } from '@/platform/types/audit';
-import type { FileNode } from '@/platform/types/workspace';
 import {
   resolveMatterId,
   findMatter,
@@ -1136,25 +1135,26 @@ export const useMatterStore = create<MatterState>()(
           //
           // Earlier drafts of this fix DID call `getWorkspaceRootNonReactive()`
           // at this exact point and resolved relative -> absolute against
-          // whatever root that returned. Codex review #3 flagged that as
-          // unsound: `workspaceStore`'s `rootPath` is *usually* still null this
-          // early in bootstrap (this store's `persist` migration runs before
-          // the app opens a workspace), but isn't GUARANTEED to be — under an
-          // unusual module/HMR ordering it could already be set to some OTHER
-          // previously-open workspace, and resolving a relative entry against
-          // it here would bind it to the wrong workspace with NO validation
-          // that the folder actually exists there — reintroducing exactly the
-          // ambiguity the tree-validated reconciliation below (Codex review
-          // #2) exists to prevent, through a second, unguarded code path.
+          // whatever root that returned — and a later draft added a
+          // `useWorkspaceStore.subscribe` reconciliation that auto-bound a
+          // surviving relative entry once a folder at that path was verified
+          // to exist in the current workspace's tree. Both were removed after
+          // independent review: neither can prove the entry actually belongs
+          // to THIS workspace rather than a same-named coincidence in a
+          // DIFFERENT one the user also has, and once wrongly rewritten to
+          // absolute, that mistake can never self-correct (see the "no
+          // automatic reconciliation" note right after this store's
+          // definition for the full rationale). No available signal proves
+          // workspace IDENTITY here without threading a workspace-root
+          // parameter through `matterResolver.resolveMatterId`'s hot path —
+          // out of lane, per this module's write-choke-point doc above.
           //
           // So this migration always passes `workspaceRoot: null` — a
           // surviving relative entry stays relative (shape-clean, not
-          // dropped) — and the ONLY place that binds a legacy relative entry
-          // to a workspace is the `useWorkspaceStore.subscribe` reconciliation
-          // just below, which verifies the folder actually exists in that
-          // workspace's tree before doing so. One source of truth for a
-          // decision that can otherwise silently corrupt matter-folder
-          // mapping.
+          // dropped), and stays that way until the user touches that
+          // specific matter's folders again with the CORRECT workspace open
+          // (the write-time choke-point above, which is unambiguous by
+          // construction — only one workspace is ever in play there).
           //
           // Not gated on `import.meta.env.DEV` (that block is stripped from
           // `vite build`) — this line is the real-path proof a later bench
@@ -1189,134 +1189,44 @@ export const useMatterStore = create<MatterState>()(
   )
 );
 
-/** Collect every folder path in `tree`, resolved to absolute under
- *  `workspaceRoot` — the set of folders that GENUINELY exist in the
- *  currently-open workspace, used to validate a legacy relative `folderPaths`
- *  entry before binding it to this workspace (see the reconciliation
- *  subscription below). */
-function collectAbsoluteFolderPaths(tree: FileNode[], workspaceRoot: string): Set<string> {
-  const out = new Set<string>();
-  const walk = (nodes: FileNode[]) => {
-    for (const node of nodes) {
-      if (node.type !== 'folder') continue;
-      out.add(resolveAbsolute(normalizeMatterPath(node.path), workspaceRoot));
-      if (node.children) walk(node.children);
-    }
-  };
-  walk(tree);
-  return out;
-}
-
-function dedupeStrings(values: string[]): string[] {
-  const out: string[] = [];
-  const seen = new Set<string>();
-  for (const v of values) {
-    if (seen.has(v)) continue;
-    seen.add(v);
-    out.push(v);
-  }
-  return out;
-}
-
-/**
- * Reconcile `folderPaths` the moment a workspace root AND its file tree are
- * known.
- *
- * The v9 -> v10 migration above canonicalizes `folderPaths` to absolute, but it
- * runs during this store's OWN `persist` hydration — which happens before
- * `workspaceStore` has a `rootPath` (that's set later by a user/session action
- * opening a workspace). So a matter whose `folderPaths` were left relative by
- * that migration (no root known yet) would otherwise stay relative FOREVER
- * unless the user happens to touch that specific matter's folders again
- * (`createMatter`/`setFolderPaths`/`addFolderPath` are the only other places
- * that canonicalize) — silently leaving the exact CRM-auto-backfill bug this
- * fix targets unresolved for existing installs (Codex review #1, F2.3). This
- * subscription re-runs canonicalization the moment `rootPath` or `fileTree`
- * changes, so every matter gets fixed the first time a workspace opens (and
- * its tree loads) after this fix ships, not "maybe, if the user happens to
- * edit that matter's folders."
- *
- * A relative entry is bound to THIS workspace ONLY when a folder at that exact
- * relative path genuinely exists in the CURRENT workspace's tree (Codex review
- * #2, F2.3): a user with more than one recent workspace could otherwise open
- * workspace B before workspace A, and a leftover relative entry that actually
- * belongs to A would get permanently (and wrongly) bound to B the instant this
- * ran — worse than the pre-fix behavior, where a relative entry's read-time
- * interpretation was at least transient (re-evaluated fresh against whichever
- * root is currently open, self-correcting on the next switch back). Validating
- * against the real tree means an entry only canonicalizes when it can't be
- * ambiguous. An entry that doesn't match anything in the current tree is left
- * untouched (still relative) so the RIGHT workspace can still claim it later;
- * an already-absolute entry always passes through unchanged, regardless of
- * tree contents.
- *
- * Wrapped defensively like `getWorkspaceRootNonReactive`: several unit tests
- * mock `@/platform/fs/workspaceStore` as a bare selector FUNCTION (the
- * `useWorkspaceStore(selector)` calling convention) rather than the full
- * Zustand store object, which has no `.subscribe`. That shape is a valid test
- * double for the reactive hook usage elsewhere in the app; it just isn't
- * subscribable, so skip the reconciliation wiring rather than throw at module
- * load in those suites.
- *
- * Runs both EAGERLY (once, against whatever `workspaceStore` state already
- * exists right now) and on every future `fileTree` change (Codex review #4)
- * — a `subscribe` callback only fires on a CHANGE, so if the workspace root
- * and its tree happen to already be loaded by the time this module evaluates
- * and registers the subscription (a real possible ordering, not just this
- * store's own `persist` migration finishing first), waiting for the NEXT
- * change would leave an affected matter relative indefinitely — the exact
- * bug this reconciliation exists to prevent, just via a startup-ordering gap
- * instead of a migration one.
- *
- * Deliberately triggers ONLY on `fileTree` changing, never on a bare
- * `rootPath` change (Codex review #5): every real workspace-open call site
- * (`WorkspaceSelector.tsx`, `useWorkspaceLifecycle.ts`) calls `setRootPath`
- * FIRST and `setFileTree` LATER — sometimes on the very next line, sometimes
- * after an `await`-gapped folder-creation pass — so a subscriber that reacted
- * to `rootPath` changing alone would run with the STALE tree from the
- * PREVIOUS workspace still paired with the NEW root. If a relative folder
- * name happened to coincidentally exist in that stale tree too, it would be
- * permanently (and wrongly) bound to the new workspace, and the correct tree
- * arriving moments later would never undo it (an absolute entry always
- * passes through unchanged). Waiting for `fileTree` itself to change sidesteps
- * this entirely: by construction, every call site updates `rootPath` before
- * `fileTree`, so whenever `fileTree` changes, `rootPath` in that SAME state
- * snapshot is already the one it belongs to — never a stale pairing.
- */
-function reconcileFolderPathsWithWorkspace(root: string | null, fileTree: FileNode[]): void {
-  if (!root) return;
-  const existingFolders = collectAbsoluteFolderPaths(fileTree, root);
-  useMatterStore.setState((s) => {
-    const matters = s.matters.map((m) => {
-      const resolved = m.folderPaths
-        .map((f) => {
-          const normalized = normalizeMatterPath(f);
-          if (!normalized || isAbsolutePath(normalized)) return normalized;
-          const candidate = resolveAbsolute(normalized, root);
-          return existingFolders.has(candidate) ? candidate : normalized;
-        })
-        .filter((p): p is string => !!p);
-      const canon = dedupeStrings(resolved);
-      const same =
-        canon.length === m.folderPaths.length &&
-        canon.every((p, i) => p === m.folderPaths[i]);
-      return same ? m : { ...m, folderPaths: canon };
-    });
-    const changed = matters.some((m, i) => m !== s.matters[i]);
-    return changed ? { matters } : s;
-  });
-}
-
-try {
-  const initial = useWorkspaceStore.getState();
-  reconcileFolderPathsWithWorkspace(initial.rootPath, initial.fileTree);
-  useWorkspaceStore.subscribe((state, prevState) => {
-    if (state.fileTree === prevState.fileTree) return;
-    reconcileFolderPathsWithWorkspace(state.rootPath, state.fileTree);
-  });
-} catch {
-  /* see doc comment above: some test doubles stub workspaceStore without `.subscribe` */
-}
+// ─────────────────────────────────────────────────────────────────────
+// Deliberately NO automatic reconciliation of legacy relative `folderPaths`
+// (removed after independent review, F2.3).
+//
+// Rounds 1-5 of this fix built a `useWorkspaceStore` subscription that
+// auto-repaired a surviving legacy-relative `folderPaths` entry by checking
+// whether a folder at that exact relative path existed in the CURRENTLY-open
+// workspace's file tree, and binding (rewriting to absolute) only when it
+// did. That check rules out an obviously-wrong workspace, but it is still
+// NAME evidence, not IDENTITY evidence: if the user has two workspaces that
+// happen to share the same folder structure (e.g. a "Production" and a
+// "Sandbox" practice both containing `Clients/Hollings`), whichever workspace
+// opens FIRST after upgrading would pass the tree check and get the entry
+// permanently bound to it — and once absolute, that binding can never
+// self-correct, even when the RIGHT workspace opens later. A matter's
+// scoped documents/RAG retrieval would then point at another workspace's
+// client files: worse than the (bounded, already-known) pre-fix bug of an
+// unindexed-until-touched matter, because it actively misassigns content
+// instead of merely failing to assign it. No available signal (the file
+// tree, the `recentWorkspaces` path list, the matter's own name/client) can
+// prove workspace IDENTITY rather than mere name coincidence without
+// threading a workspace-root parameter through `matterResolver.resolveMatterId`
+// (the live RAG indexer's hot path) — the exact invasive, out-of-lane change
+// canonical=ABSOLUTE was chosen specifically to avoid (see the module's write-
+// choke-point doc above).
+//
+// So this fix stops at the two mechanisms that ARE unambiguous by
+// construction: the v9 -> v10 migration (shape-only; never resolves, never
+// guesses) and the write-time choke-point (`createMatter`/`setFolderPaths`/
+// `addFolderPath`), which only ever runs while a workspace IS open and the
+// folder candidate came from THAT SAME workspace's own tree at that same
+// moment — no coincidence, no guess, exactly one workspace in play. A matter
+// left with a genuinely relative `folderPaths` entry from BEFORE this fix
+// shipped stays relative (and its indexing/scoping stays exactly as broken as
+// it already was) until the user touches that matter's folder mapping again
+// with the correct workspace open — an honest, bounded, already-known
+// limitation, never a silent mis-assignment across workspaces.
+// ─────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────
 // Non-reactive accessors (for the indexer hook and event listeners)
