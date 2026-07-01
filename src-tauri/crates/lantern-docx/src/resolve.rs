@@ -290,26 +290,80 @@ fn raw_xml_revision_ids(xml: &str) -> Vec<Option<String>> {
     ids
 }
 
+/// `xmlns` / `xmlns:*` attribute (name, value) pairs captured off a wrapper
+/// element that's about to have its own start/end tags suppressed
+/// ("unwrapped") — see [`RawFrame::Unwrap`] / [`RawFrame::UnwrapRestoreText`].
+type NsDecls = Vec<(Vec<u8>, Vec<u8>)>;
+
 /// What an open element in [`resolve_raw_xml`]'s stream walk should do with its
 /// own start/end tags and (transitively, via the ambient-mode scan) its
 /// children.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 enum RawFrame {
     /// Pass the element through unchanged.
     Keep,
     /// Suppress only this element's own start/end tags; children pass through
-    /// normally (accepting an insertion: unwrap `w:ins`, keep its runs).
-    Unwrap,
+    /// normally (accepting an insertion: unwrap `w:ins`, keep its runs). Any
+    /// `xmlns`/`xmlns:*` the wrapper itself declared is carried here so it can
+    /// be hoisted onto direct children (Codex review: dropping the wrapper
+    /// must not silently unbind a namespace prefix its children still use —
+    /// real Word documents never locally scope `xmlns:w` on a `w:ins`/`w:del`
+    /// itself, but a third-party producer could, and preserve-by-default
+    /// means never emitting invalid XML for content we didn't originate).
+    Unwrap(NsDecls),
     /// Suppress this element AND everything inside it (rejecting an insertion,
     /// or accepting a deletion: the content must not survive at all).
     Drop,
     /// Suppress this element's own tags; any `w:delText` descendant (at any
     /// depth) gets rewritten to a plain `w:t` (rejecting a deletion: the
-    /// struck text comes back as normal visible text).
-    UnwrapRestoreText,
+    /// struck text comes back as normal visible text). Carries the wrapper's
+    /// own namespace declarations for hoisting, same as [`RawFrame::Unwrap`].
+    UnwrapRestoreText(NsDecls),
     /// This element IS a `w:delText` being rewritten to `w:t` because an
     /// ancestor frame is [`RawFrame::UnwrapRestoreText`].
     RenameToPlainText,
+}
+
+/// The `xmlns` / `xmlns:*` attributes declared directly on `e` (empty if none) —
+/// what needs to be hoisted onto direct children if `e`'s own tags get dropped.
+fn ns_decls_of(e: &BytesStart<'_>) -> NsDecls {
+    e.attributes()
+        .with_checks(false)
+        .flatten()
+        .filter(|a| {
+            let k = a.key.as_ref();
+            k == b"xmlns" || k.starts_with(b"xmlns:")
+        })
+        .map(|a| (a.key.as_ref().to_vec(), a.value.to_vec()))
+        .collect()
+}
+
+/// If the immediate parent frame is an [`RawFrame::Unwrap`] /
+/// [`RawFrame::UnwrapRestoreText`] carrying pending namespace declarations,
+/// inject any of them `e` doesn't already declare itself onto `e` — so a
+/// namespace prefix bound only on a now-suppressed wrapper stays bound for
+/// this direct child (and, by ordinary XML scoping, everything nested inside
+/// it). A no-op (returns `e` unchanged) when there's nothing pending.
+fn hoist_pending_ns<'a>(mut e: BytesStart<'a>, stack: &[RawFrame]) -> BytesStart<'a> {
+    let pending: &[(Vec<u8>, Vec<u8>)] = match stack.last() {
+        Some(RawFrame::Unwrap(ns)) | Some(RawFrame::UnwrapRestoreText(ns)) => ns.as_slice(),
+        _ => return e,
+    };
+    if pending.is_empty() {
+        return e;
+    }
+    let already: Vec<Vec<u8>> = e
+        .attributes()
+        .with_checks(false)
+        .flatten()
+        .map(|a| a.key.as_ref().to_vec())
+        .collect();
+    for (k, v) in pending {
+        if !already.iter().any(|ek| ek == k) {
+            e.push_attribute((k.as_slice(), v.as_slice()));
+        }
+    }
+    e
 }
 
 /// Build a renamed tag name (`w:delText` -> `w:t`) preserving whatever
@@ -382,7 +436,7 @@ pub(crate) fn resolve_raw_xml(
     loop {
         let event = reader.read_event().map_err(xml_write_err)?;
         let in_drop = stack.iter().any(|f| matches!(f, RawFrame::Drop));
-        let in_restore = !in_drop && stack.iter().any(|f| matches!(f, RawFrame::UnwrapRestoreText));
+        let in_restore = !in_drop && stack.iter().any(|f| matches!(f, RawFrame::UnwrapRestoreText(_)));
 
         match event {
             Event::Start(e) => {
@@ -395,14 +449,16 @@ pub(crate) fn resolve_raw_xml(
                 if !in_restore && ln == "ins" && id_matches(&id) {
                     changed = true;
                     match action {
-                        ResolveAction::Accept => stack.push(RawFrame::Unwrap),
+                        ResolveAction::Accept => stack.push(RawFrame::Unwrap(ns_decls_of(&e))),
                         ResolveAction::Reject => stack.push(RawFrame::Drop),
                     }
                 } else if !in_restore && ln == "del" && id_matches(&id) {
                     changed = true;
                     match action {
                         ResolveAction::Accept => stack.push(RawFrame::Drop),
-                        ResolveAction::Reject => stack.push(RawFrame::UnwrapRestoreText),
+                        ResolveAction::Reject => {
+                            stack.push(RawFrame::UnwrapRestoreText(ns_decls_of(&e)));
+                        }
                     }
                 } else if in_restore && ln == "delText" {
                     let new_name = renamed_qname(e.name(), "t");
@@ -410,6 +466,7 @@ pub(crate) fn resolve_raw_xml(
                     for a in e.attributes().with_checks(false).flatten() {
                         new_e.push_attribute(a);
                     }
+                    let new_e = hoist_pending_ns(new_e, &stack);
                     writer.write_event(Event::Start(new_e)).map_err(xml_write_err)?;
                     stack.push(RawFrame::RenameToPlainText);
                 } else if !in_restore && ln == "delText" && treat_missing_id_as_match {
@@ -431,11 +488,13 @@ pub(crate) fn resolve_raw_xml(
                             for a in e.attributes().with_checks(false).flatten() {
                                 new_e.push_attribute(a);
                             }
+                            let new_e = hoist_pending_ns(new_e, &stack);
                             writer.write_event(Event::Start(new_e)).map_err(xml_write_err)?;
                             stack.push(RawFrame::RenameToPlainText);
                         }
                     }
                 } else {
+                    let e = hoist_pending_ns(e, &stack);
                     writer.write_event(Event::Start(e.borrow())).map_err(xml_write_err)?;
                     stack.push(RawFrame::Keep);
                 }
@@ -459,6 +518,7 @@ pub(crate) fn resolve_raw_xml(
                     for a in e.attributes().with_checks(false).flatten() {
                         new_e.push_attribute(a);
                     }
+                    let new_e = hoist_pending_ns(new_e, &stack);
                     writer.write_event(Event::Empty(new_e)).map_err(xml_write_err)?;
                 } else if !in_restore && ln == "delText" && treat_missing_id_as_match {
                     // Stray, empty delText: same fail-closed handling as above.
@@ -471,10 +531,12 @@ pub(crate) fn resolve_raw_xml(
                             for a in e.attributes().with_checks(false).flatten() {
                                 new_e.push_attribute(a);
                             }
+                            let new_e = hoist_pending_ns(new_e, &stack);
                             writer.write_event(Event::Empty(new_e)).map_err(xml_write_err)?;
                         }
                     }
                 } else {
+                    let e = hoist_pending_ns(e, &stack);
                     writer.write_event(Event::Empty(e.borrow())).map_err(xml_write_err)?;
                 }
             }
@@ -489,8 +551,10 @@ pub(crate) fn resolve_raw_xml(
                         .map_err(xml_write_err)?;
                 }
                 // Unwrap / Drop / UnwrapRestoreText: the wrapper's own end tag
-                // (or the whole dropped subtree) is suppressed.
-                Some(RawFrame::Unwrap | RawFrame::Drop | RawFrame::UnwrapRestoreText) => {}
+                // (or the whole dropped subtree) is suppressed. Any namespace
+                // declarations it carried have already been hoisted onto its
+                // direct children as they were written.
+                Some(RawFrame::Unwrap(_) | RawFrame::Drop | RawFrame::UnwrapRestoreText(_)) => {}
                 // Defensive: an End with no matching pushed frame (shouldn't
                 // happen for well-formed XML) — pass it through rather than
                 // silently eating it.
@@ -995,5 +1059,82 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(resolve_all(&mut doc, ResolveAction::Accept), 1);
+    }
+
+    // Codex review round 3: unwrapping a matched `w:ins`/`w:del` must not
+    // silently unbind a namespace prefix its children rely on if the wrapper
+    // itself was the element that locally declared it (unusual for real Word
+    // output — the `xmlns:w` declaration almost always lives on the document
+    // root — but not disallowed by OOXML, and preserve-by-default means never
+    // turning valid third-party markup into invalid XML).
+
+    const WML_NS: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+
+    #[test]
+    fn accepting_an_insertion_hoists_a_locally_declared_namespace_onto_its_child() {
+        let xml = format!(
+            "<w:tbl><w:tr><w:tc><w:p><x:ins xmlns:x=\"{WML_NS}\" x:id=\"1\" x:author=\"A\" x:date=\"d\"><x:r><x:t>hello</x:t></x:r></x:ins></w:p></w:tc></w:tr></w:tbl>"
+        );
+        let (resolved, changed) = resolve_raw_xml(&xml, ResolveAction::Accept, &|_| true, true).unwrap();
+        assert!(changed);
+        assert!(!resolved.contains("x:ins"), "the wrapper must be unwrapped: {resolved}");
+        assert!(resolved.contains("hello"));
+        // The x: prefix must still be BOUND somewhere the surviving x:r/x:t
+        // elements can reach — the declaration must have migrated, not
+        // vanished with the dropped wrapper.
+        assert!(
+            resolved.contains(&format!("xmlns:x=\"{WML_NS}\"")),
+            "namespace declaration must be hoisted onto the surviving child, not lost: {resolved}"
+        );
+        // Sanity: the result is well-formed XML (round-trips through a parse).
+        let mut reader = quick_xml::reader::Reader::from_str(&resolved);
+        loop {
+            match reader.read_event() {
+                Ok(Event::Eof) => break,
+                Ok(_) => {}
+                Err(e) => panic!("hoisted output is not well-formed XML: {e}\n{resolved}"),
+            }
+        }
+    }
+
+    #[test]
+    fn rejecting_a_deletion_hoists_a_locally_declared_namespace_onto_the_restored_text() {
+        let xml = format!(
+            "<w:tbl><w:tr><w:tc><w:p><x:del xmlns:x=\"{WML_NS}\" x:id=\"1\" x:author=\"A\" x:date=\"d\"><x:r><x:delText>client name</x:delText></x:r></x:del></w:p></w:tc></w:tr></w:tbl>"
+        );
+        let (resolved, changed) = resolve_raw_xml(&xml, ResolveAction::Reject, &|_| true, true).unwrap();
+        assert!(changed);
+        assert!(!resolved.contains("x:del"));
+        assert!(resolved.contains("client name"), "reject must restore the text: {resolved}");
+        assert!(
+            resolved.contains(&format!("xmlns:x=\"{WML_NS}\"")),
+            "namespace declaration must be hoisted: {resolved}"
+        );
+    }
+
+    #[test]
+    fn namespace_hoist_applies_to_every_direct_child_not_just_the_first() {
+        // Two SIBLING runs inside the unwrapped ins — XML namespace scoping is
+        // subtree-based, so hoisting onto only the first sibling would leave
+        // the second one's x: prefix unbound.
+        let xml = format!(
+            "<w:tbl><w:tr><w:tc><w:p><x:ins xmlns:x=\"{WML_NS}\" x:id=\"1\" x:author=\"A\" x:date=\"d\"><x:r><x:t>foo</x:t></x:r><x:r><x:t>bar</x:t></x:r></x:ins></w:p></w:tc></w:tr></w:tbl>"
+        );
+        let (resolved, _) = resolve_raw_xml(&xml, ResolveAction::Accept, &|_| true, true).unwrap();
+        let hoist_count = resolved.matches(&format!("xmlns:x=\"{WML_NS}\"")).count();
+        assert_eq!(hoist_count, 2, "both sibling runs need their own hoisted declaration: {resolved}");
+        assert!(resolved.contains("foo") && resolved.contains("bar"));
+    }
+
+    #[test]
+    fn namespace_hoist_is_a_noop_when_the_wrapper_declares_nothing_locally() {
+        // The overwhelmingly common real case: xmlns:w lives on the document
+        // root, not on the w:ins/w:del itself — nothing to hoist, output
+        // unchanged in shape.
+        let xml = "<w:tbl><w:tr><w:tc><w:p><w:ins w:id=\"1\" w:author=\"A\" w:date=\"d\"><w:r><w:t>hello</w:t></w:r></w:ins></w:p></w:tc></w:tr></w:tbl>";
+        let (resolved, changed) = resolve_raw_xml(xml, ResolveAction::Accept, &|_| true, true).unwrap();
+        assert!(changed);
+        assert!(!resolved.contains("xmlns"), "nothing to hoist when the wrapper declared no namespace: {resolved}");
+        assert!(resolved.contains("hello"));
     }
 }
