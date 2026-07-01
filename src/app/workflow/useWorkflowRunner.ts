@@ -10,6 +10,7 @@ import { useState, useCallback } from 'react';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { useEditorStore } from '@/platform/state/editorStore';
 import { saveFile } from '@/platform/utils/saveFile';
+import { workspacePath } from '@/platform/fs/appPath';
 import {
   resolveTemplateModel,
   resolveWorkflowProvider,
@@ -145,13 +146,13 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
       const startTime = new Date();
       const timestamp = startTime.toISOString().replace(/:/g, '-').replace(/\..+/, '').replace('T', '_');
       const workflowFolderName = `${template.name} - ${timestamp}`;
-      const workflowFolderPath = `${rootPath}/${workflowFolderName}`;
+      const workflowFolderPath = workspacePath(rootPath, workflowFolderName);
 
       // Load AI Rules if available — needed before resolution so it can be
       // threaded into the provider constructor below.
       let aiRulesContent: string | undefined;
       try {
-        const rulesPath = `${rootPath}/ai-rules.md`;
+        const rulesPath = workspacePath(rootPath, 'ai-rules.md');
         const exists = await workspaceServiceRef.current.exists(rulesPath);
         if (exists) {
           aiRulesContent = await workspaceServiceRef.current.readFile(rulesPath);

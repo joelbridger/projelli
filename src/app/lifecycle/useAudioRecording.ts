@@ -8,6 +8,7 @@
 import { useCallback } from 'react';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { FileNode } from '@/platform/types/workspace';
+import { workspacePath } from '@/platform/fs/appPath';
 
 export interface UseAudioRecordingOptions {
   rootPath: string | null;
@@ -27,13 +28,13 @@ export function useAudioRecording({
       if (!workspaceServiceRef.current || !rootPath) return;
 
       // Ensure Audio Recordings folder exists
-      const audioPath = `${rootPath}/Audio Recordings`;
+      const audioPath = workspacePath(rootPath, 'Audio Recordings');
       const audioExists = await workspaceServiceRef.current.exists(audioPath);
       if (!audioExists) {
         await workspaceServiceRef.current.mkdir(audioPath);
       }
 
-      const filePath = `${audioPath}/${filename}`;
+      const filePath = workspacePath(audioPath, filename);
       try {
         // Convert blob to array buffer
         const arrayBuffer = await audioBlob.arrayBuffer();

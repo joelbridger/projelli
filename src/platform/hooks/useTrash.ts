@@ -8,6 +8,7 @@ import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import { useEditorStore } from '@/platform/state/editorStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import { workspacePath } from '@/platform/fs/appPath';
 import { EV_TRASH_CHANGED } from '@/config/identity';
 
 const TRASH_METADATA_FILE = '.trash/metadata.json';
@@ -94,7 +95,7 @@ export function useTrash({ rootPath, workspaceServiceRef }: UseTrashOptions): Us
   const saveTrashMetadata = useCallback(async (items: TrashedItem[]) => {
     if (!workspaceServiceRef.current || !rootPath) return;
     try {
-      const metadataPath = `${rootPath}/${TRASH_METADATA_FILE}`;
+      const metadataPath = workspacePath(rootPath, TRASH_METADATA_FILE);
       const metadata = JSON.stringify(items.map(item => ({
         ...item,
         deletedAt: item.deletedAt.toISOString(),
@@ -109,7 +110,7 @@ export function useTrash({ rootPath, workspaceServiceRef }: UseTrashOptions): Us
   const loadTrashMetadata = useCallback(async (): Promise<TrashedItem[]> => {
     if (!workspaceServiceRef.current || !rootPath) return [];
     try {
-      const metadataPath = `${rootPath}/${TRASH_METADATA_FILE}`;
+      const metadataPath = workspacePath(rootPath, TRASH_METADATA_FILE);
       const exists = await workspaceServiceRef.current.exists(metadataPath);
       if (!exists) return [];
 

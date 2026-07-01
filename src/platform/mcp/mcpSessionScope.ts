@@ -1,5 +1,6 @@
 import type { Matter } from '@/platform/types/matter';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
+import { workspacePath } from '@/platform/fs/appPath';
 export { MCP_SESSION_SCOPE_REL_PATH } from '@/config/identity';
 import { MCP_SESSION_SCOPE_REL_PATH } from '@/config/identity';
 
@@ -93,8 +94,8 @@ async function writeMcpScopeFileAtomically(
   const tempRelPath = `${MCP_SESSION_SCOPE_REL_PATH}.tmp-${String(Date.now())}-${Math.random()
     .toString(36)
     .slice(2)}`;
-  const tempPath = `${workspaceRoot}/${tempRelPath}`;
-  const finalPath = `${workspaceRoot}/${MCP_SESSION_SCOPE_REL_PATH}`;
+  const tempPath = workspacePath(workspaceRoot, tempRelPath);
+  const finalPath = workspacePath(workspaceRoot, MCP_SESSION_SCOPE_REL_PATH);
   let moved = false;
 
   await service.writeFile(

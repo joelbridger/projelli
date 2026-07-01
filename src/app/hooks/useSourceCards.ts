@@ -6,6 +6,7 @@
 import { useState, useCallback } from 'react';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { SourceCard } from '@/features/ask/types/research';
+import { workspacePath } from '@/platform/fs/appPath';
 
 interface UseSourceCardsOptions {
   rootPath: string | null;
@@ -42,7 +43,7 @@ export function useSourceCards({
     }
     try {
       console.log('Saving sources:', { count: cards.length, rootPath });
-      const researchPath = `${rootPath}/Research`;
+      const researchPath = workspacePath(rootPath, 'Research');
 
       // Ensure Research folder exists
       const folderExists = await workspaceServiceRef.current.exists(researchPath);
@@ -72,7 +73,7 @@ export function useSourceCards({
       return [];
     }
     try {
-      const researchPath = `${rootPath}/Research`;
+      const researchPath = workspacePath(rootPath, 'Research');
       console.log('Loading sources from:', researchPath);
 
       const exists = await workspaceServiceRef.current.exists(researchPath);
@@ -116,7 +117,7 @@ export function useSourceCards({
     async (_cardId: string, title: string) => {
       if (!rootPath) return;
       const filename = `${title}.source`;
-      const filePath = `${rootPath}/Research/${filename}`;
+      const filePath = workspacePath(rootPath, `Research/${filename}`);
       await handleFileOpen(filePath, filename);
     },
     [rootPath, handleFileOpen]

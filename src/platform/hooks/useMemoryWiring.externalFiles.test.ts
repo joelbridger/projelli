@@ -531,7 +531,14 @@ describe('reindexFolderPaths — disk scan for externally-added files', () => {
 
     expect(attached).toBe(folder);
     const changed = changedFolderPaths(before, after);
-    expect(changed).toEqual([folder]);
+    // The matter store's write-time choke-point (path-shape-discipline fix,
+    // F2.3) now canonicalizes a workspace-relative folder to ABSOLUTE using the
+    // open workspace root before it lands in `folderPaths` — this is the CRM
+    // auto-backfill bug's actual fix, so `changed` now carries the canonical
+    // absolute value rather than the raw tree-relative `folder` string.
+    const canonicalRoot = useWorkspaceStore.getState().rootPath;
+    expect(canonicalRoot).not.toBeNull();
+    expect(changed).toEqual([`${canonicalRoot ?? ''}/${folder}`]);
 
     const ws = {
       readFile: vi.fn(),

@@ -19,6 +19,7 @@
 
 import { useEffect } from 'react';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
+import { workspacePath } from '@/platform/fs/appPath';
 import {
   isPdfIndexingEnabled,
   MemoryService,
@@ -73,8 +74,7 @@ export function buildFactsStorage(
   workspaceService: MemoryWiringWorkspaceService,
   rootPath: string,
 ): FactsStorage {
-  const resolve = (relative: string) =>
-    `${rootPath}/${relative}`.replace(/\/+/g, '/');
+  const resolve = (relative: string) => workspacePath(rootPath, relative);
   return {
     read: (relative) => workspaceService.readFile(resolve(relative)),
     write: (relative, content) =>
