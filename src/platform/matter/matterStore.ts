@@ -43,6 +43,7 @@ import type { PersistStorage, StorageValue } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 import type { Matter, MatterScope } from '@/platform/types/matter';
 import type { AuditEntry } from '@/platform/types/audit';
+import type { FileNode } from '@/platform/types/workspace';
 import {
   resolveMatterId,
   findMatter,
@@ -153,14 +154,23 @@ function getWorkspaceRootNonReactive(): string | null {
  * shape, so a folder-picker object or other non-string value can never survive
  * into `folderPaths` and later stringify to `"[object Object]"`.
  */
+/** Resolve an already-normalized path to absolute under `workspaceRoot` when it
+ *  isn't absolute already; a `null` root leaves it relative (nothing to
+ *  resolve against). Shared by `canonicalizeFolderPath` and the reconciliation
+ *  subscription below, which both need the identical "already-absolute passes
+ *  through, else join root" rule. */
+function resolveAbsolute(normalized: string, workspaceRoot: string | null): string {
+  if (isAbsolutePath(normalized)) return normalized;
+  if (!workspaceRoot) return normalized;
+  return normalizeMatterPath(joinWorkspacePath(workspaceRoot, normalized));
+}
+
 function canonicalizeFolderPath(value: unknown, workspaceRoot: string | null): string | null {
   const raw = coerceFolderPathValue(value);
   if (raw === null) return null;
   const normalized = normalizeMatterPath(raw);
   if (!normalized) return null;
-  if (isAbsolutePath(normalized)) return normalized;
-  if (!workspaceRoot) return normalized;
-  return normalizeMatterPath(joinWorkspacePath(workspaceRoot, normalized));
+  return resolveAbsolute(normalized, workspaceRoot);
 }
 
 /**
@@ -1174,8 +1184,38 @@ export const useMatterStore = create<MatterState>()(
   )
 );
 
+/** Collect every folder path in `tree`, resolved to absolute under
+ *  `workspaceRoot` — the set of folders that GENUINELY exist in the
+ *  currently-open workspace, used to validate a legacy relative `folderPaths`
+ *  entry before binding it to this workspace (see the reconciliation
+ *  subscription below). */
+function collectAbsoluteFolderPaths(tree: FileNode[], workspaceRoot: string): Set<string> {
+  const out = new Set<string>();
+  const walk = (nodes: FileNode[]) => {
+    for (const node of nodes) {
+      if (node.type !== 'folder') continue;
+      out.add(resolveAbsolute(normalizeMatterPath(node.path), workspaceRoot));
+      if (node.children) walk(node.children);
+    }
+  };
+  walk(tree);
+  return out;
+}
+
+function dedupeStrings(values: string[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const v of values) {
+    if (seen.has(v)) continue;
+    seen.add(v);
+    out.push(v);
+  }
+  return out;
+}
+
 /**
- * Reconcile `folderPaths` the moment a workspace root becomes known.
+ * Reconcile `folderPaths` the moment a workspace root AND its file tree are
+ * known.
  *
  * The v9 -> v10 migration above canonicalizes `folderPaths` to absolute, but it
  * runs during this store's OWN `persist` hydration — which happens before
@@ -1185,13 +1225,25 @@ export const useMatterStore = create<MatterState>()(
  * unless the user happens to touch that specific matter's folders again
  * (`createMatter`/`setFolderPaths`/`addFolderPath` are the only other places
  * that canonicalize) — silently leaving the exact CRM-auto-backfill bug this
- * fix targets unresolved for existing installs (Codex review, F2.3). This
- * subscription re-runs the same canonicalization the moment `rootPath`
- * transitions to a real value, so every matter gets fixed the first time a
- * workspace opens after this fix ships, not "maybe, if the user happens to
- * edit that matter's folders." `canonicalizeFolderPath` is idempotent for an
- * already-absolute entry (passthrough), so re-running this on every workspace
- * switch is safe and self-correcting rather than only a one-shot.
+ * fix targets unresolved for existing installs (Codex review #1, F2.3). This
+ * subscription re-runs canonicalization the moment `rootPath` or `fileTree`
+ * changes, so every matter gets fixed the first time a workspace opens (and
+ * its tree loads) after this fix ships, not "maybe, if the user happens to
+ * edit that matter's folders."
+ *
+ * A relative entry is bound to THIS workspace ONLY when a folder at that exact
+ * relative path genuinely exists in the CURRENT workspace's tree (Codex review
+ * #2, F2.3): a user with more than one recent workspace could otherwise open
+ * workspace B before workspace A, and a leftover relative entry that actually
+ * belongs to A would get permanently (and wrongly) bound to B the instant this
+ * ran — worse than the pre-fix behavior, where a relative entry's read-time
+ * interpretation was at least transient (re-evaluated fresh against whichever
+ * root is currently open, self-correcting on the next switch back). Validating
+ * against the real tree means an entry only canonicalizes when it can't be
+ * ambiguous. An entry that doesn't match anything in the current tree is left
+ * untouched (still relative) so the RIGHT workspace can still claim it later;
+ * an already-absolute entry always passes through unchanged, regardless of
+ * tree contents.
  *
  * Wrapped defensively like `getWorkspaceRootNonReactive`: several unit tests
  * mock `@/platform/fs/workspaceStore` as a bare selector FUNCTION (the
@@ -1203,11 +1255,21 @@ export const useMatterStore = create<MatterState>()(
  */
 try {
   useWorkspaceStore.subscribe((state, prevState) => {
-    if (!state.rootPath || state.rootPath === prevState.rootPath) return;
+    if (!state.rootPath) return;
+    if (state.rootPath === prevState.rootPath && state.fileTree === prevState.fileTree) return;
     const root = state.rootPath;
+    const existingFolders = collectAbsoluteFolderPaths(state.fileTree, root);
     useMatterStore.setState((s) => {
       const matters = s.matters.map((m) => {
-        const canon = dedupeFolderPaths(m.folderPaths, root);
+        const resolved = m.folderPaths
+          .map((f) => {
+            const normalized = normalizeMatterPath(f);
+            if (!normalized || isAbsolutePath(normalized)) return normalized;
+            const candidate = resolveAbsolute(normalized, root);
+            return existingFolders.has(candidate) ? candidate : normalized;
+          })
+          .filter((p): p is string => !!p);
+        const canon = dedupeStrings(resolved);
         const same =
           canon.length === m.folderPaths.length &&
           canon.every((p, i) => p === m.folderPaths[i]);
