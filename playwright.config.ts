@@ -37,7 +37,6 @@ const CI_QUARANTINE = [
   '**/v1.5-integration-flows.spec.ts',
   '**/templates-marketplace.spec.ts',
   '**/status-bar.spec.ts',
-  '**/sidebar-a11y.spec.ts',
   // Added 2026-07-01 (F1.3): confirmed failing on a REAL GitHub Actions CI run
   // (post-sharding — sharding fixed the documented tail-timeout mechanism but
   // did NOT fix these; see docs/quality/e2e-flaky-quarantine.md for the
@@ -58,7 +57,6 @@ const CI_QUARANTINE = [
   '**/presentation-viewer.spec.ts',
   '**/spreadsheet-improvements.spec.ts',
   '**/tab-bar-scroll.spec.ts',
-  '**/theme-system.spec.ts',
   '**/undo-delete-ctrlz.spec.ts',
   '**/updater.spec.ts',
   '**/v1.5-canvas-stress.spec.ts',

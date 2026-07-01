@@ -1,9 +1,11 @@
 /**
  * Theme 3-state cycle (UX-25)
  *
- * The toggle in the top-right header cycles system → light → dark → system.
- * In 'system' mode the app listens to prefers-color-scheme so OS changes
- * flow through. Persistence lives in localStorage['theme'].
+ * The toggle in the top-right header cycles light → dark → system → light.
+ * The default (unset) preference is 'light' (settings schema.ts — no
+ * dark-mode-by-default). In 'system' mode the app listens to
+ * prefers-color-scheme so OS changes flow through. Persistence lives in
+ * localStorage['theme'].
  */
 
 import { test, expect, type Page } from '@playwright/test';
@@ -31,7 +33,7 @@ async function addThemePreferenceInitScript(
 }
 
 test.describe('Theme cycle (UX-25)', () => {
-  test('first run defaults to system theme with correct icon', async ({ page }) => {
+  test('first run defaults to light theme with correct icon', async ({ page }) => {
     // Clear any stored theme from previous runs so we hit the default branch.
     await page.addInitScript(() => {
       try {
@@ -44,12 +46,15 @@ test.describe('Theme cycle (UX-25)', () => {
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
 
+    // Settings schema's 'theme' default is 'light' (schema.ts), matching
+    // Jameson's stated no-dark-mode-by-default product preference — not
+    // 'system'.
     const toggle = page.getByTestId('theme-toggle');
-    await expect(toggle).toHaveAttribute('data-theme', 'system');
-    await expect(page.getByTestId('theme-icon-system')).toBeVisible();
+    await expect(toggle).toHaveAttribute('data-theme', 'light');
+    await expect(page.getByTestId('theme-icon-light')).toBeVisible();
   });
 
-  test('clicking cycles system → light → dark → system', async ({ page }) => {
+  test('clicking cycles light → dark → system → light', async ({ page }) => {
     await page.addInitScript(() => {
       try {
         localStorage.removeItem('lantern:settings');
@@ -63,23 +68,23 @@ test.describe('Theme cycle (UX-25)', () => {
 
     const toggle = page.getByTestId('theme-toggle');
 
-    // Start: system
-    await expect(toggle).toHaveAttribute('data-theme', 'system');
-
-    // Click 1: light
-    await hardClick(toggle);
+    // Start: light (the default — see App.tsx's cycle: light -> dark -> system -> light)
     await expect(toggle).toHaveAttribute('data-theme', 'light');
-    await expect(page.getByTestId('theme-icon-light')).toBeVisible();
 
-    // Click 2: dark
+    // Click 1: dark
     await hardClick(toggle);
     await expect(toggle).toHaveAttribute('data-theme', 'dark');
     await expect(page.getByTestId('theme-icon-dark')).toBeVisible();
 
-    // Click 3: back to system
+    // Click 2: system
     await hardClick(toggle);
     await expect(toggle).toHaveAttribute('data-theme', 'system');
     await expect(page.getByTestId('theme-icon-system')).toBeVisible();
+
+    // Click 3: back to light
+    await hardClick(toggle);
+    await expect(toggle).toHaveAttribute('data-theme', 'light');
+    await expect(page.getByTestId('theme-icon-light')).toBeVisible();
   });
 
   test('persists the preference across reloads', async ({ page }) => {

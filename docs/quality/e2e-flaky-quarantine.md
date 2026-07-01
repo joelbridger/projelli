@@ -76,7 +76,6 @@ real, scoped follow-up work, not something to guess at inside this CI-fix.
 | `empty-states.spec.ts` — only `Search empty state renders…` and `Trash empty state renders…` (in-spec `test.skip`; the other 2 tests pass and keep running in CI) | **confirmed** for Trash: `docs-trash-toggle` is intentionally hidden in the embedded per-matter Documents view (`DocumentsHome.tsx` `!embedded` gate) that `gotoDocuments` reaches — needs a non-embedded documents route or a product decision, not diagnosed for Search | fix-plan-F1.3-followup | 2026-07-31 |
 | `tab-bar-scroll.spec.ts` | not yet diagnosed past the gotoDocuments fix (only test in file, still red after the fix) | fix-plan-F1.3-followup | 2026-07-31 |
 | `undo-delete-ctrlz.spec.ts` | one of its 2 tests hits the same **confirmed** `docs-trash-toggle`/embedded-view mismatch as `empty-states.spec.ts` above; the other not diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
-| `theme-system.spec.ts` | **confirmed**: `first run defaults to system theme` expects `data-theme="system"`, app now renders `"light"` — real product drift (possibly intentional, see note above), not a timing issue | fix-plan-F1.3-followup | 2026-07-31 |
 | `ai-assistant-tab.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
 | `api-keys-panel.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
 | `auto-save-indicator.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
