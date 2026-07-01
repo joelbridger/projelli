@@ -126,7 +126,9 @@ pub fn resolve_revision(doc: &mut Document, revision_id: &str, action: ResolveAc
             Inline::Insertion { meta, .. } | Inline::Deletion { meta, .. } => meta.id == revision_id,
             _ => false,
         }),
-        BlockContent::Raw { xml } => raw_xml_revision_ids(xml).iter().any(|id| id == revision_id),
+        BlockContent::Raw { xml } => raw_xml_revision_ids(xml)
+            .iter()
+            .any(|id| id.as_deref() == Some(revision_id)),
     });
     if !found {
         return false;
@@ -137,7 +139,11 @@ pub fn resolve_revision(doc: &mut Document, revision_id: &str, action: ResolveAc
         match block {
             BlockContent::Paragraph(p) => resolve_inlines(&mut p.inlines, action, &pred),
             BlockContent::Raw { xml } => {
-                if let Ok((new_xml, changed)) = resolve_raw_xml(xml, action, &pred) {
+                // `treat_missing_id_as_match: false` — a single targeted
+                // resolve can't safely claim a malformed, id-less element as
+                // "the one revision being resolved"; leave it untouched
+                // rather than guess (see `resolve_raw_xml`'s doc comment).
+                if let Ok((new_xml, changed)) = resolve_raw_xml(xml, action, &pred, false) {
                     if changed {
                         *xml = new_xml;
                     }
@@ -187,7 +193,11 @@ pub fn resolve_all(doc: &mut Document, action: ResolveAction) -> usize {
         match block {
             BlockContent::Paragraph(p) => resolve_inlines(&mut p.inlines, action, &pred),
             BlockContent::Raw { xml } => {
-                if let Ok((new_xml, changed)) = resolve_raw_xml(xml, action, &pred) {
+                // `treat_missing_id_as_match: true` — accept-all/reject-all is
+                // "resolve everything," so a malformed, id-less deletion must
+                // not survive it either (fail-closed for confidentiality; see
+                // `resolve_raw_xml`'s doc comment — this is the Codex-review fix).
+                if let Ok((new_xml, changed)) = resolve_raw_xml(xml, action, &pred, true) {
                     if changed {
                         *xml = new_xml;
                     }
@@ -223,12 +233,17 @@ fn raw_attr(e: &BytesStart<'_>, want_local: &str) -> Option<String> {
     })
 }
 
-/// Collect the `w:id` of every `w:ins`/`w:del` in a raw XML fragment. Used by
+/// Collect the `w:id` of every `w:ins`/`w:del` in a raw XML fragment (`None`
+/// for one missing an `id` attribute — malformed, but still a real revision
+/// that must be counted, not silently dropped from the total). Used by
 /// [`resolve_revision`]'s "does this id exist anywhere" check and by
-/// [`resolve_all`]'s revision count. Malformed XML is treated as having no
-/// revisions (preserve-don't-crash; the normal save/serialize path is the one
-/// responsible for XML validity, not this best-effort scan).
-fn raw_xml_revision_ids(xml: &str) -> Vec<String> {
+/// [`resolve_all`]'s revision count — the count MUST include id-less entries
+/// so a raw block whose only tracked change is malformed doesn't make
+/// `resolve_all` early-exit as if there were nothing to resolve. Malformed XML
+/// is treated as having no revisions (preserve-don't-crash; the normal
+/// save/serialize path is the one responsible for XML validity, not this
+/// best-effort scan).
+fn raw_xml_revision_ids(xml: &str) -> Vec<Option<String>> {
     let mut reader = Reader::from_str(xml);
     reader.config_mut().trim_text(false);
     let mut ids = Vec::new();
@@ -241,9 +256,7 @@ fn raw_xml_revision_ids(xml: &str) -> Vec<String> {
             Event::Start(e) | Event::Empty(e) => {
                 let ln = local_of(e.name());
                 if ln == "ins" || ln == "del" {
-                    if let Some(id) = raw_attr(&e, "id") {
-                        ids.push(id);
-                    }
+                    ids.push(raw_attr(&e, "id"));
                 }
             }
             Event::Eof => break,
@@ -304,21 +317,43 @@ fn xml_write_err(e: impl std::fmt::Display) -> DocxError {
 /// | `w:ins` | unwrap — keep the inserted text as plain runs | drop entirely |
 /// | `w:del` | drop entirely | unwrap — restore as plain text (`w:delText` -> `w:t`) |
 ///
-/// An element whose id doesn't match `pred` (or any element outside one) is
-/// re-emitted byte-for-byte, so unrelated revisions and all other markup
+/// An element whose id doesn't match `pred` is re-emitted byte-for-byte, as is
+/// any element outside one, so unrelated revisions and all other markup
 /// (table grid, cell properties, run properties, …) round-trip untouched.
+///
+/// `treat_missing_id_as_match` decides what happens to a MALFORMED `w:ins`/
+/// `w:del` with no `w:id` at all — `pred` can't be evaluated against a string
+/// that doesn't exist, so this is the explicit fallback instead of silently
+/// skipping it. Bulk callers (accept-all/reject-all, and the final-clean
+/// export path) pass `true`: a fail-closed guarantee that a malformed or
+/// third-party-authored deletion can never survive "accept every change"
+/// just because it lacks an id — a deleted client name is exactly the
+/// confidentiality risk CLUSTER-C3 exists to close (Codex review). A single
+/// targeted [`resolve_revision`] passes `false`: it can't safely claim an
+/// id-less element as "the one revision the caller asked for" — leaving it
+/// untouched (rather than guessing) is the conservative, correct choice there.
 ///
 /// Returns the (possibly unchanged) XML and whether anything was resolved.
 pub(crate) fn resolve_raw_xml(
     xml: &str,
     action: ResolveAction,
     pred: &impl Fn(&str) -> bool,
+    treat_missing_id_as_match: bool,
 ) -> DocxResult<(String, bool)> {
     let mut reader = Reader::from_str(xml);
     reader.config_mut().trim_text(false);
     let mut writer = Writer::new(Vec::with_capacity(xml.len()));
     let mut stack: Vec<RawFrame> = Vec::new();
     let mut changed = false;
+
+    // Whether a candidate `w:ins`/`w:del` should be treated as a match: a
+    // present id defers to `pred`; a MISSING id (malformed markup) defers to
+    // `treat_missing_id_as_match` instead of silently never matching (see the
+    // doc comment above — this is the fail-closed guarantee for bulk callers).
+    let id_matches = |id: &Option<String>| match id.as_deref() {
+        Some(id_str) => pred(id_str),
+        None => treat_missing_id_as_match,
+    };
 
     loop {
         let event = reader.read_event().map_err(xml_write_err)?;
@@ -333,13 +368,13 @@ pub(crate) fn resolve_raw_xml(
                 }
                 let ln = local_of(e.name());
                 let id = raw_attr(&e, "id");
-                if !in_restore && ln == "ins" && id.as_deref().is_some_and(pred) {
+                if !in_restore && ln == "ins" && id_matches(&id) {
                     changed = true;
                     match action {
                         ResolveAction::Accept => stack.push(RawFrame::Unwrap),
                         ResolveAction::Reject => stack.push(RawFrame::Drop),
                     }
-                } else if !in_restore && ln == "del" && id.as_deref().is_some_and(pred) {
+                } else if !in_restore && ln == "del" && id_matches(&id) {
                     changed = true;
                     match action {
                         ResolveAction::Accept => stack.push(RawFrame::Drop),
@@ -364,11 +399,11 @@ pub(crate) fn resolve_raw_xml(
                 }
                 let ln = local_of(e.name());
                 let id = raw_attr(&e, "id");
-                if !in_restore && ln == "ins" && id.as_deref().is_some_and(pred) {
+                if !in_restore && ln == "ins" && id_matches(&id) {
                     // Empty insertion: nothing to keep on accept, nothing to
                     // drop further on reject — either way, write nothing.
                     changed = true;
-                } else if !in_restore && ln == "del" && id.as_deref().is_some_and(pred) {
+                } else if !in_restore && ln == "del" && id_matches(&id) {
                     // Empty deletion: no text to restore or remove.
                     changed = true;
                 } else if in_restore && ln == "delText" {
@@ -772,7 +807,7 @@ mod tests {
 <w:tr><w:tc><w:p><w:ins w:id=\"2\" w:author=\"A\" w:date=\"d\"><w:r><w:t>row2</w:t></w:r></w:ins></w:p></w:tc></w:tr>\
 </w:tbl>";
         let (resolved, changed) =
-            resolve_raw_xml(xml, ResolveAction::Accept, &|id| id == "2").unwrap();
+            resolve_raw_xml(xml, ResolveAction::Accept, &|id| id == "2", true).unwrap();
         assert!(changed);
         assert!(resolved.contains("w:tblGrid") && resolved.contains("gridCol"));
         // Row 1 (id 1) untouched — still a tracked insertion.
@@ -782,4 +817,56 @@ mod tests {
         assert!(!resolved.contains("w:id=\"2\""));
         assert!(resolved.contains("row2"));
     }
+
+    // Codex review on CLUSTER-C3: a malformed/third-party `w:del` with NO
+    // `w:id` attribute must still be stripped by a bulk (accept-all /
+    // final-clean) resolve — the original scrubber did this unconditionally
+    // as a fail-closed safety net, and the refactor to share logic with
+    // `resolve_revision` initially regressed it (an id-less element could
+    // never satisfy `pred`, so it silently survived "accept everything").
+
+    #[test]
+    fn resolve_raw_xml_with_missing_id_true_strips_malformed_ids_less_deletion() {
+        let xml = "<w:tbl><w:tr><w:tc><w:p><w:del><w:r><w:delText>client name</w:delText></w:r></w:del></w:p></w:tc></w:tr></w:tbl>";
+        let (resolved, changed) =
+            resolve_raw_xml(xml, ResolveAction::Accept, &|_| true, true).unwrap();
+        assert!(changed);
+        assert!(
+            !resolved.contains("client name"),
+            "an id-less deletion must not survive a bulk accept: {resolved}"
+        );
+        assert!(!resolved.contains("w:del"));
+    }
+
+    #[test]
+    fn resolve_raw_xml_with_missing_id_false_leaves_malformed_element_untouched() {
+        // A targeted single-revision resolve can't safely claim an id-less
+        // element as the one it was asked to resolve.
+        let xml = "<w:tbl><w:tr><w:tc><w:p><w:del><w:r><w:delText>client name</w:delText></w:r></w:del></w:p></w:tc></w:tr></w:tbl>";
+        let (resolved, changed) =
+            resolve_raw_xml(xml, ResolveAction::Accept, &|id| id == "999", false).unwrap();
+        assert!(!changed);
+        assert_eq!(resolved, xml, "id-less element must round-trip byte-for-byte when not treated as a match");
+    }
+
+    #[test]
+    fn resolve_all_strips_a_malformed_ids_less_deletion_inside_a_table() {
+        let xml = "<w:tbl><w:tr><w:tc><w:p><w:del><w:r><w:delText>client name</w:delText></w:r></w:del></w:p></w:tc></w:tr></w:tbl>";
+        let mut doc = Document {
+            body: vec![BlockContent::Raw { xml: xml.to_string() }],
+            ..Default::default()
+        };
+        // Must not early-exit as "nothing to resolve" just because the id-less
+        // element isn't counted by id.
+        let n = resolve_all(&mut doc, ResolveAction::Accept);
+        assert_eq!(n, 1, "the malformed id-less deletion must still count as one revision");
+        let BlockContent::Raw { xml } = &doc.body[0] else {
+            panic!("expected raw block");
+        };
+        assert!(
+            !xml.contains("client name"),
+            "accept-all must strip an id-less deletion inside a table too: {xml}"
+        );
+    }
+
 }

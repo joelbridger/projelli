@@ -367,9 +367,14 @@ fn strip_all_comments(doc: &mut Document) {
 /// than modeling as paragraphs — delegates to the same stream-level resolver
 /// the interactive Accept All / Reject All path uses ([`crate::resolve::resolve_raw_xml`],
 /// CLUSTER-C3), so the two paths can never drift apart on what "accept" means
-/// for a `w:ins`/`w:del` living inside a table.
+/// for a `w:ins`/`w:del` living inside a table. `treat_missing_id_as_match:
+/// true` is load-bearing here: this is the "send a clean copy to opposing
+/// counsel" path, so a malformed or third-party-authored `<w:del>` with no
+/// `w:id` at all must still be stripped — the previous implementation did
+/// this unconditionally as a fail-closed safety net, and a review found the
+/// initial version of this delegation regressed that guarantee.
 fn accept_tracked_changes_in_raw_word_xml(xml: &str) -> Result<String> {
-    crate::resolve::resolve_raw_xml(xml, crate::resolve::ResolveAction::Accept, &|_| true)
+    crate::resolve::resolve_raw_xml(xml, crate::resolve::ResolveAction::Accept, &|_| true, true)
         .map(|(new_xml, _changed)| new_xml)
 }
 

@@ -1419,7 +1419,7 @@ export function DocxEditor({
               reviewing={reviewing}
               editable={canEdit}
               activeCommentId={activeCommentId}
-              onRunEdit={handleRunEdit}
+              onRunEdit={(blockIndex, inlineIndex, text) => { void handleRunEdit(blockIndex, inlineIndex, text); }}
               onActiveRunChange={onActiveRunChange}
               onCommentAnchorClick={setActiveCommentId}
             />
