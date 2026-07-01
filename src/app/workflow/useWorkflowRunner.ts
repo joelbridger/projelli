@@ -30,8 +30,8 @@ import { createMockProvider } from '@/platform/providers/MockProvider';
 import { createClaudeProvider } from '@/platform/providers/ClaudeProvider';
 import { createOpenAIProvider } from '@/platform/providers/OpenAIProvider';
 import { createGeminiProvider } from '@/platform/providers/GeminiProvider';
-import { OllamaProvider, detectOllama, OLLAMA_DEFAULT_MODEL } from '@/platform/providers/OllamaProvider';
-import { AppLocalProvider } from '@/platform/providers/AppLocalProvider';
+import { detectOllama, OLLAMA_DEFAULT_MODEL } from '@/platform/providers/OllamaProvider';
+import { createProvider } from '@/platform/providers/providerFactory';
 import { isEmbeddedLocalModelReady } from '@/platform/providers/resolveLocalProvider';
 import { modeRestrictsToLocal } from '@/platform/privacy/egress';
 import { assertCloudGenerationAllowed } from '@/platform/privacy/localOnlyGuard';
@@ -390,7 +390,8 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
         // F-503 — embedded Advisor Prep Hero Local AI (private mode). Fully on-device,
         // zero cost, zero network egress. The model id is the provider's own
         // default; only AI Rules are threaded in.
-        provider = new AppLocalProvider({
+        provider = createProvider({
+          provider: 'keepance-local',
           ...(aiRulesContent ? { aiRules: aiRulesContent } : {}),
         });
         console.log(
@@ -399,7 +400,8 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
       } else if (providerResolution.kind === 'ollama') {
         // F-107 — Ollama branch. Reachability confirmed above; construct the
         // local provider. Zero cost, zero network egress.
-        provider = new OllamaProvider({
+        provider = createProvider({
+          provider: 'ollama',
           model: providerResolution.model ?? OLLAMA_DEFAULT_MODEL,
           ...(aiRulesContent ? { aiRules: aiRulesContent } : {}),
         });
