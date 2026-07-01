@@ -286,6 +286,30 @@ describe('expandRedlineEditsForTables', () => {
     expect(plan.every((p) => p.kind === 'rejected')).toBe(true);
   });
 
+  it('CONVERTS a no-outer-pipe table WITH a separator row (no regression)', async () => {
+    // The old detector accepted this shape; the re-fix must keep converting it.
+    const md = 'Name | Value\n--- | ---\nAlpha | 42';
+    const edits: DocxAiEdit[] = [{ op: 'insert', paragraphIndex: 0, newText: md }];
+    const { wireEdits, plan } = await expandRedlineEditsForTables(edits);
+    expect(wireEdits.every((w) => !(w.newText ?? '').includes('|'))).toBe(true);
+    const blockOps = wireEdits.filter((w) => w.op === 'insertBlock');
+    expect(blockOps.length).toBe(1);
+    expect(/<w:tbl[\s>]/.test(blockOps[0]?.xml ?? '')).toBe(true);
+    expect(plan[0]!.kind).toBe('expanded');
+  });
+
+  it('CONVERTS a no-outer-pipe, separator-less rectangular table (never leaks)', async () => {
+    const md = 'Name | Value\nAlpha | 42';
+    const edits: DocxAiEdit[] = [{ op: 'insert', paragraphIndex: 0, newText: md }];
+    const { wireEdits, plan } = await expandRedlineEditsForTables(edits);
+    expect(wireEdits.every((w) => !(w.newText ?? '').includes('|'))).toBe(true);
+    const blockOps = wireEdits.filter((w) => w.op === 'insertBlock');
+    expect(blockOps.length).toBe(1);
+    expect(/<w:tbl[\s>]/.test(blockOps[0]?.xml ?? '')).toBe(true);
+    expect(blockOps[0]?.xml ?? '').toContain('Alpha');
+    expect(plan[0]!.kind).toBe('expanded');
+  });
+
   it('REJECTS a separator-less pipe table embedded in prose (mixed, no leak)', async () => {
     const md = 'Here is the breakdown:\n|Name|Value|\n|Alpha|42|';
     const edits: DocxAiEdit[] = [{ op: 'insert', paragraphIndex: 0, newText: md }];

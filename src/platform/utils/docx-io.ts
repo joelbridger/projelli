@@ -999,54 +999,68 @@ export function isStandaloneMarkdownTable(markdown: string): boolean {
 }
 
 /**
- * True when a trimmed line is a FULL pipe-table row — it both starts and ends
- * with `|` and has at least two pipes (so `|a|`, `|a|b|`, `| --- | --- |` all
- * count). Deliberately requires the OUTER pipes so ordinary prose with a stray
- * mid-line `|` ("$50k | year") is NOT mistaken for a table row.
+ * Split a pipe-table row into trimmed cell strings, tolerating BOTH outer-pipe
+ * (`| a | b |`) and no-outer-pipe (`a | b`) styles — mirrors the converter's own
+ * `splitTableRow` so detection and rendering agree on the column count.
  */
-function isFullPipeRow(line: string): boolean {
+function splitPipeCells(line: string): string[] {
   const t = line.trim();
-  return /^\|.*\|$/.test(t) && (t.match(/\|/g)?.length ?? 0) >= 2;
+  const inner = t.replace(/^\|/, '').replace(/\|$/, '');
+  return inner.split('|').map((c) => c.trim());
 }
 
-/** True when a trimmed line is a GFM separator row (`|---|`, `| :--- |`, …). */
+/**
+ * Column count of a pipe-table row (0 when the line has no `|` at all, so a
+ * pipe-free prose line is never mistaken for a one-cell row).
+ */
+function pipeColumnCount(line: string): number {
+  return line.includes('|') ? splitPipeCells(line).length : 0;
+}
+
+/** True when a trimmed line is a GFM separator row (`|---|`, `--- | ---`, …). */
 function isSeparatorRow(line: string): boolean {
   const t = line.trim();
   return /^[|\s:-]+$/.test(t) && t.includes('-') && t.includes('|');
 }
 
 /**
- * True when `text` contains a BLOCK of at least two consecutive full pipe-table
- * rows — with OR without a `|---|` separator row. This is broader than {@link
+ * True when `text` contains a BLOCK of at least two consecutive pipe-table rows
+ * — WITH or WITHOUT a `|---|` separator row, WITH or WITHOUT outer pipes — that
+ * share the same column count (≥2 columns). This is broader than {@link
  * containsMarkdownTable} (which requires a separator row) on purpose: real model
- * output for "add a small table" frequently OMITS the separator row entirely
- * (`|Name|Value|` / `|Alpha|42|`), and that MUST still be recognized as a table
- * so it is converted to a real `<w:tbl>` (or rejected) rather than leaking as
- * literal pipe text. Prose with a single stray pipe stays false (needs two
- * adjacent full pipe rows).
+ * output for "add a small table" frequently OMITS the separator row
+ * (`|Name|Value|` / `|Alpha|42|`, or `Name | Value` / `Alpha | 42`), and that
+ * MUST still be recognized as a table so it becomes a real `<w:tbl>` (or is
+ * rejected) rather than leaking as literal pipe text. The "same column count on
+ * two adjacent lines" rule is what keeps ordinary prose with a single stray pipe
+ * ("$50k | year") from being mistaken for a table.
  */
 export function containsPipeTableLikeBlock(text: string): boolean {
   const lines = text.replace(/\r\n/g, '\n').split('\n');
   for (let i = 1; i < lines.length; i++) {
-    if (isFullPipeRow(lines[i] ?? '') && isFullPipeRow(lines[i - 1] ?? '')) {
-      return true;
-    }
+    const prev = pipeColumnCount(lines[i - 1] ?? '');
+    const cur = pipeColumnCount(lines[i] ?? '');
+    if (prev >= 2 && cur >= 2 && prev === cur) return true;
   }
   return false;
 }
 
 /**
- * If `text` is a CLEAN, standalone pipe table — every non-blank line is a full
- * pipe row, at least two rows, no interleaved prose or blank lines — return it
- * as a canonical GFM Markdown table (with a proper `|---|` separator row,
- * synthesized from the header's column count when the model omitted one) that
- * {@link markdownToRedlineBlocks} converts to a real `<w:tbl>`. Otherwise return
- * `null` so the caller REJECTS the edit rather than risk leaking literal pipes
- * or silently losing text.
+ * If `text` is a CLEAN, standalone pipe table — every non-blank line is a pipe
+ * row, at least two rows, no interleaved prose or blank lines — return it as a
+ * canonical GFM Markdown table (outer pipes on every row, with a proper `|---|`
+ * separator row synthesized from the header's column count when the model
+ * omitted one) that {@link markdownToRedlineBlocks} converts to a real
+ * `<w:tbl>`. Otherwise return `null` so the caller REJECTS the edit rather than
+ * risk leaking literal pipes or silently losing text.
  *
- * This is the normalization the AI redliner runs BEFORE converting a table: it
- * closes the gap between what models actually emit (tight pipes, no separator)
- * and what the converter needs, without ever passing pipe syntax through as prose.
+ * Handles every shape models actually emit: outer/no-outer pipes, tight/spaced
+ * separators, and a missing separator row. For a separator-less block it also
+ * requires a CONSISTENT column count across all rows — a rectangular table, not
+ * ragged prose — as the anti-false-positive guard. This is the normalization the
+ * AI redliner runs BEFORE converting a table, closing the gap between what
+ * models emit and what the converter needs, without ever passing pipe syntax
+ * through as prose.
  */
 export function normalizeStandalonePipeTable(text: string): string | null {
   const raw = text.replace(/\r\n/g, '\n').split('\n');
@@ -1055,21 +1069,39 @@ export function normalizeStandalonePipeTable(text: string): string | null {
   while (start < end && (raw[start] ?? '').trim() === '') start++;
   while (end > start && (raw[end - 1] ?? '').trim() === '') end--;
   const lines = raw.slice(start, end).map((l) => l.trim());
-  // Need at least a header + one more row; every line must be a full pipe row
-  // (no prose, no internal blank lines) — otherwise it isn't a standalone table.
+  // Need a header + at least one more row, no internal blank lines, and every
+  // line must contain a `|` (a prose line with no pipe means this isn't a clean
+  // standalone table — reject rather than fold/drop it).
   if (lines.length < 2) return null;
-  if (!lines.every((l) => isFullPipeRow(l))) return null;
+  if (lines.some((l) => l === '' || !l.includes('|'))) return null;
 
-  // Already has a separator directly under the header → canonical enough.
-  if (isSeparatorRow(lines[1] ?? '')) return lines.join('\n');
+  const cols = pipeColumnCount(lines[0] ?? '');
+  if (cols < 2) return null;
 
-  // No separator row at all → synthesize one from the header's column count.
-  // (A separator that isn't line two would make this not a clean table; reject.)
-  if (lines.some((l) => isSeparatorRow(l))) return null;
-  const headerCells = (lines[0] ?? '').replace(/^\|/, '').replace(/\|$/, '').split('|');
-  const colCount = Math.max(1, headerCells.length);
-  const separator = `|${Array.from({ length: colCount }, () => ' --- ').join('|')}|`;
-  return [lines[0], separator, ...lines.slice(1)].join('\n');
+  const sepIndex = lines.findIndex((l) => isSeparatorRow(l));
+  let bodyLines: string[];
+  if (sepIndex >= 0) {
+    // A separator row is an unambiguous table signal — but it must sit directly
+    // under the header (GFM), else the "header" is really prose above a table.
+    if (sepIndex !== 1) return null;
+    bodyLines = lines.slice(2);
+  } else {
+    // No separator: require a rectangular block (every row the same column count)
+    // so two lines of prose that merely share a stray pipe aren't turned into a
+    // table.
+    if (!lines.every((l) => pipeColumnCount(l) === cols)) return null;
+    bodyLines = lines.slice(1);
+  }
+
+  const rowToCanonical = (cells: string[]): string => {
+    const padded = cells.slice(0, cols);
+    while (padded.length < cols) padded.push('');
+    return `| ${padded.join(' | ')} |`;
+  };
+  const header = rowToCanonical(splitPipeCells(lines[0] ?? ''));
+  const separator = `|${Array.from({ length: cols }, () => ' --- ').join('|')}|`;
+  const body = bodyLines.map((l) => rowToCanonical(splitPipeCells(l)));
+  return [header, separator, ...body].join('\n');
 }
 
 /**
