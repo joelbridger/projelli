@@ -95,12 +95,14 @@ Layer sizes (≈): app 33 · features 279 · platform 179 · ui 34 · lib 4.
   (`@/*` in `tsconfig`, `@` in vite/vitest); import as `@/features/ask/Ask`,
   `@/platform/providers/ClaudeProvider`, etc. No deep per-layer aliases.
 - **Locked identifiers — never rename** (grep after any structural change):
-  Tauri bundle id `com.lantern.app` (`src-tauri/tauri.conf.json`); keychain
-  prefixes `com.keepance.*` (frozen at the 2026-06-29 Lantern rename to avoid
-  orphaning existing users' saved keys/secrets — deliberately decoupled from
-  the bundle id); localStorage keys `keepance:settings`, `ai-chat-storage`, and
-  the matter keys `keepance:matters` / `keepance:matter-ui-snapshots` /
-  `keepance:matter-at-a-glance`.
+  the internal namespace is `lantern` (`APP_NS` — single source of truth:
+  `src/config/identity.ts` on the TS side, `src-tauri/src/identity.rs` on the
+  Rust side), which the 2026-06-29 Lantern rename applied everywhere: Tauri
+  bundle id `com.lantern.app`; keychain prefixes `com.lantern.*`; localStorage
+  keys `lantern:settings`, `ai-chat-storage`, and the matter keys
+  `lantern:matters` / `lantern:matter-ui-snapshots` / `lantern:matter-at-a-glance`.
+  (Pre-launch with zero outside users at the time, so the rename didn't need
+  to preserve the old `com.keepance.*` / `keepance:*` names anywhere.)
 - **The matter store** (`platform/matter/matterStore.ts`) is one store with four
   slices behind a custom **multi-key persist adapter** that preserves the three
   legacy localStorage keys byte-compatibly. Three thin alias-shim re-exports
