@@ -13,6 +13,7 @@ import type {
   TextExtractBlock,
   AttachmentBytes,
 } from './Provider';
+import { ProviderError } from './Provider';
 import type { ChatAttachment } from '@/platform/types/ai';
 import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
 import { assertCloudSendAllowed } from '@/platform/privacy/cloudSendGuard';
@@ -375,8 +376,25 @@ export class GeminiProvider implements Provider {
       totalOutputTokens += response.usageMetadata.candidatesTokenCount;
     }
 
+    // E1: if the loop exited because it hit MAX_TOOL_ITERATIONS while the model
+    // STILL wants to call functions, the "final" response carries only
+    // functionCall parts and no text — joining them yields a blank answer. That
+    // silently looks like the model had nothing to say. Surface it as a provider
+    // error instead, exactly like ClaudeProvider/OpenAIProvider do when their
+    // tool-call loop is exceeded, so the send path shows an honest failure.
+    const finalParts = response.candidates[0]?.content.parts ?? [];
+    const finalHasFunctionCalls = finalParts.some((p) => p.functionCall !== undefined);
+    if (finalHasFunctionCalls && this.toolExecutor) {
+      throw new ProviderError(
+        `Gemini tool-call loop exceeded ${String(MAX_TOOL_ITERATIONS)} iterations.`,
+        'api_error',
+        undefined,
+        false,
+      );
+    }
+
     // Collect all text parts from the final response
-    const textContent = (response.candidates[0]?.content.parts ?? [])
+    const textContent = finalParts
       .map((p) => p.text ?? '')
       .join('');
 

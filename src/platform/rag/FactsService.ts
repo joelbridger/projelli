@@ -54,6 +54,18 @@ export interface Fact {
   source_chat_id?: string;
   /** Message-index checkpoint at extraction time (optional provenance). */
   source_message_index?: number;
+  /**
+   * Client/matter scope this fact belongs to (isolation A1). Set when the fact
+   * was learned inside a specific client's context; ABSENT means a global
+   * (personal) fact not tied to any client — e.g. "the user is a financial
+   * advisor". A scoped fact is ONLY injected into prompts while that same
+   * client is active, so one client's durable facts can never be sent to the
+   * AI while working in another client. Legacy facts saved before scoping
+   * existed have no matterId and are treated as global (see
+   * `selectFactsForInjection`). The engine name `matter` is load-bearing — do
+   * not rename to `client`.
+   */
+  matterId?: string;
 }
 
 /** Serialized shape of `<workspace>/.keepance/memory.json`. */
@@ -90,6 +102,9 @@ export interface FactInput {
   approved_by: 'user' | 'auto';
   source_chat_id?: string;
   source_message_index?: number;
+  /** Client/matter scope to stamp on the fact (isolation A1). Omit for a
+   *  global/personal fact not tied to any client. */
+  matterId?: string;
 }
 
 /** Produced by `createFactsService`. */
@@ -159,6 +174,11 @@ export function parseMemoryFactsJson(raw: string): MemoryFacts {
       ) {
         entry.source_message_index = Math.floor(ff.source_message_index);
       }
+      // A1: preserve the client/matter scope through a load round-trip so a
+      // scoped fact stays scoped (and so legacy unscoped facts stay unscoped).
+      if (typeof ff.matterId === 'string' && ff.matterId.length > 0) {
+        entry.matterId = ff.matterId;
+      }
       facts.push(entry);
     }
     return { version: FACTS_SCHEMA_VERSION, facts };
@@ -182,6 +202,7 @@ export function serializeMemoryFacts(facts: MemoryFacts): string {
     if (f.source_message_index !== undefined) {
       out['source_message_index'] = f.source_message_index;
     }
+    if (f.matterId !== undefined) out['matterId'] = f.matterId;
     return out;
   });
   const body = {
@@ -248,6 +269,9 @@ export function createFactsService(opts: FactsServiceOptions): FactsServiceApi {
     if (typeof input.source_message_index === 'number') {
       fact.source_message_index = input.source_message_index;
     }
+    // A1: stamp the client/matter scope so this fact is only ever injected
+    // while the SAME client is active. Empty/absent => global (personal) fact.
+    if (input.matterId) fact.matterId = input.matterId;
     const next: MemoryFacts = {
       version: FACTS_SCHEMA_VERSION,
       facts: [...current.facts, fact],
@@ -289,6 +313,34 @@ export function createFactsService(opts: FactsServiceOptions): FactsServiceApi {
 // ---------------------------------------------------------------------------
 // Prompt injection helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Isolation guard (A1) — select which durable facts may be injected for a
+ * turn's client scope. The hard rule: a fact learned inside one client must
+ * NEVER be sent to the AI while a different client is active.
+ *
+ *   - Client-scoped turn (`matterId` set): inject ONLY facts explicitly scoped
+ *     to that same client. Global/unscoped facts — including legacy facts saved
+ *     before scoping existed — are WITHHELD, because we can't prove which client
+ *     they came from. Failing safe (withholding) is the right default for a
+ *     confidentiality boundary.
+ *   - All-matters / no active client (`matterId: null`): inject ONLY global
+ *     (unscoped) facts. A client-scoped fact belongs to one client and must not
+ *     surface in a cross-client view.
+ *
+ * This means facts memory is intentionally narrower than before inside a
+ * client: until each fact carries provenance, a client turn sees only that
+ * client's own facts (or none). That is the deliberate fail-safe.
+ */
+export function selectFactsForInjection(
+  facts: Fact[],
+  scope: { matterId: string | null },
+): Fact[] {
+  if (scope.matterId) {
+    return facts.filter((f) => f.matterId === scope.matterId);
+  }
+  return facts.filter((f) => f.matterId === undefined);
+}
 
 /**
  * Build the `<memory>` block that gets prepended to every chat system

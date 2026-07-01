@@ -177,7 +177,13 @@ export function bindAnswerBlocks(
       //     and another client's file must never read as "from your files".
       // Anything that fails the test is the model's own prose — downgrade to a
       // general block and scrub every marker.
-      if (blockCitations.length > 0 && blockCitations.every((c) => c.verified)) {
+      // B1: gate on `grounded` (resolves to a real retrieved chunk IN SCOPE),
+      // not `verified`. `grounded` keeps the SAME trust boundary that mattered
+      // here — a cross-client citation is not grounded, so it still downgrades
+      // the block — while letting an honest post-hoc "source found, not
+      // verified" chip stay in its files block instead of being scrubbed away.
+      // (Pre-B1 citations have no `grounded`; fall back to `verified`.)
+      if (blockCitations.length > 0 && blockCitations.every((c) => c.grounded ?? c.verified)) {
         // Keep the cited content green, but split off any trailing UNCITED
         // general prose into its own general block (review P1).
         blocks.push(...splitTrailingGeneralFromFilesBlock(text, blockCitations));
@@ -209,8 +215,16 @@ export function bindAnswerBlocks(
 /* -------------------------------------------------------------------------- */
 
 export interface AnswerProvenanceTally {
-  /** Distinct cited claims drawn from the user's files. */
+  /** Distinct cited claims drawn from the user's files (verified OR post-hoc). */
   citedClaims: number;
+  /**
+   * B1: distinct cited claims that are actually VERIFIED (an explicit model
+   * citation resolving to a retrieved chunk in scope). `citedClaims -
+   * verifiedClaims` is the count of "source found, not verified" post-hoc
+   * matches. The green "every cited claim can be checked" attestation requires
+   * `verifiedClaims === citedClaims`, so a post-hoc match never earns it.
+   */
+  verifiedClaims: number;
   /** Whether any general-knowledge block is present. */
   hasGeneral: boolean;
   /** Whether any draft block is present. */
@@ -221,14 +235,40 @@ export interface AnswerProvenanceTally {
 
 export function tallyBlocks(blocks: AnswerBlock[]): AnswerProvenanceTally {
   const citedNumbers = new Set<number>();
+  const verifiedNumbers = new Set<number>();
   let hasGeneral = false;
   let hasDraft = false;
   let hasNothingFound = false;
   for (const b of blocks) {
-    if (b.kind === 'files') for (const c of b.citations) citedNumbers.add(c.n);
+    if (b.kind === 'files') {
+      for (const c of b.citations) {
+        citedNumbers.add(c.n);
+        if (c.verified) verifiedNumbers.add(c.n);
+      }
+    }
     if (b.kind === 'general') hasGeneral = true;
     if (b.kind === 'draft') hasDraft = true;
     if (b.kind === 'nothing-found') hasNothingFound = true;
   }
-  return { citedClaims: citedNumbers.size, hasGeneral, hasDraft, hasNothingFound };
+  return {
+    citedClaims: citedNumbers.size,
+    verifiedClaims: verifiedNumbers.size,
+    hasGeneral,
+    hasDraft,
+    hasNothingFound,
+  };
+}
+
+/**
+ * B1: whether a files block's citations are ALL verified (explicit, in-scope).
+ * Drives the green "From your files" trust label vs the amber "From your files
+ * — not verified" label. A files block always has ≥1 citation (block-keep
+ * requires a grounded citation), so an empty list is treated as not-verified.
+ */
+export function isFilesBlockVerified(block: AnswerBlock): boolean {
+  return (
+    block.kind === 'files' &&
+    block.citations.length > 0 &&
+    block.citations.every((c) => c.verified)
+  );
 }

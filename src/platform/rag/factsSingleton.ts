@@ -16,6 +16,7 @@
  */
 
 import type { Fact, FactsServiceApi } from './FactsService';
+import { selectFactsForInjection } from './FactsService';
 
 export type FactsEnabledReader = () => boolean;
 
@@ -90,13 +91,22 @@ export function isFactsAutoAcceptEnabled(): boolean {
  * `handleSendMessage`; by keeping it async it can safely read from the
  * workspace file (which is where the source of truth lives) without
  * forcing every caller to cache.
+ *
+ * A1 (isolation): pass the active client scope so only facts that may be
+ * injected for that scope are returned. A client-scoped turn gets ONLY that
+ * client's facts; an all-matters / no-client turn gets only global facts.
+ * Callers that don't pass a scope default to GLOBAL-ONLY (`matterId: null`) —
+ * the safe default that never leaks a client-scoped fact.
  */
-export async function snapshotFactsForInjection(): Promise<Fact[]> {
+export async function snapshotFactsForInjection(
+  scope: { matterId: string | null } = { matterId: null },
+): Promise<Fact[]> {
   if (!isFactsInjectionEnabled()) return [];
   const svc = service;
   if (!svc) return [];
   try {
-    return await svc.listFacts();
+    const all = await svc.listFacts();
+    return selectFactsForInjection(all, scope);
   } catch {
     // Storage read failures shouldn't break chat — fall back to empty
     // and let the user see the fix in the Settings panel.

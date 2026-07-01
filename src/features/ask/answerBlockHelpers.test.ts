@@ -3,6 +3,7 @@ import type { RagHit } from '@/platform/utils/tauri-commands';
 import {
   BLOCK_MARKERS,
   bindAnswerBlocks,
+  isFilesBlockVerified,
   splitRawBlocks,
   stripBlockMarkers,
   tallyBlocks,
@@ -383,6 +384,47 @@ describe('stripBlockMarkers', () => {
   });
 });
 
+describe('B1 — a post-hoc-grounded files block is kept but NOT verified', () => {
+  // The model wrote a files-labelled block with NO explicit citation marker, but
+  // its sentence post-hoc-grounds to a retrieved chunk. The chip must be KEPT
+  // (grounded) so the citation isn't dropped, but the block-level green trust UI
+  // must NOT be earned — the citation is grounded:true, verified:false.
+  const postHocFilesAnswer = [
+    BLOCK_MARKERS.files,
+    'The old 401(k) still lists Jessica Reyes as the sole primary beneficiary, dated 2019.',
+  ].join('\n');
+
+  it('keeps the files block and its chip but marks the citation grounded, not verified', () => {
+    const result = bindAnswerBlocks(postHocFilesAnswer, [hit()], 'webb');
+    const filesBlock = result.blocks.find((b) => b.kind === 'files');
+    if (!filesBlock) throw new Error('expected a files block');
+    expect(filesBlock.citations).toHaveLength(1); // chip kept, not removed
+    expect(filesBlock.citations[0]?.grounded).toBe(true);
+    expect(filesBlock.citations[0]?.verified).toBe(false);
+    // The block-level green "From your files" trust label is NOT earned.
+    expect(isFilesBlockVerified(filesBlock)).toBe(false);
+  });
+
+  it('tallies it as a found-but-unverified source, not a verified cited claim', () => {
+    const result = bindAnswerBlocks(postHocFilesAnswer, [hit()], 'webb');
+    const tally = tallyBlocks(result.blocks);
+    expect(tally.citedClaims).toBe(1);
+    expect(tally.verifiedClaims).toBe(0); // never counted as "checkable"
+  });
+
+  it('marks an EXPLICIT in-scope citation as a verified files block', () => {
+    const result = bindAnswerBlocks(
+      [BLOCK_MARKERS.files, 'Beneficiary is Jessica Reyes [beneficiary.docx paragraph 3].'].join('\n'),
+      [hit()],
+      'webb',
+    );
+    const filesBlock = result.blocks.find((b) => b.kind === 'files');
+    if (!filesBlock) throw new Error('expected a files block');
+    expect(isFilesBlockVerified(filesBlock)).toBe(true);
+    expect(tallyBlocks(result.blocks).verifiedClaims).toBe(1);
+  });
+});
+
 describe('tallyBlocks', () => {
   it('counts distinct cited claims and flags general/draft/nothing-found', () => {
     const result = bindAnswerBlocks(
@@ -400,6 +442,9 @@ describe('tallyBlocks', () => {
     const tally = tallyBlocks(result.blocks);
     expect(tally).toEqual({
       citedClaims: 1,
+      // The explicit `[beneficiary.docx paragraph 3]` citation in-scope is
+      // verified, so it counts toward both totals.
+      verifiedClaims: 1,
       hasGeneral: true,
       hasDraft: true,
       hasNothingFound: false,

@@ -76,8 +76,26 @@ export interface AnswerCitation {
   path: string | null;
   /** Locator string for the source (page, section, etc.). */
   locator: string;
-  /** Whether the source was returned from the verified RAG store. */
+  /**
+   * Honest "verified" badge (B1). TRUE only when the MODEL explicitly cited
+   * this source (a citation marker that resolved to a retrieved chunk) AND the
+   * chunk is in the expected client scope. A post-hoc fuzzy match — our own
+   * guess that an answer sentence resembles a retrieved chunk — is NOT proof
+   * the chunk supports the claim, so it is `verified: false` (shown "source
+   * found, not verified"). Never set true purely because a chunk is in the
+   * right client.
+   */
   verified: boolean;
+  /**
+   * Whether this citation resolves to a REAL retrieved chunk within the
+   * expected client scope (B1). True for both explicit and post-hoc citations
+   * that are in-scope; false for cross-client matches. Distinct from
+   * `verified`: `grounded` keeps an honest "source found" chip present (so the
+   * citation is never removed), while `verified` gates the stronger green
+   * badge. Absent on pre-B1 persisted citations — callers fall back to
+   * `verified` for those.
+   */
+  grounded?: boolean;
   /**
    * WS3: paragraph index for the chunk — passed to `onOpenFileAtPath` so
    * the editor can scroll directly to the cited passage on chip click.
@@ -788,12 +806,26 @@ function citationKey(hit: RagHit): string {
 }
 
 function findSourceForHit(sources: WorkspaceSource[], hit: RagHit): WorkspaceSource | undefined {
+  // B2: pageNumber is undefined for every non-PDF chunk. Comparing
+  // `s.pageNumber === hit.pageNumber` then evaluates `undefined === undefined`
+  // → true, so a citation for paragraph 8 would wrongly match the FIRST source
+  // from the same file (its locator points at the wrong chunk). Only treat a
+  // page match as a match when BOTH page numbers are real; otherwise the chunk
+  // must agree on the exact paragraph index.
+  const samePage = (s: WorkspaceSource): boolean =>
+    typeof s.pageNumber === 'number' &&
+    typeof hit.pageNumber === 'number' &&
+    s.pageNumber === hit.pageNumber;
   return (
-    sources.find((s) =>
-      s.path === hit.path &&
-      (s.paragraphIndex === hit.paragraphIndex || s.pageNumber === hit.pageNumber),
-    ) ??
-    sources.find((s) => s.path === hit.path && s.paragraphIndex === hit.paragraphIndex)
+    // Prefer the EXACT paragraph chunk first (Codex P2). A page-numbered
+    // non-PDF source — a transcript, xlsx sheet, or pptx slide — can hold
+    // several paragraph chunks that share ONE pageNumber; matching on page
+    // first would return an earlier chunk on the same page and mislabel the
+    // locator. Exact paragraph is the precise chunk for every source type.
+    sources.find((s) => s.path === hit.path && s.paragraphIndex === hit.paragraphIndex) ??
+    // Then fall back to a REAL page match (both page numbers present), the
+    // page-level locator when no exact paragraph chunk is in the source list.
+    sources.find((s) => s.path === hit.path && samePage(s))
   );
 }
 
@@ -860,11 +892,22 @@ function hashText(s: string): string {
   return (h >>> 0).toString(36);
 }
 
+/**
+ * How a citation was bound to its chunk (B1):
+ *   - 'explicit'  the model emitted a citation marker that resolved to a
+ *                 retrieved chunk — the model itself pointed at this source.
+ *   - 'post-hoc'  WE fuzzy-matched an answer sentence to a chunk after the
+ *                 fact. It's a plausible source, not proof the chunk supports
+ *                 the claim — never badged "verified".
+ */
+type CitationGrounding = 'explicit' | 'post-hoc';
+
 function citationFromHit(
   hit: RagHit,
   n: number,
   sources: WorkspaceSource[],
   expectedMatterId: string | null,
+  grounding: CitationGrounding,
 ): AnswerCitation {
   const matchedSource = findSourceForHit(sources, hit);
   const inExpectedMatter =
@@ -879,7 +922,14 @@ function citationFromHit(
     excerpt: hit.chunkText,
     path: hit.path,
     locator: matchedSource ? sourceLocator(matchedSource) : citationBasename(hit.path),
-    verified: inExpectedMatter,
+    // B1: "verified" (green) requires an EXPLICIT model citation in scope. A
+    // post-hoc fuzzy match is grounded but unverified — shown "source found,
+    // not verified" rather than a green badge it hasn't earned.
+    verified: inExpectedMatter && grounding === 'explicit',
+    // "grounded" keeps the chip present for any in-scope match (explicit OR
+    // post-hoc) so honest citations are never silently dropped; a cross-client
+    // match is neither grounded nor verified.
+    grounded: inExpectedMatter,
     paragraphIndex: hit.paragraphIndex,
     ...(hit.id !== undefined ? { id: hit.id } : {}),
     ...(hit.matterId !== undefined ? { matterId: hit.matterId } : {}),
@@ -1000,7 +1050,9 @@ export function bindCitationsCore(
       acc.chipCounter += 1;
       n = acc.chipCounter;
       acc.citationMap.set(key, n);
-      acc.citations.push(citationFromHit(matchedHit, n, sources, expectedMatterId));
+      // Explicit: the model emitted this citation marker and it resolved to a
+      // retrieved chunk — eligible for the green "verified" badge when in scope.
+      acc.citations.push(citationFromHit(matchedHit, n, sources, expectedMatterId, 'explicit'));
     }
     decisions.push({ start: cite.start, end: cite.end, n });
   }
@@ -1037,7 +1089,10 @@ export function bindCitationsCore(
         acc.chipCounter += 1;
         n = acc.chipCounter;
         acc.citationMap.set(key, n);
-        acc.citations.push(citationFromHit(matchedHit, n, sources, expectedMatterId));
+        // Post-hoc: WE matched this chunk to the sentence after the fact. Keep
+        // the chip (grounded) but never badge it "verified" — it's a guess, not
+        // a model citation (B1).
+        acc.citations.push(citationFromHit(matchedHit, n, sources, expectedMatterId, 'post-hoc'));
       }
       insertions.push({ at: span.end, n });
     }
@@ -1249,7 +1304,21 @@ export function reconstructTurns(messages: ChatMessage[]): AskTurn[] {
             restoredSources.some(
               (s) => s.path === c.path && (s.paragraphIndex === c.paragraphIndex || s.pageNumber === c.paragraphIndex),
             );
-          return { ...c, verified: provenExact };
+          // B1: reconstruct can't re-check client scope on reload, so the
+          // persisted flags carry it. A restored citation is `grounded` (kept +
+          // shown "source found") only when its EXACT locator re-grounds AND it
+          // was in-scope when saved — `grounded` if present, else the legacy
+          // `verified` flag as the in-scope proxy (a cross-client citation was
+          // persisted verified:false, so it stays NOT grounded and its block
+          // still downgrades). It re-earns the green `verified` badge only when
+          // it also re-grounds AND was explicitly verified when saved — never
+          // re-promote a persisted post-hoc/unverified citation to green.
+          const inScopeWhenSaved = c.grounded ?? c.verified;
+          return {
+            ...c,
+            grounded: provenExact && inScopeWhenSaved,
+            verified: provenExact && c.verified,
+          };
         });
 
       // Ask-smart: restore the provenance blocks when this assistant message was
@@ -1289,11 +1358,13 @@ export function reconstructTurns(messages: ChatMessage[]): AskTurn[] {
             // AND the re-grounded verification with the original persisted flag.
             .map((c) => ({ ...c, verified: c.verified && (originalVerified.get(c.n) ?? true) }));
           // TRUST BOUNDARY (Codex P1): same downgrade rule on reload as at bind
-          // time — a persisted files block keeps its green "From your files"
-          // label ONLY if it has citations and EVERY one still re-grounds to a
-          // verified source. Zero survivors, or any unverified/out-of-matter
-          // citation, downgrades it to general (strip every leftover marker).
-          if (blockCitations.length > 0 && blockCitations.every((c) => c.verified)) {
+          // time — a persisted files block keeps its "From your files" label
+          // ONLY if it has citations and EVERY one still re-grounds to a chunk
+          // IN SCOPE. B1: gate on `grounded` (re-grounded + in-scope), not
+          // `verified`, so an honest post-hoc "source found, not verified" chip
+          // stays in its files block on reload instead of being scrubbed; a
+          // cross-client citation is not grounded and still downgrades the block.
+          if (blockCitations.length > 0 && blockCitations.every((c) => c.grounded)) {
             // Same trailing-general split as at bind time (review P1).
             return splitTrailingGeneralFromFilesBlock(stripped.trim(), blockCitations);
           }

@@ -18,7 +18,7 @@ function hit(overrides: Partial<RagHit> = {}): RagHit {
 }
 
 describe('bindAnswerCitations', () => {
-  it('attaches a verified citation when the model emits no marker but a retrieved hit supports the answer', () => {
+  it('attaches a GROUNDED-but-UNVERIFIED citation when the model emits no marker but a retrieved hit supports the answer (B1)', () => {
     const result = bindAnswerCitations(
       'The total portfolio value is $50,200,000, and the revocable trust holds $18,750,000.',
       [
@@ -43,10 +43,30 @@ describe('bindAnswerCitations', () => {
       label: 'client-map.md',
       path: 'Clients/Hollings Family/client-map.md',
       excerpt: 'The total portfolio value is $50,200,000. The Hollings Revocable Trust holds $18,750,000.',
-      verified: true,
+      // B1: a post-hoc fuzzy match is NOT "verified" — it is grounded (kept, so
+      // the chip isn't removed) but shown "source found, not verified".
+      verified: false,
+      grounded: true,
       paragraphIndex: 12,
       id: 'chunk-client-map-12',
       matterId: 'hollings',
+    });
+  });
+
+  it('marks an EXPLICIT in-scope model citation as verified (B1)', () => {
+    const result = bindAnswerCitations(
+      'The central issue is estate tax exposure and the ILIT. [estate-tax-ilit.docx paragraph 4]',
+      [hit({ id: 'chunk-1', matterId: 'hollings' })],
+      'hollings',
+    );
+
+    expect(result.citations).toHaveLength(1);
+    expect(result.citations[0]).toMatchObject({
+      n: 1,
+      // The model explicitly cited a retrieved chunk in the expected client —
+      // this earns the green badge.
+      verified: true,
+      grounded: true,
     });
   });
 
@@ -102,6 +122,44 @@ describe('bindAnswerCitations', () => {
     expect(result.citations).toEqual([]);
   });
 
+  it('B2: locates the cited chunk by paragraph for a non-PDF file, not the first source of the same file', () => {
+    // Two chunks from the SAME .docx (no pageNumber). A citation for paragraph 8
+    // must resolve to paragraph 8's locator — before the fix, `undefined ===
+    // undefined` on pageNumber matched the FIRST source (paragraph 1).
+    const result = bindAnswerCitations(
+      'See the funding terms. [estate-plan.docx paragraph 8]',
+      [
+        hit({ path: 'Clients/Webb/estate-plan.docx', chunkText: 'Intro paragraph.', paragraphIndex: 1, id: 'c1', matterId: 'webb' }),
+        hit({ path: 'Clients/Webb/estate-plan.docx', chunkText: 'The ILIT is funded annually via Crummey gifts.', paragraphIndex: 8, id: 'c8', matterId: 'webb' }),
+      ],
+      'webb',
+    );
+
+    expect(result.citations).toHaveLength(1);
+    expect(result.citations[0]?.paragraphIndex).toBe(8);
+    // The locator must point at paragraph 8, NOT the first (paragraph 1) source.
+    expect(result.citations[0]?.locator).toBe('estate-plan.docx §8');
+  });
+
+  it('P2: prefers the exact paragraph chunk over an earlier chunk sharing the same page (transcript)', () => {
+    // Two transcript chunks on the SAME page (45) but different paragraph
+    // chunks with DIFFERENT line locators. A citation for chunk 2 must carry
+    // chunk 2's locator, not the first same-page chunk's.
+    const result = bindAnswerCitations(
+      'The witness admitted the delay. [depo.txt paragraph 2]',
+      [
+        hit({ path: 'Clients/Webb/depo.txt', chunkText: 'Intro lines.', paragraphIndex: 1, pageNumber: 45, sourceType: 'transcript', locator: '45:1-45:10', id: 't1', matterId: 'webb' }),
+        hit({ path: 'Clients/Webb/depo.txt', chunkText: 'I admit we were late.', paragraphIndex: 2, pageNumber: 45, sourceType: 'transcript', locator: '45:11-45:20', id: 't2', matterId: 'webb' }),
+      ],
+      'webb',
+    );
+
+    expect(result.citations).toHaveLength(1);
+    expect(result.citations[0]?.paragraphIndex).toBe(2);
+    // The locator must be chunk 2's line range, NOT the first same-page chunk's.
+    expect(result.citations[0]?.locator).toBe('Tr. 45:11-45:20');
+  });
+
   it('does not verify a citation from a different matter', () => {
     const result = bindAnswerCitations(
       'The central issue is estate tax exposure. [estate-tax-ilit.docx paragraph 4]',
@@ -111,6 +169,9 @@ describe('bindAnswerCitations', () => {
 
     expect(result.citations).toHaveLength(1);
     expect(result.citations[0]?.verified).toBe(false);
+    // B1: a cross-client citation is neither verified NOR grounded — it must
+    // never read as "from your files" for the wrong client.
+    expect(result.citations[0]?.grounded).toBe(false);
   });
 });
 

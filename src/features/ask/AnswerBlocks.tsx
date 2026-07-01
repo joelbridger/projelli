@@ -15,14 +15,19 @@
  */
 
 import type { CSSProperties } from 'react';
-import { ShieldCheck, Info, PencilLine, Search } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, Info, PencilLine, Search } from 'lucide-react';
 import type { AnswerBlock, AnswerBlockKind } from './askHelpers';
-import { tallyBlocks } from './answerBlockHelpers';
+import { tallyBlocks, isFilesBlockVerified } from './answerBlockHelpers';
 import { CitationText } from './CitationText';
 
 /* eslint-disable lantern-i18n/no-hardcoded-string -- design copy matching the approved mockups; localized later with the rest of the surface */
 
 const FILES = { fg: '#16654a', bg: '#e6f5ee', border: '#8fc9b0' };
+// B1: a files block whose citations are grounded but NOT verified (post-hoc
+// fuzzy matches) wears this amber "source found, not verified" tone instead of
+// the green FILES tone — the block-level trust badge must be earned, not given
+// for merely landing in a files block.
+const AMBER = { fg: '#8a5a00', bg: '#fef6e6', border: '#e3b878' };
 const GREY = { fg: 'var(--kp-text-dim)', bg: 'var(--kp-bg-soft)', border: 'var(--kp-divider-strong)' };
 const BLUE = { fg: 'var(--kp-accent)', bg: 'var(--kp-accent-soft)', border: 'var(--kp-action-border)' };
 
@@ -39,11 +44,19 @@ const LABELS: Record<AnswerBlockKind, LabelDef> = {
   draft: { text: 'Draft', Icon: PencilLine, tone: BLUE },
 };
 
-function BlockLabel({ kind }: { kind: AnswerBlockKind }) {
-  const { text, Icon, tone } = LABELS[kind];
+function BlockLabel({ kind, verified = true }: { kind: AnswerBlockKind; verified?: boolean }) {
+  // B1: a files block with grounded-but-unverified (post-hoc) citations must
+  // NOT wear the green "From your files" badge — show the honest amber "source
+  // found, not verified" variant. Every other kind is unaffected.
+  const filesUnverified = kind === 'files' && !verified;
+  const base = LABELS[kind];
+  const text = filesUnverified ? 'From your files — not verified' : base.text;
+  const Icon = filesUnverified ? ShieldAlert : base.Icon;
+  const tone = filesUnverified ? AMBER : base.tone;
+  const testId = filesUnverified ? 'ask-block-label-files-unverified' : `ask-block-label-${kind}`;
   return (
     <span
-      data-testid={`ask-block-label-${kind}`}
+      data-testid={testId}
       style={{
         alignSelf: 'flex-start',
         display: 'inline-flex',
@@ -106,14 +119,21 @@ export function AnswerBlocks({
   const tally = tallyBlocks(blocks);
   // Pure-files answer (cited, no general/draft/nothing-found): show the original
   // green attestation box so a cited-only answer reads exactly as before.
+  // B1: only when EVERY cited claim is actually VERIFIED — a post-hoc
+  // "source found, not verified" claim must never earn "every cited claim can
+  // be checked against the source".
   const pureFiles =
-    tally.citedClaims > 0 && !tally.hasGeneral && !tally.hasDraft && !tally.hasNothingFound;
+    tally.citedClaims > 0 &&
+    tally.verifiedClaims === tally.citedClaims &&
+    !tally.hasGeneral && !tally.hasDraft && !tally.hasNothingFound;
+  // B1: count of cited claims that are grounded but NOT verified (post-hoc).
+  const unverifiedClaims = tally.citedClaims - tally.verifiedClaims;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {blocks.map((block, i) => (
         <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 9 }} data-testid={`ask-block-${block.kind}`}>
-          <BlockLabel kind={block.kind} />
+          <BlockLabel kind={block.kind} verified={isFilesBlockVerified(block)} />
           {block.text && (
             <CitationText
               text={block.text}
@@ -149,12 +169,22 @@ export function AnswerBlocks({
       ) : (
         (tally.citedClaims > 0 || tally.hasGeneral || tally.hasNothingFound) && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9, alignItems: 'center' }}>
-            {tally.citedClaims > 0 && (
+            {tally.verifiedClaims > 0 && (
               <span data-testid="ask-tally-cited" style={tallyPillStyle(FILES)}>
                 <ShieldCheck size={13} strokeWidth={2} style={{ flex: 'none' }} />
-                {tally.citedClaims === 1
+                {tally.verifiedClaims === 1
                   ? '1 claim cited from your files'
-                  : `${String(tally.citedClaims)} claims cited from your files`}
+                  : `${String(tally.verifiedClaims)} claims cited from your files`}
+              </span>
+            )}
+            {/* B1: post-hoc matches are shown honestly as "found, not verified" —
+                never folded into the green "cited from your files" count. */}
+            {unverifiedClaims > 0 && (
+              <span data-testid="ask-tally-unverified" style={tallyPillStyle(AMBER)}>
+                <ShieldAlert size={13} strokeWidth={2} style={{ flex: 'none' }} />
+                {unverifiedClaims === 1
+                  ? '1 source found · not verified'
+                  : `${String(unverifiedClaims)} sources found · not verified`}
               </span>
             )}
             {tally.hasGeneral && (

@@ -156,6 +156,31 @@ describe('provider regressions — BUG-071 tool-call loop cap', () => {
     await expect(provider.sendMessage('loop')).rejects.toThrow(/tool.*iteration/i);
     expect(fetchMock.mock.calls.length).toBeLessThanOrEqual(17);
   });
+
+  it('E1: Gemini throws instead of returning a blank answer when the tool-call cap is hit', async () => {
+    // The model keeps wanting to call functions on every turn. Before E1, the
+    // loop exited at the cap and joined only functionCall parts → a blank
+    // answer that looked like the model had nothing to say. It must surface an
+    // honest provider error like Claude/OpenAI instead.
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(jsonResponse({
+        candidates: [{
+          content: { parts: [{ functionCall: { name: 'repeat', args: {} } }] },
+          finishReason: 'STOP',
+        }],
+        usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 },
+      })),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const provider = new GeminiProvider({ apiKey: 'test-key', model: 'gemini-1.5-pro' });
+    provider.setTools(
+      [{ name: 'repeat', description: 'repeat', input_schema: { type: 'object', properties: {} } }],
+      async () => ({ ok: true }),
+    );
+
+    await expect(provider.sendMessage('loop')).rejects.toThrow(/tool.*iteration/i);
+    expect(fetchMock.mock.calls.length).toBeLessThanOrEqual(17);
+  });
 });
 
 describe('provider regressions — BUG-073 final SSE line without newline', () => {
