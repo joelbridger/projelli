@@ -20,8 +20,12 @@ import { test, expect } from '@playwright/test';
 import { waitForTestModeLoad, hardClick, openAIAssistantPane } from './helpers/test-utils';
 
 async function openMemorySettings(page: import('@playwright/test').Page) {
+  // STALE-TESTID FIX (F1.3, 2026-07-01): the gear used to open a
+  // `settings-modal` dialog; Jameson's 2026-06-27 decision
+  // (SettingsGearButton.tsx) made it open the full-page `settings-page`
+  // surface instead (same SettingsContent, rendered in the main window).
   await hardClick(page.getByTestId('settings-gear'));
-  await expect(page.getByTestId('settings-modal')).toBeVisible();
+  await expect(page.getByTestId('settings-page')).toBeVisible();
   await hardClick(page.getByTestId('settings-category-ai-privacy'));
   await hardClick(page.getByTestId('subheader-memory-heading'));
   await expect(page.getByTestId('settings-facts-section')).toBeVisible();
@@ -71,18 +75,25 @@ test.describe('v1.5 error paths + edge cases', () => {
     page,
   }) => {
     // Regression guard: if the no-key path changes, the user should still
-    // get an explicit error instead of a silent no-op or fake success.
+    // get an explicit signal instead of a silent no-op or fake success.
+    //
+    // STALE-BEHAVIOR FIX (F1.3, 2026-07-01): this used to let the user click
+    // Send and assert a post-send error message. The product moved to a
+    // stricter guard — effectiveChatProvider resolves to 'none' with no valid
+    // key (providerModelResolution.ts), so send is proactively DISABLED and
+    // can never be clicked through at all. That's a stronger version of the
+    // same guarantee (impossible to hit a silent no-op/fake-success, since
+    // there's no click path to it), so assert the current explicit signal —
+    // the model picker showing no provider chosen, same as the sibling
+    // 'missing API key leaves chat without a selected provider' test above —
+    // instead of a message that can no longer be reached.
     await page.reload();
     await waitForTestModeLoad(page);
     await openAIAssistantPane(page);
 
     await page.getByTestId('chat-input').fill('Can you help?');
-    await hardClick(page.getByTestId('chat-send-button'));
-
-    await expect(page.getByTestId('chat-messages')).toContainText(
-      /No valid Anthropic API key found|Please add your API key/i,
-      { timeout: 10_000 },
-    );
+    await expect(page.getByTestId('chat-send-button')).toBeDisabled();
+    await expect(page.getByTestId('chat-model-picker')).toContainText(/Choose a model/i);
   });
 
   test('corrupt facts-file localStorage does not break Memory settings', async ({
@@ -125,7 +136,7 @@ test.describe('v1.5 error paths + edge cases', () => {
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
     await hardClick(page.getByTestId('settings-gear'));
-    await expect(page.getByTestId('settings-modal')).toBeVisible();
+    await expect(page.getByTestId('settings-page')).toBeVisible();
 
     const search = page.getByTestId('settings-search');
     await search.fill('memory');

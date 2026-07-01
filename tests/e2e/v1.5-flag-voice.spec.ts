@@ -32,7 +32,7 @@ test.describe('v1.5 Flag 4 — Voice input', () => {
 
   test('Settings → Voice category shows the VoiceSettingsSection status pill', async ({ page }) => {
     await hardClick(page.getByTestId('settings-gear'));
-    await expect(page.getByTestId('settings-modal')).toBeVisible();
+    await expect(page.getByTestId('settings-page')).toBeVisible();
 
     const voiceCat = page.getByTestId('settings-category-voice');
     await expect(voiceCat).toBeVisible();

@@ -33,7 +33,7 @@ import { waitForTestModeLoad, hardClick } from './helpers/test-utils';
 
 async function openVoiceSettings(page: import('@playwright/test').Page) {
   await hardClick(page.getByTestId('settings-gear'));
-  await expect(page.getByTestId('settings-modal')).toBeVisible();
+  await expect(page.getByTestId('settings-page')).toBeVisible();
   await hardClick(page.getByTestId('settings-category-voice'));
   await expect(page.getByTestId('voice-status')).toBeVisible();
 }

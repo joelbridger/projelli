@@ -40,13 +40,13 @@ onboarding / timing / visual), not a confirmed diagnosis, unless marked
 | `file-tree.spec.ts` | file-tree render/expand timing | fix-plan-F1.3-followup | 2026-07-31 |
 | `citation-persistence.spec.ts` | citation state across reload (persisted-state timing) | fix-plan-F1.3-followup | 2026-07-31 |
 | `app-layout.spec.ts` | layout/visual sensitivity to CI rendering | fix-plan-F1.3-followup | 2026-07-31 |
-| `v1.5-integration-flows.spec.ts` | broad multi-step flow; cold-start timing | fix-plan-F1.3-followup | 2026-07-31 |
-| `v1.5-accessibility-full.spec.ts` | full a11y sweep; slow/timing-sensitive | fix-plan-F1.3-followup | 2026-07-31 |
-| `templates-marketplace.spec.ts` | templates list state/timing | fix-plan-F1.3-followup | 2026-07-31 |
+| `v1.5-integration-flows.spec.ts` | broad multi-step flow; cold-start timing; ALSO uses the stale `settings-modal` testid fixed elsewhere in this file (2026-07-01), but with conditional branching not verified safe to auto-fix in the time available — see the settings-page section below | fix-plan-F1.3-followup | 2026-07-31 |
+| `templates-marketplace.spec.ts` | templates list state/timing; ALSO uses the stale `settings-modal` testid (open + close/hide assertions) — not fixed here, see the settings-page section below | fix-plan-F1.3-followup | 2026-07-31 |
 | `status-bar.spec.ts` | status-bar state/visual | fix-plan-F1.3-followup | 2026-07-31 |
 | `sidebar-a11y.spec.ts` | sidebar a11y tree timing | fix-plan-F1.3-followup | 2026-07-31 |
 | `search-content.spec.ts` | search depends on the index (browser index is desktop-only) | fix-plan-F1.3-followup | 2026-07-31 |
 | `accessibility.spec.ts` — only `main app UI passes a11y checks (test mode)` (in-spec `test.skip`, not file-level `CI_QUARANTINE`; `workspace selector passes a11y checks` in the same file is unaffected and keeps running in CI) | **confirmed**: real WCAG AA color-contrast failures in the sidebar nav (`Ask`/`Workflows`/`+ New client` labels ~4.2:1, `Solo account` subtitle + empty-state copy ~2.6:1, all need 4.5:1) — a design/CSS token fix in `src/`, out of the F1.3 CI-lane scope | fix-plan-F1.3-followup | 2026-07-15 |
+| `v1.5-accessibility-full.spec.ts` — only `Workflow picker surface passes a11y` and `Files panel with open tabs passes a11y` (in-spec `test.skip`, not file-level `CI_QUARANTINE`; the other 6 tests in the file pass and keep running in CI, fixed 2026-07-01 by the settings-page testid fix below) | not yet diagnosed past the settings-page fix; both go through `openSidebarTab` | fix-plan-F1.3-followup | 2026-07-31 |
 
 ### Added 2026-07-01 (F1.3) — from a real GitHub Actions CI run, post-sharding
 
@@ -92,17 +92,43 @@ real, scoped follow-up work, not something to guess at inside this CI-fix.
 | `spreadsheet-improvements.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
 | `updater.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
 | `v1.5-canvas-stress.spec.ts` | heavy stress spec (already the documented pattern in `e2e-suite-batching.md`); not yet individually diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
-| `v1.5-error-paths.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
 | `v1.5-flag-canvas.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
-| `v1.5-flag-memory.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
-| `v1.5-flag-voice.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
-| `v1.5-memory-stress.spec.ts` | heavy stress spec; not yet individually diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
-| `v1.5-voice-ollama-stress.spec.ts` | heavy stress spec; not yet individually diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
+| `v1.5-memory-stress.spec.ts` | heavy stress spec; ALSO uses the stale `settings-modal` testid (open + a `.not.toBeVisible()` close assertion) — not fixed here, see the settings-page section below | fix-plan-F1.3-followup | 2026-07-31 |
 | `wedge-proof.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
 | `welcome-dialog.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
 | `word-count-md-txt.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
 | `workflow-persistence.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
 | `workflow-tab-overflow.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
+
+### `settings-modal` → `settings-page`: a second widely-shared stale testid (found 2026-07-01, fixing a reviewer-flagged coverage gap in `v1.5-error-paths.spec.ts`)
+
+A CI-fix review flagged that whole-file-quarantining `v1.5-error-paths.spec.ts`
+dropped real safety-net coverage (no-AI-key, corrupt localStorage, disabled
+downloads) that another change had just started relying on. Root-causing it
+found the SAME class of bug as `gotoDocuments`/`hub-shortcut-documents`:
+`settings-gear` used to open a `settings-modal` dialog; Jameson's 2026-06-27
+decision (`SettingsGearButton.tsx`) made it open the full-page `settings-page`
+surface instead (`AppSurfaceRouter.tsx`, `sidebarActiveTab === 'settings'`) —
+same `SettingsContent`, same inner category/section testids, just a different
+outer container testid. 8 files used the stale `settings-modal` outer testid
+in the exact same `hardClick(settings-gear)` → `expect(settings-modal)` shape.
+
+**Fixed and fully un-quarantined** (all tests now pass, removed from
+`CI_QUARANTINE`): `v1.5-error-paths.spec.ts`, `v1.5-flag-voice.spec.ts`,
+`v1.5-flag-memory.spec.ts`, `v1.5-voice-ollama-stress.spec.ts`.
+
+**Fixed partially** (switched to per-test `test.skip` for the 2 tests that
+still fail for an unrelated reason — see the `v1.5-accessibility-full.spec.ts`
+row above): `v1.5-accessibility-full.spec.ts`.
+
+**Not fixed** — same stale testid confirmed present, but each has more
+complex close/hide assertions or conditional branching around
+`settings-modal` that needs individual verification, not a safe blind
+find-and-replace in the time available: `v1.5-integration-flows.spec.ts`,
+`templates-marketplace.spec.ts`, `v1.5-memory-stress.spec.ts` (all three
+still whole-file quarantined above, now with this cause noted). A follow-up
+that fixes these three the same way should get a meaningful further chunk of
+the CI_QUARANTINE list back.
 
 ## How to work the list
 
