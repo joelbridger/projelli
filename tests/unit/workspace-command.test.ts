@@ -311,36 +311,22 @@ describe('normalizeNumericCitations (F-503)', () => {
     );
   });
 
-  it('rewrites [N page M] and bare [N] to the PDF source page locator', () => {
+  it('captures the PDF [N page M] form and binds it to the exact chunk ordinal', () => {
     // Codex P2: PDF/scan sources are labelled "page N" in the context block, so
-    // a local model can emit `[1 page 2]` — which must repair to the source's
-    // real page locator (bound by pageNumber), not a paragraph form.
+    // a local model can emit `[1 page 2]`. It repairs through the source's
+    // UNIQUE per-chunk paragraphIndex — so two chunks on the SAME page keep
+    // distinct targets (the resolved hit still renders as "page N" to the user).
     const pdfSources = [
-      { path: '/ws/matter/filing.pdf', paragraphIndex: 100, pageNumber: 2, sourceType: 'pdf' },
-      { path: '/ws/matter/notes.md', paragraphIndex: 4 },
+      { path: '/ws/matter/filing.pdf', paragraphIndex: 200 }, // page 2, chunk A
+      { path: '/ws/matter/filing.pdf', paragraphIndex: 201 }, // page 2, chunk B
     ];
-    expect(normalizeNumericCitations('The award was $73,250 [1 page 2].', pdfSources)).toBe(
-      'The award was $73,250 [filing.pdf page 2].',
+    // `[1 page 2]` and `[2 page 2]` bind to DIFFERENT chunks, not the same page.
+    expect(normalizeNumericCitations('First [1 page 2], second [2 page 2].', pdfSources)).toBe(
+      'First [filing.pdf paragraph 200], second [filing.pdf paragraph 201].',
     );
-    // Bare [1] on a PDF source also uses the page locator.
-    expect(normalizeNumericCitations('See [1].', pdfSources)).toBe('See [filing.pdf page 2].');
-    // A text source in the same list still uses paragraph.
-    expect(normalizeNumericCitations('See [2 paragraph 1].', pdfSources)).toBe(
-      'See [notes.md paragraph 4].',
-    );
-  });
-
-  it('keeps NON-pdf sources paragraph-based even when they carry a pageNumber', () => {
-    // Codex P2 refinement: buildWorkspaceContextBlock labels only sourceType==='pdf'
-    // as "page N"; xlsx/pptx/transcript reuse pageNumber for a sheet/slide/start
-    // page but are shown as "paragraph". Repairing them to "page" would bind to
-    // the wrong chunk on a multi-chunk page, so they must stay paragraph-based.
-    const mixed = [
-      { path: '/ws/matter/deposition.txt', paragraphIndex: 12, pageNumber: 45, sourceType: 'transcript' },
-      { path: '/ws/matter/model.xlsx', paragraphIndex: 3, pageNumber: 2, sourceType: 'xlsx' },
-    ];
-    expect(normalizeNumericCitations('See [1] and [2].', mixed)).toBe(
-      'See [deposition.txt paragraph 12] and [model.xlsx paragraph 3].',
+    // Bare [2] also resolves to the second source ordinal, not the first same-page chunk.
+    expect(normalizeNumericCitations('See [2].', pdfSources)).toBe(
+      'See [filing.pdf paragraph 201].',
     );
   });
 

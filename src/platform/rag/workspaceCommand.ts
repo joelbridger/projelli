@@ -257,37 +257,28 @@ export function parseCitations(content: string): ParsedCitation[] {
  * (`[1 paragraph 3]`, `[1 §3]`, or bare `[1]`) instead of the filename, so
  * resolution, live verification, and click-through all fail. Rewrite the
  * number through the message's ordered sources to the real
- * `[<basename> paragraph <paragraphIndex>]` — or `[<basename> page <pageNumber>]`
- * when the numbered source is a PDF/scan (the context block labels those
- * "page N", so a model can emit `[1 page 2]`). Using the source's OWN locator
- * also corrects a model that copied the wrong number. Pure text -> text;
- * citations that already carry a filename are untouched; bare `[N]` is only
- * rewritten when 1 <= N <= sources.length (markdown links `[1](url)` excluded).
+ * `[<basename> paragraph <paragraphIndex>]`, using the source's UNIQUE
+ * per-chunk `paragraphIndex`. That binds to the EXACT retrieved chunk the model
+ * numbered — even when several chunks share one PDF page — and it corrects a
+ * model that copied the wrong locator. The user-facing locator ("page N" for a
+ * PDF) is derived from the resolved hit, not this marker, so a paragraph-form
+ * marker never surfaces a wrong label. Also captures the PDF `[N page M]` form
+ * (the context labels PDFs "page N") so those numeric citations bind too. Pure
+ * text -> text; citations that already carry a filename are untouched; bare
+ * `[N]` is only rewritten when 1 <= N <= sources.length (markdown links
+ * `[1](url)` excluded).
  */
 export function normalizeNumericCitations(
   content: string,
-  sources: ReadonlyArray<{
-    path: string;
-    paragraphIndex: number;
-    pageNumber?: number | null;
-    sourceType?: string;
-  }>,
+  sources: ReadonlyArray<{ path: string; paragraphIndex: number }>,
 ): string {
   if (sources.length === 0) return content;
   const rewrite = (n: number): string | null => {
     const src = sources[n - 1];
     if (!src) return null;
-    // Emit EXACTLY the locator buildWorkspaceContextBlock labels this source
-    // with, so the repaired citation binds to the right chunk: "page N" ONLY
-    // for a PDF/scan (bound by pageNumber), "paragraph N" for everything else —
-    // including xlsx/pptx/transcript sources that reuse pageNumber for a
-    // sheet/slide/start-page but are still shown as "paragraph" in the context.
-    const locator =
-      src.sourceType === 'pdf' && src.pageNumber != null
-        ? `page ${String(src.pageNumber)}`
-        : `paragraph ${String(src.paragraphIndex)}`;
-    return `[${citationBasename(src.path)} ${locator}]`;
+    return `[${citationBasename(src.path)} paragraph ${String(src.paragraphIndex)}]`;
   };
+  // Number-keyed WITH a locator: `[1 paragraph 3]`, `[1 page 2]` (PDF), `[1 §3]`.
   let out = content.replace(
     /\[(\d{1,3})\s+(?:paragraph\s+|page\s+|§\s*)\d+\]/gi,
     (match, nStr: string) => rewrite(Number.parseInt(nStr, 10)) ?? match,
