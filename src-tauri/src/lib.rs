@@ -161,6 +161,7 @@ pub fn run() {
             commands::mail::gmail_disconnect,
             // Outlook loopback auth-code + PKCE (replaces device-code for personal accounts).
             commands::mail::outlook_connect,
+            commands::mail::outlook_connect_cancel,
             // Email send — compose and send from any connected provider (M365/Gmail/IMAP).
             commands::mail::mail_send,
             // Plan 1B.4 — Wealthbox CRM connector commands (connect/sync/status/disconnect).
