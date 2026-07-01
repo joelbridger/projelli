@@ -31,6 +31,7 @@
     "typecheck:tests": "tsc -p tsconfig.test.json --noEmit",
     "gate": "bash scripts/gate.sh",
     "gate:full": "bash scripts/gate.sh --full",
+    "gate:ci-parity": "bash scripts/gate-ci-parity.sh",
     "brand:sync": "node scripts/brand-sync.mjs",
     "brand:check": "node scripts/brand-sync.mjs --check",
     "identity:check": "node scripts/identity-check.mjs",
