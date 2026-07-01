@@ -18,7 +18,6 @@ import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
 import {
   DEFAULT_WORKSPACE_TOP_K,
   buildWorkspaceContextBlock,
-  normalizeNumericCitations,
 } from '@/platform/rag/workspaceCommand';
 import type { RagHit, RetrievalScope } from '@/platform/utils/tauri-commands';
 import { useAIChatStore } from '@/platform/state/aiChatStore';
@@ -791,17 +790,6 @@ export function useAsk({
       const expectedMatterId: string | null =
         activeMatter && askScope !== 'all-matters' ? activeMatter.id : null;
       failedStage = 'post-processing';
-      // F-503: small local models (Qwen3-4B) often cite the source NUMBER from
-      // the context block (`[1]`, `[1 paragraph 3]`) instead of copying the
-      // filename, so those citations never bind — the answer renders with no
-      // chips and an empty Sources panel even though the context WAS retrieved.
-      // Rewrite number-keyed citations back to `[<filename> paragraph N]` using
-      // the same ordered hits the context block was numbered from, BEFORE
-      // binding. No-op when the model already cited by filename (the cloud
-      // case) or when nothing was retrieved, so it's safe on every path — and it
-      // mirrors the @workspace chat path (verifyCitationsInResponse), which the
-      // Ask surface had been missing.
-      answerText = normalizeNumericCitations(answerText, hits);
       // Files-only mode: bind the whole answer flatly (the existing cited path).
       // Smart mode: parse the answer into provenance blocks and bind citations
       // ONLY inside files blocks — the same structural grounding net, applied

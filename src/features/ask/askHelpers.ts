@@ -5,6 +5,7 @@
 
 import {
   citationBasename,
+  normalizeNumericCitations,
   parseCitations,
   resolveCitationPath,
 } from '@/platform/rag/workspaceCommand';
@@ -1111,7 +1112,17 @@ export function bindAnswerCitations(
   expectedMatterId: string | null = null,
 ): BoundAnswerCitations {
   const acc = newCitationBindAccumulator();
-  const answer = bindCitationsCore(answerText, hits, expectedMatterId, acc);
+  // F-503: repair a small local model's number-keyed citations (`[1]`) to the
+  // `[<filename> paragraph N]` form so they bind. Safe here because files-only
+  // mode treats the ENTIRE answer as a files answer (no general/draft blocks
+  // whose bracketed numeric text must be preserved). No-op for filename
+  // citations and when nothing was retrieved.
+  const answer = bindCitationsCore(
+    normalizeNumericCitations(answerText, hits),
+    hits,
+    expectedMatterId,
+    acc,
+  );
   acc.citations.sort((a, b) => a.n - b.n);
   return { answer, citations: acc.citations, sources: buildWorkspaceSources(hits) };
 }

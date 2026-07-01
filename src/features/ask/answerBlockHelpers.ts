@@ -32,6 +32,7 @@ import {
   kindFromMarker,
   stripBlockMarkers,
 } from './answerBlockMarkers';
+import { normalizeNumericCitations } from '@/platform/rag/workspaceCommand';
 import type { WorkspaceSource } from '@/platform/types/ai';
 import type { RagHit } from '@/platform/utils/tauri-commands';
 
@@ -189,7 +190,23 @@ export function bindAnswerBlocks(
   // scrubbed general block. Shared by real FILES blocks and by mislabeled
   // nothing-found blocks that actually carry a real answer.
   const bindAsFilesBlock = (rawText: string): AnswerBlock[] => {
-    const text = bindCitationsCore(rawText, hits, expectedMatterId, acc);
+    // F-503: small local models (Qwen3-4B) cite the source NUMBER from the
+    // context block (`[1]`, `[1 paragraph 3]`) instead of copying the filename,
+    // so those citations never bind and the answer renders with no chips / empty
+    // Sources even though the context WAS retrieved. Repair number-keyed
+    // citations to `[<filename> paragraph N]` HERE — inside the files-bind path
+    // only. Doing it per files block (not globally on the whole smart answer) is
+    // deliberate: a general/draft block may legitimately contain bracketed
+    // numeric text like `[1]` (a footnote or list/form reference); rewriting
+    // that into a file citation would then get it scrubbed as a non-file block,
+    // silently deleting user-visible prose. No-op for filename citations (cloud)
+    // and when nothing was retrieved.
+    const text = bindCitationsCore(
+      normalizeNumericCitations(rawText, hits),
+      hits,
+      expectedMatterId,
+      acc,
+    );
     // Which citation numbers actually landed in THIS block's text (a source
     // reused across blocks should chip in each block it appears in).
     const present = new Set<number>();

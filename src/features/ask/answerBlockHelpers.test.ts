@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import type { RagHit } from '@/platform/utils/tauri-commands';
-import { normalizeNumericCitations } from '@/platform/rag/workspaceCommand';
 import {
   BLOCK_MARKERS,
   bindAnswerBlocks,
@@ -196,20 +195,45 @@ describe('bindAnswerBlocks', () => {
   // Bug 3 (inconsistent citation attachment): a small local model cites the
   // source NUMBER from the context block (`[1]`) instead of the filename, so the
   // citation never binds and the answer renders with no chips / empty Sources —
-  // even though the context WAS retrieved. useAsk now runs normalizeNumericCitations
-  // before binding; this locks in that composition (raw `[1]` -> bound source).
-  it('binds a local model bare-numeric [1] citation after normalization', () => {
+  // even though the context WAS retrieved. bindAnswerBlocks now repairs
+  // number-keyed citations INSIDE its files-bind path, so a bare `[1]` binds.
+  it('binds a local model bare-numeric [1] citation inside a files block', () => {
     const rawLocalAnswer =
       'The old 401(k) still lists Jessica Reyes as the sole primary beneficiary [1].';
-    // Before normalization the bare [1] does not bind — no chips, empty sources.
-    const unnormalized = bindAnswerBlocks(rawLocalAnswer, [hit()], 'webb');
-    expect(unnormalized.citations.length).toBe(0);
-    // After normalization (as useAsk does), it binds to the real source.
-    const normalized = normalizeNumericCitations(rawLocalAnswer, [hit()]);
-    const result = bindAnswerBlocks(normalized, [hit()], 'webb');
+    const result = bindAnswerBlocks(rawLocalAnswer, [hit()], 'webb');
     expect(result.blocks[0]?.kind).toBe('files');
     expect(result.citations.length).toBe(1);
     expect(result.sources.length).toBe(1);
+  });
+
+  // Content-integrity (independent Codex finding): the numeric-citation repair
+  // must run ONLY on file-citing blocks, never on general/draft prose. A
+  // general or draft block can legitimately contain bracketed numeric text like
+  // `[1]` (a footnote or list/form reference) — rewriting that into a file
+  // citation would then get it scrubbed as a non-file block, silently deleting
+  // user-visible answer text. The files block must still bind; the general/draft
+  // `[1]` must be preserved verbatim.
+  it('preserves bracketed [1] in general/draft blocks while binding the files block', () => {
+    const raw = [
+      BLOCK_MARKERS.files,
+      'The beneficiary is Jessica Reyes [1].',
+      BLOCK_MARKERS.general,
+      'Review checklist item [1] before the next meeting.',
+      BLOCK_MARKERS.draft,
+      'Hi Marcus — please confirm point [1] on the form.',
+    ].join('\n');
+
+    const result = bindAnswerBlocks(raw, [hit()], 'webb');
+    const kinds = result.blocks.map((b) => b.kind);
+    expect(kinds).toEqual(['files', 'general', 'draft']);
+    // Files block bound its citation.
+    expect(result.citations.length).toBe(1);
+    expect(result.blocks[0]?.text).toContain('{1}');
+    // General + draft blocks keep their literal [1] — not rewritten, not scrubbed.
+    expect(result.blocks[1]?.text).toContain('[1]');
+    expect(result.blocks[1]?.text).toContain('checklist item [1]');
+    expect(result.blocks[2]?.text).toContain('[1]');
+    expect(result.blocks[2]?.text).toContain('point [1] on the form');
   });
 
   // The same mislabel but with NO grounded citation (uncited prose under the
