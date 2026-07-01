@@ -124,6 +124,19 @@ describe('OnboardingV2 navigation', () => {
     expect(screen.getByText('1. Connect your AI')).toBeTruthy();
   });
 
+  it('loop-proof: mounting with a workspace already open starts past the intro, never on it', () => {
+    // Belt-and-suspenders for the "sample practice → back to the intro forever"
+    // BLOCKER. If the overlay is ever remounted AFTER a workspace loads (any
+    // cause), it must NOT show the intro again. With a workspace present the user
+    // has already passed intro + ChooseStart, so we start on the AI step.
+    render(
+      <OnboardingV2 onSaveKey={vi.fn()} onComplete={vi.fn()} hasWorkspace={true} />,
+    );
+    expect(screen.getByText('1. Connect your AI')).toBeTruthy();
+    expect(screen.queryByTestId('onboarding-v2-intro')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('onboarding-v2-choose-start')).not.toBeInTheDocument();
+  });
+
   it('walks intro -> ai -> connect -> firm and completes onboarding', () => {
     const { onComplete } = renderFlow();
     goToAi();

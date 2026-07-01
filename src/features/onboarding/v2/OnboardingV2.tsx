@@ -55,7 +55,15 @@ const CONNECT_SCENE = 3;
 export type OnboardingV2Props = GuidedOnboardingProps;
 
 export function OnboardingV2({ onSaveKey, onComplete, onChooseStart, hasWorkspace }: OnboardingV2Props) {
-  const [scene, setScene] = useState(0);
+  // Loop-proofing: if a workspace ALREADY exists when this component mounts, the
+  // user has necessarily passed the intro + ChooseStart steps, so start on the
+  // AI step instead of the intro. This makes the "sample practice → back to
+  // intro forever" loop impossible even if the overlay is remounted after the
+  // workspace loads (the branch-stability guard in App.tsx is the primary
+  // defence; this is belt-and-suspenders against ANY remount cause). On a true
+  // first run there is no workspace yet, so this starts at the intro (0) as
+  // before.
+  const [scene, setScene] = useState(hasWorkspace ? AI_SCENE : 0);
   // Workspace-first gate: the user may not advance past ChooseStart until a
   // workspace exists (seeded sample or chosen folder). Pre-satisfied when a
   // workspace is already open (e.g. ?forceOnboarding with one loaded).

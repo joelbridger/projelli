@@ -103,6 +103,28 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
     const newRootPath = service.getRootPath();
     if (newRootPath) {
       setRootPath(newRootPath);
+      // Register EVERY workspace open in Recents at this shared lifecycle
+      // boundary. This is the ONE point that reliably runs for BOTH the normal
+      // Workspace Selector open AND the onboarding sample/own path (which
+      // bypasses the Selector's own addRecentWorkspace call). Without a recent
+      // workspace, the first-run gate
+      // (`!hasCompletedOnboarding() && recentWorkspaces.length === 0`) stays
+      // true and the sample path loops back to the intro.
+      //
+      // A prior fix put this call in App.tsx's onboarding handler
+      // (handleOnboardingChooseStart), but on the real Windows flow that call
+      // never fired — its own `[RecentWorkspaces] Saved` log never appeared,
+      // even though code textually after it ran. This boundary, by contrast,
+      // demonstrably runs on the sample path (all of its neighbours' logs fire
+      // in QA), so it is the correct, canonical home for the call.
+      // addRecentWorkspace dedupes by path, so the normal path (where the
+      // Selector already added it) does not create a duplicate.
+      console.log('[Recents] registering', newRootPath);
+      useWorkspaceStore.getState().addRecentWorkspace({
+        path: newRootPath,
+        name: newRootPath.split(/[/\\]+/).filter(Boolean).pop() ?? newRootPath,
+        lastOpened: new Date(),
+      });
     }
 
     // Advisor Prep Hero 3.0 — point the encrypted audit store at this workspace and load
