@@ -41,6 +41,7 @@
 import type { FileNode } from '@/platform/types/workspace';
 import type { Matter } from '@/platform/types/matter';
 import { isPathInFolder, normalize, resolveMatterId } from '@/platform/rag/matterResolver';
+import { isAbsolutePath } from '@/platform/fs/appPath';
 
 /** True when `path` is a strict ancestor of `folder` (so we must descend into
  *  it to reach the scoped folder). */
@@ -56,7 +57,14 @@ function isAncestorOf(path: string, folder: string): boolean {
  *
  * - No `workspaceRoot` (back-compat / tests that use one path shape on both
  *   sides) → the path is compared as-is.
- * - Already absolute (equals the root or sits under it) → normalized as-is.
+ * - Already absolute (POSIX `/…`, Windows drive/UNC) → normalized as-is, NEVER
+ *   re-joined. Absolute-ness is detected with the shared `isAbsolutePath` rather
+ *   than a case-sensitive `startsWith(root)` prefix test: an already-absolute
+ *   path whose drive letter differs only in case from the root (`c:/…` vs the
+ *   root's `C:/…`) would fail that prefix test and be wrongly re-joined into a
+ *   doubled path (`C:/WS/c:/WS/…`). This matters now that matter `folderPaths`
+ *   — which may be absolute with drifting drive case — are resolved through here
+ *   before the ownership comparison.
  * - Relative → joined under the normalized root.
  *
  * Case is preserved (we only normalize separators / trailing slash), so the
@@ -73,9 +81,41 @@ function isAncestorOf(path: string, folder: string): boolean {
 export function toAbsolute(p: string, workspaceRoot?: string | null): string {
   const np = normalize(p);
   if (!workspaceRoot) return np;
+  // Already an absolute path (any platform) — leave it as-is. Using
+  // `isAbsolutePath` instead of a case-sensitive prefix test avoids doubling a
+  // path whose drive case differs from the root (see the doc comment above).
+  if (isAbsolutePath(np)) return np;
   const nr = normalize(workspaceRoot);
-  if (np === nr || np.startsWith(`${nr}/`)) return np;
   return `${nr}/${np.replace(/^\/+/, '')}`;
+}
+
+/**
+ * Resolve a scope/ownership folder to absolute space, then FAIL CLOSED on an
+ * absolute folder that is not the workspace root or inside it.
+ *
+ * A persisted `Matter.folderPaths` entry can be stale or garbage — we have seen
+ * `[object Object]`, and legacy absolute values that point OUTSIDE the current
+ * workspace root (e.g. a PARENT directory of it, from a workspace that was moved
+ * or re-rooted). Now that `toAbsolute` preserves an absolute path verbatim, such
+ * a parent path would make `isPathInFolder(everyWorkspaceFile, f)` true and
+ * capture the ENTIRE workspace under the WRONG client — a matter-isolation leak.
+ * (The previous `toAbsolute` masked this by accidentally mangling out-of-root
+ * absolutes into a non-matching doubled path; the correct behavior is an
+ * explicit guard.) So when we know the workspace root, keep an absolute folder
+ * only when it is same-or-inside that root; drop anything else. Relative folders
+ * always resolve UNDER the root, so they always pass. With no workspace root
+ * (back-compat / single-shape tests) there is nothing to bound against, so the
+ * resolved path is returned as-is.
+ *
+ * Returns `null` when the folder must be dropped (never allowed to scope).
+ */
+function resolveScopeFolderInRoot(
+  folder: string,
+  workspaceRoot?: string | null,
+): string | null {
+  const abs = toAbsolute(folder, workspaceRoot);
+  if (workspaceRoot && !isPathInFolder(abs, workspaceRoot)) return null;
+  return abs;
 }
 
 /**
@@ -154,13 +194,38 @@ export function scopeFileTreeToFolders(
   if (folders.length === 0) return [];
   const ownershipAware = matters !== undefined && scopeMatterId !== undefined;
 
+  // Resolve the SCOPE folders to absolute up front. A matter's `folderPaths` may
+  // be workspace-RELATIVE (the CRM auto-backfill sources them from the tree's
+  // own relative node paths) OR absolute. Tree nodes are compared in absolute
+  // space (`toAbsolute(node.path)` below), so the folder side must be resolved
+  // to the SAME space or an absolute node path never matches a relative folder —
+  // which made every CRM-linked client's Documents tab show empty (bench R17).
+  // `resolveScopeFolderInRoot` also fails closed on an absolute folder outside
+  // the workspace root, so a stale parent-of-root path can't capture everything.
+  const absFolders = folders
+    .map((f) => resolveScopeFolderInRoot(f, workspaceRoot))
+    .filter((f): f is string => f !== null);
+
+  // Ownership resolution (`resolveMatterId`) reads each matter's `folderPaths`
+  // directly, so those must live in the same absolute space too — otherwise the
+  // node's own matter fails to match and every file is pruned as "foreign".
+  // Resolve each matter's folders (dropping empties + out-of-root garbage, which
+  // must never participate in ownership) without mutating the input matters.
+  // Only consulted in the ownership-aware branch below.
+  const resolvedMatters: Matter[] = (matters ?? []).map((m) => ({
+    ...m,
+    folderPaths: m.folderPaths
+      .map((f) => (f ? resolveScopeFolderInRoot(f, workspaceRoot) : null))
+      .filter((f): f is string => f !== null),
+  }));
+
   function prune(node: FileNode): FileNode | null {
     // Compare the node in the SAME absolute space as the matters' folderPaths
     // and the resolver/indexer (case sensitivity follows path shape; module doc).
     const abs = toAbsolute(node.path, workspaceRoot);
 
     // Inside one of the matter's folders (a root-mapped folder matches all).
-    if (folders.some((f) => isPathInFolder(abs, f))) {
+    if (absFolders.some((f) => isPathInFolder(abs, f))) {
       if (!ownershipAware) {
         // Folder-based only: keep the whole subtree.
         return node;
@@ -168,7 +233,7 @@ export function scopeFileTreeToFolders(
       // Ownership-aware: a node whose longest-match owner is a DIFFERENT matter
       // (a nested foreign-client subfolder/file) must be dropped, not leaked.
       // Reuses the exact resolver the indexer uses (shape-keyed case sensitivity).
-      if (resolveMatterId(abs, matters) !== scopeMatterId) {
+      if (resolveMatterId(abs, resolvedMatters) !== scopeMatterId) {
         return null;
       }
       // Ours — recurse folders, since a deeper subfolder could belong to another
@@ -183,7 +248,7 @@ export function scopeFileTreeToFolders(
     }
 
     // A folder above a scoped folder: keep only the branch that reaches it.
-    if (node.type === 'folder' && folders.some((f) => isAncestorOf(abs, f))) {
+    if (node.type === 'folder' && absFolders.some((f) => isAncestorOf(abs, f))) {
       const children = (node.children ?? [])
         .map(prune)
         .filter((c): c is FileNode => c !== null);
