@@ -34,7 +34,6 @@ const E2E_BASE_URL = process.env['E2E_BASE_URL'] ?? 'http://localhost:5173';
 const CI_QUARANTINE = [
   '**/workflows-panel.spec.ts',
   '**/web-demo.spec.ts',
-  '**/citation-persistence.spec.ts',
   '**/app-layout.spec.ts',
   '**/v1.5-integration-flows.spec.ts',
   '**/templates-marketplace.spec.ts',
