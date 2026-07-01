@@ -437,6 +437,22 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     const extractionMatterId = deriveFactScope(messages);
     void (async () => {
       try {
+        // A1 FAIL-CLOSED (review P1) + cost (review P2): if the fact's client
+        // can't be proven unambiguously, every proposal would be dropped — so
+        // bail BEFORE any provider call rather than making a wasted extraction
+        // request (tokens + egress) whose entire result we discard. A fact
+        // saved without a client scope would be GLOBAL, and a global fact is
+        // injected into the cross-client all-matters view — re-opening the very
+        // cross-client exposure A1 closes. Guessing the live active client
+        // instead would be worse: this effect runs after the answer streams, so
+        // the picker may already point at a DIFFERENT client than the one the
+        // fact is about, mis-stamping it and leaking into that client. Advance
+        // the checkpoint first so the effect doesn't re-check every render.
+        if (extractionMatterId === undefined) {
+          extractionStateRef.current = markCheckpointRan(extractionStateRef.current, count);
+          return;
+        }
+
         let provider: Provider;
         switch (chatProvider) {
           case 'ollama':
@@ -481,18 +497,8 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           count,
         );
         if (proposals.length === 0) return;
-
-        // A1 FAIL-CLOSED (review P1): if the fact's client can't be proven
-        // unambiguously, DROP it — do not save it, do not offer a chip. A
-        // fact saved without a client scope becomes GLOBAL, and a global fact
-        // is injected into the cross-client all-matters view — re-opening the
-        // very cross-client exposure A1 closes. Guessing the live active
-        // client instead would be worse: this effect runs after the answer
-        // streams, so the picker may already point at a DIFFERENT client than
-        // the one the fact is about, mis-stamping it and leaking into that
-        // client. So facts are captured ONLY when the whole chat is one
-        // provable client (deriveFactScope returned a specific id).
-        if (extractionMatterId === undefined) return;
+        // extractionMatterId is guaranteed defined here — the ambiguous case
+        // bailed before runExtraction above.
 
         // M3 — auto-accept path skips the chip and saves directly.
         if (isFactsAutoAcceptEnabled()) {
