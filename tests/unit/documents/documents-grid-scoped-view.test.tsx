@@ -173,6 +173,31 @@ describe('DocumentsHome — Grid view with relative tree paths (real bug shape)'
     expect(onImportFiles).toHaveBeenCalledWith(`${ROOT}/Clients/Acme`);
   });
 
+  it('navigating to an ANCESTOR folder (e.g. "Clients") does not let create/import escape the client scope (Codex review round 3, P1)', () => {
+    // The scoped tree deliberately keeps ancestor folders (here "Clients") so
+    // the client's own mapped folder is reachable via breadcrumbs. Fixing the
+    // Grid-empty bug made that navigation reachable for the first time — this
+    // guards against a matter-isolation leak: creating/importing while
+    // sitting on the ancestor must fall back to the client's OWN folder, not
+    // write into "Clients" (which is outside the matter's scope and would
+    // vanish from this client's Documents tab).
+    const onImportFiles = vi.fn();
+    render(
+      <DocumentsHome
+        {...buildProps({ onImportFiles })}
+        embedded
+        scopeFolderPaths={[`${ROOT}/Clients/Acme`]}
+        scopeMatterId="acme"
+      />,
+    );
+    // Navigate UP to the "Clients" ancestor breadcrumb (crumb 0 = "All files",
+    // crumb 1 = "Clients").
+    fireEvent.click(screen.getByTestId('breadcrumb-crumb-1'));
+    fireEvent.click(screen.getByTestId('add-files-btn'));
+    expect(onImportFiles).toHaveBeenCalledWith(`${ROOT}/Clients/Acme`);
+    expect(onImportFiles).not.toHaveBeenCalledWith(`${ROOT}/Clients`);
+  });
+
   it('resolves into the client folder once the tree loads AFTER mount (Codex review round 2)', async () => {
     // Landing directly on a client's Documents tab before the workspace's
     // initial file-tree load has completed: the tree is empty at mount, so

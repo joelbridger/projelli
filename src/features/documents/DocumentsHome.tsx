@@ -41,6 +41,7 @@ import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
 import { DocumentGridView } from './DocumentGridView';
 import { FileTree } from '@/features/documents/workspace/FileTree';
 import { scopeFileTreeToFolders, toAbsolute, toScopedFolderPath } from './scopeFileTree';
+import { isPathInFolder } from '@/platform/rag/matterResolver';
 import { SK_FIRST_FILE_TRUST_SHOWN, SK_DOCS_VIEW } from '@/config/identity';
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -528,8 +529,26 @@ export function DocumentsHome({
   // the Rust indexer with no workspace-root joining — a relative target there
   // silently fails to index (Codex review). Normalize back to absolute before
   // using it as a create/import target, independent of the lookup shape.
-  const createTargetPath =
-    currentFolderPath !== null ? toAbsolute(currentFolderPath, rootPath) : null;
+  //
+  // Codex review (P1): the scoped tree deliberately keeps ANCESTOR folders
+  // (e.g. "Clients") so the client's mapped folder is reachable via
+  // breadcrumbs — fixing the Grid-empty bug made that navigation actually
+  // reachable for the first time. Without this guard, navigating to such an
+  // ancestor and clicking "New document"/"Add files" would create the file
+  // OUTSIDE the client's own folder (a matter-isolation leak: it vanishes
+  // from this scoped view and is never assigned to the client). Clamp: a
+  // resolved target that isn't itself inside one of the client's OWN mapped
+  // folders is treated as out-of-scope, falling back to `embeddedCreateFallback`
+  // below — exactly like the existing root (`currentFolderPath === null`) clamp.
+  const createTargetPath = (() => {
+    if (currentFolderPath === null) return null;
+    const abs = toAbsolute(currentFolderPath, rootPath);
+    if (embedded && scopeFolderPaths && scopeFolderPaths.length > 0) {
+      const withinScope = scopeFolderPaths.some((folder) => isPathInFolder(abs, folder));
+      if (!withinScope) return null;
+    }
+    return abs;
+  })();
 
   // Embedded (per-client): clamp only the create/import TARGET — not navigation.
   // At the scoped root (currentFolderPath === null, e.g. the "All files"
