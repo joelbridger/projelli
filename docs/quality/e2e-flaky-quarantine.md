@@ -45,7 +45,6 @@ onboarding / timing / visual), not a confirmed diagnosis, unless marked
 | `status-bar.spec.ts` | status-bar state/visual | fix-plan-F1.3-followup | 2026-07-31 |
 | `sidebar-a11y.spec.ts` | sidebar a11y tree timing | fix-plan-F1.3-followup | 2026-07-31 |
 | `search-content.spec.ts` | search depends on the index (browser index is desktop-only) | fix-plan-F1.3-followup | 2026-07-31 |
-| `accessibility.spec.ts` — only `main app UI passes a11y checks (test mode)` (in-spec `test.skip`, not file-level `CI_QUARANTINE`; `workspace selector passes a11y checks` in the same file is unaffected and keeps running in CI) | **confirmed**: real WCAG AA color-contrast failures in the sidebar nav (`Ask`/`Workflows`/`+ New client` labels ~4.2:1, `Solo account` subtitle + empty-state copy ~2.6:1, all need 4.5:1) — a design/CSS token fix in `src/`, out of the F1.3 CI-lane scope | fix-plan-F1.3-followup | 2026-07-15 |
 | `v1.5-accessibility-full.spec.ts` — only `Workflow picker surface passes a11y` and `Files panel with open tabs passes a11y` (in-spec `test.skip`, not file-level `CI_QUARANTINE`; the other 6 tests in the file pass and keep running in CI, fixed 2026-07-01 by the settings-page testid fix below) | not yet diagnosed past the settings-page fix; both go through `openSidebarTab` | fix-plan-F1.3-followup | 2026-07-31 |
 
 ### Added 2026-07-01 (F1.3) — from a real GitHub Actions CI run, post-sharding
@@ -129,6 +128,23 @@ find-and-replace in the time available: `v1.5-integration-flows.spec.ts`,
 still whole-file quarantined above, now with this cause noted). A follow-up
 that fixes these three the same way should get a meaningful further chunk of
 the CI_QUARANTINE list back.
+
+### `accessibility.spec.ts` contrast fix (fixed 2026-07-01, F3.7)
+
+The confirmed WCAG AA color-contrast failure (`main app UI passes a11y checks
+(test mode)`) was a real product bug, not a test problem. Four `src/styles/globals.css`
+tokens were under the 4.5:1 AA threshold for normal text: `--kp-side-fg-dim`
+(nav labels, 0.64 alpha → 4.19:1 on `--kp-side-bg`), `--kp-side-fg-faint`
+(`Solo account` subtitle, 0.46 alpha → 2.60:1), `--kp-text-faint` (empty-state
+copy, 0.46 alpha → 2.65:1 on white), and `--kp-text-dim` (the main-content
+twin of `--kp-side-fg-dim`, same 0.64 alpha → 4.33:1 on white, not directly
+flagged by this test's page state but the same underlying bug). Bumped the
+navy-alpha to 0.70 for the two "dim" tokens and 0.68 for the two "faint"
+tokens — both clear 4.5:1 with margin on every background they're used
+against, while keeping dim slightly more opaque than faint. Pure CSS
+custom-property change, no component changes needed. The `test.skip` was
+removed from `accessibility.spec.ts`; the test now runs in CI and passed 3
+consecutive local runs.
 
 ## How to work the list
 
