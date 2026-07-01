@@ -1,9 +1,9 @@
 // tests/unit/clientMap/guidedInterview.test.ts
 import { describe, it, expect, beforeEach } from 'vitest';
-import { interviewQuestions, answerQuestion, flagForClient, unresolvedAskGaps } from '@/features/matters/clientMap/guidedInterview';
+import { interviewQuestions, answerQuestion, flagForClient, unresolvedAskGaps, displayCompleteness } from '@/features/matters/clientMap/guidedInterview';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { emptyClientMap } from '@/platform/clientMap/types';
-import type { GapQuestion } from '@/platform/clientMap/types';
+import type { ClientMapItem, GapQuestion } from '@/platform/clientMap/types';
 
 beforeEach(() => {
   const m = emptyClientMap('m1');
@@ -85,5 +85,40 @@ describe('unresolvedAskGaps (D1 — "still missing" panel must not show resolved
   it('returns every gap when none are resolved', () => {
     const map = useClientMapStore.getState().getMap('m1')!;
     expect(unresolvedAskGaps(map)).toEqual(map.completeness.ask);
+  });
+});
+
+// D1 follow-up (Codex review): the completeness LEVEL must also stop counting
+// resolved gaps, or the chip can stay stuck on a lower status (e.g. "Getting
+// there") even after every remaining gap has been answered or flagged.
+describe('displayCompleteness (D1 follow-up — level must not stay stuck on resolved gaps)', () => {
+  const known = (id: string): ClientMapItem => ({
+    id, text: id, origin: 'ai', isAssumption: false,
+    sources: [{ kind: 'document', ref: '/f', snippet: 's' }], updatedAt: 't',
+  });
+
+  it('would be "solid" but for 3 raw gaps that are ALL resolved — level unsticks to solid', () => {
+    const m = emptyClientMap('m1');
+    m.sections[0]!.items.push(...Array.from({ length: 8 }, (_, i) => known(`k${i}`)));
+    m.completeness = {
+      level: 'getting-there',
+      know: m.sections[0]!.items.slice(),
+      assuming: [],
+      ask: [
+        { text: 'Gap one', sectionKey: 'household' },
+        { text: 'Gap two', sectionKey: 'household' },
+        { text: 'Gap three', sectionKey: 'household' },
+      ],
+    };
+    useClientMapStore.getState().setMap('m1', m);
+    // Raw completeness.level (what the old code showed) is stuck at getting-there
+    // because deriveCompleteness saw all 3 raw gaps.
+    expect(useClientMapStore.getState().getMap('m1')!.completeness.level).toBe('getting-there');
+
+    for (const g of m.completeness.ask) useClientMapStore.getState().markGapResolved('m1', g.text);
+
+    const map = useClientMapStore.getState().getMap('m1')!;
+    expect(displayCompleteness(map).ask).toEqual([]);
+    expect(displayCompleteness(map).level).toBe('solid');
   });
 });

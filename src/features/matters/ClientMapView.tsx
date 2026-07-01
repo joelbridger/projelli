@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react';
 import { Card, Eyebrow, Chip, Button } from '@/ui/kp';
 import { CORE_SECTION_ORDER, CORE_SECTION_TITLE } from '@/platform/clientMap/types';
 import type { ClientMap, ClientMapItem, SourceRef, CompletenessLevel, GapQuestion } from '@/platform/clientMap/types';
-import { flagForClient, unresolvedAskGaps } from '@/features/matters/clientMap/guidedInterview';
+import { flagForClient, displayCompleteness } from '@/features/matters/clientMap/guidedInterview';
 
 const LEVEL_LABEL: Record<CompletenessLevel, string> = {
   thin: 'Thin',
@@ -128,8 +128,10 @@ export function ClientMapView({
   onAnswerQuestion?: (question: GapQuestion) => void;
   onFlagForClient?: (question: GapQuestion) => void;
 }) {
-  const c = map.completeness;
-  const askGaps = unresolvedAskGaps(map);
+  // Recomputed against unresolved gaps only, so the level chip doesn't stay
+  // stuck after every remaining gap has been answered or flagged.
+  const c = displayCompleteness(map);
+  const askGaps = c.ask;
   return (
     <div data-testid="clientmap-view">
       {CORE_SECTION_ORDER.map((key) => {

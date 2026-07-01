@@ -24,7 +24,7 @@ import type {
   CompletenessLevel,
   GapQuestion,
 } from '@/platform/clientMap/types';
-import { flagForClient, unresolvedAskGaps } from '@/features/matters/clientMap/guidedInterview';
+import { flagForClient, unresolvedAskGaps, displayCompleteness } from '@/features/matters/clientMap/guidedInterview';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { buildCustomSection } from '@/features/matters/clientMap/customSection';
 import { useTemplatesStore, applyTemplateToMatter } from '@/features/matters/clientMap/templatesStore';
@@ -505,8 +505,11 @@ function MissingPanel({
   onAnswerQuestion?: ((question: GapQuestion) => void) | undefined;
   onFlagForClient?: ((question: GapQuestion) => void) | undefined;
 }) {
-  const c = map.completeness;
-  const askGaps = unresolvedAskGaps(map);
+  // Recomputed against unresolved gaps only (Codex review of D1): otherwise the
+  // level chip can stay stuck (e.g. "Getting there") after every remaining gap
+  // has been answered or flagged, even though nothing is outstanding anymore.
+  const c = displayCompleteness(map);
+  const askGaps = c.ask;
   const hasGaps = askGaps.length > 0;
   const hasAssumptions = c.assuming.length > 0;
   return (
