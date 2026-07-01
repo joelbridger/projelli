@@ -7,6 +7,7 @@
  */
 import { useCallback } from 'react';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
+import { workspacePath } from '@/platform/fs/appPath';
 
 export interface UseAIRulesFileOptions {
   rootPath: string | null;
@@ -24,7 +25,7 @@ export function useAIRulesFile({
   const handleOpenAIRules = useCallback(async () => {
     if (!rootPath || !workspaceServiceRef.current) return;
 
-    const rulesPath = `${rootPath}/ai-rules.md`;
+    const rulesPath = workspacePath(rootPath, 'ai-rules.md');
 
     try {
       // Check if file exists

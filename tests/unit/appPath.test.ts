@@ -15,6 +15,7 @@ import {
   relativeInside,
   topLevelSegment,
   joinWorkspacePath,
+  workspacePath,
 } from '@/platform/fs/appPath';
 
 describe('isWindowsStylePath', () => {
@@ -119,5 +120,47 @@ describe('joinWorkspacePath', () => {
   it('joins with a single separator regardless of trailing/leading slashes', () => {
     expect(joinWorkspacePath('C:\\WS\\', 'Acme')).toBe('C:/WS/Acme');
     expect(joinWorkspacePath('/home/jane/WS', '/Acme')).toBe('/home/jane/WS/Acme');
+  });
+});
+
+describe('workspacePath', () => {
+  it('joins a relative segment onto root exactly like joinWorkspacePath', () => {
+    expect(workspacePath('C:\\WS\\', 'Acme/doc.docx')).toBe('C:/WS/Acme/doc.docx');
+    expect(workspacePath('/home/jane/WS', 'Acme')).toBe('/home/jane/WS/Acme');
+    expect(workspacePath('/home/jane/WS/', 'Acme')).toBe('/home/jane/WS/Acme');
+  });
+
+  it('passes an already-absolute rel through UNCHANGED instead of doubling it', () => {
+    // The bug this guards against: `p.startsWith(rootPath) ? p : \`${rootPath}/${p}\``
+    // fails to recognize an absolute path whose drive-letter case or separator
+    // style differs from rootPath, producing a doubled/garbage join.
+    expect(workspacePath('C:/WS', 'c:\\WS\\Acme\\doc.docx')).toBe('c:/WS/Acme/doc.docx');
+    expect(workspacePath('/home/jane/WS', '/home/jane/WS/Acme/doc.docx')).toBe(
+      '/home/jane/WS/Acme/doc.docx',
+    );
+    expect(workspacePath('/home/jane/WS', '/elsewhere/doc.docx')).toBe('/elsewhere/doc.docx');
+  });
+
+  it('handles UNC roots and mixed separators without doubling', () => {
+    expect(workspacePath('\\\\Server\\Share\\WS', 'Acme/doc.docx')).toBe(
+      '//Server/Share/WS/Acme/doc.docx',
+    );
+    expect(workspacePath('//server/share/WS', '\\\\server\\share\\WS\\Acme\\doc.docx')).toBe(
+      '//server/share/WS/Acme/doc.docx',
+    );
+  });
+
+  it('collapses trailing/duplicate separators on the root before joining', () => {
+    expect(workspacePath('C:/WS///', 'Acme/doc.docx')).toBe('C:/WS/Acme/doc.docx');
+    expect(workspacePath('C:/WS/', 'Acme')).toBe('C:/WS/Acme');
+  });
+
+  it('throws loudly instead of stringifying a non-string argument', () => {
+    // The concrete bug this guards against: a folder-picker object leaking in
+    // and silently becoming the literal "[object Object]" in a create path.
+    expect(() => workspacePath({ path: 'C:/WS' } as unknown as string, 'Acme')).toThrow(TypeError);
+    expect(() => workspacePath('C:/WS', { path: 'Acme' } as unknown as string)).toThrow(TypeError);
+    expect(() => workspacePath('C:/WS', null as unknown as string)).toThrow(TypeError);
+    expect(() => workspacePath('C:/WS', undefined as unknown as string)).toThrow(TypeError);
   });
 });

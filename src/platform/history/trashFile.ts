@@ -11,6 +11,7 @@
  * restore) self-heals on the next load.
  */
 import type { TrashedItem } from '@/platform/history/TrashService';
+import { workspacePath } from '@/platform/fs/appPath';
 
 const TRASH_FOLDER = '.trash';
 const TRASH_METADATA_FILE = '.trash/metadata.json';
@@ -45,7 +46,7 @@ export async function moveToTrash(
   const name = absPath.split('/').pop() ?? 'unknown';
   const stat = await fs.stat(absPath);
 
-  const trashFolder = `${rootPath}/${TRASH_FOLDER}`;
+  const trashFolder = workspacePath(rootPath, TRASH_FOLDER);
   if (!(await fs.exists(trashFolder))) {
     await fs.mkdir(trashFolder);
   }
@@ -73,7 +74,7 @@ export async function moveToTrash(
   // drops entries whose trashPath doesn't exist) — never a lost-but-hidden file.
   // Read-modify-write the metadata (newest first), tolerating a missing/corrupt
   // file by starting fresh.
-  const metadataPath = `${rootPath}/${TRASH_METADATA_FILE}`;
+  const metadataPath = workspacePath(rootPath, TRASH_METADATA_FILE);
   let existing: SerializedTrashItem[] = [];
   if (await fs.exists(metadataPath)) {
     try {

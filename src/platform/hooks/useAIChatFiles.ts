@@ -6,6 +6,7 @@
 import { useState, useCallback } from 'react';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { AIChatFile } from '@/platform/types/ai';
+import { workspacePath } from '@/platform/fs/appPath';
 
 interface UseAIChatFilesOptions {
   rootPath: string | null;
@@ -37,7 +38,7 @@ export function useAIChatFiles({
     if (!workspaceServiceRef.current || !rootPath) return [];
 
     try {
-      const aiChatsPath = `${rootPath}/AI Chats`;
+      const aiChatsPath = workspacePath(rootPath, 'AI Chats');
       const exists = await workspaceServiceRef.current.exists(aiChatsPath);
       if (!exists) return [];
 
@@ -97,7 +98,7 @@ export function useAIChatFiles({
       try {
         // Create date-based folder structure: AI Chats/YYYY-MM-DD/
         const dateStr = new Date().toISOString().split('T')[0]; // e.g., "2026-01-26"
-        const dateFolderPath = `${rootPath}/AI Chats/${dateStr}`;
+        const dateFolderPath = workspacePath(rootPath, `AI Chats/${dateStr}`);
 
         // Ensure date folder exists
         try {
@@ -161,7 +162,7 @@ export function useAIChatFiles({
       // Open the chat file in the main panel (in date folder)
       const dateStr = now.toISOString().split('T')[0];
       const filename = `${title}.aichat`;
-      const filePath = `${rootPath}/AI Chats/${dateStr}/${filename}`;
+      const filePath = workspacePath(rootPath, `AI Chats/${dateStr}/${filename}`);
       await handleFileOpen(filePath, filename);
     },
     [rootPath, saveChatFile, handleFileOpen, chatFiles]
@@ -184,8 +185,8 @@ export function useAIChatFiles({
       // Extract date from chat's created timestamp
       const filename = `${chatFile.title}.aichat`;
       const dateStr = new Date(chatFile.created).toISOString().split('T')[0];
-      const dateBasedPath = `${rootPath}/AI Chats/${dateStr}/${filename}`;
-      const legacyPath = `${rootPath}/AI Chats/${filename}`;
+      const dateBasedPath = workspacePath(rootPath, `AI Chats/${dateStr}/${filename}`);
+      const legacyPath = workspacePath(rootPath, `AI Chats/${filename}`);
 
       // Try date-based path first, then legacy path
       try {
@@ -230,8 +231,8 @@ export function useAIChatFiles({
       // Fallback: try to find the file in date-based structure
       const filename = `${chatToDelete.title}.aichat`;
       const dateStr = new Date(chatToDelete.created).toISOString().split('T')[0];
-      const dateBasedPath = `${rootPath}/AI Chats/${dateStr}/${filename}`;
-      const legacyPath = `${rootPath}/AI Chats/${filename}`;
+      const dateBasedPath = workspacePath(rootPath, `AI Chats/${dateStr}/${filename}`);
+      const legacyPath = workspacePath(rootPath, `AI Chats/${filename}`);
 
       try {
         // Try date-based path first

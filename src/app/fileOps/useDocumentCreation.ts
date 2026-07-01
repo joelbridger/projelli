@@ -11,6 +11,7 @@ import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useEditorStore } from '@/platform/state/editorStore';
 import { createBlankDocx, docxBytesToDataUrl } from '@/platform/utils/docx-io';
+import { workspacePath } from '@/platform/fs/appPath';
 import { findUniqueDefaultName } from './uniqueDefaultName';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { FileNode } from '@/platform/types/workspace';
@@ -48,7 +49,7 @@ export function useDocumentCreation(options: UseDocumentCreationOptions) {
     // otherwise stringify into `destDir` as the literal "[object Object]" and
     // create a garbage folder. Coerce anything non-string back to the default.
     const safeParent = typeof parentPath === 'string' ? parentPath : undefined;
-    const destDir = safeParent ?? `${rootPath}/docs`;
+    const destDir = safeParent ?? workspacePath(rootPath, 'docs');
     // Bench diagnostic — confirms `destDir` is a real path, never "[object
     // Object]". DEV-only: the path can contain client-identifying folder names,
     // which must not leak into production WebView logs (Codex review). The bench
@@ -59,7 +60,7 @@ export function useDocumentCreation(options: UseDocumentCreationOptions) {
     // (name === '' fails the `!name` check below with no error). Seed a REAL,
     // collision-free default so OK-on-default always creates a file.
     const defaultName = await findUniqueDefaultName(
-      (fullName) => workspaceServiceRef.current?.exists(`${destDir}/${fullName}`) ?? Promise.resolve(false),
+      (fullName) => workspaceServiceRef.current?.exists(workspacePath(destDir, fullName)) ?? Promise.resolve(false),
       'my-notes',
       '.txt',
     );
@@ -73,7 +74,7 @@ export function useDocumentCreation(options: UseDocumentCreationOptions) {
     if (!name) return;
 
     const fileName = name.endsWith('.txt') ? name : `${name}.txt`;
-    const filePath = `${destDir}/${fileName}`;
+    const filePath = workspacePath(destDir, fileName);
     try {
       await workspaceServiceRef.current.writeFile(filePath, '');
       const fileTree = await workspaceServiceRef.current.getFileTree();
@@ -112,7 +113,7 @@ export function useDocumentCreation(options: UseDocumentCreationOptions) {
     // a non-string `parentPath` (a corrupted matter folder object) would
     // stringify to the literal "[object Object]" and write to a garbage folder.
     const safeParent = typeof parentPath === 'string' ? parentPath : undefined;
-    const destDir = safeParent ?? `${rootPath}/docs`;
+    const destDir = safeParent ?? workspacePath(rootPath, 'docs');
     // Bench diagnostic (see handleCreateTextFileAtRoot) — DEV-only so a
     // client-identifying path never reaches production logs.
     if (import.meta.env.DEV) console.log('[DocCreate] docx destDir:', destDir);
@@ -122,7 +123,7 @@ export function useDocumentCreation(options: UseDocumentCreationOptions) {
     // `!name` guard below silently returned on — no file, no error. Seed a
     // real, collision-free default so OK-on-default always creates a file.
     const defaultName = await findUniqueDefaultName(
-      (fullName) => workspaceServiceRef.current?.exists(`${destDir}/${fullName}`) ?? Promise.resolve(false),
+      (fullName) => workspaceServiceRef.current?.exists(workspacePath(destDir, fullName)) ?? Promise.resolve(false),
       'my-document',
       '.docx',
     );
@@ -136,7 +137,7 @@ export function useDocumentCreation(options: UseDocumentCreationOptions) {
     if (!name) return;
 
     const fileName = name.endsWith('.docx') ? name : `${name}.docx`;
-    const filePath = `${destDir}/${fileName}`;
+    const filePath = workspacePath(destDir, fileName);
     try {
       // VG-4c — a new document is a straight byte copy of the letterhead
       // template when one is configured and readable (headers/footers/styles/
@@ -203,7 +204,7 @@ export function useDocumentCreation(options: UseDocumentCreationOptions) {
   const handleCreateFolderAtRoot = useCallback(async () => {
     if (!workspaceServiceRef.current || !rootPath) return;
     const defaultName = await findUniqueDefaultName(
-      (fullName) => workspaceServiceRef.current?.exists(`${rootPath}/${fullName}`) ?? Promise.resolve(false),
+      (fullName) => workspaceServiceRef.current?.exists(workspacePath(rootPath, fullName)) ?? Promise.resolve(false),
       'my-folder',
     );
     const name = await prompt('Enter folder name:', defaultName, {
@@ -213,7 +214,7 @@ export function useDocumentCreation(options: UseDocumentCreationOptions) {
     });
     if (!name) return;
 
-    const folderPath = `${rootPath}/${name}`;
+    const folderPath = workspacePath(rootPath, name);
     try {
       await workspaceServiceRef.current.mkdir(folderPath);
       const fileTree = await workspaceServiceRef.current.getFileTree();

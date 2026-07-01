@@ -6,6 +6,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { workspacePath } from '@/platform/fs/appPath';
 import { useGlobalEventBus, type AppSurface } from '@/app/lifecycle/useGlobalEventBus';
 import { useAutosave } from '@/app/lifecycle/useAutosave';
 import { useFlushOnExit } from '@/app/lifecycle/useFlushOnExit';
@@ -632,7 +633,7 @@ function App() {
         const stat = await workspaceServiceRef.current.stat(path);
 
         // Create trash folder if it doesn't exist
-        const trashFolderPath = `${rootPath}/.trash`;
+        const trashFolderPath = workspacePath(rootPath, '.trash');
         const trashExists = await workspaceServiceRef.current.exists(trashFolderPath);
         if (!trashExists) {
           await workspaceServiceRef.current.mkdir(trashFolderPath);

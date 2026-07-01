@@ -16,11 +16,12 @@
  * and writing back must re-emit all three keys in their legacy envelope format.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useMatterUiStore } from '@/platform/matter/matterUiStore';
 import { useMatterAtAGlanceStore } from '@/platform/matter/matterAtAGlanceStore';
 import { useMatterSyncStore } from '@/platform/matter/matterSyncStore';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 
 const MATTERS_KEY = 'lantern:matters';
 const UI_KEY = 'lantern:matter-ui-snapshots';
@@ -56,6 +57,87 @@ beforeEach(async () => {
     snapshots: {},
     cache: {},
     statusByMatterId: {},
+  });
+  useWorkspaceStore.setState({ rootPath: null });
+});
+
+describe('matter-store merge — v9 -> v10 folderPaths canonicalization', () => {
+  it('resolves a workspace-relative folderPaths entry to absolute when the workspace root is already known at migration time', async () => {
+    useWorkspaceStore.setState({ rootPath: 'C:/workspaces/Northcrest' });
+    seed(MATTERS_KEY, {
+      state: {
+        matters: [{ ...sampleMatterV4, folderPaths: ['Clients/Hollings'] }],
+        activeMatterId: 'm1',
+      },
+      version: 9,
+    });
+    await useMatterStore.persist.rehydrate();
+    expect(useMatterStore.getState().matters[0]!.folderPaths).toEqual([
+      'C:/workspaces/Northcrest/Clients/Hollings',
+    ]);
+  });
+
+  it('leaves a relative folderPaths entry relative (shape-clean, not dropped) when the workspace root is not yet known', async () => {
+    // No workspace root set — matches real app bootstrap ordering, where this
+    // store's persist migration runs before a workspace has been opened.
+    seed(MATTERS_KEY, {
+      state: {
+        matters: [{ ...sampleMatterV4, folderPaths: ['Clients/Hollings'] }],
+        activeMatterId: 'm1',
+      },
+      version: 9,
+    });
+    await useMatterStore.persist.rehydrate();
+    expect(useMatterStore.getState().matters[0]!.folderPaths).toEqual(['Clients/Hollings']);
+  });
+
+  it('drops a non-string (object) folderPaths entry instead of persisting it as "[object Object]"', async () => {
+    seed(MATTERS_KEY, {
+      state: {
+        matters: [
+          {
+            ...sampleMatterV4,
+            folderPaths: ['/ws/RealFolder', { some: 'garbage-object' }],
+          },
+        ],
+        activeMatterId: 'm1',
+      },
+      version: 9,
+    });
+    await useMatterStore.persist.rehydrate();
+    const folderPaths = useMatterStore.getState().matters[0]!.folderPaths;
+    expect(folderPaths).toEqual(['/ws/RealFolder']);
+    expect(folderPaths.join()).not.toContain('[object Object]');
+  });
+
+  it('logs a non-DEV-gated [PathShape] summary line at the migration boundary (bench proof)', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    seed(MATTERS_KEY, {
+      state: {
+        matters: [
+          { ...sampleMatterV4, id: 'm1', folderPaths: ['/ws/Real', { garbage: true }] },
+        ],
+        activeMatterId: 'm1',
+      },
+      version: 9,
+    });
+    await useMatterStore.persist.rehydrate();
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringMatching(/^\[PathShape\] canonicalized \d+ folderPaths, dropped \d+ invalid$/),
+    );
+    logSpy.mockRestore();
+  });
+
+  it('a matters fixture already at v10 hydrates unchanged (idempotent, no re-canonicalization)', async () => {
+    seed(MATTERS_KEY, {
+      state: { matters: [{ ...sampleMatterV4, folderPaths: ['Clients/Hollings'] }], activeMatterId: 'm1' },
+      version: 10,
+    });
+    await useMatterStore.persist.rehydrate();
+    // Already at v10 → the `version < 10` migration step never runs, so an
+    // already-relative entry (e.g. left relative by an earlier hydrate with no
+    // workspace root open) is NOT force-canonicalized just by rehydrating again.
+    expect(useMatterStore.getState().matters[0]!.folderPaths).toEqual(['Clients/Hollings']);
   });
 });
 
@@ -158,7 +240,7 @@ describe('matter-store merge — writes preserve all three legacy keys', () => {
     expect((matters!.state!.matters as unknown[]).length).toBe(1);
     expect(matters!.state).not.toHaveProperty('snapshots');
     expect(matters!.state).not.toHaveProperty('cache');
-    expect(matters!.version).toBe(9);
+    expect(matters!.version).toBe(10);
 
     expect((ui!.state!.snapshots as Record<string, unknown>)[m.id]).toEqual({ surface: 'workflows', activeTabPath: null });
     expect(ui!.state).not.toHaveProperty('matters');

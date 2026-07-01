@@ -4,6 +4,7 @@
 
 import { useEffect, useState } from 'react';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
+import { workspacePath } from '@/platform/fs/appPath';
 
 export function useAIRules(
   rootPath: string | undefined,
@@ -27,7 +28,7 @@ export function useAIRules(
       if (!rootPath || !workspaceServiceRef?.current) return;
 
       try {
-        const rulesPath = `${rootPath}/ai-rules.md`;
+        const rulesPath = workspacePath(rootPath, 'ai-rules.md');
         const exists = await workspaceServiceRef.current.exists(rulesPath);
 
         if (!isMounted) return;

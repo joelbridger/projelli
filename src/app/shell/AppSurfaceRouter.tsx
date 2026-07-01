@@ -23,6 +23,7 @@ import { SettingsContent } from '@/features/settings/SettingsContent';
 import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
 import { requestScrollToParagraph } from '@/platform/utils/scrollToParagraph';
 import { resolveWorkspacePath } from '@/platform/fs/pathResolve';
+import { workspacePath } from '@/platform/fs/appPath';
 import { isWorkflowFilePath } from '@/features/workflows/engine/workflowFile';
 import { useEditorStore } from '@/platform/state/editorStore';
 
@@ -289,7 +290,7 @@ export function AppSurfaceRouter({
         const firmName = (() => { try { return localStorage.getItem('keepance_firm_name') ?? ''; } catch { return ''; } })();
         const base = suggestedName.replace(/\.(md|markdown|txt)$/i, '');
         const finalName = await resolveUniqueName(workspaceServiceRef.current, rootPath, `${base}.docx`);
-        const path = `${rootPath}/${finalName}`;
+        const path = workspacePath(rootPath, finalName);
         const bytes = await markdownToDocxBytes(content, finalName, { firmName });
         const buffer = new ArrayBuffer(bytes.byteLength);
         new Uint8Array(buffer).set(bytes);
@@ -355,7 +356,7 @@ export function AppSurfaceRouter({
             const firmName = (() => { try { return localStorage.getItem('keepance_firm_name') ?? ''; } catch { return ''; } })();
             const base = deriveFilenameFromMessage(content).replace(/\.(md|markdown|txt)$/i, '');
             const finalName = await resolveUniqueName(workspaceServiceRef.current, rootPath, `${base}.docx`);
-            const path = `${rootPath}/${finalName}`;
+            const path = workspacePath(rootPath, finalName);
             const bytes = await markdownToDocxBytes(content, finalName, { firmName });
             const buffer = new ArrayBuffer(bytes.byteLength);
             new Uint8Array(buffer).set(bytes);
@@ -440,9 +441,12 @@ export function AppSurfaceRouter({
         // approximate fallback).
         onOpenFileAtPath={async (p, paragraphIndex, snippet) => {
           if (!rootPath) return;
-          const absPath = p.startsWith(rootPath)
-            ? p
-            : `${rootPath}/${p}`.replace(/\/+/g, '/');
+          // `workspacePath` recognizes an already-absolute `p` via
+          // `isAbsolutePath` (not a naive `startsWith(rootPath)`, which fails
+          // closed/open incorrectly when `p`'s drive-letter case or separator
+          // style differs from `rootPath`) and passes it through unchanged
+          // instead of doubling it.
+          const absPath = workspacePath(rootPath, p);
           const name = absPath.split('/').pop() ?? absPath;
           await handleFileOpen(absPath, name);
           // F-504 — editor scroll request. requestScrollToParagraph both

@@ -197,4 +197,29 @@ export function joinWorkspacePath(root: string, segment: string): string {
   return r.endsWith('/') ? `${r}${seg}` : `${r}/${seg}`;
 }
 
+/**
+ * The ONE path-join helper every FS write/read site should use instead of a
+ * hand-rolled `${root}/${rel}` template string. Two failure modes motivated
+ * this: (1) a template join silently DOUBLES an already-absolute `rel` (e.g.
+ * `p.startsWith(rootPath) ? p : \`${rootPath}/${p}\`` fails to recognize an
+ * absolute path whose drive-letter case or separator style differs from
+ * `rootPath`, producing a doubled/garbage path instead of the real file); (2)
+ * when a non-string value leaks in from a corrupted upstream source (a
+ * folder-picker object, a malformed event payload), a template string
+ * silently stringifies it to the literal `"[object Object]"`, which then
+ * becomes a real create target on disk. `workspacePath` closes both: it
+ * throws loudly on a non-string argument instead of stringifying it, and
+ * passes an already-absolute `rel` through unchanged (via the shared
+ * `isAbsolutePath` check) rather than re-joining it under `root`.
+ */
+export function workspacePath(root: string, rel: string): string {
+  if (typeof root !== 'string' || typeof rel !== 'string') {
+    throw new TypeError(
+      `workspacePath: expected string arguments, got root=${typeof root} rel=${typeof rel}`,
+    );
+  }
+  if (isAbsolutePath(rel)) return normalizeForComparison(rel);
+  return joinWorkspacePath(root, rel);
+}
+
 export { isAbsolutePath };

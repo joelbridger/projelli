@@ -48,6 +48,8 @@ import {
   findMatter,
   normalize as normalizeMatterPath,
 } from '@/platform/rag/matterResolver';
+import { isAbsolutePath, joinWorkspacePath } from '@/platform/fs/appPath';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { ragDeleteMatter } from '@/platform/utils/tauri-commands';
 import { mailClearMatterFilings } from '@/platform/utils/mail-commands';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
@@ -105,24 +107,78 @@ function coerceFolderPathValue(value: unknown): string | null {
 }
 
 /**
- * Normalise and dedupe folder paths with the same rules the resolver uses.
- *
- * Accepts `unknown[]` (not just `string[]`) so it doubles as the runtime
- * sanitiser for persisted/legacy data: a non-string entry is coerced via
- * `coerceFolderPathValue` and dropped if it can't become a real path, so an
- * object can never survive into `folderPaths` and later stringify to
- * `"[object Object]"`.
+ * Read the currently-open workspace root without subscribing, tolerating the
+ * store not existing yet (defensive only — `useWorkspaceStore` is a plain
+ * Zustand store created at module load, so `getState()` never actually
+ * throws, but this function runs from the matters store's own `persist`
+ * migration, which can fire before `workspaceStore` has finished evaluating
+ * in an unusual bundling order).
  */
-function dedupeFolderPaths(paths: unknown[]): string[] {
+function getWorkspaceRootNonReactive(): string | null {
+  try {
+    return useWorkspaceStore.getState().rootPath;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The SINGLE choke-point every `folderPaths` write goes through (`createMatter`,
+ * `setFolderPaths`, `addFolderPath`, and the v10 persisted migration below).
+ *
+ * `Matter.folderPaths` is documented as ABSOLUTE workspace paths — the shape
+ * `resolveMatterId`/`isPathInFolder` (matterResolver.ts) assume when comparing
+ * a matter's folders directly against a raw absolute file path from the live
+ * RAG indexer, with NO workspace-root parameter of their own. A relative entry
+ * reaching that comparison silently fails to match ANY real file, which is
+ * exactly the bug the CRM auto-backfill caused (bench R17): it sources
+ * candidate folders from the file tree's own workspace-RELATIVE node paths
+ * (see `crmMatterFolderBackfill.ts`) and used to write them straight into
+ * `folderPaths` via `addFolderPath` with no resolution step.
+ *
+ * This function is the fix: a relative entry is resolved to absolute using the
+ * currently-open workspace root (the same non-reactive `useWorkspaceStore`
+ * accessor pattern the CRM backfill already uses), so every path landing in
+ * `folderPaths` is genuinely absolute whenever a workspace is open — which is
+ * true for every live call site (`createMatter`/`setFolderPaths`/
+ * `addFolderPath` only ever run while the app has a workspace mounted). With NO
+ * workspace root known (e.g. this same function called from the persisted-state
+ * `migrate` step, which can run before a workspace has been opened for the
+ * session), a relative entry is left relative rather than dropped — it is still
+ * a valid, shape-clean string, and gets resolved to absolute the next time the
+ * matter's folders are touched with a workspace open.
+ *
+ * Never returns a stringified object: `coerceFolderPathValue` rejects (and the
+ * caller drops) anything that isn't a string or a `{ path }`/`{ folderPath }`
+ * shape, so a folder-picker object or other non-string value can never survive
+ * into `folderPaths` and later stringify to `"[object Object]"`.
+ */
+function canonicalizeFolderPath(value: unknown, workspaceRoot: string | null): string | null {
+  const raw = coerceFolderPathValue(value);
+  if (raw === null) return null;
+  const normalized = normalizeMatterPath(raw);
+  if (!normalized) return null;
+  if (isAbsolutePath(normalized)) return normalized;
+  if (!workspaceRoot) return normalized;
+  return normalizeMatterPath(joinWorkspacePath(workspaceRoot, normalized));
+}
+
+/**
+ * Normalise, canonicalize (see `canonicalizeFolderPath`), and dedupe folder
+ * paths. Accepts `unknown[]` (not just `string[]`) so it doubles as the
+ * runtime sanitiser for persisted/legacy data — the exact same function backs
+ * both live writes and the persisted-schema migration below, so there is only
+ * ONE place that decides what a valid, canonical `folderPaths` entry looks
+ * like.
+ */
+function dedupeFolderPaths(paths: unknown[], workspaceRoot: string | null): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
   for (const value of paths) {
-    const raw = coerceFolderPathValue(value);
-    if (raw === null) continue;
-    const normalized = normalizeMatterPath(raw);
-    if (!normalized || seen.has(normalized)) continue;
-    seen.add(normalized);
-    out.push(normalized);
+    const canonical = canonicalizeFolderPath(value, workspaceRoot);
+    if (canonical === null || seen.has(canonical)) continue;
+    seen.add(canonical);
+    out.push(canonical);
   }
   return out;
 }
@@ -298,7 +354,7 @@ interface PersistedMatterState {
 const MATTERS_KEY = SK_MATTERS;
 const UI_KEY = SK_MATTER_UI_SNAPSHOTS;
 const GLANCE_KEY = SK_MATTER_AT_A_GLANCE;
-const MATTERS_VERSION = 9;
+const MATTERS_VERSION = 10;
 
 type MatterAuditEmitter = (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
 
@@ -427,7 +483,7 @@ export const useMatterStore = create<MatterState>()(
           id: input.id ?? newMatterId(),
           name: input.name.trim(),
           client: input.client.trim(),
-          folderPaths: dedupeFolderPaths(input.folderPaths ?? []),
+          folderPaths: dedupeFolderPaths(input.folderPaths ?? [], getWorkspaceRootNonReactive()),
           mailFolderPaths: Array.from(
             new Set((input.mailFolderPaths ?? []).filter(Boolean))
           ),
@@ -553,7 +609,7 @@ export const useMatterStore = create<MatterState>()(
       },
 
       setFolderPaths: (id, folderPaths) => {
-        const normalized = dedupeFolderPaths(folderPaths);
+        const normalized = dedupeFolderPaths(folderPaths, getWorkspaceRootNonReactive());
         set((state) => ({
           matters: state.matters.map((m) =>
             m.id === id ? { ...m, folderPaths: normalized } : m
@@ -562,28 +618,30 @@ export const useMatterStore = create<MatterState>()(
       },
 
       addFolderPath: (id, folderPath) => {
-        const norm = normalizeMatterPath(folderPath);
-        if (!norm) return;
+        const workspaceRoot = getWorkspaceRootNonReactive();
+        const canon = canonicalizeFolderPath(folderPath, workspaceRoot);
+        if (!canon) return;
         set((state) => ({
           matters: state.matters.map((m) => {
             if (m.id !== id) return m;
             return {
               ...m,
-              folderPaths: dedupeFolderPaths([...m.folderPaths, norm]),
+              folderPaths: dedupeFolderPaths([...m.folderPaths, canon], workspaceRoot),
             };
           }),
         }));
       },
 
       removeFolderPath: (id, folderPath) => {
-        const norm = normalizeMatterPath(folderPath);
+        const workspaceRoot = getWorkspaceRootNonReactive();
+        const canon = canonicalizeFolderPath(folderPath, workspaceRoot);
         set((state) => ({
           matters: state.matters.map((m) =>
             m.id === id
               ? {
                   ...m,
                   folderPaths: m.folderPaths.filter(
-                    (f) => normalizeMatterPath(f) !== norm
+                    (f) => canonicalizeFolderPath(f, workspaceRoot) !== canon
                   ),
                 }
               : m
@@ -966,7 +1024,9 @@ export const useMatterStore = create<MatterState>()(
       // Jotform, ShareFile, Zocks, and Addepar. v8 -> v9: re-validate
       // `folderPaths` — coerce any non-string entry to a real path and drop what
       // can't be, so a corrupted/legacy object can never stringify to
-      // `"[object Object]"` and become a garbage create target.
+      // `"[object Object]"` and become a garbage create target. v9 -> v10:
+      // canonicalize `folderPaths` to the ABSOLUTE shape the type declares
+      // (see the `migrate` step below for the full rationale).
       // Backfill defaults so older persisted matters parse cleanly (missing
       // values are tolerated by readers, but normalising here keeps the shape
       // consistent). Only the `matters` slice is versioned;
@@ -1053,8 +1113,47 @@ export const useMatterStore = create<MatterState>()(
             ...m,
             folderPaths: dedupeFolderPaths(
               Array.isArray(m.folderPaths) ? (m.folderPaths as unknown[]) : [],
+              null,
             ),
           }));
+        }
+        if (version < 10) {
+          // v9 -> v10: CANONICALIZE `folderPaths` to the ABSOLUTE shape the
+          // type declares (2026-07 path-shape-discipline fix, F2.3). v9 only
+          // sanitised the STRING shape (dropped non-strings); it never
+          // resolved a workspace-RELATIVE entry to absolute. The CRM
+          // auto-backfill sources candidate folders from the file tree's own
+          // relative node paths and used to write them straight into
+          // `folderPaths` unresolved (bench R17 — every CRM-linked client's
+          // Documents tab rendered empty until the read-time
+          // `resolveScopeFolderInRoot` bridge in scopeFileTree.ts papered over
+          // it). This migration is BEST-EFFORT: the workspace root is not
+          // reliably known this early in app bootstrap (`workspaceStore`
+          // hydrates from a later user/session action, after this store's
+          // `persist` middleware has already run its `migrate` step) — when
+          // it isn't known, `canonicalizeFolderPath` leaves a relative entry
+          // relative (still shape-clean) rather than dropping it, and the
+          // write-time choke-point (`createMatter`/`setFolderPaths`/
+          // `addFolderPath`) resolves it to absolute the next time that
+          // matter's folders are touched with a workspace open.
+          //
+          // Not gated on `import.meta.env.DEV` (that block is stripped from
+          // `vite build`) — this line is the real-path proof a later bench
+          // pass greps for to confirm the migration actually ran in the
+          // shipped app, not just in tests.
+          const workspaceRootAtMigration = getWorkspaceRootNonReactive();
+          let canonicalizedCount = 0;
+          let droppedCount = 0;
+          state.matters = state.matters.map((m) => {
+            const before = Array.isArray(m.folderPaths) ? (m.folderPaths as unknown[]) : [];
+            const after = dedupeFolderPaths(before, workspaceRootAtMigration);
+            canonicalizedCount += after.length;
+            droppedCount += before.length - after.length;
+            return { ...m, folderPaths: after };
+          });
+          console.log(
+            `[PathShape] canonicalized ${String(canonicalizedCount)} folderPaths, dropped ${String(droppedCount)} invalid`,
+          );
         }
         return state as PersistedMatterState;
       },
