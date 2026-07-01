@@ -71,7 +71,10 @@ jobs:
           if ($lockChanged) {
             Write-Output "package-lock.json changed — running npm install"
             Push-Location $dst
-            npm install --no-audit --no-fund
+            # --ignore-scripts: C:\keepance is a plain file mirror, not a git
+            # checkout, so the "prepare" lifecycle script (install-git-hooks.sh,
+            # which assumes .git exists) would fail here. We only need deps.
+            npm install --no-audit --no-fund --ignore-scripts
             if ($LASTEXITCODE -ne 0) { Write-Error "npm install failed"; Pop-Location; exit 1 }
             Pop-Location
           }
