@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RagHit } from '@/platform/utils/tauri-commands';
+import { normalizeNumericCitations } from '@/platform/rag/workspaceCommand';
 import {
   BLOCK_MARKERS,
   bindAnswerBlocks,
@@ -169,6 +170,63 @@ describe('bindAnswerBlocks', () => {
     expect(result.blocks.map((b) => b.kind)).toEqual(['nothing-found', 'general']);
     expect(result.citations).toEqual([]);
     expect(result.blocks.every((b) => b.citations.length === 0)).toBe(true);
+  });
+
+  // Bug 3 (header/body contradiction): a small local model routinely stuffs a
+  // real, cited answer UNDER a [[BLOCK:NOTHING_FOUND]] marker instead of a brief
+  // absence line, producing a "From your files — nothing found" header sitting
+  // over a real answer with an empty Sources panel. A nothing-found block that
+  // actually carries grounded content must become a proper files block.
+  it('recovers a real cited answer mislabeled as nothing-found into a files block', () => {
+    const raw = [
+      BLOCK_MARKERS.nothingFound,
+      'The old 401(k) still lists Jessica Reyes as the sole primary beneficiary ' +
+        '[beneficiary.docx paragraph 3]. This should be reviewed before the rollover.',
+    ].join('\n');
+
+    const result = bindAnswerBlocks(raw, [hit()], 'webb');
+    // No "nothing found" header over a real answer.
+    expect(result.blocks.some((b) => b.kind === 'nothing-found')).toBe(false);
+    // The citation the model DID emit is recovered and the source is attached.
+    expect(result.blocks[0]?.kind).toBe('files');
+    expect(result.citations.length).toBe(1);
+    expect(result.sources.length).toBe(1);
+  });
+
+  // Bug 3 (inconsistent citation attachment): a small local model cites the
+  // source NUMBER from the context block (`[1]`) instead of the filename, so the
+  // citation never binds and the answer renders with no chips / empty Sources —
+  // even though the context WAS retrieved. useAsk now runs normalizeNumericCitations
+  // before binding; this locks in that composition (raw `[1]` -> bound source).
+  it('binds a local model bare-numeric [1] citation after normalization', () => {
+    const rawLocalAnswer =
+      'The old 401(k) still lists Jessica Reyes as the sole primary beneficiary [1].';
+    // Before normalization the bare [1] does not bind — no chips, empty sources.
+    const unnormalized = bindAnswerBlocks(rawLocalAnswer, [hit()], 'webb');
+    expect(unnormalized.citations.length).toBe(0);
+    // After normalization (as useAsk does), it binds to the real source.
+    const normalized = normalizeNumericCitations(rawLocalAnswer, [hit()]);
+    const result = bindAnswerBlocks(normalized, [hit()], 'webb');
+    expect(result.blocks[0]?.kind).toBe('files');
+    expect(result.citations.length).toBe(1);
+    expect(result.sources.length).toBe(1);
+  });
+
+  // The same mislabel but with NO grounded citation (uncited prose under the
+  // marker) must not read as "nothing found" either — it becomes honest,
+  // chip-free general prose.
+  it('demotes a substantive uncited nothing-found block to general (no contradiction)', () => {
+    const raw = [
+      BLOCK_MARKERS.nothingFound,
+      'A 1031 exchange lets an owner defer capital gains by rolling proceeds from ' +
+        'one investment property into another like-kind property within strict deadlines, ' +
+        'which is a common strategy ahead of a business or real-estate sale.',
+    ].join('\n');
+
+    const result = bindAnswerBlocks(raw, []);
+    expect(result.blocks.map((b) => b.kind)).toEqual(['general']);
+    expect(result.blocks[0]?.text).not.toContain('{');
+    expect(result.citations).toEqual([]);
   });
 
   it('downgrades a FILES block to general when no citation grounds (fabricated source)', () => {

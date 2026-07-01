@@ -320,7 +320,14 @@ pub async fn download_model_to_dir(
     }
     let partial_len = std::fs::metadata(&part_path).map(|m| m.len()).unwrap_or(0);
 
-    ensure_disk_space(model_dir, partial_len, spec.size)?;
+    // A `.part` file already at the full expected size needs no more bytes — only
+    // a hash + rename to finalize — so skip the free-space reserve check for it.
+    // Otherwise a machine left with < the 256 MB reserve right after pulling the
+    // 2.5 GB model would be unable to finalize an already-complete download.
+    let already_complete = partial_len == spec.size;
+    if !already_complete {
+        ensure_disk_space(model_dir, partial_len, spec.size)?;
+    }
 
     write_manifest(model_dir, &spec.manifest(LocalModelStatus::Downloading))?;
     sink(progress(
@@ -336,7 +343,7 @@ pub async fn download_model_to_dir(
     // entirely: asking the CDN for bytes at/past EOF earns a 416, which the code
     // used to treat as fatal, permanently wedging an already-complete download.
     // Fall straight through to the shared verify → rename → Ready-manifest path.
-    if partial_len != spec.size {
+    if !already_complete {
         let client = reqwest::Client::builder()
             .connect_timeout(std::time::Duration::from_secs(20))
             .timeout(std::time::Duration::from_secs(60 * 60))

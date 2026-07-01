@@ -111,6 +111,22 @@ export function parseSseChunk(buffer: string): {
  * llama-server sidecar. All calls are $0 and fully on-device.
  */
 export class AppLocalProvider implements Provider {
+  /**
+   * Warm-up retry window for the FIRST contact with the sidecar. The Rust side
+   * waits for `/health` before returning the endpoint, but on some llama.cpp
+   * builds `/health` can report ready a beat before the model finishes loading —
+   * so the very first completion right after switching to Local-only can come
+   * back `503 loading model` (or the socket isn't accepting yet). Rather than
+   * surface that as "the local AI couldn't answer", retry the initial contact a
+   * bounded number of times: ~8 × 600 ms ≈ 5 s of tolerance, then the real error
+   * surfaces. A user/timeout abort is never retried.
+   */
+  private static readonly WARMUP_MAX_RETRIES = 8;
+  private static readonly WARMUP_RETRY_DELAY_MS = 600;
+  /** HTTP statuses that mean "not warm yet", safe to retry: 503 loading model,
+   *  502/504 from a proxy that isn't accepting requests yet. */
+  private static readonly WARMUP_RETRY_STATUSES: ReadonlySet<number> = new Set([502, 503, 504]);
+
   private readonly model: string;
   private readonly aiRules: string | undefined;
   private readonly requestTimeoutMs: number;
@@ -194,6 +210,77 @@ export class AppLocalProvider implements Provider {
     return body;
   }
 
+  /** Wait out one warm-up backoff, waking early if the request is aborted so a
+   *  cancel never sits for the full delay. */
+  private warmupBackoff(signal: AbortSignal): Promise<void> {
+    return new Promise<void>((resolve) => {
+      const onAbort = (): void => {
+        clearTimeout(timer);
+        resolve();
+      };
+      const timer = setTimeout(() => {
+        signal.removeEventListener('abort', onAbort);
+        resolve();
+      }, AppLocalProvider.WARMUP_RETRY_DELAY_MS);
+      signal.addEventListener('abort', onAbort, { once: true });
+    });
+  }
+
+  /**
+   * POST the chat-completions request, retrying the initial contact while the
+   * sidecar is still warming up (see WARMUP_MAX_RETRIES). Returns the first
+   * response that is `ok`; throws the underlying error once the warm-up window
+   * is exhausted, or immediately on a user/timeout abort. The caller owns the
+   * lifetime of `signal` (timeout + cleanup).
+   */
+  private async fetchChatCompletion(
+    endpoint: string,
+    body: OAChatRequest,
+    signal: AbortSignal,
+  ): Promise<Response> {
+    const payload = JSON.stringify(body);
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= AppLocalProvider.WARMUP_MAX_RETRIES; attempt++) {
+      let resp: Response;
+      try {
+        resp = await fetch(`${endpoint}/v1/chat/completions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: payload,
+          signal,
+        });
+      } catch (err) {
+        // A user/timeout abort must propagate immediately — never retried.
+        if (signal.aborted) throw err;
+        // The socket may not be accepting yet in the first moment after the
+        // sidecar spawns; treat a network-level failure as "still warming up".
+        lastError = err;
+        if (attempt < AppLocalProvider.WARMUP_MAX_RETRIES) {
+          await this.warmupBackoff(signal);
+          continue;
+        }
+        throw err;
+      }
+      if (resp.ok) return resp;
+      if (
+        attempt < AppLocalProvider.WARMUP_MAX_RETRIES &&
+        !signal.aborted &&
+        AppLocalProvider.WARMUP_RETRY_STATUSES.has(resp.status)
+      ) {
+        // Release the connection before waiting + retrying.
+        await resp.body?.cancel().catch(() => undefined);
+        await this.warmupBackoff(signal);
+        continue;
+      }
+      throw new Error(`Advisor Prep Hero Local AI error: HTTP ${String(resp.status)}`);
+    }
+    // Unreachable in practice (the loop returns or throws), but keeps the
+    // function total for the type checker.
+    throw lastError instanceof Error
+      ? lastError
+      : new Error('Advisor Prep Hero Local AI did not become ready');
+  }
+
   private async post(
     endpoint: string,
     body: OAChatRequest,
@@ -201,16 +288,7 @@ export class AppLocalProvider implements Provider {
   ): Promise<Response> {
     const controlled = composeRequestSignal(signal, this.requestTimeoutMs);
     try {
-      const resp = await fetch(`${endpoint}/v1/chat/completions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        signal: controlled.signal,
-      });
-      if (!resp.ok) {
-        throw new Error(`Advisor Prep Hero Local AI error: HTTP ${String(resp.status)}`);
-      }
-      return resp;
+      return await this.fetchChatCompletion(endpoint, body, controlled.signal);
     } finally {
       controlled.cleanup();
     }
@@ -243,19 +321,17 @@ export class AppLocalProvider implements Provider {
     const controlled = composeRequestSignal(signal, this.requestTimeoutMs);
     let resp: Response;
     try {
-      resp = await fetch(`${endpoint}/v1/chat/completions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(this.buildBody(messages, sendOpts, true)),
-        signal: controlled.signal,
-      });
+      // fetchChatCompletion retries the initial contact through the sidecar's
+      // warm-up window and throws on a non-ok status once exhausted, so the
+      // stream only begins on a live, ready response.
+      resp = await this.fetchChatCompletion(
+        endpoint,
+        this.buildBody(messages, sendOpts, true),
+        controlled.signal,
+      );
     } catch (err) {
       controlled.cleanup();
       throw err;
-    }
-    if (!resp.ok) {
-      controlled.cleanup();
-      throw new Error(`Advisor Prep Hero Local AI error: HTTP ${String(resp.status)}`);
     }
     const reader = resp.body?.getReader();
     if (!reader) {
