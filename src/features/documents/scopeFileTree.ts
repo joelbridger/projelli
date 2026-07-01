@@ -61,8 +61,16 @@ function isAncestorOf(path: string, folder: string): boolean {
  *
  * Case is preserved (we only normalize separators / trailing slash), so the
  * comparison stays consistent with `resolveMatterId`.
+ *
+ * Exported so callers that resolve a `currentFolderPath` (which may be
+ * tree-relative — see `toScopedFolderPath`) back to a real, disk-resolvable
+ * path can reuse the exact same logic — e.g. before handing a create/import
+ * target to `MemoryService.indexFile`, which sends the path straight to the
+ * Rust indexer with NO workspace-root joining (unlike `WorkspaceService`,
+ * which resolves relative paths itself). A relative target there would fail
+ * to index silently.
  */
-function toAbsolute(p: string, workspaceRoot?: string | null): string {
+export function toAbsolute(p: string, workspaceRoot?: string | null): string {
   const np = normalize(p);
   if (!workspaceRoot) return np;
   const nr = normalize(workspaceRoot);

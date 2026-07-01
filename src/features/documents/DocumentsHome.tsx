@@ -40,7 +40,7 @@ import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
 import { DocumentGridView } from './DocumentGridView';
 import { FileTree } from '@/features/documents/workspace/FileTree';
-import { scopeFileTreeToFolders, toScopedFolderPath } from './scopeFileTree';
+import { scopeFileTreeToFolders, toAbsolute, toScopedFolderPath } from './scopeFileTree';
 import { SK_FIRST_FILE_TRUST_SHOWN, SK_DOCS_VIEW } from '@/config/identity';
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -499,6 +499,17 @@ export function DocumentsHome({
     return firstScopeFolder ? toScopedFolderPath(scopedFileTree ?? [], firstScopeFolder, rootPath) : null;
   });
 
+  // `currentFolderPath` matches the (possibly tree-relative) shape needed for
+  // grid/breadcrumb lookups — see `toScopedFolderPath` above. A create/import
+  // target must instead be disk-resolvable on its own: `onImportFiles`'s copy
+  // goes through `WorkspaceService` (which resolves relative-or-absolute), but
+  // its explicit `MemoryService.indexFile` call sends the SAME path straight to
+  // the Rust indexer with no workspace-root joining — a relative target there
+  // silently fails to index (Codex review). Normalize back to absolute before
+  // using it as a create/import target, independent of the lookup shape.
+  const createTargetPath =
+    currentFolderPath !== null ? toAbsolute(currentFolderPath, rootPath) : null;
+
   // Embedded (per-client): clamp only the create/import TARGET — not navigation.
   // At the scoped root (currentFolderPath === null, e.g. the "All files"
   // breadcrumb) New document / Add files would otherwise fall back to the GLOBAL
@@ -525,7 +536,7 @@ export function DocumentsHome({
     // in the per-client tab lands in the client's folder, never the global
     // workspace (matter isolation) — regardless of which create handler a parent
     // wired up.
-    const target = currentFolderPath ?? embeddedCreateFallback ?? undefined;
+    const target = createTargetPath ?? embeddedCreateFallback ?? undefined;
     if (onImportFiles) {
       void onImportFiles(target);
     } else if (onCreateDefaultDocument) {
@@ -535,7 +546,7 @@ export function DocumentsHome({
     } else {
       onCreateFile(target ?? '');
     }
-  }, [onImportFiles, currentFolderPath, embeddedCreateFallback, onCreateDefaultDocument, onCreateDocxAtRoot, onCreateFile]);
+  }, [onImportFiles, createTargetPath, embeddedCreateFallback, onCreateDefaultDocument, onCreateDocxAtRoot, onCreateFile]);
 
   const handleDismissTrust = useCallback(() => {
     setShowTrustBanner(false);
@@ -544,7 +555,7 @@ export function DocumentsHome({
   // ── Toolbar action handlers (lifted from DocumentGridView) ────────────────
 
   const handleCreateDocument = useCallback(() => {
-    const parentPath = currentFolderPath ?? embeddedCreateFallback ?? undefined;
+    const parentPath = createTargetPath ?? embeddedCreateFallback ?? undefined;
     if (onCreateDefaultDocument) {
       onCreateDefaultDocument(parentPath);
     } else if (onCreateDocxAtRoot) {
@@ -555,11 +566,11 @@ export function DocumentsHome({
       // global workspace (matter isolation).
       onCreateFile(parentPath ?? '');
     }
-  }, [currentFolderPath, embeddedCreateFallback, onCreateDefaultDocument, onCreateDocxAtRoot, onCreateFile]);
+  }, [createTargetPath, embeddedCreateFallback, onCreateDefaultDocument, onCreateDocxAtRoot, onCreateFile]);
 
   const handleCreateFolder = useCallback(() => {
-    onCreateFolder(currentFolderPath ?? embeddedCreateFallback ?? rootPath ?? '');
-  }, [currentFolderPath, embeddedCreateFallback, rootPath, onCreateFolder]);
+    onCreateFolder(createTargetPath ?? embeddedCreateFallback ?? rootPath ?? '');
+  }, [createTargetPath, embeddedCreateFallback, rootPath, onCreateFolder]);
 
   const trashBadgeCount = trashStats.itemCount;
 

@@ -147,6 +147,25 @@ describe('DocumentsHome — Grid view with relative tree paths (real bug shape)'
     expect(screen.getByText('deal.docx')).toBeTruthy();
   });
 
+  it('"Add files" targets the ABSOLUTE folder path, not the tree-relative lookup shape (Codex review)', () => {
+    // currentFolderPath is now seeded tree-relative ("Clients/Acme") so the
+    // grid lookup can find it. That value must NOT leak into the import
+    // target: onImportFiles's explicit index call sends the path straight to
+    // the Rust indexer with no workspace-root joining, so a relative target
+    // would copy the file but silently fail to index it (no search/citations).
+    const onImportFiles = vi.fn();
+    render(
+      <DocumentsHome
+        {...buildProps({ onImportFiles })}
+        embedded
+        scopeFolderPaths={[`${ROOT}/Clients/Acme`]}
+        scopeMatterId="acme"
+      />,
+    );
+    fireEvent.click(screen.getByTestId('add-files-btn'));
+    expect(onImportFiles).toHaveBeenCalledWith(`${ROOT}/Clients/Acme`);
+  });
+
   it('a scope mapped to the workspace root lists everything (root-scope special case)', () => {
     render(
       <DocumentsHome
