@@ -16,7 +16,7 @@
  * exercises the bug.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { DocumentsHome, type DocumentsHomeProps } from '@/features/documents/DocumentsHome';
 import type { FileNode } from '@/platform/types/workspace';
 import type { TrashStats } from '@/platform/history/TrashService';
@@ -51,9 +51,13 @@ const mockFileTree: FileNode[] = [
   },
 ];
 
+// Mutable so a test can simulate the tree loading AFTER this component mounts
+// (e.g. landing directly on a client's Documents tab before the workspace has
+// finished its initial load) — see the "tree loads after mount" test below.
+let mockStoreFileTree: FileNode[] = mockFileTree;
 vi.mock('@/platform/fs/workspaceStore', () => ({
   useWorkspaceStore: (selector: (s: object) => unknown) =>
-    selector({ fileTree: mockFileTree, rootPath: ROOT }),
+    selector({ fileTree: mockStoreFileTree, rootPath: ROOT }),
 }));
 
 // A matter mapped to the Acme folder, so ownership-aware pruning (when
@@ -109,7 +113,10 @@ function buildProps(overrides: Partial<DocumentsHomeProps> = {}): DocumentsHomeP
 }
 
 describe('DocumentsHome — Grid view with relative tree paths (real bug shape)', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockStoreFileTree = mockFileTree;
+  });
 
   it('global (non-embedded) Grid view lists root-level files/folders', () => {
     render(<DocumentsHome {...buildProps()} />);
@@ -164,6 +171,38 @@ describe('DocumentsHome — Grid view with relative tree paths (real bug shape)'
     );
     fireEvent.click(screen.getByTestId('add-files-btn'));
     expect(onImportFiles).toHaveBeenCalledWith(`${ROOT}/Clients/Acme`);
+  });
+
+  it('resolves into the client folder once the tree loads AFTER mount (Codex review round 2)', async () => {
+    // Landing directly on a client's Documents tab before the workspace's
+    // initial file-tree load has completed: the tree is empty at mount, so
+    // the useState initializer can't find the Acme folder and lands on the
+    // scoped root. Once the tree arrives, it should drill into Acme WITHOUT
+    // requiring the user to navigate manually.
+    mockStoreFileTree = [];
+    const { rerender } = render(
+      <DocumentsHome
+        {...buildProps()}
+        embedded
+        scopeFolderPaths={[`${ROOT}/Clients/Acme`]}
+        scopeMatterId="acme"
+      />,
+    );
+    expect(screen.queryByText('deal.docx')).toBeNull();
+
+    mockStoreFileTree = mockFileTree;
+    rerender(
+      <DocumentsHome
+        {...buildProps()}
+        embedded
+        scopeFolderPaths={[`${ROOT}/Clients/Acme`]}
+        scopeMatterId="acme"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('deal.docx')).toBeTruthy();
+    });
   });
 
   it('a scope mapped to the workspace root lists everything (root-scope special case)', () => {

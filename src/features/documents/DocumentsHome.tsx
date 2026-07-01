@@ -494,10 +494,31 @@ export function DocumentsHome({
   // renders the tree directly. `toScopedFolderPath` bridges the two shapes by
   // finding the actual matching node in `scopedFileTree` (null = the scoped
   // root).
+  // Codex review (round 2): if this embedded tab mounts before `storeFileTree`
+  // has loaded (e.g. landing directly on a client's Documents tab on first
+  // app load), the initializer below resolves against an EMPTY tree and gets
+  // stuck at the scoped root forever — `toScopedFolderPath` never gets a
+  // second chance once useState's initializer has run once. `hasSettledScopedFolder`
+  // tracks whether we've already resolved against a REAL (non-empty) tree.
+  // Re-resolving is done via React's "adjusting state during render" pattern
+  // (https://react.dev/learn/you-might-not-need-an-effect) rather than a
+  // useEffect, so it fires exactly once when the tree arrives and never
+  // touches `currentFolderPath` again afterwards — a later tree refresh (e.g.
+  // the file watcher's periodic poll) can't clobber the user's own subsequent
+  // navigation.
+  const [hasSettledScopedFolder, setHasSettledScopedFolder] = useState(() => storeFileTree.length > 0);
   const [currentFolderPath, setCurrentFolderPath] = useState<string | null>(() => {
     const firstScopeFolder = embedded ? scopeFolderPaths?.[0] : undefined;
     return firstScopeFolder ? toScopedFolderPath(scopedFileTree ?? [], firstScopeFolder, rootPath) : null;
   });
+
+  if (!hasSettledScopedFolder && storeFileTree.length > 0) {
+    setHasSettledScopedFolder(true);
+    const firstScopeFolder = embedded ? scopeFolderPaths?.[0] : undefined;
+    if (firstScopeFolder) {
+      setCurrentFolderPath(toScopedFolderPath(scopedFileTree ?? [], firstScopeFolder, rootPath));
+    }
+  }
 
   // `currentFolderPath` matches the (possibly tree-relative) shape needed for
   // grid/breadcrumb lookups — see `toScopedFolderPath` above. A create/import
