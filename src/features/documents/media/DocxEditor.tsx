@@ -412,17 +412,24 @@ export function DocxEditor({
       // Flush whatever was ALREADY scheduled before this unmount.
       flushScheduledSave();
       // CLUSTER-C1: THEN fold an in-progress (focused, un-blurred) edit into
-      // the document model and flush whatever IT schedules. Its commit runs
-      // through the async op queue — even the "synchronous" final-view path
-      // is deferred by a microtask (`enqueueDocOp` always chains via
-      // `.then()`, which is never synchronous even off an already-resolved
-      // promise) — so this chains onto its completion instead of re-checking
-      // `saveTimerRef` immediately, which would run before the queued op has
-      // had a chance to schedule anything. For the async tracked-changes path
-      // this still can't finish before unmount returns, but the write lands
-      // later regardless — refs/timers/the write coordinator aren't tied to
-      // this component's mounted state.
+      // the document model, and — separately — wait for the ENTIRE op queue
+      // to drain before flushing whatever that produced.
+      //
+      // Draining the queue (not just awaiting commitActiveRunEdit()) is the
+      // part that closes the last race (coordinator review): if a run blurs
+      // JUST before unmount, PlainRun has already cleared activeRunRef
+      // (nothing left to "commit"), but its blur already enqueued a
+      // tracked-changes op via handleRunEdit that hasn't run yet —
+      // commitActiveRunEdit() alone would see no active run and resolve
+      // immediately, so the flush below would fire BEFORE that already-
+      // queued edit ever reaches applyResolvedDocument/scheduleSave, and the
+      // save it eventually schedules would have nothing left watching for it.
+      // Reading `docOpQueueRef.current` AFTER commitActiveRunEdit() settles
+      // captures that op too — enqueueDocOp mutates the ref synchronously, so
+      // by the time we read it here the queue reflects everything enqueued so
+      // far, whether from this commit or an earlier blur.
       commitActiveRunEdit()
+        .then(() => docOpQueueRef.current)
         .then(flushScheduledSave)
         .catch((err: unknown) => {
           console.error('[DocxEditor] commitActiveRunEdit on unmount failed:', err);

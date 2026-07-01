@@ -255,19 +255,39 @@ export function groupRevisions(doc: DocumentJson): GroupedRevision[] {
 }
 
 /**
- * Cheap presence check for `w:ins` / `w:del` (which also matches
- * `w:delText`, since it starts with the same prefix) inside a raw
- * (unmodeled) block's XML. Used only to decide whether the Accept All /
- * Reject All buttons should be enabled — see `countRevisions` below. A
- * substring scan, not a parse: `DocxRawBlock`'s xml is deliberately never
- * parsed on the frontend (preserve-by-default — see its doc comment), and
- * this only needs to answer "might there be something to resolve," not
- * itemize it. False positives are effectively impossible (these are
- * namespaced OOXML element names); a false positive would just make Accept
- * All a harmless no-op for that block.
+ * Cheap, namespace-PREFIX-AGNOSTIC presence check for an `ins`/`del` element
+ * (which also matches `delText`/`delInstrText`, since they share the `del`
+ * prefix) inside a raw (unmodeled) block's XML. Used only to decide whether
+ * the Accept All / Reject All buttons should be enabled — see
+ * `countRevisions` below.
+ *
+ * Matches the LOCAL element name regardless of what namespace prefix a
+ * producer bound to the WordprocessingML namespace (`w:ins` is by far the
+ * most common in real `.docx` files, but OOXML doesn't require that literal
+ * prefix — a spec-valid document could use `<word:ins>`, `<pkg:del>`, or even
+ * no prefix at all). The engine (`local_of` in `parse.rs`/`resolve.rs`) has
+ * always matched by local name this way; this brings the frontend gate in
+ * line with it (coordinator/Codex review) — the literal `<w:ins`/`<w:del`
+ * substring check missed any other prefix, silently disabling the buttons
+ * for a valid document the engine could otherwise resolve.
+ *
+ * `ins` requires a following delimiter (whitespace, `/`, or `>`) so it
+ * doesn't false-match the unrelated `w:instrText` (field instruction text —
+ * a real OOXML element, not a tracked change). `del` intentionally has no
+ * trailing boundary so it still catches `delText`/`delInstrText` (there is
+ * no OOXML element starting with "del" that isn't deletion-related).
+ *
+ * A substring/regex scan, not a parse: `DocxRawBlock`'s xml is deliberately
+ * never parsed on the frontend (preserve-by-default — see its doc comment),
+ * and this only needs to answer "might there be something to resolve," not
+ * itemize it. A false positive would just make Accept All a harmless no-op
+ * for that block (the engine's own exact scan is what actually resolves —
+ * or doesn't — real content).
  */
+const RAW_TRACKED_CHANGE_MARKUP_RE = /<(?:[\w.-]+:)?ins[\s/>]|<(?:[\w.-]+:)?del/;
+
 function rawBlockHasTrackedChangeMarkup(xml: string): boolean {
-  return xml.includes('<w:ins') || xml.includes('<w:del');
+  return RAW_TRACKED_CHANGE_MARKUP_RE.test(xml);
 }
 
 /**

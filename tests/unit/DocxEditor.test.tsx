@@ -495,6 +495,96 @@ describe('DocxEditor — accept / reject flow', () => {
     );
   });
 
+  // CLUSTER-C1 (data loss, coordinator review): a run that blurs JUST before
+  // the tab closes has already cleared activeRunRef (nothing left for
+  // commitActiveRunEdit to commit), but its blur already enqueued an ASYNC
+  // tracked-changes op (Reviewing ON -> docx_author_revisions) that hasn't
+  // resolved yet. The unmount flush must wait for that already-queued op to
+  // finish and land, not just check for an active run.
+  it('CLUSTER-C1: a run that blurs immediately before unmount still gets saved (queued-edit race)', async () => {
+    const oneRunDoc: DocumentJson = {
+      formatVersion: 1,
+      body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'governed by Delaware law' }] }],
+      comments: {},
+    };
+    const authored: DocumentJson = {
+      formatVersion: 1,
+      body: [
+        {
+          kind: 'paragraph',
+          inlines: [
+            { kind: 'run', text: 'governed by ' },
+            {
+              kind: 'insertion',
+              meta: { id: '1', author: 'You', date: '2026-06-09T00:00:00Z' },
+              runs: [{ text: 'Nevada' }],
+            },
+            {
+              kind: 'deletion',
+              meta: { id: '1', author: 'You', date: '2026-06-09T00:00:00Z' },
+              runs: [{ text: 'Delaware' }],
+            },
+            { kind: 'run', text: ' law' },
+          ],
+        },
+      ],
+      comments: {},
+    };
+
+    // The engine call stays pending until we resolve it manually, so the
+    // test can unmount WHILE the blur-triggered edit is still in flight.
+    let resolveAuthor: ((doc: unknown) => void) | undefined;
+    const authorPromise = new Promise((resolve) => {
+      resolveAuthor = resolve;
+    });
+
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'docx_open') return Promise.resolve(oneRunDoc);
+      if (cmd === 'docx_author_revisions') return authorPromise;
+      if (cmd === 'docx_save') return Promise.resolve(undefined);
+      return Promise.resolve(undefined);
+    });
+
+    const { unmount } = render(
+      <TooltipProvider>
+        <DocxEditor filePath="/ws/x.docx" fileName="x.docx" authorName="You" />
+      </TooltipProvider>,
+    );
+    const run = await screen.findByTestId('docx-run');
+
+    // Reviewing is ON by default: blurring with changed text enqueues the
+    // ASYNC docx_author_revisions op (not a synchronous plain-text write).
+    run.textContent = 'governed by Nevada law';
+    fireEvent.blur(run);
+
+    // The engine call was dispatched (queued op started running)...
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith(
+      'docx_author_revisions',
+      expect.anything(),
+    ));
+
+    // ...but close the tab BEFORE it resolves — activeRunRef is already null
+    // (blur cleared it), so this is exactly the race commitActiveRunEdit()
+    // alone can't catch; only draining docOpQueueRef.current can.
+    unmount();
+
+    // Now let the engine call land.
+    resolveAuthor?.({
+      document: authored,
+      results: [{ index: 0, applied: true, revisionId: '1', error: null }],
+    });
+
+    // The save that the queued op eventually schedules must still fire and
+    // carry the authored (tracked-change) document — not be silently dropped
+    // just because nothing was "actively focused" at unmount time.
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith(
+        'docx_save',
+        expect.objectContaining({ path: '/ws/x.docx', document: authored }),
+      ),
+    );
+  });
+
   // CLUSTER-C2 (data loss): two document-mutating ops started close together
   // must never let a slower earlier op land AFTER a faster later one and
   // clobber it — the second op must always build on the first op's result.
