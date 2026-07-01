@@ -25,11 +25,7 @@ import { cn } from '@/lib/utils';
 import type { AIChatFile } from '@/platform/types/ai';
 import type { AuditEntry } from '@/platform/types/audit';
 import type { Provider } from '@/platform/providers/Provider';
-import { ClaudeProvider } from '@/platform/providers/ClaudeProvider';
-import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
-import { GeminiProvider } from '@/platform/providers/GeminiProvider';
-import { OllamaProvider } from '@/platform/providers/OllamaProvider';
-import { AppLocalProvider } from '@/platform/providers/AppLocalProvider';
+import { createProvider } from '@/platform/providers/providerFactory';
 import { isLocalProviderId } from '@/platform/providers/providerFactory';
 import { isLocalOnlyMode, assertCloudGenerationAllowed } from '@/platform/privacy/localOnlyGuard';
 import { isAssuredProvider } from '@/platform/firm/resolveAssuredRoute';
@@ -453,44 +449,16 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           return;
         }
 
-        let provider: Provider;
-        switch (chatProvider) {
-          case 'ollama':
-            // Local extraction — on-machine, nothing leaves.
-            provider = new OllamaProvider({
-              ...(chatData.model ? { model: chatData.model } : {}),
-            });
-            break;
-          case 'keepance-local':
-            // Local extraction — embedded llama.cpp engine, nothing leaves.
-            provider = new AppLocalProvider({
-              ...(chatData.model ? { model: chatData.model } : {}),
-            });
-            break;
-          case 'openai':
-            provider = new OpenAIProvider({
-              apiKey: apiKey!.key,
-              ...(chatData.model ? { model: chatData.model } : {}),
-            });
-            break;
-          case 'google':
-            provider = new GeminiProvider({
-              apiKey: apiKey!.key,
-              ...(chatData.model ? { model: chatData.model } : {}),
-            });
-            break;
-          case 'anthropic':
-            provider = new ClaudeProvider({
-              apiKey: apiKey!.key,
-              ...(chatData.model ? { model: chatData.model } : {}),
-            });
-            break;
-          default: {
-            // Exhaustiveness guard — never a Claude fallback.
-            const never: never = chatProvider;
-            throw new Error(`Unsupported chat provider: ${String(never)}`);
-          }
-        }
+        // One front door: build through the shared factory (fix F2.2). Local
+        // ids ('ollama'/'keepance-local') construct the local engine and ignore
+        // the empty key; cloud ids use the validated key resolved above. The
+        // factory throws on an unknown id rather than defaulting to a cloud
+        // provider, so a local/confidential selection can never be downgraded.
+        const provider: Provider = createProvider({
+          provider: chatProvider,
+          apiKey: apiKey?.key ?? '',
+          ...(chatData.model ? { model: chatData.model } : {}),
+        });
         const proposals = await runExtraction(provider, messages);
         extractionStateRef.current = markCheckpointRan(
           extractionStateRef.current,
