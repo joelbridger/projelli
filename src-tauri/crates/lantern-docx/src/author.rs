@@ -155,8 +155,11 @@ pub fn insert_paragraph_after(
 ///
 /// * `Insert` — insert `new_text` as a tracked insertion. When `anchor_text` is
 ///   given, the insertion is placed immediately AFTER the first occurrence of
-///   `anchor_text` in the paragraph; otherwise it is appended at the paragraph
-///   end (matching [`insert_at_paragraph_end`]).
+///   `anchor_text` in the paragraph. When `at_paragraph_start` is true, it is
+///   placed at the literal beginning of the paragraph (offset 0) — distinct
+///   from the "no anchor" default, which appends at the paragraph END (matching
+///   [`insert_at_paragraph_end`]). A caller must not set both; `at_paragraph_start`
+///   takes precedence if it does (see [`apply_edits`]).
 /// * `Delete` — mark the first occurrence of `anchor_text` in the paragraph as a
 ///   tracked deletion (splitting the surrounding run so only the matched span is
 ///   struck, preserving the rest as normal runs + run properties).
@@ -170,6 +173,13 @@ pub enum Edit {
         paragraph_index: usize,
         anchor_text: Option<String>,
         new_text: String,
+        /// Insert at the literal start of the paragraph (offset 0) rather than
+        /// appending at the end. See the variant doc above — this is how a
+        /// caller represents "this text belongs BEFORE everything else in the
+        /// paragraph" (e.g. a user typing at the very front of a paragraph in
+        /// Track Changes mode), which an omitted `anchor_text` alone cannot
+        /// express (that means "append at end").
+        at_paragraph_start: bool,
     },
     Delete {
         paragraph_index: usize,
@@ -332,6 +342,12 @@ pub fn apply_edits(
 
         // Resolve the anchor offset against the ORIGINAL paragraph text.
         let anchor_offset = match edit {
+            Edit::Insert { at_paragraph_start: true, .. } => {
+                // Explicit "insert at offset 0" — distinct from the anchor-less
+                // "append at end" case below. Takes precedence over any
+                // anchor_text a caller mistakenly also set.
+                Some(0)
+            }
             Edit::Insert { anchor_text, .. } => match anchor_text {
                 Some(a) if !a.is_empty() => match next_occurrence(a) {
                     Some(off) => Some(off),
@@ -399,11 +415,13 @@ pub fn apply_edits(
                 Edit::Insert {
                     anchor_text,
                     new_text,
+                    at_paragraph_start,
                     ..
                 } => apply_insert_in_para(
                     para,
                     anchor_text.as_deref(),
                     p.anchor_offset,
+                    *at_paragraph_start,
                     new_text,
                     author,
                     date,
@@ -554,11 +572,18 @@ fn split_plain_run_at(para: &mut Paragraph, inline_index: usize, at: usize) -> u
 /// Insert `new_text` as a tracked insertion. With an anchor, splits the plain
 /// run so the insertion lands immediately after the anchor's end (at the EXACT
 /// `anchor_start` resolved up front, so a repeated anchor targets the right
-/// occurrence); without an anchor, appends at the paragraph end.
+/// occurrence). With `at_paragraph_start`, it lands at the literal beginning of
+/// the paragraph (before the first plain run), NOT appended at the end — see
+/// the `Edit::Insert` doc comment for why this needs to be a distinct mode from
+/// "no anchor" (CLUSTER-C4: an unanchored start-of-paragraph insert used to
+/// fall through to the paragraph-end append below, putting new text in the
+/// wrong place). Otherwise (no anchor, not at-start), appends at the paragraph
+/// end.
 fn apply_insert_in_para(
     para: &mut Paragraph,
     anchor: Option<&str>,
     anchor_start: Option<usize>,
+    at_paragraph_start: bool,
     new_text: &str,
     author: &str,
     date: &str,
@@ -576,6 +601,26 @@ fn apply_insert_in_para(
             properties_xml: None,
         }],
     };
+
+    if at_paragraph_start {
+        // Locate the first plain run (global offset 0); split is a no-op at
+        // offset 0, so this just resolves to "the index of the first plain
+        // run" and we insert immediately before it. A paragraph with no plain
+        // runs at all (e.g. entirely revisions/raw content) has nowhere
+        // meaningful to anchor "before the text", so fall back to the very
+        // front of the paragraph's inline list.
+        return match locate_plain_offset(para, 0) {
+            Some((inline_idx, off)) => {
+                let right_idx = split_plain_run_at(para, inline_idx, off);
+                para.inlines.insert(right_idx, ins);
+                true
+            }
+            None => {
+                para.inlines.insert(0, ins);
+                true
+            }
+        };
+    }
 
     match anchor {
         Some(a) if !a.is_empty() => {
@@ -779,6 +824,7 @@ mod tests {
             paragraph_index: 0,
             anchor_text: Some("indemnify the Client".into()),
             new_text: " and its affiliates".into(),
+            at_paragraph_start: false,
         }];
         let res = apply_edits(&mut doc, &edits, AUTH, DATE);
         assert!(res[0].applied);
@@ -886,6 +932,7 @@ mod tests {
                 paragraph_index: 1,
                 anchor_text: Some("Delaware law".into()),
                 new_text: " (as amended)".into(),
+                at_paragraph_start: false,
             },
         ];
         let res = apply_edits(&mut doc, &edits, AUTH, DATE);
@@ -903,6 +950,7 @@ mod tests {
             paragraph_index: 99,
             anchor_text: None,
             new_text: "x".into(),
+            at_paragraph_start: false,
         }];
         let res = apply_edits(&mut doc, &edits, AUTH, DATE);
         assert!(!res[0].applied);
@@ -977,10 +1025,124 @@ mod tests {
             paragraph_index: 0,
             anchor_text: None,
             new_text: " More.".into(),
+            at_paragraph_start: false,
         }];
         let res = apply_edits(&mut doc, &edits, AUTH, DATE);
         assert!(res[0].applied);
         let new_id: u64 = res[0].revision_id.as_ref().unwrap().parse().unwrap();
         assert!(new_id > 102, "new id {new_id} must not collide with 101/102");
+    }
+
+    // =======================================================================
+    // CLUSTER-C4: insertion at the literal start of a paragraph.
+    // =======================================================================
+
+    /// Flatten a paragraph's text INCLUDING tracked-insertion runs (but not
+    /// deletions), in document order — the "All Markup" reading. Unlike
+    /// `plain()`/`paragraph_plain_text` above (which deliberately excludes
+    /// revision text, see its doc comment), this is what these tests need:
+    /// proof of WHERE a brand-new insertion landed relative to the existing
+    /// text, not just that it exists somewhere in the revision list.
+    fn visible_text_with_insertions(p: &Paragraph) -> String {
+        let mut out = String::new();
+        for inline in &p.inlines {
+            match inline {
+                Inline::Run(r) => out.push_str(&r.text),
+                Inline::Insertion { runs, .. } => {
+                    for r in runs {
+                        out.push_str(&r.text);
+                    }
+                }
+                _ => {}
+            }
+        }
+        out
+    }
+
+    fn visible(doc: &Document, body_idx: usize) -> String {
+        match &doc.body[body_idx] {
+            BlockContent::Paragraph(p) => visible_text_with_insertions(p),
+            _ => String::new(),
+        }
+    }
+
+    #[test]
+    fn batch_insert_at_paragraph_start_lands_before_existing_text_not_after() {
+        let mut doc = doc_two_paras();
+        let edits = vec![Edit::Insert {
+            paragraph_index: 0,
+            anchor_text: None,
+            new_text: "PREAMBLE: ".into(),
+            at_paragraph_start: true,
+        }];
+        let res = apply_edits(&mut doc, &edits, AUTH, DATE);
+        assert!(res[0].applied);
+        assert_eq!(
+            visible(&doc, 0),
+            "PREAMBLE: The Company shall indemnify the Client for all losses.",
+            "start-of-paragraph insert must land BEFORE the existing text, not appended at the end"
+        );
+        // It's a genuine tracked insertion (not a silent plain-text splice) —
+        // the existing plain runs are untouched by plain()'s definition.
+        assert_eq!(
+            plain(&doc, 0),
+            "The Company shall indemnify the Client for all losses.",
+        );
+        let revs = doc.revisions();
+        assert_eq!(revs.len(), 1);
+        assert_eq!(revs[0].1, RevisionKind::Insertion);
+        assert!(revs[0].2.iter().any(|r| r.text == "PREAMBLE: "));
+    }
+
+    #[test]
+    fn at_paragraph_start_takes_precedence_over_a_stray_anchor_text() {
+        // Defensive: if a caller sets both, at_paragraph_start wins rather than
+        // silently anchoring elsewhere.
+        let mut doc = doc_two_paras();
+        let edits = vec![Edit::Insert {
+            paragraph_index: 0,
+            anchor_text: Some("indemnify".into()),
+            new_text: "X".into(),
+            at_paragraph_start: true,
+        }];
+        let res = apply_edits(&mut doc, &edits, AUTH, DATE);
+        assert!(res[0].applied);
+        assert!(visible(&doc, 0).starts_with("XThe Company"));
+    }
+
+    #[test]
+    fn insert_at_paragraph_start_in_empty_paragraph_does_not_panic() {
+        let para = Paragraph::from_inlines(vec![]);
+        let mut doc = Document {
+            format_version: crate::model::DOM_FORMAT_VERSION,
+            body: vec![BlockContent::Paragraph(para)],
+            comments: Default::default(),
+        };
+        let edits = vec![Edit::Insert {
+            paragraph_index: 0,
+            anchor_text: None,
+            new_text: "Only text.".into(),
+            at_paragraph_start: true,
+        }];
+        let res = apply_edits(&mut doc, &edits, AUTH, DATE);
+        assert!(res[0].applied);
+        assert_eq!(visible(&doc, 0), "Only text.");
+    }
+
+    #[test]
+    fn anchorless_insert_without_at_paragraph_start_still_appends_at_end() {
+        // Guards the OTHER half of the contract: an AI redline that legitimately
+        // wants "append at the end" (the pre-existing, still-supported meaning of
+        // an omitted anchor) must be unaffected by the new flag.
+        let mut doc = doc_two_paras();
+        let edits = vec![Edit::Insert {
+            paragraph_index: 0,
+            anchor_text: None,
+            new_text: " Appended.".into(),
+            at_paragraph_start: false,
+        }];
+        let res = apply_edits(&mut doc, &edits, AUTH, DATE);
+        assert!(res[0].applied);
+        assert!(visible(&doc, 0).ends_with("for all losses. Appended."));
     }
 }

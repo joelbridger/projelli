@@ -251,6 +251,41 @@ export function DocxEditor({
   // read the latest revisions without being listed as a dep (revisions is
   // computed below handleResolveOne in the component body).
   const revisionsRef = useRef<GroupedRevision[]>([]);
+  // CLUSTER-C2 (data loss: concurrent ops overwrite each other with older
+  // copies): the single always-current snapshot of the in-memory DOM, kept in
+  // sync by `applyResolvedDocument` (the one choke point every mutation runs
+  // through) rather than derived from React state. Async mutations (accept /
+  // reject / redline / tracked-change diff-edit) read THIS at the moment they
+  // actually run — never a `currentDoc` closure captured back when the async
+  // call started — so a slower op can never clobber a faster op's already-
+  // landed result with a stale base.
+  const currentDocRef = useRef<DocumentJson | null>(null);
+  // CLUSTER-C2: every document-mutating operation (accept/reject one or all,
+  // the tracked-changes diff-edit, AI redline) is funneled through this strict
+  // FIFO queue instead of running concurrently. An operation only starts
+  // reading `currentDocRef.current` once every earlier-queued operation has
+  // fully applied its result — so two operations started close together can
+  // never race to `applyResolvedDocument` in the wrong order, and the second
+  // one always builds on the first one's result rather than an older copy.
+  const docOpQueueRef = useRef<Promise<void>>(Promise.resolve());
+  // CLUSTER-C1 (data loss: an in-progress, un-blurred edit is lost if the tab
+  // closes before the user clicks away): the run currently being typed into,
+  // if any. Set on focus / cleared on blur by `PlainRun` via `onActiveRunChange`
+  // so `commitActiveRunEdit` can read the LIVE (uncommitted) DOM text and fold
+  // it into the document model on unmount/export, exactly as a blur would.
+  const activeRunRef = useRef<{
+    blockIndex: number;
+    inlineIndex: number;
+    element: HTMLElement;
+  } | null>(null);
+  // Always-latest `handleRunEdit`, so the stable-identity `commitActiveRunEdit`
+  // below (declared before `handleRunEdit` exists) can still call the current
+  // version. `handleRunEdit` may actually return a Promise at runtime (the
+  // reviewing/tracked-changes branch does) even though its prop-facing type is
+  // `void` — see the type here and `commitActiveRunEdit`'s Promise check.
+  const handleRunEditRef = useRef<
+    (blockIndex: number, inlineIndex: number, text: string) => void | Promise<void>
+  >(() => undefined);
   const onDocumentChangeRef = useRef(onDocumentChange);
   const onAfterSaveRef = useRef(onAfterSave);
   useEffect(() => {
@@ -263,6 +298,57 @@ export function DocxEditor({
     isDirtyRef.current = isDirty;
   }, [isDirty]);
 
+  // CLUSTER-C2: enqueue a document-mutating operation onto the strict FIFO
+  // queue. `op` should read `currentDocRef.current` itself (not a closed-over
+  // doc) once it actually runs, so it always builds on the latest state.
+  // Mirrors `writeCoordinator.enqueue`'s shape: the QUEUE CHAIN itself never
+  // rejects (a rejected chain would wedge every op queued after this one), but
+  // `op`'s own error still propagates to THIS call's returned promise so a
+  // caller that wants to react to failure (e.g. runRedline's error banner)
+  // still can — callers that don't care can just ignore the rejection.
+  const enqueueDocOp = useCallback(<T,>(op: () => Promise<T> | T): Promise<T> => {
+    const run = docOpQueueRef.current.then(() => op());
+    docOpQueueRef.current = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }, []);
+
+  // CLUSTER-C1: called by `PlainRun` on focus/blur to track which run (if any)
+  // currently has live, possibly-uncommitted edits in its contentEditable DOM
+  // node. `element: null` means the run just blurred (already committed via
+  // its own onBlur -> onRunEdit, so there's nothing left to flush for it).
+  const onActiveRunChange = useCallback(
+    (blockIndex: number, inlineIndex: number, element: HTMLElement | null) => {
+      if (element) {
+        activeRunRef.current = { blockIndex, inlineIndex, element };
+      } else if (
+        activeRunRef.current?.blockIndex === blockIndex &&
+        activeRunRef.current.inlineIndex === inlineIndex
+      ) {
+        activeRunRef.current = null;
+      }
+    },
+    [],
+  );
+
+  // CLUSTER-C1: fold whatever the user is CURRENTLY typing (focused, not yet
+  // blurred) into the document model, exactly as if they had clicked away.
+  // Called before unmount and before export so an in-progress keystroke can
+  // never be silently dropped just because the user closed the tab or hit
+  // Export instead of clicking elsewhere first. Stable identity (empty deps)
+  // via the `handleRunEditRef` indirection, so it's safe to reference from
+  // effects registered before `handleRunEdit` itself exists.
+  const commitActiveRunEdit = useCallback((): Promise<void> => {
+    const active = activeRunRef.current;
+    if (!active) return Promise.resolve();
+    activeRunRef.current = null;
+    const text = active.element.textContent ?? '';
+    const result = handleRunEditRef.current(active.blockIndex, active.inlineIndex, text);
+    return result instanceof Promise ? result : Promise.resolve();
+  }, []);
+
   const canEdit = Boolean(filePath) && isDocxEngineAvailable();
 
   // ---- Load the DOM from disk via the engine -----------------------------
@@ -274,6 +360,12 @@ export function DocxEditor({
       return;
     }
     setLoad({ status: 'loading' });
+    // This editor's own save-revision counter (docxSaveSeqRef) restarts from 0
+    // for every new session — clear the write coordinator's advisory
+    // high-water mark too, so a lingering high rev from a PREVIOUS session
+    // editing this same path can't make this session's first save read
+    // `isLatest: false` (writeCoordinator.ts).
+    writeCoordinator.resetPath(filePath);
     docxOpen(filePath)
       .then((doc) => {
         if (cancelled) return;
@@ -285,8 +377,10 @@ export function DocxEditor({
             ...coedit.session.getDocumentJson(),
             comments: doc.comments,
           };
+          currentDocRef.current = liveDoc;
           setLoad({ status: 'ready', doc: liveDoc });
         } else {
+          currentDocRef.current = doc;
           setLoad({ status: 'ready', doc });
         }
         setIsDirty(false);
@@ -306,14 +400,42 @@ export function DocxEditor({
   // ---- Cleanup the debounce on unmount -----------------------------------
   useEffect(() => {
     return () => {
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
-        // Flush the pending edit so closing/switching the tab within the
-        // debounce window doesn't silently drop the last change (data loss).
-        flushPendingSaveRef.current?.();
-      }
+      const flushScheduledSave = () => {
+        if (saveTimerRef.current) {
+          clearTimeout(saveTimerRef.current);
+          saveTimerRef.current = null;
+          // Flush the pending edit so closing/switching the tab within the
+          // debounce window doesn't silently drop the last change (data loss).
+          flushPendingSaveRef.current?.();
+        }
+      };
+      // Flush whatever was ALREADY scheduled before this unmount.
+      flushScheduledSave();
+      // CLUSTER-C1: THEN fold an in-progress (focused, un-blurred) edit into
+      // the document model, and — separately — wait for the ENTIRE op queue
+      // to drain before flushing whatever that produced.
+      //
+      // Draining the queue (not just awaiting commitActiveRunEdit()) is the
+      // part that closes the last race (coordinator review): if a run blurs
+      // JUST before unmount, PlainRun has already cleared activeRunRef
+      // (nothing left to "commit"), but its blur already enqueued a
+      // tracked-changes op via handleRunEdit that hasn't run yet —
+      // commitActiveRunEdit() alone would see no active run and resolve
+      // immediately, so the flush below would fire BEFORE that already-
+      // queued edit ever reaches applyResolvedDocument/scheduleSave, and the
+      // save it eventually schedules would have nothing left watching for it.
+      // Reading `docOpQueueRef.current` AFTER commitActiveRunEdit() settles
+      // captures that op too — enqueueDocOp mutates the ref synchronously, so
+      // by the time we read it here the queue reflects everything enqueued so
+      // far, whether from this commit or an earlier blur.
+      commitActiveRunEdit()
+        .then(() => docOpQueueRef.current)
+        .then(flushScheduledSave)
+        .catch((err: unknown) => {
+          console.error('[DocxEditor] commitActiveRunEdit on unmount failed:', err);
+        });
     };
-  }, []);
+  }, [commitActiveRunEdit]);
 
   // ---- Persist (debounced) ----------------------------------------------
   const persist = useCallback(
@@ -387,6 +509,10 @@ export function DocxEditor({
    */
   const applyResolvedDocument = useCallback(
     (doc: DocumentJson, save = true) => {
+      // CLUSTER-C2: sync the ref FIRST, synchronously, before the React state
+      // update — this is what lets a queued op (or the export flush) read the
+      // truly-latest doc without waiting on a re-render.
+      currentDocRef.current = doc;
       setLoad({ status: 'ready', doc });
       onDocumentChangeRef.current?.(doc);
       if (save) scheduleSave(doc);
@@ -435,16 +561,29 @@ export function DocxEditor({
   // pending debounced save (and write the current DOM synchronously) to be sure
   // the file reflects what the user sees. Returns false if there's nothing to
   // export (no path / no doc).
+  //
+  // CLUSTER-C1: commits an in-progress (focused, un-blurred) edit before
+  // reading the doc, so hitting Export without clicking away first doesn't
+  // export a copy missing the last keystrokes. Reads `currentDocRef.current`
+  // (not the `currentDoc` React-state snapshot) because that commit — and any
+  // other queued mutation still in flight — may have landed after this
+  // callback's closure was created; the ref is always the freshest doc.
   const flushSaveBeforeExport = useCallback(async (): Promise<boolean> => {
-    if (!filePath || !currentDoc) return false;
+    if (!filePath) return false;
+    await commitActiveRunEdit();
+    // Wait for any in-flight accept/reject/redline to finish landing too, so
+    // export never races an operation that's still queued.
+    await docOpQueueRef.current;
+    const doc = currentDocRef.current;
+    if (!doc) return false;
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
     }
     // Persist synchronously so the on-disk bytes are current for the engine.
-    await persist(currentDoc);
+    await persist(doc);
     return true;
-  }, [filePath, currentDoc, persist]);
+  }, [filePath, persist, commitActiveRunEdit]);
 
   /**
    * Show the OS save dialog for a chosen-location export and return the picked
@@ -551,9 +690,9 @@ export function DocxEditor({
   // ---- Accept / reject ---------------------------------------------------
   const handleResolveOne = useCallback(
     async (revisionId: string, action: DocxResolveAction) => {
-      if (!currentDoc) return;
-
       // CO-EDIT PATH: resolve through the CRDT session, not the Rust command.
+      // Yjs merges concurrent ops conflict-free by design, so this doesn't need
+      // the solo path's op queue below.
       if (coedit) {
         // In co-edit mode rev.id is always '' (CONTRACT). Find the matching
         // CRDT run by author+date from the rendered doc's grouped revisions.
@@ -590,22 +729,29 @@ export function DocxEditor({
         return;
       }
 
-      try {
-        const next = await docxResolveRevision(currentDoc, revisionId, action);
-        applyResolvedDocument(next);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        setSaveError(message);
-        console.error('[DocxEditor] resolve revision failed:', err);
-      }
+      // CLUSTER-C2: queued so a slower-resolving accept/reject/redline/edit
+      // that started earlier can't land AFTER this one and clobber it with an
+      // older copy. Reads `currentDocRef.current` at the moment this op
+      // actually runs (after every earlier-queued op has applied), not a
+      // `currentDoc` closed over back when the user clicked.
+      await enqueueDocOp(async () => {
+        const doc = currentDocRef.current;
+        if (!doc) return;
+        try {
+          const next = await docxResolveRevision(doc, revisionId, action);
+          applyResolvedDocument(next);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          setSaveError(message);
+          console.error('[DocxEditor] resolve revision failed:', err);
+        }
+      });
     },
-    [currentDoc, coedit, authorName, applyResolvedDocument],
+    [coedit, authorName, applyResolvedDocument, enqueueDocOp],
   );
 
   const handleResolveAll = useCallback(
     async (action: DocxResolveAction) => {
-      if (!currentDoc) return;
-
       // CO-EDIT PATH: resolve all tracked runs through the CRDT session.
       if (coedit) {
         // Collect all tracked runs first (snapshot before mutating),
@@ -638,16 +784,21 @@ export function DocxEditor({
         return;
       }
 
-      try {
-        const next = await docxResolveAll(currentDoc, action);
-        applyResolvedDocument(next);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        setSaveError(message);
-        console.error('[DocxEditor] resolve all failed:', err);
-      }
+      // CLUSTER-C2: see handleResolveOne above.
+      await enqueueDocOp(async () => {
+        const doc = currentDocRef.current;
+        if (!doc) return;
+        try {
+          const next = await docxResolveAll(doc, action);
+          applyResolvedDocument(next);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          setSaveError(message);
+          console.error('[DocxEditor] resolve all failed:', err);
+        }
+      });
     },
-    [currentDoc, coedit, authorName, applyResolvedDocument],
+    [coedit, authorName, applyResolvedDocument, enqueueDocOp],
   );
 
   /**
@@ -664,15 +815,20 @@ export function DocxEditor({
    * plain-run text is the other runs' text with this run's text swapped in.
    */
   const handleRunEdit = useCallback(
-    (blockIndex: number, inlineIndex: number, newText: string) => {
+    (blockIndex: number, inlineIndex: number, newText: string): void | Promise<void> => {
       if (!currentDoc) return;
       const block = currentDoc.body[blockIndex];
       if (!block || block.kind !== 'paragraph') return;
       const inline = block.inlines[inlineIndex];
       if (!inline || inline.kind !== 'run') return;
       if (inline.text === newText) return;
+      // CLUSTER-C2 drift guard: the exact text this run held when the user
+      // started this edit — re-checked once this op actually runs (see below).
+      const originalRunText = inline.text;
 
-      // CO-EDIT PATH: route text edits through the CRDT session.
+      // CO-EDIT PATH: route text edits through the CRDT session. Yjs merges
+      // concurrent ops conflict-free by design, so this doesn't need the op
+      // queue below (solo-only).
       if (coedit) {
         const body = coedit.session.doc.getArray<Y.Map<unknown>>('body');
         const blockMap = body.toArray()[blockIndex];
@@ -707,41 +863,61 @@ export function DocxEditor({
         return;
       }
 
-      if (!reviewing) {
-        // Final view: plain replacement (no tracked change). Structural clone so
-        // we never mutate the live object.
-        const next: DocumentJson = structuredCloneSafe(currentDoc);
-        const nextBlock = next.body[blockIndex] as DocxParagraph;
-        const nextInline = nextBlock.inlines[inlineIndex] as DocxRun & {
-          kind: 'run';
-        };
-        nextInline.text = newText;
-        applyResolvedDocument(next);
-        return;
-      }
-
-      // Reviewing ON → author the diff as tracked change(s). Compute the
-      // paragraph index (count paragraphs up to blockIndex) and the old/new
-      // plain-run text of the paragraph.
-      let paragraphIndex = -1;
-      for (let i = 0; i <= blockIndex; i++) {
-        if (currentDoc.body[i]?.kind === 'paragraph') paragraphIndex += 1;
-      }
-      const oldPlain = paragraphPlainRunText(block);
-      // New plain text = old runs with this run's text swapped.
-      let newPlain = '';
-      block.inlines.forEach((inl, idx) => {
-        if (inl.kind === 'run') {
-          newPlain += idx === inlineIndex ? newText : inl.text;
+      // CLUSTER-C2: queued so a concurrent accept/reject/redline that started
+      // earlier (and is still resolving) can't be overwritten by this edit, and
+      // so this edit always builds on the latest doc rather than the snapshot
+      // captured when the user started typing. Everything below reads
+      // `currentDocRef.current` (fresh once dequeued), not `currentDoc`.
+      return enqueueDocOp(async () => {
+        const doc = currentDocRef.current;
+        if (!doc) return;
+        const freshBlock = doc.body[blockIndex];
+        const freshInline =
+          freshBlock?.kind === 'paragraph' ? freshBlock.inlines[inlineIndex] : undefined;
+        if (!freshBlock || freshBlock.kind !== 'paragraph' || !freshInline || freshInline.kind !== 'run' || freshInline.text !== originalRunText) {
+          // Drift guard: something else (a concurrent accept/reject/redline)
+          // changed this exact run while this edit was queued. Applying our
+          // stale diff/index against it now could silently corrupt the WRONG
+          // content, so skip rather than guess — fail loud, not silent.
+          console.warn('[DocxEditor] skipped a run edit: its target run changed underneath it (concurrent operation) — please retry the edit');
+          setSaveError(t('media.docx-editor.concurrent-edit-conflict'));
+          return;
         }
-      });
-      const edits = diffParagraphEdits(paragraphIndex, oldPlain, newPlain);
-      if (edits.length === 0) return;
 
-      void (async () => {
+        if (!reviewing) {
+          // Final view: plain replacement (no tracked change). Structural clone
+          // so we never mutate the live object.
+          const next: DocumentJson = structuredCloneSafe(doc);
+          const nextBlock = next.body[blockIndex] as DocxParagraph;
+          const nextInline = nextBlock.inlines[inlineIndex] as DocxRun & {
+            kind: 'run';
+          };
+          nextInline.text = newText;
+          applyResolvedDocument(next);
+          return;
+        }
+
+        // Reviewing ON → author the diff as tracked change(s). Compute the
+        // paragraph index (count paragraphs up to blockIndex) and the old/new
+        // plain-run text of the paragraph, against the FRESH doc.
+        let paragraphIndex = -1;
+        for (let i = 0; i <= blockIndex; i++) {
+          if (doc.body[i]?.kind === 'paragraph') paragraphIndex += 1;
+        }
+        const oldPlain = paragraphPlainRunText(freshBlock);
+        // New plain text = old runs with this run's text swapped.
+        let newPlain = '';
+        freshBlock.inlines.forEach((inl, idx) => {
+          if (inl.kind === 'run') {
+            newPlain += idx === inlineIndex ? newText : inl.text;
+          }
+        });
+        const edits = diffParagraphEdits(paragraphIndex, oldPlain, newPlain);
+        if (edits.length === 0) return;
+
         try {
           const { document: nextDoc } = await docxAuthorRevisions(
-            currentDoc,
+            doc,
             edits,
             { author: authorName },
           );
@@ -751,10 +927,16 @@ export function DocxEditor({
           setSaveError(message);
           console.error('[DocxEditor] track-changes user edit failed:', err);
         }
-      })();
+      });
     },
-    [currentDoc, reviewing, authorName, applyResolvedDocument, coedit],
+    [currentDoc, reviewing, authorName, applyResolvedDocument, coedit, enqueueDocOp, t],
   );
+  // CLUSTER-C1: keep the ref `commitActiveRunEdit` reads pointed at the
+  // latest `handleRunEdit` closure (it changes identity often — see its own
+  // dep list above).
+  useEffect(() => {
+    handleRunEditRef.current = handleRunEdit;
+  }, [handleRunEdit]);
 
   // ---- A4: AI redline ----------------------------------------------------
   // WS-C honesty — a LOCAL provider (Ollama) needs no API key; redlining runs
@@ -832,11 +1014,24 @@ export function DocxEditor({
         setRedlineBusy(false);
         return;
       }
-      const { document: nextDoc, results } = await docxAuthorRevisions(
-        currentDoc,
-        edits,
-        { author: REDLINE_AUTHOR },
-      );
+
+      // CLUSTER-C2: apply against the LATEST doc via the queue (not the
+      // `currentDoc` snapshot the prompt above was built from), so a
+      // concurrent accept/reject/edit that lands while the AI call was in
+      // flight can't be overwritten by this redline landing after it with an
+      // older base. `docxAuthorRevisions`'s anchors are content-addressed
+      // (quoted text, not indices), so applying against a doc newer than the
+      // one the AI saw is safe: an edit whose anchor no longer matches is
+      // simply reported skipped, never silently misapplied elsewhere.
+      const { results } = await enqueueDocOp(async () => {
+        const doc = currentDocRef.current;
+        if (!doc) throw new Error('Document is no longer open.');
+        const outcome = await docxAuthorRevisions(doc, edits, { author: REDLINE_AUTHOR });
+        // WS-A / A5: attribute the resulting version snapshot to the AI.
+        pendingSaveAuthorRef.current = 'ai';
+        applyResolvedDocument(outcome.document);
+        return outcome;
+      });
 
       // Build the human summary: pair each edit's reason with whether it landed.
       const items: RedlineSummary['items'] = results.map((r) => {
@@ -852,9 +1047,6 @@ export function DocxEditor({
       const applied = items.filter((i) => i.applied).length;
       const skipped = items.length - applied;
 
-      // WS-A / A5: attribute the resulting version snapshot to the AI.
-      pendingSaveAuthorRef.current = 'ai';
-      applyResolvedDocument(nextDoc);
       setRedlineSummary({ instruction, applied, skipped, items });
       setRedlineInstruction('');
       setRedlineOpen(false);
@@ -893,6 +1085,7 @@ export function DocxEditor({
     fileName,
     filePath,
     applyResolvedDocument,
+    enqueueDocOp,
     onAuditLog,
     aiGated,
     t,
@@ -1233,7 +1426,8 @@ export function DocxEditor({
               reviewing={reviewing}
               editable={canEdit}
               activeCommentId={activeCommentId}
-              onRunEdit={handleRunEdit}
+              onRunEdit={(blockIndex, inlineIndex, text) => { void handleRunEdit(blockIndex, inlineIndex, text); }}
+              onActiveRunChange={onActiveRunChange}
               onCommentAnchorClick={setActiveCommentId}
             />
           </div>

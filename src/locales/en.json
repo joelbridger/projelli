@@ -714,6 +714,7 @@
     },
     "docx-editor": {
       "could-not-open": "Couldn't open {{fileName}}",
+      "concurrent-edit-conflict": "This text changed elsewhere while you were editing it, so your last change wasn't applied. Please make the edit again.",
       "formatting-warning": "Some advanced formatting (tables, images, page headers) may not be preserved when saving. A backup of the original file is created before your first edit.",
       "opening": "Opening {{fileName}}...",
       "desktop-only": "Editing Word documents with tracked changes is only available in the Advisor Prep Hero desktop app. Showing a read-only preview here.",

@@ -254,9 +254,61 @@ export function groupRevisions(doc: DocumentJson): GroupedRevision[] {
   return ordered;
 }
 
-/** Count of distinct tracked changes (grouped by id). */
+/**
+ * Cheap, namespace-PREFIX-AGNOSTIC presence check for an `ins`/`del` element
+ * (which also matches `delText`/`delInstrText`, since they share the `del`
+ * prefix) inside a raw (unmodeled) block's XML. Used only to decide whether
+ * the Accept All / Reject All buttons should be enabled — see
+ * `countRevisions` below.
+ *
+ * Matches the LOCAL element name regardless of what namespace prefix a
+ * producer bound to the WordprocessingML namespace (`w:ins` is by far the
+ * most common in real `.docx` files, but OOXML doesn't require that literal
+ * prefix — a spec-valid document could use `<word:ins>`, `<pkg:del>`, or even
+ * no prefix at all). The engine (`local_of` in `parse.rs`/`resolve.rs`) has
+ * always matched by local name this way; this brings the frontend gate in
+ * line with it (coordinator/Codex review) — the literal `<w:ins`/`<w:del`
+ * substring check missed any other prefix, silently disabling the buttons
+ * for a valid document the engine could otherwise resolve.
+ *
+ * `ins` requires a following delimiter (whitespace, `/`, or `>`) so it
+ * doesn't false-match the unrelated `w:instrText` (field instruction text —
+ * a real OOXML element, not a tracked change). `del` intentionally has no
+ * trailing boundary so it still catches `delText`/`delInstrText` (there is
+ * no OOXML element starting with "del" that isn't deletion-related).
+ *
+ * A substring/regex scan, not a parse: `DocxRawBlock`'s xml is deliberately
+ * never parsed on the frontend (preserve-by-default — see its doc comment),
+ * and this only needs to answer "might there be something to resolve," not
+ * itemize it. A false positive would just make Accept All a harmless no-op
+ * for that block (the engine's own exact scan is what actually resolves —
+ * or doesn't — real content).
+ */
+const RAW_TRACKED_CHANGE_MARKUP_RE = /<(?:[\w.-]+:)?ins[\s/>]|<(?:[\w.-]+:)?del/;
+
+function rawBlockHasTrackedChangeMarkup(xml: string): boolean {
+  return RAW_TRACKED_CHANGE_MARKUP_RE.test(xml);
+}
+
+/**
+ * Count of distinct tracked changes (grouped by id) in paragraphs, PLUS 1 if
+ * any raw (unmodeled) block — e.g. a table — appears to carry tracked-change
+ * markup (CLUSTER-C3 P2, Codex review). Without this, a document whose ONLY
+ * tracked changes live inside a table showed "0 changes" and disabled the
+ * Accept All / Reject All buttons even though the engine's `resolve_all` now
+ * genuinely resolves tracked changes inside raw blocks too (`resolve.rs`) —
+ * making that engine-side fix unreachable from the UI for an all-table
+ * document. The `+1` (not an exact raw-revision count) is deliberate: the
+ * review pane's per-revision list only itemizes paragraph revisions (raw XML
+ * is never parsed here), so this only needs to unblock the buttons, not
+ * claim a precise total.
+ */
 export function countRevisions(doc: DocumentJson): number {
-  return groupRevisions(doc).length;
+  const paragraphCount = groupRevisions(doc).length;
+  const hasRawRevisions = doc.body.some(
+    (block) => block.kind === 'raw' && rawBlockHasTrackedChangeMarkup(block.xml),
+  );
+  return paragraphCount + (hasRawRevisions ? 1 : 0);
 }
 
 /** All comments as an array, sorted by date ascending then id for stability. */

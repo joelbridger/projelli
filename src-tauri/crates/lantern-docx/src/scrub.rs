@@ -364,74 +364,18 @@ fn strip_all_comments(doc: &mut Document) {
 
 /// Accept tracked changes directly in raw Word XML. This is the final-clean
 /// backstop for tables and other OOXML blocks we preserve as raw XML rather
-/// than modeling as paragraphs:
-///   * `<w:del>...</w:del>` is removed entirely, so deleted text cannot leak.
-///   * `<w:ins>...</w:ins>` is unwrapped, so inserted text remains visible.
-///   * stray `<w:delText>` is removed as a fail-closed guard.
+/// than modeling as paragraphs — delegates to the same stream-level resolver
+/// the interactive Accept All / Reject All path uses ([`crate::resolve::resolve_raw_xml`],
+/// CLUSTER-C3), so the two paths can never drift apart on what "accept" means
+/// for a `w:ins`/`w:del` living inside a table. `treat_missing_id_as_match:
+/// true` is load-bearing here: this is the "send a clean copy to opposing
+/// counsel" path, so a malformed or third-party-authored `<w:del>` with no
+/// `w:id` at all must still be stripped — the previous implementation did
+/// this unconditionally as a fail-closed safety net, and a review found the
+/// initial version of this delegation regressed that guarantee.
 fn accept_tracked_changes_in_raw_word_xml(xml: &str) -> Result<String> {
-    use quick_xml::events::Event;
-    use quick_xml::reader::Reader;
-    use quick_xml::writer::Writer;
-
-    let mut reader = Reader::from_str(xml);
-    reader.config_mut().trim_text(false);
-    let mut writer = Writer::new(Vec::with_capacity(xml.len()));
-    let mut skip_depth = 0usize;
-
-    loop {
-        let event = reader
-            .read_event()
-            .map_err(|e| DocxError::Xml(format!("parse raw OOXML for final clean: {e}")))?;
-
-        match event {
-            Event::Start(e) => {
-                if skip_depth > 0 {
-                    skip_depth += 1;
-                    continue;
-                }
-                match local_name(e.name().as_ref()) {
-                    "del" | "delText" => {
-                        skip_depth = 1;
-                    }
-                    "ins" => {
-                        // Accept insertion: keep its children, drop only the
-                        // wrapper carrying review metadata.
-                    }
-                    _ => write_xml_event(&mut writer, Event::Start(e.borrow()))?,
-                }
-            }
-            Event::Empty(e) => {
-                if skip_depth > 0 {
-                    continue;
-                }
-                match local_name(e.name().as_ref()) {
-                    "del" | "delText" | "ins" => {
-                        // Empty deletion/deleted-text contributes nothing.
-                        // Empty insertion has no text to keep.
-                    }
-                    _ => write_xml_event(&mut writer, Event::Empty(e.borrow()))?,
-                }
-            }
-            Event::End(e) => {
-                if skip_depth > 0 {
-                    skip_depth -= 1;
-                    continue;
-                }
-                if local_name(e.name().as_ref()) != "ins" {
-                    write_xml_event(&mut writer, Event::End(e.borrow()))?;
-                }
-            }
-            Event::Eof => break,
-            other => {
-                if skip_depth == 0 {
-                    write_xml_event(&mut writer, other.borrow())?;
-                }
-            }
-        }
-    }
-
-    String::from_utf8(writer.into_inner())
-        .map_err(|e| DocxError::Xml(format!("final-clean OOXML was not UTF-8: {e}")))
+    crate::resolve::resolve_raw_xml(xml, crate::resolve::ResolveAction::Accept, &|_| true, true)
+        .map(|(new_xml, _changed)| new_xml)
 }
 
 fn write_xml_event<'a>(

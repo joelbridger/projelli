@@ -78,4 +78,36 @@ describe('WriteCoordinator', () => {
     expect(done).toBe(true);
     await tick();
   });
+
+  // (latent, from the QA audit): maxRev is a per-path high-water mark that
+  // otherwise NEVER resets, so a tab closed then reopened (its own rev
+  // counter restarting from 1) can see isLatest read false for its first,
+  // only in-flight write — even though nothing newer actually exists.
+  it('resetPath() clears the stale high-water mark left by a previous session', async () => {
+    const c = new WriteCoordinator();
+    // "Session 1": several writes bump maxRev up to 5.
+    await c.enqueue('/f', 5, async () => {});
+
+    // Without a reset, a NEW session's rev-1 write would read isLatest=false
+    // purely because of the old session's high-water mark, not because
+    // anything newer is actually in flight.
+    const staleResult = await c.enqueue('/f', 1, async () => {});
+    expect(staleResult.isLatest).toBe(false);
+
+    // "Session 2" (tab reopened): resetPath before its first write.
+    c.resetPath('/f');
+    const freshResult = await c.enqueue('/f', 1, async () => {});
+    expect(freshResult).toEqual({ written: true, isLatest: true });
+  });
+
+  it('resetPath() does not disturb the write queue for OTHER paths', async () => {
+    const c = new WriteCoordinator();
+    await c.enqueue('/a', 3, async () => {});
+    c.resetPath('/a');
+    // /b's own tracking is untouched by resetting /a.
+    const a = await c.enqueue('/a', 1, async () => {});
+    const b = await c.enqueue('/b', 1, async () => {});
+    expect(a.isLatest).toBe(true);
+    expect(b.isLatest).toBe(true);
+  });
 });

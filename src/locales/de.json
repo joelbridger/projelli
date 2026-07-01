@@ -1387,6 +1387,7 @@
     "docx-editor": {
       "could-not-open": "{{fileName}} konnte nicht geöffnet werden",
       "could-not-open__sourceHash": "212d690a6580de50e54be9f6f285cdf596fb6889c44d4741230ecd8e45e6bf55",
+      "concurrent-edit-conflict": "Dieser Text hat sich an anderer Stelle geändert, während Sie ihn bearbeitet haben, daher wurde Ihre letzte Änderung nicht übernommen. Bitte nehmen Sie die Änderung erneut vor.",
       "formatting-warning": "Einige erweiterte Formatierungen (Tabellen, Bilder, Seitenkopfzeilen) werden beim Speichern möglicherweise nicht beibehalten. Vor Ihrer ersten Bearbeitung wird eine Sicherungskopie der Originaldatei erstellt.",
       "formatting-warning__sourceHash": "f0e45b821ef3a571aa17837d4dcb060d8518a8d42f5f392481250a24ad4cad99",
       "opening": "{{fileName}} wird geöffnet...",

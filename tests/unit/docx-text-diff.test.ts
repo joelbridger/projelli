@@ -60,4 +60,31 @@ describe('diffParagraphEdits', () => {
     const edits = diffParagraphEdits(0, 'old', 'new');
     expect(edits.every((e) => e.reason === 'User edit')).toBe(true);
   });
+
+  // CLUSTER-C4: an insertion at the literal start of a paragraph must be
+  // distinguished from an anchor-less "append at end" — the engine treats an
+  // unset anchorText as append-at-end, so a start-of-paragraph insert needs
+  // its own explicit `atParagraphStart` flag instead of just omitting anchorText.
+  it('marks a paragraph-start insertion with atParagraphStart instead of leaving the anchor unset', () => {
+    const edits = diffParagraphEdits(0, 'parties agree to resolve disputes', 'Notably, parties agree to resolve disputes');
+    const ins = edits.find((e) => e.op === 'insert');
+    expect(ins).toBeDefined();
+    expect(ins?.newText).toContain('Notably');
+    expect(ins?.atParagraphStart).toBe(true);
+    expect(ins?.anchorText).toBeUndefined();
+  });
+
+  it('does not set atParagraphStart for an insertion anchored after existing text', () => {
+    const edits = diffParagraphEdits(0, 'governed by law', 'governed by Delaware law');
+    const ins = edits.find((e) => e.op === 'insert');
+    expect(ins?.atParagraphStart).toBeUndefined();
+    expect(ins?.anchorText).toBe('governed by ');
+  });
+
+  it('inserting into a previously-empty paragraph is marked atParagraphStart', () => {
+    const edits = diffParagraphEdits(0, '', 'Brand new text');
+    expect(edits).toHaveLength(1);
+    expect(edits[0]?.op).toBe('insert');
+    expect(edits[0]?.atParagraphStart).toBe(true);
+  });
 });

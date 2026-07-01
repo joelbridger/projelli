@@ -217,6 +217,86 @@ describe('groupRevisions', () => {
     };
     expect(countRevisions(doc)).toBe(0);
   });
+
+  // CLUSTER-C3 P2 (Codex review): a document whose ONLY tracked changes live
+  // inside a table (a raw, unparsed block) must not report 0 — that would
+  // disable the Accept All / Reject All buttons even though the engine can
+  // now genuinely resolve tracked changes inside tables too.
+  it('counts a raw block containing tracked-change markup so bulk actions stay enabled', () => {
+    const doc: DocumentJson = {
+      formatVersion: 1,
+      body: [
+        { kind: 'paragraph', inlines: [{ kind: 'run', text: 'plain' }] },
+        {
+          kind: 'raw',
+          xml: '<w:tbl><w:tr><w:tc><w:p><w:del w:id="1" w:author="A" w:date="d"><w:r><w:delText>x</w:delText></w:r></w:del></w:p></w:tc></w:tr></w:tbl>',
+        },
+      ],
+      comments: {},
+    };
+    expect(countRevisions(doc)).toBeGreaterThan(0);
+  });
+
+  it('returns 0 for a raw block with no tracked-change markup (e.g. a plain table)', () => {
+    const doc: DocumentJson = {
+      formatVersion: 1,
+      body: [{ kind: 'raw', xml: '<w:tbl><w:tr><w:tc><w:p><w:r><w:t>plain cell</w:t></w:r></w:p></w:tc></w:tr></w:tbl>' }],
+      comments: {},
+    };
+    expect(countRevisions(doc)).toBe(0);
+  });
+
+  // Coordinator/Codex review: a valid OOXML document can bind a DIFFERENT
+  // prefix to the WordprocessingML namespace (`w:` is by far the most common,
+  // but not the only spec-legal choice). The engine matches by local element
+  // name regardless of prefix (`local_of` in parse.rs/resolve.rs); the UI
+  // gate must too, or the buttons stay disabled for a resolvable document.
+  it('detects tracked-change markup under a non-"w" namespace prefix (e.g. "word:")', () => {
+    const doc: DocumentJson = {
+      formatVersion: 1,
+      body: [
+        {
+          kind: 'raw',
+          xml: '<word:tbl><word:tr><word:tc><word:p><word:del word:id="1"><word:r><word:delText>x</word:delText></word:r></word:del></word:p></word:tc></word:tr></word:tbl>',
+        },
+      ],
+      comments: {},
+    };
+    expect(countRevisions(doc)).toBeGreaterThan(0);
+  });
+
+  it('detects an insertion under a different namespace prefix (e.g. "pkg:")', () => {
+    const doc: DocumentJson = {
+      formatVersion: 1,
+      body: [
+        { kind: 'raw', xml: '<pkg:tbl><pkg:tr><pkg:tc><pkg:p><pkg:ins pkg:id="1"><pkg:r><pkg:t>x</pkg:t></pkg:r></pkg:ins></pkg:p></pkg:tc></pkg:tr></pkg:tbl>' },
+      ],
+      comments: {},
+    };
+    expect(countRevisions(doc)).toBeGreaterThan(0);
+  });
+
+  it('does not false-match an unrelated w:instrText field-code element as an insertion', () => {
+    const doc: DocumentJson = {
+      formatVersion: 1,
+      body: [
+        { kind: 'raw', xml: '<w:tbl><w:tr><w:tc><w:p><w:r><w:instrText>PAGE</w:instrText></w:r></w:p></w:tc></w:tr></w:tbl>' },
+      ],
+      comments: {},
+    };
+    expect(countRevisions(doc)).toBe(0);
+  });
+
+  it('detects an unprefixed del element (no namespace prefix at all)', () => {
+    const doc: DocumentJson = {
+      formatVersion: 1,
+      body: [
+        { kind: 'raw', xml: '<tbl><tr><tc><p><del id="1"><r><delText>x</delText></r></del></p></tc></tr></tbl>' },
+      ],
+      comments: {},
+    };
+    expect(countRevisions(doc)).toBeGreaterThan(0);
+  });
 });
 
 describe('comments', () => {
