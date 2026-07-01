@@ -206,13 +206,28 @@ describe('matter-store merge — legacy relative folderPaths are NEVER auto-boun
     useWorkspaceStore.setState({ rootPath: 'C:/workspaces/Sandbox', fileTree: sameShapedTree });
     expect(useMatterStore.getState().matters[0]!.folderPaths).toEqual(['Clients/Hollings']);
 
-    // The ONLY way this ever resolves is the unambiguous write-time
-    // choke-point: the user explicitly maps this matter's folder while the
-    // CORRECT workspace is open (Production, in this scenario) — a real,
-    // deliberate user action, not a name-matching guess.
-    useWorkspaceStore.setState({ rootPath: 'C:/workspaces/Production', fileTree: sameShapedTree });
-    useMatterStore.getState().addFolderPath('m1', 'Clients/Hollings');
+    // Adding a completely UNRELATED new folder while Sandbox (the WRONG
+    // workspace for this legacy entry) is open must not silently rewrite the
+    // old entry either (Codex review #7 — `addFolderPath` used to re-run the
+    // WHOLE array through canonicalization, which would have bound
+    // "Clients/Hollings" to Sandbox here as a side effect of an unrelated
+    // add).
+    useMatterStore.getState().addFolderPath('m1', 'Clients/UnrelatedNewClient');
     expect(useMatterStore.getState().matters[0]!.folderPaths).toEqual([
+      'Clients/Hollings',
+      'C:/workspaces/Sandbox/Clients/UnrelatedNewClient',
+    ]);
+
+    // The ONLY way the legacy entry itself ever resolves is the unambiguous
+    // write-time choke-point: the user explicitly removes the broken mapping
+    // and re-adds the real folder (an absolute path, exactly what a native
+    // folder picker would return) while the CORRECT workspace is open — a
+    // real, deliberate user action, not a name-matching guess.
+    useWorkspaceStore.setState({ rootPath: 'C:/workspaces/Production', fileTree: sameShapedTree });
+    useMatterStore.getState().removeFolderPath('m1', 'Clients/Hollings');
+    useMatterStore.getState().addFolderPath('m1', 'C:/workspaces/Production/Clients/Hollings');
+    expect(useMatterStore.getState().matters[0]!.folderPaths).toEqual([
+      'C:/workspaces/Sandbox/Clients/UnrelatedNewClient',
       'C:/workspaces/Production/Clients/Hollings',
     ]);
   });

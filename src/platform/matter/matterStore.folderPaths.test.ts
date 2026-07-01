@@ -110,6 +110,51 @@ describe('matterStore folder path normalization', () => {
       useMatterStore.getState().removeFolderPath(matter.id, 'Clients/Reyes');
       expect(useMatterStore.getState().matters[0]?.folderPaths).toEqual([]);
     });
+
+    it('addFolderPath never re-derives an OTHER, already-stored entry — even a legacy-relative one — while a different workspace is open (Codex review #7)', () => {
+      // A matter can legitimately carry a legacy-relative entry left over from
+      // before this fix shipped (see the "no automatic reconciliation" note
+      // in matterStore.ts). Adding a completely unrelated NEW folder must
+      // never silently rewrite that old entry just because a DIFFERENT
+      // workspace happens to be open right now — `addFolderPath` used to run
+      // the WHOLE resulting array back through `dedupeFolderPaths`, which
+      // re-canonicalized every entry against the CURRENT root as a side
+      // effect of adding one unrelated folder.
+      const matter = useMatterStore.getState().createMatter({
+        name: 'Hollings',
+        client: 'Hollings',
+        folderPaths: ['Clients/Hollings'], // legacy-relative, belongs to a DIFFERENT workspace
+      });
+      useWorkspaceStore.setState({ rootPath: 'C:/workspaces/Sandbox' });
+
+      useMatterStore.getState().addFolderPath(matter.id, 'Clients/UnrelatedNewClient');
+
+      expect(useMatterStore.getState().matters[0]?.folderPaths).toEqual([
+        'Clients/Hollings', // UNCHANGED — not rebound to Sandbox
+        'C:/workspaces/Sandbox/Clients/UnrelatedNewClient', // only the new one resolved
+      ]);
+    });
+
+    it('setFolderPaths never re-derives an entry that is simply passed through unchanged, even while a different workspace is open', () => {
+      const matter = useMatterStore.getState().createMatter({
+        name: 'Hollings',
+        client: 'Hollings',
+        folderPaths: ['Clients/Hollings'],
+      });
+      useWorkspaceStore.setState({ rootPath: 'C:/workspaces/Sandbox' });
+
+      // Caller passes the FULL desired list, including the old legacy entry
+      // verbatim plus one new one.
+      useMatterStore.getState().setFolderPaths(matter.id, [
+        'Clients/Hollings',
+        'Clients/NewOne',
+      ]);
+
+      expect(useMatterStore.getState().matters[0]?.folderPaths).toEqual([
+        'Clients/Hollings', // preserved verbatim, not rebound to Sandbox
+        'C:/workspaces/Sandbox/Clients/NewOne', // genuinely new, resolved fresh
+      ]);
+    });
   });
 
   it('initializes new connector mapping fields when creating a matter', () => {

@@ -155,9 +155,8 @@ function getWorkspaceRootNonReactive(): string | null {
  */
 /** Resolve an already-normalized path to absolute under `workspaceRoot` when it
  *  isn't absolute already; a `null` root leaves it relative (nothing to
- *  resolve against). Shared by `canonicalizeFolderPath` and the reconciliation
- *  subscription below, which both need the identical "already-absolute passes
- *  through, else join root" rule. */
+ *  resolve against). Shared by every function below that needs the identical
+ *  "already-absolute passes through, else join root" rule. */
 function resolveAbsolute(normalized: string, workspaceRoot: string | null): string {
   if (isAbsolutePath(normalized)) return normalized;
   if (!workspaceRoot) return normalized;
@@ -190,6 +189,51 @@ function dedupeFolderPaths(paths: unknown[], workspaceRoot: string | null): stri
     out.push(canonical);
   }
   return out;
+}
+
+/** Index `existing` folderPaths by their normalized form, so a live edit
+ *  (`addFolderPath`/`setFolderPaths`) can tell whether an incoming value is
+ *  genuinely NEW or just the SAME path being passed through again. */
+function buildExistingByNormalized(existing: string[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const e of existing) map.set(normalizeMatterPath(e), e);
+  return map;
+}
+
+/**
+ * Resolve a single incoming folder value for a LIVE edit to an existing
+ * matter (`addFolderPath`/`setFolderPaths`) — the choke-point that never
+ * silently re-binds an entry that was already there.
+ *
+ * If the incoming value normalizes to something already present in
+ * `existingByNormalized`, the EXISTING stored value is returned VERBATIM,
+ * never re-derived against `workspaceRoot`. Only a genuinely NEW value (one
+ * not already present) gets canonicalized fresh.
+ *
+ * Why this matters (Codex review #7, F2.3): `addFolderPath`/`setFolderPaths`
+ * previously ran the WHOLE resulting array back through `dedupeFolderPaths`,
+ * which re-canonicalizes EVERY entry against whatever workspace happens to be
+ * open at that exact call — including a matter's OTHER, unrelated,
+ * already-stored folders. A matter can legitimately carry a legacy relative
+ * entry left over from before this fix shipped (see the "no automatic
+ * reconciliation" note below); adding a completely unrelated NEW folder while
+ * a DIFFERENT workspace happens to be open must never silently rewrite that
+ * old entry to the wrong workspace's absolute path — exactly the
+ * cross-workspace mis-binding this whole fix exists to prevent, reappearing
+ * through the "add a folder" path instead of an explicit reconciliation step.
+ */
+function resolveFolderPathEntry(
+  value: unknown,
+  existingByNormalized: ReadonlyMap<string, string>,
+  workspaceRoot: string | null,
+): string | null {
+  const raw = coerceFolderPathValue(value);
+  if (raw === null) return null;
+  const normalized = normalizeMatterPath(raw);
+  if (!normalized) return null;
+  const preserved = existingByNormalized.get(normalized);
+  if (preserved !== undefined) return preserved;
+  return resolveAbsolute(normalized, workspaceRoot);
 }
 
 export interface CreateMatterInput {
@@ -618,25 +662,41 @@ export const useMatterStore = create<MatterState>()(
       },
 
       setFolderPaths: (id, folderPaths) => {
-        const normalized = dedupeFolderPaths(folderPaths, getWorkspaceRootNonReactive());
+        const workspaceRoot = getWorkspaceRootNonReactive();
         set((state) => ({
-          matters: state.matters.map((m) =>
-            m.id === id ? { ...m, folderPaths: normalized } : m
-          ),
+          matters: state.matters.map((m) => {
+            if (m.id !== id) return m;
+            // REPLACES the list with exactly what's passed — but an entry
+            // that's simply being passed through unchanged keeps its
+            // ALREADY-STORED shape (never re-derived against whichever
+            // workspace happens to be open now); only a genuinely new value
+            // gets canonicalized fresh. See `resolveFolderPathEntry`'s doc.
+            const existingByNormalized = buildExistingByNormalized(m.folderPaths);
+            const out: string[] = [];
+            const seen = new Set<string>();
+            for (const value of folderPaths) {
+              const resolved = resolveFolderPathEntry(value, existingByNormalized, workspaceRoot);
+              if (resolved === null || seen.has(resolved)) continue;
+              seen.add(resolved);
+              out.push(resolved);
+            }
+            return { ...m, folderPaths: out };
+          }),
         }));
       },
 
       addFolderPath: (id, folderPath) => {
         const workspaceRoot = getWorkspaceRootNonReactive();
-        const canon = canonicalizeFolderPath(folderPath, workspaceRoot);
-        if (!canon) return;
         set((state) => ({
           matters: state.matters.map((m) => {
             if (m.id !== id) return m;
-            return {
-              ...m,
-              folderPaths: dedupeFolderPaths([...m.folderPaths, canon], workspaceRoot),
-            };
+            // APPENDS one folder — every OTHER already-stored entry is left
+            // completely untouched, whatever shape it's currently in (see
+            // `resolveFolderPathEntry`'s doc for why this matters).
+            const existingByNormalized = buildExistingByNormalized(m.folderPaths);
+            const resolved = resolveFolderPathEntry(folderPath, existingByNormalized, workspaceRoot);
+            if (resolved === null || m.folderPaths.includes(resolved)) return m;
+            return { ...m, folderPaths: [...m.folderPaths, resolved] };
           }),
         }));
       },
