@@ -546,9 +546,10 @@ export class WorkflowEngine {
    */
   private async executeGenerateStep(step: WorkflowStep): Promise<Record<string, unknown>> {
     const config = step.config as GenerateStepConfig;
+    const inputs = this.execution!.inputs;
 
     // Build the prompt from template with current inputs
-    const prompt = this.interpolateTemplate(config.promptTemplate, this.execution!.inputs);
+    const prompt = this.interpolateTemplate(config.promptTemplate, inputs);
 
     // Record tool call start
     const callStart = Date.now();
@@ -558,13 +559,19 @@ export class WorkflowEngine {
     const sendOptions = config.systemPrompt ? { systemPrompt: config.systemPrompt } : undefined;
     const response = await this.auditedSendMessage(step, 'generate', prompt, sendOptions);
 
+    // BUG F3(1a) — interpolate the output path (sanitizing substituted VALUES,
+    // not the template's own `/` separators) so a template like
+    // `Estate Planning/{{clientName}} - Planning Summary.docx` lands under the
+    // real client's name instead of the literal `{{clientName}}` placeholder.
+    const outputFile = this.interpolateOutputPath(config.outputFile, inputs);
+
     // Record tool call
     this.toolCalls.push({
       id: callId,
       tool: 'generate',
       params: {
         prompt,
-        outputFile: config.outputFile,
+        outputFile,
       },
       result: {
         content: response.content,
@@ -580,11 +587,11 @@ export class WorkflowEngine {
     // opens in the Word-familiar editor (not raw markdown). This establishes
     // the workflow → Office pattern for every `generate` template; the legal
     // flagship adds structured findings on top via the `analyze` step.
-    await this.writeDeliverable(step, config.outputFile, response.content);
+    await this.writeDeliverable(step, outputFile, response.content);
 
     return {
       [`${step.id}_output`]: response.content,
-      [`${step.id}_file`]: config.outputFile,
+      [`${step.id}_file`]: outputFile,
       [`${step.id}_tokens`]: response.usage.totalTokens,
       [`${step.id}_cost`]: response.cost,
     };
@@ -696,6 +703,17 @@ export class WorkflowEngine {
     }
 
     const scope = this.analyzeDeps.getScope();
+    // BUG (isolation/data-leak) — an `analyze` step is matter-scoped by
+    // design (see the doc comment above). `getScope()` falls back to
+    // `{ kind: 'allMatters' }` when no client is active; proceeding would
+    // silently pull retrieval chunks from EVERY client's documents into one
+    // generated report. Fail closed instead, mirroring the guard-throws above
+    // for missing dependencies rather than degrading silently.
+    if (scope.kind !== 'matter') {
+      throw new Error(
+        'This workflow needs an active client selected — choose a client before running an analysis workflow.',
+      );
+    }
     const inputs = this.execution!.inputs;
 
     const callStart = Date.now();
@@ -744,8 +762,12 @@ export class WorkflowEngine {
     // note is rendered into `meta`, so the disclosure is never disturbed.
     const { applyLetterheadIfConfigured } = await import('@/platform/utils/docx-io');
     const finalBytes = await applyLetterheadIfConfigured(bytes);
-    await this.fileOps.writeFileBinary(config.outputFile, finalBytes);
-    this.emitFileCreateAudit(config.outputFile, step);
+    // BUG F3(1a) — interpolate (and sanitize) the output path the same way
+    // `generate` does, so e.g. `{{matterName}}/Contract Review - {{contractType}}.docx`
+    // lands under the real client's folder instead of the literal placeholder.
+    const outputFile = this.interpolateOutputPath(config.outputFile, inputs);
+    await this.fileOps.writeFileBinary(outputFile, finalBytes);
+    this.emitFileCreateAudit(outputFile, step);
 
     // Record the analyze tool call. The scope + retrieval query + counts make
     // the run auditable: what matter it was confined to, what it searched for,
@@ -757,7 +779,7 @@ export class WorkflowEngine {
         analyzeKind: config.analyzeKind,
         retrievalQuery,
         scope,
-        outputFile: config.outputFile,
+        outputFile,
         retrievedChunks: chunks.length,
         // VG-3b — the run record carries whether retrieval was down.
         retrievalUnavailable,
@@ -778,25 +800,69 @@ export class WorkflowEngine {
         verified: result.verifiedCount,
         unverified: result.unverifiedCount,
       },
-      [`${step.id}_file`]: config.outputFile,
+      [`${step.id}_file`]: outputFile,
       [`${step.id}_scope`]: scope,
     };
   }
 
   /**
-   * Interpolate variables in a template string
+   * Interpolate variables in a template string. `transform`, when supplied,
+   * post-processes each SUBSTITUTED VALUE (never the template's own literal
+   * text) after it's been stringified — used by `interpolateOutputPath`
+   * below to sanitize values going into a filesystem path without
+   * duplicating the substitution loop.
    */
   private interpolateTemplate(
     template: string,
-    values: Record<string, unknown>
+    values: Record<string, unknown>,
+    transform?: (value: string) => string,
   ): string {
-    return template.replace(/\{\{(\w+)\}\}/g, (_, key) => {
+    return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => {
       const value = values[key];
       if (value === undefined) {
         return `{{${key}}}`;
       }
-      return String(value);
+      const stringValue = String(value);
+      return transform ? transform(stringValue) : stringValue;
     });
+  }
+
+  /**
+   * BUG F3(1a) — interpolate `{{var}}` placeholders in an `outputFile`
+   * template, but sanitize each SUBSTITUTED VALUE before insertion: `/`,
+   * `\`, control characters, and the other characters Windows forbids in a
+   * file/folder name (`: ? * " < > |` — the same set `PathValidator.
+   * validateName` blocks elsewhere in this codebase) are replaced with a
+   * dash/stripped, so a user-entered interview answer (e.g. a household name
+   * like "Smith / Jones", a contract type like "NDA: Vendor") can never (a)
+   * inject extra path segments or something resembling a traversal
+   * sequence, or (b) produce a filename that fails to save on the app's
+   * primary Windows target after the AI work is already done.
+   *
+   * The template's OWN literal `/` separators (e.g. the folder in
+   * `{{matterName}}/Contract Review - {{contractType}}.docx`) are left
+   * untouched, since `transform` only ever sees the replaced VALUES, never
+   * the template string itself. This is a light guard, not full
+   * path-traversal validation — `PathValidator`/`WorkspaceService` downstream
+   * already reject `../` and workspace-escaping paths; this just avoids
+   * defeating that backstop by handing it an already-mangled path.
+   */
+  private interpolateOutputPath(
+    template: string,
+    values: Record<string, unknown>
+  ): string {
+    return this.interpolateTemplate(template, values, (value) =>
+      value
+        // Sanitization choice: `/`, `\`, and the Windows-forbidden filename
+        // characters all become `-` — a single dash reads cleanly (e.g.
+        // "Smith / Jones" -> "Smith - Jones", "NDA: Vendor" -> "NDA- Vendor").
+        .replace(/[/\\:?*"<>|]/g, '-')
+        // Strip control characters outright (avoid a regex control-char
+        // range so this doesn't trip `no-control-regex`).
+        .split('')
+        .filter((ch) => ch.charCodeAt(0) > 0x1f)
+        .join(''),
+    );
   }
 
   /**

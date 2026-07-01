@@ -39,6 +39,18 @@ pub trait MailProvider: Send + Sync {
     /// Fetch one page of changes for `folder` starting from `cursor`.
     async fn fetch_changes(&self, folder: &RemoteFolder, cursor: &Cursor)
         -> anyhow::Result<ChangePage>;
+
+    /// For providers whose `fetch_changes` cannot report deletions inline (no
+    /// delta/history token — e.g. IMAP), returns the full set of message ids
+    /// CURRENTLY present on the server for `folder`, so the caller can diff
+    /// against local storage and tombstone anything missing. Providers that
+    /// already report deletions via `ChangePage::removed_ids` (Graph, Gmail)
+    /// don't need to override this — the default `Ok(None)` means "nothing to
+    /// reconcile this way."
+    async fn current_ids(&self, folder: &RemoteFolder) -> anyhow::Result<Option<Vec<String>>> {
+        let _ = folder;
+        Ok(None)
+    }
 }
 
 #[cfg(test)]

@@ -4,6 +4,8 @@ use crate::commands::mail::graph::{page_continuation, Continuation, DeltaGone, G
 use crate::commands::mail::model::{BodyContentType, MailMessage};
 use crate::commands::mail::normalize::to_markdown;
 use crate::commands::mail::provider::{Cursor, MailProvider, RemoteFolder};
+#[cfg(test)]
+use crate::commands::mail::provider::ChangePage;
 use crate::commands::mail::store::{encrypted_blob_relative_path, MailRecord, MailStore};
 use std::path::Path;
 
@@ -322,7 +324,28 @@ where
     let mut total = PageStats::default();
     loop {
         let page = provider.fetch_changes(folder, &cursor).await?;
-        let s = apply_messages_enc(store, workspace_root, &folder.id, provider.kind(), account, matter_id, &page.messages, &page.removed_ids, key, index_callback, tombstone_callback)?;
+
+        // Merge in any deletions this page already reported (Graph/Gmail),
+        // plus — only once the folder has caught up to present (`page.done`)
+        // — a UID-diff reconciliation for providers with no inline deletion
+        // signal (IMAP). Doing this only on the final page of a sync run
+        // avoids an extra server round-trip on every intermediate backfill
+        // page.
+        let mut removed_ids = page.removed_ids.clone();
+        if page.done {
+            if let Some(current) = provider.current_ids(folder).await? {
+                let current_set: std::collections::HashSet<&str> =
+                    current.iter().map(|s| s.as_str()).collect();
+                let local_ids = store.ids_in_folder(provider.kind(), account, &folder.id)?;
+                for local_id in local_ids {
+                    if !current_set.contains(local_id.as_str()) && !removed_ids.contains(&local_id) {
+                        removed_ids.push(local_id);
+                    }
+                }
+            }
+        }
+
+        let s = apply_messages_enc(store, workspace_root, &folder.id, provider.kind(), account, matter_id, &page.messages, &removed_ids, key, index_callback, tombstone_callback)?;
         total.written += s.written;
         total.removed += s.removed;
         emit(total.written, total.removed);
@@ -861,5 +884,137 @@ mod tests {
         let dir = tempfile::TempDir::new().unwrap();
         let res = sync_folder(&client, &store, dir.path(), "inbox", &|_w, _r| {}).await;
         assert!(res.is_err(), "repeated 410 must error out, not spin forever");
+    }
+
+    // ── F1: sync_folder_provider deletion-diff reconciliation ────────────────
+    //
+    // A fake `MailProvider` whose `fetch_changes` never reports removed_ids
+    // (matching IMAP, which has no delta/history token) but whose
+    // `current_ids` reports the server-side UID set. `sync_folder_provider`
+    // must diff that against locally-known ids (once the page is `done`) and
+    // tombstone anything missing, reusing the same path Graph/Gmail use.
+
+    struct FakeProvider {
+        kind: &'static str,
+        pages: Mutex<std::collections::VecDeque<ChangePage>>,
+        current_ids_result: Option<Vec<String>>,
+    }
+
+    #[async_trait::async_trait]
+    impl MailProvider for FakeProvider {
+        fn kind(&self) -> &'static str {
+            self.kind
+        }
+        async fn list_folders(&self) -> anyhow::Result<Vec<RemoteFolder>> {
+            Ok(vec![])
+        }
+        async fn fetch_changes(
+            &self,
+            _folder: &RemoteFolder,
+            _cursor: &Cursor,
+        ) -> anyhow::Result<ChangePage> {
+            Ok(self
+                .pages
+                .lock()
+                .unwrap()
+                .pop_front()
+                .expect("FakeProvider: no more pages queued"))
+        }
+        async fn current_ids(&self, _folder: &RemoteFolder) -> anyhow::Result<Option<Vec<String>>> {
+            Ok(self.current_ids_result.clone())
+        }
+    }
+
+    fn seed_record(store: &FakeStore, id: &str, provider: &str, account: &str, folder_id: &str) {
+        store
+            .upsert(&MailRecord {
+                id: id.to_string(),
+                folder_id: folder_id.to_string(),
+                internet_message_id: None,
+                relative_path: format!(".lantern/mail/blobs/{id}.enc"),
+                received_date_time: None,
+                provider: provider.to_string(),
+                account: account.to_string(),
+                subject: String::new(),
+                from_addr: String::new(),
+                from_name: String::new(),
+                snippet: String::new(),
+                has_attachments: false,
+            })
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn sync_folder_provider_tombstones_ids_missing_from_current_ids() {
+        let store = FakeStore::default();
+        seed_record(&store, "imap:acct:id1", "imap", "acct", "INBOX");
+        seed_record(&store, "imap:acct:id2", "imap", "acct", "INBOX");
+
+        let provider = FakeProvider {
+            kind: "imap",
+            pages: Mutex::new(std::collections::VecDeque::from([ChangePage {
+                messages: vec![],
+                removed_ids: vec![],
+                next: Some("42:100".into()),
+                done: true,
+            }])),
+            // Server only reports id1 -> id2 was deleted/expunged server-side.
+            current_ids_result: Some(vec!["imap:acct:id1".to_string()]),
+        };
+
+        let dir = tempfile::TempDir::new().unwrap();
+        let folder = RemoteFolder { id: "INBOX".into(), display_name: "INBOX".into() };
+        let key = [0x77u8; 32];
+        let tombstoned = std::sync::Arc::new(Mutex::new(Vec::<String>::new()));
+        let tombstoned2 = tombstoned.clone();
+
+        let stats = sync_folder_provider(
+            &provider, &store, dir.path(), &folder, "acct",
+            crate::commands::rag::store::UNASSIGNED_MATTER, &key,
+            &|_w, _r| {},
+            &|_id, _text, _m| {},
+            &|id: &str| { tombstoned2.lock().unwrap().push(id.to_string()); },
+        ).await.unwrap();
+
+        assert_eq!(stats.removed, 1, "id2 must be tombstoned via the UID-diff reconciliation");
+        assert!(store.contains("imap:acct:id1").unwrap(), "id1 (still on server) must survive");
+        assert!(!store.contains("imap:acct:id2").unwrap(), "id2 (missing on server) must be removed");
+        assert_eq!(tombstoned.lock().unwrap().as_slice(), &["imap:acct:id2".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn sync_folder_provider_current_ids_none_does_not_reconcile() {
+        // Graph/Gmail-style providers: current_ids defaults to None, so no
+        // extra reconciliation happens beyond page.removed_ids.
+        let store = FakeStore::default();
+        seed_record(&store, "imap:acct:id1", "imap", "acct", "INBOX");
+        seed_record(&store, "imap:acct:id2", "imap", "acct", "INBOX");
+
+        let provider = FakeProvider {
+            kind: "imap",
+            pages: Mutex::new(std::collections::VecDeque::from([ChangePage {
+                messages: vec![],
+                removed_ids: vec![],
+                next: Some("42:100".into()),
+                done: true,
+            }])),
+            current_ids_result: None,
+        };
+
+        let dir = tempfile::TempDir::new().unwrap();
+        let folder = RemoteFolder { id: "INBOX".into(), display_name: "INBOX".into() };
+        let key = [0x77u8; 32];
+
+        let stats = sync_folder_provider(
+            &provider, &store, dir.path(), &folder, "acct",
+            crate::commands::rag::store::UNASSIGNED_MATTER, &key,
+            &|_w, _r| {},
+            &|_id, _text, _m| {},
+            &|_id: &str| {},
+        ).await.unwrap();
+
+        assert_eq!(stats.removed, 0, "no reconciliation must happen when current_ids returns None");
+        assert!(store.contains("imap:acct:id1").unwrap());
+        assert!(store.contains("imap:acct:id2").unwrap());
     }
 }

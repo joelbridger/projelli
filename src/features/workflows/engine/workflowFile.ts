@@ -216,4 +216,37 @@ export function isSyntheticWorkflowExecPath(path: string): boolean {
   return path.startsWith('__workflow_exec_') && path.endsWith('__');
 }
 
+/**
+ * BUG F3(1b) — join a workflow artifact's relative path (already
+ * interpolated + sanitized by the engine, e.g.
+ * `Estate Planning/Client - Summary.docx`) onto the run's workflow folder.
+ *
+ * Used by the `writeFile`/`writeFileBinary` file-ops the runner hands to the
+ * engine, so a template-authored subfolder in `outputFile` actually lands on
+ * disk instead of being silently collapsed to its basename. Extracted as a
+ * pure function so it's directly unit-testable without rendering the hook;
+ * `WorkspaceService.writeFile`/`writeFileBinary` create any missing parent
+ * folder themselves, and `PathValidator` still rejects `../` traversal and
+ * workspace-escaping paths underneath this join.
+ */
+export function resolveWorkflowArtifactPath(
+  workflowFolderPath: string,
+  relativePath: string,
+): string {
+  return `${workflowFolderPath}/${relativePath}`;
+}
+
+/**
+ * Same idea as `resolveWorkflowArtifactPath`, but for reads: an absolute
+ * path is passed through unchanged (the engine's `review` step may read an
+ * absolute workspace path), while a relative one resolves under the
+ * workflow folder.
+ */
+export function resolveWorkflowReadPath(
+  workflowFolderPath: string,
+  path: string,
+): string {
+  return path.startsWith('/') ? path : resolveWorkflowArtifactPath(workflowFolderPath, path);
+}
+
 export type { InterviewQuestion };

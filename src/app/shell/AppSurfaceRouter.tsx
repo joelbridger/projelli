@@ -49,6 +49,10 @@ export interface AppSurfaceRouterProps {
   showInterviewDialog: boolean;
   interviewQuestions: InterviewQuestion[] | null;
   workflowProviderError: 'needs-provider' | 'ollama-unreachable' | null;
+  /** BUG F2 — non-null when the terminal .workflow run-record write failed to
+   *  save after retries. Rendered as a Callout on the workflows home,
+   *  mirroring `workflowProviderError`'s plumbing. */
+  workflowSaveError: string | null;
   runHistory: RunRecord[];
   auditEntries: AuditEntry[];
   auditIntegrity: AuditIntegrityVerdict | undefined;
@@ -107,6 +111,7 @@ export function AppSurfaceRouter({
   showInterviewDialog,
   interviewQuestions,
   workflowProviderError,
+  workflowSaveError,
   runHistory,
   auditEntries,
   auditIntegrity,
@@ -380,6 +385,7 @@ export function AppSurfaceRouter({
           currentExecution={currentExecution}
           runHistory={runHistory}
           providerError={workflowProviderError}
+          saveError={workflowSaveError}
           onOpenSettings={() => openSettings('ai')}
           onFocusExecutionTab={() => {
             const target =
