@@ -23,10 +23,18 @@ use crate::commands::mail::model::{BodyContentType, MailMessage, Recipient};
 ///
 /// # Date field
 ///
-/// `received_date_time` is kept as-is from the `Date` header (e.g. RFC 2822
-/// format like `"Mon, 26 May 2026 14:30:00 +0000"`). It is not normalized to
-/// RFC 3339 / ISO 8601. Callers that need a sortable timestamp should parse it
-/// with a date library.
+/// `received_date_time` is normalized to RFC 3339 / ISO 8601 (e.g.
+/// `"2026-05-26T14:30:00+00:00"`), matching the Graph and IMAP providers so
+/// `store.rs`'s `query_list_messages` can sort/filter on it as a real
+/// timestamp rather than comparing raw text.
+///
+/// The Gmail message resource's top-level `internalDate` field (a string of
+/// Unix-epoch milliseconds, assigned by Gmail itself on receipt) is preferred
+/// as the authoritative source — Google recommends it as the sort key because
+/// it is server-assigned and can't be missing, malformed, or spoofed the way
+/// a client-supplied `Date` header can. If `internalDate` is absent or fails
+/// to parse, the `Date` header (RFC 2822) is parsed as a fallback. If both
+/// fail, `received_date_time` is `None` rather than fabricated.
 ///
 /// # Base64url decoding
 ///
@@ -102,9 +110,9 @@ pub fn from_gmail(account: &str, v: &serde_json::Value) -> Option<MailMessage> {
     let internet_message_id = message_id_raw.map(|s| strip_angle_brackets(&s).to_string());
 
     // ── received_date_time ───────────────────────────────────────────────────
-    // Kept as-is from the Date header (RFC 2822 format, not normalized to
-    // RFC 3339). See the module-level doc comment for the rationale.
-    let received_date_time = date_header;
+    // Normalized to RFC 3339. See the module-level doc comment for the
+    // internalDate-first, Date-header-fallback rationale.
+    let received_date_time = normalize_received_date(v, date_header.as_deref());
 
     // ── Walk the MIME tree for body + attachments ────────────────────────────
     let payload = v.get("payload");
@@ -129,6 +137,28 @@ pub fn from_gmail(account: &str, v: &serde_json::Value) -> Option<MailMessage> {
         body_content_type,
         body_text,
     })
+}
+
+/// Normalize a Gmail message's received timestamp to RFC 3339.
+///
+/// Prefers the message resource's top-level `internalDate` (Unix-epoch
+/// milliseconds, server-assigned). Falls back to parsing the `Date` header
+/// (RFC 2822) when `internalDate` is absent or invalid. Returns `None` if
+/// both are absent/unparseable, rather than fabricating a date.
+fn normalize_received_date(v: &serde_json::Value, date_header: Option<&str>) -> Option<String> {
+    if let Some(ms) = v
+        .get("internalDate")
+        .and_then(|d| d.as_str())
+        .and_then(|s| s.parse::<i64>().ok())
+    {
+        if let Some(dt) = chrono::DateTime::from_timestamp_millis(ms) {
+            return Some(dt.to_rfc3339());
+        }
+    }
+
+    date_header
+        .and_then(|s| chrono::DateTime::parse_from_rfc2822(s).ok())
+        .map(|dt| dt.to_rfc3339())
 }
 
 // ── MIME tree walker ──────────────────────────────────────────────────────────
@@ -348,6 +378,8 @@ mod tests {
             "id": "abc123",
             "threadId": "thread456",
             "labelIds": ["INBOX", "IMPORTANT"],
+            // Fri, 01 May 2026 14:30:00 UTC in epoch milliseconds.
+            "internalDate": "1777645800000",
             "payload": {
                 "mimeType": "multipart/mixed",
                 "headers": [
@@ -434,11 +466,58 @@ mod tests {
     }
 
     #[test]
-    fn keeps_date_header_as_is() {
+    fn normalizes_date_to_rfc3339_preferring_internal_date() {
         let m = from_gmail("user@gmail.com", &sample_full_message()).expect("parse");
         assert_eq!(
             m.received_date_time.as_deref(),
-            Some("Fri, 01 May 2026 14:30:00 +0000")
+            Some("2026-05-01T14:30:00+00:00"),
+            "internalDate (epoch ms) must be preferred and normalized to RFC 3339"
+        );
+    }
+
+    #[test]
+    fn falls_back_to_date_header_when_internal_date_absent() {
+        let mut v = sample_full_message();
+        v.as_object_mut().unwrap().remove("internalDate");
+        let m = from_gmail("user@gmail.com", &v).expect("parse");
+        assert_eq!(
+            m.received_date_time.as_deref(),
+            Some("2026-05-01T14:30:00+00:00"),
+            "Date header (RFC 2822) must be parsed and normalized to RFC 3339 when internalDate is absent"
+        );
+    }
+
+    #[test]
+    fn falls_back_to_date_header_when_internal_date_is_garbage() {
+        let mut v = sample_full_message();
+        v.as_object_mut()
+            .unwrap()
+            .insert("internalDate".into(), serde_json::json!("not-a-number"));
+        let m = from_gmail("user@gmail.com", &v).expect("parse");
+        assert_eq!(
+            m.received_date_time.as_deref(),
+            Some("2026-05-01T14:30:00+00:00"),
+            "an unparseable internalDate must fall back to the Date header"
+        );
+    }
+
+    #[test]
+    fn received_date_time_is_none_when_both_internal_date_and_date_header_are_missing() {
+        let mut v = sample_full_message();
+        let obj = v.as_object_mut().unwrap();
+        obj.remove("internalDate");
+        // Strip the Date header from payload.headers.
+        let headers = obj
+            .get_mut("payload")
+            .and_then(|p| p.get_mut("headers"))
+            .and_then(|h| h.as_array_mut())
+            .unwrap();
+        headers.retain(|h| h.get("name").and_then(|n| n.as_str()) != Some("Date"));
+
+        let m = from_gmail("user@gmail.com", &v).expect("parse");
+        assert!(
+            m.received_date_time.is_none(),
+            "must not fabricate a date when both sources are absent"
         );
     }
 

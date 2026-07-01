@@ -82,9 +82,14 @@ const ALL_MAIL_FOLDER: &str = "__all_mail__";
 /// **History-too-old fallback**:
 /// If `users.history` returns HTTP 404 (historyId too old / expired), the
 /// `ChangePage` is returned with `next: Some("")` (an empty cursor, which
-/// `parse_gmail_cursor` maps back to `Cursor::Backfill`). The sync layer
-/// persists that reset cursor, so the next sync performs a full re-backfill.
-/// A `log::warn!` is emitted so the event is visible in app logs.
+/// `parse_gmail_cursor` maps back to `Cursor::Backfill`) and `done: false`.
+/// The sync layer (`sync_folder_provider` in `sync.rs`) persists the reset
+/// cursor and, because `done` is false, immediately loops and calls
+/// `fetch_changes` again in the SAME sync run — which now resolves to
+/// `GmailCursor::Backfill` and triggers the real backfill right away, instead
+/// of deferring it to the next sync click/interval (which would leave the
+/// mailbox looking falsely "up to date" for an extra cycle while actually
+/// stale). A `log::warn!` is emitted so the event is visible in app logs.
 pub struct GmailProvider {
     client: GmailClient,
     account: String,
@@ -218,11 +223,19 @@ impl GmailProvider {
                          resetting cursor for a full re-backfill on the next sync",
                         start_history_id, self.account
                     );
+                    // `done: false` (not true): this pass has NOT actually
+                    // caught the folder up — it only reset the cursor. The
+                    // sync loop in `sync_folder_provider` persists the empty
+                    // cursor, sees `done == false`, and immediately calls
+                    // `fetch_changes` again with `Cursor::Resume("")`, which
+                    // `parse_gmail_cursor` maps to `GmailCursor::Backfill` —
+                    // so the real backfill runs within this same sync call
+                    // instead of being silently deferred to the next sync.
                     return Ok(ChangePage {
                         messages: vec![],
                         removed_ids: vec![],
                         next: Some(String::new()),
-                        done: true,
+                        done: false,
                     });
                 }
                 return Err(e);
@@ -608,5 +621,50 @@ mod tests {
         assert_eq!(page.removed_ids, vec!["gmail:user@gmail.com:del_msg_1".to_string()]);
         assert!(page.done, "must be done=true when no nextPageToken");
         assert_eq!(page.next, Some("hist:103".into()));
+    }
+
+    // ── F5: history-too-old (404) fallback must NOT report done=true ─────────
+
+    #[test]
+    fn empty_cursor_round_trips_to_backfill() {
+        // Confirms the reset half of the fallback: an empty resume token
+        // (what the 404 branch persists via `next: Some(String::new())`) maps
+        // back to a fresh backfill on the next fetch_changes call.
+        let c = Cursor::Resume(String::new());
+        assert_eq!(parse_gmail_cursor(&c), GmailCursor::Backfill);
+    }
+
+    #[tokio::test]
+    async fn history_404_reports_done_false_so_backfill_runs_same_sync() {
+        // Gmail's users.history 404s (historyId expired). The fallback must
+        // report done=false so sync_folder_provider's loop does NOT treat the
+        // sync as complete — it must immediately re-call fetch_changes with
+        // the reset cursor, which triggers the real backfill within this same
+        // sync run instead of silently deferring it to the next sync.
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/gmail/v1/users/me/history"))
+            .respond_with(ResponseTemplate::new(404).set_body_string("historyId too old"))
+            .mount(&server)
+            .await;
+
+        let provider = GmailProvider::new_with_base("AT".into(), "user@gmail.com".into(), server.uri());
+        let folder = RemoteFolder { id: "INBOX".into(), display_name: "INBOX".into() };
+        let cursor = Cursor::Resume("hist:100".into());
+        let page = provider.fetch_changes(&folder, &cursor).await.expect("fetch_changes");
+
+        assert!(page.messages.is_empty());
+        assert!(page.removed_ids.is_empty());
+        assert_eq!(page.next, Some(String::new()));
+        assert!(
+            !page.done,
+            "history-too-old fallback must report done=false so the sync loop \
+             immediately retries and performs the real backfill this same sync, \
+             rather than reporting a stale mailbox as up to date"
+        );
     }
 }

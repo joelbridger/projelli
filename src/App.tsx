@@ -1018,6 +1018,7 @@ function App() {
     setShowInterviewDialog,
     interviewQuestions,
     workflowProviderError,
+    workflowSaveError,
     activeWorkflowFilePath,
     handleStartWorkflow,
     handleInterviewSubmit,
@@ -1304,6 +1305,7 @@ function App() {
           showInterviewDialog={showInterviewDialog}
           interviewQuestions={interviewQuestions}
           workflowProviderError={workflowProviderError}
+          workflowSaveError={workflowSaveError}
           runHistory={runHistory}
           auditEntries={auditEntries}
           auditIntegrity={auditIntegrity}

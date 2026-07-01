@@ -7,7 +7,7 @@ use async_trait::async_trait;
 
 use crate::commands::mail::provider::{ChangePage, Cursor, MailProvider, RemoteFolder};
 
-use self::client::{connect, list_mailboxes, select_mailbox, uid_fetch_range};
+use self::client::{connect, list_mailboxes, select_mailbox, uid_fetch_range, uid_search_all};
 use self::normalize::from_rfc822;
 
 // ─────────────────────────────────────────────────────────
@@ -174,7 +174,10 @@ impl MailProvider for ImapProvider {
             }
         }
 
-        // TODO(phase-2): UID-diff to detect server-side deletions.
+        // IMAP has no delta/history token, so this call cannot report
+        // deletions inline. Server-side deletions are reconciled separately
+        // by `sync_folder_provider` (sync.rs), which diffs `current_ids`
+        // against local storage once the folder is caught up.
         let removed_ids: Vec<String> = vec![];
 
         // Advance the cursor to the END of the processed range (not just the
@@ -185,6 +188,33 @@ impl MailProvider for ImapProvider {
             next: Some(format_cursor(current_uidvalidity, batch_last)),
             done,
         })
+    }
+
+    /// Returns every message id currently present on the server for `folder`,
+    /// via `UID SEARCH ALL`. Used by `sync_folder_provider` to diff against
+    /// locally-known ids and tombstone anything that was deleted/expunged
+    /// server-side (IMAP has no delta/history token to report this inline).
+    async fn current_ids(&self, folder: &RemoteFolder) -> anyhow::Result<Option<Vec<String>>> {
+        let mut session = connect(&self.host, self.port, &self.username, &self.password)
+            .await
+            .context("ImapProvider::current_ids: connect")?;
+
+        let info = select_mailbox(&mut session, &folder.id)
+            .await
+            .context("ImapProvider::current_ids: SELECT")?;
+
+        let uids = uid_search_all(&mut session)
+            .await
+            .context("ImapProvider::current_ids: UID SEARCH ALL")?;
+
+        let _ = session.logout().await; // best-effort
+
+        let ids = uids
+            .into_iter()
+            .map(|uid| imap_message_id(&self.account, &folder.id, info.uid_validity, uid))
+            .collect();
+
+        Ok(Some(ids))
     }
 }
 

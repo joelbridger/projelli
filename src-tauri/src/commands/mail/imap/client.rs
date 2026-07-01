@@ -180,3 +180,14 @@ pub async fn uid_fetch_range(
 
     Ok(results)
 }
+
+/// `UID SEARCH ALL` — returns every UID currently present in the selected
+/// mailbox. Used to diff against locally-known ids and detect server-side
+/// deletions/expunges (IMAP has no delta/history token, unlike Graph/Gmail).
+pub async fn uid_search_all(session: &mut ImapSession) -> anyhow::Result<Vec<u32>> {
+    let uids = timeout(CMD_TIMEOUT, session.uid_search("ALL"))
+        .await
+        .map_err(|_| anyhow::anyhow!("IMAP UID SEARCH ALL timed out"))?
+        .context("IMAP UID SEARCH ALL")?;
+    Ok(uids.into_iter().collect())
+}

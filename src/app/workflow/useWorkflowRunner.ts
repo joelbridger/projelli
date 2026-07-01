@@ -21,7 +21,10 @@ import {
   appendCompletedInterviewAnswers,
   buildWorkflowFilename,
   executionToFileData,
+  resolveWorkflowArtifactPath,
+  resolveWorkflowReadPath,
 } from '@/features/workflows/engine/workflowFile';
+import { retryWithBackoff } from '@/lib/retryWithBackoff';
 import { createMockProvider } from '@/platform/providers/MockProvider';
 import { createClaudeProvider } from '@/platform/providers/ClaudeProvider';
 import { createOpenAIProvider } from '@/platform/providers/OpenAIProvider';
@@ -117,6 +120,11 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
   const [showInterviewDialog, setShowInterviewDialog] = useState(false);
   const [activeWorkflowFilePath, setActiveWorkflowFilePath] = useState<string | null>(null);
   const [workflowProviderError, setWorkflowProviderError] = useState<'needs-provider' | 'ollama-unreachable' | null>(null);
+  // BUG F2 — set when the TERMINAL .workflow run-record write (completed/
+  // failed/cancelled) could not be durably saved after retries. Mirrors
+  // `workflowProviderError`'s plumbing so it surfaces via the same Callout
+  // pattern instead of being a silent console.warn.
+  const [workflowSaveError, setWorkflowSaveError] = useState<string | null>(null);
 
   // Handle starting a workflow
   const handleStartWorkflow = useCallback(
@@ -128,6 +136,8 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
       // rendered as a blocking screen while this new attempt is in flight.
       // The error is scoped to this invocation and set/cleared only here.
       setWorkflowProviderError(null);
+      // A fresh run gets a fresh chance to save its record cleanly.
+      setWorkflowSaveError(null);
 
       // Compute the folder path early so we can derive the run metadata.
       // The folder itself is NOT created yet — we wait until provider
@@ -293,7 +303,13 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
       // always lands on disk synchronously.
       let pendingFileData: WorkflowFileData | null = null;
       let writeTimer: ReturnType<typeof setTimeout> | null = null;
-      const writeFileNow = async (data: WorkflowFileData) => {
+      // BUG F2 — returns whether the write actually landed, so terminal-write
+      // callers (below) can tell a real failure apart from success instead of
+      // getting false confidence from an always-resolving promise. Debounced
+      // mid-run snapshots (via `scheduleWrite`) still fire-and-forget this and
+      // ignore the result — a missed intermediate snapshot is low-stakes, the
+      // next one lands seconds later.
+      const writeFileNow = async (data: WorkflowFileData): Promise<boolean> => {
         // A definitive write supersedes any pending debounced snapshot. Cancel the
         // pending timer + payload so a stale in-flight "running" snapshot can't land
         // AFTER a terminal "completed"/"failed" write and revert it. Without this, the
@@ -315,9 +331,39 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
           useEditorStore.getState().updateContent(workflowFilePath, json);
           // Flag the tab as saved so the dirty indicator stays clean.
           useEditorStore.getState().markSaved(workflowFilePath);
+          return true;
         } catch (err) {
           console.warn('[workflow] Failed to write .workflow file:', err);
+          return false;
         }
+      };
+      // BUG F2 (data-loss) — the TERMINAL write (run completed/failed/
+      // cancelled) is the durable audit/replay record for the whole run, so
+      // a silent failure here is much worse than a missed mid-run snapshot:
+      // the deliverable file may exist on disk while the .workflow record is
+      // stuck showing "running" forever, or simply missing, with zero
+      // indication anything went wrong. Retry a few times (transient FS
+      // hiccups — disk momentarily busy, permission blip — are the most
+      // likely real-world cause); if every attempt still fails, surface it
+      // both to the user (workflowSaveError, rendered via the existing
+      // Callout on the workflows home) and to the audit log, so "just a
+      // console.warn" is never the final state.
+      const TERMINAL_WRITE_RETRY_DELAYS_MS = [300, 600];
+      const writeTerminalFileWithRetry = async (data: WorkflowFileData): Promise<void> => {
+        const ok = await retryWithBackoff(() => writeFileNow(data), TERMINAL_WRITE_RETRY_DELAYS_MS);
+        if (ok) return;
+        const message =
+          "This run's saved record may be missing or out of date — the generated document(s) should still be fine, but the workflow's audit/replay history for this run might not be there.";
+        setWorkflowSaveError(message);
+        addAuditEntry({
+          action: 'user_action',
+          description: `Failed to save the run record for workflow "${data.template.name}" after ${String(TERMINAL_WRITE_RETRY_DELAYS_MS.length + 1)} attempts.`,
+          model: undefined,
+          inputs: { runId: data.runId, workflowFilePath, status: data.status },
+          outputs: { success: false },
+          userDecision: 'auto',
+          metadata: { auditEventType: 'workflow_save_failed', feature: 'workflow' },
+        });
       };
       const scheduleWrite = (data: WorkflowFileData, flushImmediate = false) => {
         pendingFileData = data;
@@ -427,39 +473,51 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
         provider as Provider,
         {
           writeFile: async (path: string, content: string) => {
-            // Write files inside the workflow folder
-            const filename = path.split('/').pop() || path;
-            const fullPath = `${workflowFolderPath}/${filename}`;
+            // Write files inside the workflow folder. BUG F3(1b) — `path` is
+            // already interpolated + sanitized by the engine and may contain
+            // a template-authored subfolder (e.g. `Estate Planning/Client -
+            // Summary.docx`); use it in full rather than stripping it down to
+            // its basename, so that intended subfolder actually lands on
+            // disk. `WorkspaceService.writeFile` creates missing parent
+            // folders itself, and `PathValidator` still rejects `../`
+            // traversal and workspace-escaping paths underneath this.
+            const fullPath = resolveWorkflowArtifactPath(workflowFolderPath, path);
             await workspaceServiceRef.current!.writeFile(fullPath, content);
             // Track the artifact so the .workflow file has a record of
             // what the run produced.
-            if (!artifacts.includes(filename)) {
-              artifacts.push(filename);
+            if (!artifacts.includes(path)) {
+              artifacts.push(path);
             }
             // Refresh file tree after write
             const fileTree = await workspaceServiceRef.current!.getFileTree();
             setFileTree(fileTree);
           },
           readFile: async (path: string) => {
-            // Read from workflow folder if relative path, otherwise use absolute
-            const filename = path.split('/').pop() || path;
-            const fullPath = path.startsWith('/') ? path : `${workflowFolderPath}/${filename}`;
+            // Read from workflow folder if relative path, otherwise use
+            // absolute. BUG F3(1b) — preserve any subfolder in a relative
+            // path (same reasoning as writeFile above) rather than reading
+            // only the basename.
+            const fullPath = resolveWorkflowReadPath(workflowFolderPath, path);
             return workspaceServiceRef.current!.readFile(fullPath);
           },
           // WS-D — binary deliverables (the Word .docx a workflow produces) land
           // in the same workflow folder under the active matter. Tracked as an
           // artifact so the .workflow file records what the run produced.
           writeFileBinary: async (path: string, bytes: Uint8Array) => {
-            const filename = path.split('/').pop() || path;
-            const fullPath = `${workflowFolderPath}/${filename}`;
+            // BUG F3(1b) — use the full (already-interpolated, already-
+            // sanitized) relative path, not just its basename, so an
+            // outputFile like `Estate Planning/Client - Summary.docx` lands
+            // in the intended subfolder instead of directly in the workflow
+            // root.
+            const fullPath = resolveWorkflowArtifactPath(workflowFolderPath, path);
             // ArrayBuffer slice keeps TS happy regardless of the byte view's offset.
             const buffer = bytes.buffer.slice(
               bytes.byteOffset,
               bytes.byteOffset + bytes.byteLength,
             ) as ArrayBuffer;
             await workspaceServiceRef.current!.writeFileBinary(fullPath, buffer);
-            if (!artifacts.includes(filename)) {
-              artifacts.push(filename);
+            if (!artifacts.includes(path)) {
+              artifacts.push(path);
             }
             const fileTree = await workspaceServiceRef.current!.getFileTree();
             setFileTree(fileTree);
@@ -710,8 +768,10 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
         // Data-loss fix (Codex audit #9): AWAIT the terminal-state write so the
         // .workflow provenance/audit record is durably on disk (the old
         // fire-and-forget could leave it stale/"running" if the app closed right
-        // after the run completed).
-        await writeFileNow(
+        // after the run completed). BUG F2: `writeTerminalFileWithRetry` also
+        // retries on failure and surfaces it if every attempt fails, instead of
+        // awaiting a promise that always resolves even when the write failed.
+        await writeTerminalFileWithRetry(
           executionToFileData({
             execution: finalExecution,
             workflowFolderPath,
@@ -740,7 +800,8 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
         const failedExecution = engine.getExecution();
         if (failedExecution) {
           // Data-loss fix (Codex audit #9): await the terminal failure write too.
-          await writeFileNow(
+          // BUG F2: retry + surface on total failure, same as the success path.
+          await writeTerminalFileWithRetry(
             executionToFileData({
               execution: failedExecution,
               workflowFolderPath,
@@ -908,6 +969,7 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
     setShowInterviewDialog,
     interviewQuestions,
     workflowProviderError,
+    workflowSaveError,
     activeWorkflowFilePath,
     handleStartWorkflow,
     handleInterviewSubmit,

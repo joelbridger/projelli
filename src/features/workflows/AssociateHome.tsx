@@ -68,6 +68,12 @@ interface AssociateHomeProps {
   currentExecution: WorkflowExecution | null;
   runHistory: RunRecord[];
   providerError?: 'needs-provider' | 'ollama-unreachable' | null;
+  /** BUG F2 — set when a run's terminal .workflow record failed to save to
+   *  disk after retries. Non-blocking (unlike `providerError`): the run
+   *  itself finished and its deliverable may be fine, only the audit/replay
+   *  record is at risk, so this renders as a dismissible-feeling warning
+   *  banner rather than a hard stop. */
+  saveError?: string | null;
   onOpenSettings?: () => void;
   onFocusExecutionTab?: () => void;
   onRunChain?: (chain: WorkflowChain) => void;
@@ -529,6 +535,7 @@ export function AssociateHome({
   currentExecution,
   runHistory,
   providerError,
+  saveError,
   onOpenSettings,
   onFocusExecutionTab,
 }: AssociateHomeProps) {
@@ -796,6 +803,24 @@ export function AssociateHome({
                 </Button>
               )}
             </div>
+          </Callout>
+        </div>
+      )}
+
+      {/* BUG F2 — run-record save-error banner. Non-blocking: the run itself
+          already finished (or failed) and its deliverable may be fine; this
+          only warns that the .workflow audit/replay record could not be
+          durably saved after retries. */}
+      {saveError && (
+        <div
+          data-testid="associate-save-error"
+          role="alert"
+          style={{ margin: 'var(--kp-space-sm) var(--kp-gutter) 0' }}
+        >
+          <Callout variant="warning" icon={AlertTriangle}>
+            {/* eslint-disable lantern-i18n/no-hardcoded-string */}
+            <strong>Run record may not have saved.</strong> {saveError}
+            {/* eslint-enable lantern-i18n/no-hardcoded-string */}
           </Callout>
         </div>
       )}
