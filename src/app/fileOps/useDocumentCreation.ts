@@ -49,7 +49,11 @@ export function useDocumentCreation(options: UseDocumentCreationOptions) {
     // create a garbage folder. Coerce anything non-string back to the default.
     const safeParent = typeof parentPath === 'string' ? parentPath : undefined;
     const destDir = safeParent ?? `${rootPath}/docs`;
-    console.log('[DocCreate] text destDir:', destDir);
+    // Bench diagnostic — confirms `destDir` is a real path, never "[object
+    // Object]". DEV-only: the path can contain client-identifying folder names,
+    // which must not leak into production WebView logs (Codex review). The bench
+    // runs the dev build, so it still sees this.
+    if (import.meta.env.DEV) console.log('[DocCreate] text destDir:', destDir);
     // BUG (2026-07-01): the default value used to be '' — 'my-notes' was only
     // the placeholder, so pressing OK on the default silently created nothing
     // (name === '' fails the `!name` check below with no error). Seed a REAL,
@@ -109,7 +113,9 @@ export function useDocumentCreation(options: UseDocumentCreationOptions) {
     // stringify to the literal "[object Object]" and write to a garbage folder.
     const safeParent = typeof parentPath === 'string' ? parentPath : undefined;
     const destDir = safeParent ?? `${rootPath}/docs`;
-    console.log('[DocCreate] docx destDir:', destDir);
+    // Bench diagnostic (see handleCreateTextFileAtRoot) — DEV-only so a
+    // client-identifying path never reaches production logs.
+    if (import.meta.env.DEV) console.log('[DocCreate] docx destDir:', destDir);
     // BUG (2026-07-01): default value used to be '' — 'my-document' was only
     // the placeholder shown in the (unfilled) input and the live preview, so
     // clicking OK without typing anything confirmed an EMPTY name, which the
