@@ -320,7 +320,7 @@
         "field-search-count__sourceHash": "2f0806633aaf65157a22e8f12dc01ccc5dcdf1a5e1c5342832a5775013647ac8",
         "field-install-id": "Tu ID de instalación anónima junto con la versión de la app y la plataforma.",
         "field-install-id__sourceHash": "437f4e1486e40b4e75703e30fd015d545bf24ac08f81b8c93745213186cf41c0",
-        "endpoint-note": "Endpoint: keepance.com/api/forms/keepance/design-partner-event. Se usa únicamente para mejorar el producto para la práctica legal.",
+        "endpoint-note": "Endpoint: forms.lanternplatform.app/api/forms/keepance/design-partner-event. Se usa únicamente para mejorar el producto para la práctica legal.",
         "endpoint-note__sourceHash": "a7fdc5293dc426747949dbd83d6f648f2bfc9d4d4e07d27edb613d9368502f58"
       },
       "telemetry": {
@@ -342,7 +342,7 @@
         "field-event__sourceHash": "bc1f75f1e8aca06d01bb82dfcc2fdd8763fa6bb049773ee3e3bc4567a8c5d6af",
         "field-license-tier": "<c>license_tier</c> (cuando corresponda): trial, personal, professional, practice.",
         "field-license-tier__sourceHash": "f7d152bd910804c89a34c457ce6be8502aa36e700605e229bf85904ae9dc2890",
-        "endpoint-note": "Endpoint: <c>keepance.com/api/forms/keepance/app-event</c>. JSONL almacenado en servidores de Advisor Prep Hero. Se usa únicamente para métricas de embudo y decisiones de hoja de ruta.",
+        "endpoint-note": "Endpoint: <c>forms.lanternplatform.app/api/forms/keepance/app-event</c>. JSONL almacenado en servidores de Advisor Prep Hero. Se usa únicamente para métricas de embudo y decisiones de hoja de ruta.",
         "endpoint-note__sourceHash": "db930261bf43f001c34e4e42013d35c2e5151ba931b8d208f3a0368e29fba6e9",
         "install-id-display": "Tu ID de instalación: <c>{{id}}</c>",
         "install-id-display__sourceHash": "52e2a9cf6161dc02a352627b94c8e6694d0a6aa311200f3f358a7fdf8b213a52"

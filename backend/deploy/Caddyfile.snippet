@@ -1,10 +1,10 @@
-# Caddy snippet for the Keepance firm backend (api.keepance.com).
+# Caddy snippet for the Keepance firm backend (api.lanternplatform.app).
 #
 # DO NOT REPLACE the live /etc/caddy/Caddyfile with this. This is ONE host block
 # to INSERT inside the existing `:8080 { ... }` site block, alongside the other
 # @host handlers. See deploy/RUNBOOK.md for the exact placement + reload steps.
 #
-# It mirrors the existing licenses.keepance.com block (loopback reverse_proxy +
+# It mirrors the existing licenses.lanternplatform.app block (loopback reverse_proxy +
 # hardening headers), pointed at the firm backend's chosen port 5194. It is
 # additive: it does not touch the @licenses block (5181) or any other host.
 #
@@ -12,8 +12,8 @@
 # block (around line 66 of the current Caddyfile), so the two API services sit
 # together and read clearly.
 
-    # api.keepance.com — Keepance firm backend (Bun systemd service; loopback-only)
-    @firmapi host api.keepance.com
+    # api.lanternplatform.app — Keepance firm backend (Bun systemd service; loopback-only)
+    @firmapi host api.lanternplatform.app
     handle @firmapi {
         # Loopback-only Bun service on 5194. Only Caddy should reach it.
         # WebSocket (the matter-sync relay at /matter/:id/sync) is reverse-proxied

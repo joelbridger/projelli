@@ -1,9 +1,9 @@
-# Keepance firm backend — production deploy runbook (`api.keepance.com`)
+# Keepance firm backend — production deploy runbook (`api.lanternplatform.app`)
 
 **Status:** prepared, **NOT executed**. Nothing in here has touched live infra.
 This is the exact ordered one-pass procedure to bring the firm backend up at
-**https://api.keepance.com**, additively, without disturbing the existing
-`licenses.keepance.com` validator.
+**https://api.lanternplatform.app**, additively, without disturbing the existing
+`licenses.lanternplatform.app` validator.
 
 **Target host:** the home server (same box as `license-validator`, Caddy, and the
 Cloudflare tunnel). Deploy posture mirrors `license-validator` exactly:
@@ -17,7 +17,7 @@ systemd-hardened.
 | Loopback port | **5194** (5190/5191/5193 were already occupied; 5194 verified free 2026-06-09) |
 | Env file (real secrets) | `/etc/keepance-firm-backend.env` (root:jameson, chmod 640) |
 | Persistent DB | `/home/jameson/services/keepance-firm-backend/data/keepance-firm.sqlite` |
-| Public hostname | `api.keepance.com` → tunnel → Caddy:8080 → 127.0.0.1:5194 |
+| Public hostname | `api.lanternplatform.app` → tunnel → Caddy:8080 → 127.0.0.1:5194 |
 | Tunnel id | `d4e16129-ddc2-4189-be59-009ebc3f7f6d` |
 | Health endpoint | `GET /healthz` → `{"ok":true,"service":"keepance-firm-backend","version":"0.1.0"}` |
 
@@ -26,9 +26,9 @@ systemd-hardened.
 > `.env.production` returned a healthy `/healthz` and served `/.well-known/seat-pubkey`.
 
 > **⚠️ Coexistence guarantee.** Every step below is additive. The `@licenses` Caddy
-> block (5181), the `licenses.keepance.com` tunnel ingress, and the
+> block (5181), the `licenses.lanternplatform.app` tunnel ingress, and the
 > `license-validator.service` are **never modified**. If anything goes wrong, the
-> rollback in §H removes only the new `api.keepance.com` surface.
+> rollback in §H removes only the new `api.lanternplatform.app` surface.
 
 ---
 
@@ -135,8 +135,8 @@ Then edit `/etc/caddy/Caddyfile` and paste this block after the `@licenses` bloc
 (do NOT modify the `@licenses` block itself):
 
 ```caddy
-    # api.keepance.com — Keepance firm backend (Bun systemd service; loopback-only)
-    @firmapi host api.keepance.com
+    # api.lanternplatform.app — Keepance firm backend (Bun systemd service; loopback-only)
+    @firmapi host api.lanternplatform.app
     handle @firmapi {
         reverse_proxy 127.0.0.1:5194
         header {
@@ -155,9 +155,9 @@ caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 sudo systemctl reload caddy
 # (or: sudo caddy reload --config /etc/caddy/Caddyfile)
 
-# Caddy is reachable only via loopback:8080; you can't curl api.keepance.com yet
+# Caddy is reachable only via loopback:8080; you can't curl api.lanternplatform.app yet
 # (DNS/tunnel come next), but you can confirm the route resolves with a Host header:
-curl -s -H 'Host: api.keepance.com' http://127.0.0.1:8080/healthz ; echo
+curl -s -H 'Host: api.lanternplatform.app' http://127.0.0.1:8080/healthz ; echo
 # expect the same healthz JSON, now proxied through Caddy.
 ```
 
@@ -177,15 +177,15 @@ Edit `/etc/cloudflared/config.yml` and add this line to the `ingress:` list,
 other keepance.com hostnames):
 
 ```yaml
-  - hostname: api.keepance.com
+  - hostname: api.lanternplatform.app
     service: http://localhost:8080
 ```
 
 Add the DNS record (one proxied CNAME → the tunnel). Easiest is the cloudflared CLI:
 
 ```bash
-# Creates/repoints the proxied CNAME api.keepance.com -> <tunnel-id>.cfargotunnel.com:
-sudo cloudflared tunnel route dns d4e16129-ddc2-4189-be59-009ebc3f7f6d api.keepance.com
+# Creates/repoints the proxied CNAME api.lanternplatform.app -> <tunnel-id>.cfargotunnel.com:
+sudo cloudflared tunnel route dns d4e16129-ddc2-4189-be59-009ebc3f7f6d api.lanternplatform.app
 ```
 (or add it by hand in the Cloudflare dashboard: CNAME `api` →
 `d4e16129-ddc2-4189-be59-009ebc3f7f6d.cfargotunnel.com`, **Proxied**.)
@@ -209,19 +209,19 @@ journalctl -u cloudflared -n 20 --no-pager   # confirm it picked up the new ingr
 
 ```bash
 # 1) Public health through the full path (DNS -> tunnel -> Caddy -> 5194):
-curl -s https://api.keepance.com/healthz ; echo
+curl -s https://api.lanternplatform.app/healthz ; echo
 # expect: {"ok":true,"service":"keepance-firm-backend","version":"0.1.0"}
 
 # 2) Seat public key is served (the client embeds/verifies against this):
-curl -s https://api.keepance.com/.well-known/seat-pubkey | head -1
+curl -s https://api.lanternplatform.app/.well-known/seat-pubkey | head -1
 # expect: -----BEGIN PUBLIC KEY-----
 
 # 3) TLS terminates at Cloudflare's edge (cert valid, HTTP/2):
-curl -sI https://api.keepance.com/healthz | head -5
+curl -sI https://api.lanternplatform.app/healthz | head -5
 
 # 4) Confirm the EXISTING validator is still healthy and untouched:
-curl -s https://licenses.keepance.com/healthz 2>/dev/null || \
-  curl -sI https://licenses.keepance.com/ | head -3
+curl -s https://licenses.lanternplatform.app/healthz 2>/dev/null || \
+  curl -sI https://licenses.lanternplatform.app/ | head -3
 ```
 
 > **Caddy catch-all caveat (house rule):** always check the response **body**, not
@@ -235,11 +235,11 @@ curl -s https://licenses.keepance.com/healthz 2>/dev/null || \
 The client's firm base URL is centralized in **one file**:
 `src/modules/firm/firmConfig.ts`. The production constant currently reads
 `https://firm.keepance.com`; the deploy-readiness doc and this deployment use
-**`https://api.keepance.com`**. Reconcile it:
+**`https://api.lanternplatform.app`**. Reconcile it:
 
 ```diff
 - const PROD_FIRM_API_BASE = 'https://firm.keepance.com';
-+ const PROD_FIRM_API_BASE = 'https://api.keepance.com';
++ const PROD_FIRM_API_BASE = 'https://api.lanternplatform.app';
 ```
 
 That single constant feeds **both** `getFirmApiBase()` (all HTTP calls:
@@ -250,20 +250,20 @@ client change is needed for the URL cutover.
 Two related items that belong with the 3.0 version bump (per the deploy-readiness
 doc, gated to go-live — **not** part of standing up the backend):
 - **CSP `connect-src`** in `src-tauri/tauri.conf.json` must include
-  `https://api.keepance.com` (and the matching `wss://api.keepance.com` if the CSP
+  `https://api.lanternplatform.app` (and the matching `wss://api.lanternplatform.app` if the CSP
   enumerates WebSocket origins) so the packaged app may reach the backend.
 - Verify `src/modules/firm/firmConfig.ts` `FIRM_APP_VERSION` (`'3.0.0'`) matches the
   release version.
 
 > For staging/QA against the live backend without rebuilding, set
-> `VITE_FIRM_API_BASE=https://api.keepance.com` at build time — it overrides the
+> `VITE_FIRM_API_BASE=https://api.lanternplatform.app` at build time — it overrides the
 > constant (resolution order: env override → dev proxy → prod constant).
 
 ---
 
-## H. Rollback (removes ONLY the new api.keepance.com surface)
+## H. Rollback (removes ONLY the new api.lanternplatform.app surface)
 
-Each layer is independently reversible; `licenses.keepance.com` (5181) and
+Each layer is independently reversible; `licenses.lanternplatform.app` (5181) and
 `license-validator.service` are never modified, so solo/v2.5 licensing is
 unaffected throughout.
 
@@ -282,7 +282,7 @@ sudo systemctl reload caddy
 sudo cp /etc/cloudflared/config.yml.bak.<EPOCH> /etc/cloudflared/config.yml
 sudo systemctl restart cloudflared
 
-# 4) (Optional) remove the DNS record api.keepance.com in the Cloudflare dashboard.
+# 4) (Optional) remove the DNS record api.lanternplatform.app in the Cloudflare dashboard.
 #    Leaving it is harmless once the ingress is gone (it just 404s at the tunnel).
 
 # 5) Secrets/data persist on disk for a clean retry. To fully tear down:
@@ -329,7 +329,7 @@ and a throwaway-port boot smoke test.*
 
 ## §K — SECURITY: /admin/* blocked at the edge (2026-06-11, VG-6b finding)
 
-**Incident:** `POST https://api.keepance.com/admin/org` was reachable from the public internet, unauthenticated, and minted a Firm org + admin user + a valid license key (`handleCreateOrg`, `routes/admin.ts:171` — no `requireAdmin`, by design "billing-webhook driven behind a loopback allowlist"). But the `@firmapi` Caddy block was a blanket `reverse_proxy 127.0.0.1:5194` with no path filter, so the assumed loopback allowlist never existed at the edge. Blast radius: free self-provisioned Firm tier + a foothold into the `/assured/*` zero-retention proxy (provider-key/quota abuse). No existing-customer data exposed (0 orgs; E2EE + cross-org isolation intact).
+**Incident:** `POST https://api.lanternplatform.app/admin/org` was reachable from the public internet, unauthenticated, and minted a Firm org + admin user + a valid license key (`handleCreateOrg`, `routes/admin.ts:171` — no `requireAdmin`, by design "billing-webhook driven behind a loopback allowlist"). But the `@firmapi` Caddy block was a blanket `reverse_proxy 127.0.0.1:5194` with no path filter, so the assumed loopback allowlist never existed at the edge. Blast radius: free self-provisioned Firm tier + a foothold into the `/assured/*` zero-retention proxy (provider-key/quota abuse). No existing-customer data exposed (0 orgs; E2EE + cross-org isolation intact).
 
 **Fix (live 2026-06-11):** added inside the `@firmapi` handle block, before the reverse_proxy:
 ```caddy

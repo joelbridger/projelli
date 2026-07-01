@@ -8,9 +8,9 @@
 # It serves the Firm tier (identity/auth, per-org seat licensing, the E2EE sync
 # relay, and the assured zero-retention inference proxy). It is loopback-only;
 # Caddy (:8080) terminates TLS and is the only thing that talks to it, reached
-# from the public internet via the Cloudflare tunnel as api.keepance.com.
+# from the public internet via the Cloudflare tunnel as api.lanternplatform.app.
 #
-# It is ADDITIVE and independent of license-validator (5181 / licenses.keepance.com),
+# It is ADDITIVE and independent of license-validator (5181 / licenses.lanternplatform.app),
 # which is never touched by this deployment.
 
 [Unit]
