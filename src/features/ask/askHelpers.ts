@@ -16,9 +16,7 @@ import {
 } from '@/platform/rag/sourceProvenance';
 import type { WorkspaceSource } from '@/platform/types/ai';
 import type { RagHit } from '@/platform/utils/tauri-commands';
-import { ClaudeProvider } from '@/platform/providers/ClaudeProvider';
-import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
-import { GeminiProvider } from '@/platform/providers/GeminiProvider';
+import { createProvider } from '@/platform/providers/providerFactory';
 import {
   resolveAvailableLocalGenerationProvider,
   resolveLocalGenerationProvider,
@@ -376,32 +374,12 @@ export async function buildResolvedAskProvider(): Promise<ResolvedAskProvider> {
     const apiKey = cloudKeys[resolved.provider];
     if (apiKey) {
       assertCloudGenerationAllowed();
-      switch (resolved.provider) {
-        case 'anthropic': {
-          const provider = new ClaudeProvider({ apiKey, model: resolved.model });
-          return {
-            provider,
-            providerId: 'anthropic',
-            model: provider.getMetadata().model,
-          };
-        }
-        case 'openai': {
-          const provider = new OpenAIProvider({ apiKey, model: resolved.model });
-          return {
-            provider,
-            providerId: 'openai',
-            model: provider.getMetadata().model,
-          };
-        }
-        case 'google': {
-          const provider = new GeminiProvider({ apiKey, model: resolved.model });
-          return {
-            provider,
-            providerId: 'google',
-            model: provider.getMetadata().model,
-          };
-        }
-      }
+      // One front door: build through the shared factory so this surface can
+      // never drift from the redline / chat / Client Map on which provider a
+      // given selection maps to (fix F2.2). resolved.provider is cloud-only
+      // here; the factory throws on an unknown id rather than defaulting.
+      const provider = createProvider({ provider: resolved.provider, apiKey, model: resolved.model });
+      return { provider, providerId: resolved.provider, model: provider.getMetadata().model };
     }
   }
   // No usable cloud provider (no key, or no explicit choice yet). In Direct /

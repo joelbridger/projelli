@@ -16,9 +16,7 @@ import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
 import { buildWorkspaceContextBlock } from '@/platform/rag/workspaceCommand';
 import { filterHitsForExportConsent } from '@/platform/rag/exportConsent';
 import { KeychainService } from '@/platform/providers/KeychainService';
-import { ClaudeProvider } from '@/platform/providers/ClaudeProvider';
-import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
-import { GeminiProvider } from '@/platform/providers/GeminiProvider';
+import { createProvider } from '@/platform/providers/providerFactory';
 import { resolveLocalGenerationProvider } from '@/platform/providers/resolveLocalProvider';
 import type { Provider } from '@/platform/providers/Provider';
 import { isLocalOnlyMode, assertCloudGenerationAllowed, assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
@@ -196,20 +194,10 @@ export async function buildResolvedProviderForGlance(): Promise<ResolvedGlancePr
     const apiKey = cloudKeys[resolved.provider];
     if (apiKey) {
       assertCloudGenerationAllowed();
-      switch (resolved.provider) {
-        case 'anthropic': {
-          const provider = new ClaudeProvider({ apiKey, model: resolved.model });
-          return { provider, providerId: 'anthropic', model: provider.getMetadata().model };
-        }
-        case 'openai': {
-          const provider = new OpenAIProvider({ apiKey, model: resolved.model });
-          return { provider, providerId: 'openai', model: provider.getMetadata().model };
-        }
-        case 'google': {
-          const provider = new GeminiProvider({ apiKey, model: resolved.model });
-          return { provider, providerId: 'google', model: provider.getMetadata().model };
-        }
-      }
+      // One front door: build through the shared factory (fix F2.2) so
+      // At-a-Glance can never drift from Ask / redline on provider construction.
+      const provider = createProvider({ provider: resolved.provider, apiKey, model: resolved.model });
+      return { provider, providerId: resolved.provider, model: provider.getMetadata().model };
     }
   }
   // No usable cloud key — fall back to the on-device engine (embedded model when
