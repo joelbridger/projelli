@@ -98,8 +98,10 @@ Layer sizes (≈): app 33 · features 279 · platform 179 · ui 34 · lib 4.
   the internal namespace is `lantern` (`APP_NS` — single source of truth:
   `src/config/identity.ts` on the TS side, `src-tauri/src/identity.rs` on the
   Rust side), which the 2026-06-29 Lantern rename applied everywhere: Tauri
-  bundle id `com.lantern.app`; keychain prefixes `com.lantern.*`; localStorage
-  keys `lantern:settings`, `ai-chat-storage`, and the matter keys
+  bundle id `com.lantern.app`; keychain prefixes both the reverse-DNS
+  `com.lantern.*` (firm/vault/AI-key services) and the Rust-owned `lantern-*`
+  services (e.g. `lantern-audit-enc`, `lantern-mail-enc`, `lantern-crm-`);
+  localStorage keys `lantern:settings`, `ai-chat-storage`, and the matter keys
   `lantern:matters` / `lantern:matter-ui-snapshots` / `lantern:matter-at-a-glance`.
   (Pre-launch with zero outside users at the time, so the rename didn't need
   to preserve the old `com.keepance.*` / `keepance:*` names anywhere.)
