@@ -391,6 +391,191 @@ describe('DocxEditor — accept / reject flow', () => {
     );
   });
 
+  // CLUSTER-C1 (data loss): a keystroke that's still sitting in the
+  // contentEditable DOM — focused, never blurred — must not be silently
+  // dropped just because the tab closed before the user clicked away.
+  it('CLUSTER-C1: commits an in-progress (focused, un-blurred) edit on unmount', async () => {
+    const oneRunDoc: DocumentJson = {
+      formatVersion: 1,
+      body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'original text' }] }],
+      comments: {},
+    };
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'docx_open') return Promise.resolve(oneRunDoc);
+      if (cmd === 'docx_save') return Promise.resolve(undefined);
+      return Promise.resolve(undefined);
+    });
+
+    const { unmount } = renderEditor();
+    const run = await screen.findByTestId('docx-run');
+
+    // Reviewing OFF: a direct, synchronous plain-text replacement — isolates
+    // this test to the focus/blur commit mechanism itself, not the async
+    // tracked-changes diff path (covered separately).
+    fireEvent.click(screen.getByTestId('docx-reviewing-toggle'));
+
+    // The user types (focus fires, DOM text changes) but never clicks away —
+    // no blur event, ever.
+    fireEvent.focus(run);
+    run.textContent = 'original text EDITED';
+
+    // No save should be scheduled yet — nothing committed the edit.
+    expect(invokeMock).not.toHaveBeenCalledWith('docx_save', expect.anything());
+
+    // Close the tab. The unmount cleanup must read the live DOM text of the
+    // still-focused run and fold it in, exactly as a blur would, then flush it.
+    unmount();
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith(
+        'docx_save',
+        expect.objectContaining({
+          document: expect.objectContaining({
+            body: [
+              expect.objectContaining({
+                inlines: [expect.objectContaining({ kind: 'run', text: 'original text EDITED' })],
+              }),
+            ],
+          }),
+        }),
+      ),
+    );
+  });
+
+  // CLUSTER-C1: the same in-progress edit must also survive hitting Export
+  // without clicking away first (the brief explicitly calls out export as a
+  // second trigger point, alongside tab-close).
+  it('CLUSTER-C1: commits an in-progress (focused, un-blurred) edit before export', async () => {
+    const oneRunDoc: DocumentJson = {
+      formatVersion: 1,
+      body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'original text' }] }],
+      comments: {},
+    };
+    saveDialogMock.mockReset();
+    saveDialogMock.mockResolvedValue('/out/x.docx');
+
+    invokeMock.mockImplementation((cmd: string, args?: Record<string, unknown>) => {
+      if (cmd === 'docx_open') return Promise.resolve(oneRunDoc);
+      if (cmd === 'docx_save') return Promise.resolve(undefined);
+      if (cmd === 'docx_export_copy') {
+        expect(args?.['srcPath']).toBe('/ws/agreement.docx');
+        return Promise.resolve(undefined);
+      }
+      return Promise.resolve(undefined);
+    });
+
+    renderEditor();
+    const run = await screen.findByTestId('docx-run');
+    fireEvent.click(screen.getByTestId('docx-reviewing-toggle'));
+
+    fireEvent.focus(run);
+    run.textContent = 'original text EDITED';
+    // No blur — go straight to Export.
+
+    const trigger = await screen.findByTestId('docx-export');
+    fireEvent.pointerDown(trigger, new MouseEvent('pointerdown', { bubbles: true }));
+    fireEvent.click(trigger);
+    fireEvent.click(await screen.findByTestId('docx-export-word'));
+
+    // The save that precedes export must carry the in-progress edit, not the
+    // stale pre-edit text.
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith(
+        'docx_save',
+        expect.objectContaining({
+          document: expect.objectContaining({
+            body: [
+              expect.objectContaining({
+                inlines: [expect.objectContaining({ text: 'original text EDITED' })],
+              }),
+            ],
+          }),
+        }),
+      ),
+    );
+  });
+
+  // CLUSTER-C2 (data loss): two document-mutating ops started close together
+  // must never let a slower earlier op land AFTER a faster later one and
+  // clobber it — the second op must always build on the first op's result.
+  it('CLUSTER-C2: a second op started while the first is still in flight builds on the first result, not a stale snapshot', async () => {
+    const afterAccept: DocumentJson = {
+      formatVersion: 1,
+      body: [
+        {
+          kind: 'paragraph',
+          inlines: [
+            { kind: 'run', text: 'The party ' },
+            { kind: 'run', text: 'hereby ' },
+            { kind: 'run', text: 'agrees ' },
+            {
+              kind: 'deletion',
+              meta: { id: '101', author: 'Bob Partner', date: '2026-01-03T09:00:00Z' },
+              runs: [{ text: 'reluctantly ' }],
+            },
+            { kind: 'run', text: 'to the terms.' },
+          ],
+        },
+      ],
+      comments: {},
+    };
+    const afterRejectAll: DocumentJson = {
+      formatVersion: 1,
+      body: [
+        {
+          kind: 'paragraph',
+          inlines: [{ kind: 'run', text: 'The party agrees to the terms.' }],
+        },
+      ],
+      comments: {},
+    };
+
+    let resolveAccept: ((doc: DocumentJson) => void) | undefined;
+    const acceptPromise = new Promise<DocumentJson>((resolve) => {
+      resolveAccept = resolve;
+    });
+
+    invokeMock.mockImplementation((cmd: string, args?: Record<string, unknown>) => {
+      if (cmd === 'docx_open') return Promise.resolve(docWithRevisions());
+      if (cmd === 'docx_resolve_revision') return acceptPromise;
+      if (cmd === 'docx_resolve_all') {
+        // The KEY assertion: reject-all must run against the RESULT of the
+        // already-landed accept, not the doc that was current when the user
+        // clicked Reject All (which was still the original, un-accepted doc).
+        expect(args?.['document']).toEqual(afterAccept);
+        return Promise.resolve(afterRejectAll);
+      }
+      if (cmd === 'docx_save') return Promise.resolve(undefined);
+      return Promise.resolve(undefined);
+    });
+
+    renderEditor();
+    const list = await screen.findByTestId('docx-revision-list');
+    const insRow = within(list)
+      .getAllByTestId('docx-revision-row')
+      .find((r) => r.getAttribute('data-revision-id') === '100')!;
+    fireEvent.click(within(insRow).getByTestId('docx-accept-one')); // op1: kicked off, stays pending
+
+    // While op1 is still unresolved, fire op2.
+    fireEvent.click(screen.getByTestId('docx-reject-all'));
+
+    // op2 must NOT have reached the engine yet — it's queued behind op1.
+    await new Promise((r) => setTimeout(r, 20));
+    expect(invokeMock).not.toHaveBeenCalledWith('docx_resolve_all', expect.anything());
+
+    // Now let op1 land.
+    resolveAccept?.(afterAccept);
+
+    // op2 now runs (the mock's assertion above verifies its base doc).
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith('docx_resolve_all', expect.anything()),
+    );
+
+    // Final state reflects op2's result — nothing was silently lost or
+    // overwritten out of order.
+    await waitFor(() => expect(screen.getByTestId('docx-no-changes')).toBeInTheDocument());
+  });
+
   it('Reject all calls docx_resolve_all with action=reject', async () => {
     const cleared: DocumentJson = {
       formatVersion: 1,

@@ -171,6 +171,15 @@ export interface DocxAiEdit {
   anchorText?: string;
   /** Inserted / replacement text. Required for insert/replace. */
   newText?: string;
+  /**
+   * Insert (op 'insert' only) at the literal start of the paragraph instead of
+   * after `anchorText` or — when both are omitted — appended at the paragraph
+   * end. An omitted `anchorText` alone is ambiguous between "append at end"
+   * and "insert at the very beginning"; this flag disambiguates the latter
+   * (see `diffParagraphEdits` in `docx-text-diff.ts`, which sets it for a
+   * user edit that inserts text before everything else in the paragraph).
+   */
+  atParagraphStart?: boolean;
   /** Why the AI made this edit — shown in the results panel, ignored by engine. */
   reason?: string;
 }

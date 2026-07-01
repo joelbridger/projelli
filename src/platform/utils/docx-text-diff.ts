@@ -161,14 +161,26 @@ export function diffParagraphEdits(
       precedingEqual = '';
       continue;
     }
-    // Pure insertion: anchor after the preceding equal text (if any).
+    // Pure insertion: anchor after the preceding equal text (if any). No
+    // preceding equal text only happens for the very first span in the whole
+    // diff (an adjacent delete+insert pair is always merged into 'replace'
+    // above, so a later standalone insert always has real preceding text) —
+    // i.e. this insertion sits at the literal start of the paragraph. Mark it
+    // explicitly with `atParagraphStart` rather than leaving `anchorText`
+    // unset, because an unset anchor means "append at the end" to the engine
+    // (CLUSTER-C4) — leaving it implicit silently moved start-of-paragraph
+    // edits to the end of the paragraph instead.
     const insert: DocxAiEdit = {
       op: 'insert',
       paragraphIndex,
       newText: span.text,
       reason: 'User edit',
     };
-    if (precedingEqual.length > 0) insert.anchorText = precedingEqual;
+    if (precedingEqual.length > 0) {
+      insert.anchorText = precedingEqual;
+    } else {
+      insert.atParagraphStart = true;
+    }
     edits.push(insert);
     precedingEqual = '';
   }

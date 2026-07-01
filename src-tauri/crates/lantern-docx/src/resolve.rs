@@ -33,7 +33,13 @@
 //! The result therefore still satisfies the serializer's invariants and
 //! round-trips through serialize → parse like any other DOM.
 
+use quick_xml::events::{BytesEnd, BytesStart, Event};
+use quick_xml::reader::Reader;
+use quick_xml::writer::Writer;
+
+use crate::error::{DocxError, Result as DocxResult};
 use crate::model::{BlockContent, Document, Inline, Run};
+use crate::parse::local_of;
 
 /// What to do with a tracked change. Serialized in camelCase (`"accept"` /
 /// `"reject"`) so the React editor can pass a plain string; also constructible
@@ -102,9 +108,16 @@ fn resolve_inlines(inlines: &mut Vec<Inline>, action: ResolveAction, pred: &impl
 /// inline in the document whose revision id equals `revision_id`. Unrelated
 /// revisions, comments, and preserved content are left untouched.
 ///
-/// Returns `true` if at least one matching revision inline was found and
-/// resolved, `false` if `revision_id` matched nothing (the document is then
-/// unchanged) — the command layer turns the latter into an error.
+/// Tables and other unmodeled body blocks are stored as raw XML
+/// ([`BlockContent::Raw`]) rather than parsed paragraphs, so a tracked change
+/// living inside one is invisible to the paragraph walk above. We additionally
+/// scan/transform those raw blocks via [`resolve_raw_xml`] so a revision id
+/// that only exists inside a table is still found and resolved (never silently
+/// left in place — see CLUSTER-C3).
+///
+/// Returns `true` if at least one matching revision was found and resolved,
+/// `false` if `revision_id` matched nothing (the document is then unchanged) —
+/// the command layer turns the latter into an error.
 pub fn resolve_revision(doc: &mut Document, revision_id: &str, action: ResolveAction) -> bool {
     // Note whether the id exists *before* mutating, since resolving consumes the
     // matching inlines (so we can't observe them afterward).
@@ -113,7 +126,7 @@ pub fn resolve_revision(doc: &mut Document, revision_id: &str, action: ResolveAc
             Inline::Insertion { meta, .. } | Inline::Deletion { meta, .. } => meta.id == revision_id,
             _ => false,
         }),
-        BlockContent::Raw { .. } => false,
+        BlockContent::Raw { xml } => raw_xml_revision_ids(xml).iter().any(|id| id == revision_id),
     });
     if !found {
         return false;
@@ -121,8 +134,15 @@ pub fn resolve_revision(doc: &mut Document, revision_id: &str, action: ResolveAc
 
     let pred = |id: &str| id == revision_id;
     for block in &mut doc.body {
-        if let BlockContent::Paragraph(p) = block {
-            resolve_inlines(&mut p.inlines, action, &pred);
+        match block {
+            BlockContent::Paragraph(p) => resolve_inlines(&mut p.inlines, action, &pred),
+            BlockContent::Raw { xml } => {
+                if let Ok((new_xml, changed)) = resolve_raw_xml(xml, action, &pred) {
+                    if changed {
+                        *xml = new_xml;
+                    }
+                }
+            }
         }
     }
     true
@@ -130,10 +150,13 @@ pub fn resolve_revision(doc: &mut Document, revision_id: &str, action: ResolveAc
 
 /// Resolve **every** revision in the document with the same action (accept-all
 /// or reject-all) — what the review pane's bulk buttons call. Comments and
-/// preserved content are untouched. Returns the number of revision inlines that
-/// were resolved (0 when the document had no tracked changes).
+/// preserved content are untouched. Also resolves tracked changes embedded in
+/// raw (table / unmodeled) blocks via [`resolve_raw_xml`] — see
+/// [`resolve_revision`]'s doc comment for why that pass exists. Returns the
+/// number of revisions that were resolved (0 when the document had no tracked
+/// changes anywhere, paragraphs or raw blocks).
 pub fn resolve_all(doc: &mut Document, action: ResolveAction) -> usize {
-    let resolved = doc
+    let paragraph_revisions = doc
         .body
         .iter()
         .filter_map(|b| match b {
@@ -143,6 +166,16 @@ pub fn resolve_all(doc: &mut Document, action: ResolveAction) -> usize {
         .flat_map(|p| p.inlines.iter())
         .filter(|i| matches!(i, Inline::Insertion { .. } | Inline::Deletion { .. }))
         .count();
+    let raw_revisions: usize = doc
+        .body
+        .iter()
+        .filter_map(|b| match b {
+            BlockContent::Raw { xml } => Some(xml.as_str()),
+            BlockContent::Paragraph(_) => None,
+        })
+        .map(|xml| raw_xml_revision_ids(xml).len())
+        .sum();
+    let resolved = paragraph_revisions + raw_revisions;
 
     if resolved == 0 {
         return 0;
@@ -151,11 +184,237 @@ pub fn resolve_all(doc: &mut Document, action: ResolveAction) -> usize {
     // Predicate matches any id → resolve all insertions/deletions.
     let pred = |_id: &str| true;
     for block in &mut doc.body {
-        if let BlockContent::Paragraph(p) = block {
-            resolve_inlines(&mut p.inlines, action, &pred);
+        match block {
+            BlockContent::Paragraph(p) => resolve_inlines(&mut p.inlines, action, &pred),
+            BlockContent::Raw { xml } => {
+                if let Ok((new_xml, changed)) = resolve_raw_xml(xml, action, &pred) {
+                    if changed {
+                        *xml = new_xml;
+                    }
+                }
+            }
         }
     }
     resolved
+}
+
+// ===========================================================================
+// Raw-XML tracked-change resolution (CLUSTER-C3)
+//
+// Tables and other unmodeled body blocks round-trip as exact source XML
+// (`BlockContent::Raw`) rather than a parsed paragraph tree, so the
+// `resolve_inlines` walk above can never see a `w:ins`/`w:del` living inside
+// one — accept/reject (single or "all") would otherwise silently leave
+// deleted text sitting in the saved `.docx` (a confidentiality bug: a deleted
+// client name inside a table survives "Accept All"). This is a stream-level
+// transform over the raw XML that applies the SAME Word semantics
+// (`resolve_inlines`'s table above) without needing to parse the block
+// structurally.
+// ===========================================================================
+
+/// Read a `w:*` attribute by local name (e.g. `"id"`) from a raw start tag.
+fn raw_attr(e: &BytesStart<'_>, want_local: &str) -> Option<String> {
+    e.attributes().with_checks(false).flatten().find_map(|a| {
+        if local_of(a.key) == want_local {
+            Some(String::from_utf8_lossy(&a.value).into_owned())
+        } else {
+            None
+        }
+    })
+}
+
+/// Collect the `w:id` of every `w:ins`/`w:del` in a raw XML fragment. Used by
+/// [`resolve_revision`]'s "does this id exist anywhere" check and by
+/// [`resolve_all`]'s revision count. Malformed XML is treated as having no
+/// revisions (preserve-don't-crash; the normal save/serialize path is the one
+/// responsible for XML validity, not this best-effort scan).
+fn raw_xml_revision_ids(xml: &str) -> Vec<String> {
+    let mut reader = Reader::from_str(xml);
+    reader.config_mut().trim_text(false);
+    let mut ids = Vec::new();
+    loop {
+        let event = match reader.read_event() {
+            Ok(ev) => ev,
+            Err(_) => break,
+        };
+        match event {
+            Event::Start(e) | Event::Empty(e) => {
+                let ln = local_of(e.name());
+                if ln == "ins" || ln == "del" {
+                    if let Some(id) = raw_attr(&e, "id") {
+                        ids.push(id);
+                    }
+                }
+            }
+            Event::Eof => break,
+            _ => {}
+        }
+    }
+    ids
+}
+
+/// What an open element in [`resolve_raw_xml`]'s stream walk should do with its
+/// own start/end tags and (transitively, via the ambient-mode scan) its
+/// children.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RawFrame {
+    /// Pass the element through unchanged.
+    Keep,
+    /// Suppress only this element's own start/end tags; children pass through
+    /// normally (accepting an insertion: unwrap `w:ins`, keep its runs).
+    Unwrap,
+    /// Suppress this element AND everything inside it (rejecting an insertion,
+    /// or accepting a deletion: the content must not survive at all).
+    Drop,
+    /// Suppress this element's own tags; any `w:delText` descendant (at any
+    /// depth) gets rewritten to a plain `w:t` (rejecting a deletion: the
+    /// struck text comes back as normal visible text).
+    UnwrapRestoreText,
+    /// This element IS a `w:delText` being rewritten to `w:t` because an
+    /// ancestor frame is [`RawFrame::UnwrapRestoreText`].
+    RenameToPlainText,
+}
+
+/// Build a renamed tag name (`w:delText` -> `w:t`) preserving whatever
+/// namespace prefix the original element used.
+fn renamed_qname(original: quick_xml::name::QName<'_>, new_local: &str) -> String {
+    let bytes = original.as_ref();
+    match bytes.iter().position(|&b| b == b':') {
+        Some(idx) => {
+            let prefix = std::str::from_utf8(&bytes[..idx]).unwrap_or("w");
+            format!("{prefix}:{new_local}")
+        }
+        None => new_local.to_string(),
+    }
+}
+
+fn xml_write_err(e: impl std::fmt::Display) -> DocxError {
+    DocxError::Xml(format!("write raw OOXML during resolve: {e}"))
+}
+
+/// Resolve tracked changes (`w:ins` / `w:del`) embedded in a raw (unmodeled)
+/// Word XML fragment — the table/content-control/etc. blocks the typed DOM
+/// preserves verbatim as [`BlockContent::Raw`]. `pred` matches a candidate's
+/// `w:id` attribute (pass `|_| true` to resolve every revision in the
+/// fragment, as accept-all/reject-all do). Mirrors [`resolve_inlines`]'s
+/// semantics exactly:
+///
+/// | element | Accept | Reject |
+/// |---|---|---|
+/// | `w:ins` | unwrap — keep the inserted text as plain runs | drop entirely |
+/// | `w:del` | drop entirely | unwrap — restore as plain text (`w:delText` -> `w:t`) |
+///
+/// An element whose id doesn't match `pred` (or any element outside one) is
+/// re-emitted byte-for-byte, so unrelated revisions and all other markup
+/// (table grid, cell properties, run properties, …) round-trip untouched.
+///
+/// Returns the (possibly unchanged) XML and whether anything was resolved.
+pub(crate) fn resolve_raw_xml(
+    xml: &str,
+    action: ResolveAction,
+    pred: &impl Fn(&str) -> bool,
+) -> DocxResult<(String, bool)> {
+    let mut reader = Reader::from_str(xml);
+    reader.config_mut().trim_text(false);
+    let mut writer = Writer::new(Vec::with_capacity(xml.len()));
+    let mut stack: Vec<RawFrame> = Vec::new();
+    let mut changed = false;
+
+    loop {
+        let event = reader.read_event().map_err(xml_write_err)?;
+        let in_drop = stack.iter().any(|f| matches!(f, RawFrame::Drop));
+        let in_restore = !in_drop && stack.iter().any(|f| matches!(f, RawFrame::UnwrapRestoreText));
+
+        match event {
+            Event::Start(e) => {
+                if in_drop {
+                    stack.push(RawFrame::Drop);
+                    continue;
+                }
+                let ln = local_of(e.name());
+                let id = raw_attr(&e, "id");
+                if !in_restore && ln == "ins" && id.as_deref().is_some_and(pred) {
+                    changed = true;
+                    match action {
+                        ResolveAction::Accept => stack.push(RawFrame::Unwrap),
+                        ResolveAction::Reject => stack.push(RawFrame::Drop),
+                    }
+                } else if !in_restore && ln == "del" && id.as_deref().is_some_and(pred) {
+                    changed = true;
+                    match action {
+                        ResolveAction::Accept => stack.push(RawFrame::Drop),
+                        ResolveAction::Reject => stack.push(RawFrame::UnwrapRestoreText),
+                    }
+                } else if in_restore && ln == "delText" {
+                    let new_name = renamed_qname(e.name(), "t");
+                    let mut new_e = BytesStart::new(new_name);
+                    for a in e.attributes().with_checks(false).flatten() {
+                        new_e.push_attribute(a);
+                    }
+                    writer.write_event(Event::Start(new_e)).map_err(xml_write_err)?;
+                    stack.push(RawFrame::RenameToPlainText);
+                } else {
+                    writer.write_event(Event::Start(e.borrow())).map_err(xml_write_err)?;
+                    stack.push(RawFrame::Keep);
+                }
+            }
+            Event::Empty(e) => {
+                if in_drop {
+                    continue;
+                }
+                let ln = local_of(e.name());
+                let id = raw_attr(&e, "id");
+                if !in_restore && ln == "ins" && id.as_deref().is_some_and(pred) {
+                    // Empty insertion: nothing to keep on accept, nothing to
+                    // drop further on reject — either way, write nothing.
+                    changed = true;
+                } else if !in_restore && ln == "del" && id.as_deref().is_some_and(pred) {
+                    // Empty deletion: no text to restore or remove.
+                    changed = true;
+                } else if in_restore && ln == "delText" {
+                    let new_name = renamed_qname(e.name(), "t");
+                    let mut new_e = BytesStart::new(new_name);
+                    for a in e.attributes().with_checks(false).flatten() {
+                        new_e.push_attribute(a);
+                    }
+                    writer.write_event(Event::Empty(new_e)).map_err(xml_write_err)?;
+                } else {
+                    writer.write_event(Event::Empty(e.borrow())).map_err(xml_write_err)?;
+                }
+            }
+            Event::End(e) => match stack.pop() {
+                Some(RawFrame::Keep) => {
+                    writer.write_event(Event::End(e.borrow())).map_err(xml_write_err)?;
+                }
+                Some(RawFrame::RenameToPlainText) => {
+                    let new_name = renamed_qname(e.name(), "t");
+                    writer
+                        .write_event(Event::End(BytesEnd::new(new_name)))
+                        .map_err(xml_write_err)?;
+                }
+                // Unwrap / Drop / UnwrapRestoreText: the wrapper's own end tag
+                // (or the whole dropped subtree) is suppressed.
+                Some(RawFrame::Unwrap | RawFrame::Drop | RawFrame::UnwrapRestoreText) => {}
+                // Defensive: an End with no matching pushed frame (shouldn't
+                // happen for well-formed XML) — pass it through rather than
+                // silently eating it.
+                None => {
+                    writer.write_event(Event::End(e.borrow())).map_err(xml_write_err)?;
+                }
+            },
+            Event::Eof => break,
+            other => {
+                if !in_drop {
+                    writer.write_event(other.borrow()).map_err(xml_write_err)?;
+                }
+            }
+        }
+    }
+
+    let bytes = writer.into_inner();
+    let new_xml = String::from_utf8(bytes)
+        .map_err(|e| DocxError::Xml(format!("resolved raw OOXML was not UTF-8: {e}")))?;
+    Ok((new_xml, changed))
 }
 
 #[cfg(test)]
@@ -396,5 +655,131 @@ mod tests {
             Some("<w:rPr><w:b/></w:rPr>"),
             "restored run must keep its formatting"
         );
+    }
+
+    // =======================================================================
+    // CLUSTER-C3: tracked changes embedded in raw (table) blocks.
+    // =======================================================================
+
+    /// A single-cell table fragment (as the parser would capture it into
+    /// `BlockContent::Raw`) with a tracked insertion ("added ", id 201) and a
+    /// tracked deletion ("removed ", id 202) sitting either side of plain text.
+    fn table_raw_xml() -> String {
+        "<w:tbl><w:tr><w:tc><w:p><w:r><w:t>Keep </w:t></w:r>\
+<w:ins w:id=\"201\" w:author=\"A\" w:date=\"2026-01-01T00:00:00Z\"><w:r><w:t>added </w:t></w:r></w:ins>\
+<w:del w:id=\"202\" w:author=\"A\" w:date=\"2026-01-01T00:00:00Z\"><w:r><w:delText>removed </w:delText></w:r></w:del>\
+<w:r><w:t>tail</w:t></w:r></w:p></w:tc></w:tr></w:tbl>"
+            .to_string()
+    }
+
+    fn doc_with_table_and_paragraph() -> Document {
+        // A normal paragraph revision (id 101) alongside the raw table block,
+        // so tests can assert the table pass never disturbs paragraph resolve.
+        let mut doc = build_fixture_model();
+        doc.body.push(BlockContent::Raw { xml: table_raw_xml() });
+        doc
+    }
+
+    #[test]
+    fn accept_all_resolves_tracked_changes_inside_a_raw_table_block() {
+        let mut doc = doc_with_table_and_paragraph();
+        // fixture: 1 insertion + 1 deletion; table: 1 insertion + 1 deletion.
+        let n = resolve_all(&mut doc, ResolveAction::Accept);
+        assert_eq!(n, 4);
+
+        let BlockContent::Raw { xml } = &doc.body[doc.body.len() - 1] else {
+            panic!("expected the raw table block to remain a Raw block");
+        };
+        assert!(
+            !xml.contains("w:ins") && !xml.contains("w:del"),
+            "accept-all must resolve every tracked change in the table, got: {xml}"
+        );
+        // Insertion text kept...
+        assert!(xml.contains("added "), "kept insertion text missing: {xml}");
+        // ...deletion text gone (the confidentiality-critical assertion: a
+        // deleted run inside a table must NOT survive accept-all).
+        assert!(
+            !xml.contains("removed"),
+            "deleted text leaked into the saved table after accept-all: {xml}"
+        );
+        assert!(xml.contains("Keep ") && xml.contains("tail"));
+    }
+
+    #[test]
+    fn reject_all_resolves_tracked_changes_inside_a_raw_table_block() {
+        let mut doc = doc_with_table_and_paragraph();
+        let n = resolve_all(&mut doc, ResolveAction::Reject);
+        assert_eq!(n, 4);
+
+        let BlockContent::Raw { xml } = &doc.body[doc.body.len() - 1] else {
+            panic!("expected the raw table block to remain a Raw block");
+        };
+        assert!(!xml.contains("w:ins") && !xml.contains("w:del") && !xml.contains("delText"));
+        // Insertion dropped...
+        assert!(!xml.contains("added"), "rejected insertion text leaked: {xml}");
+        // ...deletion restored as plain text.
+        assert!(xml.contains("removed "), "rejected deletion was not restored: {xml}");
+        assert!(xml.contains("<w:t>removed </w:t>"), "restored text must use w:t, not w:delText: {xml}");
+    }
+
+    #[test]
+    fn resolve_all_on_table_only_document_reports_correct_count_and_is_idempotent() {
+        let mut doc = Document {
+            body: vec![BlockContent::Raw { xml: table_raw_xml() }],
+            ..Default::default()
+        };
+        assert_eq!(resolve_all(&mut doc, ResolveAction::Accept), 2);
+        // Second pass: nothing left to resolve.
+        assert_eq!(resolve_all(&mut doc, ResolveAction::Accept), 0);
+    }
+
+    #[test]
+    fn resolve_revision_finds_and_resolves_an_id_that_only_exists_in_a_table() {
+        let mut doc = doc_with_table_and_paragraph();
+        // id 202 (the deletion) lives ONLY inside the raw table block.
+        assert!(resolve_revision(&mut doc, "202", ResolveAction::Accept));
+
+        let BlockContent::Raw { xml } = &doc.body[doc.body.len() - 1] else {
+            panic!("expected the raw table block to remain a Raw block");
+        };
+        // The targeted deletion (202) was accepted (applied -> text gone)...
+        assert!(!xml.contains("removed"), "targeted deletion in table not resolved: {xml}");
+        // ...but the UNRELATED insertion (201) in the same table is untouched.
+        assert!(xml.contains("w:ins") && xml.contains("added "));
+
+        // The paragraph-level fixture revisions (101/102) must be completely
+        // unaffected by resolving a table-only id.
+        let remaining_ids: Vec<String> = doc.revisions().iter().map(|(m, _, _)| m.id.clone()).collect();
+        assert!(remaining_ids.contains(&"101".to_string()));
+        assert!(remaining_ids.contains(&"102".to_string()));
+    }
+
+    #[test]
+    fn resolve_revision_unknown_id_against_table_document_is_noop_and_reports_false() {
+        let mut doc = doc_with_table_and_paragraph();
+        let before = doc.clone();
+        assert!(!resolve_revision(&mut doc, "does-not-exist", ResolveAction::Accept));
+        assert_eq!(doc, before, "unknown id must not mutate paragraphs or the raw table");
+    }
+
+    #[test]
+    fn resolve_raw_xml_preserves_unrelated_markup_and_nested_table_structure() {
+        // A two-row table where only row 2's revisions match the predicate; row
+        // 1's tracked changes (different ids) and the grid/cell properties must
+        // round-trip byte-for-byte.
+        let xml = "<w:tbl><w:tblGrid><w:gridCol w:w=\"1000\"/></w:tblGrid>\
+<w:tr><w:tc><w:p><w:ins w:id=\"1\" w:author=\"A\" w:date=\"d\"><w:r><w:t>row1</w:t></w:r></w:ins></w:p></w:tc></w:tr>\
+<w:tr><w:tc><w:p><w:ins w:id=\"2\" w:author=\"A\" w:date=\"d\"><w:r><w:t>row2</w:t></w:r></w:ins></w:p></w:tc></w:tr>\
+</w:tbl>";
+        let (resolved, changed) =
+            resolve_raw_xml(xml, ResolveAction::Accept, &|id| id == "2").unwrap();
+        assert!(changed);
+        assert!(resolved.contains("w:tblGrid") && resolved.contains("gridCol"));
+        // Row 1 (id 1) untouched — still a tracked insertion.
+        assert!(resolved.contains("w:id=\"1\""));
+        assert!(resolved.contains("<w:ins w:id=\"1\""));
+        // Row 2 (id 2) resolved — unwrapped, no ins wrapper, text kept.
+        assert!(!resolved.contains("w:id=\"2\""));
+        assert!(resolved.contains("row2"));
     }
 }

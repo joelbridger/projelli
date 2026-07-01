@@ -35,6 +35,7 @@ export function DocumentBody({
   editable,
   activeCommentId,
   onRunEdit,
+  onActiveRunChange,
   onCommentAnchorClick,
 }: {
   doc: DocumentJson;
@@ -42,6 +43,14 @@ export function DocumentBody({
   editable: boolean;
   activeCommentId: string | null;
   onRunEdit: (blockIndex: number, inlineIndex: number, text: string) => void;
+  /**
+   * CLUSTER-C1 (data loss: an in-progress, un-blurred edit is lost on tab
+   * close): fired by `PlainRun` on focus (with its DOM element) and on blur
+   * (with `null`) so the editor can read the LIVE, possibly-uncommitted text
+   * of whatever run currently has focus and fold it into the document model
+   * before unmount/export, exactly as a blur would.
+   */
+  onActiveRunChange: (blockIndex: number, inlineIndex: number, element: HTMLElement | null) => void;
   onCommentAnchorClick: (id: string) => void;
 }) {
   return (
@@ -55,6 +64,7 @@ export function DocumentBody({
           editable={editable}
           activeCommentId={activeCommentId}
           onRunEdit={onRunEdit}
+          onActiveRunChange={onActiveRunChange}
           onCommentAnchorClick={onCommentAnchorClick}
         />
       ))}
@@ -69,6 +79,7 @@ export function BlockView({
   editable,
   activeCommentId,
   onRunEdit,
+  onActiveRunChange,
   onCommentAnchorClick,
 }: {
   block: DocxBlock;
@@ -77,6 +88,7 @@ export function BlockView({
   editable: boolean;
   activeCommentId: string | null;
   onRunEdit: (blockIndex: number, inlineIndex: number, text: string) => void;
+  onActiveRunChange: (blockIndex: number, inlineIndex: number, element: HTMLElement | null) => void;
   onCommentAnchorClick: (id: string) => void;
 }) {
   const { t } = useTranslation();
@@ -108,6 +120,7 @@ export function BlockView({
       editable={editable}
       activeCommentId={activeCommentId}
       onRunEdit={onRunEdit}
+      onActiveRunChange={onActiveRunChange}
       onCommentAnchorClick={onCommentAnchorClick}
     />
   ));
@@ -161,6 +174,7 @@ export function InlineView({
   editable,
   activeCommentId,
   onRunEdit,
+  onActiveRunChange,
   onCommentAnchorClick,
 }: {
   inline: DocxInline;
@@ -170,6 +184,7 @@ export function InlineView({
   editable: boolean;
   activeCommentId: string | null;
   onRunEdit: (blockIndex: number, inlineIndex: number, text: string) => void;
+  onActiveRunChange: (blockIndex: number, inlineIndex: number, element: HTMLElement | null) => void;
   onCommentAnchorClick: (id: string) => void;
 }) {
   switch (inline.kind) {
@@ -181,6 +196,7 @@ export function InlineView({
           inlineIndex={inlineIndex}
           editable={editable}
           onRunEdit={onRunEdit}
+          onActiveRunChange={onActiveRunChange}
         />
       );
 
@@ -254,12 +270,14 @@ export function PlainRun({
   inlineIndex,
   editable,
   onRunEdit,
+  onActiveRunChange,
 }: {
   run: DocxRun;
   blockIndex: number;
   inlineIndex: number;
   editable: boolean;
   onRunEdit: (blockIndex: number, inlineIndex: number, text: string) => void;
+  onActiveRunChange: (blockIndex: number, inlineIndex: number, element: HTMLElement | null) => void;
 }) {
   const fmt = useMemo(() => parseRunFormat(run.propertiesXml), [run.propertiesXml]);
   const { style, underline, strike } = runFormatToStyle(fmt);
@@ -273,8 +291,21 @@ export function PlainRun({
     (e: React.FocusEvent<HTMLSpanElement>) => {
       const text = e.currentTarget.textContent ?? '';
       onRunEdit(blockIndex, inlineIndex, text);
+      // CLUSTER-C1: this run just committed via blur — nothing left to flush
+      // for it, so stop tracking it as the "active" (possibly-uncommitted) run.
+      onActiveRunChange(blockIndex, inlineIndex, null);
     },
-    [blockIndex, inlineIndex, onRunEdit],
+    [blockIndex, inlineIndex, onRunEdit, onActiveRunChange],
+  );
+
+  // CLUSTER-C1 (data loss): track that THIS run now holds live, possibly-
+  // uncommitted keystrokes, so the editor can read its DOM text and commit it
+  // on unmount/export even if the user never clicks away to trigger blur.
+  const handleFocus = useCallback(
+    (e: React.FocusEvent<HTMLSpanElement>) => {
+      onActiveRunChange(blockIndex, inlineIndex, e.currentTarget);
+    },
+    [blockIndex, inlineIndex, onActiveRunChange],
   );
 
   return (
@@ -287,6 +318,7 @@ export function PlainRun({
       contentEditable={editable}
       suppressContentEditableWarning
       spellCheck={editable}
+      onFocus={editable ? handleFocus : undefined}
       onBlur={editable ? handleBlur : undefined}
       style={{
         ...style,

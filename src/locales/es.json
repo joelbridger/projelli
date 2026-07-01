@@ -1387,6 +1387,7 @@
     "docx-editor": {
       "could-not-open": "No se pudo abrir {{fileName}}",
       "could-not-open__sourceHash": "212d690a6580de50e54be9f6f285cdf596fb6889c44d4741230ecd8e45e6bf55",
+      "concurrent-edit-conflict": "Este texto cambió en otro lugar mientras lo editabas, por lo que tu último cambio no se aplicó. Vuelve a hacer la edición.",
       "formatting-warning": "Es posible que algunos formatos avanzados (tablas, imágenes, encabezados de página) no se conserven al guardar. Se crea una copia de seguridad del archivo original antes de tu primera edición.",
       "formatting-warning__sourceHash": "f0e45b821ef3a571aa17837d4dcb060d8518a8d42f5f392481250a24ad4cad99",
       "opening": "Abriendo {{fileName}}...",

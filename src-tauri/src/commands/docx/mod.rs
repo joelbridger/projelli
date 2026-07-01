@@ -191,9 +191,13 @@ pub fn author_revision_core(
 /// the model returns (see `src/modules/docx/redline.ts`). `op` is
 /// `"insert"` | `"delete"` | `"replace"`. `anchorText` is the verbatim substring
 /// to locate (required for delete/replace; optional for insert — when omitted the
-/// insertion is appended at the paragraph end). `newText` carries the inserted /
-/// replacement text (required for insert/replace). `reason` is carried for the
-/// UI summary and ignored by the engine.
+/// insertion is appended at the paragraph end, UNLESS `atParagraphStart` is set).
+/// `atParagraphStart` (insert only) places the insertion at the literal start of
+/// the paragraph instead — see [`Edit::Insert`]'s doc comment (CLUSTER-C4: an
+/// omitted anchor alone is ambiguous between "append at end" and "insert at the
+/// very beginning", so the start case needs its own explicit flag). `newText`
+/// carries the inserted / replacement text (required for insert/replace).
+/// `reason` is carried for the UI summary and ignored by the engine.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EditInput {
@@ -203,6 +207,8 @@ pub struct EditInput {
     pub anchor_text: Option<String>,
     #[serde(default)]
     pub new_text: Option<String>,
+    #[serde(default)]
+    pub at_paragraph_start: bool,
     #[serde(default)]
     pub reason: Option<String>,
 }
@@ -248,6 +254,7 @@ fn edit_input_to_edit(e: EditInput) -> Result<Edit, String> {
             new_text: e
                 .new_text
                 .ok_or("insert edit requires `newText`")?,
+            at_paragraph_start: e.at_paragraph_start,
         }),
         "delete" => Ok(Edit::Delete {
             paragraph_index: e.paragraph_index,
@@ -805,6 +812,45 @@ mod tests {
             && r.iter().any(|x| x.text == "Company")));
         assert!(revs.iter().any(|(_, k, r)| *k == lantern_docx::RevisionKind::Deletion
             && r.iter().any(|x| x.text == "for all losses")));
+    }
+
+    #[test]
+    fn author_revisions_batch_at_paragraph_start_inserts_before_not_after() {
+        // CLUSTER-C4: the JSON wire field `atParagraphStart` must reach the
+        // engine and place the insertion before the existing text, not
+        // appended at the end (which is what an omitted `anchorText` alone
+        // means).
+        let json = serde_json::json!({
+            "formatVersion": 1,
+            "body": [{
+                "kind": "paragraph",
+                "inlines": [
+                    { "kind": "run", "text": "The Company shall indemnify the Client." }
+                ]
+            }],
+            "comments": {}
+        });
+        let edits = serde_json::json!([
+            { "op": "insert", "paragraphIndex": 0, "newText": "PREAMBLE: ", "atParagraphStart": true, "reason": "lead-in" }
+        ]);
+        let out = author_revisions_core(json, edits, "Advisor Prep Hero AI", "2026-06-09T00:00:00Z")
+            .expect("batch author");
+        assert!(out.results[0].applied);
+        let doc = lantern_docx::document_from_value(out.document).unwrap();
+        let lantern_docx::model::BlockContent::Paragraph(p) = &doc.body[0] else {
+            panic!("expected paragraph");
+        };
+        // The new insertion must be the FIRST inline (before the original
+        // plain run), not appended after it.
+        assert!(
+            matches!(&p.inlines[0], lantern_docx::model::Inline::Insertion { runs, .. } if runs.iter().any(|r| r.text == "PREAMBLE: ")),
+            "expected the tracked insertion to be the first inline, got: {:?}",
+            p.inlines
+        );
+        assert!(matches!(
+            &p.inlines[1],
+            lantern_docx::model::Inline::Run(r) if r.text == "The Company shall indemnify the Client."
+        ));
     }
 
     #[test]

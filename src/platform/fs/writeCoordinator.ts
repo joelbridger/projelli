@@ -32,12 +32,15 @@ export interface WriteResult {
    * No newer revision for this path had been enqueued when this write finished.
    *
    * CAVEAT (Codex review #8): this is APPROXIMATE and must NOT be used to decide
-   * whether to mark a tab clean. The per-path `maxRev` is never reset, so after a
-   * tab is closed and reopened (rev restarting from a low number) `isLatest` can
-   * read false even for the only in-flight write. The authoritative "is this
-   * still current?" check belongs at the call site, against the LIVE tab revision
+   * whether to mark a tab clean. The per-path `maxRev` persists across sessions
+   * unless a caller opts in via `resetPath()` — a caller that starts a fresh
+   * editing session for a path (e.g. a tab reopening) and doesn't call
+   * `resetPath()` first can see `isLatest` read false even for its only
+   * in-flight write, because `rev` restarts from a low number while the old
+   * session's high-water mark lingers. The authoritative "is this still
+   * current?" check belongs at the call site, against the LIVE tab revision
    * (see `editorStore.markSaved(path, rev)`). `isLatest` is advisory only — no
-   * caller currently relies on it.
+   * caller currently relies on it for correctness.
    */
   isLatest: boolean;
 }
@@ -85,6 +88,22 @@ export class WriteCoordinator {
       return;
     }
     await Promise.allSettled([...this.tail.values()]);
+  }
+
+  /**
+   * Clear the advisory `maxRev` high-water mark for `path`. Call this when a
+   * NEW editing session for a path begins (e.g. a tab opens/reopens and its
+   * own revision counter restarts from 0), so a high revision number left
+   * over from a PREVIOUS session doesn't make this session's first write
+   * incorrectly read `isLatest: false` (see the `WriteResult.isLatest` doc
+   * comment). Does NOT touch the write queue itself — any write for `path`
+   * already in flight still completes and serializes normally; only the
+   * `isLatest` bookkeeping resets. Safe to call at any time: `isLatest` is
+   * advisory-only today, so this can never affect what actually lands on disk
+   * or the order writes serialize in.
+   */
+  resetPath(path: string): void {
+    this.maxRev.delete(path);
   }
 }
 
