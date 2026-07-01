@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react';
 import { Card, Eyebrow, Chip, Button } from '@/ui/kp';
 import { CORE_SECTION_ORDER, CORE_SECTION_TITLE } from '@/platform/clientMap/types';
 import type { ClientMap, ClientMapItem, SourceRef, CompletenessLevel, GapQuestion } from '@/platform/clientMap/types';
-import { flagForClient } from '@/features/matters/clientMap/guidedInterview';
+import { flagForClient, unresolvedAskGaps } from '@/features/matters/clientMap/guidedInterview';
 
 const LEVEL_LABEL: Record<CompletenessLevel, string> = {
   thin: 'Thin',
@@ -129,6 +129,7 @@ export function ClientMapView({
   onFlagForClient?: (question: GapQuestion) => void;
 }) {
   const c = map.completeness;
+  const askGaps = unresolvedAskGaps(map);
   return (
     <div data-testid="clientmap-view">
       {CORE_SECTION_ORDER.map((key) => {
@@ -198,7 +199,7 @@ export function ClientMapView({
         {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string */}
         <Eyebrow>What to ask</Eyebrow>
         <ul>
-          {c.ask.map((q, i) => (
+          {askGaps.map((q, i) => (
             <li key={i} data-testid="clientmap-ask" style={itemRowStyle}>
               <span style={itemTextStyle}>{q.text}</span>
               <Button

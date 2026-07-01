@@ -6,6 +6,21 @@ function normalizeGap(text: string): string {
   return text.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
+function withoutResolvedGaps(map: ClientMap, gaps: GapQuestion[]): GapQuestion[] {
+  const resolved = new Set((map.resolvedGaps ?? []).map(normalizeGap));
+  return gaps.filter((g) => !resolved.has(normalizeGap(g.text)));
+}
+
+/**
+ * `completeness.ask`, pruned of gaps the user has already answered or flagged
+ * (tracked in `map.resolvedGaps`, BUG-106). This is what the "What I'm
+ * missing" panel (D1) should render — `completeness.ask` itself is the raw
+ * AI-detected gap list and is not re-filtered as gaps get resolved.
+ */
+export function unresolvedAskGaps(map: ClientMap): GapQuestion[] {
+  return withoutResolvedGaps(map, map.completeness.ask);
+}
+
 /**
  * Returns the ordered list of gap questions for this map, each tagged with the
  * section its answer should file into. The `completeness.ask` list is the
@@ -24,8 +39,7 @@ export function interviewQuestions(map: ClientMap): GapQuestion[] {
       gaps.push({ text: sec.prompt, sectionKey: sec.key });
     }
   }
-  const resolved = new Set((map.resolvedGaps ?? []).map(normalizeGap));
-  return gaps.filter((g) => !resolved.has(normalizeGap(g.text)));
+  return withoutResolvedGaps(map, gaps);
 }
 
 /**

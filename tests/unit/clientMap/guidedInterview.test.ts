@@ -1,6 +1,6 @@
 // tests/unit/clientMap/guidedInterview.test.ts
 import { describe, it, expect, beforeEach } from 'vitest';
-import { interviewQuestions, answerQuestion, flagForClient } from '@/features/matters/clientMap/guidedInterview';
+import { interviewQuestions, answerQuestion, flagForClient, unresolvedAskGaps } from '@/features/matters/clientMap/guidedInterview';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { emptyClientMap } from '@/platform/clientMap/types';
 import type { GapQuestion } from '@/platform/clientMap/types';
@@ -66,5 +66,24 @@ describe('guidedInterview', () => {
   it('flagging adds a question to the client list', () => {
     flagForClient('m1', 'Who is the adjuster?');
     expect(useClientMapStore.getState().getClientQuestions('m1').map((q) => q.text)).toContain('Who is the adjuster?');
+  });
+});
+
+// D1: the "What I'm missing" panel reads completeness.ask directly, which is the
+// raw AI-detected gap list and is never re-filtered as the user resolves gaps.
+// unresolvedAskGaps is what render code must use instead.
+describe('unresolvedAskGaps (D1 — "still missing" panel must not show resolved gaps)', () => {
+  it('drops gaps the user has answered or flagged, without mutating completeness.ask itself', () => {
+    useClientMapStore.getState().markGapResolved('m1', 'Who is the adjuster?');
+
+    const map = useClientMapStore.getState().getMap('m1')!;
+    expect(unresolvedAskGaps(map)).toEqual([{ text: 'What is the trial date?', sectionKey: 'followups' }]);
+    // The raw AI gap list is untouched — only the rendered/filtered view changes.
+    expect(map.completeness.ask).toHaveLength(2);
+  });
+
+  it('returns every gap when none are resolved', () => {
+    const map = useClientMapStore.getState().getMap('m1')!;
+    expect(unresolvedAskGaps(map)).toEqual(map.completeness.ask);
   });
 });

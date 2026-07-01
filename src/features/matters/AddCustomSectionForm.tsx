@@ -19,8 +19,7 @@ export function AddCustomSectionForm({ matterId, onAdded }: AddCustomSectionForm
   const [error, setError] = useState<string | null>(null);
 
   const addCustomSection = useClientMapStore((s) => s.addCustomSection);
-  const setMap = useClientMapStore((s) => s.setMap);
-  const getMap = useClientMapStore((s) => s.getMap);
+  const mergeSectionItems = useClientMapStore((s) => s.mergeSectionItems);
   const removeSection = useClientMapStore((s) => s.removeSection);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -48,14 +47,10 @@ export function AddCustomSectionForm({ matterId, onAdded }: AddCustomSectionForm
         title.trim(),
         description.trim() || title.trim(),
       );
-      // Patch the section in place inside the existing map.
-      const map = getMap(matterId);
-      if (map) {
-        setMap(matterId, {
-          ...map,
-          sections: map.sections.map((sec) => (sec.id === sectionId ? populated : sec)),
-        });
-      }
+      // D3: merge in the generated items rather than replacing the section
+      // wholesale, so a user item added to it while generation was in flight
+      // isn't clobbered by the AI draft.
+      mergeSectionItems(matterId, sectionId, populated.items);
       setTitle('');
       setDescription('');
       onAdded?.();

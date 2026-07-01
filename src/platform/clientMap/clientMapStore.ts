@@ -1,9 +1,10 @@
 // src/platform/clientMap/clientMapStore.ts
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type { ClientMap, ClientMapSection, ClientQuestion, DismissedSignature, ProposedUpdate, GapQuestion, CoreSectionKey } from './types';
+import type { ClientMap, ClientMapSection, ClientMapItem, ClientQuestion, DismissedSignature, ProposedUpdate, GapQuestion, CoreSectionKey } from './types';
 import { CORE_SECTION_ORDER, CORE_SECTION_TITLE } from './types';
 import { proposalSignature } from './updater';
+import { deriveCompleteness } from './completeness';
 import { SK_CLIENT_MAPS } from '@/config/identity';
 
 /** v2 -> v3: the 5 core section keys were renamed to 4 sharper buckets (and the
@@ -43,6 +44,10 @@ interface ClientMapState {
   removeItem: (matterId: string, sectionKey: string, itemId: string) => void;
   addUserItem: (matterId: string, sectionKey: string, text: string) => void;
   addCustomSection: (matterId: string, section: ClientMapSection) => void;
+  /** Appends freshly-generated items onto a section by key, instead of
+   *  replacing the section wholesale (D3): preserves any items a user added to
+   *  that section while the items were generating. */
+  mergeSectionItems: (matterId: string, sectionKey: string, items: ClientMapItem[]) => void;
   removeSection: (matterId: string, sectionId: string) => void;
   setPendingUpdates: (matterId: string, updates: ProposedUpdate[]) => void;
   acceptUpdate: (matterId: string, updateId: string, override?: string) => void;
@@ -62,6 +67,15 @@ function nowIso(): string {
 /** Normalize a question/gap text for dedup + resolved tracking (BUG-106). */
 function normalizeQuestion(text: string): string {
   return text.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+/** Apply a new `sections` array to a map AND recompute `completeness.know` /
+ *  `assuming` / `level` from it (D1). Every mutator that changes section items
+ *  must go through this so "what I know / what I'm missing" never goes stale
+ *  after an edit, add, or remove. The gap-question list (`ask`) is untouched —
+ *  it's produced by AI gap-detection, not derived from section contents. */
+function withSections(map: ClientMap, sections: ClientMapSection[]): ClientMap {
+  return { ...map, sections, completeness: deriveCompleteness(sections, map.completeness.ask) };
 }
 
 /** Persisted (partialized) shape of this store. */
@@ -197,7 +211,7 @@ export const useClientMapStore = create<ClientMapState>()(
                   ),
                 },
           );
-          return { maps: { ...s.maps, [matterId]: { ...map, sections } } };
+          return { maps: { ...s.maps, [matterId]: withSections(map, sections) } };
         }),
       removeItem: (matterId, sectionKey, itemId) =>
         set((s) => {
@@ -206,7 +220,7 @@ export const useClientMapStore = create<ClientMapState>()(
           const sections = map.sections.map((sec) =>
             sec.key !== sectionKey ? sec : { ...sec, items: sec.items.filter((it) => it.id !== itemId) },
           );
-          return { maps: { ...s.maps, [matterId]: { ...map, sections } } };
+          return { maps: { ...s.maps, [matterId]: withSections(map, sections) } };
         }),
       addUserItem: (matterId, sectionKey, text) =>
         set((s) => {
@@ -223,19 +237,33 @@ export const useClientMapStore = create<ClientMapState>()(
           const sections = map.sections.map((sec) =>
             sec.key !== sectionKey ? sec : { ...sec, items: [...sec.items, newItem] },
           );
-          return { maps: { ...s.maps, [matterId]: { ...map, sections } } };
+          return { maps: { ...s.maps, [matterId]: withSections(map, sections) } };
         }),
       addCustomSection: (matterId, section) =>
         set((s) => {
           const map = s.maps[matterId];
           if (!map) return {};
-          return { maps: { ...s.maps, [matterId]: { ...map, sections: [...map.sections, section] } } };
+          return { maps: { ...s.maps, [matterId]: withSections(map, [...map.sections, section]) } };
+        }),
+      mergeSectionItems: (matterId, sectionKey, items) =>
+        set((s) => {
+          const map = s.maps[matterId];
+          if (!map) return {};
+          const sections = map.sections.map((sec) =>
+            sec.key !== sectionKey ? sec : { ...sec, items: [...sec.items, ...items] },
+          );
+          return { maps: { ...s.maps, [matterId]: withSections(map, sections) } };
         }),
       removeSection: (matterId, sectionId) =>
         set((s) => {
           const map = s.maps[matterId];
           if (!map) return {};
-          return { maps: { ...s.maps, [matterId]: { ...map, sections: map.sections.filter((sec) => sec.id !== sectionId) } } };
+          return {
+            maps: {
+              ...s.maps,
+              [matterId]: withSections(map, map.sections.filter((sec) => sec.id !== sectionId)),
+            },
+          };
         }),
       setPendingUpdates: (matterId, updates) =>
         set((s) => {
@@ -267,9 +295,13 @@ export const useClientMapStore = create<ClientMapState>()(
                 };
               }
             }
+            // D2: an override replaces the AI's proposed text with the user's own
+            // words, so the AI's citations no longer support what's on the page.
+            // Drop them rather than show stale "sourced" citations for unreviewed
+            // text the user wrote themselves.
             const draft =
               override !== undefined
-                ? { ...upd.draft, text: override, origin: 'user' as const, isAssumption: false, updatedAt: nowIso() }
+                ? { ...upd.draft, text: override, origin: 'user' as const, isAssumption: false, sources: [], updatedAt: nowIso() }
                 : upd.draft;
             sections = map.sections.map((sec) => {
               if (sec.key !== upd.sectionKey) return sec;
@@ -296,7 +328,10 @@ export const useClientMapStore = create<ClientMapState>()(
           return {
             maps: {
               ...s.maps,
-              [matterId]: { ...map, sections, pendingUpdates: map.pendingUpdates.filter((u) => u.id !== updateId) },
+              [matterId]: {
+                ...withSections(map, sections),
+                pendingUpdates: map.pendingUpdates.filter((u) => u.id !== updateId),
+              },
             },
           };
         }),

@@ -13,6 +13,11 @@ const userItem = (id: string, text: string): ClientMapItem => ({
   id, text, origin: 'user', isAssumption: false, sources: [], updatedAt: '2026-06-22T00:00:00Z',
 });
 
+const sourced = (id: string, text: string): ClientMapItem => ({
+  ...item(id, text),
+  sources: [{ kind: 'document', ref: '/f.pdf', snippet: 's' }],
+});
+
 beforeEach(() => { useClientMapStore.setState({ maps: {} }); });
 
 describe('migratePersistedClientMaps', () => {
@@ -243,5 +248,131 @@ describe('clientMapStore', () => {
     expect(map.sections.find((s) => s.key === 'money')!.items.map((i) => i.text))
       .not.toContain('Client wants capital preservation');
     expect(map.pendingUpdates.map((u) => u.id)).toEqual(['safe-add', 'needs-review']);
+  });
+});
+
+// D1: "What I know / what I'm missing" must reflect the CURRENT sections, not a
+// stale snapshot taken when the map was generated. Every mutator that changes
+// section items has to recompute completeness.know/assuming/level.
+describe('D1: completeness stays in sync with section edits', () => {
+  it('editItem moves a confirmed item out of "assuming" once isAssumption is cleared', () => {
+    const m = emptyClientMap('m1');
+    m.sections[0]!.items.push({ ...item('a1', 'draft text'), isAssumption: true });
+    m.completeness = { level: 'thin', know: [], assuming: m.sections[0]!.items.slice(), ask: [] };
+    useClientMapStore.getState().setMap('m1', m);
+    expect(useClientMapStore.getState().getMap('m1')!.completeness.assuming).toHaveLength(1);
+
+    useClientMapStore.getState().editItem('m1', 'household', 'a1', 'Confirmed text');
+
+    const after = useClientMapStore.getState().getMap('m1')!;
+    // Stale completeness would still list this item under "assuming".
+    expect(after.completeness.assuming).toHaveLength(0);
+  });
+
+  it('removeItem drops the removed item from completeness.know', () => {
+    const m = emptyClientMap('m1');
+    const a = sourced('a', 'fact a');
+    const b = sourced('b', 'fact b');
+    const c = sourced('c', 'fact c');
+    m.sections[0]!.items.push(a, b, c);
+    m.completeness = { level: 'getting-there', know: [a, b, c], assuming: [], ask: [] };
+    useClientMapStore.getState().setMap('m1', m);
+
+    useClientMapStore.getState().removeItem('m1', 'household', 'a');
+
+    const after = useClientMapStore.getState().getMap('m1')!;
+    expect(after.completeness.know.map((i) => i.id)).toEqual(['b', 'c']);
+  });
+
+  it('acceptUpdate(add) folds the newly-accepted sourced item into completeness.know', () => {
+    const m = emptyClientMap('m1');
+    useClientMapStore.getState().setMap('m1', m);
+    const upd: ProposedUpdate = {
+      id: 'u-add', sectionKey: 'money', op: 'add',
+      draft: sourced('new1', 'New sourced fact'), reason: 'r', createdAt: 't',
+    };
+    useClientMapStore.getState().setPendingUpdates('m1', [upd]);
+
+    useClientMapStore.getState().acceptUpdate('m1', 'u-add');
+
+    const after = useClientMapStore.getState().getMap('m1')!;
+    expect(after.completeness.know.map((i) => i.id)).toContain('new1');
+  });
+
+  it('removeSection drops that section\'s items out of completeness too', () => {
+    const m = emptyClientMap('m1');
+    const cs = { id: 'cs1', kind: 'custom' as const, key: 'cs1', title: 'Billing', scope: 'matter' as const, items: [sourced('bill1', 'Flat fee')] };
+    m.sections.push(cs);
+    m.completeness = { level: 'thin', know: [cs.items[0]!], assuming: [], ask: [] };
+    useClientMapStore.getState().setMap('m1', m);
+
+    useClientMapStore.getState().removeSection('m1', 'cs1');
+
+    const after = useClientMapStore.getState().getMap('m1')!;
+    expect(after.completeness.know.map((i) => i.id)).not.toContain('bill1');
+  });
+});
+
+// D2: editing an AI-suggested update with the user's own override text must not
+// keep showing the AI's (now-unverified) citations next to it.
+describe('D2: acceptUpdate override clears stale AI citations', () => {
+  it('clears sources and marks the item user-origin when override text is used', () => {
+    const m = emptyClientMap('m1');
+    const original = sourced('i1', 'AI original text');
+    m.sections.find((s) => s.key === 'money')!.items.push(original);
+    useClientMapStore.getState().setMap('m1', m);
+    const upd: ProposedUpdate = {
+      id: 'upd1', sectionKey: 'money', op: 'change', itemId: 'i1',
+      draft: sourced('i1', 'AI suggested replacement'), reason: 'r', createdAt: 't',
+    };
+    useClientMapStore.getState().setPendingUpdates('m1', [upd]);
+
+    useClientMapStore.getState().acceptUpdate('m1', 'upd1', 'My own edited wording');
+
+    const result = useClientMapStore.getState().getMap('m1')!.sections.find((s) => s.key === 'money')!.items.find((i) => i.id === 'i1')!;
+    expect(result.text).toBe('My own edited wording');
+    expect(result.origin).toBe('user');
+    expect(result.sources).toEqual([]);
+  });
+
+  it('without an override, accepting the AI draft as-is keeps its citations', () => {
+    const m = emptyClientMap('m1');
+    const original = item('i1', 'AI original text');
+    m.sections.find((s) => s.key === 'money')!.items.push(original);
+    useClientMapStore.getState().setMap('m1', m);
+    const upd: ProposedUpdate = {
+      id: 'upd2', sectionKey: 'money', op: 'change', itemId: 'i1',
+      draft: sourced('i1', 'AI suggested replacement'), reason: 'r', createdAt: 't',
+    };
+    useClientMapStore.getState().setPendingUpdates('m1', [upd]);
+
+    useClientMapStore.getState().acceptUpdate('m1', 'upd2');
+
+    const result = useClientMapStore.getState().getMap('m1')!.sections.find((s) => s.key === 'money')!.items.find((i) => i.id === 'i1')!;
+    expect(result.sources).toEqual([{ kind: 'document', ref: '/f.pdf', snippet: 's' }]);
+  });
+});
+
+// D3: generating a custom section's items happens async; while it's in flight a
+// user can already add their own item to the (still-empty) section. The result
+// must merge in the AI items, not clobber what the user just added.
+describe('D3: mergeSectionItems does not clobber concurrent user edits', () => {
+  it('appends generated items onto whatever is already in the section', () => {
+    const m = emptyClientMap('m1');
+    const cs = { id: 'cs1', kind: 'custom' as const, key: 'cs1', title: 'Billing', scope: 'matter' as const, items: [] };
+    m.sections.push(cs);
+    useClientMapStore.getState().setMap('m1', m);
+
+    // The user adds their own note to the section while generation is still running.
+    useClientMapStore.getState().addUserItem('m1', 'cs1', 'User note added during generation');
+
+    // Generation now resolves and merges in.
+    useClientMapStore.getState().mergeSectionItems('m1', 'cs1', [item('ai1', 'AI generated fact')]);
+
+    const section = useClientMapStore.getState().getMap('m1')!.sections.find((s) => s.key === 'cs1')!;
+    expect(section.items.map((i) => i.text)).toEqual([
+      'User note added during generation',
+      'AI generated fact',
+    ]);
   });
 });

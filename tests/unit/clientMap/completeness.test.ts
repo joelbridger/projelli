@@ -1,6 +1,6 @@
 // tests/unit/clientMap/completeness.test.ts
 import { describe, it, expect } from 'vitest';
-import { deriveCompleteness } from '@/features/matters/clientMap/completeness';
+import { deriveCompleteness } from '@/platform/clientMap/completeness';
 import type { ClientMapSection, ClientMapItem, GapQuestion } from '@/platform/clientMap/types';
 
 const known = (id: string): ClientMapItem => ({ id, text: id, origin: 'ai', isAssumption: false, sources: [{ kind: 'document', ref: '/f', snippet: 's' }], updatedAt: 't' });
