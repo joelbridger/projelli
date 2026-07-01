@@ -40,7 +40,8 @@ import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
 import { DocumentGridView } from './DocumentGridView';
 import { FileTree } from '@/features/documents/workspace/FileTree';
-import { scopeFileTreeToFolders } from './scopeFileTree';
+import { scopeFileTreeToFolders, toAbsolute, toScopedFolderPath } from './scopeFileTree';
+import { isPathInFolder } from '@/platform/rag/matterResolver';
 import { SK_FIRST_FILE_TRUST_SHOWN, SK_DOCS_VIEW } from '@/config/identity';
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -485,8 +486,92 @@ export function DocumentsHome({
   // at the workspace root, where they'd immediately vanish from this scoped
   // view (Codex review P2). This component remounts on each sub-tab open, so the
   // initializer reliably re-seeds the target each time.
-  const [currentFolderPath, setCurrentFolderPath] = useState<string | null>(
-    () => (embedded && scopeFolderPaths && scopeFolderPaths.length > 0 ? (scopeFolderPaths[0] ?? null) : null),
+  // BUG (2026-07-01): `scopeFolderPaths` is ABSOLUTE (Matter.folderPaths shape)
+  // while `scopedFileTree` node paths preserve whatever shape the store tree
+  // used (workspace-RELATIVE in production). Seeding this state with the raw
+  // absolute path meant DocumentGridView's `node.path === currentFolderPath`
+  // lookup never matched, so the Grid view (the default view) rendered empty
+  // even though the scoped tree had files — Tree view worked because it
+  // renders the tree directly. `toScopedFolderPath` bridges the two shapes by
+  // finding the actual matching node in `scopedFileTree` (null = the scoped
+  // root).
+  // Codex review (round 2): if this embedded tab mounts before `storeFileTree`
+  // has loaded (e.g. landing directly on a client's Documents tab on first
+  // app load), the initializer below resolves against an EMPTY tree and gets
+  // stuck at the scoped root forever — `toScopedFolderPath` never gets a
+  // second chance once useState's initializer has run once. `hasSettledScopedFolder`
+  // tracks whether we've already resolved against a REAL (non-empty) tree.
+  // Re-resolving is done via React's "adjusting state during render" pattern
+  // (https://react.dev/learn/you-might-not-need-an-effect) rather than a
+  // useEffect, so it fires exactly once when the tree arrives and never
+  // touches `currentFolderPath` again afterwards — a later tree refresh (e.g.
+  // the file watcher's periodic poll) can't clobber the user's own subsequent
+  // navigation.
+  const [hasSettledScopedFolder, setHasSettledScopedFolder] = useState(() => storeFileTree.length > 0);
+  const [currentFolderPath, setCurrentFolderPath] = useState<string | null>(() => {
+    const firstScopeFolder = embedded ? scopeFolderPaths?.[0] : undefined;
+    return firstScopeFolder ? toScopedFolderPath(scopedFileTree ?? [], firstScopeFolder, rootPath) : null;
+  });
+
+  if (!hasSettledScopedFolder && storeFileTree.length > 0) {
+    setHasSettledScopedFolder(true);
+    const firstScopeFolder = embedded ? scopeFolderPaths?.[0] : undefined;
+    if (firstScopeFolder) {
+      setCurrentFolderPath(toScopedFolderPath(scopedFileTree ?? [], firstScopeFolder, rootPath));
+    }
+  }
+
+  // `currentFolderPath` matches the (possibly tree-relative) shape needed for
+  // grid/breadcrumb lookups — see `toScopedFolderPath` above. A create/import
+  // target must instead be disk-resolvable on its own: `onImportFiles`'s copy
+  // goes through `WorkspaceService` (which resolves relative-or-absolute), but
+  // its explicit `MemoryService.indexFile` call sends the SAME path straight to
+  // the Rust indexer with no workspace-root joining — a relative target there
+  // silently fails to index (Codex review). Normalize back to absolute before
+  // using it as a create/import target, independent of the lookup shape.
+  //
+  // Codex review (P1): the scoped tree deliberately keeps ANCESTOR folders
+  // (e.g. "Clients") so the client's mapped folder is reachable via
+  // breadcrumbs — fixing the Grid-empty bug made that navigation actually
+  // reachable for the first time. Without this guard, navigating to such an
+  // ancestor and clicking "New document"/"Add files" would create the file
+  // OUTSIDE the client's own folder (a matter-isolation leak: it vanishes
+  // from this scoped view and is never assigned to the client). Clamp: a
+  // resolved target that isn't itself inside one of the client's OWN mapped
+  // folders is treated as out-of-scope, falling back to `embeddedCreateFallback`
+  // below — exactly like the existing root (`currentFolderPath === null`) clamp.
+  // Shared by createTargetPath below AND scopedOnMove (drag-and-drop) — both
+  // need the same "is this absolute path actually inside the client's own
+  // scope" check, not just "does the app consider it embedded".
+  const isWithinEmbeddedScope = useCallback(
+    (absPath: string): boolean => {
+      if (!embedded || !scopeFolderPaths || scopeFolderPaths.length === 0) return true;
+      return scopeFolderPaths.some((folder) => isPathInFolder(absPath, folder));
+    },
+    [embedded, scopeFolderPaths],
+  );
+
+  const createTargetPath = (() => {
+    if (currentFolderPath === null) return null;
+    const abs = toAbsolute(currentFolderPath, rootPath);
+    if (!isWithinEmbeddedScope(abs)) return null;
+    return abs;
+  })();
+
+  // Codex review (P1, round 4): drag-and-drop onto an ancestor breadcrumb
+  // (e.g. dropping a file onto "Clients") is now reachable for the same
+  // reason as above — it must be blocked the same way, or a drag can move a
+  // client's file OUT of their own matter-isolated folder entirely (it then
+  // belongs to no client, or a different one, and vanishes from this
+  // client's Documents tab). Fails closed: an out-of-scope drop is a silent
+  // no-op, consistent with this file's other guarded-drop no-ops (dropping
+  // onto self/already-parent/descendant).
+  const scopedOnMove = useCallback(
+    async (sourcePath: string, targetPath: string) => {
+      if (!isWithinEmbeddedScope(toAbsolute(targetPath, rootPath))) return;
+      await onMove(sourcePath, targetPath);
+    },
+    [onMove, isWithinEmbeddedScope, rootPath],
   );
 
   // Embedded (per-client): clamp only the create/import TARGET — not navigation.
@@ -515,7 +600,7 @@ export function DocumentsHome({
     // in the per-client tab lands in the client's folder, never the global
     // workspace (matter isolation) — regardless of which create handler a parent
     // wired up.
-    const target = currentFolderPath ?? embeddedCreateFallback ?? undefined;
+    const target = createTargetPath ?? embeddedCreateFallback ?? undefined;
     if (onImportFiles) {
       void onImportFiles(target);
     } else if (onCreateDefaultDocument) {
@@ -525,7 +610,7 @@ export function DocumentsHome({
     } else {
       onCreateFile(target ?? '');
     }
-  }, [onImportFiles, currentFolderPath, embeddedCreateFallback, onCreateDefaultDocument, onCreateDocxAtRoot, onCreateFile]);
+  }, [onImportFiles, createTargetPath, embeddedCreateFallback, onCreateDefaultDocument, onCreateDocxAtRoot, onCreateFile]);
 
   const handleDismissTrust = useCallback(() => {
     setShowTrustBanner(false);
@@ -534,7 +619,7 @@ export function DocumentsHome({
   // ── Toolbar action handlers (lifted from DocumentGridView) ────────────────
 
   const handleCreateDocument = useCallback(() => {
-    const parentPath = currentFolderPath ?? embeddedCreateFallback ?? undefined;
+    const parentPath = createTargetPath ?? embeddedCreateFallback ?? undefined;
     if (onCreateDefaultDocument) {
       onCreateDefaultDocument(parentPath);
     } else if (onCreateDocxAtRoot) {
@@ -545,11 +630,11 @@ export function DocumentsHome({
       // global workspace (matter isolation).
       onCreateFile(parentPath ?? '');
     }
-  }, [currentFolderPath, embeddedCreateFallback, onCreateDefaultDocument, onCreateDocxAtRoot, onCreateFile]);
+  }, [createTargetPath, embeddedCreateFallback, onCreateDefaultDocument, onCreateDocxAtRoot, onCreateFile]);
 
   const handleCreateFolder = useCallback(() => {
-    onCreateFolder(currentFolderPath ?? embeddedCreateFallback ?? rootPath ?? '');
-  }, [currentFolderPath, embeddedCreateFallback, rootPath, onCreateFolder]);
+    onCreateFolder(createTargetPath ?? embeddedCreateFallback ?? rootPath ?? '');
+  }, [createTargetPath, embeddedCreateFallback, rootPath, onCreateFolder]);
 
   const trashBadgeCount = trashStats.itemCount;
 
@@ -843,7 +928,7 @@ export function DocumentsHome({
             onCreateFolder={onCreateFolder}
             onRename={onRename}
             onDelete={onDelete}
-            onMove={onMove}
+            onMove={scopedOnMove}
             onDownload={onDownload}
             activeView={embedded ? 'files' : activeView}
             searchQuery={searchQuery}
@@ -867,7 +952,7 @@ export function DocumentsHome({
                 onCreateFolder={onCreateFolder}
                 onRename={onRename}
                 onDelete={onDelete}
-                onMove={onMove}
+                onMove={scopedOnMove}
                 onDownload={onDownload}
                 {...(onCreateDefaultDocument !== undefined ? { onCreateDefaultDocument } : {})}
                 {...(onCreateTextFileAtRoot !== undefined ? { onCreateTextFileAtRoot } : {})}

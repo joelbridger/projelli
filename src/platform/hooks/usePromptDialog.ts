@@ -17,6 +17,12 @@ export interface PromptOptions {
    * live filename preview below the input.
    */
   previewExtension?: string;
+  /**
+   * When provided, runs on confirm; a returned (non-empty) string is shown
+   * inline and the dialog stays open instead of resolving — so a required
+   * field can never be confirmed empty as a silent no-op.
+   */
+  validate?: (value: string) => string | undefined;
 }
 
 export interface PromptState {
@@ -29,6 +35,7 @@ export interface PromptState {
   cancelLabel: string;
   destinationPath?: string;
   previewExtension?: string;
+  validate?: (value: string) => string | undefined;
 }
 
 export function usePromptDialog() {
@@ -61,6 +68,7 @@ export function usePromptDialog() {
         ...(options?.previewExtension !== undefined && {
           previewExtension: options.previewExtension,
         }),
+        ...(options?.validate !== undefined && { validate: options.validate }),
       });
     });
   }, []);

@@ -10,7 +10,7 @@
  * with the rest of the Documents surface.
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   Folder,
   FileText,
@@ -450,13 +450,32 @@ export function DocumentGridView({
     return null;
   }
 
+  const folderNode = currentFolderPath !== null ? findNodeByPath(fileTree, currentFolderPath) : null;
+  // A folder path that doesn't resolve in this tree (e.g. it was deleted or
+  // renamed, or is a stale/differently-shaped path) should never render an
+  // empty grid when the scoped/global tree actually has files — fall back to
+  // the root instead.
+  const folderNotFound = currentFolderPath !== null && folderNode === null;
+
   let currentNodes: FileNode[] = [];
   if (currentFolderPath === null) {
     currentNodes = fileTree;
   } else {
-    const folderNode = findNodeByPath(fileTree, currentFolderPath);
-    currentNodes = folderNode?.children ?? [];
+    currentNodes = folderNode ? (folderNode.children ?? []) : fileTree;
   }
+
+  // Codex review (P2, round 4): the fallback above renders root-level content,
+  // but WITHOUT this, the parent's `currentFolderPath` (used as the toolbar's
+  // create/import target — see DocumentsHome's `createTargetPath`) stays
+  // stale. Since a write recreates missing parent folders, clicking "New
+  // document" while the grid shows this fallback could silently RECREATE a
+  // folder the user just deleted/renamed. Sync the parent back to null (the
+  // root actually being shown) the moment the lookup misses.
+  useEffect(() => {
+    if (folderNotFound) {
+      onSetCurrentFolderPath(null);
+    }
+  }, [folderNotFound, onSetCurrentFolderPath]);
 
   // Folders first, then files, each group alphabetically
   const sortedNodes = [...currentNodes].sort((a, b) => {

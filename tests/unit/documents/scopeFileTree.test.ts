@@ -5,7 +5,7 @@
  * mutate the input, and match by whole path segments (no prefix bleed).
  */
 import { describe, it, expect } from 'vitest';
-import { scopeFileTreeToFolders } from '@/features/documents/scopeFileTree';
+import { scopeFileTreeToFolders, toScopedFolderPath } from '@/features/documents/scopeFileTree';
 import type { FileNode } from '@/platform/types/workspace';
 import type { Matter } from '@/platform/types/matter';
 
@@ -279,5 +279,58 @@ describe('scopeFileTreeToFolders', () => {
       expect(flat).not.toContain('Clients/acme/OTHER-CLIENT.pdf');
       expect(flat).not.toContain('Clients/acme');
     });
+  });
+});
+
+// ── Documents "Grid" empty-view bug (2026-07-01) ────────────────────────────
+// `currentFolderPath` was seeded directly from the absolute
+// `Matter.folderPaths[0]`, but the pruned tree's node paths are workspace-
+// RELATIVE (preserved as-is from the store tree). A strict
+// `node.path === currentFolderPath` lookup (DocumentGridView) never matched,
+// so the Grid view rendered empty even though the scoped tree had files.
+// `toScopedFolderPath` finds the actual matching node in the ALREADY-PRUNED
+// tree and returns its raw path, so the lookup can find it regardless of
+// whether that tree happens to use relative or absolute-shaped paths.
+describe('toScopedFolderPath', () => {
+  const ROOT = 'C:/keepance-demo-northcrest/Northcrest Wealth Partners';
+  const relTree: FileNode[] = [
+    folder('Clients', [
+      folder('Clients/Caldwell, Jennifer', [
+        file('Clients/Caldwell, Jennifer/Plan.pdf'),
+      ]),
+    ]),
+  ];
+
+  it('resolves an absolute matter folder to the tree\'s RELATIVE node path', () => {
+    const scoped = scopeFileTreeToFolders(relTree, [`${ROOT}/Clients/Caldwell, Jennifer`], undefined, undefined, ROOT);
+    const result = toScopedFolderPath(scoped, `${ROOT}/Clients/Caldwell, Jennifer`, ROOT);
+    expect(result).toBe('Clients/Caldwell, Jennifer');
+  });
+
+  it('a scope mapped to the workspace root resolves to null (scoped root)', () => {
+    const scoped = scopeFileTreeToFolders(relTree, [ROOT], undefined, undefined, ROOT);
+    const result = toScopedFolderPath(scoped, ROOT, ROOT);
+    expect(result).toBeNull();
+  });
+
+  it('also works when the tree happens to use already-absolute node paths (no false mismatch)', () => {
+    const absTree: FileNode[] = [
+      folder(`${ROOT}/Clients`, [
+        folder(`${ROOT}/Clients/Caldwell, Jennifer`, [file(`${ROOT}/Clients/Caldwell, Jennifer/Plan.pdf`)]),
+      ]),
+    ];
+    const scoped = scopeFileTreeToFolders(absTree, [`${ROOT}/Clients/Caldwell, Jennifer`], undefined, undefined, ROOT);
+    const result = toScopedFolderPath(scoped, `${ROOT}/Clients/Caldwell, Jennifer`, ROOT);
+    expect(result).toBe(`${ROOT}/Clients/Caldwell, Jennifer`);
+  });
+
+  it('falls back to null (scoped root) when the folder is not found in the tree', () => {
+    const result = toScopedFolderPath(relTree, `${ROOT}/Clients/Nonexistent`, ROOT);
+    expect(result).toBeNull();
+  });
+
+  it('back-compat: no workspaceRoot compares paths as-is (one shape on both sides)', () => {
+    const tree = [folder('/ws/Acme', [file('/ws/Acme/a.pdf')])];
+    expect(toScopedFolderPath(tree, '/ws/Acme')).toBe('/ws/Acme');
   });
 });

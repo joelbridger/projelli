@@ -11,6 +11,7 @@ import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useEditorStore } from '@/platform/state/editorStore';
 import { createBlankDocx, docxBytesToDataUrl } from '@/platform/utils/docx-io';
+import { findUniqueDefaultName } from './uniqueDefaultName';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { FileNode } from '@/platform/types/workspace';
 import type { PromptOptions } from '@/platform/hooks/usePromptDialog';
@@ -43,11 +44,21 @@ export function useDocumentCreation(options: UseDocumentCreationOptions) {
   const handleCreateTextFileAtRoot = useCallback(async (parentPath?: string) => {
     if (!workspaceServiceRef.current || !rootPath) return;
     const destDir = parentPath ?? `${rootPath}/docs`;
-    const name = await prompt('Enter file name (without extension):', '', {
+    // BUG (2026-07-01): the default value used to be '' — 'my-notes' was only
+    // the placeholder, so pressing OK on the default silently created nothing
+    // (name === '' fails the `!name` check below with no error). Seed a REAL,
+    // collision-free default so OK-on-default always creates a file.
+    const defaultName = await findUniqueDefaultName(
+      (fullName) => workspaceServiceRef.current?.exists(`${destDir}/${fullName}`) ?? Promise.resolve(false),
+      'my-notes',
+      '.txt',
+    );
+    const name = await prompt('Enter file name (without extension):', defaultName, {
       title: 'Create Text File',
       placeholder: 'my-notes',
       destinationPath: `${destDir}/`,
       previewExtension: '.txt',
+      validate: (v) => (v.trim() ? undefined : 'Enter a file name.'),
     });
     if (!name) return;
 
@@ -61,7 +72,7 @@ export function useDocumentCreation(options: UseDocumentCreationOptions) {
     } catch (error) {
       console.error('Failed to create text file:', error);
     }
-  }, [rootPath, setFileTree, handleFileOpen, prompt]);
+  }, [rootPath, setFileTree, handleFileOpen, prompt, workspaceServiceRef]);
 
   // VG-4c — pick a Word file as the firm letterhead template. Stores its path
   // in the `letterheadTemplatePath` setting; new documents and workflow
@@ -88,11 +99,22 @@ export function useDocumentCreation(options: UseDocumentCreationOptions) {
     // R6-1: create in the folder the user has open when provided; otherwise
     // fall back to the canonical `<root>/docs` folder.
     const destDir = parentPath ?? `${rootPath}/docs`;
-    const name = await prompt('Enter file name (without extension):', '', {
+    // BUG (2026-07-01): default value used to be '' — 'my-document' was only
+    // the placeholder shown in the (unfilled) input and the live preview, so
+    // clicking OK without typing anything confirmed an EMPTY name, which the
+    // `!name` guard below silently returned on — no file, no error. Seed a
+    // real, collision-free default so OK-on-default always creates a file.
+    const defaultName = await findUniqueDefaultName(
+      (fullName) => workspaceServiceRef.current?.exists(`${destDir}/${fullName}`) ?? Promise.resolve(false),
+      'my-document',
+      '.docx',
+    );
+    const name = await prompt('Enter file name (without extension):', defaultName, {
       title: 'Create Word Document',
       placeholder: 'my-document',
       destinationPath: `${destDir}/`,
       previewExtension: '.docx',
+      validate: (v) => (v.trim() ? undefined : 'Enter a file name.'),
     });
     if (!name) return;
 
@@ -132,7 +154,7 @@ export function useDocumentCreation(options: UseDocumentCreationOptions) {
     } catch (error) {
       console.error('Failed to create Word document:', error);
     }
-  }, [rootPath, setFileTree, openFile, prompt]);
+  }, [rootPath, setFileTree, openFile, prompt, workspaceServiceRef]);
 
   // Advisor Prep Hero 3.0 (WS-A / A5): the "New Document" primary action. Word (.docx)
   // is the canonical document format, so unless the user has changed the
@@ -163,9 +185,14 @@ export function useDocumentCreation(options: UseDocumentCreationOptions) {
   // Handle create folder at root
   const handleCreateFolderAtRoot = useCallback(async () => {
     if (!workspaceServiceRef.current || !rootPath) return;
-    const name = await prompt('Enter folder name:', '', {
+    const defaultName = await findUniqueDefaultName(
+      (fullName) => workspaceServiceRef.current?.exists(`${rootPath}/${fullName}`) ?? Promise.resolve(false),
+      'my-folder',
+    );
+    const name = await prompt('Enter folder name:', defaultName, {
       title: 'Create Folder',
       placeholder: 'my-folder',
+      validate: (v) => (v.trim() ? undefined : 'Enter a folder name.'),
     });
     if (!name) return;
 
@@ -183,7 +210,7 @@ export function useDocumentCreation(options: UseDocumentCreationOptions) {
     } catch (error) {
       console.error('Failed to create folder:', error);
     }
-  }, [rootPath, setFileTree, prompt]);
+  }, [rootPath, setFileTree, prompt, workspaceServiceRef]);
 
   return {
     handleCreateTextFileAtRoot,
