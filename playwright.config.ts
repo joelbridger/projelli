@@ -47,7 +47,6 @@ const CI_QUARANTINE = [
   '**/ai-assistant-tab.spec.ts',
   '**/api-keys-panel.spec.ts',
   '**/auto-save-indicator.spec.ts',
-  '**/breadcrumbs.spec.ts',
   '**/doc-editing.spec.ts',
   '**/doc-legacy.spec.ts',
   '**/doc-viewers.spec.ts',
