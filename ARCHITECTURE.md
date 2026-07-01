@@ -95,9 +95,12 @@ Layer sizes (≈): app 33 · features 279 · platform 179 · ui 34 · lib 4.
   (`@/*` in `tsconfig`, `@` in vite/vitest); import as `@/features/ask/Ask`,
   `@/platform/providers/ClaudeProvider`, etc. No deep per-layer aliases.
 - **Locked identifiers — never rename** (grep after any structural change):
-  Tauri bundle id `com.keepance.app`; keychain prefixes `com.keepance.*`;
-  localStorage keys `keepance:settings`, `ai-chat-storage`, and the matter keys
-  `keepance:matters` / `keepance:matter-ui-snapshots` / `keepance:matter-at-a-glance`.
+  Tauri bundle id `com.lantern.app` (`src-tauri/tauri.conf.json`); keychain
+  prefixes `com.keepance.*` (frozen at the 2026-06-29 Lantern rename to avoid
+  orphaning existing users' saved keys/secrets — deliberately decoupled from
+  the bundle id); localStorage keys `keepance:settings`, `ai-chat-storage`, and
+  the matter keys `keepance:matters` / `keepance:matter-ui-snapshots` /
+  `keepance:matter-at-a-glance`.
 - **The matter store** (`platform/matter/matterStore.ts`) is one store with four
   slices behind a custom **multi-key persist adapter** that preserves the three
   legacy localStorage keys byte-compatibly. Three thin alias-shim re-exports

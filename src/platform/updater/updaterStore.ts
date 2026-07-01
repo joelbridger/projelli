@@ -71,7 +71,7 @@ export interface UpdaterState {
 function isTauriRuntime(): boolean {
   if (typeof window === 'undefined') return false;
   // Tauri 2 injects __TAURI_INTERNALS__; v1 used __TAURI__. Match either.
-  // @ts-ignore — these globals are runtime injections.
+  // Neither is in the `Window` type, but `in` doesn't require that.
   return '__TAURI_INTERNALS__' in window || '__TAURI__' in window;
 }
 
