@@ -61,6 +61,35 @@ beforeEach(async () => {
   useWorkspaceStore.setState({ rootPath: null });
 });
 
+describe('matter-store merge — reconciliation covers an already-loaded workspace at first import (Codex review #4)', () => {
+  it('reconciles legacy relative folderPaths against a workspace that was ALREADY loaded before matterStore evaluated', async () => {
+    // A `subscribe` callback only fires on a CHANGE. If `workspaceStore`
+    // already had its rootPath/fileTree loaded by the time matterStore's
+    // module evaluates and registers the subscription — a real possible
+    // startup ordering, not just this store's own persist migration finishing
+    // first — waiting for the next change would leave an affected matter
+    // relative indefinitely. Simulate that ordering with a fresh module graph.
+    vi.resetModules();
+    seed(MATTERS_KEY, {
+      state: { matters: [{ ...sampleMatterV4, folderPaths: ['Clients/Hollings'] }], activeMatterId: 'm1' },
+      version: 10,
+    });
+
+    const { useWorkspaceStore: freshWorkspaceStore } = await import('@/platform/fs/workspaceStore');
+    freshWorkspaceStore.setState({
+      rootPath: 'C:/workspaces/Northcrest',
+      fileTree: [{ id: 'h', name: 'Hollings', path: 'Clients/Hollings', type: 'folder' }],
+    });
+
+    // matterStore's module body runs NOW, with workspaceStore already settled.
+    const { useMatterStore: freshMatterStore } = await import('@/platform/matter/matterStore');
+
+    expect(freshMatterStore.getState().matters[0]!.folderPaths).toEqual([
+      'C:/workspaces/Northcrest/Clients/Hollings',
+    ]);
+  });
+});
+
 describe('matter-store merge — v9 -> v10 folderPaths canonicalization', () => {
   it('never resolves a relative folderPaths entry to absolute during migration itself, even if a workspace root already happens to be set (Codex review #3)', async () => {
     // The migration deliberately does NOT attempt root-resolution — see the

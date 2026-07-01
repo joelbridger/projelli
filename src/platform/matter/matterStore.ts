@@ -1257,32 +1257,47 @@ function dedupeStrings(values: string[]): string[] {
  * double for the reactive hook usage elsewhere in the app; it just isn't
  * subscribable, so skip the reconciliation wiring rather than throw at module
  * load in those suites.
+ *
+ * Runs both EAGERLY (once, against whatever `workspaceStore` state already
+ * exists right now) and on every future `rootPath`/`fileTree` change (Codex
+ * review #4): a `subscribe` callback only fires on a CHANGE, so if the
+ * workspace root and its tree happen to already be loaded by the time this
+ * module evaluates and registers the subscription (a real possible ordering,
+ * not just this store's own `persist` migration finishing first), waiting for
+ * the NEXT change would leave an affected matter relative indefinitely — the
+ * exact bug this reconciliation exists to prevent, just via a startup-ordering
+ * gap instead of a migration one.
  */
-try {
-  useWorkspaceStore.subscribe((state, prevState) => {
-    if (!state.rootPath) return;
-    if (state.rootPath === prevState.rootPath && state.fileTree === prevState.fileTree) return;
-    const root = state.rootPath;
-    const existingFolders = collectAbsoluteFolderPaths(state.fileTree, root);
-    useMatterStore.setState((s) => {
-      const matters = s.matters.map((m) => {
-        const resolved = m.folderPaths
-          .map((f) => {
-            const normalized = normalizeMatterPath(f);
-            if (!normalized || isAbsolutePath(normalized)) return normalized;
-            const candidate = resolveAbsolute(normalized, root);
-            return existingFolders.has(candidate) ? candidate : normalized;
-          })
-          .filter((p): p is string => !!p);
-        const canon = dedupeStrings(resolved);
-        const same =
-          canon.length === m.folderPaths.length &&
-          canon.every((p, i) => p === m.folderPaths[i]);
-        return same ? m : { ...m, folderPaths: canon };
-      });
-      const changed = matters.some((m, i) => m !== s.matters[i]);
-      return changed ? { matters } : s;
+function reconcileFolderPathsWithWorkspace(root: string | null, fileTree: FileNode[]): void {
+  if (!root) return;
+  const existingFolders = collectAbsoluteFolderPaths(fileTree, root);
+  useMatterStore.setState((s) => {
+    const matters = s.matters.map((m) => {
+      const resolved = m.folderPaths
+        .map((f) => {
+          const normalized = normalizeMatterPath(f);
+          if (!normalized || isAbsolutePath(normalized)) return normalized;
+          const candidate = resolveAbsolute(normalized, root);
+          return existingFolders.has(candidate) ? candidate : normalized;
+        })
+        .filter((p): p is string => !!p);
+      const canon = dedupeStrings(resolved);
+      const same =
+        canon.length === m.folderPaths.length &&
+        canon.every((p, i) => p === m.folderPaths[i]);
+      return same ? m : { ...m, folderPaths: canon };
     });
+    const changed = matters.some((m, i) => m !== s.matters[i]);
+    return changed ? { matters } : s;
+  });
+}
+
+try {
+  const initial = useWorkspaceStore.getState();
+  reconcileFolderPathsWithWorkspace(initial.rootPath, initial.fileTree);
+  useWorkspaceStore.subscribe((state, prevState) => {
+    if (state.rootPath === prevState.rootPath && state.fileTree === prevState.fileTree) return;
+    reconcileFolderPathsWithWorkspace(state.rootPath, state.fileTree);
   });
 } catch {
   /* see doc comment above: some test doubles stub workspaceStore without `.subscribe` */
