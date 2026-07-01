@@ -29,7 +29,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost https://api.anthropic.com https://api.openai.com https://generativelanguage.googleapis.com https://keepance.com https://licenses.keepance.com https://api.keepance.com wss://api.keepance.com http://127.0.0.1:11434 http://127.0.0.1:18089"
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost https://api.anthropic.com https://api.openai.com https://generativelanguage.googleapis.com https://forms.lanternplatform.app https://licenses.lanternplatform.app https://api.lanternplatform.app wss://api.lanternplatform.app http://127.0.0.1:11434 http://127.0.0.1:18089"
     }
   },
   "bundle": {
@@ -92,7 +92,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDJDMjMyQzcyQThCMDA4QjkKUldTNUNMQ29jaXdqTEQ2V0tEcUxIMS9IZy9BaFUyeXNHQmk5NlAyZ2hEMlZ5QUxNTmNiSnNBNjgK",
       "endpoints": [
-        "https://github.com/keepance/keepance/releases/latest/download/latest.json"
+        "https://github.com/lanternplatform/lantern/releases/latest/download/latest.json"
       ]
     }
   }

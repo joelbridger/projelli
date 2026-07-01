@@ -49,7 +49,7 @@ describe('FirmApiClient SSO config methods', () => {
 
   it('ssoConfigGet POSTs to /org/sso/config/get with Bearer token', async () => {
     fetchMock.mockResolvedValueOnce(
-      jsonResponse(200, { configured: false, redirect_uri: 'https://api.keepance.com/auth/sso/callback' }),
+      jsonResponse(200, { configured: false, redirect_uri: 'https://api.lanternplatform.app/auth/sso/callback' }),
     );
 
     const client = new FirmApiClient(tokenSource());
@@ -66,7 +66,7 @@ describe('FirmApiClient SSO config methods', () => {
 
   it('ssoConfigSet POSTs to /org/sso/config/set with Bearer token and body', async () => {
     fetchMock.mockResolvedValueOnce(
-      jsonResponse(200, { ok: true, redirect_uri: 'https://api.keepance.com/auth/sso/callback' }),
+      jsonResponse(200, { ok: true, redirect_uri: 'https://api.lanternplatform.app/auth/sso/callback' }),
     );
 
     const client = new FirmApiClient(tokenSource());

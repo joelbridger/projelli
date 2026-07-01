@@ -5,7 +5,7 @@
  * sendEvent is a no-op and no network request is made.
  *
  * Events POST to the form-handler service at:
- *   https://keepance.com/api/forms/keepance/app-event
+ *   https://forms.lanternplatform.app/api/forms/keepance/app-event
  *
  * Payload (whitelisted by the server; extra fields are dropped):
  *   { install_id, app_version, platform, event, license_tier?, days_since_install? }

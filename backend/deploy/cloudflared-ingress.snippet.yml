@@ -4,34 +4,34 @@
 # live ingress list at /etc/cloudflared/config.yml (root-owned). See the exact
 # ordered steps in deploy/RUNBOOK.md.
 #
-# The live config routes every keepance.com hostname to Caddy on localhost:8080
+# The live config routes every lanternplatform.app hostname to Caddy on localhost:8080
 # and lets Caddy fan out per-host to the right loopback service. The firm backend
-# follows that same pattern: api.keepance.com -> the tunnel -> Caddy:8080 ->
+# follows that same pattern: api.lanternplatform.app -> the tunnel -> Caddy:8080 ->
 # (Caddy host-match) -> 127.0.0.1:5194. So the tunnel line points at Caddy, NOT
-# directly at 5194 — identical to how licenses.keepance.com is wired today.
+# directly at 5194 — identical to how licenses.lanternplatform.app is wired today.
 #
 # Tunnel id: d4e16129-ddc2-4189-be59-009ebc3f7f6d (the home-server tunnel).
 
 # ADD this entry to the existing `ingress:` list in /etc/cloudflared/config.yml.
 # Put it ANYWHERE ABOVE the final catch-all `- service: http_status:404` line
 # (order matters only in that the 404 catch-all MUST stay last). Placing it next
-# to the other keepance.com hostnames keeps the file readable.
+# to the other lanternplatform.app hostnames keeps the file readable.
 
-  - hostname: api.keepance.com
+  - hostname: api.lanternplatform.app
     service: http://localhost:8080
 
 # The existing tail of the file is, and must remain:
 #
-#   - hostname: licenses.keepance.com      # <-- DO NOT MODIFY; existing validator
+#   - hostname: licenses.lanternplatform.app      # <-- DO NOT MODIFY; existing validator
 #     service: http://localhost:8080
 #   ...
 #   - service: http_status:404             # <-- MUST stay the LAST entry
 
 # --- DNS record to add (Cloudflare dashboard or API) ---
-# Add ONE proxied CNAME so api.keepance.com resolves to the tunnel:
+# Add ONE proxied CNAME so api.lanternplatform.app resolves to the tunnel:
 #
 #   Type:    CNAME
-#   Name:    api               (i.e. api.keepance.com)
+#   Name:    api               (i.e. api.lanternplatform.app)
 #   Target:  d4e16129-ddc2-4189-be59-009ebc3f7f6d.cfargotunnel.com
 #   Proxy:   Proxied (orange cloud) — REQUIRED; the tunnel only answers proxied traffic
 #   TTL:     Auto
@@ -39,7 +39,7 @@
 # Equivalent one-liner with the cloudflared CLI (creates/repoints the DNS record
 # for you against the named tunnel — run as the tunnel owner):
 #
-#   cloudflared tunnel route dns d4e16129-ddc2-4189-be59-009ebc3f7f6d api.keepance.com
+#   cloudflared tunnel route dns d4e16129-ddc2-4189-be59-009ebc3f7f6d api.lanternplatform.app
 #
-# This is the same shape as the existing licenses.keepance.com / keepance.com
+# This is the same shape as the existing licenses.lanternplatform.app / lanternplatform.app
 # records, which all CNAME to <tunnel-id>.cfargotunnel.com and are proxied.

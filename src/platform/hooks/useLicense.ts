@@ -1,7 +1,7 @@
 /**
  * useLicense — license activation, validation, and tier-gating hook for Advisor Prep Hero.
  *
- * Talks to the licenses.keepance.com Bun service. The desktop app stores the
+ * Talks to the licenses.lanternplatform.app Bun service. The desktop app stores the
  * activation token in localStorage (would ideally be in the OS keychain, same
  * as API keys — that's a future TODO).
  *
@@ -19,7 +19,7 @@
  *
  * Activation flow (from the user's perspective):
  *   1. User pastes their license key into Settings → License
- *   2. App POSTs to licenses.keepance.com/activate with { license_key, machine_id }
+ *   2. App POSTs to licenses.lanternplatform.app/activate with { license_key, machine_id }
  *   3. Server returns a signed JWT
  *   4. App stores the JWT in localStorage and calls /validate to confirm it
  *   5. UI now shows the user as activated, with the tier they purchased

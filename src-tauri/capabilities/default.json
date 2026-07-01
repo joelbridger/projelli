@@ -32,8 +32,8 @@
         { "url": "https://api.anthropic.com/**" },
         { "url": "https://api.openai.com/**" },
         { "url": "https://generativelanguage.googleapis.com/**" },
-        { "url": "https://keepance.com/api/forms/**" },
-        { "url": "https://licenses.keepance.com/**" }
+        { "url": "https://forms.lanternplatform.app/api/forms/**" },
+        { "url": "https://licenses.lanternplatform.app/**" }
       ]
     },
     {

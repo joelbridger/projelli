@@ -7,7 +7,7 @@ import { BRAND } from '@/config/brand';
  *   1. `VITE_FIRM_API_BASE` build/env override (used by tests + custom deploys).
  *   2. Dev (`import.meta.env.DEV`): the Vite proxy mount `/api/firm` (so the
  *      browser dev server can reach a locally-running backend without CORS).
- *   3. Production: `https://api.keepance.com`.
+ *   3. Production: `https://api.lanternplatform.app`.
  *
  * Solo/local mode never imports or calls any of this — it stays accountless.
  */

@@ -3,7 +3,7 @@
 > **The private intelligence layer for a financial advisory practice.**
 > Your clients' documents, email, and files stay on your machine, kept provably private, and answer you back with citations you can verify.
 
-[**keepance.com**](https://keepance.com) • [Download](https://github.com/keepance/keepance/releases) • [Press kit](https://keepance.com/press-kit/) • [Blog](https://keepance.com/blog/) • [Business plan](./KEEPANCE_BUSINESS_PLAN.md)
+[**keepance.com**](https://keepance.com) • [Download](https://github.com/lanternplatform/lantern/releases) • [Press kit](https://keepance.com/press-kit/) • [Blog](https://keepance.com/blog/) • [Business plan](./KEEPANCE_BUSINESS_PLAN.md)
 
 ---
 
@@ -26,13 +26,13 @@ The pitch in one sentence: the private place your whole practice lives and answe
 ## Status
 
 - **v3.3.5** is the current version: signed installers for Windows, macOS (Apple Silicon + Intel), and Linux, all with auto-update.
-- Per-seat annual subscriptions via LemonSqueezy, license validation, the firm backend at `api.keepance.com`, and the full legal docs are all live.
+- Per-seat annual subscriptions via LemonSqueezy, license validation, the firm backend at `api.lanternplatform.app`, and the full legal docs are all live.
 - **Positioning (current):** Advisor Prep Hero leads for **financial advisors** (solo/small RIA practices); law, tax, and consulting are secondary verticals. See the 2026-06-29 board decision in [`docs/strategy/2026-06-29-board-decision-leading-advisor-ai.md`](./docs/strategy/2026-06-29-board-decision-leading-advisor-ai.md).
 - See [`KEEPANCE_BUSINESS_PLAN.md`](./KEEPANCE_BUSINESS_PLAN.md) for strategy, the board dashboard at [board.jameworld.com](https://board.jameworld.com) plus [`docs/operations/2026-06-24-advisor-website-board-CURRENT-STATE.md`](./docs/operations/2026-06-24-advisor-website-board-CURRENT-STATE.md) for the authoritative current state, and [`BACKLOG.md`](./BACKLOG.md) for the task list.
 
 ## Install
 
-**Windows:** Download `Advisor Prep Hero_x.y.z_x64-setup.exe` from [Releases](https://github.com/keepance/keepance/releases). Double-click; the installer runs silently, then Advisor Prep Hero auto-launches. Signed via Azure Trusted Signing (no SmartScreen warning).
+**Windows:** Download `Advisor Prep Hero_x.y.z_x64-setup.exe` from [Releases](https://github.com/lanternplatform/lantern/releases). Double-click; the installer runs silently, then Advisor Prep Hero auto-launches. Signed via Azure Trusted Signing (no SmartScreen warning).
 
 **macOS:** Download the DMG that matches your chip (`aarch64` for Apple Silicon, `x64` for Intel) from Releases and drag it to Applications. Signed with our Apple Developer ID and notarized.
 
@@ -87,7 +87,7 @@ keepance/
 │   ├── ui/                         design system (primitives + kp/ + brand)
 │   └── lib/                        domain-free leaf utilities
 ├── src-tauri/                      Rust backend (commands, crates: keepance-vault, keepance-docx)
-├── backend/                        firm backend (E2EE relay, SSO) deployed to api.keepance.com
+├── backend/                        firm backend (E2EE relay, SSO) deployed to api.lanternplatform.app
 ├── tests/                          Vitest (unit/integration/security) + Playwright (e2e)
 ├── website/                        marketing site (deploys to keepance.com)
 ├── infra/deploy.sh                 website deploy script
@@ -120,8 +120,8 @@ Privacy policy: [https://keepance.com/legal/privacy](https://keepance.com/legal/
 
 ## Support
 
-- **Email:** `support@keepance.com`
-- **Issues:** [GitHub Issues](https://github.com/keepance/keepance/issues)
+- **Email:** `support@advisorprephero.com`
+- **Issues:** [GitHub Issues](https://github.com/lanternplatform/lantern/issues)
 
 ## License
 

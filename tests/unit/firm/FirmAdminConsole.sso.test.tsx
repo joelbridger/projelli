@@ -48,7 +48,7 @@ import { FirmAdminConsole } from '@/features/firm/FirmAdminConsole';
 
 // ── SSO mock helpers ───────────────────────────────────────────────────────────
 
-const REDIRECT_URI = 'https://api.keepance.com/auth/sso/callback';
+const REDIRECT_URI = 'https://api.lanternplatform.app/auth/sso/callback';
 
 function ssoGetUnconfigured(): Response {
   return {
