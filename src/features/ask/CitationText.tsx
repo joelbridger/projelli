@@ -46,13 +46,20 @@ export function CitationText({
     const isSel = selected === n;
     const isVerified = cite?.verified ?? false;
     const isUnresolved = cite?.path === null;
+    // STRICT trust display: green only when the model explicitly cited the
+    // exact source and it verified in scope.
+    const proven = isVerified && !isUnresolved;
+    // B1: "source found, not verified" — the citation resolves to a real
+    // retrieved chunk in this client (grounded) but was a post-hoc fuzzy match,
+    // not an explicit model citation. Show it honestly (amber) instead of a
+    // green badge it hasn't earned — and never silently drop it. (Pre-B1
+    // persisted citations have no `grounded`; they fall back to verified above.)
+    const sourceFound = !proven && !isUnresolved && (cite?.grounded ?? false);
     const dataVerified: 'true' | 'false' | 'unknown' = isUnresolved
       ? 'false'
       : isVerified
         ? 'true'
         : 'unknown';
-    // STRICT trust display: green only when the exact source was proven.
-    const proven = isVerified && !isUnresolved;
     return (
       <button
         key={key}
@@ -65,20 +72,24 @@ export function CitationText({
             onOpenFileAtPath(cite.path, cite.paragraphIndex ?? 0, cite.excerpt || undefined);
           }
         }}
-        aria-label={`Citation ${String(n)}: ${cite?.label ?? 'unknown'}. ${proven ? 'Source found.' : 'Unverified.'}`}
+        aria-label={`Citation ${String(n)}: ${cite?.label ?? 'unknown'}. ${proven ? 'Source found.' : sourceFound ? 'Source found, not verified.' : 'Unverified.'}`}
         title={
           proven
             ? `Source found — open ${cite?.path ?? ''}`
-            : isUnresolved
-              ? 'Unverified: the cited source could not be found in what was retrieved. Do not rely on this without checking.'
-              : 'Unverified: could not confirm this exact passage against the source. Do not rely on this without checking.'
+            : sourceFound
+              ? `Source found, not verified — this passage was matched to the source but not confirmed to support the claim. Open ${cite?.path ?? ''} to check.`
+              : isUnresolved
+                ? 'Unverified: the cited source could not be found in what was retrieved. Do not rely on this without checking.'
+                : 'Unverified: could not confirm this exact passage against the source. Do not rely on this without checking.'
         }
         style={isSel ? { outline: '2px solid var(--kp-navy)', outlineOffset: 1 } : undefined}
         className={cn(
           'inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded-md border text-xs font-mono font-semibold align-baseline cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
           proven
             ? 'border-green-400/60 bg-green-50 text-green-800 hover:bg-green-100'
-            : 'border-red-400/60 bg-red-50 text-red-700 hover:bg-red-100',
+            : sourceFound
+              ? 'border-amber-400/70 bg-amber-50 text-amber-800 hover:bg-amber-100'
+              : 'border-red-400/60 bg-red-50 text-red-700 hover:bg-red-100',
         )}
       >
         {proven ? (

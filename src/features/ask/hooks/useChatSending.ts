@@ -43,7 +43,7 @@ import { createDemoProvider } from '@/web-demo/demoAIProvider';
 import { isTauriProductionBuild, parseApiError, ApiResponseParseError } from '@/platform/providers/fetchUtils';
 import { FILE_ACCESS_TOOLS } from '@/platform/tools/fileAccessTools';
 import type { useActiveMatter } from '@/platform/matter/matterStore';
-import { getActiveScope, useMatterStore } from '@/platform/matter/matterStore';
+import { useMatterStore } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import {
   pathInActiveMatter as pathInActiveMatterGuard,
@@ -741,12 +741,15 @@ export function useChatSending(deps: UseChatSendingDeps) {
             isDemo: IS_DEMO,
             assuredAvailable: assuredAvailableForChat,
           });
-          const rawScope = getActiveScope();
-          const foundMatterName = rawScope.kind === 'matter'
-            ? useMatterStore.getState().matters.find(m => m.id === rawScope.matterId)?.name
-            : undefined;
-          const auditScope: AuditScope = rawScope.kind === 'matter'
-            ? { kind: 'matter', matterId: rawScope.matterId, ...(foundMatterName !== undefined && { matterName: foundMatterName }) }
+          // A3: build the egress audit scope from the scope CAPTURED at send time
+          // (`turnScope`), NOT a late getActiveScope(). The egress records which
+          // client this request's data actually left under; if the user switches
+          // the active client while the response is still streaming, a late
+          // getActiveScope() would name the NEW client in the Data Map — falsely
+          // attributing one client's egress to another. turnScope is frozen at
+          // send and carries the human label captured then (matterResolver).
+          const auditScope: AuditScope = turnScope.kind === 'matter' && turnScope.matterId !== undefined
+            ? { kind: 'matter', matterId: turnScope.matterId, ...(turnScope.matterName !== undefined && { matterName: turnScope.matterName }) }
             : { kind: 'allMatters' };
           return { egress, auditScope };
         };
@@ -1370,7 +1373,14 @@ export function useChatSending(deps: UseChatSendingDeps) {
         // pure string assembly. buildSystemPrompt does the layered composition
         // (facts → workspace context → base role → open files → history) so the
         // exact prefix order can't drift.
-        const facts = await snapshotFactsForInjection();
+        // A1 (isolation): inject ONLY facts that may be sent under THIS turn's
+        // client scope. A client-scoped turn gets only that client's facts (and
+        // no global/legacy ones); an all-matters turn gets only global facts.
+        // `activeMatter` is the same value the retrieval + tool scope captured
+        // at send start, so facts can never leak across the client boundary.
+        const facts = await snapshotFactsForInjection(
+          activeMatter ? { matterId: activeMatter.id } : { matterId: null },
+        );
         const systemPrompt = buildSystemPrompt({
           messages,
           hasWorkspace,

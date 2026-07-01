@@ -22,15 +22,19 @@ const session = (citation: Record<string, unknown>, sources: Record<string, unkn
   ] as unknown as Msg[];
 
 describe('reconstructTurns — BUG-065 citation re-grounding on reload', () => {
-  it('re-grounds an exact-locator citation to verified:true even if persisted verified was false', () => {
+  it('does NOT re-promote a persisted verified:false citation to green on reload (B1)', () => {
+    // B1 corrects the prior BUG-065 behavior: a citation persisted as
+    // verified:false (post-hoc match, cross-client, or otherwise unproven) must
+    // NOT be flipped to a green "verified" badge on reload just because its
+    // locator still matches a saved chunk. We never re-promote — only demote.
     const turns = reconstructTurns(
       session(
         { n: 1, label: 'f.md', excerpt: 'x', path: '/ws/f.md', locator: 'f', verified: false, paragraphIndex: 4 },
         [{ path: '/ws/f.md', chunkText: 'x', score: 0.9, paragraphIndex: 4 }],
       ),
     );
-    expect(turns[0]?.citations).toHaveLength(1);
-    expect(turns[0]?.citations[0]?.verified).toBe(true);
+    expect(turns[0]?.citations).toHaveLength(1); // kept (the chunk was retrieved)
+    expect(turns[0]?.citations[0]?.verified).toBe(false); // but never re-promoted to green
   });
 
   it('keeps a path-only (pre-WS3) citation but marks it UNVERIFIED, ignoring a persisted verified:true', () => {

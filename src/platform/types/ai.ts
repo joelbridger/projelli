@@ -61,6 +61,14 @@ export interface PersistedCitation {
   /** Whether the source was returned from the verified RAG store. */
   verified: boolean;
   /**
+   * B1 — whether this citation resolves to a real retrieved chunk in the
+   * expected client scope (possibly via a post-hoc fuzzy match). Distinct from
+   * `verified` (which requires an explicit model citation). Persisted so an
+   * honest "source found, not verified" chip survives reload. Absent on pre-B1
+   * citations — reload falls back to re-grounding against the saved sources.
+   */
+  grounded?: boolean;
+  /**
    * WS3 — paragraph index of the cited chunk. Persisted so chip-click
    * navigation works after reload and so citations can be RE-GROUNDED against
    * the saved sources on reload (BUG-016). Absent on pre-WS3 citations.
