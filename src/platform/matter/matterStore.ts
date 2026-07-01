@@ -1259,14 +1259,29 @@ function dedupeStrings(values: string[]): string[] {
  * load in those suites.
  *
  * Runs both EAGERLY (once, against whatever `workspaceStore` state already
- * exists right now) and on every future `rootPath`/`fileTree` change (Codex
- * review #4): a `subscribe` callback only fires on a CHANGE, so if the
- * workspace root and its tree happen to already be loaded by the time this
- * module evaluates and registers the subscription (a real possible ordering,
- * not just this store's own `persist` migration finishing first), waiting for
- * the NEXT change would leave an affected matter relative indefinitely — the
- * exact bug this reconciliation exists to prevent, just via a startup-ordering
- * gap instead of a migration one.
+ * exists right now) and on every future `fileTree` change (Codex review #4)
+ * — a `subscribe` callback only fires on a CHANGE, so if the workspace root
+ * and its tree happen to already be loaded by the time this module evaluates
+ * and registers the subscription (a real possible ordering, not just this
+ * store's own `persist` migration finishing first), waiting for the NEXT
+ * change would leave an affected matter relative indefinitely — the exact
+ * bug this reconciliation exists to prevent, just via a startup-ordering gap
+ * instead of a migration one.
+ *
+ * Deliberately triggers ONLY on `fileTree` changing, never on a bare
+ * `rootPath` change (Codex review #5): every real workspace-open call site
+ * (`WorkspaceSelector.tsx`, `useWorkspaceLifecycle.ts`) calls `setRootPath`
+ * FIRST and `setFileTree` LATER — sometimes on the very next line, sometimes
+ * after an `await`-gapped folder-creation pass — so a subscriber that reacted
+ * to `rootPath` changing alone would run with the STALE tree from the
+ * PREVIOUS workspace still paired with the NEW root. If a relative folder
+ * name happened to coincidentally exist in that stale tree too, it would be
+ * permanently (and wrongly) bound to the new workspace, and the correct tree
+ * arriving moments later would never undo it (an absolute entry always
+ * passes through unchanged). Waiting for `fileTree` itself to change sidesteps
+ * this entirely: by construction, every call site updates `rootPath` before
+ * `fileTree`, so whenever `fileTree` changes, `rootPath` in that SAME state
+ * snapshot is already the one it belongs to — never a stale pairing.
  */
 function reconcileFolderPathsWithWorkspace(root: string | null, fileTree: FileNode[]): void {
   if (!root) return;
@@ -1296,7 +1311,7 @@ try {
   const initial = useWorkspaceStore.getState();
   reconcileFolderPathsWithWorkspace(initial.rootPath, initial.fileTree);
   useWorkspaceStore.subscribe((state, prevState) => {
-    if (state.rootPath === prevState.rootPath && state.fileTree === prevState.fileTree) return;
+    if (state.fileTree === prevState.fileTree) return;
     reconcileFolderPathsWithWorkspace(state.rootPath, state.fileTree);
   });
 } catch {

@@ -252,6 +252,40 @@ describe('matter-store merge — v9 -> v10 folderPaths canonicalization', () => 
     ]);
   });
 
+  it('does not bind a legacy relative entry using a STALE tree from the PREVIOUS workspace when rootPath changes before fileTree does (Codex review #5)', async () => {
+    // Every real workspace-open call site sets rootPath FIRST and fileTree
+    // LATER (sometimes much later, after an await-gapped folder-creation
+    // pass) — see WorkspaceSelector.tsx / useWorkspaceLifecycle.ts. Simulate
+    // that exact sequence: a PREVIOUS workspace's tree (which happens to
+    // coincidentally contain a same-named folder) is still in the store when
+    // the NEW root is set; only later does the NEW tree replace it.
+    useWorkspaceStore.setState({
+      rootPath: 'C:/workspaces/PreviousWorkspace',
+      fileTree: [{ id: 'coincidence', name: 'Hollings', path: 'Clients/Hollings', type: 'folder' }],
+    });
+    seed(MATTERS_KEY, {
+      state: { matters: [{ ...sampleMatterV4, folderPaths: ['Clients/Hollings'] }], activeMatterId: 'm1' },
+      version: 10,
+    });
+    await useMatterStore.persist.rehydrate();
+    expect(useMatterStore.getState().matters[0]!.folderPaths).toEqual(['Clients/Hollings']);
+
+    // rootPath changes to the NEW workspace, but fileTree is untouched here —
+    // still the PREVIOUS workspace's tree, which coincidentally also has a
+    // "Clients/Hollings" folder. A rootPath-triggered reconciliation would
+    // wrongly bind the entry to this NEW (wrong) root using that stale tree.
+    useWorkspaceStore.setState({ rootPath: 'C:/workspaces/NewWorkspace' });
+    expect(useMatterStore.getState().matters[0]!.folderPaths).toEqual(['Clients/Hollings']);
+
+    // Only once the NEW workspace's own (different, non-matching) tree loads
+    // does anything reconcile — and it correctly does NOT match, since this
+    // new workspace has no "Clients/Hollings" folder.
+    useWorkspaceStore.setState({
+      fileTree: [{ id: 'unrelated', name: 'Someone Else', path: 'Clients/Someone Else', type: 'folder' }],
+    });
+    expect(useMatterStore.getState().matters[0]!.folderPaths).toEqual(['Clients/Hollings']);
+  });
+
   it('does not re-write matters when the workspace root changes but folderPaths are already canonical', async () => {
     seed(MATTERS_KEY, {
       state: {
