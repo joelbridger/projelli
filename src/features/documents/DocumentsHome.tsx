@@ -540,15 +540,39 @@ export function DocumentsHome({
   // resolved target that isn't itself inside one of the client's OWN mapped
   // folders is treated as out-of-scope, falling back to `embeddedCreateFallback`
   // below — exactly like the existing root (`currentFolderPath === null`) clamp.
+  // Shared by createTargetPath below AND scopedOnMove (drag-and-drop) — both
+  // need the same "is this absolute path actually inside the client's own
+  // scope" check, not just "does the app consider it embedded".
+  const isWithinEmbeddedScope = useCallback(
+    (absPath: string): boolean => {
+      if (!embedded || !scopeFolderPaths || scopeFolderPaths.length === 0) return true;
+      return scopeFolderPaths.some((folder) => isPathInFolder(absPath, folder));
+    },
+    [embedded, scopeFolderPaths],
+  );
+
   const createTargetPath = (() => {
     if (currentFolderPath === null) return null;
     const abs = toAbsolute(currentFolderPath, rootPath);
-    if (embedded && scopeFolderPaths && scopeFolderPaths.length > 0) {
-      const withinScope = scopeFolderPaths.some((folder) => isPathInFolder(abs, folder));
-      if (!withinScope) return null;
-    }
+    if (!isWithinEmbeddedScope(abs)) return null;
     return abs;
   })();
+
+  // Codex review (P1, round 4): drag-and-drop onto an ancestor breadcrumb
+  // (e.g. dropping a file onto "Clients") is now reachable for the same
+  // reason as above — it must be blocked the same way, or a drag can move a
+  // client's file OUT of their own matter-isolated folder entirely (it then
+  // belongs to no client, or a different one, and vanishes from this
+  // client's Documents tab). Fails closed: an out-of-scope drop is a silent
+  // no-op, consistent with this file's other guarded-drop no-ops (dropping
+  // onto self/already-parent/descendant).
+  const scopedOnMove = useCallback(
+    async (sourcePath: string, targetPath: string) => {
+      if (!isWithinEmbeddedScope(toAbsolute(targetPath, rootPath))) return;
+      await onMove(sourcePath, targetPath);
+    },
+    [onMove, isWithinEmbeddedScope, rootPath],
+  );
 
   // Embedded (per-client): clamp only the create/import TARGET — not navigation.
   // At the scoped root (currentFolderPath === null, e.g. the "All files"
@@ -904,7 +928,7 @@ export function DocumentsHome({
             onCreateFolder={onCreateFolder}
             onRename={onRename}
             onDelete={onDelete}
-            onMove={onMove}
+            onMove={scopedOnMove}
             onDownload={onDownload}
             activeView={embedded ? 'files' : activeView}
             searchQuery={searchQuery}
@@ -928,7 +952,7 @@ export function DocumentsHome({
                 onCreateFolder={onCreateFolder}
                 onRename={onRename}
                 onDelete={onDelete}
-                onMove={onMove}
+                onMove={scopedOnMove}
                 onDownload={onDownload}
                 {...(onCreateDefaultDocument !== undefined ? { onCreateDefaultDocument } : {})}
                 {...(onCreateTextFileAtRoot !== undefined ? { onCreateTextFileAtRoot } : {})}

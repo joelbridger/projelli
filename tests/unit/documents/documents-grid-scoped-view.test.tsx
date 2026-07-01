@@ -198,6 +198,58 @@ describe('DocumentsHome — Grid view with relative tree paths (real bug shape)'
     expect(onImportFiles).not.toHaveBeenCalledWith(`${ROOT}/Clients`);
   });
 
+  it('drag-and-drop onto an ANCESTOR breadcrumb is blocked, same as create/import (Codex review round 4, P1)', () => {
+    // handleDropOnCrumb -> onMove reaches the SAME ancestor breadcrumb that
+    // create/import were clamped against above; a drag must be blocked the
+    // same way, or a file can be dragged out of the client's own matter-
+    // isolated folder (it then vanishes from this client's Documents tab).
+    const onMove = vi.fn().mockResolvedValue(undefined);
+    render(
+      <DocumentsHome
+        {...buildProps({ onMove })}
+        embedded
+        scopeFolderPaths={[`${ROOT}/Clients/Acme`]}
+        scopeMatterId="acme"
+      />,
+    );
+    const crumb = screen.getByTestId('breadcrumb-crumb-1'); // "Clients"
+    fireEvent.drop(crumb, {
+      dataTransfer: { getData: () => 'Clients/Acme/deal.docx' },
+    });
+    expect(onMove).not.toHaveBeenCalled();
+  });
+
+  it('resets stale currentFolderPath (and its create target) when the viewed folder disappears from the tree (Codex review round 4, P2)', async () => {
+    // Establish the baseline target "New document" uses at the TRUE root
+    // (never navigated), so we can confirm the post-reset target matches it
+    // rather than staying stuck on the deleted folder's path.
+    const baselineCreate = vi.fn();
+    const { unmount } = render(<DocumentsHome {...buildProps({ onCreateFile: baselineCreate })} />);
+    fireEvent.click(screen.getByText('New document'));
+    const rootTarget = baselineCreate.mock.calls[0]?.[0] as unknown;
+    unmount();
+
+    const onCreateFile = vi.fn();
+    const { rerender } = render(<DocumentsHome {...buildProps({ onCreateFile })} />);
+    fireEvent.click(screen.getByText('Clients'));
+    fireEvent.click(screen.getByText('Acme'));
+    expect(screen.getByText('deal.docx')).toBeTruthy();
+
+    // Simulate the Acme folder disappearing (deleted/renamed) via a tree
+    // refresh, e.g. the file watcher's periodic poll.
+    mockStoreFileTree = [{ id: 'clients', name: 'Clients', path: 'Clients', type: 'folder', children: [] }];
+    rerender(<DocumentsHome {...buildProps({ onCreateFile })} />);
+    await waitFor(() => {
+      expect(screen.queryByText('deal.docx')).toBeNull();
+    });
+
+    fireEvent.click(screen.getByText('New document'));
+    // Without the reset this would still target the deleted "Clients/Acme"
+    // path — and since writes create missing parents, it would silently
+    // RECREATE the folder the user just deleted.
+    expect(onCreateFile).toHaveBeenCalledWith(rootTarget);
+  });
+
   it('resolves into the client folder once the tree loads AFTER mount (Codex review round 2)', async () => {
     // Landing directly on a client's Documents tab before the workspace's
     // initial file-tree load has completed: the tree is empty at mount, so
