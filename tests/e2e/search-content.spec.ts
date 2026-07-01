@@ -24,7 +24,7 @@ test.describe('Search surface', () => {
   test('search input uses the current Ask composer', async ({ page }) => {
     const input = page.getByTestId('ask-composer-input');
     await expect(input).toBeVisible();
-    await expect(input).toHaveAttribute('placeholder', /search across all matters/i);
+    await expect(input).toHaveAttribute('placeholder', /ask across all clients/i);
   });
 
   test('scope toggle exposes current search scopes', async ({ page }) => {
@@ -44,7 +44,7 @@ test.describe('Search surface', () => {
 
   test('typing a question enables the Search action', async ({ page }) => {
     const input = page.getByTestId('ask-composer-input');
-    const searchButton = page.getByRole('button', { name: /^Search$/ }).last();
+    const searchButton = page.getByRole('button', { name: /^Ask$/ }).last();
 
     await expect(searchButton).toBeDisabled();
     await safeFill(input, 'Find every email from opposing counsel');

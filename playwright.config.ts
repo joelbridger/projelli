@@ -34,14 +34,12 @@ const E2E_BASE_URL = process.env['E2E_BASE_URL'] ?? 'http://localhost:5173';
 const CI_QUARANTINE = [
   '**/workflows-panel.spec.ts',
   '**/web-demo.spec.ts',
-  '**/file-tree.spec.ts',
   '**/citation-persistence.spec.ts',
   '**/app-layout.spec.ts',
   '**/v1.5-integration-flows.spec.ts',
   '**/templates-marketplace.spec.ts',
   '**/status-bar.spec.ts',
   '**/sidebar-a11y.spec.ts',
-  '**/search-content.spec.ts',
   // Added 2026-07-01 (F1.3): confirmed failing on a REAL GitHub Actions CI run
   // (post-sharding — sharding fixed the documented tail-timeout mechanism but
   // did NOT fix these; see docs/quality/e2e-flaky-quarantine.md for the
