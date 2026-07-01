@@ -33,7 +33,8 @@
         { "url": "https://api.openai.com/**" },
         { "url": "https://generativelanguage.googleapis.com/**" },
         { "url": "https://forms.lanternplatform.app/api/forms/**" },
-        { "url": "https://licenses.lanternplatform.app/**" }
+        { "url": "https://licenses.lanternplatform.app/**" },
+        { "url": "https://api.lanternplatform.app/**" }
       ]
     },
     {
