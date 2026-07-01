@@ -432,7 +432,8 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     // (the isLoading gate above), by which point the user may already have
     // switched the active client — so getActiveScope() here is unsafe. The pure
     // deriveFactScope() reads the scope FROZEN on the messages at send time and
-    // returns a specific client id ONLY when it is unambiguous, else global.
+    // returns a specific client id ONLY when the whole chat is provably that one
+    // client; otherwise `undefined`, meaning the fact's client is ambiguous.
     const extractionMatterId = deriveFactScope(messages);
     void (async () => {
       try {
@@ -481,13 +482,25 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         );
         if (proposals.length === 0) return;
 
+        // A1 FAIL-CLOSED (review P1): if the fact's client can't be proven
+        // unambiguously, DROP it — do not save it, do not offer a chip. A
+        // fact saved without a client scope becomes GLOBAL, and a global fact
+        // is injected into the cross-client all-matters view — re-opening the
+        // very cross-client exposure A1 closes. Guessing the live active
+        // client instead would be worse: this effect runs after the answer
+        // streams, so the picker may already point at a DIFFERENT client than
+        // the one the fact is about, mis-stamping it and leaking into that
+        // client. So facts are captured ONLY when the whole chat is one
+        // provable client (deriveFactScope returned a specific id).
+        if (extractionMatterId === undefined) return;
+
         // M3 — auto-accept path skips the chip and saves directly.
         if (isFactsAutoAcceptEnabled()) {
           const svc = getFactsService();
           if (svc) {
-            // A1: stamp the scope CAPTURED when extraction started (above), so
-            // an auto-accepted fact is bound to the client whose conversation
-            // produced it — never re-bound to a client switched to mid-extract.
+            // A1: stamp the proven client scope (guaranteed defined here), so an
+            // auto-accepted fact is bound to the client whose conversation
+            // produced it and can only ever be injected back into that client.
             for (const p of proposals) {
               try {
                 await svc.addFact({
@@ -495,7 +508,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
                   approved_by: 'auto',
                   source_chat_id: chatId,
                   source_message_index: count - 1,
-                  ...(extractionMatterId ? { matterId: extractionMatterId } : {}),
+                  matterId: extractionMatterId,
                 });
               } catch {
                 // Best-effort — if one save fails, keep trying the others.
@@ -505,13 +518,13 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           return;
         }
 
-        // Otherwise surface chips for user approval. Freeze the captured client
-        // scope onto each chip (A1 / Codex P1) so a later Accept binds the fact
-        // to the client it was learned in, even if the user has since switched.
+        // Otherwise surface chips for user approval. Freeze the proven client
+        // scope onto each chip (A1) so a later Accept binds the fact to that
+        // client even if the user has since switched the active client.
         const keyed = proposals.map((p, i) => ({
           ...p,
           key: `${count}-${i}-${Date.now()}`,
-          ...(extractionMatterId ? { matterId: extractionMatterId } : {}),
+          matterId: extractionMatterId,
         }));
         setProposedFacts((prev) => [...prev, ...keyed]);
       } catch {
@@ -876,23 +889,27 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
       if (!entry) return;
       const svc = getFactsService();
       const text = (editedText ?? entry.text).trim();
-      if (!svc || text.length === 0) {
+      // A1 FAIL-CLOSED (review P1): a chip is only ever created with a proven
+      // client scope (see the extraction effect). If one somehow has none, DROP
+      // it rather than save a global fact — a global fact would surface in the
+      // cross-client all-matters view. Never fall back to the live active
+      // client (this runs long after extraction; the picker may point at a
+      // DIFFERENT client than the fact is about).
+      if (!svc || text.length === 0 || !entry.matterId) {
         setProposedFacts((prev) => prev.filter((p) => p.key !== key));
         return;
       }
       try {
-        // A1 (Codex P1): stamp ONLY the scope CAPTURED on the chip when it was
-        // extracted (from the transcript's frozen turn scope), NEVER the live
-        // active client — accepting a Client-A proposal after switching to
-        // Client B must still bind it to Client A. A chip with no captured
-        // scope stays global (undefined), which never injects into a specific
-        // client, so we never stamp a specific client we aren't certain of.
+        // A1 (Codex P1): stamp ONLY the client scope CAPTURED on the chip when
+        // it was extracted (from the transcript's frozen turn scope) — accepting
+        // a Client-A proposal after switching to Client B must still bind it to
+        // Client A, and it can only ever be injected back into Client A.
         await svc.addFact({
           text,
           approved_by: 'user',
           source_chat_id: chatId,
           source_message_index: messages.length - 1,
-          ...(entry.matterId ? { matterId: entry.matterId } : {}),
+          matterId: entry.matterId,
         });
         extractionStateRef.current = markAccepted(extractionStateRef.current);
       } catch {

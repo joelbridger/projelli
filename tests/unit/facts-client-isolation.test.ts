@@ -58,6 +58,17 @@ describe('selectFactsForInjection (A1 isolation)', () => {
     expect(selectFactsForInjection(legacyOnly, { matterId: 'client-a' })).toEqual([]);
     expect(selectFactsForInjection(legacyOnly, { matterId: null })).toEqual([GLOBAL_FACT]);
   });
+
+  it('an unscoped/global fact is NEVER injected while working in a specific (different) client (review P1)', () => {
+    // The fail-closed guarantee: even if a global/unscoped fact exists (e.g. a
+    // legacy one), a client-scoped turn must not receive it. New ambiguous
+    // facts are dropped at save (never stored global) — see deriveFactScope +
+    // the AIChatViewer extraction drop — but the injection filter is the
+    // second line of defence.
+    const facts = [GLOBAL_FACT, CLIENT_A_FACT];
+    expect(selectFactsForInjection(facts, { matterId: 'client-b' })).toEqual([]);
+    expect(selectFactsForInjection(facts, { matterId: 'client-a' })).toEqual([CLIENT_A_FACT]);
+  });
 });
 
 describe('snapshotFactsForInjection (A1 — the chat send ingress)', () => {

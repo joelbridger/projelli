@@ -89,4 +89,20 @@ describe('deriveFactScope (A1)', () => {
     ];
     expect(deriveFactScope(msgs)).toBe('client-a');
   });
+
+  it('CONTRACT: undefined means the fact is DROPPED (never saved global) — review P1 fail-closed', () => {
+    // A `undefined` result is the ambiguous case. The AIChatViewer extraction
+    // effect treats it as "drop the fact" (do not save, do not offer a chip),
+    // so an ambiguous fact never becomes a global fact that could surface in
+    // the cross-client all-matters view. This test pins that the ambiguous
+    // cases resolve to undefined (the drop signal), not to any client id.
+    const ambiguous = [
+      user('a mix', matter('client-a')),
+      assistant('...'),
+      user('of clients', matter('client-b')),
+      assistant('...'),
+    ];
+    expect(deriveFactScope(ambiguous)).toBeUndefined();
+    expect(deriveFactScope([user('plain'), assistant('...')])).toBeUndefined();
+  });
 });
