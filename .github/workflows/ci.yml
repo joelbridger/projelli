@@ -165,8 +165,21 @@ jobs:
     # preview bundle and run the Playwright suite (chromium project) against it, so a
     # change that breaks a screen is caught HERE, before the slow real-Windows bench.
     # AI is offline — the one live-network test is skipped via E2E_NO_LIVE.
+    #
+    # SHARDED (2026-07-01, F1.3): a single unsharded `playwright test` invocation
+    # against this many specs reliably fails a large tail of otherwise-passing tests
+    # from long-run resource pressure — the exact mechanism scripts/run-e2e-suite.sh
+    # documents and works around locally (see docs/quality/e2e-suite-batching.md).
+    # That's why this job had been red on effectively every push. Splitting into N
+    # parallel shards, each a short run on its own fresh runner, removes the
+    # long-single-run pressure entirely (mirrors the local sharded script) and is
+    # faster than one long serial run.
     needs: [setup]
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
     steps:
       - uses: actions/checkout@v4
       - name: Install Node.js
@@ -182,20 +195,20 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Build E2E preview bundle
         run: npx vite build --config vite.config.e2e.ts
-      - name: Run browser E2E gate (chromium, offline AI, CI-stable subset)
+      - name: Run browser E2E gate (chromium, offline AI, CI-stable subset, shard ${{ matrix.shard }}/6)
         env:
           E2E_NO_LIVE: '1'
-          # Quarantine the 12 CI-environment-sensitive specs (see playwright.config.ts)
+          # Quarantine the CI-environment-sensitive specs (see playwright.config.ts)
           # so the gate is a trustworthy green hard-gate. They run locally + nightly.
           E2E_CI_QUARANTINE: '1'
         run: |
           npx vite preview --config vite.config.e2e.ts --port 4173 --strictPort >/tmp/e2e-preview.log 2>&1 &
           for i in $(seq 1 60); do curl -sf http://localhost:4173 >/dev/null 2>&1 && break; sleep 1; done
-          E2E_BASE_URL=http://localhost:4173 npx playwright test --project=chromium --reporter=line
+          E2E_BASE_URL=http://localhost:4173 npx playwright test --project=chromium --shard=${{ matrix.shard }}/6 --reporter=line
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-shard-${{ matrix.shard }}
           path: playwright-report/
           retention-days: 14

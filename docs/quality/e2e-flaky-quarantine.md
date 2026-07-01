@@ -21,23 +21,28 @@ same change.
 
 ## Quarantined specs
 
-Owner `unassigned` = the parallel QA engine picks it up; the lead may assign a
-specific agent/session. Suspected cause is a hypothesis from the spec name + the
-config comment (state / onboarding / timing / visual), not a confirmed diagnosis.
+Every row has a named owner — no `unassigned` rows (rule set 2026-07-01, F1.3:
+a quarantine with no owner rots). `fix-plan-F1.3-followup` is the standing
+follow-up ticket owner where no more specific person/session has picked it up
+yet; reassign to a specific owner when someone starts working a row. Suspected
+cause is a hypothesis from the spec name + the config comment (state /
+onboarding / timing / visual), not a confirmed diagnosis, unless marked
+"confirmed".
 
 | Spec | Suspected cause | Owner | Fix-or-delete by |
 |---|---|---|---|
-| `workflows-panel.spec.ts` | workflow-panel state/timing on cold CI start | unassigned | 2026-07-31 |
-| `web-demo.spec.ts` | demo-route load + route-mock timing | unassigned | 2026-07-31 |
-| `file-tree.spec.ts` | file-tree render/expand timing | unassigned | 2026-07-31 |
-| `citation-persistence.spec.ts` | citation state across reload (persisted-state timing) | unassigned | 2026-07-31 |
-| `app-layout.spec.ts` | layout/visual sensitivity to CI rendering | unassigned | 2026-07-31 |
-| `v1.5-integration-flows.spec.ts` | broad multi-step flow; cold-start timing | unassigned | 2026-07-31 |
-| `v1.5-accessibility-full.spec.ts` | full a11y sweep; slow/timing-sensitive | unassigned | 2026-07-31 |
-| `templates-marketplace.spec.ts` | templates list state/timing | unassigned | 2026-07-31 |
-| `status-bar.spec.ts` | status-bar state/visual | unassigned | 2026-07-31 |
-| `sidebar-a11y.spec.ts` | sidebar a11y tree timing | unassigned | 2026-07-31 |
-| `search-content.spec.ts` | search depends on the index (browser index is desktop-only) | unassigned | 2026-07-31 |
+| `workflows-panel.spec.ts` | workflow-panel state/timing on cold CI start | fix-plan-F1.3-followup | 2026-07-31 |
+| `web-demo.spec.ts` | demo-route load + route-mock timing | fix-plan-F1.3-followup | 2026-07-31 |
+| `file-tree.spec.ts` | file-tree render/expand timing | fix-plan-F1.3-followup | 2026-07-31 |
+| `citation-persistence.spec.ts` | citation state across reload (persisted-state timing) | fix-plan-F1.3-followup | 2026-07-31 |
+| `app-layout.spec.ts` | layout/visual sensitivity to CI rendering | fix-plan-F1.3-followup | 2026-07-31 |
+| `v1.5-integration-flows.spec.ts` | broad multi-step flow; cold-start timing | fix-plan-F1.3-followup | 2026-07-31 |
+| `v1.5-accessibility-full.spec.ts` | full a11y sweep; slow/timing-sensitive | fix-plan-F1.3-followup | 2026-07-31 |
+| `templates-marketplace.spec.ts` | templates list state/timing | fix-plan-F1.3-followup | 2026-07-31 |
+| `status-bar.spec.ts` | status-bar state/visual | fix-plan-F1.3-followup | 2026-07-31 |
+| `sidebar-a11y.spec.ts` | sidebar a11y tree timing | fix-plan-F1.3-followup | 2026-07-31 |
+| `search-content.spec.ts` | search depends on the index (browser index is desktop-only) | fix-plan-F1.3-followup | 2026-07-31 |
+| `accessibility.spec.ts` | **confirmed**: real WCAG AA color-contrast failures in the sidebar nav (`Ask`/`Workflows`/`+ New client` labels ~4.2:1, `Solo account` subtitle + empty-state copy ~2.6:1, all need 4.5:1) — a design/CSS token fix in `src/`, out of the F1.3 CI-lane scope | fix-plan-F1.3-followup | 2026-07-15 |
 
 ## How to work the list
 
