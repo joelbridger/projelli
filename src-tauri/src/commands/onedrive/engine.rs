@@ -283,6 +283,16 @@ pub async fn sync_documents(
         // watcher — exactly like a file the user dropped in themselves. This
         // covers PDFs too (visible immediately; text indexed by the PDF path).
         if let Some(target) = &local_target {
+            // Honour a Stop pressed DURING this file's download (the top-of-loop
+            // check already passed): don't commit the write, mark the row for
+            // retry, and stop before the cursor is advanced.
+            if cancel.load(Ordering::SeqCst) {
+                if existing.is_some() {
+                    store.mark_needs_index(&key.source_id)?;
+                }
+                report.cancelled = true;
+                break;
+            }
             if let Some(parent) = target.parent() {
                 std::fs::create_dir_all(parent).map_err(|e| {
                     anyhow::anyhow!("create client folder {}: {e}", parent.display())
@@ -330,6 +340,16 @@ pub async fn sync_documents(
         // UNMAPPED (or a name we can't safely place on disk): keep the legacy
         // behaviour of indexing the bytes into the encrypted RAG store, so the
         // content is still searchable in the All-clients scope.
+        //
+        // If this item WAS previously materialized to a client's folder (its
+        // folder has since been unlinked or remapped away from a disk
+        // destination), remove the stale on-disk copy and forget it — otherwise
+        // it keeps showing under the old client's Documents and a later tombstone
+        // would act on an obsolete path.
+        if let Some(old) = store.get_local_path(&key.source_id)? {
+            let _ = std::fs::remove_file(workspace.join(&old));
+            store.clear_local_path(&key.source_id)?;
+        }
         let outcome = index_downloaded_document_bytes(
             &table,
             &key.source_id,
@@ -1358,6 +1378,122 @@ mod tests {
         assert!(
             !dir.path().join("Clients/Acme/OneDrive/old.docx").exists(),
             "the pre-rename copy must be removed"
+        );
+    }
+
+    // Unlinking a folder (the item no longer maps to a client with a disk
+    // destination) removes the stale materialized copy and forgets its path, so it
+    // stops showing under the old client. Uses an empty .txt so the RAG fallback
+    // needs no embedding model.
+    #[tokio::test]
+    async fn unmapping_removes_stale_materialized_file() {
+        let dir = TempDir::new().unwrap();
+        let store = OneDriveStore::open_with_key(dir.path(), &[0x44; 32]).unwrap();
+        let mapped = vec![OneDriveMatterMapEntry {
+            folder_key: folder_key(DEFAULT_ACCOUNT, None, "drive-a", "/clients/acme"),
+            matter_id: "matter-acme".into(),
+            dest_folder: "Clients/Acme".into(),
+        }];
+        let page = || DeltaPage {
+            value: vec![file_item(
+                "item-1",
+                "memo.txt",
+                "drive-a",
+                "/drive/root:/Clients/Acme",
+                "v1",
+            )],
+            delta_link: Some("d".into()),
+            ..Default::default()
+        };
+        // First sync: materialized to disk under the client.
+        let first = FakeSource::new(page()).with_download("item-1", b"").await;
+        sync_documents(
+            &first,
+            &store,
+            dir.path(),
+            &mapped,
+            &AtomicBool::new(false),
+            &[0x55; 32],
+            &AtomicU32::new(0),
+        )
+        .await
+        .unwrap();
+        let on_disk = dir.path().join("Clients/Acme/OneDrive/memo.txt");
+        assert!(on_disk.exists());
+
+        // Second sync with the folder UNLINKED (empty map) → no disk destination.
+        let second = FakeSource::new(page()).with_download("item-1", b"").await;
+        sync_documents(
+            &second,
+            &store,
+            dir.path(),
+            &[],
+            &AtomicBool::new(false),
+            &[0x55; 32],
+            &AtomicU32::new(0),
+        )
+        .await
+        .unwrap();
+        assert!(
+            !on_disk.exists(),
+            "unlinking must remove the stale materialized copy"
+        );
+        assert_eq!(
+            store.get_local_path("onedrive:drive-a:item-1").unwrap(),
+            None,
+            "the forgotten path must be cleared"
+        );
+    }
+
+    // Stop pressed while a MAPPED file is downloading must not commit the write,
+    // mark it indexed, or advance the cursor.
+    #[tokio::test]
+    async fn cancel_during_materialize_does_not_write_or_advance() {
+        let dir = TempDir::new().unwrap();
+        let store = OneDriveStore::open_with_key(dir.path(), &[0x44; 32]).unwrap();
+        let cancel = Arc::new(AtomicBool::new(false));
+        let page = DeltaPage {
+            value: vec![file_item(
+                "item-1",
+                "big.docx",
+                "drive-a",
+                "/drive/root:/Clients/Acme",
+                "v1",
+            )],
+            delta_link: Some("new-delta".into()),
+            ..Default::default()
+        };
+        let source = FakeSource::new(page)
+            .with_cancel_on_download(cancel.clone())
+            .with_download("item-1", b"partial")
+            .await;
+        let matter_map = vec![OneDriveMatterMapEntry {
+            folder_key: folder_key(DEFAULT_ACCOUNT, None, "drive-a", "/clients/acme"),
+            matter_id: "matter-acme".into(),
+            dest_folder: "Clients/Acme".into(),
+        }];
+
+        let report = sync_documents(
+            &source,
+            &store,
+            dir.path(),
+            &matter_map,
+            &cancel,
+            &[0x55; 32],
+            &AtomicU32::new(0),
+        )
+        .await
+        .unwrap();
+
+        assert!(report.cancelled);
+        assert_eq!(report.imported, 0);
+        assert!(
+            !dir.path().join("Clients/Acme/OneDrive/big.docx").exists(),
+            "a cancelled mapped download must not write the file"
+        );
+        assert!(
+            store.get_cursor("m365/default/me").unwrap().is_none(),
+            "the cursor must not advance on cancel"
         );
     }
 

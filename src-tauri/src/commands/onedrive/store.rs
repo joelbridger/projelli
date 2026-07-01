@@ -199,6 +199,17 @@ impl OneDriveStore {
         Ok(())
     }
 
+    /// Forget the recorded on-disk path for an item (after its local copy has been
+    /// removed because it no longer maps to a client with a disk destination).
+    pub fn clear_local_path(&self, source_id: &str) -> Result<()> {
+        let c = self.conn.lock().unwrap();
+        c.execute(
+            "UPDATE onedrive_items SET local_path = NULL WHERE source_id = ?1",
+            [source_id],
+        )?;
+        Ok(())
+    }
+
     /// The workspace-relative on-disk path a downloaded item was written to, if it
     /// was materialized to disk (mapped-to-a-client files). `None` for RAG-only
     /// items and older rows.
