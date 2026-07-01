@@ -316,7 +316,7 @@ describe('normalizeNumericCitations (F-503)', () => {
     // a local model can emit `[1 page 2]` — which must repair to the source's
     // real page locator (bound by pageNumber), not a paragraph form.
     const pdfSources = [
-      { path: '/ws/matter/filing.pdf', paragraphIndex: 100, pageNumber: 2 },
+      { path: '/ws/matter/filing.pdf', paragraphIndex: 100, pageNumber: 2, sourceType: 'pdf' },
       { path: '/ws/matter/notes.md', paragraphIndex: 4 },
     ];
     expect(normalizeNumericCitations('The award was $73,250 [1 page 2].', pdfSources)).toBe(
@@ -327,6 +327,20 @@ describe('normalizeNumericCitations (F-503)', () => {
     // A text source in the same list still uses paragraph.
     expect(normalizeNumericCitations('See [2 paragraph 1].', pdfSources)).toBe(
       'See [notes.md paragraph 4].',
+    );
+  });
+
+  it('keeps NON-pdf sources paragraph-based even when they carry a pageNumber', () => {
+    // Codex P2 refinement: buildWorkspaceContextBlock labels only sourceType==='pdf'
+    // as "page N"; xlsx/pptx/transcript reuse pageNumber for a sheet/slide/start
+    // page but are shown as "paragraph". Repairing them to "page" would bind to
+    // the wrong chunk on a multi-chunk page, so they must stay paragraph-based.
+    const mixed = [
+      { path: '/ws/matter/deposition.txt', paragraphIndex: 12, pageNumber: 45, sourceType: 'transcript' },
+      { path: '/ws/matter/model.xlsx', paragraphIndex: 3, pageNumber: 2, sourceType: 'xlsx' },
+    ];
+    expect(normalizeNumericCitations('See [1] and [2].', mixed)).toBe(
+      'See [deposition.txt paragraph 12] and [model.xlsx paragraph 3].',
     );
   });
 

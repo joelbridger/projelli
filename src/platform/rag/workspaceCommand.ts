@@ -266,16 +266,24 @@ export function parseCitations(content: string): ParsedCitation[] {
  */
 export function normalizeNumericCitations(
   content: string,
-  sources: ReadonlyArray<{ path: string; paragraphIndex: number; pageNumber?: number | null }>,
+  sources: ReadonlyArray<{
+    path: string;
+    paragraphIndex: number;
+    pageNumber?: number | null;
+    sourceType?: string;
+  }>,
 ): string {
   if (sources.length === 0) return content;
   const rewrite = (n: number): string | null => {
     const src = sources[n - 1];
     if (!src) return null;
-    // Emit the source's own locator: a PDF/scan cites "page N" (bound by
-    // pageNumber), a text source "paragraph N" (bound by paragraphIndex).
+    // Emit EXACTLY the locator buildWorkspaceContextBlock labels this source
+    // with, so the repaired citation binds to the right chunk: "page N" ONLY
+    // for a PDF/scan (bound by pageNumber), "paragraph N" for everything else —
+    // including xlsx/pptx/transcript sources that reuse pageNumber for a
+    // sheet/slide/start-page but are still shown as "paragraph" in the context.
     const locator =
-      src.pageNumber != null
+      src.sourceType === 'pdf' && src.pageNumber != null
         ? `page ${String(src.pageNumber)}`
         : `paragraph ${String(src.paragraphIndex)}`;
     return `[${citationBasename(src.path)} ${locator}]`;
