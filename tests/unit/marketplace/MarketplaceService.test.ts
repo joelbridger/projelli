@@ -55,7 +55,7 @@ describe('MarketplaceService.refresh', () => {
     );
     const cached = await svc.list();
     expect(cached).toHaveLength(1);
-    expect(cached[0].id).toBe('a');
+    expect(cached[0]!.id).toBe('a');
   });
 
   it('uses cached catalog when fetch fails', async () => {

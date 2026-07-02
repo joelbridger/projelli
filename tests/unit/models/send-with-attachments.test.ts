@@ -410,8 +410,8 @@ describe('MockProvider sendMessage with attachmentBytes — recording', () => {
     const recorded = provider.getLastSendAttachments();
     expect(recorded).toBeDefined();
     expect(recorded).toHaveLength(1);
-    expect(recorded![0].att.id).toBe('abc123');
-    expect(recorded![0].bytes).toEqual(PNG_BYTES);
+    expect(recorded![0]!.att.id).toBe('abc123');
+    expect(recorded![0]!.bytes).toEqual(PNG_BYTES);
   });
 
   it('records null when no attachments provided', async () => {
@@ -432,6 +432,6 @@ describe('MockProvider sendMessage with attachmentBytes — recording', () => {
 
     const recorded = provider.getLastSendAttachments();
     expect(recorded).toHaveLength(1);
-    expect(recorded![0].att.mimeType).toBe('image/png');
+    expect(recorded![0]!.att.mimeType).toBe('image/png');
   });
 });

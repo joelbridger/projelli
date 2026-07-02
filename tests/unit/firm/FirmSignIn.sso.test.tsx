@@ -19,10 +19,10 @@ import React from 'react';
 // ── Mock keychain (firm store imports @tauri-apps/api/core for keychain ops) ──
 const keychainStore = new Map<string, string>();
 const invokeMock = vi.fn(async (cmd: string, args: Record<string, unknown> = {}) => {
-  const svc = (args.service as string) ?? 'com.keepance.app';
-  const key = args.key as string;
+  const svc = (args['service'] as string) ?? 'com.keepance.app';
+  const key = args['key'] as string;
   const id = `${svc}::${key}`;
-  if (cmd === 'keychain_set') { keychainStore.set(id, args.value as string); return undefined; }
+  if (cmd === 'keychain_set') { keychainStore.set(id, args['value'] as string); return undefined; }
   if (cmd === 'keychain_get') {
     if (!keychainStore.has(id)) throw { kind: 'notFound', message: 'no entry' };
     return keychainStore.get(id);

@@ -44,11 +44,11 @@ describe('InterviewForm multiselect rendering', () => {
     // The answer must reach onSubmit as a non-empty string compatible with the
     // existing string-based template substitution + required check.
     expect(onSubmit).toHaveBeenCalledTimes(1);
-    const submitted = onSubmit.mock.calls[0][0] as Record<string, string>;
-    expect(typeof submitted.privilegeTypes).toBe('string');
-    expect(submitted.privilegeTypes).toContain('Attorney-client privilege');
-    expect(submitted.privilegeTypes).toContain('Work product doctrine');
-    expect(submitted.privilegeTypes).not.toContain('Both');
+    const submitted = onSubmit.mock.calls[0]![0] as Record<string, string>;
+    expect(typeof submitted['privilegeTypes']).toBe('string');
+    expect(submitted['privilegeTypes']).toContain('Attorney-client privilege');
+    expect(submitted['privilegeTypes']).toContain('Work product doctrine');
+    expect(submitted['privilegeTypes']).not.toContain('Both');
   });
 
   it('toggling a selected option off removes it from the answer', () => {
@@ -58,7 +58,7 @@ describe('InterviewForm multiselect rendering', () => {
     fireEvent.click(screen.getByText('Both')); // toggle off
     fireEvent.click(screen.getByText('Attorney-client privilege'));
     fireEvent.click(screen.getByRole('button', { name: /Continue/i }));
-    const submitted = onSubmit.mock.calls[0][0] as Record<string, string>;
-    expect(submitted.privilegeTypes).toBe('Attorney-client privilege');
+    const submitted = onSubmit.mock.calls[0]![0] as Record<string, string>;
+    expect(submitted['privilegeTypes']).toBe('Attorney-client privilege');
   });
 });
