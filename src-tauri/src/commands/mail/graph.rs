@@ -386,6 +386,123 @@ impl GraphClient {
         self.post_json(&url, &payload).await?;
         Ok(String::new())
     }
+
+    /// PATCH JSON to an absolute Graph URL. Mirrors `post_json` exactly
+    /// (429/Retry-After capped backoff, one 401 refresh, PII-safe logging);
+    /// only the HTTP verb differs. Used to fill in a createReply draft.
+    pub async fn patch_json(
+        &self,
+        url: &str,
+        body: &serde_json::Value,
+    ) -> anyhow::Result<serde_json::Value> {
+        self.validate_token_target(url)?;
+        let mut throttle_attempt = 0u32;
+        let mut refreshed = false;
+        loop {
+            if throttle_attempt >= 8 {
+                anyhow::bail!("graph: throttled past retry budget");
+            }
+            let access = self.bearer_token().await;
+            let resp = self
+                .http
+                .patch(url)
+                .bearer_auth(&access)
+                .json(body)
+                .send()
+                .await?;
+            if resp.status().as_u16() == 429 {
+                let ra = resp
+                    .headers()
+                    .get("Retry-After")
+                    .and_then(|v| v.to_str().ok())
+                    .map(String::from);
+                tokio::time::sleep(retry_delay(ra.as_deref(), throttle_attempt)).await;
+                throttle_attempt += 1;
+                continue;
+            }
+            let status = resp.status();
+            if status.as_u16() == 401 && !refreshed {
+                if self.refresh_after_unauthorized(&access).await? {
+                    refreshed = true;
+                    continue;
+                }
+            }
+            let body_text = resp.text().await?;
+            if !status.is_success() {
+                log::warn!(
+                    "graph PATCH failed: url={} status={} {}",
+                    redact_url(url),
+                    status,
+                    summarize_error_body(&body_text)
+                );
+                anyhow::bail!("Microsoft Graph request failed (HTTP {})", status);
+            }
+            return Ok(serde_json::from_str(&body_text).unwrap_or(serde_json::json!({})));
+        }
+    }
+
+    /// `POST /v1.0/me/messages` — create a DRAFT message in the mailbox's
+    /// Drafts folder. Never sends. Returns the Graph draft message id.
+    ///
+    /// Body is HTML (the Wave 0 draft-to-mailbox contract passes `body_html`);
+    /// Graph's `contentType: "HTML"` matches what Outlook shows when the user
+    /// opens the draft to review and send it themselves.
+    pub async fn create_draft(
+        &self,
+        to: &[String],
+        subject: &str,
+        body_html: &str,
+    ) -> anyhow::Result<String> {
+        let message = serde_json::json!({
+            "subject": subject,
+            "body": { "contentType": "HTML", "content": body_html },
+            "toRecipients": to.iter().map(|a| recipient_obj(a)).collect::<Vec<_>>(),
+        });
+        let url = format!("{}/v1.0/me/messages", self.base);
+        let resp = self.post_json(&url, &message).await?;
+        resp.get("id")
+            .and_then(|v| v.as_str())
+            .map(String::from)
+            .ok_or_else(|| anyhow::anyhow!("Graph draft response missing `id`"))
+    }
+
+    /// `POST /v1.0/me/messages/{id}/createReply` then `PATCH` — create a reply
+    /// DRAFT threaded onto an existing message, then fill in our subject, HTML
+    /// body, and recipients. Graph has no way to set reply threading on a plain
+    /// `POST /me/messages` draft, so the two-step is the correct route.
+    /// Returns the reply-draft message id.
+    pub async fn create_reply_draft(
+        &self,
+        original_message_id: &str,
+        to: &[String],
+        subject: &str,
+        body_html: &str,
+    ) -> anyhow::Result<String> {
+        let url = format!(
+            "{}/v1.0/me/messages/{}/createReply",
+            self.base, original_message_id
+        );
+        let resp = self.post_json(&url, &serde_json::json!({})).await?;
+        let draft_id = resp
+            .get("id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow::anyhow!("Graph createReply response missing `id`"))?
+            .to_string();
+        let patch = serde_json::json!({
+            "subject": subject,
+            "body": { "contentType": "HTML", "content": body_html },
+            "toRecipients": to.iter().map(|a| recipient_obj(a)).collect::<Vec<_>>(),
+        });
+        let patch_url = format!("{}/v1.0/me/messages/{}", self.base, draft_id);
+        self.patch_json(&patch_url, &patch).await?;
+        Ok(draft_id)
+    }
+}
+
+/// Build a Graph recipient object from a bare address. Shared by the draft
+/// endpoints (send_message keeps its local copy to keep that diff at zero).
+fn recipient_obj(addr: &str) -> serde_json::Value {
+    serde_json::json!({ "emailAddress": { "address": addr } })
 }
 
 /// Redact a Graph URL for local logging: keep only host + path, dropping the
@@ -800,6 +917,100 @@ mod tests {
             .await
             .expect("send_message should succeed on 202");
         assert_eq!(result, ""); // 202 returns no id
+    }
+
+    #[tokio::test]
+    async fn create_draft_posts_to_messages_and_returns_id() {
+        use wiremock::matchers::{body_partial_json, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        // POST /me/messages creates a DRAFT (201 + the created message JSON).
+        // It must NOT hit /me/sendMail — a draft never sends.
+        Mock::given(method("POST"))
+            .and(path("/v1.0/me/messages"))
+            .and(body_partial_json(serde_json::json!({
+                "subject": "Follow-up: Q2 review",
+                "body": { "contentType": "HTML" }
+            })))
+            .respond_with(
+                ResponseTemplate::new(201)
+                    .set_body_json(serde_json::json!({ "id": "draft-abc-123" })),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let client = GraphClient::new_with_base("AT".into(), server.uri());
+        let id = client
+            .create_draft(
+                &["alice@example.com".to_string()],
+                "Follow-up: Q2 review",
+                "<p>Hello Alice,</p>",
+            )
+            .await
+            .expect("create_draft should succeed");
+        assert_eq!(id, "draft-abc-123");
+    }
+
+    #[tokio::test]
+    async fn create_draft_missing_id_is_an_error() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1.0/me/messages"))
+            .respond_with(ResponseTemplate::new(201).set_body_json(serde_json::json!({})))
+            .mount(&server)
+            .await;
+
+        let client = GraphClient::new_with_base("AT".into(), server.uri());
+        let err = client
+            .create_draft(&["a@b.com".to_string()], "s", "<p>b</p>")
+            .await
+            .expect_err("missing id must be an error, never a silent empty string");
+        assert!(err.to_string().contains("missing `id`"), "got: {err}");
+    }
+
+    #[tokio::test]
+    async fn create_reply_draft_uses_create_reply_then_patches() {
+        use wiremock::matchers::{body_partial_json, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        // 1. createReply returns the new reply-draft message.
+        Mock::given(method("POST"))
+            .and(path("/v1.0/me/messages/orig-42/createReply"))
+            .respond_with(
+                ResponseTemplate::new(201)
+                    .set_body_json(serde_json::json!({ "id": "reply-draft-7" })),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        // 2. PATCH fills in our subject/body/recipients on that draft.
+        Mock::given(method("PATCH"))
+            .and(path("/v1.0/me/messages/reply-draft-7"))
+            .and(body_partial_json(serde_json::json!({
+                "body": { "contentType": "HTML", "content": "<p>Following up.</p>" }
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({ "id": "reply-draft-7" })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let client = GraphClient::new_with_base("AT".into(), server.uri());
+        let id = client
+            .create_reply_draft(
+                "orig-42",
+                &["alice@example.com".to_string()],
+                "RE: Q2 review",
+                "<p>Following up.</p>",
+            )
+            .await
+            .expect("create_reply_draft should succeed");
+        assert_eq!(id, "reply-draft-7");
     }
 
     #[tokio::test]
