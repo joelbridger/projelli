@@ -438,11 +438,19 @@ fn expand_occurrences(
             } else if max_cycles > 0 {
                 // Positional BYDAY (e.g. "1MO" / "-1FR") always has exactly
                 // one match per elapsed month cycle — no day-existence gap
-                // to guard against.
+                // to guard against. codex-review P2 (wave-1b review):
+                // `max_cycles` is the count of elapsed RULE PERIODS (each
+                // `interval` months), not elapsed months — advancing the
+                // cursor by only `max_cycles` months (instead of
+                // `max_cycles * interval`) under-jumped for INTERVAL > 1,
+                // so the main loop's own per-day matching then recounted
+                // the skipped occurrences and could exhaust COUNT before
+                // ever reaching the real in-window occurrence.
                 accepted = max_cycles as usize;
+                let months = max_cycles * interval as u32;
                 let new_date = start_naive
                     .date()
-                    .checked_add_months(chrono::Months::new(max_cycles))
+                    .checked_add_months(chrono::Months::new(months))
                     .unwrap_or_else(|| start_naive.date());
                 cursor = new_date.and_time(start_naive.time());
             }
@@ -958,6 +966,57 @@ mod tests {
         let events = parse_ics(&ics, "2026-03-15T00:00:00Z", "2026-04-05T00:00:00Z").unwrap();
         assert_eq!(events.len(), 1, "Mar 31 is the real 2nd occurrence, not exhausted by a phantom Feb hit");
         assert_eq!(events[0].start_utc, "2026-03-31T16:00:00Z");
+    }
+
+    #[test]
+    fn monthly_byday_interval_advances_cursor_by_full_periods_not_raw_cycles() {
+        // codex-review P2 (wave-1b review): the positional-BYDAY MONTHLY
+        // fast-forward advanced the cursor by `max_cycles` MONTHS instead
+        // of `max_cycles * interval` months. `max_cycles` counts elapsed
+        // RULE PERIODS (each `interval` months), so under-jumping for
+        // INTERVAL > 1 landed the cursor inside a period already
+        // represented by the initial `accepted` value — the main loop then
+        // re-discovered (double-counted) that occurrence, which can
+        // prematurely trip the COUNT-exhausted cutoff and drop a later,
+        // still-valid occurrence.
+        //
+        // Dates are computed via chrono (not hand-derived) to avoid
+        // manual-arithmetic mistakes: DTSTART is the first Monday of
+        // January 2026; with FREQ=MONTHLY;INTERVAL=2;BYDAY=1MO;COUNT=6 the
+        // rule periods are Jan/Mar/May/Jul/Sep/Nov — a window near July
+        // (3 periods, 6 months, in) must still surface that occurrence.
+        fn first_monday_of(year: i32, month: u32) -> chrono::NaiveDate {
+            let first = chrono::NaiveDate::from_ymd_opt(year, month, 1).unwrap();
+            (0..7)
+                .map(|d| first + Duration::days(d))
+                .find(|d| d.weekday() == chrono::Weekday::Mon)
+                .unwrap()
+        }
+        let start = first_monday_of(2026, 1).and_hms_opt(16, 0, 0).unwrap();
+        let july = first_monday_of(2026, 7);
+        let window_from = DateTime::<Utc>::from_naive_utc_and_offset(
+            july.and_hms_opt(0, 0, 0).unwrap(),
+            Utc,
+        );
+        let window_to = window_from + Duration::days(2);
+
+        let occurrences = expand_occurrences(
+            start,
+            None,
+            Some("FREQ=MONTHLY;INTERVAL=2;BYDAY=1MO;COUNT=6"),
+            &[],
+            Duration::hours(1),
+            window_from,
+            window_to,
+        );
+        assert_eq!(
+            occurrences.len(),
+            1,
+            "July's first-Monday occurrence (the 4th rule period, 6 months in) must still be found"
+        );
+        let expected =
+            DateTime::<Utc>::from_naive_utc_and_offset(july.and_hms_opt(16, 0, 0).unwrap(), Utc);
+        assert_eq!(occurrences[0], expected);
     }
 
     #[test]
