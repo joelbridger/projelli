@@ -101,10 +101,18 @@ async fn index_external_text_with_validated_source_type(
     }
 
     let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
+    // `embed_documents_batched` returns `Ok(None)` only when interrupted mid-batch
+    // (a cancel flag was set). Never silently default that to an empty vector —
+    // that would zip to zero rows and return Ok(0), reporting a SUCCESSFUL index
+    // of a source that was in fact not indexed at all (the OneDrive
+    // `unwrap_or_default()` silent-loss bug class). Propagate instead so the
+    // caller surfaces or retries it.
     let vectors = crate::commands::rag::embedder::embed_documents_batched(&texts, None)
         .await
         .context("embed external connector chunks")?
-        .unwrap_or_default();
+        .ok_or_else(|| {
+            anyhow::anyhow!("external connector embedding was interrupted before completion")
+        })?;
     let rows: Vec<(crate::commands::rag::chunker::Chunk, Vec<f32>)> =
         chunks.into_iter().zip(vectors).collect();
 
@@ -254,7 +262,19 @@ where
 #[allow(dead_code)]
 static EXTERNAL_INDEX_SEMAPHORE: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(4);
 
-/// Fire-and-forget external connector RAG indexing, bounded by the semaphore.
+/// Spawn external connector RAG indexing, bounded by the semaphore, and RETURN
+/// the `JoinHandle` so the caller can collect the per-source outcome
+/// (`Ok(indexed_count)` / `Err`) instead of discarding it.
+///
+/// The prior version was `let _ = tokio::task::spawn(...)`, which dropped the
+/// handle — a task-level failure was invisible except via a `log::warn!`, so a
+/// source that failed to index looked, to any caller, exactly like one that
+/// succeeded. Returning the handle lets a caller `.await` it (or join a batch of
+/// them) to know what actually indexed and surface a partial failure. The inner
+/// `log::warn!` is kept for a truly detached caller. The live connectors
+/// (jotform/zocks/addepar/docusign/calendly) call `index_external_text_*`
+/// directly and already collect the awaited outcome; this helper is for a
+/// caller that wants bounded, spawned indexing without losing the result.
 #[allow(dead_code)]
 pub fn spawn_external_rag_index(
     workspace: PathBuf,
@@ -262,13 +282,13 @@ pub fn spawn_external_rag_index(
     text: String,
     matter_id: String,
     source_type: String,
-) {
-    let _ = tokio::task::spawn(async move {
+) -> tokio::task::JoinHandle<anyhow::Result<u32>> {
+    tokio::task::spawn(async move {
         let _permit = EXTERNAL_INDEX_SEMAPHORE.acquire().await.ok();
-        if let Err(e) =
+        let result =
             index_external_text_internal(&workspace, &source_id, &text, &matter_id, &source_type)
-                .await
-        {
+                .await;
+        if let Err(e) = &result {
             log::warn!(
                 "external connector RAG index failed for {} ({}): {:#}",
                 source_id,
@@ -276,7 +296,8 @@ pub fn spawn_external_rag_index(
                 e
             );
         }
-    });
+        result
+    })
 }
 
 #[cfg(test)]

@@ -67,7 +67,15 @@ async fn fresh_access_token() -> Result<String, String> {
             access, refresh, ..
         } => {
             if let Some(new_rt) = refresh {
-                let _ = entry.set_password(&new_rt);
+                // Refresh-token rotation. Don't silently swallow a failed save: the
+                // access token still works now, but the new refresh token wasn't
+                // persisted, so a later launch may need a reconnect. Log it so the
+                // failure is visible instead of invisible.
+                if let Err(e) = entry.set_password(&new_rt) {
+                    log::warn!(
+                        "OneDrive refresh-token rotation not saved (reconnect may be needed later): {e}"
+                    );
+                }
             }
             Ok(access)
         }

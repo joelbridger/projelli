@@ -174,9 +174,27 @@ export function MailConnect() {
               This is taking longer than expected. Your Microsoft 365 sign-in may have expired. Try Reconnect.
             </p>
           )}
-          {progress && progress.status === 'done' && <p className="mt-1">All mail imported and searchable.</p>}
+          {progress && progress.status === 'done' && (
+            <>
+              <p className="mt-1">
+                {progress.backfillPending
+                  ? 'Mail imported. Some messages are still being made searchable in the background — that finishes on its own.'
+                  : 'All mail imported and searchable.'}
+              </p>
+              {progress.tokenWarning && (
+                // eslint-disable-next-line lantern-i18n/no-hardcoded-string
+                <p className="mt-1 text-xs text-amber-700 bg-amber-50 rounded px-2 py-1">
+                  Heads up: saving your refreshed Microsoft sign-in didn't work, so you may need to reconnect later.
+                </p>
+              )}
+            </>
+          )}
           {progress && progress.status === 'error' && (
-            <p className="mt-1 text-red-700">Mail sync ran into a problem. Open this panel again to retry.</p>
+            <p className="mt-1 text-red-700">
+              {progress.error
+                ? `Mail sync ran into a problem: ${progress.error}`
+                : 'Mail sync ran into a problem. Open this panel again to retry.'}
+            </p>
           )}
           {progress && progress.status === 'cancelled' && <p className="mt-1 text-slate-500">Import stopped.</p>}
           {connectError && <p className="mt-1 text-red-700">{t('mail.connect.error-prefix')} {connectError}</p>}

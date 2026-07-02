@@ -67,6 +67,9 @@ pub struct CalendlySyncReportDto {
     pub invitees_fetched: u32,
     pub meetings_indexed: u32,
     pub records_indexed: u32,
+    /// True when the user stopped the sync mid-run. Exposed so the frontend can
+    /// record an honest "stopped early" audit row instead of a plain success.
+    pub cancelled: bool,
 }
 
 #[derive(Serialize)]
@@ -238,6 +241,7 @@ pub async fn calendly_sync_all(
         invitees_fetched: report.invitees_fetched,
         meetings_indexed: report.meetings_indexed,
         records_indexed: report.records_indexed,
+        cancelled: report.cancelled,
     };
     let _ = app.emit(
         CALENDLY_SYNC_PROGRESS_EVENT,

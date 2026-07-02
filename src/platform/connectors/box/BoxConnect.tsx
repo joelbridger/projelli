@@ -23,6 +23,11 @@ import {
 } from '@/platform/rag/matterResolver';
 import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
 import { Button } from '@/ui/kp';
+import { AuditService } from '@/platform/audit/AuditService';
+import { sanitizeSyncError } from '@/platform/connectors/syncAuditError';
+
+// Durable, append-only audit trail for connector activity, so every Box sync leaves a record.
+const boxAudit = new AuditService('connectors');
 
 export function BoxConnect() {
   const [progress, setProgress] = useState<BoxSyncProgress | null>(null);
@@ -100,8 +105,30 @@ export function BoxConnect() {
       await autoLinkBoxFolders();
       const result = await boxSync(buildBoxMatterMap(getMatters()));
       setReport(result);
+      void boxAudit
+        .logDurable(
+          'box.sync',
+          `Box sync: ${result.cancelled ? 'stopped after downloading' : 'downloaded'} ${String(result.downloaded)} file(s), indexed ${String(result.indexed)} (${String(result.seen)} items checked).`,
+          {
+            outputs: {
+              seen: result.seen,
+              downloaded: result.downloaded,
+              indexed: result.indexed,
+              skippedUnchanged: result.skippedUnchanged,
+              removed: result.removed,
+              pendingPdf: result.pendingPdf,
+              cancelled: result.cancelled,
+            },
+          }
+        )
+        .catch(() => {});
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      void boxAudit
+        .logDurable('box.sync', 'Box sync failed.', {
+          outputs: { error: sanitizeSyncError(err) },
+        })
+        .catch(() => {});
     } finally {
       setSyncing(false);
     }
@@ -224,7 +251,7 @@ export function BoxConnect() {
       )}
       {report && (
         <p className="mt-3 text-xs text-slate-600">
-          Checked {report.seen} items, downloaded {report.downloaded}, indexed {report.indexed}, and skipped {report.skippedUnchanged} unchanged.
+          {report.cancelled ? 'Stopped early. ' : ''}Checked {report.seen} items, downloaded {report.downloaded}, indexed {report.indexed}, and skipped {report.skippedUnchanged} unchanged.
           {report.pendingPdf ? ` ${String(report.pendingPdf)} PDF files are queued for the PDF fast-follow.` : ''}
         </p>
       )}

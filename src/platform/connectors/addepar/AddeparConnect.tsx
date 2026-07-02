@@ -24,6 +24,8 @@ import {
 } from '@/platform/rag/matterResolver';
 import { Button } from '@/ui/kp';
 import { withTimeout } from '@/lib/withTimeout';
+import { AuditService } from '@/platform/audit/AuditService';
+import { sanitizeSyncError } from '@/platform/connectors/syncAuditError';
 
 // The Rust reqwest client now caps each individual HTTP request (60s + 15s
 // connect), but the Tauri IPC call from here still has no deadline of its
@@ -37,6 +39,9 @@ import { withTimeout } from '@/lib/withTimeout';
 const ADDEPAR_CONNECT_TIMEOUT_MS = 45_000;
 const ADDEPAR_LIST_ENTITIES_TIMEOUT_MS = 120_000;
 const ADDEPAR_SYNC_TIMEOUT_MS = 15 * 60_000;
+
+// Durable, append-only audit trail for connector activity, so every Addepar sync leaves a record.
+const addeparAudit = new AuditService('connectors');
 
 export function AddeparConnect() {
   const [connected, setConnected] = useState(false);
@@ -130,8 +135,28 @@ export function AddeparConnect() {
         'Addepar sync',
       );
       setReport(result);
+      void addeparAudit
+        .logDurable(
+          'addepar.sync',
+          `Addepar sync: ${result.cancelled ? 'stopped after indexing' : 'indexed'} ${String(result.recordsIndexed)} record(s) across ${String(result.householdsProcessed)} household(s).`,
+          {
+            outputs: {
+              entitiesFetched: result.entitiesFetched,
+              householdsProcessed: result.householdsProcessed,
+              recordsIndexed: result.recordsIndexed,
+              needsAssignment: result.needsAssignment,
+              cancelled: result.cancelled,
+            },
+          }
+        )
+        .catch(() => {});
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      void addeparAudit
+        .logDurable('addepar.sync', 'Addepar sync failed.', {
+          outputs: { error: sanitizeSyncError(err) },
+        })
+        .catch(() => {});
       // The Tauri addepar_sync command holds a single-sync guard for as long
       // as it runs. Giving up on it in React alone doesn't stop it backend
       // side, so the guard would stay held and the next Sync click would
@@ -235,7 +260,7 @@ export function AddeparConnect() {
 
       {report && (
         <p className="mt-3 text-xs text-slate-600">
-          Found {report.entitiesFetched} households, linked {linkedCount} by exact client name, indexed {report.recordsIndexed} records, and left {report.needsAssignment} needing assignment.
+          {report.cancelled ? 'Stopped early. ' : ''}Found {report.entitiesFetched} households, linked {linkedCount} by exact client name, indexed {report.recordsIndexed} records, and left {report.needsAssignment} needing assignment.
         </p>
       )}
       {unmatched.length > 0 && (

@@ -178,9 +178,19 @@ export function MailImapConnect() {
             </div>
           )}
           {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-          {progress && progress.status === 'done' && <p className="mt-1">All mail imported and searchable.</p>}
+          {progress && progress.status === 'done' && (
+            <p className="mt-1">
+              {progress.backfillPending
+                ? 'Mail imported. Some messages are still being made searchable in the background — that finishes on its own.'
+                : 'All mail imported and searchable.'}
+            </p>
+          )}
           {progress && progress.status === 'error' && (
-            <p className="mt-1 text-red-700">Mail sync ran into a problem. Open this panel again to retry.</p>
+            <p className="mt-1 text-red-700">
+              {progress.error
+                ? `Mail sync ran into a problem: ${progress.error}`
+                : 'Mail sync ran into a problem. Open this panel again to retry.'}
+            </p>
           )}
           {connectError && <p className="mt-1 text-red-700">Something went wrong: {connectError}</p>}
           {/* eslint-enable lantern-i18n/no-hardcoded-string */}

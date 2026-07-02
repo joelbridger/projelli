@@ -225,6 +225,22 @@ pub struct SyncProgress {
     pub folder: Option<String>,
     pub written: u32,
     pub removed: u32,
+    /// Present only on a terminal `error` event: the raw failure message, shown
+    /// on the owner's own screen so a failure is never silent. It is NEVER
+    /// persisted to the append-only audit log as-is — the frontend stores only a
+    /// sanitized category (see `sanitizeSyncError`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    /// True on a terminal `done` event when at least one imported message could
+    /// not be indexed for search yet and is queued for the RAG backfill (e.g. the
+    /// embedding model is still downloading). The durable backfill marker
+    /// guarantees a retry on the next launch, so recall is deferred, never lost.
+    pub backfill_pending: bool,
+    /// True on a terminal `done` event when saving a freshly-rotated Microsoft
+    /// 365 refresh token to the keychain failed during this sync. The sync itself
+    /// succeeded; this is a heads-up that the user may need to reconnect on a
+    /// later launch (the new refresh token wasn't persisted). Never silent.
+    pub token_warning: bool,
 }
 
 /// Stored IMAP account configuration (no password — stored separately).
@@ -245,6 +261,34 @@ fn load_imap_config() -> Option<(ImapConfig, String)> {
     let pw_e = keyring::Entry::new(IMAP_KEYCHAIN_SERVICE, IMAP_PASSWORD_KEY).ok()?;
     let pw = pw_e.get_password().ok()?;
     Some((cfg, pw))
+}
+
+/// Like `load_imap_config`, but distinguishes "IMAP was never configured"
+/// (`Ok(None)` — a correct silent skip) from "IMAP IS configured but the
+/// settings/password couldn't be read or were corrupted" (`Err`). The sync path
+/// uses this so a broken IMAP account surfaces an error outcome instead of being
+/// silently skipped as if it were never set up.
+fn load_imap_config_checked() -> Result<Option<(ImapConfig, String)>, String> {
+    let cfg_e =
+        keyring::Entry::new(IMAP_KEYCHAIN_SERVICE, IMAP_CONFIG_KEY).map_err(|e| e.to_string())?;
+    let cfg_json = match cfg_e.get_password() {
+        Ok(j) => j,
+        // No entry at all → IMAP was never connected; nothing to sync.
+        Err(keyring::Error::NoEntry) => return Ok(None),
+        Err(e) => return Err(format!("read IMAP settings: {e}")),
+    };
+    let cfg: ImapConfig =
+        serde_json::from_str(&cfg_json).map_err(|e| format!("parse IMAP settings: {e}"))?;
+    let pw_e =
+        keyring::Entry::new(IMAP_KEYCHAIN_SERVICE, IMAP_PASSWORD_KEY).map_err(|e| e.to_string())?;
+    let pw = match pw_e.get_password() {
+        Ok(p) => p,
+        Err(keyring::Error::NoEntry) => {
+            return Err("IMAP password is missing; reconnect the account".into())
+        }
+        Err(e) => return Err(format!("read IMAP password: {e}")),
+    };
+    Ok(Some((cfg, pw)))
 }
 
 #[tauri::command]
@@ -1106,7 +1150,14 @@ pub async fn mail_poll_login(device_code: String) -> Result<String, String> {
 pub async fn mail_is_connected() -> Result<bool, String> {
     let entry = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_REFRESH_KEY)
         .map_err(|e| e.to_string())?;
-    Ok(entry.get_password().is_ok())
+    // Distinguish "no token stored" (truly not connected → Ok(false)) from a real
+    // keychain READ failure (→ Err). Collapsing both into `false` would let a sync
+    // silently skip a connected-but-unreadable account with no error or audit row.
+    match entry.get_password() {
+        Ok(_) => Ok(true),
+        Err(keyring::Error::NoEntry) => Ok(false),
+        Err(e) => Err(e.to_string()),
+    }
 }
 
 /// Disconnect the Microsoft 365 account: delete its refresh token from the OS
@@ -1135,7 +1186,15 @@ async fn fresh_access_token() -> Result<String, String> {
     match auth.refresh(&rt).await.map_err(|e| e.to_string())? {
         TokenOutcome::Tokens { access, refresh, .. } => {
             if let Some(new_rt) = refresh {
-                let _ = entry.set_password(&new_rt); // refresh-token rotation
+                // Refresh-token rotation. If persisting the new token fails, do NOT
+                // swallow it: log it and raise the process flag so the sync's
+                // terminal event can warn the user a reconnect may be needed later.
+                // The current access token still works, so this is a warning, not a
+                // failure of this call.
+                if let Err(e) = entry.set_password(&new_rt) {
+                    log::warn!("M365 refresh-token rotation not saved (reconnect may be needed later): {e}");
+                    M365_TOKEN_ROTATION_FAILED.store(true, Ordering::SeqCst);
+                }
             }
             Ok(access)
         }
@@ -1278,7 +1337,15 @@ pub async fn gmail_connect() -> Result<(), String> {
 
 #[tauri::command]
 pub async fn gmail_is_connected() -> Result<bool, String> {
-    Ok(keyring::Entry::new(GMAIL_KEYCHAIN_SERVICE, GMAIL_REFRESH_KEY).map_err(|e| e.to_string())?.get_password().is_ok())
+    let entry = keyring::Entry::new(GMAIL_KEYCHAIN_SERVICE, GMAIL_REFRESH_KEY)
+        .map_err(|e| e.to_string())?;
+    // NoEntry = truly not connected (Ok(false)); any other read error surfaces so
+    // a sync never silently skips a connected-but-unreadable Gmail account.
+    match entry.get_password() {
+        Ok(_) => Ok(true),
+        Err(keyring::Error::NoEntry) => Ok(false),
+        Err(e) => Err(e.to_string()),
+    }
 }
 
 #[tauri::command]
@@ -1443,6 +1510,16 @@ fn backfill_marker_disposition(
 /// pass) so a later incident in the same session can re-mark.
 static MARKED_THIS_SESSION: AtomicBool = AtomicBool::new(false);
 
+/// Process-level flag: set when saving a freshly-rotated Microsoft 365 refresh
+/// token to the OS keychain FAILS during a sync. The rotation write failing is
+/// non-fatal right now (the access token from this refresh still works), but the
+/// new refresh token was not persisted — so a future launch may be unable to
+/// refresh and the user will need to reconnect. Surfaced (not swallowed) on the
+/// M365 sync's terminal `done` event as a "you may need to reconnect later"
+/// heads-up. Reset at the start of each `mail_sync_all` so it reflects only the
+/// current run.
+static M365_TOKEN_ROTATION_FAILED: AtomicBool = AtomicBool::new(false);
+
 /// Persist the "mail needs a RAG backfill" marker for `workspace`. Idempotent;
 /// one row in the encrypted mail store's meta table, written at most once per
 /// session (see `MARKED_THIS_SESSION`).
@@ -1464,6 +1541,49 @@ fn mark_rag_backfill_needed(
         MARKED_THIS_SESSION.store(false, Ordering::SeqCst);
     }
     result
+}
+
+/// Best-effort check, at the end of a provider's sync, of whether a RAG
+/// backfill is pending — i.e. some imported messages are NOT yet searchable and
+/// are queued to be indexed on a later pass. Two independent signals, either of
+/// which means "pending":
+///
+/// 1. The durable backfill marker is already set (a fire-and-forget index task
+///    failed and recorded it — see `spawn_mail_rag_index`).
+/// 2. This section imported messages (`wrote_any`) but the embedding model is
+///    not downloaded yet, so none of them could have been indexed. This is the
+///    common, deterministic case and does NOT race the async index tasks.
+///
+/// This surfaces an honest "indexed, some queued" signal in the UI/audit. It is
+/// only a hint: correctness (no message is ever silently un-indexed) is
+/// guaranteed by the durable marker + the next-launch `mail_backfill_rag`, not
+/// by this read. Any error reading the marker is treated as "not pending" here.
+async fn rag_backfill_pending(workspace: &std::path::Path, key: &[u8; 32], wrote_any: bool) -> bool {
+    let ws = workspace.to_path_buf();
+    let k = *key;
+    let marker_set = tokio::task::spawn_blocking(move || -> anyhow::Result<bool> {
+        let store = EncryptedMailStore::open_with_key(&ws, &k)?;
+        Ok(store.get_meta(RAG_BACKFILL_NEEDED_KEY)?.is_some())
+    })
+    .await
+    .ok()
+    .and_then(|r| r.ok())
+    .unwrap_or(false);
+    if marker_set {
+        return true;
+    }
+    if wrote_any {
+        let dir = crate::commands::rag::embedder::resolve_cache_dir();
+        let cached = tokio::task::spawn_blocking(move || {
+            crate::commands::rag::model_download::model_files_cached(&dir)
+        })
+        .await
+        .unwrap_or(false);
+        if !cached {
+            return true;
+        }
+    }
+    false
 }
 
 /// Cap on concurrent mail RAG indexing tasks (BUG-011). Each indexed message
@@ -1499,23 +1619,25 @@ fn spawn_mail_rag_index(
         if let Err(e) =
             index_mail_text_internal(&workspace, &path_key, &text, &matter_id).await
         {
-            // {:#} = full anyhow chain, so the log shows root causes and the
-            // model-not-ready marker survives any .context() wrapping.
+            // {:#} = full anyhow chain, so the log shows root causes.
             log::warn!("mail RAG index failed for {}: {:#}", path_key, e);
-            if embed_error_is_model_not_ready(&e) {
-                let ws = workspace.clone();
-                match tokio::task::spawn_blocking(move || {
-                    mark_rag_backfill_needed(&ws, &enc_key)
-                })
-                .await
-                {
-                    Ok(Ok(())) => {}
-                    Ok(Err(me)) => {
-                        log::warn!("mail RAG backfill marker not set: {me:#}");
-                    }
-                    Err(join) => {
-                        log::warn!("mail RAG backfill marker join failed: {join}");
-                    }
+            // Mark the backfill on ANY index failure, not only model-not-ready
+            // (the previous behavior silently lost every other kind of failure —
+            // a transient LanceDB/IO error meant that message never became
+            // searchable and was never retried). `mail_backfill_rag` re-derives
+            // the model-vs-other failure split on its next pass, so a truly
+            // permanent failure is retried once and then dropped loudly with its
+            // id in the log — never silently. A non-model failure whose cause has
+            // cleared by the next launch heals automatically.
+            let ws = workspace.clone();
+            match tokio::task::spawn_blocking(move || mark_rag_backfill_needed(&ws, &enc_key)).await
+            {
+                Ok(Ok(())) => {}
+                Ok(Err(me)) => {
+                    log::warn!("mail RAG backfill marker not set: {me:#}");
+                }
+                Err(join) => {
+                    log::warn!("mail RAG backfill marker join failed: {join}");
                 }
             }
         }
@@ -1547,6 +1669,9 @@ fn emit_sync_progress(app: &AppHandle, provider: &str, status: &str, written: u3
             folder: None,
             written,
             removed,
+            error: None,
+            backfill_pending: false,
+            token_warning: false,
         },
     );
 }
@@ -1664,6 +1789,9 @@ async fn sync_one_folder(
                 folder: None,
                 written: base_written.saturating_add(w),
                 removed: base_removed.saturating_add(r),
+                error: None,
+                backfill_pending: false,
+                token_warning: false,
             },
         );
     };
@@ -1686,8 +1814,18 @@ async fn sync_one_folder(
 
 /// Terminal outcome of one provider's sync section.
 enum SectionOutcome {
-    /// Completed; carries the provider's cumulative written/removed totals.
-    Done { written: u32, removed: u32 },
+    /// Completed; carries the provider's cumulative written/removed totals and
+    /// whether a RAG backfill is pending (some imported messages could not be
+    /// indexed for search yet — e.g. the embedding model is still downloading —
+    /// so recall is deferred to the next-launch backfill, never silently lost).
+    Done {
+        written: u32,
+        removed: u32,
+        backfill_pending: bool,
+        /// Microsoft 365 refresh-token rotation failed to persist during this
+        /// section (M365 only; always false for IMAP/Gmail).
+        token_warning: bool,
+    },
     /// The user cancelled mid-sync.
     Cancelled,
 }
@@ -1698,13 +1836,46 @@ enum SectionOutcome {
 /// never aborts or error-flags the other providers in a full sync.
 fn finish_section(app: &AppHandle, provider: &str, result: Result<SectionOutcome, String>) {
     match result {
-        Ok(SectionOutcome::Done { written, removed }) => {
-            emit_sync_progress(app, provider, "done", written, removed)
+        Ok(SectionOutcome::Done {
+            written,
+            removed,
+            backfill_pending,
+            token_warning,
+        }) => {
+            let _ = app.emit(
+                SYNC_PROGRESS_EVENT,
+                SyncProgress {
+                    status: "done".into(),
+                    provider: provider.to_string(),
+                    folder: None,
+                    written,
+                    removed,
+                    error: None,
+                    backfill_pending,
+                    token_warning,
+                },
+            );
         }
         Ok(SectionOutcome::Cancelled) => emit_sync_progress(app, provider, "cancelled", 0, 0),
         Err(e) => {
+            // Log the failure (the raw provider text never reaches the audit log —
+            // the frontend stores only a sanitized category). Carry the raw
+            // message in the event so the owner sees WHY on their own screen,
+            // instead of a bare "ran into a problem".
             log::warn!("{provider} mail sync failed: {e}");
-            emit_sync_progress(app, provider, "error", 0, 0);
+            let _ = app.emit(
+                SYNC_PROGRESS_EVENT,
+                SyncProgress {
+                    status: "error".into(),
+                    provider: provider.to_string(),
+                    folder: None,
+                    written: 0,
+                    removed: 0,
+                    error: Some(e),
+                    backfill_pending: false,
+                    token_warning: false,
+                },
+            );
         }
     }
 }
@@ -1747,7 +1918,14 @@ async fn sync_m365_section(
         base.written += s.written;
         base.removed += s.removed;
     }
-    Ok(SectionOutcome::Done { written: base.written, removed: base.removed })
+    let backfill_pending = rag_backfill_pending(workspace, enc_key, base.written > 0).await;
+    Ok(SectionOutcome::Done {
+        written: base.written,
+        removed: base.removed,
+        backfill_pending,
+        // M365-only: whether a refresh-token rotation failed to persist this run.
+        token_warning: M365_TOKEN_ROTATION_FAILED.load(Ordering::SeqCst),
+    })
 }
 
 /// Sync every folder of the configured IMAP account. One provider instance for
@@ -1762,7 +1940,14 @@ async fn sync_imap_section(
 ) -> Result<SectionOutcome, String> {
     let (imap_cfg, imap_pw) = match load_imap_config() {
         Some(v) => v,
-        None => return Ok(SectionOutcome::Done { written: 0, removed: 0 }),
+        None => {
+            return Ok(SectionOutcome::Done {
+                written: 0,
+                removed: 0,
+                backfill_pending: false,
+                token_warning: false,
+            })
+        }
     };
     use crate::commands::mail::imap::ImapProvider;
     let provider = ImapProvider {
@@ -1788,7 +1973,13 @@ async fn sync_imap_section(
         base.written += s.written;
         base.removed += s.removed;
     }
-    Ok(SectionOutcome::Done { written: base.written, removed: base.removed })
+    let backfill_pending = rag_backfill_pending(workspace, enc_key, base.written > 0).await;
+    Ok(SectionOutcome::Done {
+        written: base.written,
+        removed: base.removed,
+        backfill_pending,
+        token_warning: false, // IMAP has no OAuth refresh-token rotation.
+    })
 }
 
 /// Sync every folder/label of the Gmail account. The token is refreshed before
@@ -1825,7 +2016,14 @@ async fn sync_gmail_section(
         base.written += s.written;
         base.removed += s.removed;
     }
-    Ok(SectionOutcome::Done { written: base.written, removed: base.removed })
+    let backfill_pending = rag_backfill_pending(workspace, enc_key, base.written > 0).await;
+    Ok(SectionOutcome::Done {
+        written: base.written,
+        removed: base.removed,
+        backfill_pending,
+        // Gmail rotation is handled by its own token path; not flagged here.
+        token_warning: false,
+    })
 }
 
 /// Enumerate folders then sync each to its deltaLink, emitting provider-tagged
@@ -1859,15 +2057,34 @@ pub async fn mail_sync_all(
 
     // Only reset cancel now that we hold the sync slot.
     state.cancel.store(false, Ordering::SeqCst);
+    // Clear the token-rotation warning so it reflects only this run.
+    M365_TOKEN_ROTATION_FAILED.store(false, Ordering::SeqCst);
 
     let matter_map = matter_map.unwrap_or_default();
 
     // Per-provider terminal events (done/error/cancelled) are emitted INSIDE the
     // inner, per section, so one provider failing no longer error-flags the whole
     // sync (it used to emit a single global "error" that showed on every panel).
-    // A setup failure (workspace/store/key) still surfaces to the caller as a
-    // rejected promise.
-    mail_sync_all_inner(&app, &state, &matter_map, &only_provider).await
+    let result = mail_sync_all_inner(&app, &state, &matter_map, &only_provider).await;
+    if let Err(e) = &result {
+        // A setup failure (workspace/store/key) happens BEFORE any provider section,
+        // so no `finish_section` ran and no terminal event/audit row would exist —
+        // only a rejected promise (which the all-provider UI can miss). Emit a
+        // terminal error event so the outcome is visible AND leaves a durable
+        // `mail.sync` audit row (via useMailSyncAudit), honoring the "never
+        // silent" contract. A single-provider sync tags that provider (its panel
+        // filters to it); a full sync tags every provider row so whichever panel
+        // is open shows the failure.
+        match &only_provider {
+            Some(p) => finish_section(&app, p, Err(e.clone())),
+            None => {
+                for p in ["m365", "imap", "gmail"] {
+                    finish_section(&app, p, Err(e.clone()));
+                }
+            }
+        }
+    }
+    result
 }
 
 /// Inner worker for `mail_sync_all`. Runs each in-scope, connected provider in
@@ -1902,19 +2119,57 @@ async fn mail_sync_all_inner(
     // Microsoft 365 fail on a left-over Gmail token. `finish_section` emits the
     // provider-tagged terminal event; a section error is isolated to its own
     // provider and never aborts the others.
-    if should_sync_provider(only_provider, "m365") && mail_is_connected().await.unwrap_or(false) {
-        let r = sync_m365_section(app, &store, &workspace, &enc_key, matter_map, &cancel).await;
-        finish_section(app, "m365", r);
+    // A connectedness probe returning Err (keychain/IO failure) is NOT the same as
+    // "not connected" (Ok(false)): treating it as false would silently skip the
+    // section, so a user-triggered sync would end with no terminal event and no
+    // audit row. `Ok(false)` is a correct silent skip (the user never connected
+    // that provider); `Err(_)` is surfaced as that provider's error outcome.
+    if should_sync_provider(only_provider, "m365") {
+        match mail_is_connected().await {
+            Ok(true) => {
+                let r =
+                    sync_m365_section(app, &store, &workspace, &enc_key, matter_map, &cancel).await;
+                finish_section(app, "m365", r);
+            }
+            Ok(false) => {}
+            Err(e) => finish_section(
+                app,
+                "m365",
+                Err(format!("could not check the Microsoft 365 sign-in: {e}")),
+            ),
+        }
     }
 
-    if should_sync_provider(only_provider, "imap") && load_imap_config().is_some() {
-        let r = sync_imap_section(app, &store, &workspace, &enc_key, matter_map, &cancel).await;
-        finish_section(app, "imap", r);
+    if should_sync_provider(only_provider, "imap") {
+        match load_imap_config_checked() {
+            Ok(Some(_)) => {
+                let r =
+                    sync_imap_section(app, &store, &workspace, &enc_key, matter_map, &cancel).await;
+                finish_section(app, "imap", r);
+            }
+            Ok(None) => {}
+            Err(e) => finish_section(
+                app,
+                "imap",
+                Err(format!("could not read the IMAP settings: {e}")),
+            ),
+        }
     }
 
-    if should_sync_provider(only_provider, "gmail") && gmail_is_connected().await.unwrap_or(false) {
-        let r = sync_gmail_section(app, &store, &workspace, &enc_key, matter_map, &cancel).await;
-        finish_section(app, "gmail", r);
+    if should_sync_provider(only_provider, "gmail") {
+        match gmail_is_connected().await {
+            Ok(true) => {
+                let r =
+                    sync_gmail_section(app, &store, &workspace, &enc_key, matter_map, &cancel).await;
+                finish_section(app, "gmail", r);
+            }
+            Ok(false) => {}
+            Err(e) => finish_section(
+                app,
+                "gmail",
+                Err(format!("could not check the Gmail sign-in: {e}")),
+            ),
+        }
     }
 
     Ok(())
@@ -2583,6 +2838,7 @@ mod tests {
 mod mail_retag_message_tests {
     use super::backfill_marker_disposition;
     use super::BackfillMarkerDisposition;
+    use super::SyncProgress;
 
     #[test]
     fn backfill_marker_disposition_model_failure_retains() {
@@ -2606,5 +2862,50 @@ mod mail_retag_message_tests {
             backfill_marker_disposition(0, 0),
             BackfillMarkerDisposition::Clear
         );
+    }
+
+    // ── Terminal sync-event wire contract ────────────────────────────────────
+    // The frontend's honest-outcome UI + the durable `mail.sync` audit row read
+    // `backfillPending`, `tokenWarning`, and (on error) `error` off this event.
+    // These guard the exact JSON keys (camelCase) and that a raw error message
+    // NEVER rides along on a success event.
+
+    #[test]
+    fn done_event_serializes_backfill_and_token_flags_as_camelcase() {
+        let v = serde_json::to_value(SyncProgress {
+            status: "done".into(),
+            provider: "m365".into(),
+            folder: None,
+            written: 42,
+            removed: 3,
+            error: None,
+            backfill_pending: true,
+            token_warning: true,
+        })
+        .unwrap();
+        assert_eq!(v["status"], "done");
+        assert_eq!(v["written"], 42);
+        assert_eq!(v["backfillPending"], true);
+        assert_eq!(v["tokenWarning"], true);
+        // A success event must never carry an `error` field (skipped when None),
+        // so the audit path can't mistake a success for a failure.
+        assert!(v.get("error").is_none());
+    }
+
+    #[test]
+    fn error_event_carries_error_message_for_the_owner() {
+        let v = serde_json::to_value(SyncProgress {
+            status: "error".into(),
+            provider: "gmail".into(),
+            folder: None,
+            written: 0,
+            removed: 0,
+            error: Some("graph 500".into()),
+            backfill_pending: false,
+            token_warning: false,
+        })
+        .unwrap();
+        assert_eq!(v["status"], "error");
+        assert_eq!(v["error"], "graph 500");
     }
 }

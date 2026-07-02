@@ -15,6 +15,13 @@ import { getMatters } from '@/platform/matter/matterStore';
 import { buildMeetingMatterMap } from '@/platform/rag/matterResolver';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
+import { AuditService } from '@/platform/audit/AuditService';
+import { sanitizeSyncError } from '@/platform/connectors/syncAuditError';
+
+// Durable, append-only audit trail for connector activity, so a Calendly sync
+// (including one that indexed zero meetings or failed) always leaves a record —
+// the same honesty guarantee the OneDrive and Wealthbox paths give.
+const calendlyAudit = new AuditService('connectors');
 
 export function CalendlyConnect() {
   useCalendlySync();
@@ -26,7 +33,7 @@ export function CalendlyConnect() {
   const [syncing, setSyncing] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
-  const [lastSyncReport, setLastSyncReport] = useState<{ meetingsIndexed: number; recordsIndexed: number } | null>(null);
+  const [lastSyncReport, setLastSyncReport] = useState<{ meetingsIndexed: number; recordsIndexed: number; cancelled: boolean } | null>(null);
   const [disconnectNote, setDisconnectNote] = useState<string | null>(null);
   const { confirm, dialogProps } = useConfirmDialog();
 
@@ -72,9 +79,34 @@ export function CalendlyConnect() {
     setSyncing(true);
     try {
       const report = await calendlySyncAll(buildMeetingMatterMap(getMatters()));
-      setLastSyncReport({ meetingsIndexed: report.meetingsIndexed, recordsIndexed: report.recordsIndexed });
+      setLastSyncReport({ meetingsIndexed: report.meetingsIndexed, recordsIndexed: report.recordsIndexed, cancelled: report.cancelled });
+      // A stopped sync resolves with real (partial) counts — record it honestly as
+      // cancelled, not as a plain success.
+      const verb = report.cancelled ? 'stopped after indexing' : 'indexed';
+      void calendlyAudit
+        .logDurable(
+          'calendly.sync',
+          `Calendly sync: ${verb} ${String(report.meetingsIndexed)} meeting(s) into ${String(report.recordsIndexed)} search chunk(s).`,
+          {
+            outputs: {
+              meetingsIndexed: report.meetingsIndexed,
+              recordsIndexed: report.recordsIndexed,
+              eventsFetched: report.eventsFetched,
+              eventsChanged: report.eventsChanged,
+              inviteesFetched: report.inviteesFetched,
+              cancelled: report.cancelled,
+            },
+          }
+        )
+        .catch(() => {});
     } catch (err) {
       setSyncError(typeof err === 'string' ? err : err instanceof Error ? err.message : 'Calendly sync could not complete. Please try again.');
+      // Store only a sanitized category — never the raw provider message.
+      void calendlyAudit
+        .logDurable('calendly.sync', 'Calendly sync failed.', {
+          outputs: { error: sanitizeSyncError(err) },
+        })
+        .catch(() => {});
     } finally {
       setSyncing(false);
     }
@@ -192,7 +224,7 @@ export function CalendlyConnect() {
             )}
             {lastSyncReport && (
               <p className="text-xs text-slate-500">
-                Last sync indexed {lastSyncReport.meetingsIndexed} meeting{lastSyncReport.meetingsIndexed === 1 ? '' : 's'} into {lastSyncReport.recordsIndexed} search chunk{lastSyncReport.recordsIndexed === 1 ? '' : 's'}.
+                {lastSyncReport.cancelled ? 'Stopped early — indexed' : 'Last sync indexed'} {lastSyncReport.meetingsIndexed} meeting{lastSyncReport.meetingsIndexed === 1 ? '' : 's'} into {lastSyncReport.recordsIndexed} search chunk{lastSyncReport.recordsIndexed === 1 ? '' : 's'}.
               </p>
             )}
             {syncError && <p className="text-sm text-red-600">{syncError}</p>}
