@@ -2,27 +2,36 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { DraftFollowUpModal } from '@/features/email/DraftFollowUpModal';
 
-const { sendMessage, mailSaveDraft } = vi.hoisted(() => ({
+const { sendMessage, mailSaveDraft, mailConnectedAccounts, logEmailAuditEntry } = vi.hoisted(() => ({
   sendMessage: vi.fn(),
   mailSaveDraft: vi.fn(async () => 'draft-id-1'),
+  mailConnectedAccounts: vi.fn(async () => [
+    { provider: 'm365', account: 'default', label: 'Microsoft 365' },
+  ]),
+  logEmailAuditEntry: vi.fn(),
 }));
 
 vi.mock('@/features/email/resolveEmailProvider', () => ({
   resolveEmailProvider: vi.fn(async () => ({
-    provider: { sendMessage },
+    provider: { sendMessage, getMetadata: () => ({ model: 'claude-test', providerId: 'anthropic' }) },
     providerId: 'anthropic',
     assuredAvailable: false,
   })),
   assertLocalOnlyAllowsSend: vi.fn(),
 }));
 
+vi.mock('@/features/email/emailAuditLog', () => ({
+  emailMatterScope: (matterId: string | null) =>
+    matterId === null ? undefined : { kind: 'matter', matterId },
+  effectiveModeForDestination: () => 'direct',
+  logEmailAuditEntry,
+}));
+
 vi.mock('@/platform/utils/mail-commands', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/platform/utils/mail-commands')>();
   return {
     ...actual,
-    mailConnectedAccounts: vi.fn(async () => [
-      { provider: 'm365', account: 'default', label: 'Microsoft 365' },
-    ]),
+    mailConnectedAccounts,
     mailListMessagesByMatter: vi.fn(async () => ({
       items: [
         {
@@ -87,5 +96,43 @@ describe('DraftFollowUpModal — AI proposes, user approves, hostile notes stay 
     expect(accountId).toBe('m365:default');
     expect(to).toEqual(['tom@brennan.com']);
     expect(to.join(',')).not.toContain('attacker@evil.com');
+  });
+
+  it('records an egress audit entry scoped to the matter BEFORE sending the note to the AI provider (codex-review P1)', async () => {
+    render(
+      <DraftFollowUpModal
+        open
+        onOpenChange={() => {}}
+        noteName="Meeting Notes 2026-06-24.docx"
+        noteContent={hostileNote}
+        matterId="matter-1"
+      />,
+    );
+    await waitFor(() => expect(logEmailAuditEntry).toHaveBeenCalled());
+    const [entry] = logEmailAuditEntry.mock.calls[0]! as [{
+      action: string;
+      metadata: { scope?: { matterId: string } };
+    }];
+    expect(entry.action).toBe('egress');
+    expect(entry.metadata.scope).toEqual({ kind: 'matter', matterId: 'matter-1' });
+    // The audit call must land BEFORE the provider ever sees the note content.
+    const auditCallOrder = logEmailAuditEntry.mock.invocationCallOrder[0]!;
+    const sendCallOrder = sendMessage.mock.invocationCallOrder[0]!;
+    expect(auditCallOrder).toBeLessThan(sendCallOrder);
+  });
+
+  it('never sends the note to an AI provider when no email account is connected (codex-review P1)', async () => {
+    mailConnectedAccounts.mockResolvedValueOnce([]);
+    render(
+      <DraftFollowUpModal
+        open
+        onOpenChange={() => {}}
+        noteName="Meeting Notes 2026-06-24.docx"
+        noteContent={hostileNote}
+        matterId="matter-1"
+      />,
+    );
+    await screen.findByTestId('followup-no-accounts');
+    expect(sendMessage).not.toHaveBeenCalled();
   });
 });

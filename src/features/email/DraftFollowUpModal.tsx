@@ -19,6 +19,14 @@ import {
   draftBodyToHtml,
 } from '@/features/email/followUpDraft';
 import { parseRecipients } from '@/features/email/emailWorkspaceHelpers';
+import {
+  emailMatterScope,
+  effectiveModeForDestination,
+  logEmailAuditEntry,
+} from '@/features/email/emailAuditLog';
+import { auditEventToEntry } from '@/platform/audit/AuditService';
+import { resolveEgress } from '@/platform/privacy/egress';
+import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 
 export interface DraftFollowUpModalProps {
   open: boolean;
@@ -62,6 +70,14 @@ export function DraftFollowUpModal({
         const accts = await mailConnectedAccounts();
         setAccounts(accts);
         setAccountIdx(0);
+        // Codex review catch (P1): with no connected mailbox this feature is
+        // unusable (there is nowhere to save/send the draft), so never send
+        // confidential note content to an AI provider for nothing. The UI
+        // shows the "connect an account" message for this case.
+        if (accts.length === 0) {
+          setStatus('idle');
+          return;
+        }
         try {
           const page = await mailListMessagesByMatter(matterId, [], {
             sortBy: 'date',
@@ -74,8 +90,35 @@ export function DraftFollowUpModal({
         } catch {
           // No mail for this client (or browser mode) — To stays empty, user types it.
         }
-        const { provider, providerId } = await resolveEmailProvider();
+        const { provider, providerId, assuredAvailable } = await resolveEmailProvider();
         assertLocalOnlyAllowsSend(providerId);
+        // Codex review catch (P1): every other AI surface (Ask, redline, the
+        // reply-draft flow this modal is modeled on) records an egress audit
+        // entry BEFORE the send, so the Activity Log / confidentiality report
+        // never misses a client-data AI request. Mirrors handleDraftWithAI's
+        // exact construction in EmailViewer.tsx.
+        const egress = resolveEgress({
+          provider: providerId,
+          mode: assuredAvailable ? 'assured' : getConfidentialityMode(),
+          assuredAvailable,
+        });
+        const scope = emailMatterScope(matterId, undefined);
+        const auditEntry = auditEventToEntry({
+          type: 'egress',
+          timestamp: new Date().toISOString(),
+          payload: {
+            provider: egress.provider,
+            model: provider.getMetadata().model,
+            mode: effectiveModeForDestination(egress.destination),
+            destination: egress.destination,
+            dataLeaves: egress.dataLeaves,
+            ...(scope ? { scope } : {}),
+          },
+        });
+        logEmailAuditEntry({
+          ...auditEntry,
+          metadata: { ...auditEntry.metadata, noteName },
+        });
         const prompt = buildFollowUpPrompt({ noteName, noteContent });
         const response = await provider.sendMessage(prompt);
         const applied = applyDraftResponse(noteName, response.content);

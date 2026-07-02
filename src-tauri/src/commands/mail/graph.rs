@@ -480,7 +480,8 @@ impl GraphClient {
     ) -> anyhow::Result<String> {
         let url = format!(
             "{}/v1.0/me/messages/{}/createReply",
-            self.base, original_message_id
+            self.base,
+            enc_path_segment(original_message_id)
         );
         let resp = self.post_json(&url, &serde_json::json!({})).await?;
         let draft_id = resp
@@ -493,7 +494,11 @@ impl GraphClient {
             "body": { "contentType": "HTML", "content": body_html },
             "toRecipients": to.iter().map(|a| recipient_obj(a)).collect::<Vec<_>>(),
         });
-        let patch_url = format!("{}/v1.0/me/messages/{}", self.base, draft_id);
+        let patch_url = format!(
+            "{}/v1.0/me/messages/{}",
+            self.base,
+            enc_path_segment(&draft_id)
+        );
         self.patch_json(&patch_url, &patch).await?;
         Ok(draft_id)
     }
@@ -1011,6 +1016,50 @@ mod tests {
             .await
             .expect("create_reply_draft should succeed");
         assert_eq!(id, "reply-draft-7");
+    }
+
+    #[tokio::test]
+    async fn create_reply_draft_encodes_message_ids_with_path_sensitive_characters() {
+        // Real Graph AAMkAD... ids and their base64-derived variants can contain
+        // '/', '+', '=' — codex-review catch: interpolating them unencoded into
+        // the URL path breaks the request (or worse, splits the path). Mirror the
+        // existing enc_path_segment convention used by get_attachment_raw.
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        let raw_id = "AAMk/ADAwATY3+ZjBl=";
+        let encoded_id = "AAMk%2FADAwATY3%2BZjBl%3D";
+        let raw_draft_id = "reply/draft+7=";
+        let encoded_draft_id = "reply%2Fdraft%2B7%3D";
+
+        Mock::given(method("POST"))
+            .and(path(format!("/v1.0/me/messages/{encoded_id}/createReply")))
+            .respond_with(
+                ResponseTemplate::new(201)
+                    .set_body_json(serde_json::json!({ "id": raw_draft_id })),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("PATCH"))
+            .and(path(format!("/v1.0/me/messages/{encoded_draft_id}")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({ "id": raw_draft_id })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let client = GraphClient::new_with_base("AT".into(), server.uri());
+        let id = client
+            .create_reply_draft(
+                raw_id,
+                &["alice@example.com".to_string()],
+                "RE: Q2 review",
+                "<p>Following up.</p>",
+            )
+            .await
+            .expect("create_reply_draft should succeed with a path-sensitive id");
+        assert_eq!(id, raw_draft_id);
     }
 
     #[tokio::test]
