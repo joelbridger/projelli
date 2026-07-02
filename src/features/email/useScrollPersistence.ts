@@ -116,12 +116,38 @@ export function useScrollPersistence(activeMatter: Matter | null | undefined, re
   // non-embedded "Email" nav surface isn't remounted per-matter the way
   // embedded per-client sub-tabs are) — save under the OLD key and restore
   // under the NEW one for whatever node is currently attached.
+  //
+  // Coordinator review (final pass): `restoreScroll` only sets the DOM
+  // node's `scrollTop` — a virtualized list (@tanstack/react-virtual)
+  // tracks its OWN internal offset independently, updated only by a live
+  // `scroll` event, never by reading `scrollTop` on demand (same root
+  // cause as the query-reset fix in EmailWorkspace, round 9). Without
+  // this, switching clients with a long list still mounted (the case this
+  // effect exists for) restored the visual scrollbar position but left
+  // the virtualizer still rendering the OLD row window until the user
+  // manually scrolled.
+  //
+  // The dispatch is deferred to a microtask, same as round 9's fix and for
+  // the same reason: @tanstack/react-virtual's scroll listener can call
+  // `flushSync`, which React rejects when it's still nested inside an
+  // in-progress commit. A plain `useEffect` (vs. `useLayoutEffect`) is
+  // enough to avoid that nesting in a real browser, where passive effects
+  // run in a separate task after paint — but `act()` (React Testing
+  // Library, used throughout this codebase's tests) intentionally flushes
+  // passive effects SYNCHRONOUSLY within its own call for determinism, so
+  // the same nested-`flushSync` conflict resurfaces under test without the
+  // deferral. Deferring unconditionally keeps behavior identical in both
+  // environments rather than depending on that timing difference.
   useEffect(() => {
     if (scrollKeyRef.current === scrollKey) return;
     saveScroll(nodeRef.current, scrollKeyRef.current);
     scrollKeyRef.current = scrollKey;
-    if (nodeRef.current) {
-      restoreScroll(nodeRef.current, scrollKey);
+    const node = nodeRef.current;
+    if (node) {
+      restoreScroll(node, scrollKey);
+      queueMicrotask(() => {
+        node.dispatchEvent(new Event('scroll'));
+      });
     }
   }, [scrollKey]);
 

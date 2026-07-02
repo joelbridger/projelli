@@ -364,6 +364,83 @@ describe('Perf (P2.2) — EmailWorkspace / MailRow render hygiene', () => {
     }
   });
 
+  // Coordinator review (final pass): the activeMatter-change restore path in
+  // useScrollPersistence set only the DOM node's `scrollTop`, not the
+  // virtualizer's own internal offset. The non-embedded "Email" surface
+  // (unlike embedded per-client sub-tabs) isn't remounted per-matter — a
+  // client switch with a long list still mounted only goes through this
+  // effect, never `scrollContainerRef`'s own mount-time reset — so without
+  // notifying the virtualizer the same way the round-9 query-reset fix
+  // does, the OLD matter's row window kept rendering after the switch.
+  it("virtualization: switching matters resets the row window to the new matter's saved position", async () => {
+    const heightDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight');
+    const widthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetWidth');
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, get() { return 560; } });
+    Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, get() { return 800; } });
+
+    try {
+      sessionStorage.clear();
+      // "All email" (no active matter) starts deep into the list...
+      sessionStorage.setItem('email-scroll-all', String(100 * 88));
+      // ...matter-2 has its OWN, much shallower saved position.
+      sessionStorage.setItem('email-scroll-matter-2', String(2 * 88));
+
+      const items = makeItems(200);
+      setupMocks(items);
+      mockUseActiveMatter.mockReturnValue(null);
+
+      // Non-embedded: scopedItems === items regardless of activeMatter, and
+      // activeMatter isn't in Effect A's dependency array, so switching
+      // matters here does NOT refetch/unmount the results box — isolating
+      // exactly the scroll-restore path under test (unlike the round-9
+      // test, no debounce window to work around).
+      render(<EmailWorkspace />);
+      await waitForInitialLoad();
+
+      const readIndexes = () =>
+        screen
+          .getAllByTestId('mail-row')
+          .map((r) => r.textContent?.match(/Message (\d+)/)?.[1])
+          .filter((v): v is string => v !== undefined)
+          .map(Number);
+
+      // Sanity: starts deep, matching the seeded "all email" offset.
+      expect(readIndexes()[0]).toBeGreaterThan(20);
+
+      mockUseActiveMatter.mockReturnValue({
+        id: 'matter-2',
+        name: 'Beta',
+        client: 'Beta Corp',
+        folderPaths: [],
+        createdAt: '2026-01-01T00:00:00Z',
+      });
+      // Trigger a re-render via something entirely unrelated to the matter
+      // switch itself — same technique as the "scopedItems reflects a
+      // matters/folder-mapping change" test above. The virtualizer-side
+      // half of the fix is dispatched via a microtask (see
+      // useScrollPersistence's comment), so awaiting one extra microtask
+      // tick here lets it land before reading the rendered rows.
+      await act(async () => {
+        fireEvent.click(screen.getByTestId('filters-toggle'));
+        await Promise.resolve();
+      });
+
+      const afterSwitch = readIndexes();
+      console.log(`[perf/email-render] post-matter-switch window: rows ${afterSwitch[0]}-${afterSwitch[afterSwitch.length - 1]}`);
+      // Must reflect matter-2's OWN (shallow) saved offset — NOT stay
+      // pinned to the previous matter's deep window.
+      expect(afterSwitch[0]).toBeLessThan(20);
+    } finally {
+      sessionStorage.clear();
+      if (heightDescriptor) {
+        Object.defineProperty(HTMLElement.prototype, 'offsetHeight', heightDescriptor);
+      }
+      if (widthDescriptor) {
+        Object.defineProperty(HTMLElement.prototype, 'offsetWidth', widthDescriptor);
+      }
+    }
+  });
+
   it('a small inbox (below the virtualize threshold) still renders every row directly', async () => {
     const items = makeItems(10);
     setupMocks(items);
