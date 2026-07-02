@@ -46,10 +46,6 @@ const CI_QUARANTINE = [
   // scope). Each needs individual root-causing as a follow-up.
   '**/ai-assistant-tab.spec.ts',
   '**/api-keys-panel.spec.ts',
-  '**/history-hidden-nonversioned.spec.ts',
-  '**/image-attachment.spec.ts',
-  '**/presentation-viewer.spec.ts',
-  '**/spreadsheet-improvements.spec.ts',
   '**/undo-delete-ctrlz.spec.ts',
   '**/updater.spec.ts',
   '**/v1.5-canvas-stress.spec.ts',
@@ -57,7 +53,6 @@ const CI_QUARANTINE = [
   '**/v1.5-memory-stress.spec.ts',
   '**/wedge-proof.spec.ts',
   '**/welcome-dialog.spec.ts',
-  '**/word-count-md-txt.spec.ts',
   '**/workflow-persistence.spec.ts',
 ];
 

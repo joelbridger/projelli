@@ -14,6 +14,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import {
   waitForTestModeLoad,
+  switchToStandaloneEditorSurface,
 } from './helpers/test-utils';
 
 // Minimal valid 1x1 red PNG (67 bytes).
@@ -23,6 +24,10 @@ const TINY_PNG_BASE64 =
 async function openChat(page: Page, model = 'claude-3-5-sonnet-20241022') {
   await page.goto('/?testMode=true');
   await waitForTestModeLoad(page);
+  // The AI chat tab (.aichat) renders in MainPanel, which only mounts on
+  // the standalone editor surface (sidebarActiveTab === 'files') — see
+  // helpers/test-utils.ts.
+  await switchToStandaloneEditorSurface(page);
   await page.evaluate((chatModel) => {
     const openFile = (window as any).__openTestFile;
     if (!openFile) throw new Error('__openTestFile missing');
