@@ -13,8 +13,7 @@
  */
 import { useEditorStore } from '@/platform/state/editorStore';
 import { writeCoordinator } from '@/platform/fs/writeCoordinator';
-import { isBinaryFile } from '@/platform/utils/file-utils';
-import { dataUrlToArrayBuffer } from '@/platform/utils/spreadsheet-io';
+import { isBinaryFile, dataUrlToArrayBuffer } from '@/platform/utils/file-utils';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 
 /**

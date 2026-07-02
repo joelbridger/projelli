@@ -34,8 +34,6 @@ import { cn } from '@/lib/utils';
 import { usePromptDialog } from '@/platform/hooks/usePromptDialog';
 import { PromptDialog } from '@/ui/PromptDialog';
 import { saveFile } from '@/platform/utils/saveFile';
-import { markdownToDocxBytes } from '@/platform/utils/docx-io';
-import { markdownToPptxBytes } from '@/platform/utils/pptx-io';
 import { availableExportFormats, replaceExtension } from '@/platform/utils/export-formats';
 import type { ExportFormat } from '@/platform/utils/export-formats';
 import type { MarkdownEditorRef } from './MarkdownEditor';
@@ -254,6 +252,7 @@ export function FormattingToolbar({ editorRef, className, isPreviewMode, onToggl
         }
 
         case 'docx': {
+          const { markdownToDocxBytes } = await import('@/platform/utils/docx-io');
           const bytes = await markdownToDocxBytes(fileContent, fileName);
           await saveFile(bytes, {
             suggestedName: replaceExtension(fileName, 'docx'),
@@ -288,6 +287,7 @@ export function FormattingToolbar({ editorRef, className, isPreviewMode, onToggl
         }
 
         case 'pptx': {
+          const { markdownToPptxBytes } = await import('@/platform/utils/pptx-io');
           const bytes = await markdownToPptxBytes(fileContent);
           await saveFile(bytes, {
             suggestedName: replaceExtension(fileName, 'pptx'),

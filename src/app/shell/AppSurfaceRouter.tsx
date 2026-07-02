@@ -10,16 +10,14 @@
  * delegates rendering to the appropriate surface component.
  */
 
+import { lazy, Suspense } from 'react';
 import { MattersHome } from '@/features/matters/MattersHome';
 import { Ask } from '@/features/ask/Ask';
-import { EmailWorkspace } from '@/features/email/EmailWorkspace';
 import { DocumentsHome } from '@/features/documents/DocumentsHome';
 import { AssociateHome } from '@/features/workflows/AssociateHome';
-import { AuditHome } from '@/features/audit/AuditHome';
 import { ErrorBoundary } from '@/ui/ErrorBoundary';
-import { PrivacyCenterHome } from '@/features/privacy/PrivacyCenterHome';
 import { MainPanel } from '@/app/shell/layout/MainPanel';
-import { SettingsContent } from '@/features/settings/SettingsContent';
+import { SurfaceLoadingFallback } from '@/app/shell/common/SurfaceLoadingFallback';
 import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
 import { requestScrollToParagraph } from '@/platform/utils/scrollToParagraph';
 import { resolveWorkspacePath } from '@/platform/fs/pathResolve';
@@ -39,6 +37,22 @@ import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
 import type { Matter } from '@/platform/types/matter';
 import { EV_OPEN_ACCOUNT, EV_OPEN_EMAIL } from '@/config/identity';
+
+// Email, Activity Log, Privacy Center, and the full-page Settings surface are
+// lazy-loaded: each is a large, self-contained screen (Settings alone pulls
+// every settings section) that a user may never open in a given session.
+// Client Map (matters), Ask, and Documents stay eager — those are the primary
+// demo path and must open instantly with no Suspense flash.
+const EmailWorkspace = lazy(() =>
+  import('@/features/email/EmailWorkspace').then((m) => ({ default: m.EmailWorkspace }))
+);
+const AuditHome = lazy(() =>
+  import('@/features/audit/AuditHome').then((m) => ({ default: m.AuditHome }))
+);
+const PrivacyCenterHome = lazy(() =>
+  import('@/features/privacy/PrivacyCenterHome').then((m) => ({ default: m.PrivacyCenterHome }))
+);
+const SettingsContent = lazy(() => import('@/features/settings/SettingsContent'));
 
 export interface AppSurfaceRouterProps {
   sidebarActiveTab: AppSurface;
@@ -168,7 +182,11 @@ export function AppSurfaceRouter({
       id: 'privacy-center',
       label: 'Privacy Center',
       testid: 'settings-category-privacy-center',
-      content: <PrivacyCenterHome auditEntries={auditEntries} activeMatter={activeMatter} />,
+      content: (
+        <Suspense fallback={<SurfaceLoadingFallback />}>
+          <PrivacyCenterHome auditEntries={auditEntries} activeMatter={activeMatter} />
+        </Suspense>
+      ),
     },
     {
       id: 'activity-log',
@@ -178,11 +196,13 @@ export function AppSurfaceRouter({
       // a malformed audit row must never white-screen the Settings page.
       content: (
         <ErrorBoundary label="Activity Log">
-          <AuditHome
-            entries={auditEntries}
-            integrity={auditIntegrity}
-            onVerifyIntegrity={verifyAuditIntegrity}
-          />
+          <Suspense fallback={<SurfaceLoadingFallback />}>
+            <AuditHome
+              entries={auditEntries}
+              integrity={auditIntegrity}
+              onVerifyIntegrity={verifyAuditIntegrity}
+            />
+          </Suspense>
         </ErrorBoundary>
       ),
     },
@@ -278,6 +298,7 @@ export function AppSurfaceRouter({
   );
 
   const buildEmailWorkspace = (opts: { embedded?: boolean; scopeMatterId?: string }) => (
+    <Suspense fallback={<SurfaceLoadingFallback />}>
     <EmailWorkspace
       // Per-client key — remount on client switch so Email selections / open
       // detail don't carry from one client into the next (matter isolation).
@@ -304,6 +325,7 @@ export function AppSurfaceRouter({
       }}
       {...(opts.embedded ? { embedded: true } : {})}
     />
+    </Suspense>
   );
 
   const buildActivity = (opts: { scopeMatterId?: string }) => (
@@ -313,13 +335,15 @@ export function AppSurfaceRouter({
     <ErrorBoundary label="Activity Log">
       {/* Per-client key — remount on client switch so the Activity detail panel
           / filters don't carry from one client into the next (matter isolation). */}
-      <AuditHome
-        key={opts.scopeMatterId}
-        entries={auditEntries}
-        integrity={auditIntegrity}
-        onVerifyIntegrity={verifyAuditIntegrity}
-        {...(opts.scopeMatterId ? { scopeMatterId: opts.scopeMatterId } : {})}
-      />
+      <Suspense fallback={<SurfaceLoadingFallback />}>
+        <AuditHome
+          key={opts.scopeMatterId}
+          entries={auditEntries}
+          integrity={auditIntegrity}
+          onVerifyIntegrity={verifyAuditIntegrity}
+          {...(opts.scopeMatterId ? { scopeMatterId: opts.scopeMatterId } : {})}
+        />
+      </Suspense>
     </ErrorBoundary>
   );
 
@@ -405,21 +429,25 @@ export function AppSurfaceRouter({
       ) : sidebarActiveTab ==='audit' ? (
         buildActivity({})
       ) : sidebarActiveTab ==='privacy' ? (
-        <PrivacyCenterHome auditEntries={auditEntries} activeMatter={activeMatter} />
+        <Suspense fallback={<SurfaceLoadingFallback />}>
+          <PrivacyCenterHome auditEntries={auditEntries} activeMatter={activeMatter} />
+        </Suspense>
       ) : sidebarActiveTab ==='settings' ? (
         // Full-page Settings surface — the SAME content as the quick modal
         // (5-section nav, search, accordion sub-sections, Export/Import/Reset),
         // rendered in the main window instead of a dialog. The gear / Ctrl+,
         // modal still works for quick, deep-linked access.
         <div className="flex-1 min-w-0 min-h-0 flex flex-col" data-testid="settings-page">
-          <SettingsContent
-            variant="page"
-            auditEntries={auditEntries}
-            templates={loadAllTemplates()}
-            onAction={handleSettingsAction}
-            onRestartOnboarding={handleSettingsRestartOnboarding}
-            extraSections={settingsNestedSections}
-          />
+          <Suspense fallback={<SurfaceLoadingFallback />}>
+            <SettingsContent
+              variant="page"
+              auditEntries={auditEntries}
+              templates={loadAllTemplates()}
+              onAction={handleSettingsAction}
+              onRestartOnboarding={handleSettingsRestartOnboarding}
+              extraSections={settingsNestedSections}
+            />
+          </Suspense>
         </div>
       ) : (
       <MainPanel

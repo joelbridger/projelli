@@ -10,7 +10,6 @@ import React, { useCallback } from 'react';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useEditorStore } from '@/platform/state/editorStore';
-import { createBlankDocx, docxBytesToDataUrl } from '@/platform/utils/docx-io';
 import { workspacePath } from '@/platform/fs/appPath';
 import { findUniqueDefaultName } from './uniqueDefaultName';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
@@ -159,6 +158,7 @@ export function useDocumentCreation(options: UseDocumentCreationOptions) {
           bytes = null;
         }
       }
+      const { createBlankDocx, docxBytesToDataUrl } = await import('@/platform/utils/docx-io');
       if (!bytes) {
         bytes = await createBlankDocx();
       }

@@ -80,6 +80,26 @@ export function arrayBufferToDataUrl(buffer: ArrayBuffer, mimeType: string): str
 }
 
 /**
+ * Convert a data URL back to an ArrayBuffer. Lives here (not spreadsheet-io.ts,
+ * which re-exports it for backward compatibility) because it's pure base64
+ * decoding with no dependency on the `xlsx` library — flushDirtyTabs.ts, which
+ * is on the always-eager startup path, needs exactly this and nothing else.
+ */
+export function dataUrlToArrayBuffer(dataUrl: string): ArrayBuffer {
+  const commaIndex = dataUrl.indexOf(',');
+  if (commaIndex === -1) {
+    throw new Error('Invalid data URL: missing comma separator.');
+  }
+  const base64 = dataUrl.slice(commaIndex + 1);
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
+/**
  * Get MIME type from file extension
  * @param name - The file name or path
  * @returns The MIME type string
