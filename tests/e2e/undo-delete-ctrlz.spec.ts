@@ -10,17 +10,23 @@
  * The TrashPanel empty-state copy is also checked here to make sure it
  * matches the default retention (30 days) rather than saying "30 days"
  * while retention is silently disabled.
+ *
+ * The Files/Trash toggle is hidden in the embedded per-client Documents tab
+ * (DocumentsHome.tsx: Trash is a GLOBAL, cross-client surface, so showing it
+ * per-client would leak other clients' deleted files — matter isolation).
+ * gotoDocuments() always lands on that embedded view, so these tests use
+ * switchToStandaloneEditorSurface instead.
  */
 
 import { test, expect } from '@playwright/test';
-import { waitForTestModeLoad, hardClick, gotoDocuments } from './helpers/test-utils';
+import { waitForTestModeLoad, hardClick, switchToStandaloneFilesGrid } from './helpers/test-utils';
 
 test.describe('Undo delete with Ctrl+Z (UX-29)', () => {
   test('Ctrl+Z restores the most recently deleted file', async ({ page }) => {
     await page.goto('/?testMode=true&seedDemo=1');
     await waitForTestModeLoad(page);
 
-    await gotoDocuments(page);
+    await switchToStandaloneFilesGrid(page);
     await hardClick(page.getByTestId('docs-files-toggle'));
     await hardClick(page.getByTestId('docs-view-tree'));
 
@@ -83,7 +89,7 @@ test.describe('Undo delete with Ctrl+Z (UX-29)', () => {
     await page.reload();
     await waitForTestModeLoad(page);
 
-    await gotoDocuments(page);
+    await switchToStandaloneFilesGrid(page);
     await hardClick(page.getByTestId('docs-trash-toggle'));
 
     // The default is now 30 days (UX-29); copy should reference that number.

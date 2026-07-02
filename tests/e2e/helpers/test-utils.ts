@@ -167,6 +167,22 @@ export async function openStandaloneFile(
 }
 
 /**
+ * Switch to the standalone editor surface's Files GRID view (toolbar +
+ * Files/Trash toggle + tree/grid toggle) rather than whichever editor tab
+ * happens to be active. `switchToStandaloneEditorSurface` alone opens the AI
+ * Assistant tab, which makes DocumentsHome.tsx render that tab's content
+ * instead of the grid (`showFilesGrid` flips false once any editor-surface
+ * tab is open) — the toolbar (docs-files-toggle, docs-trash-toggle, etc.)
+ * only renders when the grid is shown. Click the pinned "Files" tab to force
+ * it back.
+ */
+export async function switchToStandaloneFilesGrid(page: Page) {
+  await switchToStandaloneEditorSurface(page);
+  await hardClick(page.getByRole('tab', { name: 'Files' }));
+  await expect(page.getByTestId('documents-toolbar')).toBeVisible({ timeout: 10_000 });
+}
+
+/**
  * Switch AI Assistant to a specific tab
  */
 export async function switchAITab(page: Page, tab: 'chats' | 'keys' | 'models') {
