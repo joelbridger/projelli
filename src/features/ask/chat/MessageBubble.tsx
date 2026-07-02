@@ -3,7 +3,18 @@
 // VERBATIM as a pure render: no state mutation lives here, only the caller's
 // handler callbacks are invoked. The map key stays on <MessageBubble> in the
 // parent, so the root div no longer carries it.
+//
+// Perf (P1.2): memoized, and takes `isLastMessage` + `onRetryLastError`
+// instead of the full `messages` array. The old `messages` prop meant EVERY
+// bubble's props changed identity whenever the array changed for ANY
+// reason (a new token, a new message anywhere) — which broke memoization
+// for the whole list at once, not just the bubble that actually changed.
+// `onRetryLastError` is a stable callback the parent builds via a ref
+// (it always acts on the latest messages/send-handler without needing
+// either as a reactive dependency), so a memoized bubble truly skips
+// re-rendering when nothing about IT changed.
 
+import { memo } from 'react';
 import { GripVertical, AlertTriangle, Briefcase, Globe } from 'lucide-react';
 import type { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
@@ -20,7 +31,7 @@ import {
 interface MessageBubbleProps {
   msg: ChatMessage;
   idx: number;
-  messages: ChatMessage[];
+  isLastMessage: boolean;
   t: ReturnType<typeof useTranslation>['t'];
   entityLabel: EntityLabel;
   handleCitationClick: (
@@ -31,20 +42,18 @@ interface MessageBubbleProps {
     snippet?: string,
   ) => void;
   handleMissingSource: (basename: string) => void;
-  setInputValue: React.Dispatch<React.SetStateAction<string>>;
-  handleSendMessage: () => void;
+  onRetryLastError: () => void;
 }
 
-export function MessageBubble({
+function MessageBubbleImpl({
   msg,
   idx,
-  messages,
+  isLastMessage,
   t,
   entityLabel,
   handleCitationClick,
   handleMissingSource,
-  setInputValue,
-  handleSendMessage,
+  onRetryLastError,
 }: MessageBubbleProps) {
   return (
           <div
@@ -182,18 +191,11 @@ export function MessageBubble({
                 onMissing={handleMissingSource}
               />
             )}
-            {msg.isError && idx === messages.length - 1 && (
+            {msg.isError && isLastMessage && (
               <div className="mt-2 flex flex-wrap items-center gap-3">
                 <button
                   className="text-xs text-muted-foreground hover:text-foreground underline"
-                  onClick={() => {
-                    const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
-                    if (lastUserMsg) {
-                      setInputValue(lastUserMsg.content);
-                      // Trigger send on the next tick so state is committed first
-                      setTimeout(() => handleSendMessage(), 0);
-                    }
-                  }}
+                  onClick={onRetryLastError}
                 >
                   {t('ai.chat.retry-last-message')}
                 </button>
@@ -224,3 +226,5 @@ export function MessageBubble({
           </div>
   );
 }
+
+export const MessageBubble = memo(MessageBubbleImpl);

@@ -3,11 +3,19 @@
  *
  * Extracted from App.tsx (Phase 3 decomposition). Routes through the shared
  * `writeTabContent` writer so binary formats (.docx/.xlsx/.pptx) decode their
- * data-URL content back to bytes before hitting disk. The service ref is passed
- * (a stable object) so the interval re-registers only when the tab set or the
- * writer changes — matching the original effect's cadence.
+ * data-URL content back to bytes before hitting disk.
+ *
+ * Perf (P1.2): the interval is created ONCE and lives for the component's
+ * lifetime — it does NOT depend on `openTabs`. `openTabs` gets a new array
+ * reference on every keystroke (any content edit replaces the whole array),
+ * so the old effect — keyed on `openTabs` — tore down and recreated the
+ * interval on every keystroke too, which reset the 2-second countdown before
+ * it ever fired. A continuously-typing user's autosave never ran. The tick
+ * now reads the LATEST tabs through a ref that's updated every render
+ * (before the interval ever sees it), so the timer itself stays stable while
+ * still always saving whatever is current.
  */
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { writeCoordinator } from '@/platform/fs/writeCoordinator';
 
 interface AutosaveTab {
@@ -24,6 +32,11 @@ export function useAutosave(
   markSaved: (path: string, savedRev?: number) => void,
   serviceRef: { readonly current: unknown },
 ): void {
+  const openTabsRef = useRef(openTabs);
+  useEffect(() => {
+    openTabsRef.current = openTabs;
+  }, [openTabs]);
+
   useEffect(() => {
     const autosaveInterval = setInterval(() => {
       // Explicitly void the inner async IIFE: each tick's Promise is
@@ -32,7 +45,7 @@ export function useAutosave(
       // swallowing it silently.
       void (async () => {
         if (!serviceRef.current) return;
-        for (const tab of openTabs) {
+        for (const tab of openTabsRef.current) {
           if (tab.isDirty) {
             // BUG-045: capture content + rev together, route through the per-path
             // write coordinator (so a slow write can't overwrite a newer save),
@@ -55,5 +68,5 @@ export function useAutosave(
     }, 2000);
 
     return () => clearInterval(autosaveInterval);
-  }, [openTabs, markSaved, writeTabContent, serviceRef]);
+  }, [markSaved, writeTabContent, serviceRef]);
 }
