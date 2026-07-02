@@ -88,6 +88,11 @@ const ASK_RAIL_COLLAPSED_KEY = SK_ASK_RAIL_COLLAPSED;
  */
 const ASK_FILES_ONLY_KEY = SK_ASK_FILES_ONLY;
 
+/** How many prior exchanges are placed in the prompt's history block. The SAME
+ *  window bounds transitive grounding, so a turn outside it can't mark the answer
+ *  file-derived (Codex final review P2). */
+const HISTORY_WINDOW = 6;
+
 /**
  * F2.5b — the chatId for an Ask conversation, bound to the WORKSPACE ROOT so its
  * session (turns) AND its per-conversation file-access consent are workspace-
@@ -500,12 +505,19 @@ export function useAsk({
             const demoBlocks: AnswerBlock[] | undefined = filesOnly
               ? undefined
               : [{ kind: 'files', text: demo.answer, citations: demo.citations }];
+            // The cited demo answer IS file-derived (from the sample matter's
+            // files), so mark it with its true scope (not the widest-scope
+            // fail-closed fallback) so a later same-sample send keeps it in
+            // history rather than over-redacting it (Codex final review P2).
+            const demoGroundingScope = askConsentScope(activeMatter?.id ?? null, askScope);
             const completedTurn: AskTurn = {
               question: q,
               answer: demo.answer,
               citations: demo.citations,
               sources: [],
               ...(demoBlocks ? { blocks: demoBlocks } : {}),
+              groundedFromFiles: true,
+              groundingScope: demoGroundingScope,
             };
             const now = new Date().toISOString();
             addMessage(chatId, { role: 'user', content: q, timestamp: now });
@@ -516,6 +528,8 @@ export function useAsk({
               askCitations: demo.citations,
               askSources: [],
               ...(demoBlocks ? { askBlocks: demoBlocks.map((b) => ({ kind: b.kind, text: b.text })) } : {}),
+              askGroundedFromFiles: true,
+              askGroundingScope: demoGroundingScope,
             });
             setTurns((prev) => [...prev, completedTurn]);
             setStreamingTurn(null);
@@ -533,10 +547,13 @@ export function useAsk({
             answer: bridgeAnswer,
             citations: [],
             sources: [],
+            // Non-file reply — mark definitively so history redaction doesn't
+            // fail-closed on it (Codex final review P2).
+            groundedFromFiles: false,
           };
           const nowBridge = new Date().toISOString();
           addMessage(chatId, { role: 'user', content: q, timestamp: nowBridge });
-          addMessage(chatId, { role: 'assistant', content: bridgeAnswer, timestamp: nowBridge });
+          addMessage(chatId, { role: 'assistant', content: bridgeAnswer, timestamp: nowBridge, askGroundedFromFiles: false });
           setTurns((prev) => [...prev, bridgeTurn]);
           setStreamingTurn(null);
           setStatus('done');
@@ -652,10 +669,14 @@ export function useAsk({
           answer: NO_EVIDENCE_DECLINE,
           citations: [],
           sources: [],
+          // A "couldn't find this" decline carries NO file content — mark it
+          // definitively so a later same-client send doesn't drop it as unknown
+          // (fail-closed) history (Codex final review P2).
+          groundedFromFiles: false,
         };
         const nowDecline = new Date().toISOString();
         addMessage(chatId, { role: 'user', content: q, timestamp: nowDecline });
-        addMessage(chatId, { role: 'assistant', content: NO_EVIDENCE_DECLINE, timestamp: nowDecline });
+        addMessage(chatId, { role: 'assistant', content: NO_EVIDENCE_DECLINE, timestamp: nowDecline, askGroundedFromFiles: false });
         setTurns((prev) => [...prev, declineTurn]);
         setStreamingTurn(null);
         setStatus('done');
@@ -826,7 +847,13 @@ export function useAsk({
       // other-scope — prior answer, even one grounded on an earlier LOCAL turn,
       // into the cloud prompt). selectHistoryTurns is a pure, unit-tested seam.
       const historyTurnsForSend = selectHistoryTurns(turns, currentConsent, providerIsCloud, turnConsentScope);
-      const historyBlock = buildHistoryBlock(historyTurnsForSend, 6);
+      // Only the last N turns are ACTUALLY placed in the prompt (buildHistoryBlock
+      // slices to `HISTORY_WINDOW`). Transitive grounding must scan the SAME slice
+      // (Codex final review P2): an older file-grounded turn OUTSIDE the window
+      // never reaches the model, so it must not mark this answer file-derived (a
+      // misleading fileToolsEnabled=true audit + needless future redaction).
+      const historyInPrompt = historyTurnsForSend.slice(-HISTORY_WINDOW);
+      const historyBlock = buildHistoryBlock(historyInPrompt, HISTORY_WINDOW);
       // F2.5b (Codex round-4) — grounding is TRANSITIVE: this answer draws on
       // client file content from fresh hits AND from any file-grounded history in
       // its prompt (e.g. "summarize what you just said" with no fresh hits). So the
@@ -836,7 +863,7 @@ export function useAsk({
       const grounding = deriveTurnGrounding({
         hadFreshHits: groundingHits.length > 0,
         turnScope: turnConsentScope,
-        historyTurns: historyTurnsForSend,
+        historyTurns: historyInPrompt,
       });
       const fileToolsEnabled = grounding.usedFileContent;
       fileToolsEnabledForAudit = fileToolsEnabled;

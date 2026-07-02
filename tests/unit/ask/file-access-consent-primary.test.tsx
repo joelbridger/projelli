@@ -416,6 +416,58 @@ describe('F2.5b — Ask primary-surface consent gate', () => {
     expect(h.cloudSend).not.toHaveBeenCalled();
   });
 
+  it('P2 window (final review): an OLD file-grounded turn OUTSIDE the 6-turn prompt window does not mark the new answer file-derived', async () => {
+    // 7 prior pairs: pair 1 is file-grounded (all-clients); pairs 2-7 are general.
+    // The prompt only carries the last 6 (pairs 2-7), so the new answer must NOT be
+    // audited fileToolsEnabled=true off the out-of-window pair 1, and the secret
+    // must not appear in the prompt.
+    const pairs: unknown[] = [
+      { role: 'user', content: 'q1', timestamp: 't' },
+      { role: 'assistant', content: 'CLIENT SECRET FACT', timestamp: 't', askGroundedFromFiles: true, askGroundingScope: { kind: 'allMatters' } },
+    ];
+    for (let i = 2; i <= 7; i++) {
+      pairs.push({ role: 'user', content: `q${i}`, timestamp: 't' });
+      pairs.push({ role: 'assistant', content: `general answer ${i}`, timestamp: 't', askGroundedFromFiles: false });
+    }
+    h.sessions = { 'ask-global::/workspace': { messages: pairs } } as Record<string, unknown>;
+    h.retrieve.mockReset();
+    h.retrieve.mockResolvedValue([]); // no fresh hits for the new question
+    h.consent = GRANT_ALL;
+    h.hasCloudKey = true;
+    const logged: LoggedEntry[] = [];
+    render(<Ask onAuditLog={(e) => logged.push(e)} />);
+    fireEvent.change(screen.getByTestId('ask-composer-input'), { target: { value: 'anything new' } });
+    fireEvent.click(screen.getByRole('button', { name: /^Ask$/i }));
+    await waitFor(() => expect(h.cloudSend).toHaveBeenCalledTimes(1));
+    expect(h.capturedCloudPrompt).not.toContain('CLIENT SECRET FACT');
+    expect(egressEntry(logged)?.metadata['fileToolsEnabled']).toBe(false);
+  });
+
+  it('P2 non-file paths (final review): a no-evidence decline is stamped groundedFromFiles=false (not fail-closed)', async () => {
+    localStorage.setItem('lantern:ask-files-only', '1'); // files-only → decline on zero hits
+    try {
+      h.retrieve.mockReset();
+      h.retrieve.mockResolvedValue([]); // zero hits → no-evidence decline
+      h.consent = GRANT_ALL;
+      h.hasCloudKey = true;
+      render(<Ask />);
+      fireEvent.change(screen.getByTestId('ask-composer-input'), { target: { value: 'something not in the files' } });
+      fireEvent.click(screen.getByRole('button', { name: /^Ask$/i }));
+      // The decline path persists the assistant message with a DEFINITE false marker.
+      await waitFor(() => {
+        const declined = h.addMessage.mock.calls.some((call) => {
+          const msg = call[1] as { role?: string; askGroundedFromFiles?: boolean } | undefined;
+          return msg?.role === 'assistant' && msg?.askGroundedFromFiles === false;
+        });
+        expect(declined).toBe(true);
+      });
+      // And no cloud send happened (files-only decline short-circuits).
+      expect(h.cloudSend).not.toHaveBeenCalled();
+    } finally {
+      localStorage.removeItem('lantern:ask-files-only');
+    }
+  });
+
   it('renders the consent banner on Ask for a cloud provider (unasked)', async () => {
     h.consent = { state: 'unasked' };
     h.hasCloudKey = true;
