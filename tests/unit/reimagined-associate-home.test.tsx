@@ -16,6 +16,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import type { WorkflowTemplate, RunRecord } from '@/platform/types/workflow';
+import type { Matter } from '@/platform/types/matter';
+import type { Profession } from '@/platform/profile/professionModel';
+
+// Mirrors the (unexported) `ProfessionState` shape in professionStore.ts —
+// structurally identical so mocked selectors type-check against the real
+// hook's selector signature without importing a private type.
+type ProfessionSelectorState = { profession: Profession; setProfession: (p: Profession) => void };
+const asProfessionState = (profession: Profession): ProfessionSelectorState => ({
+  profession,
+  setProfession: () => undefined,
+});
 
 // ── Mock the template loader before importing the component ─────────────────
 
@@ -59,8 +70,8 @@ vi.mock('@/features/workflows/engine/userTemplates', () => ({
 // Profession store: use vi.fn() so we can override per describe block.
 const mockIsLawExperience = vi.fn((profession: string) => profession === 'legal');
 vi.mock('@/platform/profile/professionStore', () => ({
-  useProfessionStore: vi.fn((selector: (s: { profession: string }) => unknown) =>
-    selector({ profession: 'legal' })),
+  useProfessionStore: vi.fn((selector: (s: ProfessionSelectorState) => unknown) =>
+    selector({ profession: 'legal', setProfession: () => undefined })),
   isLawExperience: (profession: string) => mockIsLawExperience(profession),
   getProfession: vi.fn(() => 'legal'),
 }));
@@ -77,7 +88,7 @@ vi.mock('@/platform/hooks/useTrial', () => ({
 }));
 
 // Matter store: useActiveMatter returns null by default (no active matter).
-const mockUseActiveMatter = vi.fn(() => null);
+const mockUseActiveMatter = vi.fn((): Matter | null => null);
 vi.mock('@/platform/matter/matterStore', () => ({
   useActiveMatter: () => mockUseActiveMatter(),
 }));
@@ -119,8 +130,8 @@ describe('AssociateHome (law persona)', () => {
     localStorage.clear();
     // Profession = 'legal'; isLawExperience = true → only legal templates shown.
     vi.mocked(useProfessionStore).mockImplementation(
-      (selector: (s: { profession: string }) => unknown) =>
-        selector({ profession: 'legal' }),
+      (selector: (s: ProfessionSelectorState) => unknown) =>
+        selector(asProfessionState('legal')),
     );
     mockIsLawExperience.mockImplementation((p) => p === 'legal');
     mockTrialGate.mockReturnValue({
@@ -325,8 +336,8 @@ describe('AssociateHome — practice-area filter chips (multi-category)', () => 
     // Clear persisted UI state so tests don't bleed into each other.
     localStorage.clear();
     vi.mocked(useProfessionStore).mockImplementation(
-      (selector: (s: { profession: string }) => unknown) =>
-        selector({ profession: 'other' }),
+      (selector: (s: ProfessionSelectorState) => unknown) =>
+        selector(asProfessionState('other')),
     );
     // 'other' is not legal, so all templates (legal + tax) are shown.
     mockIsLawExperience.mockReturnValue(false);
@@ -472,8 +483,8 @@ describe('AssociateHome — localStorage persistence', () => {
   beforeEach(() => {
     localStorage.clear();
     vi.mocked(useProfessionStore).mockImplementation(
-      (selector: (s: { profession: string }) => unknown) =>
-        selector({ profession: 'other' }),
+      (selector: (s: ProfessionSelectorState) => unknown) =>
+        selector(asProfessionState('other')),
     );
     mockIsLawExperience.mockReturnValue(false);
     mockTrialGate.mockReturnValue({

@@ -116,6 +116,11 @@ const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   'salesforce.disconnect': Users2,
   'email.send': Send,
   external_export_consent: ShieldCheck,
+  // Marketplace template lifecycle.
+  template_installed_from_marketplace: FilePlus,
+  template_uninstalled: FileX,
+  template_updated: PenLine,
+  template_install_failed: XCircle,
 };
 
 const ACTION_LABELS: Record<AuditActionType, string> = {
@@ -167,6 +172,11 @@ const ACTION_LABELS: Record<AuditActionType, string> = {
   'salesforce.disconnect': 'Salesforce Disconnected',
   'email.send': 'Email Sent',
   external_export_consent: 'Exported-Report Consent',
+  // Marketplace template lifecycle.
+  template_installed_from_marketplace: 'Template Installed',
+  template_uninstalled: 'Template Uninstalled',
+  template_updated: 'Template Updated',
+  template_install_failed: 'Template Install Failed',
 };
 
 const ACTION_COLORS: Record<AuditActionType, string> = {
@@ -218,6 +228,11 @@ const ACTION_COLORS: Record<AuditActionType, string> = {
   'salesforce.disconnect': 'text-orange-600 dark:text-orange-400',
   'email.send': 'text-sky-600 dark:text-sky-400',
   external_export_consent: 'text-sky-600 dark:text-sky-400',
+  // Marketplace template lifecycle.
+  template_installed_from_marketplace: 'text-green-600 dark:text-green-400',
+  template_uninstalled: 'text-red-600 dark:text-red-400',
+  template_updated: 'text-blue-600 dark:text-blue-400',
+  template_install_failed: 'text-red-600 dark:text-red-400',
 };
 
 export function AuditLog({

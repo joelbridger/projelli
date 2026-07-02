@@ -161,7 +161,7 @@ test.describe('Settings actions + search (L-031..L-034)', () => {
       // Parse rgb(r,g,b) and compute rough lightness
       const m = bg.match(/\d+/g);
       if (!m) return 255;
-      const [r, g, b] = m.map(Number);
+      const [r = 0, g = 0, b = 0] = m.map(Number);
       return (r * 299 + g * 587 + b * 114) / 1000;
     });
     // Light theme: lightness > 128 (roughly)

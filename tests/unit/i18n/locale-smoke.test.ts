@@ -69,11 +69,11 @@ describe('locale files smoke', () => {
 
   it('every populated leaf in es.json corresponds to a real en.json key', () => {
     const enKeys = new Set(
-      flatten(en as Record<string, JsonValue>).map((k) =>
+      flatten(en as unknown as Record<string, JsonValue>).map((k) =>
         k.replace(/__sourceHash$/, '').replace(/__locked$/, ''),
       ),
     );
-    const esKeys = flatten(es as Record<string, JsonValue>).filter(
+    const esKeys = flatten(es as unknown as Record<string, JsonValue>).filter(
       (k) => !k.endsWith('__sourceHash') && !k.endsWith('__locked'),
     );
     const orphan = esKeys.filter((k) => !enKeys.has(k));
@@ -82,11 +82,11 @@ describe('locale files smoke', () => {
 
   it('every populated leaf in de.json corresponds to a real en.json key', () => {
     const enKeys = new Set(
-      flatten(en as Record<string, JsonValue>).map((k) =>
+      flatten(en as unknown as Record<string, JsonValue>).map((k) =>
         k.replace(/__sourceHash$/, '').replace(/__locked$/, ''),
       ),
     );
-    const deKeys = flatten(de as Record<string, JsonValue>).filter(
+    const deKeys = flatten(de as unknown as Record<string, JsonValue>).filter(
       (k) => !k.endsWith('__sourceHash') && !k.endsWith('__locked'),
     );
     const orphan = deKeys.filter((k) => !enKeys.has(k));

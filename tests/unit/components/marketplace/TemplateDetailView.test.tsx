@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup, waitFor, act } from '@testing-library/react';
 import { TemplateDetailView } from '@/features/workflows/marketplace/TemplateDetailView';
-import type { MarketplaceService, InstallPhase } from '@/features/workflows/marketplace/svc';
+import type { MarketplaceService, InstallOptions, InstallPhase } from '@/features/workflows/marketplace/svc';
 import type { CatalogEntry, InstalledEntry } from '@/features/workflows/types/marketplace';
 
 const ENTRY: CatalogEntry = {
@@ -394,7 +394,9 @@ describe('TemplateDetailView — update flow (Group VIII)', () => {
   });
 
   it('does NOT pass isUpdate when installing fresh (no installed entry)', async () => {
-    const installSpy = vi.fn(async () => makeInstalled('1.0.0'));
+    const installSpy = vi.fn(
+      async (_id: string, _opts?: InstallOptions) => makeInstalled('1.0.0'),
+    );
     const service = makeService({ installImpl: installSpy });
     render(
       <TemplateDetailView

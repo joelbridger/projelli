@@ -39,13 +39,13 @@ const { startMock, stopMock, rotateMock, MockMatterSyncClient, getLastCallbacks 
     this: Record<string, unknown>,
     opts: Record<string, unknown>,
   ) {
-    this.__capturedEpoch = opts.keyEpoch;
-    this.start = startMock;
-    this.stop = stopMock;
-    this.rotateKey = rotateMock;
-    this.getStatus = () => 'live';
-    this.doc = fakeDoc;
-    lastCallbacks = opts.callbacks as Record<string, unknown>;
+    this['__capturedEpoch'] = opts['keyEpoch'];
+    this['start'] = startMock;
+    this['stop'] = stopMock;
+    this['rotateKey'] = rotateMock;
+    this['getStatus'] = () => 'live';
+    this['doc'] = fakeDoc;
+    lastCallbacks = opts['callbacks'] as Record<string, unknown>;
   });
 
   const getLastCallbacks = () => lastCallbacks;
@@ -118,7 +118,7 @@ vi.mock('@/platform/matter/matterSyncStore', () => ({
 vi.mock('@/i18n', () => ({
   default: {
     t: (key: string, opts?: Record<string, unknown>) => {
-      if (key === 'matter.notes.tab-title' && opts?.name) return `${String(opts.name)}: Shared notes`;
+      if (key === 'matter.notes.tab-title' && opts?.['name']) return `${String(opts['name'])}: Shared notes`;
       return key;
     },
   },
@@ -133,8 +133,13 @@ import {
 import { clearMatterKey } from '@/platform/firm/firmKeychain';
 import type { Matter } from '@/platform/types/matter';
 
-function makeMatter(overrides?: Partial<Matter>): Matter {
-  return {
+// Widened locally (test-only) so a test can explicitly pass `firmMatterId:
+// undefined` to build an unlinked matter, without weakening the real `Matter`
+// type (which forbids explicit `undefined` under exactOptionalPropertyTypes).
+type MatterOverrides = Omit<Partial<Matter>, 'firmMatterId'> & { firmMatterId?: string | undefined };
+
+function makeMatter(overrides?: MatterOverrides): Matter {
+  const matter: Matter = {
     id: 'local-1',
     name: 'Test Matter',
     client: 'Test Corp',
@@ -143,8 +148,17 @@ function makeMatter(overrides?: Partial<Matter>): Matter {
     role: 'owner',
     folderPaths: [],
     privileged: false,
-    ...overrides,
+    createdAt: '2026-01-01T00:00:00.000Z',
   };
+  // Apply overrides key-by-key: an explicit `undefined` deletes the key
+  // (matching the "no firmMatterId" cases below) rather than setting the
+  // value to `undefined`, which `exactOptionalPropertyTypes` forbids.
+  const record = matter as unknown as Record<string, unknown>;
+  for (const [key, value] of Object.entries(overrides ?? {})) {
+    if (value === undefined) delete record[key];
+    else record[key] = value;
+  }
+  return matter;
 }
 
 describe('matterNotesSync lifecycle', () => {
@@ -163,14 +177,14 @@ describe('matterNotesSync lifecycle', () => {
     expect(client).not.toBeNull();
     expect(MockMatterSyncClient).toHaveBeenCalledOnce();
     const ctorArg = MockMatterSyncClient.mock.calls[0]![0] as Record<string, unknown>;
-    expect(ctorArg.keyEpoch).toBe(7);
+    expect(ctorArg['keyEpoch']).toBe(7);
   });
 
   it('ensureMatterSync defaults keyEpoch to 1 when not provided', async () => {
     const matter = makeMatter({ id: 'local-2', firmMatterId: 'firm-2' });
     await ensureMatterSync(matter);
     const ctorArg = MockMatterSyncClient.mock.calls[0]![0] as Record<string, unknown>;
-    expect(ctorArg.keyEpoch).toBe(1);
+    expect(ctorArg['keyEpoch']).toBe(1);
   });
 
   it('ensureMatterSync returns null for an unshared matter', async () => {

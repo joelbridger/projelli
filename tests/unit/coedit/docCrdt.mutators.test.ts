@@ -95,7 +95,7 @@ describe('appendParagraph', () => {
     appendParagraph(ydoc, 'attorney-a');
     const json = yDocToDocumentJson(ydoc);
     expect(json.body).toHaveLength(2);
-    expect(json.body[1].kind).toBe('paragraph');
+    expect(json.body[1]!.kind).toBe('paragraph');
     expect((json.body[1] as DocxParagraph).inlines).toHaveLength(0);
   });
 
@@ -258,7 +258,7 @@ describe('addTrackedInsertion', () => {
     expect(ins).toMatchObject({ kind: 'insertion' });
     if (ins?.kind === 'insertion') {
       expect(ins.meta.author).toBe('attorney-a');
-      expect(ins.runs[0].text).toBe('newtext');
+      expect(ins.runs[0]!.text).toBe('newtext');
     }
   });
 
@@ -299,7 +299,7 @@ describe('addTrackedDeletion', () => {
     expect(del).toBeTruthy();
     if (del?.kind === 'deletion') {
       expect(del.meta.author).toBe('attorney-b');
-      expect(del.runs[0].text).toBe('start');
+      expect(del.runs[0]!.text).toBe('start');
     }
   });
 

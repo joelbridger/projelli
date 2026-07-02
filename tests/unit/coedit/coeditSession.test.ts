@@ -177,7 +177,7 @@ async function makeOpts(relay: FakeDocRelay, matterId: string, docId: string, in
     matterId,
     docId,
     fileName: 'test.docx',
-    initialJson,
+    ...(initialJson !== undefined ? { initialJson } : {}),
     keyB64,
     keyEpoch: 1,
     seatToken: 'seat',

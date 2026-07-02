@@ -485,11 +485,14 @@ test.describe('Accessibility scan', () => {
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
     try {
-      const { checkA11y } = await import('@axe-core/playwright');
-      await checkA11y(page, undefined, {
-        detailedReport: true,
-        detailedReportOptions: { html: false },
-      });
+      const { default: AxeBuilder } = await import('@axe-core/playwright');
+      const results = await new AxeBuilder({ page }).analyze();
+      if (results.violations.length > 0) {
+        console.warn(
+          'F-201-axe violations:',
+          JSON.stringify(results.violations.map((v) => v.id)).slice(0, 500),
+        );
+      }
     } catch (e: unknown) {
       // If axe not installed or errors found, note as finding
       const msg = e instanceof Error ? e.message : String(e);

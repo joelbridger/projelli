@@ -13,7 +13,7 @@ function run(oldText: string, newText: string): string {
 
 describe('applyTextDiff', () => {
   it('converges to newText for insert/delete/replace/append/prepend/noop', () => {
-    for (const [a, b] of [
+    const cases: Array<[string, string]> = [
       ['hello', 'hello world'],  // append
       ['hello', 'hi'],           // replace tail
       ['world', 'hello world'],  // prepend
@@ -22,7 +22,8 @@ describe('applyTextDiff', () => {
       ['abc', ''],               // full delete
       ['', 'abc'],               // full insert
       ['the quick fox', 'the slow fox'], // middle word
-    ]) {
+    ];
+    for (const [a, b] of cases) {
       expect(run(a, b)).toBe(b);
     }
   });

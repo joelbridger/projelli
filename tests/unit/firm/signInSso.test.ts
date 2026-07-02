@@ -26,21 +26,21 @@ const SSO_LOGIN_RESPONSE = {
 const invokeMock = vi.fn(async (cmd: string, args: Record<string, unknown> = {}) => {
   // Keychain commands
   if (cmd === 'keychain_set') {
-    const svc = (args.service as string) ?? 'com.lantern.app';
-    const key = args.key as string;
-    keychainStore.set(`${svc}::${key}`, args.value as string);
+    const svc = (args['service'] as string) ?? 'com.lantern.app';
+    const key = args['key'] as string;
+    keychainStore.set(`${svc}::${key}`, args['value'] as string);
     return undefined;
   }
   if (cmd === 'keychain_get') {
-    const svc = (args.service as string) ?? 'com.lantern.app';
-    const key = args.key as string;
+    const svc = (args['service'] as string) ?? 'com.lantern.app';
+    const key = args['key'] as string;
     const id = `${svc}::${key}`;
     if (!keychainStore.has(id)) throw { kind: 'notFound', message: 'no entry' };
     return keychainStore.get(id);
   }
   if (cmd === 'keychain_delete') {
-    const svc = (args.service as string) ?? 'com.lantern.app';
-    const key = args.key as string;
+    const svc = (args['service'] as string) ?? 'com.lantern.app';
+    const key = args['key'] as string;
     keychainStore.delete(`${svc}::${key}`);
     return undefined;
   }
@@ -128,8 +128,8 @@ describe('firmStore.signInSso', () => {
     const ssoCall = invokeMock.mock.calls.find(([cmd]) => cmd === 'firm_sso_authenticate');
     expect(ssoCall).toBeDefined();
     const ssoArgs = ssoCall![1] as Record<string, unknown>;
-    expect(typeof ssoArgs.backendBase).toBe('string');
-    expect(ssoArgs.email).toBe('jane@weston.com');
+    expect(typeof ssoArgs['backendBase']).toBe('string');
+    expect(ssoArgs['email']).toBe('jane@weston.com');
   });
 
   it('stores access + refresh tokens in the OS keychain (same path as signIn)', async () => {

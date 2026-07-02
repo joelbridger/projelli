@@ -20,14 +20,14 @@ function noEditProvider(): Provider {
 
 function sampleDoc(): DocumentJson {
   return {
+    formatVersion: 1,
     body: [
       {
         kind: 'paragraph',
-        styleId: 'Normal',
         inlines: [{ kind: 'run', text: 'Privileged settlement analysis.' }],
       },
     ],
-    comments: [],
+    comments: {},
   };
 }
 

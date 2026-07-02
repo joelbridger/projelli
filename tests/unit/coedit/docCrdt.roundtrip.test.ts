@@ -94,7 +94,7 @@ describe('docCrdt round-trip', () => {
     // meta.id is intentionally empty — keepance-docx re-allocates w:id at serialize
     expect(ins.meta.id).toBe('');
     expect(ins.runs).toHaveLength(1);
-    expect(ins.runs[0].text).toBe('added');
+    expect(ins.runs[0]!.text).toBe('added');
 
     const del = p1.inlines[1] as DocxInlineDeletion;
     expect(del.kind).toBe('deletion');
@@ -102,7 +102,7 @@ describe('docCrdt round-trip', () => {
     expect(del.meta.date).toBe('2026-06-12T00:01:00Z');
     expect(del.meta.id).toBe('');
     expect(del.runs).toHaveLength(1);
-    expect(del.runs[0].text).toBe('removed');
+    expect(del.runs[0]!.text).toBe('removed');
 
     // block 2: raw xml survives verbatim
     expect(back.body[2]).toMatchObject({ kind: 'raw', xml: '<w:tbl>...</w:tbl>' });
@@ -133,10 +133,10 @@ describe('docCrdt round-trip', () => {
     const ins = (back.body[0] as DocxParagraph).inlines[0] as DocxInlineInsertion;
     expect(ins.kind).toBe('insertion');
     expect(ins.runs).toHaveLength(2);
-    expect(ins.runs[0].text).toBe('first ');
-    expect(ins.runs[0].propertiesXml).toBe('<w:rPr><w:b/></w:rPr>');
-    expect(ins.runs[1].text).toBe('second');
-    expect(ins.runs[1].propertiesXml).toBeUndefined();
+    expect(ins.runs[0]!.text).toBe('first ');
+    expect(ins.runs[0]!.propertiesXml).toBe('<w:rPr><w:b/></w:rPr>');
+    expect(ins.runs[1]!.text).toBe('second');
+    expect(ins.runs[1]!.propertiesXml).toBeUndefined();
   });
 
   it('preserves block order across a mix of paragraph and raw blocks', () => {
@@ -151,7 +151,7 @@ describe('docCrdt round-trip', () => {
     };
     const back = yDocToDocumentJson(documentJsonToYDoc(doc));
     expect(back.body[0]).toMatchObject({ kind: 'raw', xml: '<w:sectPr/>' });
-    expect(back.body[1].kind).toBe('paragraph');
+    expect(back.body[1]!.kind).toBe('paragraph');
     expect(back.body[2]).toMatchObject({ kind: 'raw', xml: '<w:tbl/>' });
   });
 
@@ -173,7 +173,8 @@ describe('docCrdt round-trip', () => {
     };
     const back = yDocToDocumentJson(documentJsonToYDoc(doc));
     const run = (back.body[0] as DocxParagraph).inlines[0];
-    expect('propertiesXml' in run).toBe(false);
+    expect(run).toBeDefined();
+    expect('propertiesXml' in run!).toBe(false);
   });
 
   it('paragraph without propertiesXml does not emit propertiesXml field', () => {
@@ -183,7 +184,8 @@ describe('docCrdt round-trip', () => {
       comments: {},
     };
     const back = yDocToDocumentJson(documentJsonToYDoc(doc));
-    expect('propertiesXml' in back.body[0]).toBe(false);
+    expect(back.body[0]).toBeDefined();
+    expect('propertiesXml' in back.body[0]!).toBe(false);
   });
 
   it('opaque inline types (commentRangeStart, inline raw) round-trip verbatim', () => {

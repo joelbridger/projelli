@@ -38,7 +38,7 @@ function setup(existingFiles?: Set<string>) {
   const confirm = vi.fn().mockResolvedValue(true);
   // Captures the (message, defaultValue, options) the handler passed in, and
   // simulates the user's action via `respond`.
-  let lastCall: { message: string; defaultValue?: string; options?: Omit<PromptOptions, 'defaultValue'> } | null = null;
+  let lastCall: { message: string; defaultValue: string | undefined; options: Omit<PromptOptions, 'defaultValue'> | undefined } | null = null;
   let respond: (value: string | null) => Promise<string | null> = async (v) => v;
   const prompt = vi.fn(
     async (message: string, defaultValue?: string, options?: Omit<PromptOptions, 'defaultValue'>) => {

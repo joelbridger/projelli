@@ -30,7 +30,7 @@ describe('canonical default new-document type', () => {
 
   it('schema defaults map reflects the docx default', () => {
     const defaults = getSchemaDefaults();
-    expect(defaults.defaultNewFileType).toBe('docx');
+    expect(defaults['defaultNewFileType']).toBe('docx');
   });
 
   it('keeps the setting in the Workspace section (was Files & Workspace)', () => {

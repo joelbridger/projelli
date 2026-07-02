@@ -1,5 +1,5 @@
 import { render, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type { MailSyncProgress } from '@/platform/utils/mail-commands';
 import { AuditService } from '@/platform/audit/AuditService';
 
@@ -34,7 +34,7 @@ function fire(overrides: Partial<MailSyncProgress>): void {
 }
 
 describe('useMailSyncAudit durable rows', () => {
-  let logDurable: ReturnType<typeof vi.spyOn>;
+  let logDurable: Mock<typeof AuditService.prototype.logDurable>;
 
   beforeEach(() => {
     vi.clearAllMocks();

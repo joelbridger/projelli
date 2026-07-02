@@ -474,7 +474,7 @@ test('Task 2c: capture exported docx bytes', async ({ page }) => {
   await page.getByTestId('sidebar').waitFor({ state: 'visible', timeout: 30_000 });
   await page.waitForTimeout(1000);
   await page.evaluate(() => {
-    (window as unknown as Record<string, unknown>).showSaveFilePicker = async () => ({
+    (window as unknown as Record<string, unknown>)['showSaveFilePicker'] = async () => ({
       createWritable: async () => {
         const chunks: Uint8Array[] = [];
         return {
@@ -487,8 +487,8 @@ test('Task 2c: capture exported docx bytes', async ({ page }) => {
             let off = 0;
             for (const c of chunks) { all.set(c, off); off += c.length; }
             let bin = '';
-            for (let i = 0; i < all.length; i++) bin += String.fromCharCode(all[i]);
-            (window as unknown as Record<string, unknown>).__docxB64 = btoa(bin);
+            for (let i = 0; i < all.length; i++) bin += String.fromCharCode(all[i]!);
+            (window as unknown as Record<string, unknown>)['__docxB64'] = btoa(bin);
           },
         };
       },
@@ -503,8 +503,8 @@ test('Task 2c: capture exported docx bytes', async ({ page }) => {
   await page.waitForTimeout(2600);
   await page.getByRole('button', { name: /export as/i }).first().click();
   await page.getByRole('menuitem').filter({ hasText: /word|docx/i }).first().click();
-  await page.waitForFunction(() => !!(window as unknown as Record<string, unknown>).__docxB64, undefined, { timeout: 20_000 });
-  const b64 = await page.evaluate(() => (window as unknown as Record<string, unknown>).__docxB64 as string);
+  await page.waitForFunction(() => !!(window as unknown as Record<string, unknown>)['__docxB64'], undefined, { timeout: 20_000 });
+  const b64 = await page.evaluate(() => (window as unknown as Record<string, unknown>)['__docxB64'] as string);
   const fs = await import('node:fs');
   fs.writeFileSync('/tmp/persona-t2-realistic.docx', Buffer.from(b64, 'base64'));
   console.log(`PERSONA-NOTE: captured docx bytes = ${Buffer.from(b64, 'base64').length}`);

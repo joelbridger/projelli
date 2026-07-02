@@ -20,10 +20,10 @@ import React from 'react';
 // ── Mock keychain (firm store imports @tauri-apps/api/core for keychain ops) ──
 const keychainStore = new Map<string, string>();
 const invokeMock = vi.fn(async (cmd: string, args: Record<string, unknown> = {}) => {
-  const svc = (args.service as string) ?? 'com.keepance.app';
-  const key = args.key as string;
+  const svc = (args['service'] as string) ?? 'com.keepance.app';
+  const key = args['key'] as string;
   const id = `${svc}::${key}`;
-  if (cmd === 'keychain_set') { keychainStore.set(id, args.value as string); return undefined; }
+  if (cmd === 'keychain_set') { keychainStore.set(id, args['value'] as string); return undefined; }
   if (cmd === 'keychain_get') {
     if (!keychainStore.has(id)) throw { kind: 'notFound', message: 'no entry' };
     return keychainStore.get(id);
@@ -105,22 +105,25 @@ function resetAll() {
   // Reset the firm store to a signed-in admin state
   useFirmStore.setState({
     session: {
-      user_id: 'u-admin',
+      userId: 'u-admin',
       email: 'admin@firm.com',
       role: 'admin',
-      status: 'active',
       activated: false,
       org: { org_id: 'org-1', name: 'Firm LLP', plan: 'practice', packs: ['legal'], seat_limit: 10 },
+      seatId: null,
+      tier: 'practice',
+      packs: ['legal'],
+      seats: 10,
+      lastValidatedAt: null,
     },
     accessToken: 'access-token-admin',
     seatPublicKeyPem: null,
     seatToken: null,
     offlineSeatValid: false,
-    serverVerdict: null,
+    serverVerdict: 'unknown',
     assuredProviders: [],
     error: null,
-    signingIn: false,
-  } as Parameters<typeof useFirmStore.setState>[0]);
+  });
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────

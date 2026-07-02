@@ -106,7 +106,7 @@ describe('runContradictionAnalysis (grounded + cited pipeline)', () => {
   };
 
   it('produces a finding that carries a citation on BOTH statements', async () => {
-    const retrieve = vi.fn(async () => fixtureChunks());
+    const retrieve = vi.fn(async (_query: string, _topK: number, _scope: RetrievalScope) => fixtureChunks());
     const verify = vi.fn(async () => 'verified' as const);
 
     const { result } = await runContradictionAnalysis({
@@ -136,7 +136,7 @@ describe('runContradictionAnalysis (grounded + cited pipeline)', () => {
   });
 
   it('retrieves with the ACTIVE matter scope (privilege excluded by the retrieve fn)', async () => {
-    const retrieve = vi.fn(async () => fixtureChunks());
+    const retrieve = vi.fn(async (_query: string, _topK: number, _scope: RetrievalScope) => fixtureChunks());
     const verify = vi.fn(async () => 'verified' as const);
 
     await runContradictionAnalysis({
@@ -157,7 +157,7 @@ describe('runContradictionAnalysis (grounded + cited pipeline)', () => {
   });
 
   it('marks a finding UNVERIFIED when a citation does not verify', async () => {
-    const retrieve = vi.fn(async () => fixtureChunks());
+    const retrieve = vi.fn(async (_query: string, _topK: number, _scope: RetrievalScope) => fixtureChunks());
     // statementB will fail verification (textMismatch).
     const verify = vi.fn(async (id: string) =>
       id === 'chunk-B' ? ('textMismatch' as const) : ('verified' as const),
@@ -196,8 +196,8 @@ describe('runContradictionAnalysis (grounded + cited pipeline)', () => {
       ],
     })) as Provider['structuredOutput'];
 
-    const retrieve = vi.fn(async () => fixtureChunks());
-    const verify = vi.fn(async () => 'verified' as const);
+    const retrieve = vi.fn(async (_query: string, _topK: number, _scope: RetrievalScope) => fixtureChunks());
+    const verify = vi.fn(async (_citationId: string, _claimedMatterId: string, _quotedText: string) => 'verified' as const);
 
     const { result } = await runContradictionAnalysis({
       provider,
@@ -220,7 +220,7 @@ describe('runContradictionAnalysis (grounded + cited pipeline)', () => {
   });
 
   it('returns an empty, honest result when nothing was retrieved', async () => {
-    const retrieve = vi.fn(async () => [] as RetrievedChunk[]);
+    const retrieve = vi.fn(async (_query: string, _topK: number, _scope: RetrievalScope) => [] as RetrievedChunk[]);
     const verify = vi.fn(async () => 'verified' as const);
     const provider = createMockProvider();
     provider.structuredOutput = (async () => ({ findings: [] })) as Provider['structuredOutput'];
@@ -325,7 +325,7 @@ function makeAnalyzeDeps(overrides: Partial<AnalyzeDeps> = {}): {
   retrieve: ReturnType<typeof vi.fn>;
   serialize: ReturnType<typeof vi.fn>;
 } {
-  const retrieve = vi.fn(async () => fixtureChunks());
+  const retrieve = vi.fn(async (_query: string, _topK: number, _scope: RetrievalScope) => fixtureChunks());
   const serialize = vi.fn(async () => serializeContradictionsDocx(
     { findings: [], totalCount: 0, verifiedCount: 0, unverifiedCount: 0 },
     { title: 't', verificationBanner: 'b' },
@@ -342,7 +342,7 @@ function makeAnalyzeDeps(overrides: Partial<AnalyzeDeps> = {}): {
 
 describe('WorkflowEngine analyze step (Office output + scope + RunRecord)', () => {
   it('writes a .docx deliverable via writeFileBinary and records the findings', async () => {
-    const writeFileBinary = vi.fn(async () => {});
+    const writeFileBinary = vi.fn(async (_path: string, _bytes: Uint8Array) => {});
     const fileOps: FileOperations = {
       writeFile: vi.fn(async () => {}),
       readFile: vi.fn(async () => ''),
@@ -432,7 +432,7 @@ describe('WorkflowEngine generate step → Office output', () => {
   }
 
   it('renders a .docx (binary) when the output file ends in .docx', async () => {
-    const writeFileBinary = vi.fn(async () => {});
+    const writeFileBinary = vi.fn(async (_path: string, _bytes: Uint8Array) => {});
     const writeFile = vi.fn(async () => {});
     const provider = createMockProvider();
     provider.sendMessage = (async (): Promise<ProviderResponse> => ({

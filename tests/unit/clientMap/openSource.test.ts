@@ -23,7 +23,8 @@ vi.mock('@/platform/matter/matterStore', () => ({
 }));
 
 import { dispatchOpenSource, openSourceDocument } from '@/features/matters/clientMap/openSource';
-import type { SourceRef, DocumentReader } from '@/features/matters/clientMap/openSource';
+import type { DocumentReader } from '@/features/matters/clientMap/openSource';
+import type { SourceRef } from '@/platform/clientMap/types';
 
 const reader = (over: Partial<DocumentReader> = {}): DocumentReader => ({
   readFile: vi.fn(async () => ''),

@@ -21,10 +21,10 @@ describe('buildCustomSection', () => {
     retrieveMock.mockResolvedValue([{ path: '/policy.pdf', sourceId: '/policy.pdf', chunkText: 'limit 1M', score: 1, paragraphIndex: 0, id: 'c1' } as RagHit]);
     sendMock.mockResolvedValue({ content: JSON.stringify({ items: [{ text: 'Coverage limit is 1M', sourceNumbers: [1], assumption: false }] }) });
     const sec = await buildCustomSection('m1', 'sec-uuid', 'Insurance coverage', 'track the insurance coverage limits');
-    expect((retrieveMock.mock.calls[0][2] as RetrievalScope)).toEqual({ kind: 'matter', matterId: 'm1' });
+    expect((retrieveMock.mock.calls[0]![2] as RetrievalScope)).toEqual({ kind: 'matter', matterId: 'm1' });
     expect(sec.kind).toBe('custom');
     expect(sec.title).toBe('Insurance coverage');
-    expect(sec.items[0].sources[0].ref).toBe('/policy.pdf');
+    expect(sec.items[0]!.sources[0]!.ref).toBe('/policy.pdf');
   });
 
   it('returns an empty section when no content is indexed', async () => {

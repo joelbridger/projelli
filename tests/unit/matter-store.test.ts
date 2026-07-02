@@ -251,10 +251,10 @@ describe('useMatterStore CRUD', () => {
     const m = s.createMatter({ name: 'A', client: 'C' });
     s.saveSnapshot(m.id, { activeView: 'documents' } as unknown as Parameters<typeof s.saveSnapshot>[1]);
     s.setEntry(m.id, { summary: 'x', items: [] } as unknown as Parameters<typeof s.setEntry>[1]);
-    s.setStatus(m.id, 'syncing');
+    s.setStatus(m.id, 'catching-up');
     expect(useMatterStore.getState().snapshots[m.id]).toBeDefined();
     expect(useMatterStore.getState().cache[m.id]).toBeDefined();
-    expect(useMatterStore.getState().statusByMatterId[m.id]).toBe('syncing');
+    expect(useMatterStore.getState().statusByMatterId[m.id]).toBe('catching-up');
 
     useMatterStore.getState().deleteMatter(m.id);
     expect(useMatterStore.getState().snapshots[m.id]).toBeUndefined();

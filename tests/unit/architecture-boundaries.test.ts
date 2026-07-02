@@ -57,7 +57,7 @@ function walk(dir: string, acc: string[] = []): string[] {
   return acc;
 }
 function layerOf(rel: string): Layer | null {
-  const top = rel.split('/')[0];
+  const top = rel.split('/')[0] ?? '';
   return top in RANK ? (top as Layer) : null;
 }
 function featureOf(rel: string): string {
@@ -78,7 +78,7 @@ describe('architecture layer boundaries (ARCHITECTURE.md DAG)', () => {
     let m: RegExpExecArray | null;
     SPEC_RE.lastIndex = 0;
     while ((m = SPEC_RE.exec(txt))) {
-      const spec = (m[1] ?? m[2]).slice(2); // strip '@/'
+      const spec = (m[1] ?? m[2] ?? '').slice(2); // strip '@/'
       const toLayer = layerOf(spec);
       if (!toLayer) continue; // importing an unlayered leaf — fine
       if (fromLayer === 'app') continue; // app composes everything

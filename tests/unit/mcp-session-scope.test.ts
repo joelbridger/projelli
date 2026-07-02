@@ -38,7 +38,6 @@ const matterA: Matter = {
   privileged: false,
   archived: false,
   createdAt: '2026-06-22T00:00:00.000Z',
-  updatedAt: '2026-06-22T00:00:00.000Z',
 };
 
 const matterB: Matter = {
@@ -50,7 +49,6 @@ const matterB: Matter = {
   archived: false,
   mcpAccessGranted: true,
   createdAt: '2026-06-22T00:00:00.000Z',
-  updatedAt: '2026-06-22T00:00:00.000Z',
 };
 
 describe('MCP session scope file', () => {

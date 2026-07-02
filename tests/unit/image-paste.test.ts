@@ -134,7 +134,7 @@ function makeImageFile(bytes: Uint8Array, type = 'image/png', name = 'clip.png')
 describe('processImageFile', () => {
   it('writes the image and inserts markdown at the cursor', async () => {
     const { view } = createView('before ');
-    const writeImage = vi.fn(async () => {});
+    const writeImage = vi.fn(async (_args: { path: string; bytes: ArrayBuffer }) => {});
     const resolved = vi.fn();
     const file = makeImageFile(TINY_PNG_BYTES);
     await processImageFile({
@@ -157,7 +157,7 @@ describe('processImageFile', () => {
 
   it('skips image paste when no workspace is open, with toast', async () => {
     const { view } = createView();
-    const writeImage = vi.fn(async () => {});
+    const writeImage = vi.fn(async (_args: { path: string; bytes: ArrayBuffer }) => {});
     const showToast = vi.fn();
     await processImageFile({
       file: makeImageFile(TINY_PNG_BYTES),
@@ -175,7 +175,7 @@ describe('processImageFile', () => {
 
   it('refuses images larger than 20 MB with a toast', async () => {
     const { view } = createView();
-    const writeImage = vi.fn(async () => {});
+    const writeImage = vi.fn(async (_args: { path: string; bytes: ArrayBuffer }) => {});
     const showToast = vi.fn();
     // Construct a small File then fake its reported `size` so we don't
     // have to materialise 20 MB of bytes in memory.
@@ -196,7 +196,7 @@ describe('processImageFile', () => {
 
   it('bails for unsupported MIME types without toasting', async () => {
     const { view } = createView();
-    const writeImage = vi.fn(async () => {});
+    const writeImage = vi.fn(async (_args: { path: string; bytes: ArrayBuffer }) => {});
     const showToast = vi.fn();
     const file = makeImageFile(TINY_PNG_BYTES, 'image/svg+xml', 'x.svg');
     await processImageFile({
@@ -212,7 +212,7 @@ describe('processImageFile', () => {
 
   it('dedupe: the same bytes resolve to the same path (writer responsible for skip)', async () => {
     const { view } = createView();
-    const writeImage = vi.fn(async () => {});
+    const writeImage = vi.fn(async (_args: { path: string; bytes: ArrayBuffer }) => {});
     const call = async () =>
       processImageFile({
         file: makeImageFile(TINY_PNG_BYTES),

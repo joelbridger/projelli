@@ -48,7 +48,7 @@ describe('CarryMattersStep', () => {
     fireEvent.click(screen.getByTestId('privileged-share-confirm-accept'));
     fireEvent.click(screen.getByTestId('carry-submit'));
     await waitFor(() => expect(carryMattersToFirm).toHaveBeenCalled());
-    const selections = carryMattersToFirm.mock.calls[0][0];
+    const selections = carryMattersToFirm.mock.calls[0]![0];
     expect(selections).toContainEqual(expect.objectContaining({ matterId: 'm2', action: 'share' }));
   });
 
@@ -58,7 +58,7 @@ describe('CarryMattersStep', () => {
     fireEvent.click(screen.getByTestId('privileged-share-confirm-cancel'));
     fireEvent.click(screen.getByTestId('carry-submit'));
     await waitFor(() => expect(carryMattersToFirm).toHaveBeenCalled());
-    const selections = carryMattersToFirm.mock.calls[0][0];
+    const selections = carryMattersToFirm.mock.calls[0]![0];
     expect(selections).toContainEqual(expect.objectContaining({ matterId: 'm2', action: 'private' }));
   });
 
@@ -68,7 +68,7 @@ describe('CarryMattersStep', () => {
     expect(screen.queryByTestId('privileged-share-confirm')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('carry-submit'));
     await waitFor(() => expect(carryMattersToFirm).toHaveBeenCalled());
-    const selections = carryMattersToFirm.mock.calls[0][0];
+    const selections = carryMattersToFirm.mock.calls[0]![0];
     expect(selections).toContainEqual(expect.objectContaining({ matterId: 'm1', action: 'share' }));
   });
 

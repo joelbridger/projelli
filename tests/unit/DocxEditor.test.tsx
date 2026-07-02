@@ -144,7 +144,7 @@ describe('DocxEditor — rendering', () => {
           inlines: [],
         },
       ],
-    } as DocumentJson;
+    } as unknown as DocumentJson;
 
     invokeMock.mockImplementation((cmd: string) =>
       cmd === 'docx_open' ? Promise.resolve(blankDoc) : Promise.resolve(undefined),

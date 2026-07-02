@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import { hasOpenDescendant } from '@/platform/state/editorStore';
 
-const tab = (path: string, type?: string) => ({ path, type });
+const tab = (path: string, type?: string) => (type === undefined ? { path } : { path, type });
 
 describe('hasOpenDescendant', () => {
   it('is true when a file inside the folder is open', () => {

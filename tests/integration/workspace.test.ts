@@ -58,6 +58,7 @@ function createMockFSBackend(): FSBackend & {
           size: 0,
           createdAt: new Date(),
           modifiedAt: new Date(),
+          isSymlink: false,
         };
       }
       const file = files.get(path);
@@ -101,6 +102,7 @@ function createMockFSBackend(): FSBackend & {
           size: content.length,
           createdAt: files.get(path)?.stat.createdAt || new Date(),
           modifiedAt: new Date(),
+          isSymlink: false,
         },
       });
     }),
@@ -116,6 +118,7 @@ function createMockFSBackend(): FSBackend & {
           size: content.byteLength,
           createdAt: files.get(path)?.stat.createdAt || new Date(),
           modifiedAt: new Date(),
+          isSymlink: false,
         },
       });
     }),
@@ -175,6 +178,7 @@ function createMockFSBackend(): FSBackend & {
           size: 0,
           createdAt: new Date(),
           modifiedAt: new Date(),
+          isSymlink: false,
         },
       });
     }),
@@ -204,12 +208,14 @@ function createMockFSBackend(): FSBackend & {
         if (relativeFromBase === '') continue; // The directory itself
         if (relativeFromBase.includes('/')) continue; // Not a direct child
 
-        result.push({
+        const node: FileNode = {
+          id: key,
           path: key,
           name: file.stat.name,
           type: file.stat.type,
-          children: file.stat.type === 'folder' ? [] : undefined,
-        });
+        };
+        if (file.stat.type === 'folder') node.children = [];
+        result.push(node);
       }
 
       return result;
@@ -239,25 +245,7 @@ function createMockFSBackend(): FSBackend & {
 
     isSymlink: vi.fn(async () => false),
 
-    resolveSymlink: vi.fn(async () => null),
-
-    getSymlinkTarget: vi.fn(async () => null),
-
-    readDir: vi.fn(async (path: string): Promise<FileStat[]> => {
-      const result: FileStat[] = [];
-      const pathWithSlash = path.endsWith('/') ? path : path + '/';
-
-      for (const [key, file] of files.entries()) {
-        if (key.startsWith(pathWithSlash)) {
-          const relativePath = key.substring(pathWithSlash.length);
-          if (!relativePath.includes('/')) {
-            result.push(file.stat);
-          }
-        }
-      }
-
-      return result;
-    }),
+    resolveSymlink: vi.fn(async () => ''),
   };
 }
 
@@ -279,6 +267,7 @@ describe('Workspace Integration Tests', () => {
         size: 0,
         createdAt: new Date(),
         modifiedAt: new Date(),
+        isSymlink: false,
       },
     });
   });

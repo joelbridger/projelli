@@ -76,6 +76,9 @@ jobs:
       - name: TypeScript check
         run: npx tsc --noEmit
 
+      - name: TypeScript check (tests)
+        run: npm run typecheck:tests
+
       - name: i18n key parity (report-only — KNOWN-I18N-01 deferred)
         # i18n is a deferred decision (KNOWN-I18N-01): the locale files carry
         # pre-existing key drift. Report it but DON'T block CI until i18n is

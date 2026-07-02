@@ -18,12 +18,13 @@ import { collectDocuments } from '@/platform/search/ContentIndex';
 import type { FileNode } from '@/platform/types/workspace';
 
 function fileNode(path: string, name: string): FileNode {
+  const extension = name.split('.').pop()?.toLowerCase();
   return {
     id: path,
     path,
     name,
     type: 'file',
-    extension: name.split('.').pop()?.toLowerCase(),
+    ...(extension !== undefined ? { extension } : {}),
   };
 }
 

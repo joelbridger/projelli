@@ -56,10 +56,10 @@ describe('moveToTrash', () => {
 
     const meta = JSON.parse(fs.files['/ws/.trash/metadata.json']!) as Array<Record<string, unknown>>;
     expect(meta).toHaveLength(1);
-    expect(meta[0]?.id).toBe('trash_1');
-    expect(meta[0]?.originalPath).toBe('/ws/a.md');
-    expect(meta[0]?.trashPath).toBe('/ws/.trash/1700_trash_1_a.md');
-    expect(meta[0]?.deletedAt).toBe(new Date(1700).toISOString());
+    expect(meta[0]?.['id']).toBe('trash_1');
+    expect(meta[0]?.['originalPath']).toBe('/ws/a.md');
+    expect(meta[0]?.['trashPath']).toBe('/ws/.trash/1700_trash_1_a.md');
+    expect(meta[0]?.['deletedAt']).toBe(new Date(1700).toISOString());
   });
 
   it('appends to existing metadata without clobbering earlier entries', async () => {
@@ -68,7 +68,7 @@ describe('moveToTrash', () => {
     await moveToTrash(fs, '/ws', '/ws/b.md', { now: 1800, id: 'trash_2' });
 
     const meta = JSON.parse(fs.files['/ws/.trash/metadata.json']!) as Array<Record<string, unknown>>;
-    expect(meta.map((m) => m.id)).toEqual(['trash_2', 'trash_1']); // newest first
+    expect(meta.map((m) => m['id'])).toEqual(['trash_2', 'trash_1']); // newest first
   });
 
   it('creates the .trash folder when it does not exist yet', async () => {
@@ -108,6 +108,6 @@ describe('moveToTrash', () => {
     const item = await moveToTrash(fs, '/ws', '/ws/a.md', { now: 1700, id: 'trash_1' });
     const meta = JSON.parse(fs.files['/ws/.trash/metadata.json']!) as Array<Record<string, unknown>>;
     expect(meta).toHaveLength(1);
-    expect(meta[0]?.id).toBe(item.id);
+    expect(meta[0]?.['id']).toBe(item.id);
   });
 });

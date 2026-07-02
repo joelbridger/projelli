@@ -113,7 +113,7 @@ describe('useTelemetryConsent', () => {
 // ---------------------------------------------------------------------------
 
 describe('sendEvent', () => {
-  let fetchCalls: RequestInfo[] = [];
+  let fetchCalls: (RequestInfo | URL)[] = [];
   let fetchBodies: Record<string, unknown>[] = [];
   let store: Record<string, string>;
 

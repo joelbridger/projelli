@@ -203,7 +203,7 @@ describe('B-PRIV-1: Search egress banner is honest across mode-switch AND at sen
 
   it('flips from "nothing leaves" (local-only) to a cloud destination when the mode switches', async () => {
     h.localStatus = 'ready'; // local-only resolves to the embedded Keepance Local AI
-    h.keys.openai = true; // present for the post-switch cloud resolution
+    h.keys['openai'] = true; // present for the post-switch cloud resolution
     setMode('local-only');
     render(<Ask />);
 
@@ -233,7 +233,7 @@ describe('B-PRIV-1: Search egress banner is honest across mode-switch AND at sen
   });
 
   it('flips back to "nothing leaves" when the user returns to local-only mode', async () => {
-    h.keys.openai = true;
+    h.keys['openai'] = true;
     h.localStatus = 'ready';
     setMode('direct');
     render(<Ask />);
@@ -255,7 +255,7 @@ describe('B-PRIV-1: Search egress banner is honest across mode-switch AND at sen
   it('ONE-FRAME GUARANTEE: switching Local-only → Direct never renders a local provider under Direct mode, even before the async effect runs', async () => {
     // Start from a fully RESOLVED local badge.
     h.localStatus = 'ready'; // local-only resolves to keepance-local
-    h.keys.openai = true;
+    h.keys['openai'] = true;
     setMode('local-only');
     render(<Ask />);
     await waitFor(() => {
@@ -293,7 +293,7 @@ describe('B-PRIV-1: Search egress banner is honest across mode-switch AND at sen
   it('SEND-TIME GUARANTEE: the banner shows the real cloud destination before the network call — even when the badge was still "checking" at click time', async () => {
     // Direct mode + a cloud key => the send goes to OpenAI. Memory is on with a
     // hit so the query reaches the provider (no decline).
-    h.keys.openai = true;
+    h.keys['openai'] = true;
     h.memoryEnabled = true;
     h.hits = [{ path: '/workspace/doc.pdf', chunkText: 'text', score: 0.9, paragraphIndex: 0 }];
     setMode('direct');
@@ -348,7 +348,7 @@ describe('B-PRIV-1: Search egress banner is honest across mode-switch AND at sen
     // synchronous send guard the query would actually go to OpenAI while
     // Local-only is on. That is a real privacy violation (local-only's whole
     // guarantee is that NOTHING is ever sent to the cloud), not just a display lie.
-    h.keys.openai = true;
+    h.keys['openai'] = true;
     h.memoryEnabled = true;
     h.hits = [{ path: '/workspace/doc.pdf', chunkText: 'text', score: 0.9, paragraphIndex: 0 }];
     setMode('direct');

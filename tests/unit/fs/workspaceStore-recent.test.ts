@@ -7,7 +7,7 @@ import {
 
 const RECENT_KEY = 'keepance_recent_workspaces';
 const mockIsTauriEnvironment = vi.hoisted(() => vi.fn(() => false));
-const mockFsExists = vi.hoisted(() => vi.fn(async () => true));
+const mockFsExists = vi.hoisted(() => vi.fn(async (_path?: string) => true));
 
 vi.mock('@/platform/fs/BackendFactory', () => ({
   isTauriEnvironment: mockIsTauriEnvironment,
@@ -104,7 +104,7 @@ describe('recent workspace path cleanup', () => {
 
   it('prunes dead recent folders when the desktop filesystem reports them missing', async () => {
     mockIsTauriEnvironment.mockReturnValue(true);
-    mockFsExists.mockImplementation(async (path: string) => path !== 'C:/Missing');
+    mockFsExists.mockImplementation(async (path?: string) => path !== 'C:/Missing');
     localStorage.setItem(RECENT_KEY, JSON.stringify([
       {
         path: 'C:/Alive',

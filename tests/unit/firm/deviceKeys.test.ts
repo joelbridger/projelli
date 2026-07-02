@@ -11,11 +11,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // ── Mock the OS keychain bridge (Tauri mode, backed by an in-memory Map).
 const keychainStore = new Map<string, string>();
 const invokeMock = vi.fn(async (cmd: string, args: Record<string, unknown> = {}) => {
-  const svc = (args.service as string) ?? 'com.keepance.app';
-  const key = args.key as string;
+  const svc = (args['service'] as string) ?? 'com.keepance.app';
+  const key = args['key'] as string;
   const id = `${svc}::${key}`;
   if (cmd === 'keychain_set') {
-    keychainStore.set(id, args.value as string);
+    keychainStore.set(id, args['value'] as string);
     return undefined;
   }
   if (cmd === 'keychain_get') {
@@ -152,9 +152,9 @@ describe('deviceKeys — registerDevice', () => {
     const [url, init] = calls[0] as [string, RequestInit & { body: string }];
     expect(url).toContain('/device/register');
     const body = JSON.parse(init.body) as Record<string, unknown>;
-    expect(body.device_id).toBeTruthy();
-    expect(body.pubkey_jwk).toBeTruthy();
-    expect((body.pubkey_jwk as { kty: string }).kty).toBe('EC');
+    expect(body['device_id']).toBeTruthy();
+    expect(body['pubkey_jwk']).toBeTruthy();
+    expect((body['pubkey_jwk'] as { kty: string }).kty).toBe('EC');
   });
 
   it('is idempotent — two calls issue two POSTs but use the same keypair', async () => {
@@ -171,8 +171,8 @@ describe('deviceKeys — registerDevice', () => {
     const body2 = JSON.parse((calls[1] as [string, RequestInit & { body: string }])[1].body) as Record<string, unknown>;
 
     // Same device_id on both calls
-    expect(body1.device_id).toBe(body2.device_id);
+    expect(body1['device_id']).toBe(body2['device_id']);
     // Same pubkey_jwk on both calls (only one keypair ever generated)
-    expect(JSON.stringify(body1.pubkey_jwk)).toBe(JSON.stringify(body2.pubkey_jwk));
+    expect(JSON.stringify(body1['pubkey_jwk'])).toBe(JSON.stringify(body2['pubkey_jwk']));
   });
 });

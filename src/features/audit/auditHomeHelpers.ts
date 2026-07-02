@@ -117,6 +117,11 @@ export const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   'salesforce.disconnect': Users2,
   'email.send': Send,
   external_export_consent: ShieldCheck,
+  // Marketplace template lifecycle.
+  template_installed_from_marketplace: FilePlus,
+  template_uninstalled: FileX,
+  template_updated: PenLine,
+  template_install_failed: XCircle,
 };
 
 export const ACTION_LABELS: Record<AuditActionType, string> = {
@@ -166,6 +171,11 @@ export const ACTION_LABELS: Record<AuditActionType, string> = {
   'salesforce.disconnect': 'Salesforce Disconnected',
   'email.send': 'Email Sent',
   external_export_consent: 'Exported-Report Consent',
+  // Marketplace template lifecycle.
+  template_installed_from_marketplace: 'Template Installed',
+  template_uninstalled: 'Template Uninstalled',
+  template_updated: 'Template Updated',
+  template_install_failed: 'Template Install Failed',
 };
 
 /** Semantic category per action, drives colour + grouping in filters. */
@@ -218,6 +228,11 @@ export const ACTION_CATEGORY: Record<AuditActionType, ActionCategory> = {
   'salesforce.disconnect': 'system',
   'email.send': 'system',
   external_export_consent: 'privilege',
+  // Marketplace template lifecycle.
+  template_installed_from_marketplace: 'system',
+  template_uninstalled: 'system',
+  template_updated: 'system',
+  template_install_failed: 'system',
 };
 
 export const CATEGORY_COLOR: Record<ActionCategory, string> = {

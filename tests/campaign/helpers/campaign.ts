@@ -56,7 +56,7 @@ export async function snap(page: Page, testInfo: TestInfo, name: string): Promis
   await testInfo.attach(name, { path: outputPath, contentType: 'image/png' });
 
   // ---- 2. Optionally write to the committed screenshots dir ----
-  if (process.env.CAMPAIGN_KEEP_SHOTS === '1') {
+  if (process.env['CAMPAIGN_KEEP_SHOTS'] === '1') {
     // Derive journey subfolder from the spec title path (e.g. "smoke.spec.ts"
     // → "smoke"). Use the first meaningful path segment to keep nesting flat.
     const specFile = testInfo.titlePath[0] ?? 'misc';

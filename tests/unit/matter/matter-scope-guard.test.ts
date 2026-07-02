@@ -11,7 +11,7 @@ const matterA = { id: 'A', name: 'Acme v. Beta', folderPaths: ['/ws/Acme'] } as 
 const matterB = { id: 'B', name: 'Garcia v. Meridian', folderPaths: ['/ws/Garcia'] } as Matter;
 // A nested sub-mapping: a subfolder of Acme actually belongs to matter C.
 const matterC = { id: 'C', name: 'Shared Co-counsel', folderPaths: ['/ws/Acme/co-counsel'] } as Matter;
-const matterNoFolders = { id: 'D', name: 'Mail-only matter', folderPaths: [] } as Matter;
+const matterNoFolders = { id: 'D', name: 'Mail-only matter', folderPaths: [] as string[] } as Matter;
 const matters = [matterA, matterB, matterC, matterNoFolders];
 
 describe('pathInMatterScope', () => {

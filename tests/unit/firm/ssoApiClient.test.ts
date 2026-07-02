@@ -86,9 +86,9 @@ describe('FirmApiClient SSO config methods', () => {
     expect(init.headers['Authorization']).toBe(`Bearer ${ACCESS}`);
 
     const sentBody = JSON.parse(init.body as string) as Record<string, unknown>;
-    expect(sentBody.provider).toBe('entra');
-    expect(sentBody.issuer).toBe('https://login.microsoftonline.com/tenant-123/v2.0');
-    expect(sentBody.client_id).toBe('client-abc');
+    expect(sentBody['provider']).toBe('entra');
+    expect(sentBody['issuer']).toBe('https://login.microsoftonline.com/tenant-123/v2.0');
+    expect(sentBody['client_id']).toBe('client-abc');
   });
 
   it('ssoConfigDelete POSTs to /org/sso/config/delete with Bearer token', async () => {

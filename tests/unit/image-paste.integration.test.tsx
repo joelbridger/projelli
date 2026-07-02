@@ -12,6 +12,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import { createRef } from 'react';
 import { MarkdownEditor, type MarkdownEditorRef } from '@/features/documents/editor/MarkdownEditor';
+import type { WriteImage } from '@/features/documents/editor/smartPaste';
 
 // Minimal 1×1 transparent PNG.
 const TINY_PNG_BYTES = new Uint8Array([
@@ -64,7 +65,7 @@ function dispatchImagePaste(el: Element, file: File): void {
 
 describe('MarkdownEditor — image paste integration', () => {
   it('writes the image via writeImage and inserts Markdown', async () => {
-    const writeImage = vi.fn(async () => {});
+    const writeImage = vi.fn<WriteImage>(async () => {});
     const editorRef = createRef<MarkdownEditorRef>();
 
     const { container } = render(
@@ -103,7 +104,7 @@ describe('MarkdownEditor — image paste integration', () => {
   });
 
   it('skips image paste when no workspace is open and toasts', async () => {
-    const writeImage = vi.fn(async () => {});
+    const writeImage = vi.fn<WriteImage>(async () => {});
     const showToast = vi.fn();
     const editorRef = createRef<MarkdownEditorRef>();
 

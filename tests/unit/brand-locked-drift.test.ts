@@ -20,6 +20,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+// @ts-expect-error — ESM module with no TS types, intentionally imported raw.
 import { detectLockedDrift } from '../../scripts/brand-sync.mjs';
 
 const LOCKED = {

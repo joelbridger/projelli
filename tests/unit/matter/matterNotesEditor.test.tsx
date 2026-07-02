@@ -31,10 +31,10 @@ import de from '@/locales/de.json';
 const keychainStore = new Map<string, string>();
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(async (cmd: string, args: Record<string, unknown> = {}) => {
-    const svc = (args.service as string) ?? 'com.keepance.app';
-    const key = args.key as string;
+    const svc = (args['service'] as string) ?? 'com.keepance.app';
+    const key = args['key'] as string;
     const id = `${svc}::${key}`;
-    if (cmd === 'keychain_set') { keychainStore.set(id, args.value as string); return undefined; }
+    if (cmd === 'keychain_set') { keychainStore.set(id, args['value'] as string); return undefined; }
     if (cmd === 'keychain_get') {
       if (!keychainStore.has(id)) throw { kind: 'notFound', message: 'no entry' };
       return keychainStore.get(id);
@@ -58,12 +58,14 @@ vi.mock('@/platform/firm/firmStore', () => ({
 // ── Mock matterNotesSync ─────────────────────────────────────────────────────
 // Most tests inject the sync client directly into MatterNotesEditor, so we
 // only need the mock for the Wrapper tests.
-let mockEnsureMatterSync: ReturnType<typeof vi.fn>;
+let mockEnsureMatterSync: ReturnType<
+  typeof vi.fn<(localMatter: Matter, keyEpoch?: number) => Promise<MatterSyncClient | null>>
+>;
 
 vi.mock('@/features/matters/logic/matterNotesSync', () => {
   mockEnsureMatterSync = vi.fn();
   return {
-    ensureMatterSync: (...args: unknown[]) => mockEnsureMatterSync(...args),
+    ensureMatterSync: (...args: Parameters<typeof mockEnsureMatterSync>) => mockEnsureMatterSync(...args),
     stopMatterSync: vi.fn(),
     stopAll: vi.fn(),
     getMatterSyncClient: vi.fn(() => null),
@@ -232,10 +234,10 @@ describe('MatterNotesEditor', () => {
       name: matter.name,
       client: matter.client,
       folderPaths: matter.folderPaths,
-      firmMatterId: matter.firmMatterId,
-      orgId: matter.orgId,
-      role: matter.role,
-      shared: matter.shared,
+      firmMatterId: matter.firmMatterId!,
+      orgId: matter.orgId!,
+      role: matter.role!,
+      shared: matter.shared!,
     });
 
     // Get the actual matter id created.
@@ -304,9 +306,9 @@ describe('MatterNotesEditor', () => {
 
     for (const key of requiredKeys) {
       // TypeScript type cast — locale JSON is any-typed after import.
-      const enVal = (en as Record<string, Record<string, Record<string, string>>>)['matter']?.['notes']?.[key];
-      const esVal = (es as Record<string, Record<string, Record<string, string>>>)['matter']?.['notes']?.[key];
-      const deVal = (de as Record<string, Record<string, Record<string, string>>>)['matter']?.['notes']?.[key];
+      const enVal = (en as unknown as Record<string, Record<string, Record<string, string>>>)['matter']?.['notes']?.[key];
+      const esVal = (es as unknown as Record<string, Record<string, Record<string, string>>>)['matter']?.['notes']?.[key];
+      const deVal = (de as unknown as Record<string, Record<string, Record<string, string>>>)['matter']?.['notes']?.[key];
 
       expect(enVal, `en: matter.notes.${key} missing`).toBeTruthy();
       expect(esVal, `es: matter.notes.${key} missing`).toBeTruthy();

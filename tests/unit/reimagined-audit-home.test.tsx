@@ -235,7 +235,7 @@ describe('AuditHome', () => {
   it('detail panel opens on row click and shows entry info', () => {
     render(<AuditHome entries={SAMPLE} />);
     const rows = screen.getAllByTestId('audit-table-row');
-    fireEvent.click(rows[0]); // egress row (newest)
+    fireEvent.click(rows[0]!); // egress row (newest)
     const panel = screen.getByTestId('audit-detail-panel');
     expect(panel).toBeInTheDocument();
     expect(panel).toHaveTextContent('AI Request Sent');
@@ -243,7 +243,7 @@ describe('AuditHome', () => {
 
   it('detail panel closes when close button is clicked', () => {
     render(<AuditHome entries={SAMPLE} />);
-    fireEvent.click(screen.getAllByTestId('audit-table-row')[0]);
+    fireEvent.click(screen.getAllByTestId('audit-table-row')[0]!);
     const panel = screen.getByTestId('audit-detail-panel');
     expect(panel).toBeInTheDocument();
     // Close button is inside the detail panel

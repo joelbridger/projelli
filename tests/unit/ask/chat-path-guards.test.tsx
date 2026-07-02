@@ -138,7 +138,7 @@ async function setup(rootPath: string) {
   act(() => fireEvent.change(textarea, { target: { value: 'hello' } }));
   act(() => fireEvent.click(screen.getByTestId('chat-send-button')));
   await waitFor(() => expect(captured.executor).toBeTypeOf('function'));
-  return { executor: captured.executor as ToolExecutor, ws, fileTree };
+  return { executor: captured.executor as unknown as ToolExecutor, ws, fileTree };
 }
 
 // [ root, expected-normalized-join-of "notes.txt" ]
@@ -281,7 +281,7 @@ describe('F2.8 search_files matter filter — normalized join on a backslash roo
     act(() => fireEvent.click(screen.getByTestId('chat-send-button')));
     await waitFor(() => expect(captured.executor).toBeTypeOf('function'));
 
-    const res = (await (captured.executor as ToolExecutor)('search_files', { query: '*.txt' })) as {
+    const res = (await (captured.executor as unknown as ToolExecutor)('search_files', { query: '*.txt' })) as {
       results: Array<{ path: string }>;
     };
     const paths = res.results.map((r) => r.path);

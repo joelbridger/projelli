@@ -29,7 +29,7 @@ describe('useTabOpening — handleOpenBrowserTab', () => {
     });
 
     expect(openTab).toHaveBeenCalledTimes(1);
-    const [, tabName, , type, metadata] = openTab.mock.calls[0];
+    const [, tabName, , type, metadata] = openTab.mock.calls[0]!;
     expect(tabName).toBe('example.com');
     expect(type).toBe('browser');
     expect(metadata).toEqual({ url: 'https://example.com/path' });
@@ -45,7 +45,7 @@ describe('useTabOpening — handleOpenBrowserTab', () => {
     }).not.toThrow();
 
     expect(openTab).toHaveBeenCalledTimes(1);
-    const [, tabName] = openTab.mock.calls[0];
+    const [, tabName] = openTab.mock.calls[0]!;
     expect(tabName).toBe('not a url');
   });
 
@@ -56,7 +56,7 @@ describe('useTabOpening — handleOpenBrowserTab', () => {
       result.current.handleOpenBrowserTab('https://example.com', 'My Tab');
     });
 
-    const [, tabName] = openTab.mock.calls[0];
+    const [, tabName] = openTab.mock.calls[0]!;
     expect(tabName).toBe('My Tab');
   });
 });

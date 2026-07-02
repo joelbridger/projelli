@@ -14,13 +14,13 @@ vi.mock('react-i18next', () => ({
     t: (key: string, opts?: Record<string, unknown>) => {
       // Minimal stub that handles the keys used in the banner.
       if (key === 'memory.rag-banner.ready') {
-        return `Memory ready, indexed ${(opts?.count as number) ?? 0} files.`;
+        return `Memory ready, indexed ${(opts?.['count'] as number) ?? 0} files.`;
       }
       if (key === 'memory.rag-banner.ready-with-skips') {
-        return `Memory ready, indexed ${(opts?.count as number) ?? 0} files (${(opts?.skipped as number) ?? 0} skipped).`;
+        return `Memory ready, indexed ${(opts?.['count'] as number) ?? 0} files (${(opts?.['skipped'] as number) ?? 0} skipped).`;
       }
       if (key === 'memory.pdf-progress') {
-        return `Indexing PDFs: ${(opts?.processed as number) ?? 0} / ${(opts?.total as number) ?? 0}. Nothing leaves your machine.`;
+        return `Indexing PDFs: ${(opts?.['processed'] as number) ?? 0} / ${(opts?.['total'] as number) ?? 0}. Nothing leaves your machine.`;
       }
       return key;
     },

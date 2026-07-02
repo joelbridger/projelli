@@ -153,7 +153,7 @@ describe('TTSAudioPlayer streaming API', () => {
 
       expect(mockDecodeAudioData).toHaveBeenCalledTimes(1);
       // Total concatenated bytes = 5
-      const decoded: ArrayBuffer = mockDecodeAudioData.mock.calls[0][0] as ArrayBuffer;
+      const decoded: ArrayBuffer = mockDecodeAudioData.mock.calls[0]![0] as ArrayBuffer;
       expect(decoded.byteLength).toBe(5);
 
       expect(player.status).toBe('playing');
@@ -183,7 +183,7 @@ describe('TTSAudioPlayer streaming API', () => {
       expect(player.status).toBe('playing');
       // Only one decode call since the previous stop cleared the buffer
       expect(mockDecodeAudioData).toHaveBeenCalledTimes(1);
-      const decoded: ArrayBuffer = mockDecodeAudioData.mock.calls[0][0] as ArrayBuffer;
+      const decoded: ArrayBuffer = mockDecodeAudioData.mock.calls[0]![0] as ArrayBuffer;
       expect(decoded.byteLength).toBe(3); // only the 3 bytes from the second stream
     });
   });

@@ -27,7 +27,7 @@ describe('onedrive-commands', () => {
   it('sync forwards the matter map', async () => {
     (invoke as any).mockResolvedValue({ seen: 1, downloaded: 1, indexed: 1 });
     const { oneDriveSync } = await import('@/platform/utils/onedrive-commands');
-    const map = [{ folderKey: 'm365/default/drive-a:/clients/acme', matterId: 'matter-a' }];
+    const map = [{ folderKey: 'm365/default/drive-a:/clients/acme', matterId: 'matter-a', destFolder: '' }];
     await oneDriveSync(map);
     expect(invoke).toHaveBeenCalledWith('onedrive_sync', { matterMap: map });
   });

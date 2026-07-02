@@ -45,7 +45,7 @@ vi.mock('@/platform/providers/OllamaProvider', async (importOriginal) => {
 });
 
 // AiScene live-validates a pasted key before saving it; keep that deterministic.
-const validateApiKeyLive = vi.fn(async () => ({ outcome: 'ok' as const, message: 'ok' }));
+const validateApiKeyLive = vi.fn(async (..._args: unknown[]) => ({ outcome: 'ok' as const, message: 'ok' }));
 vi.mock('@/platform/providers/apiKeyValidation', () => ({
   validateApiKeyLive: (...a: unknown[]) => validateApiKeyLive(...a),
 }));

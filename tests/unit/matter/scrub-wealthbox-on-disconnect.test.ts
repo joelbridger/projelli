@@ -23,7 +23,7 @@ vi.mock('@/platform/utils/mail-commands', async (importActual) => {
 import { useMatterStore } from '@/platform/matter/matterStore';
 import type { MatterAtAGlanceResult } from '@/platform/matter/matterAtAGlance';
 
-const emptyGlance: MatterAtAGlanceResult = { openIssues: [], deadlines: [], upcomingDates: [], nextActions: [] };
+const emptyGlance: MatterAtAGlanceResult = { openIssues: [], deadlines: [], upcomingDates: [], nextActions: [], generatedAt: '2026-01-01T00:00:00.000Z' };
 
 beforeEach(() => {
   useMatterStore.setState({ matters: [], activeMatterId: null, cache: {}, snapshots: {}, statusByMatterId: {} });

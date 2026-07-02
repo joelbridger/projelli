@@ -90,7 +90,7 @@ describe('migratePersistedClientMaps', () => {
     // each signature string, (a) the dismissal stops matching and the suggestion
     // REAPPEARS, and (b) the pending signature drifts from its remapped sectionKey.
     const pendingSig = proposalSignature('next', 'add', 'Schedule follow-up');
-    const dismissedSig = proposalSignature('standing', 'edit', 'Schwab IRA balance');
+    const dismissedSig = proposalSignature('standing', 'change', 'Schwab IRA balance');
     const legacy = {
       maps: {
         m1: {
@@ -122,7 +122,7 @@ describe('migratePersistedClientMaps', () => {
 
     // The dismissed signature now equals what the live code generates under the
     // NEW key, so the dismissal keeps suppressing the same fact (no reappearance).
-    expect(map.dismissedSignatures![0]!.signature).toBe(proposalSignature('money', 'edit', 'Schwab IRA balance'));
+    expect(map.dismissedSignatures![0]!.signature).toBe(proposalSignature('money', 'change', 'Schwab IRA balance'));
     expect(map.dismissedSignatures![0]!.sourceSignature).toBe('src-1');
   });
 

@@ -134,7 +134,7 @@ describe('AI rules loader effect dependency correctness', () => {
       <AiRulesLoader rootPath="/ws" workspaceService={service} />,
     );
     unmount();
-    resolveExists?.(true);
+    (resolveExists as ((v: boolean) => void) | null)?.(true);
     await new Promise((r) => setTimeout(r, 10));
     // readFile should never be called because isMounted flipped false
     // before the exists promise resolved.

@@ -16,7 +16,7 @@ vi.mock('@tauri-apps/api/core', () => ({
   isTauri: () => true,
   invoke: vi.fn(async (cmd: string, args: Record<string, unknown>) => {
     if (cmd === 'docx_open') {
-      const path = String(args.path);
+      const path = String(args['path']);
       // Snapshot path (under .versions/) => old text; live file => new text.
       const text = path.includes('.versions/')
         ? 'The quick brown fox.'
@@ -69,6 +69,19 @@ class MemFS implements VersionFS {
   }
   async delete(p: string) {
     this.files.delete(this.key(p));
+  }
+  async list(p: string): Promise<Array<{ name: string }>> {
+    const dirKey = this.key(p);
+    const prefix = dirKey.endsWith('/') ? dirKey : `${dirKey}/`;
+    const names = new Set<string>();
+    for (const k of this.files.keys()) {
+      if (k.startsWith(prefix)) {
+        const rest = k.slice(prefix.length);
+        const name = rest.split('/')[0];
+        if (name) names.add(name);
+      }
+    }
+    return Array.from(names).map((name) => ({ name }));
   }
   getRootPath() {
     return ROOT;

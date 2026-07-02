@@ -15,12 +15,14 @@ const acme: Matter = {
   name: 'Acme',
   client: 'Acme Corp',
   folderPaths: ['/ws/Clients/Acme'],
+  createdAt: '2026-01-01T00:00:00.000Z',
 };
 const beta: Matter = {
   id: 'm-beta',
   name: 'Beta',
   client: 'Beta LLC',
   folderPaths: ['/ws/Clients/Beta'],
+  createdAt: '2026-01-01T00:00:00.000Z',
 };
 const matters = [acme, beta];
 
@@ -59,7 +61,13 @@ describe('assertDirInActiveMatter — Windows mixed separators (Codex P2)', () =
   // Matter.folderPaths are forward-slash normalized; a native Windows workspace
   // root can carry backslashes, so dirPath arrives mixed. Ancestor navigation
   // must still work via the cross-platform containment predicate.
-  const winAcme: Matter = { id: 'm-acme', name: 'Acme', client: 'Acme Corp', folderPaths: ['C:/WS/Clients/Acme'] };
+  const winAcme: Matter = {
+    id: 'm-acme',
+    name: 'Acme',
+    client: 'Acme Corp',
+    folderPaths: ['C:/WS/Clients/Acme'],
+    createdAt: '2026-01-01T00:00:00.000Z',
+  };
   const winScope = { toolActiveMatterId: 'm-acme', toolMatters: [winAcme], activeMatterName: 'Acme' };
   it('allows listing the backslash root as an ancestor of a forward-slash folder', () => {
     expect(() => assertDirInActiveMatter('C:\\WS', '.', winScope, winAcme.folderPaths)).not.toThrow();

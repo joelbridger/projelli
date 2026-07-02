@@ -76,19 +76,19 @@ describe('TTSService audit logging', () => {
   it('payload.textLength matches the synthesized text length', async () => {
     const text = 'A longer piece of text for testing.';
     await TTSService.speak(text, 'en_US-amy-medium', 1.0);
-    const call = auditSpy.append.mock.calls[0][0] as { payload: { textLength: number } };
+    const call = auditSpy.append.mock.calls[0]![0] as { payload: { textLength: number } };
     expect(call.payload.textLength).toBe(text.length);
   });
 
   it('payload.voiceId matches the requested voice', async () => {
     await TTSService.speak('Test', 'de_DE-thorsten-medium', 1.5);
-    const call = auditSpy.append.mock.calls[0][0] as { payload: { voiceId: string } };
+    const call = auditSpy.append.mock.calls[0]![0] as { payload: { voiceId: string } };
     expect(call.payload.voiceId).toBe('de_DE-thorsten-medium');
   });
 
   it('timestamp is an ISO date string', async () => {
     await TTSService.speak('Hello', 'en_US-amy-medium', 1.0);
-    const call = auditSpy.append.mock.calls[0][0] as { timestamp: string };
+    const call = auditSpy.append.mock.calls[0]![0] as { timestamp: string };
     const parsed = new Date(call.timestamp);
     expect(isNaN(parsed.getTime())).toBe(false);
   });

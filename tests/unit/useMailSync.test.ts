@@ -19,7 +19,7 @@ describe('useMailSync', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('subscribes to mail-sync-progress on mount', async () => {
-    renderHook(() => useMailSync({ onMailChunk: undefined }));
+    renderHook(() => useMailSync({}));
     await Promise.resolve();
     expect(listen).toHaveBeenCalledWith('mail-sync-progress', expect.any(Function));
   });

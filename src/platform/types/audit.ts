@@ -74,7 +74,12 @@ export type AuditActionType =
   // Connector-access: the advisor's one-time decision on whether their firm
   // permits storing + AI-processing exported reports/notes recognized from
   // outside tools (RightCapital, Jump). A defensible, timestamped record.
-  | 'external_export_consent';
+  | 'external_export_consent'
+  // Marketplace template lifecycle (mirrors the AuditEvent variants below).
+  | 'template_installed_from_marketplace'
+  | 'template_uninstalled'
+  | 'template_updated'
+  | 'template_install_failed';
 
 /**
  * The verdict from citation verification (mirrors `CitationVerdict.verdict`

@@ -50,6 +50,8 @@ function makeProvider(
       } as ProviderResponse;
     }) as Provider['sendMessage'],
     structuredOutput: vi.fn(async () => ({})) as unknown as Provider['structuredOutput'],
+    formatAttachmentForRequest: vi.fn() as unknown as Provider['formatAttachmentForRequest'],
+    supportsAttachment: vi.fn(() => true) as Provider['supportsAttachment'],
   };
 }
 

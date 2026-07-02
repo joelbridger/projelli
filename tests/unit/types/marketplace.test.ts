@@ -36,6 +36,8 @@ describe('CatalogEntry type', () => {
       updatedAt: '',
       installedAt: '2026-04-28T00:00:00Z',
       installedPath: '.keepance/templates/x',
+      provenance: 'custom',
+      manifestVersion: '1.0',
     };
     expect(e.installedAt).toBeDefined();
   });

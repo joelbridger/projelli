@@ -107,7 +107,7 @@ describe('BoxConnect honest sync feedback + durable audit', () => {
         { outputs: { error: 'auth_expired' } }
       );
     });
-    const failureCall = logDurable.mock.calls.find((c) => c[1] === 'Box sync failed.');
+    const failureCall = logDurable.mock.calls.find((c: unknown[]) => c[1] === 'Box sync failed.');
     expect(JSON.stringify(failureCall)).not.toContain('xyz');
   });
 });
