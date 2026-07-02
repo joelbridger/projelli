@@ -41,7 +41,6 @@ const CI_QUARANTINE = [
   // scope). Each needs individual root-causing as a follow-up.
   '**/v1.5-canvas-stress.spec.ts',
   '**/v1.5-memory-stress.spec.ts',
-  '**/wedge-proof.spec.ts',
 ];
 
 export default defineConfig({
