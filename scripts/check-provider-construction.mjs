@@ -19,9 +19,16 @@
  *   - `src/web-demo/demoAIProvider.ts` (the demo-only provider factory);
  *   - test/spec files (they construct providers under test directly).
  *
- * It intentionally does NOT flag `createProvider(` / `createClaudeProvider(` /
- * other factory-function CALLS — only the `new …Provider(` construction keyword,
- * which is the exact thing surfaces must never do again.
+ * It flags TWO construction forms, because either one lets a surface pick a
+ * specific AI outside the shared id→provider mapping:
+ *   1. `new <Name>Provider(` — direct construction.
+ *   2. `create{Claude,OpenAI,Gemini,Ollama,AppLocal}Provider(` — the per-provider
+ *      factory helpers. These bypass createProvider() just as effectively (a
+ *      surface calling createClaudeProvider() has hardcoded "this is Claude"),
+ *      so they are banned outside the providers layer too.
+ * It does NOT flag `createProvider(` (the front door itself) or
+ * `createMockProvider(` / `createDemoProvider(` (a test double and the demo
+ * factory — neither is a real AI-selection drift risk).
  */
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -31,11 +38,17 @@ import { dirname, join, relative, sep } from 'node:path';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dirname, '..');
 
-// `new <Upper>…Provider(` — matches ClaudeProvider, OpenAIProvider,
-// GeminiProvider, OllamaProvider, AppLocalProvider, MockProvider,
-// DemoProxyProvider, etc. Not `createProvider(` (no `new`) — factory-function
-// calls are exactly what we WANT surfaces to use.
-const CONSTRUCT_RE = /\bnew\s+[A-Z][A-Za-z0-9_]*Provider\s*\(/;
+// Two banned construction forms (see the header). Either lets a surface pick a
+// specific AI outside the shared createProvider() mapping.
+//   1. `new <Upper>…Provider(` — direct construction (Claude/OpenAI/Gemini/
+//      Ollama/AppLocal/Mock/DemoProxy, etc.).
+//   2. `create{Claude,OpenAI,Gemini,Ollama,AppLocal}Provider(` — the per-provider
+//      factory helpers. Deliberately NOT `createProvider(` (the front door),
+//      `createMockProvider(` (test double), or `createDemoProvider(` (demo).
+const CONSTRUCT_RES = [
+  /\bnew\s+[A-Z][A-Za-z0-9_]*Provider\s*\(/,
+  /\bcreate(?:Claude|OpenAI|Gemini|Ollama|AppLocal)Provider\s*\(/,
+];
 
 /** Paths (relative to repo root, forward-slashed) that MAY construct providers. */
 const ALLOWED_PREFIXES = [
@@ -97,9 +110,12 @@ export function findProviderConstructionViolations(root = repoRoot) {
     if (isAllowed(relPath)) continue;
     const lines = readFileSync(file, 'utf8').split('\n');
     lines.forEach((line, i) => {
-      const m = CONSTRUCT_RE.exec(line);
-      if (m && !inLineComment(line, m.index)) {
-        found.push({ relPath, line: i + 1, text: line.trim() });
+      for (const re of CONSTRUCT_RES) {
+        const m = re.exec(line);
+        if (m && !inLineComment(line, m.index)) {
+          found.push({ relPath, line: i + 1, text: line.trim() });
+          break; // one finding per line is enough
+        }
       }
     });
   }
@@ -119,7 +135,8 @@ if (invokedDirectly) {
         '   Every AI provider must be built through createProvider() in\n' +
         '   src/platform/providers/providerFactory.ts, so all surfaces agree on\n' +
         '   which AI they talk to and the egress indicator can never lie.\n' +
-        `   Replace each raw \`new …Provider(\` below with createProvider({ … }):\n`,
+        '   Replace each raw `new …Provider(` / `create<Name>Provider(` below\n' +
+          '   with createProvider({ … }):\n',
     );
     for (const v of violations) {
       console.error(`   ${v.relPath}:${v.line}  ${v.text}`);
