@@ -66,16 +66,18 @@ vi.mock('@/platform/providers/OllamaProvider', () => ({
   }),
 }));
 
-// createClaudeProvider captures its config (esp. `assured`) so tests can prove
+// EmailViewer builds every cloud provider through the shared front-door
+// factory (fix F2.2) — createProvider({ provider, apiKey, model?, assured? }).
+// This mock captures the opts (esp. `provider`/`assured`) so tests can prove
 // the ACTUAL route the provider was built with, not just the app's
 // confidentiality-mode setting.
-const createClaudeProviderMock = vi.fn((cfg: { apiKey: string; model?: string; assured?: unknown }) => ({
+const createProviderMock = vi.fn((opts: { provider: string; apiKey?: string; model?: string; assured?: unknown }) => ({
   sendMessage: vi.fn(async () => ({ content: 'Cloud draft.' })),
-  getMetadata: vi.fn(() => ({ model: cfg.model ?? 'claude-haiku-4-5-20251001' })), // no providerId — real ClaudeProvider never sets one either
-  __cfg: cfg,
+  getMetadata: vi.fn(() => ({ model: opts.model ?? 'claude-haiku-4-5-20251001' })), // no providerId — real cloud providers never set one
+  __opts: opts,
 }));
-vi.mock('@/platform/providers/ClaudeProvider', () => ({
-  createClaudeProvider: (cfg: { apiKey: string; model?: string; assured?: unknown }) => createClaudeProviderMock(cfg),
+vi.mock('@/platform/providers/providerFactory', () => ({
+  createProvider: (opts: { provider: string; apiKey?: string; model?: string; assured?: unknown }) => createProviderMock(opts),
 }));
 
 const mockResolveAssuredRoute = vi.fn((_provider: string, _model: string, _stream?: boolean): unknown => undefined);
@@ -232,8 +234,8 @@ describe('EmailViewer — AI-draft audit records the ACTUAL assured route (indep
     expect(entry.metadata['dataLeaves']).toBe(true);
 
     // The provider actually used the resolved route, not a plain BYOK call.
-    expect(createClaudeProviderMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({ assured: expect.objectContaining({ accessToken: 'ACCESS' }) }),
+    expect(createProviderMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ provider: 'anthropic', assured: expect.objectContaining({ accessToken: 'ACCESS' }) }),
     );
     // Independent reviewer catch (P1): Draft with AI always calls the
     // non-streaming sendMessage(), so the route must be resolved as
@@ -264,8 +266,8 @@ describe('EmailViewer — AI-draft audit records the ACTUAL assured route (indep
     // no personal key is configured.
     expect(entry.metadata['provider']).toBe('anthropic');
     expect(entry.metadata['destination']).toBe('assured-proxy');
-    expect(createClaudeProviderMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({ apiKey: '', assured: expect.objectContaining({ accessToken: 'ACCESS' }) }),
+    expect(createProviderMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ provider: 'anthropic', apiKey: '', assured: expect.objectContaining({ accessToken: 'ACCESS' }) }),
     );
   });
 
@@ -287,7 +289,10 @@ describe('EmailViewer — AI-draft audit records the ACTUAL assured route (indep
     expect(entry.metadata['destination']).toBe('provider-direct');
     expect(entry.metadata['dataLeaves']).toBe(true);
 
-    expect(createClaudeProviderMock).toHaveBeenLastCalledWith(
+    expect(createProviderMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ provider: 'anthropic' }),
+    );
+    expect(createProviderMock).toHaveBeenLastCalledWith(
       expect.not.objectContaining({ assured: expect.anything() }),
     );
   });
