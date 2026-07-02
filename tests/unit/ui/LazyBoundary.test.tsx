@@ -107,6 +107,39 @@ describe('LazyBoundary', () => {
     spy.mockRestore();
   });
 
+  it('resetKey clears a stuck error when the SAME loader renders different content (e.g. switching between two .docx files)', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    // Mirrors MainPanel: every .docx tab shares ONE module-level loadDocxEditor
+    // loader, so `loader` identity alone can't distinguish "file A" from
+    // "file B" — only `resetKey` (the tab path) can.
+    const FileViewer = ({ path }: { path: string }) => {
+      if (path === 'fileA.docx') throw new Error('corrupt file A');
+      return <div data-testid="rendered">{path}</div>;
+    };
+    const loader: () => Promise<{ default: typeof FileViewer }> = vi
+      .fn()
+      .mockResolvedValue({ default: FileViewer });
+
+    const { rerender } = render(
+      <LazyBoundary loader={loader} resetKey="fileA.docx" label="fileA.docx">
+        {(Comp) => <Comp path="fileA.docx" />}
+      </LazyBoundary>,
+    );
+    await waitFor(() => expect(screen.getByTestId('lazy-boundary-fallback')).toBeInTheDocument());
+
+    // Open a DIFFERENT file of the SAME type: same `loader`, different
+    // `resetKey`. Must render clean without a manual Retry click.
+    rerender(
+      <LazyBoundary loader={loader} resetKey="fileB.docx" label="fileB.docx">
+        {(Comp) => <Comp path="fileB.docx" />}
+      </LazyBoundary>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('rendered')).toHaveTextContent('fileB.docx'));
+    expect(screen.queryByTestId('lazy-boundary-fallback')).toBeNull();
+    spy.mockRestore();
+  });
+
   it('renders the NEW component when loader changes at the same slot (e.g. switching tabs), not the previously-resolved one', async () => {
     const loaderA = vi.fn().mockResolvedValue({ default: () => <div data-testid="panel-a">A</div> });
     const loaderB = vi.fn().mockResolvedValue({ default: () => <div data-testid="panel-b">B</div> });

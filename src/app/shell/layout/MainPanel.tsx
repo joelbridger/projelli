@@ -738,6 +738,7 @@ export function MainPanel({
         return (
           <LazyBoundary
             loader={loadWaveformEditor}
+            resetKey={tab.path}
             fallback={<DocLoadingFallback fileName={tab.name} />}
             label={tab.name}
           >
@@ -761,6 +762,7 @@ export function MainPanel({
         return (
           <LazyBoundary
             loader={loadSpreadsheetViewer}
+            resetKey={tab.path}
             fallback={<DocLoadingFallback fileName={tab.name} />}
             label={tab.name}
           >
@@ -779,6 +781,7 @@ export function MainPanel({
         return (
           <LazyBoundary
             loader={loadPresentationViewer}
+            resetKey={tab.path}
             fallback={<DocLoadingFallback fileName={tab.name} />}
             label={tab.name}
           >
@@ -805,6 +808,7 @@ export function MainPanel({
           return (
             <LazyBoundary
               loader={loadDocxEditor}
+              resetKey={tab.path}
               fallback={<DocLoadingFallback fileName={tab.name} />}
               label={tab.name}
             >
@@ -844,6 +848,7 @@ export function MainPanel({
         return (
           <LazyBoundary
             loader={loadMarkdownPreview}
+            resetKey={tab.path}
             fallback={<DocLoadingFallback fileName={tab.name} />}
             label={tab.name}
           >

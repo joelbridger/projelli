@@ -23,6 +23,15 @@
  * a target the caller already moved on from. `getDerivedStateFromProps`
  * handles that: it runs on every render (not just on error) and clears the
  * error whenever `loader` no longer matches what produced it.
+ *
+ * `loader` identity alone isn't always enough, though: MainPanel reuses the
+ * SAME module-level `loadDocxEditor` for every `.docx` tab, so a render error
+ * on one file would otherwise survive switching to a different file of the
+ * SAME type — the error card would stay stuck even though the caller moved on
+ * to genuinely different content. Callers that reuse one `loader` across
+ * multiple pieces of content pass a `resetKey` (e.g. the tab path, or a
+ * per-client scope id) identifying WHICH content is being rendered; the
+ * boundary resets on either `loader` OR `resetKey` changing.
  */
 
 import {
@@ -47,6 +56,14 @@ export interface LazyBoundaryProps<P extends object> {
   label?: string;
   /** Called when a chunk-load or render error is caught — for telemetry. */
   onError?: (error: Error, info: ErrorInfo) => void;
+  /**
+   * Identity of the CONTENT being rendered through this `loader`, when the
+   * same `loader` is reused across multiple pieces of content at the same
+   * JSX slot (e.g. a tab path, a per-client scope id). Optional — omit when
+   * one `LazyBoundary` call site only ever renders one thing. A change here
+   * resets the error boundary exactly like a `loader` change does.
+   */
+  resetKey?: unknown;
 }
 
 export function LazyBoundary<P extends object>({
@@ -55,6 +72,7 @@ export function LazyBoundary<P extends object>({
   fallback = null,
   label,
   onError,
+  resetKey,
 }: LazyBoundaryProps<P>) {
   const [retryNonce, setRetryNonce] = useState(0);
 
@@ -74,6 +92,7 @@ export function LazyBoundary<P extends object>({
   return (
     <LazyBoundaryCatch
       loader={loader}
+      resetKey={resetKey}
       label={label}
       onError={onError}
       onRetry={() => {
@@ -89,6 +108,8 @@ interface CatchProps {
   children: ReactNode;
   /** Identity token used purely to detect a loader swap — see getDerivedStateFromProps. */
   loader: unknown;
+  /** See LazyBoundaryProps.resetKey. */
+  resetKey?: unknown;
   label?: string | undefined;
   onError?: ((error: Error, info: ErrorInfo) => void) | undefined;
   onRetry: () => void;
@@ -97,10 +118,15 @@ interface CatchProps {
 interface CatchState {
   error: Error | null;
   loaderAtLastRender: unknown;
+  resetKeyAtLastRender: unknown;
 }
 
 class LazyBoundaryCatch extends Component<CatchProps, CatchState> {
-  override state: CatchState = { error: null, loaderAtLastRender: this.props.loader };
+  override state: CatchState = {
+    error: null,
+    loaderAtLastRender: this.props.loader,
+    resetKeyAtLastRender: this.props.resetKey,
+  };
 
   static getDerivedStateFromError(error: Error): Partial<CatchState> {
     return { error };
@@ -108,11 +134,11 @@ class LazyBoundaryCatch extends Component<CatchProps, CatchState> {
 
   // Runs on every render (mount, update, AND the render right after
   // getDerivedStateFromError fires) — clears a stale error the moment the
-  // caller has moved on to a different loader, without needing a `key`-driven
-  // full remount.
+  // caller has moved on to a different loader OR different content (via
+  // resetKey), without needing a `key`-driven full remount.
   static getDerivedStateFromProps(props: CatchProps, state: CatchState): Partial<CatchState> | null {
-    if (props.loader !== state.loaderAtLastRender) {
-      return { error: null, loaderAtLastRender: props.loader };
+    if (props.loader !== state.loaderAtLastRender || props.resetKey !== state.resetKeyAtLastRender) {
+      return { error: null, loaderAtLastRender: props.loader, resetKeyAtLastRender: props.resetKey };
     }
     return null;
   }

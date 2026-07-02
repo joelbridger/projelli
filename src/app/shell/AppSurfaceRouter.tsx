@@ -297,7 +297,15 @@ export function AppSurfaceRouter({
   );
 
   const buildEmailWorkspace = (opts: { embedded?: boolean; scopeMatterId?: string }) => (
-    <LazyBoundary loader={loadEmailWorkspace} fallback={<SurfaceLoadingFallback />} label="Email">
+    <LazyBoundary
+      loader={loadEmailWorkspace}
+      // A render error on one client's Email must not stay stuck when the
+      // embedded per-client sub-tab switches to a DIFFERENT client — same
+      // `loadEmailWorkspace` loader, different content.
+      resetKey={opts.scopeMatterId}
+      fallback={<SurfaceLoadingFallback />}
+      label="Email"
+    >
       {(EmailWorkspace) => (
         <EmailWorkspace
           // Per-client key — remount on client switch so Email selections / open
@@ -333,7 +341,15 @@ export function AppSurfaceRouter({
     // LazyBoundary's error boundary is the "auditable / inspectable" trust
     // surface guard: it contains BOTH a failed chunk fetch and a malformed
     // audit row thrown later, so neither can white-screen the whole app.
-    <LazyBoundary loader={loadAuditHome} fallback={<SurfaceLoadingFallback />} label="Activity Log">
+    // resetKey: a render error on one client's Activity log must not stay
+    // stuck when the embedded per-client sub-tab switches clients — same
+    // `loadAuditHome` loader, different content.
+    <LazyBoundary
+      loader={loadAuditHome}
+      resetKey={opts.scopeMatterId}
+      fallback={<SurfaceLoadingFallback />}
+      label="Activity Log"
+    >
       {(AuditHome) => (
         // Per-client key — remount on client switch so the Activity detail panel
         // / filters don't carry from one client into the next (matter isolation).
