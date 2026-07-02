@@ -110,7 +110,7 @@ describe('WS-B/C scoped cited retrieval in chat', () => {
     mocks.retrieve.mockReset();
     mocks.sendMessage.mockReset();
     mocks.verifyCitation.mockReset();
-    useAIChatStore.setState({ sessions: {}, dailyCosts: {}, askWorkspaceMode: {} });
+    useAIChatStore.setState({ sessions: {}, dailyCosts: {}, askWorkspaceMode: {}, fileAccessConsent: { 'wsbc-scope-test': { state: 'granted', grantedScope: { kind: 'allMatters' } } } }); // F2.5: ambient retrieval needs file-access consent
     useMatterStore.setState({ matters: [], activeMatterId: null });
 
     mocks.retrieve.mockResolvedValue([
@@ -134,7 +134,7 @@ describe('WS-B/C scoped cited retrieval in chat', () => {
   });
 
   afterEach(() => {
-    useAIChatStore.setState({ sessions: {}, dailyCosts: {}, askWorkspaceMode: {} });
+    useAIChatStore.setState({ sessions: {}, dailyCosts: {}, askWorkspaceMode: {}, fileAccessConsent: { 'wsbc-scope-test': { state: 'granted', grantedScope: { kind: 'allMatters' } } } }); // F2.5: ambient retrieval needs file-access consent
     useMatterStore.setState({ matters: [], activeMatterId: null });
   });
 

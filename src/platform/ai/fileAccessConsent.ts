@@ -101,3 +101,44 @@ export function needsFileAccessConsent(
 ): boolean {
   return !fileToolsAllowed(consent, currentScope);
 }
+
+/**
+ * Whether the AI's file tools are actually REGISTERED on the provider for a send.
+ * The SAME predicate MUST drive the system-prompt "you have file tools"
+ * instructions, so the model is never told about tools it doesn't have (F2.5,
+ * Codex P2). Tools register only for a CLOUD provider, with a workspace present,
+ * once file access is consented for this scope.
+ */
+export function fileToolsRegistered(opts: {
+  hasWorkspace: boolean;
+  isCloudProvider: boolean;
+  fileAccessGranted: boolean;
+}): boolean {
+  return opts.hasWorkspace && opts.isCloudProvider && opts.fileAccessGranted;
+}
+
+/**
+ * Decide whether workspace RETRIEVAL runs for a send, and whether the ambient
+ * Ask-my-workspace toggle was SUPPRESSED by missing consent (F2.5, Codex P1).
+ *
+ * "Reading is sending": a TYPED `@workspace` mention is per-message intent (the
+ * user asked, right now) and is always allowed. The persistent Ask-my-workspace
+ * TOGGLE is ambient, NOT per-message intent — for a CLOUD provider it would ship
+ * workspace snippets to the vendor on every message, so it requires the same
+ * file-access consent. Local providers never leak, so ambient retrieval is always
+ * allowed there.
+ */
+export function resolveWorkspaceRetrieval(opts: {
+  /** User typed `@workspace` in THIS message. */
+  explicitWorkspace: boolean;
+  /** The persistent per-chat Ask-my-workspace toggle. */
+  askWorkspaceMode: boolean;
+  isCloudProvider: boolean;
+  fileAccessGranted: boolean;
+}): { shouldRetrieve: boolean; ambientBlockedByConsent: boolean } {
+  const { explicitWorkspace, askWorkspaceMode, isCloudProvider, fileAccessGranted } = opts;
+  const ambientBlockedByConsent =
+    askWorkspaceMode && !explicitWorkspace && isCloudProvider && !fileAccessGranted;
+  const shouldRetrieve = explicitWorkspace || (askWorkspaceMode && !ambientBlockedByConsent);
+  return { shouldRetrieve, ambientBlockedByConsent };
+}

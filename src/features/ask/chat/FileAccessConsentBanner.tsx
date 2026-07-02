@@ -123,8 +123,8 @@ export function FileAccessConsentBanner({
           <p className="font-medium">{`Let the AI search and open files on its own for ${scopeLabel}?`}</p>
           <p className="mt-0.5 opacity-90">
             {reconfirm
-              ? `You allowed this earlier, but this chat now covers ${scopeLabel}, so it needs your OK again. The AI can search, read, and change files for you here; what it reads is sent to your AI provider, and every change still asks first. Until you allow it, the AI only uses what you type and any files you add yourself.`
-              : `It can search, read, and change files for ${scopeLabel} to answer you (every change still asks first). What it reads is sent to your AI provider. Until you allow this, the AI only uses what you type and any files you add yourself.`}
+              ? `You allowed this earlier, but this chat now covers ${scopeLabel}, so it needs your OK again. It lets the AI search and read files on its own here, and draft or edit them (every change still asks first); what it reads is sent to your AI provider. Until you allow it, the AI only uses what you type and files you open or attach yourself.`
+              : `It lets the AI search and read files on its own for ${scopeLabel} to answer you, and draft or edit them (every change still asks first). What it reads is sent to your AI provider. Until you allow this, the AI only uses what you type and files you open or attach yourself.`}
           </p>
           <div className="mt-2 flex items-center gap-2">
             <Button

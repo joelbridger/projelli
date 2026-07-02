@@ -50,6 +50,8 @@ import {
 } from './fileAccessGuards';
 import {
   fileToolsAllowed,
+  fileToolsRegistered,
+  resolveWorkspaceRetrieval,
   type ConsentScope,
 } from '@/platform/ai/fileAccessConsent';
 import { getFileAccessConsent } from '@/platform/state/aiChatStore';
@@ -344,13 +346,36 @@ export function useChatSending(deps: UseChatSendingDeps) {
       }));
     };
 
+    // F2.5 — snapshot the file-access consent decision at send start (single
+    // source of truth reused below for retrieval gating, tool registration, the
+    // system prompt, and the egress audit). A grant is bound to the scope it was
+    // made under; a local provider never leaks, so consent is a cloud concern.
+    const turnConsentScope: ConsentScope = activeMatter
+      ? { kind: 'matter', matterId: activeMatter.id }
+      : { kind: 'allMatters' };
+    const fileToolsEnabled = fileToolsAllowed(getFileAccessConsent(chatId), turnConsentScope);
+    const providerIsCloud = !isLocalProviderId(effectiveProvider);
+
     const rawContent = inputValue.trim();
     const parsed = parseWorkspaceCommand(rawContent);
-    // M2 — retrieval triggers when the user explicitly tagged
-    // `@workspace`, or when the Ask-my-workspace mode is on for this
-    // chat. We call MemoryService (not raw ragRetrieve) so the Settings
-    // toggle is respected with a clean `[]` short-circuit when off.
-    const shouldRetrieve = parsed.hasCommand || askWorkspaceMode;
+    // M2 — retrieval triggers when the user explicitly tagged `@workspace`, or
+    // when the Ask-my-workspace mode is on for this chat. We call MemoryService
+    // (not raw ragRetrieve) so the Settings toggle is respected with a clean `[]`
+    // short-circuit when off.
+    //
+    // F2.5 — "reading is sending" also covers ambient retrieval. A TYPED
+    // `@workspace` mention is per-message intent (the user asked, right now), so
+    // it's always allowed. But the persistent Ask-my-workspace TOGGLE is NOT
+    // per-message intent — leaving it on would send workspace snippets to a cloud
+    // provider on every message with no per-conversation consent. So ambient
+    // (toggle-driven) retrieval requires the file-access consent when the provider
+    // is a cloud one; local providers are unaffected (nothing leaves the device).
+    const { shouldRetrieve, ambientBlockedByConsent } = resolveWorkspaceRetrieval({
+      explicitWorkspace: parsed.hasCommand,
+      askWorkspaceMode,
+      isCloudProvider: providerIsCloud,
+      fileAccessGranted: fileToolsEnabled,
+    });
     let retrievedSources: WorkspaceSource[] = [];
     let workspaceHint: string | undefined;
     // Option B: the raw retrieval error, kept separate from the user-facing
@@ -366,6 +391,14 @@ export function useChatSending(deps: UseChatSendingDeps) {
     const turnScope: TurnScope = activeMatter
       ? { kind: 'matter', matterId: activeMatter.id, matterName: matterLabel(activeMatter) }
       : { kind: 'allMatters' };
+    // F2.5 — the Ask-my-workspace toggle is on but this cloud conversation hasn't
+    // consented to file access, so ambient retrieval was skipped. Say so plainly
+    // (mirrors the "Memory is off" hint) instead of silently doing nothing — the
+    // composer's "Allow file access" affordance is how the user turns it on.
+    if (ambientBlockedByConsent) {
+      workspaceHint =
+        "Ask-my-workspace is paused until you allow file access for this chat.";
+    }
     if (shouldRetrieve) {
       if (!isMemoryEnabled()) {
         workspaceHint =
@@ -849,6 +882,17 @@ export function useChatSending(deps: UseChatSendingDeps) {
         // that supports tool calling (Claude, OpenAI, Gemini) registers
         // the same closure below via its setTools method.
         const hasWorkspaceForTools = !!(workspaceServiceRef?.current && rootPath);
+        // F2.5 — the single predicate for "are file tools registered for this
+        // send?". Drives BOTH setTools below AND the system prompt (hasWorkspace),
+        // so the prompt can never claim tools the provider wasn't given. The demo
+        // provider is text-only and never gets setTools (see the IS_DEMO branch
+        // below), so it must report false here too (Codex P2) — otherwise the demo
+        // prompt would advertise tools that were never registered.
+        const fileToolsRegisteredForSend = !IS_DEMO && fileToolsRegistered({
+          hasWorkspace: hasWorkspaceForTools,
+          isCloudProvider: providerIsCloud,
+          fileAccessGranted: fileToolsEnabled,
+        });
         const useStreamingForThisSend = !isTauriProductionBuild() && !hasWorkspaceForTools;
         console.log('[AIChat DIAGNOSTIC] Workspace check:', {
           hasWorkspaceService: !!workspaceServiceRef?.current,
@@ -896,18 +940,11 @@ export function useChatSending(deps: UseChatSendingDeps) {
           );
         };
 
-        // F2.5 — per-conversation consent for the AI's file tools ("reading is
-        // sending" with a cloud provider). Snapshot the scope + consent at send
-        // start (same freeze point as retrieval/tool scope) so a mid-stream
-        // client switch can't retroactively change what was allowed. Default
-        // OFF. A grant is bound to the scope it was made under: an all-clients
-        // turn needs an all-clients grant, and a single-client grant is tied to
-        // that exact client (switching clients re-asks — no widening). Local
-        // providers never register tools, so this only affects cloud sends.
-        const consentScope: ConsentScope = toolActiveMatterId
-          ? { kind: 'matter', matterId: toolActiveMatterId }
-          : { kind: 'allMatters' };
-        const fileToolsEnabled = fileToolsAllowed(getFileAccessConsent(chatId), consentScope);
+        // F2.5 — the per-conversation file-access consent decision was snapshot at
+        // send start (`fileToolsEnabled`, above). It gates BOTH ambient retrieval
+        // and the file-tool registration below, so both agree and neither can be
+        // changed by a mid-stream client switch. `assertFileToolAllowed` is the
+        // executor backstop; the registration site is the primary gate.
         const assertFileToolAllowed = (): void => {
           // Defense-in-depth: ALL file tools (read AND write) are withheld from
           // the registered tool set when consent is off, so the model can't call
@@ -1338,23 +1375,23 @@ export function useChatSending(deps: UseChatSendingDeps) {
           // the concrete cloud classes (Claude/OpenAI/Gemini share the
           // ClaudeStyleTool shape), not on the base Provider interface — hence
           // the narrow cast at this one boundary.
-          if (!isLocalProviderId(chatProvider)) {
-            if (hasWorkspaceForTools && fileToolsEnabled) {
-              // F2.5 — file tools are registered ONLY when this conversation has
-              // consented to file access under the current scope. When consent is
-              // off, NO file tools are registered (read OR write), so the cloud
-              // model literally cannot read/list/search files or use a write tool
-              // as a silent existence oracle. WRITE tools still self-gate per
-              // action (aiWriteApproval) once registered — unchanged.
-              (provider as unknown as {
-                setTools: (tools: typeof FILE_ACCESS_TOOLS, executor: typeof toolExecutor) => void;
-              }).setTools(FILE_ACCESS_TOOLS, toolExecutor);
-              console.log('[AIChat DIAGNOSTIC] File tools registered on', chatProvider, 'provider:', FILE_ACCESS_TOOLS.length, 'tools');
-            } else if (hasWorkspaceForTools) {
-              console.log('[AIChat DIAGNOSTIC] File tools WITHHELD on', chatProvider, '— file access not consented for this conversation/scope');
-            } else {
-              console.warn('[AIChat DIAGNOSTIC] Tools NOT registered on', chatProvider, '— workspace service or rootPath missing');
-            }
+          //
+          // F2.5 — ONE predicate (fileToolsRegistered) decides registration AND
+          // drives the system prompt below (hasWorkspace), so the model is never
+          // told about tools it doesn't have. Tools register only for a CLOUD
+          // provider, with a workspace, once file access is consented for this
+          // scope. When off, NO file tools register (read OR write) — the model
+          // can't read/list/search or use a write tool as a silent existence
+          // oracle. WRITE tools still self-gate per action once registered.
+          if (fileToolsRegisteredForSend) {
+            (provider as unknown as {
+              setTools: (tools: typeof FILE_ACCESS_TOOLS, executor: typeof toolExecutor) => void;
+            }).setTools(FILE_ACCESS_TOOLS, toolExecutor);
+            console.log('[AIChat DIAGNOSTIC] File tools registered on', chatProvider, 'provider:', FILE_ACCESS_TOOLS.length, 'tools');
+          } else if (hasWorkspaceForTools && providerIsCloud) {
+            console.log('[AIChat DIAGNOSTIC] File tools WITHHELD on', chatProvider, '— file access not consented for this conversation/scope');
+          } else if (!hasWorkspaceForTools) {
+            console.warn('[AIChat DIAGNOSTIC] Tools NOT registered on', chatProvider, '— workspace service or rootPath missing');
           }
         }
         effectiveChatModel = provider.getMetadata().model;
@@ -1371,7 +1408,13 @@ export function useChatSending(deps: UseChatSendingDeps) {
           workspaceServiceRef?.current?.getBackend() ?? null,
         );
 
-        const hasWorkspace = hasWorkspaceForTools;
+        // F2.5 — the system prompt's "you have read/write file tools" block MUST
+        // match what was ACTUALLY registered (same predicate). When file access
+        // isn't consented (or the provider is local, or there's no workspace) no
+        // tools register, so the prompt must NOT claim them — otherwise the model
+        // is told to use tools it doesn't have and "refuse"-loops or hallucinates
+        // tool calls as text.
+        const hasWorkspace = fileToolsRegisteredForSend;
 
         // Append any enabled open-file contexts BEFORE the conversation
         // history. This lets the AI treat the files as background material
