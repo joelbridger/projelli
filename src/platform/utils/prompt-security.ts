@@ -41,11 +41,15 @@ export function sanitizeForPrompt(content: string): string {
   // fact/document containing `</memory>` or `</open_files>` would otherwise
   // escape the wrapper). Bracketing a literal occurrence in real content is
   // harmless.
+  // Matches whitespace/attribute variants too (codex-review catch), not just
+  // the exact `<tag>`/`</tag>` form — `<source_note foo="bar">` or
+  // `</source_note >` would otherwise still read as a real delimiter to the
+  // model and let untrusted content escape its envelope.
   const TAG_GROUP =
     'system|instruction|override|ignore|prompt|context|tool|function|' +
     'memory|workspace_context|open_files|incoming_email|retrieved_context|source_note';
-  sanitized = sanitized.replace(new RegExp(`<(${TAG_GROUP})>`, 'gi'), '[$1]');
-  sanitized = sanitized.replace(new RegExp(`</(${TAG_GROUP})>`, 'gi'), '[/$1]');
+  sanitized = sanitized.replace(new RegExp(`<(${TAG_GROUP})(?:\\s[^>]*)?>`, 'gi'), '[$1]');
+  sanitized = sanitized.replace(new RegExp(`</(${TAG_GROUP})\\s*>`, 'gi'), '[/$1]');
 
   // Remove null bytes which could be used to truncate strings
   sanitized = sanitized.replace(/\0/g, '');

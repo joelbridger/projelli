@@ -2,9 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { DraftFollowUpModal } from '@/features/email/DraftFollowUpModal';
 
-const { sendMessage, mailSaveDraft, mailConnectedAccounts, logEmailAuditEntry } = vi.hoisted(() => ({
+const { sendMessage, mailSaveDraft, mailSend, mailConnectedAccounts, logEmailAuditEntry } = vi.hoisted(() => ({
   sendMessage: vi.fn(),
   mailSaveDraft: vi.fn(async () => 'draft-id-1'),
+  mailSend: vi.fn(async () => ''),
   mailConnectedAccounts: vi.fn(async () => [
     { provider: 'm365', account: 'default', label: 'Microsoft 365' },
   ]),
@@ -43,7 +44,7 @@ vi.mock('@/platform/utils/mail-commands', async (importOriginal) => {
       total: 1,
     })),
     mailSaveDraft,
-    mailSend: vi.fn(async () => ''),
+    mailSend,
   };
 });
 
@@ -134,5 +135,30 @@ describe('DraftFollowUpModal — AI proposes, user approves, hostile notes stay 
     );
     await screen.findByTestId('followup-no-accounts');
     expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('records an email.send audit entry when the advisor sends the follow-up directly (codex-review P2)', async () => {
+    render(
+      <DraftFollowUpModal
+        open
+        onOpenChange={() => {}}
+        noteName="Meeting Notes 2026-06-24.docx"
+        noteContent={hostileNote}
+        matterId="matter-1"
+      />,
+    );
+    await waitFor(() =>
+      expect((screen.getByTestId('followup-body') as HTMLTextAreaElement).value).not.toBe(''),
+    );
+    logEmailAuditEntry.mockClear(); // clear the earlier egress-audit call so this only sees the send entry
+    fireEvent.click(screen.getByTestId('followup-send'));
+    await waitFor(() => expect(mailSend).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(logEmailAuditEntry).toHaveBeenCalled());
+    const [entry] = logEmailAuditEntry.mock.calls[0]! as [{
+      action: string;
+      metadata: { scope?: { matterId: string } };
+    }];
+    expect(entry.action).toBe('email.send');
+    expect(entry.metadata.scope).toEqual({ kind: 'matter', matterId: 'matter-1' });
   });
 });

@@ -167,6 +167,25 @@ export function DraftFollowUpModal({
     setError(null);
     void mailSend(account.provider, account.account, toArr, [], [], subject, body, undefined)
       .then(() => {
+        // Codex review catch (P2): a durable record of the outbound send,
+        // mirroring EmailViewer's reply-send audit entry exactly (message
+        // id/subject/body never logged, only counts + provenance) so this
+        // feature's sends show up in the same Activity Log / confidentiality
+        // report as every other outbound email.
+        const sendScope = emailMatterScope(matterId, undefined);
+        logEmailAuditEntry({
+          action: 'email.send',
+          description: `Sent a follow-up email (${String(toArr.length)} recipient(s))`,
+          model: undefined,
+          inputs: {},
+          outputs: { recipientCount: toArr.length },
+          userDecision: 'approved',
+          metadata: {
+            account: account.account,
+            mailProvider: account.provider,
+            ...(sendScope ? { scope: sendScope } : {}),
+          },
+        });
         setStatus('sent');
       })
       .catch((e: unknown) => {
