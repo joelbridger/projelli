@@ -27,7 +27,7 @@ describe('voiceCatalog', () => {
   it('exactly one voice is bundled', () => {
     const bundled = VOICE_CATALOG.filter((v) => v.bundled);
     expect(bundled).toHaveLength(1);
-    expect(bundled[0].id).toBe('en_US-amy-medium');
+    expect(bundled[0]!.id).toBe('en_US-amy-medium');
   });
 
   it('getVoiceById returns correct voice', () => {

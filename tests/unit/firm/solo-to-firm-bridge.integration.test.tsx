@@ -85,7 +85,7 @@ describe('solo-to-firm bridge — end to end', () => {
     fireEvent.click(screen.getByTestId('carry-submit'));
 
     await waitFor(() => expect(carryMattersToFirm).toHaveBeenCalledTimes(1));
-    const selections = carryMattersToFirm.mock.calls[0][0];
+    const selections = carryMattersToFirm.mock.calls[0]![0];
     expect(selections).toContainEqual(expect.objectContaining({ matterId: 'm1', action: 'share' }));
     expect(selections).toContainEqual(expect.objectContaining({ matterId: 'm2', action: 'private' }));
 
