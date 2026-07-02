@@ -32,6 +32,11 @@ import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { reconnect } from '../connection.mjs';
+
+// 'snapshot'/'full' mode used to run with zero progress output — a CI run
+// once sat silent for 42+ minutes with no way to tell whether it was
+// legitimately slow or genuinely stuck. Cheap insurance: log each step.
+const log = (m) => console.log(`[reset] ${m}`);
 import {
   scpTo,
   killApp,
@@ -213,16 +218,20 @@ export async function resetToSeed(page, { mode = 'fast' } = {}) {
     scpTo(localMattersPath, SEED_MATTERS_PATH);
 
     // 2. Kill -> delete index -> restart -> wait for ports
+    log('killing the app, deleting the index, restarting…');
     killApp();
     deleteIndex();
     restartApp();
+    log('waiting for CDP 9223 + Vite 5173…');
     const portsReady = await waitForPorts();
     if (!portsReady) {
+      log('ports never came up after restart');
       return {
         ok: false, mode, removed: [], remaining: 0,
         seeded: { error: 'ports did not come up after restart' },
       };
     }
+    log('ports up — reconnecting + seeding…');
 
     // 3. Reconnect to the freshly started app
     const freshPage = await reconnect();
@@ -245,17 +254,20 @@ export async function resetToSeed(page, { mode = 'fast' } = {}) {
   if (mode === 'snapshot') {
     // 0. Pre-flight the guard while the app is still up: FAIL before we kill
     //    anything if there is no usable golden archive to put back.
+    log('checking a usable golden archive exists…');
     scpSnapshotPs();
     const preStatus = snapshotStatus();
     assertSnapshotRestorable(preStatus); // throws -> caller's runVerb records ok:false
 
     // 1. Kill the app to release the LanceDB / WebView2 file locks.
+    log('killing the app to release file locks…');
     killApp();
 
     // 2. Restore the frozen workspace (extract -> verify -> atomic swap). The
     //    bench-side script re-guards and only swaps after verifying the extract.
     //    Wrap so a thrown re-guard (e.g. a transient SSH miss) becomes a clean
     //    failure return rather than an unhandled throw after the app was killed.
+    log('restoring the golden archive (tar extract + verify + atomic swap)…');
     let restored;
     try {
       restored = restoreSnapshot();
@@ -263,21 +275,26 @@ export async function resetToSeed(page, { mode = 'fast' } = {}) {
       restored = { ok: false, error: String(e.message || e) };
     }
     if (!restored || restored.ok !== true) {
+      log(`restore FAILED: ${(restored && restored.error) || 'unknown'}`);
       return {
         ok: false, mode, restored, removed: [], remaining: 0,
         seeded: { error: `snapshot restore failed: ${(restored && restored.error) || 'unknown'}` },
       };
     }
+    log('restore ok — restarting the app…');
 
     // 3. Restart -> wait for ports -> reconnect to the fresh app.
     restartApp();
+    log('waiting for CDP 9223 + Vite 5173…');
     const portsReady = await waitForPorts();
     if (!portsReady) {
+      log('ports never came up after restart');
       return {
         ok: false, mode, restored, removed: [], remaining: 0,
         seeded: { error: 'ports did not come up after restart' },
       };
     }
+    log('ports up — reconnecting + seeding…');
     const freshPage = await reconnect();
 
     // 4. Seed localStorage (matters/profession/settings) + reload so the freshly
@@ -289,6 +306,7 @@ export async function resetToSeed(page, { mode = 'fast' } = {}) {
     // 5. Verify.
     const seeded = await readSeededState(freshPage);
     const ok = seeded.profession === 'advisor' && seeded.mattersCount === 26;
+    log(`done: ok=${ok} mattersCount=${seeded.mattersCount}`);
     return { ok, mode, restored, removed, remaining, seeded };
   }
 

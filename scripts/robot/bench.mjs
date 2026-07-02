@@ -31,6 +31,15 @@ const SNAPSHOT_PS_LOCAL = path.resolve(
 );
 
 const SSH_OPTS = ['-o', 'ConnectTimeout=10'];
+// ConnectTimeout above only bounds the SSH HANDSHAKE — once connected, a
+// stuck remote command (a locked file the just-killed app hasn't released
+// yet, a wedged PowerShell process) blocks execFileSync FOREVER, since
+// neither ssh nor execFileSync apply any timeout to the remote command's
+// runtime. A CI run silently hung 42+ minutes past its 20-minute
+// waitForPorts ceiling because of exactly this — every sshExec /
+// runSnapshotAction call below now passes an explicit `timeout` so a genuine
+// hang fails loudly within a bounded time instead of running forever.
+const DEFAULT_SSH_TIMEOUT_MS = 60_000;
 
 function isPortOpen(port) {
   return new Promise((resolve) => {
@@ -48,12 +57,12 @@ function isPortOpen(port) {
   });
 }
 
-export function sshExec(psCommand) {
-  return execFileSync('ssh', [...SSH_OPTS, LEGION, psCommand], { encoding: 'utf8' });
+export function sshExec(psCommand, timeoutMs = DEFAULT_SSH_TIMEOUT_MS) {
+  return execFileSync('ssh', [...SSH_OPTS, LEGION, psCommand], { encoding: 'utf8', timeout: timeoutMs });
 }
 
 export function scpTo(localPath, remotePath) {
-  execFileSync('scp', [...SSH_OPTS, localPath, `${LEGION}:${remotePath}`]);
+  execFileSync('scp', [...SSH_OPTS, localPath, `${LEGION}:${remotePath}`], { timeout: DEFAULT_SSH_TIMEOUT_MS });
 }
 
 export async function ensureTunnel(localPort = 9444, benchPort = 9223) {
@@ -226,12 +235,18 @@ export function scpSnapshotPs() {
   scpTo(SNAPSHOT_PS_LOCAL, SNAPSHOT_PS_REMOTE);
 }
 
+// Archive/restore does real file I/O (tar a ~75MB workspace over SSH) — more
+// generous than the general default, but still bounded so a genuinely stuck
+// extraction (e.g. a file handle the just-killed app hasn't released yet)
+// fails loudly instead of hanging the whole reset indefinitely.
+const SNAPSHOT_ACTION_TIMEOUT_MS = 600_000;
+
 /** Run one snapshot.ps1 action over ssh and return the parsed result packet. */
 function runSnapshotAction(action, opts = {}) {
   let raw = '';
   let threw = false;
   try {
-    raw = execFileSync('ssh', [...SSH_OPTS, LEGION, buildSnapshotCmd(action, opts)], { encoding: 'utf8' });
+    raw = execFileSync('ssh', [...SSH_OPTS, LEGION, buildSnapshotCmd(action, opts)], { encoding: 'utf8', timeout: SNAPSHOT_ACTION_TIMEOUT_MS });
   } catch (e) {
     // PowerShell -File exits non-zero on a guarded refusal; still capture stdout.
     threw = true;
