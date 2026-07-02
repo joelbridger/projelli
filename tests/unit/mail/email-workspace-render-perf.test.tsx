@@ -1,0 +1,245 @@
+/**
+ * Perf (P2.2) — EmailWorkspace / MailRow render hygiene measurement.
+ *
+ * Two properties, measured directly (not vibes) — call counts of
+ * `usePrivilegeForSource` (the first hook MailRow calls) as an exact proxy
+ * for "did this specific MailRow instance actually render", since a
+ * `React.Profiler` around the whole tree can't distinguish "1 row
+ * re-rendered" from "20 rows re-rendered" (`onRender` fires once per commit
+ * of the wrapped subtree, not once per component instance inside it):
+ *
+ *  1. Memoization: (a) MailRow in isolation skips re-rendering when given
+ *     an identical-props re-render, and still re-renders on a genuine prop
+ *     change; (b) end-to-end through EmailWorkspace, selecting a SECOND row
+ *     (when `anySelected` is already true, so only that one row's
+ *     `selected` prop actually changes) re-renders only that one row.
+ *  2. Virtualization: with a busy inbox (200 rows, at the documented page
+ *     size), only a small window of rows near the scroll container's
+ *     visible height are ever mounted — not all 200 — while the reported
+ *     "Showing N" count still reflects the true total.
+ *
+ * Reuses the same module mocks as ReimaginedEmailWorkspace.test.tsx so the
+ * EmailWorkspace-level tests exercise the SAME component, not a stub.
+ */
+
+/// <reference types="@testing-library/jest-dom" />
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, act } from '@testing-library/react';
+
+vi.mock('@/platform/utils/mail-commands', () => ({
+  mailListMessages: vi.fn(),
+  mailGetMessage: vi.fn(),
+  mailConnectedAccounts: vi.fn(),
+  mailRetagFolderMatter: vi.fn(),
+  mailRetagMessageMatter: vi.fn(),
+  mailSend: vi.fn(),
+  mailSyncAll: vi.fn().mockResolvedValue(undefined),
+  MAIL_SYNC_EVENT: 'mail-sync-progress',
+  MAIL_INDEX_CHUNK_EVENT: 'mail-index-chunk',
+}));
+
+vi.mock('@/platform/matter/matterStore', () => ({
+  useActiveMatter: vi.fn(),
+  useMatters: vi.fn(),
+  useMatterStore: vi.fn(),
+  getMatters: vi.fn().mockReturnValue([]),
+}));
+
+vi.mock('@/platform/firm/privilegeStore', () => ({
+  usePrivilegeStore: vi.fn(),
+  usePrivilegeForSource: vi.fn(),
+}));
+
+vi.mock('@/platform/rag/MemoryService', () => ({
+  MemoryService: { retrieve: vi.fn() },
+  isMemoryEnabled: vi.fn(),
+}));
+
+vi.mock('@/platform/rag/matterResolver', () => ({
+  buildMailMatterMap: vi.fn().mockReturnValue([]),
+  matterLabel: vi.fn((m: { name: string }) => m.name),
+}));
+
+import {
+  mailListMessages,
+  mailConnectedAccounts,
+} from '@/platform/utils/mail-commands';
+import { useActiveMatter, useMatters } from '@/platform/matter/matterStore';
+import { usePrivilegeStore, usePrivilegeForSource } from '@/platform/firm/privilegeStore';
+import { isMemoryEnabled } from '@/platform/rag/MemoryService';
+import { EmailWorkspace } from '@/features/email/EmailWorkspace';
+import { MailRow } from '@/features/email/MailRow';
+
+const FIXTURE_ACCOUNTS = [{ provider: 'm365', account: 'default', label: 'Work' }];
+
+function makeItems(count: number) {
+  return Array.from({ length: count }, (_, i) => ({
+    id: `msg-${String(i).padStart(4, '0')}`,
+    subject: `Message ${i}`,
+    fromAddr: `sender${i}@example.com`,
+    fromName: `Sender ${i}`,
+    snippet: `This is the body snippet for message ${i}.`,
+    receivedDateTime: '2026-06-10T09:00:00Z',
+    provider: 'm365',
+    account: 'default',
+    folderId: 'inbox',
+    hasAttachments: false,
+  }));
+}
+
+const mockMailListMessages = mailListMessages as ReturnType<typeof vi.fn>;
+const mockMailConnectedAccounts = mailConnectedAccounts as ReturnType<typeof vi.fn>;
+const mockUseActiveMatter = useActiveMatter as ReturnType<typeof vi.fn>;
+const mockUseMatters = useMatters as ReturnType<typeof vi.fn>;
+const mockUsePrivilegeForSource = usePrivilegeForSource as ReturnType<typeof vi.fn>;
+const mockIsMemoryEnabled = isMemoryEnabled as ReturnType<typeof vi.fn>;
+
+function setupMocks(items: ReturnType<typeof makeItems>) {
+  vi.clearAllMocks();
+  mockMailConnectedAccounts.mockResolvedValue(FIXTURE_ACCOUNTS);
+  mockMailListMessages.mockResolvedValue({ items, total: items.length });
+  mockUseActiveMatter.mockReturnValue(null);
+  mockUseMatters.mockReturnValue([]);
+  (usePrivilegeStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue(vi.fn());
+  mockUsePrivilegeForSource.mockReturnValue('none');
+  mockIsMemoryEnabled.mockReturnValue(true);
+}
+
+async function waitForInitialLoad() {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(50);
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(300);
+  });
+}
+
+beforeEach(() => {
+  vi.useFakeTimers();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+describe('Perf (P2.2) — EmailWorkspace / MailRow render hygiene', () => {
+  // Isolated MailRow memoization test. A `React.Profiler` around
+  // EmailWorkspace can't tell "1 row re-rendered" from "20 rows
+  // re-rendered" — `onRender` fires once per COMMIT of the wrapped subtree,
+  // not once per component instance inside it. `usePrivilegeForSource` is
+  // called exactly once per MailRow render (it's the first hook MailRow
+  // calls), so its mock call count IS an exact proxy for "did this specific
+  // MailRow instance actually re-render" — the same technique used by
+  // React.memo's own contract: identical props in, zero extra work out.
+  it('MailRow (memoized) skips re-rendering on an identical-props re-render', () => {
+    const mockUsePrivilegeForSource = usePrivilegeForSource as ReturnType<typeof vi.fn>;
+    mockUsePrivilegeForSource.mockReturnValue('none');
+    const item = makeItems(1)[0]!;
+    const onToggleSelect = vi.fn();
+
+    const { rerender } = render(
+      <MailRow item={item} selected={false} anySelected={false} onToggleSelect={onToggleSelect} />,
+    );
+    expect(mockUsePrivilegeForSource).toHaveBeenCalledTimes(1);
+
+    // Re-render with the SAME prop values (same `item` reference, same
+    // primitives, same `onToggleSelect` reference) — exactly what happens
+    // in EmailWorkspace when a DIFFERENT row's selection changes and this
+    // row's own props are untouched. Memoized MailRow must skip this.
+    rerender(
+      <MailRow item={item} selected={false} anySelected={false} onToggleSelect={onToggleSelect} />,
+    );
+    expect(mockUsePrivilegeForSource).toHaveBeenCalledTimes(1);
+
+    // A genuine prop change (this row gets selected) must still re-render.
+    rerender(
+      <MailRow item={item} selected={true} anySelected={false} onToggleSelect={onToggleSelect} />,
+    );
+    expect(mockUsePrivilegeForSource).toHaveBeenCalledTimes(2);
+  });
+
+  // End-to-end version of the same property, through the real EmailWorkspace
+  // + selection flow: selecting a SECOND row (when `anySelected` is already
+  // true, so only that one row's `selected` prop actually changes) must not
+  // force every OTHER visible row to do render work — verified via the same
+  // usePrivilegeForSource-call-count proxy, counted per row via the id
+  // argument each row passes to it (`mail:<id>`).
+  it('selecting a second row does not re-render every other visible row', async () => {
+    const items = makeItems(20); // below the virtualize threshold — every row is really in the DOM
+    setupMocks(items);
+    const mockUsePrivilegeForSource = usePrivilegeForSource as ReturnType<typeof vi.fn>;
+    mockUsePrivilegeForSource.mockReturnValue('none');
+
+    render(<EmailWorkspace />);
+    await waitForInitialLoad();
+    expect(screen.getAllByTestId('mail-row')).toHaveLength(20);
+
+    // Select row 0 — this flips `anySelected` false -> true for every row,
+    // so a re-render of all rows here is CORRECT, not a bug.
+    act(() => {
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Select Message 0' }));
+    });
+
+    mockUsePrivilegeForSource.mockClear();
+
+    // Select row 1 — `anySelected` is already true; only row 1's own
+    // `selected` prop changes.
+    act(() => {
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Select Message 1' }));
+    });
+
+    const rerenderedRowIds = mockUsePrivilegeForSource.mock.calls.map((call: unknown[]) => call[0]);
+    // eslint-disable-next-line no-console
+    console.log(`[perf/email-render] rows re-rendered after 2nd selection: ${JSON.stringify(rerenderedRowIds)}`);
+    expect(rerenderedRowIds).toEqual(['mail:msg-0001']);
+  });
+
+  it('virtualization: a 200-row inbox only mounts a small window of rows, not all 200', async () => {
+    // @tanstack/react-virtual's initial (synchronous, no ResizeObserver
+    // needed) measurement reads `element.offsetWidth`/`offsetHeight` — jsdom
+    // reports 0 for both on every element by default, which is why an
+    // un-mocked virtualizer renders nothing in tests. Mocking those two is
+    // enough; no ResizeObserver polyfill is needed (jsdom has none, and the
+    // library already no-ops gracefully when it's absent).
+    const heightDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight');
+    const widthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetWidth');
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, get() { return 560; } });
+    Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, get() { return 800; } });
+
+    try {
+      const items = makeItems(200);
+      setupMocks(items);
+
+      render(<EmailWorkspace />);
+      await waitForInitialLoad();
+
+      const rows = screen.getAllByTestId('mail-row');
+      // eslint-disable-next-line no-console
+      console.log(`[perf/email-render] items=200 mountedRows=${rows.length}`);
+
+      // The result-count header is correctness-independent of virtualization
+      // (all 200 items loaded, so it reports "All email loaded" rather than
+      // "Showing N of M" — same as it would with virtualization off)...
+      expect(screen.getByTestId('result-count').textContent).toBe('All email loaded');
+      // ...while the DOM only carries a bounded window of rows, not all 200.
+      expect(rows.length).toBeLessThan(100);
+    } finally {
+      if (heightDescriptor) {
+        Object.defineProperty(HTMLElement.prototype, 'offsetHeight', heightDescriptor);
+      }
+      if (widthDescriptor) {
+        Object.defineProperty(HTMLElement.prototype, 'offsetWidth', widthDescriptor);
+      }
+    }
+  });
+
+  it('a small inbox (below the virtualize threshold) still renders every row directly', async () => {
+    const items = makeItems(10);
+    setupMocks(items);
+
+    render(<EmailWorkspace />);
+    await waitForInitialLoad();
+
+    expect(screen.getAllByTestId('mail-row')).toHaveLength(10);
+  });
+});

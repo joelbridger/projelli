@@ -26,7 +26,8 @@
  * Light theme only. CSS variables + inline styles. No dark mode.
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   Mail,
   Search,
@@ -57,6 +58,26 @@ import { ComposeModal } from './ComposeModal';
 import { BulkActionBar } from './BulkActionBar';
 import { useAccountSync } from './useAccountSync';
 import { EV_OPEN_SETTINGS } from '@/config/identity';
+
+// ── Perf (P2.2) ──────────────────────────────────────────────────────────────
+// The results list only virtualizes past this many rows — below it, the
+// difference is imperceptible and rendering directly keeps behavior/tests
+// (which use small fixture lists) exactly as before. Above it (a busy inbox
+// approaching the 200-row page cap), each MailRow is a fairly heavy DOM
+// subtree (checkbox, badges, hover actions), so an un-virtualized list gets
+// noticeably heavier to paint and scroll.
+const EMAIL_VIRTUALIZE_ROW_THRESHOLD = 40;
+// A reasonable average MailRow height — rows vary (snippet/attachments/badges
+// change height slightly), so this is only the INITIAL estimate; the
+// virtualizer measures each row's real height once rendered and corrects for
+// it, same pattern as SheetGrid.
+const MAIL_ROW_ESTIMATED_HEIGHT_PX = 88;
+// Bounded height for the results box's own internal scroll, independent of
+// the page's scroll — deliberately NOT `flex: 1`/full-viewport: this list
+// sits inside a page that also scrolls (filters, other states, Ask mode),
+// and giving it a fixed max-height means virtualizing it doesn't require
+// restructuring that page-level scroll model or touching Ask mode at all.
+const EMAIL_LIST_MAX_HEIGHT_PX = 560;
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -412,12 +433,40 @@ export function EmailWorkspace({
   // are an override the list path can't surface frontend-only, so this scopes by
   // folder mapping; a fully accurate server-side per-matter list is a backend
   // follow-up. AI search (Ask mode) is already matter-scoped via RetrievalScope.
-  const scopedItems = embedded && activeMatter
-    ? items.filter((m) => resolveMailMatter(getMatters(), m.provider, m.account, m.folderId) === activeMatter.id)
-    : items;
+  //
+  // Perf (P2.2): memoized — unchanged logic/output, just not re-run (and not
+  // re-scanning every item against every matter's folder mappings via
+  // `resolveMailMatter`) on renders where none of `items`/`embedded`/
+  // `activeMatter` actually changed (e.g. hovering a row, opening a row's
+  // popover, toggling the filters panel).
+  const scopedItems = useMemo(
+    () =>
+      embedded && activeMatter
+        ? items.filter((m) => resolveMailMatter(getMatters(), m.provider, m.account, m.folderId) === activeMatter.id)
+        : items,
+    [items, embedded, activeMatter],
+  );
 
   // Fix 7: persist list scroll position per-matter in sessionStorage
   const { scrollContainerRef } = useScrollPersistence(activeMatter);
+
+  // Perf (P2.2) — virtualize the results list past EMAIL_VIRTUALIZE_ROW_THRESHOLD
+  // rows. `mailListScrollRef` is the results box's OWN bounded-height scroll
+  // container (see EMAIL_LIST_MAX_HEIGHT_PX) — deliberately separate from
+  // `scrollContainerRef` (the whole page's scroll, used by every other state:
+  // loading/error/no-results/filters/Ask mode). Keeping virtualization scoped
+  // to its own dedicated, always-present scroll element means it doesn't need
+  // to track the offset of anything above it (filters panel, bulk-action bar)
+  // the way virtualizing a page-level scroll region would.
+  const mailListScrollRef = useRef<HTMLDivElement>(null);
+  const shouldVirtualizeRows = scopedItems.length > EMAIL_VIRTUALIZE_ROW_THRESHOLD;
+  const rowVirtualizer = useVirtualizer({
+    count: scopedItems.length,
+    getScrollElement: () => mailListScrollRef.current,
+    estimateSize: () => MAIL_ROW_ESTIMATED_HEIGHT_PX,
+    overscan: 8,
+    enabled: shouldVirtualizeRows,
+  });
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -886,16 +935,55 @@ export function EmailWorkspace({
                       ? 'All email loaded'
                       : `Showing ${String(items.length)} of ${String(total)}`}
                 </div>
-                {scopedItems.map((item) => (
-                  <MailRow
-                    key={item.id}
-                    item={item}
-                    selected={selectedIds.has(item.id)}
-                    anySelected={selectedIds.size > 0}
-                    onToggleSelect={handleToggleSelect}
-                    onSaveToWorkspace={onSaveToWorkspace}
-                  />
-                ))}
+                <div
+                  ref={mailListScrollRef}
+                  style={{
+                    maxHeight: EMAIL_LIST_MAX_HEIGHT_PX,
+                    overflowY: 'auto',
+                  }}
+                >
+                  {shouldVirtualizeRows ? (
+                    <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
+                      {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                        const item = scopedItems[virtualRow.index];
+                        if (!item) return null;
+                        return (
+                          <div
+                            key={item.id}
+                            data-index={virtualRow.index}
+                            ref={rowVirtualizer.measureElement}
+                            style={{
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              width: '100%',
+                              transform: `translateY(${String(virtualRow.start)}px)`,
+                            }}
+                          >
+                            <MailRow
+                              item={item}
+                              selected={selectedIds.has(item.id)}
+                              anySelected={selectedIds.size > 0}
+                              onToggleSelect={handleToggleSelect}
+                              onSaveToWorkspace={onSaveToWorkspace}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    scopedItems.map((item) => (
+                      <MailRow
+                        key={item.id}
+                        item={item}
+                        selected={selectedIds.has(item.id)}
+                        anySelected={selectedIds.size > 0}
+                        onToggleSelect={handleToggleSelect}
+                        onSaveToWorkspace={onSaveToWorkspace}
+                      />
+                    ))
+                  )}
+                </div>
 
                 {/* Load more */}
                 {items.length < total && (
