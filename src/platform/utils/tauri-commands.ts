@@ -570,6 +570,28 @@ export async function ragVerifyCitation(
   });
 }
 
+/** P2.1 (Finding 2) — one citation to verify in a batch call. */
+export interface CitationToVerify {
+  id: string;
+  claimedMatterId: string;
+  quotedText: string;
+}
+
+/** P2.1 (Finding 2) — verify MANY citations in ONE backend call. Replaces the
+ *  per-citation `ragVerifyCitation` loop (which re-opened the LanceDB table and
+ *  ran a point lookup per citation — an N+1). The backend opens the table once
+ *  and reads every cited chunk in one `id IN (...)` query. Verdicts come back in
+ *  the SAME ORDER as `citations`, one per input. */
+export async function ragVerifyCitationsBatch(
+  citations: CitationToVerify[],
+): Promise<CitationVerdict[]> {
+  if (!isTauri()) {
+    throw new Error('RAG is only available in the desktop app.');
+  }
+  if (citations.length === 0) return [];
+  return invoke<CitationVerdict[]>('rag_verify_citations_batch', { citations });
+}
+
 /** Tauri event for the one-time embedding-model download. Mirrors
  *  MODEL_EVENT in src-tauri/src/commands/rag/model_download.rs. */
 export const MODEL_DOWNLOAD_EVENT = 'model-download-progress';

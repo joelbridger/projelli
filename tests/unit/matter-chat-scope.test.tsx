@@ -32,11 +32,11 @@ vi.mock('@/platform/rag/MemoryService', async (orig) => {
   };
 });
 
-// verifyCitations (in workspaceCommand) calls ragVerifyCitation — mock the
-// underlying Tauri wrapper so we control the verdict.
+// verifyCitations (in workspaceCommand) calls ragVerifyCitationsBatch (P2.1) —
+// mock the batch wrapper; it returns one verdict per input citation, in order.
 vi.mock('@/platform/utils/tauri-commands', async (orig) => {
   const real = await orig<typeof import('@/platform/utils/tauri-commands')>();
-  return { ...real, ragVerifyCitation: mocks.verifyCitation };
+  return { ...real, ragVerifyCitationsBatch: mocks.verifyCitation };
 });
 
 vi.mock('@/platform/providers/ClaudeProvider', () => ({
@@ -130,7 +130,9 @@ describe('WS-B/C scoped cited retrieval in chat', () => {
       cost: 0.0001,
       model: 'stub',
     });
-    mocks.verifyCitation.mockResolvedValue({ verdict: 'verified' });
+    mocks.verifyCitation.mockImplementation((cites?: { id: string }[]) =>
+      Promise.resolve((cites ?? []).map(() => ({ verdict: 'verified' as const }))),
+    );
   });
 
   afterEach(() => {
@@ -230,7 +232,9 @@ describe('WS-B/C scoped cited retrieval in chat', () => {
       },
     ]);
     // verification fails — the model misquoted / fabricated.
-    mocks.verifyCitation.mockResolvedValue({ verdict: 'textMismatch' });
+    mocks.verifyCitation.mockImplementation((cites?: { id: string }[]) =>
+      Promise.resolve((cites ?? []).map(() => ({ verdict: 'textMismatch' as const }))),
+    );
 
     render(<AIChatViewer chatData={chat} apiKeys={apiKey} />);
     act(() => fireEvent.click(screen.getByTestId('ask-workspace-toggle')));
@@ -263,7 +267,9 @@ describe('WS-B/C scoped cited retrieval in chat', () => {
         sourceId: '/ws/Acme/pricing.md',
       },
     ]);
-    mocks.verifyCitation.mockResolvedValue({ verdict: 'verified' });
+    mocks.verifyCitation.mockImplementation((cites?: { id: string }[]) =>
+      Promise.resolve((cites ?? []).map(() => ({ verdict: 'verified' as const }))),
+    );
     const onOpen = vi.fn();
 
     render(

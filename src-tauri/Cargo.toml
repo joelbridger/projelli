@@ -129,6 +129,9 @@ async-trait = "0.1"
 flate2 = "1"
 tar = "0.4"
 hex = "0.4"
+# P2.1 (Finding 5): bounded LRU for the query-embedding cache. 0.12.x is already
+# resolved transitively (via lancedb), so declaring it direct adds no new crate.
+lru = "0.12"
 # Mail import (M365 Phase 1) — SQLite metadata store tracking imported message ids,
 # on-disk paths, and per-folder delta-sync cursors. `bundled` compiles SQLite
 # from source so there is no runtime dependency on a system libsqlite3.
