@@ -100,7 +100,6 @@ describe('Perf (P1.2) fix — auto-scroll follows a streaming answer', () => {
           const chunk = `w${i} `;
           content += chunk;
           opts.onChunk(chunk);
-          // eslint-disable-next-line no-await-in-loop
           await new Promise((resolve) => setTimeout(resolve, CHUNK_DELAY_MS));
         }
         return {

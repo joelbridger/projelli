@@ -111,7 +111,6 @@ describe('Perf (P1.2) — token-stream buffering', () => {
           const chunk = `t${i} `;
           content += chunk;
           opts.onChunk(chunk);
-          // eslint-disable-next-line no-await-in-loop
           await new Promise((resolve) => setTimeout(resolve, CHUNK_DELAY_MS));
         }
         return {
@@ -148,13 +147,6 @@ describe('Perf (P1.2) — token-stream buffering', () => {
 
     await waitFor(() => expect(mocks.sendMessageStreaming).toHaveBeenCalledTimes(1), { timeout: 10_000 });
     await waitFor(
-      () => expect(screen.getByTestId('ai-chat-viewer')).not.toHaveAttribute('data-loading', 'true'),
-      { timeout: 10_000 },
-    ).catch(() => {
-      // No such attribute exists — fall back to waiting on the loading
-      // indicator disappearing, which is the real "turn is over" signal.
-    });
-    await waitFor(
       () => expect(screen.queryByTestId('chat-loading-indicator')).toBeNull(),
       { timeout: 10_000 },
     );
@@ -165,7 +157,6 @@ describe('Perf (P1.2) — token-stream buffering', () => {
     const finalText = `t${CHUNK_COUNT - 1} `;
     expect(screen.getByTestId('chat-messages').textContent).toContain(finalText.trim());
 
-    // eslint-disable-next-line no-console
     console.log(
       `[perf/stream-buffering] chunks=${CHUNK_COUNT} storeBroadcasts=${storeBroadcasts} viewerCommits=${commitCount}`,
     );
