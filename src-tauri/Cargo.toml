@@ -55,6 +55,8 @@ zeroize = "1"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+# Wave 1 calendar connector — TZID/DST-correct ICS + Graph timezone-name expansion.
+chrono-tz = "0.10"
 log = "0.4"
 tauri = { version = "2.9.5", features = ["devtools"] }
 tauri-plugin-log = "2"
