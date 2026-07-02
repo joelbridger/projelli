@@ -32,7 +32,6 @@ const E2E_BASE_URL = process.env['E2E_BASE_URL'] ?? 'http://localhost:5173';
 // graveyard. Adding a spec here REQUIRES adding a row there in the same change; by
 // its date a spec must be fixed (and removed here), deleted, or re-dated with a reason.
 const CI_QUARANTINE = [
-  '**/web-demo.spec.ts',
   '**/app-layout.spec.ts',
   '**/v1.5-integration-flows.spec.ts',
   '**/templates-marketplace.spec.ts',
