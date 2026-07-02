@@ -259,10 +259,13 @@ async function exposeMarketplaceTestKit(page: Page) {
   await page.evaluate(async () => {
     // Vite serves source modules over HTTP; we can use Vite's module graph
     // to fetch the marketplace barrel in dev. The dev URL pattern matches
-    // the Vite default for src/ modules.
-    const m = (await import(
-      /* @vite-ignore */ '/src/features/workflows/marketplace/svc/index.ts'
-    )) as {
+    // the Vite default for src/ modules. The specifier is built as a
+    // non-literal string (rather than inlined) so tsc treats this as an
+    // opaque dynamic import instead of trying to resolve it as a module on
+    // disk — this path only ever resolves at runtime, via the browser's
+    // Vite dev-server module graph.
+    const marketplaceBarrelPath = '/src/features/workflows/marketplace/svc/index.ts';
+    const m = (await import(/* @vite-ignore */ marketplaceBarrelPath)) as {
       MarketplaceService: new (opts: {
         repoUrl: string;
         catalogPath: string;

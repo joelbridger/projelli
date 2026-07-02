@@ -14,6 +14,6 @@ describe('includePdfsInWorkspaceIndex default (BUG-015 follow-up)', () => {
   });
 
   it('getSchemaDefaults() reflects the ON default', () => {
-    expect(getSchemaDefaults().includePdfsInWorkspaceIndex).toBe(true);
+    expect(getSchemaDefaults()['includePdfsInWorkspaceIndex']).toBe(true);
   });
 });

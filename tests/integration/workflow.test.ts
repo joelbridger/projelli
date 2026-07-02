@@ -179,7 +179,8 @@ describe('Workflow Integration Tests', () => {
         id: 'bug-080-one-step',
         name: 'BUG-080 One Step',
         description: 'Small audit regression template',
-        category: 'Legal',
+        version: '1.0.0',
+        category: 'legal' as const,
         icon: 'FileText',
         estimatedTime: '1 min',
         steps: [
@@ -193,6 +194,8 @@ describe('Workflow Integration Tests', () => {
             },
           },
         ],
+        requiredInputs: [],
+        outputs: [],
       };
 
       const engine = new WorkflowEngine(
@@ -245,7 +248,8 @@ describe('Workflow Integration Tests', () => {
         id: 'bug-094-one-step',
         name: 'BUG-094 One Step',
         description: 'Small audit model regression template',
-        category: 'Legal',
+        version: '1.0.0',
+        category: 'legal' as const,
         icon: 'FileText',
         estimatedTime: '1 min',
         steps: [
@@ -259,6 +263,8 @@ describe('Workflow Integration Tests', () => {
             },
           },
         ],
+        requiredInputs: [],
+        outputs: [],
       };
 
       const engine = new WorkflowEngine(
@@ -501,7 +507,7 @@ describe('Custom Workflow Templates', () => {
       name: 'Minimal Test',
       description: 'A minimal workflow for testing',
       version: '1.0.0',
-      category: 'test',
+      category: 'custom' as const,
       steps: [
         {
           id: 'interview',
@@ -513,7 +519,7 @@ describe('Custom Workflow Templates', () => {
               {
                 id: 'name',
                 question: 'What is the name?',
-                type: 'text',
+                type: 'text' as const,
                 required: true,
               },
             ],

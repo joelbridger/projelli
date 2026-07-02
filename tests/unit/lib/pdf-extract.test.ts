@@ -53,7 +53,9 @@ describe('extractPdfText - simple PDF', () => {
   it('pages[0] contains extracted text', async () => {
     const result = await extractPdfText(b64ToBytes(SIMPLE_PDF_B64));
     // The simple PDF contains text starting with "Hello world"
-    expect(result.pages[0].toLowerCase()).toContain('hello world');
+    const [firstPage] = result.pages;
+    expect(firstPage).toBeDefined();
+    expect(firstPage!.toLowerCase()).toContain('hello world');
   });
 
   it('encrypted flag is false for plain PDF', async () => {

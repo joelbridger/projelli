@@ -107,7 +107,7 @@ describe('useDesignPartnerConsent', () => {
 // ---------------------------------------------------------------------------
 
 describe('sendDiagnosticEvent', () => {
-  let fetchCalls: RequestInfo[] = [];
+  let fetchCalls: Array<RequestInfo | URL> = [];
   let fetchBodies: Record<string, unknown>[] = [];
   let store: Record<string, string>;
 

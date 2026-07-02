@@ -19,6 +19,8 @@ vi.mock('@anthropic-ai/sdk', () => {
   };
 });
 
+// Typed via the sibling scripts/translate-i18n.d.ts (the script itself is
+// plain JS with no inline types).
 import {
   flatten,
   unflatten,
@@ -142,7 +144,7 @@ describe('pickMissing — incremental hash logic', () => {
     };
     const { missing, carryOver } = pickMissing(en, existing);
     expect(missing).toEqual([]);
-    expect(carryOver.a).toBe('uno (manual fix)');
+    expect(carryOver['a']).toBe('uno (manual fix)');
     expect(carryOver['a__locked']).toBe(true);
   });
 });
@@ -220,7 +222,7 @@ describe('translateLocale — end-to-end with mocked SDK', () => {
     const result = await translateLocale(client, 'es', en, existing, flags, costTracker);
 
     expect(mockCreate).toHaveBeenCalledTimes(1);
-    const userMsg = mockCreate.mock.calls[0][0].messages[0].content as string;
+    const userMsg = mockCreate.mock.calls[0]![0].messages[0].content as string;
     expect(userMsg).toContain('settings.save');
     expect(userMsg).not.toContain('"settings.title"');
     expect(result.settings.save).toBe('Guardar (nuevo)');
