@@ -13,6 +13,10 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 import type { ChatMessage } from '@/platform/types/ai';
+import {
+  UNASKED_CONSENT,
+  type FileAccessConsent,
+} from '@/platform/ai/fileAccessConsent';
 
 export interface ChatCostEntry {
   cost: number;
@@ -72,6 +76,14 @@ interface AIChatStore {
    * Off by default; the user enables it per chat via the header toggle.
    */
   askWorkspaceMode: Record<string, boolean>;
+  /**
+   * F2.5 — per-conversation consent for the AI's READ-class file tools with
+   * CLOUD providers ("reading is sending"). Absent → treated as `unasked`
+   * (default OFF). Keyed by chatId so a new conversation re-asks; a grant is
+   * remembered for the life of the conversation (not a nag). See
+   * [[fileAccessConsent]] for the decision logic the send path applies.
+   */
+  fileAccessConsent: Record<string, FileAccessConsent>;
 
   // Actions
   initSession: (chatId: string, initialMessages: ChatMessage[]) => void;
@@ -87,6 +99,13 @@ interface AIChatStore {
   clearDraftInput: (chatId: string) => void;
   /** M2 — set the Ask-my-workspace mode for a given chat. */
   setAskWorkspaceMode: (chatId: string, enabled: boolean) => void;
+  /**
+   * F2.5 — set (or clear) the file-access consent for a conversation. Pass
+   * `null` to reset to `unasked` (shrinks the map). The scope a grant was made
+   * under is carried on the consent object so an all-clients turn can require a
+   * fresh confirm.
+   */
+  setFileAccessConsent: (chatId: string, consent: FileAccessConsent | null) => void;
   /**
    * D1 — set the folder scope for a given chat. Pass `null` to clear the
    * scope (revert to "all open files"). The value is the top-level folder
@@ -143,6 +162,7 @@ export const useAIChatStore = create<AIChatStore>()(
       sessions: {},
       dailyCosts: {},
       askWorkspaceMode: {},
+      fileAccessConsent: {},
 
       initSession: (chatId, initialMessages) => {
         set((state) => {
@@ -283,7 +303,7 @@ export const useAIChatStore = create<AIChatStore>()(
       },
 
       clearAllSessions: () => {
-        set({ sessions: {}, dailyCosts: {}, askWorkspaceMode: {} });
+        set({ sessions: {}, dailyCosts: {}, askWorkspaceMode: {}, fileAccessConsent: {} });
       },
 
       setAskWorkspaceMode: (chatId, enabled) => {
@@ -297,6 +317,23 @@ export const useAIChatStore = create<AIChatStore>()(
             askWorkspaceMode: {
               ...state.askWorkspaceMode,
               [chatId]: true,
+            },
+          };
+        });
+      },
+
+      setFileAccessConsent: (chatId, consent) => {
+        set((state) => {
+          if (consent === null || consent.state === 'unasked') {
+            // Reset to default — shrink the map rather than store an
+            // 'unasked' sentinel (absent === unasked at read time).
+            const { [chatId]: _removed, ...rest } = state.fileAccessConsent;
+            return { fileAccessConsent: rest };
+          }
+          return {
+            fileAccessConsent: {
+              ...state.fileAccessConsent,
+              [chatId]: consent,
             },
           };
         });
@@ -466,7 +503,7 @@ export const useAIChatStore = create<AIChatStore>()(
     }),
     {
       name: 'ai-chat-storage', // localStorage key
-      version: 5, // Bumped for D1 scopedFolder per-session field
+      version: 6, // Bumped for F2.5 fileAccessConsent map
       migrate: (persisted: unknown, version: number) => {
         // Older versions lack `dailyCosts`; add an empty map so the
         // store shape stays consistent. We don't retroactively compute
@@ -492,6 +529,19 @@ export const useAIChatStore = create<AIChatStore>()(
         }
         // v4 -> v5: scopedFolder added to ChatSession — existing sessions simply
         // won't have the field, which is fine (absent = no scope, same as null).
+        // v5 -> v6: fileAccessConsent map added. Absent → every existing
+        // conversation starts `unasked` (default OFF), which is the safe
+        // fail-closed default — an old chat must re-confirm file access.
+        if (version < 6) {
+          const next = (persisted ?? {}) as Partial<AIChatStore>;
+          return {
+            ...next,
+            sessions: next.sessions ?? {},
+            dailyCosts: next.dailyCosts ?? {},
+            askWorkspaceMode: next.askWorkspaceMode ?? {},
+            fileAccessConsent: {},
+          };
+        }
         return persisted as AIChatStore;
       },
     }
@@ -653,6 +703,28 @@ export function useLast7DaysCost(now?: Date): PeriodCostSummary {
  */
 export function useAskWorkspaceMode(chatId: string): boolean {
   return useAIChatStore((s) => Boolean(s.askWorkspaceMode[chatId]));
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// F2.5 — file-access consent selector
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * F2.5 — Subscribe to a conversation's file-access consent. Returns the
+ * shared `UNASKED_CONSENT` default when the chat has never answered the prompt
+ * (absent === unasked), so the composer shows the affordance by default.
+ */
+export function useFileAccessConsent(chatId: string): FileAccessConsent {
+  return useAIChatStore((s) => s.fileAccessConsent[chatId] ?? UNASKED_CONSENT);
+}
+
+/**
+ * F2.5 — Non-reactive read of a conversation's file-access consent, for the
+ * send path (which snapshots scope + consent at send time rather than
+ * subscribing). Mirrors `getDraftInput`.
+ */
+export function getFileAccessConsent(chatId: string): FileAccessConsent {
+  return useAIChatStore.getState().fileAccessConsent[chatId] ?? UNASKED_CONSENT;
 }
 
 // ─────────────────────────────────────────────────────────────────────

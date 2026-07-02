@@ -369,6 +369,14 @@ export type AuditEvent =
         dataLeaves: boolean;
         /** The active matter scope at send time (for per-matter report assembly). */
         scope?: AuditScope;
+        /**
+         * F2.5 — whether the AI's READ-class file tools (read/list/search) were
+         * enabled for this send. `true` only when the advisor granted file
+         * access for the conversation under a scope covering this turn. Keeps the
+         * trust surface honest: the Data Map can show which sends could pull more
+         * files. (Cloud sends only; local sends never register tools.)
+         */
+        fileToolsEnabled?: boolean;
       };
     };
 

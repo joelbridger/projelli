@@ -44,9 +44,15 @@ import { matterLabel } from '@/platform/rag/matterResolver';
 import {
   pathInActiveMatter as pathInActiveMatterGuard,
   assertInActiveMatter as assertInActiveMatterGuard,
+  assertDirInActiveMatter as assertDirInActiveMatterGuard,
   assertNotOpenWithUnsavedEdits,
   assertNoOpenDescendant,
 } from './fileAccessGuards';
+import {
+  fileToolsAllowed,
+  type ConsentScope,
+} from '@/platform/ai/fileAccessConsent';
+import { getFileAccessConsent } from '@/platform/state/aiChatStore';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { isBinaryFile } from '@/platform/utils/file-utils';
 import { moveToTrash } from '@/platform/history/trashFile';
@@ -767,6 +773,10 @@ export function useChatSending(deps: UseChatSendingDeps) {
               destination: egress.destination,
               dataLeaves: egress.dataLeaves,
               scope: auditScope,
+              // F2.5 — record whether READ-class file tools were enabled for this
+              // send, so the trust surface (Data Map / audit) is honest about
+              // which sends could pull more files.
+              fileToolsEnabled,
             },
           }));
         };
@@ -796,6 +806,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
               dataLeaves: egress.dataLeaves,
               scope: auditScope,
               status: 'cancelled',
+              fileToolsEnabled, // F2.5
             },
           });
         };
@@ -873,6 +884,41 @@ export function useChatSending(deps: UseChatSendingDeps) {
         const assertInActiveMatter = (absPath: string, relativePath: string): void => {
           assertInActiveMatterGuard(absPath, relativePath, { toolActiveMatterId, toolMatters, activeMatterName });
         };
+        // F2.5 — list_files fail-closed pre-check (ancestor-aware): rejects '..'
+        // and cross-matter dirs BEFORE the FS is touched, while still allowing
+        // navigation down through ancestors of the matter's folders.
+        const assertDirInActiveMatter = (absDir: string, relativePath: string): void => {
+          assertDirInActiveMatterGuard(
+            absDir,
+            relativePath,
+            { toolActiveMatterId, toolMatters, activeMatterName },
+            activeMatterFolders,
+          );
+        };
+
+        // F2.5 — per-conversation consent for the AI's file tools ("reading is
+        // sending" with a cloud provider). Snapshot the scope + consent at send
+        // start (same freeze point as retrieval/tool scope) so a mid-stream
+        // client switch can't retroactively change what was allowed. Default
+        // OFF. A grant is bound to the scope it was made under: an all-clients
+        // turn needs an all-clients grant, and a single-client grant is tied to
+        // that exact client (switching clients re-asks — no widening). Local
+        // providers never register tools, so this only affects cloud sends.
+        const consentScope: ConsentScope = toolActiveMatterId
+          ? { kind: 'matter', matterId: toolActiveMatterId }
+          : { kind: 'allMatters' };
+        const fileToolsEnabled = fileToolsAllowed(getFileAccessConsent(chatId), consentScope);
+        const assertFileToolAllowed = (): void => {
+          // Defense-in-depth: ALL file tools (read AND write) are withheld from
+          // the registered tool set when consent is off, so the model can't call
+          // them at all. This guard fails closed even if a provider hallucinates
+          // a call or a future change re-registers a tool without re-checking.
+          if (!fileToolsEnabled) {
+            throw new Error(
+              'File access is off for this conversation. Ask the user to allow AI file access (the "Allow file access" control above the message box) before reading, listing, searching, or changing files.',
+            );
+          }
+        };
 
         // BUG-060: per-action approval. Before the AI overwrites/deletes/moves
         // (or, in "always" mode, before any change), pause and show the user a
@@ -942,6 +988,12 @@ export function useChatSending(deps: UseChatSendingDeps) {
           if (!workspaceServiceRef?.current || !rootPath) {
             throw new Error('Workspace not initialized');
           }
+          // F2.5 — fail closed for EVERY file tool if this conversation hasn't
+          // consented to file access under the current scope. Defense-in-depth:
+          // when consent is off the tools aren't registered on the provider at
+          // all, so the model can't reach here; this backstops a hallucinated
+          // call or any future registration change.
+          assertFileToolAllowed();
 
           switch (toolName) {
             case 'read_file': {
@@ -976,6 +1028,11 @@ export function useChatSending(deps: UseChatSendingDeps) {
               const relativePath = (params['path'] as string) || '.';
               const dirPath = relativePath === '.' || relativePath === '' ? rootPath : `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
               if (!dirPath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
+              // F2.5 eval fix — fail closed on '..' / cross-matter BEFORE the FS
+              // is touched (the startsWith check above can't catch '..'; the old
+              // code only post-filtered results AFTER listing). Ancestor dirs are
+              // still allowed so the model can navigate down.
+              assertDirInActiveMatter(dirPath, relativePath);
               try {
                 const entries = await workspaceServiceRef.current.list(dirPath);
                 // Codex review #5: a directory entry is visible if it is INSIDE
@@ -1282,11 +1339,19 @@ export function useChatSending(deps: UseChatSendingDeps) {
           // ClaudeStyleTool shape), not on the base Provider interface — hence
           // the narrow cast at this one boundary.
           if (!isLocalProviderId(chatProvider)) {
-            if (hasWorkspaceForTools) {
+            if (hasWorkspaceForTools && fileToolsEnabled) {
+              // F2.5 — file tools are registered ONLY when this conversation has
+              // consented to file access under the current scope. When consent is
+              // off, NO file tools are registered (read OR write), so the cloud
+              // model literally cannot read/list/search files or use a write tool
+              // as a silent existence oracle. WRITE tools still self-gate per
+              // action (aiWriteApproval) once registered — unchanged.
               (provider as unknown as {
                 setTools: (tools: typeof FILE_ACCESS_TOOLS, executor: typeof toolExecutor) => void;
               }).setTools(FILE_ACCESS_TOOLS, toolExecutor);
-              console.log('[AIChat DIAGNOSTIC] Tools registered on', chatProvider, 'provider:', FILE_ACCESS_TOOLS.length, 'tools');
+              console.log('[AIChat DIAGNOSTIC] File tools registered on', chatProvider, 'provider:', FILE_ACCESS_TOOLS.length, 'tools');
+            } else if (hasWorkspaceForTools) {
+              console.log('[AIChat DIAGNOSTIC] File tools WITHHELD on', chatProvider, '— file access not consented for this conversation/scope');
             } else {
               console.warn('[AIChat DIAGNOSTIC] Tools NOT registered on', chatProvider, '— workspace service or rootPath missing');
             }
