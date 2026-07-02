@@ -31,7 +31,16 @@ export function useTabOpening({
     (url: string, title?: string) => {
       // Generate a unique path for the browser tab
       const tabPath = `__browser__${Date.now()}`;
-      const tabName = title || new URL(url).hostname;
+      // Callers are expected to pass an already-validated absolute URL (see
+      // useAppCommands.ts's "Open Browser Tab" command), but hostname
+      // extraction stays defensive so a malformed url never throws here.
+      const tabName = title || (() => {
+        try {
+          return new URL(url).hostname;
+        } catch {
+          return url;
+        }
+      })();
 
       openTab(tabPath, tabName, '', 'browser', { url });
     },
@@ -54,7 +63,7 @@ export function useTabOpening({
     }
     const tabPath = `__ai_assistant__${Date.now()}`;
     openTab(tabPath, 'AI Assistant', '', 'ai-assistant');
-  }, [openTab]);
+  }, [openTab, setDocumentsView, setSidebarActiveTab]);
 
   // WS-B/C — open the read-only email viewer when an email citation is clicked
   // in chat. AIChatViewer dispatches `lantern:open-email` for `mail:<id>`
@@ -79,7 +88,7 @@ export function useTabOpening({
         setSidebarActiveTab('files');
         openTab(id, label, content, type, meta);
       },
-      [openTab],
+      [openTab, setDocumentsView, setSidebarActiveTab],
     ),
   );
 
