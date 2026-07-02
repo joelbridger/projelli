@@ -31,17 +31,11 @@ const E2E_BASE_URL = process.env['E2E_BASE_URL'] ?? 'http://localhost:5173';
 // docs/quality/e2e-flaky-quarantine.md — a quarantine with no deadline rots into a
 // graveyard. Adding a spec here REQUIRES adding a row there in the same change; by
 // its date a spec must be fixed (and removed here), deleted, or re-dated with a reason.
-const CI_QUARANTINE = [
-  // Added 2026-07-01 (F1.3): confirmed failing on a REAL GitHub Actions CI run
-  // (post-sharding — sharding fixed the documented tail-timeout mechanism but
-  // did NOT fix these; see docs/quality/e2e-flaky-quarantine.md for the
-  // per-file evidence, which is a mix of stale test expectations from product
-  // changes since these specs were written and genuine CI-runner timing
-  // sensitivity on heavier specs — not diagnosed further within F1.3's CI-lane
-  // scope). Each needs individual root-causing as a follow-up.
-  '**/v1.5-canvas-stress.spec.ts',
-  '**/v1.5-memory-stress.spec.ts',
-];
+// Empty as of F3.7 (2026-07-02): the F1.3 quarantine list (25 whole-file
+// entries) was fully burned down. See docs/quality/e2e-flaky-quarantine.md
+// for the fix history. Add new entries here ONLY with a same-change row in
+// that file (owner + fix-or-delete-by date).
+const CI_QUARANTINE: string[] = [];
 
 export default defineConfig({
   testDir: './tests/e2e',
