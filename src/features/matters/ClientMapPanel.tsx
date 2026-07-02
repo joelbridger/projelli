@@ -16,6 +16,7 @@ import { Plus, Sparkles, Trash2 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { Button, Chip, Eyebrow, CountBadge } from '@/ui/kp';
 import { CORE_SECTION_ORDER, CORE_SECTION_TITLE } from '@/platform/clientMap/types';
+import { sourceChipLabel } from '@/platform/clientMap/meetingNoteSources';
 import type {
   ClientMap,
   ClientMapItem,
@@ -248,7 +249,7 @@ function SourceChip({
   source: SourceRef;
   onOpenSource: (r: SourceRef) => void;
 }) {
-  const label = `${source.kind === 'email' ? 'email' : 'source'}${source.locator != null ? ` ${source.locator}` : ''}`;
+  const label = sourceChipLabel(source);
   return (
     <Chip
       data-testid="clientmap-source-link"
