@@ -40,14 +40,14 @@ const byteStore: Map<string, number[]> = new Map();
 // Track all invoke calls for assertion.
 const invokeMock = vi.fn(async (command: string, args: Record<string, unknown>) => {
   if (command === 'vault_write_file') {
-    const relPath = args.relPath as string;
-    const bytes = args.bytes as Uint8Array;
+    const relPath = args['relPath'] as string;
+    const bytes = args['bytes'] as Uint8Array;
     // Store as number[] (mirrors Tauri IPC deserialization on read path).
     byteStore.set(relPath, Array.from(bytes));
     return undefined;
   }
   if (command === 'vault_read_file') {
-    const relPath = args.relPath as string;
+    const relPath = args['relPath'] as string;
     const stored = byteStore.get(relPath);
     if (stored === undefined) {
       throw new Error(`vault_read_file: no bytes stored for ${relPath}`);
@@ -193,7 +193,7 @@ describe('VaultFSBackend — text round-trip', () => {
 
     const writeCall = invokeMock.mock.calls.find((c) => c[0] === 'vault_write_file');
     expect(writeCall).toBeDefined();
-    const bytes = writeCall![1].bytes as Uint8Array;
+    const bytes = writeCall![1]['bytes'] as Uint8Array;
     // In jsdom/vitest the Uint8Array may come from a different realm, so we
     // check via constructor name rather than instanceof.
     expect(bytes.constructor.name).toBe('Uint8Array');
@@ -246,7 +246,7 @@ describe('VaultFSBackend — binary round-trip', () => {
 
     const writeCall = invokeMock.mock.calls.find((c) => c[0] === 'vault_write_file');
     expect(writeCall).toBeDefined();
-    const bytes = writeCall![1].bytes as Uint8Array;
+    const bytes = writeCall![1]['bytes'] as Uint8Array;
     expect(bytes.constructor.name).toBe('Uint8Array');
     expect(Array.from(bytes)).toEqual([0xDE, 0xAD, 0xBE, 0xEF]);
   });
@@ -373,7 +373,7 @@ describe('VaultFSBackend — IPC bytes serialization', () => {
 
     // Verify sent bytes are correct UTF-8.
     const writeCall = invokeMock.mock.calls.find((c) => c[0] === 'vault_write_file');
-    const sentBytes = writeCall![1].bytes as Uint8Array;
+    const sentBytes = writeCall![1]['bytes'] as Uint8Array;
     expect(sentBytes.constructor.name).toBe('Uint8Array');
     expect(new TextDecoder().decode(sentBytes)).toBe(original);
 

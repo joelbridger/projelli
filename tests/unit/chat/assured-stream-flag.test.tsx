@@ -94,14 +94,13 @@ async function send(chat: AIChatFile, options: {
   workspace?: React.MutableRefObject<WorkspaceService | null>;
   rootPath?: string;
 } = {}) {
-  render(
-    <AIChatViewer
-      chatData={chat}
-      apiKeys={apiKeys}
-      workspaceServiceRef={options.workspace}
-      rootPath={options.rootPath}
-    />,
-  );
+  const props: React.ComponentProps<typeof AIChatViewer> = {
+    chatData: chat,
+    apiKeys,
+    ...(options.workspace !== undefined ? { workspaceServiceRef: options.workspace } : {}),
+    ...(options.rootPath !== undefined ? { rootPath: options.rootPath } : {}),
+  };
+  render(<AIChatViewer {...props} />);
   act(() => fireEvent.change(screen.getByTestId('chat-input'), { target: { value: 'Summarize this.' } }));
   act(() => fireEvent.click(screen.getByTestId('chat-send-button')));
 }

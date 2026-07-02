@@ -88,7 +88,8 @@ vi.mock('@/features/ask/ChatCostChip', () => ({ ChatCostChip: () => null }));
 
 import { AIChatViewer } from '@/features/ask/AIChatViewer';
 import type { AIChatFile } from '@/platform/types/ai';
-import type { FSBackend } from '@/platform/fs/types';
+import type { FSBackend, FileStat } from '@/platform/fs/types';
+import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { AuditEntry } from '@/platform/types/audit';
 import { useAIChatStore } from '@/platform/state/aiChatStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
@@ -131,7 +132,7 @@ function makeWorkspaceRef() {
     rename: vi.fn(async () => undefined),
     mkdir: vi.fn(async () => undefined),
     list: vi.fn(async () => []),
-    stat: vi.fn(async (path: string) => ({
+    stat: vi.fn(async (path: string): Promise<FileStat> => ({
       path,
       name: path.split('/').pop() ?? path,
       type: 'file',
@@ -142,12 +143,14 @@ function makeWorkspaceRef() {
     })),
     isSymlink: vi.fn(async () => false),
     resolveSymlink: vi.fn(async (path: string) => path),
+    getRootPath: vi.fn(() => '/ws'),
+    setRootPath: vi.fn(async () => undefined),
   };
   return {
     current: {
       getBackend: () => backend,
     },
-  } as MutableRefObject<{ getBackend: () => FSBackend }>;
+  } as unknown as MutableRefObject<WorkspaceService | null>;
 }
 
 function seedMatter() {

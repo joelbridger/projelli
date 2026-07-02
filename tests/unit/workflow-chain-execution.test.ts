@@ -124,7 +124,7 @@ describe('runChain — two-step pipeline', () => {
     expect(files.has('OUT1.md')).toBe(true);
     // Step 1's generate step exposed a named output.
     const step1Result = result.steps[0];
-    expect(step1Result?.outputs.competitors).toBeTruthy();
+    expect(step1Result?.outputs['competitors']).toBeTruthy();
     // Step 2 received that output as an input and ran.
     expect(files.has('OUT2.md')).toBe(true);
     // The mock provider was called twice (one per generate step).

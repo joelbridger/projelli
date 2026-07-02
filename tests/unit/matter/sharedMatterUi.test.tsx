@@ -25,10 +25,10 @@ import de from '@/locales/de.json';
 const keychainStore = new Map<string, string>();
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(async (cmd: string, args: Record<string, unknown> = {}) => {
-    const svc = (args.service as string) ?? 'com.keepance.app';
-    const key = args.key as string;
+    const svc = (args['service'] as string) ?? 'com.keepance.app';
+    const key = args['key'] as string;
     const id = `${svc}::${key}`;
-    if (cmd === 'keychain_set') { keychainStore.set(id, args.value as string); return undefined; }
+    if (cmd === 'keychain_set') { keychainStore.set(id, args['value'] as string); return undefined; }
     if (cmd === 'keychain_get') {
       if (!keychainStore.has(id)) throw { kind: 'notFound', message: 'no entry' };
       return keychainStore.get(id);
@@ -92,13 +92,12 @@ vi.mock('@/platform/fs/workspaceStore', () => ({
 }));
 
 // ── Mock the firm key service functions ──────────────────────────────────────
-const mockGetOrCreateMatterKey = vi.fn<[string], Promise<string>>();
+const mockGetOrCreateMatterKey = vi.fn<(matterId: string) => Promise<string>>();
 const mockPublishMatterKeyToMembers = vi.fn<
-  [unknown, string, number],
-  Promise<{ published: number; skippedWalled: number }>
+  (session: unknown, matterId: string, n: number) => Promise<{ published: number; skippedWalled: number }>
 >();
-const mockObtainMatterKey = vi.fn<[unknown, string], Promise<string | null>>();
-const mockRegisterDevice = vi.fn<[unknown], Promise<void>>();
+const mockObtainMatterKey = vi.fn<(session: unknown, matterId: string) => Promise<string | null>>();
+const mockRegisterDevice = vi.fn<(session: unknown) => Promise<void>>();
 
 vi.mock('@/platform/firm/matterKeyService', () => ({
   getOrCreateMatterKey: (...args: [string]) => mockGetOrCreateMatterKey(...args),
