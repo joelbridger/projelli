@@ -428,6 +428,43 @@ pub fn serialize_into_package(doc: &Document, original: &Package) -> Result<Pack
     Ok(pkg)
 }
 
+/// P2.3 row 10: serialize the document into `original`'s package and return the
+/// `.docx` bytes, WITHOUT cloning the whole package on the common save path.
+///
+/// Byte-for-byte identical to `serialize_into_package(doc, original)?.write_to_bytes()`.
+/// When only `word/document.xml` changes (a body edit with the comment set
+/// unchanged or fully removed — the autosave hot path), we build a tiny override
+/// map and stream every other part straight from `original` via
+/// [`Package::write_to_bytes_with_overrides`], so large media/font/theme parts
+/// are never duplicated. When the comment set changed (added/edited), the
+/// manifests need patching, so we fall back to the proven clone-based path for
+/// correctness — that case is rare and small.
+pub fn serialize_into_bytes(doc: &Document, original: &Package) -> Result<Vec<u8>> {
+    // Same invariant + comment-change detection as `serialize_into_package`.
+    check_comment_refs(doc)?;
+
+    let original_comments_xml = original.get_str(COMMENTS_PART);
+    let original_comments = match &original_comments_xml {
+        Some(xml) => crate::parse::parse_comments(xml)?,
+        None => Default::default(),
+    };
+    // The clone-based path only mutates manifests (content-types/rels) in the
+    // "comment set changed AND non-empty" branch; every other branch overrides
+    // just document.xml. Mirror that split exactly.
+    let comments_added_or_edited = doc.comments != original_comments && !doc.comments.is_empty();
+
+    if comments_added_or_edited {
+        // Rare path: keep the proven clone-based manifest patching.
+        return serialize_into_package(doc, original)?.write_to_bytes();
+    }
+
+    // Hot path: only document.xml differs. Stream the rest from `original`.
+    let mut overrides: std::collections::BTreeMap<String, Vec<u8>> =
+        std::collections::BTreeMap::new();
+    overrides.insert(DOCUMENT_PART.to_string(), serialize_document(doc)?.into_bytes());
+    original.write_to_bytes_with_overrides(&overrides)
+}
+
 /// Document invariant: every comment-range/reference id used in the body must
 /// resolve to a `<w:comment>` in `doc.comments`, and every comment must be
 /// referenced by the body. A dangling id (either direction) is what Word treats

@@ -11,7 +11,9 @@
  * id is generated lazily at first use.
  */
 
-const KEY = 'keepance_install_id';
+import { SK_INSTALL_ID } from '@/config/identity';
+
+const KEY = SK_INSTALL_ID;
 
 function uuidv4(): string {
   // Prefer the platform's secure UUID generator. Fall back only for very

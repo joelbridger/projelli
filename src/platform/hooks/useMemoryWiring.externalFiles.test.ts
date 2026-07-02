@@ -65,6 +65,10 @@ vi.mock('@/platform/rag/MemoryService', async (importOriginal) => {
       indexPdfFile: vi.fn().mockResolvedValue({ indexed: true, pageCount: 1 }),
       indexWorkspace: vi.fn().mockResolvedValue(undefined),
       reindexPaths: vi.fn().mockResolvedValue(undefined),
+      // P1.1: the boot retag now moves rows IN PLACE (batched) instead of re-embedding.
+      retagMatter: vi.fn().mockResolvedValue(1),
+      retagMatterBatch: vi.fn().mockResolvedValue(1),
+      retagPrivilege: vi.fn().mockResolvedValue(1),
     },
   };
 });
@@ -106,6 +110,7 @@ describe('reindexFolderPaths — disk scan for externally-added files', () => {
   let reindexPaths: ReturnType<typeof vi.fn>;
   let indexPdfFile: ReturnType<typeof vi.fn>;
   let indexWorkspace: ReturnType<typeof vi.fn>;
+  let retagMatter: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -115,6 +120,8 @@ describe('reindexFolderPaths — disk scan for externally-added files', () => {
     indexPdfFile = vi.mocked(MemoryService.indexPdfFile);
     // eslint-disable-next-line @typescript-eslint/unbound-method
     indexWorkspace = vi.mocked(MemoryService.indexWorkspace);
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    retagMatter = vi.mocked(MemoryService.retagMatterBatch);
     resetPdfIndexingEnabledReader();
     // Start with a stale/empty in-memory file tree to simulate the bug scenario.
     useWorkspaceStore.setState({ rootPath: null, fileTree: [] });
@@ -445,15 +452,18 @@ describe('reindexFolderPaths — disk scan for externally-added files', () => {
       ]),
     };
     const indexPromise = Promise.resolve().then(() => {
-      expect(reindexPaths).not.toHaveBeenCalled();
+      expect(retagMatter).not.toHaveBeenCalled();
     });
     indexWorkspace.mockReturnValue(indexPromise);
 
     await startFullIndex(ws);
 
     expect(indexWorkspace).toHaveBeenCalledTimes(1);
-    expect(reindexPaths).toHaveBeenCalledTimes(1);
-    expect(reindexPaths).toHaveBeenCalledWith(
+    // P1.1: the boot retag applies the folder's matter IN PLACE and BATCHED (no
+    // re-embed), so it must call retagMatterBatch — NOT reindexPaths (re-embed).
+    expect(reindexPaths).not.toHaveBeenCalled();
+    expect(retagMatter).toHaveBeenCalledTimes(1);
+    expect(retagMatter).toHaveBeenCalledWith(
       ['/ws/Northcrest/Clients/Acme/plan.docx'],
       matterId,
     );
@@ -483,7 +493,10 @@ describe('reindexFolderPaths — disk scan for externally-added files', () => {
 
     await startFullIndex(ws);
 
-    expect(reindexPaths).toHaveBeenCalledWith(
+    // P1.1: absolute-mapped folder + relative fresh tree still resolves, and the
+    // retag is IN PLACE + BATCHED (retagMatterBatch), not a re-embed (reindexPaths).
+    expect(reindexPaths).not.toHaveBeenCalled();
+    expect(retagMatter).toHaveBeenCalledWith(
       ['C:/ws/Northcrest/Clients/Acme/plan.docx'],
       matterId,
     );

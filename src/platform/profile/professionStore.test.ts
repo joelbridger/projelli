@@ -9,11 +9,12 @@ import { beforeEach, describe, it, expect } from 'vitest';
 // Clear the localStorage profession key before each test so we see the
 // true "first run" default. The Zustand store reads localStorage once at
 // module-init time, so we reset its in-memory state directly via setState.
-import { useProfessionStore, getProfession, isLawExperience, PROFESSION_STORAGE_KEY } from '@/platform/profile/professionStore';
+import { useProfessionStore, getProfession, isLawExperience } from '@/platform/profile/professionStore';
+import { SK_PROFESSION } from '@/config/identity';
 
 beforeEach(() => {
   try {
-    localStorage.removeItem(PROFESSION_STORAGE_KEY);
+    localStorage.removeItem(SK_PROFESSION);
   } catch {
     // ignore
   }

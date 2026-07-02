@@ -2,7 +2,7 @@
  * Authoritative real-path test for the Recents BLOCKER.
  *
  * Background (real-Windows QA, twice): picking "Start with a sample practice"
- * created the workspace but NEVER registered it in `keepance_recent_workspaces`,
+ * created the workspace but NEVER registered it in `lantern_recent_workspaces`,
  * so the first-run gate (`!hasCompletedOnboarding() && recentWorkspaces.length
  * === 0`) stayed true and onboarding looped back to the intro. A prior fix put
  * `addRecentWorkspace(...)` in App.tsx's onboarding handler, but a live console
@@ -28,7 +28,7 @@ import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { AuditService } from '@/platform/audit/AuditService';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 
-const RECENTS_KEY = 'keepance_recent_workspaces';
+const RECENTS_KEY = 'lantern_recent_workspaces';
 
 /**
  * A minimal WorkspaceService test double that satisfies every call

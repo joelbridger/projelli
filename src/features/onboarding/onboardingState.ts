@@ -8,9 +8,11 @@
  * well so existing importers of '@/features/onboarding' are unaffected.
  */
 
-export const ONBOARDING_COMPLETE_KEY = 'keepance_onboarding_complete';
-export const ONBOARDING_PROFESSION_KEY = 'keepance_profession';
-const ONBOARDING_PROGRESS_KEY = 'keepance_onboarding_progress';
+import {
+  SK_ONBOARDING_COMPLETE,
+  SK_PROFESSION,
+  SK_ONBOARDING_PROGRESS,
+} from '@/config/identity';
 
 export type OnboardingStep = 'ai-key' | 'email' | 'firm';
 
@@ -20,7 +22,7 @@ export type OnboardingStep = 'ai-key' | 'email' | 'firm';
 
 /** Returns true when the user has finished (or explicitly skipped) onboarding. */
 export function hasCompletedOnboarding(): boolean {
-  return localStorage.getItem(ONBOARDING_COMPLETE_KEY) === 'true';
+  return localStorage.getItem(SK_ONBOARDING_COMPLETE) === 'true';
 }
 
 /**
@@ -29,15 +31,15 @@ export function hasCompletedOnboarding(): boolean {
  * value here to keep it in one atomic write.
  */
 export function markOnboardingComplete(profession: string): void {
-  localStorage.setItem(ONBOARDING_PROFESSION_KEY, profession);
-  localStorage.setItem(ONBOARDING_COMPLETE_KEY, 'true');
+  localStorage.setItem(SK_PROFESSION, profession);
+  localStorage.setItem(SK_ONBOARDING_COMPLETE, 'true');
 }
 
 /** Clear the completion flag (for testing / "show onboarding again"). */
 export function resetOnboarding(): void {
-  localStorage.removeItem(ONBOARDING_COMPLETE_KEY);
-  localStorage.removeItem(ONBOARDING_PROFESSION_KEY);
-  localStorage.removeItem(ONBOARDING_PROGRESS_KEY);
+  localStorage.removeItem(SK_ONBOARDING_COMPLETE);
+  localStorage.removeItem(SK_PROFESSION);
+  localStorage.removeItem(SK_ONBOARDING_PROGRESS);
 }
 
 // ---------------------------------------------------------------------------
@@ -48,7 +50,7 @@ type Profession = 'legal' | 'tax' | 'consulting' | 'advisor' | 'other';
 
 /** Read the profession stored during onboarding; defaults to 'other'. */
 export function getOnboardingProfession(): Profession {
-  const v = localStorage.getItem(ONBOARDING_PROFESSION_KEY);
+  const v = localStorage.getItem(SK_PROFESSION);
   if (
     v === 'legal' ||
     v === 'tax' ||
@@ -74,7 +76,7 @@ const DEFAULT_PROGRESS: Record<OnboardingStep, boolean> = {
 /** Return the progress map, defaulting every step to false. */
 export function getOnboardingProgress(): Record<OnboardingStep, boolean> {
   try {
-    const raw = localStorage.getItem(ONBOARDING_PROGRESS_KEY);
+    const raw = localStorage.getItem(SK_ONBOARDING_PROGRESS);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<Record<OnboardingStep, boolean>>;
       return {
@@ -97,7 +99,7 @@ export function setOnboardingProgressStep(
   const current = getOnboardingProgress();
   current[step] = done;
   try {
-    localStorage.setItem(ONBOARDING_PROGRESS_KEY, JSON.stringify(current));
+    localStorage.setItem(SK_ONBOARDING_PROGRESS, JSON.stringify(current));
   } catch {
     // Ignore write failures; in-memory state is fine for the current session.
   }

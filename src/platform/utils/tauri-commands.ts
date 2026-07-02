@@ -154,7 +154,7 @@ export const OCR_SKIP_CONFIDENCE = 30;
 
 /** WS-B/C — the REQUIRED retrieval scope. A caller cannot omit scope and
  *  silently search every matter; it must name `matter` or `allMatters`.
- *  Mirrors `RetrievalScope` in `src-tauri/src/commands/rag/mod.rs`.
+ *  Mirrors `RetrievalScope` in `src-tauri/src/commands/rag/state.rs`.
  *
  *  - `{ kind: 'matter', matterId }` — scope to ONE matter (LanceDB prefilter).
  *  - `{ kind: 'allMatters' }`       — explicit, audited cross-matter search.
@@ -165,7 +165,7 @@ export type RetrievalScope =
 
 /** WS-B/C — verdict from `ragVerifyCitation`. The app must refuse to present
  *  any answer whose citation does not return `{ verdict: 'verified' }`.
- *  Mirrors `Verdict` in `src-tauri/src/commands/rag/mod.rs`. */
+ *  Mirrors `Verdict` in `src-tauri/src/commands/rag/state.rs`. */
 export type CitationVerdict =
   | { verdict: 'verified' }
   | { verdict: 'notFound' }
@@ -173,9 +173,12 @@ export type CitationVerdict =
   | { verdict: 'textMismatch' };
 
 /** RAG indexer status emitted on the `rag-indexing-progress` Tauri event.
- *  Mirror of `IndexingStatus` in `src-tauri/src/commands/rag/mod.rs`. */
+ *  Mirror of `IndexingStatus` in `src-tauri/src/commands/rag/state.rs`. */
 export type RagIndexingStatus =
   | 'idle'
+  // P1.1 (Task 4): the cheap stat-walk phase of a boot reconcile (comparing
+  // files against the manifest). Fast even on large workspaces.
+  | 'checking'
   | 'indexing'
   | 'done'
   | 'cancelled'
@@ -212,6 +215,16 @@ export interface RagIndexingProgress {
   cleanupFailed?: number;
   /** Paths of skipped files (bounded to 100 on the wire; use counts for total). */
   skippedPaths?: string[];
+  /** P1.1 (Task 2): true ONLY while a one-time schema-migration rebuild runs.
+   *  The banner shows an honest "Upgrading search index…" then, distinct from a
+   *  routine boot reconcile. Omitted (falsey) on every normal walk. */
+  migrating?: boolean;
+  /** P1.1 (Task 4): files a boot reconcile SKIPPED as unchanged (work avoided). */
+  reused?: number;
+  /** P1.1 (Task 4): files a boot reconcile actually re-indexed (new/changed). */
+  reindexed?: number;
+  /** P1.1 (Task 4): sources whose rows were purged because the file was deleted. */
+  deleted?: number;
 }
 
 /** Tauri event name. Mirror of `PROGRESS_EVENT` in mod.rs. */
@@ -312,6 +325,73 @@ export async function ragIndexWorkspace(matterId?: string): Promise<void> {
   // WS-B/C: also runs the one-time pre-3.0 migration (re-index under matter
   // scope). Omitting matterId files everything under the "unassigned" sentinel.
   return invoke<void>('rag_index_workspace', { matterId });
+}
+
+/** P1.1 (Task 4) — the BOOT indexer. Cheap stat-walk of the workspace, then
+ *  (re)index only new/changed files, purge rows for deleted files, and skip
+ *  everything unchanged (via the persistent manifest). Falls back to a full
+ *  rebuild automatically on a schema migration or fail-closed recovery. Use this
+ *  on workspace open instead of `ragIndexWorkspace` so a warm boot no longer
+ *  re-embeds the whole workspace. Emits the same `rag-indexing-progress` events. */
+export async function ragReconcileWorkspace(matterId?: string): Promise<void> {
+  if (!isTauri()) {
+    throw new Error('RAG is only available in the desktop app.');
+  }
+  // `await` (not `return invoke<void>`) so we don't use `void` as a generic type
+  // arg (@typescript-eslint/no-invalid-void-type); the unknown result is discarded.
+  await invoke('rag_reconcile_workspace', { matterId });
+}
+
+/** P1.1 (Task 3) — has this PDF already been indexed at its current version +
+ *  OCR setting? The PDF-index loop calls this to skip unchanged PDFs on boot.
+ *  Returns false (→ re-index) when new/changed/tombstoned or unknown. Browser
+ *  mode always returns false (no manifest). */
+export async function ragManifestPdfFresh(
+  path: string,
+  ocrEnabled: boolean,
+): Promise<boolean> {
+  if (!isTauri()) return false;
+  try {
+    return await invoke<boolean>('rag_manifest_pdf_fresh', { path, ocrEnabled });
+  } catch {
+    // Fail safe toward re-indexing.
+    return false;
+  }
+}
+
+/** P1.1 (Task 3) — forget all PDF manifest signatures. Call when PDF indexing is
+ *  turned OFF (rows deleted) so a later toggle-ON re-indexes PDFs instead of
+ *  wrongly skipping them as "fresh". Best-effort; never throws. */
+export async function ragManifestForgetPdfs(): Promise<void> {
+  if (!isTauri()) return;
+  try {
+    await invoke('rag_manifest_forget_pdfs');
+  } catch (err) {
+    console.warn('ragManifestForgetPdfs failed (non-fatal):', err);
+  }
+}
+
+/** P1.1 (Task 3) — record a PDF's signature after a successful index so a later
+ *  boot can skip it while unchanged. Best-effort; never throws to the caller. */
+export async function ragManifestRecordPdf(
+  path: string,
+  pageCount: number,
+  ocrEnabled: boolean,
+  matterId?: string,
+  privilege?: string,
+): Promise<void> {
+  if (!isTauri()) return;
+  try {
+    await invoke('rag_manifest_record_pdf', {
+      path,
+      pageCount,
+      ocrEnabled,
+      matterId,
+      privilege,
+    });
+  } catch (err) {
+    console.warn('ragManifestRecordPdf failed (non-fatal):', err);
+  }
 }
 
 /** Cancel the currently-running workspace indexer. Safe to call when no
@@ -453,6 +533,19 @@ export async function ragRetagMatter(
   return invoke<number>('rag_retag_matter', { path, matterId });
 }
 
+/** P1.1 — BATCHED matter retag: apply `matterId` to many sources' rows in ONE
+ *  LanceDB UPDATE per chunk. The boot retag of a mapped client folder uses this
+ *  (grouped per matter) so a warm boot of a mapped workspace stays cheap instead
+ *  of re-embedding (or per-file retagging, which LanceDB makes ~as slow as
+ *  re-embedding). Returns rows updated. */
+export async function ragRetagMatterBatch(
+  paths: string[],
+  matterId: string,
+): Promise<number> {
+  if (!isTauri()) return 0;
+  return invoke<number>('rag_retag_matter_batch', { paths, matterId });
+}
+
 /** WS-B/C — verify a citation against the local store so the app can REFUSE to
  *  present an answer whose citation does not verify. Looks up the chunk by its
  *  content-addressed `id` SCOPED to `claimedMatterId`, then asserts the stored
@@ -475,6 +568,28 @@ export async function ragVerifyCitation(
     claimedMatterId,
     quotedText,
   });
+}
+
+/** P2.1 (Finding 2) — one citation to verify in a batch call. */
+export interface CitationToVerify {
+  id: string;
+  claimedMatterId: string;
+  quotedText: string;
+}
+
+/** P2.1 (Finding 2) — verify MANY citations in ONE backend call. Replaces the
+ *  per-citation `ragVerifyCitation` loop (which re-opened the LanceDB table and
+ *  ran a point lookup per citation — an N+1). The backend opens the table once
+ *  and reads every cited chunk in one `id IN (...)` query. Verdicts come back in
+ *  the SAME ORDER as `citations`, one per input. */
+export async function ragVerifyCitationsBatch(
+  citations: CitationToVerify[],
+): Promise<CitationVerdict[]> {
+  if (!isTauri()) {
+    throw new Error('RAG is only available in the desktop app.');
+  }
+  if (citations.length === 0) return [];
+  return invoke<CitationVerdict[]>('rag_verify_citations_batch', { citations });
 }
 
 /** Tauri event for the one-time embedding-model download. Mirrors

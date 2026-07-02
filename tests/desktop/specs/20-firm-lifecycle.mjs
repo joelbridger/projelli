@@ -119,11 +119,11 @@ async function provisionUnclaimedOrg() {
 async function seedRecentWorkspaceAndForceOnboarding(session, workspace) {
   await session.execute(
     `
-      localStorage.removeItem('keepance_onboarding_complete');
-      localStorage.removeItem('keepance_profession');
+      localStorage.removeItem('lantern_onboarding_complete');
+      localStorage.removeItem('lantern_profession');
       localStorage.setItem('keepance_feature_tour_dismissed', 'true');
       localStorage.setItem('keepance_feature_tour_completed', 'true');
-      localStorage.setItem('keepance_recent_workspaces', JSON.stringify([{
+      localStorage.setItem('lantern_recent_workspaces', JSON.stringify([{
         path: arguments[0],
         name: arguments[1],
         lastOpened: new Date().toISOString()

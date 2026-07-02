@@ -18,10 +18,41 @@ import { WORKSPACE_DATA_DIR } from '@/config/identity';
  * WorkspaceService provides secure file operations
  * All operations go through path validation before reaching the backend
  */
+/**
+ * P1.1 (Task 6) — structural clone of a file tree so the shared cached scan can
+ * be handed to multiple consumers without one mutating another's copy. FileNode
+ * is plain data; only `children` needs recursion (Date/primitive fields are
+ * copied by value).
+ */
+function cloneFileTree(nodes: FileNode[]): FileNode[] {
+  return nodes.map((n) =>
+    n.children ? { ...n, children: cloneFileTree(n.children) } : { ...n },
+  );
+}
+
 export class WorkspaceService {
   private backend: FSBackend | null = null;
   private pathValidator: PathValidator | null = null;
   private workspace: Workspace | null = null;
+  /**
+   * P1.1 (Task 6) — one shared workspace tree scan.
+   *
+   * `getFileTree()` does a FULL recursive `backend.list()` walk (an IPC round
+   * trip per directory on desktop). On workspace open, ~5 independent consumers
+   * scan the tree nearly simultaneously — WorkspaceSelector, the lifecycle hook,
+   * source-card loading, the content index, and the RAG PDF collector — so the
+   * whole tree was walked ~5× per boot. This caches the IN-FLIGHT scan promise so
+   * that concurrent boot callers share ONE underlying walk.
+   *
+   * Correctness: the cache is invalidated on every mutation that goes through
+   * this service (write/delete/move/copy/rename/mkdir), and the `FileSystemWatcher`
+   * refreshes it every poll by calling `getFileTree({ fresh: true })` (which both
+   * bypasses AND repopulates the cache). So a cached read is never staler than the
+   * watcher's poll interval — the same freshness the displayed tree already had —
+   * and in-app edits are reflected immediately. Each call returns a structural
+   * CLONE so a consumer mutating its tree can't corrupt another's.
+   */
+  private treeScan: Promise<FileNode[]> | null = null;
 
   /**
    * Initialize workspace with a backend and root path
@@ -218,6 +249,7 @@ export class WorkspaceService {
 
     try {
       await this.backend!.write(backendPath, content);
+      this.invalidateTree();
     } catch (error) {
       throw new FileOperationError(
         `Failed to write file: ${path}`,
@@ -246,6 +278,7 @@ export class WorkspaceService {
 
     try {
       await this.backend!.writeBinary(backendPath, content);
+      this.invalidateTree();
     } catch (error) {
       throw new FileOperationError(
         `Failed to write binary file: ${path}`,
@@ -276,6 +309,7 @@ export class WorkspaceService {
 
     try {
       await this.backend!.delete(backendPath);
+      this.invalidateTree();
     } catch (error) {
       throw new FileOperationError(
         `Failed to delete: ${path}`,
@@ -310,6 +344,7 @@ export class WorkspaceService {
 
     try {
       await this.backend!.move(backendFrom, backendTo);
+      this.invalidateTree();
     } catch (error) {
       throw new FileOperationError(
         `Failed to move ${from} to ${to}`,
@@ -344,6 +379,7 @@ export class WorkspaceService {
 
     try {
       await this.backend!.copy(backendFrom, backendTo);
+      this.invalidateTree();
     } catch (error) {
       throw new FileOperationError(
         `Failed to copy ${from} to ${to}`,
@@ -365,6 +401,7 @@ export class WorkspaceService {
 
     try {
       await this.backend!.rename(backendPath, validatedName);
+      this.invalidateTree();
     } catch (error) {
       throw new FileOperationError(
         `Failed to rename ${path} to ${newName}`,
@@ -385,6 +422,7 @@ export class WorkspaceService {
 
     try {
       await this.backend!.mkdir(backendPath);
+      this.invalidateTree();
     } catch (error) {
       throw new FileOperationError(
         `Failed to create directory: ${path}`,
@@ -438,10 +476,31 @@ export class WorkspaceService {
   /**
    * List workspace recursively as a tree
    */
-  async getFileTree(): Promise<FileNode[]> {
+  async getFileTree(opts?: { fresh?: boolean }): Promise<FileNode[]> {
     this.ensureInitialized();
-    // Pass empty string to list from workspace root
-    return this.listRecursive('');
+    // P1.1 (Task 6): share one scan across concurrent boot callers. `fresh` forces
+    // a real walk (used by the file watcher's poll/refresh) AND repopulates the
+    // cache, so a subsequent cached read reflects the latest scan.
+    if (opts?.fresh || !this.treeScan) {
+      // Pass empty string to list from workspace root.
+      const scan = this.listRecursive('');
+      this.treeScan = scan;
+      // Never let a failed scan poison the cache: clear it so the next call
+      // re-scans (mirrors the previous always-scan behaviour on error).
+      scan.catch(() => {
+        if (this.treeScan === scan) this.treeScan = null;
+      });
+    }
+    // Clone so a consumer mutating its returned tree can't corrupt the shared one.
+    return cloneFileTree(await this.treeScan);
+  }
+
+  /**
+   * P1.1 (Task 6) — drop the shared tree scan so the next `getFileTree()` re-walks.
+   * Called after any mutation through this service so in-app edits show immediately.
+   */
+  private invalidateTree(): void {
+    this.treeScan = null;
   }
 
   /**

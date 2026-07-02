@@ -11,7 +11,7 @@
  * is connected, so the reminder never lingers once AI works.
  */
 
-const DEFERRED_KEY = 'keepance_ai_setup_deferred';
+import { SK_AI_SETUP_DEFERRED } from '@/config/identity';
 
 /**
  * Mark that the user chose to set up AI later. Onboarding still completes; the
@@ -19,7 +19,7 @@ const DEFERRED_KEY = 'keepance_ai_setup_deferred';
  */
 export function markAiSetupDeferred(): void {
   try {
-    localStorage.setItem(DEFERRED_KEY, 'true');
+    localStorage.setItem(SK_AI_SETUP_DEFERRED, 'true');
   } catch {
     // localStorage may be unavailable; worst case the reminder does not show.
   }
@@ -31,7 +31,7 @@ export function markAiSetupDeferred(): void {
  */
 export function clearAiSetupDeferred(): void {
   try {
-    localStorage.removeItem(DEFERRED_KEY);
+    localStorage.removeItem(SK_AI_SETUP_DEFERRED);
   } catch {
     // Ignore.
   }
@@ -40,7 +40,7 @@ export function clearAiSetupDeferred(): void {
 /** True when the user deferred AI setup and has not yet connected a model. */
 export function hasDeferredAiSetup(): boolean {
   try {
-    return localStorage.getItem(DEFERRED_KEY) === 'true';
+    return localStorage.getItem(SK_AI_SETUP_DEFERRED) === 'true';
   } catch {
     return false;
   }

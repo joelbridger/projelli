@@ -698,7 +698,7 @@ test.describe('Firm shared matter notes — two-client convergence', () => {
     // fresh server fetch that returns 403 (walled).
     if (sharedFirmMatterId) {
       await pageWalled.evaluate((matterId) => {
-        const PREFIX = 'keepance_kc_fallback::';
+        const PREFIX = 'lantern_kc_fallback::';
         const keyToClear = `${PREFIX}com.keepance.matter.${matterId}::content_key`;
         localStorage.removeItem(keyToClear);
       }, sharedFirmMatterId);

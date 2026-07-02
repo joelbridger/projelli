@@ -64,8 +64,8 @@ describe('clientMap/provider', () => {
   });
   it('honors the OpenAI default provider and model instead of Anthropic key order', async () => {
     cmode.keys = { anthropic: 'stale-anthropic', openai: 'valid-openai', google: null };
-    localStorage.setItem('keepance_default_provider', 'openai');
-    localStorage.setItem('keepance_default_model', 'gpt-4o');
+    localStorage.setItem('lantern_default_provider', 'openai');
+    localStorage.setItem('lantern_default_model', 'gpt-4o');
 
     const p = await buildProviderForClientMap();
 

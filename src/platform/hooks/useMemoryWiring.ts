@@ -21,6 +21,7 @@ import { useEffect } from 'react';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { workspacePath } from '@/platform/fs/appPath';
 import {
+  isOcrScannedPdfsEnabled,
   isPdfIndexingEnabled,
   MemoryService,
   setMemoryEnabledReader,
@@ -51,6 +52,7 @@ import {
 import {
   MODEL_DOWNLOAD_EVENT,
   modelStatus,
+  ragManifestPdfFresh,
   watchWorkspace,
   type ModelDownloadProgress,
   type WorkspaceChangeEvent,
@@ -104,7 +106,7 @@ export type MemoryWiringWorkspaceService = {
    * instead of the cached in-memory tree so externally-added files are
    * discovered and re-indexed immediately after a matter is assigned.
    */
-  getFileTree?: () => Promise<FileNode[]>;
+  getFileTree?: (opts?: { fresh?: boolean }) => Promise<FileNode[]>;
 };
 
 /** Collect all .pdf paths from a FileNode tree recursively. */
@@ -204,7 +206,12 @@ async function getFreshTreeWithRetry(
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     if (workspaceService?.getFileTree) {
       try {
-        const tree = await workspaceService.getFileTree();
+        // P1.1 (Task 6): FORCE a real scan each retry. `getFileTree` now caches
+        // the boot scan; a plain call would hand back the SAME cached (possibly
+        // settled-empty) tree on every retry, defeating the populate-race retry
+        // this helper exists for. `{ fresh: true }` re-scans AND repopulates the
+        // shared cache once a populated tree is seen.
+        const tree = await workspaceService.getFileTree({ fresh: true });
         if (Array.isArray(tree) && tree.length > 0) return tree;
         lastInitialized = Array.isArray(tree) ? tree : [];
       } catch {
@@ -413,10 +420,20 @@ export async function indexWorkspacePdfs(
   if (pdfPaths.length === 0) return;
   const progress = usePdfIndexProgressStore.getState();
   progress.set({ processed: 0, total: pdfPaths.length, currentPath: null });
+  // P1.1 (Task 3): whether OCR is on is part of a PDF's freshness signature, so
+  // read it once and pass it to the manifest fresh-check below.
+  const ocrEnabled = isOcrScannedPdfsEnabled();
   for (const [index, path] of pdfPaths.entries()) {
     const ragPath = buildWorkspaceAbsolutePath(rootPath, path);
     progress.set({ processed: index, total: pdfPaths.length, currentPath: ragPath });
     try {
+      // P1.1 (Task 3): skip a PDF whose size/mtime + OCR setting are unchanged
+      // since it was last indexed — PDF extraction + OCR is the single most
+      // expensive per-file cost, so this is the biggest boot win for PDF-heavy
+      // workspaces. A new/changed/tombstoned PDF returns false and re-indexes.
+      if (await ragManifestPdfFresh(ragPath, ocrEnabled)) {
+        continue;
+      }
       await MemoryService.indexPdfFile(ragPath, binaryWs);
     } catch {
       // Best-effort: skip individual failures, continue with the rest.
@@ -425,6 +442,62 @@ export async function indexWorkspacePdfs(
     }
   }
   progress.clearSoon();
+}
+
+/**
+ * P1.1 — apply each mapped folder's matter (and privilege) to its files' EXISTING
+ * rows IN PLACE, WITHOUT re-embedding. A cheap SQL column update per file.
+ *
+ * Why this is separate from `reindexFolderPaths` (which re-embeds): the boot
+ * reconcile already (re)indexed every new/changed file — new ones under the
+ * UNASSIGNED default — so on boot the files under a client folder already have
+ * rows; they just need the folder's matter applied. Re-embedding them (the old
+ * boot behaviour) redid the single most expensive step on EVERY warm boot of any
+ * workspace WITH client mappings, defeating the reconcile's whole win. In-place
+ * retag moves them to the right scope for pennies. (Explicit folder-mapping
+ * changes still go through `reindexFolderPaths`, which also indexes not-yet-
+ * indexed files — a deliberate one-off, not a per-boot cost.)
+ */
+async function retagFolderPathsInPlace(
+  folders: string[],
+  workspaceService: MemoryWiringWorkspaceService | null | undefined,
+): Promise<void> {
+  const allPaths = collectAllFilePaths(await getFreshOrCachedFileTree(workspaceService));
+  const { rootPath } = useWorkspaceStore.getState();
+  const affected = allPaths.filter((p) => pathInAnyFolder(p, folders, rootPath));
+
+  // Group by resolved matter so each matter's files retag in ONE batched UPDATE.
+  // LanceDB rewrites data per UPDATE, so a per-file retag loop is ~as slow as
+  // re-embedding — batching per matter collapses it to one rewrite per matter.
+  const byMatter = new Map<string, string[]>();
+  const privileged: Array<{ abs: string; privilege: string }> = [];
+  for (const p of affected) {
+    const abs = buildWorkspaceAbsolutePath(rootPath, p);
+    const matterId = resolveMatterIdForWorkspacePath(p, rootPath);
+    const list = byMatter.get(matterId);
+    if (list) list.push(abs);
+    else byMatter.set(matterId, [abs]);
+    // Only privileged sources need a privilege retag — the common 'none' default
+    // is already correct, so we skip it (and keep those few per-file).
+    const privilege = resolvePrivilegeForSource(abs);
+    if (privilege !== 'none') privileged.push({ abs, privilege });
+  }
+  for (const [matterId, paths] of byMatter) {
+    try {
+      // In-place, batched — no re-extract / re-embed. Files with no rows yet are
+      // a no-op; the reconcile/watcher indexes them.
+      await MemoryService.retagMatterBatch(paths, matterId);
+    } catch {
+      // Best-effort: skip and continue with the next matter.
+    }
+  }
+  for (const { abs, privilege } of privileged) {
+    try {
+      await MemoryService.retagPrivilege(abs, privilege);
+    } catch {
+      // Best-effort.
+    }
+  }
 }
 
 export async function retagExistingMatterFolderPaths(
@@ -439,7 +512,9 @@ export async function retagExistingMatterFolderPaths(
   );
   if (folders.length === 0) return;
   try {
-    await reindexFolderPaths(folders, workspaceService);
+    // P1.1: retag IN PLACE (no re-embed) so a warm boot of a mapped workspace
+    // stays cheap. (Was `reindexFolderPaths`, which re-embedded every file.)
+    await retagFolderPathsInPlace(folders, workspaceService);
   } catch {
     // Best-effort: the initial index already completed; do not block startup.
   }
@@ -448,22 +523,30 @@ export async function retagExistingMatterFolderPaths(
 export async function startFullIndex(
   workspaceService: MemoryWiringWorkspaceService | null | undefined,
 ): Promise<void> {
+  // P1.1: everything that WRITES the vector table runs AFTER the reconcile
+  // completes — never concurrently with it. The reconcile may DROP + rebuild the
+  // whole table (a schema migration, a missing/corrupt table, or the manifest
+  // key-format upgrade). A concurrent PDF index / mail backfill would write rows
+  // (and, for PDFs, record a "fresh" signature) INTO a table being rebuilt, so
+  // the rebuild could drop rows a fresh signature was just recorded for — leaving
+  // that source "fresh" but absent from search. Sequencing removes the race; it
+  // is still all background work (the shell is already interactive).
   const indexAndRetag = MemoryService.indexWorkspace()
-    .then(() => retagExistingMatterFolderPaths(workspaceService))
+    .then(async () => {
+      // A3: index PDF files (skips unchanged via the manifest fresh-check).
+      if (isPdfIndexingEnabled() && workspaceService) {
+        await indexWorkspacePdfs(workspaceService).catch(() => {});
+      }
+      // Option B healing: re-index any mail imported while the model was still
+      // downloading, from the local encrypted bodies. No-ops fast when the
+      // backfill marker is absent (the common case).
+      await mailBackfillRag(buildMailMatterMap(getMatters())).catch(() => {});
+      // Apply folder→matter scoping to the (now stable) rows, in place.
+      await retagExistingMatterFolderPaths(workspaceService);
+    })
     .catch(() => {
       /* errors are surfaced via the progress event with status: error */
     });
-
-  // A3: if PDF indexing is enabled, also index PDF files in the workspace.
-  if (isPdfIndexingEnabled() && workspaceService) {
-    void indexWorkspacePdfs(workspaceService).catch(() => {});
-  }
-  // Option B healing: re-index any mail imported while the model was
-  // still downloading, from the local encrypted bodies. The Rust side
-  // no-ops fast when the backfill marker is absent (the common case),
-  // so this is safe to fire on every activation. The matter map scopes
-  // each backfilled message exactly as a sync would have.
-  void mailBackfillRag(buildMailMatterMap(getMatters())).catch(() => {});
 
   await indexAndRetag;
 }

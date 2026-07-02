@@ -287,7 +287,17 @@ pub const UNASSIGNED_MATTER: &str = "unassigned";
 /// in those columns and the real path AES-256-GCM-encrypted in the new
 /// NOT-NULL `path_enc` column. We never leave plaintext paths behind: the
 /// one-time drop + re-index migration rewrites every row tokenized.
-pub const INDEX_VERSION: u32 = 10;
+///
+/// 11: P1.1 — the `path` token now HMACs the NORMALIZED path (`path_token` runs
+/// `normalize_source_path` first), so the native Windows form `C:\ws\a.docx` and
+/// the forward-slash form `C:/ws/a.docx` map to ONE token. A pre-11 table on
+/// Windows holds tokens over the un-normalized (backslash) path, which the new
+/// code can't match with the forward-slash form the TS retag/delete/index uses —
+/// so a mapped file could silently vanish from matter-scoped search. The one-time
+/// drop + re-index rewrites every row under the normalized token. (On
+/// Linux/macOS the paths were already forward-slash, so the tokens are unchanged
+/// and the rebuild is a no-op cost — but the marker is global, so it runs once.)
+pub const INDEX_VERSION: u32 = 11;
 
 /// Filename (under the vectors dir) holding the integer `INDEX_VERSION` the
 /// current `chunks` table was built with.
@@ -345,6 +355,17 @@ pub fn normalize_source_path(path: &str) -> String {
     if path.starts_with("mail:") {
         path.to_string()
     } else {
+        // Fold backslashes to forward slashes so the native Windows form and the
+        // TS forward-slash form of one file collapse to a single source (used for
+        // chunk ids, path tokens, delete/retag predicates, encrypted `path_enc`).
+        //
+        // KNOWN PATHOLOGICAL EDGE (documented, not a regression): on Unix a
+        // backslash is a LEGAL filename character, so a file literally named
+        // `a\b.docx` folds to the same key as `a/b.docx`. Such a file is
+        // essentially never created in the Windows/macOS advisor workspaces this
+        // targets, and `chunk_id` has always normalized this way — so this only
+        // makes the path-token/delete predicate CONSISTENT with the long-standing
+        // chunk-id behaviour, it does not open a new class of collision.
         path.replace('\\', "/")
     }
 }
@@ -430,10 +451,26 @@ pub fn build_schema() -> SchemaRef {
 /// Open (or create) the LanceDB connection for a workspace.
 pub async fn open_connection(workspace_root: &Path) -> Result<Connection> {
     let path = dataset_path(workspace_root);
-    std::fs::create_dir_all(&path)
+    // P2.1 (Finding 8): `create_dir_all` is a blocking syscall (stat + mkdir per
+    // path component). On the Ask hot path it ran inline on the async executor;
+    // on Windows or a network-backed workspace folder that can hitch the runtime.
+    // Hop it to a blocking thread so a slow filesystem never stalls the reactor.
+    let dir = path.clone();
+    tokio::task::spawn_blocking(move || std::fs::create_dir_all(&dir))
+        .await
+        .context("create vector dir join failed")?
         .with_context(|| format!("failed to create vector dir at {:?}", &path))?;
     let path_str = path.to_string_lossy().to_string();
     lancedb::connect(&path_str)
+        // P2.1 (Finding 4): a zero read-consistency interval makes every table
+        // handle opened on this connection RE-CHECK the latest committed version
+        // on each read. This is what lets `RagState` cache an open `chunks` table
+        // across queries SAFELY: writes committed by the indexer through other
+        // connections (add / delete / retag) become visible on the cached handle's
+        // next read, so caching never serves a stale snapshot. Fresh (uncached)
+        // callers are unaffected — they already saw the latest on open. Only a
+        // destructive `drop_table` rebuild needs explicit cache invalidation.
+        .read_consistency_interval(std::time::Duration::from_secs(0))
         .execute()
         .await
         .with_context(|| format!("failed to open lancedb at {:?}", &path))
@@ -458,6 +495,45 @@ pub async fn open_or_create_table(conn: &Connection) -> Result<Table> {
         .execute()
         .await
         .context("create_empty_table chunks failed")
+}
+
+/// P2.3 row 3: build the `path` (token) and `path_enc` (encrypted) columns for
+/// a batch, computing each distinct path's token + ciphertext ONCE and reusing
+/// it for every chunk that shares that path. A 200-chunk PDF has one path, so
+/// this replaces 200 HMACs + 200 AES-GCM encryptions with one of each.
+///
+/// Behaviour is preserved: `path_token` is a deterministic HMAC (already
+/// identical across same-path rows), and same-path rows sharing one `path_enc`
+/// ciphertext still decrypt to the same path on read. This leaks nothing new —
+/// the deterministic `path_token` already groups a source's rows by design — and
+/// is not dangerous nonce reuse: it is the identical (plaintext, key) reused, not
+/// a fresh plaintext under a stale nonce. Memoizing by path also stays correct if
+/// a batch ever mixes paths (each distinct path gets its own token/ciphertext).
+fn path_token_and_enc_columns(
+    rows: &[(Chunk, Vec<f32>)],
+    key: &[u8; 32],
+) -> Result<(Vec<String>, Vec<String>)> {
+    use crate::commands::mail::crypto::encrypt_with_key;
+    let mut cache: std::collections::HashMap<&str, (String, String)> =
+        std::collections::HashMap::new();
+    let mut path_tokens: Vec<String> = Vec::with_capacity(rows.len());
+    let mut path_encs: Vec<String> = Vec::with_capacity(rows.len());
+    for (c, _) in rows.iter() {
+        let (tok, enc) = match cache.get(c.path.as_str()) {
+            Some(pair) => pair.clone(),
+            None => {
+                let tok = super::crypto::path_token(key, &c.path);
+                let blob = encrypt_with_key(c.path.as_bytes(), key)
+                    .map_err(|e| anyhow::anyhow!("encrypt chunk path {}: {e}", c.path))?;
+                let enc = hex::encode(&blob);
+                cache.insert(c.path.as_str(), (tok.clone(), enc.clone()));
+                (tok, enc)
+            }
+        };
+        path_tokens.push(tok);
+        path_encs.push(enc);
+    }
+    Ok((path_tokens, path_encs))
 }
 
 /// Build a RecordBatch from a slice of chunk + vector pairs. All inputs
@@ -495,2100 +571,30 @@ pub async fn open_or_create_table(conn: &Connection) -> Result<Table> {
 /// confidence (0-100); `None` (every native caller: text / office / native
 /// PDF pages) leaves both columns null. Disclosure, not behaviour: retrieval
 /// surfaces the values so citations can say "scanned" / "low-confidence scan".
-pub fn build_batch(
-    rows: &[(Chunk, Vec<f32>)],
-    source_type: SourceType,
-    matter_id: &str,
-    privilege: &str,
-    extraction: Option<(&str, f32)>,
-    key: &[u8; 32],
-) -> Result<RecordBatch> {
-    use crate::commands::mail::crypto::encrypt_with_key;
-
-    let schema = build_schema();
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0);
-
-    let ids: Vec<String> = rows
-        .iter()
-        .map(|(c, _)| chunk_id(&c.path, c.paragraph_index))
-        .collect();
-    let para_idx: Vec<u32> = rows.iter().map(|(c, _)| c.paragraph_index).collect();
-    let timestamps: Vec<i64> = vec![now; rows.len()];
-
-    // WS-VEC: encrypt each chunk's text at rest; store as a hex blob in the text
-    // column. Embeddings (the `vector` column) are computed from plaintext by the
-    // caller and stay unencrypted — similarity needs them. Propagate encrypt
-    // errors (never silently store an empty string with encrypted=true, which
-    // would be a permanently-unrecoverable chunk).
-    let mut encrypted_texts: Vec<String> = Vec::with_capacity(rows.len());
-    for (c, _) in rows.iter() {
-        let blob = encrypt_with_key(c.text.as_bytes(), key)
-            .map_err(|e| anyhow::anyhow!("encrypt chunk {}: {e}", c.path))?;
-        encrypted_texts.push(hex::encode(&blob));
-    }
-
-    // VG-6e: the queryable path/source_id columns carry the deterministic
-    // keyed token; the real path is encrypted into path_enc (same key, same
-    // wire format as the text column). Plaintext paths are NEVER written.
-    let mut path_tokens: Vec<String> = Vec::with_capacity(rows.len());
-    let mut path_encs: Vec<String> = Vec::with_capacity(rows.len());
-    for (c, _) in rows.iter() {
-        path_tokens.push(super::crypto::path_token(key, &c.path));
-        let blob = encrypt_with_key(c.path.as_bytes(), key)
-            .map_err(|e| anyhow::anyhow!("encrypt chunk path {}: {e}", c.path))?;
-        path_encs.push(hex::encode(&blob));
-    }
-
-    let vectors = FixedSizeListArray::from_iter_primitive::<Float32Type, _, _>(
-        rows.iter()
-            .map(|(_, v)| Some(v.iter().copied().map(Some).collect::<Vec<_>>())),
-        EMBEDDING_DIM as i32,
-    );
-
-    let id_arr = StringArray::from_iter_values(ids.iter().map(|s| s.as_str()));
-    let path_arr = StringArray::from_iter_values(path_tokens.iter().map(|s| s.as_str()));
-    // WS-B/C: matter_id (one value, all rows) + source_id (== path per row —
-    // VG-6e: both columns hold the token).
-    let matter_arr = StringArray::from(vec![matter_id; rows.len()]);
-    let src_arr = StringArray::from_iter_values(path_tokens.iter().map(|s| s.as_str()));
-    let penc_arr = StringArray::from_iter_values(path_encs.iter().map(|s| s.as_str()));
-    let pi_arr = UInt32Array::from(para_idx);
-    let text_arr = StringArray::from_iter_values(encrypted_texts.iter().map(|s| s.as_str()));
-    let ts_arr = Int64Array::from(timestamps);
-
-    // A3 columns — source_type and page_number.
-    let (st_str, pn_val): (&str, u32) = match source_type {
-        SourceType::Text => ("text", 0),
-        SourceType::Pdf { page_number } => ("pdf", page_number),
-        // VG-2b — office documents. docx/rtf band like text; xlsx/pptx put
-        // their REAL 1-based sheet/slide number in page_number (the citation
-        // label "sheet N" / "slide N" reads it back).
-        SourceType::Docx => ("docx", 0),
-        SourceType::Rtf => ("rtf", 0),
-        SourceType::Xlsx { sheet_number } => ("xlsx", sheet_number),
-        SourceType::Pptx { slide_number } => ("pptx", slide_number),
-        // VG-3c — certified transcripts: page_number carries the group's
-        // locator start page (the per-row "Tr. p:l-p:l" detail lives in the
-        // `locator` column below).
-        SourceType::Transcript { start_page } => ("transcript", start_page),
-        // Mail chunks MUST go through build_batch_mail so source_type = "mail".
-        // Fail loudly — this is a programmer error on a code-chosen enum, never
-        // data-driven.
-        SourceType::Mail => unreachable!("mail chunks must use build_batch_mail, not build_batch"),
-        // CRM chunks MUST go through build_batch_crm so source_type = "crm".
-        SourceType::Crm => unreachable!("crm chunks must use build_batch_crm, not build_batch"),
-    };
-    let st_arr = StringArray::from(vec![st_str; rows.len()]);
-    let pn_arr = UInt32Array::from(vec![pn_val; rows.len()]);
-
-    // WS-VEC: encrypted = true — the text column holds ciphertext, not plaintext.
-    let enc_arr = arrow_array::BooleanArray::from(vec![true; rows.len()]);
-
-    // WS-PRIV: validate the privilege value (defence-in-depth) before it is
-    // written to every row. An invalid value fails the build loudly rather than
-    // persisting an unscopeable privilege string.
-    let privilege = validate_privilege(privilege)?;
-    let priv_arr = StringArray::from(vec![privilege; rows.len()]);
-
-    // VG-2: extraction disclosure — one value for the whole batch (callers
-    // group OCR pages separately), null on every native batch.
-    let ext_arr = StringArray::from(vec![extraction.map(|(kind, _)| kind); rows.len()]);
-    let conf_arr =
-        arrow_array::Float32Array::from(vec![extraction.map(|(_, conf)| conf); rows.len()]);
-
-    // VG-3c: the page:line locator is PER ROW — each transcript chunk carries
-    // its own range; every non-transcript chunk writes null.
-    let loc_arr = StringArray::from(
-        rows.iter()
-            .map(|(c, _)| c.locator.as_deref())
-            .collect::<Vec<Option<&str>>>(),
-    );
-
-    let batch = RecordBatch::try_new(
-        schema,
-        vec![
-            Arc::new(id_arr),
-            Arc::new(path_arr),
-            Arc::new(matter_arr),
-            Arc::new(src_arr),
-            Arc::new(pi_arr),
-            Arc::new(text_arr),
-            Arc::new(vectors),
-            Arc::new(ts_arr),
-            Arc::new(st_arr),
-            Arc::new(pn_arr),
-            Arc::new(enc_arr),
-            Arc::new(priv_arr),
-            Arc::new(ext_arr),
-            Arc::new(conf_arr),
-            Arc::new(loc_arr),
-            Arc::new(penc_arr),
-        ],
-    )
-    .context("RecordBatch::try_new failed for chunks batch")?;
-    Ok(batch)
-}
-
-/// Build a RecordBatch for mail chunks. The `text` column contains
-/// hex-encoded AES-256-GCM ciphertext (encrypt_with_key). Embeddings are
-/// computed from plaintext (already passed in as `rows`). `encrypted = true`.
-///
-/// WS-VEC: `key` is the dedicated vector-store master key (`crypto.rs`), the
-/// SAME key `build_batch` uses for text/pdf chunks — so the whole `chunks` table
-/// decrypts under one key. (Pre-WS-VEC this was the mail key and only mail was
-/// encrypted; the version-5 migration re-indexes mail chunks under the vector
-/// key.) The mail BODY's canonical encrypted copy still lives in the mail store
-/// under the mail key; this is the RAG-derived copy.
-///
-/// WS-B/C: `matter_id` is the confidentiality scope key (NON-NULL) written to
-/// every row. `source_id` is the chunk's `path` — for mail this is the
-/// "mail:<message-id>" key, the resolvable source for the citation contract.
-///
-/// WS-PRIV: `privilege` is the litigation-safety status (NON-NULL) written to
-/// every row. Privileged mail (e.g. a client communication) is excluded from
-/// retrieval by default, just like a privileged document.
-pub fn build_batch_mail(
-    rows: &[(Chunk, Vec<f32>)],
-    key: &[u8; 32],
-    matter_id: &str,
-    privilege: &str,
-) -> Result<RecordBatch> {
-    use crate::commands::mail::crypto::encrypt_with_key;
-
-    let schema = build_schema();
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0);
-
-    let ids: Vec<String> = rows
-        .iter()
-        .map(|(c, _)| chunk_id(&c.path, c.paragraph_index))
-        .collect();
-    let para_idx: Vec<u32> = rows.iter().map(|(c, _)| c.paragraph_index).collect();
-    let timestamps = vec![now; rows.len()];
-
-    // Encrypt each chunk's text; store as hex string in the text column.
-    // The embedding was computed from plaintext (passed in `rows`) and is stored unencrypted.
-    //
-    // S2: Propagate encrypt errors — an unwrap_or_default() here would silently
-    // store an empty string with encrypted=true, producing a permanently-
-    // unrecoverable chunk. Instead, return Err so the caller sees the failure.
-    let mut encrypted_texts: Vec<String> = Vec::with_capacity(rows.len());
-    for (c, _) in rows.iter() {
-        let blob = encrypt_with_key(c.text.as_bytes(), key)
-            .map_err(|e| anyhow::anyhow!("encrypt mail chunk {}: {e}", c.path))?;
-        encrypted_texts.push(hex::encode(&blob));
-    }
-
-    // VG-6e: same tokenization as build_batch — a "mail:<id>" key on disk is a
-    // re-identification surface exactly like a file path (message ids tie back
-    // to mailbox provider records), so it gets the same token + path_enc pair.
-    let mut path_tokens: Vec<String> = Vec::with_capacity(rows.len());
-    let mut path_encs: Vec<String> = Vec::with_capacity(rows.len());
-    for (c, _) in rows.iter() {
-        path_tokens.push(super::crypto::path_token(key, &c.path));
-        let blob = encrypt_with_key(c.path.as_bytes(), key)
-            .map_err(|e| anyhow::anyhow!("encrypt mail chunk path {}: {e}", c.path))?;
-        path_encs.push(hex::encode(&blob));
-    }
-
-    let vectors = FixedSizeListArray::from_iter_primitive::<Float32Type, _, _>(
-        rows.iter()
-            .map(|(_, v)| Some(v.iter().copied().map(Some).collect::<Vec<_>>())),
-        EMBEDDING_DIM as i32,
-    );
-
-    let id_arr = StringArray::from_iter_values(ids.iter().map(|s| s.as_str()));
-    let path_arr = StringArray::from_iter_values(path_tokens.iter().map(|s| s.as_str()));
-    // WS-B/C: matter_id (one value, all rows) + source_id (== path = "mail:<id>"
-    // — VG-6e: both columns hold the token).
-    let matter_arr = StringArray::from(vec![matter_id; rows.len()]);
-    let src_arr = StringArray::from_iter_values(path_tokens.iter().map(|s| s.as_str()));
-    let penc_arr = StringArray::from_iter_values(path_encs.iter().map(|s| s.as_str()));
-    let pi_arr = UInt32Array::from(para_idx);
-    let text_arr = StringArray::from_iter_values(encrypted_texts.iter().map(|s| s.as_str()));
-    let ts_arr = Int64Array::from(timestamps);
-    let st_arr = StringArray::from(vec!["mail"; rows.len()]);
-    let pn_arr = UInt32Array::from(vec![0u32; rows.len()]);
-    // G4: encrypted = true — the text column holds ciphertext, not plaintext.
-    let enc_arr = arrow_array::BooleanArray::from(vec![true; rows.len()]);
-    // WS-PRIV: validate + write the privilege value to every mail row.
-    let privilege = validate_privilege(privilege)?;
-    let priv_arr = StringArray::from(vec![privilege; rows.len()]);
-    // VG-2: mail is never OCR-extracted — extraction columns stay null.
-    let ext_arr = StringArray::from(vec![None::<&str>; rows.len()]);
-    let conf_arr = arrow_array::Float32Array::from(vec![None::<f32>; rows.len()]);
-    // VG-3c: mail never carries a page:line locator.
-    let loc_arr = StringArray::from(vec![None::<&str>; rows.len()]);
-
-    RecordBatch::try_new(
-        schema,
-        vec![
-            Arc::new(id_arr),
-            Arc::new(path_arr),
-            Arc::new(matter_arr),
-            Arc::new(src_arr),
-            Arc::new(pi_arr),
-            Arc::new(text_arr),
-            Arc::new(vectors),
-            Arc::new(ts_arr),
-            Arc::new(st_arr),
-            Arc::new(pn_arr),
-            Arc::new(enc_arr),
-            Arc::new(priv_arr),
-            Arc::new(ext_arr),
-            Arc::new(conf_arr),
-            Arc::new(loc_arr),
-            Arc::new(penc_arr),
-        ],
-    )
-    .context("RecordBatch::try_new failed for mail chunks batch")
-}
-
-/// Build a RecordBatch for CRM chunks. Mirrors `build_batch_mail` exactly —
-/// the `text` column holds hex-encoded AES-256-GCM ciphertext, `source_type`
-/// is written as `"crm"`, and `encrypted = true`. Used by the Wealthbox
-/// connector (Phase 1A) to persist per-object records and household summaries.
-///
-/// WS-VEC: `key` is the vector-store master key — the same key used by every
-/// other batch builder, so the whole `chunks` table decrypts under one key.
-///
-/// WS-B/C: `matter_id` is the confidentiality scope key (NON-NULL) written to
-/// every row. `source_id` is formatted as `crm:<kind>:<id>` by the caller.
-///
-/// WS-PRIV: `privilege` is the litigation-safety status (NON-NULL) written to
-/// every row.
-pub fn build_batch_crm(
-    rows: &[(Chunk, Vec<f32>)],
-    key: &[u8; 32],
-    matter_id: &str,
-    privilege: &str,
-) -> Result<RecordBatch> {
-    use crate::commands::mail::crypto::encrypt_with_key;
-
-    let schema = build_schema();
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0);
-
-    let ids: Vec<String> = rows
-        .iter()
-        .map(|(c, _)| chunk_id(&c.path, c.paragraph_index))
-        .collect();
-    let para_idx: Vec<u32> = rows.iter().map(|(c, _)| c.paragraph_index).collect();
-    let timestamps = vec![now; rows.len()];
-
-    // Encrypt each chunk's text; store as hex string in the text column.
-    // S2: Propagate encrypt errors — silently storing empty with encrypted=true
-    // would produce a permanently-unrecoverable chunk.
-    let mut encrypted_texts: Vec<String> = Vec::with_capacity(rows.len());
-    for (c, _) in rows.iter() {
-        let blob = encrypt_with_key(c.text.as_bytes(), key)
-            .map_err(|e| anyhow::anyhow!("encrypt crm chunk {}: {e}", c.path))?;
-        encrypted_texts.push(hex::encode(&blob));
-    }
-
-    // VG-6e: same tokenization as build_batch_mail — a "crm:<kind>:<id>" key is
-    // a re-identification surface, so it gets the same token + path_enc pair.
-    let mut path_tokens: Vec<String> = Vec::with_capacity(rows.len());
-    let mut path_encs: Vec<String> = Vec::with_capacity(rows.len());
-    for (c, _) in rows.iter() {
-        path_tokens.push(super::crypto::path_token(key, &c.path));
-        let blob = encrypt_with_key(c.path.as_bytes(), key)
-            .map_err(|e| anyhow::anyhow!("encrypt crm chunk path {}: {e}", c.path))?;
-        path_encs.push(hex::encode(&blob));
-    }
-
-    let vectors = FixedSizeListArray::from_iter_primitive::<Float32Type, _, _>(
-        rows.iter()
-            .map(|(_, v)| Some(v.iter().copied().map(Some).collect::<Vec<_>>())),
-        EMBEDDING_DIM as i32,
-    );
-
-    let id_arr = StringArray::from_iter_values(ids.iter().map(|s| s.as_str()));
-    let path_arr = StringArray::from_iter_values(path_tokens.iter().map(|s| s.as_str()));
-    // WS-B/C: matter_id (one value, all rows) + source_id (== path = "crm:<kind>:<id>"
-    // — VG-6e: both columns hold the token).
-    let matter_arr = StringArray::from(vec![matter_id; rows.len()]);
-    let src_arr = StringArray::from_iter_values(path_tokens.iter().map(|s| s.as_str()));
-    let penc_arr = StringArray::from_iter_values(path_encs.iter().map(|s| s.as_str()));
-    let pi_arr = UInt32Array::from(para_idx);
-    let text_arr = StringArray::from_iter_values(encrypted_texts.iter().map(|s| s.as_str()));
-    let ts_arr = Int64Array::from(timestamps);
-    let st_arr = StringArray::from(vec!["crm"; rows.len()]);
-    let pn_arr = UInt32Array::from(vec![0u32; rows.len()]);
-    // G4: encrypted = true — the text column holds ciphertext, not plaintext.
-    let enc_arr = arrow_array::BooleanArray::from(vec![true; rows.len()]);
-    // WS-PRIV: validate + write the privilege value to every crm row.
-    let privilege = validate_privilege(privilege)?;
-    let priv_arr = StringArray::from(vec![privilege; rows.len()]);
-    // VG-2: crm is never OCR-extracted — extraction columns stay null.
-    let ext_arr = StringArray::from(vec![None::<&str>; rows.len()]);
-    let conf_arr = arrow_array::Float32Array::from(vec![None::<f32>; rows.len()]);
-    // VG-3c: crm never carries a page:line locator.
-    let loc_arr = StringArray::from(vec![None::<&str>; rows.len()]);
-
-    RecordBatch::try_new(
-        schema,
-        vec![
-            Arc::new(id_arr),
-            Arc::new(path_arr),
-            Arc::new(matter_arr),
-            Arc::new(src_arr),
-            Arc::new(pi_arr),
-            Arc::new(text_arr),
-            Arc::new(vectors),
-            Arc::new(ts_arr),
-            Arc::new(st_arr),
-            Arc::new(pn_arr),
-            Arc::new(enc_arr),
-            Arc::new(priv_arr),
-            Arc::new(ext_arr),
-            Arc::new(conf_arr),
-            Arc::new(loc_arr),
-            Arc::new(penc_arr),
-        ],
-    )
-    .context("RecordBatch::try_new failed for crm chunks batch")
-}
-
-/// Build a RecordBatch for external connector chunks. Mirrors `build_batch_crm`
-/// exactly — the `text` column holds hex-encoded AES-256-GCM ciphertext,
-/// `source_type` is written from the allowlisted parameter, and
-/// `encrypted = true`.
-///
-/// This is the additive connector foundation for OneDrive, e-signature,
-/// meetings, and future external record kinds. The typed `SourceType` enum
-/// stays closed for file extraction; connector modules use this string path.
-pub fn build_batch_external(
-    rows: &[(Chunk, Vec<f32>)],
-    key: &[u8; 32],
-    matter_id: &str,
-    privilege: &str,
-    source_type: &str,
-) -> Result<RecordBatch> {
-    use crate::commands::mail::crypto::encrypt_with_key;
-
-    let source_type = validate_external_source_type(source_type)?;
-    let schema = build_schema();
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0);
-
-    let ids: Vec<String> = rows
-        .iter()
-        .map(|(c, _)| chunk_id(&c.path, c.paragraph_index))
-        .collect();
-    let para_idx: Vec<u32> = rows.iter().map(|(c, _)| c.paragraph_index).collect();
-    let timestamps = vec![now; rows.len()];
-
-    // Encrypt each chunk's text; store as hex string in the text column.
-    // S2: Propagate encrypt errors — silently storing empty with encrypted=true
-    // would produce a permanently-unrecoverable chunk.
-    let mut encrypted_texts: Vec<String> = Vec::with_capacity(rows.len());
-    for (c, _) in rows.iter() {
-        let blob = encrypt_with_key(c.text.as_bytes(), key)
-            .map_err(|e| anyhow::anyhow!("encrypt external chunk {}: {e}", c.path))?;
-        encrypted_texts.push(hex::encode(&blob));
-    }
-
-    // VG-6e: same tokenization as build_batch_crm — external connector keys
-    // are re-identification surfaces, so they get the same token + path_enc pair.
-    let mut path_tokens: Vec<String> = Vec::with_capacity(rows.len());
-    let mut path_encs: Vec<String> = Vec::with_capacity(rows.len());
-    for (c, _) in rows.iter() {
-        path_tokens.push(super::crypto::path_token(key, &c.path));
-        let blob = encrypt_with_key(c.path.as_bytes(), key)
-            .map_err(|e| anyhow::anyhow!("encrypt external chunk path {}: {e}", c.path))?;
-        path_encs.push(hex::encode(&blob));
-    }
-
-    let vectors = FixedSizeListArray::from_iter_primitive::<Float32Type, _, _>(
-        rows.iter()
-            .map(|(_, v)| Some(v.iter().copied().map(Some).collect::<Vec<_>>())),
-        EMBEDDING_DIM as i32,
-    );
-
-    let id_arr = StringArray::from_iter_values(ids.iter().map(|s| s.as_str()));
-    let path_arr = StringArray::from_iter_values(path_tokens.iter().map(|s| s.as_str()));
-    // WS-B/C: matter_id (one value, all rows) + source_id (== path = external
-    // connector source id — VG-6e: both columns hold the token).
-    let matter_arr = StringArray::from(vec![matter_id; rows.len()]);
-    let src_arr = StringArray::from_iter_values(path_tokens.iter().map(|s| s.as_str()));
-    let penc_arr = StringArray::from_iter_values(path_encs.iter().map(|s| s.as_str()));
-    let pi_arr = UInt32Array::from(para_idx);
-    let text_arr = StringArray::from_iter_values(encrypted_texts.iter().map(|s| s.as_str()));
-    let ts_arr = Int64Array::from(timestamps);
-    let st_arr = StringArray::from(vec![source_type; rows.len()]);
-    let pn_arr = UInt32Array::from(vec![0u32; rows.len()]);
-    // G4: encrypted = true — the text column holds ciphertext, not plaintext.
-    let enc_arr = arrow_array::BooleanArray::from(vec![true; rows.len()]);
-    // WS-PRIV: validate + write the privilege value to every external row.
-    let privilege = validate_privilege(privilege)?;
-    let priv_arr = StringArray::from(vec![privilege; rows.len()]);
-    // VG-2: external connector rows are not OCR-extracted here — extraction columns stay null.
-    let ext_arr = StringArray::from(vec![None::<&str>; rows.len()]);
-    let conf_arr = arrow_array::Float32Array::from(vec![None::<f32>; rows.len()]);
-    // VG-3c: external connector rows never carry a page:line locator here.
-    let loc_arr = StringArray::from(vec![None::<&str>; rows.len()]);
-
-    RecordBatch::try_new(
-        schema,
-        vec![
-            Arc::new(id_arr),
-            Arc::new(path_arr),
-            Arc::new(matter_arr),
-            Arc::new(src_arr),
-            Arc::new(pi_arr),
-            Arc::new(text_arr),
-            Arc::new(vectors),
-            Arc::new(ts_arr),
-            Arc::new(st_arr),
-            Arc::new(pn_arr),
-            Arc::new(enc_arr),
-            Arc::new(priv_arr),
-            Arc::new(ext_arr),
-            Arc::new(conf_arr),
-            Arc::new(loc_arr),
-            Arc::new(penc_arr),
-        ],
-    )
-    .context("RecordBatch::try_new failed for external connector chunks batch")
-}
-
-/// Replace all rows for `path` with the new `rows`. Idempotent re-index.
-///
-/// A3: `source_type` is passed to `build_batch` so every row in the batch
-/// gets the correct `source_type` / `page_number` values. Text callers pass
-/// `SourceType::Text`; PDF callers pass `SourceType::Pdf { page_number }`.
-/// Note: for PDF files where different chunks belong to different pages,
-/// call this once per page or use `build_batch_per_row` (not needed in A3
-/// since we split at the page level already).
-pub async fn upsert_chunks_for_path(
-    table: &Table,
-    path: &str,
-    rows: Vec<(Chunk, Vec<f32>)>,
-    source_type: SourceType,
-    matter_id: &str,
-    privilege: &str,
-    key: &[u8; 32],
-) -> Result<()> {
-    // Always delete first — even if `rows` is empty (the file may have
-    // been emptied by the user) we want to drop stale chunks.
-    // VG-6e: the column holds the keyed token, so the predicate matches on
-    // the token computed from the same plaintext path + key. (The predicate
-    // string lands in LanceDB's transaction log — tokenizing it is part of
-    // the no-plaintext-paths-on-disk guarantee.)
-    let predicate = format!(
-        "path = '{}'",
-        sql_escape(&super::crypto::path_token(key, path))
-    );
-    table
-        .delete(&predicate)
-        .await
-        .with_context(|| format!("delete failed for {}", path))?;
-
-    if rows.is_empty() {
-        return Ok(());
-    }
-
-    // WS-VEC: build_batch encrypts the text column under the vector-store key.
-    // VG-2: this path serves native text extraction only — never OCR.
-    let batch = build_batch(&rows, source_type, matter_id, privilege, None, key)?;
-    let schema = batch.schema();
-    let iter = RecordBatchIterator::new(vec![Ok(batch)], schema);
-    table
-        .add(Box::new(iter))
-        .execute()
-        .await
-        .context("add chunks batch failed")?;
-    Ok(())
-}
-
-/// Replace all rows for `path` with per-group batches, where every group
-/// carries its OWN `SourceType` — the write shape for SECTIONED sources
-/// (PDF pages, xlsx sheets, pptx slides) whose chunks differ in
-/// `source_type`/`page_number` across the same file.
-///
-/// Generalized out of `pdf_indexer.rs` (VG-2b): one up-front delete for the
-/// whole path (calling `upsert_chunks_for_path` per group would re-delete
-/// the groups already inserted), then ONE `table.add` over every group's
-/// batch. Idempotent re-index, exactly like `upsert_chunks_for_path`.
-/// Returns the number of rows inserted; an empty `groups` still deletes
-/// stale rows (the file may have emptied) and returns 0.
-///
-/// VG-2: each group carries its own `extraction` marker — `Some(("ocr", conf))`
-/// on a PDF page group the OCR engine read, `None` on every native group
-/// (office callers pass `None` throughout).
-pub async fn upsert_grouped(
-    table: &Table,
-    path: &str,
-    groups: Vec<(SourceType, Option<(&str, f32)>, Vec<(Chunk, Vec<f32>)>)>,
-    matter_id: &str,
-    privilege: &str,
-    key: &[u8; 32],
-) -> Result<usize> {
-    // VG-6e: tokenized predicate — see upsert_chunks_for_path.
-    let predicate = format!(
-        "path = '{}'",
-        sql_escape(&super::crypto::path_token(key, path))
-    );
-    table
-        .delete(&predicate)
-        .await
-        .with_context(|| format!("delete failed for {}", path))?;
-
-    use arrow_schema::ArrowError;
-    let mut count = 0usize;
-    let mut batches: Vec<std::result::Result<RecordBatch, ArrowError>> = Vec::new();
-    for (source_type, extraction, rows) in &groups {
-        if rows.is_empty() {
-            continue;
-        }
-        count += rows.len();
-        let batch = build_batch(rows, *source_type, matter_id, privilege, *extraction, key)
-            .map_err(|e| anyhow::anyhow!("build grouped batch for {}: {e}", path))?;
-        batches.push(Ok(batch));
-    }
-    if !batches.is_empty() {
-        let schema = build_schema();
-        let iter = RecordBatchIterator::new(batches.into_iter(), schema);
-        table
-            .add(Box::new(iter))
-            .execute()
-            .await
-            .context("add grouped chunks batch failed")?;
-    }
-    Ok(count)
-}
-
-/// Drop every row whose `path` matches. Used by the watcher when a file
-/// is deleted from the workspace.
-///
-/// VG-6e: takes the PLAINTEXT path plus the vector master `key` and computes
-/// the stored token internally — callers never handle tokens.
-pub async fn delete_path(table: &Table, path: &str, key: &[u8; 32]) -> Result<()> {
-    let predicate = format!(
-        "path = '{}'",
-        sql_escape(&super::crypto::path_token(key, path))
-    );
-    table
-        .delete(&predicate)
-        .await
-        .with_context(|| format!("delete failed for {}", path))?;
-    Ok(())
-}
-
-/// BUG-040: purge EVERY chunk belonging to a matter, regardless of which file
-/// or mail folder it came from. Used when a matter is deleted so its content
-/// can no longer surface through all-matters retrieval (which applies no matter
-/// filter). `matter_id` is the plaintext, queryable confidentiality-scope column
-/// (see the schema notes above), so we filter on it directly — validated +
-/// SQL-escaped to keep the predicate safe. Deleting `UNASSIGNED_MATTER` is
-/// refused: it would wipe every uncategorized chunk in the workspace.
-pub async fn delete_matter(table: &Table, matter_id: &str) -> Result<()> {
-    let matter_id = validate_matter_id(matter_id)?;
-    if matter_id == UNASSIGNED_MATTER {
-        anyhow::bail!("refusing to delete the UNASSIGNED_MATTER bucket");
-    }
-    let predicate = format!("matter_id = '{}'", sql_escape(matter_id));
-    table
-        .delete(&predicate)
-        .await
-        .with_context(|| format!("delete failed for matter {}", matter_id))?;
-    Ok(())
-}
-
-/// Delete every chunk with the given source_type (e.g. "crm"). Used to purge
-/// an external connector's imported data when the user disconnects it.
-pub async fn delete_source_type(table: &Table, source_type: &str) -> Result<()> {
-    let predicate = format!("source_type = '{}'", sql_escape(source_type));
-    table
-        .delete(&predicate)
-        .await
-        .with_context(|| format!("delete failed for source_type {}", source_type))?;
-    Ok(())
-}
-
-/// List the DISTINCT plaintext source ids currently indexed under `source_type`.
-///
-/// The queryable `source_id` column is tokenized (VG-6e), so this scans matching
-/// rows and decrypts each `path_enc` (the encrypted plaintext path, which equals
-/// the source id by construction) in memory. Store-less connectors (e.g. Addepar,
-/// which re-fetches everything each sync and keeps no local record table) use this
-/// to find chunks whose remote source has vanished, so they can be pruned. The
-/// returned ids are plaintext and can be passed straight to [`delete_path`].
-pub async fn list_external_source_ids(
-    table: &Table,
-    source_type: &str,
-    key: &[u8; 32],
-) -> Result<Vec<String>> {
-    use futures_util::TryStreamExt;
-
-    let predicate = format!("source_type = '{}'", sql_escape(source_type));
-    let mut stream = table
-        .query()
-        .only_if(&predicate)
-        .select(Select::columns(&["path_enc"]))
-        .execute()
-        .await
-        .context("list_external_source_ids query execute failed")?;
-
-    let mut seen = std::collections::HashSet::new();
-    let mut out = Vec::new();
-    while let Some(batch) = stream
-        .try_next()
-        .await
-        .context("list_external_source_ids stream try_next failed")?
-    {
-        let path_enc_col = batch
-            .column_by_name("path_enc")
-            .context("missing path_enc column")?
-            .as_any()
-            .downcast_ref::<StringArray>()
-            .context("path_enc column is not StringArray")?;
-        for i in 0..batch.num_rows() {
-            if path_enc_col.is_null(i) {
-                continue;
-            }
-            let plain = decrypt_path_enc_for_provider_scan(path_enc_col.value(i), key)?;
-            if seen.insert(plain.clone()) {
-                out.push(plain);
-            }
-        }
-    }
-    Ok(out)
-}
-
-/// Build the predicate for [`delete_crm_for_matters`]: delete every CRM chunk
-/// whose matter is in `matter_ids`, in ONE clause. Returns `None` for an empty
-/// list (nothing to delete). Pure + SQL-escaped so it is unit-testable without a
-/// table.
-fn crm_delete_predicate(matter_ids: &[String]) -> Option<String> {
-    if matter_ids.is_empty() {
-        return None;
-    }
-    let list = matter_ids
-        .iter()
-        .map(|m| format!("'{}'", sql_escape(m)))
-        .collect::<Vec<_>>()
-        .join(", ");
-    Some(format!("source_type = 'crm' AND matter_id IN ({list})"))
-}
-
-fn crm_provider_scan_predicate(matter_ids: Option<&[String]>) -> Option<String> {
-    match matter_ids {
-        Some(ids) => crm_delete_predicate(ids),
-        None => Some("source_type = 'crm'".to_string()),
-    }
-}
-
-fn crm_source_id_belongs_to_provider(source_id: &str, provider_id: &str) -> bool {
-    crate::commands::crm::model::crm_source_id_belongs_to_provider(source_id, provider_id)
-}
-
-fn decrypt_path_enc_for_provider_scan(path_enc: &str, key: &[u8; 32]) -> Result<String> {
-    let blob = hex::decode(path_enc).context("decode crm path_enc")?;
-    let plaintext = crate::commands::mail::crypto::decrypt_with_key(&blob, key)
-        .context("decrypt crm path_enc")?;
-    String::from_utf8(plaintext).context("crm path_enc was not utf8")
-}
-
-async fn list_crm_provider_entries(
-    table: &Table,
-    matter_ids: Option<&[String]>,
-    provider_id: &str,
-    key: &[u8; 32],
-) -> Result<Vec<(String, String)>> {
-    use futures_util::TryStreamExt;
-
-    let Some(predicate) = crm_provider_scan_predicate(matter_ids) else {
-        return Ok(Vec::new());
-    };
-
-    let mut stream = table
-        .query()
-        .only_if(&predicate)
-        .select(Select::columns(&["matter_id", "source_id", "path_enc"]))
-        .execute()
-        .await
-        .context("list_crm_provider_entries query execute failed")?;
-
-    let mut out = Vec::new();
-    while let Some(batch) = stream
-        .try_next()
-        .await
-        .context("list_crm_provider_entries stream try_next failed")?
-    {
-        let matter_col = batch
-            .column_by_name("matter_id")
-            .context("missing matter_id column")?
-            .as_any()
-            .downcast_ref::<StringArray>()
-            .context("matter_id column is not StringArray")?;
-        let source_col = batch
-            .column_by_name("source_id")
-            .context("missing source_id column")?
-            .as_any()
-            .downcast_ref::<StringArray>()
-            .context("source_id column is not StringArray")?;
-        let path_enc_col = batch
-            .column_by_name("path_enc")
-            .context("missing path_enc column")?
-            .as_any()
-            .downcast_ref::<StringArray>()
-            .context("path_enc column is not StringArray")?;
-
-        for i in 0..batch.num_rows() {
-            if matter_col.is_null(i) || source_col.is_null(i) || path_enc_col.is_null(i) {
-                continue;
-            }
-            let plain_source_id = decrypt_path_enc_for_provider_scan(path_enc_col.value(i), key)?;
-            if crm_source_id_belongs_to_provider(&plain_source_id, provider_id) {
-                out.push((
-                    matter_col.value(i).to_string(),
-                    source_col.value(i).to_string(),
-                ));
-            }
-        }
-    }
-
-    Ok(out)
-}
-
-/// Delete every CRM chunk belonging to any of `matter_ids` in a SINGLE table
-/// delete (one scan + commit + compaction), instead of one delete per source id.
-///
-/// Scoped to `source_type = 'crm'` so the file/mail chunks of a *merged* household
-/// (a matter that has both files and CRM data) are preserved. A first sync matches
-/// nothing and returns quickly; an empty list is a no-op.
-///
-/// This replaces the per-item `delete_path` loop the CRM backfill used to run: on a
-/// ~40-household / ~200-item first sync that issued ~200 sequential full-table
-/// deletes — each a scan + commit + compaction, all no-ops on a first sync — and
-/// never completed (the hang the bench observed).
-///
-/// `backfill` calls this **per matter** (a one-element `matter_ids`), right after the
-/// cancel check, as the delete half of a delete-then-insert (NOT a real transaction —
-/// LanceDB gives none here; cancel is checked before the delete so a Stop leaves the
-/// matter unchanged). One scoped delete per matter (not per item, not per household) is
-/// what removed the churn. The slice form is kept so the same primitive can clear
-/// several matters at once (e.g. the empty-map / orphan purge).
-pub async fn delete_crm_for_matters(table: &Table, matter_ids: &[String]) -> Result<()> {
-    let Some(predicate) = crm_delete_predicate(matter_ids) else {
-        return Ok(());
-    };
-    table
-        .delete(&predicate)
-        .await
-        .context("delete failed for crm matters")?;
-    Ok(())
-}
-
-/// Delete CRM chunks for the selected matters, scoped to one CRM provider.
-///
-/// The queryable `source_id` column is tokenized, so this scans matching CRM
-/// rows, decrypts `path_enc` in memory, classifies the plaintext source id
-/// (`sfdc:` = Salesforce, no provider prefix = Wealthbox), then deletes only
-/// the matching source-id tokens. This is the multi-CRM safety boundary: a
-/// Salesforce sync can replace Salesforce chunks without touching Wealthbox
-/// chunks that live under the same matter.
-pub async fn delete_crm_for_matters_for_provider(
-    table: &Table,
-    matter_ids: &[String],
-    provider_id: &str,
-    key: &[u8; 32],
-) -> Result<()> {
-    if matter_ids.is_empty() {
-        return Ok(());
-    }
-    let entries = list_crm_provider_entries(table, Some(matter_ids), provider_id, key).await?;
-    let source_tokens: HashSet<String> = entries.into_iter().map(|(_, token)| token).collect();
-    if source_tokens.is_empty() {
-        return Ok(());
-    }
-
-    let matter_list = matter_ids
-        .iter()
-        .map(|m| format!("'{}'", sql_escape(m)))
-        .collect::<Vec<_>>()
-        .join(", ");
-    let source_list = source_tokens
-        .iter()
-        .map(|s| format!("'{}'", sql_escape(s)))
-        .collect::<Vec<_>>()
-        .join(", ");
-    let predicate = format!(
-        "source_type = 'crm' AND matter_id IN ({matter_list}) AND source_id IN ({source_list})"
-    );
-    table
-        .delete(&predicate)
-        .await
-        .context("delete failed for provider-scoped crm matters")?;
-    Ok(())
-}
-
-/// Return the set of distinct `matter_id`s that currently have at least one CRM
-/// chunk. ONE column-only scan (`matter_id` is the plaintext, queryable scope
-/// column — no decryption needed). The CRM backfill uses this to (a) skip the
-/// stale-chunk delete for a matter that has no chunks yet — a first sync's deletes
-/// are all no-ops, and avoiding them removes their commit + compaction churn — and
-/// (b) find matters that still have CRM chunks but are no longer being synced
-/// (a household re-linked elsewhere), so their orphaned chunks can be purged.
-pub async fn list_crm_matters(table: &Table) -> Result<HashSet<String>> {
-    use futures_util::TryStreamExt;
-    let mut stream = table
-        .query()
-        .only_if("source_type = 'crm'")
-        .select(Select::columns(&["matter_id"]))
-        .execute()
-        .await
-        .context("list_crm_matters query execute failed")?;
-
-    let mut out = HashSet::new();
-    while let Some(batch) = stream
-        .try_next()
-        .await
-        .context("list_crm_matters stream try_next failed")?
-    {
-        let col = batch
-            .column_by_name("matter_id")
-            .context("missing matter_id column")?
-            .as_any()
-            .downcast_ref::<StringArray>()
-            .context("matter_id column is not StringArray")?;
-        for i in 0..col.len() {
-            if !col.is_null(i) {
-                out.insert(col.value(i).to_string());
-            }
-        }
-    }
-    Ok(out)
-}
-
-/// Return distinct matters that currently have CRM chunks for one provider.
-/// See [`delete_crm_for_matters_for_provider`] for why provider detection uses
-/// decrypted `path_enc` instead of searching the tokenized `source_id` column.
-pub async fn list_crm_matters_for_provider(
-    table: &Table,
-    provider_id: &str,
-    key: &[u8; 32],
-) -> Result<HashSet<String>> {
-    let entries = list_crm_provider_entries(table, None, provider_id, key).await?;
-    Ok(entries.into_iter().map(|(matter, _)| matter).collect())
-}
-
-/// Compact data fragments and prune old versions in ONE pass. Called once at the
-/// END of a CRM sync so the per-matter appends don't drive per-household compaction
-/// churn during the run (the "Auto cleanup every ~30s" the bench observed). Failure
-/// must NOT fail the sync — call sites treat it as best-effort.
-pub async fn optimize_after_bulk_write(table: &Table) -> Result<()> {
-    table
-        .optimize(lancedb::table::OptimizeAction::All)
-        .await
-        .context("optimize crm table after bulk write")?;
-    Ok(())
-}
-
-/// WS-PRIV — re-tag the privilege of every already-indexed chunk for `path`
-/// IN PLACE, without re-embedding. Used when the user toggles a source's
-/// privilege: the chunk text + vectors are unchanged, only the `privilege`
-/// column flips, which is exactly what changes whether the chunk is excluded
-/// from default retrieval.
-///
-/// Implemented as a LanceDB `UPDATE ... WHERE path = ?` so it is cheap and does
-/// not touch the embedder. The new value is validated against the three known
-/// privilege values (defence-in-depth) and SQL-escaped both as the SET literal
-/// and in the WHERE clause. Returns the number of rows updated.
-///
-/// Note: a source that has not been indexed yet has zero chunks; this returns 0
-/// and the source picks up the right privilege when it is next indexed (the
-/// privilege store is the source of truth and the index resolver reads it).
-pub async fn retag_privilege_for_path(
-    table: &Table,
-    path: &str,
-    privilege: &str,
-    key: &[u8; 32],
-) -> Result<u64> {
-    let privilege = validate_privilege(privilege)?;
-    // VG-6e: tokenized predicate — the column holds the keyed token.
-    let predicate = format!(
-        "path = '{}'",
-        sql_escape(&super::crypto::path_token(key, path))
-    );
-    // The update expression is a SQL string literal for the new privilege value.
-    let value_expr = format!("'{}'", sql_escape(privilege));
-    let result = table
-        .update()
-        .only_if(predicate)
-        .column("privilege", value_expr)
-        .execute()
-        .await
-        .with_context(|| format!("retag privilege failed for {}", path))?;
-    Ok(result.rows_updated)
-}
-
-/// WS-B/C — re-tag the matter of every already-indexed chunk for `path` IN
-/// PLACE, without re-embedding. The mirror of `retag_privilege_for_path` for the
-/// matter scope: used when a source's matter assignment changes (e.g. a mail
-/// folder is mapped to a different matter) so retrieval scoping updates without
-/// re-running the embedder. The chunk text + vectors are unchanged; only the
-/// `matter_id` column flips, which is exactly what changes which matter scope the
-/// chunk surfaces under.
-///
-/// `matter_id` is validated (non-empty; `UNASSIGNED_MATTER` is allowed) and
-/// SQL-escaped both as the SET literal and in the WHERE clause. Returns the
-/// number of rows updated (0 when the source has not been indexed yet — it will
-/// pick up the right matter when next indexed, since the index path resolves the
-/// matter at index time).
-pub async fn retag_matter_for_path(
-    table: &Table,
-    path: &str,
-    matter_id: &str,
-    key: &[u8; 32],
-) -> Result<u64> {
-    let matter_id = validate_matter_id(matter_id)?;
-    // VG-6e: tokenized predicate — the column holds the keyed token.
-    let predicate = format!(
-        "path = '{}'",
-        sql_escape(&super::crypto::path_token(key, path))
-    );
-    let value_expr = format!("'{}'", sql_escape(matter_id));
-    let result = table
-        .update()
-        .only_if(predicate)
-        .column("matter_id", value_expr)
-        .execute()
-        .await
-        .with_context(|| format!("retag matter failed for {}", path))?;
-    Ok(result.rows_updated)
-}
-
-/// Read the matter scope a given source path is currently filed under, by
-/// querying the tokenized `path` column and returning the chunk's `matter_id`.
-///
-/// Mirrors `retag_matter_for_path`'s tokenized predicate (the `path` column
-/// holds the keyed token, not the plaintext path — VG-6e). Scans EVERY chunk
-/// for the path rather than one arbitrary row, so a robust answer is returned
-/// even if chunks somehow disagree: returns `Ok(Some(matter))` when all
-/// non-empty chunks agree on one matter, `Ok(None)` when the path has no
-/// indexed chunk (or only empty matters), and `Ok(None)` (with a warning) when
-/// chunks disagree — never an arbitrary/ambiguous pick.
-///
-/// BUG-013: used as the SOFT folder-level fallback when a message has no durable
-/// per-message override; the unassigned sentinel is filtered by the caller.
-pub async fn matter_for_path(table: &Table, path: &str, key: &[u8; 32]) -> Result<Option<String>> {
-    use futures_util::TryStreamExt;
-    let predicate = format!(
-        "path = '{}'",
-        sql_escape(&super::crypto::path_token(key, path))
-    );
-    let mut stream = table
-        .query()
-        .only_if(predicate)
-        .select(Select::columns(&["matter_id"]))
-        .execute()
-        .await
-        .context("matter_for_path query execute failed")?;
-
-    let mut found: Option<String> = None;
-    while let Some(batch) = stream
-        .try_next()
-        .await
-        .context("matter_for_path stream try_next failed")?
-    {
-        let Some(col) = batch
-            .column_by_name("matter_id")
-            .and_then(|c| c.as_any().downcast_ref::<StringArray>())
-        else {
-            continue;
-        };
-        for i in 0..col.len() {
-            if col.is_null(i) {
-                continue;
-            }
-            let v = col.value(i);
-            if v.is_empty() {
-                continue;
-            }
-            match &found {
-                None => found = Some(v.to_string()),
-                Some(existing) if existing == v => {}
-                Some(existing) => {
-                    log::warn!(
-                        "matter_for_path: chunks for {path} disagree ({existing} vs {v}); \
-                         treating as indeterminate"
-                    );
-                    return Ok(None);
-                }
-            }
-        }
-    }
-    Ok(found)
-}
-
-/// One raw query result before scoring.
-#[derive(Debug, Clone)]
-pub struct StoredHit {
-    /// Content-addressed chunk id (sha256(path:paragraph_index)). WS-B/C: the
-    /// citation key returned to the answer layer and used by verify.
-    pub id: String,
-    pub path: String,
-    /// WS-B/C: confidentiality scope key. Absent only on pre-3.0 rows (which the
-    /// migration re-indexes away), in which case None.
-    pub matter_id: Option<String>,
-    /// WS-B/C: originating source ("mail:<id>" or file path). None on pre-3.0 rows.
-    pub source_id: Option<String>,
-    pub paragraph_index: u32,
-    pub text: String,
-    /// Cosine distance from LanceDB. Lower is better.
-    pub distance: f32,
-    // A3 additions. None for pre-A3 rows that lack these columns.
-    pub source_type: Option<String>,
-    pub page_number: Option<u32>,
-    // G4: true means `text` holds hex-encoded AES-256-GCM ciphertext; must
-    // be decrypted before use. false (and null for pre-G4 rows) means plaintext.
-    pub encrypted: bool,
-    // WS-PRIV: the chunk's privilege status. None only on a pre-WS-PRIV row
-    // (which the version-4 migration re-indexes away). Default retrieval only
-    // returns "none"; this is surfaced so the UI can label an explicitly-
-    // included privileged hit.
-    pub privilege: Option<String>,
-    // VG-2: "ocr" when the chunk text was read from a scanned page by the
-    // local OCR engine; None on native chunks (and pre-V8 rows).
-    pub extraction: Option<String>,
-    // VG-2: mean OCR word confidence (0-100) for the chunk's page; None on
-    // native chunks. Disclosed in citations below OCR_LOW_CONFIDENCE = 60.
-    pub extraction_confidence: Option<f32>,
-    // VG-3c: page:line locator for certified transcript chunks
-    // ("startPage:startLine-endPage:endLine"); None on every other source
-    // (and pre-V9 rows). Citations read it as "Tr. 45:12-46:3".
-    pub locator: Option<String>,
-    // VG-6e: hex AES-256-GCM ciphertext of the REAL source path. Present on
-    // every V10 row; None only on a pre-V10 row (whose `path` is then the raw
-    // plaintext — the migration re-indexes those away). Consumers (the
-    // rag_retrieve command, the MCP search tool, the test harnesses) decrypt
-    // this to recover the display path; `path`/`source_id` above hold the
-    // opaque keyed token on V10 rows.
-    pub path_enc: Option<String>,
-}
-
-/// Compose the LanceDB `only_if` PREFILTER predicate for a retrieval query from
-/// the matter scope, the privilege rule, and the per-path tombstone exclusion
-/// (BUG-099 fail-closed). This is the single place ALL three safety boundaries
-/// are AND-ed together, so the composition is auditable and tested as a unit.
-///
-/// WS-B/C — matter scope:
-///   - `scope = Some(matter_id)` → `matter_id = '<escaped>'`
-///   - `scope = None`            → no matter clause (deliberate cross-matter)
-///
-/// WS-PRIV — privilege rule (litigation safety):
-///   - `include_privileged = false` (the DEFAULT) → `privilege = 'none'`, so
-///     attorney-client / work-product rows are never even candidates.
-///   - `include_privileged = true` (deliberate)   → no privilege clause.
-///
-/// BUG-099 tombstone — per-path unsafe exclusion:
-///   - `tombstoned_tokens` is a slice of HMAC path tokens for files whose
-///     cleanup DELETE failed. Those files' stale rows MUST NOT be returned as
-///     citations. Each token is the same opaque string stored in the `path`
-///     column (computed by `crypto::path_token`), so the exclusion can be
-///     pushed as a SQL prefilter: `path NOT IN ('tok1', 'tok2', ...)`.
-///   - An empty slice means no exclusion (the normal case on a healthy index).
-///
-/// Both matter and privilege clauses are validated + SQL-escaped before
-/// interpolation. Returns `None` only when ALL three are absent — a fully
-/// unconstrained scan that callers must reach via explicit choices.
-pub fn build_retrieval_predicate(
-    scope: Option<&str>,
-    include_privileged: bool,
-    tombstoned_tokens: &[String],
-) -> Result<Option<String>> {
-    let mut clauses: Vec<String> = Vec::with_capacity(3);
-    if let Some(matter_id) = scope {
-        let matter_id = validate_matter_id(matter_id)?;
-        clauses.push(format!("matter_id = '{}'", sql_escape(matter_id)));
-    }
-    if !include_privileged {
-        // Default exclusion: only non-privileged content. PRIVILEGE_NONE is a
-        // fixed constant, but escape it anyway so the predicate-building rule is
-        // uniform and future-proof.
-        clauses.push(format!("privilege = '{}'", sql_escape(PRIVILEGE_NONE)));
-    }
-    // BUG-099: exclude any path whose cleanup failed (stale rows that we could
-    // not delete). The tokens are already HMAC-opaque — safe to embed directly
-    // in the SQL literal list without escaping (they are hex strings).
-    if !tombstoned_tokens.is_empty() {
-        let list: String = tombstoned_tokens
-            .iter()
-            .map(|t| format!("'{}'", sql_escape(t)))
-            .collect::<Vec<_>>()
-            .join(", ");
-        clauses.push(format!("path NOT IN ({})", list));
-    }
-    Ok(if clauses.is_empty() {
-        None
-    } else {
-        Some(clauses.join(" AND "))
-    })
-}
-
-/// Nearest-neighbor search. Returns up to `top_k` raw hits.
-///
-/// WS-B/C — `scope` is the confidentiality boundary:
-///   - `Some(matter_id)` constrains results to that matter via a store-level
-///     LanceDB PREFILTER (`only_if`). LanceDB defaults `prefilter = true`, so
-///     the SQL predicate is pushed into the scan and the vector search runs ONLY
-///     over rows already in scope — an out-of-scope row can never be a candidate,
-///     so similarity cannot surface it. This is the matter-isolation guarantee.
-///   - `None` searches ALL matters (a deliberate, caller-audited cross-matter
-///     path — never the silent default; the `rag_retrieve` command requires an
-///     explicit scope and only reaches `None` via the named `AllMatters` action).
-///
-/// WS-PRIV — `include_privileged` is the litigation-safety boundary, composed
-/// into the SAME prefilter as the matter scope:
-///   - `false` (DEFAULT) appends `AND privilege = 'none'`, so attorney-client /
-///     work-product chunks are never candidates — they cannot surface even if
-///     they are the single most semantically relevant row.
-///   - `true` is a deliberate, separately-named capability (mirrors AllMatters)
-///     that omits the privilege clause so privileged content can be retrieved.
-///
-/// BUG-099 tombstone — `tombstoned_tokens` is a slice of HMAC path tokens for
-/// paths whose cleanup DELETE failed after a skip. Those paths' stale rows are
-/// excluded from the vector search prefilter. Pass `&[]` (the normal case) to
-/// apply no tombstone exclusion. See `build_retrieval_predicate` for the design.
-///
-/// SECURITY: we NEVER call `.postfilter()` here. Postfilter runs the vector
-/// search first and filters afterward, which can both drop in-scope hits and
-/// admit ranking approximation. The scoped path must stay prefilter-only.
-pub async fn nearest(
-    table: &Table,
-    query_vec: &[f32],
-    top_k: usize,
-    scope: Option<&str>,
-    include_privileged: bool,
-    tombstoned_tokens: &[String],
-) -> Result<Vec<StoredHit>> {
-    use futures_util::TryStreamExt;
-    let mut query = table
-        .query()
-        .nearest_to(query_vec)
-        .context("nearest_to failed")?
-        .limit(top_k);
-    // WS-B/C + WS-PRIV + BUG-099: compose all safety predicates. They are part
-    // of the query PLAN (prefilter), not a post-hoc filter on the returned Vec.
-    if let Some(predicate) =
-        build_retrieval_predicate(scope, include_privileged, tombstoned_tokens)?
-    {
-        query = query.only_if(predicate);
-    }
-    let mut stream = query.execute().await.context("query execute failed")?;
-
-    let mut out: Vec<StoredHit> = Vec::with_capacity(top_k);
-    while let Some(batch) = stream
-        .try_next()
-        .await
-        .context("query stream try_next failed")?
-    {
-        let path_col = batch
-            .column_by_name("path")
-            .context("missing path column")?
-            .as_any()
-            .downcast_ref::<StringArray>()
-            .context("path column is not StringArray")?;
-        // WS-B/C: id is the citation key; matter_id/source_id are nullable here
-        // only to tolerate a pre-3.0 row sneaking through (the migration prevents
-        // that), so we read them defensively rather than requiring the columns.
-        let id_col = batch
-            .column_by_name("id")
-            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
-        let matter_col = batch
-            .column_by_name("matter_id")
-            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
-        let source_col = batch
-            .column_by_name("source_id")
-            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
-        let pi_col = batch
-            .column_by_name("paragraph_index")
-            .context("missing paragraph_index column")?
-            .as_any()
-            .downcast_ref::<UInt32Array>()
-            .context("paragraph_index column is not UInt32Array")?;
-        let text_col = batch
-            .column_by_name("text")
-            .context("missing text column")?
-            .as_any()
-            .downcast_ref::<StringArray>()
-            .context("text column is not StringArray")?;
-        // LanceDB exposes the distance as `_distance`. Falls back to 0
-        // (best score) if the column is missing — should not happen on
-        // a vector query but keeps us robust.
-        let dist_col = batch
-            .column_by_name("_distance")
-            .and_then(|c| c.as_any().downcast_ref::<arrow_array::Float32Array>());
-
-        // A3: read nullable source_type and page_number columns.
-        // These are absent on pre-A3 tables so we fall back to None.
-        let st_col = batch
-            .column_by_name("source_type")
-            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
-        let pn_col = batch
-            .column_by_name("page_number")
-            .and_then(|c| c.as_any().downcast_ref::<UInt32Array>());
-        // G4: read nullable encrypted column. Absent on pre-G4 rows → false (plaintext).
-        let enc_col = batch
-            .column_by_name("encrypted")
-            .and_then(|c| c.as_any().downcast_ref::<arrow_array::BooleanArray>());
-        // WS-PRIV: read the privilege column. Absent on pre-WS-PRIV rows → None.
-        let priv_col = batch
-            .column_by_name("privilege")
-            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
-        // VG-2: read the nullable extraction columns. Absent on pre-V8 rows → None.
-        let ext_col = batch
-            .column_by_name("extraction")
-            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
-        let ext_conf_col = batch
-            .column_by_name("extraction_confidence")
-            .and_then(|c| c.as_any().downcast_ref::<arrow_array::Float32Array>());
-        // VG-3c: read the nullable locator column. Absent on pre-V9 rows → None.
-        let loc_col = batch
-            .column_by_name("locator")
-            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
-        // VG-6e: read the encrypted-path column. Absent on pre-V10 tables →
-        // None (the raw `path` is then plaintext and passes through).
-        let penc_col = batch
-            .column_by_name("path_enc")
-            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
-
-        for i in 0..batch.num_rows() {
-            let distance = dist_col.map(|c| c.value(i)).unwrap_or(0.0);
-            let source_type = st_col
-                .filter(|c| !c.is_null(i))
-                .map(|c| c.value(i).to_string());
-            let page_number = pn_col.filter(|c| !c.is_null(i)).map(|c| c.value(i));
-            // G4: null or absent encrypted column → false (pre-G4 plaintext row).
-            let encrypted = enc_col
-                .map(|c| !c.is_null(i) && c.value(i))
-                .unwrap_or(false);
-            let id = id_col
-                .filter(|c| !c.is_null(i))
-                .map(|c| c.value(i).to_string())
-                .unwrap_or_default();
-            let matter_id = matter_col
-                .filter(|c| !c.is_null(i))
-                .map(|c| c.value(i).to_string());
-            let source_id = source_col
-                .filter(|c| !c.is_null(i))
-                .map(|c| c.value(i).to_string());
-            let privilege = priv_col
-                .filter(|c| !c.is_null(i))
-                .map(|c| c.value(i).to_string());
-            let extraction = ext_col
-                .filter(|c| !c.is_null(i))
-                .map(|c| c.value(i).to_string());
-            let extraction_confidence = ext_conf_col.filter(|c| !c.is_null(i)).map(|c| c.value(i));
-            let locator = loc_col
-                .filter(|c| !c.is_null(i))
-                .map(|c| c.value(i).to_string());
-            let path_enc = penc_col
-                .filter(|c| !c.is_null(i))
-                .map(|c| c.value(i).to_string());
-            out.push(StoredHit {
-                id,
-                path: path_col.value(i).to_string(),
-                matter_id,
-                source_id,
-                paragraph_index: pi_col.value(i),
-                text: text_col.value(i).to_string(),
-                distance,
-                source_type,
-                page_number,
-                encrypted,
-                privilege,
-                extraction,
-                extraction_confidence,
-                locator,
-                path_enc,
-            });
-        }
-    }
-    Ok(out)
-}
 
 // ---------------------------------------------------------------------------
-// WS3d-B: hybrid (BM25 keyword) retrieval support.
+// Responsibility submodules (F3.1, pure move — split from the former
+// single-file store.rs). Every symbol below still resolves at `store::X`
+// via the re-exports so callers outside this module are unaffected.
 // ---------------------------------------------------------------------------
+mod delete;
+mod integrity;
+mod maintain;
+mod retrieval;
+mod write;
 
-/// Cap on how many ids a single `fetch_by_ids_scoped` call will interpolate. The
-/// hybrid path proposes at most a few hundred keyword candidates (the overfetch
-/// budget), so this generous cap only guards against a corrupt keyword index or a
-/// future bug feeding an unbounded id list into the SQL filter.
-const MAX_FETCH_BY_IDS: usize = 512;
+pub use delete::*;
+pub use integrity::*;
+pub use maintain::*;
+pub use retrieval::*;
+pub use write::*;
 
-/// WS3d-B — strict validation for a content-addressed chunk id before it is
-/// interpolated into an `id IN (...)` predicate. A chunk id is
-/// `hex(sha256(path:paragraph_index))` — exactly 64 lowercase hex chars. Anything
-/// else (a corrupt keyword-index entry, a future-format id, an injection attempt)
-/// is rejected so it can never reach the SQL filter.
-pub fn is_valid_chunk_id(id: &str) -> bool {
-    id.len() == 64
-        && id
-            .bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-}
-
-/// WS3d-B — read EVERY non-tombstoned chunk's keyword facets for a full rebuild
-/// of the BM25 keyword index. Returns `(chunk_id, path_token, matter_id,
-/// privilege, text_plaintext)` per chunk.
-///
-/// Tombstoned rows (BUG-099) are excluded AT THE SOURCE via the shared retrieval
-/// predicate, so unsafe content never enters the keyword ranking. All matters and
-/// privilege levels ARE read (with their facets), because per-query scope
-/// filtering happens inside the keyword index using those facets; the
-/// authoritative boundary stays the scoped re-fetch (`fetch_by_ids_scoped`). The
-/// `vector` column is deliberately NOT selected (it is large and unused here). A
-/// row whose text cannot be decrypted is skipped (it simply won't be
-/// keyword-searchable) rather than failing the whole rebuild.
-pub async fn read_all_for_keyword_index(
-    table: &Table,
-    key: &[u8; 32],
-    tombstoned_tokens: &[String],
-) -> Result<Vec<(String, String, String, String, String)>> {
-    use futures_util::TryStreamExt;
-    let mut query = table.query();
-    if let Some(predicate) = build_retrieval_predicate(None, true, tombstoned_tokens)? {
-        query = query.only_if(predicate);
-    }
-    let mut stream = query
-        .select(Select::columns(&[
-            "id",
-            "path",
-            "matter_id",
-            "privilege",
-            "text",
-            "encrypted",
-        ]))
-        .execute()
-        .await
-        .context("read_all_for_keyword_index query execute failed")?;
-
-    let mut out: Vec<(String, String, String, String, String)> = Vec::new();
-    while let Some(batch) = stream
-        .try_next()
-        .await
-        .context("read_all_for_keyword_index stream try_next failed")?
-    {
-        let id_col = batch
-            .column_by_name("id")
-            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
-        let path_col = batch
-            .column_by_name("path")
-            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
-        let text_col = batch
-            .column_by_name("text")
-            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
-        let (Some(id_col), Some(path_col), Some(text_col)) = (id_col, path_col, text_col) else {
-            continue;
-        };
-        let matter_col = batch
-            .column_by_name("matter_id")
-            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
-        let priv_col = batch
-            .column_by_name("privilege")
-            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
-        let enc_col = batch
-            .column_by_name("encrypted")
-            .and_then(|c| c.as_any().downcast_ref::<arrow_array::BooleanArray>());
-        for i in 0..batch.num_rows() {
-            if id_col.is_null(i) || path_col.is_null(i) {
-                continue;
-            }
-            let id = id_col.value(i).to_string();
-            let path_token = path_col.value(i).to_string();
-            let matter_id = matter_col
-                .filter(|c| !c.is_null(i))
-                .map(|c| c.value(i).to_string())
-                .unwrap_or_default();
-            let privilege = priv_col
-                .filter(|c| !c.is_null(i))
-                .map(|c| c.value(i).to_string())
-                .unwrap_or_else(|| PRIVILEGE_NONE.to_string());
-            let encrypted = enc_col.map(|c| !c.is_null(i) && c.value(i)).unwrap_or(false);
-            let raw = text_col.value(i);
-            let text = if encrypted {
-                match hex::decode(raw)
-                    .ok()
-                    .and_then(|b| crate::commands::mail::crypto::decrypt_with_key(&b, key).ok())
-                    .and_then(|v| String::from_utf8(v).ok())
-                {
-                    Some(t) => t,
-                    None => continue, // undecryptable → not keyword-searchable
-                }
-            } else {
-                raw.to_string()
-            };
-            out.push((id, path_token, matter_id, privilege, text));
-        }
-    }
-    Ok(out)
-}
-
-/// WS3d-B — re-fetch specific chunks BY ID, applying the IDENTICAL retrieval
-/// prefilter the vector pass uses (matter / privilege / tombstone via
-/// `build_retrieval_predicate`). THIS is the authoritative scope boundary for
-/// keyword-proposed candidates: any id that fails the predicate (wrong matter,
-/// privileged-and-not-included, tombstoned) or no longer exists is simply absent
-/// from the result. The keyword index never decides visibility; this does.
-///
-/// `ids` are validated (must be 64-hex chunk ids), de-duplicated, and capped
-/// before interpolation. The returned `StoredHit`s carry a SENTINEL `distance`
-/// of `1.0` (the worst cosine distance): these rows came from a point lookup, not
-/// a vector query, so their distance is meaningless — the hybrid caller orders
-/// them by the fused score and never by distance. The sentinel ensures that even
-/// if some path did sort by distance, a keyword-only hit can never masquerade as
-/// a perfect (distance 0) vector match.
-pub async fn fetch_by_ids_scoped(
-    table: &Table,
-    ids: &[String],
-    scope: Option<&str>,
-    include_privileged: bool,
-    tombstoned_tokens: &[String],
-) -> Result<Vec<StoredHit>> {
-    use futures_util::TryStreamExt;
-    // Validate + dedupe + cap. Invalid ids are dropped, never interpolated.
-    let mut seen: HashSet<&str> = HashSet::new();
-    let mut valid: Vec<&str> = Vec::new();
-    for id in ids {
-        if is_valid_chunk_id(id) && seen.insert(id.as_str()) {
-            valid.push(id.as_str());
-            if valid.len() >= MAX_FETCH_BY_IDS {
-                break;
-            }
-        }
-    }
-    if valid.is_empty() {
-        return Ok(Vec::new());
-    }
-    // Safe to interpolate without sql_escape: every id passed is_valid_chunk_id
-    // (64 chars of [0-9a-f] only), so it cannot contain a quote or any SQL meta.
-    let id_list = valid
-        .iter()
-        .map(|i| format!("'{i}'"))
-        .collect::<Vec<_>>()
-        .join(", ");
-    let id_clause = format!("id IN ({id_list})");
-    let predicate = match build_retrieval_predicate(scope, include_privileged, tombstoned_tokens)? {
-        Some(p) => format!("({p}) AND ({id_clause})"),
-        None => id_clause,
-    };
-    let mut stream = table
-        .query()
-        .only_if(predicate)
-        // Skip the large `vector` column; the hybrid caller needs only the
-        // citation/display columns.
-        .select(Select::columns(&[
-            "id",
-            "path",
-            "matter_id",
-            "source_id",
-            "paragraph_index",
-            "text",
-            "source_type",
-            "page_number",
-            "encrypted",
-            "privilege",
-            "extraction",
-            "extraction_confidence",
-            "locator",
-            "path_enc",
-        ]))
-        .limit(valid.len())
-        .execute()
-        .await
-        .context("fetch_by_ids_scoped query execute failed")?;
-
-    let mut out: Vec<StoredHit> = Vec::with_capacity(valid.len());
-    while let Some(batch) = stream
-        .try_next()
-        .await
-        .context("fetch_by_ids_scoped stream try_next failed")?
-    {
-        // Mirrors `nearest`'s row reader (kept separate so `nearest` — the merged
-        // baseline path — stays byte-for-byte untouched). The only difference is
-        // the sentinel distance, since a point lookup has no `_distance`.
-        let path_col = batch
-            .column_by_name("path")
-            .context("missing path column")?
-            .as_any()
-            .downcast_ref::<StringArray>()
-            .context("path column is not StringArray")?;
-        let id_col = batch
-            .column_by_name("id")
-            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
-        let matter_col = batch
-            .column_by_name("matter_id")
-            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
-        let source_col = batch
-            .column_by_name("source_id")
-            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
-        let pi_col = batch
-            .column_by_name("paragraph_index")
-            .context("missing paragraph_index column")?
-            .as_any()
-            .downcast_ref::<UInt32Array>()
-            .context("paragraph_index column is not UInt32Array")?;
-        let text_col = batch
-            .column_by_name("text")
-            .context("missing text column")?
-            .as_any()
-            .downcast_ref::<StringArray>()
-            .context("text column is not StringArray")?;
-        let st_col = batch
-            .column_by_name("source_type")
-            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
-        let pn_col = batch
-            .column_by_name("page_number")
-            .and_then(|c| c.as_any().downcast_ref::<UInt32Array>());
-        let enc_col = batch
-            .column_by_name("encrypted")
-            .and_then(|c| c.as_any().downcast_ref::<arrow_array::BooleanArray>());
-        let priv_col = batch
-            .column_by_name("privilege")
-            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
-        let ext_col = batch
-            .column_by_name("extraction")
-            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
-        let ext_conf_col = batch
-            .column_by_name("extraction_confidence")
-            .and_then(|c| c.as_any().downcast_ref::<arrow_array::Float32Array>());
-        let loc_col = batch
-            .column_by_name("locator")
-            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
-        let penc_col = batch
-            .column_by_name("path_enc")
-            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
-
-        for i in 0..batch.num_rows() {
-            let source_type = st_col
-                .filter(|c| !c.is_null(i))
-                .map(|c| c.value(i).to_string());
-            let page_number = pn_col.filter(|c| !c.is_null(i)).map(|c| c.value(i));
-            let encrypted = enc_col.map(|c| !c.is_null(i) && c.value(i)).unwrap_or(false);
-            let id = id_col
-                .filter(|c| !c.is_null(i))
-                .map(|c| c.value(i).to_string())
-                .unwrap_or_default();
-            let matter_id = matter_col
-                .filter(|c| !c.is_null(i))
-                .map(|c| c.value(i).to_string());
-            let source_id = source_col
-                .filter(|c| !c.is_null(i))
-                .map(|c| c.value(i).to_string());
-            let privilege = priv_col
-                .filter(|c| !c.is_null(i))
-                .map(|c| c.value(i).to_string());
-            let extraction = ext_col
-                .filter(|c| !c.is_null(i))
-                .map(|c| c.value(i).to_string());
-            let extraction_confidence = ext_conf_col.filter(|c| !c.is_null(i)).map(|c| c.value(i));
-            let locator = loc_col
-                .filter(|c| !c.is_null(i))
-                .map(|c| c.value(i).to_string());
-            let path_enc = penc_col
-                .filter(|c| !c.is_null(i))
-                .map(|c| c.value(i).to_string());
-            out.push(StoredHit {
-                id,
-                path: path_col.value(i).to_string(),
-                matter_id,
-                source_id,
-                paragraph_index: pi_col.value(i),
-                text: text_col.value(i).to_string(),
-                // Sentinel: worst cosine distance. Never used for ordering on the
-                // hybrid path (fused score governs); guards against any accidental
-                // distance-based sort treating a keyword-only hit as a perfect match.
-                distance: 1.0,
-                source_type,
-                page_number,
-                encrypted,
-                privilege,
-                extraction,
-                extraction_confidence,
-                locator,
-                path_enc,
-            });
-        }
-    }
-    Ok(out)
-}
-
-// ---------------------------------------------------------------------------
-// WS-B/C: point lookup for citation verification.
-// ---------------------------------------------------------------------------
-
-/// A single row located by an exact `id` lookup, used by citation verification.
-/// Carries the stored matter_id and (decrypt-pending) text so the caller can
-/// assert scope and quoted-text containment.
-#[derive(Debug, Clone)]
-pub struct ChunkRecord {
-    pub id: String,
-    pub matter_id: String,
-    pub source_id: String,
-    pub paragraph_index: u32,
-    /// Raw stored text. If `encrypted` is true this is hex-encoded ciphertext
-    /// the caller must decrypt before comparing.
-    pub text: String,
-    pub encrypted: bool,
-    /// WS-PRIV: the chunk's privilege status (None only on a pre-WS-PRIV row).
-    /// Verification does NOT filter on privilege — a privileged source must still
-    /// verify for an explicitly-included query — but the value is surfaced so the
-    /// caller can audit/label it.
-    pub privilege: Option<String>,
-    /// VG-6e: hex AES-256-GCM ciphertext of the real source path (the
-    /// `source_id` field above holds the keyed token on V10 rows). None on a
-    /// pre-V10 row. Verification itself never needs the path; surfaced so a
-    /// caller that wants to display the verified source can decrypt it.
-    pub path_enc: Option<String>,
-}
-
-/// Look up at most one chunk by its content-addressed `id`. Optionally
-/// constrain to a matter (`scope`) — verification uses this to require that the
-/// chunk both exists AND lives in the claimed matter (a prefiltered point read).
-/// Returns None if no row matches. SECURITY: id + matter_id are escaped before
-/// interpolation.
-pub async fn lookup_by_id(
-    table: &Table,
-    id: &str,
-    scope: Option<&str>,
-) -> Result<Option<ChunkRecord>> {
-    use futures_util::TryStreamExt;
-    let predicate = match scope {
-        Some(matter_id) => {
-            let matter_id = validate_matter_id(matter_id)?;
-            format!(
-                "id = '{}' AND matter_id = '{}'",
-                sql_escape(id),
-                sql_escape(matter_id)
-            )
-        }
-        None => format!("id = '{}'", sql_escape(id)),
-    };
-    let mut stream = table
-        .query()
-        .only_if(predicate)
-        .limit(1)
-        .execute()
-        .await
-        .context("lookup_by_id query execute failed")?;
-
-    while let Some(batch) = stream
-        .try_next()
-        .await
-        .context("lookup_by_id stream try_next failed")?
-    {
-        if batch.num_rows() == 0 {
-            continue;
-        }
-        let str_col = |name: &str| -> Option<&StringArray> {
-            batch
-                .column_by_name(name)
-                .and_then(|c| c.as_any().downcast_ref::<StringArray>())
-        };
-        let id_v = str_col("id")
-            .map(|c| c.value(0).to_string())
-            .unwrap_or_default();
-        let matter_v = str_col("matter_id")
-            .map(|c| c.value(0).to_string())
-            .unwrap_or_default();
-        let source_v = str_col("source_id")
-            .map(|c| c.value(0).to_string())
-            .unwrap_or_default();
-        let text_v = str_col("text")
-            .map(|c| c.value(0).to_string())
-            .unwrap_or_default();
-        let pi_v = batch
-            .column_by_name("paragraph_index")
-            .and_then(|c| c.as_any().downcast_ref::<UInt32Array>())
-            .map(|c| c.value(0))
-            .unwrap_or(0);
-        let enc_v = batch
-            .column_by_name("encrypted")
-            .and_then(|c| c.as_any().downcast_ref::<arrow_array::BooleanArray>())
-            .map(|c| !c.is_null(0) && c.value(0))
-            .unwrap_or(false);
-        let priv_v = str_col("privilege")
-            .filter(|c| !c.is_null(0))
-            .map(|c| c.value(0).to_string());
-        // VG-6e: absent on pre-V10 tables → None.
-        let penc_v = str_col("path_enc")
-            .filter(|c| !c.is_null(0))
-            .map(|c| c.value(0).to_string());
-        return Ok(Some(ChunkRecord {
-            id: id_v,
-            matter_id: matter_v,
-            source_id: source_v,
-            paragraph_index: pi_v,
-            text: text_v,
-            encrypted: enc_v,
-            privilege: priv_v,
-            path_enc: penc_v,
-        }));
-    }
-    Ok(None)
-}
-
-/// Collect the PLAINTEXT path key ("mail:<id>") of EVERY mail chunk into a
-/// set — one scan — so the mail RAG backfill can answer "is this message
-/// already indexed?" by set membership instead of issuing a `count_rows`
-/// query per message. Paths repeat once per chunk; the set collapses them to
-/// one entry per message.
-///
-/// VG-6e: the `path` column holds opaque tokens now, so the former
-/// `path LIKE 'mail:%'` prefix scan is impossible BY DESIGN (a token kills
-/// prefixes). Mail rows are selected on the existing plaintext
-/// `source_type = 'mail'` column instead, and the plaintext "mail:<id>" keys
-/// are recovered by decrypting `path_enc` under the vector master `key` —
-/// the SAME plaintext the backfill's `format!("mail:{id}")` probes with, so
-/// set membership keeps working. A row whose path_enc is missing or fails to
-/// decrypt is skipped: the backfill then just re-indexes that message
-/// (delete-then-insert is idempotent — redundant work, never a gap).
-pub async fn list_indexed_mail_paths(table: &Table, key: &[u8; 32]) -> Result<HashSet<String>> {
-    use futures_util::TryStreamExt;
-    let mut stream = table
-        .query()
-        .only_if("source_type = 'mail'")
-        .select(Select::columns(&["path_enc"]))
-        .execute()
-        .await
-        .context("list_indexed_mail_paths query execute failed")?;
-
-    let mut out = HashSet::new();
-    while let Some(batch) = stream
-        .try_next()
-        .await
-        .context("list_indexed_mail_paths stream try_next failed")?
-    {
-        let penc_col = batch
-            .column_by_name("path_enc")
-            .context("missing path_enc column")?
-            .as_any()
-            .downcast_ref::<StringArray>()
-            .context("path_enc column is not StringArray")?;
-        for i in 0..penc_col.len() {
-            if penc_col.is_null(i) {
-                continue;
-            }
-            let decrypted = hex::decode(penc_col.value(i))
-                .ok()
-                .and_then(|blob| crate::commands::mail::crypto::decrypt_with_key(&blob, key).ok())
-                .and_then(|v| String::from_utf8(v).ok());
-            match decrypted {
-                Some(p) => {
-                    out.insert(p);
-                }
-                None => log::warn!(
-                    "list_indexed_mail_paths: a mail row's path_enc did not decrypt; \
-                     the backfill will re-index that message"
-                ),
-            }
-        }
-    }
-    Ok(out)
-}
-
-// ---------------------------------------------------------------------------
-// WS-B/C: version-aware migration.
-// ---------------------------------------------------------------------------
-
-/// Path of the index-version marker file for a workspace's vector dir.
-fn index_version_path(workspace_root: &Path) -> PathBuf {
-    dataset_path(workspace_root).join(INDEX_VERSION_FILE)
-}
-
-/// BUG-099: filename holding the DURABLE tombstone set — the HMAC PATH TOKENS
-/// (not plaintext paths) of files whose stale-row cleanup DELETE failed. One
-/// token per line. This makes the fail-closed guarantee survive an app restart:
-/// without it, the in-memory `RagState::unsafe_tokens` is empty on relaunch while
-/// the stale rows are still on disk, so retrieval could cite the old version.
-///
-/// LOCATION (decorrelated from the failing dir): this file lives in the
-/// `.keepance/` PARENT dir, NOT inside `.lantern/vectors/`. The tombstone is
-/// written precisely WHEN a LanceDB delete in the vectors dataset dir failed
-/// (lock contention / a locked or unwritable dataset). Writing the tombstone
-/// into that SAME dataset dir would likely fail for the same reason, defeating
-/// the durable guarantee. The sibling `.lantern/` dir is a separate directory,
-/// so a dataset-scoped failure does not block persisting the tombstone.
-///
-/// PRIVACY (VG-6e parity): we persist the OPAQUE keyed token — the exact value
-/// stored in the `path` column — NOT the plaintext path. A raw-disk reader
-/// therefore learns nothing about client/matter file names from this file,
-/// consistent with the tokenized `path`/`source_id` columns and the encrypted
-/// `path_enc`. The token is what retrieval excludes anyway, so this is both
-/// safer and simpler (no plaintext→token conversion on read).
-const UNSAFE_PATHS_FILE: &str = ".unsafe_tokens";
-
-/// BUG-099: a DURABLE, cross-process "integrity unknown" sentinel. Written when a
-/// durable tombstone WRITE itself fails (so the on-disk `.unsafe_tokens` is
-/// stale/missing a token while stale rows are still in LanceDB). Its mere
-/// PRESENCE forces every reader — the GUI on workspace open AND the separate MCP
-/// sidecar process — to fail closed, because the GUI's in-memory tombstone set is
-/// invisible across processes. Removed only by a clean full walk that rewrites
-/// the tombstone file successfully.
-const INTEGRITY_UNKNOWN_FILE: &str = ".integrity_unknown";
-
-/// Path of the durable tombstone file. Lives in the `.lantern/` dir (the parent
-/// of `vectors/`) so a locked/unwritable LanceDB dataset dir cannot block it.
-fn unsafe_paths_path(workspace_root: &Path) -> PathBuf {
-    workspace_root.join(crate::identity::WORKSPACE_DATA_DIR).join(UNSAFE_PATHS_FILE)
-}
-
-/// Path of the durable integrity-unknown sentinel (sibling of `.unsafe_tokens`).
-fn integrity_unknown_path(workspace_root: &Path) -> PathBuf {
-    workspace_root
-        .join(crate::identity::WORKSPACE_DATA_DIR)
-        .join(INTEGRITY_UNKNOWN_FILE)
-}
-
-/// BUG-099: mark the workspace integrity UNKNOWN durably (cross-process). Called
-/// when a durable tombstone write fails, so the MCP sidecar (which only reads
-/// disk) also fails closed. Best-effort; logged on failure.
-pub fn mark_integrity_unknown(workspace_root: &Path) {
-    let path = integrity_unknown_path(workspace_root);
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).ok();
-    }
-    if let Err(e) = std::fs::write(&path, b"1") {
-        log::error!(
-            "rag: failed to write integrity-unknown sentinel {:?}: {e}",
-            path
-        );
-    }
-}
-
-/// BUG-099: clear the durable integrity-unknown sentinel after a clean re-index.
-pub fn clear_integrity_unknown(workspace_root: &Path) {
-    let path = integrity_unknown_path(workspace_root);
-    match std::fs::remove_file(&path) {
-        Ok(()) => {}
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-        Err(e) => log::warn!(
-            "rag: failed to clear integrity-unknown sentinel {:?}: {e}",
-            path
-        ),
-    }
-}
-
-/// BUG-099: outcome of reading the durable tombstone file. We MUST distinguish
-/// "no tombstones" from "couldn't read the tombstones", because treating the
-/// latter as the former is a fail-OPEN: in the exact cleanup-failure case this
-/// feature protects, stale rows are still in LanceDB, so an unreadable tombstone
-/// file (corruption / lock / permission fault) must make retrieval fail CLOSED,
-/// not serve unfiltered results.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TombstoneRead {
-    /// File absent (healthy: no cleanup ever failed) or read cleanly. Carries the
-    /// token set (possibly empty). Retrieval applies it as the exclusion.
-    Tokens(HashSet<String>),
-    /// File EXISTS but could not be read (corruption / lock / permission). The
-    /// real tombstone set is unknown, so callers must FAIL CLOSED (refuse to
-    /// serve / force a re-index) rather than assume "no tombstones".
-    IntegrityUnknown,
-}
-
-impl TombstoneRead {
-    /// True when the durable tombstone could not be read and the index integrity
-    /// is therefore unknown — callers must fail closed.
-    pub fn is_integrity_unknown(&self) -> bool {
-        matches!(self, TombstoneRead::IntegrityUnknown)
-    }
-
-    /// The token set when readable; an empty set when integrity is unknown.
-    /// Use ONLY where a fail-closed decision has already been made separately
-    /// (e.g. the MCP path checks `is_integrity_unknown()` first and refuses).
-    pub fn into_tokens(self) -> HashSet<String> {
-        match self {
-            TombstoneRead::Tokens(t) => t,
-            TombstoneRead::IntegrityUnknown => HashSet::new(),
-        }
-    }
-}
-
-/// BUG-099: load the durable tombstone token set for a workspace. Used to
-/// re-hydrate `RagState::unsafe_tokens` on workspace open so the fail-closed
-/// exclusion survives a restart, and read directly by the MCP sidecar. Tokens
-/// are hex strings, taken verbatim after stripping only the line terminator.
-///
-/// Returns `Tokens(set)` when the file is ABSENT (healthy → empty) or read
-/// cleanly, and `IntegrityUnknown` when (a) the durable integrity-unknown
-/// SENTINEL is present (a prior durable tombstone WRITE failed — cross-process
-/// fail-closed signal, so the MCP sidecar honors it too), or (b) the tombstone
-/// file EXISTS but cannot be read. The file is written ATOMICALLY (temp + rename,
-/// with a direct-write fallback), so a torn/truncated write cannot happen; an
-/// unreadable existing file is genuine corruption or a permission/lock fault.
-pub fn read_unsafe_tokens(workspace_root: &Path) -> TombstoneRead {
-    // Durable cross-process sentinel: a prior tombstone WRITE failed, so the
-    // on-disk token set cannot be trusted. Fail closed regardless of the file.
-    if integrity_unknown_path(workspace_root).exists() {
-        return TombstoneRead::IntegrityUnknown;
-    }
-    let path = unsafe_paths_path(workspace_root);
-    match std::fs::read_to_string(&path) {
-        Ok(s) => TombstoneRead::Tokens(
-            s.split('\n')
-                .map(|l| l.strip_suffix('\r').unwrap_or(l))
-                .filter(|l| !l.is_empty())
-                .map(|l| l.to_string())
-                .collect(),
-        ),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            // Absent = healthy default (no tombstones).
-            TombstoneRead::Tokens(HashSet::new())
-        }
-        Err(e) => {
-            // Present-but-unreadable = corruption / lock / permission fault.
-            // FAIL CLOSED: the caller must not serve as if there were no
-            // tombstones (stale rows may still be in the DB).
-            log::error!(
-                "rag: durable tombstone file {:?} exists but could not be read \
-                 ({e}); marking index integrity UNKNOWN — retrieval will fail \
-                 closed until a clean re-index rewrites the tombstone file",
-                path
-            );
-            TombstoneRead::IntegrityUnknown
-        }
-    }
-}
-
-/// BUG-099: persist the durable tombstone TOKEN set for a workspace. Called
-/// after any change (a token tombstoned on a cleanup failure, or cleared on a
-/// clean re-index) so the on-disk set always matches memory. An empty set writes
-/// an empty file (rather than deleting it) so a later read is unambiguous. Write
-/// errors are surfaced to the caller, which treats a failed persist as part of
-/// the unsafe state (does not stamp the index complete).
-///
-/// ATOMICITY: written to a temp file in the SAME dir, then renamed over the
-/// target so a crash mid-write can never leave a half-written / truncated
-/// tombstone that would silently drop tokens (fail-open) on the next read.
-///
-/// WINDOWS-SAFE REPLACE: `std::fs::rename` is an atomic replace on POSIX, and on
-/// Windows it maps to a replacing move — BUT a Windows move over an EXISTING
-/// target can still fail with a sharing violation if the target is momentarily
-/// open. Losing the tombstone there would be a fail-OPEN, so on ANY rename
-/// failure we FALL BACK to a direct in-place write of the same bytes: that loses
-/// the crash-atomicity for this one write but GUARANTEES the tombstone persists
-/// (fail-closed beats elegant). The fallback's own error is surfaced to the
-/// caller, which treats a failed persist as part of the unsafe state.
-pub fn write_unsafe_tokens(workspace_root: &Path, tokens: &HashSet<String>) -> Result<()> {
-    let path = unsafe_paths_path(workspace_root);
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).ok();
-    }
-    let mut sorted: Vec<&String> = tokens.iter().collect();
-    sorted.sort();
-    let body = sorted
-        .iter()
-        .map(|s| s.as_str())
-        .collect::<Vec<_>>()
-        .join("\n");
-    // Preferred path: write temp + atomic rename-replace. Pid-tagged temp name so
-    // concurrent writers don't collide on the temp path.
-    let tmp = path.with_extension(format!("tmp.{}", std::process::id()));
-    std::fs::write(&tmp, &body)
-        .with_context(|| format!("write unsafe-tokens temp at {:?}", tmp))?;
-    if let Err(rename_err) = std::fs::rename(&tmp, &path) {
-        // Windows: a replacing move can fail with a sharing violation if the
-        // existing target is briefly open. Fall back to a direct write so the
-        // tombstone STILL persists, then drop the temp file.
-        //
-        // TRUNCATION SAFETY: a direct `std::fs::write` TRUNCATES the known-good
-        // file before rewriting it, so a crash or a concurrent reader (the MCP
-        // sidecar) mid-write could see an EMPTY/partial-but-readable tombstone —
-        // a fail-OPEN. To prevent that, mark `.integrity_unknown` FIRST so any
-        // reader during the destructive write fails CLOSED; only clear it once
-        // the direct write fully succeeds. If the direct write itself fails, the
-        // sentinel stays set (fail closed) and the error propagates.
-        log::warn!(
-            "rag: atomic rename of unsafe-tokens failed ({rename_err}); \
-             marking integrity-unknown and falling back to a direct write"
-        );
-        mark_integrity_unknown(workspace_root);
-        let direct = std::fs::write(&path, &body)
-            .with_context(|| format!("direct-write unsafe-tokens tombstone at {:?}", path));
-        let _ = std::fs::remove_file(&tmp);
-        direct?;
-        // The direct write fully succeeded → the known-good file is complete
-        // again, so it is safe to clear the sentinel.
-        clear_integrity_unknown(workspace_root);
-    }
-    Ok(())
-}
-
-/// Read the index version the on-disk `chunks` table was built with. Returns 0
-/// when the marker is absent (i.e. a pre-3.0 table, or no table yet).
-pub fn read_index_version(workspace_root: &Path) -> u32 {
-    std::fs::read_to_string(index_version_path(workspace_root))
-        .ok()
-        .and_then(|s| s.trim().parse::<u32>().ok())
-        .unwrap_or(0)
-}
-
-/// Stamp the current `INDEX_VERSION` into the marker file. Called once after a
-/// successful (re-)index so the migration runs at most once.
-pub fn write_index_version(workspace_root: &Path) -> Result<()> {
-    let path = index_version_path(workspace_root);
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).ok();
-    }
-    std::fs::write(&path, INDEX_VERSION.to_string())
-        .with_context(|| format!("write index version marker at {:?}", path))?;
-    Ok(())
-}
-
-/// WS-B/C migration check: does this workspace need a one-time re-index because
-/// its vectors predate the NON-NULL `matter_id` / `source_id` columns?
-///
-/// True iff a `chunks` table already exists AND its version marker is below
-/// `INDEX_VERSION`. A fresh workspace (no table) returns false — there is
-/// nothing to migrate; new content is written with the columns from the start.
-///
-/// We deliberately do NOT back-fill nulls: a null matter_id is a confidentiality
-/// hazard. The caller drops the old table and re-indexes, assigning the
-/// `UNASSIGNED_MATTER` sentinel, then calls `write_index_version`.
-pub async fn needs_migration(conn: &Connection, workspace_root: &Path) -> Result<bool> {
-    if read_index_version(workspace_root) >= INDEX_VERSION {
-        return Ok(false);
-    }
-    let names = conn
-        .table_names()
-        .execute()
-        .await
-        .context("table_names failed during migration check")?;
-    let table_exists = names.iter().any(|n| n == TABLE_NAME);
-    Ok(table_exists)
-}
-
-/// Drop the legacy `chunks` table so the caller can re-index from scratch under
-/// the 3.0 schema. Used by the one-time migration when `needs_migration` is true.
-/// No-op if the table doesn't exist.
-pub async fn drop_table(conn: &Connection) -> Result<()> {
-    let names = conn
-        .table_names()
-        .execute()
-        .await
-        .context("table_names failed before drop")?;
-    if names.iter().any(|n| n == TABLE_NAME) {
-        conn.drop_table(TABLE_NAME)
-            .await
-            .context("drop_table chunks failed")?;
-    }
-    Ok(())
-}
-
+// Cross-file helpers used only by this module's own tests below (not part of
+// the public store:: API — kept pub(crate) rather than pub).
+#[cfg(test)]
+pub(crate) use delete::{crm_delete_predicate, crm_source_id_belongs_to_provider};
+#[cfg(test)]
+pub(crate) use integrity::unsafe_paths_path;
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2622,6 +628,62 @@ mod tests {
         let blob = hex::decode(enc).expect("path_enc must be hex");
         String::from_utf8(decrypt_with_key(&blob, &TEST_KEY).expect("decrypt path_enc"))
             .expect("utf8 path")
+    }
+
+    /// P2.1 (Finding 2): `fetch_records_by_ids` returns, in one query, the SAME
+    /// per-id records the single-verify path gets from `lookup_by_id(id, None)`.
+    #[tokio::test]
+    async fn fetch_records_by_ids_matches_lookup_by_id() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let conn = open_connection(dir.path()).await.expect("open conn");
+        let table = open_or_create_table(&conn).await.expect("open table");
+
+        // Two chunks in matter A, one in matter B.
+        let mk = |path: &str, matter: &str| {
+            let rows = vec![(
+                Chunk {
+                    path: path.into(),
+                    paragraph_index: 0,
+                    text: format!("text of {path}"),
+                    start_offset: 0,
+                    end_offset: 10,
+                    locator: None,
+                },
+                vec![0.05f32; EMBEDDING_DIM],
+            )];
+            build_batch(&rows, SourceType::Text, matter, PRIVILEGE_NONE, None, &TEST_KEY)
+                .expect("build batch")
+        };
+        for batch in [mk("/a1.txt", "matterA"), mk("/a2.txt", "matterA"), mk("/b1.txt", "matterB")] {
+            let schema = batch.schema();
+            table
+                .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
+                .execute()
+                .await
+                .expect("add");
+        }
+
+        let ids = [
+            chunk_id("/a1.txt", 0),
+            chunk_id("/b1.txt", 0),
+            // A fabricated id must simply be absent from the result (never errors).
+            "0".repeat(64),
+        ];
+        let records = fetch_records_by_ids(&table, &ids).await.expect("batch fetch");
+
+        // Every real id resolves to exactly one record with the right matter; the
+        // batch record equals the single lookup_by_id(None) record.
+        for id in [&ids[0], &ids[1]] {
+            let single = lookup_by_id(&table, id, None).await.unwrap().expect("single");
+            let batched: Vec<_> = records.iter().filter(|r| &r.id == id).collect();
+            assert_eq!(batched.len(), 1, "one row per id in this fixture");
+            assert_eq!(batched[0].matter_id, single.matter_id);
+            assert_eq!(batched[0].source_id, single.source_id);
+            assert_eq!(batched[0].text, single.text);
+            assert_eq!(batched[0].encrypted, single.encrypted);
+        }
+        // The fabricated id contributes no rows.
+        assert!(records.iter().all(|r| r.id != "0".repeat(64)));
     }
 
     #[test]
@@ -2921,6 +983,68 @@ mod tests {
         assert!(validate_external_source_type("").is_err());
         assert!(validate_external_source_type("docusign").is_err());
         assert!(validate_external_source_type("esign' OR '1'='1").is_err());
+    }
+
+    /// P2.3 row 3 MEASUREMENT (ignored by default; run with
+    /// `cargo test -p lantern --lib measure_path_token_memoization -- --ignored --nocapture`).
+    /// Times the OLD per-chunk path-token+encrypt loop against the NEW memoized
+    /// helper on a 200-chunk single-path batch (a typical PDF), proving the win.
+    #[test]
+    #[ignore]
+    fn measure_path_token_memoization() {
+        use crate::commands::mail::crypto::encrypt_with_key;
+        use std::time::Instant;
+
+        const N: usize = 200;
+        let path = "/workspace/clients/acme/2026-financials-annual-report.pdf";
+        let rows: Vec<(Chunk, Vec<f32>)> = (0..N)
+            .map(|i| {
+                (
+                    Chunk {
+                        path: path.into(),
+                        paragraph_index: i as u32,
+                        text: format!("chunk body number {i}"),
+                        start_offset: 0,
+                        end_offset: 0,
+                        locator: None,
+                    },
+                    vec![0.0f32; EMBEDDING_DIM],
+                )
+            })
+            .collect();
+
+        // OLD: recompute HMAC token + fresh AES-GCM encryption for every chunk.
+        let t0 = Instant::now();
+        let mut old_tokens = Vec::with_capacity(N);
+        let mut old_encs = Vec::with_capacity(N);
+        for (c, _) in rows.iter() {
+            old_tokens.push(super::super::crypto::path_token(&TEST_KEY, &c.path));
+            let blob = encrypt_with_key(c.path.as_bytes(), &TEST_KEY).unwrap();
+            old_encs.push(hex::encode(&blob));
+        }
+        let old_dur = t0.elapsed();
+
+        // NEW: memoized helper — one HMAC + one AES-GCM for the shared path.
+        let t1 = Instant::now();
+        let (new_tokens, new_encs) = path_token_and_enc_columns(&rows, &TEST_KEY).unwrap();
+        let new_dur = t1.elapsed();
+
+        // Same column lengths; tokens identical (deterministic HMAC); every
+        // path_enc still decrypts to the same plaintext path.
+        assert_eq!(new_tokens.len(), N);
+        assert_eq!(new_encs.len(), N);
+        assert_eq!(old_tokens[0], new_tokens[0]);
+        {
+            use crate::commands::mail::crypto::decrypt_with_key;
+            let blob = hex::decode(&new_encs[N - 1]).unwrap();
+            let recovered = String::from_utf8(decrypt_with_key(&blob, &TEST_KEY).unwrap()).unwrap();
+            assert_eq!(recovered, path);
+        }
+
+        eprintln!(
+            "[P2.3 row 3] path cols for {N} chunks/1 path: OLD {old_dur:?}  NEW {new_dur:?}  speedup {:.1}x",
+            old_dur.as_secs_f64() / new_dur.as_secs_f64().max(1e-9)
+        );
     }
 
     #[test]
@@ -4703,6 +2827,76 @@ mod tests {
             gone.is_empty(),
             "delete_path must remove the tokenized rows"
         );
+    }
+
+    /// P1.1 (Windows regression): rows written under the NATIVE backslash path
+    /// (what the Rust WalkDir/reconcile sees on Windows) must be reachable by a
+    /// delete/retag issued with the FORWARD-SLASH form (what the TS side builds
+    /// via appPath and passes to retag/delete). Because `path_token` now
+    /// normalizes, the two forms produce the SAME token, so cross-form ops match.
+    /// (Before the fix the tokens differed, the op matched ZERO rows, and a mapped
+    /// file silently dropped out of matter-scoped search on Windows.)
+    #[tokio::test]
+    async fn cross_slash_form_token_matches_rows_on_windows_paths() {
+        use crate::commands::rag::crypto::path_token;
+        let dir = tempfile::TempDir::new().unwrap();
+        let conn = open_connection(dir.path()).await.expect("open conn");
+        let table = open_or_create_table(&conn).await.expect("open table");
+
+        // Written under the native Windows (backslash) form, as WalkDir yields it.
+        let backslash = r"C:\WS\Clients\Acme\engagement.docx";
+        // Referenced later via the forward-slash form the TS side produces.
+        let forward = "C:/WS/Clients/Acme/engagement.docx";
+
+        // The normalizer collapses them to ONE token now (the fix).
+        assert_eq!(
+            path_token(&TEST_KEY, backslash),
+            path_token(&TEST_KEY, forward),
+            "backslash and forward-slash forms of one file must tokenize identically"
+        );
+
+        let rows = vec![(
+            Chunk {
+                path: backslash.into(),
+                paragraph_index: 0,
+                text: "engagement".into(),
+                start_offset: 0,
+                end_offset: 10,
+                locator: None,
+            },
+            vec![0.10f32; EMBEDDING_DIM],
+        )];
+        upsert_chunks_for_path(
+            &table,
+            backslash,
+            rows,
+            SourceType::Docx,
+            UNASSIGNED_MATTER,
+            PRIVILEGE_NONE,
+            &TEST_KEY,
+        )
+        .await
+        .expect("upsert under backslash path");
+
+        // (a) A BATCHED matter retag issued with the FORWARD-slash form (the exact
+        // boot-retag path) must hit the backslash-written rows.
+        let updated = retag_matter_for_paths(&table, &[forward.to_string()], "acme", &TEST_KEY)
+            .await
+            .expect("batched retag via forward-slash form");
+        assert!(updated >= 1, "forward-slash retag must match the backslash rows");
+        let q = vec![0.10f32; EMBEDDING_DIM];
+        let in_acme = nearest(&table, &q, 10, Some("acme"), false, &[]).await.unwrap();
+        assert!(
+            in_acme.iter().any(|h| stored_path(h) == backslash),
+            "the file must now be in the 'acme' matter scope after a forward-slash retag"
+        );
+
+        // (b) delete_by_token over the forward-slash token also purges the rows.
+        delete_by_token(&table, &path_token(&TEST_KEY, forward))
+            .await
+            .expect("delete by forward-slash token");
+        let gone = nearest(&table, &q, 10, None, false, &[]).await.unwrap();
+        assert!(gone.is_empty(), "forward-slash delete must purge the backslash rows");
     }
 
     /// THE RAW-DISK PROOF (VG-6e, mirrors rag_matter_scope.rs's WS-VEC scan

@@ -439,8 +439,8 @@ describe('buildProviderForGlance', () => {
     cmode.mode = 'direct';
     keychainKeys.anthropic = 'stale-anthropic';
     keychainKeys.openai = 'valid-openai';
-    localStorage.setItem('keepance_default_provider', 'openai');
-    localStorage.setItem('keepance_default_model', 'gpt-4o');
+    localStorage.setItem('lantern_default_provider', 'openai');
+    localStorage.setItem('lantern_default_model', 'gpt-4o');
 
     const provider = await buildProviderForGlance();
 

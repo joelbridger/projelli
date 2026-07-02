@@ -36,7 +36,7 @@ import type { SettingCategory } from '@/platform/settings/schema';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
 import type { Matter } from '@/platform/types/matter';
-import { EV_OPEN_ACCOUNT, EV_OPEN_EMAIL } from '@/config/identity';
+import { EV_OPEN_ACCOUNT, EV_OPEN_EMAIL, SK_FIRM_NAME } from '@/config/identity';
 
 // Email, Activity Log, Privacy Center, and the full-page Settings surface are
 // lazy-loaded: each is a large, self-contained screen (Settings alone pulls
@@ -308,7 +308,7 @@ export function AppSurfaceRouter({
         // Word-first: saved email content becomes a real .docx.
         const { resolveUniqueName } = await import('@/platform/utils/fileDrop');
         const { markdownToDocxBytes, docxBytesToDataUrl } = await import('@/platform/utils/docx-io');
-        const firmName = (() => { try { return localStorage.getItem('keepance_firm_name') ?? ''; } catch { return ''; } })();
+        const firmName = (() => { try { return localStorage.getItem(SK_FIRM_NAME) ?? ''; } catch { return ''; } })();
         const base = suggestedName.replace(/\.(md|markdown|txt)$/i, '');
         const finalName = await resolveUniqueName(workspaceServiceRef.current, rootPath, `${base}.docx`);
         const path = workspacePath(rootPath, finalName);
@@ -377,7 +377,7 @@ export function AppSurfaceRouter({
             // Word-first: AI answers save as a real .docx (not markdown).
             const { deriveFilenameFromMessage, resolveUniqueName } = await import('@/platform/utils/fileDrop');
             const { markdownToDocxBytes, docxBytesToDataUrl } = await import('@/platform/utils/docx-io');
-            const firmName = (() => { try { return localStorage.getItem('keepance_firm_name') ?? ''; } catch { return ''; } })();
+            const firmName = (() => { try { return localStorage.getItem(SK_FIRM_NAME) ?? ''; } catch { return ''; } })();
             const base = deriveFilenameFromMessage(content).replace(/\.(md|markdown|txt)$/i, '');
             const finalName = await resolveUniqueName(workspaceServiceRef.current, rootPath, `${base}.docx`);
             const path = workspacePath(rootPath, finalName);

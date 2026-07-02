@@ -16,6 +16,7 @@
 import type { APIKey } from '@/features/ask/AIChatViewer';
 import { getDefaultModels, type ModelInfo } from '@/platform/providers/ModelListService';
 import type { ProviderType } from '@/platform/providers/fetchUtils';
+import { skModelsCache } from '@/config/identity';
 
 /** The provider ids the chat can target. Mirrors AIChatFile['provider']. */
 export type ChatProvider = 'anthropic' | 'openai' | 'google' | 'ollama' | 'keepance-local';
@@ -152,7 +153,7 @@ export function resolveAvailableProviders(apiKeys: APIKey[]): ChatProvider[] {
 /**
  * Models to offer for a provider, best source first:
  *   1. the live cache the model-list service writes to
- *      `localStorage['keepance_models_<provider>']`,
+ *      `localStorage[skModelsCache(provider)]`,
  *   2. else the hardcoded default list (cloud providers only),
  *   3. else a single synthetic entry built from FALLBACK_MODEL,
  * so a provider is never shown empty (which would make it unselectable).
@@ -180,11 +181,11 @@ export function resolveModelsForProvider(provider: ChatProvider): ModelInfo[] {
   return [];
 }
 
-/** Read + validate the `keepance_models_<provider>` cache. */
+/** Read + validate the `skModelsCache(provider)` cache. */
 function readModelsCache(provider: ChatProvider): ModelInfo[] | null {
   try {
     if (typeof localStorage === 'undefined') return null;
-    const raw = localStorage.getItem(`keepance_models_${provider}`);
+    const raw = localStorage.getItem(skModelsCache(provider));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as { models?: unknown };
     if (!parsed || !Array.isArray(parsed.models)) return null;
@@ -238,8 +239,9 @@ export interface SettingsDefaults {
 }
 
 /**
- * Merge the settings-store defaults with the legacy `keepance_default_*`
- * localStorage keys (written by the older profession-model picker). The store
+ * Merge the settings-store defaults with the legacy `SK_DEFAULT_PROVIDER`/
+ * `SK_DEFAULT_MODEL` localStorage keys (written by the older profession-model
+ * picker). The store
  * value wins; the legacy value is only consulted when the store is empty. Kept
  * pure (caller passes the raw values) so it can be unit-tested without a store
  * or localStorage.

@@ -5,20 +5,19 @@
  */
 
 import { useEffect, useState } from 'react';
-
-const KEY = 'keepance_onboarding_completed_at';
+import { SK_ONBOARDING_COMPLETED_AT } from '@/config/identity';
 
 export function useOnboardingCompleted(): {
   completed: boolean;
   markCompleted: () => void;
 } {
   const [completed, setCompleted] = useState<boolean>(
-    () => localStorage.getItem(KEY) != null
+    () => localStorage.getItem(SK_ONBOARDING_COMPLETED_AT) != null
   );
 
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
-      if (e.key === KEY) setCompleted(e.newValue != null);
+      if (e.key === SK_ONBOARDING_COMPLETED_AT) setCompleted(e.newValue != null);
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
@@ -27,7 +26,7 @@ export function useOnboardingCompleted(): {
   return {
     completed,
     markCompleted: () => {
-      localStorage.setItem(KEY, new Date().toISOString());
+      localStorage.setItem(SK_ONBOARDING_COMPLETED_AT, new Date().toISOString());
       setCompleted(true);
     },
   };

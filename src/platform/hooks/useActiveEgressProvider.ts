@@ -32,6 +32,7 @@ import {
   EGRESS_CONFIG_CHANGE_EVENT,
   notifyEgressConfigChange,
 } from '@/platform/privacy/egressConfigEvents';
+import { SK_DEFAULT_PROVIDER } from '@/config/identity';
 
 // Re-export so existing importers keep working; the canonical home is
 // egressConfigEvents (KeychainService imports it there to avoid a cycle).
@@ -41,7 +42,7 @@ const CLOUD_ORDER = ['anthropic', 'openai', 'google'] as const;
 
 function readDefaultProvider(): string | null {
   try {
-    return localStorage.getItem('keepance_default_provider');
+    return localStorage.getItem(SK_DEFAULT_PROVIDER);
   } catch {
     return null;
   }

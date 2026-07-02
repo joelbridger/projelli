@@ -14,8 +14,9 @@ import {
   createKeychainService,
   migrateLocalStorageApiKeysToKeychain,
 } from './KeychainService';
+import { SK_APIKEYS_MIGRATED_V1 } from '@/config/identity';
 
-const MIGRATION_SENTINEL = 'keepance_apikeys_migrated_v2';
+const MIGRATION_SENTINEL = 'lantern_apikeys_migrated_v2';
 const KEYCHAIN_ID = 'com.keepance.app::bos_key_anthropic';
 const LEGACY_KEY = 'apiKey_anthropic';
 const MATERIAL_KEY = 'bos_key_anthropic';
@@ -116,12 +117,12 @@ describe('migrateLocalStorageApiKeysToKeychain', () => {
   });
 
   it('clears the obsolete v1 sentinel after a clean v2 run', async () => {
-    localStorage.setItem('keepance_apikeys_migrated_v1', 'true');
+    localStorage.setItem(SK_APIKEYS_MIGRATED_V1, 'true');
     localStorage.setItem(LEGACY_KEY, VALID_ANTHROPIC_KEY);
 
     await migrateLocalStorageApiKeysToKeychain();
 
-    expect(localStorage.getItem('keepance_apikeys_migrated_v1')).toBeNull();
+    expect(localStorage.getItem(SK_APIKEYS_MIGRATED_V1)).toBeNull();
     expect(localStorage.getItem(MIGRATION_SENTINEL)).toBe('true');
     expect(keychainStore.get(KEYCHAIN_ID)).toBe(VALID_ANTHROPIC_KEY);
   });

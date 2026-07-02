@@ -5328,6 +5328,7 @@ dependencies = [
  "lantern-vault",
  "lettre",
  "log",
+ "lru",
  "mail-parser",
  "native-tls",
  "notify",

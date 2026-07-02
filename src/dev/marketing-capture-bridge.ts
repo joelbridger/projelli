@@ -14,6 +14,7 @@ import { useEditorStore } from '@/platform/state/editorStore';
 import { useAIChatStore } from '@/platform/state/aiChatStore';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { useWorkflowStore } from '@/features/workflows/workflowStore';
+import { SK_ONBOARDING_COMPLETE } from '@/config/identity';
 
 export interface SeedPayload {
   workspace?: Partial<ReturnType<typeof useWorkspaceStore.getState>>;
@@ -41,8 +42,8 @@ export function mountMarketingCaptureBridge(): void {
     if (payload.settings) useSettingsStore.setState(payload.settings);
     if (payload.workflow) useWorkflowStore.setState(payload.workflow);
     if (payload.skipOnboarding) {
-      // Key matches FirstRunWizard.tsx STORAGE_KEY = 'keepance_onboarding_complete'
-      localStorage.setItem('keepance_onboarding_complete', 'true');
+      // Key matches onboardingState.ts's SK_ONBOARDING_COMPLETE (src/config/identity.ts)
+      localStorage.setItem(SK_ONBOARDING_COMPLETE, 'true');
     }
   };
 

@@ -3,6 +3,7 @@
 
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { notifyEgressConfigChange } from '@/platform/privacy/egressConfigEvents';
+import { SK_APIKEYS_MIGRATED_V1, SK_APIKEYS_MIGRATED_V2 } from '@/config/identity';
 
 export type KeyProvider = 'anthropic' | 'openai' | 'google';
 
@@ -13,8 +14,11 @@ const LEGACY_API_KEY_PREFIX = 'apiKey_';
 // (atob throws on the `-` in `sk-ant-`/`sk-` keys) and left them in localStorage.
 // v2 handles both raw and base64 legacy values and runs in the browser too, so
 // it must re-run once for everyone — hence a fresh sentinel.
-const API_KEY_MIGRATION_SENTINEL_V1 = 'keepance_apikeys_migrated_v1';
-const API_KEY_MIGRATION_SENTINEL = 'keepance_apikeys_migrated_v2';
+// These sentinels are themselves renamed by the L1a lantern-storage-key
+// migration (legacyStorageKeyMigration.ts), which runs earlier in boot — see
+// src/main.tsx for the required ordering.
+const API_KEY_MIGRATION_SENTINEL_V1 = SK_APIKEYS_MIGRATED_V1;
+const API_KEY_MIGRATION_SENTINEL = SK_APIKEYS_MIGRATED_V2;
 const KEYCHAIN_METADATA_KEY = 'bos_key_metadata';
 
 export interface StoredKey {

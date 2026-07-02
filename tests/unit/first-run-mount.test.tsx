@@ -9,7 +9,7 @@
  *
  *   1. First run (no completed flag, no recent workspace) renders OnboardingV2,
  *      not the old WelcomeOnboardingDialog or GuidedOnboarding.
- *   2. Completing the flow sets `keepance_onboarding_complete` and it does not
+ *   2. Completing the flow sets `lantern_onboarding_complete` and it does not
  *      re-show on the next mount.
  *   3. Reaching the end without resolving the AI step leaves the AI-setup
  *      reminder active (deferred flag set, no model connected).
@@ -112,7 +112,7 @@ import { hasCompletedOnboarding } from '@/features/onboarding/onboardingState';
 import { hasDeferredAiSetup } from '@/features/onboarding/aiSetupState';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 
-const ONBOARDING_FLAG = 'keepance_onboarding_complete';
+const ONBOARDING_FLAG = 'lantern_onboarding_complete';
 
 beforeEach(() => {
   vi.clearAllMocks();

@@ -68,7 +68,7 @@ describe('keyVerification', () => {
 
   it('persists an ISO timestamp under the namespaced key', () => {
     markKeyVerified('openai');
-    const raw = localStorage.getItem('keepance_key_verified_openai');
+    const raw = localStorage.getItem('lantern_key_verified_openai');
     expect(raw).toBeTruthy();
     expect(() => new Date(raw as string).toISOString()).not.toThrow();
   });

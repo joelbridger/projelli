@@ -6,7 +6,7 @@
  * The BLOCKER (found on real-Windows QA): picking the recommended "Start with a
  * sample practice" created the workspace successfully, but
  *   1. the sample-flow creation path never added the workspace to
- *      `keepance_recent_workspaces`, so the App first-run gate
+ *      `lantern_recent_workspaces`, so the App first-run gate
  *      (`!hasCompletedOnboarding() && recentWorkspaces.length === 0`) stayed
  *      true; and
  *   2. once the workspace loaded (rootPath set), App's top-level render flipped
@@ -123,7 +123,7 @@ vi.mock('@/platform/providers/KeychainService', () => ({
 import App from '@/App';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 
-const RECENTS_KEY = 'keepance_recent_workspaces';
+const RECENTS_KEY = 'lantern_recent_workspaces';
 
 beforeEach(() => {
   vi.clearAllMocks();

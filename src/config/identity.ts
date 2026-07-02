@@ -71,6 +71,63 @@ export const SK_DEMO_BYOK_REPORTED_FLAG      = `${APP_NS}:demo:byokReported`;
 export const skClientMapTab = (matterId: string): string =>
   `${APP_NS}:clientmap-tab:${matterId}`;
 
+// ── localStorage / sessionStorage flag keys (underscore family) ───────────────
+// A second, older naming family alongside the colon-style SK_ keys above: single
+// scalar flags/markers written with `${APP_NS}_snake_case` instead of
+// `${APP_NS}:kebab-case`. Kept as a literal prefix-swap of the legacy
+// `keepance_*` names (not restructured to the colon style) so the L1a rename
+// migration (`src/platform/migrations/legacyStorageKeyMigration.ts`) can do a
+// pure string-prefix rewrite of real user data with minimal risk. New keys in
+// this family should still prefer the colon style above; this section exists to
+// give every renamed legacy key ONE owner instead of the per-file duplicated
+// constants (and, in a few cases, un-constant'd literals) it used to have.
+
+export const SK_ONBOARDING_COMPLETE        = `${APP_NS}_onboarding_complete`;
+export const SK_PROFESSION                 = `${APP_NS}_profession`;
+export const SK_ONBOARDING_PROGRESS        = `${APP_NS}_onboarding_progress`;
+export const SK_ONBOARDING_COMPLETED_AT    = `${APP_NS}_onboarding_completed_at`;
+export const SK_AI_SETUP_DEFERRED          = `${APP_NS}_ai_setup_deferred`;
+/** sessionStorage, not localStorage. */
+export const SK_AI_SETUP_REMINDER_DISMISSED = `${APP_NS}_ai_setup_reminder_dismissed`;
+export const SK_DEFAULT_PROVIDER           = `${APP_NS}_default_provider`;
+export const SK_DEFAULT_MODEL              = `${APP_NS}_default_model`;
+export const SK_RECENT_WORKSPACES          = `${APP_NS}_recent_workspaces`;
+export const SK_FIRM_NAME                  = `${APP_NS}_firm_name`;
+export const SK_FIRM_KEY_PUBLISH_FP        = `${APP_NS}_firm_key_publish_fp`;
+export const SK_MACHINE_ID                 = `${APP_NS}_machine_id`;
+export const SK_LICENSE_TOKEN              = `${APP_NS}_license_token`;
+export const SK_LICENSE_LAST_GOOD_AT       = `${APP_NS}_license_last_good_at`;
+export const SK_INSTALL_ID                 = `${APP_NS}_install_id`;
+export const SK_DESIGN_PARTNER_CONSENT     = `${APP_NS}_design_partner_consent`;
+export const SK_TELEMETRY_CONSENT          = `${APP_NS}_telemetry_consent`;
+export const SK_TELEMETRY_SENT_EVENTS      = `${APP_NS}_telemetry_sent_events`;
+export const SK_FIRST_LAUNCH_AT            = `${APP_NS}_first_launch_at`;
+/** sessionStorage, not localStorage. */
+export const SK_TRIAL_BANNER_DISMISSED_AT  = `${APP_NS}_trial_banner_dismissed_at`;
+/** Sentinels for the legacy `apiKey_<provider>` -> keychain migration (KeychainService.ts). */
+export const SK_APIKEYS_MIGRATED_V1        = `${APP_NS}_apikeys_migrated_v1`;
+export const SK_APIKEYS_MIGRATED_V2        = `${APP_NS}_apikeys_migrated_v2`;
+
+/** Build a per-provider "key passed a live check" storage key. */
+export const skKeyVerified = (provider: string): string =>
+  `${APP_NS}_key_verified_${provider}`;
+/** Build a per-provider "key failed a live check" storage key. */
+export const skKeyInvalid = (provider: string): string =>
+  `${APP_NS}_key_invalid_${provider}`;
+/** Build a per-provider model-list cache storage key. */
+export const skModelsCache = (provider: string): string =>
+  `${APP_NS}_models_${provider}`;
+
+/**
+ * Prefix for the localStorage fallback used by the firm keychain bridge when
+ * the OS keychain is unavailable. Full key shape:
+ * `${KC_FALLBACK_PREFIX}${service}::${key}`, where `service` already embeds
+ * `KC_FIRM_NS` (e.g. `com.lantern.user.<id>`). The suffix space is unbounded
+ * (arbitrary user/matter/device ids), so the migration rewrites this family by
+ * scanning for the prefix rather than enumerating keys.
+ */
+export const KC_FALLBACK_PREFIX = `${APP_NS}_kc_fallback::`;
+
 // ── CustomEvent names ─────────────────────────────────────────────────────────
 
 export const EV_OPEN_MATTER_MANAGER              = `${APP_NS}:open-matter-manager`;

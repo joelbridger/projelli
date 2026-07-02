@@ -7,7 +7,7 @@ test.describe('v1.6 feature tour', () => {
     await page.reload();
 
     await page.evaluate(() => {
-      localStorage.setItem('keepance_onboarding_complete', 'true');
+      localStorage.setItem('lantern_onboarding_complete', 'true');
       const raw = localStorage.getItem('lantern:settings') ?? '{}';
       const parsed = JSON.parse(raw);
       parsed.state = parsed.state ?? {};
@@ -55,7 +55,7 @@ test.describe('v1.6 feature tour', () => {
   test('Esc skips the tour', async ({ page }) => {
     await page.goto('/?testMode=true&forceTour=true');
     await page.evaluate(() => {
-      localStorage.setItem('keepance_onboarding_complete', 'true');
+      localStorage.setItem('lantern_onboarding_complete', 'true');
       const raw = localStorage.getItem('lantern:settings') ?? '{}';
       const parsed = JSON.parse(raw);
       parsed.state = parsed.state ?? {};

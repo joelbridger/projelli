@@ -190,7 +190,7 @@ describe('resolveSettingsDefaults', () => {
     ).toEqual({ defaultProvider: 'openai', defaultModel: 'gpt-4o' });
   });
 
-  it('falls back to the legacy keepance_default_* values when the store is empty', () => {
+  it('falls back to the legacy lantern_default_* values when the store is empty', () => {
     expect(resolveSettingsDefaults('', '', 'google', 'gemini-1.5-pro')).toEqual({
       defaultProvider: 'google',
       defaultModel: 'gemini-1.5-pro',
@@ -218,9 +218,9 @@ describe('resolveAvailableProviders', () => {
 });
 
 describe('resolveModelsForProvider', () => {
-  it('prefers the keepance_models_<provider> cache when present', () => {
+  it('prefers the lantern_models_<provider> cache when present', () => {
     localStorage.setItem(
-      'keepance_models_openai',
+      'lantern_models_openai',
       JSON.stringify({
         models: [{ id: 'gpt-custom', displayName: 'Custom GPT', provider: 'openai' }],
         fetchedAt: Date.now(),

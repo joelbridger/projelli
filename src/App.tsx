@@ -520,7 +520,9 @@ function App() {
         console.log('FileSystemWatcher: External file changes detected, refreshing file tree...');
         if (workspaceServiceRef.current) {
           try {
-            const newFileTree = await workspaceServiceRef.current.getFileTree();
+            // P1.1 (Task 6): force a real scan here — this fires when the watcher
+            // detected an EXTERNAL change, so a cached tree would be stale.
+            const newFileTree = await workspaceServiceRef.current.getFileTree({ fresh: true });
             setFileTree(newFileTree);
           } catch (error) {
             console.error('FileSystemWatcher: Failed to refresh file tree:', error);
@@ -533,7 +535,10 @@ function App() {
     watcher.start(async () => {
       if (!workspaceServiceRef.current) return '';
       try {
-        const currentTree = await workspaceServiceRef.current.getFileTree();
+        // P1.1 (Task 6): the watcher's change-detection poll MUST see the real
+        // current tree (a cached read could never detect an external change), and
+        // this fresh scan also keeps the shared cache warm every poll interval.
+        const currentTree = await workspaceServiceRef.current.getFileTree({ fresh: true });
         return createFileTreeSnapshot(currentTree);
       } catch (error) {
         console.error('FileSystemWatcher: Failed to get file tree snapshot:', error);
@@ -1161,7 +1166,7 @@ function App() {
   // already open). It supersedes the old WelcomeOnboardingDialog, which only
   // had the email/telemetry consent step; the wizard owns the welcome moment
   // now. `onComplete` (the wizard's markComplete) sets
-  // `keepance_onboarding_complete`; on skip we set the same flag so first-run
+  // `SK_ONBOARDING_COMPLETE`; on skip we set the same flag so first-run
   // never re-prompts. The Feature Tour then auto-shows as it does today.
   const firstRunOverlay = showFirstRun ? (
     <FirstRunOverlay

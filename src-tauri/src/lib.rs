@@ -60,9 +60,18 @@ pub fn run() {
             commands::rag::rag_set_workspace,
             commands::rag::rag_index_file,
             commands::rag::rag_index_workspace,
+            // P1.1 — boot reconcile (index once, not every launch) + PDF manifest.
+            commands::rag::rag_reconcile_workspace,
+            commands::rag::rag_manifest_pdf_fresh,
+            commands::rag::rag_manifest_record_pdf,
+            commands::rag::rag_manifest_forget_pdfs,
+            commands::rag::rag_retag_matter_batch,
             commands::rag::rag_retrieve,
             // WS-B/C — citation verification (refuse answers whose citation doesn't verify).
             commands::rag::rag_verify_citation,
+            // P2.1 (Finding 2) — batch citation verification (one table open + one
+            // `id IN (...)` read for all citations, replacing the per-citation loop).
+            commands::rag::rag_verify_citations_batch,
             commands::rag::rag_cancel_indexing,
             commands::rag::rag_delete_path,
             commands::rag::rag_delete_matter,

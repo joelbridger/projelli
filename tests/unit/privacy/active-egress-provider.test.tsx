@@ -34,18 +34,18 @@ beforeEach(() => {
 describe('resolveActiveEgressProvider — honest, keychain-backed resolution', () => {
   it('local-only mode is always on-machine, regardless of saved keys', async () => {
     await setKey('anthropic');
-    localStorage.setItem('keepance_default_provider', 'anthropic');
+    localStorage.setItem('lantern_default_provider', 'anthropic');
     expect(await resolveActiveEgressProvider('local-only')).toBe('ollama');
   });
 
   it('honors the saved default ONLY when that provider actually has a key', async () => {
-    localStorage.setItem('keepance_default_provider', 'anthropic');
+    localStorage.setItem('lantern_default_provider', 'anthropic');
     await setKey('anthropic');
     expect(await resolveActiveEgressProvider('direct')).toBe('anthropic');
   });
 
   it('does NOT claim a saved default that has no key — falls through to a keyed provider', async () => {
-    localStorage.setItem('keepance_default_provider', 'anthropic');
+    localStorage.setItem('lantern_default_provider', 'anthropic');
     await setKey('openai');
     expect(await resolveActiveEgressProvider('direct')).toBe('openai');
   });

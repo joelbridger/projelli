@@ -39,15 +39,29 @@ vi.mock('@/platform/providers/GeminiProvider', () => ({
   },
 }));
 
-// ragVerifyCitation mock — overridden per test
+// Two verify transports are exercised in this file:
+//   - the chat citation flow → `verifyCitations` → `ragVerifyCitationsBatch`
+//     (P2.1 Finding 2), which returns one verdict PER input citation, in order.
+//   - the SourcePanel "Verify against source" button → the single
+//     `ragVerifyCitation`, which returns ONE verdict object.
+// `setVerdict` primes BOTH so a test's expected verdict flows through whichever
+// path it drives.
 const mockRagVerifyCitation = vi.fn();
+const mockRagVerifyCitationsBatch = vi.fn();
 vi.mock('@/platform/utils/tauri-commands', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/platform/utils/tauri-commands')>();
   return {
     ...actual,
     ragVerifyCitation: mockRagVerifyCitation,
+    ragVerifyCitationsBatch: mockRagVerifyCitationsBatch,
   };
 });
+const setVerdict = (v: unknown) => {
+  mockRagVerifyCitation.mockResolvedValue(v);
+  mockRagVerifyCitationsBatch.mockImplementation((cites?: { id: string }[]) =>
+    Promise.resolve((cites ?? []).map(() => v)),
+  );
+};
 
 // Audit log mock (used by SourcePanel via onAuditLog prop)
 const mockAuditLog = vi.fn();
@@ -272,6 +286,7 @@ describe('Task 3b — CitationText data-verified attribute', () => {
 describe('Task 4 — SourcePanel "Verify against source" button', () => {
   beforeEach(() => {
     mockRagVerifyCitation.mockReset();
+    mockRagVerifyCitationsBatch.mockReset();
     mockAuditLog.mockReset();
   });
 
@@ -309,7 +324,7 @@ describe('Task 4 — SourcePanel "Verify against source" button', () => {
   });
 
   it('shows green "Verified against source" after verified verdict', async () => {
-    mockRagVerifyCitation.mockResolvedValue({ verdict: 'verified' });
+    setVerdict({ verdict: 'verified' });
     const { SourcePanel } = await import('@/features/ask/SourcePanel');
     const cite = {
       n: 1,
@@ -332,7 +347,7 @@ describe('Task 4 — SourcePanel "Verify against source" button', () => {
   });
 
   it('shows red problem text for notFound verdict', async () => {
-    mockRagVerifyCitation.mockResolvedValue({ verdict: 'notFound' });
+    setVerdict({ verdict: 'notFound' });
     const { SourcePanel } = await import('@/features/ask/SourcePanel');
     const cite = {
       n: 1,
@@ -356,7 +371,7 @@ describe('Task 4 — SourcePanel "Verify against source" button', () => {
   });
 
   it('shows red problem text for textMismatch verdict', async () => {
-    mockRagVerifyCitation.mockResolvedValue({ verdict: 'textMismatch' });
+    setVerdict({ verdict: 'textMismatch' });
     const { SourcePanel } = await import('@/features/ask/SourcePanel');
     const cite = {
       n: 1,
@@ -379,7 +394,7 @@ describe('Task 4 — SourcePanel "Verify against source" button', () => {
   });
 
   it('shows red problem text for matterMismatch verdict', async () => {
-    mockRagVerifyCitation.mockResolvedValue({ verdict: 'matterMismatch', actualMatter: 'other-matter' });
+    setVerdict({ verdict: 'matterMismatch', actualMatter: 'other-matter' });
     const { SourcePanel } = await import('@/features/ask/SourcePanel');
     const cite = {
       n: 1,
@@ -407,7 +422,7 @@ describe('Task 4 — SourcePanel "Verify against source" button', () => {
     // inherit the prior card's local verdict state — an UNCHECKED source would
     // otherwise wrongly show "found"/"problem". The card is keyed by citation
     // identity (id/path), so a different source remounts with fresh state.
-    mockRagVerifyCitation.mockResolvedValue({ verdict: 'notFound' });
+    setVerdict({ verdict: 'notFound' });
     const { SourcePanel } = await import('@/features/ask/SourcePanel');
     const citeA = {
       n: 1, label: 'a.docx', excerpt: 'A passage.', path: '/ws/a.docx',

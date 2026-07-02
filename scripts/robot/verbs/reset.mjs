@@ -59,10 +59,15 @@ import {
  */
 export const RESIDUE_KEYS = {
   exact: [
-    'keepance:client-maps',
+    // Colon-style keys carry the `lantern:` rename that already shipped (see
+    // src/config/identity.ts SK_CLIENT_MAPS etc.) — this list drifted stale
+    // when that rename landed (still listing `keepance:*`), which silently
+    // broke the residue purge for these three keys. Fixed here alongside the
+    // adjacent L1a underscore-key rename (chore/lantern-storage-keys).
+    'lantern:client-maps',
     'ai-chat-storage',
-    'keepance:matter-ui-snapshots',
-    'keepance:client-map-templates',
+    'lantern:matter-ui-snapshots',
+    'lantern:client-map-templates',
     'workspace_versions',
   ],
   prefixes: [/^workspace_(tabs|expanded)_/],
@@ -110,11 +115,11 @@ async function applyPurgeAndSeed(page, matters) {
       // --- Apply seed (mirrors legion-seed.mjs lines 49-74 exactly) ---
 
       // profession + onboarding
-      localStorage.setItem('keepance_profession', 'advisor');
-      localStorage.setItem('keepance_onboarding_complete', 'true');
+      localStorage.setItem('lantern_profession', 'advisor');
+      localStorage.setItem('lantern_onboarding_complete', 'true');
 
-      // Pin the default AI provider to openai via keepance_default_provider
-      // (professionModel.ts's PROFESSION_PROVIDER_STORAGE_KEY) — the
+      // Pin the default AI provider to openai via lantern_default_provider
+      // (professionModel.ts's SK_DEFAULT_PROVIDER, from src/config/identity.ts) — the
       // committed deterministic Ask fixture (ai-replays/ask-portfolio.json)
       // is OpenAI-wire-format, but Ask otherwise falls back to
       // anthropic > openai > google by key PRESENCE, so on a bench whose
@@ -130,19 +135,19 @@ async function applyPurgeAndSeed(page, matters) {
       // sat in raw localStorage looking correct but was invisible to the
       // app the moment it hydrated. resolveAskCloudResolution
       // (askHelpers.ts) reads settings.getSetting('defaultProvider') FIRST
-      // but falls through to keepance_default_provider
-      // (PROFESSION_PROVIDER_STORAGE_KEY) when that's empty — which is the
+      // but falls through to lantern_default_provider
+      // (SK_DEFAULT_PROVIDER) when that's empty — which is the
       // ONLY reason this ever worked: a leftover value from an earlier,
       // since-removed direct write to this same key happened to still be
       // sitting in the bench's persisted browser storage. A genuinely fresh
       // profile would resolve to 'advisor' -> anthropic
       // (PROFESSION_MODEL_DEFAULTS) instead and silently break the fixture
       // match again.
-      localStorage.setItem('keepance_default_provider', 'openai');
+      localStorage.setItem('lantern_default_provider', 'openai');
 
-      // Codex review (2nd round): keepance_default_provider is STILL not
+      // Codex review (2nd round): lantern_default_provider is STILL not
       // sufficient on its own. resolvePreferredCloudProvider.ts narrows the
-      // candidate pool to whichever providers have a `keepance_key_verified_*`
+      // candidate pool to whichever providers have a `lantern_key_verified_*`
       // marker (a real one-token live-check pass, tracked separately from key
       // PRESENCE — see keyVerification.ts) BEFORE even considering the
       // default: if anthropic is verified but openai isn't, the pool becomes
@@ -156,8 +161,8 @@ async function applyPurgeAndSeed(page, matters) {
       // exactly as sanitizeSettingValue's write-then-hydrate trap taught us
       // not to rely on: verify the ACTUAL resolution input, don't assume it.
       for (const p of ['anthropic', 'openai', 'google']) {
-        localStorage.removeItem(`keepance_key_verified_${p}`);
-        localStorage.removeItem(`keepance_key_invalid_${p}`);
+        localStorage.removeItem(`lantern_key_verified_${p}`);
+        localStorage.removeItem(`lantern_key_invalid_${p}`);
       }
 
       // settings: preserve persist wrapper, merge the three flag values on
@@ -186,11 +191,11 @@ async function applyPurgeAndSeed(page, matters) {
 
       // recent workspaces: prepend Northcrest, keep last 10
       let r = [];
-      try { r = JSON.parse(localStorage.getItem('keepance_recent_workspaces') || '[]'); } catch (_) {}
+      try { r = JSON.parse(localStorage.getItem('lantern_recent_workspaces') || '[]'); } catch (_) {}
       if (!Array.isArray(r)) r = [];
       r = r.filter((w) => w && w.path !== wsPath);
       r.unshift({ path: wsPath, name: wsName, lastOpened: new Date().toISOString() });
-      localStorage.setItem('keepance_recent_workspaces', JSON.stringify(r.slice(0, 10)));
+      localStorage.setItem('lantern_recent_workspaces', JSON.stringify(r.slice(0, 10)));
 
       return { removed, remaining };
     },
@@ -214,7 +219,7 @@ async function readSeededState(page) {
     const mm = JSON.parse(localStorage.getItem('lantern:matters') || '{}');
     const ss = JSON.parse(localStorage.getItem('lantern:settings') || '{}');
     return {
-      profession: localStorage.getItem('keepance_profession'),
+      profession: localStorage.getItem('lantern_profession'),
       mattersCount: ((mm.state || mm).matters || []).length,
       settings: (ss.state || ss).values || {},
     };

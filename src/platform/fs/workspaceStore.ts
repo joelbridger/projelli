@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import type { FileNode, RecentWorkspace } from '@/platform/types/workspace';
 import { isTauriEnvironment } from './BackendFactory';
+import { SK_RECENT_WORKSPACES } from '@/config/identity';
 
-const RECENT_WORKSPACES_KEY = 'keepance_recent_workspaces';
 const MAX_RECENT_WORKSPACES = 10;
 
 export function normalizeRecentWorkspacePath(path: string): string {
@@ -76,7 +76,7 @@ async function pruneMissingRecentWorkspaces(workspaces: RecentWorkspace[]): Prom
 }
 
 function persistRecentWorkspaces(workspaces: RecentWorkspace[]): void {
-  localStorage.setItem(RECENT_WORKSPACES_KEY, JSON.stringify(workspaces));
+  localStorage.setItem(SK_RECENT_WORKSPACES, JSON.stringify(workspaces));
 }
 
 interface WorkspaceState {
@@ -253,7 +253,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   },
 
   loadRecentWorkspaces: () => {
-    const stored = localStorage.getItem(RECENT_WORKSPACES_KEY);
+    const stored = localStorage.getItem(SK_RECENT_WORKSPACES);
     console.log(`[RecentWorkspaces] Loading from localStorage, found: ${!!stored}`);
     if (stored) {
       try {
