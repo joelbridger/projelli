@@ -44,16 +44,15 @@ import type {
   AssuredProvider,
   OrgClaimResponse,
 } from '@/platform/firm/contract';
-import { SK_FIRM_SESSION } from '@/config/identity';
+import { SK_FIRM_SESSION, SK_MACHINE_ID } from '@/config/identity';
 
 /** Stable per-machine id, shared with the licensing hook's convention. */
-const MACHINE_ID_KEY = 'keepance_machine_id';
 function getMachineId(): string {
   if (typeof localStorage === 'undefined') return 'unknown-machine';
-  let id = localStorage.getItem(MACHINE_ID_KEY);
+  let id = localStorage.getItem(SK_MACHINE_ID);
   if (!id) {
     id = crypto.randomUUID();
-    localStorage.setItem(MACHINE_ID_KEY, id);
+    localStorage.setItem(SK_MACHINE_ID, id);
   }
   return id;
 }

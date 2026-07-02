@@ -23,9 +23,9 @@ import { getInstallId } from './installId';
 import { getTelemetryConsent } from '@/platform/hooks/useTelemetryConsent';
 import { isLocalOnlyModeFailClosed } from '@/platform/privacy/localOnlyGuard';
 import { BRAND } from '@/config/brand';
+import { SK_TELEMETRY_SENT_EVENTS } from '@/config/identity';
 
 const ENDPOINT = BRAND.urls.formsTelemetry;
-const SENT_KEY = 'keepance_telemetry_sent_events';
 
 interface EventFields {
   /** e.g. 'personal' | 'professional' | 'practice' | 'trial' | 'expired'. */
@@ -93,7 +93,7 @@ export async function sendEventOnce(event: string, fields: EventFields = {}): Pr
 
 function readSent(): Set<string> {
   try {
-    const raw = localStorage.getItem(SENT_KEY);
+    const raw = localStorage.getItem(SK_TELEMETRY_SENT_EVENTS);
     if (!raw) return new Set();
     const arr = JSON.parse(raw);
     return new Set(Array.isArray(arr) ? arr : []);
@@ -104,7 +104,7 @@ function readSent(): Set<string> {
 
 function writeSent(set: Set<string>): void {
   try {
-    localStorage.setItem(SENT_KEY, JSON.stringify([...set]));
+    localStorage.setItem(SK_TELEMETRY_SENT_EVENTS, JSON.stringify([...set]));
   } catch {
     // Out of quota or otherwise broken; ignore.
   }

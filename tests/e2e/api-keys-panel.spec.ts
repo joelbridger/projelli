@@ -18,7 +18,7 @@ async function clearBrowserKeys(page: Page) {
       localStorage.removeItem(`bos_key_${provider}`);
     }
     localStorage.removeItem('bos_key_metadata');
-    localStorage.removeItem('keepance_apikeys_migrated_v1');
+    localStorage.removeItem('lantern_apikeys_migrated_v1');
   }, PROVIDERS);
 }
 

@@ -1166,7 +1166,7 @@ function App() {
   // already open). It supersedes the old WelcomeOnboardingDialog, which only
   // had the email/telemetry consent step; the wizard owns the welcome moment
   // now. `onComplete` (the wizard's markComplete) sets
-  // `keepance_onboarding_complete`; on skip we set the same flag so first-run
+  // `SK_ONBOARDING_COMPLETE`; on skip we set the same flag so first-run
   // never re-prompts. The Feature Tour then auto-shows as it does today.
   const firstRunOverlay = showFirstRun ? (
     <FirstRunOverlay

@@ -2,6 +2,7 @@
 // Fetches available models from provider APIs, caches for 24h, falls back to hardcoded defaults
 
 import { getProviderBaseUrl, getCorsSafeFetch, safeJsonParse, redactUrl, type ProviderType } from './fetchUtils';
+import { skModelsCache } from '@/config/identity';
 
 export interface ModelInfo {
   id: string;
@@ -21,7 +22,7 @@ const FETCH_TIMEOUT_MS = 10_000; // 10 seconds
 const CACHE_VERSION = 2;
 
 function cacheKey(provider: ProviderType): string {
-  return `keepance_models_${provider}`;
+  return skModelsCache(provider);
 }
 
 function readCache(provider: ProviderType): CacheEntry | null {

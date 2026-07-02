@@ -13,14 +13,12 @@
  */
 
 import { useEffect, useState } from 'react';
-import { EV_DESIGN_PARTNER_CONSENT_CHANGE } from '@/config/identity';
-
-const KEY = 'keepance_design_partner_consent';
+import { EV_DESIGN_PARTNER_CONSENT_CHANGE, SK_DESIGN_PARTNER_CONSENT } from '@/config/identity';
 
 export type DesignPartnerConsent = 'unset' | 'enabled' | 'disabled';
 
 function read(): DesignPartnerConsent {
-  const v = localStorage.getItem(KEY);
+  const v = localStorage.getItem(SK_DESIGN_PARTNER_CONSENT);
   if (v === 'enabled' || v === 'disabled') return v;
   return 'unset';
 }
@@ -30,8 +28,8 @@ export function getDesignPartnerConsent(): DesignPartnerConsent {
 }
 
 export function setDesignPartnerConsent(c: DesignPartnerConsent): void {
-  if (c === 'unset') localStorage.removeItem(KEY);
-  else localStorage.setItem(KEY, c);
+  if (c === 'unset') localStorage.removeItem(SK_DESIGN_PARTNER_CONSENT);
+  else localStorage.setItem(SK_DESIGN_PARTNER_CONSENT, c);
   // Notify subscribers in this tab — `storage` events only fire cross-tab.
   window.dispatchEvent(new CustomEvent(EV_DESIGN_PARTNER_CONSENT_CHANGE));
 }

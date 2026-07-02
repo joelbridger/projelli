@@ -9,17 +9,17 @@ describe('export firm name persistence', () => {
       getItem: (k: string) => storage[k] ?? null,
       setItem: (k: string, v: string) => { storage[k] = v; },
     };
-    const getFirmName = (ls: typeof mockStorage) => ls.getItem('keepance_firm_name') ?? '';
+    const getFirmName = (ls: typeof mockStorage) => ls.getItem('lantern_firm_name') ?? '';
     expect(getFirmName(mockStorage)).toBe('');
   });
 
   it('getFirmName returns stored value', () => {
-    const storage: Record<string, string> = { keepance_firm_name: 'Acme Law PLLC' };
+    const storage: Record<string, string> = { lantern_firm_name: 'Acme Law PLLC' };
     const mockStorage = {
       getItem: (k: string) => storage[k] ?? null,
       setItem: (k: string, v: string) => { storage[k] = v; },
     };
-    const getFirmName = (ls: typeof mockStorage) => ls.getItem('keepance_firm_name') ?? '';
+    const getFirmName = (ls: typeof mockStorage) => ls.getItem('lantern_firm_name') ?? '';
     expect(getFirmName(mockStorage)).toBe('Acme Law PLLC');
   });
 });

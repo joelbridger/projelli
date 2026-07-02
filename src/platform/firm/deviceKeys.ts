@@ -29,7 +29,7 @@
 import { keychainGet, keychainSet } from '@/platform/utils/tauri-commands';
 import { isTauri } from '@tauri-apps/api/core';
 import { FirmApiClient } from './FirmApiClient';
-import { KC_DEVICE_META_SERVICE, KC_DEVICE_PREFIX } from '@/config/identity';
+import { KC_DEVICE_META_SERVICE, KC_DEVICE_PREFIX, KC_FALLBACK_PREFIX } from '@/config/identity';
 
 // ── Service names & keychain keys -------------------------------------------
 
@@ -39,14 +39,11 @@ const KC_PRIVATE_JWK_PREFIX = KC_DEVICE_PREFIX;
 const KC_PRIVATE_JWK_KEY = 'private_jwk';
 const KC_PUBLIC_JWK_KEY = 'public_jwk';
 
-// ── Fallback prefix (browser / dev / test — mirrors firmKeychain.ts).
-const FALLBACK_PREFIX = 'keepance_kc_fallback::';
-
 function fallbackAvailable(): boolean {
   return typeof localStorage !== 'undefined';
 }
 function fallbackKey(service: string, key: string): string {
-  return `${FALLBACK_PREFIX}${service}::${key}`;
+  return `${KC_FALLBACK_PREFIX}${service}::${key}`;
 }
 function utf8ToB64(value: string): string {
   const bytes = new TextEncoder().encode(value);

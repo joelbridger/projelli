@@ -24,6 +24,8 @@
  * and removal clears the status entirely.
  */
 
+import { skKeyInvalid, skKeyVerified } from '@/config/identity';
+
 /** The three cloud providers that have a verifiable key. */
 export type VerifiableProvider = 'anthropic' | 'openai' | 'google';
 
@@ -31,10 +33,10 @@ const VERIFIED_PROVIDERS: VerifiableProvider[] = ['anthropic', 'openai', 'google
 
 /** localStorage keys for a provider's status markers. */
 function verifiedKey(provider: string): string {
-  return `keepance_key_verified_${provider}`;
+  return skKeyVerified(provider);
 }
 function invalidKey(provider: string): string {
-  return `keepance_key_invalid_${provider}`;
+  return skKeyInvalid(provider);
 }
 
 /** Record that this provider's stored key passed a live check just now. */

@@ -22,13 +22,14 @@ import { useLicense } from '@/platform/hooks/useLicense';
 import { TIER_BY_CODE } from '@/config/pricing';
 import { Button } from '@/ui/button';
 import { cn } from '@/lib/utils';
+import { SK_TRIAL_BANNER_DISMISSED_AT } from '@/config/identity';
 
 // Solo headline price, read from the canonical pricing config (never hardcoded
 // so a price change in one place updates every surface). String()-wrapped to
 // keep it out of a number-typed template expression.
 const SOLO_PRICE = `$${String(TIER_BY_CODE.personal.annualPerMonth)}/mo`;
 
-const SESSION_DISMISS_KEY = 'keepance_trial_banner_dismissed_at';
+const SESSION_DISMISS_KEY = SK_TRIAL_BANNER_DISMISSED_AT;
 // Re-show banner if the dismissal is older than this many minutes (so a
 // long-running app eventually nags again as the day-count drops).
 const RESHOW_AFTER_MIN = 60;

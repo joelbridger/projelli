@@ -53,13 +53,13 @@ describe('useDesignPartnerConsent', () => {
   });
 
   it('reads enabled from localStorage', () => {
-    store['keepance_design_partner_consent'] = 'enabled';
+    store['lantern_design_partner_consent'] = 'enabled';
     const { result } = renderHook(() => useDesignPartnerConsent());
     expect(result.current.consent).toBe('enabled');
   });
 
   it('reads disabled from localStorage', () => {
-    store['keepance_design_partner_consent'] = 'disabled';
+    store['lantern_design_partner_consent'] = 'disabled';
     const { result } = renderHook(() => useDesignPartnerConsent());
     expect(result.current.consent).toBe('disabled');
   });
@@ -70,17 +70,17 @@ describe('useDesignPartnerConsent', () => {
       result.current.setConsent('enabled');
     });
     expect(result.current.consent).toBe('enabled');
-    expect(store['keepance_design_partner_consent']).toBe('enabled');
+    expect(store['lantern_design_partner_consent']).toBe('enabled');
   });
 
   it('setConsent("unset") removes the key', () => {
-    store['keepance_design_partner_consent'] = 'enabled';
+    store['lantern_design_partner_consent'] = 'enabled';
     const { result } = renderHook(() => useDesignPartnerConsent());
     act(() => {
       result.current.setConsent('unset');
     });
     expect(result.current.consent).toBe('unset');
-    expect(store['keepance_design_partner_consent']).toBeUndefined();
+    expect(store['lantern_design_partner_consent']).toBeUndefined();
   });
 
   it('fires a cross-tab custom event when consent changes', () => {
@@ -135,13 +135,13 @@ describe('sendDiagnosticEvent', () => {
   });
 
   it('is a no-op when consent is disabled', async () => {
-    store['keepance_design_partner_consent'] = 'disabled';
+    store['lantern_design_partner_consent'] = 'disabled';
     await sendDiagnosticEvent({ event: 'feature_used', feature: 'ask' });
     expect(fetchCalls).toHaveLength(0);
   });
 
   it('sends to the design-partner endpoint (not the telemetry endpoint) when enabled', async () => {
-    store['keepance_design_partner_consent'] = 'enabled';
+    store['lantern_design_partner_consent'] = 'enabled';
     await sendDiagnosticEvent({ event: 'feature_used', feature: 'ask' });
     expect(fetchCalls).toHaveLength(1);
     expect(String(fetchCalls[0])).toContain('design-partner-event');
@@ -149,7 +149,7 @@ describe('sendDiagnosticEvent', () => {
   });
 
   it('payload contains install_id, app_version, platform, source=design-partner', async () => {
-    store['keepance_design_partner_consent'] = 'enabled';
+    store['lantern_design_partner_consent'] = 'enabled';
     await sendDiagnosticEvent({ event: 'feature_used', feature: 'workflow' });
     const body = fetchBodies[0]!;
     expect(body).toHaveProperty('install_id');
@@ -159,7 +159,7 @@ describe('sendDiagnosticEvent', () => {
   });
 
   it('feature_used event contains event + feature, no content fields', async () => {
-    store['keepance_design_partner_consent'] = 'enabled';
+    store['lantern_design_partner_consent'] = 'enabled';
     await sendDiagnosticEvent({ event: 'feature_used', feature: 'search' });
     const body = fetchBodies[0]!;
     expect(body['event']).toBe('feature_used');
@@ -172,7 +172,7 @@ describe('sendDiagnosticEvent', () => {
   });
 
   it('workflow_run event contains only templateId (not template content)', async () => {
-    store['keepance_design_partner_consent'] = 'enabled';
+    store['lantern_design_partner_consent'] = 'enabled';
     await sendDiagnosticEvent({ event: 'workflow_run', templateId: 'deposition-contradiction' });
     const body = fetchBodies[0]!;
     expect(body['event']).toBe('workflow_run');
@@ -184,7 +184,7 @@ describe('sendDiagnosticEvent', () => {
   });
 
   it('search_count event contains only a numeric count, no query text', async () => {
-    store['keepance_design_partner_consent'] = 'enabled';
+    store['lantern_design_partner_consent'] = 'enabled';
     await sendDiagnosticEvent({ event: 'search_count', count: 7 });
     const body = fetchBodies[0]!;
     expect(body['event']).toBe('search_count');
@@ -196,7 +196,7 @@ describe('sendDiagnosticEvent', () => {
   });
 
   it('error_caught event contains only component + code, no stack trace', async () => {
-    store['keepance_design_partner_consent'] = 'enabled';
+    store['lantern_design_partner_consent'] = 'enabled';
     await sendDiagnosticEvent({ event: 'error_caught', component: 'AskPanel', code: 'rag_failed' });
     const body = fetchBodies[0]!;
     expect(body['event']).toBe('error_caught');
@@ -207,7 +207,7 @@ describe('sendDiagnosticEvent', () => {
   });
 
   it('onboarding_step event contains only step, no user data', async () => {
-    store['keepance_design_partner_consent'] = 'enabled';
+    store['lantern_design_partner_consent'] = 'enabled';
     await sendDiagnosticEvent({ event: 'onboarding_step', step: 'ai_setup' });
     const body = fetchBodies[0]!;
     expect(body['event']).toBe('onboarding_step');
@@ -219,7 +219,7 @@ describe('sendDiagnosticEvent', () => {
   });
 
   it('matter_count event contains only count', async () => {
-    store['keepance_design_partner_consent'] = 'enabled';
+    store['lantern_design_partner_consent'] = 'enabled';
     await sendDiagnosticEvent({ event: 'matter_count', count: 12 });
     const body = fetchBodies[0]!;
     expect(body['event']).toBe('matter_count');
@@ -227,7 +227,7 @@ describe('sendDiagnosticEvent', () => {
   });
 
   it('provider_connected event contains only provider name', async () => {
-    store['keepance_design_partner_consent'] = 'enabled';
+    store['lantern_design_partner_consent'] = 'enabled';
     await sendDiagnosticEvent({ event: 'provider_connected', provider: 'anthropic' });
     const body = fetchBodies[0]!;
     expect(body['event']).toBe('provider_connected');
@@ -235,7 +235,7 @@ describe('sendDiagnosticEvent', () => {
   });
 
   it('swallows network errors silently', async () => {
-    store['keepance_design_partner_consent'] = 'enabled';
+    store['lantern_design_partner_consent'] = 'enabled';
     vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new Error('network down'));
     // Should not throw
     await expect(

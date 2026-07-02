@@ -68,6 +68,7 @@ import type {
   MarketplaceService,
 } from '@/features/workflows/marketplace/svc';
 import { sendDiagnosticEvent } from '@/platform/utils/diagnostics';
+import { SK_FIRM_NAME } from '@/config/identity';
 
 export interface UseWorkflowRunnerOptions {
   rootPath: string | null;
@@ -663,7 +664,7 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
               const { serializeContradictionsDocx } = await import('@/platform/utils/docx-io');
               const firmName = (() => {
                 try {
-                  return localStorage.getItem('keepance_firm_name') ?? '';
+                  return localStorage.getItem(SK_FIRM_NAME) ?? '';
                 } catch {
                   return '';
                 }
@@ -875,7 +876,7 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
         const { markdownToDocxBytes } = await import('@/platform/utils/docx-io');
         // Read firm name from localStorage — the WorkflowExecutionTab input persists it there
         const firmName = (() => {
-          try { return localStorage.getItem('keepance_firm_name') ?? ''; } catch { return ''; }
+          try { return localStorage.getItem(SK_FIRM_NAME) ?? ''; } catch { return ''; }
         })();
         const bytes = await markdownToDocxBytes(content, suggestedName, { firmName });
         await saveFile(bytes, {
@@ -930,7 +931,7 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
         })();
 
         const firmNameRaw = (() => {
-          try { return localStorage.getItem('keepance_firm_name') ?? ''; } catch { return ''; }
+          try { return localStorage.getItem(SK_FIRM_NAME) ?? ''; } catch { return ''; }
         })();
         const pptxOptions: import('@/platform/utils/pptx-io').PptxExportOptions = firmNameRaw
           ? { firmName: firmNameRaw }

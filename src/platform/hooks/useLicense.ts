@@ -36,6 +36,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { sendEvent } from '@/platform/utils/telemetry';
 import { BRAND } from '@/config/brand';
+import {
+  SK_MACHINE_ID,
+  SK_LICENSE_TOKEN,
+  SK_LICENSE_LAST_GOOD_AT,
+} from '@/config/identity';
 
 export type LicenseTier = 'free' | 'personal' | 'professional' | 'practice';
 export type ProfessionPack = 'legal' | 'tax' | 'consulting';
@@ -76,9 +81,9 @@ export interface LicenseState {
   lastKnownGoodAt: Date | null;
 }
 
-const STORAGE_KEY = 'keepance_license_token';
-const MACHINE_ID_KEY = 'keepance_machine_id';
-const LAST_GOOD_KEY = 'keepance_license_last_good_at';
+const STORAGE_KEY = SK_LICENSE_TOKEN;
+const MACHINE_ID_KEY = SK_MACHINE_ID;
+const LAST_GOOD_KEY = SK_LICENSE_LAST_GOOD_AT;
 const LICENSE_API_BASE = BRAND.urls.licenseApi;
 const APP_VERSION = '2.1.0';
 

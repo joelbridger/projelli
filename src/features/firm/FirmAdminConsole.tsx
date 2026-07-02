@@ -58,6 +58,7 @@ import type {
   IdpProvider,
 } from '@/platform/firm/contract';
 import type { SsoConfigSetRequest } from '@/platform/firm/contract';
+import { SK_FIRM_KEY_PUBLISH_FP } from '@/config/identity';
 
 const audit = new AuditService('firm');
 
@@ -75,11 +76,9 @@ function generateTempPassword(): string {
 // Stored in localStorage so a reopened console doesn't re-wrap an unchanged
 // org. Only fingerprints live here (user/device ids + epoch), never keys.
 
-const PUBLISH_FP_STORAGE_KEY = 'keepance_firm_key_publish_fp';
-
 function readPublishFingerprints(): Record<string, string> {
   try {
-    const raw = localStorage.getItem(PUBLISH_FP_STORAGE_KEY);
+    const raw = localStorage.getItem(SK_FIRM_KEY_PUBLISH_FP);
     if (!raw) return {};
     const parsed: unknown = JSON.parse(raw);
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
@@ -93,7 +92,7 @@ function readPublishFingerprints(): Record<string, string> {
 
 function writePublishFingerprints(fingerprints: Record<string, string>): void {
   try {
-    localStorage.setItem(PUBLISH_FP_STORAGE_KEY, JSON.stringify(fingerprints));
+    localStorage.setItem(SK_FIRM_KEY_PUBLISH_FP, JSON.stringify(fingerprints));
   } catch {
     // Storage unavailable: fingerprints just won't persist across sessions.
   }
