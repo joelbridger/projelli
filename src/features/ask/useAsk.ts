@@ -509,7 +509,8 @@ export function useAsk({
             // files), so mark it with its true scope (not the widest-scope
             // fail-closed fallback) so a later same-sample send keeps it in
             // history rather than over-redacting it (Codex final review P2).
-            const demoGroundingScope = askConsentScope(activeMatter?.id ?? null, askScope);
+            // `activeMatter` is narrowed non-null here (isSampleMatter guard above).
+            const demoGroundingScope = askConsentScope(activeMatter.id, askScope);
             const completedTurn: AskTurn = {
               question: q,
               answer: demo.answer,
