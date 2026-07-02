@@ -149,7 +149,7 @@ pub async fn sync_source(
     from_utc: &str,
     to_utc: &str,
     cancel: &AtomicBool,
-    progress: &dyn Fn(u32),
+    progress: &(dyn Fn(u32) + Send + Sync),
 ) -> anyhow::Result<SyncCounts> {
     let provider = source.provider().as_str();
     let fetched_events = source.fetch_events(from_utc, to_utc).await?;

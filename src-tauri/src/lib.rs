@@ -271,6 +271,10 @@ pub fn run() {
             commands::calendar::commands::calendar_connect_ics,
             commands::calendar::commands::calendar_is_connected,
             commands::calendar::commands::calendar_disconnect,
+            commands::calendar::commands::calendar_sync_all,
+            commands::calendar::commands::calendar_sync_status,
+            commands::calendar::commands::calendar_cancel_sync,
+            commands::calendar::commands::calendar_list_events,
             // Wave 3a SSO — firm-tier OIDC desktop dance (loopback + browser).
             commands::firm::sso::firm_sso_authenticate,
             commands::firm::sso::firm_sso_cancel,

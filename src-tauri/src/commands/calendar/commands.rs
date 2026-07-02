@@ -6,7 +6,9 @@ use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
-use tauri::{Manager, State};
+use tauri::{AppHandle, Manager, State};
+
+use super::store::CalendarStore;
 
 pub const CALENDAR_SYNC_PROGRESS_EVENT: &str = "calendar-sync-progress";
 
@@ -245,7 +247,6 @@ async fn calendar_disconnect_inner(
     provider: &str,
     service: &str,
 ) -> Result<(), String> {
-    use super::store::CalendarStore;
     let workspace = state.workspace.lock().await.clone();
     // 0. A workspace must be known before we can locate (and purge) any
     //    previously synced data. codex-review P2 (round 5), matching the
@@ -408,6 +409,231 @@ pub(crate) fn ics_url() -> Result<String, String> {
     .map_err(|_| "not connected".to_string())
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct CalendarMatterMapEntry {
+    pub key: String,
+    pub matter_id: String,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct CalendarSyncStatusDto {
+    pub syncing: bool,
+    pub events_indexed: u32,
+    pub last_report: Option<CalendarSyncReportDto>,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct CalendarEventDto {
+    pub id: String,
+    pub provider: String,
+    pub title: String,
+    pub start_utc: String,
+    pub end_utc: String,
+    pub attendees: Vec<CalendarAttendeeDto>,
+    pub organizer_email: String,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct CalendarAttendeeDto {
+    pub email: String,
+    pub name: String,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct CalendarProgressPayload {
+    status: String,
+    events_indexed: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
+}
+
+pub(crate) fn build_matter_map(
+    entries: &[CalendarMatterMapEntry],
+) -> std::collections::HashMap<String, String> {
+    let mut map = std::collections::HashMap::new();
+    for entry in entries {
+        let key = super::engine::normalize_key(&entry.key);
+        if key.is_empty() {
+            continue;
+        }
+        map.entry(key).or_insert_with(|| entry.matter_id.clone());
+    }
+    map
+}
+
+fn emit_progress(app: &AppHandle, status: &str, events_indexed: u32, error: Option<String>) {
+    use tauri::Emitter;
+    let _ = app.emit(
+        CALENDAR_SYNC_PROGRESS_EVENT,
+        CalendarProgressPayload { status: status.into(), events_indexed, error },
+    );
+}
+
+/// Sync every CONNECTED provider over the rolling window (past 7 days,
+/// next 14). Single-flight; cancellable; progress via the Tauri event.
+#[tauri::command]
+pub async fn calendar_sync_all(
+    app: AppHandle,
+    state: State<'_, CalendarState>,
+    matter_map: Vec<CalendarMatterMapEntry>,
+) -> Result<CalendarSyncReportDto, String> {
+    if state
+        .is_syncing
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return Err("A calendar sync is already running.".into());
+    }
+    state.cancel.store(false, Ordering::SeqCst);
+    state.progress_events.store(0, Ordering::SeqCst);
+
+    let result = calendar_sync_all_inner(&app, &state, &matter_map).await;
+    state.is_syncing.store(false, Ordering::SeqCst);
+    match &result {
+        Ok(report) if report.cancelled => {
+            emit_progress(&app, "cancelled", report.events_indexed, None)
+        }
+        Ok(report) => emit_progress(&app, "done", report.events_indexed, None),
+        Err(e) => emit_progress(&app, "error", 0, Some(e.clone())),
+    }
+    result
+}
+
+async fn calendar_sync_all_inner(
+    app: &AppHandle,
+    state: &State<'_, CalendarState>,
+    matter_map: &[CalendarMatterMapEntry],
+) -> Result<CalendarSyncReportDto, String> {
+    use super::engine::sync_source;
+    use super::graph_source::{CalendarSource, GraphCalendarSource};
+    use super::google_source::GoogleCalendarSource;
+    use super::ics_source::IcsCalendarSource;
+
+    let workspace = state
+        .workspace
+        .lock()
+        .await
+        .clone()
+        .ok_or("No workspace set. Open a workspace first.")?;
+    let map = build_matter_map(matter_map);
+    let store = CalendarStore::open(&workspace).map_err(|e| e.to_string())?;
+    let rag_key = crate::commands::rag::crypto::get_or_create_master_key()
+        .map_err(|e| e.to_string())?;
+    let (from_utc, to_utc) = super::model::sync_window_utc(chrono::Utc::now());
+
+    let mut sources: Vec<Box<dyn CalendarSource>> = Vec::new();
+    if calendar_is_connected("outlook".into()).await.unwrap_or(false) {
+        sources.push(Box::new(GraphCalendarSource::new()));
+    }
+    if calendar_is_connected("google".into()).await.unwrap_or(false) {
+        sources.push(Box::new(GoogleCalendarSource::new()));
+    }
+    if calendar_is_connected("ics".into()).await.unwrap_or(false) {
+        sources.push(Box::new(IcsCalendarSource::new()));
+    }
+    if sources.is_empty() {
+        return Err("No calendar is connected.".into());
+    }
+
+    let mut report = CalendarSyncReportDto::default();
+    let progress_counter = state.progress_events.clone();
+    let app_for_progress = app.clone();
+    for source in &sources {
+        if state.cancel.load(Ordering::SeqCst) {
+            report.cancelled = true;
+            break;
+        }
+        emit_progress(&app_for_progress, "syncing", progress_counter.load(Ordering::SeqCst), None);
+        let base = report.events_indexed;
+        let this_provider_counter = progress_counter.clone();
+        let counts = sync_source(
+            &store,
+            source.as_ref(),
+            &map,
+            &workspace,
+            &rag_key,
+            &from_utc,
+            &to_utc,
+            &state.cancel,
+            &move |n| {
+                this_provider_counter.store(base + n, Ordering::SeqCst);
+            },
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+        report.events_fetched += counts.fetched;
+        report.events_changed += counts.changed;
+        report.events_indexed += counts.indexed;
+        report.records_indexed += counts.records;
+    }
+    report.cancelled = report.cancelled || state.cancel.load(Ordering::SeqCst);
+    *state.last_report.lock().await = Some(report.clone());
+    Ok(report)
+}
+
+#[tauri::command]
+pub async fn calendar_sync_status(
+    state: State<'_, CalendarState>,
+) -> Result<CalendarSyncStatusDto, String> {
+    Ok(CalendarSyncStatusDto {
+        syncing: state.is_syncing.load(Ordering::SeqCst),
+        events_indexed: state.progress_events.load(Ordering::SeqCst),
+        last_report: state.last_report.lock().await.clone(),
+    })
+}
+
+#[tauri::command]
+pub async fn calendar_cancel_sync(state: State<'_, CalendarState>) -> Result<(), String> {
+    state.cancel.store(true, Ordering::SeqCst);
+    Ok(())
+}
+
+/// Events overlapping [from_utc, to_utc) from the local encrypted store —
+/// powers the Today's meetings strip. Matter matching happens in TS at
+/// render time so newly taught mappings apply instantly without a re-sync.
+#[tauri::command]
+pub async fn calendar_list_events(
+    state: State<'_, CalendarState>,
+    from_utc: String,
+    to_utc: String,
+) -> Result<Vec<CalendarEventDto>, String> {
+    let workspace = state
+        .workspace
+        .lock()
+        .await
+        .clone()
+        .ok_or("No workspace set.")?;
+    let db = CalendarStore::db_path(&workspace);
+    if !db.exists() {
+        return Ok(vec![]); // connected-but-never-synced or not connected
+    }
+    let store = CalendarStore::open(&workspace).map_err(|e| e.to_string())?;
+    let events = store
+        .list_in_window(&from_utc, &to_utc)
+        .map_err(|e| e.to_string())?;
+    Ok(events
+        .into_iter()
+        .map(|e| CalendarEventDto {
+            id: e.id,
+            provider: e.provider.as_str().to_string(),
+            title: e.title,
+            start_utc: e.start_utc,
+            end_utc: e.end_utc,
+            attendees: e
+                .attendees
+                .into_iter()
+                .map(|a| CalendarAttendeeDto { email: a.email, name: a.name })
+                .collect(),
+            organizer_email: e.organizer_email,
+        })
+        .collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -453,5 +679,19 @@ mod tests {
         assert!(is_localhost_http("http://localhost/feed.ics"));
         assert!(is_localhost_http("http://localhost:8080/feed.ics"));
         assert!(is_localhost_http("http://127.0.0.1:8080/feed.ics"));
+    }
+
+    #[test]
+    fn build_matter_map_normalizes_skips_blanks_first_writer_wins() {
+        let entries = vec![
+            CalendarMatterMapEntry { key: "  Kim@Henderson.COM ".into(), matter_id: "m-1".into() },
+            CalendarMatterMapEntry { key: "R  Ortiz".into(), matter_id: "m-2".into() },
+            CalendarMatterMapEntry { key: "".into(), matter_id: "m-3".into() },
+            CalendarMatterMapEntry { key: "kim@henderson.com".into(), matter_id: "m-9".into() },
+        ];
+        let map = build_matter_map(&entries);
+        assert_eq!(map.get("kim@henderson.com"), Some(&"m-1".to_string()), "first wins");
+        assert_eq!(map.get("r ortiz"), Some(&"m-2".to_string()), "whitespace collapsed");
+        assert_eq!(map.len(), 2, "blank keys skipped");
     }
 }
