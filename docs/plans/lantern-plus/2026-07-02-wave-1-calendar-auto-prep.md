@@ -272,7 +272,7 @@ pub mod calendar;
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `cargo test --manifest-path src-tauri/Cargo.toml -p lantern_lib calendar::model`
+Run: `cargo test --manifest-path src-tauri/Cargo.toml -p lantern calendar::model`
 Expected: COMPILE ERROR — `cannot find function should_keep_event` (and `event_in_window`, `sync_window_utc`).
 
 - [ ] **Step 3: Implement the three functions**
@@ -319,7 +319,7 @@ pub fn sync_window_utc(now: chrono::DateTime<chrono::Utc>) -> (String, String) {
 
 - [ ] **Step 4: Run to verify pass**
 
-Run: `cargo test --manifest-path src-tauri/Cargo.toml -p lantern_lib calendar::model`
+Run: `cargo test --manifest-path src-tauri/Cargo.toml -p lantern calendar::model`
 Expected: `test result: ok. 3 passed`
 
 - [ ] **Step 5: Commit**
@@ -485,7 +485,7 @@ mod tests {
 
 - [ ] **Step 3: Run to verify it fails**
 
-Run: `cargo test --manifest-path src-tauri/Cargo.toml -p lantern_lib calendar::store`
+Run: `cargo test --manifest-path src-tauri/Cargo.toml -p lantern calendar::store`
 Expected: COMPILE ERROR — `cannot find struct CalendarStore`.
 
 - [ ] **Step 4: Implement `CalendarStore`**
@@ -758,7 +758,7 @@ Add `pub mod store;` to `src-tauri/src/commands/calendar/mod.rs`.
 
 - [ ] **Step 5: Run to verify pass**
 
-Run: `cargo test --manifest-path src-tauri/Cargo.toml -p lantern_lib calendar::store`
+Run: `cargo test --manifest-path src-tauri/Cargo.toml -p lantern calendar::store`
 Expected: `test result: ok. 3 passed`
 
 - [ ] **Step 6: Commit**
@@ -885,7 +885,7 @@ The two `// Copy verbatim from ...` blocks are a copy instruction with exact sou
 
 - [ ] **Step 2: Run to verify red, copy, then green**
 
-Run: `cargo test --manifest-path src-tauri/Cargo.toml -p lantern_lib calendar::oauth`
+Run: `cargo test --manifest-path src-tauri/Cargo.toml -p lantern calendar::oauth`
 Expected first: COMPILE ERROR (missing copied items if tests reference them / missing mod). After completing the copy and adding `pub mod oauth;` to `calendar/mod.rs`:
 Expected: `test result: ok. 2 passed`
 
@@ -1282,7 +1282,7 @@ In `.setup()`, after `commands::calendly::commands::manage_state(app);` (line 31
 
 - [ ] **Step 5: Compile + run the module's tests**
 
-Run: `cargo test --manifest-path src-tauri/Cargo.toml -p lantern_lib calendar::`
+Run: `cargo test --manifest-path src-tauri/Cargo.toml -p lantern calendar::`
 Expected: compiles clean; `calendar::model` (3) + `calendar::store` (3) + `calendar::oauth` (2) all pass.
 
 - [ ] **Step 6: Commit**
@@ -1413,7 +1413,7 @@ mod tests {
 
 - [ ] **Step 2: Run to verify red**
 
-Run: `cargo test --manifest-path src-tauri/Cargo.toml -p lantern_lib calendar::graph_source`
+Run: `cargo test --manifest-path src-tauri/Cargo.toml -p lantern calendar::graph_source`
 Expected: COMPILE ERROR — `GraphCalendarSource` not found.
 
 - [ ] **Step 3: Implement the source**
@@ -1599,7 +1599,7 @@ Also check `async-trait` is already a dependency (`grep async-trait src-tauri/Ca
 
 - [ ] **Step 4: Run to verify pass**
 
-Run: `cargo test --manifest-path src-tauri/Cargo.toml -p lantern_lib calendar::graph_source`
+Run: `cargo test --manifest-path src-tauri/Cargo.toml -p lantern calendar::graph_source`
 Expected: `test result: ok. 1 passed`
 
 - [ ] **Step 5: Commit**
@@ -1706,7 +1706,7 @@ mod tests {
 
 - [ ] **Step 2: Run to verify red**
 
-Run: `cargo test --manifest-path src-tauri/Cargo.toml -p lantern_lib calendar::google_source`
+Run: `cargo test --manifest-path src-tauri/Cargo.toml -p lantern calendar::google_source`
 Expected: COMPILE ERROR — `GoogleCalendarSource` not found.
 
 - [ ] **Step 3: Implement**
@@ -1884,7 +1884,7 @@ Note the closure-captures-mut pattern (`self_declined` mutated inside `filter_ma
 
 - [ ] **Step 4: Run to verify pass**
 
-Run: `cargo test --manifest-path src-tauri/Cargo.toml -p lantern_lib calendar::google_source`
+Run: `cargo test --manifest-path src-tauri/Cargo.toml -p lantern calendar::google_source`
 Expected: `test result: ok. 1 passed` (test asserts attendee count 2 — adjust the fixture assertion to 1 if the self-attendee filter applies; keep the filter, fix the assertion to `assert_eq!(events[0].attendees.len(), 1)`).
 
 - [ ] **Step 5: Commit**
@@ -2019,7 +2019,7 @@ mod tests {
 
 - [ ] **Step 2: Run to verify red**
 
-Run: `cargo test --manifest-path src-tauri/Cargo.toml -p lantern_lib calendar::ics_source`
+Run: `cargo test --manifest-path src-tauri/Cargo.toml -p lantern calendar::ics_source`
 Expected: COMPILE ERROR — `parse_ics` not found.
 
 - [ ] **Step 3: Implement parser + expander + source**
@@ -2361,7 +2361,7 @@ fn finish_vevent(
 
 - [ ] **Step 4: Run the table tests until green**
 
-Run: `cargo test --manifest-path src-tauri/Cargo.toml -p lantern_lib calendar::ics_source`
+Run: `cargo test --manifest-path src-tauri/Cargo.toml -p lantern calendar::ics_source`
 Expected: `test result: ok. 4 passed`. The recurrence math (COUNT counted across the series vs the window, BYDAY week arithmetic) is exactly what the table pins down — if a row fails, fix the expander, not the table (the table rows' expected values are hand-derived from the July 2026 calendar: Jul 2 2026 is a Thursday).
 
 - [ ] **Step 5: Commit**
@@ -2609,7 +2609,7 @@ mod tests {
 
 - [ ] **Step 2: Run to verify red**
 
-Run: `cargo test --manifest-path src-tauri/Cargo.toml -p lantern_lib calendar::engine`
+Run: `cargo test --manifest-path src-tauri/Cargo.toml -p lantern calendar::engine`
 Expected: COMPILE ERROR — `normalize_key`, `sync_source`, `test_hooks_slot`, `TestHooks` not found.
 
 - [ ] **Step 3: Implement the engine**
@@ -2786,7 +2786,7 @@ pub async fn sync_source(
         }
         seen_ids.push(event.id.clone());
         let text = render_event(event);
-        let content_hash = format!("{:x}", md5::compute(&text));
+        let content_hash = crate::commands::calendly::engine::content_hash(&text);
         let changed = store.upsert_event(event, &content_hash)?;
         if !changed {
             continue;
@@ -2822,18 +2822,58 @@ pub async fn sync_source(
 }
 ```
 
-Check `md5` is a workspace dependency (`grep -E '^md5' src-tauri/Cargo.toml`); if absent, use the hash the Calendly engine uses for `content_hash` (read `calendly/engine.rs` `ingest`, ~line 70 — it hashes the serialized bundle; reuse the exact same hashing helper/crate rather than introducing a new one).
+Hashing note (verified): there is NO `md5` crate in `src-tauri/Cargo.toml` — do not add one. The snippet reuses the Calendly engine's existing helper `content_hash(json: &str) -> String` (`src-tauri/src/commands/calendly/engine.rs:45-48`, `sha2::Sha256` + `hex::encode`). If that helper is private, make it `pub(crate)` rather than duplicating it.
 
 - [ ] **Step 4: Run to verify pass**
 
-Run: `cargo test --manifest-path src-tauri/Cargo.toml -p lantern_lib calendar::engine`
+Run: `cargo test --manifest-path src-tauri/Cargo.toml -p lantern calendar::engine`
 Expected: `test result: ok. 3 passed`
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Write the failing citation-label test (calendar must not display as "Calendly")**
+
+Both citation label helpers currently hard-map `sourceType === 'meeting'` to the label `Calendly` (`src/features/ask/askHelpers.ts:225`, `src/features/ask/renderingHelpers.tsx:162`). Calendar rows reuse `source_type: "meeting"` but carry source ids prefixed `calendar:` (Calendly rows use `calendly:event:<uuid>` — `src-tauri/src/commands/calendly/render.rs:18`), and external hits surface that id as `path` (`askHelpers.ts:820`: `path: hit.path || hit.sourceId`). Add to the existing askHelpers test file (find it: `grep -rl "sourceLocator" tests/ src/`):
+
+```ts
+it('labels calendar meeting sources "Calendar", calendly ones "Calendly"', () => {
+  const base = { chunkText: '', score: 1, paragraphIndex: 0, sourceType: 'meeting' as const };
+  expect(sourceLocator({ ...base, path: 'calendar:evt-1:m-1' })).toMatch(/^Calendar - /);
+  expect(sourceLocator({ ...base, path: 'calendly:event:abc' })).toMatch(/^Calendly - /);
+});
+
+it('citationDisplayLabel distinguishes calendar vs calendly via path', () => {
+  expect(citationDisplayLabel('evt-1', 0, 'meeting', undefined, undefined, undefined, undefined, 'calendar:evt-1:m-1')).toMatch(/^Calendar - /);
+  expect(citationDisplayLabel('abc', 0, 'meeting', undefined, undefined, undefined, undefined, 'calendly:event:abc')).toMatch(/^Calendly - /);
+});
+```
+
+- [ ] **Step 6: Implement the label branching, run to verify pass**
+
+In `src/features/ask/askHelpers.ts:225` replace the meeting line:
+
+```ts
+  if (s.sourceType === 'meeting') {
+    const label = s.path.startsWith('calendar:') ? 'Calendar' : 'Calendly';
+    return `${label} - ${citationBasename(s.path)}`;
+  }
+```
+
+In `src/features/ask/renderingHelpers.tsx` add an optional trailing parameter `path?: string` to `citationDisplayLabel` (line 142; it is the last param, so the three existing call sites — `ChatSourcesAccordion.tsx:69`, `renderingHelpers.tsx:229`, `renderingHelpers.tsx:428` — stay valid; update each to pass the source's `path` where available) and replace its meeting line (162):
+
+```tsx
+  if (sourceType === 'meeting') {
+    const label = path?.startsWith('calendar:') ? 'Calendar' : 'Calendly';
+    return `${label} - ${basename}${suffix}`;
+  }
+```
+
+Run: `npx vitest run tests --silent -t 'calendar vs calendly'`
+Expected: PASS (both new tests). Also run the surrounding suites: `npx vitest run src/features/ask --silent` — all pre-existing label tests still green (Calendly default preserved when path is absent).
+
+- [ ] **Step 7: Commit**
 
 ```bash
-git add src-tauri/src/commands/calendar/
-git commit -m "feat(calendar): sync engine with multi-client resolution, exclusion purge, per-matter indexing (TDD)"
+git add src-tauri/src/commands/calendar/ src/features/ask/
+git commit -m "feat(calendar): sync engine with multi-client resolution, exclusion purge, per-matter indexing; Calendar vs Calendly citation labels (TDD)"
 ```
 
 ---
@@ -2875,7 +2915,7 @@ mod tests {
 
 - [ ] **Step 2: Run to verify red**
 
-Run: `cargo test --manifest-path src-tauri/Cargo.toml -p lantern_lib calendar::commands`
+Run: `cargo test --manifest-path src-tauri/Cargo.toml -p lantern calendar::commands`
 Expected: COMPILE ERROR — `CalendarMatterMapEntry` / `build_matter_map` not found.
 
 - [ ] **Step 3: Implement sync/list commands**
@@ -3126,7 +3166,7 @@ Extend the calendar block in `src-tauri/src/lib.rs`:
 
 - [ ] **Step 5: Run the whole module + workspace compile**
 
-Run: `cargo test --manifest-path src-tauri/Cargo.toml -p lantern_lib calendar::`
+Run: `cargo test --manifest-path src-tauri/Cargo.toml -p lantern calendar::`
 Expected: all calendar tests pass (model 3, store 3, oauth 2, graph 1, google 1, ics 4, engine 3, commands 1 = 18).
 
 - [ ] **Step 6: Commit**

@@ -1052,8 +1052,9 @@ git commit -m "feat(email): follow-up draft helpers, source_note injection harde
 
 **Files:**
 - Create: `src/features/email/DraftFollowUpModal.tsx`
-- Modify: `src/features/documents/editor/FormattingToolbar.tsx` (new optional `onDraftFollowUp` prop + button; props interface at line 44, component fn at line 152)
-- Modify: `src/app/shell/layout/MainPanel.tsx` (modal state + pass the handler; `FormattingToolbar` is rendered at line 921 with `tab` in scope)
+- Modify: `src/features/documents/editor/FormattingToolbar.tsx` (new optional `onDraftFollowUp` prop + button; props interface at line 44, component fn at line 152 — markdown/text tabs only)
+- Modify: `src/features/documents/media/DocxEditor.tsx` (same action in the Word editor's own inline toolbar; component fn at line 173, Export dropdown ~line 1216)
+- Modify: `src/app/shell/layout/MainPanel.tsx` (modal state + pass the handler; `FormattingToolbar` is rendered at line 921 and `DocxEditor` at line 795, both with `tab` in scope)
 - Test: `tests/unit/draft-follow-up-modal.test.tsx`
 
 **Interfaces:**
@@ -1408,7 +1409,7 @@ In `src/features/documents/editor/FormattingToolbar.tsx`:
   onDraftFollowUp?: (() => void) | undefined;
 ```
 
-2. Add `onDraftFollowUp` to the destructured props (line 152) and render, next to the existing Export control (visible for every `fileType` — a follow-up makes sense from txt, md, and docx notes alike):
+2. Add `onDraftFollowUp` to the destructured props (line 152) and render, next to the existing Export control. **Coverage honesty (verified):** `FormattingToolbar` renders ONLY for markdown/text tabs — the mount at `MainPanel.tsx:920` is gated on `isText && isMarkdown` — so this step covers `.md`/`.markdown`/`.txt` notes. Word documents use a separate editor with its own inline toolbar; Step 6 below mounts the action there. Do not claim docx coverage from this step alone.
 
 ```tsx
       {onDraftFollowUp && (
@@ -1471,20 +1472,71 @@ import { resolveMatterIdForPath } from '@/platform/matter/matterStore';
       )}
 ```
 
-- [ ] **Step 6: Verify the whole frontend**
+- [ ] **Step 6: Mount the action in the Word (.docx) editor's toolbar**
+
+The docx editor is `src/features/documents/media/DocxEditor.tsx` (component fn at line 173; its toolbar is an inline row in the same file — the Export dropdown sits at ~line 1216). It does not use `FormattingToolbar`.
+
+1. Add an optional prop to `DocxEditorProps` and the destructuring (line 173):
+
+```ts
+  /** Wave 0: opens the "Draft follow-up" email modal with the document's plain text. */
+  onDraftFollowUp?: ((plainText: string) => void) | undefined;
+```
+
+2. Render a button immediately BEFORE the Export `<DropdownMenu>` (~line 1216), reusing the Export button's exact classes so it visually matches:
+
+```tsx
+          {onDraftFollowUp && (
+            <Button
+              data-testid="docx-draft-follow-up"
+              variant="outline"
+              size="sm"
+              className="h-7 gap-1.5 border-[rgba(var(--kp-navy-rgb),0.30)] text-[var(--kp-navy)] hover:bg-[rgba(var(--kp-navy-rgb),0.05)]"
+              disabled={load.status !== 'ready'}
+              onClick={() => {
+                if (load.status !== 'ready') return;
+                const text = extractIndexedParagraphs(load.doc)
+                  .map(p => p.text)
+                  .join('\n');
+                onDraftFollowUp(text);
+              }}
+              title="Draft a follow-up email from this document"
+            >
+              <Mail className="h-3.5 w-3.5" />
+              Draft follow-up
+            </Button>
+          )}
+```
+
+Import `extractIndexedParagraphs` from `@/features/documents/docx/redline` (already exports it at `redline.ts:72`; it maps the loaded document model to indexed plain-text paragraphs — same path the AI redline uses) and `Mail` from `lucide-react`. If the ready-state field names differ (`load.doc` vs another shape), read the `LoadState` type at the top of `DocxEditor.tsx` and use the ready variant's document field — do not add a new extraction path.
+
+3. In `MainPanel.tsx` at the `<DocxEditor …/>` mount (line 795), pass the handler (same `setFollowUpFor` state from Step 5, using the extracted text as `content`):
+
+```tsx
+                onDraftFollowUp={(plainText) => {
+                  setFollowUpFor({
+                    name: tab.name,
+                    content: plainText,
+                    matterId: resolveMatterIdForPath(tab.path),
+                  });
+                }}
+```
+
+- [ ] **Step 7: Verify the whole frontend**
 
 Run: `cd /home/jameson/lantern-plus && npm run typecheck && npx vitest run tests/unit --silent 2>&1 | tail -3`
 Expected: typecheck clean, all unit tests pass.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 cd /home/jameson/lantern-plus
 git add src/features/email/DraftFollowUpModal.tsx \
         src/features/documents/editor/FormattingToolbar.tsx \
+        src/features/documents/media/DocxEditor.tsx \
         src/app/shell/layout/MainPanel.tsx \
         tests/unit/draft-follow-up-modal.test.tsx
-git commit -m "feat(email): Draft follow-up from a note — AI proposes, user saves to Drafts or sends"
+git commit -m "feat(email): Draft follow-up from a note (markdown/text + Word editors) — AI proposes, user saves to Drafts or sends"
 ```
 
 ---

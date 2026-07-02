@@ -57,6 +57,70 @@ TS types for this schema live in ONE place: `src/platform/types/meeting.ts` (Tas
 
 Phase deliverable: `capture_start` / `capture_stop` Tauri commands that record mic + loopback to chunked WAV on disk, survive a hard kill, and finalize to `audio.wav`. Verified by cargo tests + a dev harness command.
 
+### Task 0 (SPIKE — run FIRST, before any engine code): prove WASAPI loopback via cpal on the Legion
+
+`VERIFY-LIVE:` the whole capture design assumes cpal can open the default OUTPUT device as a loopback INPUT on Windows (WASAPI). The repo has no existing cpal capture code to prove it, and cpal's loopback support has historically been version-sensitive. Spend this spike before building anything on the assumption.
+
+**Files:**
+- Create: `src-tauri/examples/loopback_spike.rs` (a cargo example — deleted or kept as a diagnostic at the end of the wave; it is NOT product code)
+- Modify: `src-tauri/Cargo.toml` (add `cpal = "0.15"` under `[dependencies]` — Task 1 needs it anyway)
+
+- [ ] **Step 1: Write the spike**
+
+```rust
+// src-tauri/examples/loopback_spike.rs
+// Proof: open the default output device in loopback mode, capture ~3 s of
+// system audio, count non-zero samples. Run WHILE audio is playing (open a
+// YouTube video first).
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+
+fn main() -> anyhow::Result<()> {
+    let host = cpal::default_host();
+    // WASAPI loopback: the OUTPUT device, opened with an INPUT stream config.
+    let device = host
+        .default_output_device()
+        .ok_or_else(|| anyhow::anyhow!("no default output device"))?;
+    println!("device: {}", device.name()?);
+    let config = device.default_output_config()?;
+    println!("config: {:?}", config);
+    let nonzero = Arc::new(AtomicU64::new(0));
+    let total = Arc::new(AtomicU64::new(0));
+    let (nz, tt) = (nonzero.clone(), total.clone());
+    let stream = device.build_input_stream(
+        &config.clone().into(),
+        move |data: &[f32], _| {
+            tt.fetch_add(data.len() as u64, Ordering::Relaxed);
+            nz.fetch_add(data.iter().filter(|s| s.abs() > 1e-6).count() as u64, Ordering::Relaxed);
+        },
+        |e| eprintln!("stream error: {e}"),
+        None,
+    )?;
+    stream.play()?;
+    std::thread::sleep(std::time::Duration::from_secs(3));
+    drop(stream);
+    let (n, t) = (nonzero.load(Ordering::Relaxed), total.load(Ordering::Relaxed));
+    println!("captured {t} samples, {n} non-zero");
+    anyhow::ensure!(t > 0, "SPIKE FAILED: no samples captured at all");
+    anyhow::ensure!(n > 0, "SPIKE FAILED: samples captured but all zero (loopback not wired)");
+    println!("SPIKE OK: cpal loopback works on this machine");
+    Ok(())
+}
+```
+
+- [ ] **Step 2: Run it on the Legion Windows bench (this is the AI's job, never Jameson's)**
+
+Bring the Legion (`james@100.127.67.22`) to this branch, start audio playing (open a YouTube tab via the desktop-drive tooling), then:
+
+Run: `cargo run --manifest-path src-tauri/Cargo.toml --example loopback_spike`
+Expected: `SPIKE OK: cpal loopback works on this machine`
+
+- [ ] **Step 3: Decision gate**
+
+- **SPIKE OK** → proceed to Task 1 unchanged; commit the example (`git add src-tauri/examples/loopback_spike.rs src-tauri/Cargo.toml && git commit -m "spike(capture): cpal WASAPI loopback proven on Legion"`).
+- **SPIKE FAILED (opens but silence, or build_input_stream errors on the output device)** → fall back to the `wasapi` crate directly (`wasapi = "0.15"`, `AUDCLNT_STREAMFLAGS_LOOPBACK` on the render device) for the Windows `AudioSource` implementation in Task 3, keeping cpal for the mic side only. Record the outcome + chosen path in a dated note at the top of this plan file BEFORE starting Task 1, so every later task builds on the proven API. Do not proceed on an unproven capture API.
+
 ### Task 1: Crate deps + capture module skeleton + chunk writer
 
 **Files:**
@@ -773,7 +837,128 @@ mod tests {
 Run: `cd src-tauri && cargo test capture::engine -- --nocapture`
 Expected: FAIL — `CaptureEngine` not defined.
 
-- [ ] **Step 3: Implement the engine and commands**
+- [ ] **Step 3: Path guard — failing tests, then `guard_meeting_path`**
+
+Every capture command takes `workspace`/`matter_folder`/`meeting_dir` strings from the renderer and joins/deletes under them. A `..`-check alone misses absolute paths and symlink escapes. Mirror the repo's existing guarded-path pattern (canonicalize root, canonicalize candidate, `starts_with` — see `src-tauri/src/commands/vault/mod.rs:254` and `src-tauri/src/commands/tarball.rs:142`). Add to `src-tauri/src/commands/capture/mod.rs`:
+
+```rust
+#[cfg(test)]
+mod path_guard_tests {
+    use super::*;
+
+    #[test]
+    fn rejects_absolute_matter_folder() {
+        let ws = tempfile::tempdir().unwrap();
+        let err = guard_matter_folder(ws.path(), "/etc").unwrap_err();
+        assert!(err.to_string().contains("must be workspace-relative"), "got: {err}");
+    }
+
+    #[test]
+    fn rejects_dotdot_traversal() {
+        let ws = tempfile::tempdir().unwrap();
+        let err = guard_matter_folder(ws.path(), "../outside").unwrap_err();
+        assert!(err.to_string().contains("escapes workspace"), "got: {err}");
+    }
+
+    #[test]
+    fn rejects_symlink_escape() {
+        let ws = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::os::unix::fs::symlink(outside.path(), ws.path().join("link")).unwrap();
+        let err = guard_matter_folder(ws.path(), "link/Clients/A").unwrap_err();
+        assert!(err.to_string().contains("escapes workspace"), "got: {err}");
+    }
+
+    #[test]
+    fn accepts_normal_relative_folder() {
+        let ws = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(ws.path().join("Clients/A")).unwrap();
+        let p = guard_matter_folder(ws.path(), "Clients/A").unwrap();
+        assert!(p.starts_with(ws.path().canonicalize().unwrap()));
+    }
+
+    #[test]
+    fn meeting_dir_must_be_inside_workspace() {
+        let ws = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let err = guard_meeting_path(ws.path(), &outside.path().join("Meetings/x")).unwrap_err();
+        assert!(err.to_string().contains("escapes workspace"), "got: {err}");
+    }
+}
+```
+
+Implementation (same file):
+
+```rust
+/// Resolve a RELATIVE matter folder under the workspace, refusing absolute
+/// inputs, `..` traversal, and symlink escapes. Every capture command that
+/// receives a folder/dir string MUST route through one of these two guards
+/// before any create/join/delete.
+pub(crate) fn guard_matter_folder(
+    workspace: &std::path::Path,
+    matter_folder: &str,
+) -> anyhow::Result<std::path::PathBuf> {
+    use anyhow::{bail, Context};
+    let rel = std::path::Path::new(matter_folder);
+    if rel.is_absolute() {
+        bail!("matter_folder must be workspace-relative, got absolute path");
+    }
+    let canon_ws = workspace
+        .canonicalize()
+        .context("cannot canonicalize workspace")?;
+    let joined = canon_ws.join(rel);
+    // Canonicalize the deepest existing ancestor so symlinks anywhere in the
+    // chain resolve, then re-append the not-yet-created tail.
+    let mut existing = joined.clone();
+    let mut tail = std::path::PathBuf::new();
+    while !existing.exists() {
+        let name = existing
+            .file_name()
+            .map(std::ffi::OsString::from)
+            .context("path has no file name while walking ancestors")?;
+        tail = std::path::Path::new(&name).join(&tail);
+        existing = existing
+            .parent()
+            .context("ran out of ancestors")?
+            .to_path_buf();
+    }
+    let canon = existing
+        .canonicalize()
+        .context("cannot canonicalize existing ancestor")?
+        .join(&tail);
+    if !canon.starts_with(&canon_ws) {
+        bail!("path '{}' escapes workspace '{}'", canon.display(), canon_ws.display());
+    }
+    Ok(canon)
+}
+
+/// Same contract for an already-materialized meeting dir passed back from the
+/// frontend (stop/recover/index/retention): canonicalize and require it to be
+/// a descendant of the workspace.
+pub(crate) fn guard_meeting_path(
+    workspace: &std::path::Path,
+    meeting_dir: &std::path::Path,
+) -> anyhow::Result<std::path::PathBuf> {
+    use anyhow::{bail, Context};
+    let canon_ws = workspace
+        .canonicalize()
+        .context("cannot canonicalize workspace")?;
+    let canon = meeting_dir
+        .canonicalize()
+        .context("cannot canonicalize meeting dir")?;
+    if !canon.starts_with(&canon_ws) {
+        bail!("path '{}' escapes workspace '{}'", canon.display(), canon_ws.display());
+    }
+    Ok(canon)
+}
+```
+
+Run: `cd src-tauri && cargo test capture::path_guard -- --nocapture`
+Expected: `test result: ok. 5 passed`
+
+Wiring requirement for the NEXT step: `capture_start` calls `guard_matter_folder(Path::new(&workspace), &matter_folder)?` (mapping the error with `.map_err(|e| e.to_string())`) and builds the meeting dir from the returned canonical path; `capture_recover` (Task 5), `transcribe_meeting` (Task 8), `capture_index_transcript` (Task 14) and the retention commands (Task 15) call `guard_meeting_path` on their dir inputs before touching the filesystem. The Task 15 sweep additionally re-verifies each individual deletion target with `starts_with` on the canonical workspace before unlink.
+
+- [ ] **Step 4: Implement the engine and commands**
 
 ```rust
 // src-tauri/src/commands/capture/engine.rs
@@ -933,6 +1118,8 @@ pub async fn capture_start(
         confirmed_at: chrono::Utc::now().to_rfc3339(),
         note: consent_note.unwrap_or_default(),
     };
+    // Step 3 guard: refuse absolute / traversal / symlink-escape folders BEFORE any FS work.
+    guard_matter_folder(Path::new(&workspace), &matter_folder).map_err(|e| e.to_string())?;
     let dir = try_begin_global(Path::new(&workspace), &matter_id, &matter_folder, consent)?;
     Ok(CaptureStartResult {
         meeting_dir: dir.to_string_lossy().into_owned(),
@@ -973,17 +1160,17 @@ Note: `finalize_session` must also delete `session.json` (it lives inside `.capt
             commands::capture::engine::capture_status,
 ```
 
-- [ ] **Step 4: Run tests**
+- [ ] **Step 5: Run tests**
 
 Run: `cd src-tauri && cargo test capture:: -- --nocapture`
 Expected: PASS (all capture module tests).
 
-- [ ] **Step 5: Run the full Rust suite to catch registration breakage**
+- [ ] **Step 6: Run the full Rust suite to catch registration breakage**
 
 Run: `cd src-tauri && cargo test`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add src-tauri/src/commands/capture/ src-tauri/src/lib.rs
@@ -2155,13 +2342,73 @@ git commit -m "feat(meetings): retention delete-audio action + capture cache swe
 
 **Files:**
 - Create: `src/features/meetings/indexMeeting.ts`
+- Modify: `src-tauri/src/commands/capture/mod.rs` (new `capture_index_transcript` command — see the correction below)
+- Modify: `src-tauri/src/lib.rs` (register the new command next to the other capture commands)
 - Modify: `src/features/meetings/meetingStore.ts` (chain indexing after notes generation)
 - Modify: the Ask citation-open handler (find with `grep -rn "citationId\|openSource" src/features/ask/ -l`) to route `meeting:` refs through `parseMeetingRef` → open `MeetingEntry` with `initialSeekMs`
-- Test: `tests/unit/index-meeting.test.ts`
+- Test: `tests/unit/index-meeting.test.ts` + Rust test in `capture/mod.rs`
 
 **Interfaces:**
-- Consumes: `spawn_external_rag_index(workspace, source_id, text, matter_id, source_type)` — reached from the frontend via the existing external-index command the connectors call (find the exact command name with `grep -rn "external" src-tauri/src/commands/connector/mod.rs | grep tauri::command`; it wraps `spawn_external_rag_index` at `src-tauri/src/commands/connector/mod.rs:279`).
+- Consumes: `index_external_text_internal(workspace, source_id, plaintext, matter_id, source_type)` (`src-tauri/src/commands/connector/mod.rs:20` — validates the source type, fetches the vectors master key, indexes). **Correction (verified): there is NO existing `#[tauri::command]` wrapper around the connector indexing helpers and nothing registered in `lib.rs` — the helpers are `pub` internals the connector engines call from Rust. The frontend cannot invoke them. Step 1a below creates and registers a real command.**
+- Produces (Rust): `capture_index_transcript(workspace: String, meeting_dir: String, source_id: String, text: String, matter_id: String) -> Result<u32, String>` — `source_type` is hard-coded to `"transcript"` inside the command (never caller-supplied), and `meeting_dir` is validated with the Task 4 path guard (`guard_meeting_path`) before any work so the command cannot be pointed outside the workspace.
 - Produces: `indexMeeting(meetingDir, transcript: TranscriptFile): Promise<void>` — formats the transcript into speaker-turn blocks, one indexed doc per ~40 segments, `source_id = "meeting:<meetingDir>#<firstStartMs>"`, `source_type = "transcript"` (allowlisted at `src-tauri/src/commands/rag/store.rs:189`), text lines formatted `"[t:<startMs>] <speaker>: <text>"` so RAG hits carry the seekable token in their `chunkText`. Ask hits with `sourceType === 'transcript'` and a `meeting:` sourceId render a play-from-here citation chip (SourceRef mapping already routes `sourceType 'meeting'`→kind meeting in `src/platform/clientMap/types.ts:160-161`; transcript hits map to kind 'document' today — extend `sourceRefFromRagHit` with `sourceType === 'transcript' && sourceId.startsWith('meeting:')` → kind `'meeting'`).
+
+- [ ] **Step 1a: Failing Rust test for `capture_index_transcript`, then the command**
+
+Add to `src-tauri/src/commands/capture/mod.rs` (test first — it fails to compile until the command exists, which is the red step for this codebase):
+
+```rust
+#[cfg(test)]
+mod index_transcript_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn rejects_meeting_dir_outside_workspace() {
+        let ws = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let err = capture_index_transcript(
+            ws.path().to_string_lossy().into_owned(),
+            outside.path().join("Meetings/x").to_string_lossy().into_owned(),
+            "meeting:x#0".into(),
+            "[t:0] You: hi".into(),
+            "m-1".into(),
+        )
+        .await
+        .unwrap_err();
+        assert!(err.contains("escapes workspace"), "got: {err}");
+    }
+}
+```
+
+Implement in the same file and register in `src-tauri/src/lib.rs` inside `generate_handler![]` directly under the other capture commands (Task 4 added them at `src-tauri/src/lib.rs:99`):
+
+```rust
+/// Frontend-callable transcript indexing. `source_type` is fixed server-side;
+/// `meeting_dir` must resolve inside the workspace (Task 4 guard) so a
+/// compromised renderer cannot index arbitrary ids against arbitrary paths.
+#[tauri::command]
+pub async fn capture_index_transcript(
+    workspace: String,
+    meeting_dir: String,
+    source_id: String,
+    text: String,
+    matter_id: String,
+) -> Result<u32, String> {
+    let ws = std::path::PathBuf::from(&workspace);
+    guard_meeting_path(&ws, std::path::Path::new(&meeting_dir)).map_err(|e| e.to_string())?;
+    crate::commands::connector::index_external_text_internal(
+        &ws, &source_id, &text, &matter_id, "transcript",
+    )
+    .await
+    .map(|n| n)
+    .map_err(|e| format!("{e:#}"))
+}
+```
+
+Run: `cargo test --manifest-path src-tauri/Cargo.toml -p lantern capture::index_transcript`
+Expected: `test result: ok. 1 passed` (the reject test; the happy path is covered end-to-end in Step 5 because the keychain-backed master key is unavailable in unit tests).
+
+Commit: `git add src-tauri/src/commands/capture/ src-tauri/src/lib.rs && git commit -m "feat(capture): registered capture_index_transcript command (path-guarded, server-fixed source_type)"`
 
 - [ ] **Step 1: Failing test**
 
@@ -2187,19 +2434,22 @@ describe('indexMeeting', () => {
     const text = formatForIndex(transcript.segments.slice(0, 2));
     expect(text).toBe('[t:0] You: line 0\n[t:10000] Them: line 1');
   });
-  it('splits into ~40-segment docs, each indexed with source_type transcript', async () => {
+  it('splits into ~40-segment docs, each through capture_index_transcript', async () => {
     await indexMeeting('/ws/C/Meetings/x', transcript, '/ws');
     expect(invokeMock).toHaveBeenCalledTimes(3); // 90 segments → 3 docs
+    expect(invokeMock.mock.calls[0][0]).toBe('capture_index_transcript');
     const args = invokeMock.mock.calls[0][1] as Record<string, unknown>;
-    expect(args.sourceType).toBe('transcript');
+    expect(args.workspace).toBe('/ws');
+    expect(args.meetingDir).toBe('/ws/C/Meetings/x');
     expect(args.matterId).toBe('m-9');
     expect(String(args.sourceId)).toMatch(/^meeting:\/ws\/C\/Meetings\/x#0$/);
+    expect('sourceType' in args).toBe(false); // fixed server-side, never caller-supplied
   });
 });
 ```
 
 - [ ] **Step 2: Run to verify failure** — FAIL.
-- [ ] **Step 3: Implement** (`formatForIndex` is the mapper shown by the first assertion; `indexMeeting` chunks by 40 and invokes the connector external-index command with `{ workspace, sourceId, text, matterId, sourceType: 'transcript' }` matching that command's exact camelCase parameter names — read them from the command signature before writing). Chain `indexMeeting` into `stopRecording` after notes generation; extend `sourceRefFromRagHit` per the interface note; route Ask citation clicks for `meeting:` refs to the viewer.
+- [ ] **Step 3: Implement** (`formatForIndex` is the mapper shown by the first assertion; `indexMeeting` chunks by 40 and invokes the Step 1a command: `invoke('capture_index_transcript', { workspace, meetingDir, sourceId, text, matterId })` — camelCase keys map to the Rust snake_case params; note there is NO `sourceType` argument, the command fixes it to `"transcript"` server-side). Chain `indexMeeting` into `stopRecording` after notes generation; extend `sourceRefFromRagHit` per the interface note; route Ask citation clicks for `meeting:` refs to the viewer.
 - [ ] **Step 4: Run tests** — PASS; run the full frontend suite `npm run test`.
 - [ ] **Step 5: End-to-end on the Legion:** with the Task 12 recording, open Ask scoped to that client, ask "what did we say about the 529?" → expect a cited answer whose citation chip opens the transcript at the right moment and plays audio.
 - [ ] **Step 6: Commit**

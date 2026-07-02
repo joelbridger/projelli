@@ -97,14 +97,20 @@ WASAPI for Wave 3, sherpa-onnx sidecar for Wave 4); nothing else without a plan 
   (schema: `{ segments: [{ startMs, endMs, channel: "mic"|"sys", speaker?: string,
   text: string }], meta: { startedAt, durationMs, matterId, consent: {...} } }`), and
   `notes.docx`. RAG indexing uses existing `source_type: "transcript"`.
-- **Calendar event → client mapping (Wave 1):** reuses `MeetingMatterMapEntry` shape
-  from the Calendly connector (`src/platform/rag/matterResolver.ts` decides; ambiguous
-  → `unassigned`, never auto-linked).
-- **CRM write commands (Wave 2):** Tauri commands `crm_create_note(matter_id, title,
-  body, source_ref)` and `crm_create_task(matter_id, title, description, due_date?,
-  source_ref)` — provider-agnostic signatures; Wealthbox first implementation.
-  `source_ref` carries provenance (document path or transcript timestamp) into the
-  audit log.
+- **Calendar event → client mapping (Wave 1):** Wave 1 introduces
+  `CalendarMatterMapEntry { key, matterId }`, modeled on the Calendly connector's
+  `MeetingMatterMapEntry { meetingKey, matterId }` with the same resolver semantics
+  (`src/platform/rag/matterResolver.ts` decides; ambiguous → `unassigned`, never
+  auto-linked).
+- **CRM write commands (Wave 2):** Tauri commands
+  `crm_create_note(matter_id, title, body, source_ref, household_key, provider?)` and
+  `crm_create_task(matter_id, title, description, due_date?, source_ref,
+  household_key, provider?)` — provider-agnostic write layer; Wealthbox first
+  implementation. `household_key` is the resolved CRM household id: resolution happens
+  on the TS side via the inverse CRM map (Wave 2 Task 8) because the backend does not
+  persist the matter map. `provider` is an infrastructure param matching every
+  existing crm command. `source_ref` carries provenance (document path or transcript
+  timestamp) into the audit log.
 - **Draft-to-mailbox (Wave 0):** new Tauri command `mail_save_draft(account_id, to,
   subject, body_html, in_reply_to?)` implemented for Graph (`/me/messages` draft) and
   Gmail (`drafts.create`), returning the provider draft id.
