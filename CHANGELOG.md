@@ -31,6 +31,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Draft follow-up from a note** - one click on an open document drafts a client
+  follow-up email; the advisor reviews it, then saves it into their real
+  Outlook/Gmail Drafts folder (new `mail_save_draft` command, Graph + Gmail) or
+  sends it. Recipients are never taken from AI output.
+  - Files: `src-tauri/src/commands/mail/{send,graph,gmail/api,oauth,gmail/oauth}.rs`,
+    `src/features/email/{DraftFollowUpModal.tsx,followUpDraft.ts,resolveEmailProvider.ts}`,
+    `src/app/shell/layout/MainPanel.tsx`, `src/features/documents/editor/FormattingToolbar.tsx`,
+    `src/features/documents/media/DocxEditor.tsx`
+- **Imported meeting-note visibility** - Client Map source chips now name the
+  notetaker ("Jump meeting note", "Zocks meeting note"), and sections with
+  imported notes gain an "Imported meeting notes" filter chip.
+  - Files: `src/platform/clientMap/meetingNoteSources.ts`, `src/features/matters/ClientMapPanel.tsx`
+- **Jump demo fixture** - staged demo client now includes a realistic Jump
+  meeting-note export (`scripts/demo/staged-live-client/.../Jump Meeting Recap 2026-06-24 - Brennan.txt`).
+- **Docs** - "Keep your notetaker" user recipes (`docs/features/keep-your-notetaker.md`)
+  and the vendor-credential applications checklist
+  (`docs/plans/lantern-plus/vendor-applications-checklist.md`).
+
+### Changed
+- Mail OAuth scopes now include `Mail.ReadWrite` (Microsoft) and `gmail.compose`
+  (Google) for draft creation; previously-connected accounts are prompted to
+  reconnect the first time they save a draft.
+
 ### Performance
 - **Ask/RAG retrieval latency: five measured wins on the query path, plus a benchmarked decision to KEEP the exact flat vector scan (P2.1).** Traced the full one-Ask latency path (embed query → LanceDB nearest with matter/privilege prefilter → decrypt → optional hybrid/rerank → citation verify) and cut the repeated per-query overhead:
   - **Batch citation verification (Finding 2).** The chat path verified citations one at a time — each `rag_verify_citation` re-opened the LanceDB connection + table and did a point lookup, an N+1 that cost ~100–500 ms on a typical 5–8-citation answer. New `rag_verify_citations_batch` opens the table ONCE and reads every cited chunk in one `id IN (...)` query; the frontend `verifyCitations` loop is replaced by a single batch call. Verdict classification is byte-for-byte equivalent to the single command (a shared `classify_citation`: scoped→any→tombstone→text, fail-closed throughout) and prefers a non-tombstoned row where an id legitimately matches several — it can only refuse or downgrade a citation, never falsely Verify. Files: `src-tauri/src/commands/rag/{mod.rs,store.rs}` (new `fetch_records_by_ids`), `src-tauri/src/lib.rs`, `src/platform/utils/tauri-commands.ts`, `src/platform/rag/workspaceCommand.ts`.
