@@ -166,10 +166,17 @@ function App() {
   // suppressed in test/demo modes. `?forceOnboarding=true` forces it for QA.
   const [showFirstRun, setShowFirstRun] = useState(false);
 
-  // Connector citation clicks can arrive before the lazy ConnectorSourcePanels
-  // chunk below has loaded; this tiny, always-eager listener buffers and
-  // replays them so a fast click right after startup isn't silently dropped.
-  useEffect(() => installEarlyConnectorEventBridge(), []);
+  // ConnectorSourcePanels is only rendered (and its chunk fetched) once a
+  // connector citation is actually clicked — rendering it unconditionally,
+  // even self-gating on nothing "open", would still start its import()
+  // immediately. This tiny, always-eager listener catches the FIRST click
+  // (which can land before the chunk would otherwise have loaded) and
+  // buffers/replays it once the panels mount.
+  const [connectorPanelsNeeded, setConnectorPanelsNeeded] = useState(false);
+  useEffect(
+    () => installEarlyConnectorEventBridge(() => { setConnectorPanelsNeeded(true); }),
+    []
+  );
 
   // Anonymous telemetry: emit one app_launch event per session, gated
   // by user consent. Other lifecycle events (trial_start, trial_end,
@@ -1466,12 +1473,17 @@ function App() {
       />
 
       {/* Connector citation viewers (Wealthbox, OneDrive, DocuSign, Calendly,
-          Box, ShareFile, Jotform, Zocks, Addepar) — each self-gates on its own
-          window event and renders nothing until a matching citation is
-          clicked, so a null Suspense fallback is safe here. */}
-      <Suspense fallback={null}>
-        <ConnectorSourcePanels />
-      </Suspense>
+          Box, ShareFile, Jotform, Zocks, Addepar) — not rendered at all until
+          the first citation click (see connectorPanelsNeeded above), so the
+          chunk is fetched on demand rather than on every cold start. Once
+          mounted each one self-gates on its own window event and renders
+          nothing until a matching citation is clicked, so a null Suspense
+          fallback is safe here. */}
+      {connectorPanelsNeeded && (
+        <Suspense fallback={null}>
+          <ConnectorSourcePanels />
+        </Suspense>
+      )}
     </div>
   );
 }

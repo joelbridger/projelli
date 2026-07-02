@@ -10,7 +10,7 @@
  * local WhatsNewLayer wrapper.
  */
 
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { McpApprovalGate } from '@/features/settings/McpApprovalGate';
@@ -201,6 +201,20 @@ export function AppDialogs({
 }: AppDialogsProps) {
   const { t } = useTranslation();
 
+  // AccountWindow is mounted unconditionally (Radix Dialog controls
+  // visibility via `open`, not mount) so its state survives a close/reopen —
+  // but `Suspense` starts the dynamic import() the moment React renders the
+  // lazy component AT ALL, regardless of `open`. Gate actual rendering behind
+  // "has this ever been opened" so the connector-setup-panel chunk is only
+  // fetched the first time the user opens Account settings, not on every
+  // cold start. This is the standard "adjust state during render" pattern
+  // (same one AccountWindow itself already uses for its active-tab reset) —
+  // not a ref, since reading/writing a ref during render is unsafe.
+  const [accountWindowEverOpened, setAccountWindowEverOpened] = useState(accountWindowOpen);
+  if (accountWindowOpen && !accountWindowEverOpened) {
+    setAccountWindowEverOpened(true);
+  }
+
   return (
     <>
       {/* MCP write-approval gate. Polls for sidecar write requests and renders
@@ -264,22 +278,26 @@ export function AppDialogs({
       />
 
       {/* Account / firm window — opened from the rail's account identity, or from
-          email connect entry points (pre-selects the Connections tab). */}
-      {/* Suspense fallback is `null`, not a spinner: this dialog is mounted
-          unconditionally (Radix Dialog controls visibility via `open`, not
-          mount), so a visible fallback would flash on every app startup while
-          the connector-panel chunk loads in the background. */}
-      <Suspense fallback={null}>
-        <AccountWindow
-          open={accountWindowOpen}
-          onOpenChange={(open) => {
-            setAccountWindowOpen(open);
-            if (!open) onAccountWindowClosed?.();
-          }}
-          auditEntries={auditEntries}
-          initialTab={accountWindowInitialTab}
-        />
-      </Suspense>
+          email connect entry points (pre-selects the Connections tab).
+          Not rendered at all until first opened (see accountWindowEverOpened
+          above) — rendering the lazy component, even closed, would start its
+          import() immediately. Suspense fallback is `null`, not a spinner:
+          once opened it stays mounted (Radix Dialog controls visibility via
+          `open`, not mount) so a visible fallback would flash on later opens
+          while re-rendering, not just the first cold fetch. */}
+      {accountWindowEverOpened && (
+        <Suspense fallback={null}>
+          <AccountWindow
+            open={accountWindowOpen}
+            onOpenChange={(open) => {
+              setAccountWindowOpen(open);
+              if (!open) onAccountWindowClosed?.();
+            }}
+            auditEntries={auditEntries}
+            initialTab={accountWindowInitialTab}
+          />
+        </Suspense>
+      )}
 
       {/* Advisor Prep Hero 3.0: rebuilt first-run wizard — the live first-run surface.
           Built above as `firstRunOverlay` so it also renders over the

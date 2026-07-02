@@ -36,21 +36,33 @@ const CONNECTOR_EVENT_NAMES = [
 
 let panelsReady = false;
 const pending = new Map<string, unknown>();
+let onFirstEvent: (() => void) | null = null;
 
 function bufferConnectorEvent(e: Event): void {
   if (panelsReady) return; // the real panels' own listeners handle this now
+  const isFirst = pending.size === 0;
   pending.set(e.type, (e as CustomEvent).detail);
+  // Tell the caller to actually mount <ConnectorSourcePanels> now — rendering
+  // it (even behind a closed/no-op state) would start its import() the
+  // moment React tries to render it, regardless of whether anything is
+  // "open". Mounting it lazily-on-first-event is what makes the chunk fetch
+  // happen only when a citation is actually clicked, not on every cold start.
+  if (isFirst) onFirstEvent?.();
 }
 
 /**
  * Install the early bridge. Call once, near app mount — before
- * `ConnectorSourcePanels` has necessarily loaded.
+ * `ConnectorSourcePanels` has necessarily loaded. `notifyFirstEvent` fires
+ * (once) the first time any connector citation event arrives, so the caller
+ * can mount the lazy panels only then instead of unconditionally.
  */
-export function installEarlyConnectorEventBridge(): () => void {
+export function installEarlyConnectorEventBridge(notifyFirstEvent: () => void): () => void {
+  onFirstEvent = notifyFirstEvent;
   for (const name of CONNECTOR_EVENT_NAMES) {
     window.addEventListener(name, bufferConnectorEvent);
   }
   return () => {
+    onFirstEvent = null;
     for (const name of CONNECTOR_EVENT_NAMES) {
       window.removeEventListener(name, bufferConnectorEvent);
     }
