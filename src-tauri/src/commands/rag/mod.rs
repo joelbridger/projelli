@@ -2154,6 +2154,15 @@ async fn run_workspace_index(
     let effective_full =
         matches!(mode, IndexMode::Full) || migrating || integrity_unknown || table_missing;
 
+    // If the vector table is missing, the store holds NO rows — so EVERY manifest
+    // signature (text/office AND pdf) is stale. Drop the whole manifest so the
+    // text/office rebuild below isn't skipped AND the frontend PDF fresh-check
+    // (which would otherwise see retained pdf entries as "fresh") re-indexes PDFs
+    // too. (The migration path already deletes it above.)
+    if table_missing {
+        manifest::delete(&workspace);
+    }
+
     let table = store::open_or_create_table(&conn)
         .await
         .map_err(|e| format!("open table: {e}"))?;
