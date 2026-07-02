@@ -249,6 +249,34 @@ describe('EmailViewer — AI-draft audit records the ACTUAL assured route (indep
     expect(mockResolveAssuredRoute).toHaveBeenCalledWith('anthropic', expect.any(String), false);
   });
 
+  it('prefers an available Assured route for a LATER provider over a personal BYOK key for an earlier one (independent reviewer catch, P1)', async () => {
+    // User has a personal Anthropic key (e.g. left over from before joining
+    // the firm), but the firm's managed Assured key is only configured for
+    // OpenAI. Must NOT silently send BYOK-direct to Anthropic with the
+    // personal key — the firm's zero-retention proxy for OpenAI must win.
+    mockGetKey.mockImplementation(async (provider: string) => (provider === 'anthropic' ? 'sk-ant-leftover' : null));
+    mockResolveAssuredRoute.mockImplementation((provider: string) =>
+      provider === 'openai'
+        ? { provider: 'openai', model: 'gpt-4o', accessToken: 'ACCESS', seatToken: 'SEAT', stream: false }
+        : undefined,
+    );
+    mockMailGetMessage.mockResolvedValue(sampleMessage({ matterId: null }));
+    render(<EmailViewer sourceId="AAMk-xyz" />);
+    await screen.findByTestId('email-reply-area');
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('reply-draft-ai-btn'));
+    });
+
+    await waitFor(() => expect(emitterSpy).toHaveBeenCalled());
+    const entry = emitterSpy.mock.calls[0]![0];
+    expect(entry.metadata['provider']).toBe('openai');
+    expect(entry.metadata['destination']).toBe('assured-proxy');
+    expect(createProviderMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ provider: 'openai', assured: expect.objectContaining({ accessToken: 'ACCESS' }) }),
+    );
+  });
+
   it('routes through assured with NO personal key at all (independent reviewer catch, P2) — never falls through to the local model', async () => {
     mockGetKey.mockResolvedValue(null); // no personal key for ANY provider
     mockResolveAssuredRoute.mockImplementation((provider: string) =>

@@ -150,62 +150,97 @@ async function resolveEmailProvider(): Promise<ResolvedEmailProvider> {
   // Local-only mode already returned above; firm installs are a no-op inside
   // assertCloudGenerationAllowed.
   //
-  // Assured availability is checked ALONGSIDE the personal key, not only after
-  // finding one (independent reviewer catch, P2): the whole point of Assured
-  // mode is a firm-managed key the user never has to paste in personally, so
-  // gating it behind a BYOK key would silently drop an assured-only firm user
-  // to the local model instead of the zero-retention proxy. `apiKey` is safe
-  // to leave empty on the assured path — `applyAssuredRoute` strips the
-  // vendor auth header (x-api-key / x-goog-api-key / Authorization) before
-  // the request is ever sent, so it never carries an empty/missing key.
   // One front door (fix F2.2): build through the shared factory so the email
   // "Draft with AI" surface resolves the SAME provider mapping as Ask / redline /
-  // Client Map and can never drift. Same key-priority order as before
-  // (anthropic → openai → google), each gated on an explicit confidentiality
-  // choice before any cloud egress. Model is probed via a throwaway factory
+  // Client Map and can never drift. Model is probed via a throwaway factory
   // call (still the front door — createProvider(), never a per-provider
   // constructor) so resolveAssuredRoute's `model` argument, and the returned
   // ResolvedEmailProvider, always reflect what the final provider actually is.
-  const kc = createKeychainService();
-  const anthropicKey = (await kc.getKey('anthropic'))?.trim() ?? '';
-  const anthropicModel = createProvider({ provider: 'anthropic', apiKey: anthropicKey }).getMetadata().model;
+  //
   // `stream: false` (independent reviewer catch, P1) — Draft with AI always
-  // calls sendMessage(), never sendMessageStreaming(), so the route must say
-  // so; otherwise the proxy sets X-Stream:1 and, for Gemini especially,
-  // routes to the streaming endpoint while this code parses a JSON response.
+  // calls sendMessage(), never sendMessageStreaming(), so every route below
+  // must say so; otherwise the proxy sets X-Stream:1 and, for Gemini
+  // especially, routes to the streaming endpoint while this code parses a
+  // JSON response.
+  //
+  // ANY available Assured route wins over ANY personal BYOK key (independent
+  // reviewer catch, P1 #2): the whole point of selecting Assured mode is the
+  // firm's zero-retention guarantee, so a user's leftover/incidental personal
+  // key for an earlier-priority provider must not silently bypass an assured
+  // route the firm actually configured for a different provider (e.g. a
+  // personal Anthropic key + a firm managed OpenAI key must use the OpenAI
+  // proxy, not go BYOK-direct to Anthropic). Checking assured availability
+  // needs no personal key at all, so this pass never touches the keychain —
+  // no "last used" stamp on a key that ends up unused.
+  const anthropicModel = createProvider({ provider: 'anthropic', apiKey: '' }).getMetadata().model;
   const anthropicAssured = resolveAssuredRoute('anthropic', anthropicModel, false);
-  if (anthropicKey || anthropicAssured) {
-    assertCloudGenerationAllowed();
-    return {
-      provider: createProvider({ provider: 'anthropic', apiKey: anthropicKey, model: anthropicModel, ...(anthropicAssured ? { assured: anthropicAssured } : {}) }),
-      providerId: 'anthropic',
-      assuredAvailable: !!anthropicAssured,
-    };
-  }
   // Preserve the pre-F2.2 default EXACTLY: this surface never lets the user
   // pick a model, so it must keep using OPENAI_DEFAULT_MODEL ('gpt-4o'), not
   // the factory's free-tier default ('gpt-4o-mini') — passing it explicitly
   // (rather than probing) avoids the silent downgrade fix F2.2 called out.
-  const openaiKey = (await kc.getKey('openai'))?.trim() ?? '';
   const openaiModel = OPENAI_DEFAULT_MODEL;
   const openaiAssured = resolveAssuredRoute('openai', openaiModel, false);
-  if (openaiKey || openaiAssured) {
+  const googleModel = createProvider({ provider: 'google', apiKey: '' }).getMetadata().model;
+  const googleAssured = resolveAssuredRoute('google', googleModel, false);
+
+  const kc = createKeychainService();
+
+  if (anthropicAssured) {
+    assertCloudGenerationAllowed();
+    const apiKey = (await kc.getKey('anthropic'))?.trim() ?? '';
+    return {
+      provider: createProvider({ provider: 'anthropic', apiKey, model: anthropicModel, assured: anthropicAssured }),
+      providerId: 'anthropic',
+      assuredAvailable: true,
+    };
+  }
+  if (openaiAssured) {
+    assertCloudGenerationAllowed();
+    const apiKey = (await kc.getKey('openai'))?.trim() ?? '';
+    return {
+      provider: createProvider({ provider: 'openai', apiKey, model: openaiModel, assured: openaiAssured }),
+      providerId: 'openai',
+      assuredAvailable: true,
+    };
+  }
+  if (googleAssured) {
+    assertCloudGenerationAllowed();
+    const apiKey = (await kc.getKey('google'))?.trim() ?? '';
+    return {
+      provider: createProvider({ provider: 'google', apiKey, model: googleModel, assured: googleAssured }),
+      providerId: 'google',
+      assuredAvailable: true,
+    };
+  }
+
+  // No assured route anywhere — fall back to personal BYOK keys, same
+  // key-priority order as before (anthropic → openai → google), reading each
+  // key lazily so an unused provider's key is never touched.
+  const anthropicKey = (await kc.getKey('anthropic'))?.trim() ?? '';
+  if (anthropicKey) {
     assertCloudGenerationAllowed();
     return {
-      provider: createProvider({ provider: 'openai', apiKey: openaiKey, model: openaiModel, ...(openaiAssured ? { assured: openaiAssured } : {}) }),
+      provider: createProvider({ provider: 'anthropic', apiKey: anthropicKey, model: anthropicModel }),
+      providerId: 'anthropic',
+      assuredAvailable: false,
+    };
+  }
+  const openaiKey = (await kc.getKey('openai'))?.trim() ?? '';
+  if (openaiKey) {
+    assertCloudGenerationAllowed();
+    return {
+      provider: createProvider({ provider: 'openai', apiKey: openaiKey, model: openaiModel }),
       providerId: 'openai',
-      assuredAvailable: !!openaiAssured,
+      assuredAvailable: false,
     };
   }
   const googleKey = (await kc.getKey('google'))?.trim() ?? '';
-  const googleModel = createProvider({ provider: 'google', apiKey: googleKey }).getMetadata().model;
-  const googleAssured = resolveAssuredRoute('google', googleModel, false);
-  if (googleKey || googleAssured) {
+  if (googleKey) {
     assertCloudGenerationAllowed();
     return {
-      provider: createProvider({ provider: 'google', apiKey: googleKey, model: googleModel, ...(googleAssured ? { assured: googleAssured } : {}) }),
+      provider: createProvider({ provider: 'google', apiKey: googleKey, model: googleModel }),
       providerId: 'google',
-      assuredAvailable: !!googleAssured,
+      assuredAvailable: false,
     };
   }
   // No cloud key — fall back to the on-device engine (embedded model when ready,
