@@ -83,9 +83,12 @@ WASAPI for Wave 3, sherpa-onnx sidecar for Wave 4); nothing else without a plan 
   connector scaffolding has merged). Wave 0 also files all pending vendor API
   applications (Redtail key, Salesforce partner app, DocuSign integrator key) —
   paperwork that runs in parallel with everything.
-- **HARD GATE before Wave 3:** Wave 3 does not start until (a) Waves 0–2 are merged
-  and gate-green, AND (b) Jameson explicitly greenlights it. It is the program's one
-  XL bet; the assessment recommends validating Waves 0–2 with real advisors first.
+- **Wave 3 gate (amended 2026-07-02 by Jameson):** Wave 3 starts once Waves 0–2 are
+  merged and gate-green — no advisor-validation pause. Jameson's decision: ALL waves
+  (0–4) are built BEFORE the experience is shown to advisors; the assessment's
+  "validate 0–2 with real advisors first" recommendation is explicitly overridden
+  (recorded in docs/design/lantern-plus-prototypes/DESIGN-DECISIONS.md). Jameson's
+  explicit go to BEGIN program execution at all remains the start trigger.
 - **Wave 4 tasks are independent** of each other; any may run after Wave 3's capture
   artifacts exist (Book view + cross-client Ask depend only on Wave 1, and may run
   earlier if idle capacity exists).

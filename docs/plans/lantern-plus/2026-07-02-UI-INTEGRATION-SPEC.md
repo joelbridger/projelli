@@ -13,8 +13,12 @@
 ## 1. The design constitution (unchanged, non-negotiable)
 
 1. **Three tabs, forever.** Client Map · Ask · Workflows. Nothing in this program adds
-   a tab, a sidebar section, or a standalone window. If a feature seems to need one,
-   the feature is designed wrong — redesign, don't expand.
+   a GLOBAL tab, a sidebar section, or a standalone window. If a feature seems to need
+   one, the feature is designed wrong — redesign, don't expand. *(Clarified 2026-07-02,
+   Jameson's decision: the PER-CLIENT tab row — Client Map · Documents · Email ·
+   Meetings · Activity — is a different thing; it may grow when the client-container
+   logic demands it. The Meetings tab on each client is the one sanctioned instance;
+   see DESIGN-DECISIONS.md.)*
 2. **The client is the container.** No global inboxes: no meetings list, no notes list,
    no tasks inbox, no briefs library. Everything about the Hendersons appears on the
    Hendersons' timeline/Map. The user's one mental model: *"Where is it? On the client."*

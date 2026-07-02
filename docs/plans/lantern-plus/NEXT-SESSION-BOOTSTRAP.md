@@ -29,12 +29,11 @@ tests passing as of 2026-07-02. Send notify-jameson MILESTONE on each wave
 merge.
 ```
 
-## Closing recommendation (Fable, 2026-07-02)
+## Closing recommendation (Fable, 2026-07-02 — sequencing portion OVERRIDDEN same day)
 
-Let the 4.8 fleet ship Waves 0–2 while the standalone Lantern is demoed and released
-from the main folder — then put a real advisor in front of both before unlocking
-Wave 3 (meeting capture, the program's one XL bet). That keeps the biggest bet
-informed by actual users; the Wave 3 plan will be sitting here, Codex-reviewed and
-ready, whenever Jameson says go. Features make Lantern credible in sales
-conversations; distribution and weekly-active advisors remain the scarce thing —
-the program must never crowd out getting the current product into real hands.
+Original counsel was to validate Waves 0-2 with a real advisor before Wave 3.
+Jameson overrode this on 2026-07-02: all waves build before advisors see anything
+(logged in DESIGN-DECISIONS.md) — that decision governs. What still stands from the
+recommendation: features make Lantern credible in sales conversations, but
+distribution and weekly-active advisors remain the scarce thing — the program must
+never crowd out getting the product into real hands once it is complete.
