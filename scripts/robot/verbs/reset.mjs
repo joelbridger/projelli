@@ -140,6 +140,26 @@ async function applyPurgeAndSeed(page, matters) {
       // match again.
       localStorage.setItem('keepance_default_provider', 'openai');
 
+      // Codex review (2nd round): keepance_default_provider is STILL not
+      // sufficient on its own. resolvePreferredCloudProvider.ts narrows the
+      // candidate pool to whichever providers have a `keepance_key_verified_*`
+      // marker (a real one-token live-check pass, tracked separately from key
+      // PRESENCE — see keyVerification.ts) BEFORE even considering the
+      // default: if anthropic is verified but openai isn't, the pool becomes
+      // ['anthropic'] only and the default above is silently ignored. This
+      // bench's keychain currently has all three providers verified from
+      // earlier manual testing (which is the ONLY reason the default above
+      // has been taking effect) — a bench where only anthropic was ever
+      // verified would resolve to anthropic regardless of this seed. Clear
+      // every provider's verified/invalid markers so NOTHING narrows the
+      // pool and the explicit default above is the sole deciding signal,
+      // exactly as sanitizeSettingValue's write-then-hydrate trap taught us
+      // not to rely on: verify the ACTUAL resolution input, don't assume it.
+      for (const p of ['anthropic', 'openai', 'google']) {
+        localStorage.removeItem(`keepance_key_verified_${p}`);
+        localStorage.removeItem(`keepance_key_invalid_${p}`);
+      }
+
       // settings: preserve persist wrapper, merge the three flag values on
       // (persisted under `lantern:settings` post-rename — see settingsStore.ts)
       let s = null;
