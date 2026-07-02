@@ -529,17 +529,40 @@ pub fn parse_ics(text: &str, from_utc: &str, to_utc: &str) -> anyhow::Result<Vec
     let to = DateTime::parse_from_rfc3339(to_utc)?.with_timezone(&Utc);
     let mut events = Vec::new();
     let mut current: Option<RawVevent> = None;
+    // Wave-1 review finding (P2): a VEVENT can contain nested subcomponents
+    // (most commonly VALARM) whose OWN properties — e.g. a reminder
+    // VALARM's DESCRIPTION:Reminder — were previously parsed as if they
+    // belonged to the VEVENT itself, silently overwriting the real meeting
+    // DESCRIPTION/SUMMARY. Track nesting depth so only property lines
+    // directly inside VEVENT (not inside any BEGIN:x/END:x subcomponent)
+    // are applied.
+    let mut skip_depth: u32 = 0;
 
     for line in unfold(text) {
         if line == "BEGIN:VEVENT" {
             current = Some(RawVevent::default());
+            skip_depth = 0;
             continue;
         }
         if line == "END:VEVENT" {
             if let Some(raw) = current.take() {
                 events.extend(finish_vevent(raw, from, to)?);
             }
+            skip_depth = 0;
             continue;
+        }
+        if current.is_some() {
+            if line.starts_with("BEGIN:") {
+                skip_depth += 1;
+                continue;
+            }
+            if line.starts_with("END:") {
+                skip_depth = skip_depth.saturating_sub(1);
+                continue;
+            }
+            if skip_depth > 0 {
+                continue; // inside VALARM (or another subcomponent) — not a VEVENT field
+            }
         }
         let Some(raw) = current.as_mut() else { continue };
         let Some((name, params, value)) = split_prop(&line) else { continue };
@@ -669,6 +692,25 @@ mod tests {
         assert_eq!(e.attendees[0].email, "kim@henderson.com");
         assert_eq!(e.attendees[0].name, "Kim Henderson");
         assert_eq!(e.organizer_email, "adv@firm.com");
+    }
+
+    #[test]
+    fn nested_valarm_properties_do_not_overwrite_vevent_fields() {
+        // Wave-1 review finding (P2): a VALARM subcomponent's own
+        // DESCRIPTION/SUMMARY-like properties were previously parsed as if
+        // they belonged to the enclosing VEVENT, silently clobbering the
+        // real meeting description with the alarm's reminder text.
+        let ics = wrap(
+            "BEGIN:VEVENT\r\nUID:alarm1\r\nSUMMARY:Annual review - Henderson\r\n\
+             DESCRIPTION:Real agenda for the meeting\r\n\
+             DTSTART:20260702T160000Z\r\nDTEND:20260702T170000Z\r\n\
+             BEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:Reminder\r\n\
+             TRIGGER:-PT15M\r\nEND:VALARM\r\nEND:VEVENT\r\n",
+        );
+        let events = parse_ics(&ics, WINDOW_FROM, WINDOW_TO).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].title, "Annual review - Henderson");
+        assert_eq!(events[0].description, "Real agenda for the meeting", "VALARM's DESCRIPTION must not overwrite the meeting's");
     }
 
     #[test]
