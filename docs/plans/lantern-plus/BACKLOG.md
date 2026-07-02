@@ -18,11 +18,16 @@ forgotten. Do not promote an item into a wave without Jameson's word.*
 | **Firm-supplied locked keyword lists beyond Task 17d's hook** | BACKLOG — Task 17d reads locked terms from the firm org payload; a full firm compliance-terms workflow (review queues, alerts) is enterprise scope | 2026-07-02 |
 
 
-## Phase 2 — discovery-driven roadmap (added 2026-07-02, evidence in 2026-07-02-ADVISOR-NEEDS-DISCOVERY.md)
+## Phase 2 — discovery-driven roadmap (2026-07-02; design briefs now in [`phase-2/`](phase-2/))
 
-- **Exam-packet assembly ("audit binder on demand")** — quick win, M; strongest compliance whitespace.
-- **Tax-season pack** (1099 extraction → CPA-ready summary + chase list) — quick win, M, seasonal.
-- **NIGO paperwork pre-validation** (per-custodian form-rule packs, Schwab first) — big bet, M/L; loudest practitioner pain found.
-- **Reg S-P incident-response evidence kit** — big bet, M; urgent regulatory window; evidence/scoping only, never claim security controls.
-- **Test-first (need discovery-call validation):** held-away statement parsing; marketing-rule pre-review; diminished-capacity protocol pack (thin evidence — hypothesis only).
-- **Run the staged discovery-interview campaign** (~/keepance/docs/marketing/campaigns/2026-06-advisor-first-users/) — the missing validation instrument; the discovery report is its hypothesis sheet.
+Per Jameson (2026-07-02): Phase 1 (Waves 0-4) stands alone and never depends on Phase 2;
+each Phase 2 item gets its detailed plan written AFTER Waves 0-4 merge, against the
+then-real codebase, per the ritual in [`phase-2/README.md`](phase-2/README.md).
+
+- **Exam-packet assembly** — brief: [`phase-2/exam-binder.md`](phase-2/exam-binder.md) (M).
+- **Tax-season pack** — brief: [`phase-2/tax-season-pack.md`](phase-2/tax-season-pack.md) (M).
+- **NIGO paperwork pre-validation** — brief: [`phase-2/nigo-pre-validation.md`](phase-2/nigo-pre-validation.md) (M/L; Schwab rules pack first).
+- **Reg S-P evidence kit** — brief: [`phase-2/reg-sp-evidence-kit.md`](phase-2/reg-sp-evidence-kit.md) (M; evidence/scoping ONLY, legal-review gate).
+- **Test-first items** (held-away parsing, marketing-rule pre-review, diminished-capacity pack) — brief: [`phase-2/test-first-items.md`](phase-2/test-first-items.md); each blocked on its discovery-call validation question.
+- **Run the staged discovery-interview campaign** (~/keepance/docs/marketing/campaigns/2026-06-advisor-first-users/) DURING Phase 1 execution — the missing validation instrument; the discovery report is the hypothesis sheet.
+- ~~Estate/beneficiary mismatch detection~~ — **moved INTO Wave 4 as Task 2b** (Jameson, 2026-07-02).

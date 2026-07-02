@@ -26,7 +26,12 @@ words. Human/paperwork steps (vendor API applications, Google OAuth
 verification) are flagged in the plans — surface those to Jameson via
 notify-jameson rather than skipping them. Baseline verified green: 5,114
 tests passing as of 2026-07-02. Send notify-jameson MILESTONE on each wave
-merge.
+merge. Phase 2 (docs/plans/lantern-plus/phase-2/) is design briefs ONLY — do
+not build from briefs; its detailed planning happens after waves 0-4 merge,
+per phase-2/README.md. Phase 1 is fully standalone and never depends on
+Phase 2. Separately: remind Jameson early that the advisor discovery-interview
+campaign (staged in ~/keepance/docs/marketing/campaigns/2026-06-advisor-first-users/)
+should run DURING the build so Phase 2 validation data exists when it's needed.
 ```
 
 ## Closing recommendation (Fable, 2026-07-02 — sequencing portion OVERRIDDEN same day)
