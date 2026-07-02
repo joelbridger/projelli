@@ -34,7 +34,7 @@ vi.mock('@/platform/providers/OllamaProvider', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/platform/providers/OllamaProvider')>();
   return { ...actual, detectOllama: vi.fn(async () => ({ reachable: false, models: [] })) };
 });
-const validateApiKeyLive = vi.fn(async () => ({ outcome: 'ok' as const, message: 'ok' }));
+const validateApiKeyLive = vi.fn(async (..._args: unknown[]) => ({ outcome: 'ok' as const, message: 'ok' }));
 vi.mock('@/platform/providers/apiKeyValidation', () => ({
   validateApiKeyLive: (...a: unknown[]) => validateApiKeyLive(...a),
 }));

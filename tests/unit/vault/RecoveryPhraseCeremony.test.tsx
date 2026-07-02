@@ -59,7 +59,7 @@ describe('RecoveryPhraseCeremony', () => {
       const testId = input.getAttribute('data-testid') ?? '';
       // data-testid="confirm-input-3" means it asks for word at position 3 (1-indexed)
       const posMatch = testId.match(/confirm-input-(\d+)/);
-      if (posMatch) {
+      if (posMatch?.[1]) {
         const pos = parseInt(posMatch[1], 10);
         const words = PHRASE_24.split(' ');
         const correctWord = words[pos - 1] ?? '';

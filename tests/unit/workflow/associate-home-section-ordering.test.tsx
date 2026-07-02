@@ -47,7 +47,7 @@ const legalTemplates = [tpl('depo-finder', 'legal')];
 //
 // loadAllTemplates is controlled per-test via mockLoadAllTemplates.
 
-const mockLoadAllTemplates = vi.fn<[], WorkflowTemplate[]>();
+const mockLoadAllTemplates = vi.fn<() => WorkflowTemplate[]>();
 
 vi.mock('@/features/workflows/engine/userTemplates', () => ({
   loadAllTemplates: () => mockLoadAllTemplates(),
@@ -63,8 +63,8 @@ vi.mock('@/features/workflows/engine/prioritizeByProfession', () => ({
 }));
 
 // Profession store — controlled per describe block via mockProfession / mockIsLaw.
-const mockProfession = vi.fn<[], string>(() => 'advisor');
-const mockIsLaw = vi.fn<[string], boolean>(() => false);
+const mockProfession = vi.fn<() => string>(() => 'advisor');
+const mockIsLaw = vi.fn<(p: string) => boolean>(() => false);
 
 vi.mock('@/platform/profile/professionStore', () => ({
   useProfessionStore: (selector: (s: { profession: string }) => unknown) =>
