@@ -133,10 +133,10 @@ describe('MemoryService.indexPdfFile OCR pipeline', () => {
     expect(ocrPageImage).toHaveBeenCalledTimes(1);
     expect(renderPdfPageToPng).toHaveBeenCalledTimes(1);
     // Rendered the 0-based page index 1 (the second page).
-    expect(vi.mocked(renderPdfPageToPng).mock.calls[0][1]).toBe(1);
+    expect(vi.mocked(renderPdfPageToPng).mock.calls[0]![1]).toBe(1);
 
     expect(ragIndexPdfChunks).toHaveBeenCalledTimes(1);
-    const call = vi.mocked(ragIndexPdfChunks).mock.calls[0];
+    const call = vi.mocked(ragIndexPdfChunks).mock.calls[0]!;
     // Native page text kept verbatim; OCR text fills the empty page.
     expect(call[1]).toEqual([NATIVE_PAGE_TEXT, 'recognized text from the scan']);
     // pageConfidences aligned with pages: [undefined, 87].
@@ -155,7 +155,7 @@ describe('MemoryService.indexPdfFile OCR pipeline', () => {
     expect(ocrPageImage).toHaveBeenCalledTimes(2);
     const renderedPages = vi.mocked(renderPdfPageToPng).mock.calls.map((c) => c[1]);
     expect(renderedPages).toEqual([0, 1]); // sequential, in page order
-    const call = vi.mocked(ragIndexPdfChunks).mock.calls[0];
+    const call = vi.mocked(ragIndexPdfChunks).mock.calls[0]!;
     expect(call[1]).toEqual(['page one text', 'page two text']);
     expect(call[5]).toEqual([91.5, 48.6]);
     expect(r.indexed).toBe(true);
@@ -194,7 +194,7 @@ describe('MemoryService.indexPdfFile OCR pipeline', () => {
 
     expect(ocrPageImage).not.toHaveBeenCalled();
     expect(ragIndexPdfChunks).toHaveBeenCalledTimes(1);
-    const call = vi.mocked(ragIndexPdfChunks).mock.calls[0];
+    const call = vi.mocked(ragIndexPdfChunks).mock.calls[0]!;
     expect(call[1]).toEqual([NATIVE_PAGE_TEXT, '']);
     expect(call[5]).toBeUndefined(); // no confidences array on the native path
     expect(r.indexed).toBe(true);
@@ -209,7 +209,7 @@ describe('MemoryService.indexPdfFile OCR pipeline', () => {
     // The failed page stays empty (no fabricated text), confidences stay
     // undefined, and the native page still indexes.
     expect(ragIndexPdfChunks).toHaveBeenCalledTimes(1);
-    const call = vi.mocked(ragIndexPdfChunks).mock.calls[0];
+    const call = vi.mocked(ragIndexPdfChunks).mock.calls[0]!;
     expect(call[1]).toEqual([NATIVE_PAGE_TEXT, '']);
     expect(call[5]).toEqual([undefined, undefined]);
     expect(r.indexed).toBe(true);
@@ -263,7 +263,7 @@ describe('WS3c — OCR confidence skip gate (< 30 not indexed)', () => {
     const r = await MemoryService.indexPdfFile('/w/scan.pdf', ws());
 
     expect(ragIndexPdfChunks).toHaveBeenCalledTimes(1);
-    const call = vi.mocked(ragIndexPdfChunks).mock.calls[0];
+    const call = vi.mocked(ragIndexPdfChunks).mock.calls[0]!;
     // Sub-30 page is blanked (Rust chunker then skips it); good page kept.
     expect(call[1]).toEqual(['a clean confident scan page', '']);
     // Its confidence is cleared too, so the array stays aligned with pages.
@@ -281,7 +281,7 @@ describe('WS3c — OCR confidence skip gate (< 30 not indexed)', () => {
 
     await MemoryService.indexPdfFile('/w/scan.pdf', ws());
 
-    const call = vi.mocked(ragIndexPdfChunks).mock.calls[0];
+    const call = vi.mocked(ragIndexPdfChunks).mock.calls[0]!;
     expect(call[1]).toEqual(['boundary page text', 'clearly confident page']);
     // Both confidences survive — the extraction marker is intact for both pages.
     expect(call[5]).toEqual([OCR_SKIP_CONFIDENCE, 90]);
@@ -295,7 +295,7 @@ describe('WS3c — OCR confidence skip gate (< 30 not indexed)', () => {
 
     const r = await MemoryService.indexPdfFile('/w/scan.pdf', ws());
 
-    const call = vi.mocked(ragIndexPdfChunks).mock.calls[0];
+    const call = vi.mocked(ragIndexPdfChunks).mock.calls[0]!;
     expect(call[1]).toEqual(['midband scan page']);
     expect(call[5]).toEqual([45]);
     expect(r.indexed).toBe(true);
@@ -345,7 +345,7 @@ describe('WS3c — OCR confidence skip gate (< 30 not indexed)', () => {
     const r = await MemoryService.indexPdfFile('/w/mixed.pdf', ws());
 
     expect(ragIndexPdfChunks).toHaveBeenCalledTimes(1);
-    const call = vi.mocked(ragIndexPdfChunks).mock.calls[0];
+    const call = vi.mocked(ragIndexPdfChunks).mock.calls[0]!;
     expect(call[1]).toEqual([NATIVE_PAGE_TEXT, '']);
     expect(call[5]).toEqual([undefined, undefined]);
     expect(r.indexed).toBe(true);

@@ -19,11 +19,11 @@ import React from 'react';
 // ── Mock OS keychain ──────────────────────────────────────────────────────────
 const keychainStore = new Map<string, string>();
 const invokeMock = vi.fn(async (cmd: string, args: Record<string, unknown> = {}) => {
-  const svc = (args.service as string) ?? 'com.lantern.app';
-  const key = args.key as string;
+  const svc = (args['service'] as string) ?? 'com.lantern.app';
+  const key = args['key'] as string;
   const id = `${svc}::${key}`;
   if (cmd === 'keychain_set') {
-    keychainStore.set(id, args.value as string);
+    keychainStore.set(id, args['value'] as string);
     return undefined;
   }
   if (cmd === 'keychain_get') {

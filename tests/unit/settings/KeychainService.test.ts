@@ -36,12 +36,12 @@ describe('KeychainService backend selection', () => {
     vi.stubEnv('VITE_ANTHROPIC_API_KEY', '');
     invokeMock.mockReset();
     invokeMock.mockImplementation(async (cmd: string, args: Record<string, unknown> = {}) => {
-      const service = (args.service as string | undefined) ?? 'com.keepance.app';
-      const key = args.key as string;
+      const service = (args['service'] as string | undefined) ?? 'com.keepance.app';
+      const key = args['key'] as string;
       const id = `${service}::${key}`;
 
       if (cmd === 'keychain_set') {
-        keychainStore.set(id, args.value as string);
+        keychainStore.set(id, args['value'] as string);
         return undefined;
       }
       if (cmd === 'keychain_get') {

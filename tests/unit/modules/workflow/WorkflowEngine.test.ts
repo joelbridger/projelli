@@ -204,7 +204,7 @@ describe('WorkflowEngine outputFile interpolation (BUG F3-1a)', () => {
   }
 
   it('interpolates {{var}} placeholders in a generate step outputFile before writing', async () => {
-    const writeFile = vi.fn(async () => {});
+    const writeFile = vi.fn(async (_path: string, _content: string) => {});
     const engine = new WorkflowEngine(
       createMockProvider(),
       { writeFile, readFile: async () => '' },
@@ -223,7 +223,7 @@ describe('WorkflowEngine outputFile interpolation (BUG F3-1a)', () => {
   });
 
   it('interpolates a .docx generate outputFile (writeFileBinary path) too', async () => {
-    const writeFileBinary = vi.fn(async () => {});
+    const writeFileBinary = vi.fn(async (_path: string, _bytes: Uint8Array) => {});
     const engine = new WorkflowEngine(
       createMockProvider(),
       { writeFile: vi.fn(async () => {}), readFile: async () => '', writeFileBinary },
@@ -244,7 +244,7 @@ describe('WorkflowEngine outputFile interpolation (BUG F3-1a)', () => {
     // Documented sanitization choice: `/` (and `\`) in a SUBSTITUTED VALUE
     // become `-`, e.g. "Smith / Jones" -> "Smith - Jones". The template's own
     // `/` folder separator is untouched.
-    const writeFile = vi.fn(async () => {});
+    const writeFile = vi.fn(async (_path: string, _content: string) => {});
     const engine = new WorkflowEngine(
       createMockProvider(),
       { writeFile, readFile: async () => '' },
@@ -264,7 +264,7 @@ describe('WorkflowEngine outputFile interpolation (BUG F3-1a)', () => {
   });
 
   it('sanitizes a value containing ".." + "/" so it cannot read as a traversal segment', async () => {
-    const writeFile = vi.fn(async () => {});
+    const writeFile = vi.fn(async (_path: string, _content: string) => {});
     const engine = new WorkflowEngine(
       createMockProvider(),
       { writeFile, readFile: async () => '' },
@@ -289,7 +289,7 @@ describe('WorkflowEngine outputFile interpolation (BUG F3-1a)', () => {
     // `<`, `>`, or `|` would otherwise produce a filename that fails to save
     // on the app's primary Windows target — after the AI generation work is
     // already done. Same forbidden set as `PathValidator.validateName`.
-    const writeFile = vi.fn(async () => {});
+    const writeFile = vi.fn(async (_path: string, _content: string) => {});
     const engine = new WorkflowEngine(
       createMockProvider(),
       { writeFile, readFile: async () => '' },

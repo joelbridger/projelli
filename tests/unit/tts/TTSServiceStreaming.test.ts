@@ -103,7 +103,7 @@ describe('TTSService.speakWithPlayer()', () => {
       mockInvoke.mockResolvedValue(fakeBytes);
       const player = makeMockPlayer();
       await TTSService.speakWithPlayer(SHORT_TEXT, 'en_US-amy-medium', 1.0, player);
-      const arg = (player.loadBuffer as ReturnType<typeof vi.fn>).mock.calls[0][0] as Uint8Array;
+      const arg = (player.loadBuffer as ReturnType<typeof vi.fn>).mock.calls[0]![0] as Uint8Array;
       expect(arg).toBeInstanceOf(Uint8Array);
       expect(arg[0]).toBe(82); // 'R'
     });
@@ -125,7 +125,7 @@ describe('TTSService.speakWithPlayer()', () => {
       mockInvoke.mockResolvedValue(fakeBytes);
       const player = makeMockPlayer();
       await TTSService.speakWithPlayer(LONG_TEXT, 'en_US-amy-medium', 1.0, player);
-      const arg = (player.appendChunk as ReturnType<typeof vi.fn>).mock.calls[0][0] as Uint8Array;
+      const arg = (player.appendChunk as ReturnType<typeof vi.fn>).mock.calls[0]![0] as Uint8Array;
       expect(arg).toBeInstanceOf(Uint8Array);
       expect(arg[0]).toBe(10);
     });

@@ -51,8 +51,8 @@ describe('locale coverage acceptance (task 7.5)', () => {
 
   it('every supported locale has a non-trivial number of populated keys', () => {
     const enKeys = realKeys(en as Record<string, JsonValue>);
-    const esKeys = realKeys(es as Record<string, JsonValue>);
-    const deKeys = realKeys(de as Record<string, JsonValue>);
+    const esKeys = realKeys(es as unknown as Record<string, JsonValue>);
+    const deKeys = realKeys(de as unknown as Record<string, JsonValue>);
 
     // Sanity floor: en.json carries the canonical set. es and de should be
     // within 5% of that count. They can differ slightly when the LLM emits

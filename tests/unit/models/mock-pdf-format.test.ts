@@ -36,7 +36,7 @@ describe('MockProvider.formatAttachmentForRequest (PDF)', () => {
     const provider = new MockProvider();
     await provider.formatAttachmentForRequest(pdfAtt, PDF_BYTES);
     expect(provider.attachmentCallLog).toHaveLength(1);
-    expect(provider.attachmentCallLog[0].att.type).toBe('pdf');
+    expect(provider.attachmentCallLog[0]!.att.type).toBe('pdf');
   });
 });
 

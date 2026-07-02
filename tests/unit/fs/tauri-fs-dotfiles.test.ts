@@ -11,7 +11,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const readDir = vi.fn();
-const exists = vi.fn(async () => true);
+const exists = vi.fn(async (..._args: unknown[]) => true);
 
 vi.mock('@tauri-apps/plugin-fs', () => ({
   readDir: (...args: unknown[]) => readDir(...args),
