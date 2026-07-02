@@ -109,8 +109,10 @@ export function DraftFollowUpModal({
       subject,
       draftBodyToHtml(body),
     )
-      .then(() => setStatus('saved'))
-      .catch((e) => {
+      .then(() => {
+        setStatus('saved');
+      })
+      .catch((e: unknown) => {
         setError(scopeHint(e instanceof Error ? e.message : String(e)));
         setStatus('error');
       });
@@ -121,8 +123,10 @@ export function DraftFollowUpModal({
     setStatus('sending');
     setError(null);
     void mailSend(account.provider, account.account, toArr, [], [], subject, body, undefined)
-      .then(() => setStatus('sent'))
-      .catch((e) => {
+      .then(() => {
+        setStatus('sent');
+      })
+      .catch((e: unknown) => {
         setError(scopeHint(e instanceof Error ? e.message : String(e)));
         setStatus('error');
       });
@@ -195,7 +199,7 @@ export function DraftFollowUpModal({
             <button
               type="button"
               data-testid="followup-close"
-              onClick={() => onOpenChange(false)}
+              onClick={() => { onOpenChange(false); }}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -230,7 +234,7 @@ export function DraftFollowUpModal({
                   <select
                     data-testid="followup-account"
                     value={accountIdx}
-                    onChange={(e) => setAccountIdx(Number(e.target.value))}
+                    onChange={(e) => { setAccountIdx(Number(e.target.value)); }}
                     style={inputStyle}
                   >
                     {accounts.map((a, i) => (
@@ -251,7 +255,7 @@ export function DraftFollowUpModal({
                     data-testid="followup-to"
                     placeholder="client@example.com"
                     value={to}
-                    onChange={(e) => setTo(e.target.value)}
+                    onChange={(e) => { setTo(e.target.value); }}
                     style={inputStyle}
                   />
                 </div>
@@ -267,7 +271,7 @@ export function DraftFollowUpModal({
                   type="text"
                   data-testid="followup-subject"
                   value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
+                  onChange={(e) => { setSubject(e.target.value); }}
                   style={inputStyle}
                 />
               </div>
@@ -280,7 +284,7 @@ export function DraftFollowUpModal({
                   rows={12}
                   placeholder={status === 'generating' ? 'Drafting…' : ''}
                   value={body}
-                  onChange={(e) => setBody(e.target.value)}
+                  onChange={(e) => { setBody(e.target.value); }}
                   style={{
                     border: '1px solid var(--color-border)',
                     borderRadius: 'var(--radius-md)',

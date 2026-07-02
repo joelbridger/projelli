@@ -1222,19 +1222,16 @@ export function DocxEditor({
               variant="outline"
               size="sm"
               className="h-7 gap-1.5 border-[rgba(var(--kp-navy-rgb),0.30)] text-[var(--kp-navy)] hover:bg-[rgba(var(--kp-navy-rgb),0.05)]"
-              disabled={load.status !== 'ready'}
               onClick={() => {
-                if (load.status !== 'ready') return;
-                const text = extractIndexedParagraphs(load.doc)
+                const text = extractIndexedParagraphs(currentDoc)
                   .map(p => p.text)
                   .join('\n');
                 onDraftFollowUp(text);
               }}
-              title="Draft a follow-up email from this document"
+              title={t('media.docx-editor.draft-follow-up-title')}
             >
               <Mail className="h-3.5 w-3.5" />
-              {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string */}
-              Draft follow-up
+              {t('media.docx-editor.draft-follow-up')}
             </Button>
           )}
 

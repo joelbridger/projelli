@@ -466,9 +466,11 @@ function SectionPanel({
             size="sm"
             data-testid="clientmap-filter-meeting-notes"
             active={meetingNotesOnly}
-            onClick={() => setMeetingNotesOnly((v) => !v)}
+            onClick={() => { setMeetingNotesOnly((v) => !v); }}
           >
+            {/* eslint-disable lantern-i18n/no-hardcoded-string */}
             Imported meeting notes ({meetingNoteCount})
+            {/* eslint-enable lantern-i18n/no-hardcoded-string */}
           </Chip>
         )}
         {isCustom && onSaveTemplate != null && (

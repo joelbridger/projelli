@@ -63,7 +63,7 @@ describe('DraftFollowUpModal — AI proposes, user approves, hostile notes stay 
     await waitFor(() => expect((toField as HTMLInputElement).value).toBe('tom@brennan.com'));
     // The AI was given a sanitized prompt (delimiter unforgeable):
     await waitFor(() => expect(sendMessage).toHaveBeenCalled());
-    const prompt = sendMessage.mock.calls[0][0] as string;
+    const prompt = sendMessage.mock.calls[0]![0] as string;
     expect(prompt.split('</source_note>').length).toBe(2);
   });
 
@@ -83,7 +83,7 @@ describe('DraftFollowUpModal — AI proposes, user approves, hostile notes stay 
     );
     fireEvent.click(screen.getByTestId('followup-save-drafts'));
     await waitFor(() => expect(mailSaveDraft).toHaveBeenCalledTimes(1));
-    const [accountId, to] = mailSaveDraft.mock.calls[0] as [string, string[]];
+    const [accountId, to] = mailSaveDraft.mock.calls[0]! as unknown as [string, string[]];
     expect(accountId).toBe('m365:default');
     expect(to).toEqual(['tom@brennan.com']);
     expect(to.join(',')).not.toContain('attacker@evil.com');

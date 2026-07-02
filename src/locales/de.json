@@ -1431,6 +1431,8 @@
       "orphan-comment": "kein Anker",
       "orphan-comment__sourceHash": "b657fa592b57d50a5470e8989a09df01f65d3ae2a63b8cbe94ed2e90677a6a73",
       "revise-with-ai": "Mit KI überarbeiten",
+      "draft-follow-up": "Follow-up entwerfen",
+      "draft-follow-up-title": "Eine Follow-up-E-Mail aus diesem Dokument entwerfen",
       "redline-placeholder": "Sagen Sie der KI, wie dieses Dokument überarbeitet werden soll. Zum Beispiel: „Haftungsklausel straffen\", „förmlicher machen\", „um 20 % kürzen\".",
       "redline-submit": "Änderungen vorschlagen",
       "redline-working": "Denkt nach…",
