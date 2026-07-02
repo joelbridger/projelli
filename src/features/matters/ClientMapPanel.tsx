@@ -16,7 +16,10 @@ import { Plus, Sparkles, Trash2 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { Button, Chip, Eyebrow, CountBadge } from '@/ui/kp';
 import { CORE_SECTION_ORDER, CORE_SECTION_TITLE } from '@/platform/clientMap/types';
-import { sourceChipLabel } from '@/platform/clientMap/meetingNoteSources';
+import {
+  sourceChipLabel,
+  hasImportedMeetingNoteSource,
+} from '@/platform/clientMap/meetingNoteSources';
 import type {
   ClientMap,
   ClientMapItem,
@@ -446,9 +449,28 @@ function SectionPanel({
   onDelete?: (() => void) | undefined;
 }) {
   const isCustom = section.kind === 'custom';
+  // Wave 0: filter this section's facts down to the ones cited to imported
+  // meeting notes (Jump exports, Zocks connector, local meetings). The chip
+  // only appears when the section actually has such an item.
+  const [meetingNotesOnly, setMeetingNotesOnly] = useState(false);
+  const meetingNoteCount = section.items.filter(hasImportedMeetingNoteSource).length;
+  const visibleItems =
+    meetingNotesOnly && meetingNoteCount > 0
+      ? section.items.filter(hasImportedMeetingNoteSource)
+      : section.items;
   return (
     <div data-testid={`clientmap-section-${section.key}`}>
       <PanelHeader title={section.title} count={section.items.length}>
+        {meetingNoteCount > 0 && (
+          <Chip
+            size="sm"
+            data-testid="clientmap-filter-meeting-notes"
+            active={meetingNotesOnly}
+            onClick={() => setMeetingNotesOnly((v) => !v)}
+          >
+            Imported meeting notes ({meetingNoteCount})
+          </Chip>
+        )}
         {isCustom && onSaveTemplate != null && (
           <Button
             type="button"
@@ -475,7 +497,7 @@ function SectionPanel({
       </PanelHeader>
       {section.items.length > 0 ? (
         <div>
-          {section.items.map((it) => (
+          {visibleItems.map((it) => (
             <ItemRow
               key={it.id}
               item={it}
