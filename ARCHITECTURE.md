@@ -116,6 +116,35 @@ Layer sizes (≈): app 33 · features 279 · platform 179 · ui 34 · lib 4.
   platform/ui/lib, and wire it into the shell in `src/app/`. If two features need
   the same thing, it belongs in `platform/`, not copied or cross-imported.
 
+## Two local-AI paths — which is canonical
+
+Two on-device inference engines coexist and are **not duplicates** — one is the
+product's default, the other is an optional alternative for users who already
+run their own local models:
+
+- **Bundled "Local AI" (llama.cpp) — canonical for Local-only mode.** A
+  sidecar process Keepance downloads and manages itself
+  (`src-tauri/src/sidecars/llama_server.rs`, commands in
+  `src-tauri/src/commands/local_llm/`), fronted by
+  `src/platform/providers/AppLocalProvider.ts` (`providerId: 'keepance-local'`).
+  This is what "Download Local AI" in Settings → AI
+  (`src/features/settings/LocalAiSettingsControl.tsx`) sets up, and it's tried
+  first whenever a surface needs on-device generation.
+- **Ollama connector — optional BYO alternative.** A thin HTTP client
+  (`src/platform/providers/OllamaProvider.ts`) against a daemon the *user*
+  installs and runs (`http://127.0.0.1:11434`), no bundled binary. Configured
+  separately in the Account window
+  (`src/features/account/AccountWindow.tsx` → `OllamaSettingsSection.tsx`), not
+  in Settings → AI.
+- **The single resolution rule** lives in
+  `src/platform/providers/resolveLocalProvider.ts`: prefer the embedded engine
+  when its model is downloaded and ready, else fall back to the user's Ollama
+  daemon. Both satisfy "nothing leaves the device" equally — this only changes
+  *which* local engine runs, never whether Local-only mode's no-egress
+  guarantee holds. Don't duplicate this fallback logic elsewhere; route new
+  local-inference call sites through `resolveLocalGenerationProvider()` /
+  `resolveAvailableLocalGenerationProvider()`.
+
 ## History
 
 This structure landed in the 3.0 **feature-first reorganization** (2026-06): the

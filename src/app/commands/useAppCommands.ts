@@ -7,6 +7,26 @@ import { useEditorStore } from '@/platform/state/editorStore';
 
 type OpenTab = ReturnType<typeof useEditorStore.getState>['openTabs'][number];
 
+/**
+ * Adds a `https://` scheme to bare-domain input (e.g. "example.com") so
+ * `new URL()` downstream doesn't throw on otherwise-reasonable input.
+ */
+export function normalizeBrowserUrl(value: string): string {
+  const trimmed = value.trim();
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
+
+/** Returns an error message for the prompt dialog, or undefined if valid. */
+export function validateBrowserUrl(value: string): string | undefined {
+  if (!value.trim()) return 'Enter a URL.';
+  try {
+    new URL(normalizeBrowserUrl(value));
+    return undefined;
+  } catch {
+    return 'Enter a valid URL, e.g. https://example.com.';
+  }
+}
+
 export interface AppCommandDeps {
   openTabs: OpenTab[];
   activeTabPath: string | null;
@@ -21,7 +41,6 @@ export interface AppCommandDeps {
   sidebarActiveTab: AppSurface;
   setSidebarCollapsed: (updater: (v: boolean) => boolean) => void;
   setShowWorkspaceSelector: (v: boolean) => void;
-  setSidebarActiveTab: (tab: AppSurface) => void;
   /** Opens the AI Assistant as a main-panel tab. The reimagined 3.0 sidebar has
    *  no 'ai-assistant' surface, so the old setSidebarActiveTab('ai-assistant')
    *  was a no-op (it set a sidebar tab that does not exist). */
@@ -153,13 +172,14 @@ export function useAppCommands(deps: AppCommandDeps): PaletteCommand[] {
           const url = await prompt('Enter URL:', '', {
             title: 'Open Browser Tab',
             placeholder: 'https://example.com',
+            validate: validateBrowserUrl,
           });
           if (url) {
-            handleOpenBrowserTab(url);
+            handleOpenBrowserTab(normalizeBrowserUrl(url));
           }
         },
       },
     ];
     return [...appCommands, ...baseCommands];
-  }, [openTabs, activeTabPath, handleSaveFile, closeTab, toggleOutline, isSplit, splitPane, closeSplit, handleOpenBrowserTab, handleCreateDefaultDocument, sidebarActiveTab, openAIAssistantTab]);
+  }, [openTabs, activeTabPath, handleSaveFile, closeTab, toggleOutline, isSplit, splitPane, closeSplit, handleOpenBrowserTab, handleCreateDefaultDocument, sidebarActiveTab, setSidebarCollapsed, setShowWorkspaceSelector, openAIAssistantTab, setShowSettingsModal, prompt]);
 }
