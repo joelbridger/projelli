@@ -17,8 +17,16 @@ import { render } from '@testing-library/react';
 import { useScrollPersistence } from '@/features/email/useScrollPersistence';
 import type { Matter } from '@/platform/types/matter';
 
-function Harness({ activeMatter, showBox }: { activeMatter: Matter | null; showBox: boolean }) {
-  const { scrollContainerRef, getInitialScrollOffset } = useScrollPersistence(activeMatter);
+function Harness({
+  activeMatter,
+  showBox,
+  resultsKey = 'default',
+}: {
+  activeMatter: Matter | null;
+  showBox: boolean;
+  resultsKey?: string;
+}) {
+  const { scrollContainerRef, getInitialScrollOffset } = useScrollPersistence(activeMatter, resultsKey);
   if (!showBox) {
     return <div data-testid="loading-placeholder">Loading...</div>;
   }
@@ -92,6 +100,48 @@ describe('useScrollPersistence — conditionally-rendered scroll container', () 
     expect(box.scrollTop).toBe(75);
   });
 
+  // Codex review (P2.2, round 8): a new search/filter change must NOT
+  // restore an old deep scroll position into the fresh result set — that
+  // can hide the very results the user just asked for below the fold.
+  it('a resultsKey change resets scroll to the top instead of restoring the old position', () => {
+    sessionStorage.setItem('email-scroll-all', '5000');
+
+    const { rerender, getByTestId } = render(
+      <Harness activeMatter={null} showBox={true} resultsKey="query-a" />,
+    );
+    // Real navigation (mount for the FIRST time under this results key) —
+    // restoring the saved position here is correct (it's the same logical
+    // "browse all mail" view the user was in before).
+    expect((getByTestId('scroll-box') as HTMLDivElement).scrollTop).toBe(5000);
+
+    // The user scrolls deep into these results, then types a new query —
+    // the results box unmounts (loading) and remounts with fresh data.
+    (getByTestId('scroll-box') as HTMLDivElement).scrollTop = 4000;
+    rerender(<Harness activeMatter={null} showBox={false} resultsKey="query-a" />);
+    rerender(<Harness activeMatter={null} showBox={true} resultsKey="query-b" />);
+
+    const freshBox = getByTestId('scroll-box') as HTMLDivElement;
+    expect(freshBox.scrollTop).toBe(0);
+    expect(freshBox.dataset['initialOffset']).toBe('0');
+  });
+
+  it('a retry (same resultsKey) after the results-key reset still restores normally', () => {
+    const { rerender, getByTestId } = render(
+      <Harness activeMatter={null} showBox={true} resultsKey="query-a" />,
+    );
+    rerender(<Harness activeMatter={null} showBox={false} resultsKey="query-b" />);
+    rerender(<Harness activeMatter={null} showBox={true} resultsKey="query-b" />);
+    (getByTestId('scroll-box') as HTMLDivElement).scrollTop = 300;
+
+    // An error causes a retry of the SAME query — the box unmounts and
+    // remounts again, but resultsKey hasn't changed this time, so the
+    // scroll position from moments ago should be preserved.
+    rerender(<Harness activeMatter={null} showBox={false} resultsKey="query-b" />);
+    rerender(<Harness activeMatter={null} showBox={true} resultsKey="query-b" />);
+
+    expect((getByTestId('scroll-box') as HTMLDivElement).scrollTop).toBe(300);
+  });
+
   it('getInitialScrollOffset falls back to 0 for a corrupted/non-numeric saved value', () => {
     sessionStorage.setItem('email-scroll-all', 'not-a-number');
 
@@ -99,7 +149,7 @@ describe('useScrollPersistence — conditionally-rendered scroll container', () 
     const box = getByTestId('scroll-box') as HTMLDivElement;
     // Must not be NaN (which would break a virtualizer's internal math) —
     // falls back to a safe, valid 0 instead.
-    expect(box.dataset.initialOffset).toBe('0');
+    expect(box.dataset['initialOffset']).toBe('0');
     // scrollTop restore is similarly guarded — never set to NaN.
     expect(box.scrollTop).not.toBeNaN();
   });

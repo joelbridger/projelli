@@ -471,7 +471,14 @@ export function EmailWorkspace({
   // the node mounts/unmounts) plus `getScrollElement()` for the
   // virtualizer, which needs to read the current node imperatively rather
   // than receive it as a ref object.
-  const { scrollContainerRef, getScrollElement, getInitialScrollOffset } = useScrollPersistence(activeMatter);
+  // Codex review (round 8): a query/filter change (a genuinely NEW search)
+  // must start the results list at the top, not restore wherever the
+  // PREVIOUS search happened to be scrolled to — the SAME fingerprint
+  // Effect A/B already use to detect "is this a new search or just
+  // pagination" (see queryFingerprintRef above) tells useScrollPersistence
+  // when that's happened.
+  const scrollResultsKey = JSON.stringify({ query, providerFilter, dateFrom, dateTo, hasAttachments, mode });
+  const { scrollContainerRef, getScrollElement, getInitialScrollOffset } = useScrollPersistence(activeMatter, scrollResultsKey);
 
   // Perf (P2.2) — virtualize the results list past EMAIL_VIRTUALIZE_ROW_THRESHOLD
   // rows, using the SAME dedicated scroll container as scroll persistence
