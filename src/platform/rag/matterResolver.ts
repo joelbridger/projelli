@@ -806,6 +806,79 @@ export function buildMeetingMatterMap(matters: Matter[]): MeetingMatterMapEntry[
   return out;
 }
 
+// ── Calendar connector (Wave 1) ────────────────────────────────────────────
+
+export interface CalendarMatterMapEntry {
+  key: string;
+  matterId: string;
+}
+
+/**
+ * Keys for calendar attendee/title -> matter matching:
+ *  - every taught `meetingKeys` entry (emails or phrases; first-writer-wins
+ *    like `buildMeetingMatterMap`, since teaching moves keys explicitly),
+ *  - the matter's client name and matter name, normalized — BUT a
+ *    name-derived key claimed by two different matters is dropped entirely
+ *    (ambiguity never auto-links; better unfiled than misfiled).
+ */
+export function buildCalendarMatterMap(matters: Matter[]): CalendarMatterMapEntry[] {
+  const taught = new Map<string, string>();
+  const named = new Map<string, string | null>(); // null = ambiguous, dropped
+  for (const m of matters) {
+    if (m.id === UNASSIGNED_MATTER_ID) continue;
+    for (const raw of m.meetingKeys ?? []) {
+      const key = normalizeMeetingKey(raw);
+      if (!key || taught.has(key)) continue;
+      taught.set(key, m.id);
+    }
+    for (const raw of [m.client, m.name]) {
+      const key = normalizeClientName(raw ?? '');
+      if (!key) continue;
+      const existing = named.get(key);
+      if (existing === undefined) named.set(key, m.id);
+      else if (existing !== m.id) named.set(key, null);
+    }
+  }
+  const out: CalendarMatterMapEntry[] = [];
+  for (const [key, matterId] of taught) out.push({ key, matterId });
+  for (const [key, matterId] of named) {
+    if (matterId !== null && !taught.has(key)) out.push({ key, matterId });
+  }
+  return out;
+}
+
+/**
+ * Resolve a calendar event to matters. Per attendee, email match beats name
+ * match; across attendees (and the event title) every distinct matched
+ * matter is kept — a joint meeting belongs to several clients. Returns []
+ * when nothing matches: the event stays unassigned, never guessed.
+ * Mirrors the Rust `calendar::engine::resolve_event_matters`.
+ */
+export function resolveMattersForCalendarEvent(
+  event: { title: string; attendees: { email: string; name: string }[] },
+  entries: CalendarMatterMapEntry[],
+): string[] {
+  const map = new Map<string, string>();
+  for (const e of entries) {
+    const key = normalizeMeetingKey(e.key);
+    if (key && !map.has(key)) map.set(key, e.matterId);
+  }
+  const matches = new Set<string>();
+  for (const attendee of event.attendees) {
+    const email = attendee.email.trim().toLowerCase();
+    const byEmail = email ? map.get(email) : undefined;
+    if (byEmail) {
+      matches.add(byEmail);
+      continue;
+    }
+    const byName = map.get(normalizeClientName(attendee.name ?? ''));
+    if (byName) matches.add(byName);
+  }
+  const byTitle = map.get(normalizeMeetingKey(event.title ?? ''));
+  if (byTitle) matches.add(byTitle);
+  return [...matches].sort();
+}
+
 function normalizeEsignKey(value: string): string {
   return value
     .toLowerCase()
