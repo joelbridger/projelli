@@ -12,7 +12,7 @@ pub mod gmail;
 pub mod view;
 
 use serde::Serialize;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager, State};
 use crate::commands::mail::graph::{GraphTokenRefresh, GraphTokenRefreshFuture};
@@ -1543,22 +1543,32 @@ fn mark_rag_backfill_needed(
     result
 }
 
-/// Best-effort check, at the end of a provider's sync, of whether a RAG
-/// backfill is pending — i.e. some imported messages are NOT yet searchable and
-/// are queued to be indexed on a later pass. Two independent signals, either of
-/// which means "pending":
+/// Check, at the end of a provider's sync, whether the just-imported mail is NOT
+/// yet fully searchable — so the terminal event can honestly say "indexing still
+/// finishing in the background" instead of asserting "searchable". Three
+/// independent signals, any of which means "pending":
 ///
-/// 1. The durable backfill marker is already set (a fire-and-forget index task
+/// 1. Mail index tasks are still running or queued (`mail_indexing_in_flight`).
+///    This is the large-import case the coordinator flagged: the model is present
+///    but per-message indexing is still draining behind the 4-slot semaphore, so
+///    claiming "all searchable" at terminal-event time would be a lie.
+/// 2. The durable backfill marker is already set (a fire-and-forget index task
 ///    failed and recorded it — see `spawn_mail_rag_index`).
-/// 2. This section imported messages (`wrote_any`) but the embedding model is
-///    not downloaded yet, so none of them could have been indexed. This is the
-///    common, deterministic case and does NOT race the async index tasks.
+/// 3. This section imported messages (`wrote_any`) but the embedding model is
+///    not downloaded yet, so none of them could have been indexed. Deterministic.
 ///
-/// This surfaces an honest "indexed, some queued" signal in the UI/audit. It is
-/// only a hint: correctness (no message is ever silently un-indexed) is
-/// guaranteed by the durable marker + the next-launch `mail_backfill_rag`, not
-/// by this read. Any error reading the marker is treated as "not pending" here.
+/// Correctness (no message is ever silently un-indexed) is still guaranteed by
+/// the durable marker + the next-launch `mail_backfill_rag`; this read makes the
+/// terminal CLAIM honest. Any error reading the marker is treated as "not pending".
 async fn rag_backfill_pending(workspace: &std::path::Path, key: &[u8; 32], wrote_any: bool) -> bool {
+    // Cheapest and most important signal: any mail index task still running or
+    // queued behind the semaphore means the just-imported mail is NOT fully
+    // searchable yet. Report pending so the terminal event says "search indexing
+    // finishing in the background" instead of prematurely asserting "searchable".
+    // This is the common large-import case (model present, work still draining).
+    if mail_indexing_in_flight() {
+        return true;
+    }
     let ws = workspace.to_path_buf();
     let k = *key;
     let marker_set = tokio::task::spawn_blocking(move || -> anyhow::Result<bool> {
@@ -1599,11 +1609,39 @@ async fn rag_backfill_pending(workspace: &std::path::Path, key: &[u8; 32], wrote
 /// crashed; `const_new` lets it be a plain static (no lazy init).
 static MAIL_INDEX_SEMAPHORE: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(4);
 
+/// Monotonic, process-wide counters of mail RAG index tasks spawned vs finished.
+/// `SPAWNED > COMPLETED` means indexing is still in flight (running, or queued
+/// behind `MAIL_INDEX_SEMAPHORE`). A sync's terminal event reads this so it can
+/// honestly say "search indexing still finishing in the background" instead of
+/// asserting "all mail imported and searchable" while a large import's messages
+/// are still queued — the claim the fire-and-forget design would otherwise make
+/// prematurely. Never reset (syncs are serialized by `is_syncing`, and the delta
+/// is what matters, not the absolute values).
+static MAIL_INDEX_SPAWNED: AtomicU64 = AtomicU64::new(0);
+static MAIL_INDEX_COMPLETED: AtomicU64 = AtomicU64::new(0);
+
+/// True when at least one mail RAG index task is still running or queued. Used by
+/// `rag_backfill_pending` so the terminal `done` outcome is conservative: it only
+/// claims "searchable" once no indexing is outstanding.
+fn mail_indexing_in_flight() -> bool {
+    MAIL_INDEX_SPAWNED.load(Ordering::SeqCst) > MAIL_INDEX_COMPLETED.load(Ordering::SeqCst)
+}
+
+/// Increments `MAIL_INDEX_COMPLETED` on drop, so a finished index task is counted
+/// on EVERY exit path — normal return, early `?`, or panic — and the in-flight
+/// count can never get stuck above zero (which would wedge every later sync into
+/// a permanent "indexing pending" claim).
+struct IndexCompletionGuard;
+impl Drop for IndexCompletionGuard {
+    fn drop(&mut self) {
+        MAIL_INDEX_COMPLETED.fetch_add(1, Ordering::SeqCst);
+    }
+}
+
 /// Fire-and-forget mail RAG indexing, shared by every sync `index_callback`
-/// (M365 / IMAP / Gmail). On failure it logs the FULL error chain, and when
-/// the failure is the Option B "model not downloaded yet" gate it sets the
-/// persistent backfill marker so `mail_backfill_rag` can heal this message
-/// later from its local encrypted body.
+/// (M365 / IMAP / Gmail). On failure it logs the FULL error chain and sets the
+/// persistent backfill marker so `mail_backfill_rag` can heal this message later
+/// from its local encrypted body.
 fn spawn_mail_rag_index(
     workspace: std::path::PathBuf,
     path_key: String,
@@ -1611,7 +1649,13 @@ fn spawn_mail_rag_index(
     matter_id: String,
     enc_key: [u8; 32],
 ) {
+    // Count the task as spawned SYNCHRONOUSLY, before the async task starts, so a
+    // section that finishes its folder loop and reads `mail_indexing_in_flight()`
+    // never races ahead of a just-queued task that hasn't run its increment yet.
+    MAIL_INDEX_SPAWNED.fetch_add(1, Ordering::SeqCst);
     let _ = tokio::task::spawn(async move {
+        // Balances the SPAWNED increment on every exit (incl. panic / early return).
+        let _done = IndexCompletionGuard;
         // Bound concurrent embedding work (BUG-011). Held for the whole index
         // call; if the semaphore is ever closed (it never is — it's a static)
         // we still proceed rather than silently dropping the message.
@@ -2839,6 +2883,33 @@ mod mail_retag_message_tests {
     use super::backfill_marker_disposition;
     use super::BackfillMarkerDisposition;
     use super::SyncProgress;
+    use super::{mail_indexing_in_flight, MAIL_INDEX_COMPLETED, MAIL_INDEX_SPAWNED};
+    use std::sync::atomic::Ordering;
+
+    // The terminal "done" outcome must report "indexing pending" while any mail
+    // index task is still spawned-but-not-finished (queued behind the semaphore),
+    // and flip to "searchable" only once the completed count catches up. This
+    // guards the honesty fix: a large import must not claim "all searchable" while
+    // per-message indexing is still draining.
+    #[test]
+    fn mail_indexing_in_flight_tracks_spawned_minus_completed() {
+        // Balanced to start (whatever the absolute counts): assert on the delta.
+        MAIL_INDEX_SPAWNED.fetch_add(3, Ordering::SeqCst);
+        assert!(
+            mail_indexing_in_flight(),
+            "3 tasks spawned, 0 completed → indexing is in flight (pending)"
+        );
+        MAIL_INDEX_COMPLETED.fetch_add(2, Ordering::SeqCst);
+        assert!(
+            mail_indexing_in_flight(),
+            "2 of 3 completed → still one in flight (pending)"
+        );
+        MAIL_INDEX_COMPLETED.fetch_add(1, Ordering::SeqCst);
+        assert!(
+            !mail_indexing_in_flight(),
+            "all completed → nothing in flight (searchable)"
+        );
+    }
 
     #[test]
     fn backfill_marker_disposition_model_failure_retains() {
