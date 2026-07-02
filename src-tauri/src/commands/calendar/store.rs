@@ -105,20 +105,27 @@ impl CalendarStore {
         })
     }
 
-    /// Insert or update. Returns true when the content hash is new/changed
-    /// (i.e. the event needs (re)indexing). Times are normalized RFC3339 UTC.
+    /// Insert or update. Returns true when the event needs (re)indexing:
+    /// either the content hash changed, or the row was previously marked
+    /// `deleted` (its RAG chunks were purged, so a resurrected event with an
+    /// otherwise-unchanged hash still needs the index rebuilt — the
+    /// `indexed_hash` bookkeeping is reset in that case, below). Times are
+    /// normalized RFC3339 UTC.
     pub fn upsert_event(&self, event: &CalendarEvent, content_hash: &str) -> Result<bool> {
         let json = serde_json::to_string(event)?;
         let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
         let conn = self.conn.lock().unwrap();
-        let existing: Option<String> = conn
+        let existing: Option<(String, bool)> = conn
             .query_row(
-                "SELECT content_hash FROM calendar_events WHERE id = ?1",
+                "SELECT content_hash, deleted FROM calendar_events WHERE id = ?1",
                 [&event.id],
-                |r| r.get(0),
+                |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)? != 0)),
             )
             .ok();
-        let changed = existing.as_deref() != Some(content_hash);
+        let changed = match &existing {
+            Some((hash, was_deleted)) => hash != content_hash || *was_deleted,
+            None => true,
+        };
         conn.execute(
             "INSERT INTO calendar_events
                 (id, provider, content_hash, json, start_utc, end_utc, fetched_at, deleted)
@@ -129,6 +136,8 @@ impl CalendarStore {
                 start_utc    = excluded.start_utc,
                 end_utc      = excluded.end_utc,
                 fetched_at   = excluded.fetched_at,
+                indexed_hash = CASE WHEN calendar_events.deleted = 1
+                                    THEN '' ELSE calendar_events.indexed_hash END,
                 deleted      = 0",
             rusqlite::params![
                 event.id,
@@ -250,6 +259,22 @@ impl CalendarStore {
         Ok(out)
     }
 
+    /// Delete every row belonging to one provider: event rows and any
+    /// delta-sync cursors keyed `"<provider>:..."`. Used when disconnecting
+    /// a single provider while others remain connected (a full `purge()` of
+    /// the whole store only runs when NO provider is left) — without this,
+    /// a disconnected provider's events silently persist in the local store
+    /// and can resurface via `list_in_window` / a later indexing pass.
+    pub fn delete_provider_rows(&self, provider: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("DELETE FROM calendar_events WHERE provider = ?1", [provider])?;
+        conn.execute(
+            "DELETE FROM calendar_cursors WHERE key = ?1 OR key LIKE ?2",
+            [provider.to_string(), format!("{provider}:%")],
+        )?;
+        Ok(())
+    }
+
     pub fn purge(workspace_root: &Path) -> Result<()> {
         let base = Self::db_path(workspace_root);
         for suffix in ["", "-wal", "-shm", "-journal"] {
@@ -318,6 +343,63 @@ mod tests {
         assert_eq!(to_index.len(), 1);
         store.mark_indexed("outlook:e1", "h2", "m-1").unwrap();
         assert!(store.list_to_index().unwrap().is_empty());
+    }
+
+    #[test]
+    fn resurrected_event_with_unchanged_hash_still_needs_reindex() {
+        // A deleted-then-purged event that reappears with an IDENTICAL
+        // content hash must still be reported as changed and re-queued for
+        // indexing (codex-review P2: its RAG chunks were purged on delete,
+        // so a hash-only check would silently leave them missing forever).
+        let dir = tempfile::tempdir().unwrap();
+        let store = CalendarStore::open_with_key(dir.path(), &STORE_KEY).unwrap();
+        let e = sample("outlook:e1", "2026-07-02T16:00:00Z");
+        store.upsert_event(&e, "h1").unwrap();
+        store.mark_indexed("outlook:e1", "h1", "m-1").unwrap();
+        assert!(store.list_to_index().unwrap().is_empty(), "fully indexed, nothing pending");
+
+        store.mark_absent_deleted(
+            "outlook",
+            "2026-06-01T00:00:00Z",
+            "2026-08-01T00:00:00Z",
+            &[],
+        ).unwrap();
+
+        // Same event, same content hash, reappears in a later sync.
+        assert!(
+            store.upsert_event(&e, "h1").unwrap(),
+            "resurrection with unchanged hash must still count as a change"
+        );
+        assert_eq!(store.list_to_index().unwrap().len(), 1, "queued for reindex");
+    }
+
+    #[test]
+    fn delete_provider_rows_only_purges_that_providers_events_and_cursors() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CalendarStore::open_with_key(dir.path(), &STORE_KEY).unwrap();
+        store.upsert_event(&sample("outlook:e1", "2026-07-02T16:00:00Z"), "h1").unwrap();
+        let google_event = CalendarEvent {
+            id: "google:g1".into(),
+            provider: CalendarProvider::Google,
+            ..sample("google:g1", "2026-07-02T16:00:00Z")
+        };
+        store.upsert_event(&google_event, "h1").unwrap();
+        store.set_cursor("outlook:delta", "cursor-a").unwrap();
+        store.set_cursor("google:delta", "cursor-b").unwrap();
+
+        store.delete_provider_rows("outlook").unwrap();
+
+        let remaining = store
+            .list_in_window("2026-06-01T00:00:00Z", "2026-08-01T00:00:00Z")
+            .unwrap();
+        assert_eq!(remaining.len(), 1, "only the google event survives");
+        assert_eq!(remaining[0].id, "google:g1");
+        assert_eq!(store.get_cursor("outlook:delta").unwrap(), None, "outlook cursor purged");
+        assert_eq!(
+            store.get_cursor("google:delta").unwrap(),
+            Some("cursor-b".into()),
+            "google cursor untouched"
+        );
     }
 
     #[test]

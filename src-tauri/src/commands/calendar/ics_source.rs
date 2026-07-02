@@ -198,6 +198,61 @@ fn expand_occurrences(
     let mut accepted: usize = 0;
     let mut cursor = start;
     let series_end = until.unwrap_or(to).min(to + Duration::days(1));
+
+    // Fast-forward: a series that started years before the window would
+    // otherwise burn the entire HARD_CAP stepping one day at a time before
+    // ever reaching `from` — a long-running weekly client meeting simply
+    // vanishes from every sync (codex-review P2). Jump the cursor (and the
+    // COUNT tally, so COUNT= still cuts off correctly) directly to the last
+    // full rule period before the window, then resume the normal day-by-day
+    // walk, which only needs to cover at most one period from there.
+    let target = (from - Duration::days(1)).max(start);
+    match freq {
+        "DAILY" => {
+            let gap_days = (target.date_naive() - start.date_naive()).num_days().max(0);
+            let periods = gap_days / interval;
+            if periods > 0 {
+                accepted = periods as usize;
+                cursor = start + Duration::days(periods * interval);
+            }
+        }
+        "WEEKLY" => {
+            let gap_days = (target.date_naive() - start.date_naive()).num_days().max(0);
+            let period_days = 7 * interval;
+            let cycles = gap_days / period_days;
+            if cycles > 0 {
+                let occurrences_per_cycle = bydays.len().max(1) as i64;
+                accepted = (cycles * occurrences_per_cycle) as usize;
+                cursor = start + Duration::days(cycles * period_days);
+            }
+        }
+        "MONTHLY" => {
+            let gap_months = (target.year() - start.year()) as i64 * 12
+                + (target.month() as i64 - start.month() as i64);
+            let cycles = gap_months.max(0) / interval;
+            if cycles > 0 {
+                accepted = cycles as usize;
+                let months = (cycles * interval) as u32;
+                let new_date = start
+                    .date_naive()
+                    .checked_add_months(chrono::Months::new(months))
+                    .unwrap_or_else(|| start.date_naive());
+                cursor = DateTime::<Utc>::from_naive_utc_and_offset(
+                    new_date.and_time(start.time()),
+                    Utc,
+                );
+            }
+        }
+        _ => {}
+    }
+    // The series already exhausted its COUNT before ever reaching the
+    // window: nothing left to emit.
+    if let Some(c) = count {
+        if accepted >= c {
+            return Vec::new();
+        }
+    }
+
     let mut steps = 0usize;
     while cursor <= series_end && steps < HARD_CAP {
         steps += 1;
@@ -443,6 +498,55 @@ mod tests {
             let ids: std::collections::HashSet<_> = events.iter().map(|e| e.id.clone()).collect();
             assert_eq!(ids.len(), events.len(), "occurrence ids unique ({why})");
         }
+    }
+
+    #[test]
+    fn old_recurring_series_still_reaches_the_window() {
+        // codex-review P2: a weekly meeting that started years ago (well
+        // beyond HARD_CAP days-worth of daily stepping) must still surface
+        // its occurrences in the current sync window instead of vanishing
+        // because the cap was exhausted walking through years of history.
+        // 2020-01-02 is a Thursday, same weekday as the window's Jul 2 2026.
+        let table = [
+            (
+                "RRULE:FREQ=WEEKLY;COUNT=1000",
+                3,
+                // Jun 25 2026 is also a Thursday (7 days before Jul 2), and
+                // unlike the recurrence_table test above, this series
+                // existed long before the window opened, so it lands too.
+                "weekly since 2020: Jun 25, Jul 2, Jul 9 land in window",
+            ),
+            (
+                "RRULE:FREQ=DAILY;COUNT=100000",
+                21,
+                "daily since 2020: every day Jun 25 through Jul 15 overlaps the window",
+            ),
+            (
+                "RRULE:FREQ=MONTHLY;COUNT=1000",
+                1,
+                "monthly on the 2nd since 2020: only Jul 2 lands in window",
+            ),
+        ];
+        for (extra, expected, why) in table {
+            let ics = wrap(&format!(
+                "BEGIN:VEVENT\r\nUID:old1\r\nSUMMARY:Old Recurring\r\n\
+                 DTSTART:20200102T160000Z\r\nDTEND:20200102T170000Z\r\n{extra}\r\nEND:VEVENT\r\n"
+            ));
+            let events = parse_ics(&ics, WINDOW_FROM, WINDOW_TO).unwrap();
+            assert_eq!(events.len(), expected, "{why}");
+        }
+    }
+
+    #[test]
+    fn old_series_already_exhausted_before_window_yields_nothing() {
+        // COUNT is small enough that the series ended long before the
+        // window even opens; the fast-forward must not resurrect it.
+        let ics = wrap(
+            "BEGIN:VEVENT\r\nUID:old2\r\nSUMMARY:Long Finished\r\n\
+             DTSTART:20200102T160000Z\r\nDTEND:20200102T170000Z\r\nRRULE:FREQ=WEEKLY;COUNT=5\r\nEND:VEVENT\r\n",
+        );
+        let events = parse_ics(&ics, WINDOW_FROM, WINDOW_TO).unwrap();
+        assert!(events.is_empty(), "series of 5 weekly occurrences in 2020 is long over by 2026");
     }
 
     #[test]

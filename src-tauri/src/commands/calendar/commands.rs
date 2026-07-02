@@ -163,12 +163,22 @@ pub async fn calendar_connect_google() -> Result<(), String> {
     Ok(())
 }
 
+/// True for a bare-HTTP URL whose host is loopback (dev/test only). ICS
+/// feed URLs commonly embed a secret access token as a query parameter, so
+/// plaintext HTTP anywhere else would send that secret over the open
+/// network — only localhost is exempt from the HTTPS requirement.
+fn is_localhost_http(url: &str) -> bool {
+    let Some(rest) = url.strip_prefix("http://") else { return false };
+    let host = rest.split(['/', ':', '?']).next().unwrap_or("");
+    host == "localhost" || host == "127.0.0.1" || host == "::1"
+}
+
 /// ICS fallback: validate the URL shape, fetch it once to prove it parses,
 /// then store the URL in the keychain (secret ICS URLs embed a token).
 #[tauri::command]
 pub async fn calendar_connect_ics(url: String) -> Result<(), String> {
     let trimmed = url.trim().to_string();
-    if !(trimmed.starts_with("https://") || trimmed.starts_with("http://")) {
+    if !trimmed.starts_with("https://") && !is_localhost_http(&trimmed) {
         return Err("Enter the calendar's ICS address (starts with https://).".into());
     }
     let body = super::ics_source::fetch_ics_text(&trimmed)
@@ -225,8 +235,13 @@ async fn calendar_disconnect_inner(
 ) -> Result<(), String> {
     use super::store::CalendarStore;
     let workspace = state.workspace.lock().await.clone();
-    // 1. Purge this provider's RAG rows + store rows (workspace may be unset
-    //    if disconnect happens before a workspace was opened; skip then).
+    // 1. Purge this provider's RAG rows, then its store rows + cursors
+    //    (workspace may be unset if disconnect happens before a workspace
+    //    was opened; skip then). Row deletion runs even when other
+    //    providers remain connected — codex-review P2: without it, a
+    //    disconnected provider's events silently persisted in the shared
+    //    encrypted store and could resurface via list_in_window / a later
+    //    indexing pass.
     if let Some(ws) = workspace.as_ref() {
         if let Ok(store) = CalendarStore::open(ws) {
             if let Ok(source_ids) = store.list_indexed_rag_source_ids() {
@@ -240,6 +255,7 @@ async fn calendar_disconnect_inner(
                     }
                 }
             }
+            let _ = store.delete_provider_rows(provider);
         }
     }
     // 2. Forget the credential.
@@ -328,4 +344,26 @@ pub(crate) fn ics_url() -> Result<String, String> {
     .map_err(|e| e.to_string())?
     .get_password()
     .map_err(|_| "not connected".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ics_url_scheme_only_accepts_https_or_loopback_http() {
+        // (url, expected accepted, why)
+        let table = [
+            ("https://calendar.example.com/feed.ics?token=secret", true, "https always ok"),
+            ("http://calendar.example.com/feed.ics?token=secret", false, "plaintext http leaks the token param"),
+            ("http://localhost:8080/feed.ics", true, "loopback dev exception"),
+            ("http://127.0.0.1:8080/feed.ics", true, "loopback dev exception (IPv4 literal)"),
+            ("ftp://calendar.example.com/feed.ics", false, "non-http(s) scheme rejected"),
+            ("not a url", false, "garbage rejected"),
+        ];
+        for (url, expected, why) in table {
+            let accepted = url.starts_with("https://") || is_localhost_http(url);
+            assert_eq!(accepted, expected, "{why}");
+        }
+    }
 }
