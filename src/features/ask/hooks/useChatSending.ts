@@ -132,6 +132,16 @@ export interface UseChatSendingDeps {
   updateLastMessage: (chatId: string, content: string) => void;
   updateMessages: (chatId: string, messages: ChatMessage[]) => void;
   setLoading: (chatId: string, isLoading: boolean) => void;
+  /**
+   * Perf (P1.2) — the live in-flight streamed text for the current assistant
+   * message. This is component-LOCAL state (a plain useState in
+   * AIChatViewer), never the Zustand store: writing to the global store on
+   * every token would clone + broadcast the whole session on every chunk.
+   * Set to the accumulated text (throttled to at most once per animation
+   * frame) while a stream is in flight, and cleared to null once the turn's
+   * single final store commit (updateMessages/updateLastMessage) has landed.
+   */
+  setStreamingPreview: (content: string | null) => void;
   clearDraftInput: (chatId: string) => void;
   recordCost: (chatId: string, entry: ChatCostEntry) => void;
   chatId: string;
@@ -183,6 +193,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
     updateLastMessage,
     updateMessages,
     setLoading,
+    setStreamingPreview,
     clearDraftInput,
     recordCost,
     chatId,
@@ -212,6 +223,41 @@ export function useChatSending(deps: UseChatSendingDeps) {
     abortControllerRef,
   } = deps;
   const bypassNextContextLimitRef = useRef(false);
+
+  // Perf (P1.2) — token-stream buffering. `onChunk` fires once per SSE token,
+  // which can be dozens of times a second; accumulating into a ref is free,
+  // but pushing every chunk into React/Zustand state is not. Coalesce chunk
+  // arrivals into at most one flush per animation frame (rAF already caps us
+  // at the display refresh rate, well within the ≤50ms budget) via a single
+  // pending-frame id — a chunk that lands while a flush is already scheduled
+  // just updates the ref and rides the next frame.
+  const streamBufferRef = useRef('');
+  const streamRafRef = useRef<number | null>(null);
+
+  const flushStreamPreviewNow = useCallback(() => {
+    if (streamRafRef.current !== null) {
+      cancelAnimationFrame(streamRafRef.current);
+      streamRafRef.current = null;
+    }
+    setStreamingPreview(streamBufferRef.current);
+  }, [setStreamingPreview]);
+
+  const scheduleStreamFlush = useCallback(() => {
+    if (streamRafRef.current !== null) return;
+    streamRafRef.current = requestAnimationFrame(() => {
+      streamRafRef.current = null;
+      setStreamingPreview(streamBufferRef.current);
+    });
+  }, [setStreamingPreview]);
+
+  const clearStreamPreview = useCallback(() => {
+    if (streamRafRef.current !== null) {
+      cancelAnimationFrame(streamRafRef.current);
+      streamRafRef.current = null;
+    }
+    streamBufferRef.current = '';
+    setStreamingPreview(null);
+  }, [setStreamingPreview]);
 
   const buildFastProvider = useCallback((): import('@/platform/providers/Provider').Provider | null => {
     // The provider this chat actually targets (never a hidden cloud fallback
@@ -1519,8 +1565,13 @@ export function useChatSending(deps: UseChatSendingDeps) {
               onChunk: (chunk: string) => {
                 streamingAuditState.receivedChunk = true;
                 accumulated += chunk;
-                // Update the last message in the store with accumulated content
-                updateLastMessage(chatId, accumulated);
+                // Perf (P1.2): buffer locally (component state, not the
+                // Zustand store) and flush at most once per animation frame.
+                // The store gets exactly one write for this turn, once the
+                // stream finishes (or is aborted) — see the `finally` below
+                // and the citation-verification commit further down.
+                streamBufferRef.current = accumulated;
+                scheduleStreamFlush();
               },
               signal: abortController.signal,
               ...(attachmentBytes ? { attachmentBytes } : {}),
@@ -1529,7 +1580,8 @@ export function useChatSending(deps: UseChatSendingDeps) {
             if (err instanceof DOMException && err.name === 'AbortError') {
               // User cancelled — keep whatever was streamed so far
               accumulated += '\n\n*(Response stopped by user)*';
-              updateLastMessage(chatId, accumulated);
+              streamBufferRef.current = accumulated;
+              flushStreamPreviewNow();
               if (streamingAuditState.receivedChunk) {
                 providerSendCompletedOrCancelledAfterEgress = true;
                 emitCancelledEgressAudit();
@@ -1784,6 +1836,10 @@ export function useChatSending(deps: UseChatSendingDeps) {
         }
       } finally {
         setLoading(chatId, false);
+        // Perf (P1.2): the turn is over one way or another (success, abort,
+        // or error) — drop the local streaming buffer/preview now that the
+        // store holds whatever final content this turn produced.
+        clearStreamPreview();
         // BUG-060 batch mode: now that the turn is done, show the end-of-turn
         // review if any file changes were applied (no-op in other modes / when
         // nothing changed, and even after an abort so applied changes surface).
@@ -1794,9 +1850,10 @@ export function useChatSending(deps: UseChatSendingDeps) {
       // conversation failure isn't silently swallowed.
       console.error('Unexpected error escaping AI chat IIFE:', err);
       setLoading(chatId, false);
+      clearStreamPreview();
       useAiBatchReviewStore.getState().openReview();
     });
-  }, [inputValue, pendingAttachments, pdfExtractions, previewUrls, messages, chatData, localAvailability, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, updateMessages, setLoading, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules, openFiles, scopedOpenFiles, scopedFolder, recordCost, clearDraftInput, askWorkspaceMode, activeMatter, includePrivileged]);
+  }, [inputValue, pendingAttachments, pdfExtractions, previewUrls, messages, chatData, localAvailability, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, updateMessages, setLoading, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules, openFiles, scopedOpenFiles, scopedFolder, recordCost, clearDraftInput, askWorkspaceMode, activeMatter, includePrivileged, scheduleStreamFlush, flushStreamPreviewNow, clearStreamPreview]);
 
   const handleSendAnyway = useCallback(() => {
     bypassNextContextLimitRef.current = true;

@@ -56,6 +56,7 @@ import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useEditorStore, setBeforeTabClose } from '@/platform/state/editorStore';
 import { flushTabForClose } from '@/app/fileOps/flushDirtyTabs';
 import { useWorkflowStore } from '@/features/workflows/workflowStore';
+import { useShallow } from 'zustand/react/shallow';
 import { createWorkspaceService, type WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { createFSBackend, isTauriEnvironment } from '@/platform/fs/BackendFactory';
 import { useAiBatchReviewStore } from '@/platform/ai/aiBatchReviewStore';
@@ -267,9 +268,40 @@ function App() {
 
   const { theme, setTheme, effectiveTheme } = useThemeManager();
 
-  const { rootPath, setRootPath, setFileTree, recentWorkspaces, fileTree, expandedPaths, expandAllFolders, loadRecentWorkspaces } = useWorkspaceStore();
-  const { openFile, openTab, markSaved, openTabs, activeTabPath, closeTab, closeTabsByPath, toggleOutline, splitPane, closeSplit, isSplit } = useEditorStore();
-  const { runHistory, completeRun } = useWorkflowStore();
+  // Perf (P1.2): exact-data-only selectors. These bare store-hook calls used
+  // to subscribe to the ENTIRE workspace/editor/workflow state (e.g. every
+  // field on WorkspaceState, including the multi-select fields App never
+  // reads), so App — the root of the whole tree — re-rendered on any change
+  // to any of those stores anywhere in the app. useShallow keeps the same
+  // destructured shape while only re-rendering when one of these fields
+  // itself changes.
+  const { rootPath, setRootPath, setFileTree, recentWorkspaces, fileTree, expandedPaths, expandAllFolders, loadRecentWorkspaces } = useWorkspaceStore(useShallow((s) => ({
+    rootPath: s.rootPath,
+    setRootPath: s.setRootPath,
+    setFileTree: s.setFileTree,
+    recentWorkspaces: s.recentWorkspaces,
+    fileTree: s.fileTree,
+    expandedPaths: s.expandedPaths,
+    expandAllFolders: s.expandAllFolders,
+    loadRecentWorkspaces: s.loadRecentWorkspaces,
+  })));
+  const { openFile, openTab, markSaved, openTabs, activeTabPath, closeTab, closeTabsByPath, toggleOutline, splitPane, closeSplit, isSplit } = useEditorStore(useShallow((s) => ({
+    openFile: s.openFile,
+    openTab: s.openTab,
+    markSaved: s.markSaved,
+    openTabs: s.openTabs,
+    activeTabPath: s.activeTabPath,
+    closeTab: s.closeTab,
+    closeTabsByPath: s.closeTabsByPath,
+    toggleOutline: s.toggleOutline,
+    splitPane: s.splitPane,
+    closeSplit: s.closeSplit,
+    isSplit: s.isSplit,
+  })));
+  const { runHistory, completeRun } = useWorkflowStore(useShallow((s) => ({
+    runHistory: s.runHistory,
+    completeRun: s.completeRun,
+  })));
 
   // M1 (v1.5) Memory: install the workspace RAG indexer once we know
   // which workspace is open. Watches `rootPath` and re-arms on switch.
