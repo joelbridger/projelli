@@ -28,7 +28,7 @@ import {
 
 function renderAccordion(defaultValue?: string) {
   return render(
-    <Accordion data-testid="root" defaultValue={defaultValue}>
+    <Accordion data-testid="root" {...(defaultValue !== undefined ? { defaultValue } : {})}>
       <AccordionItem value="item-1">
         <AccordionTrigger data-testid="trigger-1">Section 1</AccordionTrigger>
         <AccordionContent data-testid="content-1">Content 1</AccordionContent>

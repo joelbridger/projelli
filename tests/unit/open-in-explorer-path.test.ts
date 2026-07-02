@@ -74,7 +74,7 @@ describe('open-in-explorer path resolution (Unix)', () => {
 
   it('does not produce double slashes when rootPath has a trailing slash', async () => {
     await handleOpenInExplorer('/ws/', 'docs');
-    const arg = invokeMock.mock.calls[0][1] as { path: string };
+    const arg = invokeMock.mock.calls[0]![1] as { path: string };
     expect(arg.path).toBe('/ws/docs');
     expect(arg.path).not.toContain('//');
   });
@@ -106,7 +106,7 @@ describe('open-in-explorer path resolution (Windows)', () => {
 
   it('does NOT produce mixed separators (the historic bug)', async () => {
     await handleOpenInExplorer(ROOT, 'docs/brief.docx');
-    const arg = invokeMock.mock.calls[0][1] as { path: string };
+    const arg = invokeMock.mock.calls[0]![1] as { path: string };
     // The root join must use backslash, not forward slash
     expect(arg.path).toMatch(/^C:\\Users\\alice\\ws\\/);
     // Must NOT contain any forward slashes after the drive root

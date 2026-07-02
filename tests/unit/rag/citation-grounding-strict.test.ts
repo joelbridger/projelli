@@ -92,6 +92,13 @@ describe('verifyCitations (fail-closed + scope — BUG-065)', () => {
     ...over,
   } as WorkspaceSource);
 
+  /** Strips `id` entirely (as opposed to setting it to `undefined`, which
+   *  `exactOptionalPropertyTypes` rejects for an optional `string` field). */
+  const withoutId = (s: WorkspaceSource): WorkspaceSource => {
+    const { id: _id, ...rest } = s;
+    return rest;
+  };
+
   it('marks verified:true when the source resolves exactly AND the verdict is verified', async () => {
     mocks.verify.mockResolvedValue({ verdict: 'verified' });
     const out = await verifyCitations('See [pricing.md paragraph 3].', [src({})]);
@@ -113,7 +120,7 @@ describe('verifyCitations (fail-closed + scope — BUG-065)', () => {
 
   it('fails CLOSED when the source is missing an id or matterId', async () => {
     mocks.verify.mockResolvedValue({ verdict: 'verified' });
-    const noId = await verifyCitations('See [pricing.md paragraph 3].', [src({ id: undefined })]);
+    const noId = await verifyCitations('See [pricing.md paragraph 3].', [withoutId(src({}))]);
     expect(noId[0]?.verified).toBe(false);
     expect(mocks.verify).not.toHaveBeenCalled();
   });

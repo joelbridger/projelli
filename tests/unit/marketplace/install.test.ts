@@ -105,7 +105,7 @@ describe('downloadTarball', () => {
     await downloadTarball('http://e/x.tar.gz', '/tmp/x.tar.gz', fs);
 
     expect(writeBinarySpy).toHaveBeenCalledTimes(1);
-    expect(writeBinarySpy.mock.calls[0][0]).toBe('/tmp/x.tar.gz.partial');
+    expect(writeBinarySpy.mock.calls[0]![0]).toBe('/tmp/x.tar.gz.partial');
     expect(moveSpy).toHaveBeenCalledWith('/tmp/x.tar.gz.partial', '/tmp/x.tar.gz');
     const finalBuf = writes.get('/tmp/x.tar.gz');
     expect(finalBuf).toBeDefined();
@@ -121,8 +121,8 @@ describe('downloadTarball', () => {
     await downloadTarball('http://e/x.tar.gz', '/tmp/x.tar.gz', fs, { onProgress });
 
     expect(onProgress).toHaveBeenCalledTimes(2);
-    expect(onProgress.mock.calls[0][0]).toEqual({ loaded: 4, total: 10, fraction: 0.4 });
-    expect(onProgress.mock.calls[1][0]).toEqual({ loaded: 10, total: 10, fraction: 1 });
+    expect(onProgress.mock.calls[0]![0]).toEqual({ loaded: 4, total: 10, fraction: 0.4 });
+    expect(onProgress.mock.calls[1]![0]).toEqual({ loaded: 10, total: 10, fraction: 1 });
   });
 
   it('reports progress with null fraction when Content-Length is absent', async () => {

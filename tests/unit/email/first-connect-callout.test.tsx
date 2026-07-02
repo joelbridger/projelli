@@ -68,7 +68,7 @@ function resetStore() {
   }
   useMailStore.setState({
     connected: false,
-    progress: null,
+    progressByProvider: {},
     firstConnectCalloutSeen: false,
   });
 }

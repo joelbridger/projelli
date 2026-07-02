@@ -63,7 +63,7 @@ async function keep(page: Page, testInfo: TestInfo, name: string): Promise<void>
   const out = testInfo.outputPath(`${name}.png`);
   await page.screenshot({ path: out, fullPage: true });
   await testInfo.attach(name, { path: out, contentType: 'image/png' });
-  if (process.env.WEDGE_KEEP_SHOTS === '1') {
+  if (process.env['WEDGE_KEEP_SHOTS'] === '1') {
     mkdirSync(KEEP_DIR, { recursive: true });
     copyFileSync(out, join(KEEP_DIR, `${name}.png`));
   }
@@ -202,7 +202,7 @@ test.describe('VG-1 leg 2 — wedge UI wiring (browser, testMode)', () => {
     page,
   }, testInfo) => {
     test.skip(
-      !!process.env.E2E_CI_QUARANTINE,
+      !!process.env['E2E_CI_QUARANTINE'],
       'confirmed failing on real CI (F3.7b, 2026-07-02): 2x intermittent ' +
         'net::ERR_CONNECTION_REFUSED console errors trip the zero-console-error ' +
         'assertion; did not reproduce across 2 local runs (isolated + full ' +
@@ -276,7 +276,7 @@ test.describe('VG-1 leg 2 — wedge UI wiring (browser, testMode)', () => {
     page,
   }, testInfo) => {
     test.skip(
-      !!process.env.E2E_CI_QUARANTINE,
+      !!process.env['E2E_CI_QUARANTINE'],
       'confirmed failing on real CI (F3.7b, 2026-07-02): 2x intermittent ' +
         'net::ERR_CONNECTION_REFUSED console errors trip the ' +
         'unexpected-console-errors assertion; did not reproduce across 2 local ' +
@@ -349,7 +349,7 @@ test.describe('VG-1 leg 2 — wedge UI wiring (browser, testMode)', () => {
     // the plan's original round-trip at full assertion strength — formerly
     // the expected-fail tripwire, now a normal test.
     test.skip(
-      !!process.env.E2E_CI_QUARANTINE,
+      !!process.env['E2E_CI_QUARANTINE'],
       'confirmed failing on real CI (F3.7b, 2026-07-02): 2x intermittent ' +
         'net::ERR_CONNECTION_REFUSED console errors trip the zero-console-error ' +
         'assertion; did not reproduce across 2 local runs (isolated + full ' +
@@ -425,7 +425,7 @@ test.describe('VG-1 leg 2 — wedge UI wiring (browser, testMode)', () => {
     page,
   }, testInfo) => {
     test.skip(
-      !!process.env.E2E_CI_QUARANTINE,
+      !!process.env['E2E_CI_QUARANTINE'],
       'confirmed failing on real CI (F3.7b, 2026-07-02): 2x intermittent ' +
         'net::ERR_CONNECTION_REFUSED console errors trip the zero-console-error ' +
         'assertion; did not reproduce across 2 local runs (isolated + full ' +

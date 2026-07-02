@@ -60,6 +60,8 @@ describe('createDemoRetriever', () => {
     const hits = await r.retrieve('retire goals college', 5, ALL);
     expect(hits.length).toBeGreaterThan(0);
     const top = hits[0];
+    expect(top).toBeDefined();
+    if (!top) throw new Error('unreachable');
     expect(top.path).toContain('Webb Household/Financial Plan Summary.md');
     expect(typeof top.chunkText).toBe('string');
     expect(top.chunkText.length).toBeGreaterThan(0);
