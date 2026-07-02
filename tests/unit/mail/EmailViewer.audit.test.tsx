@@ -145,6 +145,11 @@ describe('EmailViewer — AI-draft audit (egress)', () => {
     expect(metadata['model']).toBe('llama3.1:8b');
     expect(metadata['scope']).toEqual({ kind: 'matter', matterId: 'm1', matterName: 'Acme v. Beta' });
     expect(metadata['dataLeaves']).toBe(false);
+    // Independent reviewer catch (P1): the app-wide mode setting is 'direct'
+    // (default, unset), but this draft actually fell back to local because
+    // there's no cloud key — `mode` must say 'local-only', not 'direct', or a
+    // client confidentiality report would claim this call left the machine.
+    expect(metadata['mode']).toBe('local-only');
 
     // No email content anywhere in the logged entry.
     const serialized = JSON.stringify(entry);
@@ -283,9 +288,12 @@ describe('EmailViewer — AI-draft audit records the ACTUAL assured route (indep
 
     await waitFor(() => expect(emitterSpy).toHaveBeenCalled());
     const entry = emitterSpy.mock.calls[0]![0];
-    // Mode still reflects the app-wide SETTING (matches Ask/Chat/redline
-    // convention) but destination is the honest reality of what happened.
-    expect(entry.metadata['mode']).toBe('assured');
+    // Independent reviewer catch (P1): `mode` must reflect what ACTUALLY
+    // happened, not the raw app-wide setting — otherwise a client
+    // confidentiality report would claim this BYOK-direct fallback was
+    // routed through the zero-retention proxy just because the setting
+    // still reads 'assured'.
+    expect(entry.metadata['mode']).toBe('direct');
     expect(entry.metadata['destination']).toBe('provider-direct');
     expect(entry.metadata['dataLeaves']).toBe(true);
 

@@ -63,7 +63,7 @@ import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import type { AuditEntry, AuditScope } from '@/platform/types/audit';
-import { resolveEgress } from '@/platform/privacy/egress';
+import { resolveEgress, type ConfidentialityMode, type EgressDestination } from '@/platform/privacy/egress';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { resolveAssuredRoute } from '@/platform/firm/resolveAssuredRoute';
 
@@ -225,6 +225,25 @@ async function resolveEmailProvider(): Promise<ResolvedEmailProvider> {
 function emailMatterScope(filedMatterId: string | null, filedMatterName: string | undefined): AuditScope | undefined {
   if (filedMatterId === null) return undefined;
   return { kind: 'matter', matterId: filedMatterId, ...(filedMatterName ? { matterName: filedMatterName } : {}) };
+}
+
+/**
+ * The confidentiality-mode LABEL an audit entry should carry, derived from
+ * where the request ACTUALLY went — not the app's raw confidentiality-mode
+ * SETTING (independent reviewer catch, P1). Email's "no cloud key" and
+ * "assured selected but no managed key" branches routinely diverge from the
+ * setting in normal operation (unlike Ask/Chat, which either match the
+ * setting or refuse to send), so storing the raw setting here would make
+ * `buildConfidentialityReport()`'s per-mode grouping/attestation describe a
+ * local-fallback draft as "went to your provider under your own key", or a
+ * BYOK fallback as "went through the zero-retention proxy".
+ */
+function effectiveModeForDestination(destination: EgressDestination): ConfidentialityMode {
+  switch (destination) {
+    case 'local': return 'local-only';
+    case 'assured-proxy': return 'assured';
+    default: return 'direct'; // 'provider-direct' | 'demo-proxy' (email never demos)
+  }
 }
 
 // eslint-disable-next-line react-refresh/only-export-components -- exported for direct test import
@@ -432,7 +451,11 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
         payload: {
           provider: egress.provider,
           model: provider.getMetadata().model,
-          mode: getConfidentialityMode(),
+          // The EFFECTIVE mode (independent reviewer catch, P1) — derived from
+          // where the request actually went, not the raw setting. See
+          // effectiveModeForDestination's comment for why email specifically
+          // needs this (its fallbacks are normal operation, not an error path).
+          mode: effectiveModeForDestination(egress.destination),
           destination: egress.destination,
           dataLeaves: egress.dataLeaves,
           ...(scope ? { scope } : {}),

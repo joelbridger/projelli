@@ -618,12 +618,19 @@ function describeAuditEvent(event: AuditEvent): string {
         ? `Active matter: ${event.payload.scope.matterName ?? event.payload.scope.matterId}`
         : 'Active scope: all matters';
     case 'egress': {
+      // Independent reviewer catch: 'assured-proxy' used to fall into the
+      // generic "with your key" branch below, so an Assured-only firm user
+      // (no personal key at all) got an Activity Log row that falsely claimed
+      // they'd used their own key — every surface that logs assured egress
+      // (Ask, redline, matter-at-a-glance, email) shares this description.
       const where =
         event.payload.destination === 'local'
           ? 'on your machine (nothing left)'
           : event.payload.destination === 'demo-proxy'
             ? 'the browser demo relay'
-            : `${event.payload.provider} with your key`;
+            : event.payload.destination === 'assured-proxy'
+              ? `${event.payload.provider} via your firm's zero-retention proxy`
+              : `${event.payload.provider} with your key`;
       return `AI request sent to ${where}`;
     }
     case 'mcp_blocked':
