@@ -2018,6 +2018,33 @@ git add src/features/workflows/engine/templates/advisors/ tests/unit/meeting-not
 git commit -m "feat(meetings): meeting-note template with enforced transcript citations (Wave 3c)"
 ```
 
+### Task 10b: Dictation-notes polish — voice notes through the meeting pipeline
+
+> **2026-07-02 Jameson: added from Jump completeness sweep.** Jump ships "dictation
+> notes" (a voice memo becomes a formatted note + extracted tasks). Lantern already has
+> local dictation voice notes (`Inbox/note-*.md`, existing feature) — this task gives
+> them the meeting-note treatment by REUSING this wave's pipeline. No new capture code.
+
+**Files:**
+- Create: `src/features/meetings/dictationToMeeting.ts`
+- Modify: `src/features/meetings/meetingStore.ts` (one entry point)
+- Test: `tests/unit/dictation-to-meeting.test.ts`
+
+**Interfaces:**
+- Consumes: an existing voice note's text (the dictation feature already produced it — no re-transcription), Task 10's `meetingNoteFromTranscript`, Task 12's meeting folder layout, Wave 2's queue for extracted tasks.
+- Produces: `dictationToMeeting(noteText: string, matterId: string, recordedAt: string)` — wraps the note text as a single-segment pseudo-transcript `{ segments: [{ startMs: 0, endMs: 0, channel: 'mic', speaker: 'You', text }], meta: { ... , dictation: true } }`, runs the Task 10 template (citations all `[t:0]` — acceptable: one source), writes a meeting folder WITHOUT audio (`transcript.json` + `notes.docx` only, `meeting.json.dictation: true`), and enqueues extracted action items per Task 12c's type defaults. UI: one action on an open voice note — "File as meeting note…" → client picker → done; the result appears on that client's Meetings tab labeled "Dictated".
+
+- [ ] **Step 1: Write the failing test** — assert the pseudo-transcript shape (single mic segment, `dictation: true` meta), that the meeting folder write set contains `transcript.json` + `notes.docx` and NOT `audio.wav`, and that segments' text passed through the template's sanitize wrapper (spy on the sanitize helper the way Task 10's tests do).
+- [ ] **Step 2: Run to verify failure.**
+- [ ] **Step 3: Implement** (~40 lines + the menu action wiring).
+- [ ] **Step 4: Run tests** — PASS; typecheck clean. Retention/sweep note: a dictated meeting has no audio and no `.capture/` dir — Task 15's sweep must treat the folder as valid (add one fixture case there if its tests would flag a missing `audio.wav`).
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/features/meetings/dictationToMeeting.ts tests/unit/dictation-to-meeting.test.ts
+git commit -m "feat(meetings): dictation voice notes become filed meeting notes through the same pipeline (Wave 3c)"
+```
+
 ### Task 11: Meeting SourceRefs into the Client Map
 
 **Files:**
@@ -2221,6 +2248,115 @@ git commit -m "feat(meetings): record pill, meeting store, per-client Meetings t
 
 ---
 
+### Task 12b: "Needs review" section on the client's Meetings tab (per-client review queue)
+
+> **2026-07-02 Jameson: added from Jump completeness sweep.** Jump ships a practice-wide
+> "Unified Action Items" queue. Jameson's decision: **per-client only** — a Needs review
+> section at the top of each client's Meetings tab; NO practice-wide queue (the Book view
+> remains the only cross-client attention surface). Do not resurrect a global inbox.
+
+**Files:**
+- Modify: `src/features/meetings/ClientMeetingsTab.tsx` (Task 12)
+- Modify: `src/features/meetings/meetingStore.ts` (Task 12)
+- Test: `tests/unit/meeting-needs-review.test.ts`
+
+**Interfaces:**
+- Consumes: `useMeetingStore` meeting list (Task 12), `useCrmWriteQueueStore.items` (Wave 2 Task 9 — filter by this `matterId`), the meeting folder contents via `WorkspaceService.list`.
+- Produces: `needsReview(meeting: MeetingSummary, crmQueue: ProposedCrmWrite[]): ReviewItem[]` — pure, exported from `meetingStore.ts`. A meeting needs review when any of: `notes.docx` exists but `meeting.json.reviewedAt` is unset ("Unreviewed note"); queued Wave 2 items for this matter reference the meeting's `source_ref` prefix `meeting:<dir>` with status `proposed` ("CRM updates waiting"); `meeting.json.followupDraftedAt` unset ("No follow-up drafted"). Marking reviewed = one button on the meeting page setting `reviewedAt` in `meeting.json` (via WorkspaceService, like Task 12's writes).
+
+- [ ] **Step 1: Write the failing test**
+
+```typescript
+// tests/unit/meeting-needs-review.test.ts
+import { describe, it, expect } from 'vitest';
+import { needsReview } from '@/features/meetings/meetingStore';
+
+const meeting = { dir: 'Clients/Hendersons/Meetings/2026-06-30-annual-review', hasNotes: true, reviewedAt: undefined, followupDraftedAt: undefined } as never;
+
+describe('needsReview', () => {
+  it('flags unreviewed notes and undrafted follow-ups', () => {
+    const items = needsReview(meeting, []);
+    expect(items.map((i) => i.kind)).toEqual(['unreviewed-note', 'no-followup']);
+  });
+  it('flags waiting CRM updates for this meeting only', () => {
+    const q = [{ matterId: 'm-1', sourceRef: 'meeting:Clients/Hendersons/Meetings/2026-06-30-annual-review#0', status: 'proposed' }] as never;
+    expect(needsReview(meeting, q).some((i) => i.kind === 'crm-waiting')).toBe(true);
+  });
+  it('clear when reviewed, drafted, and queue empty', () => {
+    const done = { ...meeting, reviewedAt: 't', followupDraftedAt: 't' };
+    expect(needsReview(done as never, [])).toEqual([]);
+  });
+});
+```
+
+- [ ] **Step 2: Run to verify failure** — `npx vitest run tests/unit/meeting-needs-review.test.ts` → FAIL (`needsReview` not exported).
+- [ ] **Step 3: Implement** — the pure function (~25 lines) + the UI: a quiet strip at the top of `ClientMeetingsTab` ("Needs review · 2 items"), each item a row linking to the meeting page (and, for `crm-waiting`, scrolling to the Wave 2 review card). Amber `kp-badge` styling per the P6 prototype's "Needs review" badges — no new visual vocabulary. Section absent entirely when empty.
+- [ ] **Step 4: Run tests** — PASS; `npm run typecheck` clean.
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/features/meetings/ tests/unit/meeting-needs-review.test.ts
+git commit -m "feat(meetings): per-client Needs review section on the Meetings tab (Wave 3c)"
+```
+
+### Task 12c: Meeting-type defaults (thin automations — no rules engine)
+
+> **2026-07-02 Jameson: added from Jump completeness sweep.** Jump ships an automations
+> builder ("when this meeting type → run these outputs") with custom meeting types.
+> Jameson chose the THIN version: meeting types are detected and each type remembers
+> which note template and which outputs to prepare — taught inline, never configured.
+> Explicitly NOT a rules-engine UI (that would cross the "no settings jungles" line).
+
+**Files:**
+- Create: `src/features/meetings/meetingTypes.ts`
+- Modify: `src/features/meetings/meetingStore.ts` (stopRecording consults the type's defaults)
+- Modify: `src/features/meetings/MeetingEntry.tsx` (the teach-on-correct line)
+- Test: `tests/unit/meeting-types.test.ts`
+
+**Interfaces:**
+- Consumes: calendar event title for the matched meeting when one exists (Wave 1's `calendar_list_events` — optional; absent for ad-hoc recordings), the template registry (Task 10's template is the default for every type in v1), `WorkspaceService` for storage.
+- Produces:
+  - `BUILT_IN_TYPES = ['annual-review', 'intake', 'check-in'] as const` plus user-named custom types.
+  - `detectMeetingType(title: string | null, learned: LearnedTypeMap): MeetingTypeId | null` — keyword match ("annual review", "review" → `annual-review`; "intake", "new client" → `intake`; "check in", "quick call" → `check-in`), learned corrections take precedence (exact-title and normalized-prefix keys).
+  - `typeDefaults(typeId): { templateId: string; prepareFollowupDraft: boolean; prepareCrmPacket: boolean }` — v1 defaults: all types use `meeting-note-from-transcript`, annual-review + intake prepare both outputs, check-in prepares neither automatically (one-click on the page instead).
+  - Storage: workspace-level JSON `.keepance/meeting-types.json` `{ learned: { [titleKey]: typeId }, custom: [{ id, label, defaults }] }` via WorkspaceService — the same injected-pair pattern as `consentLedger.ts` (Task 13). *(Adaptation note: the plan set has no learned-template store to sit beside — the fixed v1 note shape made one unnecessary — so this file is the first of that pattern.)*
+  - Teach-on-correct UI: the meeting page header shows the detected type as a quiet chip ("Annual review · change"); clicking cycles/naming a new type writes a learned correction. Creating a custom type = typing a new name in that same control. No settings page anywhere.
+
+- [ ] **Step 1: Write the failing test**
+
+```typescript
+// tests/unit/meeting-types.test.ts
+import { describe, it, expect } from 'vitest';
+import { detectMeetingType, typeDefaults } from '@/features/meetings/meetingTypes';
+
+describe('meeting type detection', () => {
+  it('detects built-ins from calendar titles', () => {
+    expect(detectMeetingType('Hendersons — Annual Review', {})).toBe('annual-review');
+    expect(detectMeetingType('New client intake: Ortiz', {})).toBe('intake');
+    expect(detectMeetingType('Quick check in', {})).toBe('check-in');
+    expect(detectMeetingType('Lunch', {})).toBeNull();
+  });
+  it('learned corrections beat keywords', () => {
+    const learned = { 'acme planning sync': 'annual-review' as const };
+    expect(detectMeetingType('Acme Planning sync', learned)).toBe('annual-review');
+  });
+  it('defaults differ by type', () => {
+    expect(typeDefaults('annual-review').prepareCrmPacket).toBe(true);
+    expect(typeDefaults('check-in').prepareFollowupDraft).toBe(false);
+  });
+});
+```
+
+- [ ] **Step 2: Run to verify failure** — FAIL (module missing).
+- [ ] **Step 3: Implement** `meetingTypes.ts` (pure detection + defaults + the storage pair) and wire: `stopRecording` calls `detectMeetingType` with the matched calendar title (or null), stores `typeId` in `meeting.json`, and consults `typeDefaults` to decide whether to auto-prepare the follow-up draft (Wave 0 helper) and CRM packet (Wave 2 enqueue) after notes generation. The meeting page chip renders from `meeting.json.typeId`; corrections update the learned map AND re-run defaults for that meeting on request.
+- [ ] **Step 4: Run tests** — PASS; typecheck clean.
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/features/meetings/ tests/unit/meeting-types.test.ts
+git commit -m "feat(meetings): meeting-type detection with taught corrections and per-type output defaults (Wave 3c)"
+```
+
 ## Phase 3d — Consent & retention
 
 ⚠️ **xhigh review on Task 15 (retention).**
@@ -2292,6 +2428,96 @@ describe('consent ledger', () => {
 ```bash
 git add src/features/meetings/ tests/unit/recording-consent-law.test.ts tests/unit/consent-ledger.test.ts
 git commit -m "feat(meetings): consent dialog, state-aware guidance, per-client consent ledger (Wave 3d)"
+```
+
+### Task 13b: Verbal-consent auto-detection (capture polish)
+
+> **2026-07-02 Jameson: added from Jump completeness sweep.** Jump offers automatic
+> verbal-consent detection (their cloud analyzes the transcript). Ours runs locally,
+> and detection is ADDITIVE EVIDENCE only: it stamps the ledger when found, but never
+> replaces the advisor's own confirmation in two-party mode.
+
+**Files:**
+- Create: `src/features/meetings/consentDetection.ts`
+- Modify: `src/features/meetings/meetingStore.ts` (post-transcription hook)
+- Test: `tests/unit/consent-detection.test.ts`
+
+**Interfaces:**
+- Consumes: `TranscriptFile` (Task 8 types), `consentLedger.recordConsent` (Task 13).
+- Produces: `detectVerbalConsent(transcript: TranscriptFile): { found: boolean; atMs?: number; excerpt?: string }` — pure scan of the FIRST 5 minutes of segments for a consent exchange: an advisor ("mic" channel) recording-ask pattern (recording/record + ok/alright/mind/permission) followed within 4 segments by a far-end ("sys") affirmative (yes/sure/fine/of course/go ahead/that's fine). Case-insensitive, word-boundary regex, no AI call — deterministic and testable.
+- After transcription completes, the store runs detection; when found it appends a ledger entry `{ mode: <current>, scope: 'per-meeting', note: "verbal consent detected [t:<atMs>]", meetingDir }` and the meeting page's consent stamp gains "· verbal consent detected 02:11" with the excerpt on hover. When NOT found, nothing changes — no nag, no warning (the advisor already attested at record time).
+
+- [ ] **Step 1: Write the failing test**
+
+```typescript
+// tests/unit/consent-detection.test.ts
+import { describe, it, expect } from 'vitest';
+import { detectVerbalConsent } from '@/features/meetings/consentDetection';
+
+const seg = (startMs: number, channel: 'mic' | 'sys', text: string) =>
+  ({ startMs, endMs: startMs + 3000, channel, speaker: channel === 'mic' ? 'You' : 'Them', text });
+
+describe('verbal consent detection', () => {
+  it('finds ask + affirmative within the opening', () => {
+    const t = { segments: [
+      seg(10000, 'mic', "I'd like to record this for my notes. Is that alright with everyone?"),
+      seg(14000, 'sys', 'Sure, that works for us.'),
+    ], meta: {} } as never;
+    const r = detectVerbalConsent(t);
+    expect(r.found).toBe(true);
+    expect(r.atMs).toBe(14000);
+  });
+  it('does not fire without an affirmative', () => {
+    const t = { segments: [seg(10000, 'mic', 'I will record this call.'), seg(14000, 'sys', 'What is our agenda?')], meta: {} } as never;
+    expect(detectVerbalConsent(t).found).toBe(false);
+  });
+  it('ignores mentions after the opening window', () => {
+    const t = { segments: [seg(400000, 'mic', 'Mind if I record?'), seg(404000, 'sys', 'Sure.')], meta: {} } as never;
+    expect(detectVerbalConsent(t).found).toBe(false);
+  });
+});
+```
+
+- [ ] **Step 2: Run to verify failure** — FAIL (module missing).
+- [ ] **Step 3: Implement** the pure scanner (~30 lines, two regex sets + the 5-minute/4-segment windows) and the store hook + stamp suffix rendering.
+- [ ] **Step 4: Run tests** — PASS; typecheck clean.
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/features/meetings/consentDetection.ts src/features/meetings/meetingStore.ts tests/unit/consent-detection.test.ts
+git commit -m "feat(meetings): local verbal-consent detection stamps the ledger as additive evidence (Wave 3d)"
+```
+
+### Task 13c: Attendee prefill for in-person capture (capture polish)
+
+> **2026-07-02 Jameson: added from Jump completeness sweep.** Before a conference-room
+> (mic-only) recording, the advisor can optionally pick who is in the room from the
+> client's known people, seeding speaker labels and Wave 4's voiceprint naming.
+
+**Files:**
+- Modify: `src/features/meetings/ConsentDialog.tsx` (in-person mode gains the picker)
+- Modify: `src/features/meetings/meetingStore.ts` (attendees stored in `meeting.json`)
+- Test: `tests/unit/meeting-attendees.test.ts`
+
+**Interfaces:**
+- Consumes: the client's known people — the matter's contact names from the Client Map facts (find the accessor: `grep -rn "household" src/platform/clientMap/ --include=*.ts | head`; use the same source the At-a-Glance header uses for member names) plus free-text add.
+- Produces: `meeting.json.attendees?: string[]` (written at capture start alongside `matterId`); Wave 4's `apply_speaker_names` UI (its Task 12) reads `attendees` to offer those names FIRST in the "Speaker 2 · name them?" picker — record that consumption note here so the Wave 4 executor sees it: **the field is optional; absence changes nothing.** In-person mode only: the two-channel video-call path already labels You/Them and needs no prefill.
+
+- [ ] **Step 1: Write the failing test** — a store-level test asserting `startRecording(matterId, { inPerson: true, attendees: ['Robert Henderson', 'Susan Henderson'] })` writes `attendees` into the `meeting.json` payload (mock WorkspaceService the way `tests/unit/consent-ledger.test.ts` does; assert the written JSON contains the array; assert omission when not provided).
+
+```typescript
+// tests/unit/meeting-attendees.test.ts — skeleton mirrors consent-ledger.test.ts's mock;
+// assert JSON.parse(files.get('.../meeting.json')!).attendees deep-equals the picker list.
+```
+
+- [ ] **Step 2: Run to verify failure.**
+- [ ] **Step 3: Implement** — a checkbox list of known names + an add field inside the in-person variant of the consent dialog (one dialog, one extra section — no new modal), threaded through `startRecording` into the `meeting.json` write.
+- [ ] **Step 4: Run tests** — PASS; typecheck clean.
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/features/meetings/ tests/unit/meeting-attendees.test.ts
+git commit -m "feat(meetings): optional attendee prefill for in-person capture (Wave 3d)"
 ```
 
 ### Task 15: Retention actions + cache sweep (numbered 15 to keep 14 = RAG; execute in numeric order 13→14→15 is NOT required — 14 and 15 are independent)
@@ -2474,7 +2700,7 @@ git commit -m "feat(meetings): transcript RAG indexing + audio-seek citations in
 
 ### Task 16: Wave gate — full verification + merge
 
-- [ ] **Step 1:** `npm run gate` → all green (paste output in the PR).
+- [ ] **Step 1:** `npm run gate` → all green (paste output in the PR). Confirm the 2026-07-02 sweep additions shipped with their tests: 10b dictation-to-meeting, 12b needs-review, 12c meeting-type defaults, 13b consent detection, 13c attendee prefill.
 - [ ] **Step 2:** Repeat the two signature demo moves on the Legion and record evidence: (a) force-quit mid-recording → relaunch → recovery card → finished notes; (b) disconnect network mid-recording → everything still completes; egress indicator never left green. Screenshots into the PR.
 - [ ] **Step 3:** `codex-review --base lantern-plus "Wave 3 meeting capture: focus on capture durability, retention deletion completeness, transcript schema consistency, prompt-injection from transcripts"` → fix findings → re-run gate.
 - [ ] **Step 4:** Merge `lp/meeting-capture` → `lantern-plus`; `git merge origin/keepance-3.0` into `lantern-plus`; update `CHANGELOG.md` under `## [Unreleased]`; append the PRODUCT-JOURNEY entry ("meeting capture shipped in the parallel build — recorded on the advisor's own computer, never a bot"); `notify-jameson` MILESTONE.
@@ -2487,6 +2713,6 @@ Isolate capture to the meeting app's process (`ActivateAudioInterfaceAsync` with
 
 ## Self-review (done at planning time)
 
-- **Spec coverage:** capture engine per-OS ✓ (T3/T4), crash durability ✓ (T1/T5/T6), 30 s cap bypassed via windowing ✓ (T7), Live/batch modes ✓ (T9 — deliberately scoped: "live" = transcribe at stop; true streaming explicitly out), two-channel speakers ✓ (T7), .docx notes + citations ✓ (T10), per-client Meetings tab + Activity entry / no fourth Spine tab ✓ (T12, per Jameson 2026-07-02), consent flow + ledger + state table ✓ (T13), retention + sweep ✓ (T15), RAG + audio-seek Ask ✓ (T11/T14), macOS permission onboarding ✓ (T6 evidence + T13 step 5), per-process loopback stretch ✓ (T17).
+- **Spec coverage:** capture engine per-OS ✓ (T3/T4), crash durability ✓ (T1/T5/T6), 30 s cap bypassed via windowing ✓ (T7), Live/batch modes ✓ (T9 — deliberately scoped: "live" = transcribe at stop; true streaming explicitly out), two-channel speakers ✓ (T7), .docx notes + citations ✓ (T10), per-client Meetings tab + Activity entry / no fourth Spine tab ✓ (T12, per Jameson 2026-07-02), consent flow + ledger + state table ✓ (T13), retention + sweep ✓ (T15), RAG + audio-seek Ask ✓ (T11/T14), macOS permission onboarding ✓ (T6 evidence + T13 step 5), per-process loopback stretch ✓ (T17); 2026-07-02 completeness-sweep additions ✓ (T10b dictation polish, T12b per-client review queue — per-client ONLY by Jameson's decision, T12c meeting-type defaults, T13b verbal-consent detection, T13c attendee prefill).
 - **Known deliberate gaps (match the assessment's honesty notes):** no tray residency v1 (app must be open; recorded in LANTERN-PLUS risks), no VAD model (RMS gate v1; silero is a Wave 4 candidate), no live in-meeting note drafts, imported audio has no speaker split.
 - **Type consistency:** `transcript.json` schema identical in master plan / Task 2 Rust / Task 8 TS; command names `capture_start/stop/status`, `capture_find_orphans`, `capture_recover`, `transcribe_meeting`, `meeting_delete_audio`, `sweep_capture_caches` used consistently; citation token `[t:<startMs>]` consistent across T10/T12/T14.

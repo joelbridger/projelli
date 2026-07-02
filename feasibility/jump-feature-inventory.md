@@ -63,4 +63,49 @@ AI intake forms, document intelligence (**intake/field-extraction → account-op
 7. **AI Associate is early** — early-access, no chat history, no efficacy data.
 8. **Value requires the stack** — thin for a stack-light solo with no CRM.
 9. **Price** — ~$100–200/seat/mo and rising pressure (already cut core price once).
-10. **No public API** — can't be built on (also means: its notes reach us only via its CRM/SharePoint destinations, which Keepance already reads).
+10. ~~No public API~~ **RETIRED 2026-07-02:** Jump now lists **MCP support on all plans** and **"API & build access" on Enterprise** (jump.ai/pricing; June 25, 2026 press release). No public developer docs/portal were found, so depth is unverified — but do not claim "Jump can't be built on." (Its notes still reach us via its CRM/SharePoint/Drive destinations, which Lantern reads.)
+
+---
+
+## 2026-07-02 Completeness addendum (triple sweep: help-center census ×1, third-party ×1, Codex ×1)
+
+*An exhaustive re-verification (all 7 help-center collections / 168 articles, all product
+pages, Mar–Jun 2026 what's-new posts and press, third-party coverage, app stores) found
+the items below missing from or shallower than the inventory above. Dispositions live in
+`../docs/plans/lantern-plus/2026-07-02-JUMP-COVERAGE-AUDIT.md` §E.*
+
+**Corrections to the inventory above:**
+- "Operate" was renamed **Onboard** (Meet / Onboard / Grow; $50 add-on) — Jump's own materials were briefly inconsistent.
+- Pricing depth: a **$75/mo small-firm tier** below the $100 core (InvestmentNews/Kitces, Apr 2026); **Lite seats** (cheap/free assistant seats for CSAs) vs Full seats; Core/Scale/Ramping account tiers; annual billing up to 20% off.
+- **AI Associate action scope** is broader than recorded: update records, draft **and send** emails, schedule follow-ups, create contacts — all approval-gated (App Store listing + press).
+- Integrations not previously listed: **Google Drive, Box, Zapier (with Jump-side triggers), Hubly, Karbon, Microsoft Exchange, SharePoint (meeting-note PDF destination)**; HubSpot integration creates **Deals and Tickets** from action items; Redtail integration now **embeds AI Associate inside Redtail** and preps from UDFs/comments; Holistiplan **Scenario Analysis** feeds prep.
+- Capture depth: **dial-in Join My Call** (call a Jump number from any phone, incl. mid-call), **video** recording (not just audio), limited **Spanish**, AI **role labeling** (Advisor/Client), host-independent joining on Zoom/Webex/GoTo/Dialpad/RingCentral, account-level notetaker join-timing controls, a Zoom in-client control app, smart capture-now→calendar-event attachment, attendee prefill for in-person recording.
+
+**Features first captured in this sweep (each one line; sources in the sweep files under `research/`):**
+- **Automations builder + custom meeting types** — user-configured "meeting type → outputs" rules engine (help 12043223).
+- **Blended updates** — CRM **field-level** writes with a 3-column existing/new/blended review (help 11032671).
+- **Unified Action Items** — practice-wide queue of every task/update/follow-up (help 14625364).
+- **Keyword tracking** — account-defined terms with per-meeting analytics (help 9842724).
+- **Dictation notes** — standalone voice memo → formatted note + tasks (help 11593427; Mobile Assistant heritage).
+- **Landing pages / "Compliant Scheduling"** — client-facing booking pages with auto-filled compliance disclosures, shared/team calendars, buffers, scheduling admins (help 15383115).
+- **Marketing content generator** — transcript → LinkedIn/blog drafts, direct publish (help 11724026).
+- **Schwab account-opening execution** — pre-fill and transmit to Schwab for signature (help 15694767; "End-to-End Client Onboarding", June 2026).
+- **Smart Forms write-back into planning tools** — form answers sync to eMoney/RightCapital/Asset-Map with review (June 2026 update).
+- **Holdings CSV extraction** from statements + RightCapital import automation (Apr 2026).
+- **Contacts surface + Household records** — native contact detail pages; households imported from Salesforce/Dynamics/Redtail/Wealthbox (June 2026).
+- **E-Comms Supervision** — Jump-originated outbound comms routed through the firm's supervised email path; SMS→email records (help 14741914).
+- **Consent-monitoring modes** — incl. automatic verbal-consent detection from the transcript (help 10064437).
+- **Reminders** — time-based alerts on contacts/deals/tasks (Mar 2026).
+- **Meeting page as modular hub** — notes/tasks/transcript/sync/scorecards/forms/signals as first-class tabs.
+- **Prep visuals** — portfolio charts/net-worth history in briefs, exportable toward client presentations.
+- **Meeting-note PDF export preview** with formatting controls (Apr 2026); **Scorecard/Flash-Survey AI analysis reports** (June 2026).
+- **Private meetings** — calendar-privacy mirroring with admin-visibility limits (help 13418754).
+- **Admin/reporting depth** — usage dashboards, bulk user configs, custom invite emails, Intune app protection, notetaker rename/custom image.
+- **Mobile depth** — Capture Card, AI Associate/Contacts/meeting details on mobile, booking management, lock-screen widget (announced).
+- **New verticals** — insurance professionals/wholesalers, accounting, asset managers, banks & credit unions.
+- *Unconfirmed (single source, contradicted by Jump's own directory):* archiving via Smarsh/Global Relay/Hadrius.
+
+**New attack-surface entries (add to the weaknesses list):**
+11. **Client conversations feed Jump's benchmarks.** Jump discloses processing "hundreds of thousands of anonymized and aggregated advisor-client transcripts" as the research base for its insights/Playbooks (jump.ai/insights-data-methodology). Our line: *with Lantern, your clients' conversations never train anyone's benchmarks — structurally.*
+12. **Consent inferred by their cloud.** Jump's automatic consent detection means client conversations are analyzed server-side even for the consent question itself. Ours runs locally (Wave 3 Task 13b) and is additive evidence only.
+13. **E-comms supervision exists because Jump originates client comms.** Lantern's follow-ups send from the advisor's own inbox, so the firm's existing archiving/supervision already applies — a whole compliance surface we don't need, by architecture.

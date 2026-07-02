@@ -108,3 +108,28 @@ new Track E — Jameson explicitly overrode Fable's defer recommendation). D5
 write-back) stays deferred on the existing roadmap. With these, every feature in
 Jump's verified inventory is either covered, added, or consciously skipped with a
 recorded story — nothing is unaccounted for.
+
+## 2026-07-02 — The exhaustive triple sweep and the last scope calls
+
+Jameson's "make sure Jump doesn't have ANY more features" triggered a three-way
+verification (a full help-center census — 168 articles; a third-party-sources sweep;
+an independent Codex crawl cross-checking both). ~40 uncaptured items surfaced, mostly
+Jump's Mar–Jun 2026 shipping streak; the full disposition table is
+`../../plans/lantern-plus/2026-07-02-JUMP-COVERAGE-AUDIT.md` §E. Jameson's three calls:
+
+1. **Adds:** the capture-polish bundle (local verbal-consent detection as additive
+   evidence, attendee prefill for in-person capture, dictation voice-notes through the
+   meeting pipeline), keyword tracking (local, no dashboards), and field-level blended
+   CRM updates pulled into Wave 2 now (3-column existing/new/blended review). The local
+   MCP server goes to the backlog as our eventual answer to Jump's MCP support.
+2. **Unified action items:** Jameson chose the middle path — a "Needs review" section
+   per client (Wave 3 Task 12b), **explicitly refusing a practice-wide queue.** The
+   Book view remains the only cross-client attention surface. Recorded so no future
+   session resurrects a global inbox as an "obvious improvement."
+3. **Automations:** thin version only — meeting-type defaults taught inline (Wave 3
+   Task 12c); a rules-engine configuration surface stays refused.
+
+Design-language note for the new pieces: every addition reuses existing vocabulary
+(chips for topics, a quiet strip for needs-review, the same approval card for field
+updates) — nothing new was invented, per the constitution.
+

@@ -100,7 +100,13 @@ transcript-right / audio-scrubber-top. Templates: none visible — every meeting
 the default note shape; if the user restructures a note, offer once: "Keep this shape
 for future meeting notes?" Crash recovery is a gentle card ("Found Tuesday's
 recording — finish the notes?"), never an error dialog. Retention is one honest
-action on the entry: "Delete audio · keep transcript."
+action on the entry: "Delete audio · keep transcript." *(Additions 2026-07-02, completeness
+sweep:)* the client's Meetings tab opens with a quiet **"Needs review"** strip
+(unreviewed notes, waiting CRM updates, undrafted follow-ups) — per-client ONLY, never
+a practice-wide queue (Jameson's explicit refusal); the meeting header wears a small
+**type chip** ("Annual review · change") whose correction teaches future detection —
+type management never gets a settings page; and a one-line **"Topics covered"** row
+lists tracked keywords, each chip seeking the transcript moment.
 
 **Wave 4 — Book view, cross-client Ask, voice naming.** Book view = a scope toggle
 inside the existing Client Map home (the existing SegmentedToggle), not a dashboard —

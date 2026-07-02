@@ -19,6 +19,8 @@
 
 ## VERIFY-LIVE register (Wealthbox specifics not provable from code or local docs)
 
+- *(Task 9c)* Contact field-update endpoint + envelope (assumed `PUT /contacts/{id}` flat body) and the writable narrative-field names (starting set: `background_information`).
+
 The read client parses notes from JSON key `"status_updates"` and `linked_to: [{id, type, name}]` — those are code-verified. The following are from Wealthbox's public API docs and MUST be probed with a real token before release (tag in code comments as `VERIFY-LIVE`):
 
 1. `POST /notes` body shape `{"content": "...", "linked_to": [{"id": <i64>, "type": "Contact"}]}` — especially the `type` casing (`"Contact"` vs `"contact"` vs `"Household"`).
@@ -1098,7 +1100,105 @@ git commit -m "feat(crm): optional approval-gated compliance summary note (Jump 
 
 ---
 
+### Task 9c: Field-level blended updates (3-column review)
+
+> **2026-07-02 Jameson: added from Jump completeness sweep.** Jump ships "blended
+> updates" — CRM field-level writes with a 3-column review (existing / new / blended).
+> Jameson pulled field updates into this wave (they were v2). Same approval card, same
+> dedup/retry/audit machinery, never a background sync.
+
+**Files:**
+- Modify: `src-tauri/src/commands/crm/write.rs` (new request/trait method)
+- Modify: `src-tauri/src/commands/crm/client.rs` (`put_json` + `get_contact_fields`)
+- Modify: `src-tauri/src/commands/crm/commands.rs` (`crm_update_field` command)
+- Modify: `src-tauri/src/lib.rs` (register `crm_update_field`)
+- Modify: `src/platform/crm/commands.ts` or the Task 8 wrapper module (TS wrapper)
+- Modify: `src/platform/state/crmWriteQueueStore.ts` (`kind: 'field'` items)
+- Modify: `src/features/matters/CrmWriteReviewCard.tsx` (3-column row rendering)
+- Test: extend `write.rs` tests + `crmWriteQueueStore.test.ts` + `CrmWriteReviewCard.test.tsx`
+
+**Interfaces:**
+- Consumes: Task 1 models (`CrmWriteError`, ledger dedup), Task 2 `post_json` conventions (PII discipline: bodies never logged), Task 3 trait, Task 5 orchestrator, Task 9 card/store.
+- Produces:
+
+```rust
+pub struct CrmFieldUpdateRequest {
+    pub matter_id: String,
+    pub household_key: String,
+    pub field: String,           // provider field path, e.g. "background_information"
+    pub existing_value: String,  // fetched at proposal time; re-checked at approve time
+    pub new_value: String,       // what the meeting/source contributed
+    pub final_value: String,     // what actually gets written (user-edited blend)
+    pub source_ref: String,
+}
+// trait addition:
+//   async fn update_field(&self, req: &CrmFieldUpdateRequest) -> Result<String, CrmWriteError>;
+// dedup: dedup_key_field(&req) hashes (household_key, field, final_value).
+```
+
+  - Tauri command `crm_update_field(state, app, provider, req: CrmFieldUpdateRequest) -> Result<WriteReceipt, String>` — same audit payload helper as `crm_create_note` (`crm_audit_payload_json`, `commands.rs:180-230`) with action `"crm_field_updated"`.
+  - **Blend proposal (TS side, in the queue store):** scalar fields (numbers, dates, single-choice) → `final_value = new_value` (replace); narrative fields → provider-composed merge via the existing `Provider` interface ("Merge the new information into the existing text. Keep every existing fact. Return only the merged text."), with a deterministic fallback `existing + "\n\n" + new` when no provider is configured. `final_value` is ALWAYS user-editable in the card before approve. Which fields are narrative: a provider-specific allowlist next to the wrapper (`VERIFY-LIVE:` Wealthbox narrative fields — start with `background_information`; confirm exact writable field names + PUT shape during the Task 11 live probe).
+  - **Stale-guard:** at approve time the orchestrator re-fetches the field (`get_contact_fields`); if the remote value no longer equals `existing_value`, the item flips to `verify_pending` with "This field changed in Wealthbox since the proposal — review again", re-rendering the 3 columns with the fresh value. Never overwrite blind.
+
+- [ ] **Step 1: Write the failing wiremock test** (in `write.rs` tests)
+
+```rust
+    #[tokio::test]
+    async fn wealthbox_update_field_puts_exact_shape() {
+        use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        // VERIFY-LIVE: Wealthbox contact update endpoint + field envelope
+        // (assumed PUT /contacts/{id} with a flat field body; confirm in Task 11 live probe).
+        Mock::given(matchers::method("PUT"))
+            .and(matchers::path("/contacts/12345"))
+            .and(matchers::body_json(serde_json::json!({
+                "background_information": "Existing background.\n\nRetiring spring 2027; stress-test earlier exit."
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"id": 12345})))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let req = CrmFieldUpdateRequest {
+            matter_id: "matter-1".into(),
+            household_key: "12345".into(),
+            field: "background_information".into(),
+            existing_value: "Existing background.".into(),
+            new_value: "Retiring spring 2027; stress-test earlier exit.".into(),
+            final_value: "Existing background.\n\nRetiring spring 2027; stress-test earlier exit.".into(),
+            source_ref: "meeting:Clients/Hendersons/Meetings/2026-06-30#0".into(),
+        };
+        let id = client.update_field(&req).await.unwrap();
+        assert_eq!(id, "12345");
+    }
+
+    #[test]
+    fn field_dedup_key_targets_field_and_value() {
+        let a = base_field_req();
+        let mut b = base_field_req();
+        b.final_value = "different".into();
+        assert_ne!(dedup_key_field(&a), dedup_key_field(&b));
+        let mut c = base_field_req();
+        c.field = "other_field".into();
+        assert_ne!(dedup_key_field(&a), dedup_key_field(&c));
+    }
+```
+
+- [ ] **Step 2: Run to verify failure** — `cd src-tauri && cargo test --lib commands::crm::write 2>&1 | tail -5` → compile error.
+- [ ] **Step 3: Implement Rust** — `put_json`/`get_contact_fields` on `WealthboxClient` (mirror `post_json`'s 429-only retry: PUTs never blind-retry on 5xx; PII discipline identical), the trait method, dedup, ledger reuse (kind column value `field`), the command + registration.
+- [ ] **Step 4: Run Rust tests** — PASS.
+- [ ] **Step 5: Write the failing TS tests** — queue store: enqueuing a field item computes a scalar replace and a narrative blend (mock provider returning a canned merge; assert deterministic fallback without a provider); card: renders three labeled columns (Existing / From this meeting / Blended, the third editable), approve disabled while `final_value` is empty, stale `verify_pending` state renders the re-review message. Follow the Task 9 test files' mocking patterns exactly.
+- [ ] **Step 6: Run to verify failure**, **Step 7: Implement TS** (store blend logic + the 3-column row inside the existing card — tracked-changes green on the Blended column only; no new card, no new surface), **Step 8: Run all tests + typecheck** — PASS.
+- [ ] **Step 9: Commit**
+
+```bash
+git add src-tauri/src/commands/crm/ src-tauri/src/lib.rs src/platform/state/crmWriteQueueStore.ts src/features/matters/CrmWriteReviewCard.tsx tests/
+git commit -m "feat(crm): field-level blended updates with 3-column review, stale-guard, approval-gated (Wave 2)"
+```
+
 ### Task 10: Redtail / Salesforce write stubs + provider registry
+
+> 2026-07-02 note: the stubs cover `update_field` too — same typed `NotSupported` error as create_note/create_task.
 
 **Files:**
 - Modify: `src-tauri/src/commands/crm/write.rs`
@@ -1141,7 +1241,7 @@ git commit -m "feat(crm): write registry + typed NotSupported stubs for Redtail/
 - Create: `scripts/crm/wealthbox-write-probe.md`
 - Modify: `CHANGELOG.md` (`## [Unreleased]` → `### Added`)
 
-- [ ] **Step 1: Write the live-probe checklist** — a five-minute manual script for whoever holds a real Wealthbox token: create one note + one task against a sandbox contact via the app, then verify in Wealthbox: (1) note content/linebreaks, (2) linked_to landed on the right household, (3) task due_date parsed, (4) response id matched the ledger's remote_id (`SELECT * FROM crm_outbound_writes` via the store's debug path), and (5) update every `VERIFY-LIVE` comment with the confirmed shape.
+- [ ] **Step 1: Write the live-probe checklist** — a five-minute manual script for whoever holds a real Wealthbox token: create one note + one task against a sandbox contact via the app, then verify in Wealthbox: (1) note content/linebreaks, (2) linked_to landed on the right household, (3) task due_date parsed, (4) response id matched the ledger's remote_id (`SELECT * FROM crm_outbound_writes` via the store's debug path), (5) one field update: blend `background_information` on the sandbox contact and verify the merged text + that no other field changed, and (6) update every `VERIFY-LIVE` comment with the confirmed shape.
 
 - [ ] **Step 2: Update CHANGELOG.md** under `## [Unreleased]`:
 
