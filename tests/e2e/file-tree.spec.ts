@@ -24,6 +24,46 @@ async function showGridView(page: import('@playwright/test').Page) {
   await expect(page.getByTestId('document-grid-view')).toBeVisible();
 }
 
+// gotoDocuments() lands on the embedded per-client Documents tab, scoped to
+// matter_demo_brennan's folderPaths (['/test-workspace/Brennan Household']).
+// seedDemoClients() only creates client-map metadata, not real files, so that
+// folder is empty by default. Seed a folder + file inside the client's own
+// scope (not the generic top-level '/test-workspace/docs', which no scoped
+// per-client view can ever reach — 'Files' has no standalone workspace-root
+// surface in the current 3-tab IA) so grid-card/breadcrumb assertions have
+// something real to navigate.
+const SCOPED_FOLDER_PATH = '/test-workspace/Brennan Household/Statements';
+
+async function seedScopedGridFolder(page: import('@playwright/test').Page) {
+  await page.evaluate((folderPath: string) => {
+    (window as unknown as { __setTestFileTree?: (tree: unknown[]) => void }).__setTestFileTree?.([
+      {
+        id: '/test-workspace/Brennan Household',
+        name: 'Brennan Household',
+        path: '/test-workspace/Brennan Household',
+        type: 'folder',
+        children: [
+          {
+            id: folderPath,
+            name: 'Statements',
+            path: folderPath,
+            type: 'folder',
+            children: [
+              {
+                id: `${folderPath}/Q1 Statement.pdf`,
+                name: 'Q1 Statement.pdf',
+                path: `${folderPath}/Q1 Statement.pdf`,
+                type: 'file',
+                extension: 'pdf',
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+  }, SCOPED_FOLDER_PATH);
+}
+
 test.describe('File Tree', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/?testMode=true&seedDemo=1');
@@ -78,6 +118,12 @@ test.describe('Fix #8: Breadcrumb Drag-Drop (Grid View)', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/?testMode=true&seedDemo=1');
     await waitForTestModeLoad(page);
+    // Seed BEFORE navigating into the embedded Documents tab: DocumentsHome
+    // resolves its initial scoped folder once, on mount, against whatever
+    // `storeFileTree` holds at that moment (see `hasSettledScopedFolder` in
+    // DocumentsHome.tsx) — seeding after mount is too late to affect that
+    // one-time resolution.
+    await seedScopedGridFolder(page);
     await showGridView(page);
   });
 
@@ -88,14 +134,14 @@ test.describe('Fix #8: Breadcrumb Drag-Drop (Grid View)', () => {
   });
 
   test('breadcrumb root button exists after opening a folder in grid view', async ({ page }) => {
-    await hardClick(page.getByTestId('grid-card-/test-workspace/docs'));
+    await hardClick(page.getByTestId(`grid-card-${SCOPED_FOLDER_PATH}`));
 
     const breadcrumbRoot = page.getByTestId('breadcrumb-crumb-0');
     await expect(breadcrumbRoot).toBeVisible();
   });
 
   test('visual snapshot: grid view breadcrumbs', async ({ page }) => {
-    await hardClick(page.getByTestId('grid-card-/test-workspace/docs'));
+    await hardClick(page.getByTestId(`grid-card-${SCOPED_FOLDER_PATH}`));
 
     const breadcrumbRoot = page.getByTestId('breadcrumb-crumb-0');
     await expect(breadcrumbRoot).toBeVisible();

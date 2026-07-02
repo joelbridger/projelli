@@ -25,7 +25,7 @@ import { fileURLToPath } from 'node:url';
 import { test, expect } from '@playwright/test';
 import * as XLSX from 'xlsx';
 
-import { waitForTestModeLoad } from './helpers/test-utils';
+import { waitForTestModeLoad, switchToStandaloneEditorSurface } from './helpers/test-utils';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixturesDir = join(here, '..', 'fixtures');
@@ -48,6 +48,10 @@ async function openFixtureTab(
   page: import('@playwright/test').Page,
   args: { path: string; name: string; content: string }
 ) {
+  // The spreadsheet/document viewer lives in MainPanel, which only mounts on
+  // the standalone editor surface (sidebarActiveTab === 'files') — see
+  // helpers/test-utils.ts.
+  await switchToStandaloneEditorSurface(page);
   await page.evaluate((a) => {
     const fn = (window as unknown as {
       __openTestFile?: (p: string, n: string, c: string) => void;

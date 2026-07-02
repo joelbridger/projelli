@@ -41,7 +41,7 @@ import { fileURLToPath } from 'node:url';
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
 
 import { collectConsoleErrors } from '../campaign/helpers/campaign';
-import { hardClick, waitForTestModeLoad } from './helpers/test-utils';
+import { hardClick, waitForTestModeLoad, switchToStandaloneEditorSurface } from './helpers/test-utils';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixturesDir = join(here, '..', 'fixtures', 'matter-corpus');
@@ -73,6 +73,10 @@ async function openTestFile(
   page: Page,
   args: { path: string; name: string; content: string },
 ) {
+  // MainPanel (and everything it renders — AIChatViewer, the spreadsheet/
+  // presentation viewers) only mounts on the standalone editor surface
+  // (sidebarActiveTab === 'files') — see helpers/test-utils.ts.
+  await switchToStandaloneEditorSurface(page);
   await page.evaluate((a) => {
     const fn = (
       window as unknown as { __openTestFile?: (p: string, n: string, c: string) => void }
@@ -286,10 +290,12 @@ test.describe('VG-1 leg 2 — wedge UI wiring (browser, testMode)', () => {
     await hardClick(page.getByTestId('chat-send-button'));
 
     // The live refusal path (AIChatViewer.tsx:1025-1056) posts the refusal
-    // and returns BEFORE any provider code — exact copy from en.json:484.
+    // and returns BEFORE any provider code — exact copy from
+    // en.json:518 (retrieval-failed-refuse; "matter" -> "client" is the
+    // user-facing rename, matter isolation is still the internal engine name).
     await expect(
       page.getByText(
-        "I couldn't search your workspace just now, so I won't answer from your matter.",
+        "I couldn't search your workspace just now, so I won't answer from your client.",
         { exact: false },
       ),
     ).toBeVisible({ timeout: 10_000 });

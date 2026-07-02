@@ -40,7 +40,7 @@
 
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import { waitForTestModeLoad, hardClick, openAIAssistantPane, openSidebarTab } from './helpers/test-utils';
+import { waitForTestModeLoad, hardClick, openAIAssistantPane, openSidebarTab, switchToStandaloneEditorSurface } from './helpers/test-utils';
 
 /** Rule IDs the v1.5 sweep tolerates as pre-existing.
  *
@@ -203,18 +203,17 @@ test.describe('v1.5 accessibility sweep — critical + serious zero-tolerance', 
   });
 
   test('Workflow picker surface passes a11y', async ({ page }) => {
-    test.skip(
-      !!process.env.E2E_CI_QUARANTINE,
-      'confirmed failing on real CI (F1.3, 2026-07-01), cause not yet diagnosed past ' +
-        'the settings-page stale-testid bug already fixed in this file; ' +
-        'see docs/quality/e2e-flaky-quarantine.md'
-    );
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
     await openSidebarTab(page, 'workflows');
     // 3.0 renders the full workflow picker directly on the Workflows surface.
     await expect(page.getByRole('heading', { name: 'Workflows' })).toBeVisible({ timeout: 5_000 });
-    await expect(page.getByRole('button', { name: /Legal Practice/i })).toBeVisible();
+    // Default profession is 'advisor' (professionStore.ts), and
+    // prioritizeByProfession.ts's PIVOT-A5 branch deliberately excludes the
+    // legal pack entirely for advisors, floating 'Advisors' to the top
+    // instead (see workflows-panel.spec.ts) — assert the category chip
+    // that's actually shown.
+    await expect(page.getByRole('button', { name: /^Advisors$/i })).toBeVisible();
 
     const result = await scan(page);
     expect(result.newCritical).toBe(0);
@@ -222,17 +221,13 @@ test.describe('v1.5 accessibility sweep — critical + serious zero-tolerance', 
   });
 
   test('Files panel with open tabs passes a11y', async ({ page }) => {
-    test.skip(
-      !!process.env.E2E_CI_QUARANTINE,
-      'confirmed failing on real CI (F1.3, 2026-07-01), cause not yet diagnosed past ' +
-        'the settings-page stale-testid bug already fixed in this file; ' +
-        'see docs/quality/e2e-flaky-quarantine.md'
-    );
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
-    // The testMode boot-up pre-opens two tabs. Sidebar Files panel is
-    // the default view.
-    await openSidebarTab(page, 'files');
+    // The testMode boot-up pre-opens two tabs, but they're only visible on
+    // the standalone editor surface (sidebarActiveTab === 'files') — there's
+    // no direct spine-nav entry for it in the current 3-tab IA (openSidebarTab
+    // 'files' has no matching testid) — see helpers/test-utils.ts.
+    await switchToStandaloneEditorSurface(page);
     await expect(page.getByTestId('sidebar')).toBeVisible();
 
     // CodeMirror editors are excluded via default exclude; we also

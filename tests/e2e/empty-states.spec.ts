@@ -7,7 +7,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { waitForTestModeLoad, hardClick, gotoDocuments } from './helpers/test-utils';
+import { waitForTestModeLoad, hardClick, gotoDocuments, switchToStandaloneFilesGrid } from './helpers/test-utils';
 
 test.describe('Shell empty states (UX-07)', () => {
   test.beforeEach(async ({ page }) => {
@@ -37,15 +37,15 @@ test.describe('Shell empty states (UX-07)', () => {
   });
 
   test('Search empty state renders before any query is entered', async ({ page }) => {
-    test.skip(
-      !!process.env.E2E_CI_QUARANTINE,
-      'confirmed failing on real CI (F1.3, 2026-07-01), cause not yet diagnosed; ' +
-        'see docs/quality/e2e-flaky-quarantine.md'
-    );
     await hardClick(page.getByTestId('spine-nav-search'));
 
-    await expect(page.getByText('What do you want to find?')).toBeVisible();
-    await expect(page.getByTestId('ask-composer-input')).toBeVisible();
+    // The Ask surface deliberately shows "no heading, no example pills" when
+    // the thread is empty (Ask.tsx: "matches the demo Ask" / clean empty
+    // surface) — the old "What do you want to find?" heading text is gone,
+    // by design. The composer itself is the empty-state affordance now.
+    const composer = page.getByTestId('ask-composer-input');
+    await expect(composer).toBeVisible();
+    await expect(composer).toHaveAttribute('placeholder', /ask/i);
   });
 
   test('Activity Log empty state renders when no entries exist', async ({ page }) => {
@@ -58,15 +58,11 @@ test.describe('Shell empty states (UX-07)', () => {
   });
 
   test('Trash empty state renders when trash is empty', async ({ page }) => {
-    test.skip(
-      !!process.env.E2E_CI_QUARANTINE,
-      'confirmed failing on real CI (F1.3, 2026-07-01): docs-trash-toggle is ' +
-        "intentionally hidden in the embedded per-matter Documents view " +
-        '(DocumentsHome.tsx `!embedded` gate) that gotoDocuments now reaches — ' +
-        'this test needs a non-embedded documents route to reach Trash, a product-aware ' +
-        'call this CI-lane fix should not make; see docs/quality/e2e-flaky-quarantine.md'
-    );
-    await gotoDocuments(page);
+    // Trash is a global, cross-client surface — DocumentsHome.tsx hides the
+    // Files/Trash toggle in the embedded per-client tab that gotoDocuments()
+    // reaches (matter isolation). Reach the standalone Documents surface
+    // instead, where the toggle is shown.
+    await switchToStandaloneFilesGrid(page);
     await hardClick(page.getByTestId('docs-trash-toggle'));
 
     const emptyState = page.getByTestId('empty-state-trash');

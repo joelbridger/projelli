@@ -24,11 +24,22 @@ import { test, expect } from '@playwright/test';
 import { waitForTestModeLoad, hardClick } from './helpers/test-utils';
 
 async function openMemorySettings(page: import('@playwright/test').Page) {
+  // Jameson's 2026-06-27 decision (SettingsGearButton.tsx) made the gear
+  // open the full-page settings-page surface, not the old settings-modal
+  // dialog — same SettingsContent, different outer container.
   await hardClick(page.getByTestId('settings-gear'));
-  await expect(page.getByTestId('settings-modal')).toBeVisible();
+  await expect(page.getByTestId('settings-page')).toBeVisible();
   await hardClick(page.getByTestId('settings-category-ai-privacy'));
   await hardClick(page.getByTestId('subheader-memory-heading'));
   await expect(page.getByTestId('settings-facts-section')).toBeVisible();
+}
+
+// settings-page is a full nav surface (not a dialog) — there's no close
+// button or Escape handler (SettingsContent.tsx only wires onClose for
+// variant="modal"). Leaving it means navigating to a different spine tab.
+async function closeSettings(page: import('@playwright/test').Page) {
+  await hardClick(page.getByTestId('spine-nav-matters'));
+  await expect(page.getByTestId('settings-page')).not.toBeVisible();
 }
 
 test.describe('v1.5 Flag 1 — Memory stress + edge cases', () => {
@@ -81,8 +92,7 @@ test.describe('v1.5 Flag 1 — Memory stress + edge cases', () => {
     // workspace-service-backed FactsService (which is the mock in test
     // mode), so they must survive a remount of the MemoryFactsSettings
     // component without needing a page reload.
-    await page.keyboard.press('Escape');
-    await expect(page.getByTestId('settings-modal')).not.toBeVisible();
+    await closeSettings(page);
     await openMemorySettings(page);
     const tableAgain = page.getByTestId('settings-facts-table');
     await expect(tableAgain).toBeVisible();
@@ -157,7 +167,7 @@ test.describe('v1.5 Flag 1 — Memory stress + edge cases', () => {
 
     // Close Settings + reopen — toggles should still read their flipped
     // state because the settings store is persisted to localStorage.
-    await page.keyboard.press('Escape');
+    await closeSettings(page);
     await openMemorySettings(page);
     await expect(page.getByTestId('settings-memory-enabled')).not.toHaveAttribute(
       'aria-checked',

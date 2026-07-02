@@ -129,6 +129,60 @@ export async function openSidebarTab(page: Page, tabId: string) {
 }
 
 /**
+ * Switch to the standalone (non-embedded) Documents/editor surface
+ * (App.tsx's `sidebarActiveTab === 'files'`) — the surface MainPanel's tab
+ * bar, toolbar, and the status bar's file-context slot (breadcrumbs,
+ * auto-save indicator) are gated on. In the current 3-tab IA (Client Map /
+ * Ask / Workflows) there's no direct spine-nav entry for it; a real user
+ * reaches it via Ctrl+Shift+A (open AI Assistant tab) or by opening a cited
+ * document from the Client Map/Ask. Ctrl+Shift+A is the simplest real path
+ * that doesn't require seeding a matter, so tests use that.
+ */
+export async function switchToStandaloneEditorSurface(page: Page) {
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  await page.keyboard.press('Control+Shift+a');
+  await expect(page.getByTestId('main-panel')).toBeVisible({ timeout: 10_000 });
+}
+
+/**
+ * Open a file on the standalone editor surface (see
+ * `switchToStandaloneEditorSurface`) via the `__openTestFile` test hook.
+ * Poking `__openTestFile`/the editor store alone leaves `sidebarActiveTab`
+ * wherever it was, so surface-gated UI never appears — switch first.
+ */
+export async function openStandaloneFile(
+  page: Page,
+  path: string,
+  name: string,
+  content: string
+) {
+  await switchToStandaloneEditorSurface(page);
+  await page.evaluate((a) => {
+    const fn = (window as unknown as {
+      __openTestFile?: (p: string, n: string, c: string) => void;
+    }).__openTestFile;
+    if (!fn) throw new Error('__openTestFile missing');
+    fn(a.path, a.name, a.content);
+  }, { path, name, content });
+}
+
+/**
+ * Switch to the standalone editor surface's Files GRID view (toolbar +
+ * Files/Trash toggle + tree/grid toggle) rather than whichever editor tab
+ * happens to be active. `switchToStandaloneEditorSurface` alone opens the AI
+ * Assistant tab, which makes DocumentsHome.tsx render that tab's content
+ * instead of the grid (`showFilesGrid` flips false once any editor-surface
+ * tab is open) — the toolbar (docs-files-toggle, docs-trash-toggle, etc.)
+ * only renders when the grid is shown. Click the pinned "Files" tab to force
+ * it back.
+ */
+export async function switchToStandaloneFilesGrid(page: Page) {
+  await switchToStandaloneEditorSurface(page);
+  await hardClick(page.getByRole('tab', { name: 'Files' }));
+  await expect(page.getByTestId('documents-toolbar')).toBeVisible({ timeout: 10_000 });
+}
+
+/**
  * Switch AI Assistant to a specific tab
  */
 export async function switchAITab(page: Page, tab: 'chats' | 'keys' | 'models') {

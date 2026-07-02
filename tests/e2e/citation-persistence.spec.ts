@@ -3,7 +3,8 @@
  *
  * A1: askCitations stored on the assistant message so chips survive reload.
  * A2: "Answered over your own files" + "No indexed sources" are mutually exclusive.
- * A3: Sample matter always starts with the empty chip state on mount (fresh visit).
+ * A3: Sample matter always starts with turns reset on mount (never restores a
+ *     prior demo answer), even fresh visit.
  * A4: Off-script question on sample matter shows a calm message, no crash.
  *
  * Strategy:
@@ -202,16 +203,25 @@ test.describe('Citation persistence through navigation (A1/A3/A4 fixes)', () => 
     await expect(searchTab).toBeVisible({ timeout: 10_000 });
     await searchTab.click();
 
-    // A3: the advisor demo chips must show (empty chip state), NOT the prior turn
-    await expect(page.getByRole('button', { name: /what did we decide about the roth conversion/i })).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByRole('button', { name: /what are the hendricks' top goals/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /what is their risk tolerance/i })).toBeVisible();
-
-    // The prior answer text must NOT be visible
+    // A3: the sample matter must NEVER restore a prior demo answer on mount —
+    // neither the previous question nor its answer text may be visible.
+    //
+    // The suggested-question chip UI this test used to assert on
+    // (getDemoQuestions()'s Hendricks questions) is gated behind the `IS_DEMO`
+    // build flag (Ask.tsx `{IS_DEMO && turns.length === 0 && ...}`) — it only
+    // renders in the standalone web-demo build (see web-demo.spec.ts), not
+    // this dev-server E2E build, per the deliberate "desktop Ask stays the
+    // clean empty surface" decision documented at that call site. The chips
+    // are therefore never reachable here; asserting on the underlying `turns`
+    // reset (what A3 actually guards against) instead.
+    // (The conversations rail legitimately still lists the prior session by
+    // its question text — that's expected history, not a restored turn — so
+    // this only checks the answer text, which is unique to a rendered turn.)
+    await expect(page.getByTestId('ask-composer-input')).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText(/roberto deposited the retainer/i)).not.toBeVisible();
 
     await page.screenshot({ path: '/tmp/r2a-fix-a3-fresh-chips.png' });
-    console.log('PASS: sample matter shows fresh chip state');
+    console.log('PASS: sample matter starts with no restored prior turn');
   });
 
   test('A4: off-script question on sample matter shows calm message, no crash', async ({ page }) => {

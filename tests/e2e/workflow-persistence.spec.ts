@@ -18,7 +18,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { waitForTestModeLoad } from './helpers/test-utils';
+import { waitForTestModeLoad, switchToStandaloneEditorSurface } from './helpers/test-utils';
 
 const SAMPLE_TEMPLATE = {
   id: 'tpl_demo',
@@ -62,6 +62,10 @@ test.describe('Workflow-as-file persistence', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
+    // WorkflowExecutionTab renders inside MainPanel, which only mounts on
+    // the standalone editor surface (sidebarActiveTab === 'files') — see
+    // helpers/test-utils.ts.
+    await switchToStandaloneEditorSurface(page);
   });
 
   test('opens a .workflow file and renders the workflow tab', async ({ page }) => {

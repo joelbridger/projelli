@@ -40,8 +40,8 @@
   /* --kp-accent / --kp-accent-rgb are defined once in the @brand:colors block below. */
   --kp-accent-soft: rgba(var(--kp-accent-rgb),0.11);   /* active row / selected pill tint */
   --kp-accent-softer: rgba(var(--kp-accent-rgb),0.06); /* hover row tint */
-  --kp-text-faint: rgba(var(--kp-navy-rgb),0.46);      /* faint subtitles (surface descriptions) */
-  --kp-text-dim: rgba(var(--kp-navy-rgb),0.64);        /* dim secondary body text */
+  --kp-text-faint: rgba(var(--kp-navy-rgb),0.70);      /* faint subtitles (surface descriptions) — 0.70 clears WCAG AA 4.5:1 on white AND on --kp-accent-soft (ConversationsRail's active-row background), where 0.68 only cleared by a 0.018 margin (4.518:1) */
+  --kp-text-dim: rgba(var(--kp-navy-rgb),0.70);        /* dim secondary body text — 0.70 clears WCAG AA 4.5:1 on white with headroom above --kp-text-faint */
   --kp-bg-soft: #f3f6fb;                         /* soft panel tint (e.g. the Ask source panel) */
 
   /* ACTION style — the single light-blue treatment for primary buttons + active
@@ -75,8 +75,8 @@
      white variant; everything else (navy text, blue active highlight) is shared. ---- */
   --kp-side-bg: #f3f6fb;
   --kp-side-fg: var(--kp-navy);
-  --kp-side-fg-dim: rgba(var(--kp-navy-rgb),0.64);
-  --kp-side-fg-faint: rgba(var(--kp-navy-rgb),0.46);
+  --kp-side-fg-dim: rgba(var(--kp-navy-rgb),0.70);
+  --kp-side-fg-faint: rgba(var(--kp-navy-rgb),0.70);
   --kp-side-border: rgba(var(--kp-navy-rgb),0.09);
   --kp-side-active-bg: rgba(var(--kp-accent-rgb),0.11);
   --kp-side-accent: var(--kp-accent);

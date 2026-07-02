@@ -132,9 +132,16 @@ test.describe('API key management', () => {
     await page.reload();
     await waitForTestModeLoad(page);
 
-    page.on('dialog', (dialog) => void dialog.accept());
     await openApiKeyManager(page);
     await hardClick(page.getByTestId('api-key-manager-remove-google'));
+
+    // Removal goes through the in-app ConfirmDialog, not native
+    // window.confirm() (ApiKeyManager.tsx: native confirm is dead and
+    // returns a truthy object in the Tauri WebView2 build) — confirm there.
+    const confirmRemove = page
+      .getByRole('alertdialog', { name: 'Remove key' })
+      .getByRole('button', { name: 'Remove' });
+    await hardClick(confirmRemove);
 
     await expect(page.getByTestId('api-key-manager-row-google')).toHaveCount(0);
     await expect(page.getByTestId('api-key-manager-empty')).toBeVisible();

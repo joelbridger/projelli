@@ -3,11 +3,18 @@
  *
  * The redesigned Documents surface owns the visible tab strip. It scrolls
  * horizontally instead of wrapping onto a second row.
+ *
+ * The global document tabs beyond the pinned "Files" chip only render on the
+ * standalone (non-embedded) Documents/editor surface — DocumentsHome.tsx
+ * deliberately hides them in the per-client embedded tab (matter isolation:
+ * "a foreign client's open file could appear here" otherwise). gotoDocuments()
+ * always lands on that embedded surface, so it never overflows regardless of
+ * tab count — use switchToStandaloneEditorSurface instead.
  */
 
 import { test, expect } from '@playwright/test';
 
-import { waitForTestModeLoad, gotoDocuments } from './helpers/test-utils';
+import { waitForTestModeLoad, switchToStandaloneEditorSurface } from './helpers/test-utils';
 
 async function openSyntheticTab(
   page: import('@playwright/test').Page,
@@ -41,7 +48,7 @@ test.describe('Tab Bar Horizontal Scroll', () => {
       await openSyntheticTab(page, i);
     }
 
-    await gotoDocuments(page);
+    await switchToStandaloneEditorSurface(page);
     const strip = page.getByTestId('documents-tab-strip');
     await expect(strip).toBeVisible();
 

@@ -6,12 +6,16 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { waitForTestModeLoad } from './helpers/test-utils';
+import { waitForTestModeLoad, switchToStandaloneEditorSurface, openStandaloneFile } from './helpers/test-utils';
 
 test.describe('Fix #6: Status Bar Project Name', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
+    // The project-name slot only renders when showFileContext is true
+    // (StatusBar.tsx), which App.tsx sets only on the standalone editor
+    // surface (sidebarActiveTab === 'files') — see helpers/test-utils.ts.
+    await switchToStandaloneEditorSurface(page);
   });
 
   test('status bar is visible', async ({ page }) => {
@@ -36,6 +40,11 @@ test.describe('Fix #6: Status Bar Project Name', () => {
   });
 
   test('visual snapshot: status bar', async ({ page }) => {
+    // Open a real file rather than snapshotting whatever tab
+    // switchToStandaloneEditorSurface happened to land on (the AI Assistant
+    // tab), so the breadcrumb/file-name slot shows a normal file context.
+    await openStandaloneFile(page, '/test-workspace/status-bar-demo.md', 'status-bar-demo.md', '# Demo');
+
     const statusBar = page.getByTestId('status-bar');
     await expect(statusBar).toBeVisible();
     await expect(statusBar).toHaveScreenshot('status-bar.png');
