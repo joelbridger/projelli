@@ -438,7 +438,7 @@ pub async fn crm_oauth_connect(
         listener,
         &state_token,
         std::time::Duration::from_secs(300),
-        cancel,
+        cancel.clone(),
     )
     .await
     .map_err(|e| e.to_string())?;
@@ -451,8 +451,27 @@ pub async fn crm_oauth_connect(
     )
     .await
     .map_err(|e| e.to_string())?;
+
+    // Cancel can arrive while the token exchange (a network round trip) was
+    // in flight — check again before persisting so a canceled flow never
+    // leaves a stored credential behind, even though the redirect wait
+    // itself already resolved successfully.
     let stored = serde_json::to_string(&tokens).map_err(|e| e.to_string())?;
-    store_token(provider, &stored)?;
+    // Snapshot whatever was there before (if this is a reconnect over an
+    // existing connection) so any cancel-rollback below restores THAT,
+    // rather than always deleting — a canceled reconnect must not disconnect
+    // an already-working account.
+    let previous_token = read_token(provider);
+    let rollback_token = |previous: &Option<String>| match previous {
+        Some(prev) => { let _ = store_token(provider, prev); }
+        None => { let _ = delete_token(provider); }
+    };
+
+    crate::commands::mail::gmail::oauth::store_or_rollback_on_cancel(
+        &cancel,
+        || store_token(provider, &stored),
+        || rollback_token(&previous_token),
+    )?;
 
     let info = SalesforceClient::new_with_token_endpoint(
         stored,
@@ -463,6 +482,15 @@ pub async fn crm_oauth_connect(
     .identity()
     .await
     .map_err(|e| e.to_string())?;
+
+    // Cancel can also arrive during the identity() call above (another
+    // network round trip, and the token is already stored by this point) —
+    // roll it back too so a canceled flow leaves NO credential behind
+    // regardless of exactly when Cancel landed.
+    if cancel.load(Ordering::SeqCst) {
+        rollback_token(&previous_token);
+        return Err("cancelled".to_string());
+    }
 
     append_crm_audit_best_effort(
         &app,
@@ -475,6 +503,38 @@ pub async fn crm_oauth_connect(
         ),
     )
     .await;
+
+    // The Cancel button stays live until this command settles, and the audit
+    // append above is itself an awaited disk write — check one more time
+    // before declaring success so a cancel during that write still rolls
+    // back the credential instead of returning Ok with it still stored.
+    //
+    // The append-only audit log can never retract the "Connected" entry
+    // written above, so a cancel landing here would otherwise leave the log
+    // saying the connect succeeded even though it was rolled back. Write a
+    // compensating entry so the log stays honest about the FINAL outcome.
+    if cancel.load(Ordering::SeqCst) {
+        // The outcome text must match what rollback_token actually does: a
+        // fresh connect (no previous_token) ends up disconnected, but a
+        // canceled RECONNECT restores the prior credential — the device is
+        // still connected with that credential, not disconnected.
+        let outcome = match &previous_token {
+            Some(_) => "the new credential was discarded and the previous connection was restored".to_string(),
+            None => format!("the new credential was removed and this device is not connected to {}", provider.display_name()),
+        };
+        rollback_token(&previous_token);
+        append_crm_audit_best_effort(
+            &app,
+            &provider.audit_action("connect_cancelled"),
+            &format!(
+                "{} connect was cancelled after a new credential was briefly stored; {}.",
+                provider.display_name(),
+                outcome
+            ),
+        )
+        .await;
+        return Err("cancelled".to_string());
+    }
 
     Ok(CrmConnectInfo {
         name: info.name,

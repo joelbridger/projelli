@@ -168,7 +168,7 @@ pub async fn onedrive_connect(state: State<'_, OneDriveState>) -> Result<(), Str
         listener,
         &state_token,
         std::time::Duration::from_secs(300),
-        cancel,
+        cancel.clone(),
     )
     .await
     .map_err(|e| e.to_string())?;
@@ -181,9 +181,25 @@ pub async fn onedrive_connect(state: State<'_, OneDriveState>) -> Result<(), Str
     )
     .await
     .map_err(|e| e.to_string())?;
-    token_entry()?
-        .set_password(&tokens.refresh)
-        .map_err(|e| e.to_string())
+
+    // Cancel can arrive while the token exchange (a network round trip) was
+    // in flight — check again before persisting so a canceled flow never
+    // leaves a stored credential behind, even though the redirect wait
+    // itself already resolved successfully.
+    let entry = token_entry()?;
+    // Snapshot whatever was there before (if this is a reconnect over an
+    // existing connection) so a cancel-after-store rolls back to THAT,
+    // rather than always deleting — a canceled reconnect must not disconnect
+    // an already-working account.
+    let previous_token = entry.get_password().ok();
+    crate::commands::mail::gmail::oauth::store_or_rollback_on_cancel(
+        &cancel,
+        || entry.set_password(&tokens.refresh).map_err(|e| e.to_string()),
+        || match &previous_token {
+            Some(prev) => { let _ = entry.set_password(prev); }
+            None => { let _ = entry.delete_credential(); }
+        },
+    )
 }
 
 /// Abort a pending `onedrive_connect` interactive sign-in immediately (e.g.

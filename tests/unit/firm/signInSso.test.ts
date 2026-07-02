@@ -48,6 +48,11 @@ const invokeMock = vi.fn(async (cmd: string, args: Record<string, unknown> = {})
   if (cmd === 'firm_sso_authenticate') {
     return JSON.stringify(SSO_LOGIN_RESPONSE);
   }
+  // The Rust-side cancel flag is irrelevant once firm_sso_authenticate has
+  // already resolved — real behavior for this mock is just "no-op, Ok(())".
+  if (cmd === 'firm_sso_cancel') {
+    return undefined;
+  }
   throw new Error(`unexpected invoke: ${cmd}`);
 });
 
@@ -287,5 +292,42 @@ describe('firmStore.signInSso', () => {
     // Prior seat carry-forward (same user, same as signIn behavior)
     expect(st.session?.seatId).toBe('seat-existing');
     expect(st.session?.tier).toBe('practice');
+  });
+
+  // F2.4 follow-up (found in codex review): firm_sso_authenticate already
+  // resolved (redirect + code exchange both completed) by the time
+  // establishSessionFromLogin runs — storeAuthTokens writes the keychain
+  // credential as its FIRST step, then makes further network calls (me(),
+  // getSeatPublicKey()). A Cancel click any time during that window must
+  // not leave the user silently signed in with a stored credential.
+  it('cancel arriving during establishSessionFromLogin (after tokens are already stored) rolls back the credential and leaves no session', async () => {
+    let cancelledDuringSeatPubkeyFetch = false;
+    routeFetch([
+      { match: /\/auth\/me$/, res: () => jsonResponse(200, ME_RESPONSE) },
+      {
+        match: /seat-pubkey$/,
+        res: () => {
+          // Simulate the user clicking Cancel while establishSessionFromLogin
+          // is still in flight — storeAuthTokens has already run by now.
+          cancelledDuringSeatPubkeyFetch = true;
+          void useFirmStore.getState().signInSsoCancel();
+          return textResponse(200, PUBLIC_PEM);
+        },
+      },
+    ]);
+
+    await expect(useFirmStore.getState().signInSso('jane@weston.com')).rejects.toThrow('cancelled');
+    expect(cancelledDuringSeatPubkeyFetch).toBe(true);
+
+    const st = useFirmStore.getState();
+    expect(st.session).toBeNull();
+    expect(st.accessToken).toBeNull();
+    expect(st.isLoading).toBe(false);
+    expect(st.error).toBeNull();
+
+    // The credential storeAuthTokens wrote during establishSessionFromLogin
+    // must be rolled back — NO credential may survive a cancel.
+    expect(keychainStore.get('com.lantern.user.u-sso-1::access_token')).toBeUndefined();
+    expect(keychainStore.get('com.lantern.user.u-sso-1::refresh_token')).toBeUndefined();
   });
 });
