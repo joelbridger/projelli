@@ -107,6 +107,7 @@ import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { usePromptDialog } from '@/platform/hooks/usePromptDialog';
 import { useUndoToast } from '@/app/shell/common/UndoToast';
+import { installEarlyConnectorEventBridge } from '@/app/shell/connectorEventBridge';
 
 // Nine connector citation viewers, none of which render anything until their
 // own window event fires — bundled into one lazy chunk (see
@@ -164,6 +165,11 @@ function App() {
   // workspace (matching the wizard's documented first-run condition), and
   // suppressed in test/demo modes. `?forceOnboarding=true` forces it for QA.
   const [showFirstRun, setShowFirstRun] = useState(false);
+
+  // Connector citation clicks can arrive before the lazy ConnectorSourcePanels
+  // chunk below has loaded; this tiny, always-eager listener buffers and
+  // replays them so a fast click right after startup isn't silently dropped.
+  useEffect(() => installEarlyConnectorEventBridge(), []);
 
   // Anonymous telemetry: emit one app_launch event per session, gated
   // by user consent. Other lifecycle events (trial_start, trial_end,

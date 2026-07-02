@@ -87,8 +87,17 @@ export function useOpenFileAIContext(): void {
       const timer = setTimeout(() => {
         timers.delete(snapshot.path);
         scheduleIdle(() => {
+          // Idle scheduling adds an unbounded wait (up to the 2s
+          // requestIdleCallback timeout) on top of the debounce, so the tab
+          // this snapshot came from may have closed or changed again by the
+          // time this actually runs. `lastContent` is updated synchronously
+          // on every new edit/close, so comparing against it here — and
+          // again after the async extraction resolves — is a cheap way to
+          // detect "superseded" without a separate cancellation handle.
+          if (lastContent.get(snapshot.path) !== snapshot.content) return;
           void extractForAI(snapshot).then(
             (ctx) => {
+              if (lastContent.get(snapshot.path) !== snapshot.content) return;
               if (!ctx) {
                 // Either unsupported type or extraction produced empty text.
                 // Drop any stale context so the UI doesn't show a chip for a
