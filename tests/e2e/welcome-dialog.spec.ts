@@ -62,13 +62,16 @@ test.describe('Welcome screen (first run)', () => {
     expect(bg).toBe('rgb(255, 255, 255)');
   });
 
-  test('shows Keepance logo', async ({ page }) => {
+  test('shows the brand logo', async ({ page }) => {
     await page.goto('/');
     await waitForAppLoad(page);
 
     const screen = page.getByTestId('workspace-selector-dialog');
-    // The logo wrapper has aria-label="Keepance"
-    const logo = screen.locator('[aria-label="Keepance"]');
+    // AppLogo.tsx renders a plain <img alt={BRAND.name}>, not an
+    // aria-label-wrapped element. The 2026-07-01 rebrand (brand/brand.config.json,
+    // "flip identity to LANTERN + apply Advisor Prep Hero brand") changed
+    // BRAND.name from "Keepance" to "Advisor Prep Hero".
+    const logo = screen.getByAltText('Advisor Prep Hero');
     await expect(logo).toBeVisible();
   });
 

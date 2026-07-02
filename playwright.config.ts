@@ -49,8 +49,6 @@ const CI_QUARANTINE = [
   '**/v1.5-flag-canvas.spec.ts',
   '**/v1.5-memory-stress.spec.ts',
   '**/wedge-proof.spec.ts',
-  '**/welcome-dialog.spec.ts',
-  '**/workflow-persistence.spec.ts',
 ];
 
 export default defineConfig({
