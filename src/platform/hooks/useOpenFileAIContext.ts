@@ -36,7 +36,7 @@ function getExtension(name: string): string | undefined {
  */
 function scheduleIdle(fn: () => void): void {
   if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
-    window.requestIdleCallback(() => fn(), { timeout: 2000 });
+    window.requestIdleCallback(() => { fn(); }, { timeout: 2000 });
   } else {
     setTimeout(fn, 0);
   }
