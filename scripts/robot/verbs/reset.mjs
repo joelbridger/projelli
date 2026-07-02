@@ -168,8 +168,12 @@ async function applyPurgeAndSeed(page, matters) {
 /** Read back the seeded values from the live app for the verification packet. */
 async function readSeededState(page) {
   return page.evaluate(() => {
-    const mm = JSON.parse(localStorage.getItem('keepance:matters') || '{}');
-    const ss = JSON.parse(localStorage.getItem('keepance:settings') || '{}');
+    // Same keys applyPurgeAndSeed writes to (`lantern:matters`/`lantern:settings`
+    // post-rename) — reading the old `keepance:*` names here would report
+    // stale/zero counts even when the seed correctly landed in the app's real
+    // storage, since the app itself no longer writes those legacy keys either.
+    const mm = JSON.parse(localStorage.getItem('lantern:matters') || '{}');
+    const ss = JSON.parse(localStorage.getItem('lantern:settings') || '{}');
     return {
       profession: localStorage.getItem('keepance_profession'),
       mattersCount: ((mm.state || mm).matters || []).length,

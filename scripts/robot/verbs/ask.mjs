@@ -148,8 +148,12 @@ export async function askQuestion(page, args = {}) {
 
     // The NEW turn must be cited: a new attestation AND at least one new chip.
     // In deterministic mode it must ALSO be provably air-gapped from live AI.
+    // Fail closed if PDF indexing never finished: a cited answer that happens
+    // to pass anyway doesn't prove the prerequisite this wait enforces, and a
+    // false green here would mask the exact silent-uncited-fallback failure
+    // mode waitForPdfIndexing exists to catch.
     const citedOk = out.settled && out.newCitedAttestation && out.newCitationChips >= 1;
-    out.ok = citedOk && (!deterministic || (out.egress && out.egress.ok));
+    out.ok = citedOk && out.pdfIndex.ok && (!deterministic || (out.egress && out.egress.ok));
   } catch (e) {
     out.err = String(e.message || e);
   }
