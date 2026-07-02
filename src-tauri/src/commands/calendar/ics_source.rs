@@ -408,13 +408,41 @@ fn expand_occurrences(
         "MONTHLY" => {
             let gap_months = (target.year() - start_naive.year()) as i64 * 12
                 + (target.month() as i64 - start_naive.month() as i64);
-            let cycles = gap_months.max(0) / interval;
-            if cycles > 0 {
-                accepted = cycles as usize;
-                let months = (cycles * interval) as u32;
+            let max_cycles = (gap_months.max(0) / interval).max(0) as u32;
+            if max_cycles > 0 && bydays.is_empty() {
+                // Wave-1 review finding (P2): a plain `accepted = cycles`
+                // treats every elapsed month as a hit, but a plain
+                // day-of-month rule produces NO occurrence in a month
+                // that doesn't have that day (a Jan-31 DTSTART has no
+                // occurrence in February). Overcounting `accepted` here
+                // can wrongly trip the COUNT-exhausted early return below
+                // and drop a still-valid later occurrence (e.g. Mar 31 for
+                // COUNT=2). Walk month-by-month (bounded by max_cycles, not
+                // days — still cheap) counting only months where the
+                // day-of-month actually exists.
+                let mut valid_cycles: u32 = 0;
+                let mut last_valid_date = start_naive.date();
+                for c in 1..=max_cycles {
+                    let months = c * interval as u32;
+                    if let Some(d) =
+                        start_naive.date().checked_add_months(chrono::Months::new(months))
+                    {
+                        if d.day() == start_naive.day() {
+                            valid_cycles += 1;
+                            last_valid_date = d;
+                        }
+                    }
+                }
+                accepted = valid_cycles as usize;
+                cursor = last_valid_date.and_time(start_naive.time());
+            } else if max_cycles > 0 {
+                // Positional BYDAY (e.g. "1MO" / "-1FR") always has exactly
+                // one match per elapsed month cycle — no day-existence gap
+                // to guard against.
+                accepted = max_cycles as usize;
                 let new_date = start_naive
                     .date()
-                    .checked_add_months(chrono::Months::new(months))
+                    .checked_add_months(chrono::Months::new(max_cycles))
                     .unwrap_or_else(|| start_naive.date());
                 cursor = new_date.and_time(start_naive.time());
             }
@@ -870,6 +898,24 @@ mod tests {
         );
         let events = parse_ics(&ics, WINDOW_FROM, WINDOW_TO).unwrap();
         assert!(events.is_empty(), "series of 5 weekly occurrences in 2020 is long over by 2026");
+    }
+
+    #[test]
+    fn monthly_fast_forward_skips_only_real_gaps_not_nonexistent_days() {
+        // Wave-1 review finding (P2): a Jan-31 DTSTART has NO occurrence in
+        // February (no 31st), but the naive fast-forward counted every
+        // elapsed month as a hit anyway, overcounting `accepted` and
+        // wrongly tripping the COUNT-exhausted early return — dropping the
+        // still-valid Mar 31 occurrence. FREQ=MONTHLY;COUNT=2 has real
+        // occurrences Jan 31 and Mar 31 (Feb is skipped, not counted).
+        let ics = wrap(
+            "BEGIN:VEVENT\r\nUID:monthgap\r\nSUMMARY:Month-end review\r\n\
+             DTSTART:20260131T160000Z\r\nDTEND:20260131T170000Z\r\n\
+             RRULE:FREQ=MONTHLY;COUNT=2\r\nEND:VEVENT\r\n",
+        );
+        let events = parse_ics(&ics, "2026-03-15T00:00:00Z", "2026-04-05T00:00:00Z").unwrap();
+        assert_eq!(events.len(), 1, "Mar 31 is the real 2nd occurrence, not exhausted by a phantom Feb hit");
+        assert_eq!(events[0].start_utc, "2026-03-31T16:00:00Z");
     }
 
     #[test]
