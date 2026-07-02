@@ -32,7 +32,7 @@ use crate::commands::crm::render::{
     render_contact, render_event, render_household_summary, render_note, render_task,
 };
 use crate::commands::crm::source::CrmSource;
-use crate::commands::crm::store::CrmStore;
+use crate::commands::crm::store::{CrmStore, CrmUpsert};
 
 // ---------------------------------------------------------------------------
 // Public output types
@@ -109,668 +109,13 @@ pub(crate) fn provider_scoped_matter_map(
         .collect()
 }
 
-// ---------------------------------------------------------------------------
-// 2. ingest
-// ---------------------------------------------------------------------------
+mod index;
+mod ingest;
+mod plan;
 
-/// Fetch all objects from `source`, upsert them into `store`, and return a
-/// count summary.
-///
-/// Contacts are grouped by household id (see module-level doc for the grouping
-/// key rules).  Notes/tasks/events inherit every distinct grouping key from
-/// their fetched contact links. Unresolvable objects are skipped and tallied in
-/// [`IngestReport::skipped_unlinked`].
-#[allow(dead_code)]
-pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<IngestReport> {
-    let mut report = IngestReport::default();
-    let provider_id = source.provider_id();
-
-    // Every store id we FILED this sync: contacts always; a note/task/event only when
-    // its link resolves to a household. The deletion diff at the end tombstones any
-    // previously-stored object that is NOT filed now — i.e. removed from Wealthbox OR
-    // newly unlinkable — so neither can leave a stale chunk behind on re-sync.
-    let mut seen: HashSet<String> = HashSet::new();
-
-    // ── 1. Contacts ──────────────────────────────────────────────────────────
-    let contacts = source.list_all_contacts().await?;
-
-    // Build contact_id → grouping_key lookup used by note/task/event resolution.
-    let mut contact_to_group: HashMap<String, String> = HashMap::with_capacity(contacts.len());
-    for c in &contacts {
-        let gk = c.household_key().unwrap_or_else(|| c.crm_key());
-        contact_to_group.insert(c.crm_key(), gk);
-    }
-
-    for c in &contacts {
-        let c_key = c.crm_key();
-        let gk = contact_to_group[&c_key].clone();
-        let store_id = format!("contact:{}", c_key);
-        seen.insert(store_id.clone());
-        let json = serde_json::to_string(c)?;
-        let hash = content_hash(&json);
-        // Store the kind canonicalised to lowercase. The live Wealthbox API returns
-        // CAPITALISED contact types ("Household"/"Person"/"Organization"/"Trust") while
-        // the whole index pipeline matches on lowercase — without this every contact
-        // falls through `plan_household_index`'s `_ => skip` arm and NOTHING is embedded.
-        // CrmContact has no updated_at field; use "" (content_hash drives change detection).
-        store.upsert_object(
-            &store_id,
-            &c.r#type.to_ascii_lowercase(),
-            &gk,
-            "",
-            &hash,
-            &json,
-        )?;
-        report.contacts += 1;
-    }
-
-    // ── 2. Notes ─────────────────────────────────────────────────────────────
-    let notes = source.list_notes().await?;
-    for n in &notes {
-        let grouping_keys = resolve_grouping_keys(&n.linked_to, &contact_to_group);
-        if grouping_keys.is_empty() {
-            // TODO(1B.3c): surface unlinked objects to an operator log
-            report.skipped_unlinked += 1;
-        } else {
-            let grouping_count = grouping_keys.len();
-            let crm_key = n.crm_key();
-            let json = serde_json::to_string(n)?;
-            let hash = content_hash(&json);
-            for gk in grouping_keys {
-                let store_id = linked_object_store_id("note", &crm_key, &gk, grouping_count);
-                seen.insert(store_id.clone());
-                store.upsert_object(&store_id, "note", &gk, &n.updated_at, &hash, &json)?;
-                report.notes += 1;
-            }
-        }
-    }
-
-    // ── 3. Tasks ─────────────────────────────────────────────────────────────
-    let tasks = source.list_tasks().await?;
-    for t in &tasks {
-        let grouping_keys = resolve_grouping_keys(&t.linked_to, &contact_to_group);
-        if grouping_keys.is_empty() {
-            report.skipped_unlinked += 1;
-        } else {
-            let grouping_count = grouping_keys.len();
-            let crm_key = t.crm_key();
-            let json = serde_json::to_string(t)?;
-            let hash = content_hash(&json);
-            for gk in grouping_keys {
-                let store_id = linked_object_store_id("task", &crm_key, &gk, grouping_count);
-                seen.insert(store_id.clone());
-                // CrmTask has no updated_at; use "" (content_hash drives change detection).
-                store.upsert_object(&store_id, "task", &gk, "", &hash, &json)?;
-                report.tasks += 1;
-            }
-        }
-    }
-
-    // ── 4. Events ────────────────────────────────────────────────────────────
-    let events = source.list_events().await?;
-    for e in &events {
-        let grouping_keys = resolve_grouping_keys(&e.linked_to, &contact_to_group);
-        if grouping_keys.is_empty() {
-            report.skipped_unlinked += 1;
-        } else {
-            let grouping_count = grouping_keys.len();
-            let crm_key = e.crm_key();
-            let json = serde_json::to_string(e)?;
-            let hash = content_hash(&json);
-            for gk in grouping_keys {
-                let store_id = linked_object_store_id("event", &crm_key, &gk, grouping_count);
-                seen.insert(store_id.clone());
-                // CrmEvent has no updated_at; use "" (content_hash drives change detection).
-                store.upsert_object(&store_id, "event", &gk, "", &hash, &json)?;
-                report.events += 1;
-            }
-        }
-    }
-
-    // ── 5. Tombstone objects that are no longer filed ────────────────────────
-    // `seen` holds everything we filed this sync. Anything still stored (deleted = 0)
-    // from a previous sync but NOT in `seen` is either gone from Wealthbox OR newly
-    // unlinkable (its contact link was removed) — both must stop surfacing. Soft-delete
-    // it so `plan_household_index` (which filters deleted = 0) stops re-planning it and
-    // its stale RAG chunk drops on the household's next delete-then-insert.
-    // `upsert_object` resets deleted = 0, so an object that re-appears (or is re-linked)
-    // un-tombstones itself automatically.
-    for existing in store.list_all_object_ids()? {
-        if object_belongs_to_provider(&existing, provider_id) && !seen.contains(&existing) {
-            store.tombstone_object(&existing)?;
-            report.removed_tombstoned += 1;
-        }
-    }
-
-    Ok(report)
-}
-
-fn object_belongs_to_provider(store_id: &str, provider_id: &str) -> bool {
-    let Some((_, rest)) = store_id.split_once(':') else {
-        return provider_id == "wealthbox";
-    };
-    match provider_id {
-        "salesforce" => rest.starts_with("sfdc:"),
-        "redtail" => rest.starts_with("redtail:"),
-        "wealthbox" => !rest.starts_with("sfdc:") && !rest.starts_with("redtail:"),
-        _ => false,
-    }
-}
-
-/// Walk `linked_to`, returning every distinct grouping key from **contact-typed**
-/// entries whose ids map to known contacts.
-///
-/// The `r#type` check is mandatory for correctness: a note/task/event can
-/// also be linked to a project or opportunity, and if a project's numeric id
-/// happens to collide with a contact's id the record would be silently
-/// mis-filed into the wrong household — a confidentiality bug.  Only entries
-/// with `r#type == "Contact"` (case-insensitive) are eligible for lookup.
-fn resolve_grouping_keys(
-    linked_to: &[CrmLink],
-    contact_to_group: &HashMap<String, String>,
-) -> Vec<String> {
-    let mut grouping_keys = Vec::new();
-    let mut seen = HashSet::new();
-    for link in linked_to {
-        // Guard: only contact-typed links may resolve a household grouping key.
-        // Non-contact links (Project, Opportunity, …) are ignored even when
-        // their numeric id happens to match a known contact id.
-        if link.r#type.eq_ignore_ascii_case("contact") {
-            if let Some(gk) = contact_to_group.get(&link.crm_key()) {
-                if seen.insert(gk.clone()) {
-                    grouping_keys.push(gk.clone());
-                }
-            }
-        }
-    }
-    grouping_keys
-}
-
-fn linked_object_store_id(
-    kind: &str,
-    crm_key: &str,
-    grouping_key: &str,
-    grouping_count: usize,
-) -> String {
-    if grouping_count <= 1 {
-        format!("{kind}:{crm_key}")
-    } else {
-        format!("{kind}:{crm_key}@{grouping_key}")
-    }
-}
-
-// ---------------------------------------------------------------------------
-// 3. plan_household_index  (PURE — no network, no embedding model)
-// ---------------------------------------------------------------------------
-
-/// Build the list of RAG index items for one household from the store.
-///
-/// This function is **pure**: it reads the store, deserialises stored JSON,
-/// calls the render functions, and returns a list of [`CrmIndexItem`]s — no
-/// network calls, no embedding model.  It is the offline-testable core of the
-/// sync pipeline.
-///
-/// **Household-type contact present** (typical case): emits one household
-/// summary record (`crm:household:<id>`) followed by one per-contact record
-/// for each member (`crm:contact:<id>`).
-///
-/// **No household-type contact** (individual client): emits per-contact
-/// records only.  A synthetic household summary is not generated because a
-/// single-person group has no additional household-level context beyond the
-/// contact record itself, and duplicating the data would confuse the RAG
-/// retriever.
-///
-/// Notes, tasks, and events are rendered individually regardless.
-#[allow(dead_code)]
-pub fn plan_household_index(
-    store: &CrmStore,
-    grouping_key: &str,
-    matter_id: &str,
-) -> anyhow::Result<Vec<CrmIndexItem>> {
-    let rows = store.list_objects_by_household(grouping_key)?;
-    let mut items: Vec<CrmIndexItem> = Vec::new();
-
-    // Partition rows by kind.
-    let mut hh_contact: Option<CrmContact> = None;
-    let mut member_contacts: Vec<CrmContact> = Vec::new();
-    let mut notes: Vec<CrmNote> = Vec::new();
-    let mut tasks: Vec<CrmTask> = Vec::new();
-    let mut events: Vec<CrmEvent> = Vec::new();
-
-    for row in &rows {
-        // Match on a lowercased kind. `ingest` already normalises on store, but
-        // normalise here too so any row stored before that fix (capitalised live
-        // value) still indexes instead of being skipped.
-        match row.kind.to_ascii_lowercase().as_str() {
-            "household" => {
-                let mut contact: CrmContact = serde_json::from_str(&row.json)?;
-                apply_contact_provider(&mut contact, provider_for_store_id(&row.id));
-                hh_contact = Some(contact);
-            }
-            "person" | "organization" | "trust" => {
-                let mut contact: CrmContact = serde_json::from_str(&row.json)?;
-                apply_contact_provider(&mut contact, provider_for_store_id(&row.id));
-                member_contacts.push(contact);
-            }
-            "note" => {
-                let mut note: CrmNote = serde_json::from_str(&row.json)?;
-                apply_linked_object_provider(
-                    &mut note.source_provider,
-                    &mut note.linked_to,
-                    &row.id,
-                );
-                notes.push(note);
-            }
-            "task" => {
-                let mut task: CrmTask = serde_json::from_str(&row.json)?;
-                apply_linked_object_provider(
-                    &mut task.source_provider,
-                    &mut task.linked_to,
-                    &row.id,
-                );
-                tasks.push(task);
-            }
-            "event" => {
-                let mut event: CrmEvent = serde_json::from_str(&row.json)?;
-                apply_linked_object_provider(
-                    &mut event.source_provider,
-                    &mut event.linked_to,
-                    &row.id,
-                );
-                events.push(event);
-            }
-            other => {
-                log::warn!(
-                    "plan_household_index: unknown kind '{}' for id '{}'; skipping",
-                    other,
-                    row.id
-                );
-            }
-        }
-    }
-
-    // ── Household summary (when a household-type contact exists) ─────────────
-    if let Some(ref hh) = hh_contact {
-        let (source_id, text) = render_household_summary(hh, &member_contacts);
-        items.push(CrmIndexItem {
-            source_id,
-            text,
-            matter_id: matter_id.to_string(),
-        });
-    }
-    // No household-type contact = individual client; per-contact records below
-    // are sufficient and clearer than a synthetic one-person summary.
-
-    // ── Per-contact records (non-household contacts only) ────────────────────
-    for contact in &member_contacts {
-        let (source_id, text) = render_contact(contact);
-        items.push(CrmIndexItem {
-            source_id,
-            text,
-            matter_id: matter_id.to_string(),
-        });
-    }
-
-    // ── Notes ────────────────────────────────────────────────────────────────
-    for note in &notes {
-        let (source_id, text) = render_note(note);
-        items.push(CrmIndexItem {
-            source_id,
-            text,
-            matter_id: matter_id.to_string(),
-        });
-    }
-
-    // ── Tasks ─────────────────────────────────────────────────────────────────
-    for task in &tasks {
-        let (source_id, text) = render_task(task);
-        items.push(CrmIndexItem {
-            source_id,
-            text,
-            matter_id: matter_id.to_string(),
-        });
-    }
-
-    // ── Events ───────────────────────────────────────────────────────────────
-    for event in &events {
-        let (source_id, text) = render_event(event);
-        items.push(CrmIndexItem {
-            source_id,
-            text,
-            matter_id: matter_id.to_string(),
-        });
-    }
-
-    Ok(items)
-}
-
-fn provider_for_store_id(store_id: &str) -> CrmRecordProvider {
-    let rest = store_id
-        .split_once(':')
-        .map(|(_, rest)| rest)
-        .unwrap_or(store_id);
-    if rest.starts_with("sfdc:") {
-        CrmRecordProvider::Salesforce
-    } else if rest.starts_with("redtail:") {
-        CrmRecordProvider::Redtail
-    } else {
-        CrmRecordProvider::Wealthbox
-    }
-}
-
-fn apply_contact_provider(contact: &mut CrmContact, provider: CrmRecordProvider) {
-    contact.source_provider = provider;
-    if let Some(household) = contact.household.as_mut() {
-        household.source_provider = provider;
-        for member in &mut household.members {
-            member.source_provider = provider;
-        }
-    }
-}
-
-fn apply_linked_object_provider(
-    source_provider: &mut CrmRecordProvider,
-    linked_to: &mut [CrmLink],
-    store_id: &str,
-) {
-    let provider = provider_for_store_id(store_id);
-    *source_provider = provider;
-    for link in linked_to {
-        link.source_provider = provider;
-    }
-}
-
-// ---------------------------------------------------------------------------
-// 4. apply_index  (model-gated)
-// ---------------------------------------------------------------------------
-
-/// Embed and write a household's [`CrmIndexItem`]s to the RAG index, reusing an
-/// already-open LanceDB table and master key.
-///
-/// This is the performance-critical hot path. Two earlier costs were removed:
-///   1. It used to call `index_crm_text_internal` per item, which **opened the
-///      LanceDB connection and scanned the table on every record**. The caller
-///      ([`backfill`]) now opens the table once and passes it in.
-///   2. It used to call `delete_path` **per item** to clear stale chunks — on a
-///      ~40-household / ~200-item first sync that was ~200 sequential full-table
-///      deletes (each a scan + commit + compaction, all no-ops on a first sync)
-///      and never completed. Stale-chunk clearing now happens **per matter** in
-///      [`backfill`] (one `delete_crm_for_matters`, only when the matter already has
-///      chunks, after the cancel check — a delete-then-insert), NOT per item
-///      and NOT one up-front bulk wipe. So this function is a pure insert: chunk →
-///      embed (batched per matter) → one `table.add`.
-///
-/// Requires the embedding model to be loaded (model-gated).
-#[allow(dead_code)]
-pub async fn apply_index(
-    table: &lancedb::Table,
-    key: &[u8; 32],
-    items: &[CrmIndexItem],
-) -> anyhow::Result<u32> {
-    use anyhow::Context;
-    use std::collections::HashMap;
-
-    if items.is_empty() {
-        return Ok(0);
-    }
-
-    // Chunk every non-empty item, grouped by matter id. One household maps to one
-    // matter, but we group defensively so `build_batch_crm` (which takes a single
-    // matter id) always gets a uniform batch.
-    let mut by_matter: HashMap<String, Vec<crate::commands::rag::chunker::Chunk>> = HashMap::new();
-    for item in items {
-        if item.text.trim().is_empty() {
-            continue;
-        }
-        let chunks = crate::commands::rag::chunker::chunk_text(&item.source_id, &item.text);
-        if chunks.is_empty() {
-            continue;
-        }
-        by_matter
-            .entry(item.matter_id.clone())
-            .or_default()
-            .extend(chunks);
-    }
-    if by_matter.is_empty() {
-        return Ok(0);
-    }
-
-    // For each matter group: embed all its chunks in one batched model call and
-    // write them in a single `table.add` (was one add per item).
-    let mut total = 0u32;
-    for (matter_id, chunks) in by_matter {
-        let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
-        let vectors = crate::commands::rag::embedder::embed_documents_batched(&texts, None)
-            .await
-            .context("embed crm chunks")?
-            .unwrap_or_default();
-        let rows: Vec<(crate::commands::rag::chunker::Chunk, Vec<f32>)> =
-            chunks.into_iter().zip(vectors).collect();
-        if rows.is_empty() {
-            continue;
-        }
-        let batch = crate::commands::rag::store::build_batch_crm(
-            &rows,
-            key,
-            &matter_id,
-            crate::commands::rag::store::PRIVILEGE_NONE,
-        )
-        .context("build crm batch")?;
-        let schema = batch.schema();
-        use arrow_array::RecordBatchIterator;
-        table
-            .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
-            .execute()
-            .await
-            .context("add crm chunks to lancedb")?;
-        total += rows.len() as u32;
-    }
-    Ok(total)
-}
-
-// ---------------------------------------------------------------------------
-// 5. backfill  (top-level entry point)
-// ---------------------------------------------------------------------------
-
-/// Full backfill: ingest all objects from `source`, then index each MATTER in
-/// `matter_map` (grouping all of its households together) into the RAG store —
-/// one delete + one combined, batched insert per matter.
-///
-/// `matter_map` is the frontend's household→matter mapping. Usually one household
-/// per matter, but a matter may own several; they are grouped so the matter's CRM
-/// chunks are replaced as a unit — a delete-then-insert (not once per household,
-/// which would wipe siblings). Only matters present in the map are indexed; ingest still stores
-/// *all* contacts so the store is a complete snapshot. A matter that previously had
-/// CRM chunks but is absent from the map (a re-linked household) has its orphaned
-/// chunks purged. Unchanged matters (byte-identical plan) do zero RAG work.
-///
-/// `cancel` is polled between matters so a long sync can be stopped from the UI;
-/// matters already processed stay indexed and `SyncReport::cancelled` is set.
-///
-/// `rag_key` is the RAG/vector-store master key, supplied by the caller. The
-/// command layer reads it from the OS keychain (`get_or_create_master_key`); tests
-/// pass a literal key so the real entry point can be driven without a keychain.
-///
-/// `progress` is updated with the running count of households processed as each matter
-/// completes, so a watching `crm_sync_status` (and the progress emitter) sees steady
-/// movement during the sync instead of a number that only jumps at the end.
-#[allow(dead_code)]
-pub async fn backfill(
-    source: &dyn CrmSource,
-    store: &CrmStore,
-    workspace: &Path,
-    matter_map: &HashMap<String, String>,
-    cancel: &std::sync::atomic::AtomicBool,
-    rag_key: &[u8; 32],
-    progress: &std::sync::atomic::AtomicU32,
-) -> anyhow::Result<SyncReport> {
-    use std::sync::atomic::Ordering;
-
-    let mut report = SyncReport::default();
-    let provider_id = source.provider_id();
-    let provider_matter_map = provider_scoped_matter_map(matter_map, provider_id);
-
-    // Phase 1: ingest everything into the store.
-    report.ingest = ingest(source, store).await?;
-
-    // Open the RAG connection + table ONCE for the whole sync. Opening the table
-    // scans LanceDB, so per-record opens were a dominant cost; one open per sync.
-    // We open even when `matter_map` is EMPTY: a re-sync with no CRM links (Wealthbox
-    // returned none, or all unlinked) must still purge previously-indexed CRM chunks
-    // in the orphan pass below — never leave them searchable.
-    let conn = crate::commands::rag::store::open_connection(workspace).await?;
-    let table = crate::commands::rag::store::open_or_create_table(&conn).await?;
-
-    // Which matters already have CRM chunks? ONE column-only scan up front. Used to
-    // (a) skip the stale-chunk delete for a matter that has none yet — a first sync's
-    // deletes are all no-ops, and skipping them removes their commit + compaction churn
-    // (the perf cost), and (b) find orphaned matters to purge below.
-    let indexed_matters =
-        crate::commands::rag::store::list_crm_matters_for_provider(&table, provider_id, rag_key)
-            .await?;
-
-    // Group the household→matter map BY MATTER. A matter can own several households,
-    // and the old per-household loop deleted the matter's CRM chunks once PER household
-    // — each delete wiping the previous household's just-inserted rows (BUG-A: last
-    // household wins). Indexing per matter (one delete + one combined batched insert)
-    // both fixes that and cuts commits. BTreeMap → deterministic order.
-    let mut by_matter: std::collections::BTreeMap<String, Vec<String>> =
-        std::collections::BTreeMap::new();
-    for (grouping_key, matter_id) in &provider_matter_map {
-        by_matter
-            .entry(matter_id.clone())
-            .or_default()
-            .push(grouping_key.clone());
-    }
-    let synced_matters: std::collections::HashSet<&String> = by_matter.keys().collect();
-
-    let mut did_write = false;
-
-    // Run the index phase in one fallible block so the post-sync `optimize` below runs
-    // in a finally-style path even if a delete/embed/add errors — an error must not
-    // leave the index bloated. The first error is propagated AFTER the optimize.
-    let index_result: anyhow::Result<()> = async {
-        // Orphan cleanup (BUG-B + empty-map): a matter that still has CRM chunks but is
-        // no longer synced — INCLUDING the empty-map case, where EVERY indexed matter is
-        // orphaned — must have its CRM purged (scoped to `source_type='crm'`, so file/mail
-        // chunks survive), or its client data stays wrongly retrievable under the old
-        // matter. One scoped delete per orphaned matter (none on the happy path).
-        for orphan in indexed_matters
-            .iter()
-            .filter(|m| !synced_matters.contains(m))
-        {
-            if cancel.load(Ordering::SeqCst) {
-                report.cancelled = true;
-                return Ok(());
-            }
-            // Mark BEFORE the write: a delete that succeeds but errors elsewhere must
-            // still trigger the final optimize, or a partial write bloats the index.
-            did_write = true;
-            crate::commands::rag::store::delete_crm_for_matters_for_provider(
-                &table,
-                std::slice::from_ref(orphan),
-                provider_id,
-                rag_key,
-            )
-            .await?;
-        }
-
-        // Phase 2: index each MATTER — plan all its households together, then (only if
-        // its plan changed) delete its old CRM chunks and insert the combined, batched
-        // fresh plan. This is a delete-then-insert, NOT a real transaction (LanceDB
-        // gives none here): cancel is checked BEFORE the delete so a Stop leaves the
-        // matter UNCHANGED, and a mid-write error is surfaced (optimize still runs).
-        for (matter_id, households) in &by_matter {
-            if cancel.load(Ordering::SeqCst) {
-                report.cancelled = true;
-                return Ok(());
-            }
-
-            // Plan every household under this matter, concatenated. Poll cancel inside
-            // the loop so a large multi-household matter stays responsive to Stop.
-            let mut items: Vec<CrmIndexItem> = Vec::new();
-            for hk in households {
-                if cancel.load(Ordering::SeqCst) {
-                    report.cancelled = true;
-                    return Ok(());
-                }
-                items.extend(plan_household_index(store, hk, matter_id)?);
-            }
-            report.households_processed += households.len() as u32;
-            // Publish live progress as each matter is reached (steady movement for a
-            // watching crm_sync_status / progress emitter).
-            progress.store(report.households_processed, Ordering::SeqCst);
-
-            // Combined render hash over the matter's whole plan (source_ids + texts).
-            let plan_hash = {
-                let mut h = Sha256::new();
-                for item in &items {
-                    h.update(item.source_id.as_bytes());
-                    h.update(item.text.as_bytes());
-                }
-                hex::encode(h.finalize())
-            };
-
-            let already_indexed = indexed_matters.contains(matter_id.as_str());
-
-            // Unchanged-skip: byte-identical plan + chunks already present → ZERO RAG
-            // work. (Guarded on actual-chunk presence too, so a stale render row can
-            // never cause an incorrect skip.)
-            if already_indexed {
-                if let Some((prev_hash, true)) = store.get_render_state(matter_id)? {
-                    if prev_hash == plan_hash {
-                        continue;
-                    }
-                }
-            }
-
-            // Cancel right before the expensive delete + embed, so a Stop on a large
-            // matter leaves it UNCHANGED (nothing deleted, nothing inserted).
-            if cancel.load(Ordering::SeqCst) {
-                report.cancelled = true;
-                return Ok(());
-            }
-
-            // Delete only when the matter actually has stale chunks (never on a first
-            // sync — that no-op-delete churn is what we removed). Set `did_write` BEFORE
-            // each LanceDB write so a partial write (delete ok then add fails, or add ok
-            // then render-state write fails) still triggers the finally-style optimize.
-            if already_indexed {
-                did_write = true;
-                crate::commands::rag::store::delete_crm_for_matters_for_provider(
-                    &table,
-                    std::slice::from_ref(matter_id),
-                    provider_id,
-                    rag_key,
-                )
-                .await?;
-            }
-            if !items.is_empty() {
-                did_write = true;
-                report.records_indexed += apply_index(&table, rag_key, &items).await?;
-            }
-            store.set_render_state(matter_id, &plan_hash, true)?;
-        }
-
-        Ok(())
-    }
-    .await;
-
-    // Finally: ONE optimize at the end (deferred compaction — perf), regardless of
-    // whether the index phase errored, so an error never leaves the index bloated.
-    // Best-effort: a failure here never fails the sync.
-    if did_write {
-        if let Err(e) = crate::commands::rag::store::optimize_after_bulk_write(&table).await {
-            log::warn!("crm post-sync optimize failed (non-fatal): {e:#}");
-        }
-    }
-
-    // Propagate the first index-phase error (if any) AFTER the optimize ran.
-    index_result?;
-
-    Ok(report)
-}
-
+pub use index::*;
+pub use ingest::*;
+pub use plan::*;
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -962,6 +307,60 @@ mod tests {
         let key = [0x33u8; 32];
         let s = CrmStore::open_with_key(dir.path(), &key).expect("crm store open");
         (dir, s)
+    }
+
+    /// P2.3 row 8 MEASUREMENT (ignored; run with
+    /// `cargo test -p lantern --lib measure_cheap_plan_signature -- --ignored --nocapture`).
+    /// Times the CHEAP digest-based change signature against the OLD full
+    /// plan+render+hash on a populated household — the cost an unchanged matter
+    /// paid on every sync before this change. Offline (no embedding model).
+    #[tokio::test]
+    #[ignore]
+    async fn measure_cheap_plan_signature() {
+        use sha2::{Digest, Sha256};
+        use std::time::Instant;
+        let (_d, store) = crm_store();
+        ingest(&FakeCrmSource, &store).await.expect("ingest");
+        let households = ["10001".to_string()];
+        let matter_id = "matter-x";
+        const REPS: usize = 2000;
+
+        // OLD: deserialize every object + render + hash the rendered plan.
+        let t0 = Instant::now();
+        for _ in 0..REPS {
+            let mut items = Vec::new();
+            for hk in &households {
+                items.extend(plan_household_index(&store, hk, matter_id).unwrap());
+            }
+            let mut h = Sha256::new();
+            for it in &items {
+                h.update(it.source_id.as_bytes());
+                h.update(it.text.as_bytes());
+            }
+            let _ = hex::encode(h.finalize());
+        }
+        let old_dur = t0.elapsed();
+
+        // NEW: hash the stored digests only — no deserialize, no render.
+        let t1 = Instant::now();
+        for _ in 0..REPS {
+            let mut h = Sha256::new();
+            for hk in &households {
+                for (id, kind, ch) in store.list_object_digests_by_household(hk).unwrap() {
+                    h.update(id.as_bytes());
+                    h.update(kind.as_bytes());
+                    h.update(ch.as_bytes());
+                }
+            }
+            h.update(matter_id.as_bytes());
+            let _ = hex::encode(h.finalize());
+        }
+        let new_dur = t1.elapsed();
+
+        eprintln!(
+            "[P2.3 row 8] {REPS}x unchanged-matter check: OLD plan+render {old_dur:?}  NEW digest-sig {new_dur:?}  speedup {:.1}x",
+            old_dur.as_secs_f64() / new_dur.as_secs_f64().max(1e-9)
+        );
     }
 
     #[test]

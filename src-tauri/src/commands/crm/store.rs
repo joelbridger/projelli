@@ -85,6 +85,46 @@ pub struct CrmObjectRow {
 // CrmStore
 // ---------------------------------------------------------------------------
 
+/// One CRM object to upsert, collected during `ingest` so a whole sync's writes
+/// commit in a single transaction (`apply_ingest_batch`). Mirrors the args of
+/// `upsert_object` one-for-one.
+pub struct CrmUpsert {
+    pub id: String,
+    pub kind: String,
+    pub household_id: String,
+    pub updated_at: String,
+    pub content_hash: String,
+    pub json: String,
+}
+
+/// The one INSERT-or-update statement `upsert_object` and `apply_ingest_batch`
+/// share, so the single-row and batched paths can never drift. Runs against a
+/// `Connection` or a `Transaction` (both deref to `Connection`).
+fn upsert_crm_object_row(
+    conn: &Connection,
+    id: &str,
+    kind: &str,
+    household_id: &str,
+    updated_at: &str,
+    content_hash: &str,
+    json: &str,
+) -> Result<()> {
+    conn.execute(
+        "INSERT INTO crm_objects
+            (id, kind, household_id, updated_at, content_hash, json, deleted)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0)
+         ON CONFLICT(id) DO UPDATE SET
+            kind         = ?2,
+            household_id = ?3,
+            updated_at   = ?4,
+            content_hash = ?5,
+            json         = ?6,
+            deleted      = 0",
+        rusqlite::params![id, kind, household_id, updated_at, content_hash, json],
+    )?;
+    Ok(())
+}
+
 pub struct CrmStore {
     conn: std::sync::Mutex<Connection>,
     #[allow(dead_code)]
@@ -174,19 +214,40 @@ impl CrmStore {
         json: &str,
     ) -> Result<()> {
         let c = self.conn.lock().unwrap();
-        c.execute(
-            "INSERT INTO crm_objects
-                (id, kind, household_id, updated_at, content_hash, json, deleted)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0)
-             ON CONFLICT(id) DO UPDATE SET
-                kind         = ?2,
-                household_id = ?3,
-                updated_at   = ?4,
-                content_hash = ?5,
-                json         = ?6,
-                deleted      = 0",
-            rusqlite::params![id, kind, household_id, updated_at, content_hash, json],
-        )?;
+        upsert_crm_object_row(&c, id, kind, household_id, updated_at, content_hash, json)
+    }
+
+    /// Apply a whole ingest's writes in ONE transaction: every upsert (each
+    /// resets `deleted = 0`) then every tombstone. Autocommit fsyncs once per
+    /// statement, so a sync of thousands of objects costs thousands of fsyncs;
+    /// a single transaction cuts that to one commit. Upserts run before
+    /// tombstones — the exact order `ingest` used when it wrote them inline, so
+    /// the result is identical. Empty input is a no-op. P2.3 row 7.
+    pub fn apply_ingest_batch(
+        &self,
+        upserts: &[CrmUpsert],
+        tombstone_ids: &[String],
+    ) -> Result<()> {
+        if upserts.is_empty() && tombstone_ids.is_empty() {
+            return Ok(());
+        }
+        let mut c = self.conn.lock().unwrap();
+        let tx = c.transaction()?;
+        for u in upserts {
+            upsert_crm_object_row(
+                &tx,
+                &u.id,
+                &u.kind,
+                &u.household_id,
+                &u.updated_at,
+                &u.content_hash,
+                &u.json,
+            )?;
+        }
+        for id in tombstone_ids {
+            tx.execute("UPDATE crm_objects SET deleted = 1 WHERE id = ?1", [id])?;
+        }
+        tx.commit()?;
         Ok(())
     }
 
@@ -215,6 +276,36 @@ impl CrmStore {
         let rows = stmt
             .query_map([household_id], row_to_crm_object)?
             .collect::<rusqlite::Result<Vec<CrmObjectRow>>>()?;
+        Ok(rows)
+    }
+
+    /// P2.3 row 8: the cheap change-detection digest for a household — its
+    /// non-deleted objects as `(id, kind, content_hash)`, in the SAME order (same
+    /// WHERE, no ORDER BY) `list_objects_by_household` returns them. This lets the
+    /// sync engine decide "did this household's plan change?" WITHOUT reading or
+    /// deserialising the (large) `json` column or running any render function.
+    /// `content_hash` is a strong hash of the JSON, so identical digests mean
+    /// identical rendered output (barring a hash collision).
+    #[allow(dead_code)]
+    pub fn list_object_digests_by_household(
+        &self,
+        household_id: &str,
+    ) -> Result<Vec<(String, String, String)>> {
+        let c = self.conn.lock().unwrap();
+        let mut stmt = c.prepare(
+            "SELECT id, kind, content_hash
+             FROM crm_objects
+             WHERE household_id = ?1 AND deleted = 0",
+        )?;
+        let rows = stmt
+            .query_map([household_id], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, String>(2)?,
+                ))
+            })?
+            .collect::<rusqlite::Result<Vec<(String, String, String)>>>()?;
         Ok(rows)
     }
 
@@ -594,6 +685,72 @@ mod tests {
         let key = [0x33u8; 32];
         let s = CrmStore::open_with_key(dir.path(), &key).expect("crm store open");
         (dir, s)
+    }
+
+    /// P2.3 row 8: the cheap digest list MUST match `list_objects_by_household`
+    /// in order and in (id, kind, content_hash) values — the sync engine's
+    /// change-detection depends on it reflecting the exact rows plan rendering
+    /// reads. Verifies parity including after an update (content_hash changes)
+    /// and a tombstone (deleted rows drop from both).
+    #[test]
+    fn object_digests_match_list_objects_by_household() {
+        let (_d, s) = crm_store();
+        s.upsert_object("household:1", "household", "1", "", "h-hh", r#"{"a":1}"#).unwrap();
+        s.upsert_object("contact:10", "person", "1", "", "h-c10", r#"{"a":2}"#).unwrap();
+        s.upsert_object("note:5", "note", "1", "", "h-n5", r#"{"a":3}"#).unwrap();
+        // A different household must not leak in.
+        s.upsert_object("contact:99", "person", "2", "", "h-c99", r#"{"a":4}"#).unwrap();
+
+        let expect = |s: &CrmStore| -> Vec<(String, String, String)> {
+            s.list_objects_by_household("1")
+                .unwrap()
+                .into_iter()
+                .map(|r| (r.id, r.kind, r.content_hash))
+                .collect()
+        };
+        assert_eq!(s.list_object_digests_by_household("1").unwrap(), expect(&s));
+
+        // Update one object's content_hash → digest reflects it.
+        s.upsert_object("contact:10", "person", "1", "", "h-c10-v2", r#"{"a":22}"#).unwrap();
+        assert_eq!(s.list_object_digests_by_household("1").unwrap(), expect(&s));
+
+        // Tombstone one → drops from both, still in parity.
+        s.tombstone_object("note:5").unwrap();
+        let digests = s.list_object_digests_by_household("1").unwrap();
+        assert_eq!(digests, expect(&s));
+        assert!(!digests.iter().any(|(id, _, _)| id == "note:5"));
+    }
+
+    /// P2.3 row 7: `apply_ingest_batch` is behaviourally identical to per-object
+    /// `upsert_object` + `tombstone_object`, just committed in one transaction.
+    #[test]
+    fn apply_ingest_batch_matches_per_object_writes() {
+        let per_row = crm_store();
+        let batched = crm_store();
+
+        let ups = vec![
+            CrmUpsert { id: "household:1".into(), kind: "household".into(), household_id: "1".into(), updated_at: "".into(), content_hash: "h1".into(), json: r#"{"a":1}"#.into() },
+            CrmUpsert { id: "contact:10".into(), kind: "person".into(), household_id: "1".into(), updated_at: "".into(), content_hash: "h2".into(), json: r#"{"a":2}"#.into() },
+        ];
+        // Seed a row that both will tombstone.
+        per_row.1.upsert_object("stale:9", "note", "1", "", "hs", r#"{"a":9}"#).unwrap();
+        batched.1.upsert_object("stale:9", "note", "1", "", "hs", r#"{"a":9}"#).unwrap();
+
+        // Per-object path.
+        for u in &ups {
+            per_row.1.upsert_object(&u.id, &u.kind, &u.household_id, &u.updated_at, &u.content_hash, &u.json).unwrap();
+        }
+        per_row.1.tombstone_object("stale:9").unwrap();
+
+        // Batched path.
+        batched.1.apply_ingest_batch(&ups, &["stale:9".to_string()]).unwrap();
+
+        assert_eq!(
+            per_row.1.list_objects_by_household("1").unwrap().into_iter().map(|r| (r.id, r.kind, r.content_hash, r.json)).collect::<Vec<_>>(),
+            batched.1.list_objects_by_household("1").unwrap().into_iter().map(|r| (r.id, r.kind, r.content_hash, r.json)).collect::<Vec<_>>(),
+        );
+        assert!(per_row.1.get_object("stale:9").unwrap().unwrap().deleted);
+        assert!(batched.1.get_object("stale:9").unwrap().unwrap().deleted);
     }
 
     /// Build the path for a CRM DB SQLite sidecar suffix (e.g. "-wal").

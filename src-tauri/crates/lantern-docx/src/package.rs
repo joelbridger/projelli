@@ -231,6 +231,68 @@ impl Package {
         Ok(out.into_inner())
     }
 
+    /// Copy-on-write serialize: write to `.docx` bytes substituting `overrides`
+    /// for the matching parts (and adding any override part not already present),
+    /// WITHOUT cloning the whole package. Byte-for-byte identical to
+    /// `{ let mut p = self.clone(); for (k, v) in overrides { p.insert(k, v); } p.write_to_bytes() }`
+    /// — same content-types-first ordering, same BTreeMap part order — but it
+    /// never duplicates the (potentially large) unmodified parts (media, fonts,
+    /// theme). This is the P2.3 row 10 save hot path: a body edit overrides only
+    /// `word/document.xml`, so every other part is streamed straight from `self`.
+    pub fn write_to_bytes_with_overrides(
+        &self,
+        overrides: &BTreeMap<String, Vec<u8>>,
+    ) -> Result<Vec<u8>> {
+        // Resolve a part's bytes: an override wins over the original.
+        let bytes_for = |name: &str| -> Option<&[u8]> {
+            overrides
+                .get(name)
+                .map(|v| v.as_slice())
+                .or_else(|| self.get(name))
+        };
+
+        let mut out = Cursor::new(Vec::new());
+        {
+            let mut zip = ZipWriter::new(&mut out);
+            let opts =
+                SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
+
+            // Content-types first (OPC spec / Word preference), exactly as
+            // `write_to_bytes`.
+            if let Some(ct) = bytes_for(CONTENT_TYPES_PART) {
+                zip.start_file(CONTENT_TYPES_PART, opts)
+                    .map_err(|e| DocxError::Package(format!("start content types: {e}")))?;
+                zip.write_all(ct)
+                    .map_err(|e| DocxError::Package(format!("write content types: {e}")))?;
+            }
+
+            // Then the union of original + override part names, in BTreeMap
+            // (sorted) order — the same order `write_to_bytes` produces after a
+            // clone+insert. Only the small name strings are collected, never the
+            // byte buffers.
+            let mut names: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+            for k in self.parts.keys() {
+                names.insert(k.as_str());
+            }
+            for k in overrides.keys() {
+                names.insert(k.as_str());
+            }
+            for name in names {
+                if name == CONTENT_TYPES_PART {
+                    continue;
+                }
+                let bytes = bytes_for(name).expect("name came from one of the two maps");
+                zip.start_file(name, opts)
+                    .map_err(|e| DocxError::Package(format!("start part {name}: {e}")))?;
+                zip.write_all(bytes)
+                    .map_err(|e| DocxError::Package(format!("write part {name}: {e}")))?;
+            }
+            zip.finish()
+                .map_err(|e| DocxError::Package(format!("finish zip: {e}")))?;
+        }
+        Ok(out.into_inner())
+    }
+
     /// Ensure `[Content_Types].xml` declares an Override for the comments part.
     /// Used when we add a `comments.xml` to a document that previously had
     /// none, so Word recognizes the new part. No-op if already declared or if

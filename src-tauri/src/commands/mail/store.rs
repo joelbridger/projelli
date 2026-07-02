@@ -383,6 +383,17 @@ fn query_all_folder_keys(conn: &Connection) -> Result<Vec<MailFolderKey>> {
 pub trait MailStore: Send + Sync {
     /// Insert or update a record keyed by `rec.id`.  Idempotent.
     fn upsert(&self, rec: &MailRecord) -> Result<()>;
+    /// Insert-or-update MANY records in one shot. Idempotent, keyed by id, same
+    /// result as calling `upsert` per record. The SQLite-backed stores override
+    /// this to wrap the whole slice in ONE transaction (one commit/fsync per
+    /// page instead of one per message — P2.3 row 5). The default loops `upsert`,
+    /// which is correct for in-memory / test stores.
+    fn upsert_batch(&self, recs: &[MailRecord]) -> Result<()> {
+        for rec in recs {
+            self.upsert(rec)?;
+        }
+        Ok(())
+    }
     /// Remove a record by id.  Returns the `relative_path` if the record
     /// existed, or `None` if it was already absent.
     fn tombstone(&self, id: &str) -> Result<Option<String>>;
@@ -528,42 +539,73 @@ fn migrate_message_columns(conn: &Connection) {
     );
 }
 
+/// The one INSERT-or-update statement both SQLite-backed stores use, kept in one
+/// place so `upsert` and the transactional `upsert_batch` never drift apart.
+const UPSERT_MESSAGE_SQL: &str = "INSERT INTO messages
+        (id, folder_id, internet_message_id, relative_path, received_date_time,
+         provider, account, subject, from_addr, from_name, snippet, has_attachments)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+     ON CONFLICT(id) DO UPDATE SET
+        folder_id           = ?2,
+        internet_message_id = ?3,
+        relative_path       = ?4,
+        received_date_time  = ?5,
+        provider            = ?6,
+        account             = ?7,
+        subject             = ?8,
+        from_addr           = ?9,
+        from_name           = ?10,
+        snippet             = ?11,
+        has_attachments     = ?12";
+
+/// Run one message upsert against a connection or transaction. Extracted so the
+/// single-row `upsert` and the batched `upsert_batch` share identical SQL.
+fn upsert_message_row(conn: &rusqlite::Connection, rec: &MailRecord) -> Result<()> {
+    conn.execute(
+        UPSERT_MESSAGE_SQL,
+        rusqlite::params![
+            rec.id,
+            rec.folder_id,
+            rec.internet_message_id,
+            rec.relative_path,
+            rec.received_date_time,
+            rec.provider,
+            rec.account,
+            rec.subject,
+            rec.from_addr,
+            rec.from_name,
+            rec.snippet,
+            rec.has_attachments as i64,
+        ],
+    )?;
+    Ok(())
+}
+
+/// Upsert every record in ONE transaction against a `Mutex<Connection>`-backed
+/// store. Autocommit upserts fsync once per row; a page of N messages then costs
+/// N fsyncs. Wrapping the page in a single transaction cuts that to one commit.
+/// Empty input is a no-op (no empty transaction). P2.3 row 5.
+fn upsert_batch_txn(conn: &std::sync::Mutex<rusqlite::Connection>, recs: &[MailRecord]) -> Result<()> {
+    if recs.is_empty() {
+        return Ok(());
+    }
+    let mut c = conn.lock().unwrap();
+    let tx = c.transaction()?;
+    for rec in recs {
+        upsert_message_row(&tx, rec)?;
+    }
+    tx.commit()?;
+    Ok(())
+}
+
 impl MailStore for SqliteMailStore {
     fn upsert(&self, rec: &MailRecord) -> Result<()> {
         let c = self.conn.lock().unwrap();
-        c.execute(
-            "INSERT INTO messages
-                (id, folder_id, internet_message_id, relative_path, received_date_time,
-                 provider, account, subject, from_addr, from_name, snippet, has_attachments)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
-             ON CONFLICT(id) DO UPDATE SET
-                folder_id           = ?2,
-                internet_message_id = ?3,
-                relative_path       = ?4,
-                received_date_time  = ?5,
-                provider            = ?6,
-                account             = ?7,
-                subject             = ?8,
-                from_addr           = ?9,
-                from_name           = ?10,
-                snippet             = ?11,
-                has_attachments     = ?12",
-            rusqlite::params![
-                rec.id,
-                rec.folder_id,
-                rec.internet_message_id,
-                rec.relative_path,
-                rec.received_date_time,
-                rec.provider,
-                rec.account,
-                rec.subject,
-                rec.from_addr,
-                rec.from_name,
-                rec.snippet,
-                rec.has_attachments as i64,
-            ],
-        )?;
-        Ok(())
+        upsert_message_row(&c, rec)
+    }
+
+    fn upsert_batch(&self, recs: &[MailRecord]) -> Result<()> {
+        upsert_batch_txn(&self.conn, recs)
     }
 
     fn tombstone(&self, id: &str) -> Result<Option<String>> {
@@ -873,31 +915,11 @@ impl MailStore for EncryptedMailStore {
 
     fn upsert(&self, rec: &MailRecord) -> Result<()> {
         let c = self.conn.lock().unwrap();
-        c.execute(
-            "INSERT INTO messages
-                (id, folder_id, internet_message_id, relative_path, received_date_time,
-                 provider, account, subject, from_addr, from_name, snippet, has_attachments)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
-             ON CONFLICT(id) DO UPDATE SET
-                folder_id           = ?2,
-                internet_message_id = ?3,
-                relative_path       = ?4,
-                received_date_time  = ?5,
-                provider            = ?6,
-                account             = ?7,
-                subject             = ?8,
-                from_addr           = ?9,
-                from_name           = ?10,
-                snippet             = ?11,
-                has_attachments     = ?12",
-            rusqlite::params![
-                rec.id, rec.folder_id, rec.internet_message_id,
-                rec.relative_path, rec.received_date_time, rec.provider, rec.account,
-                rec.subject, rec.from_addr, rec.from_name, rec.snippet,
-                rec.has_attachments as i64,
-            ],
-        )?;
-        Ok(())
+        upsert_message_row(&c, rec)
+    }
+
+    fn upsert_batch(&self, recs: &[MailRecord]) -> Result<()> {
+        upsert_batch_txn(&self.conn, recs)
     }
 
     fn tombstone(&self, id: &str) -> Result<Option<String>> {
@@ -1108,6 +1130,51 @@ mod tests {
     // -----------------------------------------------------------------------
     // Existing tests — updated for new MailRecord fields
     // -----------------------------------------------------------------------
+
+    /// P2.3 row 5 MEASUREMENT (ignored; run with
+    /// `cargo test -p lantern --lib measure_upsert_batch_vs_per_row -- --ignored --nocapture`).
+    /// Times upserting N records one-at-a-time (autocommit = one fsync each)
+    /// against `upsert_batch` (one transaction). Both stores end identical.
+    #[test]
+    #[ignore]
+    fn measure_upsert_batch_vs_per_row() {
+        use std::time::Instant;
+        const N: usize = 500;
+        let mk = |i: usize| MailRecord {
+            id: format!("m{i}"),
+            folder_id: "inbox".into(),
+            internet_message_id: Some(format!("<{i}@y>")),
+            relative_path: format!("Mail/inbox/m{i}.enc"),
+            received_date_time: Some("2026-05-01T00:00:00Z".into()),
+            provider: "m365".into(),
+            account: "default".into(),
+            subject: format!("Subject {i}"),
+            from_addr: "alice@example.com".into(),
+            from_name: "Alice".into(),
+            snippet: "body snippet here".into(),
+            has_attachments: false,
+        };
+        let recs: Vec<MailRecord> = (0..N).map(mk).collect();
+
+        let (_d1, per_row) = store();
+        let t0 = Instant::now();
+        for r in &recs {
+            per_row.upsert(r).unwrap();
+        }
+        let per_row_dur = t0.elapsed();
+
+        let (_d2, batched) = store();
+        let t1 = Instant::now();
+        batched.upsert_batch(&recs).unwrap();
+        let batch_dur = t1.elapsed();
+
+        assert_eq!(per_row.count().unwrap(), N as i64);
+        assert_eq!(batched.count().unwrap(), N as i64);
+        eprintln!(
+            "[P2.3 row 5] {N} mail upserts: PER-ROW {per_row_dur:?}  BATCHED {batch_dur:?}  speedup {:.1}x",
+            per_row_dur.as_secs_f64() / batch_dur.as_secs_f64().max(1e-9)
+        );
+    }
 
     #[test]
     fn upsert_is_idempotent_by_id() {
