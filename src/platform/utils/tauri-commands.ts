@@ -154,7 +154,7 @@ export const OCR_SKIP_CONFIDENCE = 30;
 
 /** WS-B/C — the REQUIRED retrieval scope. A caller cannot omit scope and
  *  silently search every matter; it must name `matter` or `allMatters`.
- *  Mirrors `RetrievalScope` in `src-tauri/src/commands/rag/mod.rs`.
+ *  Mirrors `RetrievalScope` in `src-tauri/src/commands/rag/state.rs`.
  *
  *  - `{ kind: 'matter', matterId }` — scope to ONE matter (LanceDB prefilter).
  *  - `{ kind: 'allMatters' }`       — explicit, audited cross-matter search.
@@ -165,7 +165,7 @@ export type RetrievalScope =
 
 /** WS-B/C — verdict from `ragVerifyCitation`. The app must refuse to present
  *  any answer whose citation does not return `{ verdict: 'verified' }`.
- *  Mirrors `Verdict` in `src-tauri/src/commands/rag/mod.rs`. */
+ *  Mirrors `Verdict` in `src-tauri/src/commands/rag/state.rs`. */
 export type CitationVerdict =
   | { verdict: 'verified' }
   | { verdict: 'notFound' }
@@ -173,7 +173,7 @@ export type CitationVerdict =
   | { verdict: 'textMismatch' };
 
 /** RAG indexer status emitted on the `rag-indexing-progress` Tauri event.
- *  Mirror of `IndexingStatus` in `src-tauri/src/commands/rag/mod.rs`. */
+ *  Mirror of `IndexingStatus` in `src-tauri/src/commands/rag/state.rs`. */
 export type RagIndexingStatus =
   | 'idle'
   // P1.1 (Task 4): the cheap stat-walk phase of a boot reconcile (comparing

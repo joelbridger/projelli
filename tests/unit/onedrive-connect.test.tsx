@@ -29,6 +29,7 @@ vi.mock('@/platform/connectors/onedrive/useOneDriveSync', () => ({
 
 vi.mock('@/platform/hooks/useConfidentialityMode', () => ({
   useConfidentialityMode: () => 'direct',
+  getConfidentialityMode: () => 'direct',
 }));
 
 function report(overrides: Partial<OneDriveSyncReport> = {}): OneDriveSyncReport {
