@@ -1,3 +1,6 @@
+<!-- LANTERN-PLUS FORK BANNER (keep this block first; fork-only, do not merge conflicts over it) -->
+> **🔱 THIS IS THE `lantern-plus` FORK, not the main Keepance folder.** You are in `~/lantern-plus`, the parallel effort building the Jump feature-parity program. **READ [`LANTERN-PLUS.md`](./LANTERN-PLUS.md) FIRST** — it defines this folder's mission, branch rules, and merge discipline. The implementation plans live in `docs/plans/lantern-plus/`. Everything below is the inherited Keepance context and still applies.
+
 # Keepance — Claude Code Project Context
 
 > **Read this first if you're a future Claude session working in this repo.**
