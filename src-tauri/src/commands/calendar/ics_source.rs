@@ -86,36 +86,114 @@ fn split_prop(line: &str) -> Option<(String, Vec<(String, String)>, String)> {
     Some((name, params, value))
 }
 
-/// Parse an ICS datetime value: "20260702T160000Z" (UTC), "20260702T160000"
-/// with TZID param, or all-day "20260702" (DATE) -> midnight UTC.
-fn parse_ics_datetime(value: &str, tzid: Option<&str>) -> anyhow::Result<DateTime<Utc>> {
+/// Parse the wall-clock naive datetime out of an ICS value, ignoring any
+/// timezone semantics — a 'Z'-suffixed or DATE-only value still just yields
+/// its literal digits as a naive datetime; callers apply the zone (if any)
+/// separately via `resolve_tz` + `naive_to_utc`.
+fn parse_ics_naive(value: &str) -> anyhow::Result<chrono::NaiveDateTime> {
     let v = value.trim();
     if let Some(stripped) = v.strip_suffix('Z') {
-        let naive = chrono::NaiveDateTime::parse_from_str(stripped, "%Y%m%dT%H%M%S")
-            .map_err(|e| anyhow::anyhow!("ics utc datetime {v:?}: {e}"))?;
-        return Ok(DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc));
+        return chrono::NaiveDateTime::parse_from_str(stripped, "%Y%m%dT%H%M%S")
+            .map_err(|e| anyhow::anyhow!("ics utc datetime {v:?}: {e}"));
     }
     if v.len() == 8 && !v.contains('T') {
         let date = chrono::NaiveDate::parse_from_str(v, "%Y%m%d")
             .map_err(|e| anyhow::anyhow!("ics date {v:?}: {e}"))?;
-        let naive = date.and_hms_opt(0, 0, 0).unwrap();
-        return Ok(DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc));
+        return Ok(date.and_hms_opt(0, 0, 0).unwrap());
     }
-    let naive = chrono::NaiveDateTime::parse_from_str(v, "%Y%m%dT%H%M%S")
-        .map_err(|e| anyhow::anyhow!("ics local datetime {v:?}: {e}"))?;
-    match tzid {
-        Some(zone) => {
-            let tz: chrono_tz::Tz = zone
-                .parse()
-                .map_err(|_| anyhow::anyhow!("unknown ics TZID {zone:?}"))?;
-            tz.from_local_datetime(&naive)
-                .earliest()
-                .ok_or_else(|| anyhow::anyhow!("nonexistent local time {v:?} in {zone}"))
-                .map(|d| d.with_timezone(&Utc))
+    chrono::NaiveDateTime::parse_from_str(v, "%Y%m%dT%H%M%S")
+        .map_err(|e| anyhow::anyhow!("ics local datetime {v:?}: {e}"))
+}
+
+/// True when an ICS value is inherently UTC (a literal 'Z' suffix, or the
+/// DATE-only all-day form) — a TZID param never applies to these.
+fn is_inherently_utc(value: &str) -> bool {
+    let v = value.trim();
+    v.ends_with('Z') || (v.len() == 8 && !v.contains('T'))
+}
+
+/// Common Windows-style ICS TZID names (as exported by Outlook/Exchange)
+/// mapped to their IANA equivalent. Not exhaustive by design — covers the
+/// zones most likely for this product's ICP (US-based financial-advisory
+/// practices) plus a few major international ones, the same bounded/honest
+/// pattern as the RRULE expander below: an unmapped name falls back to UTC
+/// rather than dropping the whole event.
+fn windows_tz_to_iana(name: &str) -> Option<&'static str> {
+    Some(match name {
+        "Eastern Standard Time" => "America/New_York",
+        "Central Standard Time" => "America/Chicago",
+        "Mountain Standard Time" => "America/Denver",
+        "US Mountain Standard Time" => "America/Phoenix",
+        "Pacific Standard Time" => "America/Los_Angeles",
+        "Alaskan Standard Time" => "America/Anchorage",
+        "Hawaiian Standard Time" => "Pacific/Honolulu",
+        "Atlantic Standard Time" => "America/Halifax",
+        "GMT Standard Time" => "Europe/London",
+        "W. Europe Standard Time" => "Europe/Berlin",
+        "Central Europe Standard Time" => "Europe/Warsaw",
+        "Romance Standard Time" => "Europe/Paris",
+        "China Standard Time" => "Asia/Shanghai",
+        "Tokyo Standard Time" => "Asia/Tokyo",
+        "India Standard Time" => "Asia/Kolkata",
+        "AUS Eastern Standard Time" => "Australia/Sydney",
+        "UTC" => "Etc/UTC",
+        _ => return None,
+    })
+}
+
+/// Resolve a TZID param to a chrono-tz zone: try it as a literal IANA name
+/// first (the common case), then the Windows-name table above. `None`
+/// (absent TZID, or a name we don't recognize either way) means "treat as
+/// UTC" — codex-review P2: a genuinely unknown zone must not drop the whole
+/// event, only lose DST-correctness for that one event.
+fn resolve_tz(tzid: Option<&str>) -> Option<chrono_tz::Tz> {
+    let zone = tzid?;
+    if let Ok(tz) = zone.parse::<chrono_tz::Tz>() {
+        return Some(tz);
+    }
+    if let Some(iana) = windows_tz_to_iana(zone) {
+        if let Ok(tz) = iana.parse::<chrono_tz::Tz>() {
+            return Some(tz);
         }
-        // Floating time without TZID: treat as UTC (documented limitation).
-        None => Ok(DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc)),
     }
+    log::debug!("calendar ics: unrecognized TZID {zone:?}, treating as UTC (documented limitation)");
+    None
+}
+
+/// Apply a resolved zone (or none, for literal-UTC/floating values) to a
+/// naive wall-clock datetime, producing the UTC instant. A DST-fold
+/// ambiguous local time picks the earlier of the two valid UTC instants.
+fn naive_to_utc(naive: chrono::NaiveDateTime, tz: Option<chrono_tz::Tz>) -> DateTime<Utc> {
+    match tz {
+        Some(z) => z
+            .from_local_datetime(&naive)
+            .earliest()
+            .map(|d| d.with_timezone(&Utc))
+            .unwrap_or_else(|| DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc)),
+        None => DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc),
+    }
+}
+
+/// The inverse of `naive_to_utc`: express a UTC instant in a zone's local
+/// wall-clock time. Used only for the recurrence fast-forward's coarse
+/// target (a day or so of slop near a DST boundary is irrelevant there —
+/// exact window filtering happens per-occurrence in `naive_to_utc` space).
+fn utc_to_naive_local(dt: DateTime<Utc>, tz: Option<chrono_tz::Tz>) -> chrono::NaiveDateTime {
+    match tz {
+        Some(z) => z.from_utc_datetime(&dt.naive_utc()).naive_local(),
+        None => dt.naive_utc(),
+    }
+}
+
+/// Parse an ICS datetime value to a UTC instant: "20260702T160000Z" (UTC),
+/// "20260702T160000" with TZID param, or all-day "20260702" (DATE, midnight
+/// UTC). Used for single-instant fields (DTEND, EXDATE) — DST-correct
+/// recurrence stepping uses `parse_ics_naive` + `resolve_tz` directly, see
+/// `expand_occurrences`.
+fn parse_ics_datetime(value: &str, tzid: Option<&str>) -> anyhow::Result<DateTime<Utc>> {
+    let naive = parse_ics_naive(value)?;
+    let tz = if is_inherently_utc(value) { None } else { resolve_tz(tzid) };
+    Ok(naive_to_utc(naive, tz))
 }
 
 #[derive(Default)]
@@ -139,16 +217,27 @@ fn to_rfc3339(dt: DateTime<Utc>) -> String {
 /// Expand one VEVENT into occurrences overlapping [from, to). Supports
 /// DAILY/WEEKLY (with BYDAY)/MONTHLY, INTERVAL, COUNT, UNTIL, EXDATE.
 /// Unsupported rules yield just the master occurrence.
+///
+/// Stepping happens entirely in `start_naive`'s wall-clock local time (via
+/// `tz`, the DTSTART's resolved zone), converting each CANDIDATE occurrence
+/// to UTC individually (`naive_to_utc`) rather than doing the day/week/month
+/// arithmetic in UTC and applying one fixed offset — codex-review P2: a
+/// weekly meeting stepped in UTC keeps the DTSTART's original UTC offset
+/// forever, so it silently shows an hour off in every window after a DST
+/// transition. Per-occurrence conversion picks the correct offset for each
+/// date, matching a real calendar's "same local time every week" semantics.
 fn expand_occurrences(
-    start: DateTime<Utc>,
+    start_naive: chrono::NaiveDateTime,
+    tz: Option<chrono_tz::Tz>,
     rrule: Option<&str>,
-    exdates: &[DateTime<Utc>],
+    exdates_naive: &[chrono::NaiveDateTime],
     from: DateTime<Utc>,
     to: DateTime<Utc>,
 ) -> Vec<DateTime<Utc>> {
     const HARD_CAP: usize = 1000; // safety valve against pathological rules
     let Some(rule) = rrule else {
-        return if start < to { vec![start] } else { vec![] };
+        let occ = naive_to_utc(start_naive, tz);
+        return if occ < to { vec![occ] } else { vec![] };
     };
     let mut freq = "";
     let mut interval: i64 = 1;
@@ -166,6 +255,8 @@ fn expand_occurrences(
             },
             "INTERVAL" => interval = v.parse().unwrap_or(1).max(1),
             "COUNT" => count = v.parse().ok(),
+            // RFC 5545: UNTIL, when it carries a time, is always UTC
+            // regardless of DTSTART's zone — no TZID to apply here.
             "UNTIL" => until = parse_ics_datetime(v, None).ok(),
             "BYDAY" => {
                 bydays = v
@@ -187,17 +278,23 @@ fn expand_occurrences(
     }
     if freq.is_empty() {
         // Unsupported FREQ: honest fallback to the master occurrence.
-        return if start < to { vec![start] } else { vec![] };
+        let occ = naive_to_utc(start_naive, tz);
+        return if occ < to { vec![occ] } else { vec![] };
     }
 
-    // Candidate generation: step day-by-day from the series start, accept
-    // dates matching the rule, count against COUNT across the whole series
-    // (not just the window), stop at UNTIL / window end / hard cap.
+    // Candidate generation: step day-by-day (in LOCAL wall-clock time) from
+    // the series start, accept dates matching the rule, count against COUNT
+    // across the whole series (not just the window), stop at UNTIL / window
+    // end / hard cap.
     use chrono::Datelike;
     let mut occurrences = Vec::new();
     let mut accepted: usize = 0;
-    let mut cursor = start;
-    let series_end = until.unwrap_or(to).min(to + Duration::days(1));
+    let mut cursor = start_naive;
+    let to_naive = utc_to_naive_local(to, tz);
+    let series_end = until
+        .map(|u| utc_to_naive_local(u, tz))
+        .unwrap_or(to_naive)
+        .min(to_naive + Duration::days(1));
 
     // Fast-forward: a series that started years before the window would
     // otherwise burn the entire HARD_CAP stepping one day at a time before
@@ -205,42 +302,41 @@ fn expand_occurrences(
     // vanishes from every sync (codex-review P2). Jump the cursor (and the
     // COUNT tally, so COUNT= still cuts off correctly) directly to the last
     // full rule period before the window, then resume the normal day-by-day
-    // walk, which only needs to cover at most one period from there.
-    let target = (from - Duration::days(1)).max(start);
+    // walk, which only needs to cover at most one period from there. This
+    // target is intentionally coarse (naive local, no DST subtlety) — it's
+    // only a starting point for stepping, not the final filter.
+    let target = utc_to_naive_local(from - Duration::days(1), tz).max(start_naive);
     match freq {
         "DAILY" => {
-            let gap_days = (target.date_naive() - start.date_naive()).num_days().max(0);
+            let gap_days = (target.date() - start_naive.date()).num_days().max(0);
             let periods = gap_days / interval;
             if periods > 0 {
                 accepted = periods as usize;
-                cursor = start + Duration::days(periods * interval);
+                cursor = start_naive + Duration::days(periods * interval);
             }
         }
         "WEEKLY" => {
-            let gap_days = (target.date_naive() - start.date_naive()).num_days().max(0);
+            let gap_days = (target.date() - start_naive.date()).num_days().max(0);
             let period_days = 7 * interval;
             let cycles = gap_days / period_days;
             if cycles > 0 {
                 let occurrences_per_cycle = bydays.len().max(1) as i64;
                 accepted = (cycles * occurrences_per_cycle) as usize;
-                cursor = start + Duration::days(cycles * period_days);
+                cursor = start_naive + Duration::days(cycles * period_days);
             }
         }
         "MONTHLY" => {
-            let gap_months = (target.year() - start.year()) as i64 * 12
-                + (target.month() as i64 - start.month() as i64);
+            let gap_months = (target.year() - start_naive.year()) as i64 * 12
+                + (target.month() as i64 - start_naive.month() as i64);
             let cycles = gap_months.max(0) / interval;
             if cycles > 0 {
                 accepted = cycles as usize;
                 let months = (cycles * interval) as u32;
-                let new_date = start
-                    .date_naive()
+                let new_date = start_naive
+                    .date()
                     .checked_add_months(chrono::Months::new(months))
-                    .unwrap_or_else(|| start.date_naive());
-                cursor = DateTime::<Utc>::from_naive_utc_and_offset(
-                    new_date.and_time(start.time()),
-                    Utc,
-                );
+                    .unwrap_or_else(|| start_naive.date());
+                cursor = new_date.and_time(start_naive.time());
             }
         }
         _ => {}
@@ -258,24 +354,24 @@ fn expand_occurrences(
         steps += 1;
         let matches_rule = match freq {
             "DAILY" => {
-                let days = (cursor.date_naive() - start.date_naive()).num_days();
+                let days = (cursor.date() - start_naive.date()).num_days();
                 days % interval == 0
             }
             "WEEKLY" => {
-                let days = (cursor.date_naive() - start.date_naive()).num_days();
+                let days = (cursor.date() - start_naive.date()).num_days();
                 let week = days.div_euclid(7);
                 let in_week = week % interval == 0;
                 let day_ok = if bydays.is_empty() {
-                    cursor.weekday() == start.weekday()
+                    cursor.weekday() == start_naive.weekday()
                 } else {
                     bydays.contains(&cursor.weekday())
                 };
                 in_week && day_ok
             }
             "MONTHLY" => {
-                let month_delta = (cursor.year() - start.year()) as i64 * 12
-                    + (cursor.month() as i64 - start.month() as i64);
-                cursor.day() == start.day() && month_delta % interval == 0
+                let month_delta = (cursor.year() - start_naive.year()) as i64 * 12
+                    + (cursor.month() as i64 - start_naive.month() as i64);
+                cursor.day() == start_naive.day() && month_delta % interval == 0
             }
             _ => false,
         };
@@ -286,14 +382,18 @@ fn expand_occurrences(
                     break;
                 }
             }
+            // Per-occurrence UTC conversion — the DST-correctness fix:
+            // each candidate picks its own offset instead of inheriting
+            // DTSTART's.
+            let occ_utc = naive_to_utc(cursor, tz);
             if let Some(u) = until {
-                if cursor > u {
+                if occ_utc > u {
                     break;
                 }
             }
-            let excluded = exdates.iter().any(|x| *x == cursor);
-            if !excluded && cursor >= from - Duration::days(1) && cursor < to {
-                occurrences.push(cursor);
+            let excluded = exdates_naive.iter().any(|x| *x == cursor);
+            if !excluded && occ_utc >= from - Duration::days(1) && occ_utc < to {
+                occurrences.push(occ_utc);
             }
         }
         cursor += Duration::days(1);
@@ -369,13 +469,15 @@ fn finish_vevent(
     let Some((start_val, start_tz)) = raw.dtstart.as_ref() else {
         return Ok(vec![]); // undated: skip, never crash a whole feed
     };
-    let start = match parse_ics_datetime(start_val, start_tz.as_deref()) {
+    let start_naive = match parse_ics_naive(start_val) {
         Ok(dt) => dt,
         Err(e) => {
             log::debug!("calendar ics: skipping unparseable DTSTART: {e:#}");
             return Ok(vec![]);
         }
     };
+    let tz = if is_inherently_utc(start_val) { None } else { resolve_tz(start_tz.as_deref()) };
+    let start = naive_to_utc(start_naive, tz);
     // RFC 5545 §3.6.1: a VEVENT with no DTEND defaults to a 1-day duration
     // when DTSTART is a DATE (all-day, no time component), and 1 hour
     // otherwise (VEVENT/VALUE=DATE-TIME default duration is undefined by
@@ -388,17 +490,16 @@ fn finish_vevent(
             .unwrap_or(default_duration),
         None => default_duration,
     };
-    let exdates: Vec<DateTime<Utc>> = raw
+    // EXDATE is assumed to share DTSTART's zone (the standard RFC 5545
+    // usage) — compared as naive wall-clock values against the naive
+    // recurrence cursor in expand_occurrences, not converted to UTC here.
+    let exdates_naive: Vec<chrono::NaiveDateTime> = raw
         .exdates
         .iter()
-        .flat_map(|(v, tz)| {
-            v.split(',')
-                .filter_map(|one| parse_ics_datetime(one, tz.as_deref()).ok())
-                .collect::<Vec<_>>()
-        })
+        .flat_map(|(v, _tz)| v.split(',').filter_map(|one| parse_ics_naive(one).ok()).collect::<Vec<_>>())
         .collect();
 
-    let occurrences = expand_occurrences(start, raw.rrule.as_deref(), &exdates, from, to);
+    let occurrences = expand_occurrences(start_naive, tz, raw.rrule.as_deref(), &exdates_naive, from, to);
     Ok(occurrences
         .into_iter()
         .filter(|occ| *occ + duration > from && *occ < to)
@@ -485,6 +586,57 @@ mod tests {
             let events = parse_ics(&ics, WINDOW_FROM, WINDOW_TO).unwrap();
             assert_eq!(events[0].start_utc, expected, "{why}");
         }
+    }
+
+    #[test]
+    fn weekly_tzid_recurrence_stays_correct_across_a_dst_transition() {
+        // codex-review P2 (round 4): stepping a TZID recurrence in UTC
+        // instead of local wall-clock time bakes in DTSTART's original UTC
+        // offset forever, so occurrences after a DST transition show up an
+        // hour off. US DST ends the first Sunday of November; a Monday
+        // 10:00 America/New_York meeting is UTC-4 (EDT) before that and
+        // UTC-5 (EST) after — both hours must appear, proving each
+        // occurrence picks its own offset rather than inheriting one fixed
+        // offset from DTSTART.
+        let ics = wrap(
+            "BEGIN:VEVENT\r\nUID:dst1\r\nSUMMARY:Weekly check-in\r\n\
+             DTSTART;TZID=America/New_York:20261005T100000\r\n\
+             DTEND;TZID=America/New_York:20261005T110000\r\n\
+             RRULE:FREQ=WEEKLY;COUNT=10\r\nEND:VEVENT\r\n",
+        );
+        let events = parse_ics(&ics, "2026-10-01T00:00:00Z", "2026-11-16T00:00:00Z").unwrap();
+        assert!(events.len() >= 5, "several weekly occurrences should land in a 6-week window");
+        use chrono::Timelike;
+        let hours: std::collections::HashSet<u32> = events
+            .iter()
+            .map(|e| {
+                chrono::DateTime::parse_from_rfc3339(&e.start_utc)
+                    .unwrap()
+                    .hour()
+            })
+            .collect();
+        assert!(hours.contains(&14), "EDT (UTC-4) occurrences before the Nov transition: {hours:?}");
+        assert!(hours.contains(&15), "EST (UTC-5) occurrences after the Nov transition: {hours:?}");
+    }
+
+    #[test]
+    fn windows_style_tzid_name_resolves_instead_of_dropping_the_event() {
+        // codex-review P2 (round 4): Outlook/Exchange feeds commonly export
+        // Windows zone names ("Pacific Standard Time") instead of IANA
+        // names. Previously this failed TZID parsing entirely and the whole
+        // event silently vanished; it must now resolve via the Windows-name
+        // table (or at minimum survive as a UTC fallback), never disappear.
+        let ics = wrap(
+            "BEGIN:VEVENT\r\nUID:win1\r\nSUMMARY:Exchange-exported meeting\r\n\
+             DTSTART;TZID=Pacific Standard Time:20260702T090000\r\n\
+             DTEND;TZID=Pacific Standard Time:20260702T100000\r\nEND:VEVENT\r\n",
+        );
+        let events = parse_ics(&ics, WINDOW_FROM, WINDOW_TO).unwrap();
+        assert_eq!(events.len(), 1, "the event must not be dropped for an unrecognized-by-chrono-tz name");
+        assert_eq!(
+            events[0].start_utc, "2026-07-02T16:00:00Z",
+            "Pacific Standard Time -> America/Los_Angeles, PDT is UTC-7 in July"
+        );
     }
 
     #[test]

@@ -289,8 +289,14 @@ async fn calendar_disconnect_inner(
         }
     }
     if !any_left {
+        // codex-review P1 (round 4): the file-removal purge must succeed
+        // before the DB master key is forgotten. Discarding a `remove_file`
+        // failure here (e.g. a Windows sharing violation) previously still
+        // deleted the key and reported success, leaving an now-unreadable
+        // encrypted DB on disk that breaks a later reconnect.
         if let Some(ws) = workspace.as_ref() {
-            let _ = CalendarStore::purge(ws);
+            CalendarStore::purge(ws)
+                .map_err(|e| format!("Could not remove the local calendar database: {e}"))?;
         }
         let _ = CalendarStore::delete_master_key();
     }
