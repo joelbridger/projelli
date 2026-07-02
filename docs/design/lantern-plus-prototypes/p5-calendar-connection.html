@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P5 · Calendar connection — Lantern Prototype</title>
+<link rel="stylesheet" href="kit.css">
+<style>
+  body { padding: 0; }
+  .proto-stage { padding: 24px; display: flex; justify-content: center; }
+
+  /* Behind-modal surface: the Connections lives in the Account modal, so the
+     shell behind it is dimmed by the scrim (matching the real app). */
+  .surface-placeholder { height: 100%; display: flex; align-items: center; justify-content: center; color: var(--kp-text-faint); font-size: 13px; }
+
+  /* The Account modal is taller than the default kit modal. */
+  .acct-modal { max-width: 720px; max-height: 800px; }
+  .acct-modal__header {
+    display: flex; align-items: flex-start; gap: 16px;
+    padding: 22px 24px 18px; border-bottom: 1px solid var(--kp-divider);
+  }
+  .acct-modal__avatar {
+    width: 56px; height: 56px; border-radius: 50%; flex: none;
+    border: 1px solid var(--color-border); background: var(--kp-bg-soft);
+    display: inline-flex; align-items: center; justify-content: center; color: var(--kp-text-faint);
+  }
+  .acct-modal__idcol { display: flex; flex-direction: column; gap: 8px; }
+  .acct-modal__name { width: 320px; }
+  .acct-tabs { display: flex; gap: 24px; padding: 0 24px; border-bottom: 1px solid var(--kp-divider); }
+  .acct-tab {
+    border: none; background: transparent; cursor: pointer; font-family: var(--font-sans);
+    font-size: 14px; font-weight: 500; color: var(--color-muted-foreground);
+    padding: 12px 2px; border-bottom: 2px solid transparent; margin-bottom: -1px;
+  }
+  .acct-tab.is-active { color: var(--kp-navy); font-weight: 600; border-bottom-color: var(--kp-navy); }
+  .acct-modal__body { overflow-y: auto; padding: 20px 24px 24px; display: flex; flex-direction: column; gap: 16px; }
+
+  /* Connector card — the shared shape for every connector. */
+  .conn-card { border: 1px solid var(--color-border); border-radius: 8px; background: #fff; box-shadow: var(--kp-shadow-1); padding: 18px 20px; }
+  .conn-card__title { font-size: 15px; font-weight: 700; color: var(--kp-navy); margin: 0; }
+  .conn-card__desc { font-size: 13.5px; color: var(--kp-text-dim); line-height: 1.5; margin: 8px 0 0; }
+  .conn-card__desc a { color: #3a6ea5; text-decoration: underline; text-underline-offset: 2px; }
+  .conn-card__note { font-size: 12.5px; color: var(--kp-text-faint); line-height: 1.5; margin: 8px 0 0; }
+  .conn-card__desktop-only { font-size: 13px; font-style: italic; color: var(--kp-text-faint); margin: 8px 0 0; }
+  .conn-card__actions { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .conn-fields { margin-top: 14px; display: grid; grid-template-columns: 1fr 120px; gap: 12px 16px; }
+  .conn-fields .full { grid-column: 1 / -1; }
+
+  /* Calendar card provider choices (inside the card, not a wizard). */
+  .cal-providers { margin-top: 14px; display: flex; flex-direction: column; gap: 12px; }
+  .cal-providers__row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .cal-ics { display: flex; align-items: center; gap: 8px; }
+  .cal-ics__or { font-size: 12px; color: var(--kp-text-faint); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+  .cal-connected__line { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--kp-navy); margin-top: 10px; }
+  .cal-connected__line .kp-icon { color: var(--kp-text-faint); }
+
+  /* State visibility */
+  .when-connected { display: none; }
+  body.is-connected .when-connected { display: block; }
+  body.is-connected .when-disconnected { display: none; }
+  .cal-actions-connected { display: none; }
+  body.is-connected .cal-actions-connected { display: flex; }
+</style>
+</head>
+<body class="is-disconnected">
+
+<!-- ===== Prototype header ===== -->
+<div class="proto-header">
+  <span class="proto-header__name">P5 &#183; Calendar connection</span>
+  <span class="proto-header__wave">Wave 1</span>
+  <span style="color:#6b7280;">Connections &#183; adds ONE card, zero settings pages</span>
+  <span class="proto-header__states">
+    <span class="proto-header__states-label">States</span>
+    <button class="proto-btn is-active" id="stateDisconnected">Disconnected</button>
+    <button class="proto-btn" id="stateConnected">Connected</button>
+  </span>
+</div>
+
+<div class="proto-stage">
+<div class="app-frame">
+
+  <!-- Top banner -->
+  <div class="app-banner">
+    <span class="app-banner__ws">
+      <span class="kp-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg></span>
+      Northcrest Advisors
+      <span class="caret kp-icon" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
+    </span>
+    <span class="app-banner__spacer"></span>
+    <span class="app-banner__controls">
+      <span class="kp-icon" title="Theme" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></span>
+      <span class="kp-icon" title="Settings" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg></span>
+      <span class="app-banner__kbd">&#8984; Ctrl+K</span>
+    </span>
+  </div>
+
+  <!-- TrustBar -->
+  <div class="app-trustbar">
+    <span class="app-trustbar__scope">
+      <span class="kp-icon" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10Z"/></svg></span>
+      All clients
+    </span>
+    <span class="app-trustbar__spacer"></span>
+    <span class="app-trustbar__icons">
+      <span class="kp-badge kp-badge--local kp-badge--sm" style="margin-right:4px;">
+        <span class="kp-icon" style="color:var(--kp-local)" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+        Using local AI
+      </span>
+      <span class="kp-icon" title="Where does my data go?" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span>
+      <span class="kp-icon" title="Data Map" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m9 3-6 3v15l6-3 6 3 6-3V3l-6 3-6-3ZM9 3v15M15 6v15"/></svg></span>
+      <span class="kp-icon" title="Privacy Center" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
+    </span>
+  </div>
+
+  <!-- Body -->
+  <div class="app-body">
+    <aside class="app-spine">
+      <div class="app-spine__logo">
+        <span class="app-spine__logo-mark" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5C17.5 10.5 18 9.3 18 8a6 6 0 0 0-12 0c0 1.3.5 2.5 1.5 3.5.8.8 1.3 1.5 1.5 2.5"/><path d="M9 18h6M10 22h4"/></svg></span>
+        <span class="app-spine__logo-text">Advisor Prep Hero</span>
+      </div>
+      <nav class="app-spine__nav">
+        <button class="spine-item is-active">
+          <span class="kp-icon" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m9 3-6 3v15l6-3 6 3 6-3V3l-6 3-6-3ZM9 3v15M15 6v15"/></svg></span>
+          Client Map
+        </button>
+        <button class="spine-item">
+          <span class="kp-icon" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 1.9 4.1L18 9l-4.1 1.9L12 15l-1.9-4.1L6 9l4.1-1.9L12 3ZM5 16l.9 2L8 19l-2.1.9L5 22l-.9-2.1L2 19l2.1-1L5 16Z"/></svg></span>
+          Ask
+        </button>
+        <button class="spine-item">
+          <span class="kp-icon" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m3 7 3 3 5-5M3 17l3 3 5-5M14 7h7M14 17h7"/></svg></span>
+          Workflows
+        </button>
+      </nav>
+      <div class="app-spine__section">
+        <span class="app-spine__section-label">Clients</span>
+        <button class="app-spine__section-add" title="New client" aria-label="New client"><span class="kp-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span></button>
+      </div>
+      <div class="app-spine__clients">
+        <button class="spine-client"><div class="spine-client__title">The Hendersons &#183; Retirement plan</div><div class="spine-client__sub">The Henderson Household</div></button>
+        <button class="spine-client"><div class="spine-client__title">Ortiz Household &#183; Rollover &amp; income</div><div class="spine-client__sub">The Ortiz Household</div></button>
+        <button class="spine-client"><div class="spine-client__title">Chen Family &#183; Education &amp; estate</div><div class="spine-client__sub">The Chen Family</div></button>
+        <button class="spine-client"><div class="spine-client__title">Whitfield Trust &#183; Trust review</div><div class="spine-client__sub">The Whitfield Trust</div></button>
+      </div>
+      <div class="app-spine__footer">
+        <span class="app-spine__avatar">JD</span>
+        <span class="app-spine__acct"><span class="app-spine__acct-name">Your account</span><span class="app-spine__acct-sub">Solo account</span></span>
+        <button class="app-spine__collapse" title="Collapse sidebar" aria-label="Collapse sidebar"><span class="kp-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></span></button>
+      </div>
+    </aside>
+
+    <div class="app-mainwrap">
+      <main id="surface" class="app-surface">
+        <div class="surface-header">
+          <div class="surface-header__title-row">
+            <span class="kp-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m9 3-6 3v15l6-3 6 3 6-3V3l-6 3-6-3ZM9 3v15M15 6v15"/></svg></span>
+            <h1 class="surface-header__title">Clients</h1>
+          </div>
+          <p class="surface-header__desc">4 clients, 2 folders indexed. Click a row to focus AI on that client.</p>
+        </div>
+      </main>
+      <div class="app-statusbar">
+        <span class="app-statusbar__spacer"></span>
+        <span class="app-statusbar__trial">Free trial, 30 days left</span>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ===== Account modal — Connections tab ===== -->
+<div class="kp-overlay">
+  <div class="kp-modal acct-modal">
+    <button class="kp-modal__close" title="Close" aria-label="Close"><span class="kp-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span></button>
+
+    <div class="acct-modal__header">
+      <span class="acct-modal__avatar"><span class="kp-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span></span>
+      <div class="acct-modal__idcol">
+        <input class="kp-input acct-modal__name" value="Jameson Daines" aria-label="Your name">
+        <button class="kp-btn kp-btn--secondary kp-btn--sm" style="align-self:flex-start;"><span class="kp-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 9l5-5 5 5M12 4v12"/></svg></span>Upload photo</button>
+      </div>
+    </div>
+
+    <div class="acct-tabs">
+      <button class="acct-tab">Account</button>
+      <button class="acct-tab">Firm</button>
+      <button class="acct-tab">Usage</button>
+      <button class="acct-tab is-active">Connections</button>
+    </div>
+
+    <div class="acct-modal__body" id="connBody">
+
+      <!-- Microsoft 365 email -->
+      <div class="conn-card">
+        <h3 class="conn-card__title">Microsoft 365 email</h3>
+        <p class="conn-card__desc">Bring your Outlook mail into Advisor Prep Hero so you can actually find it. Your mail is encrypted and stays on this machine. Requires the Advisor Prep Hero desktop app.</p>
+        <p class="conn-card__note">A browser window will open to sign in to Microsoft. Complete sign-in there and Advisor Prep Hero will connect automatically.</p>
+        <div class="conn-card__actions">
+          <button class="kp-btn kp-btn--connect kp-btn--md">Connect Microsoft 365</button>
+        </div>
+      </div>
+
+      <!-- NEW: Calendar (one card among peers) -->
+      <div class="conn-card" id="calCard">
+        <h3 class="conn-card__title">Calendar</h3>
+        <p class="conn-card__desc when-disconnected">Connect your calendar so Advisor Prep Hero can match today&rsquo;s meetings to the right client and prep you before each one. It reads meetings only, never writes to your calendar.</p>
+
+        <!-- Disconnected: three provider choices live inside the card -->
+        <div class="when-disconnected">
+          <div class="cal-providers">
+            <div class="cal-providers__row">
+              <button class="kp-btn kp-btn--connect kp-btn--md" onclick="connect('Microsoft')">Connect Microsoft</button>
+              <button class="kp-btn kp-btn--connect kp-btn--md" onclick="connect('Google')">Connect Google</button>
+            </div>
+            <div class="cal-ics">
+              <span class="cal-ics__or">or</span>
+              <input class="kp-input" style="height:36px;max-width:320px;" placeholder="Paste a calendar link (.ics)" aria-label="Paste an ICS calendar link">
+              <button class="kp-btn kp-btn--secondary kp-btn--md" onclick="connect('the ICS link')">Add</button>
+            </div>
+          </div>
+          <p class="conn-card__note">Read-only. Advisor Prep Hero only reads your calendar to match meetings to clients. It never creates, edits, moves, or deletes events.</p>
+        </div>
+
+        <!-- Connected -->
+        <div class="when-connected">
+          <div class="kp-callout kp-callout--success" style="margin-top:4px;">
+            <span class="kp-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+            <span><b id="calProviderName">Microsoft</b> calendar connected</span>
+          </div>
+          <div class="cal-connected__line">
+            <span class="kp-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>
+            Read-only &#183; past 7 days + next 14
+          </div>
+          <div class="cal-connected__line">
+            <span class="kp-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 4v4h-4"/></svg></span>
+            Last synced 8:04 AM today
+          </div>
+          <div class="conn-card__actions cal-actions-connected" style="display:flex;">
+            <button class="kp-btn kp-btn--secondary kp-btn--md" onclick="syncNow()">Sync now</button>
+            <button class="kp-btn kp-btn--ghost kp-btn--md" onclick="disconnect()">Disconnect</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Other email (IMAP) -->
+      <div class="conn-card">
+        <h3 class="conn-card__title">Other email (IMAP)</h3>
+        <p class="conn-card__desc">Works with Gmail (via a <a href="#">Google app password</a>), Outlook or Microsoft 365 (via an <a href="#">Outlook app password</a>), Fastmail, or any standard IMAP host. Your password is stored only in this device&rsquo;s keychain and never leaves your machine. Requires the Advisor Prep Hero desktop app.</p>
+        <div class="conn-fields">
+          <div>
+            <label class="kp-label">Host</label>
+            <input class="kp-input" placeholder="imap.gmail.com">
+          </div>
+          <div>
+            <label class="kp-label">Port</label>
+            <input class="kp-input" value="993">
+          </div>
+          <div class="full">
+            <label class="kp-label">Email / username</label>
+            <input class="kp-input" placeholder="you@example.com">
+          </div>
+          <div class="full">
+            <label class="kp-label">App password</label>
+            <input class="kp-input" type="password" placeholder="App password (Gmail and Outlook require one)">
+          </div>
+        </div>
+      </div>
+
+      <!-- OneDrive / SharePoint -->
+      <div class="conn-card">
+        <h3 class="conn-card__title">OneDrive / SharePoint</h3>
+        <p class="conn-card__desc">Imports documents from any OneDrive or SharePoint folder named after one of your clients. Advisor Prep Hero downloads those files into the client&rsquo;s folder on this device, so they appear in the client&rsquo;s Documents and become searchable.</p>
+        <p class="conn-card__note">Read-only in the cloud: Advisor Prep Hero only asks Microsoft for files. It never edits, uploads, moves, or deletes anything in OneDrive or SharePoint.</p>
+        <div class="conn-card__actions">
+          <button class="kp-btn kp-btn--connect kp-btn--md">Connect OneDrive</button>
+        </div>
+      </div>
+
+      <!-- Box -->
+      <div class="conn-card">
+        <h3 class="conn-card__title">Box</h3>
+        <p class="conn-card__desktop-only">Box sync is available in the desktop app.</p>
+      </div>
+
+      <!-- Wealthbox -->
+      <div class="conn-card">
+        <h3 class="conn-card__title">Wealthbox</h3>
+        <p class="conn-card__desc">Connect your Wealthbox account to bring client household data into your Client Maps. Requires the Advisor Prep Hero desktop app.</p>
+        <p class="conn-card__desktop-only">Available in the desktop app only.</p>
+      </div>
+
+      <!-- Addepar -->
+      <div class="conn-card">
+        <h3 class="conn-card__title">Addepar</h3>
+        <p class="conn-card__desktop-only">Addepar sync is available in the desktop app.</p>
+      </div>
+
+      <hr class="kp-divline" style="margin:4px 0;">
+
+      <!-- Ollama -->
+      <div class="conn-card">
+        <h3 class="conn-card__title">Ollama (local models)</h3>
+        <p class="conn-card__desc">Run AI models directly on your machine: free, offline, private. Advisor Prep Hero talks to a locally running Ollama daemon on <code style="font-family:var(--font-mono);font-size:12px;background:rgba(43,45,66,0.07);padding:1px 5px;border-radius:4px;">127.0.0.1:11434</code>.</p>
+        <div class="kp-callout kp-callout--success" style="margin-top:14px;">
+          <span class="kp-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg></span>
+          <span>Ollama ready, 2 models installed <span style="color:var(--kp-text-faint);font-weight:500;">(llama3.1:8b, llama3.2:3b)</span></span>
+        </div>
+        <div class="conn-card__actions">
+          <button class="kp-btn kp-btn--connect kp-btn--md"><span class="kp-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 4v4h-4"/></svg></span>Check Ollama connection</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ===== Notes for Jameson ===== -->
+<div class="proto-notes">
+  <p class="proto-notes__title">Notes for Jameson</p>
+  <ol>
+    <li><b>The calendar is one card among peers, not a new section.</b> It sits in the same Connections list as Microsoft 365, IMAP, OneDrive, Wealthbox and the rest, styled identically. No new nav item, no settings page: connecting a calendar adds exactly one card.</li>
+    <li><b>The three provider choices live inside the card, not a wizard.</b> Connect Microsoft, Connect Google, or paste a calendar link (.ics) are all right there on the card. There is no multi-step flow to walk through.</li>
+    <li><b>&ldquo;Read-only&rdquo; is the trust signal.</b> Both states say it plainly: it reads your calendar to match meetings, and never creates, edits, or deletes events. Connected shows the honest sync window (&ldquo;past 7 days + next 14&rdquo;) and a last-synced line.</li>
+  </ol>
+</div>
+
+<script>
+  var body = document.body;
+  var providerLabel = document.getElementById('calProviderName');
+
+  function setConnected(on, provider) {
+    body.classList.toggle('is-connected', on);
+    body.classList.toggle('is-disconnected', !on);
+    if (on && provider) providerLabel.textContent = provider;
+    document.getElementById('stateConnected').classList.toggle('is-active', on);
+    document.getElementById('stateDisconnected').classList.toggle('is-active', !on);
+  }
+  function connect(provider) {
+    var label = provider === 'the ICS link' ? 'Calendar (.ics)' : provider;
+    setConnected(true, label);
+    // scroll the card into view
+    document.getElementById('calCard').scrollIntoView({ block: 'center' });
+  }
+  function disconnect() { setConnected(false); }
+  function syncNow() { /* no-op demo */ }
+
+  document.getElementById('stateDisconnected').addEventListener('click', function(){ setConnected(false); });
+  document.getElementById('stateConnected').addEventListener('click', function(){ setConnected(true, 'Microsoft'); });
+
+  // start disconnected
+  setConnected(false);
+</script>
+</body>
+</html>

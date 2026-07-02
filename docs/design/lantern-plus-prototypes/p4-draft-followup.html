@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P4 · Draft follow-up — Lantern Prototype</title>
+<link rel="stylesheet" href="kit.css">
+<style>
+  body { padding: 0; }
+  .proto-stage { padding: 24px; display: flex; justify-content: center; }
+
+  /* ===== Client surface header (client name + Client Map/Documents/Email/Activity nav) ===== */
+  .client-head {
+    display: flex; align-items: center; gap: 16px;
+    padding: 18px 32px 0; flex-wrap: wrap;
+  }
+  .client-head__title-row { display: flex; align-items: center; gap: 10px; }
+  .client-head__title { margin: 0; font-size: 22px; font-weight: 700; color: var(--kp-navy); letter-spacing: -0.01em; }
+  .client-head__title .kp-icon { color: var(--kp-accent); }
+  .client-head__spacer { flex: 1; }
+  .client-nav { display: flex; align-items: center; gap: 2px; }
+  .client-nav__tab {
+    border: none; background: transparent; cursor: pointer; font-family: var(--font-sans);
+    font-size: 14px; font-weight: 500; color: var(--color-muted-foreground);
+    padding: 7px 12px; border-radius: 8px;
+  }
+  .client-nav__tab:hover { background: rgba(43,45,66,0.05); color: var(--kp-navy); }
+  .client-nav__tab.is-active { background: var(--kp-accent-soft); color: var(--kp-navy); font-weight: 600; }
+  .client-chips { display: flex; align-items: center; gap: 8px; margin-left: 4px; }
+  .client-head__rule { height: 1px; background: var(--kp-divider); margin: 14px 32px 0; }
+
+  /* ===== File tab strip (owned by the doc panel, above the editor) ===== */
+  .doc-tabs {
+    display: flex; align-items: stretch; gap: 0; padding: 6px 12px 0;
+    background: var(--kp-bg-soft); border-bottom: 1px solid var(--kp-divider);
+  }
+  .doc-tab {
+    display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
+    border: 1px solid transparent; border-bottom: none;
+    border-radius: 8px 8px 0 0; padding: 8px 12px 9px;
+    font-family: var(--font-sans); font-size: 13px; font-weight: 500;
+    color: var(--color-muted-foreground); background: transparent; margin-bottom: -1px;
+  }
+  .doc-tab:hover { color: var(--kp-navy); }
+  .doc-tab.is-active {
+    background: var(--color-background); color: var(--kp-navy); font-weight: 600;
+    border-color: var(--kp-divider); border-bottom-color: var(--color-background);
+  }
+  .doc-tab .kp-icon { color: var(--kp-text-faint); }
+  .doc-tab.is-active .kp-icon { color: #3a6ea5; }
+  .doc-tab__close {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 16px; height: 16px; border-radius: 4px; color: var(--kp-text-faint);
+    margin-left: 2px;
+  }
+  .doc-tab__close:hover { background: rgba(43,45,66,0.08); color: var(--kp-navy); }
+
+  /* ===== Docx editor top bar (the toolbar — recreated from DocxEditor.tsx) ===== */
+  .dxbar {
+    display: flex; align-items: center; gap: 12px;
+    padding: 7px 12px; border-bottom: 1px solid var(--kp-divider);
+    background: var(--color-background);
+  }
+  .dxbar__file { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: rgba(43,45,66,0.85); min-width: 0; }
+  .dxbar__file .kp-icon { color: #3a6ea5; flex: none; }
+  .dxbar__file .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dxbar__actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+  /* Toolbar outline button — matches the real h-7 navy-outline shadcn buttons */
+  .tbtn {
+    display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px;
+    border-radius: 6px; border: 1px solid rgba(43,45,66,0.30); background: #fff;
+    color: var(--kp-navy); font-family: var(--font-sans); font-size: 12.5px; font-weight: 600;
+    cursor: pointer; white-space: nowrap;
+    transition: background-color var(--kp-duration-fast) var(--kp-ease-standard);
+  }
+  .tbtn:hover { background: rgba(43,45,66,0.05); }
+  .tbtn .kp-icon { color: var(--kp-navy); }
+  .tbtn__caret { color: var(--kp-text-faint); margin: 0 -2px 0 -1px; }
+
+  /* Reviewing toggle (recreated from ReviewingToggle) */
+  .rev-toggle {
+    display: inline-flex; align-items: center; gap: 8px; height: 28px; padding: 0 10px;
+    border-radius: 6px; border: 1px solid rgba(43,45,66,0.30);
+    background: rgba(43,45,66,0.05); color: var(--kp-navy);
+    font-size: 12px; font-weight: 500; cursor: pointer;
+  }
+  .rev-toggle__track { position: relative; width: 24px; height: 14px; border-radius: 999px; background: var(--kp-navy); flex: none; }
+  .rev-toggle__knob { position: absolute; top: 2px; left: 12px; width: 10px; height: 10px; border-radius: 50%; background: #fff; }
+
+  .dxbar__save { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--color-muted-foreground); }
+  .dxbar__save .kp-icon { color: var(--kp-text-faint); }
+  .icon-ghost {
+    display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px;
+    border-radius: 6px; border: none; background: transparent; color: var(--color-muted-foreground); cursor: pointer;
+  }
+  .icon-ghost:hover { background: rgba(43,45,66,0.06); color: var(--kp-navy); }
+
+  /* Quiet confirmation strip (matches the real export-notice success bar) */
+  .saved-strip {
+    display: none; align-items: center; gap: 8px;
+    padding: 8px 14px; border-bottom: 1px solid var(--kp-success-line);
+    background: rgba(230,245,238,0.7); color: #0a4d38; font-size: 12.5px; font-weight: 500;
+  }
+  .saved-strip .kp-icon { color: var(--kp-success); }
+  body.is-saved .saved-strip { display: flex; }
+  body.is-saved.saved-fading .saved-strip { animation: savedFade 3.2s ease forwards; }
+  @keyframes savedFade { 0%,55% { opacity: 1; } 100% { opacity: 0; } }
+
+  /* ===== Document canvas ===== */
+  .dx-canvas { background: #f3f4f6; padding: 28px 24px 40px; min-height: 520px; }
+  .dx-page {
+    max-width: 780px; margin: 0 auto; background: #fff; border-radius: 3px;
+    box-shadow: var(--kp-shadow-1); border: 1px solid rgba(0,0,0,0.05);
+    padding: 64px 84px; color: #1a1a1a;
+    font-family: "Calibri", "Segoe UI", system-ui, sans-serif; font-size: 15px; line-height: 1.55;
+  }
+  .dx-page h1 { font-size: 22px; font-weight: 700; margin: 0 0 2px; color: #111; }
+  .dx-page .dx-meta { color: #555; font-size: 13.5px; margin: 0 0 20px; }
+  .dx-page h2 { font-size: 15px; font-weight: 700; margin: 22px 0 6px; color: #1a1a1a; }
+  .dx-page p { margin: 0 0 10px; }
+  .dx-page ul { margin: 4px 0 10px; padding-left: 22px; }
+  .dx-page li { margin: 3px 0; }
+
+  /* ===== The single modal ===== */
+  .p4-modal { max-width: 600px; }
+  .p4-modal__header { padding: 22px 24px 16px; border-bottom: 1px solid var(--kp-divider); }
+  .p4-modal__title { margin: 0; font-size: 18px; font-weight: 700; color: var(--kp-navy); letter-spacing: -0.01em; }
+  .p4-modal__desc { margin: 6px 0 0; font-size: 13px; color: var(--color-muted-foreground); line-height: 1.5; }
+  .p4-modal__body { overflow-y: auto; padding: 18px 24px 20px; display: flex; flex-direction: column; gap: 15px; }
+  .p4-field label.kp-label { margin-bottom: 5px; }
+  .to-hint { display: inline-flex; align-items: center; gap: 5px; margin-top: 7px; font-size: 12px; color: var(--kp-text-faint); }
+  .to-hint .kp-icon { color: var(--kp-text-faint); }
+
+  /* Message box (styled like a textarea, holds citation chips inline) */
+  .msg-box {
+    border: 1px solid var(--color-input); border-radius: var(--radius-md);
+    background: #fff; padding: 13px 14px; font-size: 13.5px; line-height: 1.65; color: #24303f;
+    min-height: 180px;
+  }
+  .msg-box .msg-p { margin: 0 0 10px; }
+  .msg-box .msg-p:last-child { margin-bottom: 0; }
+  .msg-note { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12px; color: var(--kp-text-dim); }
+  .msg-note .kp-icon { color: var(--kp-text-faint); }
+
+  /* Inline citation chip + hover source popover */
+  .cite-wrap { position: relative; display: inline; }
+  .cite {
+    display: inline-flex; align-items: baseline; gap: 5px; cursor: default;
+    border-radius: 999px; border: 1px solid var(--kp-divider-strong);
+    background: var(--kp-bg-soft); color: var(--kp-navy);
+    padding: 1px 8px 1px 6px; white-space: nowrap; line-height: 1.4;
+    transition: border-color var(--kp-duration-fast), background var(--kp-duration-fast);
+  }
+  .cite:hover { border-color: rgba(239,35,60,0.55); background: rgba(239,35,60,0.06); }
+  .cite__idx {
+    display: inline-flex; align-items: center; justify-content: center; align-self: center;
+    min-width: 14px; height: 14px; padding: 0 3px; border-radius: 7px;
+    background: rgba(43,45,66,0.12); color: var(--kp-navy); font-size: 10px; font-weight: 700; flex: none;
+  }
+  .cite:hover .cite__idx { background: rgba(239,35,60,0.16); color: var(--kp-accent); }
+  .cite-pop {
+    display: none; position: absolute; left: 0; top: calc(100% + 7px); z-index: var(--kp-z-popover);
+    width: 300px; background: #fff; border: 1px solid var(--color-border); border-radius: 8px;
+    box-shadow: var(--kp-shadow-2); padding: 11px 13px; white-space: normal; cursor: default;
+  }
+  .cite-pop__eyebrow { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--kp-text-faint); display: flex; align-items: center; gap: 6px; }
+  .cite-pop__eyebrow .kp-icon { color: #3a6ea5; }
+  .cite-pop__quote { display: block; margin: 7px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--kp-navy); border-left: 2px solid var(--kp-accent); padding-left: 9px; }
+  .cite-pop__src { margin: 8px 0 0; font-size: 11.5px; color: var(--kp-text-faint); display: flex; align-items: center; gap: 5px; }
+  .cite-pop__src .kp-icon { color: var(--kp-text-faint); }
+  .cite-wrap:hover .cite-pop { display: block; }
+  body.force-pop #cite1 .cite-pop { display: block; }
+
+  .p4-modal__footer {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 24px; border-top: 1px solid var(--kp-divider); background: var(--color-background);
+  }
+  .p4-modal__footnote { flex: 1; font-size: 12px; color: var(--kp-text-faint); line-height: 1.4; }
+  .p4-modal__footer .kp-row { gap: 10px; }
+
+  /* Modal visibility driven by body state */
+  #p4Overlay { display: none; }
+  body.is-modal #p4Overlay, body.force-pop #p4Overlay { display: flex; }
+</style>
+</head>
+<body>
+
+<!-- ===== Prototype header ===== -->
+<div class="proto-header">
+  <span class="proto-header__name">P4 &#183; Draft follow-up</span>
+  <span class="proto-header__wave">Wave 0</span>
+  <span style="color:#6b7280;">Word editor &#183; one button, one modal</span>
+  <span class="proto-header__states">
+    <span class="proto-header__states-label">States</span>
+    <button class="proto-btn is-active" id="stEditor">Editor</button>
+    <button class="proto-btn" id="stModal">Draft modal</button>
+    <button class="proto-btn" id="stHover">Chip hover</button>
+    <button class="proto-btn" id="stSaved">Saved</button>
+  </span>
+</div>
+
+<div class="proto-stage">
+<div class="app-frame">
+
+  <!-- Top banner -->
+  <div class="app-banner">
+    <span class="app-banner__ws">
+      <span class="kp-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg></span>
+      Northcrest Advisors
+      <span class="caret kp-icon" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
+    </span>
+    <span class="app-banner__spacer"></span>
+    <span class="app-banner__controls">
+      <span class="kp-icon" title="Theme" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></span>
+      <span class="kp-icon" title="Settings" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg></span>
+      <span class="app-banner__kbd">&#8984; Ctrl+K</span>
+    </span>
+  </div>
+
+  <!-- TrustBar -->
+  <div class="app-trustbar">
+    <span class="app-trustbar__scope">
+      <span class="kp-icon" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10Z"/></svg></span>
+      The Henderson Household
+    </span>
+    <span class="app-trustbar__spacer"></span>
+    <span class="app-trustbar__icons">
+      <span class="kp-badge kp-badge--local kp-badge--sm" style="margin-right:4px;">
+        <span class="kp-icon" style="color:var(--kp-local)" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+        Using local AI
+      </span>
+      <span class="kp-icon" title="Where does my data go?" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span>
+      <span class="kp-icon" title="Data Map" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m9 3-6 3v15l6-3 6 3 6-3V3l-6 3-6-3ZM9 3v15M15 6v15"/></svg></span>
+      <span class="kp-icon" title="Privacy Center" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
+    </span>
+  </div>
+
+  <!-- Body -->
+  <div class="app-body">
+    <aside class="app-spine">
+      <div class="app-spine__logo">
+        <span class="app-spine__logo-mark" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5C17.5 10.5 18 9.3 18 8a6 6 0 0 0-12 0c0 1.3.5 2.5 1.5 3.5.8.8 1.3 1.5 1.5 2.5"/><path d="M9 18h6M10 22h4"/></svg></span>
+        <span class="app-spine__logo-text">Advisor Prep Hero</span>
+      </div>
+      <nav class="app-spine__nav">
+        <button class="spine-item is-active">
+          <span class="kp-icon" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m9 3-6 3v15l6-3 6 3 6-3V3l-6 3-6-3ZM9 3v15M15 6v15"/></svg></span>
+          Client Map
+        </button>
+        <button class="spine-item">
+          <span class="kp-icon" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 1.9 4.1L18 9l-4.1 1.9L12 15l-1.9-4.1L6 9l4.1-1.9L12 3ZM5 16l.9 2L8 19l-2.1.9L5 22l-.9-2.1L2 19l2.1-1L5 16Z"/></svg></span>
+          Ask
+        </button>
+        <button class="spine-item">
+          <span class="kp-icon" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m3 7 3 3 5-5M3 17l3 3 5-5M14 7h7M14 17h7"/></svg></span>
+          Workflows
+        </button>
+      </nav>
+      <div class="app-spine__section">
+        <span class="app-spine__section-label">Clients</span>
+        <button class="app-spine__section-add" title="New client" aria-label="New client"><span class="kp-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span></button>
+      </div>
+      <div class="app-spine__clients">
+        <button class="spine-client is-active"><div class="spine-client__title">The Hendersons &#183; Retirement plan</div><div class="spine-client__sub">The Henderson Household</div></button>
+        <button class="spine-client"><div class="spine-client__title">Ortiz Household &#183; Rollover &amp; income</div><div class="spine-client__sub">The Ortiz Household</div></button>
+        <button class="spine-client"><div class="spine-client__title">Chen Family &#183; Education &amp; estate</div><div class="spine-client__sub">The Chen Family</div></button>
+        <button class="spine-client"><div class="spine-client__title">Whitfield Trust &#183; Trust review</div><div class="spine-client__sub">The Whitfield Trust</div></button>
+      </div>
+      <div class="app-spine__footer">
+        <span class="app-spine__avatar">JD</span>
+        <span class="app-spine__acct"><span class="app-spine__acct-name">Your account</span><span class="app-spine__acct-sub">Solo account</span></span>
+        <button class="app-spine__collapse" title="Collapse sidebar" aria-label="Collapse sidebar"><span class="kp-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></span></button>
+      </div>
+    </aside>
+
+    <div class="app-mainwrap">
+      <main id="surface" class="app-surface" style="display:flex;flex-direction:column;">
+
+        <!-- Client surface header -->
+        <div class="client-head">
+          <div class="client-head__title-row">
+            <span class="kp-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m9 3-6 3v15l6-3 6 3 6-3V3l-6 3-6-3ZM9 3v15M15 6v15"/></svg></span>
+            <h1 class="client-head__title">The Henderson Household</h1>
+          </div>
+          <span class="client-head__spacer"></span>
+          <div class="client-nav">
+            <button class="client-nav__tab">Client Map</button>
+            <button class="client-nav__tab is-active">Documents</button>
+            <button class="client-nav__tab">Email</button>
+            <button class="client-nav__tab">Activity</button>
+          </div>
+          <div class="client-chips">
+            <span class="kp-badge kp-badge--success kp-badge--sm">Sample</span>
+            <span class="kp-chip kp-chip--sm"><span class="kp-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/></svg></span>Retirement plan only</span>
+          </div>
+        </div>
+        <div class="client-head__rule"></div>
+
+        <!-- File tab strip -->
+        <div class="doc-tabs">
+          <div class="doc-tab"><span class="kp-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg></span>Files</div>
+          <div class="doc-tab is-active">
+            <span class="kp-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span>
+            Annual review notes.docx
+            <span class="doc-tab__close" title="Close"><span class="kp-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span></span>
+          </div>
+          <div class="doc-tab"><span class="kp-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span>Beneficiary form.pdf</div>
+        </div>
+
+        <!-- Docx editor top bar (the toolbar) -->
+        <div class="dxbar">
+          <span class="dxbar__file">
+            <span class="kp-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span>
+            <span class="name">Annual review notes.docx</span>
+          </span>
+          <span class="dxbar__actions">
+            <!-- Export -->
+            <button class="tbtn" title="Export">
+              <span class="kp-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></span>
+              Export
+              <span class="tbtn__caret kp-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
+            </button>
+
+            <!-- NEW: Draft follow-up (beside Export, sibling styling) -->
+            <button class="tbtn" id="draftBtn" title="Draft a follow-up email from these notes">
+              <span class="kp-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></span>
+              Draft follow-up
+            </button>
+
+            <!-- Revise with AI -->
+            <button class="tbtn" title="Revise with AI">
+              <span class="kp-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 1.6 3.6L17 8l-3.4 1.4L12 13l-1.6-3.6L7 8l3.4-1.4L12 3ZM19 14l.8 1.8L22 17l-1.2.6L20 20l-.8-1.4L17 17l1.5-.4L19 14Z"/></svg></span>
+              Revise with AI
+            </button>
+
+            <span class="dxbar__save">
+              <span class="kp-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+              Saved
+            </span>
+
+            <!-- Reviewing toggle -->
+            <span class="rev-toggle" role="switch" aria-checked="true" title="Show tracked changes">
+              <span class="rev-toggle__track"><span class="rev-toggle__knob"></span></span>
+              Reviewing
+            </span>
+
+            <!-- Review pane toggle -->
+            <button class="icon-ghost" title="Show review pane" aria-label="Show review pane"><span class="kp-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M15 3v18"/><path d="m8 9 3 3-3 3"/></svg></span></button>
+          </span>
+        </div>
+
+        <!-- Quiet confirmation strip (after Save) -->
+        <div class="saved-strip" id="savedStrip">
+          <span class="kp-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          Draft saved to your Outlook Drafts.
+        </div>
+
+        <!-- Document canvas -->
+        <div class="dx-canvas" style="flex:1;">
+          <div class="dx-page">
+            <h1>Annual review notes</h1>
+            <p class="dx-meta">The Henderson Household &#183; Annual review &#183; July 2, 2026<br>Present: David and Susan Henderson. Meeting held 10:00 AM.</p>
+
+            <h2>Summary</h2>
+            <p>We met for the Hendersons&rsquo; annual review. The plan is on track and both David and Susan feel comfortable with the current direction. The portfolio is up modestly year to date and the allocation still matches their moderate risk tolerance.</p>
+
+            <h2>Retirement timing</h2>
+            <p>David is now targeting retirement at 64 rather than 66, two years earlier than his previous plan. He wants to confirm the income plan still holds if he stops earlier. Susan plans to keep working part-time through 65.</p>
+
+            <h2>Education planning</h2>
+            <p>The Hendersons asked about front-loading their granddaughter&rsquo;s 529. We discussed the five-year gift-tax election and agreed to revisit it at the next meeting.</p>
+
+            <h2>Action items</h2>
+            <ul>
+              <li>Rerun the retirement projection with a retirement age of 64.</li>
+              <li>Send the updated 529 contribution options.</li>
+              <li>Confirm the beneficiary designations on the rollover IRA.</li>
+            </ul>
+          </div>
+        </div>
+      </main>
+      <div class="app-statusbar">
+        <span class="app-statusbar__spacer"></span>
+        <span class="app-statusbar__trial">Free trial, 30 days left</span>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ===== The single modal ===== -->
+<div class="kp-overlay" id="p4Overlay">
+  <div class="kp-modal p4-modal">
+    <button class="kp-modal__close" title="Close" aria-label="Close" id="modalClose"><span class="kp-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span></button>
+
+    <div class="p4-modal__header">
+      <h2 class="p4-modal__title">Draft follow-up</h2>
+      <p class="p4-modal__desc">A follow-up email drafted from your meeting notes. Review it, then save it to your own Drafts. Nothing sends until you send it yourself.</p>
+    </div>
+
+    <div class="p4-modal__body">
+      <!-- To -->
+      <div class="p4-field">
+        <label class="kp-label">To</label>
+        <input class="kp-input" value="d.henderson@example.com" aria-label="Recipient email">
+        <span class="to-hint">
+          <span class="kp-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg></span>
+          Filled in from your email history with David. You can change it.
+        </span>
+      </div>
+
+      <!-- Subject -->
+      <div class="p4-field">
+        <label class="kp-label">Subject</label>
+        <input class="kp-input" value="Following up on today&rsquo;s review" aria-label="Subject">
+      </div>
+
+      <!-- Message with inline citations -->
+      <div class="p4-field">
+        <label class="kp-label">Message</label>
+        <div class="msg-box" contenteditable="false">
+          <div class="msg-p">Hi David and Susan,</div>
+          <div class="msg-p">Thank you both for making the time this morning. It was good to hear the plan still feels comfortable to you. As we discussed, I will rerun your retirement projection using a <span class="cite-wrap" id="cite1"><span class="cite"><span class="cite__idx">1</span>retirement age of 64</span><span class="cite-pop"><span class="cite-pop__eyebrow"><span class="kp-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span>From your notes</span><span class="cite-pop__quote">&ldquo;David is now targeting retirement at 64 rather than 66, two years earlier than his previous plan.&rdquo;</span><span class="cite-pop__src"><span class="kp-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16"/><path d="M4 20V8l4-4h8l4 4v12"/></svg></span>Annual review notes.docx &#183; Retirement timing</span></span></span> so we can confirm the income plan still holds if David steps back earlier. I will also send the updated 529 options we talked through, including the <span class="cite-wrap" id="cite2"><span class="cite"><span class="cite__idx">2</span>five-year gift-tax election</span><span class="cite-pop"><span class="cite-pop__eyebrow"><span class="kp-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span>From your notes</span><span class="cite-pop__quote">&ldquo;We discussed the five-year gift-tax election and agreed to revisit it at the next meeting.&rdquo;</span><span class="cite-pop__src"><span class="kp-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16"/><path d="M4 20V8l4-4h8l4 4v12"/></svg></span>Annual review notes.docx &#183; Education planning</span></span></span> for your granddaughter. Finally, I will confirm the <span class="cite-wrap" id="cite3"><span class="cite"><span class="cite__idx">3</span>beneficiary designations on the rollover IRA</span><span class="cite-pop"><span class="cite-pop__eyebrow"><span class="kp-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span>From your notes</span><span class="cite-pop__quote">&ldquo;Confirm the beneficiary designations on the rollover IRA.&rdquo;</span><span class="cite-pop__src"><span class="kp-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16"/><path d="M4 20V8l4-4h8l4 4v12"/></svg></span>Annual review notes.docx &#183; Action items</span></span></span> and get everything to you before our next meeting.</div>
+          <div class="msg-p">If I missed anything, just reply and let me know.</div>
+          <div class="msg-p">Best,<br>Jameson</div>
+        </div>
+        <span class="msg-note">
+          <span class="kp-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+          Three details are cited from your notes. Hover a citation to see the exact line.
+        </span>
+      </div>
+    </div>
+
+    <div class="p4-modal__footer">
+      <span class="p4-modal__footnote">Saves as a draft in your Outlook. You send it from your own inbox.</span>
+      <span class="kp-row">
+        <button class="kp-btn kp-btn--secondary kp-btn--md" id="sendBtn">
+          <span class="kp-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg></span>
+          Send
+        </button>
+        <button class="kp-btn kp-btn--primary kp-btn--md" id="saveBtn">
+          <span class="kp-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg></span>
+          Save to my Drafts
+        </button>
+      </span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Notes for Jameson ===== -->
+<div class="proto-notes">
+  <p class="proto-notes__title">Notes for Jameson</p>
+  <ol>
+    <li><b>One modal is the whole feature.</b> &ldquo;Draft follow-up&rdquo; sits beside Export in the Word toolbar, styled like its neighbors so it does not shout. Clicking it opens a single modal. There is no second screen and no wizard. If it needed one, we designed it wrong.</li>
+    <li><b>Save to my Drafts is the primary action, not Send.</b> The advisor always sends from their own inbox, so the emphasized button drops the draft into their Outlook. Send is there as the secondary choice for when they are ready. The AI never sends on its own.</li>
+    <li><b>The recipient is yours, and every claim is traceable.</b> The To field is prefilled from your email history but stays editable, so the AI never silently picks who gets the email. The three citation chips tie each promise back to the exact line in your notes. Hover one to see it.</li>
+  </ol>
+</div>
+
+<script>
+  var body = document.body;
+  var stEditor = document.getElementById('stEditor');
+  var stModal  = document.getElementById('stModal');
+  var stHover  = document.getElementById('stHover');
+  var stSaved  = document.getElementById('stSaved');
+  var stateBtns = [stEditor, stModal, stHover, stSaved];
+
+  function setActiveBtn(btn) {
+    stateBtns.forEach(function(b){ b.classList.toggle('is-active', b === btn); });
+  }
+
+  function showEditor() {
+    body.classList.remove('is-modal', 'force-pop', 'is-saved', 'saved-fading');
+    setActiveBtn(stEditor);
+  }
+  function showModal() {
+    body.classList.add('is-modal');
+    body.classList.remove('force-pop', 'is-saved', 'saved-fading');
+    setActiveBtn(stModal);
+  }
+  function showHover() {
+    body.classList.add('is-modal', 'force-pop');
+    body.classList.remove('is-saved', 'saved-fading');
+    setActiveBtn(stHover);
+  }
+  // Saved state for review (persistent, no auto-fade so it is easy to inspect).
+  function showSavedStatic() {
+    body.classList.remove('is-modal', 'force-pop', 'saved-fading');
+    body.classList.add('is-saved');
+    setActiveBtn(stSaved);
+  }
+  // The real interaction: close the modal and let the strip fade on its own.
+  function saveAndFade() {
+    body.classList.remove('is-modal', 'force-pop');
+    body.classList.add('is-saved', 'saved-fading');
+    setActiveBtn(stSaved);
+    setTimeout(function(){
+      body.classList.remove('is-saved', 'saved-fading');
+      setActiveBtn(stEditor);
+    }, 3300);
+  }
+
+  stEditor.addEventListener('click', showEditor);
+  stModal.addEventListener('click', showModal);
+  stHover.addEventListener('click', showHover);
+  stSaved.addEventListener('click', showSavedStatic);
+
+  document.getElementById('draftBtn').addEventListener('click', showModal);
+  document.getElementById('modalClose').addEventListener('click', showEditor);
+  document.getElementById('saveBtn').addEventListener('click', saveAndFade);
+  document.getElementById('sendBtn').addEventListener('click', showEditor);
+
+  // Click the dimmed scrim to close.
+  document.getElementById('p4Overlay').addEventListener('click', function(e){
+    if (e.target === this) showEditor();
+  });
+
+  showEditor();
+</script>
+</body>
+</html>

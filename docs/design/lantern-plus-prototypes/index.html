@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lantern Prototypes — Jump feature-parity</title>
+<link rel="stylesheet" href="kit.css">
+<style>
+  body { background: #eef1f6; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 48px 32px 64px; }
+  .head { margin-bottom: 8px; }
+  .head h1 { font-size: 28px; font-weight: 700; color: var(--kp-navy); letter-spacing: -0.01em; margin: 0; }
+  .head p { font-size: 15px; color: var(--kp-text-dim); line-height: 1.55; margin: 12px 0 0; max-width: 640px; }
+  .reflinks { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+  .reflink {
+    display: inline-flex; align-items: center; gap: 7px; text-decoration: none;
+    border: 1px solid var(--color-border); border-radius: 999px; padding: 5px 13px;
+    font-size: 12.5px; font-weight: 600; color: var(--kp-navy); background: #fff;
+  }
+  .reflink:hover { background: var(--kp-bg-soft); }
+  .grid { margin-top: 32px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .card {
+    display: block; text-decoration: none; background: #fff;
+    border: 1px solid var(--color-border); border-radius: 10px; padding: 20px 22px;
+    box-shadow: var(--kp-shadow-1); transition: box-shadow 120ms, border-color 120ms, transform 120ms;
+  }
+  a.card:hover { box-shadow: var(--kp-shadow-2); border-color: rgba(43,45,66,0.25); transform: translateY(-1px); }
+  .card__top { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .card__id {
+    display: inline-flex; align-items: center; justify-content: center; flex: none;
+    width: 34px; height: 34px; border-radius: 8px; font-size: 14px; font-weight: 700;
+    background: var(--kp-action-bg); color: var(--kp-navy); border: 1px solid var(--kp-action-border);
+  }
+  .card--gated .card__id { background: rgba(43,45,66,0.07); color: var(--kp-navy); border-color: rgba(43,45,66,0.18); }
+  .card--soon .card__id { background: rgba(43,45,66,0.05); color: var(--kp-text-faint); border-color: rgba(43,45,66,0.15); }
+  .card__title { font-size: 16px; font-weight: 700; color: var(--kp-navy); }
+  .card__wave { margin-left: auto; }
+  .card__desc { font-size: 13.5px; color: var(--kp-text-dim); line-height: 1.5; margin: 0; }
+  .card--disabled { cursor: default; opacity: 0.92; }
+  .card__foot { margin-top: 12px; display: flex; align-items: center; gap: 8px; }
+  .open-link { font-size: 12.5px; font-weight: 700; color: var(--kp-accent); }
+  .foot-note { text-align: center; margin-top: 40px; font-size: 12.5px; color: var(--kp-text-faint); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <span class="kp-eyebrow kp-eyebrow--accent">Advisor Prep Hero &#183; Jump feature-parity</span>
+    <h1 style="margin-top:6px;">Clickable prototypes</h1>
+    <p>Six prototypes for the upcoming features. Each recreates the real product screen around the new element, so the fit is judgeable. Click through, react freely. P1 through P5 are built; the north-star P6 is gated.</p>
+    <div class="reflinks">
+      <a class="reflink" href="DESIGN-BRIEF.md">Design brief</a>
+      <a class="reflink" href="../lantern-plus-ui-audit/INVENTORY.md">Audit inventory</a>
+      <a class="reflink" href="../lantern-plus-ui-audit/DESIGN-TOKENS.md">Design tokens</a>
+      <a class="reflink" href="shell.html">Shell template</a>
+    </div>
+  </div>
+
+  <div class="grid">
+
+    <!-- P1 -->
+    <a class="card" href="p1-morning-moment.html">
+      <div class="card__top">
+        <span class="card__id">P1</span>
+        <span class="card__title">The morning moment</span>
+        <span class="card__wave kp-badge kp-badge--featured kp-badge--sm">Wave 1</span>
+      </div>
+      <p class="card__desc">MattersHome with the &ldquo;Today: Hendersons 10:00 &#183; Ortiz 1:30&rdquo; strip. Matched meetings, the one-click assign that teaches an unmatched one, and the empty (no-meetings) state.</p>
+      <div class="card__foot"><span class="kp-badge kp-badge--success kp-badge--sm">Built</span><span class="open-link">Open &rarr;</span></div>
+    </a>
+
+    <!-- P2 -->
+    <a class="card" href="p2-before-you-meet.html">
+      <div class="card__top">
+        <span class="card__id">P2</span>
+        <span class="card__title">Before you meet</span>
+        <span class="card__wave kp-badge kp-badge--featured kp-badge--sm">Wave 1</span>
+      </div>
+      <p class="card__desc">A client&rsquo;s Map with the brief strip: five bullets, each with a real source chip. Expand, hover a chip to preview its source, one-keystroke &ldquo;Export brief (Word)&rdquo;.</p>
+      <div class="card__foot"><span class="kp-badge kp-badge--success kp-badge--sm">Built</span><span class="open-link">Open &rarr;</span></div>
+    </a>
+
+    <!-- P3 -->
+    <a class="card" href="p3-wealthbox-stamp.html">
+      <div class="card__top">
+        <span class="card__id">P3</span>
+        <span class="card__title">The Wealthbox stamp</span>
+        <span class="card__wave kp-badge kp-badge--featured kp-badge--sm">Wave 2</span>
+      </div>
+      <p class="card__desc">A timeline entry &ldquo;Update Wealthbox: 1 note &#183; 3 tasks&rdquo; that expands to tracked-changes rows (green additions, each toggleable) with one Approve button. Collapsed, expanded, multi-household, approved, and one-row-failed states.</p>
+      <div class="card__foot"><span class="kp-badge kp-badge--success kp-badge--sm">Built</span><span class="open-link">Open &rarr;</span></div>
+    </a>
+
+    <!-- P4 -->
+    <a class="card" href="p4-draft-followup.html">
+      <div class="card__top">
+        <span class="card__id">P4</span>
+        <span class="card__title">Draft follow-up</span>
+        <span class="card__wave kp-badge kp-badge--featured kp-badge--sm">Wave 0</span>
+      </div>
+      <p class="card__desc">From the Word editor: one toolbar button beside Export opens a single modal (recipient, subject, body with citation chips, Save to Drafts + Send). One screen, no second step.</p>
+      <div class="card__foot"><span class="kp-badge kp-badge--success kp-badge--sm">Built</span><span class="open-link">Open &rarr;</span></div>
+    </a>
+
+    <!-- P5 -->
+    <a class="card" href="p5-calendar-connection.html">
+      <div class="card__top">
+        <span class="card__id">P5</span>
+        <span class="card__title">Calendar connection</span>
+        <span class="card__wave kp-badge kp-badge--featured kp-badge--sm">Wave 1</span>
+      </div>
+      <p class="card__desc">The Connections surface with the one new Calendar card (Microsoft / Google / paste an ICS link), matching the existing connector cards exactly. Disconnected and connected states.</p>
+      <div class="card__foot"><span class="kp-badge kp-badge--success kp-badge--sm">Built</span><span class="open-link">Open &rarr;</span></div>
+    </a>
+
+    <!-- P6 -->
+    <div class="card card--gated card--disabled">
+      <div class="card__top">
+        <span class="card__id">P6</span>
+        <span class="card__title">North star</span>
+        <span class="card__wave kp-badge kp-badge--neutral kp-badge--sm">Wave 3</span>
+      </div>
+      <p class="card__desc">The meeting timeline entry opening notes / transcript / audio scrubber, with a fact chip that highlights the transcript moment, plus the floating record pill. Directional preview.</p>
+      <div class="card__foot"><span class="kp-badge kp-badge--warning kp-badge--sm">Gated: not in current build scope</span></div>
+    </div>
+
+  </div>
+
+  <p class="foot-note">Approved prototypes become the acceptance test for the build agents. Ties break toward less: fewer elements, fewer states, fewer words.</p>
+</div>
+</body>
+</html>
