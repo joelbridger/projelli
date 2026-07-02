@@ -63,9 +63,10 @@ import type { Provider } from '@/platform/providers/Provider';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
-import type { AuditEntry } from '@/platform/types/audit';
+import type { AuditEntry, AuditScope } from '@/platform/types/audit';
 import { resolveEgress } from '@/platform/privacy/egress';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
+import { resolveAssuredRoute } from '@/platform/firm/resolveAssuredRoute';
 
 export interface EmailViewerProps {
   /** Message id or `mail:<id>` citation source id. */
@@ -117,6 +118,14 @@ export interface ResolvedEmailProvider {
    *  accurate, unlike `provider.getMetadata().providerId`, which only the
    *  local providers set (a cloud provider's metadata leaves it undefined). */
   providerId: string;
+  /** True when this resolved to a REAL assured (firm zero-retention proxy)
+   *  route — i.e. `resolveAssuredRoute` found a live firm session AND a
+   *  managed key for this provider, the same check Chat/redline use. Feed
+   *  this to `resolveEgress()` so the audit log records what actually
+   *  happened, not just the app's confidentiality-mode SETTING: mode can read
+   *  'assured' while this is still false (no managed key configured yet),
+   *  and the honest destination is BYOK-direct. */
+  assuredAvailable: boolean;
 }
 
 /**
@@ -133,7 +142,7 @@ async function resolveEmailProvider(): Promise<ResolvedEmailProvider> {
   // Ollama (the same on-device resolution Ask / Chat / Client Map use).
   if (isLocalOnlyMode()) {
     const resolved = await resolveLocalGenerationProvider();
-    return { provider: resolved.provider, providerId: resolved.providerId };
+    return { provider: resolved.provider, providerId: resolved.providerId, assuredAvailable: false };
   }
   // Personal-install choice gate (Task 1.3): email draft generation is cloud generation,
   // so block it until the user has made an explicit confidentiality choice. Gate ONLY on
@@ -144,22 +153,63 @@ async function resolveEmailProvider(): Promise<ResolvedEmailProvider> {
   const anthropicKey = await kc.getKey('anthropic');
   if (anthropicKey?.trim()) {
     assertCloudGenerationAllowed();
-    return { provider: createClaudeProvider({ apiKey: anthropicKey.trim() }), providerId: 'anthropic' };
+    const apiKey = anthropicKey.trim();
+    // Firm Assured routing (same seam Chat/redline use): route through the
+    // zero-retention proxy when the firm actually has one configured for this
+    // provider, instead of always going raw BYOK-direct with the personal key.
+    // `stream: false` (independent reviewer catch, P1) — Draft with AI always
+    // calls sendMessage(), never sendMessageStreaming(), so the route must say
+    // so; otherwise the proxy sets X-Stream:1 and, for Gemini especially,
+    // routes to the streaming endpoint while this code parses a JSON response.
+    const model = createClaudeProvider({ apiKey }).getMetadata().model;
+    const assured = resolveAssuredRoute('anthropic', model, false);
+    return {
+      provider: createClaudeProvider({ apiKey, model, ...(assured ? { assured } : {}) }),
+      providerId: 'anthropic',
+      assuredAvailable: !!assured,
+    };
   }
   const openaiKey = await kc.getKey('openai');
   if (openaiKey?.trim()) {
     assertCloudGenerationAllowed();
-    return { provider: createOpenAIProvider({ apiKey: openaiKey.trim() }), providerId: 'openai' };
+    const apiKey = openaiKey.trim();
+    const model = createOpenAIProvider({ apiKey }).getMetadata().model;
+    const assured = resolveAssuredRoute('openai', model, false);
+    return {
+      provider: createOpenAIProvider({ apiKey, model, ...(assured ? { assured } : {}) }),
+      providerId: 'openai',
+      assuredAvailable: !!assured,
+    };
   }
   const googleKey = await kc.getKey('google');
   if (googleKey?.trim()) {
     assertCloudGenerationAllowed();
-    return { provider: createGeminiProvider({ apiKey: googleKey.trim() }), providerId: 'google' };
+    const apiKey = googleKey.trim();
+    const model = createGeminiProvider({ apiKey }).getMetadata().model;
+    const assured = resolveAssuredRoute('google', model, false);
+    return {
+      provider: createGeminiProvider({ apiKey, model, ...(assured ? { assured } : {}) }),
+      providerId: 'google',
+      assuredAvailable: !!assured,
+    };
   }
   // No cloud key — fall back to the on-device engine (embedded model when ready,
   // else Ollama). No egress, nothing to gate.
   const resolved = await resolveLocalGenerationProvider();
-  return { provider: resolved.provider, providerId: resolved.providerId };
+  return { provider: resolved.provider, providerId: resolved.providerId, assuredAvailable: false };
+}
+
+/**
+ * The matter-scope payload for an email audit entry: filed emails are scoped
+ * by matterId (kept even when the matter object itself isn't in the current
+ * list — e.g. archived, per BUG-013) so the per-matter confidentiality
+ * report/Activity view doesn't drop the row as unscoped legacy data. Shared
+ * by both the AI-draft egress row and the outbound-send row so a client's
+ * emails show up in that client's Activity view either way.
+ */
+function emailMatterScope(filedMatterId: string | null, filedMatterName: string | undefined): AuditScope | undefined {
+  if (filedMatterId === null) return undefined;
+  return { kind: 'matter', matterId: filedMatterId, ...(filedMatterName ? { matterName: filedMatterName } : {}) };
 }
 
 // eslint-disable-next-line react-refresh/only-export-components -- exported for direct test import
@@ -326,7 +376,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
     setReplyDraftError(null);
     setReplyDraft('');
     try {
-      const { provider, providerId } = await resolveEmailProvider();
+      const { provider, providerId, assuredAvailable } = await resolveEmailProvider();
       // Race guard (Ask's gold pattern): resolveEmailProvider checks the mode only
       // at its START, then awaits keychain reads. Re-check the CURRENT mode here —
       // AFTER all awaits, immediately before the send — so a flip to Local-only
@@ -353,7 +403,14 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
       // confidentiality report every other AI send feeds. `providerId` (not
       // `provider.getMetadata().providerId`, which only the local providers set)
       // so a real cloud send is never mislabeled 'unknown' in that report.
-      const egress = resolveEgress({ provider: providerId, mode: getConfidentialityMode() });
+      // `assuredAvailable` comes from the ACTUAL resolved route (independent
+      // reviewer catch): the app's confidentiality-mode SETTING can read
+      // 'assured' while no managed key is configured yet, in which case the
+      // real send falls back to BYOK-direct — resolveEgress must be told that,
+      // not just handed the raw mode, or the log would claim "Assured" for a
+      // request that plainly went out with the user's own key.
+      const egress = resolveEgress({ provider: providerId, mode: getConfidentialityMode(), assuredAvailable });
+      const scope = emailMatterScope(filedMatterId, filedMatter?.name);
       const auditEntry = auditEventToEntry({
         type: 'egress',
         timestamp: new Date().toISOString(),
@@ -363,15 +420,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
           mode: getConfidentialityMode(),
           destination: egress.destination,
           dataLeaves: egress.dataLeaves,
-          // BUG-013's same distinction applies here: filedMatterId can be set
-          // while filedMatter (the looked-up object) is null — e.g. the matter
-          // list hasn't hydrated yet, or the matter was archived/removed. Keep
-          // the scope (by id) in that case too, so the per-matter confidentiality
-          // report doesn't drop this row as unscoped legacy data; matterName is
-          // just cosmetic and only added when we actually have the object.
-          ...(filedMatterId !== null
-            ? { scope: { kind: 'matter' as const, matterId: filedMatterId, ...(filedMatter ? { matterName: filedMatter.name } : {}) } }
-            : {}),
+          ...(scope ? { scope } : {}),
         },
       });
       logEmailAuditEntry({
@@ -428,7 +477,10 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
       );
       // Audit gap fix (2026-07-01 security eval): a durable record of the
       // outbound send — message id, account, and how many recipients, never
-      // the addresses/subject/body themselves.
+      // the addresses/subject/body themselves. Same matter scope as the
+      // AI-draft egress row (independent reviewer catch) so a reply on a
+      // client-filed email still shows up in that client's Activity view.
+      const scope = emailMatterScope(filedMatterId, filedMatter?.name);
       logEmailAuditEntry({
         action: 'email.send',
         description: `Sent an email reply (${String(toArr.length + ccArr.length + bccArr.length)} recipient(s))`,
@@ -440,6 +492,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
           messageId: message.id,
           account: message.account ?? 'unknown',
           mailProvider: message.provider ?? 'unknown',
+          ...(scope ? { scope } : {}),
         },
       });
       setReplySendResult('success');
@@ -453,7 +506,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
     } finally {
       setReplySending(false);
     }
-  }, [message, replyTo, replyCc, replyBcc, replySubject, replyDraft]);
+  }, [message, replyTo, replyCc, replyBcc, replySubject, replyDraft, filedMatterId, filedMatter]);
 
   if (loading) {
     return (

@@ -45,9 +45,10 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (k: string) => k }),
 }));
 
+const mockGetKey = vi.fn(async (_provider: string): Promise<string | null> => null);
 vi.mock('@/platform/providers/KeychainService', () => ({
   createKeychainService: vi.fn(() => ({
-    getKey: vi.fn(async () => null),
+    getKey: mockGetKey,
     hasKey: vi.fn(async () => false),
   })),
 }));
@@ -65,6 +66,23 @@ vi.mock('@/platform/providers/OllamaProvider', () => ({
   }),
 }));
 
+// createClaudeProvider captures its config (esp. `assured`) so tests can prove
+// the ACTUAL route the provider was built with, not just the app's
+// confidentiality-mode setting.
+const createClaudeProviderMock = vi.fn((cfg: { apiKey: string; model?: string; assured?: unknown }) => ({
+  sendMessage: vi.fn(async () => ({ content: 'Cloud draft.' })),
+  getMetadata: vi.fn(() => ({ model: cfg.model ?? 'claude-haiku-4-5-20251001' })), // no providerId — real ClaudeProvider never sets one either
+  __cfg: cfg,
+}));
+vi.mock('@/platform/providers/ClaudeProvider', () => ({
+  createClaudeProvider: (cfg: { apiKey: string; model?: string; assured?: unknown }) => createClaudeProviderMock(cfg),
+}));
+
+const mockResolveAssuredRoute = vi.fn((_provider: string, _model: string, _stream?: boolean): unknown => undefined);
+vi.mock('@/platform/firm/resolveAssuredRoute', () => ({
+  resolveAssuredRoute: (provider: string, model: string, stream?: boolean) => mockResolveAssuredRoute(provider, model, stream),
+}));
+
 vi.mock('@/platform/utils/fileDrop', () => ({
   deriveFilenameFromMessage: vi.fn(() => 'reply-draft.md'),
 }));
@@ -72,6 +90,9 @@ vi.mock('@/platform/utils/fileDrop', () => ({
 import { EmailViewer, setEmailAuditEmitter } from '@/features/email/EmailViewer';
 import type { MailView } from '@/platform/utils/mail-commands';
 import type { AuditEntry } from '@/platform/types/audit';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
+import { CONFIDENTIALITY_MODE_SETTING_KEY } from '@/platform/privacy/egress';
+import { CONFIDENTIALITY_CHOICE_MADE_KEY } from '@/platform/privacy/resolvePersonalEgressDefault';
 
 const emitterSpy = vi.fn((_entry: Omit<AuditEntry, 'id' | 'timestamp'>) => {});
 
@@ -174,6 +195,77 @@ describe('EmailViewer — AI-draft audit (egress)', () => {
   });
 });
 
+describe('EmailViewer — AI-draft audit records the ACTUAL assured route (independent reviewer catch)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setEmailAuditEmitter(emitterSpy);
+    useSettingsStore.setState({ values: {} });
+    useSettingsStore.getState().setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, 'assured');
+    useSettingsStore.getState().setSetting(CONFIDENTIALITY_CHOICE_MADE_KEY, true);
+    mockGetKey.mockImplementation(async (provider: string) => (provider === 'anthropic' ? 'sk-ant-test' : null));
+  });
+  afterEach(() => {
+    setEmailAuditEmitter(null);
+    useSettingsStore.setState({ values: {} });
+  });
+
+  it('logs destination "assured-proxy" (and constructs the provider with the route) when the firm actually has one configured', async () => {
+    mockResolveAssuredRoute.mockReturnValue({
+      provider: 'anthropic',
+      model: 'claude-haiku-4-5-20251001',
+      accessToken: 'ACCESS',
+      seatToken: 'SEAT',
+      stream: true,
+    });
+    mockMailGetMessage.mockResolvedValue(sampleMessage({ matterId: null }));
+    render(<EmailViewer sourceId="AAMk-xyz" />);
+    await screen.findByTestId('email-reply-area');
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('reply-draft-ai-btn'));
+    });
+
+    await waitFor(() => expect(emitterSpy).toHaveBeenCalled());
+    const entry = emitterSpy.mock.calls[0]![0];
+    expect(entry.metadata['mode']).toBe('assured');
+    expect(entry.metadata['destination']).toBe('assured-proxy');
+    expect(entry.metadata['dataLeaves']).toBe(true);
+
+    // The provider actually used the resolved route, not a plain BYOK call.
+    expect(createClaudeProviderMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ assured: expect.objectContaining({ accessToken: 'ACCESS' }) }),
+    );
+    // Independent reviewer catch (P1): Draft with AI always calls the
+    // non-streaming sendMessage(), so the route must be resolved as
+    // non-streaming — otherwise the proxy sets X-Stream:1 and (for Gemini
+    // especially) routes to the streaming endpoint while this code expects JSON.
+    expect(mockResolveAssuredRoute).toHaveBeenCalledWith('anthropic', expect.any(String), false);
+  });
+
+  it('logs destination "provider-direct" (honest BYOK fallback) when assured mode is selected but the firm has no managed key yet', async () => {
+    mockResolveAssuredRoute.mockReturnValue(undefined); // no managed key / no live firm session
+    mockMailGetMessage.mockResolvedValue(sampleMessage({ matterId: null }));
+    render(<EmailViewer sourceId="AAMk-xyz" />);
+    await screen.findByTestId('email-reply-area');
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('reply-draft-ai-btn'));
+    });
+
+    await waitFor(() => expect(emitterSpy).toHaveBeenCalled());
+    const entry = emitterSpy.mock.calls[0]![0];
+    // Mode still reflects the app-wide SETTING (matches Ask/Chat/redline
+    // convention) but destination is the honest reality of what happened.
+    expect(entry.metadata['mode']).toBe('assured');
+    expect(entry.metadata['destination']).toBe('provider-direct');
+    expect(entry.metadata['dataLeaves']).toBe(true);
+
+    expect(createClaudeProviderMock).toHaveBeenLastCalledWith(
+      expect.not.objectContaining({ assured: expect.anything() }),
+    );
+  });
+});
+
 describe('EmailViewer — outbound send audit', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -213,6 +305,24 @@ describe('EmailViewer — outbound send audit', () => {
     expect(serialized).not.toContain('pat@hender.com');
     expect(serialized).not.toContain('Thanks for confirming');
     expect(serialized).not.toContain('Re: Closing date');
+  });
+
+  it('scopes the email.send row to the filed matter (independent reviewer catch: replies were invisible in the client Activity view)', async () => {
+    mockMailGetMessage.mockResolvedValue(sampleMessage({ matterId: 'm1' }));
+    mockMailSend.mockResolvedValue('sent-id');
+
+    render(<EmailViewer sourceId="AAMk-xyz" />);
+    await screen.findByTestId('email-reply-area');
+    fireEvent.change(screen.getByTestId('reply-to-input'), { target: { value: 'pat@hender.com' } });
+    fireEvent.change(screen.getByTestId('reply-draft-textarea'), { target: { value: 'Thanks.' } });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('reply-send-btn'));
+    });
+
+    await waitFor(() => expect(mockMailSend).toHaveBeenCalled());
+    const entry = emitterSpy.mock.calls.find((c) => c[0]!.action === 'email.send')![0]!;
+    expect(entry.metadata['scope']).toEqual({ kind: 'matter', matterId: 'm1', matterName: 'Acme v. Beta' });
   });
 
   it('does not log email.send when mailSend fails', async () => {
