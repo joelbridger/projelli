@@ -588,10 +588,10 @@ pub fn parse_ics(text: &str, from_utc: &str, to_utc: &str) -> anyhow::Result<Vec
             "RRULE" => raw.rrule = Some(value),
             "EXDATE" => raw.exdates.push((value, tzid)),
             "ORGANIZER" => {
-                raw.organizer = value.trim_start_matches("mailto:").to_ascii_lowercase()
+                raw.organizer = strip_mailto_prefix(&value).to_ascii_lowercase()
             }
             "ATTENDEE" => {
-                let email = value.trim_start_matches("mailto:").to_ascii_lowercase();
+                let email = strip_mailto_prefix(&value).to_ascii_lowercase();
                 if !email.is_empty() {
                     let name = params
                         .iter()
@@ -605,6 +605,19 @@ pub fn parse_ics(text: &str, from_utc: &str, to_utc: &str) -> anyhow::Result<Vec
         }
     }
     Ok(events)
+}
+
+/// Strip a leading "mailto:" scheme case-insensitively. Full-diff review
+/// finding (P2): RFC 5545 doesn't mandate lowercase, real feeds commonly
+/// emit "MAILTO:client@example.com" — the byte-exact
+/// `trim_start_matches("mailto:")` left the scheme in place for those,
+/// which then survived `to_ascii_lowercase()` as "mailto:client@..." and
+/// never matched a taught key.
+fn strip_mailto_prefix(value: &str) -> &str {
+    match value.get(..7) {
+        Some(prefix) if prefix.eq_ignore_ascii_case("mailto:") => &value[7..],
+        _ => value,
+    }
 }
 
 fn unescape_ics_text(s: &str) -> String {
@@ -700,6 +713,24 @@ mod tests {
         assert_eq!(e.attendees[0].email, "kim@henderson.com");
         assert_eq!(e.attendees[0].name, "Kim Henderson");
         assert_eq!(e.organizer_email, "adv@firm.com");
+    }
+
+    #[test]
+    fn uppercase_mailto_scheme_is_stripped_case_insensitively() {
+        // Full-diff review finding (P2): real feeds commonly emit
+        // MAILTO:client@example.com (RFC 5545 doesn't mandate lowercase).
+        // trim_start_matches("mailto:") is byte-exact, so the uppercase
+        // scheme survived into the lowercased result and never matched a
+        // taught key.
+        let ics = wrap(
+            "BEGIN:VEVENT\r\nUID:u2\r\nSUMMARY:s\r\n\
+             DTSTART:20260702T160000Z\r\nDTEND:20260702T170000Z\r\n\
+             ORGANIZER:MAILTO:Adv@Firm.com\r\n\
+             ATTENDEE;CN=Kim:MAILTO:Kim@Henderson.com\r\nEND:VEVENT\r\n",
+        );
+        let events = parse_ics(&ics, WINDOW_FROM, WINDOW_TO).unwrap();
+        assert_eq!(events[0].organizer_email, "adv@firm.com", "scheme must not survive into the email");
+        assert_eq!(events[0].attendees[0].email, "kim@henderson.com");
     }
 
     #[test]
