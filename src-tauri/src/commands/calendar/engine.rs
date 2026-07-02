@@ -170,12 +170,36 @@ pub async fn sync_source(
         seen_ids.push(event.id.clone());
         let text = render_event(event);
         let content_hash = crate::commands::calendly::engine::content_hash(&text);
-        let changed = store.upsert_event(event, &content_hash)?;
-        if !changed {
+        // Read the PREVIOUS matter assignment before upsert/mark_indexed
+        // touch anything (upsert_event never writes matter_ids itself).
+        let previous_matter_ids = store.get_matter_ids(&event.id)?.unwrap_or_default();
+        let content_changed = store.upsert_event(event, &content_hash)?;
+        let matters = resolve_event_matters(event, matter_map);
+        let matters_csv = matters.join(",");
+        // codex-review P2: a taught/re-taught mapping must take effect on
+        // the next sync even when the event's own text hasn't changed —
+        // otherwise a meeting stays misfiled under its old client (or
+        // unassigned) until its content happens to change too.
+        let mapping_changed = matters_csv != previous_matter_ids;
+        if !content_changed && !mapping_changed {
             continue;
         }
-        counts.changed += 1;
-        let matters = resolve_event_matters(event, matter_map);
+        if content_changed {
+            counts.changed += 1;
+        }
+        // codex-review P1: delete RAG rows for any matter this event no
+        // longer resolves to BEFORE writing the new matter_ids — otherwise
+        // the old source ids are silently orphaned (never purged by the
+        // absent-event sweep below, since the event itself is still
+        // present upstream) and Ask can keep surfacing the meeting under
+        // the wrong/old client forever.
+        let previous_set: std::collections::HashSet<&str> =
+            previous_matter_ids.split(',').filter(|m| !m.is_empty()).collect();
+        let new_set: std::collections::HashSet<&str> = matters.iter().map(String::as_str).collect();
+        for old_matter in previous_set.difference(&new_set) {
+            let source_id = format!("calendar:{}:{}", event.id, old_matter);
+            delete_one(workspace, &source_id, rag_key).await?;
+        }
         let mut indexed_any = false;
         for matter_id in &matters {
             let source_id = format!("calendar:{}:{}", event.id, matter_id);
@@ -185,7 +209,7 @@ pub async fn sync_source(
         }
         if indexed_any {
             counts.indexed += 1;
-            store.mark_indexed(&event.id, &content_hash, &matters.join(","))?;
+            store.mark_indexed(&event.id, &content_hash, &matters_csv)?;
         }
         progress(counts.indexed);
     }
@@ -390,6 +414,78 @@ mod tests {
                 "calendar:outlook:1:m-hend".to_string(),
                 "calendar:outlook:1:m-ortiz".to_string()
             ]
+        );
+        *test_hooks_slot().lock().unwrap() = None;
+    }
+
+    #[tokio::test]
+    async fn reassigned_mapping_purges_old_matter_and_reindexes_new_even_with_unchanged_content() {
+        // codex-review P1+P2: a taught/re-taught mapping must take effect
+        // on the next sync even though the event's own text is unchanged,
+        // AND the old matter's RAG rows must be purged — not left as
+        // stale/wrong-client duplicates.
+        let _guard = hooks_test_guard();
+        let dir = tempfile::tempdir().unwrap();
+        let indexed: Arc<std::sync::Mutex<Vec<(String, String)>>> =
+            Arc::new(std::sync::Mutex::new(Vec::new()));
+        let deleted: Arc<std::sync::Mutex<Vec<String>>> = Arc::new(std::sync::Mutex::new(Vec::new()));
+        {
+            let indexed = indexed.clone();
+            let deleted = deleted.clone();
+            *test_hooks_slot().lock().unwrap() = Some(TestHooks {
+                index: Box::new(move |source_id, matter_id| {
+                    indexed.lock().unwrap().push((source_id.into(), matter_id.into()));
+                    Ok(1)
+                }),
+                delete: Box::new(move |source_id| {
+                    deleted.lock().unwrap().push(source_id.into());
+                    Ok(())
+                }),
+            });
+        }
+
+        let store = CalendarStore::open_with_key(dir.path(), &STORE_KEY).unwrap();
+        let source = FakeSource {
+            events: vec![ev("outlook:1", "Review", &[("kim@henderson.com", "Kim")])],
+        };
+        let cancel = Arc::new(AtomicBool::new(false));
+
+        // First sync: kim@henderson.com maps to m-hend.
+        let map_v1 = map(&[("kim@henderson.com", "m-hend")]);
+        let counts1 = sync_source(
+            &store, &source, &map_v1, dir.path(), &STORE_KEY,
+            "2026-07-01T00:00:00Z", "2026-07-10T00:00:00Z", &cancel, &|_| {},
+        )
+        .await
+        .unwrap();
+        assert_eq!(counts1.changed, 1, "first sync: content is new");
+        assert_eq!(*indexed.lock().unwrap(), vec![("calendar:outlook:1:m-hend".to_string(), "m-hend".to_string())]);
+
+        // Second sync: SAME event content, but kim@henderson.com now maps
+        // to m-new (re-taught). No content change, but the mapping did.
+        let map_v2 = map(&[("kim@henderson.com", "m-new")]);
+        let counts2 = sync_source(
+            &store, &source, &map_v2, dir.path(), &STORE_KEY,
+            "2026-07-01T00:00:00Z", "2026-07-10T00:00:00Z", &cancel, &|_| {},
+        )
+        .await
+        .unwrap();
+        assert_eq!(counts2.changed, 0, "content itself is unchanged");
+        assert_eq!(counts2.indexed, 1, "still reindexed because the mapping changed");
+        assert_eq!(
+            deleted.lock().unwrap().as_slice(),
+            ["calendar:outlook:1:m-hend".to_string()],
+            "the old matter's RAG row must be purged, not left as a stale duplicate"
+        );
+        let got_indexed = indexed.lock().unwrap();
+        assert!(
+            got_indexed.contains(&("calendar:outlook:1:m-new".to_string(), "m-new".to_string())),
+            "reindexed under the new matter: {got_indexed:?}"
+        );
+        assert_eq!(
+            store.get_matter_ids("outlook:1").unwrap(),
+            Some("m-new".to_string()),
+            "store's own bookkeeping reflects only the current matter"
         );
         *test_hooks_slot().lock().unwrap() = None;
     }

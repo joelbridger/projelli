@@ -240,6 +240,20 @@ impl CalendarStore {
             .ok())
     }
 
+    /// The comma-joined matter ids this event was last indexed under, if
+    /// any row exists. Read BEFORE `mark_indexed` overwrites it, so the
+    /// caller can diff old vs. new matters and purge RAG rows for any
+    /// matter the event no longer resolves to (a reassignment/re-teaching
+    /// must not leave the meeting indexed under its old client forever).
+    pub fn get_matter_ids(&self, id: &str) -> Result<Option<String>> {
+        let conn = self.conn.lock().unwrap();
+        Ok(conn
+            .query_row("SELECT matter_ids FROM calendar_events WHERE id = ?1", [id], |r| {
+                r.get(0)
+            })
+            .ok())
+    }
+
     /// Every RAG source id this store has indexed: `calendar:<id>:<matter>`
     /// per matter in the row's csv. Used by disconnect/purge.
     pub fn list_indexed_rag_source_ids(&self) -> Result<Vec<String>> {
@@ -343,6 +357,18 @@ mod tests {
         assert_eq!(to_index.len(), 1);
         store.mark_indexed("outlook:e1", "h2", "m-1").unwrap();
         assert!(store.list_to_index().unwrap().is_empty());
+    }
+
+    #[test]
+    fn get_matter_ids_returns_none_for_unknown_row_and_last_marked_value() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CalendarStore::open_with_key(dir.path(), &STORE_KEY).unwrap();
+        assert_eq!(store.get_matter_ids("outlook:e1").unwrap(), None, "no row yet");
+        let e = sample("outlook:e1", "2026-07-02T16:00:00Z");
+        store.upsert_event(&e, "h1").unwrap();
+        assert_eq!(store.get_matter_ids("outlook:e1").unwrap(), Some(String::new()), "not indexed yet");
+        store.mark_indexed("outlook:e1", "h1", "m-hend").unwrap();
+        assert_eq!(store.get_matter_ids("outlook:e1").unwrap(), Some("m-hend".to_string()));
     }
 
     #[test]
