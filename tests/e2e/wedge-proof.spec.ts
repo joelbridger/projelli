@@ -201,6 +201,14 @@ test.describe('VG-1 leg 2 — wedge UI wiring (browser, testMode)', () => {
   test('cited answer renders chips (verified + unverified), sources accordion, scope chip; chip click opens the cited file', async ({
     page,
   }, testInfo) => {
+    test.skip(
+      !!process.env.E2E_CI_QUARANTINE,
+      'confirmed failing on real CI (F3.7b, 2026-07-02): 2x intermittent ' +
+        'net::ERR_CONNECTION_REFUSED console errors trip the zero-console-error ' +
+        'assertion; did not reproduce across 2 local runs (isolated + full ' +
+        'shard-6 replay) against the CI-equivalent preview build — see ' +
+        'docs/quality/e2e-flaky-quarantine.md'
+    );
     const getErrors = collectConsoleErrors(page);
 
     const { verifiedChip, unverifiedChip } = await openCitedChat(page);
@@ -267,6 +275,14 @@ test.describe('VG-1 leg 2 — wedge UI wiring (browser, testMode)', () => {
   test('ask-workspace ON in a build without rag REFUSES instead of fabricating; privilege toggle appears', async ({
     page,
   }, testInfo) => {
+    test.skip(
+      !!process.env.E2E_CI_QUARANTINE,
+      'confirmed failing on real CI (F3.7b, 2026-07-02): 2x intermittent ' +
+        'net::ERR_CONNECTION_REFUSED console errors trip the ' +
+        'unexpected-console-errors assertion; did not reproduce across 2 local ' +
+        'runs (isolated + full shard-6 replay) against the CI-equivalent ' +
+        'preview build — see docs/quality/e2e-flaky-quarantine.md'
+    );
     const getErrors = collectConsoleErrors(page);
 
     await openTestFile(page, {
@@ -332,6 +348,14 @@ test.describe('VG-1 leg 2 — wedge UI wiring (browser, testMode)', () => {
     // tests/unit/spreadsheet-io.test.ts (F-506 describe block). This test is
     // the plan's original round-trip at full assertion strength — formerly
     // the expected-fail tripwire, now a normal test.
+    test.skip(
+      !!process.env.E2E_CI_QUARANTINE,
+      'confirmed failing on real CI (F3.7b, 2026-07-02): 2x intermittent ' +
+        'net::ERR_CONNECTION_REFUSED console errors trip the zero-console-error ' +
+        'assertion; did not reproduce across 2 local runs (isolated + full ' +
+        'shard-6 replay) against the CI-equivalent preview build — see ' +
+        'docs/quality/e2e-flaky-quarantine.md'
+    );
 
     const getErrors = collectConsoleErrors(page);
     const xlsxPath = '/test-workspace/matter-corpus/damages-model.xlsx';
@@ -400,6 +424,14 @@ test.describe('VG-1 leg 2 — wedge UI wiring (browser, testMode)', () => {
   test('pptx: exhibit-deck.pptx parses and renders its real slide text via the honest fallback outline', async ({
     page,
   }, testInfo) => {
+    test.skip(
+      !!process.env.E2E_CI_QUARANTINE,
+      'confirmed failing on real CI (F3.7b, 2026-07-02): 2x intermittent ' +
+        'net::ERR_CONNECTION_REFUSED console errors trip the zero-console-error ' +
+        'assertion; did not reproduce across 2 local runs (isolated + full ' +
+        'shard-6 replay) against the CI-equivalent preview build — see ' +
+        'docs/quality/e2e-flaky-quarantine.md'
+    );
     const getErrors = collectConsoleErrors(page);
 
     await openTestFile(page, {

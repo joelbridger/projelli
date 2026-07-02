@@ -31,11 +31,18 @@ const E2E_BASE_URL = process.env['E2E_BASE_URL'] ?? 'http://localhost:5173';
 // docs/quality/e2e-flaky-quarantine.md — a quarantine with no deadline rots into a
 // graveyard. Adding a spec here REQUIRES adding a row there in the same change; by
 // its date a spec must be fixed (and removed here), deleted, or re-dated with a reason.
-// Empty as of F3.7 (2026-07-02): the F1.3 quarantine list (25 whole-file
-// entries) was fully burned down. See docs/quality/e2e-flaky-quarantine.md
-// for the fix history. Add new entries here ONLY with a same-change row in
-// that file (owner + fix-or-delete-by date).
-const CI_QUARANTINE: string[] = [];
+// F3.7b (2026-07-02): 2 whole-file re-additions after the F3.7 burndown's
+// merge to keepance-3.0 turned out to still be red on real GitHub Actions CI
+// (branch pushes don't trigger CI, so this was only discoverable post-merge).
+// Both fail for CI-build-topology reasons the tests/e2e-only remediation lane
+// can't fix (see docs/quality/e2e-flaky-quarantine.md for the full cause and
+// the real fix each needs). wedge-proof.spec.ts's 4 CI-divergent tests are
+// NOT here — that file gets a per-test in-spec skip instead (its 5th test
+// passes clean and shouldn't lose CI coverage).
+const CI_QUARANTINE: string[] = [
+  'tests/e2e/web-demo.spec.ts',
+  'tests/e2e/templates-marketplace.spec.ts',
+];
 
 export default defineConfig({
   testDir: './tests/e2e',
