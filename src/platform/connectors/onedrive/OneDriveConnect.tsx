@@ -23,7 +23,7 @@ import { AuditService } from '@/platform/audit/AuditService';
 import { sanitizeSyncError } from '@/platform/connectors/syncAuditError';
 import { useOneDriveSync } from '@/platform/connectors/onedrive/useOneDriveSync';
 import { useOneDriveStore } from '@/platform/connectors/onedrive/onedriveStore';
-import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
+import { isPersistedLocalOnly } from '@/platform/privacy/localOnlyGuard';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { beginOAuth, endOAuth } from '@/platform/connectors/oauthPending';
 import type { Matter } from '@/platform/types/matter';
@@ -40,9 +40,13 @@ const oneDriveAudit = new AuditService('connectors');
 // been recorded, which is a cloud-AI-generation concept unrelated to reading
 // your own OneDrive files, and used to spuriously kill this sync on any
 // workspace that never made that AI choice (fresh installs, seeded/test
-// workspaces). Match every other connector (Box, Addepar, DocuSign, Jotform,
-// Zocks) and gate on the same reactive `isLocalOnlyMode()` the button/banner
-// above already display, so "enabled in the UI" and "will actually run" agree.
+// workspaces). Gate on `isPersistedLocalOnly()` instead: it reads the
+// persisted mode directly (not the in-memory settings store, which still
+// reports the schema default during the hydration window right at app
+// start), so a sync triggered in that window can't slip past a user who
+// GENUINELY chose Local-only — while "no choice recorded yet" still allows
+// the sync, matching every other connector (Box, Addepar, DocuSign, Jotform,
+// Zocks).
 const LOCAL_ONLY_BLOCKED_MESSAGE =
   'Local-only mode is on, so OneDrive sync is paused. Turn off Local-only mode in the Privacy Center to import documents from Microsoft.';
 
@@ -110,7 +114,7 @@ export function OneDriveConnect() {
   async function connect() {
     setError(null);
     setLastReport(null);
-    if (isLocalOnlyMode()) {
+    if (isPersistedLocalOnly()) {
       setError(LOCAL_ONLY_BLOCKED_MESSAGE);
       return;
     }
@@ -155,7 +159,7 @@ export function OneDriveConnect() {
    * failure. Never a silent no-op that looks like success.
    */
   async function runSync(): Promise<void> {
-    if (isLocalOnlyMode()) {
+    if (isPersistedLocalOnly()) {
       setError(LOCAL_ONLY_BLOCKED_MESSAGE);
       return;
     }

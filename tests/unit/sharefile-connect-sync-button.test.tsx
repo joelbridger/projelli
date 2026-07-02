@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ShareFileConnect } from '@/platform/connectors/sharefile/ShareFileConnect';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
+import { SK_SETTINGS } from '@/config/identity';
 import type { SharefileSyncReport } from '@/platform/utils/sharefile-commands';
 
 const sharefileCancel = vi.fn();
@@ -86,6 +87,29 @@ describe('ShareFileConnect Sync now button', () => {
 
     fireEvent.click(button);
 
+    expect(sharefileSync).not.toHaveBeenCalled();
+  });
+
+  it('still blocks a genuinely-persisted local-only mode during the settings-store hydration window', async () => {
+    // Same hydration-window race as the OneDrive twin: write straight to the
+    // persisted settings key, bypassing the in-memory Zustand store, so the
+    // reactive `localOnly` (button disabled/banner) still reads the schema
+    // default while the real persisted choice is 'local-only'.
+    localStorage.setItem(
+      SK_SETTINGS,
+      JSON.stringify({ state: { values: { confidentialityMode: 'local-only' } }, version: 1 })
+    );
+
+    render(<ShareFileConnect />);
+
+    const button = await screen.findByRole('button', { name: 'Sync now' });
+    expect(button).not.toBeDisabled();
+
+    fireEvent.click(button);
+
+    expect(
+      await screen.findByText(/local-only mode is on, so sharefile sync is paused/i)
+    ).toBeTruthy();
     expect(sharefileSync).not.toHaveBeenCalled();
   });
 });

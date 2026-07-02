@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { OneDriveConnect } from '@/platform/connectors/onedrive/OneDriveConnect';
 import { AuditService } from '@/platform/audit/AuditService';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
+import { SK_SETTINGS } from '@/config/identity';
 import type { OneDriveSyncReport } from '@/platform/utils/onedrive-commands';
 
 const oneDriveCancel = vi.fn();
@@ -132,6 +133,33 @@ describe('OneDriveConnect Sync now button', () => {
 
     fireEvent.click(button);
 
+    expect(oneDriveSync).not.toHaveBeenCalled();
+  });
+
+  it('still blocks a genuinely-persisted local-only mode during the settings-store hydration window', async () => {
+    // Reproduces the P2 the reviewer flagged: a real user has PERSISTED
+    // local-only mode, but the in-memory Zustand settings store hasn't
+    // rehydrated from storage yet (still reports the schema default
+    // 'direct') — write straight to the persisted key, bypassing the
+    // in-memory store entirely, so the reactive `useConfidentialityMode()`
+    // (and therefore the button's own disabled/banner logic) still reads
+    // 'direct' while the real, persisted choice is 'local-only'. The
+    // enforcement check must not trust that in-memory read.
+    localStorage.setItem(
+      SK_SETTINGS,
+      JSON.stringify({ state: { values: { confidentialityMode: 'local-only' } }, version: 1 })
+    );
+
+    render(<OneDriveConnect />);
+
+    const button = await screen.findByRole('button', { name: 'Sync now' });
+    expect(button).not.toBeDisabled(); // reactive UI is still in the hydration-window default
+
+    fireEvent.click(button);
+
+    expect(
+      await screen.findByText(/local-only mode is on, so oneDrive sync is paused/i)
+    ).toBeTruthy();
     expect(oneDriveSync).not.toHaveBeenCalled();
   });
 });
