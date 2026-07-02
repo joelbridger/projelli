@@ -135,6 +135,12 @@ function resetStores() {
     sessions: {},
     dailyCosts: {},
     askWorkspaceMode: {},
+    // F2.5 — these tests exercise ambient (toggle-driven) workspace retrieval on
+    // a cloud provider, which now requires file-access consent. Grant it up front
+    // so the retrieval/scope behaviour under test can run.
+    fileAccessConsent: {
+      'chat-16-folder-scope': { state: 'granted', grantedScope: { kind: 'allMatters' } },
+    },
   });
   useFileContextStore.setState({ contexts: {}, disabledPaths: {} });
   useMatterStore.setState({ matters: [], activeMatterId: null });

@@ -96,7 +96,7 @@ describe('F-116 — Ask-workspace ON + retrieval fails → refuse without callin
   beforeEach(() => {
     mocks.retrieve.mockReset();
     mocks.sendMessage.mockReset();
-    useAIChatStore.setState({ sessions: {}, dailyCosts: {}, askWorkspaceMode: {} });
+    useAIChatStore.setState({ sessions: {}, dailyCosts: {}, askWorkspaceMode: {}, fileAccessConsent: { 'f116-test': { state: 'granted', grantedScope: { kind: 'allMatters' } } } }); // F2.5: ambient retrieval needs file-access consent
 
     // Retrieval throws the browser-mode error.
     mocks.retrieve.mockRejectedValue(
@@ -112,7 +112,7 @@ describe('F-116 — Ask-workspace ON + retrieval fails → refuse without callin
   });
 
   afterEach(() => {
-    useAIChatStore.setState({ sessions: {}, dailyCosts: {}, askWorkspaceMode: {} });
+    useAIChatStore.setState({ sessions: {}, dailyCosts: {}, askWorkspaceMode: {}, fileAccessConsent: { 'f116-test': { state: 'granted', grantedScope: { kind: 'allMatters' } } } }); // F2.5: ambient retrieval needs file-access consent
   });
 
   it('does NOT call sendMessage when retrieval throws and Ask-workspace is ON', async () => {
@@ -241,7 +241,7 @@ describe('F-116 — Ask-workspace ON + retrieval returns ZERO results → refuse
   beforeEach(() => {
     mocks.retrieve.mockReset();
     mocks.sendMessage.mockReset();
-    useAIChatStore.setState({ sessions: {}, dailyCosts: {}, askWorkspaceMode: {} });
+    useAIChatStore.setState({ sessions: {}, dailyCosts: {}, askWorkspaceMode: {}, fileAccessConsent: { 'f116-test': { state: 'granted', grantedScope: { kind: 'allMatters' } } } }); // F2.5: ambient retrieval needs file-access consent
 
     // Retrieval SUCCEEDS but returns an empty array — the "found nothing" case.
     mocks.retrieve.mockResolvedValue([]);
@@ -254,7 +254,7 @@ describe('F-116 — Ask-workspace ON + retrieval returns ZERO results → refuse
   });
 
   afterEach(() => {
-    useAIChatStore.setState({ sessions: {}, dailyCosts: {}, askWorkspaceMode: {} });
+    useAIChatStore.setState({ sessions: {}, dailyCosts: {}, askWorkspaceMode: {}, fileAccessConsent: { 'f116-test': { state: 'granted', grantedScope: { kind: 'allMatters' } } } }); // F2.5: ambient retrieval needs file-access consent
   });
 
   it('does NOT call sendMessage when retrieval returns zero results and Ask-workspace is ON', async () => {

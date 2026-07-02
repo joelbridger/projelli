@@ -31,7 +31,8 @@ import { isLocalProviderId } from '@/platform/providers/providerFactory';
 import { isLocalOnlyMode, assertCloudGenerationAllowed } from '@/platform/privacy/localOnlyGuard';
 import { isAssuredProvider } from '@/platform/firm/resolveAssuredRoute';
 import { useFirmStore } from '@/platform/firm/firmStore';
-import { useAIChatStore, getDraftInput, useAskWorkspaceMode, useScopedFolder } from '@/platform/state/aiChatStore';
+import { useAIChatStore, getDraftInput, useAskWorkspaceMode, useScopedFolder, useFileAccessConsent } from '@/platform/state/aiChatStore';
+import type { ConsentScope } from '@/platform/ai/fileAccessConsent';
 import { useActiveMatter, useActiveMatters } from '@/platform/matter/matterStore';
 import { pathInMatterScope } from '@/platform/matter/matterScopeGuard';
 import { useIncludePrivileged, usePrivilegeStore } from '@/platform/firm/privilegeStore';
@@ -210,7 +211,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   // 30-day trial gate. Locks chat send + voice when expired and not paid.
   const trialGate = useTrialGate();
   // Use global store for chat state (persists across navigation)
-  const { sessions, initSession, addMessage, updateLastMessage, updateMessages, setLoading, setDraftInput, clearDraftInput, recordCost, setAskWorkspaceMode, setScopedFolder } = useAIChatStore();
+  const { sessions, initSession, addMessage, updateLastMessage, updateMessages, setLoading, setDraftInput, clearDraftInput, recordCost, setAskWorkspaceMode, setScopedFolder, setFileAccessConsent } = useAIChatStore();
   const chatId = chatData.id;
   const session = sessions[chatId];
   const askWorkspaceMode = useAskWorkspaceMode(chatId);
@@ -220,6 +221,16 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   // When null, the chat searches across all matters (the explicit cross-matter
   // capability). Switching the active matter changes retrieval scope.
   const activeMatter = useActiveMatter();
+  // F2.5 — per-conversation file-access consent + the scope the next send runs
+  // under. A single-client chat scopes to the active client; otherwise the chat
+  // spans all clients, which requires its own (stricter) grant.
+  const fileAccessConsent = useFileAccessConsent(chatId);
+  const fileAccessConsentScope: ConsentScope = activeMatter
+    ? { kind: 'matter', matterId: activeMatter.id }
+    : { kind: 'allMatters' };
+  const fileAccessScopeLabel = activeMatter
+    ? (activeMatter.client || activeMatter.name)
+    : `all your ${entityLabel.other}`;
   // WS-PRIV — whether the next query may retrieve privileged sources. Default
   // false (privileged content excluded); flipped on only by the explicit,
   // visible "Include privileged sources" toggle below the input. Resets on reload.
@@ -1044,6 +1055,10 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           setScopedFolder={setScopedFolder}
           effectiveProvider={effectiveProvider}
           assuredAvailableForChat={assuredAvailableForChat}
+          fileAccessConsent={fileAccessConsent}
+          fileAccessConsentScope={fileAccessConsentScope}
+          fileAccessScopeLabel={fileAccessScopeLabel}
+          setFileAccessConsent={setFileAccessConsent}
         />
         {/* Stream A1 — ChatInputToolbar: paperclip, paste, drop, tiles, vision warning */}
         <ChatInputToolbar

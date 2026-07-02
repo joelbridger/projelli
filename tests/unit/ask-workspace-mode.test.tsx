@@ -108,7 +108,7 @@ describe('Ask-my-workspace chat mode (M2)', () => {
   beforeEach(() => {
     mocks.retrieve.mockReset();
     mocks.sendMessage.mockReset();
-    useAIChatStore.setState({ sessions: {}, dailyCosts: {}, askWorkspaceMode: {} });
+    useAIChatStore.setState({ sessions: {}, dailyCosts: {}, askWorkspaceMode: {}, fileAccessConsent: { 'm2-ask-test': { state: 'granted', grantedScope: { kind: 'allMatters' } } } }); // F2.5: ambient retrieval needs file-access consent
     mocks.sendMessage.mockResolvedValue({
       content: 'Hi. [pricing.md paragraph 3]',
       usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
@@ -126,7 +126,7 @@ describe('Ask-my-workspace chat mode (M2)', () => {
   });
 
   afterEach(() => {
-    useAIChatStore.setState({ sessions: {}, dailyCosts: {}, askWorkspaceMode: {} });
+    useAIChatStore.setState({ sessions: {}, dailyCosts: {}, askWorkspaceMode: {}, fileAccessConsent: { 'm2-ask-test': { state: 'granted', grantedScope: { kind: 'allMatters' } } } }); // F2.5: ambient retrieval needs file-access consent
   });
 
   it('defaults the toggle to OFF', () => {
