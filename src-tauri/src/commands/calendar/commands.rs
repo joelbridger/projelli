@@ -235,13 +235,27 @@ async fn calendar_disconnect_inner(
 ) -> Result<(), String> {
     use super::store::CalendarStore;
     let workspace = state.workspace.lock().await.clone();
-    // 1. Purge this provider's RAG rows, then its store rows + cursors
-    //    (workspace may be unset if disconnect happens before a workspace
-    //    was opened; skip then — nothing to purge). Row deletion runs even
-    //    when other providers remain connected — codex-review P2: without
-    //    it, a disconnected provider's events silently persisted in the
-    //    shared encrypted store and could resurface via list_in_window / a
-    //    later indexing pass.
+    // 0. A workspace must be known before we can locate (and purge) any
+    //    previously synced data. codex-review P2 (round 5), matching the
+    //    established calendly precedent (calendly_disconnect_logic returns
+    //    early with `data_remains: true` for exactly this case, never
+    //    deleting the credential): silently treating "workspace unset" as
+    //    "nothing to purge" and still forgetting the credential would leave
+    //    a PRIOR session's synced calendar data on disk (the local DB file
+    //    persists across process restarts independently of this in-memory
+    //    state) while reporting the provider disconnected.
+    let Some(ws) = workspace.as_ref() else {
+        return Err(
+            "No workspace is open, so this connection's data could not be located. \
+             Open the workspace and try disconnecting again."
+                .to_string(),
+        );
+    };
+    // 1. Purge this provider's RAG rows, then its store rows + cursors. Row
+    //    deletion runs even when other providers remain connected —
+    //    codex-review P2: without it, a disconnected provider's events
+    //    silently persisted in the shared encrypted store and could
+    //    resurface via list_in_window / a later indexing pass.
     //
     //    The local store purge (open + delete_provider_rows) MUST succeed
     //    before step 2 forgets the credential — codex-review P2 (round 2):
@@ -252,7 +266,7 @@ async fn calendar_disconnect_inner(
     //    embedding-store delete on one stale chunk shouldn't block the
     //    whole disconnect, and those chunks are already orphaned (their
     //    source rows are gone) rather than silently resurfacing.
-    if let Some(ws) = workspace.as_ref() {
+    {
         let store = CalendarStore::open(ws).map_err(|e| {
             format!("Could not open the calendar store to remove this connection's data: {e}")
         })?;
@@ -272,9 +286,18 @@ async fn calendar_disconnect_inner(
         })?;
     }
     // 2. Forget the credential (only reached once step 1's required purge
-    //    has succeeded).
-    if let Ok(entry) = keyring::Entry::new(service, secret_key_for(provider)) {
-        let _ = entry.delete_credential();
+    //    has succeeded). A real keychain error (locked, permission denied,
+    //    ...) must abort the disconnect rather than being swallowed —
+    //    codex-review P2 (round 5): silently ignoring it would report
+    //    "disconnected" while the refresh token is still usable, and could
+    //    let step 3 purge the shared local DB/master key even though this
+    //    provider's own credential never actually left the OS keychain.
+    //    `NoEntry` alone is fine (already gone; e.g. a second disconnect
+    //    call after the first partially succeeded).
+    let entry = keyring::Entry::new(service, secret_key_for(provider)).map_err(|e| e.to_string())?;
+    match entry.delete_credential() {
+        Ok(()) | Err(keyring::Error::NoEntry) => {}
+        Err(e) => return Err(format!("Could not remove the saved sign-in: {e}")),
     }
     // 3. If no provider remains connected, purge the whole store + master key.
     let mut any_left = false;
@@ -294,10 +317,8 @@ async fn calendar_disconnect_inner(
         // failure here (e.g. a Windows sharing violation) previously still
         // deleted the key and reported success, leaving an now-unreadable
         // encrypted DB on disk that breaks a later reconnect.
-        if let Some(ws) = workspace.as_ref() {
-            CalendarStore::purge(ws)
-                .map_err(|e| format!("Could not remove the local calendar database: {e}"))?;
-        }
+        CalendarStore::purge(ws)
+            .map_err(|e| format!("Could not remove the local calendar database: {e}"))?;
         let _ = CalendarStore::delete_master_key();
     }
     Ok(())

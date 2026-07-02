@@ -7,7 +7,7 @@
 
 use super::graph_source::CalendarSource;
 use super::model::{CalendarAttendee, CalendarEvent, CalendarProvider};
-use chrono::{DateTime, Duration, TimeZone, Utc};
+use chrono::{Datelike, DateTime, Duration, TimeZone, Utc};
 
 /// GET the ICS text with a bounded timeout. No auth: secret ICS URLs carry
 /// their token in the URL itself.
@@ -214,6 +214,54 @@ fn to_rfc3339(dt: DateTime<Utc>) -> String {
     dt.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
 }
 
+/// Parse one BYDAY token: "MO" (no ordinal, used by WEEKLY) or "1MO" /
+/// "-1FR" (a positional ordinal + weekday, used by MONTHLY).
+fn parse_byday_token(tok: &str) -> Option<(Option<i32>, chrono::Weekday)> {
+    if tok.len() < 2 {
+        return None;
+    }
+    let (ord_part, day_part) = tok.split_at(tok.len() - 2);
+    let day = match day_part {
+        "MO" => chrono::Weekday::Mon,
+        "TU" => chrono::Weekday::Tue,
+        "WE" => chrono::Weekday::Wed,
+        "TH" => chrono::Weekday::Thu,
+        "FR" => chrono::Weekday::Fri,
+        "SA" => chrono::Weekday::Sat,
+        "SU" => chrono::Weekday::Sun,
+        _ => return None,
+    };
+    let ord = if ord_part.is_empty() { None } else { ord_part.parse::<i32>().ok() };
+    Some((ord, day))
+}
+
+fn last_day_of_month(year: i32, month: u32) -> u32 {
+    let next_month_first = if month == 12 {
+        chrono::NaiveDate::from_ymd_opt(year + 1, 1, 1)
+    } else {
+        chrono::NaiveDate::from_ymd_opt(year, month + 1, 1)
+    }
+    .expect("valid calendar month");
+    (next_month_first - Duration::days(1)).day()
+}
+
+/// True when `date` is the `ord`-th occurrence of `day` in its own month:
+/// `ord > 0` counts from the start (1 = first), `ord < 0` counts from the
+/// end (-1 = last).
+fn is_nth_weekday_of_month(date: chrono::NaiveDate, ord: i32, day: chrono::Weekday) -> bool {
+    if date.weekday() != day || ord == 0 {
+        return false;
+    }
+    if ord > 0 {
+        let occurrence = (date.day() as i32 - 1) / 7 + 1;
+        occurrence == ord
+    } else {
+        let last = last_day_of_month(date.year(), date.month());
+        let occurrences_from_end = (last as i32 - date.day() as i32) / 7;
+        occurrences_from_end == -ord - 1
+    }
+}
+
 /// Expand one VEVENT into occurrences overlapping [from, to). Supports
 /// DAILY/WEEKLY (with BYDAY)/MONTHLY, INTERVAL, COUNT, UNTIL, EXDATE.
 /// Unsupported rules yield just the master occurrence.
@@ -243,7 +291,15 @@ fn expand_occurrences(
     let mut interval: i64 = 1;
     let mut count: Option<usize> = None;
     let mut until: Option<DateTime<Utc>> = None;
-    let mut bydays: Vec<chrono::Weekday> = Vec::new();
+    // (ordinal, weekday): ordinal is None for a plain "MO" (used by WEEKLY),
+    // Some(n) for a positional "1MO" / "-1FR" (used by MONTHLY — "the first
+    // Monday" / "the last Friday" of the month). WEEKLY ignores the
+    // ordinal; MONTHLY requires it (a bare "MO" on a MONTHLY rule matches
+    // nothing — narrower than RFC 5545's "every such weekday in the month"
+    // reading of that form, but never produces a WRONG date, which is what
+    // codex-review P2 (round 5) flagged: this rule shape was previously
+    // silently emitting the wrong day of the month).
+    let mut bydays: Vec<(Option<i32>, chrono::Weekday)> = Vec::new();
     for part in rule.split(';') {
         let Some((k, v)) = part.split_once('=') else { continue };
         match k.to_ascii_uppercase().as_str() {
@@ -259,19 +315,7 @@ fn expand_occurrences(
             // regardless of DTSTART's zone — no TZID to apply here.
             "UNTIL" => until = parse_ics_datetime(v, None).ok(),
             "BYDAY" => {
-                bydays = v
-                    .split(',')
-                    .filter_map(|d| match d.trim() {
-                        "MO" => Some(chrono::Weekday::Mon),
-                        "TU" => Some(chrono::Weekday::Tue),
-                        "WE" => Some(chrono::Weekday::Wed),
-                        "TH" => Some(chrono::Weekday::Thu),
-                        "FR" => Some(chrono::Weekday::Fri),
-                        "SA" => Some(chrono::Weekday::Sat),
-                        "SU" => Some(chrono::Weekday::Sun),
-                        _ => None,
-                    })
-                    .collect();
+                bydays = v.split(',').filter_map(|d| parse_byday_token(d.trim())).collect();
             }
             _ => {}
         }
@@ -286,7 +330,6 @@ fn expand_occurrences(
     // the series start, accept dates matching the rule, count against COUNT
     // across the whole series (not just the window), stop at UNTIL / window
     // end / hard cap.
-    use chrono::Datelike;
     let mut occurrences = Vec::new();
     let mut accepted: usize = 0;
     let mut cursor = start_naive;
@@ -364,14 +407,25 @@ fn expand_occurrences(
                 let day_ok = if bydays.is_empty() {
                     cursor.weekday() == start_naive.weekday()
                 } else {
-                    bydays.contains(&cursor.weekday())
+                    bydays.iter().any(|(_, d)| *d == cursor.weekday())
                 };
                 in_week && day_ok
             }
             "MONTHLY" => {
                 let month_delta = (cursor.year() - start_naive.year()) as i64 * 12
                     + (cursor.month() as i64 - start_naive.month() as i64);
-                cursor.day() == start_naive.day() && month_delta % interval == 0
+                let month_ok = month_delta % interval == 0;
+                let day_ok = if bydays.is_empty() {
+                    cursor.day() == start_naive.day()
+                } else {
+                    // Positional BYDAY ("1MO" = first Monday, "-1FR" = last
+                    // Friday). A bare "MO" with no ordinal matches nothing
+                    // for MONTHLY — see the bydays doc comment above.
+                    bydays.iter().any(|(ord, day)| {
+                        ord.is_some_and(|o| is_nth_weekday_of_month(cursor.date(), o, *day))
+                    })
+                };
+                month_ok && day_ok
             }
             _ => false,
         };
@@ -655,6 +709,15 @@ mod tests {
             ),
             ("RRULE:FREQ=WEEKLY;BYDAY=TU,TH;COUNT=6", 4, "Tu+Th from Thu Jul 2: Jul 2,7,9,14"),
             ("RRULE:FREQ=SECONDLY;COUNT=99", 1, "unsupported freq falls back to master only"),
+            (
+                "RRULE:FREQ=MONTHLY;BYDAY=1TH;COUNT=6",
+                1,
+                // codex-review P2 (round 5): positional monthly BYDAY. Jul 2
+                // 2026 is itself the first Thursday of July, so it's the
+                // only in-window occurrence (June's and August's first
+                // Thursdays fall outside the window).
+                "first Thursday of the month: only Jul 2 in window",
+            ),
         ];
         for (extra, expected, why) in table {
             let ics = wrap(&format!(
@@ -667,6 +730,22 @@ mod tests {
             let ids: std::collections::HashSet<_> = events.iter().map(|e| e.id.clone()).collect();
             assert_eq!(ids.len(), events.len(), "occurrence ids unique ({why})");
         }
+    }
+
+    #[test]
+    fn monthly_last_friday_positional_byday() {
+        // codex-review P2 (round 5): a negative ordinal ("last Friday").
+        // Jul 3 2026 is a Friday; the last Friday of July 2026 is Jul 31
+        // (28 days later, same weekday). Window covers only late July, so
+        // exactly that one occurrence should land, on the correct date.
+        let ics = wrap(
+            "BEGIN:VEVENT\r\nUID:lastfri\r\nSUMMARY:Month-end review\r\n\
+             DTSTART:20260703T160000Z\r\nDTEND:20260703T170000Z\r\n\
+             RRULE:FREQ=MONTHLY;BYDAY=-1FR;COUNT=6\r\nEND:VEVENT\r\n",
+        );
+        let events = parse_ics(&ics, "2026-07-25T00:00:00Z", "2026-08-01T00:00:00Z").unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].start_utc, "2026-07-31T16:00:00Z", "must land on the actual last Friday, not shift to DTSTART's day-of-month");
     }
 
     #[test]
