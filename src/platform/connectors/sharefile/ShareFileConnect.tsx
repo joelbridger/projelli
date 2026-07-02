@@ -17,7 +17,7 @@ import {
 } from '@/platform/utils/sharefile-commands';
 import { getMatters, useMatterStore } from '@/platform/matter/matterStore';
 import { buildSharefileMatterMap } from '@/platform/rag/matterResolver';
-import { assertLocalOnlyAllowsExternal } from '@/platform/privacy/localOnlyGuard';
+import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import type { Matter } from '@/platform/types/matter';
 
@@ -113,9 +113,16 @@ export function ShareFileConnect() {
 
   async function connect() {
     setError(null);
+    // A user-authorized connector (pulls the user's own files in, never sends
+    // to a cloud AI) — gate on the same reactive `isLocalOnlyMode()` the
+    // button/banner already display, matching every other connector, instead
+    // of the fail-closed AI-send guard this used to (incorrectly) call.
+    if (isLocalOnlyMode()) {
+      setError('Local-only mode is on, so ShareFile sync is paused. Turn off Local-only mode in the Privacy Center to import documents from ShareFile.');
+      return;
+    }
     setBusy(true);
     try {
-      assertLocalOnlyAllowsExternal('ShareFile document sync');
       await sharefileConnect(accessToken, subdomain);
       setAccessToken('');
       setConnected(true);
@@ -132,9 +139,12 @@ export function ShareFileConnect() {
 
   async function syncNow() {
     setError(null);
+    if (isLocalOnlyMode()) {
+      setError('Local-only mode is on, so ShareFile sync is paused. Turn off Local-only mode in the Privacy Center to import documents from ShareFile.');
+      return;
+    }
     setSyncing(true);
     try {
-      assertLocalOnlyAllowsExternal('ShareFile document sync');
       await autoLinkSharefileFolders();
       const result = await sharefileSync(buildSharefileMatterMap(getMatters()));
       setReport(result);

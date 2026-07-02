@@ -23,7 +23,7 @@ import { AuditService } from '@/platform/audit/AuditService';
 import { sanitizeSyncError } from '@/platform/connectors/syncAuditError';
 import { useOneDriveSync } from '@/platform/connectors/onedrive/useOneDriveSync';
 import { useOneDriveStore } from '@/platform/connectors/onedrive/onedriveStore';
-import { assertLocalOnlyAllowsExternal } from '@/platform/privacy/localOnlyGuard';
+import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { beginOAuth, endOAuth } from '@/platform/connectors/oauthPending';
 import type { Matter } from '@/platform/types/matter';
@@ -32,6 +32,19 @@ import type { Matter } from '@/platform/types/matter';
 // (including one that imported zero files or failed) always leaves a record —
 // the same honesty guarantee the Wealthbox path gives.
 const oneDriveAudit = new AuditService('connectors');
+
+// OneDrive sync is a user-authorized CONNECTOR (it pulls the user's own files
+// in; it never sends anything to a cloud AI), so per the documented scope of
+// `assertLocalOnlyAllowsExternal` it must NOT use that fail-closed AI-send
+// guard — that guard blocks until an explicit confidentiality *choice* has
+// been recorded, which is a cloud-AI-generation concept unrelated to reading
+// your own OneDrive files, and used to spuriously kill this sync on any
+// workspace that never made that AI choice (fresh installs, seeded/test
+// workspaces). Match every other connector (Box, Addepar, DocuSign, Jotform,
+// Zocks) and gate on the same reactive `isLocalOnlyMode()` the button/banner
+// above already display, so "enabled in the UI" and "will actually run" agree.
+const LOCAL_ONLY_BLOCKED_MESSAGE =
+  'Local-only mode is on, so OneDrive sync is paused. Turn off Local-only mode in the Privacy Center to import documents from Microsoft.';
 
 function linkOneDriveClientFoldersToMatters(
   folders: OneDriveFolder[],
@@ -95,14 +108,17 @@ export function OneDriveConnect() {
   }, []);
 
   async function connect() {
-    setConnecting(true);
     setError(null);
     setLastReport(null);
+    if (isLocalOnlyMode()) {
+      setError(LOCAL_ONLY_BLOCKED_MESSAGE);
+      return;
+    }
+    setConnecting(true);
     // Mark an interactive OAuth sign-in pending so onboarding disables Continue
     // until this multi-minute browser flow settles.
     beginOAuth();
     try {
-      assertLocalOnlyAllowsExternal('OneDrive document sync');
       await oneDriveConnect();
       setConnected(true);
       // Connect = IMPORT: kick off the first sync right after auth.
@@ -139,8 +155,11 @@ export function OneDriveConnect() {
    * failure. Never a silent no-op that looks like success.
    */
   async function runSync(): Promise<void> {
+    if (isLocalOnlyMode()) {
+      setError(LOCAL_ONLY_BLOCKED_MESSAGE);
+      return;
+    }
     try {
-      assertLocalOnlyAllowsExternal('OneDrive document sync');
       await autoLinkOneDriveFolders();
       const workspaceRoot = useWorkspaceStore.getState().rootPath;
       const report = await oneDriveSync(
