@@ -22,10 +22,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // ── Mock keychain (Tauri mode).
 const keychainStore = new Map<string, string>();
 const invokeMock = vi.fn(async (cmd: string, args: Record<string, unknown> = {}) => {
-  const svc = (args.service as string) ?? 'com.keepance.app';
-  const key = args.key as string;
+  const svc = (args['service'] as string) ?? 'com.keepance.app';
+  const key = args['key'] as string;
   const id = `${svc}::${key}`;
-  if (cmd === 'keychain_set') { keychainStore.set(id, args.value as string); return undefined; }
+  if (cmd === 'keychain_set') { keychainStore.set(id, args['value'] as string); return undefined; }
   if (cmd === 'keychain_get') {
     if (!keychainStore.has(id)) throw { kind: 'notFound', message: 'no entry' };
     return keychainStore.get(id);
@@ -213,7 +213,7 @@ describe('obtainMatterKey', () => {
     const client = mockClient();
     const fetchKeysSpy = vi.spyOn(client, 'fetchMatterKeys');
 
-    const result = await obtainMatterKey(client, 'matter-local');
+    const result = await obtainMatterKey(client, 'matter-local', 'seat-token');
 
     expect(result).toBe(matterKeyB64);
     // Should NOT have made a network call
@@ -226,7 +226,7 @@ describe('obtainMatterKey', () => {
       new FirmApiError(403, 'walled', 'Access denied'),
     );
 
-    const result = await obtainMatterKey(client, 'matter-walled');
+    const result = await obtainMatterKey(client, 'matter-walled', 'seat-token');
 
     expect(result).toBeNull();
     // Keychain must still be empty for this matter
@@ -240,7 +240,7 @@ describe('obtainMatterKey', () => {
       new FirmApiError(404, 'not_found', 'No key published for this device'),
     );
 
-    const result = await obtainMatterKey(client, 'matter-404');
+    const result = await obtainMatterKey(client, 'matter-404', 'seat-token');
     expect(result).toBeNull();
   });
 
@@ -260,7 +260,7 @@ describe('obtainMatterKey', () => {
       wrapped_key_b64: wrappedKeyB64,
     });
 
-    const result = await obtainMatterKey(client, 'matter-success');
+    const result = await obtainMatterKey(client, 'matter-success', 'seat-token');
 
     expect(result).toBe(matterKeyB64);
 
@@ -275,7 +275,7 @@ describe('obtainMatterKey', () => {
       new FirmApiError(500, 'server_error', 'Internal server error'),
     );
 
-    await expect(obtainMatterKey(client, 'matter-500')).rejects.toBeInstanceOf(FirmApiError);
+    await expect(obtainMatterKey(client, 'matter-500', 'seat-token')).rejects.toBeInstanceOf(FirmApiError);
 
     // Nothing stored in keychain on unexpected error
     const stored = await loadMatterKey('matter-500');

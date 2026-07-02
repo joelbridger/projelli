@@ -17,9 +17,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import React from 'react';
 
-const saveFileMock = vi.fn(async () => undefined);
+const saveFileMock = vi.fn(
+  async (_content: string | ArrayBuffer | Uint8Array, _options?: Record<string, unknown>) =>
+    undefined,
+);
 vi.mock('@/platform/utils/saveFile', () => ({
-  saveFile: (...args: unknown[]) => saveFileMock(...args),
+  saveFile: (content: string | ArrayBuffer | Uint8Array, options?: Record<string, unknown>) =>
+    saveFileMock(content, options),
 }));
 
 import { useFileOperations } from '@/app/fileOps/useFileOperations';
@@ -62,7 +66,7 @@ describe('BUG-034 — binary downloads read bytes, not text', () => {
     expect(ws.readFileBinary).toHaveBeenCalledWith('/ws/report.pdf');
     expect(ws.readFile).not.toHaveBeenCalled();
     expect(saveFileMock).toHaveBeenCalledTimes(1);
-    expect(saveFileMock.mock.calls[0][0]).toBe(bytes);
+    expect(saveFileMock.mock.calls[0]![0]).toBe(bytes);
   });
 
   it('reads a .docx as binary', async () => {
@@ -77,7 +81,7 @@ describe('BUG-034 — binary downloads read bytes, not text', () => {
 
     expect(ws.readFileBinary).toHaveBeenCalledWith('/ws/brief.docx');
     expect(ws.readFile).not.toHaveBeenCalled();
-    expect(saveFileMock.mock.calls[0][0]).toBe(bytes);
+    expect(saveFileMock.mock.calls[0]![0]).toBe(bytes);
   });
 
   it('reads a .txt as bytes too (lossless, list-independent)', async () => {
@@ -94,7 +98,7 @@ describe('BUG-034 — binary downloads read bytes, not text', () => {
     // longer touches the (corrupting-for-binary) readFile text path.
     expect(ws.readFileBinary).toHaveBeenCalledWith('/ws/notes.txt');
     expect(ws.readFile).not.toHaveBeenCalled();
-    expect(saveFileMock.mock.calls[0][0]).toBe(bytes);
+    expect(saveFileMock.mock.calls[0]![0]).toBe(bytes);
   });
 
   it('handles an unusual-but-binary extension not on the isBinaryFile list', async () => {
@@ -111,6 +115,6 @@ describe('BUG-034 — binary downloads read bytes, not text', () => {
 
     expect(ws.readFileBinary).toHaveBeenCalledWith('/ws/photo.heic');
     expect(ws.readFile).not.toHaveBeenCalled();
-    expect(saveFileMock.mock.calls[0][0]).toBe(bytes);
+    expect(saveFileMock.mock.calls[0]![0]).toBe(bytes);
   });
 });

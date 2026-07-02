@@ -61,10 +61,11 @@ describe('F-112 — WorkflowEngine: .docx outputFile uses writeFileBinary', () =
   it('calls writeFileBinary (not writeFile) when outputFile is .docx and binary writer is wired', async () => {
     const writeFile = vi.fn().mockResolvedValue(undefined);
     const writeFileBinary = vi.fn().mockResolvedValue(undefined);
+    const readFile = vi.fn().mockResolvedValue('');
 
     const engine = new WorkflowEngine(
       new MockProvider(),
-      { writeFile, writeFileBinary },
+      { writeFile, writeFileBinary, readFile },
       vi.fn().mockResolvedValue({})
     );
 
