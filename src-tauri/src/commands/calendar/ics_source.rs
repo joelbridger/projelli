@@ -376,11 +376,17 @@ fn finish_vevent(
             return Ok(vec![]);
         }
     };
+    // RFC 5545 §3.6.1: a VEVENT with no DTEND defaults to a 1-day duration
+    // when DTSTART is a DATE (all-day, no time component), and 1 hour
+    // otherwise (VEVENT/VALUE=DATE-TIME default duration is undefined by
+    // the spec; 1 hour is this codebase's documented fallback).
+    let is_all_day_start = start_val.trim().len() == 8 && !start_val.contains('T');
+    let default_duration = if is_all_day_start { Duration::days(1) } else { Duration::hours(1) };
     let duration = match raw.dtend.as_ref() {
         Some((end_val, end_tz)) => parse_ics_datetime(end_val, end_tz.as_deref())
             .map(|end| end - start)
-            .unwrap_or_else(|_| Duration::hours(1)),
-        None => Duration::hours(1),
+            .unwrap_or(default_duration),
+        None => default_duration,
     };
     let exdates: Vec<DateTime<Utc>> = raw
         .exdates
@@ -439,6 +445,17 @@ mod tests {
         assert_eq!(e.attendees[0].email, "kim@henderson.com");
         assert_eq!(e.attendees[0].name, "Kim Henderson");
         assert_eq!(e.organizer_email, "adv@firm.com");
+    }
+
+    #[test]
+    fn all_day_event_with_no_dtend_defaults_to_one_day_not_one_hour() {
+        // codex-review P3: RFC 5545 defaults a DATE-only DTSTART with no
+        // DTEND to a 1-day span, not this codebase's usual 1-hour fallback.
+        let ics = wrap("BEGIN:VEVENT\r\nUID:ad1\r\nSUMMARY:Conference\r\nDTSTART:20260702\r\nEND:VEVENT\r\n");
+        let events = parse_ics(&ics, WINDOW_FROM, WINDOW_TO).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].start_utc, "2026-07-02T00:00:00Z");
+        assert_eq!(events[0].end_utc, "2026-07-03T00:00:00Z", "1-day default, not 1-hour");
     }
 
     #[test]

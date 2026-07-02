@@ -237,28 +237,42 @@ async fn calendar_disconnect_inner(
     let workspace = state.workspace.lock().await.clone();
     // 1. Purge this provider's RAG rows, then its store rows + cursors
     //    (workspace may be unset if disconnect happens before a workspace
-    //    was opened; skip then). Row deletion runs even when other
-    //    providers remain connected — codex-review P2: without it, a
-    //    disconnected provider's events silently persisted in the shared
-    //    encrypted store and could resurface via list_in_window / a later
-    //    indexing pass.
+    //    was opened; skip then — nothing to purge). Row deletion runs even
+    //    when other providers remain connected — codex-review P2: without
+    //    it, a disconnected provider's events silently persisted in the
+    //    shared encrypted store and could resurface via list_in_window / a
+    //    later indexing pass.
+    //
+    //    The local store purge (open + delete_provider_rows) MUST succeed
+    //    before step 2 forgets the credential — codex-review P2 (round 2):
+    //    forgetting the credential while the purge silently failed would
+    //    report "disconnected" while private calendar data is still on
+    //    disk, with the UI now showing nothing wrong. RAG chunk deletion
+    //    stays best-effort (matches the calendly precedent): a flaky
+    //    embedding-store delete on one stale chunk shouldn't block the
+    //    whole disconnect, and those chunks are already orphaned (their
+    //    source rows are gone) rather than silently resurfacing.
     if let Some(ws) = workspace.as_ref() {
-        if let Ok(store) = CalendarStore::open(ws) {
-            if let Ok(source_ids) = store.list_indexed_rag_source_ids() {
-                let prefix = format!("calendar:{provider}:");
-                if let Ok(key) = crate::commands::rag::crypto::get_or_create_master_key() {
-                    for sid in source_ids.iter().filter(|s| s.starts_with(&prefix)) {
-                        let _ = crate::commands::connector::delete_external_source_with_key_internal(
-                            ws, sid, &key,
-                        )
-                        .await;
-                    }
+        let store = CalendarStore::open(ws).map_err(|e| {
+            format!("Could not open the calendar store to remove this connection's data: {e}")
+        })?;
+        if let Ok(source_ids) = store.list_indexed_rag_source_ids() {
+            let prefix = format!("calendar:{provider}:");
+            if let Ok(key) = crate::commands::rag::crypto::get_or_create_master_key() {
+                for sid in source_ids.iter().filter(|s| s.starts_with(&prefix)) {
+                    let _ = crate::commands::connector::delete_external_source_with_key_internal(
+                        ws, sid, &key,
+                    )
+                    .await;
                 }
             }
-            let _ = store.delete_provider_rows(provider);
         }
+        store.delete_provider_rows(provider).map_err(|e| {
+            format!("Could not remove this connection's stored events: {e}")
+        })?;
     }
-    // 2. Forget the credential.
+    // 2. Forget the credential (only reached once step 1's required purge
+    //    has succeeded).
     if let Ok(entry) = keyring::Entry::new(service, secret_key_for(provider)) {
         let _ = entry.delete_credential();
     }
