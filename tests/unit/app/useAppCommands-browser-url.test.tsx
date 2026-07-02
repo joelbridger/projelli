@@ -32,7 +32,6 @@ function baseDeps(overrides: Partial<AppCommandDeps> = {}): AppCommandDeps {
     sidebarActiveTab: 'files',
     setSidebarCollapsed: vi.fn(),
     setShowWorkspaceSelector: vi.fn(),
-    setSidebarActiveTab: vi.fn(),
     openAIAssistantTab: vi.fn(),
     setShowSettingsModal: vi.fn(),
     prompt: vi.fn(async () => null),
