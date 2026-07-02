@@ -13,6 +13,7 @@ step "Build assets"    node scripts/copy-build-assets.mjs
 step "Tauri version parity" node scripts/check-tauri-parity.mjs
 step "Provider front door" node scripts/check-provider-construction.mjs
 step "TypeScript"      npm run typecheck
+step "TypeScript (tests)" npm run typecheck:tests
 step "Brand sync"      npm run brand:check
 step "Identity check"  npm run identity:check
 # i18n is deferred (KNOWN-I18N-01) — report drift but don't fail the gate.
