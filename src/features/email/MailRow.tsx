@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { memo, useState, useCallback } from 'react';
 import {
   Mail,
   AlertTriangle,
@@ -19,6 +19,25 @@ import { MailRowPrivilege } from './MailRowPrivilege';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { EV_OPEN_EMAIL } from '@/config/identity';
 
+// Perf (P2.2): memoized below. `EmailWorkspace` re-renders on things that
+// don't change any individual row's own props — typing in the search box,
+// toggling the filters panel, another row's hover state — so without this,
+// every visible MailRow (up to the 200-item page size) re-rendered on every
+// such interaction. `item` is a stable reference from the parent (the array
+// only grows via pagination); `onToggleSelect` is a `useCallback` with an
+// empty dep array. `selected`/`anySelected` are the only props that
+// legitimately change per-row, per-interaction.
+//
+// Known residual gap: `onSaveToWorkspace` is passed through unchanged from
+// `EmailWorkspaceProps`, and its one real caller
+// (`AppSurfaceRouter.tsx#buildEmailWorkspace`) currently defines it as a
+// fresh inline async arrow function on every render — an unstable reference
+// that busts this memoization whenever it changes. Fixing that is a
+// `useCallback` wrap in a router "shell" file that's under active,
+// unrelated modification by another in-flight branch (mail-scope-backend,
+// F2.6b) touching the exact same function; flagged as a follow-up rather
+// than risking a collision there. `item`/`onToggleSelect`/`selected`/
+// `anySelected` staying stable/narrow is still a real, independent win.
 export interface MailRowProps {
   item: MailListItem;
   selected: boolean;
@@ -27,7 +46,7 @@ export interface MailRowProps {
   onSaveToWorkspace?: ((content: string, suggestedName: string) => Promise<void>) | undefined;
 }
 
-export function MailRow({ item, selected, anySelected, onToggleSelect, onSaveToWorkspace }: MailRowProps) {
+function MailRowImpl({ item, selected, anySelected, onToggleSelect, onSaveToWorkspace }: MailRowProps) {
   const entityLabel = useEntityLabel();
   const [hovered, setHovered] = useState(false);
   const [focusWithin, setFocusWithin] = useState(false);
@@ -278,3 +297,5 @@ export function MailRow({ item, selected, anySelected, onToggleSelect, onSaveToW
     </div>
   );
 }
+
+export const MailRow = memo(MailRowImpl);
