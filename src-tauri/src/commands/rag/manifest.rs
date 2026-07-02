@@ -41,10 +41,17 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-/// Manifest file schema version. Bump when the on-disk JSON shape changes in a
-/// way older/newer code can't read; a mismatch makes `load` return empty (→ a
-/// one-time full reconcile rebuilds it under the new shape).
-pub const MANIFEST_VERSION: u32 = 1;
+/// Manifest file schema version. Bump when the on-disk JSON shape OR its key
+/// format changes in a way older/newer code can't read; a mismatch makes `load`
+/// return empty (→ a one-time full reconcile rebuilds it under the new shape).
+///
+/// v2: the `sources` map is keyed by the HMAC PATH TOKEN, not the plaintext path
+/// (privacy + Windows-token parity — see the `sources` field doc). A v1 manifest
+/// held plaintext-path keys, so it MUST be discarded rather than read with the new
+/// token lookups (which would treat every entry as missing and could pass a
+/// plaintext key to a token-based delete). The version mismatch discards it and a
+/// full reconcile rebuilds it correctly.
+pub const MANIFEST_VERSION: u32 = 2;
 
 /// Bump when the text/office extraction pipeline changes in a way that would
 /// produce different chunk TEXT for the same bytes (new extractor, changed

@@ -894,7 +894,7 @@ pub async fn rag_index_file(
     // the shared flag true until the next walk resets it, and a stale `true`
     // would silently skip every watcher-triggered single-file index.
     match index_one_file(&table, &file_path, &matter, &privilege, &key, None, vault_vmk).await {
-        Ok(()) => {
+        Ok(indexed) => {
             // vault_vmk_holder is dropped (and ZeroizedVmk zeroizes) at fn exit.
             // BUG-099 tombstone self-heal: the file watcher's per-file re-index
             // CLEARS this path's tombstone (in memory AND on disk). Without this,
@@ -905,9 +905,14 @@ pub async fn rag_index_file(
             clear_tombstone(&state, &workspace, &path, &key).await;
             // P1.1: refresh the manifest signature under the scope actually used so
             // a later boot reconcile skips this file while unchanged and re-indexes
-            // it under the CORRECT matter/privilege when it changes.
-            record_text_manifest_entry(&state, &workspace, &file_path, &matter, &privilege, 0, &key)
-                .await;
+            // it under the CORRECT matter/privilege when it changes — but ONLY when
+            // the file was actually indexed. A DELETE-ONLY outcome (a transiently
+            // unreadable / too-large / unparseable file, `indexed == false`) records
+            // NO signature, so it is retried next boot instead of cached as fresh.
+            if indexed {
+                record_text_manifest_entry(&state, &workspace, &file_path, &matter, &privilege, 0, &key)
+                    .await;
+            }
             Ok(())
         }
         Err(e) => {
@@ -1298,12 +1303,19 @@ async fn index_one_file(
     key: &[u8; 32],
     cancel: Option<&AtomicBool>,
     vault_vmk: Option<&[u8; 32]>,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<bool> {
+    // P1.1: returns Ok(true) when the file was actually indexed (rows written or a
+    // readable-but-empty file), Ok(false) for a DELETE-ONLY outcome — a missing /
+    // too-large / unreadable / parse-failed file whose stale rows were dropped. The
+    // caller (`rag_index_file`) records a manifest freshness signature ONLY on
+    // Ok(true), so a transiently-unreadable file (locked / OneDrive-offline) is
+    // retried next boot instead of being cached as fresh-and-empty (and thus
+    // silently dropped from search until its size/mtime changes).
     let path_str = file_path.to_string_lossy().to_string();
     let Some(kind) = extractor::classify(file_path) else {
         // Callers gate on `is_indexable` (== classify().is_some()), so this
         // arm is defensive only.
-        return Ok(());
+        return Ok(false);
     };
     match kind {
         extractor::IndexKind::Text => {
@@ -1314,13 +1326,13 @@ async fn index_one_file(
             let Some(raw_bytes) = extractor::read_text_bytes(file_path) else {
                 // File missing or too big — drop any existing rows for safety.
                 store::delete_path(table, &path_str, key).await?;
-                return Ok(());
+                return Ok(false);
             };
             let decrypted = decrypt_if_vaulted(raw_bytes, vault_vmk);
             let Some(text) = String::from_utf8(decrypted).ok() else {
                 // After decryption the bytes are not valid UTF-8 — skip this file.
                 store::delete_path(table, &path_str, key).await?;
-                return Ok(());
+                return Ok(false);
             };
             // Mirror what the old extractor::read_text empty-string guard did:
             // an empty string after decryption still flows into the chunker which
@@ -1341,7 +1353,8 @@ async fn index_one_file(
                 return index_transcript(
                     table, &path_str, &text, matter_id, privilege, key, cancel,
                 )
-                .await;
+                .await
+                .map(|()| true);
             }
             index_plain_text(
                 table,
@@ -1354,11 +1367,12 @@ async fn index_one_file(
                 cancel,
             )
             .await
+            .map(|()| true)
         }
         extractor::IndexKind::Docx | extractor::IndexKind::Rtf => {
             let Some(raw_bytes) = extractor::read_bytes(file_path) else {
                 store::delete_path(table, &path_str, key).await?;
-                return Ok(());
+                return Ok(false);
             };
             // VG-6d: decrypt in memory before passing to the office extractor.
             let bytes = decrypt_if_vaulted(raw_bytes, vault_vmk);
@@ -1379,7 +1393,7 @@ async fn index_one_file(
                         "rag: skipping unreadable office file {}: {e:#}",
                         file_path.display()
                     );
-                    return Ok(());
+                    return Ok(false);
                 }
             };
             let source_type = match kind {
@@ -1390,11 +1404,12 @@ async fn index_one_file(
                 table, &path_str, &text, source_type, matter_id, privilege, key, cancel,
             )
             .await
+            .map(|()| true)
         }
         extractor::IndexKind::Xlsx | extractor::IndexKind::Pptx => {
             let Some(raw_bytes) = extractor::read_bytes(file_path) else {
                 store::delete_path(table, &path_str, key).await?;
-                return Ok(());
+                return Ok(false);
             };
             // VG-6d: decrypt in memory before passing to the office extractor.
             let bytes = decrypt_if_vaulted(raw_bytes, vault_vmk);
@@ -1410,7 +1425,7 @@ async fn index_one_file(
                         "rag: skipping unreadable office file {}: {e:#}",
                         file_path.display()
                     );
-                    return Ok(());
+                    return Ok(false);
                 }
             };
             // A valid package with no extractable sheets/slides is EMPTY
@@ -1418,7 +1433,7 @@ async fn index_one_file(
             let banded = build_section_chunks(&path_str, &sections);
             if banded.iter().all(|(_, chunks)| chunks.is_empty()) {
                 store::delete_path(table, &path_str, key).await?;
-                return Ok(());
+                return Ok(false);
             }
             let texts: Vec<String> = banded
                 .iter()
@@ -1427,7 +1442,7 @@ async fn index_one_file(
             // F-501 — same bounded, cancel-aware embedding as every other
             // index path; never a new unbatched embed call.
             let Some(vectors) = embedder::embed_documents_batched(&texts, cancel).await? else {
-                return Ok(());
+                return Ok(false); // cancelled mid-embed — nothing written
             };
             let mut vectors = vectors.into_iter();
             let source_type_for = |number: u32| match kind {
@@ -1449,7 +1464,7 @@ async fn index_one_file(
                 })
                 .collect();
             store::upsert_grouped(table, &path_str, groups, matter_id, privilege, key).await?;
-            Ok(())
+            Ok(true)
         }
     }
 }
@@ -3376,6 +3391,26 @@ pub async fn rag_manifest_pdf_fresh(
     let Some((size, mtime)) = manifest::stat_signature(Path::new(&path)) else {
         return Ok(false);
     };
+    // Fail SAFE when the vector table is MISSING (vectors cache deleted/corrupted):
+    // the store holds no rows, so trusting a "fresh" PDF signature would skip
+    // re-indexing and leave that PDF out of search. Re-index instead. This closes
+    // the race with the concurrent reconcile (which also rebuilds on a missing
+    // table) — the check here is authoritative regardless of ordering.
+    {
+        let conn = store::open_connection(&workspace)
+            .await
+            .map_err(|e| format!("open lancedb: {e}"))?;
+        let table_present = conn
+            .table_names()
+            .execute()
+            .await
+            .map_err(|e| format!("list tables: {e}"))?
+            .iter()
+            .any(|n| n == store::TABLE_NAME);
+        if !table_present {
+            return Ok(false);
+        }
+    }
     let m = manifest::load(&workspace, store::INDEX_VERSION);
     // Fail SAFE across a schema migration: if the manifest predates the current
     // INDEX_VERSION, the LanceDB table is about to be (or was just) dropped and
