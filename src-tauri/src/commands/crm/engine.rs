@@ -32,7 +32,7 @@ use crate::commands::crm::render::{
     render_contact, render_event, render_household_summary, render_note, render_task,
 };
 use crate::commands::crm::source::CrmSource;
-use crate::commands::crm::store::CrmStore;
+use crate::commands::crm::store::{CrmStore, CrmUpsert};
 
 // ---------------------------------------------------------------------------
 // Public output types
@@ -131,6 +131,12 @@ pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<
     // newly unlinkable — so neither can leave a stale chunk behind on re-sync.
     let mut seen: HashSet<String> = HashSet::new();
 
+    // P2.3 row 7: collect every upsert and commit them (plus tombstones) in ONE
+    // transaction at the end, instead of one autocommit upsert (= one fsync) per
+    // object. Network fetches (the `.await`s below) all happen first; the DB work
+    // is a single synchronous transaction with no awaits held across it.
+    let mut upserts: Vec<CrmUpsert> = Vec::new();
+
     // ── 1. Contacts ──────────────────────────────────────────────────────────
     let contacts = source.list_all_contacts().await?;
 
@@ -153,14 +159,14 @@ pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<
         // the whole index pipeline matches on lowercase — without this every contact
         // falls through `plan_household_index`'s `_ => skip` arm and NOTHING is embedded.
         // CrmContact has no updated_at field; use "" (content_hash drives change detection).
-        store.upsert_object(
-            &store_id,
-            &c.r#type.to_ascii_lowercase(),
-            &gk,
-            "",
-            &hash,
-            &json,
-        )?;
+        upserts.push(CrmUpsert {
+            id: store_id,
+            kind: c.r#type.to_ascii_lowercase(),
+            household_id: gk,
+            updated_at: String::new(),
+            content_hash: hash,
+            json,
+        });
         report.contacts += 1;
     }
 
@@ -179,7 +185,14 @@ pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<
             for gk in grouping_keys {
                 let store_id = linked_object_store_id("note", &crm_key, &gk, grouping_count);
                 seen.insert(store_id.clone());
-                store.upsert_object(&store_id, "note", &gk, &n.updated_at, &hash, &json)?;
+                upserts.push(CrmUpsert {
+                    id: store_id,
+                    kind: "note".to_string(),
+                    household_id: gk,
+                    updated_at: n.updated_at.clone(),
+                    content_hash: hash.clone(),
+                    json: json.clone(),
+                });
                 report.notes += 1;
             }
         }
@@ -200,7 +213,14 @@ pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<
                 let store_id = linked_object_store_id("task", &crm_key, &gk, grouping_count);
                 seen.insert(store_id.clone());
                 // CrmTask has no updated_at; use "" (content_hash drives change detection).
-                store.upsert_object(&store_id, "task", &gk, "", &hash, &json)?;
+                upserts.push(CrmUpsert {
+                    id: store_id,
+                    kind: "task".to_string(),
+                    household_id: gk,
+                    updated_at: String::new(),
+                    content_hash: hash.clone(),
+                    json: json.clone(),
+                });
                 report.tasks += 1;
             }
         }
@@ -221,7 +241,14 @@ pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<
                 let store_id = linked_object_store_id("event", &crm_key, &gk, grouping_count);
                 seen.insert(store_id.clone());
                 // CrmEvent has no updated_at; use "" (content_hash drives change detection).
-                store.upsert_object(&store_id, "event", &gk, "", &hash, &json)?;
+                upserts.push(CrmUpsert {
+                    id: store_id,
+                    kind: "event".to_string(),
+                    household_id: gk,
+                    updated_at: String::new(),
+                    content_hash: hash.clone(),
+                    json: json.clone(),
+                });
                 report.events += 1;
             }
         }
@@ -235,12 +262,23 @@ pub async fn ingest(source: &dyn CrmSource, store: &CrmStore) -> anyhow::Result<
     // its stale RAG chunk drops on the household's next delete-then-insert.
     // `upsert_object` resets deleted = 0, so an object that re-appears (or is re-linked)
     // un-tombstones itself automatically.
-    for existing in store.list_all_object_ids()? {
-        if object_belongs_to_provider(&existing, provider_id) && !seen.contains(&existing) {
-            store.tombstone_object(&existing)?;
-            report.removed_tombstoned += 1;
-        }
-    }
+    //
+    // P2.3 row 7: the tombstone decision is driven entirely by `seen` (what we
+    // filed this sync), so it is unaffected by whether this sync's upserts have
+    // landed yet — we can read the PRE-batch id set here and apply upserts +
+    // tombstones together in one transaction. `list_all_object_ids` already
+    // filters deleted = 0, and every object we are about to upsert is in `seen`,
+    // so no id's tombstone decision changes vs the old inline-per-object order.
+    let tombstone_ids: Vec<String> = store
+        .list_all_object_ids()?
+        .into_iter()
+        .filter(|existing| {
+            object_belongs_to_provider(existing, provider_id) && !seen.contains(existing)
+        })
+        .collect();
+    report.removed_tombstoned += tombstone_ids.len() as u32;
+
+    store.apply_ingest_batch(&upserts, &tombstone_ids)?;
 
     Ok(report)
 }
@@ -686,7 +724,60 @@ pub async fn backfill(
                 return Ok(());
             }
 
-            // Plan every household under this matter, concatenated. Poll cancel inside
+            // P2.3 row 8: CHEAP change-detection signature FIRST, before any JSON
+            // deserialisation or rendering. Built from the stored per-object
+            // digests (id + kind + content_hash) across the matter's households,
+            // in the same order `plan_household_index` reads them. content_hash is
+            // a strong hash of the object JSON, so an unchanged signature means the
+            // rendered plan is byte-identical — letting an unchanged matter skip
+            // WITHOUT the (previously always-paid) plan+render cost. Cancel is
+            // polled per household so a large matter stays responsive to Stop.
+            let plan_sig = {
+                let mut h = Sha256::new();
+                for hk in households {
+                    if cancel.load(Ordering::SeqCst) {
+                        report.cancelled = true;
+                        return Ok(());
+                    }
+                    for (id, kind, content_hash) in
+                        store.list_object_digests_by_household(hk)?
+                    {
+                        h.update(id.as_bytes());
+                        h.update([0]);
+                        h.update(kind.as_bytes());
+                        h.update([0]);
+                        h.update(content_hash.as_bytes());
+                        h.update([0]);
+                    }
+                    // Household boundary so moving an object between households (or
+                    // adding/removing a whole household) changes the signature.
+                    h.update(b"|hh|");
+                    h.update(hk.as_bytes());
+                    h.update([0]);
+                }
+                h.update(matter_id.as_bytes());
+                hex::encode(h.finalize())
+            };
+
+            report.households_processed += households.len() as u32;
+            // Publish live progress as each matter is reached (steady movement for a
+            // watching crm_sync_status / progress emitter).
+            progress.store(report.households_processed, Ordering::SeqCst);
+
+            let already_indexed = indexed_matters.contains(matter_id.as_str());
+
+            // Unchanged-skip: byte-identical plan signature + chunks already present
+            // → ZERO RAG work AND zero deserialise/render. (Guarded on actual-chunk
+            // presence too, so a stale render row can never cause an incorrect skip.)
+            if already_indexed {
+                if let Some((prev_hash, true)) = store.get_render_state(matter_id)? {
+                    if prev_hash == plan_sig {
+                        continue;
+                    }
+                }
+            }
+
+            // Changed (or first sync): NOW pay the plan+render. Poll cancel inside
             // the loop so a large multi-household matter stays responsive to Stop.
             let mut items: Vec<CrmIndexItem> = Vec::new();
             for hk in households {
@@ -695,33 +786,6 @@ pub async fn backfill(
                     return Ok(());
                 }
                 items.extend(plan_household_index(store, hk, matter_id)?);
-            }
-            report.households_processed += households.len() as u32;
-            // Publish live progress as each matter is reached (steady movement for a
-            // watching crm_sync_status / progress emitter).
-            progress.store(report.households_processed, Ordering::SeqCst);
-
-            // Combined render hash over the matter's whole plan (source_ids + texts).
-            let plan_hash = {
-                let mut h = Sha256::new();
-                for item in &items {
-                    h.update(item.source_id.as_bytes());
-                    h.update(item.text.as_bytes());
-                }
-                hex::encode(h.finalize())
-            };
-
-            let already_indexed = indexed_matters.contains(matter_id.as_str());
-
-            // Unchanged-skip: byte-identical plan + chunks already present → ZERO RAG
-            // work. (Guarded on actual-chunk presence too, so a stale render row can
-            // never cause an incorrect skip.)
-            if already_indexed {
-                if let Some((prev_hash, true)) = store.get_render_state(matter_id)? {
-                    if prev_hash == plan_hash {
-                        continue;
-                    }
-                }
             }
 
             // Cancel right before the expensive delete + embed, so a Stop on a large
@@ -749,7 +813,7 @@ pub async fn backfill(
                 did_write = true;
                 report.records_indexed += apply_index(&table, rag_key, &items).await?;
             }
-            store.set_render_state(matter_id, &plan_hash, true)?;
+            store.set_render_state(matter_id, &plan_sig, true)?;
         }
 
         Ok(())
@@ -962,6 +1026,60 @@ mod tests {
         let key = [0x33u8; 32];
         let s = CrmStore::open_with_key(dir.path(), &key).expect("crm store open");
         (dir, s)
+    }
+
+    /// P2.3 row 8 MEASUREMENT (ignored; run with
+    /// `cargo test -p lantern --lib measure_cheap_plan_signature -- --ignored --nocapture`).
+    /// Times the CHEAP digest-based change signature against the OLD full
+    /// plan+render+hash on a populated household — the cost an unchanged matter
+    /// paid on every sync before this change. Offline (no embedding model).
+    #[tokio::test]
+    #[ignore]
+    async fn measure_cheap_plan_signature() {
+        use sha2::{Digest, Sha256};
+        use std::time::Instant;
+        let (_d, store) = crm_store();
+        ingest(&FakeCrmSource, &store).await.expect("ingest");
+        let households = ["10001".to_string()];
+        let matter_id = "matter-x";
+        const REPS: usize = 2000;
+
+        // OLD: deserialize every object + render + hash the rendered plan.
+        let t0 = Instant::now();
+        for _ in 0..REPS {
+            let mut items = Vec::new();
+            for hk in &households {
+                items.extend(plan_household_index(&store, hk, matter_id).unwrap());
+            }
+            let mut h = Sha256::new();
+            for it in &items {
+                h.update(it.source_id.as_bytes());
+                h.update(it.text.as_bytes());
+            }
+            let _ = hex::encode(h.finalize());
+        }
+        let old_dur = t0.elapsed();
+
+        // NEW: hash the stored digests only — no deserialize, no render.
+        let t1 = Instant::now();
+        for _ in 0..REPS {
+            let mut h = Sha256::new();
+            for hk in &households {
+                for (id, kind, ch) in store.list_object_digests_by_household(hk).unwrap() {
+                    h.update(id.as_bytes());
+                    h.update(kind.as_bytes());
+                    h.update(ch.as_bytes());
+                }
+            }
+            h.update(matter_id.as_bytes());
+            let _ = hex::encode(h.finalize());
+        }
+        let new_dur = t1.elapsed();
+
+        eprintln!(
+            "[P2.3 row 8] {REPS}x unchanged-matter check: OLD plan+render {old_dur:?}  NEW digest-sig {new_dur:?}  speedup {:.1}x",
+            old_dur.as_secs_f64() / new_dur.as_secs_f64().max(1e-9)
+        );
     }
 
     #[test]
