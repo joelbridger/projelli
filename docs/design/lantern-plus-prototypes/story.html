@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A Day with Lantern — the story</title>
+<link rel="stylesheet" href="kit.css">
+<style>
+  :root {
+    --page-bg: #eef1f6;
+    --line: var(--kp-divider-strong);
+    --ink: var(--kp-navy);
+    --dim: var(--kp-text-dim);
+    --faint: var(--kp-text-faint);
+    --green-fg: var(--kp-local);        /* #16654a */
+    --green-bg: var(--kp-local-bg);     /* #e6f0ea */
+    --green-line: var(--kp-local-line); /* #8fbca6 */
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-font-smoothing: antialiased; }
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    color: var(--ink);
+    background:
+      radial-gradient(120% 60% at 50% -10%, #ffffff 0%, rgba(255,255,255,0) 60%),
+      var(--page-bg);
+    background-attachment: fixed;
+  }
+
+  .page { max-width: 900px; margin: 0 auto; padding: 44px 40px 72px; }
+
+  /* ---------- Header ---------- */
+  .masthead {
+    border-bottom: 1px solid var(--kp-divider);
+    padding-bottom: 26px;
+    margin-bottom: 40px;
+  }
+  .masthead .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase;
+    color: var(--kp-accent);
+  }
+  .eyebrow .tick { width: 6px; height: 6px; border-radius: 50%; background: var(--kp-accent); display: inline-block; }
+  .masthead h1 {
+    margin: 12px 0 0;
+    font-size: 34px; line-height: 1.12; font-weight: 700; letter-spacing: -0.02em;
+    color: var(--ink);
+  }
+  .masthead h1 .soft { color: var(--kp-text-dim); font-weight: 500; }
+  .masthead .sub {
+    margin: 12px 0 0; max-width: 620px;
+    font-size: 15px; line-height: 1.55; color: var(--dim);
+  }
+  .masthead .clue {
+    margin-top: 16px;
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 12.5px; font-weight: 600; color: var(--faint);
+  }
+  .masthead .clue svg { width: 15px; height: 15px; }
+
+  /* ---------- Timeline spine ---------- */
+  .timeline { position: relative; }
+  .timeline::before {
+    content: ""; position: absolute;
+    left: 107px; top: 12px; bottom: 18px; width: 2px;
+    background: linear-gradient(180deg,
+      var(--line) 0%, var(--line) 92%, rgba(43,45,66,0.04) 100%);
+    border-radius: 2px;
+  }
+
+  .moment {
+    position: relative;
+    padding-left: 148px;
+    padding-bottom: 40px;
+  }
+  .moment:last-child { padding-bottom: 8px; }
+
+  .moment__when { position: absolute; left: 0; top: -2px; width: 84px; text-align: right; }
+  .moment__step {
+    display: block; font-size: 10px; font-weight: 600; letter-spacing: 0.09em;
+    text-transform: uppercase; color: var(--faint); margin-bottom: 3px;
+  }
+  .moment__time {
+    display: block; font-size: 16px; font-weight: 700; color: var(--ink); letter-spacing: -0.01em; line-height: 1.2;
+  }
+  .moment__time .ampm { font-size: 11px; font-weight: 600; color: var(--dim); margin-left: 2px; }
+
+  /* dot on the spine */
+  .moment__dot {
+    position: absolute; left: 100px; top: 1px;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--kp-action-bg); border: 1.5px solid var(--kp-action-border);
+    z-index: 1;
+  }
+  .moment__dot::after {
+    content: ""; position: absolute; inset: 4px; border-radius: 50%;
+    background: var(--kp-accent);
+  }
+  .moment--flag .moment__dot { background: var(--green-bg); border-color: var(--green-line); }
+  .moment--flag .moment__dot::after { background: var(--green-fg); }
+
+  /* card */
+  .card {
+    background: #fff; border: 1px solid var(--color-border); border-radius: 10px;
+    box-shadow: var(--kp-shadow-1);
+    padding: 20px 22px 18px;
+  }
+  .card__act {
+    font-size: 17px; font-weight: 700; color: var(--ink); letter-spacing: -0.01em; line-height: 1.3;
+  }
+  .card__act .verb { color: var(--kp-accent); }
+  .card__say {
+    margin: 7px 0 0; font-size: 14px; line-height: 1.55; color: var(--dim); max-width: 560px;
+  }
+
+  /* motif region */
+  .motif { margin-top: 15px; }
+
+  /* open link */
+  .opens { margin-top: 15px; display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+  .open {
+    display: inline-flex; align-items: center; gap: 6px; text-decoration: none;
+    font-size: 12.5px; font-weight: 700; color: var(--kp-accent);
+  }
+  .open .lbl { color: var(--ink); }
+  .open svg { width: 13px; height: 13px; transition: transform 120ms var(--kp-ease-standard); }
+  .open:hover svg { transform: translateX(3px); }
+  .open:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+  /* ---------- mini kit vocabulary ---------- */
+  .strip {
+    display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    background: var(--kp-bg-soft); border: 1px solid var(--kp-divider);
+    border-radius: 10px; padding: 8px 10px;
+  }
+  .strip__label {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--faint); padding-right: 2px;
+  }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    border-radius: 999px; border: 1px solid var(--color-border); background: #fff;
+    padding: 4px 11px; font-size: 12px; font-weight: 600; color: var(--ink); line-height: 1;
+  }
+  .chip svg { width: 12px; height: 12px; color: var(--dim); }
+  .chip--match { border-color: var(--green-line); background: var(--green-bg); color: var(--green-fg); }
+  .chip--match svg { color: var(--green-fg); }
+  .chip--active { background: var(--kp-action-bg); border-color: var(--kp-action-border); color: var(--ink); }
+  .chip--ghost { color: var(--dim); }
+  .chip--sm { padding: 3px 9px; font-size: 11px; }
+
+  /* source-cited brief bullets */
+  .brief { display: flex; flex-direction: column; gap: 8px; }
+  .brief__row { display: flex; align-items: center; gap: 10px; }
+  .brief__dot { width: 5px; height: 5px; border-radius: 50%; background: var(--ink); flex: none; }
+  .brief__text { font-size: 12.5px; color: var(--ink); font-weight: 500; flex: 1; min-width: 0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .src {
+    display: inline-flex; align-items: center; gap: 5px; flex: none;
+    border-radius: 999px; border: 1px solid var(--color-border); background: #fff;
+    padding: 2px 8px; font-size: 10.5px; font-weight: 600; color: var(--dim);
+  }
+  .src svg { width: 11px; height: 11px; }
+
+  /* record pill */
+  .recpill {
+    display: inline-flex; align-items: center; gap: 9px;
+    background: #fff; border: 1px solid var(--color-border); border-radius: 999px;
+    padding: 7px 14px 7px 11px; box-shadow: var(--kp-shadow-1);
+  }
+  .recpill__dot { width: 9px; height: 9px; border-radius: 50%; background: var(--green-fg); flex: none;
+    box-shadow: 0 0 0 0 rgba(22,101,74,0.35); animation: pulse 2.4s var(--kp-ease-standard) infinite; }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(22,101,74,0.32); }
+    70% { box-shadow: 0 0 0 7px rgba(22,101,74,0); }
+    100% { box-shadow: 0 0 0 0 rgba(22,101,74,0); }
+  }
+  .recpill__txt { font-size: 12.5px; font-weight: 700; color: var(--ink); }
+  .recpill__time { font-size: 12px; font-weight: 600; color: var(--dim); font-family: var(--font-mono); }
+  .rec-note { margin-top: 8px; font-size: 11.5px; color: var(--faint); }
+  .rec-note b { color: var(--green-fg); font-weight: 600; }
+
+  /* meeting page split motif */
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-width: 480px; }
+  .pane { border: 1px solid var(--kp-divider); border-radius: 8px; background: var(--kp-bg-soft); padding: 10px 11px; }
+  .pane__h { font-size: 10px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--faint); margin-bottom: 7px; }
+  .ln { height: 5px; border-radius: 3px; background: rgba(43,45,66,0.13); margin-bottom: 6px; }
+  .ln.w70 { width: 70%; } .ln.w90 { width: 90%; } .ln.w50 { width: 50%; } .ln.w80 { width: 80%; }
+  .factlink { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+  .factlink .fchip { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px;
+    background: var(--kp-action-bg); border: 1px solid var(--kp-action-border);
+    padding: 2px 8px; font-size: 10.5px; font-weight: 600; color: var(--ink); }
+  .factlink .fchip svg { width: 10px; height: 10px; color: var(--kp-accent); }
+  .factlink .arrow { color: var(--kp-accent); font-size: 12px; }
+
+  /* stamps */
+  .stamps { display: flex; gap: 12px; flex-wrap: wrap; }
+  .stamp {
+    flex: 1 1 200px; min-width: 190px;
+    border: 1px solid var(--color-border); border-radius: 8px; background: #fff;
+    box-shadow: var(--kp-shadow-1); padding: 12px 13px;
+  }
+  .stamp__top { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; }
+  .stamp__ico { width: 22px; height: 22px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+  .stamp__ico svg { width: 13px; height: 13px; }
+  .stamp__ico--wb { background: var(--green-bg); color: var(--green-fg); border: 1px solid var(--green-line); }
+  .stamp__ico--ol { background: var(--kp-assured-bg); color: var(--kp-assured); border: 1px solid var(--kp-assured-line); }
+  .stamp__title { font-size: 12.5px; font-weight: 700; color: var(--ink); }
+  .stamp__sub { font-size: 11px; color: var(--faint); margin-top: 1px; }
+  .addrow { display: flex; align-items: center; gap: 7px; margin-top: 6px; }
+  .addrow .plus { color: var(--green-fg); font-weight: 700; font-size: 12px; flex: none; }
+  .addrow .txt { font-size: 11.5px; color: var(--ink); background: var(--green-bg); border-radius: 4px; padding: 1px 6px; }
+  .stamp .approve {
+    margin-top: 10px; display: inline-flex; align-items: center; gap: 6px;
+    background: var(--kp-action-bg); border: 1px solid var(--kp-action-border); color: var(--ink);
+    border-radius: 6px; padding: 4px 11px; font-size: 11.5px; font-weight: 700;
+  }
+
+  /* ask composer */
+  .composer {
+    display: flex; align-items: center; gap: 10px; max-width: 520px;
+    background: #fff; border: 1px solid var(--color-border); border-radius: 999px;
+    box-shadow: var(--kp-shadow-1); padding: 9px 9px 9px 15px;
+  }
+  .composer svg { width: 16px; height: 16px; color: var(--dim); flex: none; }
+  .composer .ph { font-size: 13px; color: var(--faint); flex: 1; }
+  .composer .send { width: 26px; height: 26px; border-radius: 50%; background: var(--kp-action-bg);
+    border: 1px solid var(--kp-action-border); display: inline-flex; align-items: center; justify-content: center; flex: none; }
+  .composer .send svg { width: 12px; height: 12px; color: var(--kp-accent); }
+  .scopes { margin-top: 9px; display: flex; gap: 7px; flex-wrap: wrap; }
+
+  /* book / attention list */
+  .book { display: flex; flex-direction: column; gap: 6px; max-width: 460px; }
+  .brow { display: flex; align-items: center; gap: 10px; border: 1px solid var(--kp-divider);
+    border-radius: 8px; background: #fff; padding: 8px 11px; }
+  .brow__rank { font-size: 11px; font-weight: 700; color: var(--faint); width: 14px; flex: none; font-family: var(--font-mono); }
+  .brow__name { font-size: 12.5px; font-weight: 600; color: var(--ink); flex: 1; }
+  .flagpill { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px;
+    padding: 2px 9px; font-size: 10.5px; font-weight: 600; }
+  .flagpill--gap { background: var(--kp-direct-bg); color: var(--kp-direct); border: 1px solid var(--kp-direct-line); }
+  .flagpill--stale { background: rgba(43,45,66,0.06); color: var(--dim); border: 1px solid var(--kp-divider-strong); }
+
+  /* ---------- footer rail ---------- */
+  .undertow { margin-top: 24px; padding-left: 148px; position: relative; }
+  .undertow::before {
+    content: ""; position: absolute; left: 100px; top: -14px; width: 16px; height: 16px;
+    border-left: 2px solid var(--kp-divider); border-bottom: 2px solid var(--kp-divider);
+    border-bottom-left-radius: 8px;
+  }
+  .rail {
+    background: var(--kp-navy); color: #fff; border-radius: 12px;
+    padding: 18px 22px; box-shadow: var(--kp-shadow-2);
+  }
+  .rail__eyebrow {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
+    color: rgba(255,255,255,0.55);
+  }
+  .rail__lede { margin: 6px 0 14px; font-size: 13.5px; line-height: 1.5; color: rgba(255,255,255,0.86); max-width: 560px; }
+  .rail__items { display: flex; flex-wrap: wrap; gap: 10px 12px; }
+  .rail__item {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 999px; padding: 6px 13px; font-size: 12px; font-weight: 600; color: #fff;
+    text-decoration: none;
+  }
+  a.rail__item:hover { background: rgba(255,255,255,0.14); border-color: rgba(255,255,255,0.3); }
+  .rail__item svg { width: 13px; height: 13px; color: rgba(255,255,255,0.75); }
+  .rail__item .greendot { width: 8px; height: 8px; border-radius: 50%; background: #4ade80;
+    box-shadow: 0 0 0 0 rgba(74,222,128,0.4); animation: pulse-g 2.6s var(--kp-ease-standard) infinite; }
+  @keyframes pulse-g {
+    0% { box-shadow: 0 0 0 0 rgba(74,222,128,0.4); }
+    70% { box-shadow: 0 0 0 6px rgba(74,222,128,0); }
+    100% { box-shadow: 0 0 0 0 rgba(74,222,128,0); }
+  }
+  .rail__item .arrow { color: rgba(255,255,255,0.6); }
+
+  .footer-note { margin-top: 34px; text-align: center; font-size: 12px; color: var(--faint); line-height: 1.6; }
+  .footer-note a { color: var(--kp-accent); text-decoration: none; font-weight: 600; }
+  .footer-note a:hover { text-decoration: underline; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .recpill__dot, .rail__item .greendot { animation: none; }
+    .open svg { transition: none; }
+  }
+
+  @media (max-width: 640px) {
+    .page { padding: 28px 18px 56px; }
+    .timeline::before, .moment__dot, .undertow::before { display: none; }
+    .moment, .undertow { padding-left: 0; }
+    .moment__when { position: static; width: auto; text-align: left; margin-bottom: 10px; display: flex; align-items: baseline; gap: 8px; }
+    .moment__step { margin-bottom: 0; }
+    .split { grid-template-columns: 1fr; }
+  }
+
+  /* ---------- print ---------- */
+  @media print {
+    @page { size: A4 portrait; margin: 12mm; }
+    body { background: #fff !important; }
+    .page { max-width: none; padding: 0; }
+    .masthead { margin-bottom: 22px; padding-bottom: 16px; }
+    .masthead h1 { font-size: 26px; }
+    .timeline::before { background: var(--line); }
+    .moment { padding-bottom: 20px; break-inside: avoid; }
+    .card, .stamp, .recpill, .composer, .rail { box-shadow: none; }
+    .rail { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .open, .open .lbl { color: #000; }
+    .masthead .clue { display: none; }
+    .recpill__dot, .rail__item .greendot { animation: none; }
+    .undertow { break-inside: avoid; }
+    .footer-note { margin-top: 18px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ===== Header ===== -->
+  <header class="masthead">
+    <span class="eyebrow"><span class="tick"></span>The review set &#183; the story is the spec</span>
+    <h1>A Day with Lantern<br><span class="soft">how the new features fit an advisor&rsquo;s day</span></h1>
+    <p class="sub">These are not seven separate features. They are one day in a financial advisor&rsquo;s life, from the first coffee to Friday&rsquo;s review. Follow the line top to bottom.</p>
+    <span class="clue">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+      Each moment opens its clickable prototype
+    </span>
+  </header>
+
+  <!-- ===== Timeline ===== -->
+  <div class="timeline">
+
+    <!-- 1 · 8:55 -->
+    <section class="moment">
+      <div class="moment__when"><span class="moment__step">Step 01</span><span class="moment__time">8:55<span class="ampm">am</span></span></div>
+      <span class="moment__dot"></span>
+      <div class="card">
+        <div class="card__act"><span class="verb">Open</span> the app.</div>
+        <p class="card__say">The day is already sorted. Your meetings are matched to the right clients before you have touched a thing.</p>
+        <div class="motif">
+          <div class="strip">
+            <span class="strip__label">Today</span>
+            <span class="chip chip--match"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Hendersons &#183; 10:00</span>
+            <span class="chip chip--match"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Ortiz &#183; 1:30</span>
+          </div>
+        </div>
+        <div class="opens">
+          <a class="open" href="p1-morning-moment.html"><span class="lbl">The Today strip</span><span>&#183;</span>Open prototype<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2 · 9:00 -->
+    <section class="moment">
+      <div class="moment__when"><span class="moment__step">Step 02</span><span class="moment__time">9:00<span class="ampm">am</span></span></div>
+      <span class="moment__dot"></span>
+      <div class="card">
+        <div class="card__act"><span class="verb">Click</span> the Hendersons.</div>
+        <p class="card__say">The brief for your meeting is already written. Every line points back to a real file, so you can trust it at a glance.</p>
+        <div class="motif">
+          <div class="brief">
+            <div class="brief__row"><span class="brief__dot"></span><span class="brief__text">Roth conversion came up last quarter</span><span class="src"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Statement.pdf</span></div>
+            <div class="brief__row"><span class="brief__dot"></span><span class="brief__text">Wants to talk college funding for Mia</span><span class="src"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/></svg>Email</span></div>
+            <div class="brief__row"><span class="brief__dot"></span><span class="brief__text">30-minute review, agenda attached</span><span class="src"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Calendly</span></div>
+          </div>
+        </div>
+        <div class="opens">
+          <a class="open" href="p2-before-you-meet.html"><span class="lbl">Before you meet</span><span>&#183;</span>Open prototype<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3 · 10:00 -->
+    <section class="moment moment--flag">
+      <div class="moment__when"><span class="moment__step">Step 03</span><span class="moment__time">10:00<span class="ampm">am</span></span></div>
+      <span class="moment__dot"></span>
+      <div class="card">
+        <div class="card__act"><span class="verb">One click:</span> Record.</div>
+        <p class="card__say">No bot joins the call. The audio never leaves this computer, and the client&rsquo;s okay to record is noted on the spot.</p>
+        <div class="motif">
+          <div class="recpill">
+            <span class="recpill__dot"></span>
+            <span class="recpill__txt">Recording</span>
+            <span class="recpill__time">00:14</span>
+          </div>
+          <div class="rec-note"><b>Stays on this computer</b> &#183; consent noted 10:00 am</div>
+        </div>
+        <div class="opens">
+          <a class="open" href="p6-client-meetings-tab.html"><span class="lbl">Recording, no bot</span><span>&#183;</span>Open prototype<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4 · 10:45 -->
+    <section class="moment">
+      <div class="moment__when"><span class="moment__step">Step 04</span><span class="moment__time">10:45<span class="ampm">am</span></span></div>
+      <span class="moment__dot"></span>
+      <div class="card">
+        <div class="card__act">The meeting becomes <span class="verb">a page on the client.</span></div>
+        <p class="card__say">Clean notes on one side, the full transcript on the other. Click any fact and you hear the exact moment it was said. Copy anything.</p>
+        <div class="motif">
+          <div class="split">
+            <div class="pane">
+              <div class="pane__h">Notes</div>
+              <div class="ln w90"></div><div class="ln w70"></div><div class="ln w80"></div>
+              <div class="factlink"><span class="fchip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>Roth conversion</span><span class="arrow">&rarr;</span></div>
+            </div>
+            <div class="pane">
+              <div class="pane__h">Transcript</div>
+              <div class="ln w80"></div><div class="ln w90 " style="background:var(--kp-action-bg);"></div><div class="ln w50"></div><div class="ln w70"></div>
+            </div>
+          </div>
+        </div>
+        <div class="opens">
+          <a class="open" href="p6-client-meetings-tab.html"><span class="lbl">The meeting page</span><span>&#183;</span>Open prototype<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5 · 10:47 -->
+    <section class="moment">
+      <div class="moment__when"><span class="moment__step">Step 05</span><span class="moment__time">10:47<span class="ampm">am</span></span></div>
+      <span class="moment__dot"></span>
+      <div class="card">
+        <div class="card__act"><span class="verb">Two stamps</span> and you&rsquo;re done.</div>
+        <p class="card__say">Send the tasks straight to Wealthbox, and drop a follow-up into your own Outlook drafts. Both wait for your okay first. Nothing goes out on its own.</p>
+        <div class="motif">
+          <div class="stamps">
+            <div class="stamp">
+              <div class="stamp__top">
+                <span class="stamp__ico stamp__ico--wb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+                <div><div class="stamp__title">Update Wealthbox</div><div class="stamp__sub">1 note &#183; 3 tasks</div></div>
+              </div>
+              <div class="addrow"><span class="plus">+</span><span class="txt">Task: send Roth illustration</span></div>
+              <div class="addrow"><span class="plus">+</span><span class="txt">Task: 529 options for Mia</span></div>
+              <span class="approve">Approve &amp; send</span>
+            </div>
+            <div class="stamp">
+              <div class="stamp__top">
+                <span class="stamp__ico stamp__ico--ol"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/></svg></span>
+                <div><div class="stamp__title">Draft follow-up</div><div class="stamp__sub">saved to your Outlook drafts</div></div>
+              </div>
+              <div class="addrow"><span class="txt" style="background:var(--kp-bg-soft);color:var(--dim);">&ldquo;Great talking today, here&rsquo;s what&rsquo;s next&hellip;&rdquo;</span></div>
+              <span class="approve" style="background:var(--kp-assured-bg);border-color:var(--kp-assured-line);">Open in Drafts</span>
+            </div>
+          </div>
+        </div>
+        <div class="opens">
+          <a class="open" href="p3-wealthbox-stamp.html"><span class="lbl">Wealthbox stamp</span><span>&#183;</span>Open<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+          <a class="open" href="p4-draft-followup.html"><span class="lbl">Draft follow-up</span><span>&#183;</span>Open<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6 · 2:00 -->
+    <section class="moment">
+      <div class="moment__when"><span class="moment__step">Step 06</span><span class="moment__time">2:00<span class="ampm">pm</span></span></div>
+      <span class="moment__dot"></span>
+      <div class="card">
+        <div class="card__act"><span class="verb">Ask</span> anything.</div>
+        <p class="card__say">About this one client, or across your whole book at once. The wider view answers in summaries only, so nothing private leaks between households.</p>
+        <div class="motif">
+          <div class="composer">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/></svg>
+            <span class="ph">Which clients still need a 529 review?</span>
+            <span class="send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 14 0"/><path d="m12 5 7 7-7 7"/></svg></span>
+          </div>
+          <div class="scopes">
+            <span class="chip chip--active chip--sm">This client</span>
+            <span class="chip chip--ghost chip--sm">Whole practice &#183; summaries only</span>
+          </div>
+        </div>
+        <div class="opens">
+          <a class="open" href="p7-book-and-ask.html"><span class="lbl">Ask across the book</span><span>&#183;</span>Open prototype<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+        </div>
+      </div>
+    </section>
+
+    <!-- 7 · Friday -->
+    <section class="moment moment--flag">
+      <div class="moment__when"><span class="moment__step">The week</span><span class="moment__time">Friday</span></div>
+      <span class="moment__dot"></span>
+      <div class="card">
+        <div class="card__act"><span class="verb">Who</span> needs attention?</div>
+        <p class="card__say">The whole-book view ranks your clients by gaps and how long it has been since you last dug in. Each client&rsquo;s Meetings tab shows what still needs a look.</p>
+        <div class="motif">
+          <div class="book">
+            <div class="brow"><span class="brow__rank">1</span><span class="brow__name">The Delgados</span><span class="flagpill flagpill--gap">2 open gaps</span></div>
+            <div class="brow"><span class="brow__rank">2</span><span class="brow__name">Priya Chen</span><span class="flagpill flagpill--stale">no contact 74d</span></div>
+            <div class="brow"><span class="brow__rank">3</span><span class="brow__name">The Hendersons</span><span class="flagpill flagpill--stale">1 note to review</span></div>
+          </div>
+        </div>
+        <div class="opens">
+          <a class="open" href="p7-book-and-ask.html"><span class="lbl">The whole book</span><span>&#183;</span>Open<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+          <a class="open" href="p6-client-meetings-tab.html"><span class="lbl">A client&rsquo;s Meetings tab</span><span>&#183;</span>Open<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ===== Footer rail: the invisible layer ===== -->
+  <div class="undertow">
+    <div class="rail">
+      <div class="rail__eyebrow">Beneath the day</div>
+      <p class="rail__lede">None of it asks for your attention. The quiet layer that makes the whole day work: you set it up once, and it just holds.</p>
+      <div class="rail__items">
+        <a class="rail__item" href="p5-calendar-connection.html">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+          Calendar connected once<span class="arrow">&rarr;</span>
+        </a>
+        <span class="rail__item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          Everything cited
+        </span>
+        <span class="rail__item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Everything local
+        </span>
+        <span class="rail__item">
+          <span class="greendot"></span>
+          One green dot that never lies
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <p class="footer-note">
+    Seven moments, one day, one client always at the center.<br>
+    Back to the <a href="index.html">prototype index</a> &#183; read the <a href="DESIGN-BRIEF.md">design brief</a>
+  </p>
+
+</div>
+</body>
+</html>

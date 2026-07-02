@@ -40,6 +40,40 @@
   .card__foot { margin-top: 12px; display: flex; align-items: center; gap: 8px; }
   .open-link { font-size: 12.5px; font-weight: 700; color: var(--kp-accent); }
   .foot-note { text-align: center; margin-top: 40px; font-size: 12.5px; color: var(--kp-text-faint); }
+
+  /* Start here — the story card */
+  .starthere {
+    display: block; text-decoration: none; margin-top: 28px;
+    position: relative; overflow: hidden;
+    background: var(--kp-navy); color: #fff;
+    border-radius: 14px; padding: 26px 28px;
+    box-shadow: var(--kp-shadow-2);
+    transition: box-shadow 140ms, transform 140ms;
+  }
+  .starthere:hover { box-shadow: var(--kp-shadow-3); transform: translateY(-1px); }
+  .starthere::after {
+    content: ""; position: absolute; right: -60px; top: -60px; width: 220px; height: 220px;
+    background: radial-gradient(circle, rgba(239,35,60,0.35), rgba(239,35,60,0) 70%);
+    pointer-events: none;
+  }
+  .starthere__eyebrow {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    color: #ef8a97; display: inline-flex; align-items: center; gap: 7px;
+  }
+  .starthere__eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--kp-accent); }
+  .starthere__title { font-size: 23px; font-weight: 700; letter-spacing: -0.01em; margin: 10px 0 0; }
+  .starthere__desc { font-size: 14px; line-height: 1.55; color: rgba(255,255,255,0.82); margin: 8px 0 0; max-width: 560px; position: relative; }
+  .starthere__cta {
+    margin-top: 16px; display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.22);
+    border-radius: 999px; padding: 7px 15px; font-size: 13px; font-weight: 700; color: #fff;
+  }
+  .starthere:hover .starthere__cta { background: rgba(255,255,255,0.18); }
+  .section-label {
+    margin: 40px 0 0; display: flex; align-items: center; gap: 12px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--kp-text-faint);
+  }
+  .section-label::after { content: ""; flex: 1; height: 1px; background: var(--kp-divider); }
 </style>
 </head>
 <body>
@@ -47,7 +81,7 @@
   <div class="head">
     <span class="kp-eyebrow kp-eyebrow--accent">Advisor Prep Hero &#183; Jump feature-parity</span>
     <h1 style="margin-top:6px;">Clickable prototypes</h1>
-    <p>Six prototypes for the upcoming features. Each recreates the real product screen around the new element, so the fit is judgeable. Click through, react freely. P1 through P5 are built; the north-star P6 is gated.</p>
+    <p>The new features, told as one day in an advisor&rsquo;s life. Start with the story to see how they fit together, then open any moment to click through its prototype. Each recreates the real product screen so the fit is judgeable. React freely.</p>
     <div class="reflinks">
       <a class="reflink" href="DESIGN-BRIEF.md">Design brief</a>
       <a class="reflink" href="../lantern-plus-ui-audit/INVENTORY.md">Audit inventory</a>
@@ -55,6 +89,16 @@
       <a class="reflink" href="shell.html">Shell template</a>
     </div>
   </div>
+
+  <!-- Start here: the story -->
+  <a class="starthere" href="story.html">
+    <span class="starthere__eyebrow"><span class="dot"></span>Start here</span>
+    <div class="starthere__title">A Day with Lantern</div>
+    <p class="starthere__desc">One visual that tells the whole story: how the new features fit an advisor&rsquo;s day, from the 8:55 morning strip to Friday&rsquo;s review. Every moment links straight to its prototype below.</p>
+    <span class="starthere__cta">See the story &rarr;</span>
+  </a>
+
+  <div class="section-label">The moments &#183; P1&ndash;P7</div>
 
   <div class="grid">
 
@@ -114,15 +158,26 @@
     </a>
 
     <!-- P6 -->
-    <div class="card card--gated card--disabled">
+    <a class="card" href="p6-client-meetings-tab.html">
       <div class="card__top">
         <span class="card__id">P6</span>
-        <span class="card__title">North star</span>
-        <span class="card__wave kp-badge kp-badge--neutral kp-badge--sm">Wave 3</span>
+        <span class="card__title">Meetings on the client</span>
+        <span class="card__wave kp-badge kp-badge--featured kp-badge--sm">Wave 3</span>
       </div>
-      <p class="card__desc">The meeting timeline entry opening notes / transcript / audio scrubber, with a fact chip that highlights the transcript moment, plus the floating record pill. Directional preview.</p>
-      <div class="card__foot"><span class="kp-badge kp-badge--warning kp-badge--sm">Gated: not in current build scope</span></div>
-    </div>
+      <p class="card__desc">The full meeting experience, in its decided home: a Meetings tab in the client&rsquo;s own tab row (the sidebar stays three tabs). Per-client list, then the meeting page &mdash; notes left, transcript right, audio scrubber on top. Click a note&rsquo;s timestamp and the transcript jumps to that moment and plays. Plus the record pill and the &ldquo;notes ready&rdquo; arrival card.</p>
+      <div class="card__foot"><span class="kp-badge kp-badge--success kp-badge--sm">Built</span><span class="open-link">Open &rarr;</span></div>
+    </a>
+
+    <!-- P7 -->
+    <a class="card" href="p7-book-and-ask.html">
+      <div class="card__top">
+        <span class="card__id">P7</span>
+        <span class="card__title">Book view &amp; whole-practice Ask</span>
+        <span class="card__wave kp-badge kp-badge--featured kp-badge--sm">Wave 4</span>
+      </div>
+      <p class="card__desc">Two quiet lenses on what you already have. The Clients home gains a &ldquo;Whole book&rdquo; toggle that ranks clients neediest-first, with a completeness meter, staleness, and the specific gaps to chase. Ask gains a permanent scope pill: switch to &ldquo;Whole practice&rdquo; and it answers from each client&rsquo;s summary only (client chips with cited passages), never breaking client isolation.</p>
+      <div class="card__foot"><span class="kp-badge kp-badge--success kp-badge--sm">Built</span><span class="open-link">Open &rarr;</span></div>
+    </a>
 
   </div>
 

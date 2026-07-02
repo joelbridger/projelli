@@ -1,0 +1,826 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P7 · Book view + whole-practice Ask — Lantern Prototype</title>
+<link rel="stylesheet" href="kit.css">
+<style>
+  body { padding: 0; }
+  [hidden] { display: none !important; }
+  .proto-stage { padding: 24px; display: flex; justify-content: center; }
+
+  /* ===== Shared surface padding ===== */
+  .home-body { padding: 4px 32px 40px; }
+
+  /* ===== Book view: actions row (New client + view toggle) ===== */
+  .home-actions { margin: 0 0 18px; display: flex; align-items: center; gap: 12px; }
+  .home-actions__spacer { flex: 1; }
+  .home-actions__toggle-label { font-size: 12px; color: var(--kp-text-faint); font-weight: 600; margin-right: 2px; }
+
+  /* ===== Whole-book ranked list ===== */
+  .book-head {
+    display: flex; align-items: baseline; gap: 10px;
+    padding: 0 2px 12px;
+  }
+  .book-head__count { font-size: 14px; font-weight: 700; color: var(--kp-navy); }
+  .book-head__sub { font-size: 12.5px; color: var(--kp-text-faint); }
+
+  .book-card { border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: #fff; box-shadow: var(--kp-shadow-1); overflow: hidden; }
+
+  .book-row {
+    display: flex; gap: 24px; align-items: flex-start;
+    padding: 18px 24px; border-bottom: 1px solid var(--kp-divider); cursor: pointer;
+    transition: background var(--kp-duration-fast) var(--kp-ease-standard);
+  }
+  .book-row:last-child { border-bottom: none; }
+  .book-row:hover, .book-row.show-fix { background: var(--kp-accent-softer); }
+  .book-row.show-fix { box-shadow: inset 3px 0 0 var(--kp-accent); }
+
+  .book-row__main { flex: 1; min-width: 0; }
+  .book-row__name { font-size: 15px; font-weight: 700; color: var(--kp-navy); }
+  .book-row__matter { font-size: 12.5px; color: var(--kp-text-faint); margin-top: 1px; }
+
+  /* Quiet completeness meter */
+  .meter { display: inline-flex; align-items: center; gap: 9px; margin-top: 11px; }
+  .meter__track { display: block; width: 104px; height: 6px; border-radius: 3px; background: rgba(43,45,66,0.10); overflow: hidden; }
+  .meter__fill { display: block; height: 6px; border-radius: 3px; background: var(--kp-navy); }
+  .meter__num { font-size: 12px; font-weight: 600; color: var(--kp-text-dim); font-variant-numeric: tabular-nums; }
+  .meter__cap { font-size: 11.5px; color: var(--kp-text-faint); }
+
+  /* Gap chips + the hover "fix this" affordance */
+  .gaps { margin-top: 13px; display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; }
+  .gap { display: inline-flex; align-items: center; gap: 9px; }
+  .gap-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    border-radius: 999px; border: 1px solid var(--kp-divider-strong);
+    background: var(--kp-bg-soft); color: var(--kp-text-dim);
+    font-size: 11.5px; font-weight: 600; padding: 3px 11px 3px 9px; white-space: nowrap;
+  }
+  .gap-chip .kp-icon { color: var(--kp-warning); }
+  .gap-fix {
+    display: none; align-items: center; gap: 5px;
+    font-size: 11.5px; font-weight: 600; color: var(--kp-accent);
+    background: none; border: none; cursor: pointer; font-family: var(--font-sans); padding: 0;
+  }
+  .gap-fix .kp-icon { color: var(--kp-accent); }
+  .book-row:hover .gap-fix, .book-row.show-fix .gap-fix { display: inline-flex; }
+  .gaps--clear { color: var(--kp-success); font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
+  .gaps--clear .kp-icon { color: var(--kp-success); }
+
+  .book-row__side { flex: none; width: 214px; text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+  .side-line { font-size: 12.5px; color: var(--kp-text-dim); display: inline-flex; align-items: center; gap: 6px; }
+  .side-line .kp-icon { color: var(--kp-text-faint); }
+  .side-line--stale .kp-icon { color: var(--kp-warning); }
+
+  /* ===== Existing clients table (the "Clients" segment) ===== */
+  .clients-card { border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: #fff; box-shadow: var(--kp-shadow-1); overflow: hidden; }
+  .clients-head { display: grid; grid-template-columns: 1fr 150px 150px; align-items: center; padding: 14px 24px; border-bottom: 1px solid var(--kp-divider-strong); }
+  .clients-head__cell { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--kp-text-faint); display: inline-flex; align-items: center; gap: 5px; }
+  .client-row { display: grid; grid-template-columns: 1fr 150px 150px; align-items: start; padding: 18px 24px; border-bottom: 1px solid var(--kp-divider); }
+  .client-row:last-child { border-bottom: none; }
+  .client-row__title { font-size: 15px; font-weight: 700; color: var(--kp-navy); display: inline-flex; align-items: center; gap: 8px; }
+  .client-row__sub { font-size: 12.5px; color: var(--kp-text-faint); margin-top: 2px; }
+  .client-row__acts { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .client-cell { font-size: 13px; color: var(--kp-text-dim); display: inline-flex; align-items: center; gap: 7px; padding-top: 2px; }
+  .client-cell .kp-icon { color: var(--kp-text-faint); }
+
+  /* ===== Ask surface ===== */
+  .ask-surface { display: flex; flex-direction: column; height: 100%; }
+  .ask-header { padding: 24px 32px 16px; display: flex; align-items: flex-start; }
+  .ask-header__main { flex: 1; }
+  .ask-header__title-row { display: flex; align-items: center; gap: 10px; }
+  .ask-header__title { margin: 0; font-size: var(--kp-font-2xl); font-weight: 700; color: var(--kp-navy); letter-spacing: -0.01em; line-height: 1.2; }
+  .ask-header__title-row .kp-icon { color: var(--kp-accent); }
+  .ask-header__desc { margin: 8px 0 0; font-size: 14px; color: var(--kp-text-faint); }
+  .ask-localai {
+    display: inline-flex; align-items: center; gap: 6px; border-radius: 999px;
+    border: 1px solid var(--kp-local-line); background: var(--kp-local-bg); color: var(--kp-local);
+    font-size: 12px; font-weight: 600; padding: 5px 12px;
+  }
+
+  .ask-cols { flex: 1; display: grid; grid-template-columns: 232px 1fr 268px; min-height: 0; border-top: 1px solid var(--kp-divider); }
+
+  /* Left conversations column */
+  .ask-convos { border-right: 1px solid var(--kp-divider); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .ask-newq {
+    display: inline-flex; align-items: center; gap: 8px; justify-content: flex-start;
+    border: 1px solid var(--color-border); border-radius: var(--radius-md); background: #fff;
+    color: var(--kp-navy); font-family: var(--font-sans); font-size: 13px; font-weight: 600;
+    padding: 10px 12px; cursor: pointer; width: 100%;
+  }
+  .ask-newq:hover { background: rgba(43,45,66,0.05); }
+  .ask-convos__label { font-size: 12px; color: var(--kp-text-faint); }
+  .convo-item {
+    border: 1px solid var(--kp-divider-strong); border-radius: var(--radius-md);
+    background: var(--kp-bg-soft); padding: 10px 12px; cursor: pointer;
+  }
+  .convo-item.is-active { border-color: var(--kp-action-border); background: var(--kp-action-bg); }
+  .convo-item__q { font-size: 12.5px; font-weight: 600; color: var(--kp-navy); line-height: 1.35; }
+  .convo-item__meta { font-size: 11px; color: var(--kp-text-faint); margin-top: 4px; }
+
+  /* Center answer column */
+  .ask-main { padding: 20px 28px 16px; overflow-y: auto; display: flex; flex-direction: column; }
+
+  .scopepill-row { display: flex; align-items: center; gap: 10px; }
+  .scopepill {
+    display: inline-flex; align-items: center; gap: 9px;
+    border-radius: 999px; padding: 7px 8px 7px 14px; cursor: pointer;
+    background: var(--kp-action-bg); color: var(--kp-action-fg); border: 1px solid var(--kp-action-border);
+    font-family: var(--font-sans); font-size: 13px; font-weight: 600;
+  }
+  .scopepill:hover { background: var(--kp-action-bg-hover); }
+  .scopepill .kp-icon:first-child { color: var(--kp-accent); }
+  .scopepill__pre { color: var(--kp-text-dim); font-weight: 600; }
+  .scopepill__val { color: var(--kp-navy); }
+  .scopepill__caret { color: var(--kp-text-faint); display: inline-flex; }
+  .scopepill-hint { font-size: 11.5px; color: var(--kp-text-faint); }
+
+  .scope-note {
+    display: flex; align-items: flex-start; gap: 8px;
+    margin: 12px 0 4px; font-size: 12.5px; color: var(--kp-text-dim); line-height: 1.5; max-width: 560px;
+  }
+  .scope-note .kp-icon { color: var(--kp-local); flex: none; margin-top: 1px; }
+  .scope-note b { color: var(--kp-navy); font-weight: 600; }
+
+  .ask-turn { margin-top: 22px; }
+  .ask-q {
+    display: inline-block; background: var(--kp-action-bg); border: 1px solid var(--kp-action-border);
+    color: var(--kp-navy); font-size: 13.5px; font-weight: 600; border-radius: 14px 14px 14px 4px;
+    padding: 9px 14px; max-width: 90%;
+  }
+  .ask-a { margin-top: 16px; display: flex; gap: 12px; align-items: flex-start; }
+  .ask-a__mark { flex: none; width: 26px; height: 26px; border-radius: 7px; background: var(--kp-action-bg); border: 1px solid var(--kp-action-border); display: inline-flex; align-items: center; justify-content: center; }
+  .ask-a__mark .kp-icon { color: var(--kp-accent); }
+  .ask-a__body { font-size: 14px; line-height: 1.6; color: var(--kp-navy); max-width: 620px; }
+
+  .cite-ref {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; vertical-align: 2px;
+    background: rgba(43,45,66,0.10); color: var(--kp-navy); font-size: 10px; font-weight: 700;
+    cursor: pointer; margin: 0 1px;
+  }
+  .cite-ref:hover { background: var(--kp-action-bg); }
+
+  /* Client-chip results (whole practice) */
+  .pmatches { margin-top: 18px; }
+  .pmatches__heading { margin-bottom: 10px; }
+  .pmatch { margin-bottom: 10px; }
+  .pchip {
+    display: inline-flex; align-items: center; gap: 7px;
+    border-radius: 999px; padding: 7px 13px; cursor: pointer;
+    background: #fff; border: 1px solid var(--color-border); color: var(--kp-navy);
+    font-family: var(--font-sans); font-size: 13px; font-weight: 600;
+  }
+  .pchip:hover { border-color: rgba(43,45,66,0.3); }
+  .pchip.is-open { background: var(--kp-accent-soft); border-color: var(--kp-action-border); }
+  .pchip .kp-icon { color: var(--kp-accent); }
+  .pchip__caret { color: var(--kp-text-faint); display: inline-flex; transition: transform var(--kp-duration-base) var(--kp-ease-standard); }
+  .pchip.is-open .pchip__caret { transform: rotate(180deg); }
+
+  .pcite {
+    margin: 10px 0 0; border: 1px solid var(--kp-divider-strong); border-radius: var(--radius-lg);
+    background: var(--kp-bg-soft); padding: 13px 15px; max-width: 540px;
+  }
+  .pcite__eyebrow { margin-bottom: 7px; display: block; }
+  .pcite__quote { font-size: 13px; color: var(--kp-navy); line-height: 1.5; }
+  .pcite__src { margin-top: 9px; display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--kp-text-faint); font-weight: 600; }
+  .pcite__src .kp-icon { color: var(--kp-text-faint); }
+  .pcite__open {
+    margin-top: 11px; display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12.5px; font-weight: 700; color: var(--kp-accent);
+    background: none; border: none; cursor: pointer; font-family: var(--font-sans); padding: 0;
+  }
+  .pcite__open .kp-icon { color: var(--kp-accent); }
+
+  /* Right sources column */
+  .ask-sources { border-left: 1px solid var(--kp-divider); padding: 20px 20px; background: var(--kp-bg-soft); overflow-y: auto; }
+  .ask-sources__head { display: inline-flex; align-items: center; gap: 7px; margin-bottom: 14px; }
+  .ask-sources__head .kp-icon { color: var(--kp-text-faint); }
+  .src {
+    display: flex; gap: 10px; align-items: flex-start; padding: 11px 0; border-bottom: 1px solid var(--kp-divider);
+  }
+  .src:last-child { border-bottom: none; }
+  .src__idx { flex: none; width: 18px; height: 18px; border-radius: 5px; background: rgba(43,45,66,0.10); color: var(--kp-navy); font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; margin-top: 1px; }
+  .src__body { min-width: 0; }
+  .src__kind { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--kp-text-faint); }
+  .src__kind .kp-icon { color: var(--kp-text-faint); }
+  .src__title { font-size: 12.5px; font-weight: 600; color: var(--kp-navy); margin-top: 3px; line-height: 1.35; }
+  .src__snip { font-size: 11.5px; color: var(--kp-text-dim); margin-top: 3px; line-height: 1.4; }
+  .src-note { border: 1px dashed var(--kp-divider-strong); border-radius: var(--radius-lg); padding: 16px; font-size: 12.5px; color: var(--kp-text-dim); line-height: 1.55; text-align: center; }
+  .src-note .kp-icon { color: var(--kp-local); }
+
+  /* Composer (existing scope selector + input) */
+  .ask-composer { border-top: 1px solid var(--kp-divider); padding: 14px 28px 16px; background: #fff; }
+  .ask-scoperow { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .ask-scoperow .kp-chip { font-size: 12.5px; }
+  .ask-filesmode { display: inline-flex; align-items: center; gap: 8px; margin-left: 6px; font-size: 12.5px; color: var(--kp-text-dim); font-weight: 500; }
+  .switch { width: 34px; height: 18px; border-radius: 999px; background: rgba(43,45,66,0.18); position: relative; flex: none; }
+  .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: var(--kp-shadow-1); }
+  .ask-inputrow { display: flex; gap: 10px; align-items: center; }
+  .ask-input {
+    flex: 1; display: flex; align-items: center; gap: 10px;
+    border: 1px solid var(--color-input); border-radius: 999px; background: #fff; height: 50px; padding: 0 18px;
+    font-size: 14px; color: var(--kp-text-dim);
+  }
+  .ask-input .kp-icon { color: var(--kp-accent); flex: none; }
+  .ask-askbtn {
+    display: inline-flex; align-items: center; gap: 7px; height: 50px; padding: 0 22px; border-radius: 999px;
+    background: var(--kp-action-bg); border: 1px solid var(--kp-action-border); color: var(--kp-navy);
+    font-family: var(--font-sans); font-size: 14px; font-weight: 700; cursor: pointer;
+  }
+  .ask-askbtn .kp-icon { color: var(--kp-accent); }
+</style>
+</head>
+<body>
+
+<!-- ===== Prototype header ===== -->
+<div class="proto-header">
+  <span class="proto-header__name">P7 &#183; Book view + whole-practice Ask</span>
+  <span class="proto-header__wave">Wave 4</span>
+  <span style="color:#6b7280;">Two lenses on what you already have &#183; no new tab, no dashboard</span>
+  <span class="proto-header__states">
+    <span class="proto-header__states-label">States</span>
+    <button class="proto-btn is-active" id="stBookList">Book &#183; ranked</button>
+    <button class="proto-btn" id="stBookFix">Book &#183; fix hint</button>
+    <button class="proto-btn" id="stAskClient">Ask &#183; this client</button>
+    <button class="proto-btn" id="stAskPractice">Ask &#183; whole practice</button>
+  </span>
+</div>
+
+<div class="proto-stage">
+<div class="app-frame">
+
+  <!-- Top banner -->
+  <div class="app-banner">
+    <span class="app-banner__ws">
+      <span class="kp-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg></span>
+      Northcrest Advisors
+      <span class="caret kp-icon" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
+    </span>
+    <span class="app-banner__spacer"></span>
+    <span class="app-banner__controls">
+      <span class="kp-icon" title="Theme" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></span>
+      <span class="kp-icon" title="Settings" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg></span>
+      <span class="app-banner__kbd">&#8984; Ctrl+K</span>
+    </span>
+  </div>
+
+  <!-- TrustBar -->
+  <div class="app-trustbar">
+    <span class="app-trustbar__scope">
+      <span class="kp-icon" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10Z"/></svg></span>
+      <span id="trustScope">All clients</span>
+    </span>
+    <span class="app-trustbar__spacer"></span>
+    <span class="app-trustbar__icons">
+      <span class="kp-badge kp-badge--local kp-badge--sm" style="margin-right:4px;">
+        <span class="kp-icon" style="color:var(--kp-local)" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+        Using local AI
+      </span>
+      <span class="kp-icon" title="Where does my data go?" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span>
+      <span class="kp-icon" title="Data Map" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m9 3-6 3v15l6-3 6 3 6-3V3l-6 3-6-3ZM9 3v15M15 6v15"/></svg></span>
+      <span class="kp-icon" title="Privacy Center" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
+    </span>
+  </div>
+
+  <!-- Body -->
+  <div class="app-body">
+    <aside class="app-spine">
+      <div class="app-spine__logo">
+        <span class="app-spine__logo-mark" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5C17.5 10.5 18 9.3 18 8a6 6 0 0 0-12 0c0 1.3.5 2.5 1.5 3.5.8.8 1.3 1.5 1.5 2.5"/><path d="M9 18h6M10 22h4"/></svg></span>
+        <span class="app-spine__logo-text">Advisor Prep Hero</span>
+      </div>
+      <nav class="app-spine__nav">
+        <button class="spine-item is-active" id="spineMap">
+          <span class="kp-icon" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m9 3-6 3v15l6-3 6 3 6-3V3l-6 3-6-3ZM9 3v15M15 6v15"/></svg></span>
+          Client Map
+        </button>
+        <button class="spine-item" id="spineAsk">
+          <span class="kp-icon" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 1.9 4.1L18 9l-4.1 1.9L12 15l-1.9-4.1L6 9l4.1-1.9L12 3ZM5 16l.9 2L8 19l-2.1.9L5 22l-.9-2.1L2 19l2.1-1L5 16Z"/></svg></span>
+          Ask
+        </button>
+        <button class="spine-item">
+          <span class="kp-icon" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m3 7 3 3 5-5M3 17l3 3 5-5M14 7h7M14 17h7"/></svg></span>
+          Workflows
+        </button>
+      </nav>
+      <div class="app-spine__section">
+        <span class="app-spine__section-label">Clients</span>
+        <button class="app-spine__section-add" title="New client" aria-label="New client"><span class="kp-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span></button>
+      </div>
+      <div class="app-spine__clients">
+        <button class="spine-client"><div class="spine-client__title">The Hendersons &#183; Retirement plan</div><div class="spine-client__sub">The Henderson Household</div></button>
+        <button class="spine-client"><div class="spine-client__title">Ortiz Household &#183; Rollover &amp; income</div><div class="spine-client__sub">The Ortiz Household</div></button>
+        <button class="spine-client"><div class="spine-client__title">Chen Family &#183; Education &amp; estate</div><div class="spine-client__sub">The Chen Family</div></button>
+        <button class="spine-client"><div class="spine-client__title">Whitfield Trust &#183; Trust review</div><div class="spine-client__sub">The Whitfield Trust</div></button>
+      </div>
+      <div class="app-spine__footer">
+        <span class="app-spine__avatar">JD</span>
+        <span class="app-spine__acct"><span class="app-spine__acct-name">Your account</span><span class="app-spine__acct-sub">Solo account</span></span>
+        <button class="app-spine__collapse" title="Collapse sidebar" aria-label="Collapse sidebar"><span class="kp-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></span></button>
+      </div>
+    </aside>
+
+    <div class="app-mainwrap">
+      <main id="surface" class="app-surface">
+
+        <!-- ============================================================ -->
+        <!-- SURFACE 1 — Client Map home (Book view)                      -->
+        <!-- ============================================================ -->
+        <div id="surfaceBook">
+          <div class="surface-header">
+            <div class="surface-header__title-row">
+              <span class="kp-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m9 3-6 3v15l6-3 6 3 6-3V3l-6 3-6-3ZM9 3v15M15 6v15"/></svg></span>
+              <h1 class="surface-header__title">Clients</h1>
+            </div>
+            <p class="surface-header__desc" id="bookDesc">Every client, ranked by who needs attention.</p>
+          </div>
+
+          <div class="home-body">
+            <div class="home-actions">
+              <button class="kp-btn kp-btn--primary kp-btn--md">
+                <span class="kp-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span>
+                New client
+              </button>
+              <span class="home-actions__spacer"></span>
+              <span class="home-actions__toggle-label">View</span>
+              <div class="kp-segmented" role="tablist" aria-label="Client Map view">
+                <button class="kp-segmented__item" id="segClients" role="tab">Clients</button>
+                <button class="kp-segmented__item is-active" id="segBook" role="tab">Whole book</button>
+              </div>
+            </div>
+
+            <!-- Whole book ranked list -->
+            <div id="bookWhole">
+              <div class="book-head">
+                <span class="book-head__count">4 clients &#183; 2 need attention</span>
+                <span class="book-head__sub">Neediest first: how complete each Client Map is, and how long since you touched it.</span>
+              </div>
+
+              <div class="book-card">
+
+                <!-- Whitfield (neediest) -->
+                <div class="book-row" data-name="Whitfield Trust">
+                  <div class="book-row__main">
+                    <div class="book-row__name">Whitfield Trust</div>
+                    <div class="book-row__matter">The Whitfield Trust &#183; Trust review</div>
+                    <div class="meter">
+                      <span class="meter__track"><span class="meter__fill" style="width:25%"></span></span>
+                      <span class="meter__num">25</span>
+                      <span class="meter__cap">/ 100 complete</span>
+                    </div>
+                    <div class="gaps">
+                      <span class="gap">
+                        <span class="gap-chip"><span class="kp-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg></span>Trust document not on file</span>
+                        <button class="gap-fix">Fix this: ask for the document<span class="kp-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></button>
+                      </span>
+                      <span class="gap">
+                        <span class="gap-chip"><span class="kp-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg></span>No successor trustee found</span>
+                        <button class="gap-fix">Fix this: ask for the document<span class="kp-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></button>
+                      </span>
+                    </div>
+                  </div>
+                  <div class="book-row__side">
+                    <span class="kp-badge kp-badge--warning kp-badge--sm">Needs attention</span>
+                    <span class="side-line side-line--stale"><span class="kp-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg></span>No new documents since March</span>
+                    <span class="side-line"><span class="kp-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>Last meeting May 12</span>
+                  </div>
+                </div>
+
+                <!-- Chen -->
+                <div class="book-row" data-name="Chen Family" id="bookRowChen">
+                  <div class="book-row__main">
+                    <div class="book-row__name">Chen Family</div>
+                    <div class="book-row__matter">The Chen Family &#183; Education &amp; estate</div>
+                    <div class="meter">
+                      <span class="meter__track"><span class="meter__fill" style="width:48%"></span></span>
+                      <span class="meter__num">48</span>
+                      <span class="meter__cap">/ 100 complete</span>
+                    </div>
+                    <div class="gaps">
+                      <span class="gap">
+                        <span class="gap-chip"><span class="kp-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg></span>No beneficiary designations found</span>
+                        <button class="gap-fix">Fix this: ask for the document<span class="kp-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></button>
+                      </span>
+                      <span class="gap">
+                        <span class="gap-chip"><span class="kp-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg></span>529 plan statements missing</span>
+                        <button class="gap-fix">Fix this: ask for the document<span class="kp-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></button>
+                      </span>
+                    </div>
+                  </div>
+                  <div class="book-row__side">
+                    <span class="kp-badge kp-badge--warning kp-badge--sm">Needs attention</span>
+                    <span class="side-line side-line--stale"><span class="kp-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg></span>No new documents since April</span>
+                    <span class="side-line"><span class="kp-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>Last meeting Jun 8</span>
+                  </div>
+                </div>
+
+                <!-- Ortiz -->
+                <div class="book-row" data-name="Ortiz Household">
+                  <div class="book-row__main">
+                    <div class="book-row__name">Ortiz Household</div>
+                    <div class="book-row__matter">The Ortiz Household &#183; Rollover &amp; income</div>
+                    <div class="meter">
+                      <span class="meter__track"><span class="meter__fill" style="width:72%"></span></span>
+                      <span class="meter__num">72</span>
+                      <span class="meter__cap">/ 100 complete</span>
+                    </div>
+                    <div class="gaps">
+                      <span class="gap">
+                        <span class="gap-chip"><span class="kp-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg></span>Risk questionnaire missing</span>
+                        <button class="gap-fix">Fix this: ask for the document<span class="kp-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></button>
+                      </span>
+                    </div>
+                  </div>
+                  <div class="book-row__side">
+                    <span class="side-line"><span class="kp-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg></span>New statement added Jun 28</span>
+                    <span class="side-line"><span class="kp-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>Last meeting Jun 20</span>
+                  </div>
+                </div>
+
+                <!-- Hendersons (healthiest) -->
+                <div class="book-row" data-name="The Hendersons">
+                  <div class="book-row__main">
+                    <div class="book-row__name">The Hendersons</div>
+                    <div class="book-row__matter">The Henderson Household &#183; Retirement plan</div>
+                    <div class="meter">
+                      <span class="meter__track"><span class="meter__fill" style="width:91%"></span></span>
+                      <span class="meter__num">91</span>
+                      <span class="meter__cap">/ 100 complete</span>
+                    </div>
+                    <div class="gaps">
+                      <span class="gaps--clear"><span class="kp-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>All key facts on file</span>
+                    </div>
+                  </div>
+                  <div class="book-row__side">
+                    <span class="side-line"><span class="kp-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg></span>New documents this week</span>
+                    <span class="side-line"><span class="kp-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>Last meeting Jun 30</span>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            <!-- The familiar "Clients" table (existing home) -->
+            <div id="bookClients" hidden>
+              <div class="clients-card">
+                <div class="clients-head">
+                  <span class="clients-head__cell">Client</span>
+                  <span class="clients-head__cell">Documents</span>
+                  <span class="clients-head__cell">Created</span>
+                </div>
+                <div class="client-row">
+                  <div>
+                    <div class="client-row__title">The Hendersons &#183; Retirement plan <span class="kp-badge kp-badge--sample kp-badge--sm">Sample</span></div>
+                    <div class="client-row__sub">The Henderson Household</div>
+                    <div class="client-row__acts">
+                      <button class="kp-btn kp-btn--secondary kp-btn--sm">Ask</button>
+                      <button class="kp-btn kp-btn--secondary kp-btn--sm">Documents</button>
+                      <button class="kp-btn kp-btn--secondary kp-btn--sm">Email</button>
+                    </div>
+                  </div>
+                  <div class="client-cell"><span class="kp-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg></span>3 folders</div>
+                  <div class="client-cell" style="padding-top:2px;">Jul 2, 2026</div>
+                </div>
+                <div class="client-row">
+                  <div>
+                    <div class="client-row__title">Ortiz Household &#183; Rollover &amp; income <span class="kp-badge kp-badge--sample kp-badge--sm">Sample</span></div>
+                    <div class="client-row__sub">The Ortiz Household</div>
+                    <div class="client-row__acts">
+                      <button class="kp-btn kp-btn--secondary kp-btn--sm">Ask</button>
+                      <button class="kp-btn kp-btn--secondary kp-btn--sm">Documents</button>
+                      <button class="kp-btn kp-btn--secondary kp-btn--sm">Email</button>
+                    </div>
+                  </div>
+                  <div class="client-cell"><span class="kp-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg></span>1 folder</div>
+                  <div class="client-cell" style="padding-top:2px;">Jul 2, 2026</div>
+                </div>
+                <div class="client-row">
+                  <div>
+                    <div class="client-row__title">Chen Family &#183; Education &amp; estate</div>
+                    <div class="client-row__sub">The Chen Family</div>
+                    <div class="client-row__acts">
+                      <button class="kp-btn kp-btn--secondary kp-btn--sm">Ask</button>
+                      <button class="kp-btn kp-btn--secondary kp-btn--sm">Documents</button>
+                      <button class="kp-btn kp-btn--secondary kp-btn--sm">Email</button>
+                    </div>
+                  </div>
+                  <div class="client-cell"><span class="kp-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg></span>2 folders</div>
+                  <div class="client-cell" style="padding-top:2px;">Jul 2, 2026</div>
+                </div>
+                <div class="client-row">
+                  <div>
+                    <div class="client-row__title">Whitfield Trust &#183; Trust review</div>
+                    <div class="client-row__sub">The Whitfield Trust</div>
+                    <div class="client-row__acts">
+                      <button class="kp-btn kp-btn--secondary kp-btn--sm">Ask</button>
+                      <button class="kp-btn kp-btn--secondary kp-btn--sm">Documents</button>
+                      <button class="kp-btn kp-btn--secondary kp-btn--sm">Email</button>
+                    </div>
+                  </div>
+                  <div class="client-cell"><span class="kp-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg></span>No folders</div>
+                  <div class="client-cell" style="padding-top:2px;">Jul 2, 2026</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- SURFACE 2 — Ask (whole-practice)                             -->
+        <!-- ============================================================ -->
+        <div id="surfaceAsk" class="ask-surface" hidden>
+          <div class="ask-header">
+            <div class="ask-header__main">
+              <div class="ask-header__title-row">
+                <span class="kp-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 1.9 4.1L18 9l-4.1 1.9L12 15l-1.9-4.1L6 9l4.1-1.9L12 3ZM5 16l.9 2L8 19l-2.1.9L5 22l-.9-2.1L2 19l2.1-1L5 16Z"/></svg></span>
+                <h1 class="ask-header__title">Ask</h1>
+              </div>
+              <p class="ask-header__desc">Your private practice assistant. Answers from your files are cited; general help is clearly marked.</p>
+            </div>
+            <span class="ask-localai"><span class="kp-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9zM9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg></span>Using local AI</span>
+          </div>
+
+          <div class="ask-cols">
+            <!-- Left: conversations -->
+            <div class="ask-convos">
+              <button class="ask-newq"><span class="kp-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span>New question</button>
+              <span class="ask-convos__label">Recent</span>
+              <div class="convo-item is-active">
+                <div class="convo-item__q" id="convoQ">What did the Hendersons want to revisit before the next review?</div>
+                <div class="convo-item__meta" id="convoMeta">The Hendersons &#183; just now</div>
+              </div>
+            </div>
+
+            <!-- Center: answer -->
+            <div class="ask-main">
+              <div class="scopepill-row">
+                <button class="scopepill" id="scopePill">
+                  <span class="kp-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10Z"/></svg></span>
+                  <span class="scopepill__pre">Asking</span>
+                  <span class="scopepill__val" id="scopePillVal">the Hendersons &#183; 214 files &#183; 891 emails &#183; 6 meetings</span>
+                  <span class="scopepill__caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
+                </button>
+                <span class="scopepill-hint">Click to change what the AI can see</span>
+              </div>
+
+              <!-- Honest sub-line (whole practice only) -->
+              <div class="scope-note" id="scopeNote" hidden>
+                <span class="kp-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
+                <span><b>Answers come from each client's Client Map summary.</b> Full documents stay client-scoped.</span>
+              </div>
+
+              <!-- STATE (c): this-client cited answer -->
+              <div id="askClientTurn" class="ask-turn">
+                <div class="ask-q">What did the Hendersons want to revisit before the next review?</div>
+                <div class="ask-a">
+                  <span class="ask-a__mark"><span class="kp-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 1.9 4.1L18 9l-4.1 1.9L12 15l-1.9-4.1L6 9l4.1-1.9L12 3Z"/></svg></span></span>
+                  <div class="ask-a__body">
+                    They asked to revisit two things. First, shifting more of the portfolio toward income now that Robert plans to retire in the spring<span class="cite-ref">1</span>. Second, whether their long-term care coverage is still enough after last year's premium increase<span class="cite-ref">2</span>. Margaret also mentioned adding their newest grandchild to the existing 529 plan before year end<span class="cite-ref">3</span>.
+                  </div>
+                </div>
+              </div>
+
+              <!-- STATE (d): whole-practice client chips -->
+              <div id="askPracticeTurn" class="ask-turn" hidden>
+                <div class="ask-q">Which clients mention 529 plans?</div>
+                <div class="ask-a">
+                  <span class="ask-a__mark"><span class="kp-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 1.9 4.1L18 9l-4.1 1.9L12 15l-1.9-4.1L6 9l4.1-1.9L12 3Z"/></svg></span></span>
+                  <div class="ask-a__body">
+                    Two clients mention 529 plans. The Hendersons want to add a grandchild to their existing plan, and the Chen family is funding two 529 accounts for their grandchildren.
+                  </div>
+                </div>
+
+                <div class="pmatches">
+                  <span class="kp-eyebrow pmatches__heading">Matching clients</span>
+
+                  <div class="pmatch">
+                    <button class="pchip is-open" data-match="hendersons">
+                      <span class="kp-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg></span>
+                      The Hendersons
+                      <span class="pchip__caret"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
+                    </button>
+                    <div class="pcite" data-cite="hendersons">
+                      <span class="kp-eyebrow pcite__eyebrow">From their Client Map summary</span>
+                      <div class="pcite__quote">&ldquo;Margaret asked to add their newest grandchild to the existing 529 plan before year end.&rdquo;</div>
+                      <div class="pcite__src"><span class="kp-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>Goals &#183; noted from the Jun 30 meeting</div>
+                      <button class="pcite__open">Open their Client Map<span class="kp-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></button>
+                    </div>
+                  </div>
+
+                  <div class="pmatch">
+                    <button class="pchip" data-match="chen">
+                      <span class="kp-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg></span>
+                      Chen Family
+                      <span class="pchip__caret"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>
+                    </button>
+                    <div class="pcite" data-cite="chen" hidden>
+                      <span class="kp-eyebrow pcite__eyebrow">From their Client Map summary</span>
+                      <div class="pcite__quote">&ldquo;Funding two 529 college accounts for the grandchildren is a stated priority; current balance about $80,000.&rdquo;</div>
+                      <div class="pcite__src"><span class="kp-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg></span>Goals &#183; noted from planning notes, Apr 12</div>
+                      <button class="pcite__open">Open their Client Map<span class="kp-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: sources -->
+            <div class="ask-sources">
+              <span class="ask-sources__head"><span class="kp-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span><span class="kp-eyebrow" id="sourcesLabel">Sources &#183; from your files only</span></span>
+
+              <!-- this-client sources -->
+              <div id="sourcesClient">
+                <div class="src">
+                  <span class="src__idx">1</span>
+                  <div class="src__body">
+                    <span class="src__kind"><span class="kp-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>Meeting &#183; Jun 30</span>
+                    <div class="src__title">Retirement plan review</div>
+                    <div class="src__snip">&ldquo;I'd like us to be more conservative once I stop working in April.&rdquo;</div>
+                  </div>
+                </div>
+                <div class="src">
+                  <span class="src__idx">2</span>
+                  <div class="src__body">
+                    <span class="src__kind"><span class="kp-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg></span>Email &#183; Jun 18</span>
+                    <div class="src__title">Re: LTC premium increase</div>
+                    <div class="src__snip">&ldquo;The new premium is a stretch. Can we look at whether it's still worth it?&rdquo;</div>
+                  </div>
+                </div>
+                <div class="src">
+                  <span class="src__idx">3</span>
+                  <div class="src__body">
+                    <span class="src__kind"><span class="kp-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg></span>Statement &#183; May 2026</span>
+                    <div class="src__title">Vanguard 529 Plan &#183; account summary</div>
+                    <div class="src__snip">Beneficiary: one grandchild listed. Room to add another.</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- whole-practice: summaries-only note -->
+              <div id="sourcesPractice" hidden>
+                <div class="src-note">
+                  <span class="kp-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:8px;"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
+                  <div>Across-practice answers read only each client's saved Client Map summary. Full documents and emails were not searched across clients, so every client's files stay isolated.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Composer -->
+          <div class="ask-composer">
+            <div class="ask-scoperow">
+              <button class="kp-chip kp-chip--md is-active" data-scope="this-matter">This client</button>
+              <button class="kp-chip kp-chip--md" data-scope="all-matters">All clients</button>
+              <button class="kp-chip kp-chip--md" data-scope="email">Email</button>
+              <button class="kp-chip kp-chip--md" data-scope="documents">Documents</button>
+              <button class="kp-chip kp-chip--md" data-scope="whole-practice">Whole practice</button>
+              <span class="ask-filesmode"><span class="switch"></span>Files-only mode</span>
+            </div>
+            <div class="ask-inputrow">
+              <div class="ask-input">
+                <span class="kp-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 1.9 4.1L18 9l-4.1 1.9L12 15l-1.9-4.1L6 9l4.1-1.9L12 3Z"/></svg></span>
+                <span id="askPlaceholder">Ask the Hendersons anything&hellip;</span>
+              </div>
+              <button class="ask-askbtn"><span class="kp-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>Ask</button>
+            </div>
+          </div>
+        </div>
+
+      </main>
+      <div class="app-statusbar">
+        <span class="app-statusbar__spacer"></span>
+        <span class="app-statusbar__trial">Free trial, 30 days left</span>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ===== Notes for Jameson ===== -->
+<div class="proto-notes">
+  <p class="proto-notes__title">Notes for Jameson</p>
+  <ol>
+    <li><b>Book view is a lens, not a new place.</b> It is a second view of the Clients home you already have (the same &ldquo;Clients / Whole book&rdquo; toggle you use elsewhere), reading the completeness the app already tracks per client. No new tab, no dashboard, no charts. Try the toggle: &ldquo;Clients&rdquo; is your familiar list, &ldquo;Whole book&rdquo; just re-sorts it by who needs you most.</li>
+    <li><b>Whole-practice answers never break client isolation.</b> When you ask across the whole book, the app reads only each client's short saved summary, never their raw documents. That promise is written right into the answer (&ldquo;summaries only&rdquo;), and the results are plain client chips with the exact cited line, never a spreadsheet of everyone's files.</li>
+    <li><b>The scope pill means you always know what the AI can see.</b> One pill, always visible, spelling out the current scope and its size (&ldquo;the Hendersons &#183; 214 files &#183; 891 emails &#183; 6 meetings&rdquo;). One click switches it, and switching to &ldquo;Whole practice&rdquo; changes both what is searched and how the answer is shown.</li>
+  </ol>
+</div>
+
+<script>
+  var $ = function(id){ return document.getElementById(id); };
+  var buttons = {
+    bookList: $('stBookList'), bookFix: $('stBookFix'),
+    askClient: $('stAskClient'), askPractice: $('stAskPractice')
+  };
+  var surfaceBook = $('surfaceBook'), surfaceAsk = $('surfaceAsk');
+  var spineMap = $('spineMap'), spineAsk = $('spineAsk');
+  var trustScope = $('trustScope');
+
+  // ---- Book: view toggle (Clients / Whole book) ----
+  var segClients = $('segClients'), segBook = $('segBook');
+  var bookWhole = $('bookWhole'), bookClients = $('bookClients'), bookDesc = $('bookDesc');
+  function setBookView(view){
+    var whole = view === 'book';
+    segBook.classList.toggle('is-active', whole);
+    segClients.classList.toggle('is-active', !whole);
+    bookWhole.hidden = !whole;
+    bookClients.hidden = whole;
+    bookDesc.textContent = whole
+      ? 'Every client, ranked by who needs attention.'
+      : '4 clients, 2 folders indexed. Click a row to focus AI on that client.';
+  }
+  segClients.addEventListener('click', function(){ setBookView('clients'); });
+  segBook.addEventListener('click', function(){ setBookView('book'); });
+
+  // ---- Ask: scope + answer swap ----
+  var scopePillVal = $('scopePillVal'), scopeNote = $('scopeNote');
+  var askClientTurn = $('askClientTurn'), askPracticeTurn = $('askPracticeTurn');
+  var sourcesClient = $('sourcesClient'), sourcesPractice = $('sourcesPractice');
+  var sourcesLabel = $('sourcesLabel'), askPlaceholder = $('askPlaceholder');
+  var convoQ = $('convoQ'), convoMeta = $('convoMeta');
+  var scopeChips = document.querySelectorAll('.ask-scoperow [data-scope]');
+
+  function setAskScope(practice){
+    if (practice){
+      scopePillVal.innerHTML = 'Whole practice (summaries only)';
+      scopeNote.hidden = false;
+      askClientTurn.hidden = true; askPracticeTurn.hidden = false;
+      sourcesClient.hidden = true; sourcesPractice.hidden = false;
+      sourcesLabel.textContent = 'Sources · summaries only';
+      askPlaceholder.textContent = 'Ask across your whole book…';
+      convoQ.textContent = 'Which clients mention 529 plans?';
+      convoMeta.innerHTML = 'Whole practice · just now';
+      trustScope.textContent = 'All clients';
+    } else {
+      scopePillVal.innerHTML = 'the Hendersons &middot; 214 files &middot; 891 emails &middot; 6 meetings';
+      scopeNote.hidden = true;
+      askClientTurn.hidden = false; askPracticeTurn.hidden = true;
+      sourcesClient.hidden = false; sourcesPractice.hidden = true;
+      sourcesLabel.textContent = 'Sources · from your files only';
+      askPlaceholder.textContent = 'Ask the Hendersons anything…';
+      convoQ.textContent = 'What did the Hendersons want to revisit before the next review?';
+      convoMeta.innerHTML = 'The Hendersons · just now';
+      trustScope.textContent = 'The Hendersons · Retirement plan';
+    }
+    scopeChips.forEach(function(c){
+      var target = practice ? 'whole-practice' : 'this-matter';
+      c.classList.toggle('is-active', c.dataset.scope === target);
+    });
+  }
+  // clicking the permanent pill toggles to whole practice (and back)
+  $('scopePill').addEventListener('click', function(){
+    setAskScope(askClientTurn.hidden === false);
+  });
+  scopeChips.forEach(function(c){
+    c.addEventListener('click', function(){ setAskScope(c.dataset.scope === 'whole-practice'); });
+  });
+
+  // client-chip expand/collapse in whole-practice results
+  document.querySelectorAll('.pchip').forEach(function(chip){
+    chip.addEventListener('click', function(){
+      var cite = document.querySelector('.pcite[data-cite="' + chip.dataset.match + '"]');
+      var open = chip.classList.toggle('is-open');
+      if (cite) cite.hidden = !open;
+    });
+  });
+
+  // ---- Top-level state machine ----
+  function setState(name){
+    Object.keys(buttons).forEach(function(k){ buttons[k].classList.remove('is-active'); });
+    $('bookRowChen').classList.remove('show-fix');
+
+    var isAsk = name === 'askClient' || name === 'askPractice';
+    surfaceBook.hidden = isAsk;
+    surfaceAsk.hidden = !isAsk;
+    spineMap.classList.toggle('is-active', !isAsk);
+    spineAsk.classList.toggle('is-active', isAsk);
+
+    if (name === 'bookList'){
+      buttons.bookList.classList.add('is-active');
+      setBookView('book');
+      trustScope.textContent = 'All clients';
+    } else if (name === 'bookFix'){
+      buttons.bookFix.classList.add('is-active');
+      setBookView('book');
+      $('bookRowChen').classList.add('show-fix');
+      trustScope.textContent = 'All clients';
+    } else if (name === 'askClient'){
+      buttons.askClient.classList.add('is-active');
+      setAskScope(false);
+    } else {
+      buttons.askPractice.classList.add('is-active');
+      setAskScope(true);
+    }
+  }
+  buttons.bookList.addEventListener('click', function(){ setState('bookList'); });
+  buttons.bookFix.addEventListener('click', function(){ setState('bookFix'); });
+  buttons.askClient.addEventListener('click', function(){ setState('askClient'); });
+  buttons.askPractice.addEventListener('click', function(){ setState('askPractice'); });
+
+  setState('bookList');
+</script>
+</body>
+</html>

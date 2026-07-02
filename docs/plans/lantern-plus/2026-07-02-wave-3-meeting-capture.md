@@ -4,7 +4,7 @@
 
 **Goal:** Record client meetings on the advisor's own machine (mic + system-audio loopback, never a meeting bot), transcribe them fully locally with the bundled STT sidecar, and land each meeting as a cited, templated Word note plus transcript on the client's Client Map — with consent tracking, retention controls, and Ask integration.
 
-**Architecture:** A new Rust `capture` command module records two synchronized channels (microphone + OS loopback) as crash-durable WAV chunks flushed to disk, finalized into a per-meeting folder inside the client's workspace. A new long-form transcription queue slices audio into ≤25 s windows and feeds the existing per-request Parakeet/whisper sidecar (which has a hard 30 s cap — see `src-tauri/src/commands/voice.rs:38`), merging results into `transcript.json` with channel-based speaker attribution (mic = "You", loopback = "Them"). The frontend adds a `src/features/meetings/` surface: a floating record pill, a consent dialog, a meeting timeline entry on the Client Map, and a transcript viewer that seeks the audio. Notes are generated through the existing Workflows template engine into a real `.docx`. Transcripts index into RAG via the existing connector indexing path (`source_type: "transcript"` is already allowlisted at `src-tauri/src/commands/rag/store.rs:189`).
+**Architecture:** A new Rust `capture` command module records two synchronized channels (microphone + OS loopback) as crash-durable WAV chunks flushed to disk, finalized into a per-meeting folder inside the client's workspace. A new long-form transcription queue slices audio into ≤25 s windows and feeds the existing per-request Parakeet/whisper sidecar (which has a hard 30 s cap — see `src-tauri/src/commands/voice.rs:38`), merging results into `transcript.json` with channel-based speaker attribution (mic = "You", loopback = "Them"). The frontend adds a `src/features/meetings/` surface: a floating record pill, a consent dialog, a per-client Meetings tab in the client surface tab row (plus an Activity timeline entry) opening the meeting page, and a transcript viewer that seeks the audio. Notes are generated through the existing Workflows template engine into a real `.docx`. Transcripts index into RAG via the existing connector indexing path (`source_type: "transcript"` is already allowlisted at `src-tauri/src/commands/rag/store.rs:189`).
 
 **Tech Stack:** Rust (Tauri 2 command module; new crate deps: `cpal` for audio capture, `keepawake` for sleep prevention), Swift sidecar for macOS system audio (ScreenCaptureKit, PCM over stdout — same sidecar pattern as `src-tauri/src/sidecars/`), React 18 + TS strict + Zustand frontend, existing `lantern-docx` Word engine, existing LanceDB RAG, existing SQLCipher audit store.
 
@@ -1925,7 +1925,7 @@ git commit -m "feat(meetings): audio import path + batch transcribe mode (Wave 3
 
 ## Phase 3c — Notes, timeline entry, viewer
 
-Phase deliverable: stopping (or importing) a meeting produces `notes.docx` from a template, the meeting appears on the client's Client Map, and clicking it opens notes + transcript with audio seek.
+Phase deliverable: stopping (or importing) a meeting produces `notes.docx` from a template, the meeting appears on the client's new **Meetings tab** (and as an Activity timeline entry), and clicking it opens notes + transcript with audio seek.
 
 ### Task 10: Meeting note template (Workflows engine) with timestamp citations
 
@@ -2090,24 +2090,35 @@ git add src/features/meetings/meetingSources.ts tests/unit/meeting-sources.test.
 git commit -m "feat(meetings): meeting SourceRef format + locator for Client Map (Wave 3c)"
 ```
 
-### Task 12: Record pill, meeting store, timeline entry, transcript viewer
+### Task 12: Record pill, meeting store, per-client Meetings tab, transcript viewer
 
-This is the largest UI task; it composes existing pieces (AudioPlayer, docx editor tab, Client Map) and the commands from 3a/3b.
+> **2026-07-02 Jameson: meetings live on a per-client Meetings tab.** The meeting's
+> primary home is a new **Meetings** sub-tab in the client surface's tab row
+> (Client Map · Documents · Email · **Meetings** · Activity), NOT a fourth global nav
+> tab and NOT a segmented toggle on the Clients home. Each finished meeting ALSO
+> appears as an entry on that client's Activity timeline (reachable both ways).
+> Acceptance prototype: `docs/design/lantern-plus-prototypes/p6-client-meetings-tab.html`.
+
+This is the largest UI task; it composes existing pieces (AudioPlayer, docx editor tab, the client surface tab row) and the commands from 3a/3b.
 
 **Files:**
 - Create: `src/features/meetings/meetingStore.ts` (Zustand: `useMeetingStore`)
 - Create: `src/features/meetings/RecordPill.tsx`
-- Create: `src/features/meetings/MeetingEntry.tsx` (timeline card on the client's Map)
+- Create: `src/features/meetings/ClientMeetingsTab.tsx` (the per-client Meetings sub-tab: a chronological list of THIS client's meetings, grouped by recency, each row → the meeting page; opens `MeetingEntry`)
+- Create: `src/features/meetings/MeetingEntry.tsx` (the meeting page: notes + transcript + scrubber; opened from the Meetings tab and from the Activity entry)
 - Create: `src/features/meetings/TranscriptViewer.tsx`
 - Create: `src/features/meetings/index.ts`
-- Modify: the Client Map surface component under `src/features/matters/clientMap/` to render `MeetingEntry` items (list meetings by scanning the matter folder's `Meetings/` via `WorkspaceService.list`)
+- Modify: `src/features/matters/MatterHub.tsx` — add a `meetings` entry to `HUB_TABS` **between `email` and `activity`** (label "Meetings", following the existing sub-tab component/pattern exactly), and render `ClientMeetingsTab` when that sub-tab is active (list meetings by scanning the matter folder's `Meetings/` via `WorkspaceService.list`)
+- Modify: `src/platform/matter/matterStore.ts` — add `'meetings'` to the `ClientMapHubTab` union so the sub-tab can be selected/routed like the others
+- Modify: the client's Activity timeline surface to ALSO render each meeting as a timeline entry (same open action), so the meeting is reachable from Activity as well as the Meetings tab
 - Modify: `src/app/shell/layout/MainPanel.tsx` — mount `RecordPill` (floats over all tabs) and register the meeting entry open action
 - Test: `tests/unit/meeting-store.test.ts`
 
 **Interfaces:**
 - Produces `useMeetingStore` with: `startRecording(matterId)` (opens the consent dialog → invokes `capture_start` with the matter's folder from the matter store), `stopRecording()` (invokes `capture_stop`, writes `<meetingDir>/meeting.json` `{ matterId, startedAt, consent }` via WorkspaceService — this is the file Task 8's `load_meta_for` reads — then invokes `transcribe_meeting` per the `meetings.transcribeMode` setting, then runs the Task 10 template to produce `notes.docx`, then Task 14's indexing), `status: CaptureStatus` (polled every 1 s while recording), `orphans: OrphanSession[]` (checked once on app launch via `capture_find_orphans`; surfaced as the "Found a recording — finish the notes?" card).
-- `RecordPill` renders: idle → nothing (a "Record meeting" button lives on the client header area of Client Map); recording → floating pill with elapsed time, the egress indicator dot (reuse the existing egress indicator component — find via `grep -rn "egress" src/ --include=*.tsx -l`), and a Stop button. **The pill is the whole recording UI** (UX brainstorm rule).
-- `MeetingEntry` shows date, duration, consent stamp ("Consent noted · one-party"), and opens a split view: `notes.docx` in the existing docx editor on the left (open via the same file-open action the file tree uses), `TranscriptViewer` right.
+- `RecordPill` renders: idle → nothing (a "Record meeting" button lives on the client's Meetings tab header); recording → floating pill with elapsed time, the egress indicator dot (reuse the existing egress indicator component — find via `grep -rn "egress" src/ --include=*.tsx -l`), and a Stop button. **The pill is the whole recording UI** (UX brainstorm rule).
+- `ClientMeetingsTab` renders THIS client's meetings as a chronological list (recency groups; row = title, date, duration, review/synced badges) and a "Record a meeting" affordance; a row opens `MeetingEntry`. It reads only the active matter's `Meetings/` folder — it is per-client, never a cross-client inbox.
+- `MeetingEntry` shows date, duration, consent stamp ("Consent noted · one-party"), a "Delete audio · keep transcript" retention action, and opens a split view: `notes.docx` in the existing docx editor on the left (open via the same file-open action the file tree uses), `TranscriptViewer` right. It opens both from the Meetings tab and from the matching Activity timeline entry.
 - `TranscriptViewer` renders segments (speaker label + text + `mmss` timestamp); clicking a segment seeks the existing `AudioPlayer` (`src/features/dictation/audio/AudioPlayer.tsx`) to `startMs`; it accepts an optional `initialSeekMs` (used when opened from a `meeting:` SourceRef via `parseMeetingRef`, Task 11). Citation tokens `[t:ms]` inside opened notes render as clickable chips that call the same seek (hook into the docx viewer's link-click handler the way existing citation chips work in Ask — mirror that mechanism).
 
 - [ ] **Step 1: Failing store test**
@@ -2190,20 +2201,22 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
 }));
 ```
 
-(`resolveMatterFolder` / `resolveWorkspaceRoot` are 5-line helpers reading the existing stores; write `meeting.json` via `WorkspaceService` right after `capture_stop` returns.) Then build the three components per the interface block, reusing: egress indicator component, `AudioPlayer`, the docx open action, and the Client Map card styles (copy the visual pattern of an existing timeline/source card in the clientMap UI folder).
+(`resolveMatterFolder` / `resolveWorkspaceRoot` are 5-line helpers reading the existing stores; write `meeting.json` via `WorkspaceService` right after `capture_stop` returns.) Then build the four components per the interface block, reusing: egress indicator component, `AudioPlayer`, the docx open action, and the Client Map card styles (copy the visual pattern of an existing timeline/source card in the clientMap UI folder).
+
+- [ ] **Step 3b: Add the per-client Meetings tab** (Jameson's 2026-07-02 placement decision). Add `'meetings'` to the `ClientMapHubTab` union in `src/platform/matter/matterStore.ts`, then add its entry to `HUB_TABS` in `src/features/matters/MatterHub.tsx` **between `email` and `activity`** — `{ id: 'meetings', label: 'Meetings', Icon: Mic }` — following the exact shape of the neighbouring tabs, and render `ClientMeetingsTab` (scoped to the active matter) when `subTab === 'meetings'`. Also emit each finished meeting as an Activity timeline entry so it is reachable both ways. Match `docs/design/lantern-plus-prototypes/p6-client-meetings-tab.html`. Do NOT add a fourth item to the left Spine nav — the Spine stays three tabs.
 
 - [ ] **Step 4: Run tests** — `npx vitest run tests/unit/meeting-store.test.ts` → PASS. Also run `npm run typecheck`.
 
 - [ ] **Step 5: Manual UI pass in the browser dev build** — `npm run dev`, use the FakeSource? No: browser has no capture commands — verify UI states with the store mocked via devtools instead; the REAL end-to-end check is Step 6.
 
-- [ ] **Step 6: Real end-to-end on the Legion**: record 2 minutes of a YouTube video playing + speak two sentences into the mic → stop → within the batch mode window, confirm: `transcript.json` has both "You" and "Them" segments; `notes.docx` opens in the app; the meeting card shows on the client's Map; clicking a transcript line plays audio from that moment. Capture a screenshot for the PR.
+- [ ] **Step 6: Real end-to-end on the Legion**: record 2 minutes of a YouTube video playing + speak two sentences into the mic → stop → within the batch mode window, confirm: `transcript.json` has both "You" and "Them" segments; `notes.docx` opens in the app; the meeting appears on the client's **Meetings tab** (and as an Activity timeline entry); clicking a transcript line plays audio from that moment. Capture a screenshot for the PR.
 Expected: all four confirmations true.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/features/meetings/ src/app/shell/layout/MainPanel.tsx src/features/matters/ tests/unit/meeting-store.test.ts
-git commit -m "feat(meetings): record pill, meeting store, timeline entry, transcript viewer (Wave 3c)"
+git add src/features/meetings/ src/app/shell/layout/MainPanel.tsx src/features/matters/ src/platform/matter/matterStore.ts tests/unit/meeting-store.test.ts
+git commit -m "feat(meetings): record pill, meeting store, per-client Meetings tab, transcript viewer (Wave 3c)"
 ```
 
 ---
@@ -2225,7 +2238,7 @@ git commit -m "feat(meetings): record pill, meeting store, timeline entry, trans
 - Produces:
   - `recordingConsentLaw.ts`: `const TWO_PARTY_STATES: ReadonlySet<string>` (exactly: CA, CT, DE, FL, IL, MD, MA, MI, MT, NV, NH, OR, PA, VT, WA — the standard all-party-consent list; include a comment that this is guidance, not legal advice, and a `disclaimer` string exported for the UI) and `consentModeFor(stateCode: string | null): 'one-party' | 'two-party'` (unknown/null → `'two-party'`, the safe default).
   - `consentLedger.ts`: per-matter JSON at `<matter folder>/Meetings/.consent-ledger.json` (via WorkspaceService): `{ entries: [{ mode, scope: 'standing' | 'per-meeting', confirmedAt, note, meetingDir? }] }`, API `recordConsent(matterId, entry)`, `standingConsent(matterId): ConsentEntry | null`. When standing consent exists, the dialog pre-fills and shows "standing consent on file (dated)".
-  - ConsentDialog copy (exact strings): title "Record this meeting?"; body line 1: "Recording stays on this computer. Nothing is uploaded."; two-party mode adds: "Your state requires everyone's consent. Suggested ask: \"I'd like to record this for my notes — is that alright with everyone?\""; checkbox: "I have the consent I need"; primary button: "Start recording" (disabled until checked); the `disclaimer` string renders in small text.
+  - ConsentDialog copy (exact strings): title "Record this meeting?"; body line 1: "Recording stays on this computer. Nothing is uploaded."; two-party mode adds: "Your state requires everyone's consent. Suggested ask: \"I'd like to record this for my notes. Is that alright with everyone?\""; checkbox: "I have the consent I need"; primary button: "Start recording" (disabled until checked); the `disclaimer` string renders in small text.
   - Every recording start appends an audit entry through the existing audit command surface (find the exact command with `grep -rn "audit" src-tauri/src/lib.rs` and its frontend caller with `grep -rn "audit" src/platform/audit/AuditService.ts`; action string: `"meeting_capture_started"`, detail: `{ matterId, consentMode, meetingDir }`) — the store already appends `"meeting_recorded"` on stop (Task 4).
 
 - [ ] **Step 1: Failing tests**
@@ -2474,6 +2487,6 @@ Isolate capture to the meeting app's process (`ActivateAudioInterfaceAsync` with
 
 ## Self-review (done at planning time)
 
-- **Spec coverage:** capture engine per-OS ✓ (T3/T4), crash durability ✓ (T1/T5/T6), 30 s cap bypassed via windowing ✓ (T7), Live/batch modes ✓ (T9 — deliberately scoped: "live" = transcribe at stop; true streaming explicitly out), two-channel speakers ✓ (T7), .docx notes + citations ✓ (T10), timeline entry / no fourth tab ✓ (T12), consent flow + ledger + state table ✓ (T13), retention + sweep ✓ (T15), RAG + audio-seek Ask ✓ (T11/T14), macOS permission onboarding ✓ (T6 evidence + T13 step 5), per-process loopback stretch ✓ (T17).
+- **Spec coverage:** capture engine per-OS ✓ (T3/T4), crash durability ✓ (T1/T5/T6), 30 s cap bypassed via windowing ✓ (T7), Live/batch modes ✓ (T9 — deliberately scoped: "live" = transcribe at stop; true streaming explicitly out), two-channel speakers ✓ (T7), .docx notes + citations ✓ (T10), per-client Meetings tab + Activity entry / no fourth Spine tab ✓ (T12, per Jameson 2026-07-02), consent flow + ledger + state table ✓ (T13), retention + sweep ✓ (T15), RAG + audio-seek Ask ✓ (T11/T14), macOS permission onboarding ✓ (T6 evidence + T13 step 5), per-process loopback stretch ✓ (T17).
 - **Known deliberate gaps (match the assessment's honesty notes):** no tray residency v1 (app must be open; recorded in LANTERN-PLUS risks), no VAD model (RMS gate v1; silero is a Wave 4 candidate), no live in-meeting note drafts, imported audio has no speaker split.
 - **Type consistency:** `transcript.json` schema identical in master plan / Task 2 Rust / Task 8 TS; command names `capture_start/stop/status`, `capture_find_orphans`, `capture_recover`, `transcribe_meeting`, `meeting_delete_audio`, `sweep_capture_caches` used consistently; citation token `[t:<startMs>]` consistent across T10/T12/T14.
