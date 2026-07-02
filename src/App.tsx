@@ -68,6 +68,7 @@ import type { TrashedItem } from '@/platform/history/TrashService';
 
 import type { AuditEntry } from '@/platform/types/audit';
 import { AuditService } from '@/platform/audit/AuditService';
+import { setEmailAuditEmitter } from '@/features/email/EmailViewer';
 import type { AuditIntegrityVerdict } from '@/platform/utils/tauri-commands';
 import {
   getOrCreateSampleMatter,
@@ -996,6 +997,17 @@ function App() {
     setMatterAuditEmitter(addAuditEntry);
     return () => {
       setMatterAuditEmitter(null);
+    };
+  }, [addAuditEntry]);
+
+  // EmailViewer's only parent (MainPanel.tsx) isn't wired with an onAuditLog
+  // prop, so it reaches the live Activity Log / confidentiality report the
+  // same way the matter store does above: App registers its main audit
+  // emitter, EmailViewer calls it directly for AI-draft egress + outbound send.
+  useEffect(() => {
+    setEmailAuditEmitter(addAuditEntry);
+    return () => {
+      setEmailAuditEmitter(null);
     };
   }, [addAuditEntry]);
 

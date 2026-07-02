@@ -15,8 +15,8 @@
  * So we DON'T change how each provider builds its request body. We only rewrite
  * the destination URL + headers right before the fetch: point at the assured
  * endpoint and swap the provider-native auth header (`x-api-key` / `Authorization`
- * / `?key=`) for the assured control headers. The proxy attaches the org's
- * MANAGED provider key server-side and forwards verbatim, streaming back.
+ * / `x-goog-api-key`) for the assured control headers. The proxy attaches the
+ * org's MANAGED provider key server-side and forwards verbatim, streaming back.
  *
  * BYOK-direct and Local-only are unchanged: a provider with no `AssuredRoute`
  * behaves exactly as before.
@@ -61,7 +61,8 @@ export function buildAssuredRequest(
     if (
       lower === 'x-api-key' || // Anthropic
       lower === 'authorization' || // OpenAI (we set our own below)
-      lower === 'anthropic-dangerous-direct-browser-access'
+      lower === 'anthropic-dangerous-direct-browser-access' ||
+      lower === 'x-goog-api-key' // Google
     ) {
       continue;
     }

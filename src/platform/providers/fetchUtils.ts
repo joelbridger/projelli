@@ -9,6 +9,20 @@ import { instrumentEgressFetch } from '@/platform/privacy/egressActivity';
 export type ProviderType = 'anthropic' | 'openai' | 'google';
 
 /**
+ * Strip any `key=<value>` query parameter from a string before it can reach a
+ * console/error/diagnostic surface. A provider request URL should never carry
+ * a raw API key after the x-goog-api-key header migration (Gemini used to put
+ * it in `?key=`), but callers that build a URL for a log line, a thrown
+ * error's message, or any other diagnostic string should run it through this
+ * first — a defensive backstop against the key leaking via browser history,
+ * proxy access logs, or an HTTP client that echoes the request URL into its
+ * own error message.
+ */
+export function redactUrl(text: string): string {
+  return text.replace(/([?&]key=)[^&\s"')]*/gi, '$1REDACTED');
+}
+
+/**
  * Get the appropriate base URL for a provider's API.
  * In development, routes through Vite proxy to bypass CORS.
  */
