@@ -269,6 +269,46 @@ describe('Perf (P2.2) — EmailWorkspace / MailRow render hygiene', () => {
     expect(resultsBox!.style.maxHeight).toBe('');
   });
 
+  // Codex review (P2.2, round 4, P1): `flex: 1` on an element does NOTHING
+  // unless its own PARENT is an actual flex container — the "Body" wrapper
+  // had `flex: 1` (to size itself within the page) but no `display: flex`
+  // of its own, so the results box's `flex: 1` (checked above) was silently
+  // ignored: the box grew to fit `rowVirtualizer.getTotalSize()` instead of
+  // being constrained to a scrollable height, the virtualizer's scroll
+  // container never scrolled, and a busy (>40-row) inbox went blank past
+  // the first virtual window. Neither of the tests above would have caught
+  // this — they mock `offsetHeight`/`offsetWidth` uniformly on every
+  // element, which bypasses real CSS layout entirely and can't detect a
+  // broken flex chain. This instead directly asserts the structural
+  // property that makes flex-based sizing actually take effect: every
+  // `flex`-bearing element in the chain from `email-body` down to the
+  // virtualizer's scroll container must ALSO be a flex container itself
+  // (or be a direct, immediate flex child with nothing non-flex in between).
+  it('the flex chain from the page body down to the scroll container is unbroken', async () => {
+    const items = makeItems(10);
+    setupMocks(items);
+
+    render(<EmailWorkspace />);
+    await waitForInitialLoad();
+
+    const body = screen.getByTestId('email-body');
+    expect(body.style.display).toBe('flex');
+    expect(body.style.flexDirection).toBe('column');
+
+    const resultsBox = screen.getByTestId('result-count').parentElement!;
+    // The results box must be a DIRECT child of `email-body` — if some
+    // future refactor wraps it in another element, that wrapper would also
+    // need `display: flex` or the chain breaks again.
+    expect(resultsBox.parentElement).toBe(body);
+    expect(resultsBox.style.display).toBe('flex');
+    expect(resultsBox.style.flexDirection).toBe('column');
+
+    const scrollContainer = screen.getByTestId('mail-list-scroll');
+    expect(scrollContainer.parentElement).toBe(resultsBox);
+    expect(scrollContainer.style.flex).toBe('1 1 0%');
+    expect(scrollContainer.style.overflowY).toBe('auto');
+  });
+
   // Codex review (P2.2, round 1): `scopedItems` used to call `getMatters()`
   // — a non-reactive Zustand SNAPSHOT getter — inside the memoized filter,
   // with `matters` absent from the dependency array. The pre-memo code got

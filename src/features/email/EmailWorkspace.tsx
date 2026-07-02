@@ -775,7 +775,15 @@ export function EmailWorkspace({
       )}
 
       {/* Body */}
-      <div style={{ flex: 1, minHeight: 0 }}>
+      {/* Codex review (P2.2, round 4, P1): this wrapper had `flex: 1` but no
+          `display: flex` of its OWN — flex properties only apply to children
+          of an actual flex container, so without this the results box's
+          `flex: 1` (see below) was a no-op: the box just grew to fit
+          `rowVirtualizer.getTotalSize()` instead of being constrained to the
+          remaining page height, so the virtualizer's scroll container never
+          actually scrolled and only the first virtual window of rows ever
+          rendered — a busy (>40-row) inbox went blank past that window. */}
+      <div data-testid="email-body" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
         {/* No accounts state */}
         {accountsLoaded && accounts.length === 0 && (
           <NoAccountsState onOpenSettings={onOpenSettings} />
@@ -982,6 +990,7 @@ export function EmailWorkspace({
                 </div>
                 <div
                   ref={scrollContainerRef}
+                  data-testid="mail-list-scroll"
                   style={{
                     flex: 1,
                     minHeight: 0,
