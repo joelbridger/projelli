@@ -46,9 +46,6 @@ const CI_QUARANTINE = [
   // scope). Each needs individual root-causing as a follow-up.
   '**/ai-assistant-tab.spec.ts',
   '**/api-keys-panel.spec.ts',
-  '**/doc-editing.spec.ts',
-  '**/doc-legacy.spec.ts',
-  '**/doc-viewers.spec.ts',
   '**/history-hidden-nonversioned.spec.ts',
   '**/image-attachment.spec.ts',
   '**/presentation-viewer.spec.ts',

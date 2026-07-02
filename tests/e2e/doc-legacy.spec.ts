@@ -26,7 +26,7 @@ import { fileURLToPath } from 'node:url';
 
 import { test, expect } from '@playwright/test';
 
-import { hardClick, waitForTestModeLoad } from './helpers/test-utils';
+import { hardClick, waitForTestModeLoad, switchToStandaloneEditorSurface } from './helpers/test-utils';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixturesDir = join(here, '..', 'fixtures');
@@ -48,6 +48,10 @@ async function openDocTab(
   page: import('@playwright/test').Page,
   args: { path: string; name: string; content: string }
 ) {
+  // MainPanel (and the .doc fallback it renders) only mounts on the
+  // standalone editor surface (sidebarActiveTab === 'files') — see
+  // helpers/test-utils.ts.
+  await switchToStandaloneEditorSurface(page);
   await page.evaluate((a) => {
     const fn = (window as unknown as { __openTestFile?: (p: string, n: string, c: string) => void })
       .__openTestFile;
