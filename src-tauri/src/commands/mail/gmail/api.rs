@@ -335,6 +335,61 @@ impl GmailClient {
         Ok(id)
     }
 
+    /// `POST /gmail/v1/users/me/drafts` — create a DRAFT (never sends).
+    ///
+    /// Builds an RFC822 message with an HTML body using lettre (mirroring
+    /// `send_message`), base64url-encodes it, and posts
+    /// `{ "message": { "raw": "<base64url>" } }` to the drafts.create endpoint.
+    ///
+    /// `in_reply_to`/`references` are the RFC822 threading headers of the
+    /// message being replied to (same semantics as `send_message`); pass None
+    /// for a fresh draft. Returns the Gmail DRAFT id (the outer `id` of the
+    /// draft resource, not the inner message id) — deleting/sending the draft
+    /// later addresses it by this id.
+    pub async fn create_draft(
+        &self,
+        from: &str,
+        to: &[String],
+        subject: &str,
+        body_html: &str,
+        in_reply_to: Option<&str>,
+        references: Option<&str>,
+    ) -> anyhow::Result<String> {
+        use base64::Engine;
+        use lettre::message::{Mailboxes, SinglePart};
+        use lettre::Message;
+        use std::str::FromStr;
+
+        let mut builder = Message::builder()
+            .from(from.parse().map_err(|e| anyhow::anyhow!("invalid From address {from:?}: {e}"))?)
+            .subject(subject);
+        for addr in to {
+            let mbs = Mailboxes::from_str(addr)
+                .map_err(|e| anyhow::anyhow!("invalid To address {addr:?}: {e}"))?;
+            for mb in mbs {
+                builder = builder.to(mb);
+            }
+        }
+        if let Some(irt) = in_reply_to {
+            builder = builder.in_reply_to(irt.to_string());
+        }
+        if let Some(refs) = references {
+            builder = builder.references(refs.to_string());
+        }
+        let email = builder
+            .singlepart(SinglePart::html(body_html.to_string()))
+            .map_err(|e| anyhow::anyhow!("build RFC822 draft: {e}"))?;
+
+        let encoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(email.formatted());
+        let payload = serde_json::json!({ "message": { "raw": encoded } });
+        let url = format!("{}/gmail/v1/users/me/drafts", self.base);
+        let resp = self.post_json(&url, &payload).await?;
+        resp.get("id")
+            .and_then(|v| v.as_str())
+            .map(String::from)
+            .ok_or_else(|| anyhow::anyhow!("Gmail drafts.create response missing `id`"))
+    }
+
     /// `GET /gmail/v1/users/me/messages/{id}/attachments/{att_id}` — returns the
     /// raw bytes (base64url-encoded `data` field in the response). On non-2xx logs
     /// locally and returns a status-only error.
@@ -584,5 +639,63 @@ mod tests {
         let labels = client.list_labels().await.expect("should succeed after retry");
         assert_eq!(labels.len(), 1);
         assert_eq!(labels[0].0, "INBOX");
+    }
+
+    // ── create_draft ──────────────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn create_draft_posts_to_drafts_endpoint_and_returns_draft_id() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        // drafts.create returns the draft resource: { id, message: {...} }.
+        // The DRAFT id (outer) is the provider draft id we must return —
+        // not the inner message id.
+        Mock::given(method("POST"))
+            .and(path("/gmail/v1/users/me/drafts"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "r-draft-9001",
+                "message": { "id": "m-777", "threadId": "t-1" }
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let client = GmailClient::new_with_base("AT".into(), server.uri());
+        let id = client
+            .create_draft(
+                "me@example.com",
+                &["alice@example.com".to_string()],
+                "Follow-up: Q2 review",
+                "<p>Hello Alice,</p>",
+                Some("<orig-msg-id@mail.example.com>"),
+                None,
+            )
+            .await
+            .expect("create_draft should succeed");
+        assert_eq!(id, "r-draft-9001");
+    }
+
+    #[tokio::test]
+    async fn create_draft_missing_id_is_an_error() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/gmail/v1/users/me/drafts"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "message": { "id": "m-777" }
+            })))
+            .mount(&server)
+            .await;
+
+        let client = GmailClient::new_with_base("AT".into(), server.uri());
+        let err = client
+            .create_draft("me@example.com", &["a@b.com".to_string()], "s", "<p>b</p>", None, None)
+            .await
+            .expect_err("missing draft id must be an error");
+        assert!(err.to_string().contains("missing `id`"), "got: {err}");
     }
 }
