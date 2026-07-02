@@ -74,10 +74,11 @@ export function RagProgressBanner({ status }: RagProgressBannerProps) {
         <div className="flex-1 min-w-0">
           <div className="font-medium text-foreground">
             {/* P1.1 (Task 2): honest message when this is a one-time schema
-                migration rebuild, vs a routine update of new/changed files. */}
-            {snap.migrating
-              ? `Upgrading search index: ${snap.processed} / ${snap.total} ${fileLabel} (${pct}%)`
-              : `Memory updating: ${snap.processed} / ${snap.total} ${fileLabel} (${pct}%)`}
+                migration rebuild, vs a routine update of new/changed files. Keep
+                the numbers as JSX children (not template-literal expressions) so
+                they don't trip @typescript-eslint/restrict-template-expressions. */}
+            {snap.migrating ? 'Upgrading search index: ' : 'Memory updating: '}
+            {snap.processed} / {snap.total} {fileLabel} ({pct}%)
           </div>
           {current && (
             <div className="truncate text-muted-foreground" title={snap.currentPath ?? ''}>

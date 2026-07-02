@@ -337,7 +337,9 @@ export async function ragReconcileWorkspace(matterId?: string): Promise<void> {
   if (!isTauri()) {
     throw new Error('RAG is only available in the desktop app.');
   }
-  return invoke<void>('rag_reconcile_workspace', { matterId });
+  // `await` (not `return invoke<void>`) so we don't use `void` as a generic type
+  // arg (@typescript-eslint/no-invalid-void-type); the unknown result is discarded.
+  await invoke('rag_reconcile_workspace', { matterId });
 }
 
 /** P1.1 (Task 3) — has this PDF already been indexed at its current version +
@@ -363,7 +365,7 @@ export async function ragManifestPdfFresh(
 export async function ragManifestForgetPdfs(): Promise<void> {
   if (!isTauri()) return;
   try {
-    await invoke<void>('rag_manifest_forget_pdfs');
+    await invoke('rag_manifest_forget_pdfs');
   } catch (err) {
     console.warn('ragManifestForgetPdfs failed (non-fatal):', err);
   }
@@ -380,7 +382,7 @@ export async function ragManifestRecordPdf(
 ): Promise<void> {
   if (!isTauri()) return;
   try {
-    await invoke<void>('rag_manifest_record_pdf', {
+    await invoke('rag_manifest_record_pdf', {
       path,
       pageCount,
       ocrEnabled,
