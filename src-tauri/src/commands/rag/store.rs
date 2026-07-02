@@ -355,6 +355,17 @@ pub fn normalize_source_path(path: &str) -> String {
     if path.starts_with("mail:") {
         path.to_string()
     } else {
+        // Fold backslashes to forward slashes so the native Windows form and the
+        // TS forward-slash form of one file collapse to a single source (used for
+        // chunk ids, path tokens, delete/retag predicates, encrypted `path_enc`).
+        //
+        // KNOWN PATHOLOGICAL EDGE (documented, not a regression): on Unix a
+        // backslash is a LEGAL filename character, so a file literally named
+        // `a\b.docx` folds to the same key as `a/b.docx`. Such a file is
+        // essentially never created in the Windows/macOS advisor workspaces this
+        // targets, and `chunk_id` has always normalized this way — so this only
+        // makes the path-token/delete predicate CONSISTENT with the long-standing
+        // chunk-id behaviour, it does not open a new class of collision.
         path.replace('\\', "/")
     }
 }
