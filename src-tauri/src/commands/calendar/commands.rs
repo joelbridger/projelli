@@ -1,0 +1,331 @@
+//! Calendar connector Tauri commands: connect (3 providers), status,
+//! disconnect. Sync commands are added by the engine task.
+
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::Arc;
+
+use serde::{Deserialize, Serialize};
+use tauri::{Manager, State};
+
+pub const CALENDAR_SYNC_PROGRESS_EVENT: &str = "calendar-sync-progress";
+
+const KEYCHAIN_REFRESH_KEY: &str = "refresh-token";
+const KEYCHAIN_ICS_URL_KEY: &str = "ics-url";
+
+pub struct CalendarState {
+    pub workspace: tokio::sync::Mutex<Option<PathBuf>>,
+    pub is_syncing: Arc<AtomicBool>,
+    pub cancel: Arc<AtomicBool>,
+    pub oauth_cancel: Arc<AtomicBool>,
+    pub last_report: tokio::sync::Mutex<Option<CalendarSyncReportDto>>,
+    pub progress_events: Arc<AtomicU32>,
+}
+
+pub fn manage_state(app: &tauri::App) {
+    app.manage(CalendarState {
+        workspace: tokio::sync::Mutex::new(None),
+        is_syncing: Arc::new(AtomicBool::new(false)),
+        cancel: Arc::new(AtomicBool::new(false)),
+        oauth_cancel: Arc::new(AtomicBool::new(false)),
+        last_report: tokio::sync::Mutex::new(None),
+        progress_events: Arc::new(AtomicU32::new(0)),
+    });
+}
+
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct CalendarSyncReportDto {
+    pub events_fetched: u32,
+    pub events_changed: u32,
+    pub events_indexed: u32,
+    pub records_indexed: u32,
+    pub cancelled: bool,
+}
+
+fn provider_service(provider: &str) -> Result<String, String> {
+    match provider {
+        "outlook" => Ok(crate::identity::calendar_keychain_service("ms")),
+        "google" => Ok(crate::identity::calendar_keychain_service("google")),
+        "ics" => Ok(crate::identity::calendar_keychain_service("ics")),
+        other => Err(format!("unknown calendar provider: {other}")),
+    }
+}
+
+fn secret_key_for(provider: &str) -> &'static str {
+    if provider == "ics" { KEYCHAIN_ICS_URL_KEY } else { KEYCHAIN_REFRESH_KEY }
+}
+
+fn ms_client_id() -> String {
+    // Same public app registration as the OneDrive connector
+    // (onedrive/commands.rs:55-59); calendar is a new delegated scope on it.
+    option_env!("KEEPANCE_MS_CLIENT_ID")
+        .unwrap_or("845ddba0-70ab-4f90-88ba-e3522157e37a")
+        .to_string()
+}
+
+#[tauri::command]
+pub async fn calendar_set_workspace(
+    state: State<'_, CalendarState>,
+    path: String,
+) -> Result<(), String> {
+    let mut ws = state.workspace.lock().await;
+    *ws = Some(PathBuf::from(path));
+    Ok(())
+}
+
+/// Microsoft loopback+PKCE sign-in with Calendars.Read. Mirrors
+/// `onedrive_connect` (onedrive/commands.rs:147-203) including the
+/// cancel-rollback semantics.
+#[tauri::command]
+pub async fn calendar_connect_outlook(state: State<'_, CalendarState>) -> Result<(), String> {
+    use crate::commands::mail::gmail::oauth::{
+        await_redirect_code_or_cancel, bind_loopback_host, gen_pkce, gen_state, open_browser,
+        store_or_rollback_on_cancel,
+    };
+    use super::oauth::{build_ms_auth_url, ms_exchange_code, MS_TOKEN_ENDPOINT};
+
+    state.oauth_cancel.store(false, Ordering::SeqCst);
+    let cancel = state.oauth_cancel.clone();
+
+    let (verifier, challenge) = gen_pkce();
+    let state_token = gen_state();
+    // "localhost" host is required for MS personal accounts (BUG-010,
+    // documented at mail/gmail/oauth.rs:270-282).
+    let (listener, redirect_uri) = bind_loopback_host("localhost")
+        .await
+        .map_err(|e| e.to_string())?;
+    let url = build_ms_auth_url(&ms_client_id(), &redirect_uri, &challenge, &state_token);
+    open_browser(&url);
+    let code = await_redirect_code_or_cancel(
+        listener,
+        &state_token,
+        std::time::Duration::from_secs(300),
+        cancel.clone(),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    let tokens = ms_exchange_code(&ms_client_id(), &code, &verifier, &redirect_uri, MS_TOKEN_ENDPOINT)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let entry = keyring::Entry::new(&provider_service("outlook")?, KEYCHAIN_REFRESH_KEY)
+        .map_err(|e| e.to_string())?;
+    let previous = entry.get_password().ok();
+    store_or_rollback_on_cancel(
+        &cancel,
+        || entry.set_password(&tokens.refresh).map_err(|e| e.to_string()),
+        || match &previous {
+            Some(prev) => { let _ = entry.set_password(prev); }
+            None => { let _ = entry.delete_credential(); }
+        },
+    )
+}
+
+#[tauri::command]
+pub async fn calendar_connect_outlook_cancel(
+    state: State<'_, CalendarState>,
+) -> Result<(), String> {
+    state.oauth_cancel.store(true, Ordering::SeqCst);
+    Ok(())
+}
+
+/// Google loopback+PKCE sign-in with calendar.readonly. Mirrors
+/// `gmail_connect` (mail/connect.rs) with the calendar auth URL.
+#[tauri::command]
+pub async fn calendar_connect_google() -> Result<(), String> {
+    use crate::commands::mail::gmail::oauth::{
+        await_redirect_code, bind_loopback, gen_pkce, gen_state, open_browser, GoogleOAuth,
+    };
+    use crate::commands::mail::{gmail_client_id, gmail_client_secret};
+    use super::oauth::build_google_auth_url;
+
+    let (verifier, challenge) = gen_pkce();
+    let state = gen_state();
+    let (listener, redirect_uri) = bind_loopback().await.map_err(|e| e.to_string())?;
+    let url = build_google_auth_url(&gmail_client_id(), &redirect_uri, &challenge, &state);
+    open_browser(&url);
+    let code = await_redirect_code(listener, &state, std::time::Duration::from_secs(300))
+        .await
+        .map_err(|e| e.to_string())?;
+    let oauth = GoogleOAuth::new(gmail_client_id(), gmail_client_secret());
+    let tokens = oauth
+        .exchange_code(&code, &verifier, &redirect_uri)
+        .await
+        .map_err(|e| e.to_string())?;
+    let refresh = tokens
+        .refresh
+        .ok_or("Google did not return a refresh token; try again")?;
+    keyring::Entry::new(&provider_service("google")?, KEYCHAIN_REFRESH_KEY)
+        .map_err(|e| e.to_string())?
+        .set_password(&refresh)
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// ICS fallback: validate the URL shape, fetch it once to prove it parses,
+/// then store the URL in the keychain (secret ICS URLs embed a token).
+#[tauri::command]
+pub async fn calendar_connect_ics(url: String) -> Result<(), String> {
+    let trimmed = url.trim().to_string();
+    if !(trimmed.starts_with("https://") || trimmed.starts_with("http://")) {
+        return Err("Enter the calendar's ICS address (starts with https://).".into());
+    }
+    let body = super::ics_source::fetch_ics_text(&trimmed)
+        .await
+        .map_err(|e| format!("Could not read that calendar address: {e}"))?;
+    if !body.contains("BEGIN:VCALENDAR") {
+        return Err("That address did not return a calendar (ICS) feed.".into());
+    }
+    keyring::Entry::new(&provider_service("ics")?, KEYCHAIN_ICS_URL_KEY)
+        .map_err(|e| e.to_string())?
+        .set_password(&trimmed)
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Careful is_connected: NoEntry = false, real keychain error = Err
+/// (the mail/mod.rs is_connected pattern, not OneDrive's is_ok()).
+#[tauri::command]
+pub async fn calendar_is_connected(provider: String) -> Result<bool, String> {
+    let entry = keyring::Entry::new(&provider_service(&provider)?, secret_key_for(&provider))
+        .map_err(|e| e.to_string())?;
+    match entry.get_password() {
+        Ok(_) => Ok(true),
+        Err(keyring::Error::NoEntry) => Ok(false),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+/// Disconnect ONE provider. When it was the last connected provider, purge
+/// the encrypted store, its RAG rows, and the DB master key (the
+/// calendly_disconnect ordering: purge RAG chunks -> purge db -> secrets).
+#[tauri::command]
+pub async fn calendar_disconnect(
+    state: State<'_, CalendarState>,
+    provider: String,
+) -> Result<(), String> {
+    let service = provider_service(&provider)?;
+    if state
+        .is_syncing
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return Err("A calendar sync is running. Stop it first.".into());
+    }
+    let result = calendar_disconnect_inner(&state, &provider, &service).await;
+    state.is_syncing.store(false, Ordering::SeqCst);
+    result
+}
+
+async fn calendar_disconnect_inner(
+    state: &State<'_, CalendarState>,
+    provider: &str,
+    service: &str,
+) -> Result<(), String> {
+    use super::store::CalendarStore;
+    let workspace = state.workspace.lock().await.clone();
+    // 1. Purge this provider's RAG rows + store rows (workspace may be unset
+    //    if disconnect happens before a workspace was opened; skip then).
+    if let Some(ws) = workspace.as_ref() {
+        if let Ok(store) = CalendarStore::open(ws) {
+            if let Ok(source_ids) = store.list_indexed_rag_source_ids() {
+                let prefix = format!("calendar:{provider}:");
+                if let Ok(key) = crate::commands::rag::crypto::get_or_create_master_key() {
+                    for sid in source_ids.iter().filter(|s| s.starts_with(&prefix)) {
+                        let _ = crate::commands::connector::delete_external_source_with_key_internal(
+                            ws, sid, &key,
+                        )
+                        .await;
+                    }
+                }
+            }
+        }
+    }
+    // 2. Forget the credential.
+    if let Ok(entry) = keyring::Entry::new(service, secret_key_for(provider)) {
+        let _ = entry.delete_credential();
+    }
+    // 3. If no provider remains connected, purge the whole store + master key.
+    let mut any_left = false;
+    for p in ["outlook", "google", "ics"] {
+        if p == provider {
+            continue;
+        }
+        if let Ok(e) = keyring::Entry::new(&provider_service(p)?, secret_key_for(p)) {
+            if e.get_password().is_ok() {
+                any_left = true;
+            }
+        }
+    }
+    if !any_left {
+        if let Some(ws) = workspace.as_ref() {
+            let _ = CalendarStore::purge(ws);
+        }
+        let _ = CalendarStore::delete_master_key();
+    }
+    Ok(())
+}
+
+/// Fresh MS access token from the stored refresh token (rotation-aware;
+/// the onedrive/commands.rs shape).
+pub(crate) async fn fresh_ms_access_token() -> Result<String, String> {
+    let entry = keyring::Entry::new(
+        &crate::identity::calendar_keychain_service("ms"),
+        KEYCHAIN_REFRESH_KEY,
+    )
+    .map_err(|e| e.to_string())?;
+    let rt = entry.get_password().map_err(|_| "not connected".to_string())?;
+    let auth = super::oauth::OAuth::new(ms_client_id());
+    match auth.refresh(&rt).await.map_err(|e| e.to_string())? {
+        super::oauth::TokenOutcome::Tokens { access, refresh, .. } => {
+            if let Some(new_rt) = refresh {
+                if let Err(e) = entry.set_password(&new_rt) {
+                    log::warn!("calendar MS refresh-token rotation not saved: {e}");
+                }
+            }
+            Ok(access)
+        }
+        super::oauth::TokenOutcome::Failed(e) if e == "invalid_grant" || e == "invalid_scope" => {
+            Err("scope_upgrade_required".to_string())
+        }
+        super::oauth::TokenOutcome::Failed(e) => Err(format!("refresh failed: {e}")),
+        _ => Err("unexpected refresh outcome".into()),
+    }
+}
+
+/// Fresh Google access token (the mail gmail refresh shape).
+pub(crate) async fn fresh_google_access_token() -> Result<String, String> {
+    use crate::commands::mail::{gmail_client_id, gmail_client_secret};
+    let entry = keyring::Entry::new(
+        &crate::identity::calendar_keychain_service("google"),
+        KEYCHAIN_REFRESH_KEY,
+    )
+    .map_err(|e| e.to_string())?;
+    let rt = entry.get_password().map_err(|_| "not connected".to_string())?;
+    let oauth = crate::commands::mail::gmail::oauth::GoogleOAuth::new(
+        gmail_client_id(),
+        gmail_client_secret(),
+    );
+    match oauth.refresh(&rt).await {
+        Ok(tokens) => Ok(tokens.access),
+        Err(e) => {
+            let msg = e.to_string();
+            if msg.contains("invalid_grant") || msg.contains("invalid_scope") {
+                Err("scope_upgrade_required".to_string())
+            } else {
+                Err(msg)
+            }
+        }
+    }
+}
+
+pub(crate) fn ics_url() -> Result<String, String> {
+    keyring::Entry::new(
+        &crate::identity::calendar_keychain_service("ics"),
+        KEYCHAIN_ICS_URL_KEY,
+    )
+    .map_err(|e| e.to_string())?
+    .get_password()
+    .map_err(|_| "not connected".to_string())
+}
