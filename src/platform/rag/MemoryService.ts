@@ -350,11 +350,12 @@ export const MemoryService = {
 
   /** Retrieve from the local RAG store.
    *
-   *  WS-B/C: `scope` is the confidentiality boundary. It defaults to an explicit
-   *  cross-matter (`allMatters`) search to preserve the pre-3.0 whole-workspace
-   *  behaviour until the matter-assignment UI lands and passes a real
-   *  `{ kind: 'matter', matterId }` scope here. There is no silent "everything"
-   *  path: the underlying command requires a named scope.
+   *  WS-B/C: `scope` is the confidentiality boundary and is REQUIRED (F2.6b — no
+   *  default). Every caller must state its scope: pass `{ kind: 'matter', matterId }`
+   *  for a per-client search, or `{ kind: 'allMatters' }` for a deliberate
+   *  cross-client one. There is no silent "everything" path — neither this method
+   *  nor the underlying command has a default, so a new caller can't leak across
+   *  clients by simply omitting the scope.
    *
    *  WS-PRIV: `includePrivileged` defaults to `false` — attorney-client and
    *  work-product content is EXCLUDED by default. Pass `true` only for a
@@ -374,7 +375,11 @@ export const MemoryService = {
   async retrieve(
     query: string,
     topK: number,
-    scope: RetrievalScope = { kind: 'allMatters' },
+    // F2.6b: `scope` is REQUIRED — no `allMatters` default. A silent default let a
+    // future caller search every client's memory by simply omitting it; now the
+    // compiler forces each caller to state its scope, and any deliberate
+    // cross-client search must pass `{ kind: 'allMatters' }` explicitly.
+    scope: RetrievalScope,
     includePrivileged = false,
     perSourceCap?: number,
     enableReranker = false,

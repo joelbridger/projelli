@@ -136,6 +136,8 @@ pub fn run() {
             commands::mail::mail_get_message,
             // Mail browse/search surface — metadata-only, never decrypts a blob.
             commands::mail::mail_list_messages,
+            // F2.6b — per-client mail browse, isolation enforced in the engine.
+            commands::mail::mail_list_messages_by_matter,
             // WS-B/C — re-tag a mail folder's messages to a matter in place.
             commands::mail::mail_retag_folder_matter,
             // Re-tag a single message's RAG chunks to a matter in place.

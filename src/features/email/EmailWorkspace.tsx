@@ -26,7 +26,7 @@
  * Light theme only. CSS variables + inline styles. No dark mode.
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Mail,
   Search,
@@ -37,12 +37,15 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { Button, SearchField, SegmentedToggle, FilterToggle, FilterPanel, SurfaceToolbar, Callout } from '@/ui/kp';
-import { useActiveMatter, getMatters } from '@/platform/matter/matterStore';
-import { resolveMailMatter } from '@/platform/rag/matterResolver';
+import { useActiveMatter, useMatters } from '@/platform/matter/matterStore';
+import { buildMailMatterMap, type MailMatterMapEntry } from '@/platform/rag/matterResolver';
 import { useMailStore } from './mailStore';
 import {
   mailListMessages,
+  mailListMessagesByMatter,
   type MailListItem,
+  type MailListPage,
+  type MailListQuery,
 } from '@/platform/utils/mail-commands';
 import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
 import type { RagHit, RetrievalScope } from '@/platform/utils/tauri-commands';
@@ -57,6 +60,11 @@ import { ComposeModal } from './ComposeModal';
 import { BulkActionBar } from './BulkActionBar';
 import { useAccountSync } from './useAccountSync';
 import { EV_OPEN_SETTINGS } from '@/config/identity';
+
+// Stable empty map for the non-embedded (global) surface, so `mailMatterMap`
+// keeps the same reference across `matters` changes and never retriggers the
+// global list fetch. (Embedded builds a real map from `matters`.)
+const EMPTY_MAIL_MATTER_MAP: MailMatterMapEntry[] = [];
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -84,12 +92,48 @@ export function EmailWorkspace({
 }: EmailWorkspaceProps) {
   const activeMatter = useActiveMatter();
 
-  // Per-client (embedded) browse fetches a deeper page so a client's mail is far
-  // more likely to surface in one shot; combined with the reachable "Load more"
-  // in the empty state below, this avoids a dead-end when the client's mail
-  // isn't among the newest rows. (A fully accurate server-side per-matter list
-  // is a backend follow-up — `mail_list_messages` has no matter filter.)
-  const PAGE_SIZE = embedded ? 200 : 50;
+  // One page size everywhere. Embedded (per-client) browse is now scoped in the
+  // BACKEND (F2.6b `mailListMessagesByMatter`), so a client's mail is paged
+  // directly — no need to over-fetch a deep page hoping the client's rows are
+  // among the newest, and no client-side filter-of-a-global-page.
+  const PAGE_SIZE = 50;
+
+  // Reactive folder→matter map (embedded only). Subscribing to `matters` means a
+  // folder remap re-renders this tab and re-runs the list effect, so the scoped
+  // view can't linger on a stale mapping.
+  const matters = useMatters();
+  const mailMatterMap = useMemo(
+    () => (embedded ? buildMailMatterMap(matters) : EMPTY_MAIL_MATTER_MAP),
+    [embedded, matters],
+  );
+
+  // A fingerprint of the EXACT scope the current rows were fetched under: the
+  // active client id + the full folder→matter map. Any change (client switch,
+  // folder remap) makes this differ from the scope the loaded rows belong to, so
+  // the render gate below drops them instantly. Non-embedded has no scope.
+  const scopeKey = embedded ? `${activeMatter?.id ?? ''}::${JSON.stringify(mailMatterMap)}` : 'global';
+  // The scope the rows currently in `items` were actually fetched under.
+  const [loadedScope, setLoadedScope] = useState('');
+
+  // In embedded mode the list is scoped to the active client in the engine; the
+  // global surface uses the unscoped list. Both share the query/sort/pagination
+  // logic below; only the backend call differs.
+  //
+  // FAIL CLOSED (isolation-critical): the embedded per-client tab must NEVER call
+  // the unscoped global list. If it mounts while `activeMatter` is momentarily
+  // null/stale, return an empty page rather than risk rendering another client's
+  // mail inside a client tab (the client-side filter that used to backstop this
+  // is intentionally gone — scoping is the backend's job now).
+  const runList = useCallback(
+    (listQuery: MailListQuery): Promise<MailListPage> => {
+      if (embedded) {
+        if (!activeMatter) return Promise.resolve({ items: [], total: 0 });
+        return mailListMessagesByMatter(activeMatter.id, mailMatterMap, listQuery);
+      }
+      return mailListMessages(listQuery);
+    },
+    [embedded, activeMatter, mailMatterMap],
+  );
 
   // First-connect TTV callout — shown once after the first account is connected.
   const { firstConnectCalloutSeen, dismissFirstConnectCallout } = useMailStore();
@@ -206,12 +250,13 @@ export function EmailWorkspace({
         }
         if (hasAttachments) listQuery.hasAttachments = true;
 
-        const result = await mailListMessages(listQuery);
+        const result = await runList(listQuery);
 
         if (latestQueryRef.current !== thisQuery) return;
 
         setItems(result.items);
         setTotal(result.total);
+        setLoadedScope(scopeKey);
       } catch (e: unknown) {
         if (latestQueryRef.current !== thisQuery) return;
         setError(mapMailError(e));
@@ -228,7 +273,7 @@ export function EmailWorkspace({
         clearTimeout(debounceRef.current);
       }
     };
-  }, [mode, accountsLoaded, accounts.length, query, providerFilter, dateFrom, dateTo, hasAttachments, retryCount, PAGE_SIZE]);
+  }, [mode, accountsLoaded, accounts.length, query, providerFilter, dateFrom, dateTo, hasAttachments, retryCount, PAGE_SIZE, runList, scopeKey]);
 
   // Effect B: fires immediately when offset > 0 (load-more), but only if the
   // fingerprint hasn't changed (i.e., purely a pagination action, not a filter change).
@@ -237,6 +282,9 @@ export function EmailWorkspace({
     if (mode !== 'keyword') return;
     if (!accountsLoaded) return;
     if (accounts.length === 0) return;
+    // Never append a page under a changed scope onto rows from the old scope
+    // (isolation): Effect A's scope-triggered refetch resets offset and reloads.
+    if (embedded && loadedScope !== scopeKey) return;
 
     // Check that fingerprint matches current filter state — if not, Effect A handles it
     const currentFingerprint = JSON.stringify({ query, providerFilter, dateFrom, dateTo, hasAttachments, mode });
@@ -262,12 +310,13 @@ export function EmailWorkspace({
         }
         if (hasAttachments) listQuery.hasAttachments = true;
 
-        const result = await mailListMessages(listQuery);
+        const result = await runList(listQuery);
 
         if (latestQueryRef.current !== thisQuery) return;
 
         setItems((prev) => [...prev, ...result.items]);
         setTotal(result.total);
+        setLoadedScope(scopeKey);
       } catch (e: unknown) {
         if (latestQueryRef.current !== thisQuery) return;
         setError(mapMailError(e));
@@ -289,6 +338,16 @@ export function EmailWorkspace({
       setAskError(null);
       return;
     }
+    // FAIL CLOSED (isolation): the embedded per-client tab must never run an
+    // all-clients retrieval. If it has no active client (momentary null / initial
+    // mount / mid-switch), show no hits rather than risk another client's mail
+    // surfacing here — mirrors the keyword `runList` guard above.
+    if (embedded && !activeMatter) {
+      setAskHits([]);
+      setAskLoading(false);
+      setAskError(null);
+      return;
+    }
     if (!query.trim()) {
       setAskHits([]);
       return;
@@ -303,9 +362,19 @@ export function EmailWorkspace({
     setAskLoading(true);
     setAskError(null);
 
-    const scope: RetrievalScope = activeMatter && !scopeAllEmail
-      ? { kind: 'matter', matterId: activeMatter.id }
-      : { kind: 'allMatters' };
+    // Embedded mode is ALWAYS scoped to the active client (the "All email" toggle
+    // is hidden here, so `scopeAllEmail` is ignored) — never allMatters. The
+    // global surface keeps the toggle: matter scope unless the user opts into all.
+    // (`embedded && !activeMatter` already returned above, so in the embedded
+    // branch `activeMatter` is non-null.)
+    let scope: RetrievalScope;
+    if (embedded && activeMatter) {
+      scope = { kind: 'matter', matterId: activeMatter.id };
+    } else if (activeMatter && !scopeAllEmail) {
+      scope = { kind: 'matter', matterId: activeMatter.id };
+    } else {
+      scope = { kind: 'allMatters' };
+    }
 
     MemoryService.retrieve(query, 10, scope, false)
       .then((hits) => {
@@ -340,7 +409,7 @@ export function EmailWorkspace({
       });
 
     return () => { cancelled = true; };
-  }, [mode, query, activeMatter, scopeAllEmail, hasConnectedMail]);
+  }, [mode, query, activeMatter, scopeAllEmail, hasConnectedMail, embedded]);
 
   // Reset offset + selection when filters change
 
@@ -405,16 +474,22 @@ export function EmailWorkspace({
   // Active filter count for badge
   const activeFilterCount = [providerFilter, dateFrom, dateTo, hasAttachments].filter(Boolean).length;
 
-  // Per-client (embedded) browse scoping: filter the keyword list to mail whose
-  // (provider, account, folder) maps to the active client's matter — the SAME
-  // folder→matter resolution the indexer uses (`resolveMailMatter`). The global
-  // browse list is untouched. Note: per-message filings (mail_retag_message_matter)
-  // are an override the list path can't surface frontend-only, so this scopes by
-  // folder mapping; a fully accurate server-side per-matter list is a backend
-  // follow-up. AI search (Ask mode) is already matter-scoped via RetrievalScope.
-  const scopedItems = embedded && activeMatter
-    ? items.filter((m) => resolveMailMatter(getMatters(), m.provider, m.account, m.folderId) === activeMatter.id)
-    : items;
+  // F2.6b: per-client scoping now happens in the BACKEND (`runList` above calls
+  // `mailListMessagesByMatter` in embedded mode), which combines each message's
+  // durable filing with the folder→matter mapping — so `items` is already exactly
+  // this client's mail (per-message filings included, other clients excluded) and
+  // `total` is honest. No client-side filter of a global page. AI search (Ask
+  // mode) is separately matter-scoped via RetrievalScope.
+  //
+  // FAIL CLOSED at render too: only trust rows that were fetched under the CURRENT
+  // scope. If the scope changed (client switch, folder remap, or a momentarily
+  // null client) the loaded rows belong to a different scope. `scopeMatches` gates
+  // BOTH what we render AND whether load-more may run — so stale rows drop
+  // instantly and a load-more can't append a new-scope page onto old rows before
+  // the debounced first-page refetch replaces them. `runList` additionally refuses
+  // to fetch when there's no active client.
+  const scopeMatches = !embedded || loadedScope === scopeKey;
+  const scopedItems = scopeMatches ? items : [];
 
   // Fix 7: persist list scroll position per-matter in sessionStorage
   const { scrollContainerRef } = useScrollPersistence(activeMatter);
@@ -824,11 +899,11 @@ export function EmailWorkspace({
                       : 'No email has been synced yet.'}
                   { }
                 </p>
-                {/* Embedded scoping filters the loaded page client-side, so a
-                    client's mail might sit deeper than the rows fetched so far.
-                    When more rows exist, let the user keep scanning rather than
-                    dead-ending on "none found" (Codex review P2). */}
-                {embedded && items.length < total && (
+                {/* Backend scoping (F2.6b) makes `total` the client's real mail
+                    count, so this only shows if a later page still has scoped mail
+                    to load — a safety net, not the primary paginator. Gated on
+                    `scopeMatches` so it never appends under a changed scope. */}
+                {embedded && scopeMatches && items.length < total && (
                   <button
                     type="button"
                     data-testid="email-scoped-load-more"
@@ -898,7 +973,7 @@ export function EmailWorkspace({
                 ))}
 
                 {/* Load more */}
-                {items.length < total && (
+                {scopeMatches && items.length < total && (
                   <div
                     style={{
                       padding: `var(--kp-space-sm) var(--kp-space-md)`,

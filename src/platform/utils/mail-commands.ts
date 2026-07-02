@@ -328,6 +328,30 @@ export async function mailListMessages(query: MailListQuery): Promise<MailListPa
   return invoke<MailListPage>('mail_list_messages', { query });
 }
 
+/**
+ * Per-client browse: like `mailListMessages`, but the backend enforces per-client
+ * isolation in the ENGINE — it resolves the exact set of messages that belong to
+ * `matterId` (each message's durable filing taken over its folder→matter mapping,
+ * via the SAME resolver sync/backfill use) and applies the query only to that set.
+ * The embedded per-client Email tab uses this so it can never surface another
+ * client's mail and its pagination totals are honest.
+ *
+ * `matterMap` is the folder→matter mapping from the matter store
+ * (`buildMailMatterMap`). Returns an empty page outside Tauri; in dev fixture mode
+ * it falls back to the unscoped fixture query (fixtures carry no matter mapping).
+ */
+export async function mailListMessagesByMatter(
+  matterId: string,
+  matterMap: MailMatterMapEntry[],
+  query: MailListQuery,
+): Promise<MailListPage> {
+  if (mailFixtureEnabled()) {
+    return applyQueryToFixtures(DEV_FIXTURES, query);
+  }
+  if (!isTauri()) return { items: [], total: 0 };
+  return invoke<MailListPage>('mail_list_messages_by_matter', { matterId, matterMap, query });
+}
+
 // Microsoft 365 loopback OAuth (one-click flow, mirrors gmail_connect)
 export async function outlookConnect(): Promise<void> {
   if (!isTauri()) throw new Error('Microsoft 365 connect is only available in the desktop app.');
