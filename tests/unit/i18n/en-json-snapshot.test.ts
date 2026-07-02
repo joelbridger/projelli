@@ -59,7 +59,7 @@ describe('en.json structure snapshot', () => {
         "mail": 6,
         "marketplace": 14,
         "matter": 106,
-        "media": 78,
+        "media": 80,
         "memory": 6,
         "model-download": 9,
         "onboarding": 65,
@@ -92,7 +92,8 @@ describe('en.json structure snapshot', () => {
     // +1 = matter.manager.client-name-helper (UX tidy-up: optional company field helper).
     // +14 = common.ai-setup-help.* (the "I need help setting this up" ticket).
     // +1 = media.docx-editor.concurrent-edit-conflict (CLUSTER-C2 drift guard).
-    expect(flat.length).toBe(940);
+    // +2 = media.docx-editor.draft-follow-up{,-title} (Wave 0 draft-follow-up button).
+    expect(flat.length).toBe(942);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {
