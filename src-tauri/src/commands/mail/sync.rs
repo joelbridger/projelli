@@ -134,11 +134,19 @@ where
     }
     // P2.3 row 5: collect the page's records and upsert them in ONE transaction
     // at the end, instead of one autocommit upsert (= one fsync) per message.
-    // Blob writes and index callbacks stay per-message (they touch disk / the RAG
-    // index, not the messages table, so their order relative to the DB upsert
-    // does not matter). If a blob write fails we return Err before any upsert,
-    // exactly as before; the page is idempotent and re-applied on the next sync.
+    // Blob writes stay per-message (they touch disk, not the messages table, so
+    // their order relative to the DB upsert does not matter; if a blob write
+    // fails we return Err before any upsert, exactly as before — the page is
+    // idempotent and re-applied on the next sync).
+    //
+    // index_callback is DEFERRED: it makes the message searchable (RAG chunk +
+    // keyword index), so it must never fire before the row it describes is
+    // durably committed. Firing it per-message here (as before) would leave
+    // earlier messages on the page searchable-but-orphaned if a later blob
+    // write or the batch upsert itself failed. Collect the work during the
+    // loop and only run it after `upsert_batch` returns Ok.
     let mut records: Vec<MailRecord> = Vec::with_capacity(messages.len());
+    let mut pending_index: Vec<(String, String)> = Vec::with_capacity(messages.len());
     for msg in messages {
         let markdown = to_markdown(msg);
         let rel = encrypted_blob_relative_path(provider, account, &msg.id);
@@ -175,23 +183,33 @@ where
             snippet,
             has_attachments: msg.has_attachments,
         });
-        // BUG-013: a DURABLE per-message filing (manual "file to matter", stored
-        // in the mail DB) wins over the folder mapping, so a manual filing
-        // survives this re-sync/re-index instead of being re-stamped back to the
-        // folder's matter. Absent override → use the folder `matter_id`.
-        // BUG-042: an "unassigned" tombstone (left when a filed-to matter was
-        // deleted) stays unassigned — it is NOT re-stamped to the folder's
-        // matter, so a deleted matter's email can never silently move into
-        // another matter. (Reads the durable override in `meta`, independent of
-        // the messages upsert we defer to the end.)
-        let effective_matter = crate::commands::mail::resolve_effective_matter(
-            store.get_message_matter(&msg.id).ok().flatten().as_deref(),
-            matter_id,
-        );
-        index_callback(&msg.id, &markdown, &effective_matter);
+        pending_index.push((msg.id.clone(), markdown));
         stats.written += 1;
     }
     store.upsert_batch(&records)?;
+    // Only now is every record on this page durably committed — safe to index.
+    //
+    // BUG-013: a DURABLE per-message filing (manual "file to matter", stored in
+    // the mail DB) wins over the folder mapping, so a manual filing survives
+    // this re-sync/re-index instead of being re-stamped back to the folder's
+    // matter. Absent override → use the folder `matter_id`.
+    // BUG-042: an "unassigned" tombstone (left when a filed-to matter was
+    // deleted) stays unassigned — it is NOT re-stamped to the folder's matter,
+    // so a deleted matter's email can never silently move into another matter.
+    //
+    // Resolved HERE (immediately before each index_callback call), not while
+    // building `records` above: a page can take a while to commit (many blobs
+    // + a batched transaction), and resolving eagerly would let a concurrent
+    // manual filing that lands mid-page get silently overwritten by a stale
+    // folder-matter tag once indexing finally ran. Resolving at call time keeps
+    // the override race window as narrow as the underlying store read.
+    for (id, markdown) in &pending_index {
+        let effective_matter = crate::commands::mail::resolve_effective_matter(
+            store.get_message_matter(id).ok().flatten().as_deref(),
+            matter_id,
+        );
+        index_callback(id, markdown, &effective_matter);
+    }
     Ok(stats)
 }
 
@@ -394,9 +412,26 @@ mod tests {
     use std::collections::HashMap;
 
     #[derive(Default)]
-    struct FakeStore { msgs: Mutex<HashMap<String,MailRecord>>, cursors: Mutex<HashMap<String,String>> }
+    struct FakeStore {
+        msgs: Mutex<HashMap<String,MailRecord>>,
+        cursors: Mutex<HashMap<String,String>>,
+        // Simulates a mid-page transaction failure (e.g. disk full on commit)
+        // so tests can assert nothing downstream of the batch commit runs.
+        fail_batch: std::sync::atomic::AtomicBool,
+        // Records call order so tests can assert get_message_matter runs AFTER
+        // upsert_batch, not before (the deferred-resolution regression test).
+        call_log: Mutex<Vec<String>>,
+    }
     impl MailStore for FakeStore {
         fn upsert(&self, r:&MailRecord)->anyhow::Result<()> { self.msgs.lock().unwrap().insert(r.id.clone(), r.clone()); Ok(()) }
+        fn upsert_batch(&self, recs:&[MailRecord])->anyhow::Result<()> {
+            self.call_log.lock().unwrap().push("upsert_batch".to_string());
+            if self.fail_batch.load(std::sync::atomic::Ordering::SeqCst) {
+                return Err(anyhow::anyhow!("simulated batch commit failure"));
+            }
+            for r in recs { self.upsert(r)?; }
+            Ok(())
+        }
         fn tombstone(&self, id:&str)->anyhow::Result<Option<String>> { Ok(self.msgs.lock().unwrap().remove(id).map(|r| r.relative_path)) }
         fn contains(&self, id:&str)->anyhow::Result<bool> { Ok(self.msgs.lock().unwrap().contains_key(id)) }
         fn get_record(&self, id:&str)->anyhow::Result<Option<MailRecord>> { Ok(self.msgs.lock().unwrap().get(id).cloned()) }
@@ -408,6 +443,10 @@ mod tests {
                 .map(|r| r.id.clone()).collect())
         }
         fn count(&self)->anyhow::Result<i64> { Ok(self.msgs.lock().unwrap().len() as i64) }
+        fn get_message_matter(&self, id:&str)->anyhow::Result<Option<String>> {
+            self.call_log.lock().unwrap().push(format!("get_message_matter:{id}"));
+            Ok(None)
+        }
         fn get_cursor(&self, f:&str)->anyhow::Result<Option<String>> { Ok(self.cursors.lock().unwrap().get(f).cloned()) }
         fn set_cursor(&self, f:&str, c:&str)->anyhow::Result<()> { self.cursors.lock().unwrap().insert(f.into(), c.into()); Ok(()) }
         fn list_messages(&self, _q:&crate::commands::mail::store::MailListQuery)->anyhow::Result<crate::commands::mail::store::MailListPage> {
@@ -592,6 +631,65 @@ mod tests {
         let rec = store.get_record("mm1").unwrap().unwrap();
         assert_eq!(rec.provider, "imap");
         assert_eq!(rec.account, "acct");
+    }
+
+    /// Root-cause regression test for the orphaned-searchable-mail bug: the
+    /// batched upsert defers the DB commit to one transaction at the end of the
+    /// page, but index_callback used to fire per-message BEFORE that commit. A
+    /// failed transaction (e.g. disk full) left earlier messages in the RAG/
+    /// MiniSearch index with no durable mail record backing them. Nothing may
+    /// become searchable before it is durably committed.
+    #[test]
+    fn apply_messages_enc_does_not_index_when_batch_commit_fails() {
+        let store = FakeStore::default();
+        store.fail_batch.store(true, std::sync::atomic::Ordering::SeqCst);
+        let dir = tempfile::TempDir::new().unwrap();
+        let key = [0x33u8; 32];
+        let m = crate::commands::mail::model::MailMessage::from_graph(&serde_json::json!({
+            "id":"orphan1","subject":"Hi","body":{"contentType":"text","content":"hello"}
+        })).unwrap();
+        let indexed = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+        let indexed2 = indexed.clone();
+
+        let result = apply_messages_enc(&store, dir.path(), "inbox", "imap", "acct",
+            crate::commands::rag::store::UNASSIGNED_MATTER, &[m], &[], &key,
+            &|id: &str, _t: &str, _m: &str| { indexed2.lock().unwrap().push(id.to_string()); },
+            &|_id: &str| {});
+
+        assert!(result.is_err(), "a failed batch commit must propagate as Err");
+        assert!(indexed.lock().unwrap().is_empty(),
+            "index_callback must not fire for any message on this page when the batch commit fails — no orphaned searchable mail");
+        assert!(!store.contains("orphan1").unwrap(), "message must not be durably stored either");
+    }
+
+    /// Adversarial-review follow-up: deferring index_callback to after the
+    /// batch commit is only safe if the matter-override lookup (BUG-013/
+    /// BUG-042) is ALSO deferred to that point. Resolving it eagerly while
+    /// building `records` (before the — possibly slow — batch commit) would
+    /// widen the window for a concurrent "file to matter" to land mid-page and
+    /// then get silently overwritten by a stale folder-matter tag once
+    /// indexing finally runs. Assert get_message_matter is called only after
+    /// upsert_batch, proving the resolution happens at (not before) index time.
+    #[test]
+    fn apply_messages_enc_resolves_matter_override_after_batch_commit_not_before() {
+        let store = FakeStore::default();
+        let dir = tempfile::TempDir::new().unwrap();
+        let key = [0x44u8; 32];
+        let m = crate::commands::mail::model::MailMessage::from_graph(&serde_json::json!({
+            "id":"m-order","subject":"Hi","body":{"contentType":"text","content":"hello"}
+        })).unwrap();
+
+        apply_messages_enc(&store, dir.path(), "inbox", "imap", "acct", "matter-folder",
+            &[m], &[], &key,
+            &|_id: &str, _t: &str, _m: &str| {},
+            &|_id: &str| {}).unwrap();
+
+        let log = store.call_log.lock().unwrap();
+        let batch_pos = log.iter().position(|e| e == "upsert_batch").expect("upsert_batch must be called");
+        let matter_pos = log.iter().position(|e| e == "get_message_matter:m-order").expect("get_message_matter must be called");
+        assert!(matter_pos > batch_pos,
+            "matter override must be resolved AFTER the batch commit, not while building records — \
+             call order was {log:?}");
     }
 
     #[test]
