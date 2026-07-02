@@ -21,18 +21,16 @@ test.describe('Create file dialog (UX-15)', () => {
   });
 
   test('shows destination and live preview when creating a Word document', async ({ page }) => {
-    test.skip(
-      !!process.env.E2E_CI_QUARANTINE,
-      'confirmed failing on real CI (F1.3, 2026-07-01), cause not yet diagnosed past ' +
-        'the shared gotoDocuments stale-testid bug already fixed; see docs/quality/e2e-flaky-quarantine.md'
-    );
     await hardClick(page.getByTestId('documents-toolbar').getByRole('button', { name: 'New document' }));
 
-    // Destination label is visible.
+    // Destination label is visible. gotoDocuments() lands in the embedded
+    // per-client Documents tab for matter_demo_brennan, so new files land in
+    // the client's own mapped folder (matter isolation) — not a generic
+    // "/docs/" folder, which was the old seed-data shape.
     const destination = page.getByTestId('prompt-dialog-destination');
     await expect(destination).toBeVisible();
     await expect(destination).toContainText('Creating in');
-    await expect(destination).toContainText('/docs/');
+    await expect(destination).toContainText('/Brennan Household/');
 
     // Preview filename starts at the placeholder value + extension.
     const preview = page.getByTestId('prompt-dialog-preview-filename');

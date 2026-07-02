@@ -17,7 +17,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import mammoth from 'mammoth';
 
-import { hardClick, waitForTestModeLoad, gotoDocuments } from './helpers/test-utils';
+import { hardClick, waitForTestModeLoad, gotoDocuments, switchToStandaloneEditorSurface } from './helpers/test-utils';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -85,11 +85,6 @@ test.describe('Document Creation (Phase 4) — Documents toolbar', () => {
   });
 
   test('creates a blank .docx and opens it in the Word preview/editor route', async ({ page }) => {
-    test.skip(
-      !!process.env.E2E_CI_QUARANTINE,
-      'confirmed failing on real CI (F1.3, 2026-07-01), cause not yet diagnosed past ' +
-        'the shared gotoDocuments stale-testid bug already fixed; see docs/quality/e2e-flaky-quarantine.md'
-    );
     await runCreateDocxFlow(page, 'fresh-doc');
 
     const editor = page.getByTestId('docx-editor');
@@ -102,9 +97,12 @@ test.describe('Document Creation (Phase 4) — Documents toolbar', () => {
       /^data:application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document;base64,/
     );
 
-    // On-disk file exists
+    // On-disk file exists. gotoDocuments() lands in the embedded per-client
+    // Documents tab for matter_demo_brennan, so it lands in the client's own
+    // mapped folder (matter isolation) — not a generic "/docs/" folder,
+    // which was the old seed-data shape.
     const files = await listMockFs(page);
-    expect(files.some((f) => f.endsWith('/docs/fresh-doc.docx'))).toBe(true);
+    expect(files.some((f) => f.endsWith('/Brennan Household/fresh-doc.docx'))).toBe(true);
 
     expect(editor).toHaveAttribute('data-mode', 'readonly-fallback');
   });
@@ -140,11 +138,6 @@ test.describe('Document Creation (Phase 4) — Workflow markdown to Word export'
   });
 
   test('export menu appears for markdown tabs and Save as Word triggers save dialog', async ({ page }) => {
-    test.skip(
-      !!process.env.E2E_CI_QUARANTINE,
-      'confirmed failing on real CI (F1.3, 2026-07-01), cause not yet diagnosed past ' +
-        'the shared gotoDocuments stale-testid bug already fixed; see docs/quality/e2e-flaky-quarantine.md'
-    );
     // Install a showSaveFilePicker mock BEFORE any menu action so the export
     // handler captures whatever the user picks. The mock records the written
     // bytes so the test can round-trip through mammoth.
@@ -216,6 +209,12 @@ test.describe('Document Creation (Phase 4) — Workflow markdown to Word export'
       '- Intros to VPs of Engineering at Series A B2B SaaS',
     ].join('\n');
     const path = '/test-workspace/updates/march-2026-update.md';
+    // The MainPanel toolbar (and the export menu it renders) only mounts on
+    // the standalone editor surface (sidebarActiveTab === 'files') — see
+    // helpers/test-utils.ts. This file also isn't inside any client's
+    // mapped folder, so the embedded per-client Documents tab gotoDocuments()
+    // reaches couldn't show it anyway (matter isolation).
+    await switchToStandaloneEditorSurface(page);
     await page.evaluate(
       (args) => {
         const fn = (window as unknown as {
@@ -226,8 +225,6 @@ test.describe('Document Creation (Phase 4) — Workflow markdown to Word export'
       },
       { path, name: 'march-2026-update.md', content: markdown }
     );
-    await gotoDocuments(page);
-    await hardClick(page.getByTestId('documents-tab-strip').getByRole('tab', { name: 'march-2026-update.md' }));
 
     const exportMenu = page.getByTestId('workflow-export-menu');
     await expect(exportMenu).toBeVisible();
