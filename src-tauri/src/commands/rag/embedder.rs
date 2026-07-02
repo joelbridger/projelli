@@ -14,8 +14,9 @@
 
 use anyhow::{Context, Result};
 use fastembed::{EmbeddingModel, InitOptions, TextEmbedding};
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tokio::sync::OnceCell;
 
 // Pulled in at module level so `mod tests` below can reach the sibling
@@ -35,6 +36,43 @@ pub const MODEL_NOT_READY: &str = "model-not-ready";
 /// Singleton handle. `OnceCell::get_or_try_init` makes the constructor run
 /// at most once even under concurrent first-time access.
 static EMBEDDER: OnceCell<Arc<TextEmbedding>> = OnceCell::const_new();
+
+/// P2.1 (Finding 5) — bounded LRU cache mapping a query string to its
+/// already-computed 384-dim embedding. Embedding the query is a CPU-bound ONNX
+/// forward pass (tens to ~150 ms warm). The Ask/chat surfaces re-embed the SAME
+/// text constantly — a retry, a "regenerate", the exact same question asked in
+/// two matters, the privilege-exclusion demo re-running its probe — so a small
+/// cache turns those repeats into a HashMap hit.
+///
+/// SAFETY / correctness notes:
+///   * The embedding of a fixed string under a fixed model is deterministic, so a
+///     cache hit is byte-for-byte what re-embedding would produce. The model is a
+///     process-wide singleton that never swaps at runtime, so no versioning key is
+///     needed. (`EMBEDDER_VERSION` is bumped in lockstep with any model change,
+///     and the process restarts, clearing this cache.)
+///   * Keyed on the EXACT raw query string, NOT a normalized form. e5-small is
+///     case- and whitespace-sensitive, so `"IRA rollover"` and `"ira rollover"`
+///     embed to DIFFERENT vectors; keying on a normalized form would let the
+///     second reuse the first's vector and run retrieval with the wrong query
+///     vector. The exact-string key guarantees a hit returns byte-for-byte what
+///     re-embedding that raw query would produce. (This caches EXACT repeats — a
+///     retry, a regenerate, the same question asked twice — which is the common
+///     case; near-duplicates that differ only in spacing simply miss, which is
+///     correct.)
+///   * This is a PERFORMANCE cache only. It holds query text + vectors, never
+///     chunk content, and lives only in memory — it is not a persistence or
+///     confidentiality surface. Query strings are the user's own input.
+const QUERY_CACHE_CAP: usize = 256;
+static QUERY_CACHE: std::sync::OnceLock<Mutex<lru::LruCache<String, Arc<Vec<f32>>>>> =
+    std::sync::OnceLock::new();
+
+fn query_cache() -> &'static Mutex<lru::LruCache<String, Arc<Vec<f32>>>> {
+    QUERY_CACHE.get_or_init(|| {
+        Mutex::new(lru::LruCache::new(
+            NonZeroUsize::new(QUERY_CACHE_CAP).expect("QUERY_CACHE_CAP > 0"),
+        ))
+    })
+}
 
 /// Resolve the cache directory used by fastembed. If a bundled copy of the
 /// model exists under `src-tauri/resources/embeddings/` (Phase 4 prefetch
@@ -118,6 +156,15 @@ pub async fn warm_init() -> Result<()> {
 /// Embed a single query string. Prepends the "query: " prefix expected by
 /// the e5 model family. Returns a 384-dim float vector.
 pub async fn embed_query(query: &str) -> Result<Vec<f32>> {
+    // P2.1 (Finding 5): serve a repeat query from the LRU cache instead of
+    // re-running the ONNX forward pass. Keyed on the EXACT raw query so a hit is
+    // byte-for-byte what re-embedding would produce. The cache holds an
+    // `Arc<Vec<f32>>` so a hit is a cheap refcount bump + clone-out of 384 floats.
+    let key = query.to_string();
+    if let Some(hit) = query_cache().lock().unwrap().get(&key).cloned() {
+        return Ok((*hit).clone());
+    }
+
     let prefixed = format!("query: {}", query);
     let model = get_embedder().await?;
     let mut out = tokio::task::spawn_blocking(move || -> Result<Vec<Vec<f32>>> {
@@ -131,7 +178,12 @@ pub async fn embed_query(query: &str) -> Result<Vec<f32>> {
         .pop()
         .context("embed_query: model returned no vectors")?;
     debug_assert_eq!(vec.len(), EMBEDDING_DIM);
-    Ok(vec)
+
+    // Populate the cache. `put` evicts the least-recently-used entry once the
+    // capacity is reached, keeping the footprint bounded (~256 * 1.5 KB).
+    let shared = Arc::new(vec);
+    query_cache().lock().unwrap().put(key, Arc::clone(&shared));
+    Ok((*shared).clone())
 }
 
 /// Embed a batch of document chunks. Prepends the "passage: " prefix.

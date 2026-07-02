@@ -23,8 +23,8 @@
  *     rendered as clickable.
  */
 
-import type { RagHit, CitationVerdict } from '@/platform/utils/tauri-commands';
-import { ragVerifyCitation } from '@/platform/utils/tauri-commands';
+import type { RagHit, CitationVerdict, CitationToVerify } from '@/platform/utils/tauri-commands';
+import { ragVerifyCitationsBatch } from '@/platform/utils/tauri-commands';
 import type { WorkspaceSource } from '@/platform/types/ai';
 import { sanitizeForPrompt } from '@/platform/utils/prompt-security';
 import {
@@ -396,6 +396,11 @@ export async function verifyCitations(
   // Work on a shallow copy so we don't mutate the caller's array.
   const annotated = sources.map((s) => ({ ...s }));
 
+  // P2.1 (Finding 2): resolve every citation FIRST, applying the fail-closed
+  // pre-checks that never touch the backend, and collect the ones that need a
+  // store lookup. Then verify them all in ONE batch call instead of an N+1 loop
+  // (one backend round-trip + one `id IN (...)` read for the whole answer).
+  const pending: { source: (typeof annotated)[number]; item: CitationToVerify }[] = [];
   for (const cite of citations) {
     // Strict resolve to the ONE source this citation provably refers to.
     const source = resolveCitationTarget(cite, annotated);
@@ -411,14 +416,26 @@ export async function verifyCitations(
       continue;
     }
     const verifyMatter = expectedMatterId ?? source.matterId;
+    pending.push({
+      source,
+      item: { id: source.id, claimedMatterId: verifyMatter, quotedText: source.chunkText },
+    });
+  }
 
+  if (pending.length > 0) {
     try {
-      const verdict = await ragVerifyCitation(source.id, verifyMatter, source.chunkText);
-      source.verified = verdict.verdict === 'verified';
-      onVerdict?.(source.id, verdict.verdict);
+      const verdicts = await ragVerifyCitationsBatch(pending.map((p) => p.item));
+      // Verdicts come back in the SAME ORDER as the input; zip them back. A short
+      // array (shouldn't happen) fails those entries closed.
+      pending.forEach(({ source, item }, i) => {
+        const verdict = verdicts[i];
+        source.verified = verdict?.verdict === 'verified';
+        if (verdict) onVerdict?.(item.id, verdict.verdict);
+      });
     } catch {
-      // Verifier unavailable/errored — fail closed (can't prove → not verified).
-      source.verified = false;
+      // Verifier unavailable/errored — fail closed for every pending citation
+      // (can't prove → not verified), matching the per-call catch it replaces.
+      for (const { source } of pending) source.verified = false;
     }
   }
 

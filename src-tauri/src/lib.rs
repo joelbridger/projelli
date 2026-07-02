@@ -69,6 +69,9 @@ pub fn run() {
             commands::rag::rag_retrieve,
             // WS-B/C — citation verification (refuse answers whose citation doesn't verify).
             commands::rag::rag_verify_citation,
+            // P2.1 (Finding 2) — batch citation verification (one table open + one
+            // `id IN (...)` read for all citations, replacing the per-citation loop).
+            commands::rag::rag_verify_citations_batch,
             commands::rag::rag_cancel_indexing,
             commands::rag::rag_delete_path,
             commands::rag::rag_delete_matter,

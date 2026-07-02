@@ -451,10 +451,26 @@ pub fn build_schema() -> SchemaRef {
 /// Open (or create) the LanceDB connection for a workspace.
 pub async fn open_connection(workspace_root: &Path) -> Result<Connection> {
     let path = dataset_path(workspace_root);
-    std::fs::create_dir_all(&path)
+    // P2.1 (Finding 8): `create_dir_all` is a blocking syscall (stat + mkdir per
+    // path component). On the Ask hot path it ran inline on the async executor;
+    // on Windows or a network-backed workspace folder that can hitch the runtime.
+    // Hop it to a blocking thread so a slow filesystem never stalls the reactor.
+    let dir = path.clone();
+    tokio::task::spawn_blocking(move || std::fs::create_dir_all(&dir))
+        .await
+        .context("create vector dir join failed")?
         .with_context(|| format!("failed to create vector dir at {:?}", &path))?;
     let path_str = path.to_string_lossy().to_string();
     lancedb::connect(&path_str)
+        // P2.1 (Finding 4): a zero read-consistency interval makes every table
+        // handle opened on this connection RE-CHECK the latest committed version
+        // on each read. This is what lets `RagState` cache an open `chunks` table
+        // across queries SAFELY: writes committed by the indexer through other
+        // connections (add / delete / retag) become visible on the cached handle's
+        // next read, so caching never serves a stale snapshot. Fresh (uncached)
+        // callers are unaffected — they already saw the latest on open. Only a
+        // destructive `drop_table` rebuild needs explicit cache invalidation.
+        .read_consistency_interval(std::time::Duration::from_secs(0))
         .execute()
         .await
         .with_context(|| format!("failed to open lancedb at {:?}", &path))
@@ -1441,6 +1457,67 @@ pub async fn optimize_after_bulk_write(table: &Table) -> Result<()> {
     Ok(())
 }
 
+/// P2.1 (Finding 1) — corpus size at/above which the ANN-index tooling below is
+/// even considered. NOTE: the ANN index is NOT auto-enabled — the benchmark
+/// (`tests/rag_ann_index_bench.rs`) showed the brute-force flat scan WINS at
+/// realistic advisor scale (~73–92 ms/query at 60k, and EXACT), while IVF_FLAT
+/// was slower there and lossy on recall. This constant + `create_vector_index`
+/// are retained as benched tooling for a future revisit at 500k+ chunks (where
+/// flat becomes seconds), pending real-embedding recall validation.
+pub const VECTOR_INDEX_MIN_ROWS: usize = 25_000;
+
+/// P2.1 (Finding 1) — (re)build the IVF_FLAT ANN index on the `vector` column.
+/// NOT auto-called in production (see `VECTOR_INDEX_MIN_ROWS` and the bench);
+/// exercised by the benchmark and available for a future large-corpus revisit.
+///
+/// IVF_FLAT keeps FULL-PRECISION vectors (no product quantization): distances
+/// stay exact and only candidate SELECTION is approximate — the right trade for a
+/// recall-sensitive advisory corpus (IVF_PQ would compress vectors and blur
+/// distances). `L2` matches the query metric (`nearest_to` defaults to L2).
+///
+/// ISOLATION IS UNAFFECTED. The matter/privilege/tombstone predicate is applied
+/// as a PREFILTER (`only_if`, prefilter defaults to true) BEFORE the vector
+/// search whether or not an index exists, so a scoped query still searches only
+/// in-scope rows. An index can change RECALL (which in-scope chunks surface),
+/// never SCOPE (which matters are visible). The isolation tests run on small
+/// corpora that stay under `VECTOR_INDEX_MIN_ROWS` (flat path), and this function
+/// changes neither the schema nor the prefilter.
+///
+/// Idempotent: re-running replaces the index. Rows added AFTER a build are a
+/// flat-scanned unindexed delta until the next rebuild/optimize, so results are
+/// always correct (never stale), only the delta is slower.
+pub async fn create_vector_index(table: &Table) -> Result<()> {
+    use lancedb::index::vector::IvfFlatIndexBuilder;
+    use lancedb::index::Index;
+    use lancedb::DistanceType;
+    table
+        .create_index(
+            &["vector"],
+            Index::IvfFlat(IvfFlatIndexBuilder::default().distance_type(DistanceType::L2)),
+        )
+        .execute()
+        .await
+        .context("create IVF_FLAT vector index on chunks.vector")?;
+    Ok(())
+}
+
+/// P2.1 (Finding 1) — after a bulk FULL index walk, build the ANN index IFF the
+/// corpus is large enough to benefit (`VECTOR_INDEX_MIN_ROWS`). Returns whether an
+/// index was (re)built (for logging / the bench). Callers treat a failure as
+/// best-effort: retrieval falls back to the exact flat scan, so an index failure
+/// must never fail indexing.
+pub async fn ensure_vector_index_after_bulk(table: &Table) -> Result<bool> {
+    let rows = table
+        .count_rows(None)
+        .await
+        .context("count_rows for vector-index gate")?;
+    if rows < VECTOR_INDEX_MIN_ROWS {
+        return Ok(false);
+    }
+    create_vector_index(table).await?;
+    Ok(true)
+}
+
 /// WS-PRIV — re-tag the privilege of every already-indexed chunk for `path`
 /// IN PLACE, without re-embedding. Used when the user toggles a source's
 /// privilege: the chunk text + vectors are unchanged, only the `privilege`
@@ -2327,6 +2404,123 @@ pub async fn lookup_by_id(
     Ok(None)
 }
 
+/// P2.1 (Finding 2) — batch sibling of `lookup_by_id` for BATCH citation
+/// verification. Given many chunk ids, run ONE `id IN (...)` query and return
+/// EVERY matching row as a `ChunkRecord`, rather than issuing one (or two)
+/// point lookups per citation. The table is opened once by the caller.
+///
+/// SEMANTICS — deliberately UNSCOPED. Like `lookup_by_id(.., None)`, this
+/// applies NO matter / privilege / tombstone predicate: the caller
+/// (`rag_verify_citations_batch`) reproduces the exact single-citation
+/// classification in memory — pick the row under the CLAIMED matter first
+/// (Verified/TextMismatch), else any row (MatterMismatch), and treat a
+/// tombstoned source as NotFound. Returning all rows (including a same-id row
+/// under another matter, and tombstoned rows) is what lets the caller make that
+/// three-way call without a second round-trip. It NEVER widens what a scoped
+/// retrieval returns — it feeds verification, which only ever refuses or
+/// downgrades a citation, never surfaces new content.
+///
+/// A single `id` can legitimately match MORE THAN ONE row (e.g. the same file
+/// left a stale row after a failed cleanup, or was retagged to a new matter), so
+/// we do NOT cap the row count with `.limit()` — every match is returned so the
+/// caller sees the same rows `lookup_by_id` would have. The id list itself is
+/// validated (64-hex only), deduped, and capped at `MAX_FETCH_BY_IDS` before it
+/// reaches the SQL predicate, exactly like `fetch_by_ids_scoped`.
+pub async fn fetch_records_by_ids(table: &Table, ids: &[String]) -> Result<Vec<ChunkRecord>> {
+    use futures_util::TryStreamExt;
+    let mut seen: HashSet<&str> = HashSet::new();
+    let mut valid: Vec<&str> = Vec::new();
+    for id in ids {
+        if is_valid_chunk_id(id) && seen.insert(id.as_str()) {
+            valid.push(id.as_str());
+            if valid.len() >= MAX_FETCH_BY_IDS {
+                break;
+            }
+        }
+    }
+    if valid.is_empty() {
+        return Ok(Vec::new());
+    }
+    // Safe to interpolate without sql_escape: every id is 64 chars of [0-9a-f].
+    let id_list = valid
+        .iter()
+        .map(|i| format!("'{i}'"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let predicate = format!("id IN ({id_list})");
+    // Skip the large `vector` column — verification needs only citation columns.
+    let mut stream = table
+        .query()
+        .only_if(predicate)
+        .select(Select::columns(&[
+            "id",
+            "matter_id",
+            "source_id",
+            "paragraph_index",
+            "text",
+            "encrypted",
+            "privilege",
+            "path_enc",
+        ]))
+        .execute()
+        .await
+        .context("fetch_records_by_ids query execute failed")?;
+
+    let mut out: Vec<ChunkRecord> = Vec::new();
+    while let Some(batch) = stream
+        .try_next()
+        .await
+        .context("fetch_records_by_ids stream try_next failed")?
+    {
+        let str_col = |name: &str| -> Option<&StringArray> {
+            batch
+                .column_by_name(name)
+                .and_then(|c| c.as_any().downcast_ref::<StringArray>())
+        };
+        let id_col = str_col("id");
+        let matter_col = str_col("matter_id");
+        let source_col = str_col("source_id");
+        let text_col = str_col("text");
+        let priv_col = str_col("privilege");
+        let penc_col = str_col("path_enc");
+        let pi_col = batch
+            .column_by_name("paragraph_index")
+            .and_then(|c| c.as_any().downcast_ref::<UInt32Array>());
+        let enc_col = batch
+            .column_by_name("encrypted")
+            .and_then(|c| c.as_any().downcast_ref::<arrow_array::BooleanArray>());
+        for i in 0..batch.num_rows() {
+            out.push(ChunkRecord {
+                id: id_col
+                    .filter(|c| !c.is_null(i))
+                    .map(|c| c.value(i).to_string())
+                    .unwrap_or_default(),
+                matter_id: matter_col
+                    .filter(|c| !c.is_null(i))
+                    .map(|c| c.value(i).to_string())
+                    .unwrap_or_default(),
+                source_id: source_col
+                    .filter(|c| !c.is_null(i))
+                    .map(|c| c.value(i).to_string())
+                    .unwrap_or_default(),
+                paragraph_index: pi_col.map(|c| c.value(i)).unwrap_or(0),
+                text: text_col
+                    .filter(|c| !c.is_null(i))
+                    .map(|c| c.value(i).to_string())
+                    .unwrap_or_default(),
+                encrypted: enc_col.map(|c| !c.is_null(i) && c.value(i)).unwrap_or(false),
+                privilege: priv_col
+                    .filter(|c| !c.is_null(i))
+                    .map(|c| c.value(i).to_string()),
+                path_enc: penc_col
+                    .filter(|c| !c.is_null(i))
+                    .map(|c| c.value(i).to_string()),
+            });
+        }
+    }
+    Ok(out)
+}
+
 /// Collect the PLAINTEXT path key ("mail:<id>") of EVERY mail chunk into a
 /// set — one scan — so the mail RAG backfill can answer "is this message
 /// already indexed?" by set membership instead of issuing a `count_rows`
@@ -2707,6 +2901,62 @@ mod tests {
         let blob = hex::decode(enc).expect("path_enc must be hex");
         String::from_utf8(decrypt_with_key(&blob, &TEST_KEY).expect("decrypt path_enc"))
             .expect("utf8 path")
+    }
+
+    /// P2.1 (Finding 2): `fetch_records_by_ids` returns, in one query, the SAME
+    /// per-id records the single-verify path gets from `lookup_by_id(id, None)`.
+    #[tokio::test]
+    async fn fetch_records_by_ids_matches_lookup_by_id() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let conn = open_connection(dir.path()).await.expect("open conn");
+        let table = open_or_create_table(&conn).await.expect("open table");
+
+        // Two chunks in matter A, one in matter B.
+        let mk = |path: &str, matter: &str| {
+            let rows = vec![(
+                Chunk {
+                    path: path.into(),
+                    paragraph_index: 0,
+                    text: format!("text of {path}"),
+                    start_offset: 0,
+                    end_offset: 10,
+                    locator: None,
+                },
+                vec![0.05f32; EMBEDDING_DIM],
+            )];
+            build_batch(&rows, SourceType::Text, matter, PRIVILEGE_NONE, None, &TEST_KEY)
+                .expect("build batch")
+        };
+        for batch in [mk("/a1.txt", "matterA"), mk("/a2.txt", "matterA"), mk("/b1.txt", "matterB")] {
+            let schema = batch.schema();
+            table
+                .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
+                .execute()
+                .await
+                .expect("add");
+        }
+
+        let ids = [
+            chunk_id("/a1.txt", 0),
+            chunk_id("/b1.txt", 0),
+            // A fabricated id must simply be absent from the result (never errors).
+            "0".repeat(64),
+        ];
+        let records = fetch_records_by_ids(&table, &ids).await.expect("batch fetch");
+
+        // Every real id resolves to exactly one record with the right matter; the
+        // batch record equals the single lookup_by_id(None) record.
+        for id in [&ids[0], &ids[1]] {
+            let single = lookup_by_id(&table, id, None).await.unwrap().expect("single");
+            let batched: Vec<_> = records.iter().filter(|r| &r.id == id).collect();
+            assert_eq!(batched.len(), 1, "one row per id in this fixture");
+            assert_eq!(batched[0].matter_id, single.matter_id);
+            assert_eq!(batched[0].source_id, single.source_id);
+            assert_eq!(batched[0].text, single.text);
+            assert_eq!(batched[0].encrypted, single.encrypted);
+        }
+        // The fabricated id contributes no rows.
+        assert!(records.iter().all(|r| r.id != "0".repeat(64)));
     }
 
     #[test]

@@ -11,14 +11,23 @@
  *     cross-matter source in a matter-scoped turn.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import type { RagHit } from '@/platform/utils/tauri-commands';
+import type { RagHit, CitationToVerify, CitationVerdict } from '@/platform/utils/tauri-commands';
 import type { WorkspaceSource } from '@/platform/types/ai';
 
+// P2.1 (Finding 2): verifyCitations now verifies in ONE batch call. Mock the
+// batch transport; a single-verdict helper maps every input citation to it so
+// the existing one-citation assertions read the same.
 const mocks = vi.hoisted(() => ({ verify: vi.fn() }));
 vi.mock('@/platform/utils/tauri-commands', async (orig) => {
   const real = await (orig() as Promise<Record<string, unknown>>);
-  return { ...real, ragVerifyCitation: mocks.verify };
+  return { ...real, ragVerifyCitationsBatch: mocks.verify };
 });
+// Return one verdict per input citation, in order. The `?? []` guard keeps the
+// mock from throwing if vitest ever probes it with no args (which would cascade
+// an unhandled rejection across this async test file); the real per-test
+// assertions still exercise the true citation array (see `toHaveBeenCalledWith`).
+const setVerdict = (v: CitationVerdict) =>
+  mocks.verify.mockImplementation(async (cites?: CitationToVerify[]) => (cites ?? []).map(() => v));
 
 // Imported AFTER the mock is registered.
 const { parseCitations, resolveCitationPath, verifyCitations } = await import('@/platform/rag/workspaceCommand');
@@ -100,13 +109,13 @@ describe('verifyCitations (fail-closed + scope — BUG-065)', () => {
   };
 
   it('marks verified:true when the source resolves exactly AND the verdict is verified', async () => {
-    mocks.verify.mockResolvedValue({ verdict: 'verified' });
+    setVerdict({ verdict: 'verified' });
     const out = await verifyCitations('See [pricing.md paragraph 3].', [src({})]);
     expect(out[0]?.verified).toBe(true);
   });
 
   it('marks verified:false when the verdict is anything but verified', async () => {
-    mocks.verify.mockResolvedValue({ verdict: 'textMismatch' });
+    setVerdict({ verdict: 'textMismatch' });
     const out = await verifyCitations('See [pricing.md paragraph 3].', [src({})]);
     expect(out[0]?.verified).toBe(false);
   });
@@ -119,14 +128,14 @@ describe('verifyCitations (fail-closed + scope — BUG-065)', () => {
   // missing id/matterId, cross-matter) — all of which return verified:false.
 
   it('fails CLOSED when the source is missing an id or matterId', async () => {
-    mocks.verify.mockResolvedValue({ verdict: 'verified' });
+    setVerdict({ verdict: 'verified' });
     const noId = await verifyCitations('See [pricing.md paragraph 3].', [withoutId(src({}))]);
     expect(noId[0]?.verified).toBe(false);
     expect(mocks.verify).not.toHaveBeenCalled();
   });
 
   it('fails CLOSED on a cross-matter source in a matter-scoped turn (and never calls the verifier)', async () => {
-    mocks.verify.mockResolvedValue({ verdict: 'verified' });
+    setVerdict({ verdict: 'verified' });
     const out = await verifyCitations('See [pricing.md paragraph 3].', [src({ matterId: 'matter-B' })], {
       expectedMatterId: 'matter-A',
     });
@@ -135,15 +144,17 @@ describe('verifyCitations (fail-closed + scope — BUG-065)', () => {
   });
 
   it('verifies against the ACTIVE matter when scoped', async () => {
-    mocks.verify.mockResolvedValue({ verdict: 'verified' });
+    setVerdict({ verdict: 'verified' });
     await verifyCitations('See [pricing.md paragraph 3].', [src({ matterId: 'matter-A' })], {
       expectedMatterId: 'matter-A',
     });
-    expect(mocks.verify).toHaveBeenCalledWith('cid-1', 'matter-A', 'Premium tier priced at $49');
+    expect(mocks.verify).toHaveBeenCalledWith([
+      { id: 'cid-1', claimedMatterId: 'matter-A', quotedText: 'Premium tier priced at $49' },
+    ]);
   });
 
   it('does NOT mark a source when the citation locator does not resolve to it (no false verify)', async () => {
-    mocks.verify.mockResolvedValue({ verdict: 'verified' });
+    setVerdict({ verdict: 'verified' });
     // Cited paragraph 99 doesn't match the retrieved paragraph 3 → unresolved.
     const out = await verifyCitations('See [pricing.md paragraph 99].', [src({})]);
     expect(out[0]?.verified).toBeUndefined();

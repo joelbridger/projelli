@@ -467,6 +467,16 @@ pub struct RagState {
     /// boundary — every chunk it proposes is re-fetched through the same scoped
     /// predicate the vector pass uses.
     pub bm25: Arc<Mutex<bm25_index::Bm25Index>>,
+    /// P2.1 (Finding 3) — true while a BM25 keyword-index rebuild runs in the
+    /// BACKGROUND. The old code rebuilt the keyword index ON the query path: a
+    /// stale/missing index made the first hybrid query after any corpus change
+    /// scan and decrypt the WHOLE corpus under the `bm25` mutex (+0.5–5 s, and it
+    /// blocked every other hybrid query meanwhile). Now a stale index makes that
+    /// query fall back to vector-only and kick off ONE background rebuild; this
+    /// flag coalesces concurrent triggers so only one rebuild runs at a time. The
+    /// heavy scan happens WITHOUT holding the `bm25` lock — it locks only briefly
+    /// to swap the finished index in. Reset when the rebuild task exits.
+    pub bm25_warming: Arc<AtomicBool>,
     /// P1.1 — serializes read-modify-write of the persistent RAG manifest
     /// (`.lantern/rag-manifest-v1.json`). Two writers touch it: the Rust
     /// text/office boot reconcile and the frontend PDF-index path (which records
@@ -476,6 +486,38 @@ pub struct RagState {
     /// losing an update never risks a stale ROW, only a needless re-index — so
     /// this lock is about consistency, not a security boundary.
     pub manifest_lock: Arc<Mutex<()>>,
+    /// P2.1 (Finding 4) — the cached open `chunks` LanceDB table for the active
+    /// workspace. Every Ask used to call `open_connection` + `table_names` +
+    /// `open_table` afresh (~10-50 ms, worse on Windows / slow disks); citation
+    /// verification repeated the same. We cache the opened `Table` handle keyed by
+    /// its workspace path and reuse it across queries.
+    ///
+    /// STALENESS IS IMPOSSIBLE BY CONSTRUCTION: the connection is opened with a
+    /// zero read-consistency interval (`store::open_connection`), so the cached
+    /// handle re-checks the latest committed version on every read — writes made
+    /// by the indexer through other connections are always visible. The cache is
+    /// dropped on a real workspace switch (`cached_chunks_table` re-opens on a path
+    /// mismatch) and explicitly before a destructive `drop_table` rebuild
+    /// (`invalidate_table_cache`), the only operation a consistency re-check can't
+    /// recover from. NOT a security surface — the same matter/privilege/tombstone
+    /// prefilters run on every query regardless of where the handle came from.
+    pub table_cache: Arc<Mutex<Option<CachedTable>>>,
+    /// P2.1 (Finding 4) — monotonic generation counter that closes a TOCTOU race
+    /// around a destructive same-workspace rebuild (`drop_table` + recreate). A
+    /// concurrent cache-miss could otherwise open the OLD table just before the
+    /// drop and store that now-dropped handle AFTER the rebuild's invalidation ran,
+    /// poisoning the cache with a stale handle keyed only by the unchanged
+    /// workspace path. `invalidate_table_cache` bumps this; a populating read
+    /// captures it BEFORE opening and only stores its handle if the generation is
+    /// unchanged afterwards — so a handle opened across a rebuild is never cached.
+    pub table_cache_gen: Arc<std::sync::atomic::AtomicU64>,
+}
+
+/// P2.1 (Finding 4) — a cached open `chunks` table plus the workspace path it was
+/// opened for, so a workspace switch is detected and re-opened.
+pub struct CachedTable {
+    pub workspace: PathBuf,
+    pub table: lancedb::Table,
 }
 
 /// RAII guard that clears `RagState::indexing` on every exit path (normal
@@ -759,6 +801,157 @@ async fn require_workspace(state: &RagState) -> Result<PathBuf, String> {
         .ok_or_else(|| "no active workspace — call rag_set_workspace first".to_string())
 }
 
+/// P2.1 (Finding 4) — return the cached open `chunks` table for `workspace`,
+/// opening and caching it on a miss. `Ok(None)` means no table exists yet (first
+/// launch, before any indexing) — read callers return an empty result for that.
+///
+/// A cache hit is a cheap `Table` clone (Arc bump); a miss opens the connection
+/// and table once and stores the handle. Correctness relies on
+/// `store::open_connection`'s zero read-consistency interval so the cached handle
+/// always reads the latest committed version (see `RagState::table_cache`). A
+/// path mismatch (real workspace switch) transparently re-opens.
+async fn cached_chunks_table(
+    state: &RagState,
+    workspace: &Path,
+) -> Result<Option<lancedb::Table>, String> {
+    use std::sync::atomic::Ordering as AtomicOrdering;
+    // Fast path: a hit for the SAME workspace.
+    {
+        let guard = state.table_cache.lock().await;
+        if let Some(c) = guard.as_ref() {
+            if c.workspace == workspace {
+                return Ok(Some(c.table.clone()));
+            }
+        }
+    }
+    // Miss (empty, or cached for a different workspace): open once and cache.
+    // Capture the cache generation BEFORE opening. If a destructive rebuild
+    // (`invalidate_table_cache`) bumps it while we open, we must NOT cache the
+    // handle we opened — it may point at the dataset being purged.
+    let gen_at_open = state.table_cache_gen.load(AtomicOrdering::SeqCst);
+    let conn = store::open_connection(workspace)
+        .await
+        .map_err(|e| format!("open lancedb: {e}"))?;
+    let names = conn
+        .table_names()
+        .execute()
+        .await
+        .map_err(|e| format!("list tables: {e}"))?;
+    if !names.iter().any(|n| n == store::TABLE_NAME) {
+        // No table yet — drop any handle cached for a prior workspace so a later
+        // hit can't return a foreign table (only if no rebuild raced us), and
+        // report "nothing to search".
+        let mut guard = state.table_cache.lock().await;
+        if state.table_cache_gen.load(AtomicOrdering::SeqCst) == gen_at_open {
+            *guard = None;
+        }
+        return Ok(None);
+    }
+    let table = conn
+        .open_table(store::TABLE_NAME)
+        .execute()
+        .await
+        .map_err(|e| format!("open table: {e}"))?;
+    {
+        let mut guard = state.table_cache.lock().await;
+        // Only publish if no invalidation (workspace switch / destructive rebuild)
+        // raced our open. If the generation moved, a rebuild happened while we were
+        // opening: discard rather than cache a possibly-stale handle. The next read
+        // re-opens the fresh table. We still return `table` for THIS call (the best
+        // snapshot we could get); only the durable CACHE is protected.
+        if state.table_cache_gen.load(AtomicOrdering::SeqCst) == gen_at_open {
+            *guard = Some(CachedTable {
+                workspace: workspace.to_path_buf(),
+                table: table.clone(),
+            });
+        }
+    }
+    Ok(Some(table))
+}
+
+/// P2.1 (Finding 4) — drop the cached table handle AND bump the generation.
+/// Called on a workspace switch and around a destructive `drop_table` rebuild (the
+/// one operation the read-consistency re-check cannot recover from). The
+/// generation bump is what makes a concurrent cache-miss that opened the OLD table
+/// discard its handle instead of caching it after this ran (see
+/// `cached_chunks_table`). Cheap and always safe: the next read re-opens.
+async fn invalidate_table_cache(state: &RagState) {
+    state
+        .table_cache_gen
+        .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    *state.table_cache.lock().await = None;
+}
+
+/// P2.1 (Finding 3) — rebuild the BM25 keyword index in the BACKGROUND and swap
+/// it into shared state when done. The expensive full-corpus scan + decrypt runs
+/// WITHOUT holding the `bm25` mutex, so in-flight and subsequent hybrid queries
+/// are never blocked on it (they fall back to vector-only until this finishes).
+///
+/// `bm25_warming` coalesces triggers so only one rebuild runs at a time. It is
+/// reset when the task exits (including on error / early return) via an RAII
+/// guard so a failed rebuild can never wedge the flag "on". The finished index is
+/// tagged with the table version it was built at; a later query re-checks
+/// freshness against the live version and re-warms if the corpus moved again —
+/// the same self-healing the query path always had, just off the hot path.
+fn spawn_bm25_warm(
+    state: &RagState,
+    table: lancedb::Table,
+    key: [u8; 32],
+    tombstoned: Vec<String>,
+    dataset_dir: PathBuf,
+    version: u64,
+    want_for: PathBuf,
+) {
+    // Coalesce: if a rebuild is already running, this trigger is a no-op.
+    if state
+        .bm25_warming
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return;
+    }
+    let bm25 = state.bm25.clone();
+    let warming = state.bm25_warming.clone();
+
+    // RAII reset so the flag clears on EVERY exit path (Ok, early return, panic).
+    struct WarmGuard(Arc<AtomicBool>);
+    impl Drop for WarmGuard {
+        fn drop(&mut self) {
+            self.0.store(false, Ordering::SeqCst);
+        }
+    }
+
+    tokio::spawn(async move {
+        let _guard = WarmGuard(warming);
+        // Heavy scan + decrypt OUTSIDE the bm25 lock.
+        match store::read_all_for_keyword_index(&table, &key, &tombstoned).await {
+            Ok(entries) => {
+                let mut idx = bm25_index::Bm25Index::new();
+                idx.rebuild_from(entries, version);
+                idx.note_built_for(&want_for);
+                if let Err(e) = idx.persist(&dataset_dir, &key) {
+                    log::warn!("rag: background bm25 persist failed ({e:#})");
+                }
+                // Brief lock only to publish. Don't clobber an index that is
+                // already fresh for a NEWER version (a concurrent write advanced
+                // the table and a later warm rebuilt it while we scanned) — that
+                // would be a downgrade; leave the newer one in place.
+                let mut guard = bm25.lock().await;
+                let newer_present = guard
+                    .table_version()
+                    .is_some_and(|v| v > version)
+                    && guard.built_for() == Some(want_for.as_path());
+                if !newer_present {
+                    *guard = idx;
+                }
+            }
+            Err(e) => {
+                log::warn!("rag: background bm25 rebuild failed ({e:#}); hybrid stays vector-only");
+            }
+        }
+    });
+}
+
 /// Set or replace the active workspace root the RAG indexer points at.
 /// Called when the user opens a workspace, before any indexing.
 #[tauri::command]
@@ -842,6 +1035,11 @@ pub async fn rag_set_workspace(
     state.cancel_flag.store(false, Ordering::SeqCst);
     if changed {
         state.full_index_pending.store(true, Ordering::SeqCst);
+        // P2.1 (Finding 4): a real workspace switch invalidates the cached table
+        // handle (it pointed at the old workspace's dataset). `cached_chunks_table`
+        // also re-opens on a path mismatch, but clearing here frees the old handle
+        // promptly and keeps the cache honest.
+        invalidate_table_cache(&state).await;
     }
     Ok(())
 }
@@ -1905,6 +2103,17 @@ async fn finalize_walk(
         return;
     }
 
+    // P2.1 (Finding 1): NO ANN vector index is built. We benchmarked IVF_FLAT
+    // vs the brute-force flat scan on a 60k-chunk corpus (see
+    // `tests/rag_ann_index_bench.rs`) and the flat scan WON at realistic advisor
+    // scale: ~73–92 ms/query and EXACT, while the ANN index was SLOWER (~128–146
+    // ms/query, the IVF probe + prefilter overhead doesn't pay off until the
+    // corpus is far larger) AND lossy on recall. For a citation product where a
+    // missed source is a correctness failure, an exact flat scan that is already
+    // fast is the right call. `store::create_vector_index` is kept as benched
+    // tooling for a future revisit at 500k+ chunks (where flat becomes seconds),
+    // gated behind real-embedding recall validation — but it is NOT auto-enabled.
+
     let _ = app.emit(
         PROGRESS_EVENT,
         IndexingProgress {
@@ -2141,6 +2350,15 @@ async fn run_workspace_index(
     // a deleted-while-closed file's rows searchable. Rebuild the store from scratch
     // instead (drop + full reindex), which purges every stale/deleted row.
     let stale_key_format = manifest::has_stale_key_format(&workspace);
+    // P2.1 (Finding 4): a destructive rebuild deletes and recreates the dataset,
+    // which the cached handle's read-consistency re-check can't recover from.
+    // Drop the cache BEFORE the drop so a concurrent Ask/verify can't keep using
+    // the handle to the dataset being purged, and AGAIN after so any handle a read
+    // re-cached in the tiny pre-drop window is cleared (the next read then re-opens
+    // the freshly recreated table, which read-consistency fills in as rows land).
+    if migrating || stale_key_format {
+        invalidate_table_cache(&state).await;
+    }
     if migrating {
         log::info!("rag: migrating vector store to schema v{} (full re-index)", store::INDEX_VERSION);
         store::drop_table(&conn)
@@ -2153,6 +2371,9 @@ async fn run_workspace_index(
             .await
             .map_err(|e| format!("drop table for manifest key-format upgrade: {e}"))?;
         manifest::delete(&workspace);
+    }
+    if migrating || stale_key_format {
+        invalidate_table_cache(&state).await;
     }
 
     // P1.1 — a fail-closed integrity-unknown state (a durable tombstone write
@@ -2672,24 +2893,12 @@ pub async fn rag_retrieve(
         RetrievalScope::AllMatters => None,
     };
     let workspace = require_workspace(&state).await?;
-    let conn = store::open_connection(&workspace)
-        .await
-        .map_err(|e| format!("open lancedb: {e}"))?;
-    // If no table yet, return empty rather than error so first-launch
-    // callers get a clean fall-through.
-    let names = conn
-        .table_names()
-        .execute()
-        .await
-        .map_err(|e| format!("list tables: {e}"))?;
-    if !names.iter().any(|n| n == store::TABLE_NAME) {
+    // P2.1 (Finding 4): reuse the cached open table handle (opens once per
+    // workspace, not once per Ask). None = no table yet → empty result so
+    // first-launch callers get a clean fall-through.
+    let Some(table) = cached_chunks_table(&state, &workspace).await? else {
         return Ok(Vec::new());
-    }
-    let table = conn
-        .open_table(store::TABLE_NAME)
-        .execute()
-        .await
-        .map_err(|e| format!("open table: {e}"))?;
+    };
 
     // {e:#} = full anyhow chain, so the typed model-not-ready marker at the
     // root cause survives any .context() wrapping when it crosses IPC (the
@@ -2818,6 +3027,13 @@ pub async fn rag_retrieve(
         let dataset_dir = store::dataset_path(&workspace);
         let current_version = table.version().await.ok();
 
+        // P2.1 (Finding 3): the query path NEVER rebuilds the keyword index
+        // synchronously anymore. It searches an already-fresh in-memory or on-disk
+        // index; if none is fresh, it returns no keyword hits (→ vector-only for
+        // this query) and triggers ONE background rebuild so the NEXT query is
+        // hybrid. `needs_warm` records whether we must kick that rebuild off (done
+        // AFTER releasing the `bm25` lock, so the spawn can't deadlock on it).
+        let mut needs_warm = false;
         let keyword_ranked: Vec<String> = {
             let mut guard = state.bm25.lock().await;
             // FRESH means: built at the live table version AND for THIS workspace.
@@ -2830,38 +3046,23 @@ pub async fn rag_retrieve(
                     && g.built_for() == Some(want_for)
             };
             // `usable` tracks whether the in-memory index is safe to SEARCH for
-            // this call. A stale index whose rebuild FAILS must NOT be searched —
-            // we degrade to vector-only rather than rank on a stale snapshot.
+            // this call. A stale index must NOT be searched — we degrade to
+            // vector-only rather than rank on a stale snapshot.
             let mut usable = is_fresh(&guard);
             if !usable {
                 // Warm start: load THIS workspace's on-disk index when the in-memory
-                // one is for another workspace or was never populated. (A stale
-                // same-workspace index skips disk and rebuilds directly — the disk
-                // copy would be stale too.)
+                // one is for another workspace or was never populated. This is a
+                // CHEAP deserialize (no full-corpus scan). (A stale same-workspace
+                // index skips disk — the disk copy would be stale too.)
                 if guard.built_for() != Some(want_for) || guard.is_empty() {
                     let (loaded, _) = bm25_index::Bm25Index::load(&dataset_dir, ek);
                     *guard = loaded;
                     usable = is_fresh(&guard);
                 }
+                // Still not fresh → do NOT scan+rebuild on the hot path. Fall back
+                // to vector-only for this query and warm in the background.
                 if !usable {
-                    match store::read_all_for_keyword_index(&table, ek, &tombstoned_tokens).await {
-                        Ok(entries) => {
-                            guard.rebuild_from(entries, current_version.unwrap_or(0));
-                            guard.note_built_for(want_for);
-                            usable = true;
-                            if let Err(e) = guard.persist(&dataset_dir, ek) {
-                                log::warn!("rag_retrieve: bm25 index persist failed ({e:#})");
-                            }
-                        }
-                        Err(e) => {
-                            // Rebuild failed: leave `usable` false so we skip the
-                            // (possibly stale) index entirely and answer vector-only.
-                            log::warn!(
-                                "rag_retrieve: bm25 index rebuild failed ({e:#}); \
-                                 keyword search skipped this call (vector-only)"
-                            );
-                        }
-                    }
+                    needs_warm = true;
                 }
             }
             if usable && !guard.is_empty() {
@@ -2880,6 +3081,17 @@ pub async fn rag_retrieve(
                 Vec::new()
             }
         };
+        if needs_warm {
+            spawn_bm25_warm(
+                &state,
+                table.clone(),
+                *ek,
+                tombstoned_tokens.clone(),
+                dataset_dir.clone(),
+                current_version.unwrap_or(0),
+                dataset_dir.clone(),
+            );
+        }
 
         if !keyword_ranked.is_empty() {
             // Vector ranking = current best-first hit order (nearest returns by
@@ -3033,23 +3245,11 @@ pub async fn rag_verify_citation(
         .to_string();
 
     let workspace = require_workspace(&state).await?;
-    let conn = store::open_connection(&workspace)
-        .await
-        .map_err(|e| format!("open lancedb: {e}"))?;
-    let names = conn
-        .table_names()
-        .execute()
-        .await
-        .map_err(|e| format!("list tables: {e}"))?;
-    if !names.iter().any(|n| n == store::TABLE_NAME) {
-        // No index at all — nothing can be verified.
+    // P2.1 (Finding 4): reuse the cached open table handle. None = no index →
+    // nothing can be verified.
+    let Some(table) = cached_chunks_table(&state, &workspace).await? else {
         return Ok(Verdict::NotFound);
-    }
-    let table = conn
-        .open_table(store::TABLE_NAME)
-        .execute()
-        .await
-        .map_err(|e| format!("open table: {e}"))?;
+    };
 
     // BUG-099 tombstone: the exclusion set for citation verification is the
     // in-memory unsafe-token set (already at-rest HMAC tokens). A row from a
@@ -3113,6 +3313,174 @@ pub async fn rag_verify_citation(
         Ok(Verdict::Verified)
     } else {
         Ok(Verdict::TextMismatch)
+    }
+}
+
+/// P2.1 (Finding 2) — one citation to verify in a batch call. Mirrors the three
+/// arguments of `rag_verify_citation`; serde camelCase over IPC.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct CitationToVerify {
+    pub id: String,
+    pub claimed_matter_id: String,
+    pub quoted_text: String,
+}
+
+/// P2.1 (Finding 2) — verify MANY citations in ONE call. The chat path used to
+/// loop `rag_verify_citation` once per citation, and EACH call re-opened the
+/// LanceDB connection + table and issued one or two point lookups — an N+1 that
+/// cost ~100–500 ms on a typical 5–8 citation answer. This opens the table ONCE,
+/// reads every cited chunk in ONE `id IN (...)` query, and classifies each
+/// citation in memory with the SAME logic as the single command.
+///
+/// Verdicts are returned in the SAME ORDER as the input `citations`, one per
+/// input, so the caller can zip them back to its citations. The classification
+/// is byte-for-byte equivalent to calling `rag_verify_citation` per citation on
+/// the normal one-row-per-id corpus; where an id legitimately matches several
+/// rows (a stale row after a failed cleanup, or a retag), it prefers a
+/// non-tombstoned row — which only ever refuses or downgrades a citation, never
+/// upgrades a bad one to Verified. FAIL-CLOSED throughout (unknown integrity,
+/// missing table, invalid claimed matter, undecryptable text all resolve to a
+/// non-Verified verdict), exactly like the single command.
+#[tauri::command]
+pub async fn rag_verify_citations_batch(
+    state: State<'_, RagState>,
+    citations: Vec<CitationToVerify>,
+) -> Result<Vec<Verdict>, String> {
+    if citations.is_empty() {
+        return Ok(Vec::new());
+    }
+    // Fail-closed: if the durable tombstone file was unreadable on workspace
+    // open, we cannot prove any cited chunk isn't a stale row → NotFound for all.
+    if state.index_integrity_unknown.load(Ordering::SeqCst) {
+        return Ok(vec![Verdict::NotFound; citations.len()]);
+    }
+
+    let workspace = require_workspace(&state).await?;
+    // P2.1 (Finding 4): reuse the cached open table handle. None = no index →
+    // nothing can be verified.
+    let Some(table) = cached_chunks_table(&state, &workspace).await? else {
+        return Ok(vec![Verdict::NotFound; citations.len()]);
+    };
+
+    let tombstoned_tokens: std::collections::HashSet<String> =
+        state.unsafe_tokens.lock().await.clone();
+
+    // ONE read for every cited chunk id (unscoped — classification below scopes
+    // each in memory). `fetch_records_by_ids` validates/dedupes/caps the ids.
+    let ids: Vec<String> = citations.iter().map(|c| c.id.clone()).collect();
+    let records = store::fetch_records_by_ids(&table, &ids)
+        .await
+        .map_err(|e| format!("verify batch fetch: {e}"))?;
+
+    // Group rows by id so each citation is classified against exactly the rows
+    // the single command's two point lookups would have seen.
+    let mut by_id: std::collections::HashMap<&str, Vec<&store::ChunkRecord>> =
+        std::collections::HashMap::new();
+    for r in &records {
+        by_id.entry(r.id.as_str()).or_default().push(r);
+    }
+
+    let enc_key = crypto::get_or_create_master_key().ok();
+
+    let verdicts = citations
+        .iter()
+        .map(|c| {
+            // Validate the claimed matter as the single command does; an invalid
+            // one can't verify → fail-closed NotFound (the frontend treats any
+            // non-Verified verdict as "not verified" identically).
+            let claimed = match store::validate_matter_id(&c.claimed_matter_id) {
+                Ok(s) => s.to_string(),
+                Err(_) => return Verdict::NotFound,
+            };
+            let rows: &[&store::ChunkRecord] =
+                by_id.get(c.id.as_str()).map(|v| v.as_slice()).unwrap_or(&[]);
+            classify_citation(rows, &claimed, &c.quoted_text, &tombstoned_tokens, enc_key.as_ref())
+        })
+        .collect();
+
+    Ok(verdicts)
+}
+
+/// P2.1 (Finding 2) — the shared, in-memory citation classifier used by the
+/// batch command. `rows` are every stored row whose `id` equals the cited id
+/// (already fetched). Reproduces `rag_verify_citation`'s decision tree, always at
+/// least as conservative as (never less strict than) the single path:
+///   1. Rows in the CLAIMED matter → if ANY is tombstoned, NotFound (the single
+///      `lookup_by_id(id, Some(claimed)).limit(1)` could pick the stale row and
+///      fail closed); otherwise verify the quoted text (Verified / TextMismatch).
+///      A tombstoned row under ANOTHER matter is invisible to the scoped lookup
+///      and does NOT block a live in-scope verify.
+///   2. No row in the claimed matter → if ANY row for the id is tombstoned,
+///      NotFound (the single `lookup_by_id(id, None).limit(1)` could pick it, and
+///      we never disclose the actual matter of a chunk whose cleanup failed);
+///      otherwise a row under ANOTHER matter is a scope lie (MatterMismatch). No
+///      row → NotFound.
+fn classify_citation(
+    rows: &[&store::ChunkRecord],
+    claimed_matter: &str,
+    quoted_text: &str,
+    tombstoned: &std::collections::HashSet<String>,
+    enc_key: Option<&[u8; 32]>,
+) -> Verdict {
+    // SCOPED lookup: consider only rows in the claimed matter — this mirrors the
+    // single verifier's `lookup_by_id(id, Some(claimed))`, which the SQL prefilter
+    // restricts to the claimed matter (a tombstoned row under ANOTHER matter is
+    // invisible here and must NOT block a legitimate in-scope verify).
+    let scoped_rows: Vec<&&store::ChunkRecord> =
+        rows.iter().filter(|r| r.matter_id == claimed_matter).collect();
+    if !scoped_rows.is_empty() {
+        // FAIL-CLOSED on a scoped stale duplicate: if ANY claimed-matter row is
+        // tombstoned, the single verifier's `limit(1)` lookup could pick that row
+        // and return NotFound, so we must too — never Verify from a live duplicate
+        // while an unresolved stale row for this exact id+scope still exists.
+        if scoped_rows
+            .iter()
+            .any(|r| tombstoned.contains(&r.source_id))
+        {
+            return Verdict::NotFound;
+        }
+        // Every claimed-matter row is live — verify the quoted text against one.
+        let record = scoped_rows[0];
+        let stored_text = if record.encrypted {
+            // FAIL-CLOSED: a chunk we cannot decrypt is unverifiable.
+            let Some(key) = enc_key else {
+                return Verdict::TextMismatch;
+            };
+            match hex::decode(&record.text)
+                .ok()
+                .and_then(|bytes| crate::commands::mail::crypto::decrypt_with_key(&bytes, key).ok())
+                .and_then(|v| String::from_utf8(v).ok())
+            {
+                Some(t) => t,
+                None => return Verdict::TextMismatch,
+            }
+        } else {
+            record.text.clone()
+        };
+        return if text_contains_normalized(&stored_text, quoted_text) {
+            Verdict::Verified
+        } else {
+            Verdict::TextMismatch
+        };
+    }
+
+    // Not in the claimed matter. FAIL-CLOSED on any tombstoned duplicate: if ANY
+    // row for this id is tombstoned, return NotFound rather than disclosing a
+    // cross-matter `MatterMismatch{actual_matter}`. The single verifier's
+    // `lookup_by_id(id, None).limit(1)` picks ONE arbitrary row and returns
+    // NotFound if that row is tombstoned, so on a stale duplicate its result is
+    // NotFound-or-MatterMismatch nondeterministically; choosing NotFound whenever
+    // a tombstone is present is always at least as conservative as the single
+    // path and never leaks the actual matter of a chunk whose cleanup failed.
+    if rows.iter().any(|r| tombstoned.contains(&r.source_id)) {
+        return Verdict::NotFound;
+    }
+    match rows.first() {
+        Some(other) => Verdict::MatterMismatch {
+            actual_matter: other.matter_id.clone(),
+        },
+        None => Verdict::NotFound,
     }
 }
 
@@ -4068,6 +4436,135 @@ mod tests {
         assert!(!text_contains_normalized(stored, " \u{201C}\u{201D} "));
         // Only the genuinely empty quote hits the empty-refusal path.
         assert!(!text_contains_normalized(stored, ""));
+    }
+
+    // ---- P2.1 (Finding 2): batch citation classifier ----------------------
+    fn rec(id: &str, matter: &str, source: &str, text: &str) -> store::ChunkRecord {
+        store::ChunkRecord {
+            id: id.to_string(),
+            matter_id: matter.to_string(),
+            source_id: source.to_string(),
+            paragraph_index: 0,
+            text: text.to_string(), // plaintext (encrypted=false) so no key needed
+            encrypted: false,
+            privilege: Some("none".to_string()),
+            path_enc: None,
+        }
+    }
+
+    #[test]
+    fn classify_verifies_a_faithful_in_scope_citation() {
+        let r = rec("id1", "matterA", "srcA", "the purchase price is $4.2M");
+        let rows = [&r];
+        let none = std::collections::HashSet::new();
+        assert_eq!(
+            classify_citation(&rows, "matterA", "purchase price is $4.2M", &none, None),
+            Verdict::Verified
+        );
+    }
+
+    #[test]
+    fn classify_textmismatch_when_quote_absent_in_scope() {
+        let r = rec("id1", "matterA", "srcA", "the purchase price is $4.2M");
+        let rows = [&r];
+        let none = std::collections::HashSet::new();
+        assert_eq!(
+            classify_citation(&rows, "matterA", "ten billion dollars", &none, None),
+            Verdict::TextMismatch
+        );
+    }
+
+    #[test]
+    fn classify_mattermismatch_when_only_under_another_matter() {
+        let r = rec("id1", "matterB", "srcB", "confidential Acme terms");
+        let rows = [&r];
+        let none = std::collections::HashSet::new();
+        assert_eq!(
+            classify_citation(&rows, "matterA", "confidential Acme terms", &none, None),
+            Verdict::MatterMismatch { actual_matter: "matterB".to_string() }
+        );
+    }
+
+    #[test]
+    fn classify_notfound_when_no_rows() {
+        let none = std::collections::HashSet::new();
+        assert_eq!(
+            classify_citation(&[], "matterA", "anything", &none, None),
+            Verdict::NotFound
+        );
+    }
+
+    #[test]
+    fn classify_tombstoned_scoped_row_is_notfound_not_verified() {
+        // A stale (tombstoned) row in the claimed matter must NOT verify.
+        let r = rec("id1", "matterA", "stale-token", "the purchase price is $4.2M");
+        let rows = [&r];
+        let mut tomb = std::collections::HashSet::new();
+        tomb.insert("stale-token".to_string());
+        assert_eq!(
+            classify_citation(&rows, "matterA", "purchase price is $4.2M", &tomb, None),
+            Verdict::NotFound
+        );
+    }
+
+    #[test]
+    fn classify_tombstoned_other_matter_row_is_notfound_not_mismatch() {
+        let r = rec("id1", "matterB", "stale-token", "confidential Acme terms");
+        let rows = [&r];
+        let mut tomb = std::collections::HashSet::new();
+        tomb.insert("stale-token".to_string());
+        assert_eq!(
+            classify_citation(&rows, "matterA", "confidential Acme terms", &tomb, None),
+            Verdict::NotFound
+        );
+    }
+
+    #[test]
+    fn classify_notfound_when_a_tombstoned_duplicate_exists_even_with_a_live_other_matter() {
+        // A stale (tombstoned) row under matterB AND a live row under matterC,
+        // claimed matterA. The single verifier could return NotFound (if it picks
+        // the tombstoned row) — so the batch path must NOT disclose MatterMismatch{C}.
+        let stale = rec("id1", "matterB", "stale-token", "text");
+        let live = rec("id1", "matterC", "live-token", "text");
+        let rows = [&stale, &live];
+        let mut tomb = std::collections::HashSet::new();
+        tomb.insert("stale-token".to_string());
+        assert_eq!(
+            classify_citation(&rows, "matterA", "text", &tomb, None),
+            Verdict::NotFound
+        );
+    }
+
+    #[test]
+    fn classify_scoped_tombstoned_duplicate_fails_closed_to_notfound() {
+        // Same id under the CLAIMED matter: one tombstoned (stale), one live. The
+        // single verifier's limit(1) lookup could pick the stale row → NotFound, so
+        // the batch path must NOT Verify from the live duplicate (fail closed).
+        let stale = rec("id1", "matterA", "stale-token", "WRONG stale text");
+        let live = rec("id1", "matterA", "live-token", "the purchase price is $4.2M");
+        let rows = [&stale, &live];
+        let mut tomb = std::collections::HashSet::new();
+        tomb.insert("stale-token".to_string());
+        assert_eq!(
+            classify_citation(&rows, "matterA", "purchase price is $4.2M", &tomb, None),
+            Verdict::NotFound
+        );
+    }
+
+    #[test]
+    fn classify_live_scoped_row_verifies_despite_tombstoned_other_matter_duplicate() {
+        // A live row in the claimed matter AND a tombstoned duplicate under ANOTHER
+        // matter. The scoped lookup never sees the other-matter row, so the live
+        // in-scope row must still verify — matter-awareness must not over-fail-close.
+        let live = rec("id1", "matterA", "live-token", "the purchase price is $4.2M");
+        let other_stale = rec("id1", "matterB", "stale-token", "WRONG");
+        let rows = [&live, &other_stale];
+        let mut tomb = std::collections::HashSet::new();
+        tomb.insert("stale-token".to_string());
+        assert_eq!(
+            classify_citation(&rows, "matterA", "purchase price is $4.2M", &tomb, None),
+            Verdict::Verified
+        );
     }
 
     #[test]
