@@ -264,8 +264,8 @@ describe('audit log spot-check: marketplace lifecycle', () => {
       version: '1.0.0',
     });
     // Error string must be populated and human-readable.
-    expect(typeof failureEvent?.metadata?.error).toBe('string');
-    expect(String(failureEvent?.metadata?.error)).toMatch(/Checksum/);
+    expect(typeof failureEvent?.metadata?.['error']).toBe('string');
+    expect(String(failureEvent?.metadata?.['error'])).toMatch(/Checksum/);
   });
 
   it('emits template_updated with both legacy `version` and `fromVersion`/`toVersion` fields', async () => {

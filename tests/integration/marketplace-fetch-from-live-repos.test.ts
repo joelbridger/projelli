@@ -28,7 +28,7 @@ import { createHash } from 'node:crypto';
 import { validateTemplateManifest } from '@/features/workflows/marketplace/svc/manifestValidator';
 import type { CatalogEntry } from '@/features/workflows/types/marketplace';
 
-const LIVE_OK = process.env.LIVE_NETWORK_OK === '1';
+const LIVE_OK = process.env['LIVE_NETWORK_OK'] === '1';
 
 const TEMPLATES_CATALOG_URL =
   'https://raw.githubusercontent.com/keepance/community-templates/main/catalog.json';
@@ -38,20 +38,20 @@ function assertCatalogShape(catalog: unknown): asserts catalog is CatalogEntry[]
   for (const raw of arr) {
     expect(raw).toBeTypeOf('object');
     const entry = raw as Record<string, unknown>;
-    expect(typeof entry.id).toBe('string');
-    expect(typeof entry.name).toBe('string');
-    expect(typeof entry.description).toBe('string');
-    expect(typeof entry.version).toBe('string');
-    expect(typeof entry.category).toBe('string');
-    expect(Array.isArray(entry.tags)).toBe(true);
-    expect(typeof entry.installUrl).toBe('string');
-    expect(typeof entry.manifestUrl).toBe('string');
-    expect(typeof entry.minAppVersion).toBe('string');
-    expect(typeof entry.publishedAt).toBe('string');
-    expect(typeof entry.updatedAt).toBe('string');
-    expect(typeof entry.checksum).toBe('string');
-    expect((entry.checksum as string).length).toBeGreaterThan(0);
-    expect(typeof entry.author).toBe('object');
+    expect(typeof entry['id']).toBe('string');
+    expect(typeof entry['name']).toBe('string');
+    expect(typeof entry['description']).toBe('string');
+    expect(typeof entry['version']).toBe('string');
+    expect(typeof entry['category']).toBe('string');
+    expect(Array.isArray(entry['tags'])).toBe(true);
+    expect(typeof entry['installUrl']).toBe('string');
+    expect(typeof entry['manifestUrl']).toBe('string');
+    expect(typeof entry['minAppVersion']).toBe('string');
+    expect(typeof entry['publishedAt']).toBe('string');
+    expect(typeof entry['updatedAt']).toBe('string');
+    expect(typeof entry['checksum']).toBe('string');
+    expect((entry['checksum'] as string).length).toBeGreaterThan(0);
+    expect(typeof entry['author']).toBe('object');
   }
 }
 

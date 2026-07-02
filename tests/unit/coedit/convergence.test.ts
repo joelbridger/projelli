@@ -213,7 +213,7 @@ describe('p4_tracked_changes_attribution_survives', () => {
     expect(ins).toBeTruthy();
     if (ins?.kind === 'insertion') {
       expect(ins.meta.author).toBe('attorney-a');
-      expect(ins.runs[0].text).toBe(' [added by counsel A]');
+      expect(ins.runs[0]?.text).toBe(' [added by counsel A]');
       expect(ins.meta.date.length).toBeGreaterThan(0);
     }
 
@@ -221,7 +221,7 @@ describe('p4_tracked_changes_attribution_survives', () => {
     expect(del).toBeTruthy();
     if (del?.kind === 'deletion') {
       expect(del.meta.author).toBe('attorney-b');
-      expect(del.runs[0].text).toBe('The term of this Agreement is one year.');
+      expect(del.runs[0]?.text).toBe('The term of this Agreement is one year.');
       expect(del.meta.date.length).toBeGreaterThan(0);
     }
   });

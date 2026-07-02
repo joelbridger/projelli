@@ -66,6 +66,7 @@ class FakeRelay {
       .map((b) => ({
         cursor: b.cursor,
         blob_id: b.blob_id,
+        doc_id: '_notes',
         key_epoch: b.key_epoch,
         author_seat: 'seat-x',
         created_at: new Date().toISOString(),
@@ -74,6 +75,7 @@ class FakeRelay {
     const latest = this.blobs.length ? this.blobs[this.blobs.length - 1]!.cursor : 0;
     return {
       matter_id: 'm1',
+      doc_id: '_notes',
       key_epoch: this.keyEpoch,
       since,
       cursor: updates.length ? updates[updates.length - 1]!.cursor : since,

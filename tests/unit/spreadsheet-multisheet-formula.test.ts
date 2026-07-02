@@ -39,7 +39,6 @@ function twoSheetModel(): SheetModel {
     sourceExtension: 'xlsx',
     // No engine to start — exactly the workbook shape that broke recalc:
     // formulas live only on a non-active sheet, so nothing seeded an engine.
-    engine: undefined,
   };
 }
 
@@ -73,7 +72,6 @@ describe('spreadsheet — formula recalc on a non-active sheet', () => {
       ],
       activeSheetIndex: 0,
       sourceExtension: 'xlsx',
-      engine: undefined,
     };
     model.engine = new SheetEngine(model.sheets[0]!);
     const next = setCellValue(model, 0, { row: 0, col: 1 }, '7'); // B1 = 7
