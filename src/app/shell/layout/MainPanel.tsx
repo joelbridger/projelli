@@ -17,6 +17,8 @@ import { SplitPane } from '@/features/documents/editor/SplitPane';
 import { OutlinePanel } from '@/features/documents/editor/OutlinePanel';
 import { ImageViewer, VideoViewer, isImageFile, isVideoFile } from '@/features/documents/media/MediaViewer';
 import { PDFViewer, isPDFFile, isSpreadsheetFile, isPresentationFile, isWordFile } from '@/features/documents/media/PDFViewer';
+import { DraftFollowUpModal } from '@/features/email/DraftFollowUpModal';
+import { resolveMatterIdForPath } from '@/platform/matter/matterStore';
 
 // Heavy doc libraries and feature modules are lazy-loaded so they don't land
 // in the startup bundle. Mermaid (~700KB) and KaTeX are pulled in via
@@ -228,6 +230,13 @@ export function MainPanel({
   // Preview mode state - default to false due to WYSIWYG usability issues
   // (cursor placement broken, Enter creates hashtags instead of line breaks)
   const [isPreviewMode, setIsPreviewMode] = useState(false);
+
+  // Wave 0: the note/document the "Draft follow-up" modal is currently open for.
+  const [followUpFor, setFollowUpFor] = useState<{
+    name: string;
+    content: string;
+    matterId: string;
+  } | null>(null);
 
   // Inline rename state for the editor title strip. Independent from the
   // tab-bar inline rename (which is double-click) so this works whether
@@ -803,6 +812,13 @@ export function MainPanel({
                 aiProvider={redlineProvider}
                 {...(redlineLocalOnly && redlineOllamaModel ? { aiModel: redlineOllamaModel } : {})}
                 {...(onAuditLog ? { onAuditLog } : {})}
+                onDraftFollowUp={(plainText) => {
+                  setFollowUpFor({
+                    name: tab.name,
+                    content: plainText,
+                    matterId: resolveMatterIdForPath(tab.path),
+                  });
+                }}
               />
             </Suspense>
           );
@@ -925,6 +941,13 @@ export function MainPanel({
             fileContent={tab.content}
             fileName={tab.name}
             fileType={toolbarFileType}
+            onDraftFollowUp={() => {
+              setFollowUpFor({
+                name: tab.name,
+                content: tab.content,
+                matterId: resolveMatterIdForPath(tab.path),
+              });
+            }}
           />
         )}
         {/* File title display with the same colored file-type icon shown
@@ -1336,6 +1359,17 @@ export function MainPanel({
           </div>
         )}
       </div>
+      {followUpFor != null && (
+        <DraftFollowUpModal
+          open
+          onOpenChange={(o) => {
+            if (!o) setFollowUpFor(null);
+          }}
+          noteName={followUpFor.name}
+          noteContent={followUpFor.content}
+          matterId={followUpFor.matterId}
+        />
+      )}
     </div>
   );
 }

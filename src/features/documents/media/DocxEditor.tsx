@@ -36,6 +36,7 @@ import {
   FileText,
   FileType,
   Loader2,
+  Mail,
   PanelRightClose,
   PanelRightOpen,
   ShieldCheck,
@@ -69,6 +70,7 @@ import {
   isDocxEngineAvailable,
 } from '@/platform/utils/docx-commands';
 import { writeCoordinator } from '@/platform/fs/writeCoordinator';
+import { extractIndexedParagraphs } from '@/features/documents/docx/redline';
 import { createProvider, isLocalProviderId, type ChatProviderId } from '@/platform/providers/providerFactory';
 import { useTrialGate } from '@/platform/hooks/useTrial';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
@@ -162,6 +164,8 @@ interface DocxEditorProps {
    * When absent (default), the solo path is used byte-for-byte.
    */
   coedit?: { session: CoeditSession };
+  /** Wave 0: opens the "Draft follow-up" email modal with the document's plain text. */
+  onDraftFollowUp?: ((plainText: string) => void) | undefined;
 }
 
 type LoadState =
@@ -184,6 +188,7 @@ export function DocxEditor({
   authorName = 'You',
   onAuditLog,
   coedit,
+  onDraftFollowUp,
 }: DocxEditorProps) {
   const { t } = useTranslation();
 
@@ -1209,6 +1214,28 @@ export function DocxEditor({
                 ? '1 other editing'
                 : `${String(otherEditors)} others editing`}
             </span>
+          )}
+
+          {onDraftFollowUp && (
+            <Button
+              data-testid="docx-draft-follow-up"
+              variant="outline"
+              size="sm"
+              className="h-7 gap-1.5 border-[rgba(var(--kp-navy-rgb),0.30)] text-[var(--kp-navy)] hover:bg-[rgba(var(--kp-navy-rgb),0.05)]"
+              disabled={load.status !== 'ready'}
+              onClick={() => {
+                if (load.status !== 'ready') return;
+                const text = extractIndexedParagraphs(load.doc)
+                  .map(p => p.text)
+                  .join('\n');
+                onDraftFollowUp(text);
+              }}
+              title="Draft a follow-up email from this document"
+            >
+              <Mail className="h-3.5 w-3.5" />
+              {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string */}
+              Draft follow-up
+            </Button>
           )}
 
           {/* A6: discoverable Export — a clearly-labeled menu (not a bare icon)
