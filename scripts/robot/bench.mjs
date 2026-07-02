@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { copyFileSync } from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -57,11 +58,28 @@ function isPortOpen(port) {
   });
 }
 
+// ROBOT_LOCAL: this code is running ON the Legion itself (e.g. a CI runner),
+// not on the server driving it remotely. Every sshExec/scpTo/runSnapshotAction
+// call used to go over SSH to the Legion's OWN Tailscale IP regardless — a
+// pure network loopback for no reason, and a CI run proved it isn't even
+// reliable (`spawnSync scp ETIMEDOUT` on a plain file copy, no app or
+// workspace involved at all). Run everything as a local child process instead
+// when we're already on the target machine.
+const IS_LOCAL = () => !!process.env.ROBOT_LOCAL;
+
 export function sshExec(psCommand, timeoutMs = DEFAULT_SSH_TIMEOUT_MS) {
+  if (IS_LOCAL()) {
+    return execFileSync('powershell.exe', ['-NoProfile', '-Command', psCommand], { encoding: 'utf8', timeout: timeoutMs });
+  }
   return execFileSync('ssh', [...SSH_OPTS, LEGION, psCommand], { encoding: 'utf8', timeout: timeoutMs });
 }
 
 export function scpTo(localPath, remotePath) {
+  if (IS_LOCAL()) {
+    // Both paths are on THIS SAME machine — a plain local copy, no network.
+    copyFileSync(localPath, remotePath);
+    return;
+  }
   execFileSync('scp', [...SSH_OPTS, localPath, `${LEGION}:${remotePath}`], { timeout: DEFAULT_SSH_TIMEOUT_MS });
 }
 
@@ -96,6 +114,22 @@ export async function ensureTunnel(localPort = 9444, benchPort = 9223) {
 export function killApp() {
   // The real process name is "lantern" (facade rename) — "keepance"/"Keepance"
   // never matched anything, so this silently failed to kill the app.
+  //
+  // When ROBOT_LOCAL is set, this powershell.exe runs as a CHILD of the very
+  // node.exe process calling killApp() (this script) — a bare
+  // `Stop-Process -Name node` matches by name only, so it would kill its own
+  // caller mid-reset, silently truncating everything after this call with no
+  // error at all (a CI run stalled on exactly this: the log stopped dead
+  // right after "killing the app to release file locks…"). Exclude our own
+  // PID from the node kill; cargo/lantern/msedgewebview2 are never node.exe,
+  // so no self-conflict there.
+  if (IS_LOCAL()) {
+    sshExec(
+      `Get-Process -Name node -EA SilentlyContinue | Where-Object { $_.Id -ne ${process.pid} } | Stop-Process -Force -EA SilentlyContinue; ` +
+      'Stop-Process -Name cargo,lantern,msedgewebview2 -Force -EA SilentlyContinue; Start-Sleep 6',
+    );
+    return;
+  }
   sshExec('Stop-Process -Name node,cargo,lantern,msedgewebview2 -Force -EA SilentlyContinue; Start-Sleep 6');
 }
 
@@ -245,8 +279,11 @@ const SNAPSHOT_ACTION_TIMEOUT_MS = 600_000;
 function runSnapshotAction(action, opts = {}) {
   let raw = '';
   let threw = false;
+  const cmd = buildSnapshotCmd(action, opts);
   try {
-    raw = execFileSync('ssh', [...SSH_OPTS, LEGION, buildSnapshotCmd(action, opts)], { encoding: 'utf8', timeout: SNAPSHOT_ACTION_TIMEOUT_MS });
+    raw = IS_LOCAL()
+      ? execFileSync('powershell.exe', ['-NoProfile', '-Command', cmd], { encoding: 'utf8', timeout: SNAPSHOT_ACTION_TIMEOUT_MS })
+      : execFileSync('ssh', [...SSH_OPTS, LEGION, cmd], { encoding: 'utf8', timeout: SNAPSHOT_ACTION_TIMEOUT_MS });
   } catch (e) {
     // PowerShell -File exits non-zero on a guarded refusal; still capture stdout.
     threw = true;
