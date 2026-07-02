@@ -16,3 +16,13 @@ forgotten. Do not promote an item into a wave without Jameson's word.*
 | **Reminders / tickler system** | SKIP — Jump added time-based reminders on contacts/deals/tasks. Our stance: the CRM is the task system (Wave 2 pushes due-dated tasks there); a second reminder engine is inbox sprawl | 2026-07-02 |
 | **Practice-wide action-items queue** | **REFUSED** (Jameson, 2026-07-02) — Jump's "Unified Action Items" is a global work queue; Jameson chose per-client only (Wave 3 Task 12b) with the Book view as the sole cross-client attention surface. Do not resurrect silently | 2026-07-02 |
 | **Firm-supplied locked keyword lists beyond Task 17d's hook** | BACKLOG — Task 17d reads locked terms from the firm org payload; a full firm compliance-terms workflow (review queues, alerts) is enterprise scope | 2026-07-02 |
+
+
+## Phase 2 — discovery-driven roadmap (added 2026-07-02, evidence in 2026-07-02-ADVISOR-NEEDS-DISCOVERY.md)
+
+- **Exam-packet assembly ("audit binder on demand")** — quick win, M; strongest compliance whitespace.
+- **Tax-season pack** (1099 extraction → CPA-ready summary + chase list) — quick win, M, seasonal.
+- **NIGO paperwork pre-validation** (per-custodian form-rule packs, Schwab first) — big bet, M/L; loudest practitioner pain found.
+- **Reg S-P incident-response evidence kit** — big bet, M; urgent regulatory window; evidence/scoping only, never claim security controls.
+- **Test-first (need discovery-call validation):** held-away statement parsing; marketing-rule pre-review; diminished-capacity protocol pack (thin evidence — hypothesis only).
+- **Run the staged discovery-interview campaign** (~/keepance/docs/marketing/campaigns/2026-06-advisor-first-users/) — the missing validation instrument; the discovery report is its hypothesis sheet.
