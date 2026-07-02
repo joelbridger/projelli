@@ -48,6 +48,17 @@ import {
   assertNotOpenWithUnsavedEdits,
   assertNoOpenDescendant,
 } from './fileAccessGuards';
+// F2.8 — the SINGLE cross-platform path-join + boundary helpers. `workspacePath`
+// replaces every hand-rolled `${rootPath}/${x}` template (absolute-passthrough +
+// non-string guard); `sameOrInside` replaces the raw `startsWith(rootPath)`
+// workspace-boundary check, which was a no-op tautology (filePath is literally
+// `rootPath + "/" + rel`, so it ALWAYS started with rootPath) and — on Windows,
+// where rootPath carries backslashes — could never be made a real check by
+// normalizing the join alone without failing closed on every legitimate path.
+// Migrating join + guard together makes the workspace boundary a genuine,
+// separator/-case-correct check at the tool layer (PathValidator still backstops
+// it downstream; the matter boundary stays with assertInActiveMatter).
+import { workspacePath, sameOrInside } from '@/platform/fs/appPath';
 import {
   fileToolsAllowed,
   fileToolsRegistered,
@@ -1035,8 +1046,8 @@ export function useChatSending(deps: UseChatSendingDeps) {
           switch (toolName) {
             case 'read_file': {
               const relativePath = params['path'] as string;
-              const filePath = `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
-              if (!filePath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
+              const filePath = workspacePath(rootPath, relativePath);
+              if (!sameOrInside(rootPath, filePath)) throw new Error('Access denied: path outside workspace');
               assertInActiveMatter(filePath, relativePath); // BUG-036
               try {
                 const content = await workspaceServiceRef.current.readFile(filePath);
@@ -1063,8 +1074,8 @@ export function useChatSending(deps: UseChatSendingDeps) {
             }
             case 'list_files': {
               const relativePath = (params['path'] as string) || '.';
-              const dirPath = relativePath === '.' || relativePath === '' ? rootPath : `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
-              if (!dirPath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
+              const dirPath = relativePath === '.' || relativePath === '' ? rootPath : workspacePath(rootPath, relativePath);
+              if (!sameOrInside(rootPath, dirPath)) throw new Error('Access denied: path outside workspace');
               // F2.5 eval fix — fail closed on '..' / cross-matter BEFORE the FS
               // is touched (the startsWith check above can't catch '..'; the old
               // code only post-filtered results AFTER listing). Ancestor dirs are
@@ -1089,7 +1100,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
                   // are hidden so the model can't enumerate them).
                   entries: entries
                     .filter((e) =>
-                      visibleInScope(`${dirPath}/${e.name}`.replace(/\/+/g, '/'), e.type !== 'file'),
+                      visibleInScope(workspacePath(dirPath, e.name), e.type !== 'file'),
                     )
                     .map((e) => ({
                       name: e.name, type: e.type,
@@ -1120,7 +1131,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
                 // BUG-036: drop results outside the active matter so the model
                 // can't discover another matter's files by name search.
                 const scopedResults = searchResults.filter((r) =>
-                  pathInActiveMatter(`${rootPath}/${r.path}`.replace(/\/+/g, '/')),
+                  pathInActiveMatter(workspacePath(rootPath, r.path)),
                 );
                 return { results: scopedResults, query };
               } catch (error) {
@@ -1130,8 +1141,8 @@ export function useChatSending(deps: UseChatSendingDeps) {
             case 'write_file': {
               const relativePath = params['path'] as string;
               const content = params['content'] as string;
-              const filePath = `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
-              if (!filePath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
+              const filePath = workspacePath(rootPath, relativePath);
+              if (!sameOrInside(rootPath, filePath)) throw new Error('Access denied: path outside workspace');
               assertInActiveMatter(filePath, relativePath); // BUG-036
               assertNotOpenWithUnsavedEdits(filePath, relativePath); // BUG-047
               const exists = await workspaceServiceRef.current.exists(filePath);
@@ -1181,8 +1192,8 @@ export function useChatSending(deps: UseChatSendingDeps) {
             }
             case 'create_folder': {
               const relativePath = params['path'] as string;
-              const folderPath = `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
-              if (!folderPath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
+              const folderPath = workspacePath(rootPath, relativePath);
+              if (!sameOrInside(rootPath, folderPath)) throw new Error('Access denied: path outside workspace');
               assertInActiveMatter(folderPath, relativePath); // BUG-036
               // Honesty (BUG-063 sibling): if the path is already taken, don't gate
               // it or log a false "created". Distinguish an existing FOLDER (a real
@@ -1221,9 +1232,9 @@ export function useChatSending(deps: UseChatSendingDeps) {
             case 'move_file': {
               const fromPath = params['from'] as string;
               const toPath = params['to'] as string;
-              const fullFromPath = `${rootPath}/${fromPath}`.replace(/\/+/g, '/');
-              const fullToPath = `${rootPath}/${toPath}`.replace(/\/+/g, '/');
-              if (!fullFromPath.startsWith(rootPath) || !fullToPath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
+              const fullFromPath = workspacePath(rootPath, fromPath);
+              const fullToPath = workspacePath(rootPath, toPath);
+              if (!sameOrInside(rootPath, fullFromPath) || !sameOrInside(rootPath, fullToPath)) throw new Error('Access denied: path outside workspace');
               assertInActiveMatter(fullFromPath, fromPath); // BUG-036
               assertInActiveMatter(fullToPath, toPath); // BUG-036 (can't move a matter's file out, or into it from elsewhere)
               assertNotOpenWithUnsavedEdits(fullFromPath, fromPath); // BUG-047 (don't move out from under unsaved edits)
@@ -1265,8 +1276,8 @@ export function useChatSending(deps: UseChatSendingDeps) {
             }
             case 'delete_file': {
               const relativePath = params['path'] as string;
-              const filePath = `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
-              if (!filePath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
+              const filePath = workspacePath(rootPath, relativePath);
+              if (!sameOrInside(rootPath, filePath)) throw new Error('Access denied: path outside workspace');
               assertInActiveMatter(filePath, relativePath); // BUG-036
               assertNotOpenWithUnsavedEdits(filePath, relativePath); // BUG-047
               assertNoOpenDescendant(filePath, relativePath); // BUG-063 sibling (folder w/ open child)
