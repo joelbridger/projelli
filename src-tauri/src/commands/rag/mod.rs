@@ -2135,11 +2135,23 @@ async fn run_workspace_index(
     let migrating = store::needs_migration(&conn, &workspace)
         .await
         .map_err(|e| format!("migration check: {e}"))?;
+    // P1.1 — a manifest whose KEY FORMAT predates v2 (keyed by plaintext paths, not
+    // HMAC tokens) can't be matched against the token-keyed rows, so deletions
+    // can't be computed from it. Discarding it while the table survives would leave
+    // a deleted-while-closed file's rows searchable. Rebuild the store from scratch
+    // instead (drop + full reindex), which purges every stale/deleted row.
+    let stale_key_format = manifest::has_stale_key_format(&workspace);
     if migrating {
         log::info!("rag: migrating vector store to schema v{} (full re-index)", store::INDEX_VERSION);
         store::drop_table(&conn)
             .await
             .map_err(|e| format!("drop legacy table: {e}"))?;
+        manifest::delete(&workspace);
+    } else if stale_key_format {
+        log::info!("rag: manifest key-format upgrade (v1→v2) — rebuilding vector store from scratch");
+        store::drop_table(&conn)
+            .await
+            .map_err(|e| format!("drop table for manifest key-format upgrade: {e}"))?;
         manifest::delete(&workspace);
     }
 
@@ -2164,10 +2176,13 @@ async fn run_workspace_index(
         .iter()
         .any(|n| n == store::TABLE_NAME);
 
-    // A migration, a fail-closed recovery, or a missing vector table forces a full
-    // walk regardless of the caller's requested mode.
-    let effective_full =
-        matches!(mode, IndexMode::Full) || migrating || integrity_unknown || table_missing;
+    // A migration, a manifest key-format upgrade, a fail-closed recovery, or a
+    // missing vector table forces a full walk regardless of the requested mode.
+    let effective_full = matches!(mode, IndexMode::Full)
+        || migrating
+        || stale_key_format
+        || integrity_unknown
+        || table_missing;
 
     // If the vector table is missing, the store holds NO rows — so EVERY manifest
     // signature (text/office AND pdf) is stale. Drop the whole manifest so the

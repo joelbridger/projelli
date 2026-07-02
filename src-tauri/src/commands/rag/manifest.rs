@@ -339,6 +339,22 @@ pub fn save(workspace_root: &Path, manifest: &Manifest) -> std::io::Result<()> {
     Ok(())
 }
 
+/// True iff a manifest file exists on disk AND was written in the v1 plaintext-key
+/// format (its `sources` are keyed by paths, not HMAC tokens). Such a manifest
+/// cannot be matched against the v2 token-keyed LanceDB rows, so the reconcile
+/// must REBUILD the store from scratch rather than silently discard it — silently
+/// discarding it would strand a deleted-while-closed file's rows (its token is
+/// only recoverable from the plaintext key), leaving deleted content searchable.
+/// Absent / unreadable / already-v2+ manifests return false (no rebuild needed).
+pub fn has_stale_key_format(workspace_root: &Path) -> bool {
+    match std::fs::read_to_string(manifest_path(workspace_root)) {
+        Ok(s) => serde_json::from_str::<Manifest>(&s)
+            .map(|m| m.manifest_version == 1)
+            .unwrap_or(false),
+        Err(_) => false,
+    }
+}
+
 /// Delete the manifest file (used when a schema migration drops the table, so the
 /// stale signatures can't wrongly skip files against the freshly-rebuilt store).
 pub fn delete(workspace_root: &Path) {
@@ -513,6 +529,23 @@ mod tests {
         let m = load(dir.path(), 10);
         assert_eq!(m.manifest_version, MANIFEST_VERSION);
         assert!(m.sources.is_empty());
+    }
+
+    #[test]
+    fn has_stale_key_format_detects_v1_only() {
+        let dir = tempfile::TempDir::new().unwrap();
+        // Absent → false.
+        assert!(!has_stale_key_format(dir.path()));
+        // Current (v2) → false.
+        save(dir.path(), &Manifest::new(10)).unwrap();
+        assert!(!has_stale_key_format(dir.path()));
+        // A v1 (plaintext-key era) manifest → true.
+        let p = manifest_path(dir.path());
+        std::fs::write(&p, br#"{"manifest_version":1,"index_version":10,"sources":{}}"#).unwrap();
+        assert!(has_stale_key_format(dir.path()));
+        // A hypothetical future version → false (not the plaintext-key format).
+        std::fs::write(&p, br#"{"manifest_version":9,"index_version":10,"sources":{}}"#).unwrap();
+        assert!(!has_stale_key_format(dir.path()));
     }
 
     #[test]
