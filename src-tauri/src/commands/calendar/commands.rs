@@ -163,14 +163,26 @@ pub async fn calendar_connect_google() -> Result<(), String> {
     Ok(())
 }
 
-/// True for a bare-HTTP URL whose host is loopback (dev/test only). ICS
-/// feed URLs commonly embed a secret access token as a query parameter, so
-/// plaintext HTTP anywhere else would send that secret over the open
-/// network — only localhost is exempt from the HTTPS requirement.
+/// True for a bare-HTTP URL whose ACTUAL host (per URL syntax, not a naive
+/// string split) is loopback (dev/test only). ICS feed URLs commonly embed
+/// a secret access token as a query parameter, so plaintext HTTP anywhere
+/// else would send that secret over the open network — only localhost is
+/// exempt from the HTTPS requirement.
+///
+/// Wave-1 review finding (P2): a hand-rolled `split(['/', ':', '?'])` reads
+/// everything before the first of those chars as "the host", but a URL like
+/// `http://localhost:80@evil.example/feed.ics` puts "localhost:80" in the
+/// USERINFO component (before '@') — the real host, and where reqwest
+/// actually connects, is "evil.example". Parsing with the `url` crate
+/// (re-exported as `reqwest::Url`, already used elsewhere in this codebase
+/// — see `connector::assert_same_origin`) and reading `host_str()` reflects
+/// what the HTTP client will really connect to.
 fn is_localhost_http(url: &str) -> bool {
-    let Some(rest) = url.strip_prefix("http://") else { return false };
-    let host = rest.split(['/', ':', '?']).next().unwrap_or("");
-    host == "localhost" || host == "127.0.0.1" || host == "::1"
+    let Ok(parsed) = reqwest::Url::parse(url) else { return false };
+    if parsed.scheme() != "http" {
+        return false;
+    }
+    matches!(parsed.host_str(), Some("localhost") | Some("127.0.0.1") | Some("::1"))
 }
 
 /// ICS fallback: validate the URL shape, fetch it once to prove it parses,
@@ -415,5 +427,31 @@ mod tests {
             let accepted = url.starts_with("https://") || is_localhost_http(url);
             assert_eq!(accepted, expected, "{why}");
         }
+    }
+
+    #[test]
+    fn is_localhost_http_rejects_userinfo_host_spoofing() {
+        // Wave-1 review finding (P2): the naive split(['/', ':', '?']) hits
+        // the ':' in "localhost:80" first and never sees the '@', so it
+        // reads "localhost" as the host — but per URL syntax, everything
+        // before '@' is userinfo and "evil.example" is the REAL host that
+        // reqwest actually connects to, over plain HTTP, leaking the
+        // secret token in the ICS URL's query string.
+        assert!(
+            !is_localhost_http("http://localhost:80@evil.example/feed.ics?token=secret"),
+            "userinfo-prefixed host must not be treated as loopback"
+        );
+        assert!(
+            !is_localhost_http("http://localhost@evil.example/feed.ics"),
+            "bare userinfo spoof must not be treated as loopback"
+        );
+        assert!(
+            !is_localhost_http("http://127.0.0.1@evil.example/feed.ics"),
+            "IPv4-literal userinfo spoof must not be treated as loopback"
+        );
+        // Genuine loopback URLs (with or without a port) still pass.
+        assert!(is_localhost_http("http://localhost/feed.ics"));
+        assert!(is_localhost_http("http://localhost:8080/feed.ics"));
+        assert!(is_localhost_http("http://127.0.0.1:8080/feed.ics"));
     }
 }
