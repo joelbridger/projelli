@@ -12,6 +12,24 @@ use std::path::Path;
 #[derive(Debug, Default, PartialEq)]
 pub struct PageStats { pub written: u32, pub removed: u32 }
 
+/// Run a blocking closure without stalling the async runtime when we can.
+///
+/// P2.3 row 5: applying a mail page does blocking disk writes + a SQLite
+/// transaction. On the multi-threaded runtime Tauri uses in production,
+/// `block_in_place` lets the scheduler move sibling tasks to other worker
+/// threads for the duration, so a big sync no longer freezes the app. On a
+/// current-thread runtime (some `#[tokio::test]`s) `block_in_place` would panic,
+/// so we run the closure inline — identical to the pre-P2.3 behaviour. This only
+/// affects scheduling; results are unchanged, and the closure may borrow freely
+/// (no `'static`/`Send` bound, unlike `spawn_blocking`).
+fn run_blocking<T>(f: impl FnOnce() -> T) -> T {
+    use tokio::runtime::{Handle, RuntimeFlavor};
+    match Handle::try_current().map(|h| h.runtime_flavor()) {
+        Ok(RuntimeFlavor::MultiThread) => tokio::task::block_in_place(f),
+        _ => f(),
+    }
+}
+
 /// Max consecutive 410 (delta-token-expired) resets before a folder sync gives
 /// up, so a server stuck returning 410 cannot loop indefinitely.
 #[cfg(test)]
@@ -114,6 +132,13 @@ where
             stats.removed += 1;
         }
     }
+    // P2.3 row 5: collect the page's records and upsert them in ONE transaction
+    // at the end, instead of one autocommit upsert (= one fsync) per message.
+    // Blob writes and index callbacks stay per-message (they touch disk / the RAG
+    // index, not the messages table, so their order relative to the DB upsert
+    // does not matter). If a blob write fails we return Err before any upsert,
+    // exactly as before; the page is idempotent and re-applied on the next sync.
+    let mut records: Vec<MailRecord> = Vec::with_capacity(messages.len());
     for msg in messages {
         let markdown = to_markdown(msg);
         let rel = encrypted_blob_relative_path(provider, account, &msg.id);
@@ -136,7 +161,7 @@ where
             .map(|c| if c == '\n' || c == '\r' { ' ' } else { c })
             .take(200)
             .collect();
-        store.upsert(&MailRecord {
+        records.push(MailRecord {
             id: msg.id.clone(),
             folder_id: folder_id.to_string(),
             internet_message_id: msg.internet_message_id.clone(),
@@ -149,7 +174,7 @@ where
             from_name: msg.from_name.clone().unwrap_or_default(),
             snippet,
             has_attachments: msg.has_attachments,
-        })?;
+        });
         // BUG-013: a DURABLE per-message filing (manual "file to matter", stored
         // in the mail DB) wins over the folder mapping, so a manual filing
         // survives this re-sync/re-index instead of being re-stamped back to the
@@ -157,7 +182,8 @@ where
         // BUG-042: an "unassigned" tombstone (left when a filed-to matter was
         // deleted) stays unassigned — it is NOT re-stamped to the folder's
         // matter, so a deleted matter's email can never silently move into
-        // another matter.
+        // another matter. (Reads the durable override in `meta`, independent of
+        // the messages upsert we defer to the end.)
         let effective_matter = crate::commands::mail::resolve_effective_matter(
             store.get_message_matter(&msg.id).ok().flatten().as_deref(),
             matter_id,
@@ -165,6 +191,7 @@ where
         index_callback(&msg.id, &markdown, &effective_matter);
         stats.written += 1;
     }
+    store.upsert_batch(&records)?;
     Ok(stats)
 }
 
@@ -345,7 +372,10 @@ where
             }
         }
 
-        let s = apply_messages_enc(store, workspace_root, &folder.id, provider.kind(), account, matter_id, &page.messages, &removed_ids, key, index_callback, tombstone_callback)?;
+        // P2.3 row 5: run the blocking apply (disk writes + SQLite txn) off the
+        // async executor on a multi-threaded runtime so a large sync does not
+        // stall other tasks; inline on a current-thread runtime (see run_blocking).
+        let s = run_blocking(|| apply_messages_enc(store, workspace_root, &folder.id, provider.kind(), account, matter_id, &page.messages, &removed_ids, key, index_callback, tombstone_callback))?;
         total.written += s.written;
         total.removed += s.removed;
         emit(total.written, total.removed);
