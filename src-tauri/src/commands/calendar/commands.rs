@@ -526,14 +526,20 @@ async fn calendar_sync_all_inner(
         .map_err(|e| e.to_string())?;
     let (from_utc, to_utc) = super::model::sync_window_utc(chrono::Utc::now());
 
+    // codex-review P2 (wave-1b review round 2): a real keychain error
+    // (locked, permission denied, ...) must not be treated the same as
+    // "not connected" — unwrap_or(false) silently skipped that provider,
+    // which in a multi-provider sync could report success while leaving
+    // one calendar stale, or (single-provider) surface a confusing "No
+    // calendar is connected" instead of the actual keychain problem.
     let mut sources: Vec<Box<dyn CalendarSource>> = Vec::new();
-    if calendar_is_connected("outlook".into()).await.unwrap_or(false) {
+    if calendar_is_connected("outlook".into()).await? {
         sources.push(Box::new(GraphCalendarSource::new()));
     }
-    if calendar_is_connected("google".into()).await.unwrap_or(false) {
+    if calendar_is_connected("google".into()).await? {
         sources.push(Box::new(GoogleCalendarSource::new()));
     }
-    if calendar_is_connected("ics".into()).await.unwrap_or(false) {
+    if calendar_is_connected("ics".into()).await? {
         sources.push(Box::new(IcsCalendarSource::new()));
     }
     if sources.is_empty() {
