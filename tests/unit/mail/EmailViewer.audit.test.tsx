@@ -277,6 +277,38 @@ describe('EmailViewer — AI-draft audit records the ACTUAL assured route (indep
     );
   });
 
+  it('keeps logging "assured-proxy" even if the confidentiality-mode setting changes mid-resolve (independent reviewer catch, P3 — race)', async () => {
+    mockResolveAssuredRoute.mockReturnValue({
+      provider: 'anthropic',
+      model: 'claude-haiku-4-5-20251001',
+      accessToken: 'ACCESS',
+      seatToken: 'SEAT',
+      stream: false,
+    });
+    // Simulate the setting flipping to 'direct' WHILE resolveEmailProvider is
+    // still awaiting the keychain read — the assured route was already
+    // resolved and baked into the provider by that point, so a later fresh
+    // getConfidentialityMode() read must not un-log it as "provider-direct".
+    mockGetKey.mockImplementation(async (provider: string) => {
+      if (provider === 'anthropic') {
+        useSettingsStore.getState().setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, 'direct');
+      }
+      return null;
+    });
+    mockMailGetMessage.mockResolvedValue(sampleMessage({ matterId: null }));
+    render(<EmailViewer sourceId="AAMk-xyz" />);
+    await screen.findByTestId('email-reply-area');
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('reply-draft-ai-btn'));
+    });
+
+    await waitFor(() => expect(emitterSpy).toHaveBeenCalled());
+    const entry = emitterSpy.mock.calls[0]![0];
+    expect(entry.metadata['mode']).toBe('assured');
+    expect(entry.metadata['destination']).toBe('assured-proxy');
+  });
+
   it('routes through assured with NO personal key at all (independent reviewer catch, P2) — never falls through to the local model', async () => {
     mockGetKey.mockResolvedValue(null); // no personal key for ANY provider
     mockResolveAssuredRoute.mockImplementation((provider: string) =>

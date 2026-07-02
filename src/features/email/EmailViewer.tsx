@@ -478,7 +478,21 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
       // real send falls back to BYOK-direct — resolveEgress must be told that,
       // not just handed the raw mode, or the log would claim "Assured" for a
       // request that plainly went out with the user's own key.
-      const egress = resolveEgress({ provider: providerId, mode: getConfidentialityMode(), assuredAvailable });
+      //
+      // Force mode:'assured' whenever assuredAvailable is true, rather than a
+      // fresh getConfidentialityMode() read (independent reviewer catch, P3 —
+      // a race): the setting can change during resolveEmailProvider's
+      // keychain awaits, but `provider` is already built with the assured
+      // route baked in by then, and that's what the real send uses regardless
+      // of what the live setting says a moment later. Forcing the mode here
+      // keeps resolveEgress's own assured-branch condition
+      // (`mode === 'assured' && assuredAvailable`) from ever disagreeing with
+      // the frozen `assuredAvailable` this entry is about to log.
+      const egress = resolveEgress({
+        provider: providerId,
+        mode: assuredAvailable ? 'assured' : getConfidentialityMode(),
+        assuredAvailable,
+      });
       const scope = emailMatterScope(filedMatterId, filedMatter?.name);
       const auditEntry = auditEventToEntry({
         type: 'egress',
