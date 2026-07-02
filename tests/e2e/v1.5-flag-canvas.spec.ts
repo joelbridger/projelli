@@ -23,12 +23,16 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { waitForTestModeLoad } from './helpers/test-utils';
+import { waitForTestModeLoad, switchToStandaloneEditorSurface } from './helpers/test-utils';
 
 async function openMarkdownFile(
   page: import('@playwright/test').Page,
   args: { path: string; name: string; content: string },
 ) {
+  // MarkdownEditor (and its word-count footer) only mounts on the
+  // standalone editor surface (sidebarActiveTab === 'files') — see
+  // helpers/test-utils.ts.
+  await switchToStandaloneEditorSurface(page);
   await page.evaluate((a) => {
     const fn = (window as unknown as {
       __openTestFile?: (p: string, n: string, c: string) => void;

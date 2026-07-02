@@ -44,9 +44,7 @@ const CI_QUARANTINE = [
   // changes since these specs were written and genuine CI-runner timing
   // sensitivity on heavier specs — not diagnosed further within F1.3's CI-lane
   // scope). Each needs individual root-causing as a follow-up.
-  '**/updater.spec.ts',
   '**/v1.5-canvas-stress.spec.ts',
-  '**/v1.5-flag-canvas.spec.ts',
   '**/v1.5-memory-stress.spec.ts',
   '**/wedge-proof.spec.ts',
 ];
