@@ -123,6 +123,11 @@ async-stream = "0.3"
 # store all use `?` against heterogeneous error types).
 anyhow = "1"
 async-trait = "0.1"
+# Lantern-Plus Wave 2 (CRM write-back) — typed error taxonomy for
+# CrmWriteError (commands/crm/write.rs). Already resolved transitively
+# (thiserror 2.0.18 via other crates), so declaring it direct adds no new
+# major version to the tree.
+thiserror = "2"
 # Stream B TTS — voice archive download and extraction.
 # Stream C1 (Templates Marketplace) — also reuses flate2 + tar for tarball
 # extraction and adds `hex` for the SHA-256 file checksum command.
