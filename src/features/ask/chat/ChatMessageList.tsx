@@ -35,7 +35,7 @@ interface ChatMessageListProps {
   onRetryLastError: () => void;
   onStop: () => void;
   proposedFacts: PendingProposal[];
-  onAcceptProposedFact: (key: string, editedText?: string) => void;
+  onAcceptProposedFact: (key: string, editedText?: string) => void | Promise<void>;
   onRejectProposedFact: (key: string) => void;
   messagesEndRef: React.RefObject<HTMLDivElement>;
 }

@@ -367,8 +367,8 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   const displayMessages = useMemo(() => {
     if (streamingPreview === null || messages.length === 0) return messages;
     const lastIdx = messages.length - 1;
-    const last = messages[lastIdx]!;
-    if (last.role !== 'assistant' || last.content === streamingPreview) return messages;
+    const last = messages[lastIdx];
+    if (!last || last.role !== 'assistant' || last.content === streamingPreview) return messages;
     const patched = messages.slice();
     patched[lastIdx] = { ...last, content: streamingPreview };
     return patched;
@@ -392,10 +392,15 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     [activeMatter],
   );
 
-  // Scroll to bottom when messages change
+  // Scroll to bottom when messages change. Perf (P1.2) fix: depend on
+  // `displayMessages`, not `messages` — while a stream is in flight the
+  // visible text grows through the local `streamingPreview` overlay and
+  // `messages` itself doesn't change until the turn's single final store
+  // write, so depending on `messages` alone stopped auto-scroll from
+  // following a streaming answer until it finished.
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [displayMessages]);
 
   // M3 — after each completed turn, check whether extraction should
   // run. Only fires when we're not loading (so the turn is complete),
@@ -860,7 +865,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     if (lastUserMsg) {
       setInputValue(lastUserMsg.content);
       // Trigger send on the next tick so state is committed first.
-      setTimeout(() => handleSendMessageRef.current(), 0);
+      setTimeout(() => { void handleSendMessageRef.current(); }, 0);
     }
   }, [setInputValue]);
 
