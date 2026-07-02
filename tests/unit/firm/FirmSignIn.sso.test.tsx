@@ -129,3 +129,57 @@ describe('FirmSignIn — SSO affordance', () => {
     expect(ssoButton).toBeDisabled();
   });
 });
+
+// F2.4: SSO sign-in used to hang on the IdP popup for the full 5-minute
+// server-side loopback timeout with no way out. Cancel must abort it
+// immediately and restore the UI, without ever showing "cancelled" as a
+// scary error, and without ever establishing a session.
+describe('FirmSignIn — SSO cancel (F2.4)', () => {
+  beforeEach(resetAll);
+
+  it('shows a Cancel button while SSO sign-in is in progress', async () => {
+    useFirmStore.setState({ signInSso: vi.fn().mockReturnValue(new Promise(() => {})) } as any);
+
+    render(<FirmSignIn />);
+    const emailInput = screen.getByTestId('firm-email');
+    fireEvent.change(emailInput, { target: { value: 'jane@weston.com' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /sign in with sso/i }));
+
+    expect(await screen.findByTestId('firm-sso-cancel')).toBeInTheDocument();
+  });
+
+  it('does not show a Cancel button before SSO sign-in starts', () => {
+    render(<FirmSignIn />);
+    const emailInput = screen.getByTestId('firm-email');
+    fireEvent.change(emailInput, { target: { value: 'jane@weston.com' } });
+
+    expect(screen.queryByTestId('firm-sso-cancel')).not.toBeInTheDocument();
+  });
+
+  it('clicking Cancel calls signInSsoCancel and, once the pending sign-in settles, restores the UI without a red error or an established session', async () => {
+    let rejectSignIn: (err: unknown) => void = () => {};
+    const signInSsoSpy = vi.fn().mockReturnValue(new Promise((_resolve, reject) => { rejectSignIn = reject; }));
+    const signInSsoCancelSpy = vi.fn().mockResolvedValue(undefined);
+    useFirmStore.setState({ signInSso: signInSsoSpy, signInSsoCancel: signInSsoCancelSpy } as any);
+
+    render(<FirmSignIn />);
+    const emailInput = screen.getByTestId('firm-email');
+    fireEvent.change(emailInput, { target: { value: 'jane@weston.com' } });
+
+    const ssoButton = screen.getByRole('button', { name: /sign in with sso/i });
+    fireEvent.click(ssoButton);
+
+    const cancelBtn = await screen.findByTestId('firm-sso-cancel');
+    fireEvent.click(cancelBtn);
+    expect(signInSsoCancelSpy).toHaveBeenCalledOnce();
+
+    // Simulate signInSso settling with the "cancelled" rejection once the
+    // Rust-side abort takes effect (await_sso_redirect_or_cancel).
+    await act(async () => { rejectSignIn(new Error('cancelled')); });
+
+    expect(screen.queryByTestId('firm-sso-cancel')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('firm-error')).not.toBeInTheDocument();
+    expect(useFirmStore.getState().session).toBeNull();
+  });
+});

@@ -108,6 +108,13 @@ interface FirmState {
    */
   signInSso: (email: string) => Promise<void>;
   /**
+   * Abort a pending signInSso() sign-in immediately (user clicked Cancel, or
+   * closed the IdP popup and gave up) instead of leaving it to hit the
+   * 5-minute server-side timeout. No-op outside Tauri or with no sign-in in
+   * flight. Never touches an already-established session.
+   */
+  signInSsoCancel: () => Promise<void>;
+  /**
    * Claim an unclaimed org with the license key the buyer received from
    * LemonSqueezy. On success the session is populated exactly like signIn
    * (tokens persisted to keychain, org + user in store). The prefilled license
@@ -262,15 +269,32 @@ export const useFirmStore = create<FirmState>()(
           const res = JSON.parse(raw) as LoginResponse;
           await establishSessionFromLogin(res, set, get);
         } catch (err) {
+          // Tauri's invoke() rejects with the RAW STRING a Rust `Err(String)`
+          // command returns (not wrapped in an Error) — `firm_sso_cancel`
+          // produces exactly this shape, so `typeof err === 'string'` must be
+          // checked before the generic Error/fallback branches, or a real
+          // cancellation is misread as "SSO sign-in failed".
           const message =
-            err instanceof FirmApiError
-              ? err.message
-              : err instanceof Error
+            typeof err === 'string'
+              ? err
+              : err instanceof FirmApiError
                 ? err.message
-                : 'SSO sign-in failed';
-          set({ isLoading: false, error: message, isOffline: !(err instanceof FirmApiError) });
+                : err instanceof Error
+                  ? err.message
+                  : 'SSO sign-in failed';
+          // The user clicked Cancel — an intentional exit, not a failure, so
+          // don't surface it as a store-level error (and no session was ever
+          // established).
+          const cancelled = message === 'cancelled';
+          set({ isLoading: false, error: cancelled ? null : message, isOffline: cancelled ? false : !(err instanceof FirmApiError) });
           throw err instanceof Error ? err : new Error(message);
         }
+      },
+
+      signInSsoCancel: async () => {
+        const { invoke, isTauri } = await import('@tauri-apps/api/core');
+        if (!isTauri()) return;
+        await invoke('firm_sso_cancel');
       },
 
       claimOrg: async (licenseKey, email, password, orgName) => {

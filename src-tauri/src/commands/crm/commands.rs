@@ -39,6 +39,11 @@ pub struct CrmState {
     /// stores the running total per matter; `crm_sync_status` reads it so a watching
     /// user sees steady movement instead of a stale number that jumps at the end.
     pub progress_households: Arc<std::sync::atomic::AtomicU32>,
+    /// Separate from `cancel` (which cancels an in-flight sync): lets the
+    /// frontend abort a pending interactive OAuth sign-in (`crm_oauth_connect`'s
+    /// wait for the browser redirect) without touching sync state. See
+    /// `crm_oauth_connect_cancel`.
+    pub oauth_cancel: Arc<AtomicBool>,
 }
 
 pub fn manage_state(app: &tauri::App) {
@@ -48,6 +53,7 @@ pub fn manage_state(app: &tauri::App) {
         cancel: Arc::new(AtomicBool::new(false)),
         last_report: tokio::sync::Mutex::new(None),
         progress_households: Arc::new(std::sync::atomic::AtomicU32::new(0)),
+        oauth_cancel: Arc::new(AtomicBool::new(false)),
     });
 }
 
@@ -403,6 +409,7 @@ pub async fn crm_connect(
 #[tauri::command]
 pub async fn crm_oauth_connect(
     app: AppHandle,
+    state: State<'_, CrmState>,
     provider: Option<String>,
 ) -> Result<CrmConnectInfo, String> {
     let provider = CrmProvider::from_optional(provider.as_deref())?;
@@ -412,6 +419,10 @@ pub async fn crm_oauth_connect(
             provider.display_name()
         ));
     }
+
+    // Reset from any prior cancelled/finished attempt before starting a new one.
+    state.oauth_cancel.store(false, Ordering::SeqCst);
+    let cancel = state.oauth_cancel.clone();
 
     let client_id = salesforce_client_id()
         .ok_or_else(|| "KEEPANCE_SALESFORCE_CLIENT_ID is not configured".to_string())?;
@@ -423,10 +434,11 @@ pub async fn crm_oauth_connect(
             .map_err(|e| e.to_string())?;
     let url = build_salesforce_auth_url(&client_id, &redirect_uri, &challenge, &state_token);
     crate::commands::mail::gmail::oauth::open_browser(&url);
-    let code = crate::commands::mail::gmail::oauth::await_redirect_code(
+    let code = crate::commands::mail::gmail::oauth::await_redirect_code_or_cancel(
         listener,
         &state_token,
         std::time::Duration::from_secs(300),
+        cancel,
     )
     .await
     .map_err(|e| e.to_string())?;
@@ -469,6 +481,17 @@ pub async fn crm_oauth_connect(
         plan: String::new(),
         email: info.email,
     })
+}
+
+/// Abort a pending `crm_oauth_connect` interactive sign-in immediately (e.g.
+/// the user clicked Cancel on the "Connecting..." Salesforce button, or closed
+/// the popup and gave up) instead of leaving them stuck on the 5-minute
+/// server-side timeout. A no-op if no sign-in is in flight. Never touches an
+/// already-working connection.
+#[tauri::command]
+pub async fn crm_oauth_connect_cancel(state: State<'_, CrmState>) -> Result<(), String> {
+    state.oauth_cancel.store(true, Ordering::SeqCst);
+    Ok(())
 }
 
 /// Returns `true` if a Wealthbox API token is present in the OS keychain.
@@ -1025,6 +1048,7 @@ mod tests {
             cancel: Arc::new(AtomicBool::new(false)),
             last_report: tokio::sync::Mutex::new(None),
             progress_households: Arc::new(std::sync::atomic::AtomicU32::new(0)),
+            oauth_cancel: Arc::new(AtomicBool::new(false)),
         }
     }
 

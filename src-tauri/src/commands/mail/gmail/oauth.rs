@@ -371,6 +371,41 @@ pub async fn await_redirect_code(
     .map_err(|_| anyhow!("timed out waiting for OAuth redirect"))?
 }
 
+/// Race `await_redirect_code` against `cancel` being set, polling every 150ms.
+/// Lets a pending interactive OAuth wait (OneDrive, Salesforce, ...) be
+/// aborted immediately — user clicked Cancel, or closed the browser tab and
+/// gave up — instead of sitting on the full `timeout`. Returns
+/// `Err("cancelled")` when the cancel flag wins. Shared by every loopback
+/// connector so the "5-minute frozen login" fix lives in one place.
+pub async fn await_redirect_code_or_cancel(
+    listener: tokio::net::TcpListener,
+    expected_state: &str,
+    timeout: Duration,
+    cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
+) -> anyhow::Result<String> {
+    let redirect_fut = await_redirect_code(listener, expected_state, timeout);
+    tokio::pin!(redirect_fut);
+    loop {
+        tokio::select! {
+            res = &mut redirect_fut => {
+                // A redirect that lands in the same instant Cancel was
+                // clicked can win this select before the next poll tick
+                // notices — re-check `cancel` here so a late Cancel still
+                // wins instead of silently completing the connect.
+                if cancel.load(std::sync::atomic::Ordering::SeqCst) {
+                    anyhow::bail!("cancelled");
+                }
+                return res;
+            }
+            _ = tokio::time::sleep(Duration::from_millis(150)) => {
+                if cancel.load(std::sync::atomic::Ordering::SeqCst) {
+                    anyhow::bail!("cancelled");
+                }
+            }
+        }
+    }
+}
+
 /// Read and discard bytes from `socket` until the end-of-headers marker
 /// `\r\n\r\n` is seen or 16 KB have been consumed, whichever comes first.
 /// Best-effort: ignores errors (the browser may have already closed its send half).
@@ -759,6 +794,121 @@ mod tests {
             "Content-Length ({cl_value}) must equal actual body length ({})",
             body.len()
         );
+    }
+
+    // ── await_redirect_code_or_cancel — F2.4 "5-minute frozen login" fix ────
+
+    #[tokio::test]
+    async fn await_redirect_code_or_cancel_returns_immediately_when_cancelled() {
+        use std::sync::atomic::AtomicBool;
+        use std::sync::Arc;
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let cancel = Arc::new(AtomicBool::new(true));
+
+        let started = tokio::time::Instant::now();
+        let result = tokio::time::timeout(
+            Duration::from_secs(2),
+            await_redirect_code_or_cancel(listener, "state", Duration::from_secs(300), cancel),
+        )
+        .await
+        .expect("must not hit the 2s outer test timeout — cancellation should be near-instant");
+
+        assert!(result.is_err(), "a cancelled wait must return an error, not a code");
+        assert!(started.elapsed() < Duration::from_secs(1), "cancellation must be detected within one poll tick, not the full timeout");
+    }
+
+    #[tokio::test]
+    async fn await_redirect_code_or_cancel_returns_the_code_when_not_cancelled() {
+        use std::sync::atomic::AtomicBool;
+        use std::sync::Arc;
+        use tokio::io::AsyncWriteExt;
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let cancel = Arc::new(AtomicBool::new(false));
+
+        let task = tokio::spawn(await_redirect_code_or_cancel(
+            listener,
+            "TEST_STATE",
+            Duration::from_secs(5),
+            cancel,
+        ));
+
+        let mut stream = tokio::net::TcpStream::connect(format!("127.0.0.1:{port}")).await.unwrap();
+        let request = "GET /?code=REALCODE&state=TEST_STATE HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n";
+        stream.write_all(request.as_bytes()).await.unwrap();
+        stream.flush().await.unwrap();
+
+        let code = task.await.unwrap().expect("must succeed when never cancelled");
+        assert_eq!(code, "REALCODE");
+    }
+
+    #[tokio::test]
+    async fn await_redirect_code_or_cancel_notices_a_late_cancel() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let cancel = Arc::new(AtomicBool::new(false));
+        let cancel_setter = cancel.clone();
+
+        let task = tokio::spawn(await_redirect_code_or_cancel(
+            listener,
+            "state",
+            Duration::from_secs(300),
+            cancel,
+        ));
+
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        cancel_setter.store(true, Ordering::SeqCst);
+
+        let result = tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .expect("must not hit the 2s outer test timeout")
+            .unwrap();
+        assert!(result.is_err(), "a late cancel must still abort the wait");
+    }
+
+    #[tokio::test]
+    async fn await_redirect_code_or_cancel_rejects_a_redirect_that_lands_after_cancel() {
+        // Regression: cancel is set, then the browser redirect ARRIVES (a
+        // connect-then-cancel race — e.g. the user finishes the OAuth popup
+        // in the same instant they click Cancel). The redirect branch can
+        // become ready before the next 150ms poll tick would have noticed
+        // cancel on its own; the fix re-checks cancel at the moment the
+        // redirect resolves so a Cancel that landed first still wins instead
+        // of silently completing the connect.
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+        use tokio::io::AsyncWriteExt;
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let cancel = Arc::new(AtomicBool::new(false));
+        let cancel_setter = cancel.clone();
+
+        let task = tokio::spawn(await_redirect_code_or_cancel(
+            listener,
+            "TEST_STATE",
+            Duration::from_secs(300),
+            cancel,
+        ));
+
+        // Cancel first, then complete the redirect almost immediately after —
+        // well within the 150ms poll interval, so the redirect branch is very
+        // likely to win the select race against the next sleep tick.
+        cancel_setter.store(true, Ordering::SeqCst);
+        let mut stream = tokio::net::TcpStream::connect(format!("127.0.0.1:{port}")).await.unwrap();
+        let request = "GET /?code=REALCODE&state=TEST_STATE HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n";
+        stream.write_all(request.as_bytes()).await.unwrap();
+        stream.flush().await.unwrap();
+
+        let result = tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .expect("must not hit the 2s outer test timeout")
+            .unwrap();
+        assert!(result.is_err(), "cancel must win even when the redirect lands right after it, not silently return the code");
     }
 
     // Live OAuth smoke test for server-side connector validation (no signed build

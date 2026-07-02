@@ -1,10 +1,11 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { OneDriveConnect } from '@/platform/connectors/onedrive/OneDriveConnect';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import type { OneDriveSyncReport } from '@/platform/utils/onedrive-commands';
 
 const oneDriveConnect = vi.fn();
+const oneDriveConnectCancel = vi.fn();
 const oneDriveDisconnect = vi.fn();
 const oneDriveIsConnected = vi.fn();
 const oneDriveListFolders = vi.fn();
@@ -14,6 +15,7 @@ const oneDriveCancel = vi.fn();
 vi.mock('@/platform/utils/onedrive-commands', () => ({
   oneDriveCancel: (...args: unknown[]) => oneDriveCancel(...args),
   oneDriveConnect: (...args: unknown[]) => oneDriveConnect(...args),
+  oneDriveConnectCancel: (...args: unknown[]) => oneDriveConnectCancel(...args),
   oneDriveDisconnect: (...args: unknown[]) => oneDriveDisconnect(...args),
   oneDriveIsConnected: (...args: unknown[]) => oneDriveIsConnected(...args),
   oneDriveListFolders: (...args: unknown[]) => oneDriveListFolders(...args),
@@ -179,5 +181,52 @@ describe('OneDriveConnect honest sync feedback', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Sync now' }));
 
     expect(await screen.findByText(/ran into a problem/i)).toBeTruthy();
+  });
+});
+
+// F2.4: the OneDrive connect hung on "Waiting for Microsoft sign-in..." for the
+// full 5-minute server-side OAuth timeout with no way out. Cancel must abort it
+// immediately and restore the UI, leaving the prior connection (if any) intact.
+describe('OneDriveConnect — cancel connect (F2.4)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useMatterStore.setState({ matters: [], activeMatterId: null });
+    oneDriveIsConnected.mockResolvedValue(false);
+    oneDriveConnectCancel.mockResolvedValue(undefined);
+    oneDriveListFolders.mockResolvedValue([]);
+  });
+
+  it('shows a Cancel button while connecting', async () => {
+    oneDriveConnect.mockReturnValue(new Promise(() => {}));
+    render(<OneDriveConnect />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Connect OneDrive' }));
+    expect(await screen.findByTestId('onedrive-cancel-connect')).toBeInTheDocument();
+  });
+
+  it('does not show a Cancel button when not connecting', async () => {
+    render(<OneDriveConnect />);
+    await screen.findByRole('button', { name: 'Connect OneDrive' });
+    expect(screen.queryByTestId('onedrive-cancel-connect')).not.toBeInTheDocument();
+  });
+
+  it('clicking Cancel calls oneDriveConnectCancel and, once the pending connect settles, restores the UI without showing a red error', async () => {
+    let rejectConnect: (err: unknown) => void = () => {};
+    oneDriveConnect.mockReturnValue(new Promise((_resolve, reject) => { rejectConnect = reject; }));
+    render(<OneDriveConnect />);
+    const connectBtn = await screen.findByRole('button', { name: 'Connect OneDrive' });
+    fireEvent.click(connectBtn);
+    await waitFor(() => expect(screen.getByText(/waiting for microsoft sign-in/i)).toBeInTheDocument());
+
+    const cancelBtn = await screen.findByTestId('onedrive-cancel-connect');
+    fireEvent.click(cancelBtn);
+    await waitFor(() => expect(oneDriveConnectCancel).toHaveBeenCalledTimes(1));
+
+    // Simulate the backend's onedrive_connect promise settling with the
+    // "cancelled" error once the abort takes effect (await_redirect_code_or_cancel).
+    await act(async () => { rejectConnect('cancelled'); });
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Connect OneDrive' })).not.toBeDisabled());
+    expect(screen.queryByTestId('onedrive-cancel-connect')).not.toBeInTheDocument();
+    expect(screen.queryByText(/cancelled/i)).not.toBeInTheDocument();
   });
 });

@@ -27,6 +27,11 @@ pub struct OneDriveState {
     pub cancel: Arc<AtomicBool>,
     pub progress_seen: Arc<AtomicU32>,
     pub last_report: tokio::sync::Mutex<Option<OneDriveSyncReport>>,
+    /// Separate from `cancel` (which cancels an in-flight document *sync*):
+    /// lets the frontend abort a pending interactive OAuth sign-in
+    /// (`onedrive_connect`'s wait for the browser redirect) without touching
+    /// sync state. See `onedrive_connect_cancel`.
+    pub oauth_cancel: Arc<AtomicBool>,
 }
 
 pub fn manage_state(app: &tauri::App) {
@@ -36,6 +41,7 @@ pub fn manage_state(app: &tauri::App) {
         cancel: Arc::new(AtomicBool::new(false)),
         progress_seen: Arc::new(AtomicU32::new(0)),
         last_report: tokio::sync::Mutex::new(None),
+        oauth_cancel: Arc::new(AtomicBool::new(false)),
     });
 }
 
@@ -134,14 +140,22 @@ pub async fn onedrive_set_workspace(
     Ok(())
 }
 
+/// Run the Microsoft loopback+PKCE sign-in: open the browser, catch the
+/// redirect, exchange the code, and store the refresh token. Blocks until the
+/// user finishes, cancels (see `onedrive_connect_cancel`), or a 5-minute
+/// timeout elapses.
 #[tauri::command]
-pub async fn onedrive_connect() -> Result<(), String> {
+pub async fn onedrive_connect(state: State<'_, OneDriveState>) -> Result<(), String> {
     use crate::commands::mail::gmail::oauth::{
-        await_redirect_code, bind_loopback_host, gen_pkce, gen_state, open_browser,
+        await_redirect_code_or_cancel, bind_loopback_host, gen_pkce, gen_state, open_browser,
     };
     use crate::commands::onedrive::oauth::{
         build_ms_auth_url, ms_exchange_code, MS_TOKEN_ENDPOINT,
     };
+
+    // Reset from any prior cancelled/finished attempt before starting a new one.
+    state.oauth_cancel.store(false, Ordering::SeqCst);
+    let cancel = state.oauth_cancel.clone();
 
     let (verifier, challenge) = gen_pkce();
     let state_token = gen_state();
@@ -150,9 +164,14 @@ pub async fn onedrive_connect() -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     let url = build_ms_auth_url(&client_id(), &redirect_uri, &challenge, &state_token);
     open_browser(&url);
-    let code = await_redirect_code(listener, &state_token, std::time::Duration::from_secs(300))
-        .await
-        .map_err(|e| e.to_string())?;
+    let code = await_redirect_code_or_cancel(
+        listener,
+        &state_token,
+        std::time::Duration::from_secs(300),
+        cancel,
+    )
+    .await
+    .map_err(|e| e.to_string())?;
     let tokens = ms_exchange_code(
         &client_id(),
         &code,
@@ -165,6 +184,16 @@ pub async fn onedrive_connect() -> Result<(), String> {
     token_entry()?
         .set_password(&tokens.refresh)
         .map_err(|e| e.to_string())
+}
+
+/// Abort a pending `onedrive_connect` interactive sign-in immediately (e.g.
+/// the user clicked Cancel, or closed the popup and gave up) instead of
+/// leaving them stuck on the 5-minute server-side timeout. A no-op if no
+/// sign-in is in flight. Never touches an already-working connection.
+#[tauri::command]
+pub async fn onedrive_connect_cancel(state: State<'_, OneDriveState>) -> Result<(), String> {
+    state.oauth_cancel.store(true, Ordering::SeqCst);
+    Ok(())
 }
 
 #[tauri::command]

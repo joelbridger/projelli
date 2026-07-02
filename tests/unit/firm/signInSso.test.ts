@@ -212,6 +212,53 @@ describe('firmStore.signInSso', () => {
     expect(st.error).toBe('sso_unavailable');
   });
 
+  // F2.4: a user-initiated Cancel is an intentional exit, not a failure — it
+  // must not surface as a store-level error, even though it still rejects
+  // (so the caller's UI can distinguish "settled" from "still pending").
+  it('rejecting with "cancelled" clears isLoading without setting a store error', async () => {
+    invokeMock.mockImplementationOnce(async (cmd: string) => {
+      if (cmd === 'firm_sso_authenticate') throw new Error('cancelled');
+      throw new Error(`unexpected: ${cmd}`);
+    });
+
+    await expect(useFirmStore.getState().signInSso('jane@weston.com')).rejects.toThrow('cancelled');
+    const st = useFirmStore.getState();
+    expect(st.isLoading).toBe(false);
+    expect(st.error).toBeNull();
+    expect(st.session).toBeNull();
+  });
+
+  // Real Tauri behavior: invoke() rejects a `Result<T, String>` command's Err
+  // with the RAW STRING, not an Error instance — `firm_sso_cancel` produces
+  // exactly this shape. A prior version of this catch block only checked
+  // FirmApiError/Error and fell through to "SSO sign-in failed" for a raw
+  // string, misreporting a real user-initiated cancel as a failure.
+  it('rejecting with the raw string "cancelled" (Tauri Err(String) shape) is still recognized as cancelled', async () => {
+    invokeMock.mockImplementationOnce(async (cmd: string) => {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error
+      if (cmd === 'firm_sso_authenticate') throw 'cancelled';
+      throw new Error(`unexpected: ${cmd}`);
+    });
+
+    await expect(useFirmStore.getState().signInSso('jane@weston.com')).rejects.toThrow('cancelled');
+    const st = useFirmStore.getState();
+    expect(st.isLoading).toBe(false);
+    expect(st.error).toBeNull();
+    expect(st.session).toBeNull();
+  });
+
+  it('signInSsoCancel invokes firm_sso_cancel', async () => {
+    invokeMock.mockImplementationOnce(async (cmd: string) => {
+      if (cmd === 'firm_sso_cancel') return undefined;
+      throw new Error(`unexpected: ${cmd}`);
+    });
+
+    await useFirmStore.getState().signInSsoCancel();
+
+    const cancelCall = invokeMock.mock.calls.find(([cmd]) => cmd === 'firm_sso_cancel');
+    expect(cancelCall).toBeDefined();
+  });
+
   it('carries forward prior session seatId/tier when re-signing in as the same user', async () => {
     // Pre-populate a prior session for the same user with an activated seat
     useFirmStore.setState({
