@@ -1735,6 +1735,19 @@ export function useChatSending(deps: UseChatSendingDeps) {
 
         console.error('AI chat error:', error);
 
+        // Perf (P1.2) fix: a stream that throws mid-response (e.g. a network
+        // reset) after at least one chunk has arrived left its partial text
+        // stranded in the local buffer — it was never written to the store
+        // per-chunk, and `clearStreamPreview()` below wipes the local
+        // preview too. Without this, the placeholder assistant message
+        // (added empty when the stream started) stays empty forever and the
+        // user loses the partial answer they already saw on screen. Commit
+        // whatever was streamed so far to that placeholder before the error
+        // bubble is appended below.
+        if (streamBufferRef.current) {
+          updateLastMessage(chatId, streamBufferRef.current);
+        }
+
         const chatProvider = effectiveProvider;
         const chatModel = chatData.model;
         if (!providerSendCompletedOrCancelledAfterEgress || error instanceof LocalOnlyEgressError) {
