@@ -54,9 +54,8 @@ import {
 } from '@/platform/types/privilege';
 import { deriveFilenameFromMessage } from '@/platform/utils/fileDrop';
 import { createKeychainService } from '@/platform/providers/KeychainService';
-import { createClaudeProvider } from '@/platform/providers/ClaudeProvider';
-import { createOpenAIProvider } from '@/platform/providers/OpenAIProvider';
-import { createGeminiProvider } from '@/platform/providers/GeminiProvider';
+import { createProvider } from '@/platform/providers/providerFactory';
+import { OPENAI_DEFAULT_MODEL } from '@/platform/providers/OpenAIProvider';
 import { resolveLocalGenerationProvider } from '@/platform/providers/resolveLocalProvider';
 import { isLocalOnlyMode, assertCloudGenerationAllowed, assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
 import type { Provider } from '@/platform/providers/Provider';
@@ -123,20 +122,29 @@ export async function buildProviderAsync(): Promise<Provider> {
   // cloud key still falls back to local Ollama (no egress). Local-only mode already
   // returned above; firm installs are a no-op inside assertCloudGenerationAllowed.
   const kc = createKeychainService();
+  // One front door (fix F2.2): build through the shared factory so the email
+  // "Draft with AI" surface resolves the SAME provider mapping as Ask / redline /
+  // Client Map and can never drift. Same key-priority order as before
+  // (anthropic → openai → google), each gated on an explicit confidentiality
+  // choice before any cloud egress.
   const anthropicKey = await kc.getKey('anthropic');
   if (anthropicKey?.trim()) {
     assertCloudGenerationAllowed();
-    return createClaudeProvider({ apiKey: anthropicKey.trim() });
+    return createProvider({ provider: 'anthropic', apiKey: anthropicKey.trim() });
   }
   const openaiKey = await kc.getKey('openai');
   if (openaiKey?.trim()) {
     assertCloudGenerationAllowed();
-    return createOpenAIProvider({ apiKey: openaiKey.trim() });
+    // Preserve the pre-F2.2 default EXACTLY: this surface never passes a model,
+    // so it used OpenAIProvider's own constructor default (gpt-4o). The shared
+    // factory would otherwise substitute the free-tier default (gpt-4o-mini) and
+    // silently downgrade email drafting — so pass the prior default explicitly.
+    return createProvider({ provider: 'openai', apiKey: openaiKey.trim(), model: OPENAI_DEFAULT_MODEL });
   }
   const googleKey = await kc.getKey('google');
   if (googleKey?.trim()) {
     assertCloudGenerationAllowed();
-    return createGeminiProvider({ apiKey: googleKey.trim() });
+    return createProvider({ provider: 'google', apiKey: googleKey.trim() });
   }
   // No cloud key — fall back to the on-device engine (embedded model when ready,
   // else Ollama). No egress, nothing to gate.

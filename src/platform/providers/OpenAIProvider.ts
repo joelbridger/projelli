@@ -31,6 +31,16 @@ import {
   isTimeoutError,
 } from './requestControl';
 
+/**
+ * The model this provider falls back to when a caller passes none. Exported so
+ * surfaces that historically relied on this constructor default (e.g. the email
+ * "Draft with AI", which never passes a model) can preserve it EXACTLY when they
+ * route construction through the shared factory (fix F2.2) — the shared factory
+ * otherwise fills a missing OpenAI model with the free-tier default
+ * (`gpt-4o-mini`), which would silently change those surfaces' behavior.
+ */
+export const OPENAI_DEFAULT_MODEL = 'gpt-4o';
+
 // OpenAI model pricing (per 1K tokens)
 const OPENAI_PRICING: Record<string, { input: number; output: number }> = {
   'gpt-4-turbo': { input: 0.01, output: 0.03 },
@@ -196,7 +206,7 @@ export class OpenAIProvider implements Provider {
 
   constructor(config: OpenAIProviderConfig) {
     this.apiKey = config.apiKey;
-    this.model = config.model ?? 'gpt-4o';
+    this.model = config.model ?? OPENAI_DEFAULT_MODEL;
     this.maxRetries = config.maxRetries ?? 3;
     this.baseUrl = getOpenAIBaseUrl(config.baseUrl);
     this.requestTimeoutMs = config.timeout ?? DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS;
