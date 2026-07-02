@@ -299,16 +299,25 @@ async fn calendar_disconnect_inner(
         Ok(()) | Err(keyring::Error::NoEntry) => {}
         Err(e) => return Err(format!("Could not remove the saved sign-in: {e}")),
     }
-    // 3. If no provider remains connected, purge the whole store + master key.
+    // 3. If no provider remains connected, purge the whole store + master
+    //    key. codex-review P2 (round 6): a real keychain read error for
+    //    ANOTHER provider (locked, permission denied, ...) must NOT be
+    //    treated the same as "not connected" — that could wipe the shared
+    //    local DB/master key while that other provider is actually still
+    //    connected, just temporarily unreadable. Only a confirmed absence
+    //    (`NoEntry`) counts against `any_left`; any other error fails safe
+    //    by assuming the provider IS still connected.
     let mut any_left = false;
     for p in ["outlook", "google", "ics"] {
         if p == provider {
             continue;
         }
-        if let Ok(e) = keyring::Entry::new(&provider_service(p)?, secret_key_for(p)) {
-            if e.get_password().is_ok() {
-                any_left = true;
-            }
+        match keyring::Entry::new(&provider_service(p)?, secret_key_for(p))
+            .and_then(|e| e.get_password())
+        {
+            Ok(_) => any_left = true,
+            Err(keyring::Error::NoEntry) => {}
+            Err(_) => any_left = true,
         }
     }
     if !any_left {

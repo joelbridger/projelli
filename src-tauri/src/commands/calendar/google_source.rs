@@ -92,6 +92,31 @@ fn rfc3339_to_utc(s: &str) -> anyhow::Result<String> {
         .to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
 }
 
+/// Fallback for the defensive case where `dateTime` lacks an explicit UTC
+/// offset and instead relies on the sibling `timeZone` IANA name.
+/// VERIFY-LIVE: Google's documented Calendar v3 contract always embeds the
+/// offset directly in `dateTime` (this codebase's fixtures reflect that),
+/// but codex-review P2 (round 6) flagged this as a plausible response shape
+/// worth defending against, especially for recurring events — failing soft
+/// here means one malformed item doesn't abort the whole calendar fetch.
+fn naive_with_zone_to_utc(s: &str, zone: Option<&str>) -> anyhow::Result<String> {
+    let naive = chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S")
+        .map_err(|e| anyhow::anyhow!("google naive time {s:?}: {e}"))?;
+    let utc = match zone.and_then(|z| z.parse::<chrono_tz::Tz>().ok()) {
+        Some(tz) => {
+            use chrono::TimeZone;
+            tz.from_local_datetime(&naive)
+                .earliest()
+                .map(|d| d.with_timezone(&chrono::Utc))
+                .unwrap_or_else(|| {
+                    chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(naive, chrono::Utc)
+                })
+        }
+        None => chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(naive, chrono::Utc),
+    };
+    Ok(utc.to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
+}
+
 /// Returns Ok(None) only for undated items (defensive; singleEvents=true
 /// should always yield dated occurrences). All-day events use `date`
 /// (midnight UTC of that date, 24h span).
@@ -103,7 +128,13 @@ fn map_google_event(item: &serde_json::Value) -> anyhow::Result<Option<CalendarE
     let time_of = |key: &str| -> anyhow::Result<Option<String>> {
         let node = item.get(key).unwrap_or(&serde_json::Value::Null);
         if let Some(dt) = node.get("dateTime").and_then(|x| x.as_str()) {
-            return Ok(Some(rfc3339_to_utc(dt)?));
+            return match rfc3339_to_utc(dt) {
+                Ok(v) => Ok(Some(v)),
+                Err(_) => {
+                    let zone = node.get("timeZone").and_then(|z| z.as_str());
+                    Ok(Some(naive_with_zone_to_utc(dt, zone)?))
+                }
+            };
         }
         if let Some(d) = node.get("date").and_then(|x| x.as_str()) {
             return Ok(Some(format!("{d}T00:00:00Z")));
@@ -227,5 +258,21 @@ mod tests {
         assert_eq!(events[0].attendees.len(), 1, "self attendee is filtered out");
         assert!(events[1].is_cancelled, "status cancelled maps");
         assert!(events[2].self_declined, "self attendee declined maps");
+    }
+
+    #[test]
+    fn datetime_without_offset_falls_back_to_sibling_timezone() {
+        // codex-review P2 (round 6): a dateTime lacking an explicit UTC
+        // offset must resolve via the sibling timeZone field rather than
+        // aborting the whole calendar fetch.
+        let item = serde_json::json!({
+            "id": "g9",
+            "summary": "Offsetless",
+            "status": "confirmed",
+            "start": { "dateTime": "2026-07-02T10:00:00", "timeZone": "America/Denver" },
+            "end": { "dateTime": "2026-07-02T11:00:00", "timeZone": "America/Denver" },
+        });
+        let event = map_google_event(&item).unwrap().unwrap();
+        assert_eq!(event.start_utc, "2026-07-02T16:00:00Z", "MDT is UTC-6 in July");
     }
 }

@@ -274,14 +274,22 @@ fn is_nth_weekday_of_month(date: chrono::NaiveDate, ord: i32, day: chrono::Weekd
 /// forever, so it silently shows an hour off in every window after a DST
 /// transition. Per-occurrence conversion picks the correct offset for each
 /// date, matching a real calendar's "same local time every week" semantics.
+///
+/// `duration` sizes the from-side lookback so a multi-day recurring event
+/// that starts before the window but still overlaps it isn't dropped —
+/// codex-review P2 (round 6): a fixed 1-day lookback silently missed a
+/// several-day event (e.g. a recurring multi-day conference) starting more
+/// than a day before `from`.
 fn expand_occurrences(
     start_naive: chrono::NaiveDateTime,
     tz: Option<chrono_tz::Tz>,
     rrule: Option<&str>,
     exdates_naive: &[chrono::NaiveDateTime],
+    duration: Duration,
     from: DateTime<Utc>,
     to: DateTime<Utc>,
 ) -> Vec<DateTime<Utc>> {
+    let lookback = duration.max(Duration::days(1));
     const HARD_CAP: usize = 1000; // safety valve against pathological rules
     let Some(rule) = rrule else {
         let occ = naive_to_utc(start_naive, tz);
@@ -348,7 +356,7 @@ fn expand_occurrences(
     // walk, which only needs to cover at most one period from there. This
     // target is intentionally coarse (naive local, no DST subtlety) — it's
     // only a starting point for stepping, not the final filter.
-    let target = utc_to_naive_local(from - Duration::days(1), tz).max(start_naive);
+    let target = utc_to_naive_local(from - lookback, tz).max(start_naive);
     match freq {
         "DAILY" => {
             let gap_days = (target.date() - start_naive.date()).num_days().max(0);
@@ -446,7 +454,10 @@ fn expand_occurrences(
                 }
             }
             let excluded = exdates_naive.iter().any(|x| *x == cursor);
-            if !excluded && occ_utc >= from - Duration::days(1) && occ_utc < to {
+            // Exact overlap test (matches finish_vevent's final filter) —
+            // a multi-day event starting well before `from` still counts
+            // if its duration carries it into the window.
+            if !excluded && occ_utc + duration > from && occ_utc < to {
                 occurrences.push(occ_utc);
             }
         }
@@ -553,7 +564,8 @@ fn finish_vevent(
         .flat_map(|(v, _tz)| v.split(',').filter_map(|one| parse_ics_naive(one).ok()).collect::<Vec<_>>())
         .collect();
 
-    let occurrences = expand_occurrences(start_naive, tz, raw.rrule.as_deref(), &exdates_naive, from, to);
+    let occurrences =
+        expand_occurrences(start_naive, tz, raw.rrule.as_deref(), &exdates_naive, duration, from, to);
     Ok(occurrences
         .into_iter()
         .filter(|occ| *occ + duration > from && *occ < to)
@@ -746,6 +758,26 @@ mod tests {
         let events = parse_ics(&ics, "2026-07-25T00:00:00Z", "2026-08-01T00:00:00Z").unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].start_utc, "2026-07-31T16:00:00Z", "must land on the actual last Friday, not shift to DTSTART's day-of-month");
+    }
+
+    #[test]
+    fn multi_day_recurring_event_starting_before_window_still_overlaps() {
+        // codex-review P2 (round 6): a fixed 1-day from-side lookback
+        // silently dropped a multi-day recurring event (e.g. an annual
+        // conference) whose occurrence starts more than a day before
+        // `from` but whose DURATION still carries it into the window.
+        // Weekly 3-day event: Jun 29 09:00Z - Jul 2 09:00Z, Jul 6 - Jul 9,
+        // Jul 13 - Jul 16. Window [Jul 1, Jul 3) only overlaps the FIRST
+        // occurrence (which starts 2 days before the window opens).
+        let ics = wrap(
+            "BEGIN:VEVENT\r\nUID:conf1\r\nSUMMARY:Annual conference\r\n\
+             DTSTART:20260629T090000Z\r\nDTEND:20260702T090000Z\r\n\
+             RRULE:FREQ=WEEKLY;COUNT=3\r\nEND:VEVENT\r\n",
+        );
+        let events = parse_ics(&ics, "2026-07-01T00:00:00Z", "2026-07-03T00:00:00Z").unwrap();
+        assert_eq!(events.len(), 1, "the Jun 29 occurrence overlaps despite starting before the window");
+        assert_eq!(events[0].start_utc, "2026-06-29T09:00:00Z");
+        assert_eq!(events[0].end_utc, "2026-07-02T09:00:00Z");
     }
 
     #[test]
