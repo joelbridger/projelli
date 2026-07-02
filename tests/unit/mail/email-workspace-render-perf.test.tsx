@@ -58,6 +58,7 @@ vi.mock('@/platform/rag/MemoryService', () => ({
 vi.mock('@/platform/rag/matterResolver', () => ({
   buildMailMatterMap: vi.fn().mockReturnValue([]),
   matterLabel: vi.fn((m: { name: string }) => m.name),
+  resolveMailMatter: vi.fn(),
 }));
 
 import {
@@ -67,6 +68,7 @@ import {
 import { useActiveMatter, useMatters } from '@/platform/matter/matterStore';
 import { usePrivilegeStore, usePrivilegeForSource } from '@/platform/firm/privilegeStore';
 import { isMemoryEnabled } from '@/platform/rag/MemoryService';
+import { resolveMailMatter } from '@/platform/rag/matterResolver';
 import { EmailWorkspace } from '@/features/email/EmailWorkspace';
 import { MailRow } from '@/features/email/MailRow';
 
@@ -241,5 +243,46 @@ describe('Perf (P2.2) — EmailWorkspace / MailRow render hygiene', () => {
     await waitForInitialLoad();
 
     expect(screen.getAllByTestId('mail-row')).toHaveLength(10);
+  });
+
+  // Codex review (P2.2, round 1): `scopedItems` used to call `getMatters()`
+  // — a non-reactive Zustand SNAPSHOT getter — inside the memoized filter,
+  // with `matters` absent from the dependency array. The pre-memo code got
+  // away with reading a stale snapshot because it re-ran on every render for
+  // ANY reason; once memoized, a matters/folder-mapping change (e.g. another
+  // client claiming a more specific folder) landing with none of the OTHER
+  // deps changing would never be picked up until something unrelated also
+  // happened to re-render the component. This proves the fix: `matters`
+  // (via the reactive `useMatters()`) is a real dependency, so a matters-only
+  // change, surfaced through an otherwise-unrelated re-render, does update
+  // which items are shown.
+  it('scopedItems (embedded mode) reflects a matters/folder-mapping change, not a stale scan', async () => {
+    const items = makeItems(1);
+    setupMocks(items);
+    mockUseActiveMatter.mockReturnValue({ id: 'matter-1', name: 'Acme', client: 'Acme Corp', folderPaths: [], createdAt: '2026-01-01T00:00:00Z' });
+    const mockResolveMailMatter = resolveMailMatter as ReturnType<typeof vi.fn>;
+
+    // Initially: no matter's folder mapping covers this item.
+    mockUseMatters.mockReturnValue([]);
+    mockResolveMailMatter.mockReturnValue('unassigned');
+
+    render(<EmailWorkspace embedded />);
+    await waitForInitialLoad();
+    expect(screen.queryAllByTestId('mail-row')).toHaveLength(0);
+
+    // A folder mapping is added elsewhere (e.g. the matter manager) — the
+    // matters list changes, resolveMailMatter would now match this item to
+    // the active matter. Nothing about `items`/`embedded`/`activeMatter`
+    // changes.
+    mockUseMatters.mockReturnValue([{ id: 'matter-1', name: 'Acme', client: 'Acme Corp', folderPaths: [], mailFolderPaths: ['m365:default:inbox'], createdAt: '2026-01-01T00:00:00Z' }]);
+    mockResolveMailMatter.mockReturnValue('matter-1');
+
+    // Trigger a re-render via something entirely UNRELATED to matters
+    // scoping — toggling the filters panel is pure local UI state.
+    act(() => {
+      fireEvent.click(screen.getByTestId('filters-toggle'));
+    });
+
+    expect(screen.getAllByTestId('mail-row')).toHaveLength(1);
   });
 });

@@ -38,7 +38,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { Button, SearchField, SegmentedToggle, FilterToggle, FilterPanel, SurfaceToolbar, Callout } from '@/ui/kp';
-import { useActiveMatter, getMatters } from '@/platform/matter/matterStore';
+import { useActiveMatter, useMatters } from '@/platform/matter/matterStore';
 import { resolveMailMatter } from '@/platform/rag/matterResolver';
 import { useMailStore } from './mailStore';
 import {
@@ -437,32 +437,51 @@ export function EmailWorkspace({
   // Perf (P2.2): memoized — unchanged logic/output, just not re-run (and not
   // re-scanning every item against every matter's folder mappings via
   // `resolveMailMatter`) on renders where none of `items`/`embedded`/
-  // `activeMatter` actually changed (e.g. hovering a row, opening a row's
-  // popover, toggling the filters panel).
+  // `activeMatter`/`matters` actually changed (e.g. hovering a row, opening
+  // a row's popover, toggling the filters panel).
+  //
+  // Codex review (P2.2, round 1): this used to read `getMatters()` — a
+  // non-reactive Zustand snapshot getter — INSIDE the filter body. The
+  // pre-memo code got away with that because it re-read it on literally
+  // every render for any reason; once memoized, a matters/folder-mapping
+  // change (e.g. another client claiming a more specific folder) with none
+  // of the other deps changing would never be picked up. `useMatters()` is
+  // the reactive subscription to the same state, so it belongs in the
+  // dependency array (and is what actually gets scanned below).
+  const matters = useMatters();
   const scopedItems = useMemo(
     () =>
       embedded && activeMatter
-        ? items.filter((m) => resolveMailMatter(getMatters(), m.provider, m.account, m.folderId) === activeMatter.id)
+        ? items.filter((m) => resolveMailMatter(matters, m.provider, m.account, m.folderId) === activeMatter.id)
         : items,
-    [items, embedded, activeMatter],
+    [items, embedded, activeMatter, matters],
   );
 
-  // Fix 7: persist list scroll position per-matter in sessionStorage
+  // Fix 7: persist list scroll position per-matter in sessionStorage.
+  //
+  // Perf (P2.2) — this now targets the results list's OWN bounded-height
+  // scroll container (see EMAIL_LIST_MAX_HEIGHT_PX below), not the outer
+  // page. Codex review (round 1) caught that pointing it at the page while
+  // introducing a separate, dedicated inner scroll region for the actual
+  // rows meant a user's scroll position within a long list was never
+  // persisted — the page container rarely scrolls at all once the list
+  // manages its own overflow, so the outer ref was the wrong (and now
+  // largely inert) element to track. `scrollContainerRef` doubles as the
+  // virtualizer's `getScrollElement` below — one ref, one scroll owner.
   const { scrollContainerRef } = useScrollPersistence(activeMatter);
 
   // Perf (P2.2) — virtualize the results list past EMAIL_VIRTUALIZE_ROW_THRESHOLD
-  // rows. `mailListScrollRef` is the results box's OWN bounded-height scroll
-  // container (see EMAIL_LIST_MAX_HEIGHT_PX) — deliberately separate from
-  // `scrollContainerRef` (the whole page's scroll, used by every other state:
-  // loading/error/no-results/filters/Ask mode). Keeping virtualization scoped
-  // to its own dedicated, always-present scroll element means it doesn't need
-  // to track the offset of anything above it (filters panel, bulk-action bar)
-  // the way virtualizing a page-level scroll region would.
-  const mailListScrollRef = useRef<HTMLDivElement>(null);
+  // rows, using the SAME dedicated, bounded-height scroll container as scroll
+  // persistence above — deliberately separate from the outer page's own
+  // scroll (used by every other state: loading/error/no-results/filters/Ask
+  // mode). Keeping virtualization scoped to its own dedicated, always-present
+  // scroll element means it doesn't need to track the offset of anything
+  // above it (filters panel, bulk-action bar) the way virtualizing a
+  // page-level scroll region would.
   const shouldVirtualizeRows = scopedItems.length > EMAIL_VIRTUALIZE_ROW_THRESHOLD;
   const rowVirtualizer = useVirtualizer({
     count: scopedItems.length,
-    getScrollElement: () => mailListScrollRef.current,
+    getScrollElement: () => scrollContainerRef.current,
     estimateSize: () => MAIL_ROW_ESTIMATED_HEIGHT_PX,
     overscan: 8,
     enabled: shouldVirtualizeRows,
@@ -472,7 +491,6 @@ export function EmailWorkspace({
 
   return (
     <div
-      ref={scrollContainerRef}
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -936,7 +954,7 @@ export function EmailWorkspace({
                       : `Showing ${String(items.length)} of ${String(total)}`}
                 </div>
                 <div
-                  ref={mailListScrollRef}
+                  ref={scrollContainerRef}
                   style={{
                     maxHeight: EMAIL_LIST_MAX_HEIGHT_PX,
                     overflowY: 'auto',
