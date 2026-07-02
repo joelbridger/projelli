@@ -961,6 +961,143 @@ git commit -m "feat(crm): approval queue + review card — one Approve, never ba
 
 ---
 
+### Task 9b: Optional compliance summary filed to the CRM
+
+> **2026-07-02 Jameson: added from Jump coverage audit** (D3 — Jump syncs compliance
+> logs to the CRM). Ours rides the existing write path: one extra, approval-gated
+> note composed from what the card just sent. Off by default; a single inline toggle
+> on the review card — NOT a settings page.
+
+**Files:**
+- Create: `src/features/matters/complianceNote.ts`
+- Modify: `src/features/matters/CrmWriteReviewCard.tsx` (footer toggle + post-approve enqueue)
+- Test: `src/features/matters/complianceNote.test.ts`
+
+**Interfaces:**
+- Consumes: `ProposedCrmWrite` + `useCrmWriteQueueStore` (Task 9), `crmCreateNote` wrapper (Task 8).
+- Produces: `composeComplianceNote(sent: ProposedCrmWrite[], meta: ComplianceNoteMeta): { title: string; body: string }` with
+
+```ts
+export interface ComplianceNoteMeta {
+  clientLabel: string;
+  whenIso: string;              // approval timestamp
+  /** DEPENDS-WAVE-3: consent fields come from the Wave 3 consent ledger.
+   *  Optional so this task ships in Wave 2 without it; Wave 3's Task 12
+   *  (meeting outputs -> queue) passes it when the source is a meeting. */
+  consent?: { status: 'noted' | 'standing' | 'not-applicable'; method?: string; atIso?: string };
+  retentionPolicy?: string;     // DEPENDS-WAVE-3/4: e.g. "Audio deleted after 30 days"
+}
+```
+
+- [ ] **Step 1: Write the failing test**
+
+`src/features/matters/complianceNote.test.ts`:
+
+```ts
+import { describe, expect, it } from 'vitest';
+import { composeComplianceNote } from './complianceNote';
+import type { ProposedCrmWrite } from '@/platform/state/crmWriteQueueStore';
+
+const sent: ProposedCrmWrite[] = [
+  { id: '1', kind: 'note', matterId: 'm1', title: 'Annual review', body: 'x', sourceRef: 'meeting:2026-06-30', status: 'sent', remoteId: 'wb-9' },
+  { id: '2', kind: 'task', matterId: 'm1', title: 'Send Roth illustration', body: 'y', dueDate: '2026-07-07', sourceRef: 'meeting:2026-06-30', status: 'sent', remoteId: 'wb-10' },
+];
+
+describe('composeComplianceNote', () => {
+  it('lists every sent item with its remote receipt and stamps the approval time', () => {
+    const { title, body } = composeComplianceNote(sent, {
+      clientLabel: 'The Hendersons',
+      whenIso: '2026-07-02T14:41:00Z',
+      consent: { status: 'noted', method: 'verbal', atIso: '2026-06-30T10:00:00Z' },
+    });
+    expect(title).toContain('Compliance summary');
+    expect(body).toContain('Annual review');
+    expect(body).toContain('wb-10');
+    expect(body).toContain('Consent: noted (verbal)');
+    expect(body).toContain('Approved by the advisor');
+  });
+
+  it('omits consent lines when consent metadata is absent (pre-Wave-3 sources)', () => {
+    const { body } = composeComplianceNote(sent, { clientLabel: 'X', whenIso: '2026-07-02T14:41:00Z' });
+    expect(body).not.toContain('Consent:');
+  });
+
+  it('never includes failed or dismissed items', () => {
+    const mixed = [...sent, { ...sent[0], id: '3', title: 'Broken', status: 'failed' as const }];
+    const { body } = composeComplianceNote(mixed, { clientLabel: 'X', whenIso: '2026-07-02T14:41:00Z' });
+    expect(body).not.toContain('Broken');
+  });
+});
+```
+
+- [ ] **Step 2: Run to verify red**
+
+Run: `npx vitest run src/features/matters/complianceNote.test.ts`
+Expected: FAIL — module not found.
+
+- [ ] **Step 3: Implement `complianceNote.ts`**
+
+```ts
+/**
+ * Composes the optional, approval-gated "compliance summary" CRM note from the
+ * receipts of a just-approved review-card send. Pure; no IO. Consent/retention
+ * lines appear only when the caller supplies them (Wave 3+ meeting sources).
+ */
+
+import type { ProposedCrmWrite } from '@/platform/state/crmWriteQueueStore';
+
+export interface ComplianceNoteMeta {
+  clientLabel: string;
+  whenIso: string;
+  consent?: { status: 'noted' | 'standing' | 'not-applicable'; method?: string; atIso?: string };
+  retentionPolicy?: string;
+}
+
+export function composeComplianceNote(
+  items: ProposedCrmWrite[],
+  meta: ComplianceNoteMeta,
+): { title: string; body: string } {
+  const sent = items.filter((i) => i.status === 'sent');
+  const lines: string[] = [
+    `Compliance summary for ${meta.clientLabel}`,
+    `Approved by the advisor: ${meta.whenIso}`,
+    '',
+    'Records filed:',
+    ...sent.map(
+      (i) => `- ${i.kind === 'note' ? 'Note' : 'Task'}: "${i.title}" (receipt ${i.remoteId ?? 'pending'}; source ${i.sourceRef})`,
+    ),
+  ];
+  if (meta.consent) {
+    lines.push('', `Consent: ${meta.consent.status}${meta.consent.method ? ` (${meta.consent.method})` : ''}${meta.consent.atIso ? ` at ${meta.consent.atIso}` : ''}`);
+  }
+  if (meta.retentionPolicy) lines.push(`Retention policy: ${meta.retentionPolicy}`);
+  return { title: `Compliance summary: ${meta.clientLabel} (${meta.whenIso.slice(0, 10)})`, body: lines.join('\n') };
+}
+```
+
+- [ ] **Step 4: Run to verify green**
+
+Run: `npx vitest run src/features/matters/complianceNote.test.ts`
+Expected: `3 passed`
+
+- [ ] **Step 5: Wire the toggle into the review card**
+
+In `CrmWriteReviewCard.tsx`: a small checkbox row in the footer, ABOVE the Approve button, default UNCHECKED: `data-testid="file-compliance-note"` label "Also file a compliance note". In the approve handler, after `approve(ids, householdKey)` resolves: if checked, compose from the store's now-`sent` items and `enqueue({ kind: 'note', matterId, title, body, sourceRef: 'compliance:' + new Date().toISOString() })` — the compliance note goes through the SAME review card on its next render (approval-gated like everything; never auto-sent). Add one test to `CrmWriteReviewCard.test.tsx`: with the toggle checked, approving results in exactly one new `proposed` item titled with "Compliance summary" — and `crmCreateNote` has NOT been called for it.
+
+- [ ] **Step 6: Tests + typecheck**
+
+Run: `npx vitest run src/features/matters/complianceNote.test.ts src/features/matters/CrmWriteReviewCard.test.tsx 2>&1 | tail -5 && npm run typecheck 2>&1 | tail -3`
+Expected: PASS / clean.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/features/matters/complianceNote.ts src/features/matters/complianceNote.test.ts src/features/matters/CrmWriteReviewCard.tsx src/features/matters/CrmWriteReviewCard.test.tsx
+git commit -m "feat(crm): optional approval-gated compliance summary note (Jump coverage audit D3)"
+```
+
+---
+
 ### Task 10: Redtail / Salesforce write stubs + provider registry
 
 **Files:**

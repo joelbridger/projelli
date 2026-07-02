@@ -92,3 +92,19 @@ client's Meetings tab). Deliverables: a "Day with Lantern" story
 flowchart/infographic as the review-set landing page, every moment linking to
 its prototype; full mockup coverage of the entire experience (added P7 for the
 Wave 4 surfaces) so the whole thing is judgeable end to end before any code.
+
+## 2026-07-02 — Coverage-audit decisions: the last four Jump edge features
+
+After approving the designs, Jameson asked for certainty that nothing Jump has or
+announced was missed. The full sweep lives in
+`../../plans/lantern-plus/2026-07-02-JUMP-COVERAGE-AUDIT.md`. Six undecided edge
+items surfaced; Jameson decided: **add all four buildable ones** — redaction (Wave 4
+Task 17b, xhigh: a redacted span must not survive anywhere, including Word
+revision history), client-facing agenda export (Wave 1 Task 17b, a rewrite of the
+existing brief), compliance summary filed to the CRM (Wave 2 Task 9b, off-by-default
+toggle riding the approval card), and firm-enforced note templates (Wave 4 Task 17c,
+new Track E — Jameson explicitly overrode Fable's defer recommendation). D5
+(client-facing surveys/intake forms) stays skipped; D6 (Outlook add-in, planning-tool
+write-back) stays deferred on the existing roadmap. With these, every feature in
+Jump's verified inventory is either covered, added, or consciously skipped with a
+recorded story — nothing is unaccounted for.
