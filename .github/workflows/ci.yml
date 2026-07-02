@@ -61,6 +61,18 @@ jobs:
           path: node_modules
           key: ${{ runner.os }}-node-modules-${{ hashFiles('package-lock.json') }}
 
+      - name: Tauri version parity (npm vs Cargo, app version strings)
+        # Fast static check from scripts/gate.sh — catches the exact drift that
+        # made it all the way to the v3.3.5-rc.2 release build before this was
+        # wired into CI. See scripts/check-tauri-parity.mjs for background.
+        run: node scripts/check-tauri-parity.mjs
+
+      - name: Brand sync check (generated files match brand.config.json)
+        run: npm run brand:check
+
+      - name: Identity check (identity SoT modules export required constants)
+        run: npm run identity:check
+
       - name: TypeScript check
         run: npx tsc --noEmit
 

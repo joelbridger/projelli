@@ -157,13 +157,31 @@ After any change, add a `CHANGELOG.md` entry under `## [Unreleased]`.
 One command checks everything CI will check:
 
 ```bash
-npm run gate         # typecheck + i18n(report-only) + Vitest + ESLint gate + Rust cargo tests
-npm run gate:full    # also runs the browser E2E suite + the headless desktop harness (slow)
+npm run gate            # asset copy + Tauri version parity + typecheck + brand/identity checks
+                         #   + i18n(report-only) + Vitest + ESLint gate + Rust cargo tests
+npm run gate:full       # also runs the browser E2E suite + the headless desktop harness (slow)
+npm run gate:ci-parity  # runs what CI checks that `gate` doesn't (see below) — pre-flight before a release
 ```
 
-`scripts/gate.sh` runs, in order: `npm run typecheck` → `npm run i18n:check`
-(report-only, won't fail the gate) → `npx vitest run` → `npm run lint:gate` →
-`cargo test --workspace --locked`. Green ends with `✅ GATE GREEN`.
+`scripts/gate.sh` runs, in order: `node scripts/copy-build-assets.mjs` →
+`node scripts/check-tauri-parity.mjs` (npm/Cargo/Tauri version drift — the
+check whose absence let v3.3.5-rc.2 ship a version-mismatched build) →
+`npm run typecheck` → `npm run brand:check` →
+`npm run identity:check` → `npm run i18n:check` (report-only, won't fail the
+gate) → `npx vitest run` → `npm run lint:gate` → `cargo test --workspace
+--locked`. Green ends with `✅ GATE GREEN`.
+
+**`npm run gate` and CI are not 100% identical** — CI additionally runs the
+frontend coverage floor, the backend (`bun`) typecheck + tests, and the
+`cargo-deny` supply-chain gate (see the CI table below), none of which
+`gate.sh` runs locally (coverage/backend/cargo-deny are either slow or need
+toolchains `gate.sh` doesn't assume). `npm run gate:ci-parity`
+(`scripts/gate-ci-parity.sh`) runs exactly that gap — coverage floor, backend
+tests, cargo-deny — so a release operator can catch a CI-only failure before
+pushing/tagging instead of after. It degrades gracefully: if `bun` or
+`cargo-deny` isn't installed locally, that check is reported as `SKIPPED`
+rather than failing. Run both before anything release-shaped:
+`npm run gate && npm run gate:ci-parity`.
 
 Two gotchas:
 
@@ -190,10 +208,16 @@ Push your branch and open a PR against `keepance-3.0`. CI
 
 | Job | What runs |
 |---|---|
-| **quality** | `tsc --noEmit`, i18n parity (report-only), the ESLint regression gate, and Vitest **with the coverage floor**. |
+| **quality** | Tauri version parity, brand sync check, identity check, `tsc --noEmit`, i18n parity (report-only), the ESLint regression gate, and Vitest **with the coverage floor**. |
 | **backend** | `bun typecheck` + `bun test` in `backend/`. |
 | **rust** | `cargo test --workspace --locked` (with `protoc` + webkit deps + a Piper sidecar stub). |
+| **cargo-deny** | License + supply-chain gate (`cargo deny check advisories licenses sources bans` in `src-tauri/`). |
 | **e2e** | Builds the E2E preview bundle and runs the Playwright chromium suite offline (`E2E_NO_LIVE=1`), with the flaky specs quarantined (`E2E_CI_QUARANTINE=1`). |
+
+`release.yml`'s `gate` job (run before any signed build starts) mirrors the
+same fast static checks — Tauri version parity, brand sync, identity check,
+typecheck, i18n (report-only), coverage floor, ESLint gate, Rust tests — so a
+release tag can't ship a build CI would have rejected.
 
 Nightly timers run the full gate + the real-bench cargo tests, guarded by a
 watchdog that pings if a night is missed. A release tag (`v*`) triggers
@@ -218,6 +242,7 @@ gate green and CI passing.
 | RAG-model Rust tests | `REQUIRE_RAG_MODEL=1 cargo test ...` (add `-- --ignored` for `#[ignore]`d heavy tests) |
 | Browser E2E | `bash scripts/run-e2e-preview.sh` |
 | Full pre-push check | `npm run gate` |
+| CI-only checks pre-flight (before a release) | `npm run gate:ci-parity` |
 | Production build | `npm run tauri:build` |
 | Format | `npm run format` |
 

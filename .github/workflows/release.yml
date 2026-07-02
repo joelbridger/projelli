@@ -70,6 +70,16 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '20', cache: 'npm' }
       - run: npm ci
+      - name: Tauri version parity (npm vs Cargo, app version strings)
+        # This is the exact check whose absence let v3.3.5-rc.2 ship a
+        # version-mismatched build all the way to "Build Tauri app (unsigned)"
+        # before failing. It's a pure static read of package.json/Cargo.lock/
+        # Cargo.toml — no build needed — so run it first, before anything else.
+        run: node scripts/check-tauri-parity.mjs
+      - name: Brand sync check (generated files match brand.config.json)
+        run: npm run brand:check
+      - name: Identity check (identity SoT modules export required constants)
+        run: npm run identity:check
       - name: TypeScript
         run: npx tsc --noEmit
       - name: i18n key parity (report-only — KNOWN-I18N-01 deferred)
