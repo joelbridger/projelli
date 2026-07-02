@@ -10,7 +10,7 @@
  * with the rest of the Documents surface.
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   Folder,
   FileText,
@@ -91,6 +91,29 @@ function getGridIcon(node: FileNode): React.ReactNode {
       style={{ width: 32, height: 32, color: 'var(--kp-navy)', strokeWidth: 1.5, opacity: 0.5 }}
     />
   );
+}
+
+// Recursively walk the (already client-scoped) tree so search can find a
+// match anywhere in it, tracking each node's ancestor folder NAMES (same
+// convention as QuickOpen's `flattenFiles`) for the result's path context.
+// Pure (no component-state closures), so it lives at module scope and can be
+// safely called from inside a `useMemo`.
+function flattenForSearch(nodes: FileNode[], prefix = ''): { node: FileNode; folder: string }[] {
+  const out: { node: FileNode; folder: string }[] = [];
+  for (const node of nodes) {
+    out.push({ node, folder: prefix });
+    if (node.type === 'folder' && node.children) {
+      const nextPrefix = prefix ? `${prefix}/${node.name}` : node.name;
+      out.push(...flattenForSearch(node.children, nextPrefix));
+    }
+  }
+  return out;
+}
+
+// Folders first, then files, each group alphabetically.
+function compareNodes(a: FileNode, b: FileNode): number {
+  if (a.type === b.type) return a.name.localeCompare(b.name);
+  return a.type === 'folder' ? -1 : 1;
 }
 
 // ── Breadcrumb ─────────────────────────────────────────────────────────────
@@ -197,9 +220,16 @@ interface FileCardProps {
    * the parent so we never move a folder into itself or a child of itself.
    */
   onMoveInto?: (sourcePath: string, targetFolderPath: string) => Promise<void>;
+  /**
+   * Ancestor folder path (name-joined, e.g. "Contracts/2026"), shown only
+   * while a whole-tree search is active and the match lives outside the
+   * folder the user currently has open — gives cross-folder results context
+   * so opening one doesn't feel like a teleport.
+   */
+  pathContext?: string;
 }
 
-function FileCard({ node, isActive, onOpen, onMoveInto }: FileCardProps) {
+function FileCard({ node, isActive, onOpen, onMoveInto, pathContext }: FileCardProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const isFolder = node.type === 'folder';
@@ -303,6 +333,23 @@ function FileCard({ node, isActive, onOpen, onMoveInto }: FileCardProps) {
       >
         {node.name}
       </span>
+      {pathContext && (
+        <span
+          data-testid={`grid-card-context-${node.path}`}
+          style={{
+            fontSize: 10,
+            color: 'var(--color-muted-foreground)',
+            wordBreak: 'break-word',
+            lineHeight: 'var(--kp-leading-tight)',
+            maxWidth: '100%',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {pathContext}
+        </span>
+      )}
     </button>
   );
 }
@@ -477,17 +524,65 @@ export function DocumentGridView({
     }
   }, [folderNotFound, onSetCurrentFolderPath]);
 
-  // Folders first, then files, each group alphabetically
-  const sortedNodes = [...currentNodes].sort((a, b) => {
-    if (a.type === b.type) return a.name.localeCompare(b.name);
-    return a.type === 'folder' ? -1 : 1;
-  });
+  const isSearching = searchQuery.trim().length > 0;
 
-  const filteredNodes = searchQuery.trim()
-    ? sortedNodes.filter((n) =>
-        n.name.toLowerCase().includes(searchQuery.toLowerCase()),
+  // `scopeFileTreeToFolders` keeps ancestor wrapper folders purely so the
+  // client's mapped folder stays reachable (e.g. "Clients"). If that folder
+  // happens to be nested under a DIFFERENT client's own folder, the wrapper
+  // chain can include that other client's folder name — search itself never
+  // crosses the matter boundary (fileTree is already pruned), but the path
+  // CONTEXT shown on a result card could otherwise leak that name (Codex
+  // review). `createFolderFallback` is this client's own root (absolute);
+  // trim the shown context down to start at its own folder, never above it.
+  const scopeRootName = createFolderFallback
+    ? createFolderFallback.split('/').filter(Boolean).pop()
+    : undefined;
+
+  function trimToScopeRoot(folder: string): string {
+    if (!scopeRootName || !folder) return folder;
+    const parts = folder.split('/');
+    const idx = parts.indexOf(scopeRootName);
+    return idx === -1 ? folder : parts.slice(idx + 1).join('/');
+  }
+
+  // Fix (B4b): search must span the client's ENTIRE scoped tree (`fileTree` —
+  // already pruned to this client's own folders by `scopeFileTreeToFolders`
+  // for the embedded per-client tab, or the full workspace tree for the
+  // global browser), not just `currentNodes` (the open folder's direct
+  // children). Previously both browsing AND search filtered `currentNodes`,
+  // so a match living in a sibling/ancestor/nested folder never surfaced.
+  // `folder` (name-joined ancestor path) rides along so cross-folder matches
+  // can show WHERE they live; it is unused while browsing (not searching).
+  //
+  // Flattening + sorting is O(tree size); memoized against `fileTree` (not
+  // `searchQuery`) so it runs once per tree change, not once per keystroke —
+  // otherwise every character typed re-walks and re-sorts the whole client
+  // folder (Codex review).
+  const flattenedSorted = useMemo(() => {
+    const flat = flattenForSearch(fileTree).map((e) => ({
+      node: e.node,
+      folder: trimToScopeRoot(e.folder),
+    }));
+    return flat.sort((a, b) => compareNodes(a.node, b.node));
+    // trimToScopeRoot is a pure function of `scopeRootName`, already a dep below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fileTree, scopeRootName]);
+
+  const searchEntries: { node: FileNode; folder: string }[] = isSearching
+    ? flattenedSorted
+    : currentNodes.map((node) => ({ node, folder: '' }));
+
+  const sortedEntries = isSearching
+    ? searchEntries
+    : [...searchEntries].sort((a, b) => compareNodes(a.node, b.node));
+
+  const filteredEntries = isSearching
+    ? sortedEntries.filter((e) =>
+        e.node.name.toLowerCase().includes(searchQuery.toLowerCase()),
       )
-    : sortedNodes;
+    : sortedEntries;
+
+  const filteredNodes = filteredEntries.map((e) => e.node);
 
   // ── Breadcrumbs ─────────────────────────────────────────────────────────
 
@@ -523,22 +618,19 @@ export function DocumentGridView({
 
   // ── File counts ─────────────────────────────────────────────────────────
 
-  // Count items at the CURRENT directory level, not the whole tree.
-  // When a search is active, count only the filtered nodes and render
-  // "N of M items" so the label reflects what is actually visible.
+  // Count items at the CURRENT directory level when browsing. A search
+  // spans the whole scoped tree (not just this folder), so its count is
+  // reported separately as a result count rather than "N of M" — "M" would
+  // otherwise misleadingly imply the tree's total size is this folder's size.
   const currentDirCount = currentNodes.length;
   const filteredCount = filteredNodes.length;
-  const isSearching = searchQuery.trim().length > 0;
 
   function currentDirLabel(): string {
-    if (currentDirCount === 0) return 'No items';
-
-    // When searching, prefix with "N of M" so the user knows they're seeing a
-    // subset of the directory contents.
     if (isSearching) {
-      const totalLabel = currentDirCount === 1 ? '1 item' : `${String(currentDirCount)} items`;
-      return `${String(filteredCount)} of ${totalLabel}`;
+      return filteredCount === 1 ? '1 result' : `${String(filteredCount)} results`;
     }
+
+    if (currentDirCount === 0) return 'No items';
 
     const folderCount = currentNodes.filter((n) => n.type === 'folder').length;
     const fileCount = currentNodes.filter((n) => n.type !== 'folder').length;
@@ -692,7 +784,7 @@ export function DocumentGridView({
                 onCreateDocument={handleCreateDocument}
                 onCreateFolder={handleCreateFolder}
               />
-            ) : filteredNodes.length === 0 && searchQuery.trim() ? (
+            ) : filteredNodes.length === 0 && isSearching ? (
               /* eslint-disable lantern-i18n/no-hardcoded-string */
               <EmptyState
                 icon={Search}
@@ -715,13 +807,14 @@ export function DocumentGridView({
                   gap: 'var(--kp-space-md)',
                 }}
               >
-                {filteredNodes.map((node) => (
+                {filteredEntries.map(({ node, folder }) => (
                   <FileCard
                     key={node.id}
                     node={node}
                     isActive={isNodeActive(node)}
                     onOpen={handleNodeOpen}
                     onMoveInto={handleMoveInto}
+                    {...(isSearching && folder ? { pathContext: folder } : {})}
                   />
                 ))}
               </div>

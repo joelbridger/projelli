@@ -295,6 +295,204 @@ describe('DocumentsHome — Grid view with relative tree paths (real bug shape)'
   });
 });
 
+// ── B4b (2026-07-02, bench finding): search only matched the open folder ──
+//
+// The Documents-tab search box filtered `currentNodes` (the currently open
+// folder's direct children only), not the client's whole scoped tree — so a
+// match living in a sibling/nested folder, or a folder the user hadn't
+// drilled into, silently never surfaced. Fixed in DocumentGridView.tsx to
+// recursively flatten the already-scoped `fileTree` when a query is active.
+describe('DocumentsHome — B4b: whole-client search scope + matter isolation', () => {
+  const twoClientTree: FileNode[] = [
+    {
+      id: 'clients',
+      name: 'Clients',
+      path: 'Clients',
+      type: 'folder',
+      children: [
+        {
+          id: 'acme',
+          name: 'Acme',
+          path: 'Clients/Acme',
+          type: 'folder',
+          children: [
+            {
+              id: 'acme-deal',
+              name: 'deal.docx',
+              path: 'Clients/Acme/deal.docx',
+              type: 'file',
+              extension: 'docx',
+            },
+            {
+              id: 'acme-contracts',
+              name: 'Contracts',
+              path: 'Clients/Acme/Contracts',
+              type: 'folder',
+              children: [
+                {
+                  id: 'acme-nda',
+                  name: 'nda.docx',
+                  path: 'Clients/Acme/Contracts/nda.docx',
+                  type: 'file',
+                  extension: 'docx',
+                },
+              ],
+            },
+          ],
+        },
+        {
+          id: 'beta',
+          name: 'Beta',
+          path: 'Clients/Beta',
+          type: 'folder',
+          children: [
+            {
+              id: 'beta-secret',
+              name: 'beta-secret.docx',
+              path: 'Clients/Beta/beta-secret.docx',
+              type: 'file',
+              extension: 'docx',
+            },
+          ],
+        },
+      ],
+    },
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockStoreFileTree = twoClientTree;
+  });
+
+  it('finds a match in a DIFFERENT folder than the one currently open, within the client scope', () => {
+    render(
+      <DocumentsHome
+        {...buildProps()}
+        embedded
+        scopeFolderPaths={[`${ROOT}/Clients/Acme`]}
+        scopeMatterId="acme"
+      />,
+    );
+    // The seeded open folder is Acme itself (deal.docx is visible without
+    // searching). Search for a file nested inside the sibling "Contracts"
+    // subfolder — a DIFFERENT folder than the one currently open.
+    expect(screen.getByText('deal.docx')).toBeTruthy();
+    const search = screen.getByTestId('documents-search-field');
+    fireEvent.change(search, { target: { value: 'nda' } });
+    expect(screen.getByText('nda.docx')).toBeTruthy();
+  });
+
+  it("NEVER matches another client's file, even though it lives in the same underlying tree", () => {
+    render(
+      <DocumentsHome
+        {...buildProps()}
+        embedded
+        scopeFolderPaths={[`${ROOT}/Clients/Acme`]}
+        scopeMatterId="acme"
+      />,
+    );
+    const search = screen.getByTestId('documents-search-field');
+    // "beta-secret.docx" belongs to a different client (Beta) — it must
+    // never surface in Acme's scoped search results. Matter isolation holds
+    // because `scopeFileTreeToFolders` already pruned Beta's branch out of
+    // the tree DocumentGridView searches; the flattening fix never touches
+    // the workspace store's full tree directly.
+    fireEvent.change(search, { target: { value: 'beta' } });
+    expect(screen.queryByText('beta-secret.docx')).toBeNull();
+    expect(screen.getByText(/no files match your search/i)).toBeTruthy();
+  });
+
+  it("(Codex review round 2) a search result's path context never shows an ancestor wrapper folder's name, even when that wrapper coincidentally shares a name with the search itself", () => {
+    // Pathological but possible layout: this client's own mapped folder
+    // ("Acme") happens to sit nested inside a folder that is ITSELF named
+    // after something outside the client's scope (here literally "Beta" —
+    // scopeFileTreeToFolders keeps such wrapper folders purely so the
+    // client's own folder stays reachable via breadcrumbs/navigation). A
+    // search result's displayed path context must be trimmed to start at
+    // the client's OWN folder, never showing the wrapper ancestor's name.
+    const nestedTree: FileNode[] = [
+      {
+        id: 'clients',
+        name: 'Clients',
+        path: 'Clients',
+        type: 'folder',
+        children: [
+          {
+            id: 'beta-wrapper',
+            name: 'Beta',
+            path: 'Clients/Beta',
+            type: 'folder',
+            children: [
+              {
+                id: 'acme',
+                name: 'Acme',
+                path: 'Clients/Beta/Acme',
+                type: 'folder',
+                children: [
+                  {
+                    id: 'acme-deal',
+                    name: 'deal.docx',
+                    path: 'Clients/Beta/Acme/deal.docx',
+                    type: 'file',
+                    extension: 'docx',
+                  },
+                  {
+                    id: 'acme-contracts',
+                    name: 'Contracts',
+                    path: 'Clients/Beta/Acme/Contracts',
+                    type: 'folder',
+                    children: [
+                      {
+                        id: 'acme-nda',
+                        name: 'nda.docx',
+                        path: 'Clients/Beta/Acme/Contracts/nda.docx',
+                        type: 'file',
+                        extension: 'docx',
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ];
+    mockStoreFileTree = nestedTree;
+    render(
+      <DocumentsHome
+        {...buildProps()}
+        embedded
+        scopeFolderPaths={[`${ROOT}/Clients/Beta/Acme`]}
+      />,
+    );
+    const search = screen.getByTestId('documents-search-field');
+    fireEvent.change(search, { target: { value: 'nda' } });
+    const context = screen.getByTestId('grid-card-context-Clients/Beta/Acme/Contracts/nda.docx');
+    // Correct: "Contracts" (relative to the client's own folder). Must NEVER
+    // contain "Beta" (the coincidental wrapper ancestor's name) or "Clients".
+    expect(context.textContent).toBe('Contracts');
+    expect(context.textContent).not.toContain('Beta');
+    expect(context.textContent).not.toContain('Clients');
+  });
+
+  it('empty state is honest: a query with no match anywhere in the client scope says so, not a stale prior list', () => {
+    render(
+      <DocumentsHome
+        {...buildProps()}
+        embedded
+        scopeFolderPaths={[`${ROOT}/Clients/Acme`]}
+        scopeMatterId="acme"
+      />,
+    );
+    const search = screen.getByTestId('documents-search-field');
+    fireEvent.change(search, { target: { value: 'zzznomatch' } });
+    expect(screen.getByText(/no files match your search/i)).toBeTruthy();
+    expect(screen.queryByText('deal.docx')).toBeNull();
+    expect(screen.queryByText('nda.docx')).toBeNull();
+  });
+});
+
 describe('DocumentsHome — [object Object] defensive boundary (2026-07-01 re-fix)', () => {
   // A corrupted/legacy matter can pass a NON-STRING scopeFolderPaths entry (an
   // object). Left alone it becomes the create target and stringifies to the
