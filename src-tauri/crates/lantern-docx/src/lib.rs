@@ -95,10 +95,12 @@ impl OpenedDocument {
     }
 
     /// Serialize back to `.docx` bytes, preserving every unmodeled original
-    /// part byte-for-byte.
+    /// part byte-for-byte. P2.3 row 10: uses the copy-on-write serialize path
+    /// (`serialize_into_bytes`) so the common body-edit save streams the original
+    /// parts instead of cloning the whole package. Output is byte-identical to the
+    /// prior `serialize_into_package(..).write_to_bytes()`.
     pub fn save_bytes(&self) -> Result<Vec<u8>> {
-        let pkg = serialize::serialize_into_package(&self.document, &self.package)?;
-        pkg.write_to_bytes()
+        serialize::serialize_into_bytes(&self.document, &self.package)
     }
 
     /// Serialize a privilege-safe **clean copy** to `.docx` bytes: strip hidden
