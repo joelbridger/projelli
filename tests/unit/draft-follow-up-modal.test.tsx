@@ -214,4 +214,47 @@ describe('DraftFollowUpModal — AI proposes, user approves, hostile notes stay 
     expect(entry.action).toBe('email.draft_saved');
     expect(entry.metadata.scope).toEqual({ kind: 'matter', matterId: 'matter-1' });
   });
+
+  it('clears a stale To suggestion when reopened for a client with no mail match (codex-review P2)', async () => {
+    const { rerender } = render(
+      <DraftFollowUpModal
+        open
+        onOpenChange={() => {}}
+        noteName="Meeting Notes 2026-06-24.docx"
+        noteContent={hostileNote}
+        matterId="matter-1"
+      />,
+    );
+    await waitFor(() =>
+      expect((screen.getByTestId('followup-to') as HTMLInputElement).value).toBe('tom@brennan.com'),
+    );
+
+    // Close the modal, then reopen it (same instance, per the controlled
+    // `open` prop contract) for a DIFFERENT client whose mail query finds no
+    // match at all.
+    rerender(
+      <DraftFollowUpModal
+        open={false}
+        onOpenChange={() => {}}
+        noteName="Meeting Notes 2026-06-24.docx"
+        noteContent={hostileNote}
+        matterId="matter-1"
+      />,
+    );
+    mailListMessagesByMatter.mockResolvedValueOnce({ items: [], total: 0 });
+    rerender(
+      <DraftFollowUpModal
+        open
+        onOpenChange={() => {}}
+        noteName="Other Client Notes.docx"
+        noteContent="Unrelated content."
+        matterId="matter-2"
+      />,
+    );
+
+    // The stale recipient from matter-1 must NOT survive into matter-2's draft.
+    await waitFor(() =>
+      expect((screen.getByTestId('followup-to') as HTMLInputElement).value).toBe(''),
+    );
+  });
 });

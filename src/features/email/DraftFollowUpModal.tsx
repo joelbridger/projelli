@@ -71,6 +71,13 @@ export function DraftFollowUpModal({
     setStatus('generating');
     setError(null);
     setBody('');
+    // Codex review catch (P2): this is a controlled modal (the `open` prop can
+    // toggle without unmounting) — reset every prior client's guess before the
+    // new client's lookup runs, or a stale To/Subject from the last open can
+    // survive alongside the newly generated body and become a follow-up sent
+    // to the wrong client.
+    setTo('');
+    setSubject('');
     void (async () => {
       try {
         const accts = await mailConnectedAccounts();
