@@ -233,6 +233,62 @@ describe('Perf (P2.2) — EmailWorkspace / MailRow render hygiene', () => {
     }
   });
 
+  // Codex review (P2.2, round 6): `useScrollPersistence`'s callback ref
+  // restores `scrollTop` on the DOM node directly, which is enough for a
+  // plain scrollable div (see use-scroll-persistence.test.tsx) — but
+  // @tanstack/react-virtual tracks its OWN internal scroll-offset state,
+  // seeded to 0 and only updated by a native `scroll` event, never by
+  // reading the element's actual `scrollTop` at setup. Without wiring the
+  // restored offset into the virtualizer's own `initialOffset`, reopening a
+  // busy inbox moved the visible scrollbar but left the virtualizer still
+  // rendering the TOP window of rows into a container visually scrolled
+  // elsewhere. This proves the fix by checking WHICH rows are actually
+  // mounted, not just that the DOM's scrollTop value looks right.
+  it('virtualization: restores the correct row window from a saved mid-list scroll position, not just the top', async () => {
+    const heightDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight');
+    const widthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetWidth');
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, get() { return 560; } });
+    Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, get() { return 800; } });
+
+    try {
+      sessionStorage.clear();
+      // Row 100's estimated top offset (88px per row, matching
+      // MAIL_ROW_ESTIMATED_HEIGHT_PX) — simulates a user who'd scrolled deep
+      // into a 200-row inbox before navigating away.
+      sessionStorage.setItem('email-scroll-all', String(100 * 88));
+
+      const items = makeItems(200);
+      setupMocks(items);
+
+      render(<EmailWorkspace />);
+      await waitForInitialLoad();
+
+      const rows = screen.getAllByTestId('mail-row');
+      const renderedIndexes = rows
+        .map((r) => r.textContent?.match(/Message (\d+)/)?.[1])
+        .filter((v): v is string => v !== undefined)
+        .map(Number);
+      // eslint-disable-next-line no-console
+      console.log(`[perf/email-render] restored-offset window: rows ${renderedIndexes[0]}-${renderedIndexes[renderedIndexes.length - 1]}`);
+
+      // Must NOT be stuck showing the top of the list (the pre-fix
+      // behavior: the virtualizer's own offset stayed at its 0 default
+      // regardless of the restored `scrollTop`) — the exact starting row
+      // depends on the virtualizer's own estimate-vs-measured bookkeeping,
+      // so this checks the MEANINGFUL property (deep into the list, not
+      // clamped to the top) rather than one precise index.
+      expect(renderedIndexes[0]).toBeGreaterThan(20);
+    } finally {
+      sessionStorage.clear();
+      if (heightDescriptor) {
+        Object.defineProperty(HTMLElement.prototype, 'offsetHeight', heightDescriptor);
+      }
+      if (widthDescriptor) {
+        Object.defineProperty(HTMLElement.prototype, 'offsetWidth', widthDescriptor);
+      }
+    }
+  });
+
   it('a small inbox (below the virtualize threshold) still renders every row directly', async () => {
     const items = makeItems(10);
     setupMocks(items);

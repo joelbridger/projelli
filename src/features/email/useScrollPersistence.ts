@@ -25,6 +25,24 @@ export function useScrollPersistence(activeMatter: Matter | null | undefined): {
    *  virtualizer's `getScrollElement`) that need to read it imperatively
    *  rather than receive it as a ref object. */
   getScrollElement: () => HTMLDivElement | null;
+  /**
+   * The saved scroll offset for the CURRENT matter, read synchronously
+   * (no DOM node needed) — for a virtualizer's `initialOffset`.
+   *
+   * Codex review (P2.2, round 6): `scrollContainerRef`'s restore only sets
+   * `node.scrollTop` directly, which is enough for a plain scrollable div —
+   * but @tanstack/react-virtual tracks its OWN internal scroll-offset state
+   * starting at 0, and only updates it in response to a native `scroll`
+   * event; it never reads the element's actual `scrollTop` at setup time.
+   * So restoring `scrollTop` alone left the virtualizer still believing it
+   * was at offset 0 and rendering the TOP window of rows, even though the
+   * container was visually scrolled elsewhere — a busy (virtualized) inbox
+   * looked like it reset to the top (or went blank) on every reopen.
+   * `initialOffset` seeds the virtualizer's internal state directly at
+   * construction time, so it agrees with the restored `scrollTop` from
+   * the very first render.
+   */
+  getInitialScrollOffset: () => number;
 } {
   const scrollKey = `email-scroll-${activeMatter?.id ?? 'all'}`;
   const scrollKeyRef = useRef(scrollKey);
@@ -76,5 +94,14 @@ export function useScrollPersistence(activeMatter: Matter | null | undefined): {
 
   const getScrollElement = useCallback(() => nodeRef.current, []);
 
-  return { scrollContainerRef, getScrollElement };
+  // Read fresh each call rather than memoized: a virtualizer only actually
+  // consults this ONCE (at its own internal instance construction), but
+  // reading live here rather than capturing a stale closure value is both
+  // simpler and safer if that assumption ever changes upstream.
+  const getInitialScrollOffset = useCallback(() => {
+    const saved = sessionStorage.getItem(scrollKeyRef.current);
+    return saved ? Number(saved) : 0;
+  }, []);
+
+  return { scrollContainerRef, getScrollElement, getInitialScrollOffset };
 }

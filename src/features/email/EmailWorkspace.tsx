@@ -471,7 +471,7 @@ export function EmailWorkspace({
   // the node mounts/unmounts) plus `getScrollElement()` for the
   // virtualizer, which needs to read the current node imperatively rather
   // than receive it as a ref object.
-  const { scrollContainerRef, getScrollElement } = useScrollPersistence(activeMatter);
+  const { scrollContainerRef, getScrollElement, getInitialScrollOffset } = useScrollPersistence(activeMatter);
 
   // Perf (P2.2) — virtualize the results list past EMAIL_VIRTUALIZE_ROW_THRESHOLD
   // rows, using the SAME dedicated scroll container as scroll persistence
@@ -490,10 +490,20 @@ export function EmailWorkspace({
   // past the first few got visibly clipped. The render below now makes the
   // results box `flex: 1` (fills remaining page height, same safe zone as
   // before virtualization existed) instead of a small fixed height.
+  //
+  // Codex review (round 6): `getScrollElement`/`scrollContainerRef` restore
+  // `scrollTop` on the DOM node directly, but the virtualizer tracks its OWN
+  // internal scroll-offset state (starting at 0) independently of the DOM —
+  // it only learns the real position from a native `scroll` event, never by
+  // reading `scrollTop` at setup. Without `initialOffset`, reopening a busy
+  // (virtualized) inbox restored the visual scrollbar position but left the
+  // virtualizer still believing it was at the top, rendering the wrong
+  // (top) window of rows into a container that was scrolled elsewhere.
   const shouldVirtualizeRows = scopedItems.length > EMAIL_VIRTUALIZE_ROW_THRESHOLD;
   const rowVirtualizer = useVirtualizer({
     count: scopedItems.length,
     getScrollElement,
+    initialOffset: getInitialScrollOffset,
     estimateSize: () => MAIL_ROW_ESTIMATED_HEIGHT_PX,
     overscan: 8,
     enabled: shouldVirtualizeRows,
