@@ -11,16 +11,18 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { waitForTestModeLoad, hardClick } from './helpers/test-utils';
+import { waitForTestModeLoad, hardClick, openStandaloneFile } from './helpers/test-utils';
 
 async function openAnyMarkdownFile(page: import('@playwright/test').Page) {
-  await page.evaluate(() => {
-    const fn = (window as unknown as {
-      __openTestFile?: (p: string, n: string, c: string) => void;
-    }).__openTestFile;
-    if (!fn) throw new Error('__openTestFile missing');
-    fn('/test-workspace/toolbar-overflow.md', 'toolbar-overflow.md', '# Toolbar overflow');
-  });
+  // MainPanel's toolbar only renders on the standalone (non-embedded)
+  // editor surface (sidebarActiveTab === 'files') — see
+  // helpers/test-utils.ts's openStandaloneFile.
+  await openStandaloneFile(
+    page,
+    '/test-workspace/toolbar-overflow.md',
+    'toolbar-overflow.md',
+    '# Toolbar overflow'
+  );
   await expect(page.getByTestId('main-panel-toolbar')).toBeVisible();
 }
 

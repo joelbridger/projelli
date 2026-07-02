@@ -49,12 +49,10 @@ const CI_QUARANTINE = [
   '**/doc-editing.spec.ts',
   '**/doc-legacy.spec.ts',
   '**/doc-viewers.spec.ts',
-  '**/editor-toolbar-overflow.spec.ts',
   '**/history-hidden-nonversioned.spec.ts',
   '**/image-attachment.spec.ts',
   '**/presentation-viewer.spec.ts',
   '**/spreadsheet-improvements.spec.ts',
-  '**/tab-bar-scroll.spec.ts',
   '**/undo-delete-ctrlz.spec.ts',
   '**/updater.spec.ts',
   '**/v1.5-canvas-stress.spec.ts',
@@ -64,7 +62,6 @@ const CI_QUARANTINE = [
   '**/welcome-dialog.spec.ts',
   '**/word-count-md-txt.spec.ts',
   '**/workflow-persistence.spec.ts',
-  '**/workflow-tab-overflow.spec.ts',
 ];
 
 export default defineConfig({

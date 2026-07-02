@@ -10,7 +10,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { waitForTestModeLoad } from './helpers/test-utils';
+import { waitForTestModeLoad, switchToStandaloneEditorSurface } from './helpers/test-utils';
 import { horizontalOverflow } from './helpers/overflow';
 
 // Minimal but realistic workflow file payload — enough to render the step
@@ -89,6 +89,12 @@ async function injectWorkflowTab(
   fileName: string,
   payload: object
 ) {
+  // MainPanel (and its workflow-execution tab render) only mounts on the
+  // standalone editor surface (sidebarActiveTab === 'files') — see
+  // helpers/test-utils.ts's switchToStandaloneEditorSurface. openTab has no
+  // standalone-open counterpart to __openTestFile, so switch first, then
+  // poke the store directly (as before).
+  await switchToStandaloneEditorSurface(page);
   await page.evaluate(
     ({ p, n, pl }) => {
       const editor = (window as any).__editorStore?.getState?.();
