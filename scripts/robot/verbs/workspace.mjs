@@ -16,6 +16,48 @@ async function dismissFeatureTour(page) {
   if (skip) { await skip.click().catch(() => {}); await page.waitForTimeout(300); }
 }
 
+/**
+ * Dismiss known blocking dialogs that have no data-testid, so a later click
+ * elsewhere on the page doesn't time out against an opaque overlay.
+ *
+ * Currently just the RightCapital-export consent gate ("Use exported reports
+ * from RightCapital?"), which the app shows once it notices such a file among
+ * the workspace documents — it can appear well after `open` (once indexing
+ * surfaces the file), not just at initial load, so callers should re-check
+ * this defensively before any interaction, not only right after opening.
+ * "Yes, my firm permits this" matches what a real advisor would click to keep
+ * the demo's full functionality (RightCapital content stays usable for Ask).
+ */
+export async function dismissKnownBlockingDialogs(page) {
+  const confirm = page.getByRole('button', { name: 'Yes, my firm permits this' });
+  if (await confirm.count().catch(() => 0)) {
+    await confirm.first().click({ timeout: 3000 }).catch(() => {});
+    await page.waitForTimeout(300);
+  }
+}
+
+/**
+ * Wait for the PDF-indexing pass (indexWorkspacePdfs — separate from, and
+ * slower than, the main DOCX/XLSX index+retag) to finish. It re-runs from
+ * scratch on EVERY workspace boot, including a `reset({mode:'snapshot'})`
+ * restore of an already-fully-indexed archive — restoring the .lantern
+ * folder does not skip it. Several of the demo's real citation sources are
+ * PDFs (e.g. Hollings Family's RightCapital plan); asking before this
+ * finishes is flaky in a silent way — the model's answer text is right, but
+ * the citation can't resolve against a not-yet-indexed PDF, so the UI falls
+ * back to an uncited "general guidance" answer with no error at all. Done =
+ * the `rag-pdf-progress` banner line disappears.
+ */
+export async function waitForPdfIndexing(page, { timeoutMs = 1_800_000, pollMs = 10_000 } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const progress = await page.locator('[data-testid="rag-pdf-progress"]').textContent().catch(() => null);
+    if (!progress) return { ok: true };
+    await page.waitForTimeout(pollMs);
+  }
+  return { ok: false, reason: 'pdf-index-wait timeout (rag-pdf-progress banner never cleared)' };
+}
+
 async function currentWorkspaceName(page) {
   return page
     .locator('[data-testid="status-bar-project-name"]')
@@ -31,6 +73,7 @@ export async function openWorkspace(page, args = {}) {
   // Already inside a workspace? Verify it's the RIGHT one.
   if (await page.$('[data-testid="spine-nav"]')) {
     await dismissFeatureTour(page);
+    await dismissKnownBlockingDialogs(page);
     const proj = await currentWorkspaceName(page);
     const matches = proj.includes(name);
     return {
@@ -58,6 +101,7 @@ export async function openWorkspace(page, args = {}) {
     .catch(() => false);
   await page.waitForTimeout(1500);
   await dismissFeatureTour(page);
+  await dismissKnownBlockingDialogs(page);
 
   const proj = await currentWorkspaceName(page);
   return { ok: ready && proj.includes(name), name, currentWorkspace: proj };

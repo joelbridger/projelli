@@ -8,20 +8,27 @@
 //   - an adversarial case: a HOLLINGS-only query scoped to WEBB returns ZERO
 //     Hollings docs, with a CONTROL proving that same query DOES return Hollings
 //     docs when scoped to Hollings (so "zero leak" is meaningful, not vacuous).
+//
+// Cases are keyed by matterName (a display-name substring), resolved to the
+// CURRENT matter id at run time via resolveMatterId — matter ids are assigned
+// as fresh random UUIDs on every CRM reseed, so a hardcoded id goes stale the
+// next time the demo workspace is reseeded.
+
+import { resolveMatterId } from './matters.mjs';
 
 export const POSITIVE_CASES = [
-  { key: 'hollings', label: 'hollings/all-types', query: 'goals retirement estate trust portfolio holdings statement tax meeting', matterId: 'matter_nc_hollings_family', mustContain: 'Hollings Family', minHits: 1 },
-  { key: 'webb', label: 'webb/all-types', query: 'goals retirement estate portfolio holdings statement tax meeting', matterId: 'matter_nc_webb_marcus_tanya', mustContain: 'Webb, Marcus', minHits: 1 },
-  { key: 'voss', label: 'voss/all-types', query: 'goals retirement estate portfolio holdings statement tax meeting', matterId: 'matter_nc_voss_eleanor', mustContain: 'Voss, Eleanor', minHits: 1 },
-  { key: 'q_business', label: 'Q: business exit', query: 'business exit Hollings Capital Partners concentration deal readiness', matterId: 'matter_nc_hollings_family', mustContain: 'Hollings Family', minHits: 1 },
-  { key: 'q_daf', label: 'Q: DAF grants', query: 'donor advised fund DAF grant request charitable board meeting', matterId: 'matter_nc_hollings_family', mustContain: 'Hollings Family', minHits: 1 },
+  { key: 'hollings', label: 'hollings/all-types', query: 'goals retirement estate trust portfolio holdings statement tax meeting', matterName: 'Hollings Family', mustContain: 'Hollings Family', minHits: 1 },
+  { key: 'webb', label: 'webb/all-types', query: 'goals retirement estate portfolio holdings statement tax meeting', matterName: 'Webb, Marcus', mustContain: 'Webb, Marcus', minHits: 1 },
+  { key: 'voss', label: 'voss/all-types', query: 'goals retirement estate portfolio holdings statement tax meeting', matterName: 'Voss, Eleanor', mustContain: 'Voss, Eleanor', minHits: 1 },
+  { key: 'q_business', label: 'Q: business exit', query: 'business exit Hollings Capital Partners concentration deal readiness', matterName: 'Hollings Family', mustContain: 'Hollings Family', minHits: 1 },
+  { key: 'q_daf', label: 'Q: DAF grants', query: 'donor advised fund DAF grant request charitable board meeting', matterName: 'Hollings Family', mustContain: 'Hollings Family', minHits: 1 },
 ];
 
 export const ADVERSARIAL = {
   key: 'isolation_webb',
   query: 'Cascade Fund IV capital call Hollings business exit',
-  webbMatter: 'matter_nc_webb_marcus_tanya',
-  controlMatter: 'matter_nc_hollings_family',
+  webbMatterName: 'Webb, Marcus',
+  controlMatterName: 'Hollings Family',
   foreign: 'Hollings', // path substring identifying the OTHER client's docs
 };
 
@@ -30,8 +37,15 @@ export const ADVERSARIAL = {
  * @param {{ cases?: any[], adversarial?: any }} args
  */
 export async function verifyIsolation(page, args = {}) {
-  const positiveCases = args.cases ?? POSITIVE_CASES;
-  const adv = args.adversarial ?? ADVERSARIAL;
+  const positiveCases = await Promise.all(
+    (args.cases ?? POSITIVE_CASES).map(async (c) => ({ ...c, matterId: await resolveMatterId(page, c.matterName) })),
+  );
+  const rawAdv = args.adversarial ?? ADVERSARIAL;
+  const adv = {
+    ...rawAdv,
+    webbMatter: await resolveMatterId(page, rawAdv.webbMatterName),
+    controlMatter: await resolveMatterId(page, rawAdv.controlMatterName),
+  };
 
   const data = await page.evaluate(
     async ({ positiveCases, adv }) => {
@@ -62,16 +76,21 @@ export async function verifyIsolation(page, args = {}) {
       const positives = {};
       for (const c of positiveCases) {
         const key = c.key || c.label;
+        if (!c.matterId) { positives[key] = { label: c.label, err: `no matter found matching "${c.matterName}"` }; continue; }
         try { positives[key] = { label: c.label, minHits: c.minHits ?? 1, ...summarize(await retrieve(c.query, c.matterId), c.mustContain) }; }
         catch (e) { positives[key] = { label: c.label, err: String(e.message || e) }; }
       }
 
       let adversarial;
-      try {
-        const webb = summarize(await retrieve(adv.query, adv.webbMatter), null, adv.foreign);
-        const control = summarize(await retrieve(adv.query, adv.controlMatter), null, adv.foreign);
-        adversarial = { webb, control };
-      } catch (e) { adversarial = { err: String(e.message || e) }; }
+      if (!adv.webbMatter || !adv.controlMatter) {
+        adversarial = { err: `no matter found matching "${!adv.webbMatter ? adv.webbMatterName : adv.controlMatterName}"` };
+      } else {
+        try {
+          const webb = summarize(await retrieve(adv.query, adv.webbMatter), null, adv.foreign);
+          const control = summarize(await retrieve(adv.query, adv.controlMatter), null, adv.foreign);
+          adversarial = { webb, control };
+        } catch (e) { adversarial = { err: String(e.message || e) }; }
+      }
 
       return { positives, adversarial };
     },

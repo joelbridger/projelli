@@ -11,8 +11,11 @@ export const LEGION = 'james@100.127.67.22';
 export const WS_ROOT = 'C:\\keepance-demo-northcrest\\Northcrest Wealth Partners';
 // On-disk vector index for the Northcrest demo workspace. Plain Windows path;
 // JS-escaped backslashes only (NOT shell-escaped). Passed inside a PowerShell
-// single-quoted string by deleteIndex(), so PowerShell sees C:\...\.keepance.
-export const WS_KEEPANCE_INDEX = `${WS_ROOT}\\.keepance`;
+// single-quoted string by deleteIndex(), so PowerShell sees C:\...\.lantern.
+// The hidden index folder itself was renamed .keepance -> .lantern as part of
+// the app's facade rename; the export/const name is kept as-is to avoid
+// renaming every import site for a cosmetic label.
+export const WS_KEEPANCE_INDEX = `${WS_ROOT}\\.lantern`;
 
 // --- Frozen snapshot locations (the "save point" we restore instead of re-indexing) ---
 export const SNAPSHOT_DIR = 'C:\\keepance-snapshots';
@@ -82,11 +85,13 @@ export async function ensureTunnel(localPort = 9444, benchPort = 9223) {
 }
 
 export function killApp() {
-  sshExec('Stop-Process -Name node,cargo,keepance,Keepance,msedgewebview2 -Force -EA SilentlyContinue; Start-Sleep 6');
+  // The real process name is "lantern" (facade rename) — "keepance"/"Keepance"
+  // never matched anything, so this silently failed to kill the app.
+  sshExec('Stop-Process -Name node,cargo,lantern,msedgewebview2 -Force -EA SilentlyContinue; Start-Sleep 6');
 }
 
 export function deleteIndex() {
-  sshExec(`if (Test-Path '${WS_KEEPANCE_INDEX}') { Remove-Item -LiteralPath '${WS_KEEPANCE_INDEX}' -Recurse -Force; 'deleted .keepance' } else { '.keepance not present' }`);
+  sshExec(`if (Test-Path '${WS_KEEPANCE_INDEX}') { Remove-Item -LiteralPath '${WS_KEEPANCE_INDEX}' -Recurse -Force; 'deleted .lantern' } else { '.lantern not present' }`);
 }
 
 export function restartApp() {

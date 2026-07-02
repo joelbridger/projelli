@@ -28,8 +28,11 @@ jobs:
   robot-smoke:
     runs-on: [self-hosted, windows-bench]
     # Generous budget: a cold Rust rebuild (Legion idle a long time) can take
-    # ~20 min; the smoke itself is a few minutes. Most runs finish far sooner.
-    timeout-minutes: 45
+    # ~20 min; the demo's ~300-file PDF-indexing pass re-runs from scratch on
+    # every boot (a real app characteristic, not a fluke) and can itself take
+    # up to ~30 min before the smoke's Ask step can reliably cite a PDF
+    # source. Most runs finish far sooner.
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
 
@@ -83,7 +86,10 @@ jobs:
       - name: Restart the dev app (KeepanceDev) and wait for CDP 9223 + Vite 5173
         shell: pwsh
         run: |
-          Stop-Process -Name node,cargo,keepance,Keepance,msedgewebview2 -Force -ErrorAction SilentlyContinue
+          # The app id is com.lantern.app (facade rename) — the real binary/process
+          # name is "lantern", NOT "keepance". A stale "vite preview" (production)
+          # server can also be left listening on 5173 from a prior manual run.
+          Stop-Process -Name node,cargo,lantern,msedgewebview2 -Force -ErrorAction SilentlyContinue
           Start-Sleep -Seconds 6
           Start-ScheduledTask -TaskName KeepanceDev
 

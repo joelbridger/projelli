@@ -108,20 +108,39 @@ async function applyPurgeAndSeed(page, matters) {
       localStorage.setItem('keepance_profession', 'advisor');
       localStorage.setItem('keepance_onboarding_complete', 'true');
 
-      // settings: preserve persist wrapper, merge the three flag values on
+      // settings: preserve persist wrapper, merge the four flag values on
+      // (persisted under `lantern:settings` post-rename — see settingsStore.ts)
+      //
+      // defaultProvider pinned to openai: the committed deterministic Ask
+      // fixture (ai-replays/ask-portfolio.json) is OpenAI-wire-format, but
+      // askHelpers.ts's resolveAskCloudResolution reads THIS setting
+      // (settings.getSetting('defaultProvider')) and otherwise falls back to
+      // anthropic > openai > google by key PRESENCE — so on a bench whose
+      // keychain has a real anthropic key (any bench used for live testing),
+      // Ask silently calls Anthropic and the OpenAI-shaped replay renders
+      // nothing (wire-format mismatch, no error, egress guard still reports
+      // served>=1 because SOME generation URL was intercepted). Without this,
+      // the smoke's Ask result is a coin flip on whatever keys happen to be
+      // configured on the bench.
       let s = null;
-      try { s = JSON.parse(localStorage.getItem('keepance:settings') || 'null'); } catch (_) {}
+      try { s = JSON.parse(localStorage.getItem('lantern:settings') || 'null'); } catch (_) {}
       if (!s || typeof s !== 'object') s = { state: { values: {} }, version: 0 };
       const sState = s.state || (s.state = {});
       sState.values = Object.assign({}, sState.values || {}, {
         memoryEnabled: true,
         includePdfsInWorkspaceIndex: true,
         ocrScannedPdfs: true,
+        defaultProvider: 'openai',
       });
-      localStorage.setItem('keepance:settings', JSON.stringify(s));
+      localStorage.setItem('lantern:settings', JSON.stringify(s));
 
       // matters: exact shape {state:{matters,activeMatterId:null}, version:5}
-      localStorage.setItem('keepance:matters', JSON.stringify({
+      // (persisted under `lantern:matters` post-rename — see matterStore.ts).
+      // Seeding the STABLE demo ids here is what keeps them matching the ids
+      // baked into the frozen snapshot's vector index; if this key is wrong,
+      // the app falls back to a live CRM resync that assigns fresh random
+      // ids every boot, permanently orphaning the frozen index's matter tags.
+      localStorage.setItem('lantern:matters', JSON.stringify({
         state: { matters, activeMatterId: null },
         version: 5,
       }));
