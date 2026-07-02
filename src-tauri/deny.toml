@@ -65,6 +65,33 @@ ignore = [
     { id = "RUSTSEC-2026-0098", reason = "rustls-webpki 0.101.7 reached only via lancedb's AWS S3/DynamoDB TLS path, which Keepance (local-only vector store) never executes; no SemVer fix until lancedb updates aws-sdk past rustls 0.21" },
     { id = "RUSTSEC-2026-0099", reason = "rustls-webpki 0.101.7 reached only via lancedb's AWS S3/DynamoDB TLS path, which Keepance (local-only vector store) never executes; no SemVer fix until lancedb updates aws-sdk past rustls 0.21" },
     { id = "RUSTSEC-2026-0104", reason = "rustls-webpki 0.101.7 reached only via lancedb's AWS S3/DynamoDB TLS path, which Keepance (local-only vector store) never executes; the actively-used 0.103.x copy is patched to >=0.103.13" },
+
+    # --- quick-xml 0.38.4 / 0.39.4: fixed to >=0.41.0 on the load-bearing path ---
+    # The path that actually parses UNTRUSTED input — client .docx/.xlsx/.pptx via
+    # lantern-docx and commands/rag/office.rs — is bumped to quick-xml 0.41.0
+    # (Cargo.toml, both this crate and lantern-docx) and its two breaking API
+    # changes (`Attribute::unescape_value` -> `normalized_value`, `BytesText::
+    # xml_content` gaining an `XmlVersion` arg) are adapted. Two OTHER, unrelated
+    # quick-xml copies remain below 0.41 because their owning crates haven't
+    # released a fix yet; both are reviewed as unreachable from untrusted input:
+    #   - quick-xml 0.38.4 <- opendal/object_store <- lance-io <- lancedb. This
+    #     copy is only used to parse XML LIST responses from S3/GCS/Azure cloud
+    #     object-store APIs (object_store's optional "quick-xml" feature, gated
+    #     behind its cloud backends). Keepance's lancedb connection always opens
+    #     a plain local filesystem path (`rag::store::open_connection` ->
+    #     `dataset_path` = workspace_root/.keepance/vectors, never an s3://,
+    #     gs://, or az:// URI) — same reasoning as RUSTSEC-2026-0098/99/104 above.
+    #   - quick-xml 0.39.4 <- plist 1.9.0 (latest release; no newer plist exists)
+    #     <- tauri-utils. Used only to build/merge the macOS/iOS Info.plist
+    #     bundle metadata (`tauri_utils::config::file_associations_plist`) from
+    #     Keepance's OWN build-time tauri.conf.json / Info.plist inputs — never
+    #     from attacker-controlled or network-delivered XML.
+    # Both advisories are quadratic-time / unbounded-allocation DoS bugs that
+    # require a crafted, attacker-supplied XML document to trigger; neither
+    # reachable path accepts one. Tracked for removal when plist and/or
+    # object_store/opendal ship a release requiring quick-xml >=0.41.
+    { id = "RUSTSEC-2026-0194", reason = "quick-xml 0.38.4 (opendal/object_store cloud-list-XML path, unreachable: lancedb is always opened on a local fs path) and 0.39.4 (plist's build-time Info.plist merge, non-attacker-controlled input) are the only remaining unfixed copies; the untrusted-docx-parsing path is bumped to quick-xml 0.41.0" },
+    { id = "RUSTSEC-2026-0195", reason = "quick-xml 0.38.4 (opendal/object_store cloud-list-XML path, unreachable: lancedb is always opened on a local fs path) and 0.39.4 (plist's build-time Info.plist merge, non-attacker-controlled input) are the only remaining unfixed copies; the untrusted-docx-parsing path is bumped to quick-xml 0.41.0" },
 ]
 
 # ---------------------------------------------------------------------------
