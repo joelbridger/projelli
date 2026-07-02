@@ -181,7 +181,17 @@ pub async fn sync_source(
         // otherwise a meeting stays misfiled under its old client (or
         // unassigned) until its content happens to change too.
         let mapping_changed = matters_csv != previous_matter_ids;
-        if !content_changed && !mapping_changed {
+        // codex-review P1 (wave-1b review round 2): upsert_event commits
+        // content_hash unconditionally, before indexing runs below. If a
+        // PRIOR sync's indexing failed partway (network hiccup, one bad
+        // matter write, ...), content_hash already advanced but
+        // indexed_hash didn't — content_changed/mapping_changed alone
+        // can't see that, so a since-content-unchanged event would
+        // silently never retry. is_stale reads the store's own
+        // indexed_hash-vs-content_hash bookkeeping directly (the same
+        // condition list_to_index filters on).
+        let stale = store.is_stale(&event.id)?;
+        if !content_changed && !mapping_changed && !stale {
             continue;
         }
         if content_changed {
@@ -487,6 +497,57 @@ mod tests {
             Some("m-new".to_string()),
             "store's own bookkeeping reflects only the current matter"
         );
+        *test_hooks_slot().lock().unwrap() = None;
+    }
+
+    #[tokio::test]
+    async fn stale_index_hash_is_retried_even_when_content_and_mapping_are_unchanged() {
+        // codex-review P1 (wave-1b review round 2): upsert_event commits
+        // content_hash unconditionally, before indexing runs. A transient
+        // indexing failure (network hiccup, etc.) leaves content_hash
+        // already at the current value while indexed_hash stays stale. A
+        // later sync with the SAME content and SAME mapping must still
+        // retry the indexing, not skip it forever.
+        let _guard = hooks_test_guard();
+        let dir = tempfile::tempdir().unwrap();
+        let indexed: Arc<std::sync::Mutex<Vec<(String, String)>>> =
+            Arc::new(std::sync::Mutex::new(Vec::new()));
+        {
+            let indexed = indexed.clone();
+            *test_hooks_slot().lock().unwrap() = Some(TestHooks {
+                index: Box::new(move |source_id, matter_id| {
+                    indexed.lock().unwrap().push((source_id.into(), matter_id.into()));
+                    Ok(1)
+                }),
+                delete: Box::new(|_| Ok(())),
+            });
+        }
+
+        let store = CalendarStore::open_with_key(dir.path(), &STORE_KEY).unwrap();
+        let event = ev("outlook:1", "Review", &[("kim@henderson.com", "Kim")]);
+        let text = render_event(&event);
+        let real_hash = crate::commands::calendly::engine::content_hash(&text);
+        // Simulate the failure precondition directly: content already at
+        // the value sync_source will compute this run, but never indexed.
+        store.upsert_event(&event, &real_hash).unwrap();
+        assert!(store.is_stale("outlook:1").unwrap());
+
+        let matter_map = map(&[("kim@henderson.com", "m-hend")]);
+        let source = FakeSource { events: vec![event] };
+        let cancel = Arc::new(AtomicBool::new(false));
+        let counts = sync_source(
+            &store, &source, &matter_map, dir.path(), &STORE_KEY,
+            "2026-07-01T00:00:00Z", "2026-07-10T00:00:00Z", &cancel, &|_| {},
+        )
+        .await
+        .unwrap();
+        assert_eq!(counts.changed, 0, "content itself did not change this sync");
+        assert_eq!(counts.indexed, 1, "still retried because the row was stale");
+        assert_eq!(
+            *indexed.lock().unwrap(),
+            vec![("calendar:outlook:1:m-hend".to_string(), "m-hend".to_string())]
+        );
+        assert!(!store.is_stale("outlook:1").unwrap(), "no longer stale after the retry");
         *test_hooks_slot().lock().unwrap() = None;
     }
 

@@ -254,6 +254,29 @@ impl CalendarStore {
             .ok())
     }
 
+    /// True when this row's indexed_hash doesn't match its content_hash —
+    /// i.e. the same condition `list_to_index` filters on, exposed
+    /// per-row. A missing row also counts as "needs indexing." Used by the
+    /// sync engine to retry a row a PRIOR sync upserted but then failed to
+    /// finish indexing (upsert_event commits content_hash unconditionally,
+    /// before indexing runs, so a transient index failure otherwise leaves
+    /// the row silently stuck: the next sync sees an unchanged content
+    /// hash and skips it forever).
+    pub fn is_stale(&self, id: &str) -> Result<bool> {
+        let conn = self.conn.lock().unwrap();
+        let hashes: Option<(String, String)> = conn
+            .query_row(
+                "SELECT content_hash, indexed_hash FROM calendar_events WHERE id = ?1",
+                [id],
+                |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)),
+            )
+            .ok();
+        Ok(match hashes {
+            Some((content, indexed)) => indexed != content,
+            None => true,
+        })
+    }
+
     /// Every RAG source id this store has indexed: `calendar:<id>:<matter>`
     /// per matter in the row's csv. Used by disconnect/purge.
     pub fn list_indexed_rag_source_ids(&self) -> Result<Vec<String>> {
@@ -369,6 +392,26 @@ mod tests {
         assert_eq!(store.get_matter_ids("outlook:e1").unwrap(), Some(String::new()), "not indexed yet");
         store.mark_indexed("outlook:e1", "h1", "m-hend").unwrap();
         assert_eq!(store.get_matter_ids("outlook:e1").unwrap(), Some("m-hend".to_string()));
+    }
+
+    #[test]
+    fn is_stale_tracks_indexed_hash_vs_content_hash() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CalendarStore::open_with_key(dir.path(), &STORE_KEY).unwrap();
+        assert!(store.is_stale("outlook:e1").unwrap(), "no row yet counts as needing indexing");
+
+        let e = sample("outlook:e1", "2026-07-02T16:00:00Z");
+        store.upsert_event(&e, "h1").unwrap();
+        assert!(store.is_stale("outlook:e1").unwrap(), "content upserted but never indexed");
+
+        store.mark_indexed("outlook:e1", "h1", "m-hend").unwrap();
+        assert!(!store.is_stale("outlook:e1").unwrap(), "fully indexed, up to date");
+
+        // Simulates a transient indexing failure: content_hash advances
+        // (upsert_event commits it unconditionally) but mark_indexed never
+        // runs for the new hash.
+        store.upsert_event(&e, "h2").unwrap();
+        assert!(store.is_stale("outlook:e1").unwrap(), "content_hash moved ahead of indexed_hash");
     }
 
     #[test]
