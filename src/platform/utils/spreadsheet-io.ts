@@ -18,6 +18,13 @@ import {
   type FormulaValue,
 } from './formula-engine';
 
+// dataUrlToArrayBuffer moved to file-utils.ts (pure base64 decoding, no `xlsx`
+// dependency) so flushDirtyTabs.ts — reached from the always-eager startup
+// path — doesn't drag SheetJS into the main bundle just for it. Re-exported
+// here for backward compatibility with existing `spreadsheet-io` imports.
+export { dataUrlToArrayBuffer } from './file-utils';
+import { dataUrlToArrayBuffer } from './file-utils';
+
 /** A merged-cell range, in SheetJS's `{ s: {r,c}, e: {r,c} }` shape. */
 export interface MergeRange {
   /** Inclusive start row index (0-based). */
@@ -302,24 +309,6 @@ export class SheetEngine {
       }
     }
   }
-}
-
-/**
- * Convert a data URL to an ArrayBuffer.
- * Used internally by `parseSpreadsheet` when given a data URL.
- */
-export function dataUrlToArrayBuffer(dataUrl: string): ArrayBuffer {
-  const commaIndex = dataUrl.indexOf(',');
-  if (commaIndex === -1) {
-    throw new Error('Invalid data URL: missing comma separator.');
-  }
-  const base64 = dataUrl.slice(commaIndex + 1);
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes.buffer;
 }
 
 /**

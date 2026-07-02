@@ -28,6 +28,20 @@ function getExtension(name: string): string | undefined {
   return name.slice(dot + 1).toLowerCase();
 }
 
+/**
+ * Run `fn` once the browser is idle (or after a short fallback delay on
+ * runtimes without `requestIdleCallback`, e.g. older WebKit). Extraction is
+ * background bookkeeping, not user-visible work — it should never compete
+ * with typing or rendering for the main thread.
+ */
+function scheduleIdle(fn: () => void): void {
+  if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+    window.requestIdleCallback(() => { fn(); }, { timeout: 2000 });
+  } else {
+    setTimeout(fn, 0);
+  }
+}
+
 export function useOpenFileAIContext(): void {
   const openTabs = useEditorStore((s) => s.openTabs);
   const setContext = useFileContextStore((s) => s.setContext);
@@ -72,24 +86,35 @@ export function useOpenFileAIContext(): void {
 
       const timer = setTimeout(() => {
         timers.delete(snapshot.path);
-        void extractForAI(snapshot).then(
-          (ctx) => {
-            if (!ctx) {
-              // Either unsupported type or extraction produced empty text.
-              // Drop any stale context so the UI doesn't show a chip for a
-              // file that no longer contributes content.
-              removeContext(snapshot.path);
-              return;
+        scheduleIdle(() => {
+          // Idle scheduling adds an unbounded wait (up to the 2s
+          // requestIdleCallback timeout) on top of the debounce, so the tab
+          // this snapshot came from may have closed or changed again by the
+          // time this actually runs. `lastContent` is updated synchronously
+          // on every new edit/close, so comparing against it here — and
+          // again after the async extraction resolves — is a cheap way to
+          // detect "superseded" without a separate cancellation handle.
+          if (lastContent.get(snapshot.path) !== snapshot.content) return;
+          void extractForAI(snapshot).then(
+            (ctx) => {
+              if (lastContent.get(snapshot.path) !== snapshot.content) return;
+              if (!ctx) {
+                // Either unsupported type or extraction produced empty text.
+                // Drop any stale context so the UI doesn't show a chip for a
+                // file that no longer contributes content.
+                removeContext(snapshot.path);
+                return;
+              }
+              setContext(snapshot.path, ctx);
+            },
+            (error) => {
+              console.warn(
+                `[useOpenFileAIContext] extraction failed for "${snapshot.name}":`,
+                error
+              );
             }
-            setContext(snapshot.path, ctx);
-          },
-          (error) => {
-            console.warn(
-              `[useOpenFileAIContext] extraction failed for "${snapshot.name}":`,
-              error
-            );
-          }
-        );
+          );
+        });
       }, DEBOUNCE_MS);
 
       timers.set(tab.path, timer);

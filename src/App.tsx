@@ -5,7 +5,7 @@
  * where AI proposes and the user approves all destructive actions.
  */
 
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo, lazy, Suspense } from 'react';
 import { workspacePath } from '@/platform/fs/appPath';
 import { useGlobalEventBus, type AppSurface } from '@/app/lifecycle/useGlobalEventBus';
 import { useAutosave } from '@/app/lifecycle/useAutosave';
@@ -108,15 +108,12 @@ import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { usePromptDialog } from '@/platform/hooks/usePromptDialog';
 import { useUndoToast } from '@/app/shell/common/UndoToast';
-import { CrmSourcePanel } from '@/features/crm/CrmSourcePanel';
-import { OneDriveSourcePanel } from '@/features/onedrive/OneDriveSourcePanel';
-import { DocusignSourcePanel } from '@/features/docusign/DocusignSourcePanel';
-import { MeetingSourcePanel } from '@/features/calendly/MeetingSourcePanel';
-import { BoxSourcePanel } from '@/features/box/BoxSourcePanel';
-import { SharefileSourcePanel } from '@/features/sharefile/SharefileSourcePanel';
-import { JotformSourcePanel } from '@/features/jotform/JotformSourcePanel';
-import { ZocksSourcePanel } from '@/features/zocks/ZocksSourcePanel';
-import { AddeparSourcePanel } from '@/features/addepar/AddeparSourcePanel';
+import { installEarlyConnectorEventBridge } from '@/app/shell/connectorEventBridge';
+
+// Nine connector citation viewers, none of which render anything until their
+// own window event fires — bundled into one lazy chunk (see
+// ConnectorSourcePanels.tsx) so they don't ride into the startup bundle.
+const ConnectorSourcePanels = lazy(() => import('@/app/shell/ConnectorSourcePanels'));
 
 // Module-level constants so the onboarding/tour effects have stable deps
 // and never need to be listed in exhaustive-deps disable comments.
@@ -169,6 +166,18 @@ function App() {
   // workspace (matching the wizard's documented first-run condition), and
   // suppressed in test/demo modes. `?forceOnboarding=true` forces it for QA.
   const [showFirstRun, setShowFirstRun] = useState(false);
+
+  // ConnectorSourcePanels is only rendered (and its chunk fetched) once a
+  // connector citation is actually clicked — rendering it unconditionally,
+  // even self-gating on nothing "open", would still start its import()
+  // immediately. This tiny, always-eager listener catches the FIRST click
+  // (which can land before the chunk would otherwise have loaded) and
+  // buffers/replays it once the panels mount.
+  const [connectorPanelsNeeded, setConnectorPanelsNeeded] = useState(false);
+  useEffect(
+    () => installEarlyConnectorEventBridge(() => { setConnectorPanelsNeeded(true); }),
+    []
+  );
 
   // Anonymous telemetry: emit one app_launch event per session, gated
   // by user consent. Other lifecycle events (trial_start, trial_end,
@@ -1495,19 +1504,18 @@ function App() {
         setShowWhatsNewModalDirect={setShowWhatsNewModalDirect}
       />
 
-      {/* Wealthbox CRM citation viewer — listens for lantern:open-crm events
-          dispatched when a `crm:` source link is clicked in a Client Map. */}
-      <CrmSourcePanel />
-      <OneDriveSourcePanel />
-      <DocusignSourcePanel />
-      <MeetingSourcePanel />
-      {/* Bonus connector citation viewers — each listens for its
-          lantern:open-<connector> event dispatched from a Client Map source link. */}
-      <BoxSourcePanel />
-      <SharefileSourcePanel />
-      <JotformSourcePanel />
-      <ZocksSourcePanel />
-      <AddeparSourcePanel />
+      {/* Connector citation viewers (Wealthbox, OneDrive, DocuSign, Calendly,
+          Box, ShareFile, Jotform, Zocks, Addepar) — not rendered at all until
+          the first citation click (see connectorPanelsNeeded above), so the
+          chunk is fetched on demand rather than on every cold start. Once
+          mounted each one self-gates on its own window event and renders
+          nothing until a matching citation is clicked, so a null Suspense
+          fallback is safe here. */}
+      {connectorPanelsNeeded && (
+        <Suspense fallback={null}>
+          <ConnectorSourcePanels />
+        </Suspense>
+      )}
     </div>
   );
 }

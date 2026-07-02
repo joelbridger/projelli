@@ -10,6 +10,7 @@
  * local WhatsNewLayer wrapper.
  */
 
+import { lazy, Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { McpApprovalGate } from '@/features/settings/McpApprovalGate';
@@ -19,7 +20,6 @@ import { MatterManagerDialog } from '@/features/matters/MatterManagerDialog';
 import { InterviewForm } from '@/features/workflows/InterviewForm';
 import { CommandPalette, type PaletteCommand } from '@/app/shell/common/CommandPalette';
 import { SettingsModal } from '@/features/settings/SettingsModal';
-import { AccountWindow } from '@/features/account/AccountWindow';
 import { FeatureTour } from '@/features/onboarding/FeatureTour';
 import { ApiKeyWizard } from '@/features/onboarding/ApiKeyWizard';
 import { ApiKeyManager, type ApiKeyManagerKeychain } from '@/features/settings/ApiKeyManager';
@@ -48,6 +48,12 @@ import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
 import type { InterviewQuestion } from '@/platform/types/workflow';
 import type { FileNode } from '@/platform/types/workspace';
 import type { SettingCategory } from '@/platform/settings/schema';
+
+// AccountWindow pulls in every connector "Connect" setup panel (Wealthbox,
+// OneDrive, Box, DocuSign, ShareFile, Jotform, Zocks, Addepar, Calendly,
+// Salesforce, Redtail, plus mail + firm admin) — lazy so none of that rides
+// into the startup bundle until the user actually opens Account settings.
+const AccountWindow = lazy(() => import('@/features/account/AccountWindow'));
 
 export interface AppDialogsProps {
   // MCP gate
@@ -195,6 +201,20 @@ export function AppDialogs({
 }: AppDialogsProps) {
   const { t } = useTranslation();
 
+  // AccountWindow is mounted unconditionally (Radix Dialog controls
+  // visibility via `open`, not mount) so its state survives a close/reopen —
+  // but `Suspense` starts the dynamic import() the moment React renders the
+  // lazy component AT ALL, regardless of `open`. Gate actual rendering behind
+  // "has this ever been opened" so the connector-setup-panel chunk is only
+  // fetched the first time the user opens Account settings, not on every
+  // cold start. This is the standard "adjust state during render" pattern
+  // (same one AccountWindow itself already uses for its active-tab reset) —
+  // not a ref, since reading/writing a ref during render is unsafe.
+  const [accountWindowEverOpened, setAccountWindowEverOpened] = useState(accountWindowOpen);
+  if (accountWindowOpen && !accountWindowEverOpened) {
+    setAccountWindowEverOpened(true);
+  }
+
   return (
     <>
       {/* MCP write-approval gate. Polls for sidecar write requests and renders
@@ -258,16 +278,26 @@ export function AppDialogs({
       />
 
       {/* Account / firm window — opened from the rail's account identity, or from
-          email connect entry points (pre-selects the Connections tab). */}
-      <AccountWindow
-        open={accountWindowOpen}
-        onOpenChange={(open) => {
-          setAccountWindowOpen(open);
-          if (!open) onAccountWindowClosed?.();
-        }}
-        auditEntries={auditEntries}
-        initialTab={accountWindowInitialTab}
-      />
+          email connect entry points (pre-selects the Connections tab).
+          Not rendered at all until first opened (see accountWindowEverOpened
+          above) — rendering the lazy component, even closed, would start its
+          import() immediately. Suspense fallback is `null`, not a spinner:
+          once opened it stays mounted (Radix Dialog controls visibility via
+          `open`, not mount) so a visible fallback would flash on later opens
+          while re-rendering, not just the first cold fetch. */}
+      {accountWindowEverOpened && (
+        <Suspense fallback={null}>
+          <AccountWindow
+            open={accountWindowOpen}
+            onOpenChange={(open) => {
+              setAccountWindowOpen(open);
+              if (!open) onAccountWindowClosed?.();
+            }}
+            auditEntries={auditEntries}
+            initialTab={accountWindowInitialTab}
+          />
+        </Suspense>
+      )}
 
       {/* Advisor Prep Hero 3.0: rebuilt first-run wizard — the live first-run surface.
           Built above as `firstRunOverlay` so it also renders over the

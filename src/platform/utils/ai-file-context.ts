@@ -23,9 +23,7 @@
 //
 // TRUNCATION_MARKER is exported so tests can assert on the exact wording and
 // UI can rely on the specific suffix if it ever needs to hide the notice.
-import { parseSpreadsheet, type SpreadsheetExtension, type SheetData } from './spreadsheet-io';
-import { extractDocxText } from './docx-io';
-import { extractPptxText } from './pptx-io';
+import type { SpreadsheetExtension, SheetData } from './spreadsheet-io';
 /** Character cap before AI-bound text is truncated. ~50k Claude tokens. */
 export const MAX_EXTRACTED_CHARS = 200_000;
 
@@ -87,6 +85,7 @@ export async function extractForAI(
 
   try {
     if (ext === 'xlsx' || ext === 'xls') {
+      const { parseSpreadsheet } = await import('./spreadsheet-io');
       const model = await parseSpreadsheet(content, ext as SpreadsheetExtension);
       rawText = flattenSheetsToText(model.sheets);
       sourceKind = 'spreadsheet';
@@ -96,6 +95,7 @@ export async function extractForAI(
       // data URL (binary read path), parse it into rows so the AI sees the
       // actual sign-ups/revenue/etc. instead of a base64 blob.
       if (content.startsWith('data:')) {
+        const { parseSpreadsheet } = await import('./spreadsheet-io');
         const model = await parseSpreadsheet(content, 'csv');
         rawText = flattenSheetsToText(model.sheets);
         sourceKind = 'spreadsheet';
@@ -104,6 +104,7 @@ export async function extractForAI(
         sourceKind = 'text';
       }
     } else if (ext === 'docx') {
+      const { extractDocxText } = await import('./docx-io');
       const extraction = await extractDocxText(content);
       rawText = extraction.plainText ?? '';
       sourceKind = 'docx';
@@ -111,6 +112,7 @@ export async function extractForAI(
       // Pure-JS extraction via jszip — no LibreOffice needed for AI
       // context, even though the preview path does need it. The rendered
       // PDF is only for on-screen display; the AI just needs the words.
+      const { extractPptxText } = await import('./pptx-io');
       rawText = await extractPptxText(content);
       sourceKind = 'pptx';
     } else if (ext === 'ppt') {
