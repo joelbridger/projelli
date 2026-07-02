@@ -63,7 +63,13 @@ impl CalendarSource for GoogleCalendarSource {
                 crate::commands::mail::gmail::oauth::urlencoding_encode(to_utc),
             );
             if let Some(t) = &page_token {
-                url.push_str(&format!("&pageToken={t}"));
+                // codex-review P2 (round 7): an opaque token containing
+                // reserved query chars (+, &, =) would otherwise corrupt
+                // the query string and break/skip later pages.
+                url.push_str(&format!(
+                    "&pageToken={}",
+                    crate::commands::mail::gmail::oauth::urlencoding_encode(t)
+                ));
             }
             let resp = self.http.get(&url).bearer_auth(&access).send().await?;
             if !resp.status().is_success() {

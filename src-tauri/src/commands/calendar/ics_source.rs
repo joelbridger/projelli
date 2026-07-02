@@ -10,11 +10,21 @@ use super::model::{CalendarAttendee, CalendarEvent, CalendarProvider};
 use chrono::{Datelike, DateTime, Duration, TimeZone, Utc};
 
 /// GET the ICS text with a bounded timeout. No auth: secret ICS URLs carry
-/// their token in the URL itself.
+/// their token in the URL itself — codex-review P2 (round 7): reqwest
+/// follows redirects by default, so an https:// feed that 3xx-redirects to
+/// a plain http:// URL would silently leak that token over the network
+/// despite the https-only check in `calendar_connect_ics`. Only follow a
+/// redirect that stays on https (or loopback http, matching the connect
+/// command's own dev exception).
 pub async fn fetch_ics_text(url: &str) -> anyhow::Result<String> {
     let http = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
         .connect_timeout(std::time::Duration::from_secs(15))
+        .redirect(reqwest::redirect::Policy::custom(|attempt| {
+            let safe = attempt.url().scheme() == "https"
+                || matches!(attempt.url().host_str(), Some("localhost") | Some("127.0.0.1") | Some("::1"));
+            if safe { attempt.follow() } else { attempt.stop() }
+        }))
         .build()?;
     let resp = http.get(url).send().await?;
     if !resp.status().is_success() {
@@ -80,6 +90,11 @@ fn split_prop(line: &str) -> Option<(String, Vec<(String, String)>, String)> {
     let params = parts
         .filter_map(|p| {
             let (k, v) = p.split_once('=')?;
+            // RFC 5545 §3.2: a param value MAY be quoted (e.g.
+            // TZID="America/New_York"). codex-review P2 (round 7): leaving
+            // the quotes in place broke resolve_tz's chrono-tz lookup,
+            // silently falling back to UTC for every quoted TZID.
+            let v = v.trim().strip_prefix('"').and_then(|s| s.strip_suffix('"')).unwrap_or(v);
             Some((k.to_ascii_uppercase(), v.to_string()))
         })
         .collect();
@@ -371,9 +386,23 @@ fn expand_occurrences(
             let period_days = 7 * interval;
             let cycles = gap_days / period_days;
             if cycles > 0 {
+                // codex-review P2 (round 7): `occurrences_per_cycle` assumes
+                // every elapsed week contributes one hit per BYDAY entry,
+                // but the FIRST week only contributes matches from
+                // DTSTART's weekday onward, not all of them — so the naive
+                // `cycles * occurrences_per_cycle` product can OVERcount.
+                // An overcounted `accepted` is unsafe: it can trip the
+                // count>=COUNT early-return below and drop a series that
+                // hasn't actually finished. Holding back one full cycle as
+                // a safety margin keeps `accepted` a true lower bound (the
+                // main loop's own per-day matching is exact and will
+                // correctly count the held-back cycle for real), at the
+                // cost of at most one extra cycle's worth of day-stepping —
+                // negligible against HARD_CAP.
+                let safe_cycles = cycles.saturating_sub(1);
                 let occurrences_per_cycle = bydays.len().max(1) as i64;
-                accepted = (cycles * occurrences_per_cycle) as usize;
-                cursor = start_naive + Duration::days(cycles * period_days);
+                accepted = (safe_cycles * occurrences_per_cycle) as usize;
+                cursor = start_naive + Duration::days(safe_cycles * period_days);
             }
         }
         "MONTHLY" => {
@@ -612,6 +641,20 @@ mod tests {
         assert_eq!(e.attendees[0].email, "kim@henderson.com");
         assert_eq!(e.attendees[0].name, "Kim Henderson");
         assert_eq!(e.organizer_email, "adv@firm.com");
+    }
+
+    #[test]
+    fn quoted_tzid_param_value_resolves_the_same_as_unquoted() {
+        // codex-review P2 (round 7): RFC 5545 permits a quoted param value
+        // (DTSTART;TZID="America/Denver":...). Leaving the quotes in place
+        // broke the chrono-tz lookup and silently fell back to UTC.
+        let ics = wrap(
+            "BEGIN:VEVENT\r\nUID:q1\r\nSUMMARY:s\r\n\
+             DTSTART;TZID=\"America/Denver\":20260702T100000\r\n\
+             DTEND;TZID=\"America/Denver\":20260702T110000\r\nEND:VEVENT\r\n",
+        );
+        let events = parse_ics(&ics, WINDOW_FROM, WINDOW_TO).unwrap();
+        assert_eq!(events[0].start_utc, "2026-07-02T16:00:00Z", "MDT is UTC-6 in July");
     }
 
     #[test]
