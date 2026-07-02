@@ -533,6 +533,19 @@ export async function ragRetagMatter(
   return invoke<number>('rag_retag_matter', { path, matterId });
 }
 
+/** P1.1 — BATCHED matter retag: apply `matterId` to many sources' rows in ONE
+ *  LanceDB UPDATE per chunk. The boot retag of a mapped client folder uses this
+ *  (grouped per matter) so a warm boot of a mapped workspace stays cheap instead
+ *  of re-embedding (or per-file retagging, which LanceDB makes ~as slow as
+ *  re-embedding). Returns rows updated. */
+export async function ragRetagMatterBatch(
+  paths: string[],
+  matterId: string,
+): Promise<number> {
+  if (!isTauri()) return 0;
+  return invoke<number>('rag_retag_matter_batch', { paths, matterId });
+}
+
 /** WS-B/C — verify a citation against the local store so the app can REFUSE to
  *  present an answer whose citation does not verify. Looks up the chunk by its
  *  content-addressed `id` SCOPED to `claimedMatterId`, then asserts the stored

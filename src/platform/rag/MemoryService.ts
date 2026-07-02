@@ -26,6 +26,7 @@ import {
   ragManifestRecordPdf,
   ragReconcileWorkspace,
   ragRetagMatter,
+  ragRetagMatterBatch,
   ragRetagPrivilege,
   ragRetrieve,
   ragSetWorkspace,
@@ -346,6 +347,16 @@ export const MemoryService = {
   async retagMatter(sourceId: string, matterId: string): Promise<number> {
     if (!isMemoryEnabled()) return 0;
     return ragRetagMatter(sourceId, matterId);
+  },
+
+  /**
+   * P1.1 — BATCHED matter retag: re-tag many sources' chunks to `matterId` in one
+   * LanceDB UPDATE per chunk. The boot retag of a mapped client folder uses this
+   * (grouped per matter) so a warm boot of a mapped workspace stays cheap.
+   */
+  async retagMatterBatch(sourceIds: string[], matterId: string): Promise<number> {
+    if (!isMemoryEnabled() || sourceIds.length === 0) return 0;
+    return ragRetagMatterBatch(sourceIds, matterId);
   },
 
   async cancelIndexing(): Promise<void> {

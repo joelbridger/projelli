@@ -1479,6 +1479,46 @@ pub async fn retag_matter_for_path(
     Ok(result.rows_updated)
 }
 
+/// P1.1 — BATCHED `retag_matter_for_path`: re-tag every chunk of ANY path in
+/// `paths` to `matter_id` in ONE LanceDB UPDATE per chunk (`path IN (…tokens)`).
+///
+/// Why batched: LanceDB rewrites data on each UPDATE, so a per-file loop over N
+/// files is ~N full rewrites — measured at ~0.5 s/file (≈ the re-embed cost it
+/// was meant to avoid). Collapsing the boot retag of a mapped folder into a
+/// single UPDATE turns that into one rewrite. The IN-list is chunked so a huge
+/// workspace can't build an unbounded predicate string. Returns rows updated;
+/// empty `paths` is a no-op. Same tokenized predicate + validation as the
+/// single-path version.
+pub async fn retag_matter_for_paths(
+    table: &Table,
+    paths: &[String],
+    matter_id: &str,
+    key: &[u8; 32],
+) -> Result<u64> {
+    if paths.is_empty() {
+        return Ok(0);
+    }
+    let matter_id = validate_matter_id(matter_id)?;
+    let value_expr = format!("'{}'", sql_escape(matter_id));
+    let mut total = 0u64;
+    for chunk in paths.chunks(512) {
+        let tokens: Vec<String> = chunk
+            .iter()
+            .map(|p| format!("'{}'", sql_escape(&super::crypto::path_token(key, p))))
+            .collect();
+        let predicate = format!("path IN ({})", tokens.join(", "));
+        let result = table
+            .update()
+            .only_if(predicate)
+            .column("matter_id", value_expr.clone())
+            .execute()
+            .await
+            .with_context(|| format!("batched retag matter failed for {} paths", chunk.len()))?;
+        total += result.rows_updated;
+    }
+    Ok(total)
+}
+
 /// Read the matter scope a given source path is currently filed under, by
 /// querying the tokenized `path` column and returning the chunk's `matter_id`.
 ///

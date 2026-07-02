@@ -3377,6 +3377,77 @@ pub async fn rag_retag_matter(
     Ok(updated as u32)
 }
 
+/// P1.1 — BATCHED matter retag: apply `matter_id` to MANY sources' rows in one
+/// LanceDB UPDATE (per 512-path chunk). The boot retag of a mapped client folder
+/// calls this once per matter instead of re-embedding — or per-file retagging,
+/// which LanceDB makes ~as slow as re-embedding (one data rewrite per UPDATE).
+/// Also syncs each path's manifest scope. Returns rows updated (0 when the table
+/// or the paths aren't indexed).
+#[tauri::command]
+pub async fn rag_retag_matter_batch(
+    state: State<'_, RagState>,
+    paths: Vec<String>,
+    matter_id: String,
+) -> Result<u32, String> {
+    store::validate_matter_id(&matter_id).map_err(|e| format!("invalid matter id: {e}"))?;
+    if paths.is_empty() {
+        return Ok(0);
+    }
+    let workspace = require_workspace(&state).await?;
+    let conn = store::open_connection(&workspace)
+        .await
+        .map_err(|e| format!("open lancedb: {e}"))?;
+    let names = conn
+        .table_names()
+        .execute()
+        .await
+        .map_err(|e| format!("list tables: {e}"))?;
+    if !names.iter().any(|n| n == store::TABLE_NAME) {
+        return Ok(0);
+    }
+    let table = conn
+        .open_table(store::TABLE_NAME)
+        .execute()
+        .await
+        .map_err(|e| format!("open table: {e}"))?;
+    let key = crypto::get_or_create_master_key().map_err(|e| format!("vectors key: {e}"))?;
+    let updated = store::retag_matter_for_paths(&table, &paths, &matter_id, &key)
+        .await
+        .map_err(|e| format!("batched retag matter: {e}"))?;
+    // Keep the manifest's recorded scope in sync for every retagged source, in a
+    // SINGLE load→modify→save (a per-path loop would defeat the batching).
+    update_manifest_matter_many(&state, &workspace, &paths, &matter_id, &key).await;
+    Ok(updated as u32)
+}
+
+/// P1.1 — set the recorded matter of MANY manifest entries in one
+/// load→modify→save (paired with `rag_retag_matter_batch`).
+async fn update_manifest_matter_many(
+    state: &RagState,
+    workspace: &Path,
+    paths: &[String],
+    matter: &str,
+    key: &[u8; 32],
+) {
+    let _mg = state.manifest_lock.lock().await;
+    let mut m = manifest::load(workspace, store::INDEX_VERSION);
+    let mut changed = false;
+    for p in paths {
+        let token = crypto::path_token(key, p);
+        if let Some(sig) = m.sources.get_mut(&token) {
+            if sig.matter_id != matter {
+                sig.matter_id = matter.to_string();
+                changed = true;
+            }
+        }
+    }
+    if changed {
+        if let Err(e) = manifest::save(workspace, &m) {
+            log::warn!("rag: failed to save manifest after batched retag: {e}");
+        }
+    }
+}
+
 /// P1.1 (Task 3) — is this PDF already indexed at its current version + OCR
 /// settings? The frontend PDF-index loop calls this BEFORE re-extracting a PDF so
 /// an unchanged PDF (the expensive, often-OCR'd case) is skipped on boot. Returns

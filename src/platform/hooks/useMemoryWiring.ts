@@ -106,7 +106,7 @@ export type MemoryWiringWorkspaceService = {
    * instead of the cached in-memory tree so externally-added files are
    * discovered and re-indexed immediately after a matter is assigned.
    */
-  getFileTree?: () => Promise<FileNode[]>;
+  getFileTree?: (opts?: { fresh?: boolean }) => Promise<FileNode[]>;
 };
 
 /** Collect all .pdf paths from a FileNode tree recursively. */
@@ -206,7 +206,12 @@ async function getFreshTreeWithRetry(
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     if (workspaceService?.getFileTree) {
       try {
-        const tree = await workspaceService.getFileTree();
+        // P1.1 (Task 6): FORCE a real scan each retry. `getFileTree` now caches
+        // the boot scan; a plain call would hand back the SAME cached (possibly
+        // settled-empty) tree on every retry, defeating the populate-race retry
+        // this helper exists for. `{ fresh: true }` re-scans AND repopulates the
+        // shared cache once a populated tree is seen.
+        const tree = await workspaceService.getFileTree({ fresh: true });
         if (Array.isArray(tree) && tree.length > 0) return tree;
         lastInitialized = Array.isArray(tree) ? tree : [];
       } catch {
@@ -439,6 +444,62 @@ export async function indexWorkspacePdfs(
   progress.clearSoon();
 }
 
+/**
+ * P1.1 — apply each mapped folder's matter (and privilege) to its files' EXISTING
+ * rows IN PLACE, WITHOUT re-embedding. A cheap SQL column update per file.
+ *
+ * Why this is separate from `reindexFolderPaths` (which re-embeds): the boot
+ * reconcile already (re)indexed every new/changed file — new ones under the
+ * UNASSIGNED default — so on boot the files under a client folder already have
+ * rows; they just need the folder's matter applied. Re-embedding them (the old
+ * boot behaviour) redid the single most expensive step on EVERY warm boot of any
+ * workspace WITH client mappings, defeating the reconcile's whole win. In-place
+ * retag moves them to the right scope for pennies. (Explicit folder-mapping
+ * changes still go through `reindexFolderPaths`, which also indexes not-yet-
+ * indexed files — a deliberate one-off, not a per-boot cost.)
+ */
+async function retagFolderPathsInPlace(
+  folders: string[],
+  workspaceService: MemoryWiringWorkspaceService | null | undefined,
+): Promise<void> {
+  const allPaths = collectAllFilePaths(await getFreshOrCachedFileTree(workspaceService));
+  const { rootPath } = useWorkspaceStore.getState();
+  const affected = allPaths.filter((p) => pathInAnyFolder(p, folders, rootPath));
+
+  // Group by resolved matter so each matter's files retag in ONE batched UPDATE.
+  // LanceDB rewrites data per UPDATE, so a per-file retag loop is ~as slow as
+  // re-embedding — batching per matter collapses it to one rewrite per matter.
+  const byMatter = new Map<string, string[]>();
+  const privileged: Array<{ abs: string; privilege: string }> = [];
+  for (const p of affected) {
+    const abs = buildWorkspaceAbsolutePath(rootPath, p);
+    const matterId = resolveMatterIdForWorkspacePath(p, rootPath);
+    const list = byMatter.get(matterId);
+    if (list) list.push(abs);
+    else byMatter.set(matterId, [abs]);
+    // Only privileged sources need a privilege retag — the common 'none' default
+    // is already correct, so we skip it (and keep those few per-file).
+    const privilege = resolvePrivilegeForSource(abs);
+    if (privilege !== 'none') privileged.push({ abs, privilege });
+  }
+  for (const [matterId, paths] of byMatter) {
+    try {
+      // In-place, batched — no re-extract / re-embed. Files with no rows yet are
+      // a no-op; the reconcile/watcher indexes them.
+      await MemoryService.retagMatterBatch(paths, matterId);
+    } catch {
+      // Best-effort: skip and continue with the next matter.
+    }
+  }
+  for (const { abs, privilege } of privileged) {
+    try {
+      await MemoryService.retagPrivilege(abs, privilege);
+    } catch {
+      // Best-effort.
+    }
+  }
+}
+
 export async function retagExistingMatterFolderPaths(
   workspaceService: MemoryWiringWorkspaceService | null | undefined,
 ): Promise<void> {
@@ -451,7 +512,9 @@ export async function retagExistingMatterFolderPaths(
   );
   if (folders.length === 0) return;
   try {
-    await reindexFolderPaths(folders, workspaceService);
+    // P1.1: retag IN PLACE (no re-embed) so a warm boot of a mapped workspace
+    // stays cheap. (Was `reindexFolderPaths`, which re-embedded every file.)
+    await retagFolderPathsInPlace(folders, workspaceService);
   } catch {
     // Best-effort: the initial index already completed; do not block startup.
   }

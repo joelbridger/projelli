@@ -193,6 +193,23 @@ async fn boot_reconcile_skips_unchanged_and_is_fast() {
     assert_eq!(one_reindex, 1, "exactly one changed file must re-index");
     assert_eq!(one_reused, (N - 1) as u32);
 
+    // ── WARM BOOT WITH MATTER-MAPPED FOLDERS (the real-advisor case) ─────────
+    // Every file lives under a client folder mapped to a matter. The OLD boot
+    // applied that mapping by RE-EMBEDDING every file after the reconcile (≈ the
+    // cold time — the reconcile's win was erased on any mapped workspace). The
+    // NEW boot applies it by retagging the rows IN PLACE (a SQL column update,
+    // no re-extract/embed). This measures the in-place path.
+    let retag_started = Instant::now();
+    let all_paths: Vec<String> = files.iter().map(|f| f.to_string_lossy().to_string()).collect();
+    let retagged_rows = store::retag_matter_for_paths(&table, &all_paths, "acme", &TEST_KEY)
+        .await
+        .expect("batched retag matter in place");
+    let retag = retag_started.elapsed();
+    assert!(
+        retagged_rows >= N as u64,
+        "every file's rows retagged in place (got {retagged_rows} rows for {N} files)"
+    );
+
     eprintln!("\n================  P1.1 BOOT RECONCILE — BEFORE/AFTER  ================");
     eprintln!("workspace: {N} text files");
     eprintln!("COLD boot (today's every-launch behaviour): {:>8.2?}  ({N} files embedded)", cold);
@@ -200,5 +217,10 @@ async fn boot_reconcile_skips_unchanged_and_is_fast() {
     eprintln!("ONE-FILE-CHANGED boot (reconcile):           {:>8.2?}  (1 embedded, {one_reused} reused)", one);
     let speedup = cold.as_secs_f64() / warm.as_secs_f64().max(1e-9);
     eprintln!("warm-boot speedup vs cold:                   {speedup:>8.0}x");
+    eprintln!("--- with matter-mapped client folders (every real advisor workspace) ---");
+    eprintln!("  OLD boot (retag by RE-EMBED all):          ≈ COLD ({:.2?})", cold);
+    eprintln!("  NEW boot (retag IN PLACE, no embed):       {:>8.2?}  ({retagged_rows} rows over {N} files)", retag);
+    let retag_speedup = cold.as_secs_f64() / retag.as_secs_f64().max(1e-9);
+    eprintln!("  mapped-workspace warm-boot speedup:        {retag_speedup:>8.0}x", );
     eprintln!("=====================================================================\n");
 }
