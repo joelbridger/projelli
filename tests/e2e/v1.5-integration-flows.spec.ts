@@ -7,9 +7,10 @@
  * use, so any UI rename that breaks a flag spec will also break the
  * relevant integration flow here.
  *
- *   1. Founder flow: Settings → add fact → Workflows → ClientIntakeSynthesizer
- *      (template exists in the picker). The real run needs a live provider
- *      which the harness doesn't have, so we stop at "interview renders".
+ *   1. Founder flow: Settings → add fact → Workflows → Meeting Prep &
+ *      Suitability Notes (template exists in the picker). The real run needs
+ *      a live provider which the harness doesn't have, so we stop at
+ *      "interview renders".
  *
  *   2. Memory-aware Settings: open Memory settings, add a fact, open
  *      Account → Connections, switch back, verify fact survives.
@@ -33,14 +34,24 @@
 import { test, expect } from '@playwright/test';
 import { waitForTestModeLoad, hardClick, openSidebarTab, openAIAssistantPane } from './helpers/test-utils';
 
-async function openSettingsModal(page: import('@playwright/test').Page) {
+// Jameson's 2026-06-27 decision (SettingsGearButton.tsx) made the gear open
+// the full-page settings-page surface, not the old settings-modal dialog.
+// Unlike the modal, the page has no close button and no Escape handler
+// (SettingsContent.tsx only wires onClose for variant="modal") — it's a real
+// nav surface, so "closing" it means navigating to a different spine tab.
+async function openSettingsPage(page: import('@playwright/test').Page) {
   await hardClick(page.getByTestId('settings-gear'));
-  await expect(page.getByTestId('settings-modal')).toBeVisible();
+  await expect(page.getByTestId('settings-page')).toBeVisible();
+}
+
+async function closeSettingsPage(page: import('@playwright/test').Page) {
+  await hardClick(page.getByTestId('spine-nav-matters'));
+  await expect(page.getByTestId('settings-page')).not.toBeVisible();
 }
 
 async function showMemorySettings(page: import('@playwright/test').Page) {
-  if (!(await page.getByTestId('settings-modal').isVisible().catch(() => false))) {
-    await openSettingsModal(page);
+  if (!(await page.getByTestId('settings-page').isVisible().catch(() => false))) {
+    await openSettingsPage(page);
   }
   await hardClick(page.getByTestId('settings-category-ai-privacy'));
   await hardClick(page.getByTestId('subheader-memory-heading'));
@@ -48,19 +59,19 @@ async function showMemorySettings(page: import('@playwright/test').Page) {
 }
 
 async function showVoiceSettings(page: import('@playwright/test').Page) {
-  if (!(await page.getByTestId('settings-modal').isVisible().catch(() => false))) {
-    await openSettingsModal(page);
+  if (!(await page.getByTestId('settings-page').isVisible().catch(() => false))) {
+    await openSettingsPage(page);
   }
   await hardClick(page.getByTestId('settings-category-voice'));
   await hardClick(page.getByTestId('subheader-voice-input-heading'));
   await expect(page.getByTestId('voice-status')).toBeVisible();
 }
 
+// account-identity lives in the always-visible sidebar (Spine.tsx), and
+// AccountWindow is a real Radix Dialog — it opens fine as an overlay
+// regardless of whether settings-page is the active surface underneath, so
+// there's no need to leave Settings first.
 async function openAccountConnections(page: import('@playwright/test').Page) {
-  if (await page.getByTestId('settings-modal').isVisible().catch(() => false)) {
-    await page.keyboard.press('Escape');
-    await expect(page.getByTestId('settings-modal')).not.toBeVisible();
-  }
   await hardClick(page.getByTestId('account-identity'));
   await expect(page.getByTestId('account-window')).toBeVisible();
   await hardClick(page.getByTestId('account-tab-connections'));
@@ -83,11 +94,11 @@ test.describe('v1.5 multi-feature integration flows', () => {
     await waitForTestModeLoad(page);
   });
 
-  test('founder flow: Settings → add fact → Workflows → ClientIntakeSynthesizer picker opens', async ({
+  test('founder flow: Settings → add fact → Workflows → Meeting Prep picker opens', async ({
     page,
   }) => {
     // Step 1: open Settings and add a fact that represents "my practice
-    // context" — the sort of durable memory an attorney would seed before
+    // context" — the sort of durable memory an advisor would seed before
     // running a workflow.
     await showMemorySettings(page);
     const input = page.getByTestId('settings-facts-add-input');
@@ -97,8 +108,7 @@ test.describe('v1.5 multi-feature integration flows', () => {
     await expect(page.getByTestId('settings-facts-table')).toContainText(marker);
 
     // Step 2: close Settings.
-    await page.keyboard.press('Escape');
-    await expect(page.getByTestId('settings-modal')).not.toBeVisible();
+    await closeSettingsPage(page);
 
     // Step 3: open the Workflows surface. In 3.0 this is already the full picker.
     await openSidebarTab(page, 'workflows');
@@ -108,15 +118,19 @@ test.describe('v1.5 multi-feature integration flows', () => {
       await hardClick(showAll);
     }
 
-    // Step 4: Verify the ClientIntakeSynthesizer template exists in the picker
-    // — this is the legal workflow the practice flow description targets.
-    await expect(page.getByText('Client Intake Synthesizer')).toBeVisible({
+    // Step 4: Verify the Meeting Prep & Suitability Notes template exists in
+    // the picker — the advisor workflow the practice flow description
+    // targets. (Not the legal ClientIntakeSynthesizer: prioritizeByProfession.ts's
+    // PIVOT-A5 branch deliberately excludes the whole legal pack for the
+    // default 'advisor' profession — "no deposition/contradiction pipeline,
+    // no legal-specific templates".)
+    await expect(page.getByText('Meeting Prep & Suitability Notes')).toBeVisible({
       timeout: 5_000,
     });
 
     // Step 5: The marker fact should still be in Settings (no "whole-app
     // remount" side effects).
-    await openSettingsModal(page);
+    await openSettingsPage(page);
     await showMemorySettings(page);
     await expect(page.getByTestId('settings-facts-table')).toContainText(marker);
   });
@@ -175,7 +189,7 @@ test.describe('v1.5 multi-feature integration flows', () => {
     // probe isn't cancelled on unmount, the previous run could setState
     // on the new mount's state. The symptom would be a pill stuck on
     // "checking" until the next mount.
-    await openSettingsModal(page);
+    await openSettingsPage(page);
     await hardClick(page.getByTestId('settings-category-workspace'));
     await hardClick(page.getByTestId('settings-category-ai-privacy'));
     await hardClick(page.getByTestId('subheader-memory-heading'));
@@ -192,20 +206,25 @@ test.describe('v1.5 multi-feature integration flows', () => {
     );
   });
 
-  test('AI Assistant and Settings can coexist (open AI pane, then open Settings)', async ({
+  test('AI Assistant tab survives navigating to Settings and back', async ({
     page,
   }) => {
-    // This guards against a z-index / focus-trap regression where
-    // opening Settings while the AI Assistant pane is visible would hide
-    // the pane or misdirect focus.
+    // Settings became a full-page nav surface on 2026-06-27 (not an overlay
+    // dialog), so it can no longer "coexist" with the AI Assistant pane
+    // simultaneously — opening Settings navigates away from it entirely,
+    // same as any other spine tab. What's still worth guarding: the AI
+    // Assistant tab (and its editor-store state) isn't lost when the user
+    // detours through Settings and comes back.
     await openAIAssistantPane(page);
 
-    await openSettingsModal(page);
+    await openSettingsPage(page);
+    await expect(page.getByTestId('ai-chat-viewer')).not.toBeVisible();
 
-    // Close Settings with Escape. The AI Assistant pane should still be
-    // mounted (sidebar tab state preserved).
-    await page.keyboard.press('Escape');
-    await expect(page.getByTestId('settings-modal')).not.toBeVisible();
+    await closeSettingsPage(page);
+    // Ctrl+Shift+A a second time (after navigating away) re-focuses the
+    // existing ai-assistant tab rather than creating a duplicate — see
+    // ai-assistant-tab.spec.ts.
+    await openAIAssistantPane(page);
     await expect(page.getByTestId('ai-chat-viewer')).toBeVisible();
   });
 
@@ -238,7 +257,7 @@ test.describe('v1.5 multi-feature integration flows', () => {
     }
 
     // Close and reopen Settings entirely.
-    await page.keyboard.press('Escape');
+    await closeSettingsPage(page);
     await showMemorySettings(page);
     for (const m of markers) {
       await expect(page.getByTestId('settings-facts-table')).toContainText(m);
