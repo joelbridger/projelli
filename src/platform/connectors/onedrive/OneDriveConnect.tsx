@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import {
   oneDriveCancel,
   oneDriveConnect,
+  oneDriveConnectCancel,
   oneDriveDisconnect,
   oneDriveIsConnected,
   oneDriveListFolders,
@@ -107,11 +108,23 @@ export function OneDriveConnect() {
       // Connect = IMPORT: kick off the first sync right after auth.
       void runSync();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      // The user clicked Cancel — this is an intentional exit, not a failure,
+      // so don't show a red error for it (and the prior connection, if any,
+      // was never touched).
+      if (message !== 'cancelled') setError(message);
     } finally {
       setConnecting(false);
       endOAuth();
     }
+  }
+
+  // Abort a pending sign-in immediately instead of leaving the user stuck on
+  // "Waiting for Microsoft sign-in..." for the full 5-minute server-side
+  // OAuth timeout with no way out. The prior connection (if any) is left
+  // untouched.
+  function cancelConnect() {
+    oneDriveConnectCancel().catch(() => {});
   }
 
   async function syncNow() {
@@ -226,18 +239,30 @@ export function OneDriveConnect() {
       {!connected ? (
         <div className="mt-3 space-y-3">
           {error && <p className="text-sm text-red-700">{error}</p>}
-          <button
-            type="button"
-            disabled={connecting || localOnly}
-            onClick={() => {
-              void connect();
-            }}
-            className="rounded-md bg-[var(--kp-navy)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
-          >
-            {connecting
-              ? 'Waiting for Microsoft sign-in...'
-              : 'Connect OneDrive'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={connecting || localOnly}
+              onClick={() => {
+                void connect();
+              }}
+              className="rounded-md bg-[var(--kp-navy)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
+            >
+              {connecting
+                ? 'Waiting for Microsoft sign-in...'
+                : 'Connect OneDrive'}
+            </button>
+            {connecting && (
+              <button
+                type="button"
+                data-testid="onedrive-cancel-connect"
+                onClick={cancelConnect}
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
         </div>
       ) : (
         <div className="mt-3 text-sm text-slate-700">

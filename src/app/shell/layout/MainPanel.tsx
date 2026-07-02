@@ -58,6 +58,7 @@ import {
 import { getVersionService } from '@/features/documents/versioning/VersionService';
 import { getBinaryVersionService } from '@/features/documents/versioning';
 import { useEditorStore } from '@/platform/state/editorStore';
+import { useShallow } from 'zustand/react/shallow';
 import { flushTab } from '@/app/fileOps/flushDirtyTabs';
 import {
   useFileBackupStore,
@@ -74,8 +75,6 @@ import {
 import { FileText, List, PanelRightClose, FileType, X, History, Download, ChevronDown, MoreHorizontal, Columns, Rows, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { saveFile } from '@/platform/utils/saveFile';
-import { markdownToDocxBytes } from '@/platform/utils/docx-io';
-import { markdownToPptxBytes } from '@/platform/utils/pptx-io';
 import { withShortcut } from '@/platform/utils/shortcuts';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { useActiveEgressProvider } from '@/platform/hooks/useActiveEgressProvider';
@@ -186,6 +185,12 @@ export function MainPanel({
   hideTabBar = false,
 }: MainPanelProps = {}) {
   const { t } = useTranslation();
+  // Perf (P1.2): exact-data-only selector. The old bare `useEditorStore()`
+  // call subscribed to every field in the store (tab groups, pending-rename
+  // state, pane layout, tab-overflow mode, …) even though MainPanel reads
+  // none of those — so it re-rendered on changes that had nothing to do
+  // with what it shows. useShallow keeps this destructure ergonomic while
+  // only re-rendering when one of THESE fields actually changes.
   const {
     openTabs,
     activeTabPath,
@@ -198,7 +203,19 @@ export function MainPanel({
     setSecondaryTab,
     showOutline,
     toggleOutline,
-  } = useEditorStore();
+  } = useEditorStore(useShallow((s) => ({
+    openTabs: s.openTabs,
+    activeTabPath: s.activeTabPath,
+    updateContent: s.updateContent,
+    isSplit: s.isSplit,
+    splitDirection: s.splitDirection,
+    secondaryTabPath: s.secondaryTabPath,
+    splitPane: s.splitPane,
+    closeSplit: s.closeSplit,
+    setSecondaryTab: s.setSecondaryTab,
+    showOutline: s.showOutline,
+    toggleOutline: s.toggleOutline,
+  })));
 
   const activeTab = openTabs.find((t) => t.path === activeTabPath);
   const secondaryTab = openTabs.find((t) => t.path === secondaryTabPath);
@@ -1009,6 +1026,7 @@ export function MainPanel({
   const exportAsDocx = useCallback(async () => {
     if (!activeTab) return;
     try {
+      const { markdownToDocxBytes } = await import('@/platform/utils/docx-io');
       const bytes = await markdownToDocxBytes(activeTab.content, activeTab.name);
       const suggestedName = activeTab.name.replace(/\.(md|markdown|txt)$/i, '') + '.docx';
       await saveFile(bytes, {
@@ -1030,6 +1048,7 @@ export function MainPanel({
   const exportAsPptx = useCallback(async () => {
     if (!activeTab) return;
     try {
+      const { markdownToPptxBytes } = await import('@/platform/utils/pptx-io');
       const bytes = await markdownToPptxBytes(activeTab.content);
       const suggestedName = activeTab.name.replace(/\.(md|markdown|txt)$/i, '') + '.pptx';
       await saveFile(bytes, {

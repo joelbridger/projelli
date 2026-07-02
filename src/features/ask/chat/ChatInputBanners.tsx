@@ -17,6 +17,8 @@ import { AIContextIndicator } from '@/features/ask/AIContextIndicator';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import { ContextMeterBar } from '@/features/ask/chat/ContextMeterBar';
 import { PdfPreviewBeforeSend } from '@/features/ask/chat/PdfPreviewBeforeSend';
+import { FileAccessConsentBanner } from '@/features/ask/chat/FileAccessConsentBanner';
+import type { ConsentScope, FileAccessConsent } from '@/platform/ai/fileAccessConsent';
 
 interface ChatInputBannersProps {
   trialGate: ReturnType<typeof useTrialGate>;
@@ -40,6 +42,13 @@ interface ChatInputBannersProps {
   setScopedFolder: (chatId: string, folder: string | null) => void;
   effectiveProvider: ChatProvider | 'none' | null;
   assuredAvailableForChat: boolean;
+  /** F2.5 — per-conversation file-access consent + the scope the next send runs
+   *  under. The banner is only meaningful when a workspace is present (tools can
+   *  register); `rootPath` gates that. */
+  fileAccessConsent: FileAccessConsent;
+  fileAccessConsentScope: ConsentScope;
+  fileAccessScopeLabel: string;
+  setFileAccessConsent: (chatId: string, consent: FileAccessConsent | null) => void;
 }
 
 export function ChatInputBanners({
@@ -64,6 +73,10 @@ export function ChatInputBanners({
   setScopedFolder,
   effectiveProvider,
   assuredAvailableForChat,
+  fileAccessConsent,
+  fileAccessConsentScope,
+  fileAccessScopeLabel,
+  setFileAccessConsent,
 }: ChatInputBannersProps) {
   return (
     <>
@@ -193,6 +206,20 @@ export function ChatInputBanners({
             workspaceRoot={rootPath}
             scopedFolder={scopedFolder}
             onScopeChange={(folder) => setScopedFolder(chatId, folder)}
+            className="mb-2"
+          />
+        )}
+        {/* F2.5 — file-access consent affordance. Only meaningful when a
+             workspace is present (so tools could register); sits just above the
+             egress indicator so the "what can leave" story is complete. The
+             component self-hides for local / no provider. */}
+        {rootPath && (
+          <FileAccessConsentBanner
+            effectiveProvider={effectiveProvider}
+            consent={fileAccessConsent}
+            consentScope={fileAccessConsentScope}
+            scopeLabel={fileAccessScopeLabel}
+            onChange={(next) => { setFileAccessConsent(chatId, next); }}
             className="mb-2"
           />
         )}

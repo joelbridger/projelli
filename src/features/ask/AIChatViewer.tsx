@@ -8,10 +8,10 @@ import { deriveFactScope } from './hooks/deriveFactScope';
 import { useAIRules } from './hooks/useAIRules';
 import { useCitationHandlers } from './hooks/useCitationHandlers';
 import { ChatHeader } from './chat/ChatHeader';
-import { MessageBubble } from './chat/MessageBubble';
+import { ChatMessageList } from './chat/ChatMessageList';
 import { ChatInputBanners } from './chat/ChatInputBanners';
 import { useTranslation } from 'react-i18next';
-import { Send, Square, Mic, MicOff } from 'lucide-react';
+import { Send, Mic, MicOff } from 'lucide-react';
 import { ChatInputToolbar } from '@/features/ask/chat/ChatInputToolbar';
 import { AttachmentService } from '@/features/ask/attachments/AttachmentService';
 import { sanitizeForPrompt } from '@/platform/utils/prompt-security';
@@ -31,7 +31,8 @@ import { isLocalProviderId } from '@/platform/providers/providerFactory';
 import { isLocalOnlyMode, assertCloudGenerationAllowed } from '@/platform/privacy/localOnlyGuard';
 import { isAssuredProvider } from '@/platform/firm/resolveAssuredRoute';
 import { useFirmStore } from '@/platform/firm/firmStore';
-import { useAIChatStore, getDraftInput, useAskWorkspaceMode, useScopedFolder } from '@/platform/state/aiChatStore';
+import { useAIChatStore, getDraftInput, useAskWorkspaceMode, useScopedFolder, useFileAccessConsent } from '@/platform/state/aiChatStore';
+import type { ConsentScope } from '@/platform/ai/fileAccessConsent';
 import { useActiveMatter, useActiveMatters } from '@/platform/matter/matterStore';
 import { pathInMatterScope } from '@/platform/matter/matterScopeGuard';
 import { useIncludePrivileged, usePrivilegeStore } from '@/platform/firm/privilegeStore';
@@ -54,7 +55,6 @@ import { MODEL_NOT_READY, type RetrievalScope } from '@/platform/utils/tauri-com
 import { useFileContextStore } from '@/platform/state/fileContextStore';
 import type { ExtractedContext } from '@/platform/utils/ai-file-context';
 import { filterByScope } from '@/platform/utils/client-boundary';
-import { CompressedSegmentMarker } from '@/features/ask/chat/CompressedSegmentMarker';
 import { CompressionConfirmModal } from '@/features/ask/chat/CompressionConfirmModal';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { useTrialGate } from '@/platform/hooks/useTrial';
@@ -165,9 +165,6 @@ export function buildOpenFilesPromptBlock(openFiles: ExtractedContext[]): string
 }
 
 
-import { ProposedFactsPanel } from './ProposedFactsPanel';
-
-
 export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, onOpenFileAtPath, className }: AIChatViewerProps) {
   const { t } = useTranslation();
   const entityLabel = useEntityLabel();
@@ -210,7 +207,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   // 30-day trial gate. Locks chat send + voice when expired and not paid.
   const trialGate = useTrialGate();
   // Use global store for chat state (persists across navigation)
-  const { sessions, initSession, addMessage, updateLastMessage, updateMessages, setLoading, setDraftInput, clearDraftInput, recordCost, setAskWorkspaceMode, setScopedFolder } = useAIChatStore();
+  const { sessions, initSession, addMessage, updateLastMessage, updateMessages, setLoading, setDraftInput, clearDraftInput, recordCost, setAskWorkspaceMode, setScopedFolder, setFileAccessConsent } = useAIChatStore();
   const chatId = chatData.id;
   const session = sessions[chatId];
   const askWorkspaceMode = useAskWorkspaceMode(chatId);
@@ -220,6 +217,16 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   // When null, the chat searches across all matters (the explicit cross-matter
   // capability). Switching the active matter changes retrieval scope.
   const activeMatter = useActiveMatter();
+  // F2.5 — per-conversation file-access consent + the scope the next send runs
+  // under. A single-client chat scopes to the active client; otherwise the chat
+  // spans all clients, which requires its own (stricter) grant.
+  const fileAccessConsent = useFileAccessConsent(chatId);
+  const fileAccessConsentScope: ConsentScope = activeMatter
+    ? { kind: 'matter', matterId: activeMatter.id }
+    : { kind: 'allMatters' };
+  const fileAccessScopeLabel = activeMatter
+    ? (activeMatter.client || activeMatter.name)
+    : `all your ${entityLabel.other}`;
   // WS-PRIV — whether the next query may retrieve privileged sources. Default
   // false (privileged content excluded); flipped on only by the explicit,
   // visible "Include privileged sources" toggle below the input. Resets on reload.
@@ -297,6 +304,23 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   const abortControllerRef = useRef<AbortController | null>(null);
   const { isRecording, toggleVoiceRecording } = useVoiceRecording(inputValue, setInputValue);
 
+  // Perf (P1.2) — the in-flight streamed text for the current turn's
+  // assistant message. Lives in component-local state (NOT the Zustand
+  // store): useChatSending throttles chunk arrivals into this at most once
+  // per animation frame, and commits the final content to the store exactly
+  // once when the turn ends. null when no stream is in flight.
+  //
+  // Tagged with the `chatId` the stream actually belongs to (Codex review,
+  // P1): MainPanel reuses the SAME AIChatViewer instance across different
+  // open chats (no per-chat `key`), so this local state survives a `chatId`
+  // prop change. A stream started in chat A whose onChunk callbacks are
+  // still firing after the user switches to chat B must never patch B's
+  // messages with A's text — that would leak one client's answer into
+  // another client's chat. `displayMessages` below only applies this
+  // overlay when `streamingPreview.chatId` matches the CURRENTLY VIEWED
+  // chatId.
+  const [streamingPreview, setStreamingPreview] = useState<{ chatId: string; content: string } | null>(null);
+
   // Stream A1 — Pending attachments state.
   const [pendingAttachments, setPendingAttachments] = useState<ChatAttachment[]>([]);
   const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
@@ -345,6 +369,23 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   const messages = session?.messages ?? chatData.messages;
   const isLoading = session?.isLoading ?? false;
 
+  // Perf (P1.2) — overlay the local streaming preview onto the last message
+  // for RENDERING only. The store's copy of that message stays at whatever
+  // it was last committed to (empty, until the turn's single final write);
+  // everything that reads `messages` for logic (memory extraction, drafts,
+  // exports, etc.) keeps using the real committed array below.
+  const displayMessages = useMemo(() => {
+    if (streamingPreview === null || streamingPreview.chatId !== chatId || messages.length === 0) {
+      return messages;
+    }
+    const lastIdx = messages.length - 1;
+    const last = messages[lastIdx];
+    if (!last || last.role !== 'assistant' || last.content === streamingPreview.content) return messages;
+    const patched = messages.slice();
+    patched[lastIdx] = { ...last, content: streamingPreview.content };
+    return patched;
+  }, [messages, streamingPreview, chatId]);
+
   // F-121 (VG-5b) — inputs for the privilege-exclusion "see it work" demo:
   // the user's current question (input draft, falling back to the last user
   // message) and the SAME retrieval scope the next send would use, so the
@@ -363,10 +404,15 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     [activeMatter],
   );
 
-  // Scroll to bottom when messages change
+  // Scroll to bottom when messages change. Perf (P1.2) fix: depend on
+  // `displayMessages`, not `messages` — while a stream is in flight the
+  // visible text grows through the local `streamingPreview` overlay and
+  // `messages` itself doesn't change until the turn's single final store
+  // write, so depending on `messages` alone stopped auto-scroll from
+  // following a streaming answer until it finished.
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [displayMessages]);
 
   // M3 — after each completed turn, check whether extraction should
   // run. Only fires when we're not loading (so the turn is complete),
@@ -579,6 +625,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     updateLastMessage,
     updateMessages,
     setLoading,
+    setStreamingPreview,
     clearDraftInput,
     recordCost,
     chatId,
@@ -813,6 +860,27 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     }
   }, []);
 
+  // Perf (P1.2) — a permanently-stable callback for MessageBubble's "retry
+  // last message" button. `handleSendMessage`'s own identity changes on
+  // nearly every render (its useCallback depends on `inputValue` and a dozen
+  // other fields it needs fresh at send time — see useChatSending.ts), so
+  // threading it straight into the memoized message list would defeat the
+  // memoization on every keystroke. Reading both through refs means this
+  // callback never needs either as a reactive dependency, so its identity
+  // never changes, while still acting on whatever is current when clicked.
+  const messagesForRetryRef = useRef(messages);
+  messagesForRetryRef.current = messages;
+  const handleSendMessageRef = useRef(handleSendMessage);
+  handleSendMessageRef.current = handleSendMessage;
+  const onRetryLastError = useCallback(() => {
+    const lastUserMsg = [...messagesForRetryRef.current].reverse().find((m) => m.role === 'user');
+    if (lastUserMsg) {
+      setInputValue(lastUserMsg.content);
+      // Trigger send on the next tick so state is committed first.
+      setTimeout(() => { void handleSendMessageRef.current(); }, 0);
+    }
+  }, [setInputValue]);
+
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -931,67 +999,24 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         handleExport={handleExport}
       />
 
-      {/* Messages */}
-      <div data-testid="chat-messages" className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((msg, idx) => {
-          // Stream A4 — don't render original messages that have been compressed.
-          // The CompressedSegmentMarker speaks for them.
-          if (msg.compressedIntoId) return null;
-          // Stream A4 — render compressed summary marker instead of normal bubble.
-          if (msg.isCompressedSummary) {
-            return (
-              <CompressedSegmentMarker
-                key={idx}
-                message={msg}
-                onExpand={handleExpandSegment}
-              />
-            );
-          }
-          return (
-            <MessageBubble
-              key={idx}
-              msg={msg}
-              idx={idx}
-              messages={messages}
-              t={t}
-              entityLabel={entityLabel}
-              handleCitationClick={handleCitationClick}
-              handleMissingSource={handleMissingSource}
-              setInputValue={setInputValue}
-              handleSendMessage={handleSendMessage}
-            />
-          );
-        })}
-        {isLoading && (
-          <div data-testid="chat-loading-indicator" className="flex items-center gap-2">
-            <div className="bg-muted rounded-lg px-4 py-2">
-              <div className="flex gap-1">
-                <span className="animate-bounce">●</span>
-                <span className="animate-bounce delay-100">●</span>
-                <span className="animate-bounce delay-200">●</span>
-              </div>
-            </div>
-            <Button
-              data-testid="chat-stop-button"
-              variant="outline"
-              size="sm"
-              onClick={handleStop}
-              className="h-7 gap-1 text-xs"
-            >
-              <Square className="h-3 w-3" />
-              Stop
-            </Button>
-          </div>
-        )}
-        {proposedFacts.length > 0 && (
-          <ProposedFactsPanel
-            proposals={proposedFacts}
-            onAccept={handleAcceptProposedFact}
-            onReject={handleRejectProposedFact}
-          />
-        )}
-        <div ref={messagesEndRef} />
-      </div>
+      {/* Messages — a memoized child (Perf P1.2) so a composer keystroke,
+          which only changes `inputValue` in THIS component, doesn't force
+          the whole message history to re-render. */}
+      <ChatMessageList
+        messages={displayMessages}
+        isLoading={isLoading}
+        t={t}
+        entityLabel={entityLabel}
+        handleCitationClick={handleCitationClick}
+        handleMissingSource={handleMissingSource}
+        handleExpandSegment={handleExpandSegment}
+        onRetryLastError={onRetryLastError}
+        onStop={handleStop}
+        proposedFacts={proposedFacts}
+        onAcceptProposedFact={handleAcceptProposedFact}
+        onRejectProposedFact={handleRejectProposedFact}
+        messagesEndRef={messagesEndRef}
+      />
 
       {/* WS-B/C — matter manager (create/rename/delete + folder mapping). */}
       <MatterManagerDialog open={matterManagerOpen} onOpenChange={setMatterManagerOpen} />
@@ -1044,6 +1069,10 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           setScopedFolder={setScopedFolder}
           effectiveProvider={effectiveProvider}
           assuredAvailableForChat={assuredAvailableForChat}
+          fileAccessConsent={fileAccessConsent}
+          fileAccessConsentScope={fileAccessConsentScope}
+          fileAccessScopeLabel={fileAccessScopeLabel}
+          setFileAccessConsent={setFileAccessConsent}
         />
         {/* Stream A1 — ChatInputToolbar: paperclip, paste, drop, tiles, vision warning */}
         <ChatInputToolbar

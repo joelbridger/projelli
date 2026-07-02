@@ -102,6 +102,18 @@ export function FirmSignIn({ initialPanel }: FirmSignInProps = {}) {
   const [localError, setLocalError] = useState<string | null>(null);
   const [seatLimit, setSeatLimit] = useState<SeatLimitExceededResponse | null>(null);
 
+  // SSO sign-in is its own local flag (distinct from firm.isLoading, which is
+  // shared with the password sign-in/claim/activate flows) so the Cancel
+  // button shows only for the SSO wait it belongs to.
+  const [ssoInProgress, setSsoInProgress] = useState(false);
+
+  // Abort a pending SSO sign-in immediately instead of leaving the user
+  // stuck on the browser popup for the full 5-minute server-side timeout
+  // with no way out. No session is ever established from a cancelled wait.
+  function cancelSso() {
+    firm.signInSsoCancel().catch(() => {});
+  }
+
   const onSignIn = (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError(null);
@@ -381,21 +393,38 @@ export function FirmSignIn({ initialPanel }: FirmSignInProps = {}) {
                     or
                     <span className="h-px flex-1 bg-border" />
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    data-testid="firm-sso-submit"
-                    className="w-full gap-1.5"
-                    disabled={!email || firm.isLoading}
-                    onClick={() => {
-                      setLocalError(null);
-                      void firm.signInSso(email).catch((err: unknown) => {
-                        setLocalError(err instanceof Error ? err.message : 'SSO sign-in failed');
-                      });
-                    }}
-                  >
-                    Sign in with SSO
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      data-testid="firm-sso-submit"
+                      className="w-full gap-1.5"
+                      disabled={!email || firm.isLoading}
+                      onClick={() => {
+                        setLocalError(null);
+                        setSsoInProgress(true);
+                        void firm.signInSso(email)
+                          .catch((err: unknown) => {
+                            const message = err instanceof Error ? err.message : 'SSO sign-in failed';
+                            // The user clicked Cancel — an intentional exit, not a failure.
+                            if (message !== 'cancelled') setLocalError(message);
+                          })
+                          .finally(() => { setSsoInProgress(false); });
+                      }}
+                    >
+                      Sign in with SSO
+                    </Button>
+                    {ssoInProgress && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        data-testid="firm-sso-cancel"
+                        onClick={cancelSso}
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                  </div>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Use your firm's Microsoft, Google, or company login. Your admin sets this up.
                   </p>

@@ -254,8 +254,20 @@ export class TauriFSBackend implements FSBackend {
       console.log('[TauriFSBackend] exists() result:', result);
       return result;
     } catch (err) {
-      console.error('[TauriFSBackend] exists() error:', err);
-      return false;
+      // `exists()` THREW — same distinction as `setRootPath` above: Tauri's
+      // fs.exists() already resolves to `false` (never throws) for a path
+      // that legitimately isn't there, so a throw here means the CHECK
+      // itself failed (permission denied, a disconnected network/OneDrive
+      // location, a locked drive). Swallowing that into `false` made a
+      // permission failure indistinguishable from a missing file/folder —
+      // surface it instead of hiding it behind a console line no one reads.
+      console.error('[TauriFSBackend] exists() check failed (not "not found" — the check itself errored):', err);
+      throw new FileOperationError(
+        `Could not check if "${path}" exists. It may be a permission issue, or a network/OneDrive location that is offline.`,
+        path,
+        'stat',
+        err instanceof Error ? err : undefined
+      );
     }
   }
 

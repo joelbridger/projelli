@@ -23,13 +23,17 @@ import type {
 } from '@/platform/types/docx';
 import { resolveWorkspacePath } from '@/platform/fs/pathResolve';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+// Pure-JS table detection lives in docx-table-utils.ts, not docx-io.ts: this
+// module is statically reached from the always-on document editor, and
+// docx-io.ts pulls in mammoth/docx-preview/JSZip/docx. `markdownToRedlineBlocks`
+// (the one heavy function this file needs) is dynamically imported below,
+// inside `expandRedlineEditsForTables`'s default `convert` fallback.
 import {
   containsMarkdownTable,
   containsPipeTableLikeBlock,
   normalizeStandalonePipeTable,
-  markdownToRedlineBlocks,
   type RedlineBlock,
-} from '@/platform/utils/docx-io';
+} from '@/platform/utils/docx-table-utils';
 
 /**
  * Resolve `path` to an absolute path using the workspace root from the store.
@@ -254,11 +258,13 @@ export const TABLE_POSITION_REJECT_MESSAGE =
  *   - a table that fails to convert.
  * Non-table edits pass through unchanged (so plain-text inserts never regress).
  *
- * `convert` is injectable for testing; it defaults to the real converter.
+ * `convert` is injectable for testing; it defaults to the real converter,
+ * dynamically imported from docx-io.ts (the heavy DOCX engine) so a caller
+ * that never hits a table never pays for loading it.
  */
 export async function expandRedlineEditsForTables(
   edits: DocxAiEdit[],
-  convert: (markdown: string) => Promise<RedlineBlock[]> = markdownToRedlineBlocks,
+  convert?: (markdown: string) => Promise<RedlineBlock[]>,
 ): Promise<{ wireEdits: RedlineWireEdit[]; plan: RedlineEditPlan[] }> {
   const wireEdits: RedlineWireEdit[] = [];
   const plan: RedlineEditPlan[] = [];
@@ -319,7 +325,9 @@ export async function expandRedlineEditsForTables(
 
     let blocks: RedlineBlock[];
     try {
-      blocks = await convert(normalizedTable);
+      const convertFn =
+        convert ?? (await import('@/platform/utils/docx-io')).markdownToRedlineBlocks;
+      blocks = await convertFn(normalizedTable);
     } catch {
       plan.push({ kind: 'rejected', error: TABLE_CONVERT_REJECT_MESSAGE });
       continue;

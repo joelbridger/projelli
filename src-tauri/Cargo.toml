@@ -158,7 +158,7 @@ open = "5"
 # the lockfile gains zero new packages — the in-house OOXML philosophy
 # ("only generic XML/ZIP/serde crates"; calamine rejected in planning).
 zip = "4"
-quick-xml = "0.38"
+quick-xml = "0.41"
 
 # Auto-updater. Desktop-only — Tauri mobile builds skip these targets so
 # the cfg() filter keeps the iOS/Android crate graph slim.

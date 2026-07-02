@@ -14,6 +14,7 @@
 
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
+use quick_xml::XmlVersion;
 
 use crate::model::{BlockContent, Document, Inline, Paragraph, Run};
 use crate::parse::{general_ref_text, local_of};
@@ -121,7 +122,7 @@ fn raw_visible_text(xml: &str) -> String {
                 }
             }
             Ok(Event::Text(t)) if del_depth == 0 && top_is_t(&stack) => {
-                if let Ok(s) = t.xml_content() {
+                if let Ok(s) = t.xml_content(XmlVersion::Implicit1_0) {
                     push_text(&mut out, &mut pending_sep, &s);
                 }
             }

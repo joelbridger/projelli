@@ -181,7 +181,7 @@ describe('Keepance 3.0 audit provenance events', () => {
     mocks.verifyCitations.mockReset();
     mocks.verifyCitation.mockReset();
     mocks.streamingEnabled.value = false;
-    useAIChatStore.setState({ sessions: {}, dailyCosts: {}, askWorkspaceMode: {} });
+    useAIChatStore.setState({ sessions: {}, dailyCosts: {}, askWorkspaceMode: {}, fileAccessConsent: { 'audit-provenance-test': { state: 'granted', grantedScope: { kind: 'allMatters' } }, 'audit-provenance-default-model-test': { state: 'granted', grantedScope: { kind: 'allMatters' } } } }); // F2.5: ambient retrieval needs file-access consent
     useMatterStore.setState({ matters: [], activeMatterId: null });
     // Default confidentiality mode = direct (cloud BYOK).
     useSettingsStore.getState().setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, 'direct');
@@ -207,7 +207,7 @@ describe('Keepance 3.0 audit provenance events', () => {
   });
 
   afterEach(() => {
-    useAIChatStore.setState({ sessions: {}, dailyCosts: {}, askWorkspaceMode: {} });
+    useAIChatStore.setState({ sessions: {}, dailyCosts: {}, askWorkspaceMode: {}, fileAccessConsent: { 'audit-provenance-test': { state: 'granted', grantedScope: { kind: 'allMatters' } }, 'audit-provenance-default-model-test': { state: 'granted', grantedScope: { kind: 'allMatters' } } } }); // F2.5: ambient retrieval needs file-access consent
     useMatterStore.setState({ matters: [], activeMatterId: null });
   });
 

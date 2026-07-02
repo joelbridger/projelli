@@ -26,7 +26,8 @@
  * Light theme only. CSS variables + inline styles. No dark mode.
  */
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   Mail,
   Search,
@@ -65,6 +66,20 @@ import { EV_OPEN_SETTINGS } from '@/config/identity';
 // keeps the same reference across `matters` changes and never retriggers the
 // global list fetch. (Embedded builds a real map from `matters`.)
 const EMPTY_MAIL_MATTER_MAP: MailMatterMapEntry[] = [];
+
+// ── Perf (P2.2) ──────────────────────────────────────────────────────────────
+// The results list only virtualizes past this many rows — below it, the
+// difference is imperceptible and rendering directly keeps behavior/tests
+// (which use small fixture lists) exactly as before. Above it (a busy inbox
+// approaching the 200-row page cap), each MailRow is a fairly heavy DOM
+// subtree (checkbox, badges, hover actions), so an un-virtualized list gets
+// noticeably heavier to paint and scroll.
+const EMAIL_VIRTUALIZE_ROW_THRESHOLD = 40;
+// A reasonable average MailRow height — rows vary (snippet/attachments/badges
+// change height slightly), so this is only the INITIAL estimate; the
+// virtualizer measures each row's real height once rendered and corrects for
+// it, same pattern as SheetGrid.
+const MAIL_ROW_ESTIMATED_HEIGHT_PX = 88;
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -478,8 +493,9 @@ export function EmailWorkspace({
   // `mailListMessagesByMatter` in embedded mode), which combines each message's
   // durable filing with the folder→matter mapping — so `items` is already exactly
   // this client's mail (per-message filings included, other clients excluded) and
-  // `total` is honest. No client-side filter of a global page. AI search (Ask
-  // mode) is separately matter-scoped via RetrievalScope.
+  // `total` is honest. No client-side filter of a global page (the old
+  // `resolveMailMatter` scan is gone). AI search (Ask mode) is separately
+  // matter-scoped via RetrievalScope.
   //
   // FAIL CLOSED at render too: only trust rows that were fetched under the CURRENT
   // scope. If the scope changed (client switch, folder remap, or a momentarily
@@ -488,17 +504,133 @@ export function EmailWorkspace({
   // instantly and a load-more can't append a new-scope page onto old rows before
   // the debounced first-page refetch replaces them. `runList` additionally refuses
   // to fetch when there's no active client.
+  //
+  // Perf (P2.2): `scopedItems` is memoized so the virtualized list below (and the
+  // MailRow subtrees) don't recompute on unrelated re-renders (hover, popover,
+  // toggling filters). `matters` is already subscribed above for `mailMatterMap`.
   const scopeMatches = !embedded || loadedScope === scopeKey;
-  const scopedItems = scopeMatches ? items : [];
+  const scopedItems = useMemo(
+    () => (scopeMatches ? items : []),
+    [scopeMatches, items],
+  );
 
-  // Fix 7: persist list scroll position per-matter in sessionStorage
-  const { scrollContainerRef } = useScrollPersistence(activeMatter);
+  // Fix 7: persist list scroll position per-matter in sessionStorage.
+  //
+  // Perf (P2.2) — this now targets the results list's OWN scroll container
+  // (a `flex: 1` region that fills whatever space is left below the
+  // toolbar/filters/other states — see the render below), not the outer
+  // page. Codex review (round 1) caught that pointing it at the page while
+  // introducing a separate, dedicated inner scroll region for the actual
+  // rows meant a user's scroll position within a long list was never
+  // persisted — the page container rarely scrolls at all once the list
+  // manages its own overflow, so the outer ref was the wrong (and now
+  // largely inert) element to track.
+  //
+  // Codex review (round 2) then caught that the results box is itself
+  // CONDITIONALLY rendered (hidden during loading/error/empty), so a plain
+  // object ref + one-time effect (the hook's original design) frequently
+  // ran before that box existed, restoring/saving against `null` forever.
+  // `useScrollPersistence` now returns a callback ref (fires exactly when
+  // the node mounts/unmounts) plus `getScrollElement()` for the
+  // virtualizer, which needs to read the current node imperatively rather
+  // than receive it as a ref object.
+  // Codex review (round 8): a query/filter change (a genuinely NEW search)
+  // must start the results list at the top, not restore wherever the
+  // PREVIOUS search happened to be scrolled to — the SAME fingerprint
+  // Effect A/B already use to detect "is this a new search or just
+  // pagination" (see queryFingerprintRef above) tells useScrollPersistence
+  // when that's happened.
+  const scrollResultsKey = JSON.stringify({ query, providerFilter, dateFrom, dateTo, hasAttachments, mode });
+  const { scrollContainerRef, getScrollElement, getInitialScrollOffset } = useScrollPersistence(activeMatter, scrollResultsKey);
+
+  // Perf (P2.2) — virtualize the results list past EMAIL_VIRTUALIZE_ROW_THRESHOLD
+  // rows, using the SAME dedicated scroll container as scroll persistence
+  // above — deliberately separate from the outer page's own scroll (used by
+  // every other state: loading/error/no-results/filters/Ask mode). Keeping
+  // virtualization scoped to its own dedicated, always-present scroll
+  // element means it doesn't need to track the offset of anything above it
+  // (filters panel, bulk-action bar) the way virtualizing a page-level
+  // scroll region would.
+  //
+  // Codex review (round 3): this container was originally a fixed
+  // max-height (560px) box rather than filling available space — that
+  // shrank the safe zone for row popovers (File/Privilege, absolutely
+  // positioned and clipped by any `overflow` ancestor) from the full page
+  // height down to a few hundred pixels, so a dropdown opened on any row
+  // past the first few got visibly clipped. The render below now makes the
+  // results box `flex: 1` (fills remaining page height, same safe zone as
+  // before virtualization existed) instead of a small fixed height.
+  //
+  // Codex review (round 6): `getScrollElement`/`scrollContainerRef` restore
+  // `scrollTop` on the DOM node directly, but the virtualizer tracks its OWN
+  // internal scroll-offset state (starting at 0) independently of the DOM —
+  // it only learns the real position from a native `scroll` event, never by
+  // reading `scrollTop` at setup. Without `initialOffset`, reopening a busy
+  // (virtualized) inbox restored the visual scrollbar position but left the
+  // virtualizer still believing it was at the top, rendering the wrong
+  // (top) window of rows into a container that was scrolled elsewhere.
+  const shouldVirtualizeRows = scopedItems.length > EMAIL_VIRTUALIZE_ROW_THRESHOLD;
+  const rowVirtualizer = useVirtualizer({
+    count: scopedItems.length,
+    getScrollElement,
+    initialOffset: getInitialScrollOffset,
+    estimateSize: () => MAIL_ROW_ESTIMATED_HEIGHT_PX,
+    overscan: 8,
+    enabled: shouldVirtualizeRows,
+  });
+
+  // Codex review (round 9): `initialOffset` only seeds the virtualizer's
+  // internal `scrollOffset` ONCE, at instance construction (this component's
+  // first-ever render) — it is NOT re-read on later `scrollResultsKey`
+  // changes. Worse, most filter/query changes are debounced 200ms (see
+  // Effect A above) before the actual re-fetch starts, so the results box
+  // stays MOUNTED, showing the OLD items, for a beat after the filter state
+  // itself already changed — `scrollContainerRef`'s own mount-time reset
+  // (round 8, in useScrollPersistence) never fires in that window, because
+  // no (re)mount happens.
+  //
+  // This resets the DOM node directly (covering that "stays mounted" gap
+  // round 8 can't reach), then dispatches a synthetic `scroll` event so the
+  // virtualizer's own internal offset tracking (which only ever updates via
+  // its `scroll` listener, never by reading `scrollTop` on demand) picks up
+  // the reset — deliberately NOT `rowVirtualizer.scrollToOffset`, which
+  // routes through the library's default `scrollToFn` (a real
+  // `element.scrollTo` call) and depends on the BROWSER's own native
+  // `scroll` event eventually following it: an inherently async step with
+  // no synchronous guarantee, and one jsdom doesn't implement at all
+  // (making that approach unverifiable by a test).
+  //
+  // The dispatch itself is deferred to a microtask, NOT fired synchronously
+  // inline here: @tanstack/react-virtual's scroll listener calls
+  // `flushSync` for a live scroll event, and `flushSync` cannot run from
+  // inside a React lifecycle method that's already committing (this
+  // `useLayoutEffect`) — React warns "Cannot flush when React is already
+  // rendering" and the update is unreliable. A microtask runs immediately
+  // after this commit's call stack finishes unwinding — still well before
+  // the browser paints, so there's no visible flash — but gives React a
+  // clean, non-reentrant call stack to flush into. `useLayoutEffect` (not
+  // `useEffect`) so the DOM `scrollTop` reset itself still lands in the
+  // same commit as `scrollContainerRef`'s own mutations. Skipped on the
+  // very first render — that mount already restores correctly via
+  // `initialOffset`.
+  const isFirstScrollResultsKeyRenderRef = useRef(true);
+  useLayoutEffect(() => {
+    if (isFirstScrollResultsKeyRenderRef.current) {
+      isFirstScrollResultsKeyRenderRef.current = false;
+      return;
+    }
+    const node = getScrollElement();
+    if (!node) return;
+    node.scrollTop = 0;
+    queueMicrotask(() => {
+      node.dispatchEvent(new Event('scroll'));
+    });
+  }, [scrollResultsKey, getScrollElement]);
 
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div
-      ref={scrollContainerRef}
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -771,7 +903,15 @@ export function EmailWorkspace({
       )}
 
       {/* Body */}
-      <div style={{ flex: 1, minHeight: 0 }}>
+      {/* Codex review (P2.2, round 4, P1): this wrapper had `flex: 1` but no
+          `display: flex` of its OWN — flex properties only apply to children
+          of an actual flex container, so without this the results box's
+          `flex: 1` (see below) was a no-op: the box just grew to fit
+          `rowVirtualizer.getTotalSize()` instead of being constrained to the
+          remaining page height, so the virtualizer's scroll container never
+          actually scrolled and only the first virtual window of rows ever
+          rendered — a busy (>40-row) inbox went blank past that window. */}
+      <div data-testid="email-body" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
         {/* No accounts state */}
         {accountsLoaded && accounts.length === 0 && (
           <NoAccountsState onOpenSettings={onOpenSettings} />
@@ -941,8 +1081,22 @@ export function EmailWorkspace({
                   border: '1px solid var(--color-border)',
                   borderRadius: 'var(--radius-lg)',
                   background: '#fff',
-                  overflow: 'hidden',
                   boxShadow: 'var(--kp-shadow-1)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  // Perf (P2.2) fix (Codex review round 3): this box fills
+                  // whatever space remains below the toolbar/filters/other
+                  // states, the same way it did before virtualization —
+                  // giving it a SMALL fixed max-height instead (as the
+                  // original version of this fix did) shrank row popovers'
+                  // (File/Privilege) available room from the full page down
+                  // to a few hundred pixels, so a dropdown opened on any row
+                  // past the first few got clipped by this box's own
+                  // overflow. `flex: 1` + `minHeight: 0` restores the
+                  // original, full-page-height safe zone.
+                  flex: 1,
+                  minHeight: 0,
+                  overflow: 'hidden',
                 }}
               >
                 <div
@@ -953,6 +1107,7 @@ export function EmailWorkspace({
                     color: 'var(--color-muted-foreground)',
                     borderBottom: '1px solid var(--color-border)',
                     background: 'rgba(10,37,64,0.02)',
+                    flexShrink: 0,
                   }}
                 >
                   {embedded
@@ -961,16 +1116,79 @@ export function EmailWorkspace({
                       ? 'All email loaded'
                       : `Showing ${String(items.length)} of ${String(total)}`}
                 </div>
-                {scopedItems.map((item) => (
-                  <MailRow
-                    key={item.id}
-                    item={item}
-                    selected={selectedIds.has(item.id)}
-                    anySelected={selectedIds.size > 0}
-                    onToggleSelect={handleToggleSelect}
-                    onSaveToWorkspace={onSaveToWorkspace}
-                  />
-                ))}
+                <div
+                  ref={scrollContainerRef}
+                  data-testid="mail-list-scroll"
+                  style={{
+                    flex: 1,
+                    minHeight: 0,
+                    overflowY: 'auto',
+                  }}
+                  // Codex review (P2.2, rounds 3 & 5) flagged that row menus
+                  // (File/Privilege — `.kp-dropdown`, `position: absolute`)
+                  // can clip against this element's own `overflow: auto`
+                  // boundary for a row near the bottom of the visible list.
+                  // This is a PRE-EXISTING characteristic, not one this
+                  // change introduces: the page root ABOVE this element has
+                  // always had `overflow-y: auto` too (unchanged by any of
+                  // this ticket's commits), so a row's dropdown near the
+                  // bottom of the viewport was equally susceptible before
+                  // virtualization existed. Round 3 of this same review
+                  // fixed the part that WAS a regression — a small fixed
+                  // (560px) height here shrank the safe zone far below what
+                  // it was before; `flex: 1` above restores that original,
+                  // full-page-height safe zone. A real fix for the
+                  // underlying class of bug (any absolutely-positioned
+                  // popover clipping against ANY scrolling ancestor) means
+                  // portal/floating-position rendering in the shared
+                  // `Dropdown` primitive (`@/ui/kp`) — used well beyond
+                  // Email — which is out of this render-perf-only ticket's
+                  // scope and lane; flagged here as a real, pre-existing,
+                  // consciously-deferred follow-up rather than silently
+                  // dropped.
+                >
+                  {shouldVirtualizeRows ? (
+                    <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
+                      {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                        const item = scopedItems[virtualRow.index];
+                        if (!item) return null;
+                        return (
+                          <div
+                            key={item.id}
+                            data-index={virtualRow.index}
+                            ref={rowVirtualizer.measureElement}
+                            style={{
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              width: '100%',
+                              transform: `translateY(${String(virtualRow.start)}px)`,
+                            }}
+                          >
+                            <MailRow
+                              item={item}
+                              selected={selectedIds.has(item.id)}
+                              anySelected={selectedIds.size > 0}
+                              onToggleSelect={handleToggleSelect}
+                              onSaveToWorkspace={onSaveToWorkspace}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    scopedItems.map((item) => (
+                      <MailRow
+                        key={item.id}
+                        item={item}
+                        selected={selectedIds.has(item.id)}
+                        anySelected={selectedIds.size > 0}
+                        onToggleSelect={handleToggleSelect}
+                        onSaveToWorkspace={onSaveToWorkspace}
+                      />
+                    ))
+                  )}
+                </div>
 
                 {/* Load more */}
                 {scopeMatches && items.length < total && (
@@ -981,6 +1199,7 @@ export function EmailWorkspace({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
+                      flexShrink: 0,
                     }}
                   >
                     <button

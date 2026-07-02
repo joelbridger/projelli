@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { isTauri } from '@tauri-apps/api/core';
 import {
   crmOAuthConnect,
+  crmOAuthConnectCancel,
   crmIsConnected,
   crmDisconnect,
   crmListHouseholds,
@@ -101,16 +102,26 @@ export function SalesforceConnect() {
       setConnectedInfo(info);
       setConnected(true);
     } catch (err) {
-      setConnectError(
+      const message =
         typeof err === 'string'
           ? err
           : err instanceof Error
             ? err.message
-            : 'Could not connect to Salesforce. Try again.'
-      );
+            : 'Could not connect to Salesforce. Try again.';
+      // The user clicked Cancel — an intentional exit, not a failure, so
+      // don't show a red error for it (and any prior connection was never
+      // touched).
+      if (message !== 'cancelled') setConnectError(message);
     } finally {
       setConnecting(false);
     }
+  }
+
+  // Abort a pending sign-in immediately instead of leaving the user stuck on
+  // "Connecting..." for the full 5-minute server-side OAuth timeout with no
+  // way out. The prior connection (if any) is left untouched.
+  function cancelConnect() {
+    crmOAuthConnectCancel().catch(() => {});
   }
 
   async function runSync() {
@@ -293,14 +304,26 @@ export function SalesforceConnect() {
             {disconnectNote && (
               <p className="text-sm text-slate-600">{disconnectNote}</p>
             )}
-            <button
-              type="button"
-              disabled={connecting}
-              onClick={() => void connect()}
-              className="rounded-md bg-[var(--kp-navy)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
-            >
-              {connecting ? 'Connecting...' : 'Connect Salesforce'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={connecting}
+                onClick={() => void connect()}
+                className="rounded-md bg-[var(--kp-navy)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
+              >
+                {connecting ? 'Connecting...' : 'Connect Salesforce'}
+              </button>
+              {connecting && (
+                <button
+                  type="button"
+                  data-testid="salesforce-cancel-connect"
+                  onClick={cancelConnect}
+                  className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
             {connectError && (
               <p className="text-sm text-red-700">{connectError}</p>
             )}

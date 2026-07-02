@@ -170,6 +170,7 @@ pub fn run() {
             commands::crm::commands::crm_set_workspace,
             commands::crm::commands::crm_connect,
             commands::crm::commands::crm_oauth_connect,
+            commands::crm::commands::crm_oauth_connect_cancel,
             commands::crm::commands::crm_is_connected,
             commands::crm::commands::crm_disconnect,
             commands::crm::commands::crm_sync_all,
@@ -179,6 +180,7 @@ pub fn run() {
             // OneDrive / SharePoint document connector (read-only Graph import).
             commands::onedrive::commands::onedrive_set_workspace,
             commands::onedrive::commands::onedrive_connect,
+            commands::onedrive::commands::onedrive_connect_cancel,
             commands::onedrive::commands::onedrive_begin_login,
             commands::onedrive::commands::onedrive_poll_login,
             commands::onedrive::commands::onedrive_is_connected,
@@ -254,6 +256,7 @@ pub fn run() {
             commands::calendly::commands::calendly_cancel_sync,
             // Wave 3a SSO — firm-tier OIDC desktop dance (loopback + browser).
             commands::firm::sso::firm_sso_authenticate,
+            commands::firm::sso::firm_sso_cancel,
             // Wave 3b encrypted vault — per-workspace AES-256-GCM at-rest encryption.
             commands::vault::vault_status,
             commands::vault::vault_create,
@@ -308,6 +311,8 @@ pub fn run() {
             commands::addepar::commands::manage_state(app);
             // Calendly connector — manage workspace, single-flight sync, and progress.
             commands::calendly::commands::manage_state(app);
+            // Wave 3a SSO — manage the pending-sign-in cancel flag.
+            commands::firm::sso::manage_state(app);
             // Advisor Prep Hero 3.0 — manage encrypted audit-store state (active workspace).
             commands::audit::manage_state(app);
             // Onboarding/setup progress — register the aggregator state + the

@@ -479,9 +479,15 @@ export class WorkspaceService {
             }
           }
           item.children = await this.listRecursive(item.path);
-        } catch {
-          // If we can't read a directory, mark it as empty
+        } catch (err) {
+          // A folder we can't read (permission denied, an offline
+          // network/OneDrive location, a locked drive) is NOT the same as an
+          // empty folder — silently reporting `[]` here made a real access
+          // failure invisible. Log it and flag it so the tree can show an
+          // honest "couldn't read this folder" state instead.
+          console.error(`[WorkspaceService] Could not read folder "${item.path}":`, err);
           item.children = [];
+          item.readError = true;
         }
       }
     }

@@ -136,10 +136,18 @@ interface StatusBarProps {
 
 export function StatusBar({ onOpenSettings, showFileContext = true }: StatusBarProps = {}) {
   const { t } = useTranslation();
-  const { rootPath, expandedPaths, setExpandedPaths, selectPath } =
-    useWorkspaceStore();
-  const { openTabs, activeTabPath } = useEditorStore();
-  const activeTab = openTabs.find((t) => t.path === activeTabPath);
+  // Perf (P1.2): exact-data-only selectors. The old bare `useWorkspaceStore()`
+  // / `useEditorStore()` calls subscribed to the ENTIRE store (every field,
+  // including ones this bar never reads), so StatusBar re-rendered on any
+  // workspace/editor change anywhere in the app — e.g. every keystroke in the
+  // active file, since `updateContent` replaces the whole `openTabs` array.
+  // Selecting `activeTab` via `.find` returns the SAME tab object reference
+  // when a DIFFERENT tab changed, so this only re-renders when the active
+  // tab (or the primitives below) actually changes.
+  const rootPath = useWorkspaceStore((s) => s.rootPath);
+  const setExpandedPaths = useWorkspaceStore((s) => s.setExpandedPaths);
+  const selectPath = useWorkspaceStore((s) => s.selectPath);
+  const activeTab = useEditorStore((s) => s.openTabs.find((tab) => tab.path === s.activeTabPath));
   const [bugReportOpen, setBugReportOpen] = useState(false);
   // WS-B/C: which matter the AI is currently confined to (null = all matters).
   const activeMatter = useActiveMatter();
@@ -186,7 +194,12 @@ export function StatusBar({ onOpenSettings, showFileContext = true }: StatusBarP
   const navigateToFolder = useCallback(
     (folderPath: string) => {
       if (!rootPath) return;
-      const next = new Set(expandedPaths);
+      // Perf (P1.2): read the current expandedPaths here rather than
+      // subscribing to it — this callback only ever needs its value at
+      // click time, never for rendering, so making it reactive state would
+      // just re-render the whole bar every time the file tree sidebar
+      // expands/collapses a folder.
+      const next = new Set(useWorkspaceStore.getState().expandedPaths);
       // Expand every ancestor from root to folderPath inclusive.
       const normalized = folderPath.replace(/\\/g, '/').replace(/\/+$/, '');
       const root = rootPath.replace(/\\/g, '/').replace(/\/+$/, '');
@@ -212,7 +225,7 @@ export function StatusBar({ onOpenSettings, showFileContext = true }: StatusBarP
         el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       });
     },
-    [rootPath, expandedPaths, setExpandedPaths, selectPath]
+    [rootPath, setExpandedPaths, selectPath]
   );
 
   return (

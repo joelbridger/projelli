@@ -28,7 +28,10 @@ export interface FSBackend {
   writeBinary(path: string, content: ArrayBuffer): Promise<void>;
 
   /**
-   * Check if path exists
+   * Check if path exists. Resolves `false` only for a genuine "not there";
+   * a check that could not complete (permission denied, an offline
+   * network/OneDrive location, a locked drive) throws `FileOperationError`
+   * rather than being reported as "missing".
    */
   exists(path: string): Promise<boolean>;
 

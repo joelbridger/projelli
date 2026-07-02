@@ -48,6 +48,11 @@ const invokeMock = vi.fn(async (cmd: string, args: Record<string, unknown> = {})
   if (cmd === 'firm_sso_authenticate') {
     return JSON.stringify(SSO_LOGIN_RESPONSE);
   }
+  // The Rust-side cancel flag is irrelevant once firm_sso_authenticate has
+  // already resolved — real behavior for this mock is just "no-op, Ok(())".
+  if (cmd === 'firm_sso_cancel') {
+    return undefined;
+  }
   throw new Error(`unexpected invoke: ${cmd}`);
 });
 
@@ -212,6 +217,53 @@ describe('firmStore.signInSso', () => {
     expect(st.error).toBe('sso_unavailable');
   });
 
+  // F2.4: a user-initiated Cancel is an intentional exit, not a failure — it
+  // must not surface as a store-level error, even though it still rejects
+  // (so the caller's UI can distinguish "settled" from "still pending").
+  it('rejecting with "cancelled" clears isLoading without setting a store error', async () => {
+    invokeMock.mockImplementationOnce(async (cmd: string) => {
+      if (cmd === 'firm_sso_authenticate') throw new Error('cancelled');
+      throw new Error(`unexpected: ${cmd}`);
+    });
+
+    await expect(useFirmStore.getState().signInSso('jane@weston.com')).rejects.toThrow('cancelled');
+    const st = useFirmStore.getState();
+    expect(st.isLoading).toBe(false);
+    expect(st.error).toBeNull();
+    expect(st.session).toBeNull();
+  });
+
+  // Real Tauri behavior: invoke() rejects a `Result<T, String>` command's Err
+  // with the RAW STRING, not an Error instance — `firm_sso_cancel` produces
+  // exactly this shape. A prior version of this catch block only checked
+  // FirmApiError/Error and fell through to "SSO sign-in failed" for a raw
+  // string, misreporting a real user-initiated cancel as a failure.
+  it('rejecting with the raw string "cancelled" (Tauri Err(String) shape) is still recognized as cancelled', async () => {
+    invokeMock.mockImplementationOnce(async (cmd: string) => {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error
+      if (cmd === 'firm_sso_authenticate') throw 'cancelled';
+      throw new Error(`unexpected: ${cmd}`);
+    });
+
+    await expect(useFirmStore.getState().signInSso('jane@weston.com')).rejects.toThrow('cancelled');
+    const st = useFirmStore.getState();
+    expect(st.isLoading).toBe(false);
+    expect(st.error).toBeNull();
+    expect(st.session).toBeNull();
+  });
+
+  it('signInSsoCancel invokes firm_sso_cancel', async () => {
+    invokeMock.mockImplementationOnce(async (cmd: string) => {
+      if (cmd === 'firm_sso_cancel') return undefined;
+      throw new Error(`unexpected: ${cmd}`);
+    });
+
+    await useFirmStore.getState().signInSsoCancel();
+
+    const cancelCall = invokeMock.mock.calls.find(([cmd]) => cmd === 'firm_sso_cancel');
+    expect(cancelCall).toBeDefined();
+  });
+
   it('carries forward prior session seatId/tier when re-signing in as the same user', async () => {
     // Pre-populate a prior session for the same user with an activated seat
     useFirmStore.setState({
@@ -240,5 +292,42 @@ describe('firmStore.signInSso', () => {
     // Prior seat carry-forward (same user, same as signIn behavior)
     expect(st.session?.seatId).toBe('seat-existing');
     expect(st.session?.tier).toBe('practice');
+  });
+
+  // F2.4 follow-up (found in codex review): firm_sso_authenticate already
+  // resolved (redirect + code exchange both completed) by the time
+  // establishSessionFromLogin runs — storeAuthTokens writes the keychain
+  // credential as its FIRST step, then makes further network calls (me(),
+  // getSeatPublicKey()). A Cancel click any time during that window must
+  // not leave the user silently signed in with a stored credential.
+  it('cancel arriving during establishSessionFromLogin (after tokens are already stored) rolls back the credential and leaves no session', async () => {
+    let cancelledDuringSeatPubkeyFetch = false;
+    routeFetch([
+      { match: /\/auth\/me$/, res: () => jsonResponse(200, ME_RESPONSE) },
+      {
+        match: /seat-pubkey$/,
+        res: () => {
+          // Simulate the user clicking Cancel while establishSessionFromLogin
+          // is still in flight — storeAuthTokens has already run by now.
+          cancelledDuringSeatPubkeyFetch = true;
+          void useFirmStore.getState().signInSsoCancel();
+          return textResponse(200, PUBLIC_PEM);
+        },
+      },
+    ]);
+
+    await expect(useFirmStore.getState().signInSso('jane@weston.com')).rejects.toThrow('cancelled');
+    expect(cancelledDuringSeatPubkeyFetch).toBe(true);
+
+    const st = useFirmStore.getState();
+    expect(st.session).toBeNull();
+    expect(st.accessToken).toBeNull();
+    expect(st.isLoading).toBe(false);
+    expect(st.error).toBeNull();
+
+    // The credential storeAuthTokens wrote during establishSessionFromLogin
+    // must be rolled back — NO credential may survive a cancel.
+    expect(keychainStore.get('com.lantern.user.u-sso-1::access_token')).toBeUndefined();
+    expect(keychainStore.get('com.lantern.user.u-sso-1::refresh_token')).toBeUndefined();
   });
 });

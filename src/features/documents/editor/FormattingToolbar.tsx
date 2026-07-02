@@ -34,8 +34,6 @@ import { cn } from '@/lib/utils';
 import { usePromptDialog } from '@/platform/hooks/usePromptDialog';
 import { PromptDialog } from '@/ui/PromptDialog';
 import { saveFile } from '@/platform/utils/saveFile';
-import { markdownToDocxBytes } from '@/platform/utils/docx-io';
-import { markdownToPptxBytes } from '@/platform/utils/pptx-io';
 import { availableExportFormats, replaceExtension } from '@/platform/utils/export-formats';
 import type { ExportFormat } from '@/platform/utils/export-formats';
 import type { MarkdownEditorRef } from './MarkdownEditor';
@@ -111,6 +109,8 @@ const primaryToolbarButtons: ToolbarButton[] = [
   {
     icon: Link,
     label: 'Link',
+    // handleClick special-cases 'Link' to prompt for a URL via insertLinkInEditMode;
+    // this action never runs but satisfies the required ToolbarButton.action field.
     action: (editor) => { editor.wrapSelection('[', '](url)'); },
   },
 ];
@@ -183,11 +183,25 @@ export function FormattingToolbar({ editorRef, className, isPreviewMode, onToggl
     return () => { window.removeEventListener('keydown', handleKeyDown); };
   }, [onTogglePreview]);
 
-  const handleClick = (action: (editor: MarkdownEditorRef) => void, previewAction?: () => void) => {
+  // Edit-mode Link: use the same in-app URL dialog as the preview-mode
+  // (createLink) path instead of inserting a literal "](url)" placeholder.
+  const insertLinkInEditMode = (editor: MarkdownEditorRef) => {
+    void (async () => {
+      const url = await prompt('Enter URL:', undefined, { title: 'Insert link', placeholder: 'https://…', confirmLabel: 'Insert' });
+      if (!url) return;
+      editor.wrapSelection('[', `](${url})`);
+    })();
+  };
+
+  const handleClick = (button: ToolbarButton, previewAction?: () => void) => {
     if (isPreviewMode && previewAction) {
       previewAction();
     } else if (editorRef.current) {
-      action(editorRef.current);
+      if (button.label === 'Link') {
+        insertLinkInEditMode(editorRef.current);
+      } else {
+        button.action(editorRef.current);
+      }
     }
   };
 
@@ -254,6 +268,7 @@ export function FormattingToolbar({ editorRef, className, isPreviewMode, onToggl
         }
 
         case 'docx': {
+          const { markdownToDocxBytes } = await import('@/platform/utils/docx-io');
           const bytes = await markdownToDocxBytes(fileContent, fileName);
           await saveFile(bytes, {
             suggestedName: replaceExtension(fileName, 'docx'),
@@ -288,6 +303,7 @@ export function FormattingToolbar({ editorRef, className, isPreviewMode, onToggl
         }
 
         case 'pptx': {
+          const { markdownToPptxBytes } = await import('@/platform/utils/pptx-io');
           const bytes = await markdownToPptxBytes(fileContent);
           await saveFile(bytes, {
             suggestedName: replaceExtension(fileName, 'pptx'),
@@ -417,7 +433,7 @@ export function FormattingToolbar({ editorRef, className, isPreviewMode, onToggl
             variant="ghost"
             size="sm"
             className="h-7 w-7 p-0"
-            onClick={() => { handleClick(button.action, previewAction); }}
+            onClick={() => { handleClick(button, previewAction); }}
             title={button.shortcut ? `${button.label} (${button.shortcut})` : button.label}
             disabled={isPreviewMode}
           >
@@ -451,7 +467,7 @@ export function FormattingToolbar({ editorRef, className, isPreviewMode, onToggl
                   <DropdownMenuItem
                     key={button.label}
                     data-testid={`formatting-more-${button.label.toLowerCase().replace(/\s+/g, '-')}`}
-                    onClick={() => { handleClick(button.action, previewAction); }}
+                    onClick={() => { handleClick(button, previewAction); }}
                     className="gap-2"
                   >
                     <Icon className="h-4 w-4 shrink-0" />

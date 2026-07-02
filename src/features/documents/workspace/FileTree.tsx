@@ -9,6 +9,7 @@ import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import {
   ChevronRight,
   ChevronDown,
+  AlertTriangle,
   File,
   Folder,
   FolderOpen,
@@ -939,6 +940,19 @@ function FileTreeItem({
 
         {/* Name */}
         <span className="flex-1 truncate text-sm">{node.name}</span>
+
+        {/* F2.4: a folder whose contents couldn't be read (permission denied,
+            an offline network/OneDrive location) shows a warning instead of
+            silently looking like an ordinary empty folder. */}
+        {isFolder && node.readError && (
+          <span
+            data-testid="folder-read-error"
+            title="Couldn't read this folder. It may be a permission issue, or a network/OneDrive location that is offline."
+            className="flex-shrink-0 text-amber-600"
+          >
+            <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
+          </span>
+        )}
 
         {/* WS-PRIV: privilege indicator (files only; renders nothing for "none"). */}
         {!isFolder && (

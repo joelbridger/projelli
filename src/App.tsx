@@ -5,7 +5,7 @@
  * where AI proposes and the user approves all destructive actions.
  */
 
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo, lazy, Suspense } from 'react';
 import { workspacePath } from '@/platform/fs/appPath';
 import { useGlobalEventBus, type AppSurface } from '@/app/lifecycle/useGlobalEventBus';
 import { useAutosave } from '@/app/lifecycle/useAutosave';
@@ -56,6 +56,7 @@ import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useEditorStore, setBeforeTabClose } from '@/platform/state/editorStore';
 import { flushTabForClose } from '@/app/fileOps/flushDirtyTabs';
 import { useWorkflowStore } from '@/features/workflows/workflowStore';
+import { useShallow } from 'zustand/react/shallow';
 import { createWorkspaceService, type WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { createFSBackend, isTauriEnvironment } from '@/platform/fs/BackendFactory';
 import { useAiBatchReviewStore } from '@/platform/ai/aiBatchReviewStore';
@@ -107,15 +108,12 @@ import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { usePromptDialog } from '@/platform/hooks/usePromptDialog';
 import { useUndoToast } from '@/app/shell/common/UndoToast';
-import { CrmSourcePanel } from '@/features/crm/CrmSourcePanel';
-import { OneDriveSourcePanel } from '@/features/onedrive/OneDriveSourcePanel';
-import { DocusignSourcePanel } from '@/features/docusign/DocusignSourcePanel';
-import { MeetingSourcePanel } from '@/features/calendly/MeetingSourcePanel';
-import { BoxSourcePanel } from '@/features/box/BoxSourcePanel';
-import { SharefileSourcePanel } from '@/features/sharefile/SharefileSourcePanel';
-import { JotformSourcePanel } from '@/features/jotform/JotformSourcePanel';
-import { ZocksSourcePanel } from '@/features/zocks/ZocksSourcePanel';
-import { AddeparSourcePanel } from '@/features/addepar/AddeparSourcePanel';
+import { installEarlyConnectorEventBridge } from '@/app/shell/connectorEventBridge';
+
+// Nine connector citation viewers, none of which render anything until their
+// own window event fires — bundled into one lazy chunk (see
+// ConnectorSourcePanels.tsx) so they don't ride into the startup bundle.
+const ConnectorSourcePanels = lazy(() => import('@/app/shell/ConnectorSourcePanels'));
 
 // Module-level constants so the onboarding/tour effects have stable deps
 // and never need to be listed in exhaustive-deps disable comments.
@@ -168,6 +166,18 @@ function App() {
   // workspace (matching the wizard's documented first-run condition), and
   // suppressed in test/demo modes. `?forceOnboarding=true` forces it for QA.
   const [showFirstRun, setShowFirstRun] = useState(false);
+
+  // ConnectorSourcePanels is only rendered (and its chunk fetched) once a
+  // connector citation is actually clicked — rendering it unconditionally,
+  // even self-gating on nothing "open", would still start its import()
+  // immediately. This tiny, always-eager listener catches the FIRST click
+  // (which can land before the chunk would otherwise have loaded) and
+  // buffers/replays it once the panels mount.
+  const [connectorPanelsNeeded, setConnectorPanelsNeeded] = useState(false);
+  useEffect(
+    () => installEarlyConnectorEventBridge(() => { setConnectorPanelsNeeded(true); }),
+    []
+  );
 
   // Anonymous telemetry: emit one app_launch event per session, gated
   // by user consent. Other lifecycle events (trial_start, trial_end,
@@ -267,9 +277,40 @@ function App() {
 
   const { theme, setTheme, effectiveTheme } = useThemeManager();
 
-  const { rootPath, setRootPath, setFileTree, recentWorkspaces, fileTree, expandedPaths, expandAllFolders, loadRecentWorkspaces } = useWorkspaceStore();
-  const { openFile, openTab, markSaved, openTabs, activeTabPath, closeTab, closeTabsByPath, toggleOutline, splitPane, closeSplit, isSplit } = useEditorStore();
-  const { runHistory, completeRun } = useWorkflowStore();
+  // Perf (P1.2): exact-data-only selectors. These bare store-hook calls used
+  // to subscribe to the ENTIRE workspace/editor/workflow state (e.g. every
+  // field on WorkspaceState, including the multi-select fields App never
+  // reads), so App — the root of the whole tree — re-rendered on any change
+  // to any of those stores anywhere in the app. useShallow keeps the same
+  // destructured shape while only re-rendering when one of these fields
+  // itself changes.
+  const { rootPath, setRootPath, setFileTree, recentWorkspaces, fileTree, expandedPaths, expandAllFolders, loadRecentWorkspaces } = useWorkspaceStore(useShallow((s) => ({
+    rootPath: s.rootPath,
+    setRootPath: s.setRootPath,
+    setFileTree: s.setFileTree,
+    recentWorkspaces: s.recentWorkspaces,
+    fileTree: s.fileTree,
+    expandedPaths: s.expandedPaths,
+    expandAllFolders: s.expandAllFolders,
+    loadRecentWorkspaces: s.loadRecentWorkspaces,
+  })));
+  const { openFile, openTab, markSaved, openTabs, activeTabPath, closeTab, closeTabsByPath, toggleOutline, splitPane, closeSplit, isSplit } = useEditorStore(useShallow((s) => ({
+    openFile: s.openFile,
+    openTab: s.openTab,
+    markSaved: s.markSaved,
+    openTabs: s.openTabs,
+    activeTabPath: s.activeTabPath,
+    closeTab: s.closeTab,
+    closeTabsByPath: s.closeTabsByPath,
+    toggleOutline: s.toggleOutline,
+    splitPane: s.splitPane,
+    closeSplit: s.closeSplit,
+    isSplit: s.isSplit,
+  })));
+  const { runHistory, completeRun } = useWorkflowStore(useShallow((s) => ({
+    runHistory: s.runHistory,
+    completeRun: s.completeRun,
+  })));
 
   // M1 (v1.5) Memory: install the workspace RAG indexer once we know
   // which workspace is open. Watches `rootPath` and re-arms on switch.
@@ -1097,7 +1138,7 @@ function App() {
 
 
   // Command-palette commands. See src/app/commands/useAppCommands.ts.
-  const commands = useAppCommands({ openTabs, activeTabPath, handleSaveFile, closeTab, toggleOutline, isSplit, splitPane, closeSplit, handleOpenBrowserTab, handleCreateDefaultDocument, sidebarActiveTab, setSidebarCollapsed, setShowWorkspaceSelector, setSidebarActiveTab, openAIAssistantTab, setShowSettingsModal, prompt });
+  const commands = useAppCommands({ openTabs, activeTabPath, handleSaveFile, closeTab, toggleOutline, isSplit, splitPane, closeSplit, handleOpenBrowserTab, handleCreateDefaultDocument, sidebarActiveTab, setSidebarCollapsed, setShowWorkspaceSelector, openAIAssistantTab, setShowSettingsModal, prompt });
 
   // Global keyboard shortcuts. See src/app/commands/useKeyboardShortcuts.ts.
   useKeyboardShortcuts({
@@ -1463,19 +1504,18 @@ function App() {
         setShowWhatsNewModalDirect={setShowWhatsNewModalDirect}
       />
 
-      {/* Wealthbox CRM citation viewer — listens for lantern:open-crm events
-          dispatched when a `crm:` source link is clicked in a Client Map. */}
-      <CrmSourcePanel />
-      <OneDriveSourcePanel />
-      <DocusignSourcePanel />
-      <MeetingSourcePanel />
-      {/* Bonus connector citation viewers — each listens for its
-          lantern:open-<connector> event dispatched from a Client Map source link. */}
-      <BoxSourcePanel />
-      <SharefileSourcePanel />
-      <JotformSourcePanel />
-      <ZocksSourcePanel />
-      <AddeparSourcePanel />
+      {/* Connector citation viewers (Wealthbox, OneDrive, DocuSign, Calendly,
+          Box, ShareFile, Jotform, Zocks, Addepar) — not rendered at all until
+          the first citation click (see connectorPanelsNeeded above), so the
+          chunk is fetched on demand rather than on every cold start. Once
+          mounted each one self-gates on its own window event and renders
+          nothing until a matching citation is clicked, so a null Suspense
+          fallback is safe here. */}
+      {connectorPanelsNeeded && (
+        <Suspense fallback={null}>
+          <ConnectorSourcePanels />
+        </Suspense>
+      )}
     </div>
   );
 }

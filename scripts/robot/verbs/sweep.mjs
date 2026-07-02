@@ -1,12 +1,15 @@
 import { attachConsoleAndNetwork, captureBundle } from '../artifacts.mjs';
 
+// The 3-tab IA (2026-06-29 board decision, src/app/shell/layout/Spine.tsx):
+// Client Map · Ask · Workflows are the only rail tabs. Documents/Email/Activity
+// Log/Privacy Center/Settings moved behind the gear menu, the Ask source
+// filter, and Client Map quick actions — they're no longer top-level
+// spine-nav items, so they're out of this sweep (a click on a nonexistent
+// spine-nav-settings/privacy/audit/email/files testid used to time out here).
 export const DEFAULT_SURFACES = [
-  ['spine-nav-settings', 'settings'],
-  ['spine-nav-privacy', 'privacy'],
-  ['spine-nav-audit', 'audit'],
+  ['spine-nav-matters', 'matters'],
+  ['spine-nav-search', 'search'],
   ['spine-nav-workflows', 'workflows'],
-  ['spine-nav-email', 'email'],
-  ['spine-nav-files', 'files'],
 ];
 
 /**

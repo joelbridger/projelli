@@ -108,6 +108,13 @@ interface FirmState {
    */
   signInSso: (email: string) => Promise<void>;
   /**
+   * Abort a pending signInSso() sign-in immediately (user clicked Cancel, or
+   * closed the IdP popup and gave up) instead of leaving it to hit the
+   * 5-minute server-side timeout. No-op outside Tauri or with no sign-in in
+   * flight. Never touches an already-established session.
+   */
+  signInSsoCancel: () => Promise<void>;
+  /**
    * Claim an unclaimed org with the license key the buyer received from
    * LemonSqueezy. On success the session is populated exactly like signIn
    * (tokens persisted to keychain, org + user in store). The prefilled license
@@ -135,6 +142,14 @@ interface FirmState {
   /** A FirmApiClient bound to this store's token source. */
   client: () => FirmApiClient;
 }
+
+// F2.4 follow-up: whether the in-flight signInSso() call has been asked to
+// cancel. Module-scoped (not store state) because it's an internal
+// coordination flag between signInSso and signInSsoCancel, not something
+// any consumer should read or persist. Reset at the start of every
+// signInSso() call; only meaningful while that call's promise is pending
+// (the UI's Cancel button only exists for that window).
+let ssoCancelRequested = false;
 
 function emptyVerdict(): Pick<
   FirmState,
@@ -255,22 +270,69 @@ export const useFirmStore = create<FirmState>()(
 
       signInSso: async (email) => {
         set({ isLoading: true, error: null });
+        ssoCancelRequested = false;
         try {
           const { invoke } = await import('@tauri-apps/api/core');
           const backendBase = getFirmApiBase();
           const raw = await invoke<string>('firm_sso_authenticate', { backendBase, email });
+
+          // `firm_sso_authenticate` already resolved (the loopback redirect
+          // and code exchange both completed) — but the user may have
+          // clicked Cancel in the narrow window right after that, before
+          // this check runs. The Rust-side cancel flag is a no-op once its
+          // own command has already returned, so treat this TS-side flag the
+          // same way: no session gets established.
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- ssoCancelRequested flips via signInSsoCancel() across the await above (ESLint can't see it; same async pattern baselined in useAsk.ts).
+          if (ssoCancelRequested) {
+            throw new Error('cancelled');
+          }
+
           const res = JSON.parse(raw) as LoginResponse;
           await establishSessionFromLogin(res, set, get);
+
+          // Cancel can also arrive WHILE establishSessionFromLogin is
+          // running — it stores keychain tokens as its first step, then
+          // makes further network calls (me(), getSeatPublicKey()). If
+          // cancel fired at any point during that, roll back: delete the
+          // credential that was just stored and leave no session, so a
+          // canceled flow never leaves the user silently signed in.
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- ssoCancelRequested flips via signInSsoCancel() during establishSessionFromLogin above (ESLint can't see it; same async pattern baselined in useAsk.ts).
+          if (ssoCancelRequested) {
+            await clearUserSecrets(res.user.user_id).catch(() => {});
+            set({ session: null, accessToken: null, isLoading: false, error: null, isOffline: false });
+            throw new Error('cancelled');
+          }
         } catch (err) {
+          // Tauri's invoke() rejects with the RAW STRING a Rust `Err(String)`
+          // command returns (not wrapped in an Error) — `firm_sso_cancel`
+          // produces exactly this shape, so `typeof err === 'string'` must be
+          // checked before the generic Error/fallback branches, or a real
+          // cancellation is misread as "SSO sign-in failed".
           const message =
-            err instanceof FirmApiError
-              ? err.message
-              : err instanceof Error
+            typeof err === 'string'
+              ? err
+              : err instanceof FirmApiError
                 ? err.message
-                : 'SSO sign-in failed';
-          set({ isLoading: false, error: message, isOffline: !(err instanceof FirmApiError) });
+                : err instanceof Error
+                  ? err.message
+                  : 'SSO sign-in failed';
+          // The user clicked Cancel — an intentional exit, not a failure, so
+          // don't surface it as a store-level error (and no session was ever
+          // established).
+          const cancelled = message === 'cancelled';
+          set({ isLoading: false, error: cancelled ? null : message, isOffline: cancelled ? false : !(err instanceof FirmApiError) });
           throw err instanceof Error ? err : new Error(message);
         }
+      },
+
+      signInSsoCancel: async () => {
+        // Flip the TS-side flag FIRST (before the await below) so it's
+        // already visible to signInSso's post-checks even if the Rust
+        // command has already returned by the time this runs.
+        ssoCancelRequested = true;
+        const { invoke, isTauri } = await import('@tauri-apps/api/core');
+        if (!isTauri()) return;
+        await invoke('firm_sso_cancel');
       },
 
       claimOrg: async (licenseKey, email, password, orgName) => {

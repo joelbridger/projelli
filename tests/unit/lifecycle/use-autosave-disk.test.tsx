@@ -152,4 +152,52 @@ describe('useAutosave disk writes (TEST-003)', () => {
     expect(await service.readFile(path)).toBe(typedContent);
     expect(markSaved).toHaveBeenCalledWith(path, 7);
   });
+
+  it('Perf (P1.2): still autosaves a continuously-typed tab — a new openTabs reference on every keystroke must not reset the 2s timer', async () => {
+    // Regression: the effect used to depend on `openTabs` itself. Since
+    // `updateContent` gives every edit a brand-new array + tab object, the
+    // interval was torn down and recreated on every keystroke — a user who
+    // never paused typing for a full 2s would NEVER get autosaved.
+    const service = new WorkspaceService();
+    await service.initialize(createMemoryBackend(), WORKSPACE_ROOT);
+
+    const path = `${WORKSPACE_ROOT}/docs/typing-note.md`;
+    await service.writeFile(path, '');
+
+    const markSaved = vi.fn();
+    const serviceRef = { current: service };
+    const writeTabContent = (tabPath: string, content: string) =>
+      writeTabContentToDisk(service, tabPath, content);
+
+    const { rerender } = renderHook(
+      ({ content }: { content: string }) =>
+        useAutosave(
+          [{ path, content, isDirty: true, rev: content.length }],
+          writeTabContent,
+          markSaved,
+          serviceRef,
+        ),
+      { initialProps: { content: 'h' } },
+    );
+
+    // Simulate a keystroke every 200ms for 1.8s — well under the 2s autosave
+    // period, so if the timer were reset by each rerender it would never fire.
+    let typed = 'h';
+    for (let i = 0; i < 9; i++) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(200);
+      });
+      typed += 'i';
+      rerender({ content: typed });
+    }
+
+    // Advance past the ORIGINAL 2s mark (total elapsed so far: 1.8s + 0.3s = 2.1s).
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+    await writeCoordinator.drain(path);
+
+    expect(await service.readFile(path)).toBe(typed);
+    expect(markSaved).toHaveBeenCalled();
+  });
 });

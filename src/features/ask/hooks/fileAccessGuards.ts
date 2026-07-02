@@ -15,6 +15,7 @@
 
 import type { Matter } from '@/platform/types/matter';
 import { pathInMatterScope } from '@/platform/matter/matterScopeGuard';
+import { sameOrInside } from '@/platform/fs/appPath';
 import {
   useEditorStore,
   tabHasUnsavedEdits,
@@ -60,6 +61,55 @@ export function assertInActiveMatter(
   if (relativePath.split(/[\\/]/).some((seg) => seg === '..')) {
     throw new Error(`Access denied: path "${relativePath}" must not contain "..".`);
   }
+  throw new Error(
+    `Access denied: "${relativePath}" is outside the active ${getEntityLabel().one} (${activeMatterName ?? 'none'}). ` +
+      `Switch the chat scope to "All ${getEntityLabel().other}" to work across ${getEntityLabel().other}.`,
+  );
+}
+
+/**
+ * F2.5 — fail-closed pre-check for `list_files` BEFORE it touches the
+ * filesystem. `read_file` / `write_file` / etc. call `assertInActiveMatter` on a
+ * FILE path (always meant to be inside the matter). A directory listing is
+ * different: the model may legitimately list an ANCESTOR of the matter's folder
+ * to navigate DOWN into it (see the `visibleInScope` post-filter, Codex review
+ * #5). So a plain `assertInActiveMatter(dir)` would wrongly reject that
+ * navigation.
+ *
+ * This guard gives `list_files` the SAME protection the other tools get —
+ * rejecting `..` traversal and cross-matter access BEFORE the FS call (the eval
+ * finding: the old code only did `startsWith(rootPath)`, which a `..` segment
+ * slips past, and it touched the FS before filtering) — while still permitting
+ * ancestor navigation. The result set is still narrowed by `visibleInScope`
+ * afterwards (defense-in-depth).
+ */
+export function assertDirInActiveMatter(
+  absDir: string,
+  relativePath: string,
+  scope: ActiveMatterScope,
+  activeMatterFolders: string[],
+): void {
+  // Fail closed on any '..' traversal segment BEFORE the FS is touched — this is
+  // the core fix (the old startsWith check could not catch it). Rejected in any
+  // scope, exactly like assertInActiveMatter.
+  if (relativePath.split(/[\\/]/).some((seg) => seg === '..')) {
+    throw new Error(`Access denied: path "${relativePath}" must not contain "..".`);
+  }
+  const { toolActiveMatterId, toolMatters, activeMatterName } = scope;
+  // All-clients scope is workspace-wide, matching all-matters retrieval.
+  if (!toolActiveMatterId) return;
+  // Inside the active matter → allowed.
+  if (pathInActiveMatter(absDir, toolActiveMatterId, toolMatters)) return;
+  // An ANCESTOR of one of the matter's folders → allowed so the model can walk
+  // DOWN into a nested matter (e.g. list "/ws" to reach "/ws/Clients/Acme").
+  // Use the shared cross-platform containment predicate (handles `\` vs `/`,
+  // drive/UNC roots, trailing separators, segment boundaries) rather than a raw
+  // string prefix — a raw prefix breaks on Windows where the workspace root can
+  // carry backslashes while `Matter.folderPaths` are forward-slash normalized
+  // (Codex review). `sameOrInside(absDir, f)` is true when folder `f` is `absDir`
+  // itself or lives inside it — i.e. `absDir` is that folder or an ancestor of it.
+  if (activeMatterFolders.some((f) => sameOrInside(absDir, f))) return;
+  // Otherwise it's a sibling / other-matter directory — refuse before listing it.
   throw new Error(
     `Access denied: "${relativePath}" is outside the active ${getEntityLabel().one} (${activeMatterName ?? 'none'}). ` +
       `Switch the chat scope to "All ${getEntityLabel().other}" to work across ${getEntityLabel().other}.`,

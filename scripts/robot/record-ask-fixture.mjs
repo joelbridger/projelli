@@ -10,13 +10,23 @@
 // Recording against a live/un-frozen index will produce a fixture whose citations
 // drift, defeating determinism.
 //
-// How it works: it installs a pass-THROUGH route on the OpenAI chat-completions
-// path that forwards to the real provider, captures the streamed SSE body, and
-// fulfills the app with it (so the UI still answers + cites). After the answer
-// settles it parses the captured OpenAI frames into the replay fixture format and
+// How it works: it listens for the real OpenAI chat-completions response (no
+// interception — this is a genuine live call) and reads its FULL SSE body via
+// Playwright's own response buffering, which handles text/event-stream fine.
+// It parses the OpenAI delta frames to reconstruct the RAW streamed answer —
+// crucially INCLUDING the `[[BLOCK:FILES]]`-style protocol marker the model
+// emits, which the app strips before ever persisting anything to its chat
+// store (bindAnswerBlocks in useAsk.ts rewrites the raw stream into display
+// text before it's saved). A fixture built from the app's post-processed,
+// marker-stripped storage can never replay as cited — every replay would
+// reclassify as "general guidance" regardless of retrieval/indexing state,
+// which is exactly the bug this file used to have. After the answer settles
+// it parses the captured OpenAI frames into the replay fixture format and
 // writes scripts/robot/fixtures/ai-replays/<name>.json.
 //
-// Run:  node scripts/robot/record-ask-fixture.mjs [--name=ask-portfolio] [--matter=matter_nc_hollings_family] [--question="..."]
+// Run:  node scripts/robot/record-ask-fixture.mjs [--name=ask-portfolio] [--matter=<matter id>] [--question="..."]
+// --matter defaults to whatever id "Hollings Family" currently resolves to
+// (matter ids are fresh random UUIDs per CRM reseed, not a fixed slug).
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -24,6 +34,7 @@ import { ensureTunnel } from './bench.mjs';
 import { getPage, disconnect } from './connection.mjs';
 import { openWorkspace } from './verbs/workspace.mjs';
 import { askQuestion } from './verbs/ask.mjs';
+import { resolveMatterId } from './verbs/matters.mjs';
 
 const args = process.argv.slice(2);
 const argVal = (k, d) => {
@@ -31,7 +42,7 @@ const argVal = (k, d) => {
   return a ? a.slice(k.length + 3) : d;
 };
 const NAME = argVal('name', 'ask-portfolio');
-const MATTER = argVal('matter', 'matter_nc_hollings_family');
+const MATTER = argVal('matter', null); // null => askQuestion resolves "Hollings Family" itself
 const QUESTION = argVal('question', 'What is the total portfolio value for this household?');
 const CHUNK_DELAY_MS = Number(process.env.RECORD_CHUNK_DELAY_MS || 6);
 
@@ -46,51 +57,48 @@ async function main() {
   const opened = await openWorkspace(page, {});
   if (!opened.ok) throw new Error(`open failed: ${JSON.stringify(opened)}`);
 
-  // Capture model from the live request (best-effort).
+  const matterId = MATTER || (await resolveMatterId(page, 'Hollings Family'));
+  if (!matterId) throw new Error('could not resolve a matter id for "Hollings Family"');
+
+  // Capture model from the live request, and the RAW answer text from the live
+  // response — both best-effort, from the real (uninteded) network traffic.
   let model = null;
+  let rawAnswer = '';
   const isChat = (u) => /\/chat\/completions(?:[/?#]|$)/.test(String(u || ''));
   page.on('request', (req) => {
     try { if (isChat(req.url())) { const j = JSON.parse(req.postData() || '{}'); if (j.model) model = j.model; } } catch { /* ignore */ }
   });
+  page.on('response', (res) => {
+    if (!isChat(res.url())) return;
+    res
+      .text()
+      .then((body) => {
+        for (const line of body.split('\n')) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('data:')) continue;
+          const payload = trimmed.slice(5).trim();
+          if (payload === '[DONE]') continue;
+          try {
+            const frame = JSON.parse(payload);
+            const delta = frame?.choices?.[0]?.delta?.content;
+            if (typeof delta === 'string') rawAnswer += delta;
+          } catch { /* ignore a partial/non-JSON line */ }
+        }
+      })
+      .catch(() => { /* response body unavailable (aborted, etc.) — best-effort */ });
+  });
 
   log('asking the question LIVE (against the frozen snapshot)…');
-  const result = await askQuestion(page, { question: QUESTION, deterministic: false, matterId: MATTER });
+  const result = await askQuestion(page, { question: QUESTION, deterministic: false, matterId });
   await new Promise((r) => setTimeout(r, 1000));
   log(`ask ok=${result.ok} settled=${result.settled} newChips=${result.newCitationChips}`);
   if (!result.settled) throw new Error('Ask did not settle — cannot record a fixture');
-
-  // Read the FULL assistant answer (with its {N} citation markers) from the app's
-  // chat store. We can't read the raw SSE body (Playwright doesn't buffer
-  // text/event-stream), and the on-disk answer is the faithful, marker-preserving
-  // source. Replaying THIS text against the frozen index reproduces the citations.
-  const captured = await page.evaluate(() => {
-    let answer = null; let foundModel = null;
-    try {
-      const j = JSON.parse(localStorage.getItem('ai-chat-storage') || 'null');
-      const s = (j && (j.state || j)) || {};
-      const walk = (o, depth = 0) => {
-        if (!o || depth > 6) return;
-        if (Array.isArray(o)) {
-          for (const m of o) {
-            if (m && /assist|^ai$|model/i.test(String(m.role || '')) && typeof m.content === 'string' && m.content.trim()) {
-              answer = m.content; if (m.model) foundModel = m.model; // keep walking → last wins
-            }
-          }
-          for (const m of o) walk(m, depth + 1);
-        } else if (typeof o === 'object') {
-          for (const k of Object.keys(o)) walk(o[k], depth + 1);
-        }
-      };
-      walk(s);
-    } catch (e) { return { error: String(e) }; }
-    return { answer, foundModel };
-  });
-  if (!captured || captured.error || !captured.answer) {
-    throw new Error(`could not read the assistant answer from ai-chat-storage: ${JSON.stringify(captured)}`);
+  if (!rawAnswer.trim()) {
+    throw new Error('could not capture the raw chat-completions response body (rawAnswer empty)');
   }
-  model = model || captured.foundModel || 'gpt-4o-mini';
-  const answer = captured.answer;
-  log(`captured answer (${answer.length} chars): ${JSON.stringify(answer.slice(0, 200))}`);
+  model = model || 'gpt-4o-mini';
+  const answer = rawAnswer;
+  log(`captured RAW answer (${answer.length} chars, has block marker: ${/\[\[BLOCK:/.test(answer)}): ${JSON.stringify(answer.slice(0, 200))}`);
 
   // Split into word-sized streaming chunks (boundaries are cosmetic; the app
   // accumulates them back into the same full text).
@@ -102,8 +110,8 @@ async function main() {
     wireFormat: 'openai',
     recordedAt: new Date().toISOString(),
     question: QUESTION,
-    matterId: MATTER,
-    note: 'Answer text recorded from the app chat store against the FROZEN snapshot, so the {N} citation markers map to the same retrieved sources on replay.',
+    matterId,
+    note: 'RAW answer text captured from the live chat-completions SSE response (not the app\'s post-processed chat-store content, which strips block markers) against the FROZEN snapshot, so the [[BLOCK:...]] classification marker and {N} citation markers map to the same retrieved sources on replay.',
     answerText: answer,
     chunks,
   };

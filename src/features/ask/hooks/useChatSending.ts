@@ -44,9 +44,28 @@ import { matterLabel } from '@/platform/rag/matterResolver';
 import {
   pathInActiveMatter as pathInActiveMatterGuard,
   assertInActiveMatter as assertInActiveMatterGuard,
+  assertDirInActiveMatter as assertDirInActiveMatterGuard,
   assertNotOpenWithUnsavedEdits,
   assertNoOpenDescendant,
 } from './fileAccessGuards';
+// F2.8 — the SINGLE cross-platform path-join + boundary helpers. `workspacePath`
+// replaces every hand-rolled `${rootPath}/${x}` template (absolute-passthrough +
+// non-string guard); `sameOrInside` replaces the raw `startsWith(rootPath)`
+// workspace-boundary check, which was a no-op tautology (filePath is literally
+// `rootPath + "/" + rel`, so it ALWAYS started with rootPath) and — on Windows,
+// where rootPath carries backslashes — could never be made a real check by
+// normalizing the join alone without failing closed on every legitimate path.
+// Migrating join + guard together makes the workspace boundary a genuine,
+// separator/-case-correct check at the tool layer (PathValidator still backstops
+// it downstream; the matter boundary stays with assertInActiveMatter).
+import { workspacePath, sameOrInside } from '@/platform/fs/appPath';
+import {
+  fileToolsAllowed,
+  fileToolsRegistered,
+  resolveWorkspaceRetrieval,
+  type ConsentScope,
+} from '@/platform/ai/fileAccessConsent';
+import { getFileAccessConsent } from '@/platform/state/aiChatStore';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { isBinaryFile } from '@/platform/utils/file-utils';
 import { moveToTrash } from '@/platform/history/trashFile';
@@ -113,6 +132,27 @@ export interface UseChatSendingDeps {
   updateLastMessage: (chatId: string, content: string) => void;
   updateMessages: (chatId: string, messages: ChatMessage[]) => void;
   setLoading: (chatId: string, isLoading: boolean) => void;
+  /**
+   * Perf (P1.2) — the live in-flight streamed text for the current assistant
+   * message. This is component-LOCAL state (a plain useState in
+   * AIChatViewer), never the Zustand store: writing to the global store on
+   * every token would clone + broadcast the whole session on every chunk.
+   * Set to the accumulated text (throttled to at most once per animation
+   * frame) while a stream is in flight, and cleared to null once the turn's
+   * single final store commit (updateMessages/updateLastMessage) has landed.
+   *
+   * Tagged with the chatId the stream belongs to (Codex review, P1):
+   * AIChatViewer's local state survives a `chatId` prop change (MainPanel
+   * reuses the same instance across open chats, no per-chat `key`), so an
+   * in-flight stream's callbacks — still running after the user switches to
+   * a DIFFERENT chat — must never be mistaken for the newly-viewed chat's
+   * content. The caller only applies this preview when its `chatId` matches
+   * whatever chat is currently being viewed. It's a real `useState` setter
+   * (not a plain callback) so `createStreamFlusher`'s `finish()` can use the
+   * functional-update form to clear it only when it still belongs to the
+   * finishing turn, without racing a read of the current value.
+   */
+  setStreamingPreview: React.Dispatch<React.SetStateAction<{ chatId: string; content: string } | null>>;
   clearDraftInput: (chatId: string) => void;
   recordCost: (chatId: string, entry: ChatCostEntry) => void;
   chatId: string;
@@ -147,6 +187,71 @@ export interface UseChatSendingDeps {
   abortControllerRef: React.MutableRefObject<AbortController | null>;
 }
 
+/**
+ * Perf (P1.2) — per-turn token-stream buffering. `onChunk` fires once per
+ * SSE token (dozens of times a second); this coalesces arrivals into at
+ * most one flush per animation frame instead of a React/Zustand write per
+ * token.
+ *
+ * Codex review (P1, round 4): this MUST be created fresh per `sendMessage`
+ * call, never shared as a hook-level ref. `AIChatViewer`'s local streaming-
+ * preview state outlives a `chatId` prop change (MainPanel reuses the same
+ * instance across open chats), so if the user switches chats and sends
+ * again before the first turn's stream finishes, two concurrent streams
+ * would exist. A SHARED buffer/frame-id pair would let a late chunk from
+ * the old turn overwrite the new turn's buffered text just before its
+ * flush fires — publishing the WRONG chat's content under the right
+ * chatId, still a confidentiality leak even with the chatId tag from the
+ * previous fix. Each call to `createStreamFlusher` closes over its own
+ * `buffer`/`rafId`, so two turns in flight at once never share state.
+ */
+export function createStreamFlusher(
+  chatId: string,
+  setStreamingPreview: UseChatSendingDeps['setStreamingPreview'],
+) {
+  let buffer = '';
+  let rafId: number | null = null;
+  return {
+    /** Buffer a chunk and schedule a flush if one isn't already pending. */
+    push(content: string) {
+      buffer = content;
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        setStreamingPreview({ chatId, content: buffer });
+      });
+    },
+    /** Flush immediately (terminal states: abort, or the outer error catch). */
+    flushNow(content: string) {
+      buffer = content;
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      setStreamingPreview({ chatId, content: buffer });
+    },
+    /** Whatever was buffered so far — used to preserve partial text if the
+     *  stream throws a non-abort error (see the outer catch below). */
+    getBuffer() {
+      return buffer;
+    },
+    /**
+     * End of turn: cancel any pending frame (so a late tick can't resurrect
+     * this turn's preview after it's been cleared) and clear the preview —
+     * but ONLY if it's still showing THIS turn's chatId. A different,
+     * still-in-flight turn's live preview (a different or the same chat,
+     * sent again) must not be wiped out just because this one finished.
+     */
+    finish() {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      setStreamingPreview((prev) => (prev && prev.chatId === chatId ? null : prev));
+    },
+  };
+}
+
 export function useChatSending(deps: UseChatSendingDeps) {
   const {
     chatData,
@@ -164,6 +269,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
     updateLastMessage,
     updateMessages,
     setLoading,
+    setStreamingPreview,
     clearDraftInput,
     recordCost,
     chatId,
@@ -338,13 +444,36 @@ export function useChatSending(deps: UseChatSendingDeps) {
       }));
     };
 
+    // F2.5 — snapshot the file-access consent decision at send start (single
+    // source of truth reused below for retrieval gating, tool registration, the
+    // system prompt, and the egress audit). A grant is bound to the scope it was
+    // made under; a local provider never leaks, so consent is a cloud concern.
+    const turnConsentScope: ConsentScope = activeMatter
+      ? { kind: 'matter', matterId: activeMatter.id }
+      : { kind: 'allMatters' };
+    const fileToolsEnabled = fileToolsAllowed(getFileAccessConsent(chatId), turnConsentScope);
+    const providerIsCloud = !isLocalProviderId(effectiveProvider);
+
     const rawContent = inputValue.trim();
     const parsed = parseWorkspaceCommand(rawContent);
-    // M2 — retrieval triggers when the user explicitly tagged
-    // `@workspace`, or when the Ask-my-workspace mode is on for this
-    // chat. We call MemoryService (not raw ragRetrieve) so the Settings
-    // toggle is respected with a clean `[]` short-circuit when off.
-    const shouldRetrieve = parsed.hasCommand || askWorkspaceMode;
+    // M2 — retrieval triggers when the user explicitly tagged `@workspace`, or
+    // when the Ask-my-workspace mode is on for this chat. We call MemoryService
+    // (not raw ragRetrieve) so the Settings toggle is respected with a clean `[]`
+    // short-circuit when off.
+    //
+    // F2.5 — "reading is sending" also covers ambient retrieval. A TYPED
+    // `@workspace` mention is per-message intent (the user asked, right now), so
+    // it's always allowed. But the persistent Ask-my-workspace TOGGLE is NOT
+    // per-message intent — leaving it on would send workspace snippets to a cloud
+    // provider on every message with no per-conversation consent. So ambient
+    // (toggle-driven) retrieval requires the file-access consent when the provider
+    // is a cloud one; local providers are unaffected (nothing leaves the device).
+    const { shouldRetrieve, ambientBlockedByConsent } = resolveWorkspaceRetrieval({
+      explicitWorkspace: parsed.hasCommand,
+      askWorkspaceMode,
+      isCloudProvider: providerIsCloud,
+      fileAccessGranted: fileToolsEnabled,
+    });
     let retrievedSources: WorkspaceSource[] = [];
     let workspaceHint: string | undefined;
     // Option B: the raw retrieval error, kept separate from the user-facing
@@ -360,6 +489,14 @@ export function useChatSending(deps: UseChatSendingDeps) {
     const turnScope: TurnScope = activeMatter
       ? { kind: 'matter', matterId: activeMatter.id, matterName: matterLabel(activeMatter) }
       : { kind: 'allMatters' };
+    // F2.5 — the Ask-my-workspace toggle is on but this cloud conversation hasn't
+    // consented to file access, so ambient retrieval was skipped. Say so plainly
+    // (mirrors the "Memory is off" hint) instead of silently doing nothing — the
+    // composer's "Allow file access" affordance is how the user turns it on.
+    if (ambientBlockedByConsent) {
+      workspaceHint =
+        "Ask-my-workspace is paused until you allow file access for this chat.";
+    }
     if (shouldRetrieve) {
       if (!isMemoryEnabled()) {
         workspaceHint =
@@ -704,6 +841,11 @@ export function useChatSending(deps: UseChatSendingDeps) {
     setMissingSourceWarning(null);
     setLoading(chatId, true);
 
+    // Perf (P1.2): declared here — OUTSIDE the IIFE below — so both its body
+    // (the try/catch/finally) AND the `.catch()` chained onto it can read/
+    // finish the same flusher. Assigned only when the streaming path runs.
+    let streamFlusher: ReturnType<typeof createStreamFlusher> | null = null;
+
     // Call AI provider with streaming. The IIFE is voided because
     // handleSendMessage itself is async — this fire-and-forget inner
     // IIFE intentionally runs off the main call stack (streaming updates
@@ -767,6 +909,10 @@ export function useChatSending(deps: UseChatSendingDeps) {
               destination: egress.destination,
               dataLeaves: egress.dataLeaves,
               scope: auditScope,
+              // F2.5 — record whether READ-class file tools were enabled for this
+              // send, so the trust surface (Data Map / audit) is honest about
+              // which sends could pull more files.
+              fileToolsEnabled,
             },
           }));
         };
@@ -796,6 +942,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
               dataLeaves: egress.dataLeaves,
               scope: auditScope,
               status: 'cancelled',
+              fileToolsEnabled, // F2.5
             },
           });
         };
@@ -838,6 +985,17 @@ export function useChatSending(deps: UseChatSendingDeps) {
         // that supports tool calling (Claude, OpenAI, Gemini) registers
         // the same closure below via its setTools method.
         const hasWorkspaceForTools = !!(workspaceServiceRef?.current && rootPath);
+        // F2.5 — the single predicate for "are file tools registered for this
+        // send?". Drives BOTH setTools below AND the system prompt (hasWorkspace),
+        // so the prompt can never claim tools the provider wasn't given. The demo
+        // provider is text-only and never gets setTools (see the IS_DEMO branch
+        // below), so it must report false here too (Codex P2) — otherwise the demo
+        // prompt would advertise tools that were never registered.
+        const fileToolsRegisteredForSend = !IS_DEMO && fileToolsRegistered({
+          hasWorkspace: hasWorkspaceForTools,
+          isCloudProvider: providerIsCloud,
+          fileAccessGranted: fileToolsEnabled,
+        });
         const useStreamingForThisSend = !isTauriProductionBuild() && !hasWorkspaceForTools;
         console.log('[AIChat DIAGNOSTIC] Workspace check:', {
           hasWorkspaceService: !!workspaceServiceRef?.current,
@@ -872,6 +1030,34 @@ export function useChatSending(deps: UseChatSendingDeps) {
           pathInActiveMatterGuard(absPath, toolActiveMatterId, toolMatters);
         const assertInActiveMatter = (absPath: string, relativePath: string): void => {
           assertInActiveMatterGuard(absPath, relativePath, { toolActiveMatterId, toolMatters, activeMatterName });
+        };
+        // F2.5 — list_files fail-closed pre-check (ancestor-aware): rejects '..'
+        // and cross-matter dirs BEFORE the FS is touched, while still allowing
+        // navigation down through ancestors of the matter's folders.
+        const assertDirInActiveMatter = (absDir: string, relativePath: string): void => {
+          assertDirInActiveMatterGuard(
+            absDir,
+            relativePath,
+            { toolActiveMatterId, toolMatters, activeMatterName },
+            activeMatterFolders,
+          );
+        };
+
+        // F2.5 — the per-conversation file-access consent decision was snapshot at
+        // send start (`fileToolsEnabled`, above). It gates BOTH ambient retrieval
+        // and the file-tool registration below, so both agree and neither can be
+        // changed by a mid-stream client switch. `assertFileToolAllowed` is the
+        // executor backstop; the registration site is the primary gate.
+        const assertFileToolAllowed = (): void => {
+          // Defense-in-depth: ALL file tools (read AND write) are withheld from
+          // the registered tool set when consent is off, so the model can't call
+          // them at all. This guard fails closed even if a provider hallucinates
+          // a call or a future change re-registers a tool without re-checking.
+          if (!fileToolsEnabled) {
+            throw new Error(
+              'File access is off for this conversation. Ask the user to allow AI file access (the "Allow file access" control above the message box) before reading, listing, searching, or changing files.',
+            );
+          }
         };
 
         // BUG-060: per-action approval. Before the AI overwrites/deletes/moves
@@ -942,12 +1128,18 @@ export function useChatSending(deps: UseChatSendingDeps) {
           if (!workspaceServiceRef?.current || !rootPath) {
             throw new Error('Workspace not initialized');
           }
+          // F2.5 — fail closed for EVERY file tool if this conversation hasn't
+          // consented to file access under the current scope. Defense-in-depth:
+          // when consent is off the tools aren't registered on the provider at
+          // all, so the model can't reach here; this backstops a hallucinated
+          // call or any future registration change.
+          assertFileToolAllowed();
 
           switch (toolName) {
             case 'read_file': {
               const relativePath = params['path'] as string;
-              const filePath = `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
-              if (!filePath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
+              const filePath = workspacePath(rootPath, relativePath);
+              if (!sameOrInside(rootPath, filePath)) throw new Error('Access denied: path outside workspace');
               assertInActiveMatter(filePath, relativePath); // BUG-036
               try {
                 const content = await workspaceServiceRef.current.readFile(filePath);
@@ -974,8 +1166,13 @@ export function useChatSending(deps: UseChatSendingDeps) {
             }
             case 'list_files': {
               const relativePath = (params['path'] as string) || '.';
-              const dirPath = relativePath === '.' || relativePath === '' ? rootPath : `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
-              if (!dirPath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
+              const dirPath = relativePath === '.' || relativePath === '' ? rootPath : workspacePath(rootPath, relativePath);
+              if (!sameOrInside(rootPath, dirPath)) throw new Error('Access denied: path outside workspace');
+              // F2.5 eval fix — fail closed on '..' / cross-matter BEFORE the FS
+              // is touched (the startsWith check above can't catch '..'; the old
+              // code only post-filtered results AFTER listing). Ancestor dirs are
+              // still allowed so the model can navigate down.
+              assertDirInActiveMatter(dirPath, relativePath);
               try {
                 const entries = await workspaceServiceRef.current.list(dirPath);
                 // Codex review #5: a directory entry is visible if it is INSIDE
@@ -995,7 +1192,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
                   // are hidden so the model can't enumerate them).
                   entries: entries
                     .filter((e) =>
-                      visibleInScope(`${dirPath}/${e.name}`.replace(/\/+/g, '/'), e.type !== 'file'),
+                      visibleInScope(workspacePath(dirPath, e.name), e.type !== 'file'),
                     )
                     .map((e) => ({
                       name: e.name, type: e.type,
@@ -1026,7 +1223,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
                 // BUG-036: drop results outside the active matter so the model
                 // can't discover another matter's files by name search.
                 const scopedResults = searchResults.filter((r) =>
-                  pathInActiveMatter(`${rootPath}/${r.path}`.replace(/\/+/g, '/')),
+                  pathInActiveMatter(workspacePath(rootPath, r.path)),
                 );
                 return { results: scopedResults, query };
               } catch (error) {
@@ -1036,8 +1233,8 @@ export function useChatSending(deps: UseChatSendingDeps) {
             case 'write_file': {
               const relativePath = params['path'] as string;
               const content = params['content'] as string;
-              const filePath = `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
-              if (!filePath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
+              const filePath = workspacePath(rootPath, relativePath);
+              if (!sameOrInside(rootPath, filePath)) throw new Error('Access denied: path outside workspace');
               assertInActiveMatter(filePath, relativePath); // BUG-036
               assertNotOpenWithUnsavedEdits(filePath, relativePath); // BUG-047
               const exists = await workspaceServiceRef.current.exists(filePath);
@@ -1087,8 +1284,8 @@ export function useChatSending(deps: UseChatSendingDeps) {
             }
             case 'create_folder': {
               const relativePath = params['path'] as string;
-              const folderPath = `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
-              if (!folderPath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
+              const folderPath = workspacePath(rootPath, relativePath);
+              if (!sameOrInside(rootPath, folderPath)) throw new Error('Access denied: path outside workspace');
               assertInActiveMatter(folderPath, relativePath); // BUG-036
               // Honesty (BUG-063 sibling): if the path is already taken, don't gate
               // it or log a false "created". Distinguish an existing FOLDER (a real
@@ -1127,9 +1324,9 @@ export function useChatSending(deps: UseChatSendingDeps) {
             case 'move_file': {
               const fromPath = params['from'] as string;
               const toPath = params['to'] as string;
-              const fullFromPath = `${rootPath}/${fromPath}`.replace(/\/+/g, '/');
-              const fullToPath = `${rootPath}/${toPath}`.replace(/\/+/g, '/');
-              if (!fullFromPath.startsWith(rootPath) || !fullToPath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
+              const fullFromPath = workspacePath(rootPath, fromPath);
+              const fullToPath = workspacePath(rootPath, toPath);
+              if (!sameOrInside(rootPath, fullFromPath) || !sameOrInside(rootPath, fullToPath)) throw new Error('Access denied: path outside workspace');
               assertInActiveMatter(fullFromPath, fromPath); // BUG-036
               assertInActiveMatter(fullToPath, toPath); // BUG-036 (can't move a matter's file out, or into it from elsewhere)
               assertNotOpenWithUnsavedEdits(fullFromPath, fromPath); // BUG-047 (don't move out from under unsaved edits)
@@ -1171,8 +1368,8 @@ export function useChatSending(deps: UseChatSendingDeps) {
             }
             case 'delete_file': {
               const relativePath = params['path'] as string;
-              const filePath = `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
-              if (!filePath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
+              const filePath = workspacePath(rootPath, relativePath);
+              if (!sameOrInside(rootPath, filePath)) throw new Error('Access denied: path outside workspace');
               assertInActiveMatter(filePath, relativePath); // BUG-036
               assertNotOpenWithUnsavedEdits(filePath, relativePath); // BUG-047
               assertNoOpenDescendant(filePath, relativePath); // BUG-063 sibling (folder w/ open child)
@@ -1281,15 +1478,23 @@ export function useChatSending(deps: UseChatSendingDeps) {
           // the concrete cloud classes (Claude/OpenAI/Gemini share the
           // ClaudeStyleTool shape), not on the base Provider interface — hence
           // the narrow cast at this one boundary.
-          if (!isLocalProviderId(chatProvider)) {
-            if (hasWorkspaceForTools) {
-              (provider as unknown as {
-                setTools: (tools: typeof FILE_ACCESS_TOOLS, executor: typeof toolExecutor) => void;
-              }).setTools(FILE_ACCESS_TOOLS, toolExecutor);
-              console.log('[AIChat DIAGNOSTIC] Tools registered on', chatProvider, 'provider:', FILE_ACCESS_TOOLS.length, 'tools');
-            } else {
-              console.warn('[AIChat DIAGNOSTIC] Tools NOT registered on', chatProvider, '— workspace service or rootPath missing');
-            }
+          //
+          // F2.5 — ONE predicate (fileToolsRegistered) decides registration AND
+          // drives the system prompt below (hasWorkspace), so the model is never
+          // told about tools it doesn't have. Tools register only for a CLOUD
+          // provider, with a workspace, once file access is consented for this
+          // scope. When off, NO file tools register (read OR write) — the model
+          // can't read/list/search or use a write tool as a silent existence
+          // oracle. WRITE tools still self-gate per action once registered.
+          if (fileToolsRegisteredForSend) {
+            (provider as unknown as {
+              setTools: (tools: typeof FILE_ACCESS_TOOLS, executor: typeof toolExecutor) => void;
+            }).setTools(FILE_ACCESS_TOOLS, toolExecutor);
+            console.log('[AIChat DIAGNOSTIC] File tools registered on', chatProvider, 'provider:', FILE_ACCESS_TOOLS.length, 'tools');
+          } else if (hasWorkspaceForTools && providerIsCloud) {
+            console.log('[AIChat DIAGNOSTIC] File tools WITHHELD on', chatProvider, '— file access not consented for this conversation/scope');
+          } else if (!hasWorkspaceForTools) {
+            console.warn('[AIChat DIAGNOSTIC] Tools NOT registered on', chatProvider, '— workspace service or rootPath missing');
           }
         }
         effectiveChatModel = provider.getMetadata().model;
@@ -1306,7 +1511,13 @@ export function useChatSending(deps: UseChatSendingDeps) {
           workspaceServiceRef?.current?.getBackend() ?? null,
         );
 
-        const hasWorkspace = hasWorkspaceForTools;
+        // F2.5 — the system prompt's "you have read/write file tools" block MUST
+        // match what was ACTUALLY registered (same predicate). When file access
+        // isn't consented (or the provider is local, or there's no workspace) no
+        // tools register, so the prompt must NOT claim them — otherwise the model
+        // is told to use tools it doesn't have and "refuse"-loops or hallucinates
+        // tool calls as text.
+        const hasWorkspace = fileToolsRegisteredForSend;
 
         // Append any enabled open-file contexts BEFORE the conversation
         // history. This lets the AI treat the files as background material
@@ -1387,6 +1598,14 @@ export function useChatSending(deps: UseChatSendingDeps) {
           let accumulated = '';
           const streamingAuditState = { receivedChunk: false };
           let streamingResponse: Awaited<ReturnType<NonNullable<typeof provider.sendMessageStreaming>>> | null = null;
+          // Perf (P1.2): fresh per turn (see createStreamFlusher's doc) — if
+          // the user switches chats and sends again before this stream
+          // finishes, the two turns' flushers never share buffer/frame state.
+          // Captured into a local `const` (not just the outer mutable
+          // `streamFlusher`) so the nested `onChunk`/abort-catch closures
+          // below get a use that TS can narrow as non-null.
+          const flusher = createStreamFlusher(chatId, setStreamingPreview);
+          streamFlusher = flusher;
 
           try {
             // Race guard (defense-in-depth; cloud providers also fail-closed
@@ -1400,8 +1619,12 @@ export function useChatSending(deps: UseChatSendingDeps) {
               onChunk: (chunk: string) => {
                 streamingAuditState.receivedChunk = true;
                 accumulated += chunk;
-                // Update the last message in the store with accumulated content
-                updateLastMessage(chatId, accumulated);
+                // Buffer locally (component state, not the Zustand store)
+                // and flush at most once per animation frame. The store
+                // gets exactly one write for this turn, once the stream
+                // finishes (or is aborted) — see the `finally` below and
+                // the citation-verification commit further down.
+                flusher.push(accumulated);
               },
               signal: abortController.signal,
               ...(attachmentBytes ? { attachmentBytes } : {}),
@@ -1410,7 +1633,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
             if (err instanceof DOMException && err.name === 'AbortError') {
               // User cancelled — keep whatever was streamed so far
               accumulated += '\n\n*(Response stopped by user)*';
-              updateLastMessage(chatId, accumulated);
+              flusher.flushNow(accumulated);
               if (streamingAuditState.receivedChunk) {
                 providerSendCompletedOrCancelledAfterEgress = true;
                 emitCancelledEgressAudit();
@@ -1564,6 +1787,20 @@ export function useChatSending(deps: UseChatSendingDeps) {
 
         console.error('AI chat error:', error);
 
+        // Perf (P1.2) fix: a stream that throws mid-response (e.g. a network
+        // reset) after at least one chunk has arrived left its partial text
+        // stranded in the local buffer — it was never written to the store
+        // per-chunk, and the flusher's `finish()` below wipes the local
+        // preview too. Without this, the placeholder assistant message
+        // (added empty when the stream started) stays empty forever and the
+        // user loses the partial answer they already saw on screen. Commit
+        // whatever was streamed so far to that placeholder before the error
+        // bubble is appended below.
+        const bufferedPartial = streamFlusher?.getBuffer();
+        if (bufferedPartial) {
+          updateLastMessage(chatId, bufferedPartial);
+        }
+
         const chatProvider = effectiveProvider;
         const chatModel = chatData.model;
         if (!providerSendCompletedOrCancelledAfterEgress || error instanceof LocalOnlyEgressError) {
@@ -1665,6 +1902,13 @@ export function useChatSending(deps: UseChatSendingDeps) {
         }
       } finally {
         setLoading(chatId, false);
+        // Perf (P1.2): the turn is over one way or another (success, abort,
+        // or error) — drop the local streaming buffer/preview now that the
+        // store holds whatever final content this turn produced. `finish()`
+        // only clears the preview if it's still showing THIS turn's chatId,
+        // so it can't wipe a different (or the same, re-sent) chat's still-
+        // in-flight preview out from under it.
+        streamFlusher?.finish();
         // BUG-060 batch mode: now that the turn is done, show the end-of-turn
         // review if any file changes were applied (no-op in other modes / when
         // nothing changed, and even after an abort so applied changes surface).
@@ -1675,9 +1919,10 @@ export function useChatSending(deps: UseChatSendingDeps) {
       // conversation failure isn't silently swallowed.
       console.error('Unexpected error escaping AI chat IIFE:', err);
       setLoading(chatId, false);
+      streamFlusher?.finish();
       useAiBatchReviewStore.getState().openReview();
     });
-  }, [inputValue, pendingAttachments, pdfExtractions, previewUrls, messages, chatData, localAvailability, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, updateMessages, setLoading, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules, openFiles, scopedOpenFiles, scopedFolder, recordCost, clearDraftInput, askWorkspaceMode, activeMatter, includePrivileged]);
+  }, [inputValue, pendingAttachments, pdfExtractions, previewUrls, messages, chatData, localAvailability, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, updateMessages, setLoading, setStreamingPreview, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules, openFiles, scopedOpenFiles, scopedFolder, recordCost, clearDraftInput, askWorkspaceMode, activeMatter, includePrivileged]);
 
   const handleSendAnyway = useCallback(() => {
     bypassNextContextLimitRef.current = true;
