@@ -357,6 +357,18 @@ export async function ragManifestPdfFresh(
   }
 }
 
+/** P1.1 (Task 3) — forget all PDF manifest signatures. Call when PDF indexing is
+ *  turned OFF (rows deleted) so a later toggle-ON re-indexes PDFs instead of
+ *  wrongly skipping them as "fresh". Best-effort; never throws. */
+export async function ragManifestForgetPdfs(): Promise<void> {
+  if (!isTauri()) return;
+  try {
+    await invoke<void>('rag_manifest_forget_pdfs');
+  } catch (err) {
+    console.warn('ragManifestForgetPdfs failed (non-fatal):', err);
+  }
+}
+
 /** P1.1 (Task 3) — record a PDF's signature after a successful index so a later
  *  boot can skip it while unchanged. Best-effort; never throws to the caller. */
 export async function ragManifestRecordPdf(

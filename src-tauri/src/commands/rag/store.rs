@@ -1074,14 +1074,23 @@ pub async fn upsert_grouped(
 /// VG-6e: takes the PLAINTEXT path plus the vector master `key` and computes
 /// the stored token internally — callers never handle tokens.
 pub async fn delete_path(table: &Table, path: &str, key: &[u8; 32]) -> Result<()> {
-    let predicate = format!(
-        "path = '{}'",
-        sql_escape(&super::crypto::path_token(key, path))
-    );
+    delete_by_token(table, &super::crypto::path_token(key, path)).await
+}
+
+/// Delete every row whose stored `path` column equals `token` (an HMAC path
+/// token). Used by the boot reconcile to purge a DELETED file's rows when only
+/// its manifest key — the token — is known (the plaintext path is gone from
+/// disk). The token must be the SAME one the rows were written under
+/// (`path_token(key, path)` over the exact path string used at index time), so
+/// callers that hold a path use `delete_path`; the reconcile holds the token
+/// directly. P1.1: keeps the deleted-file purge correct on Windows, where the
+/// stored token is over a backslash path and normalization would mismatch.
+pub async fn delete_by_token(table: &Table, token: &str) -> Result<()> {
+    let predicate = format!("path = '{}'", sql_escape(token));
     table
         .delete(&predicate)
         .await
-        .with_context(|| format!("delete failed for {}", path))?;
+        .context("delete by path token failed")?;
     Ok(())
 }
 
@@ -4702,6 +4711,67 @@ mod tests {
         assert!(
             gone.is_empty(),
             "delete_path must remove the tokenized rows"
+        );
+    }
+
+    /// P1.1 (Windows regression): the boot reconcile purges a DELETED file by its
+    /// manifest key, which is `path_token(key, RAW_path)` — the SAME token the
+    /// rows were written under. On Windows the walker yields backslash paths, so
+    /// this proves `delete_by_token` over that token removes the rows. (The bug it
+    /// guards: normalizing the path before tokenizing produced a different token,
+    /// so the delete matched zero rows and the deleted file stayed searchable.)
+    #[tokio::test]
+    async fn delete_by_token_purges_rows_written_under_a_backslash_path() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let conn = open_connection(dir.path()).await.expect("open conn");
+        let table = open_or_create_table(&conn).await.expect("open table");
+
+        // A raw Windows path exactly as `WalkDir` would yield it (backslashes).
+        let raw_win_path = r"C:\WS\Clients\Acme\engagement.docx";
+        let rows = vec![(
+            Chunk {
+                path: raw_win_path.into(),
+                paragraph_index: 0,
+                text: "engagement".into(),
+                start_offset: 0,
+                end_offset: 10,
+                locator: None,
+            },
+            vec![0.10f32; EMBEDDING_DIM],
+        )];
+        upsert_chunks_for_path(
+            &table,
+            raw_win_path,
+            rows,
+            SourceType::Docx,
+            UNASSIGNED_MATTER,
+            PRIVILEGE_NONE,
+            &TEST_KEY,
+        )
+        .await
+        .expect("upsert under backslash path");
+
+        // The reconcile holds only the manifest key = path_token over the raw path.
+        let manifest_key = crate::commands::rag::crypto::path_token(&TEST_KEY, raw_win_path);
+        // Sanity: normalizing first would produce a DIFFERENT token (the bug).
+        let normalized_token = crate::commands::rag::crypto::path_token(
+            &TEST_KEY,
+            &normalize_source_path(raw_win_path),
+        );
+        assert_ne!(
+            manifest_key, normalized_token,
+            "precondition: raw vs normalized tokens differ on a backslash path"
+        );
+
+        delete_by_token(&table, &manifest_key)
+            .await
+            .expect("delete by manifest-key token");
+
+        let q = vec![0.10f32; EMBEDDING_DIM];
+        let gone = nearest(&table, &q, 10, None, false, &[]).await.unwrap();
+        assert!(
+            gone.is_empty(),
+            "delete_by_token(manifest key) must purge the backslash-path rows"
         );
     }
 

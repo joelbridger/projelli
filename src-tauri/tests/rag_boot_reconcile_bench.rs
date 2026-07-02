@@ -17,7 +17,7 @@
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use lantern_lib::commands::rag::{embedder, manifest, model_download, store};
+use lantern_lib::commands::rag::{crypto, embedder, manifest, model_download, store};
 
 /// Fixed key so the test never touches the OS keychain (chunk text is encrypted
 /// at rest under this key, exactly as production encrypts under the real one).
@@ -112,7 +112,7 @@ async fn boot_reconcile_skips_unchanged_and_is_fast() {
         .expect("upsert");
         let (size, mtime_ns) = manifest::stat_signature(f).unwrap();
         m.insert(
-            store::normalize_source_path(&f.to_string_lossy()),
+            crypto::path_token(&TEST_KEY, &f.to_string_lossy()),
             manifest::SourceSignature {
                 size,
                 mtime_ns,
@@ -139,7 +139,7 @@ async fn boot_reconcile_skips_unchanged_and_is_fast() {
     let mut warm_reused = 0u32;
     let mut warm_reindex = 0u32;
     for f in &files {
-        let norm = store::normalize_source_path(&f.to_string_lossy());
+        let norm = crypto::path_token(&TEST_KEY, &f.to_string_lossy());
         match manifest::decide_file(loaded.get(&norm), manifest::stat_signature(f), false) {
             manifest::FileDecision::Skip => warm_reused += 1,
             manifest::FileDecision::Reindex { .. } => warm_reindex += 1,
@@ -160,7 +160,7 @@ async fn boot_reconcile_skips_unchanged_and_is_fast() {
     let mut one_reused = 0u32;
     let mut one_reindex = 0u32;
     for f in &files {
-        let norm = store::normalize_source_path(&f.to_string_lossy());
+        let norm = crypto::path_token(&TEST_KEY, &f.to_string_lossy());
         match manifest::decide_file(loaded2.get(&norm), manifest::stat_signature(f), false) {
             manifest::FileDecision::Skip => one_reused += 1,
             manifest::FileDecision::Reindex { .. } => {

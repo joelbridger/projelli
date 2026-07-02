@@ -22,6 +22,7 @@ import {
   ragIndexFile,
   ragIndexPdfChunks,
   ragIndexWorkspace,
+  ragManifestForgetPdfs,
   ragManifestRecordPdf,
   ragReconcileWorkspace,
   ragRetagMatter,
@@ -589,6 +590,10 @@ export const MemoryService = {
         // Best-effort: swallow and keep going.
       }
     }
+    // P1.1 (Task 3): the PDF rows are gone, so drop their manifest signatures too.
+    // Otherwise a later toggle-ON would see them "fresh" and skip re-indexing,
+    // silently dropping those PDFs from search until each file changes.
+    await ragManifestForgetPdfs();
   },
 };
 

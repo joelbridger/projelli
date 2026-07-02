@@ -189,7 +189,11 @@ pub struct Manifest {
     /// is rebuilt by the one-time full walk (see `store::needs_migration`).
     #[serde(default)]
     pub index_version: u32,
-    /// Keyed by `store::normalize_source_path(path)`.
+    /// Keyed by each source's HMAC PATH TOKEN (`crypto::path_token` over the same
+    /// path string its LanceDB rows were written under) — NOT a plaintext path.
+    /// This keeps no client/matter file map on disk (VG-6e parity) and makes the
+    /// key agree with the stored rows, so the reconcile's delete/tombstone-by-key
+    /// hits the right rows on every platform (incl. Windows backslash paths).
     #[serde(default)]
     pub sources: BTreeMap<String, SourceSignature>,
 }

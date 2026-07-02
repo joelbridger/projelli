@@ -693,12 +693,23 @@ async fn tombstone_path(
     path: &str,
     key: &[u8; 32],
 ) -> anyhow::Result<()> {
+    tombstone_token(state, workspace, crypto::path_token(key, path)).await
+}
+
+/// P1.1 — tombstone a path by its already-computed HMAC token. The boot reconcile
+/// purges a DELETED file knowing only its manifest key (the token, since the
+/// plaintext path is gone), so it tombstones by token directly on a purge failure.
+/// Same durable/fail-closed semantics as `tombstone_path`.
+async fn tombstone_token(
+    state: &RagState,
+    workspace: &Path,
+    token: String,
+) -> anyhow::Result<()> {
     use anyhow::Context;
-    let token = crypto::path_token(key, path);
     let mut guard = state.unsafe_tokens.lock().await;
     guard.insert(token);
     let result = store::write_unsafe_tokens(workspace, &guard)
-        .with_context(|| format!("persist unsafe-tokens tombstone for {path}"));
+        .context("persist unsafe-tokens tombstone (by token)");
     if result.is_err() {
         // Cross-process fail-closed: the durable token set is now stale/missing
         // this token, and the MCP sidecar only reads disk. Drop a durable sentinel
@@ -721,13 +732,19 @@ async fn tombstone_path(
 /// CONCURRENCY: as with `tombstone_path`, the disk write is performed under the
 /// set lock so memory and disk update atomically w.r.t. other tombstone/clear.
 async fn clear_tombstone(state: &RagState, workspace: &Path, path: &str, key: &[u8; 32]) {
-    let token = crypto::path_token(key, path);
+    clear_tombstone_token(state, workspace, &crypto::path_token(key, path)).await;
+}
+
+/// P1.1 — clear a tombstone by its already-computed HMAC token (the reconcile's
+/// deleted-file purge holds the token, not the plaintext path). No-op when the
+/// token was not tombstoned, so the happy path never touches the file.
+async fn clear_tombstone_token(state: &RagState, workspace: &Path, token: &str) {
     let mut guard = state.unsafe_tokens.lock().await;
-    if !guard.remove(&token) {
+    if !guard.remove(token) {
         return; // not tombstoned — nothing to persist.
     }
     if let Err(e) = store::write_unsafe_tokens(workspace, &guard) {
-        log::error!("rag: failed to persist cleared tombstone for {path}: {e:#}");
+        log::error!("rag: failed to persist cleared tombstone (by token): {e:#}");
     }
 }
 
@@ -889,7 +906,7 @@ pub async fn rag_index_file(
             // P1.1: refresh the manifest signature under the scope actually used so
             // a later boot reconcile skips this file while unchanged and re-indexes
             // it under the CORRECT matter/privilege when it changes.
-            record_text_manifest_entry(&state, &workspace, &file_path, &matter, &privilege, 0)
+            record_text_manifest_entry(&state, &workspace, &file_path, &matter, &privilege, 0, &key)
                 .await;
             Ok(())
         }
@@ -1928,15 +1945,17 @@ async fn record_text_manifest_entry(
     matter: &str,
     privilege: &str,
     row_count: u32,
+    key: &[u8; 32],
 ) {
     let Some(sig) = text_source_signature(file, matter, privilege, row_count) else {
         return;
     };
-    let norm = store::normalize_source_path(&file.to_string_lossy());
+    // Key by the source's path token (matches the rows; no plaintext path on disk).
+    let token = crypto::path_token(key, &file.to_string_lossy());
     let _mg = state.manifest_lock.lock().await;
     let mut m = manifest::load(workspace, store::INDEX_VERSION);
     m.index_version = store::INDEX_VERSION;
-    m.insert(norm, sig);
+    m.insert(token, sig);
     if let Err(e) = manifest::save(workspace, &m) {
         log::warn!("rag: failed to save manifest after single-file index: {e}");
     }
@@ -1953,12 +1972,13 @@ async fn update_manifest_scope(
     path: &str,
     matter: Option<&str>,
     privilege: Option<&str>,
+    key: &[u8; 32],
 ) {
-    let norm = store::normalize_source_path(path);
+    let token = crypto::path_token(key, path);
     let _mg = state.manifest_lock.lock().await;
     let mut m = manifest::load(workspace, store::INDEX_VERSION);
     let mut changed = false;
-    if let Some(sig) = m.sources.get_mut(&norm) {
+    if let Some(sig) = m.sources.get_mut(&token) {
         if let Some(mt) = matter {
             if sig.matter_id != mt {
                 sig.matter_id = mt.to_string();
@@ -2172,9 +2192,17 @@ async fn run_workspace_index(
     manifest.index_version = store::INDEX_VERSION;
 
     // Normalized paths present on disk this walk (used to purge deleted files).
+    // P1.1 — the manifest is keyed by each source's HMAC PATH TOKEN, NOT its
+    // plaintext path: (a) VG-6e privacy parity — no client/matter file map is
+    // written to disk in plaintext (the `.lantern` manifest would otherwise
+    // reintroduce exactly what tokenizing the `path` column removed); and (b) the
+    // token matches the value the LanceDB rows are keyed under (`path_token` over
+    // the SAME path string the rows were written with — un-normalized), so the
+    // deleted-file purge and the tombstoned-file check hit the right rows on every
+    // platform, including Windows where the stored token is over a backslash path.
     let disk_keys: std::collections::HashSet<String> = all_files
         .iter()
-        .map(|p| store::normalize_source_path(&p.to_string_lossy()))
+        .map(|p| crypto::path_token(&key, &p.to_string_lossy()))
         .collect();
 
     // A file to (re)index, plus the scope to write its rows under.
@@ -2191,7 +2219,6 @@ async fn run_workspace_index(
         std::collections::BTreeMap::new();
 
     for file in &all_files {
-        let norm = store::normalize_source_path(&file.to_string_lossy());
         if effective_full {
             // Full walk: (re)index everything under the workspace-default scope
             // (the caller's `matter` — UNASSIGNED for the default None, or a real
@@ -2206,19 +2233,19 @@ async fn run_workspace_index(
         }
         // Reconcile: the pure `decide_file` decision. Skip an unchanged,
         // non-tombstoned file; otherwise re-index — a tombstoned file to clear its
-        // tombstone, a changed file under its RECORDED scope (never widened).
-        let tombstoned = {
-            let token = crypto::path_token(&key, &norm);
-            state.unsafe_tokens.lock().await.contains(&token)
-        };
+        // tombstone, a changed file under its RECORDED scope (never widened). The
+        // manifest key is the source's path token (matches the stored rows, and
+        // keeps no plaintext path on disk).
+        let token = crypto::path_token(&key, &file.to_string_lossy());
+        let tombstoned = state.unsafe_tokens.lock().await.contains(&token);
         match manifest::decide_file(
-            manifest.get(&norm),
+            manifest.get(&token),
             manifest::stat_signature(file),
             tombstoned,
         ) {
             manifest::FileDecision::Skip => {
-                if let Some(entry) = manifest.get(&norm) {
-                    next_sources.insert(norm.clone(), entry.clone());
+                if let Some(entry) = manifest.get(&token) {
+                    next_sources.insert(token, entry.clone());
                 }
                 reused += 1;
             }
@@ -2249,23 +2276,26 @@ async fn run_workspace_index(
     let mut tally = IndexTally::default();
     let mut deleted: u32 = 0;
     for gone in &deleted_keys {
-        match store::delete_path(&table, gone, &key).await {
+        // `gone` is the source's HMAC path token — delete/tombstone BY TOKEN, since
+        // the plaintext path is gone from disk and the token is what the rows and
+        // the tombstone set are keyed under.
+        match store::delete_by_token(&table, gone).await {
             Ok(()) => {
-                clear_tombstone(&state, &workspace, gone, &key).await;
+                clear_tombstone_token(&state, &workspace, gone).await;
                 deleted += 1;
             }
             Err(e) => {
                 // FAIL CLOSED: the file is gone from disk but its rows could not be
                 // purged. A deleted file's content must never remain citable, so
-                // durably tombstone the path (retrieval + verification exclude it)
+                // durably tombstone the token (retrieval + verification exclude it)
                 // until a later boot successfully purges it. If the durable persist
                 // ALSO fails, mark the walk so it does not stamp completion (next
                 // launch re-runs). Keep the manifest entry so the purge is retried.
                 log::error!(
-                    "rag reconcile: failed to purge rows for deleted {gone}; \
+                    "rag reconcile: failed to purge rows for a deleted source; \
                      tombstoning so its content cannot resurface in search: {e:#}"
                 );
-                if tombstone_path(&state, &workspace, gone, &key).await.is_err() {
+                if tombstone_token(&state, &workspace, gone.clone()).await.is_err() {
                     tally.durable_tombstone_failed = true;
                 }
                 if let Some(sig) = manifest.get(gone) {
@@ -2328,7 +2358,8 @@ async fn run_workspace_index(
                 ..Default::default()
             },
         );
-        let norm = store::normalize_source_path(&item.file.to_string_lossy());
+        // Manifest key = the source's path token (matches the rows; no plaintext).
+        let token = crypto::path_token(&key, &item.file.to_string_lossy());
         match process_one_workspace_file(
             &app,
             &state,
@@ -2354,7 +2385,7 @@ async fn run_workspace_index(
                 if let Some(sig) =
                     text_source_signature(&item.file, &item.matter, &item.privilege, rc)
                 {
-                    next_sources.insert(norm, sig);
+                    next_sources.insert(token, sig);
                 }
             }
             FileProcess::NotRecorded => {
@@ -3235,7 +3266,7 @@ pub async fn rag_retag_privilege(
         .map_err(|e| format!("retag privilege: {e}"))?;
     // P1.1: keep the manifest's recorded scope in sync so a later reconcile
     // re-indexes a changed file under the NEW privilege, never a stale one.
-    update_manifest_scope(&state, &workspace, &path, None, Some(&privilege)).await;
+    update_manifest_scope(&state, &workspace, &path, None, Some(&privilege), &key).await;
     Ok(updated as u32)
 }
 
@@ -3278,7 +3309,7 @@ pub async fn rag_retag_matter(
         .map_err(|e| format!("retag matter: {e}"))?;
     // P1.1: keep the manifest's recorded scope in sync so a later reconcile
     // re-indexes a changed file under the NEW matter, never a stale (wider) one.
-    update_manifest_scope(&state, &workspace, &path, Some(&matter_id), None).await;
+    update_manifest_scope(&state, &workspace, &path, Some(&matter_id), None, &key).await;
     Ok(updated as u32)
 }
 
@@ -3299,14 +3330,14 @@ pub async fn rag_manifest_pdf_fresh(
     if state.index_integrity_unknown.load(Ordering::SeqCst) {
         return Ok(false);
     }
-    let norm = store::normalize_source_path(&path);
+    // Manifest key = the PDF's path token (matches how its rows are keyed, and
+    // keeps no plaintext path on disk). The frontend passes the SAME `path` to
+    // `rag_index_pdf_chunks`, so the token agrees with the stored rows.
+    let key = crypto::get_or_create_master_key().map_err(|e| format!("vectors key: {e}"))?;
+    let token = crypto::path_token(&key, &path);
     // A tombstoned PDF must re-index to clear the tombstone.
-    {
-        let key = crypto::get_or_create_master_key().map_err(|e| format!("vectors key: {e}"))?;
-        let token = crypto::path_token(&key, &norm);
-        if state.unsafe_tokens.lock().await.contains(&token) {
-            return Ok(false);
-        }
+    if state.unsafe_tokens.lock().await.contains(&token) {
+        return Ok(false);
     }
     let Some((size, mtime)) = manifest::stat_signature(Path::new(&path)) else {
         return Ok(false);
@@ -3321,7 +3352,7 @@ pub async fn rag_manifest_pdf_fresh(
         return Ok(false);
     }
     let now = manifest::PdfInputs::current(ocr_enabled);
-    Ok(m.get(&norm)
+    Ok(m.get(&token)
         .map(|s| s.is_fresh(size, mtime, Some(&now)))
         .unwrap_or(false))
 }
@@ -3363,12 +3394,32 @@ pub async fn rag_manifest_record_pdf(
         row_count: 0,
         indexed_at: now_unix_secs(),
     };
-    let norm = store::normalize_source_path(&path);
+    // Key by the PDF's path token (matches its rows; no plaintext path on disk).
+    let key = crypto::get_or_create_master_key().map_err(|e| format!("vectors key: {e}"))?;
+    let token = crypto::path_token(&key, &path);
     let _mg = state.manifest_lock.lock().await;
     let mut m = manifest::load(&workspace, store::INDEX_VERSION);
     m.index_version = store::INDEX_VERSION;
-    m.insert(norm, sig);
+    m.insert(token, sig);
     manifest::save(&workspace, &m).map_err(|e| format!("save manifest: {e}"))?;
+    Ok(())
+}
+
+/// P1.1 (Task 3) — forget ALL PDF manifest entries. Called when the user turns
+/// PDF indexing OFF (which deletes every PDF's rows): without this, the stale
+/// "fresh" signatures would make a later toggle-ON skip re-indexing PDFs whose
+/// rows no longer exist, so they'd silently vanish from search. Text/office
+/// entries are untouched.
+#[tauri::command]
+pub async fn rag_manifest_forget_pdfs(state: State<'_, RagState>) -> Result<(), String> {
+    let workspace = require_workspace(&state).await?;
+    let _mg = state.manifest_lock.lock().await;
+    let mut m = manifest::load(&workspace, store::INDEX_VERSION);
+    let before = m.sources.len();
+    m.sources.retain(|_, sig| sig.pdf.is_none());
+    if m.sources.len() != before {
+        manifest::save(&workspace, &m).map_err(|e| format!("save manifest: {e}"))?;
+    }
     Ok(())
 }
 
