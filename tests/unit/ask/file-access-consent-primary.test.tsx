@@ -260,7 +260,7 @@ describe('F2.5b — Ask primary-surface consent gate', () => {
 
   it('P1 (Codex): revoking consent mid-conversation redacts prior file-grounded history from the next cloud prompt', async () => {
     // Files-only mode makes the citation binding deterministic (flat cited path).
-    localStorage.setItem('advisor-prep-hero:ask-files-only', '1');
+    localStorage.setItem('lantern:ask-files-only', '1');
     try {
       h.cloudSend.mockResolvedValue({
         content: 'The client wants to retire in 2032 [plan.pdf paragraph 2].',
@@ -286,12 +286,12 @@ describe('F2.5b — Ask primary-surface consent gate', () => {
       // prior file-grounded answer via conversation history.
       expect(h.capturedCloudPrompt).not.toContain('retire in 2032');
     } finally {
-      localStorage.removeItem('advisor-prep-hero:ask-files-only');
+      localStorage.removeItem('lantern:ask-files-only');
     }
   });
 
   it('P1 control: while consent stays granted, prior answers DO carry in history (proves the redaction is load-bearing)', async () => {
-    localStorage.setItem('advisor-prep-hero:ask-files-only', '1');
+    localStorage.setItem('lantern:ask-files-only', '1');
     try {
       h.cloudSend.mockResolvedValue({
         content: 'The client wants to retire in 2032 [plan.pdf paragraph 2].',
@@ -313,7 +313,7 @@ describe('F2.5b — Ask primary-surface consent gate', () => {
       // Consent still granted → the prior answer legitimately rides along in history.
       expect(h.capturedCloudPrompt).toContain('retire in 2032');
     } finally {
-      localStorage.removeItem('advisor-prep-hero:ask-files-only');
+      localStorage.removeItem('lantern:ask-files-only');
     }
   });
 
