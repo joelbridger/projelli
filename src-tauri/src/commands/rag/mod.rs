@@ -31,6 +31,7 @@ pub mod bm25_index;
 pub mod crypto;
 pub mod embedder;
 pub mod extractor;
+pub mod manifest;
 pub mod model_download;
 pub mod office;
 pub mod pdf_indexer;
@@ -195,10 +196,33 @@ pub struct IndexingProgress {
     /// `MAX_REPORTED_SKIPPED_PATHS`) on the terminal event so the UI can list them.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub skipped_paths: Vec<String>,
+    /// P1.1 (Task 2) — true ONLY while a real one-time SCHEMA MIGRATION rebuild is
+    /// running (the vector store predates the current `INDEX_VERSION`). The banner
+    /// says an honest "Upgrading search index…" in that case, distinct from a
+    /// routine boot reconcile. False for every normal reconcile / incremental walk.
+    #[serde(skip_serializing_if = "is_false")]
+    pub migrating: bool,
+    /// P1.1 (Task 4) — files a boot reconcile SKIPPED because their signature was
+    /// unchanged (the whole point: work avoided). Cumulative; final on the terminal
+    /// event. Zero on a cold/full walk.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub reused: u32,
+    /// P1.1 (Task 4) — files a boot reconcile actually re-extracted/re-embedded
+    /// because they were new or changed. On a full walk this equals `total`.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub reindexed: u32,
+    /// P1.1 (Task 4) — sources whose rows were purged because the file was deleted
+    /// from disk since the last index.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub deleted: u32,
 }
 
 fn is_zero(n: &u32) -> bool {
     *n == 0
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 #[derive(Serialize, Clone, Debug, Default)]
@@ -207,6 +231,10 @@ fn is_zero(n: &u32) -> bool {
 pub enum IndexingStatus {
     #[default]
     Idle,
+    /// P1.1 (Task 4) — the cheap stat-walk phase of a boot reconcile: comparing
+    /// each file against the manifest to decide what changed. No extraction or
+    /// embedding happens here, so it is fast even on large workspaces.
+    Checking,
     Indexing,
     Done,
     Cancelled,
@@ -439,6 +467,15 @@ pub struct RagState {
     /// boundary — every chunk it proposes is re-fetched through the same scoped
     /// predicate the vector pass uses.
     pub bm25: Arc<Mutex<bm25_index::Bm25Index>>,
+    /// P1.1 — serializes read-modify-write of the persistent RAG manifest
+    /// (`.lantern/rag-manifest-v1.json`). Two writers touch it: the Rust
+    /// text/office boot reconcile and the frontend PDF-index path (which records
+    /// PDF signatures via `rag_manifest_record_pdf`), and they can run
+    /// concurrently. All load→mutate→save sequences hold this lock so neither
+    /// clobbers the other's entries. The manifest is a boot-speed cache only —
+    /// losing an update never risks a stale ROW, only a needless re-index — so
+    /// this lock is about consistency, not a security boundary.
+    pub manifest_lock: Arc<Mutex<()>>,
 }
 
 /// RAII guard that clears `RagState::indexing` on every exit path (normal
@@ -656,12 +693,23 @@ async fn tombstone_path(
     path: &str,
     key: &[u8; 32],
 ) -> anyhow::Result<()> {
+    tombstone_token(state, workspace, crypto::path_token(key, path)).await
+}
+
+/// P1.1 — tombstone a path by its already-computed HMAC token. The boot reconcile
+/// purges a DELETED file knowing only its manifest key (the token, since the
+/// plaintext path is gone), so it tombstones by token directly on a purge failure.
+/// Same durable/fail-closed semantics as `tombstone_path`.
+async fn tombstone_token(
+    state: &RagState,
+    workspace: &Path,
+    token: String,
+) -> anyhow::Result<()> {
     use anyhow::Context;
-    let token = crypto::path_token(key, path);
     let mut guard = state.unsafe_tokens.lock().await;
     guard.insert(token);
     let result = store::write_unsafe_tokens(workspace, &guard)
-        .with_context(|| format!("persist unsafe-tokens tombstone for {path}"));
+        .context("persist unsafe-tokens tombstone (by token)");
     if result.is_err() {
         // Cross-process fail-closed: the durable token set is now stale/missing
         // this token, and the MCP sidecar only reads disk. Drop a durable sentinel
@@ -684,13 +732,19 @@ async fn tombstone_path(
 /// CONCURRENCY: as with `tombstone_path`, the disk write is performed under the
 /// set lock so memory and disk update atomically w.r.t. other tombstone/clear.
 async fn clear_tombstone(state: &RagState, workspace: &Path, path: &str, key: &[u8; 32]) {
-    let token = crypto::path_token(key, path);
+    clear_tombstone_token(state, workspace, &crypto::path_token(key, path)).await;
+}
+
+/// P1.1 — clear a tombstone by its already-computed HMAC token (the reconcile's
+/// deleted-file purge holds the token, not the plaintext path). No-op when the
+/// token was not tombstoned, so the happy path never touches the file.
+async fn clear_tombstone_token(state: &RagState, workspace: &Path, token: &str) {
     let mut guard = state.unsafe_tokens.lock().await;
-    if !guard.remove(&token) {
+    if !guard.remove(token) {
         return; // not tombstoned — nothing to persist.
     }
     if let Err(e) = store::write_unsafe_tokens(workspace, &guard) {
-        log::error!("rag: failed to persist cleared tombstone for {path}: {e:#}");
+        log::error!("rag: failed to persist cleared tombstone (by token): {e:#}");
     }
 }
 
@@ -840,7 +894,7 @@ pub async fn rag_index_file(
     // the shared flag true until the next walk resets it, and a stale `true`
     // would silently skip every watcher-triggered single-file index.
     match index_one_file(&table, &file_path, &matter, &privilege, &key, None, vault_vmk).await {
-        Ok(()) => {
+        Ok(indexed) => {
             // vault_vmk_holder is dropped (and ZeroizedVmk zeroizes) at fn exit.
             // BUG-099 tombstone self-heal: the file watcher's per-file re-index
             // CLEARS this path's tombstone (in memory AND on disk). Without this,
@@ -849,6 +903,16 @@ pub async fn rag_index_file(
             // full walk or restart. `index_one_file` is delete-then-add (an
             // upsert), so a successful return means the path's rows are consistent.
             clear_tombstone(&state, &workspace, &path, &key).await;
+            // P1.1: refresh the manifest signature under the scope actually used so
+            // a later boot reconcile skips this file while unchanged and re-indexes
+            // it under the CORRECT matter/privilege when it changes — but ONLY when
+            // the file was actually indexed. A DELETE-ONLY outcome (a transiently
+            // unreadable / too-large / unparseable file, `indexed == false`) records
+            // NO signature, so it is retried next boot instead of cached as fresh.
+            if indexed {
+                record_text_manifest_entry(&state, &workspace, &file_path, &matter, &privilege, 0, &key)
+                    .await;
+            }
             Ok(())
         }
         Err(e) => {
@@ -978,6 +1042,20 @@ enum ExtractedFileData {
     Grouped {
         groups: Vec<(store::SourceType, Vec<(chunker::Chunk, Vec<f32>)>)>,
     },
+}
+
+impl ExtractedFileData {
+    /// Number of chunk rows this extraction will write (0 for delete/skip
+    /// variants). Recorded in the manifest as informational `row_count`.
+    fn row_count(&self) -> u32 {
+        match self {
+            ExtractedFileData::ShouldDelete | ExtractedFileData::SkippedUnreadable => 0,
+            ExtractedFileData::Flat { rows, .. } => rows.len() as u32,
+            ExtractedFileData::Grouped { groups } => {
+                groups.iter().map(|(_, rows)| rows.len() as u32).sum()
+            }
+        }
+    }
 }
 
 /// BLOCKER 2: extract + embed only — no DB write. The caller (the walk) writes
@@ -1225,12 +1303,19 @@ async fn index_one_file(
     key: &[u8; 32],
     cancel: Option<&AtomicBool>,
     vault_vmk: Option<&[u8; 32]>,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<bool> {
+    // P1.1: returns Ok(true) when the file was actually indexed (rows written or a
+    // readable-but-empty file), Ok(false) for a DELETE-ONLY outcome — a missing /
+    // too-large / unreadable / parse-failed file whose stale rows were dropped. The
+    // caller (`rag_index_file`) records a manifest freshness signature ONLY on
+    // Ok(true), so a transiently-unreadable file (locked / OneDrive-offline) is
+    // retried next boot instead of being cached as fresh-and-empty (and thus
+    // silently dropped from search until its size/mtime changes).
     let path_str = file_path.to_string_lossy().to_string();
     let Some(kind) = extractor::classify(file_path) else {
         // Callers gate on `is_indexable` (== classify().is_some()), so this
         // arm is defensive only.
-        return Ok(());
+        return Ok(false);
     };
     match kind {
         extractor::IndexKind::Text => {
@@ -1241,13 +1326,13 @@ async fn index_one_file(
             let Some(raw_bytes) = extractor::read_text_bytes(file_path) else {
                 // File missing or too big — drop any existing rows for safety.
                 store::delete_path(table, &path_str, key).await?;
-                return Ok(());
+                return Ok(false);
             };
             let decrypted = decrypt_if_vaulted(raw_bytes, vault_vmk);
             let Some(text) = String::from_utf8(decrypted).ok() else {
                 // After decryption the bytes are not valid UTF-8 — skip this file.
                 store::delete_path(table, &path_str, key).await?;
-                return Ok(());
+                return Ok(false);
             };
             // Mirror what the old extractor::read_text empty-string guard did:
             // an empty string after decryption still flows into the chunker which
@@ -1268,7 +1353,8 @@ async fn index_one_file(
                 return index_transcript(
                     table, &path_str, &text, matter_id, privilege, key, cancel,
                 )
-                .await;
+                .await
+                .map(|()| true);
             }
             index_plain_text(
                 table,
@@ -1281,11 +1367,12 @@ async fn index_one_file(
                 cancel,
             )
             .await
+            .map(|()| true)
         }
         extractor::IndexKind::Docx | extractor::IndexKind::Rtf => {
             let Some(raw_bytes) = extractor::read_bytes(file_path) else {
                 store::delete_path(table, &path_str, key).await?;
-                return Ok(());
+                return Ok(false);
             };
             // VG-6d: decrypt in memory before passing to the office extractor.
             let bytes = decrypt_if_vaulted(raw_bytes, vault_vmk);
@@ -1306,7 +1393,7 @@ async fn index_one_file(
                         "rag: skipping unreadable office file {}: {e:#}",
                         file_path.display()
                     );
-                    return Ok(());
+                    return Ok(false);
                 }
             };
             let source_type = match kind {
@@ -1317,11 +1404,12 @@ async fn index_one_file(
                 table, &path_str, &text, source_type, matter_id, privilege, key, cancel,
             )
             .await
+            .map(|()| true)
         }
         extractor::IndexKind::Xlsx | extractor::IndexKind::Pptx => {
             let Some(raw_bytes) = extractor::read_bytes(file_path) else {
                 store::delete_path(table, &path_str, key).await?;
-                return Ok(());
+                return Ok(false);
             };
             // VG-6d: decrypt in memory before passing to the office extractor.
             let bytes = decrypt_if_vaulted(raw_bytes, vault_vmk);
@@ -1337,7 +1425,7 @@ async fn index_one_file(
                         "rag: skipping unreadable office file {}: {e:#}",
                         file_path.display()
                     );
-                    return Ok(());
+                    return Ok(false);
                 }
             };
             // A valid package with no extractable sheets/slides is EMPTY
@@ -1345,7 +1433,7 @@ async fn index_one_file(
             let banded = build_section_chunks(&path_str, &sections);
             if banded.iter().all(|(_, chunks)| chunks.is_empty()) {
                 store::delete_path(table, &path_str, key).await?;
-                return Ok(());
+                return Ok(false);
             }
             let texts: Vec<String> = banded
                 .iter()
@@ -1354,7 +1442,7 @@ async fn index_one_file(
             // F-501 — same bounded, cancel-aware embedding as every other
             // index path; never a new unbatched embed call.
             let Some(vectors) = embedder::embed_documents_batched(&texts, cancel).await? else {
-                return Ok(());
+                return Ok(false); // cancelled mid-embed — nothing written
             };
             let mut vectors = vectors.into_iter();
             let source_type_for = |number: u32| match kind {
@@ -1376,7 +1464,7 @@ async fn index_one_file(
                 })
                 .collect();
             store::upsert_grouped(table, &path_str, groups, matter_id, privilege, key).await?;
-            Ok(())
+            Ok(true)
         }
     }
 }
@@ -1495,14 +1583,484 @@ fn build_section_chunks(
     out
 }
 
+/// P1.1 — which mode `run_workspace_index` runs in.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum IndexMode {
+    /// Cold/full walk: (re)index EVERY supported file. Used by the legacy
+    /// `rag_index_workspace` command (scoped re-index + explicit full rebuilds)
+    /// and forced whenever a schema migration or a fail-closed integrity-unknown
+    /// state requires rebuilding the whole store from scratch.
+    Full,
+    /// Boot reconcile: stat-walk the tree, then (re)index only new/changed files,
+    /// purge rows for files deleted since the last index, and SKIP everything whose
+    /// signature is unchanged. The whole P1.1 win.
+    Reconcile,
+}
+
+/// P1.1 — mutable per-walk tally shared by `process_one_workspace_file`. Groups
+/// the BUG-099 skip/fail/tombstone bookkeeping so the same per-file logic serves
+/// both the full walk and the reconcile walk (one source of truth for the
+/// fail-closed guarantees).
+#[derive(Default)]
+struct IndexTally {
+    skipped_files: u32,
+    failed_files: u32,
+    timed_out_files: u32,
+    cleanup_failed_files: u32,
+    /// BUG-099: set if ANY durable tombstone write failed this walk. When true the
+    /// walk must NOT stamp completion, so the next launch re-runs a full walk.
+    durable_tombstone_failed: bool,
+    skipped_paths: Vec<String>,
+}
+
+/// P1.1 — result of processing one file, telling the caller how to update the
+/// manifest and progress counters.
+enum FileProcess {
+    /// `(Indexed, None)` from the extract task: the user cancelled mid-file.
+    /// Nothing was written; the caller's next cancel check ends the walk. Not
+    /// counted as re-indexed and no manifest signature is recorded.
+    CancelledMidFile,
+    /// Cleanly indexed (or a clean silent skip: empty / too-large / missing) —
+    /// the caller records a FRESH manifest signature carrying this row count.
+    Recorded(u32),
+    /// Failed / unreadable / purge-failed — the caller records NO manifest
+    /// signature so the file is retried on the next boot.
+    NotRecorded,
+}
+
+/// P1.1 — process exactly one workspace file: extract+embed under the timeout,
+/// write (single-writer), purge/tombstone on skip, and emit per-file progress.
+/// This is the SHARED per-file body used by both the full walk and the reconcile
+/// walk, so the BUG-099 fail-closed bookkeeping lives in exactly one place.
+///
+/// `matter`/`privilege` are the scope this file's rows are written under. The
+/// full walk passes the workspace-default scope; the reconcile walk passes each
+/// EXISTING file's previously-recorded scope (so a changed file is never widened
+/// to `unassigned`) and the default only for genuinely new files.
+#[allow(clippy::too_many_arguments)]
+async fn process_one_workspace_file(
+    app: &AppHandle,
+    state: &RagState,
+    table: &lancedb::Table,
+    workspace: &Path,
+    file: &Path,
+    matter: &str,
+    privilege: &str,
+    key: &[u8; 32],
+    vault_vmk: Option<[u8; 32]>,
+    cancel: &Arc<AtomicBool>,
+    processed: u32,
+    total: u32,
+    tally: &mut IndexTally,
+) -> FileProcess {
+    let file_for_task = file.to_path_buf();
+    let cancel_for_task = cancel.clone();
+    let vault_vmk_for_task = vault_vmk;
+    let (outcome, extracted) = run_file_extract_task(
+        file.to_path_buf(),
+        WORKSPACE_FILE_INDEX_TIMEOUT,
+        async move {
+            extract_embed_one_file(
+                &file_for_task,
+                Some(cancel_for_task.as_ref()),
+                vault_vmk_for_task.as_ref(),
+            )
+            .await
+        },
+    )
+    .await;
+
+    let mut recorded_rows: Option<u32> = None;
+
+    // Parent is sole DB writer: on success write the extracted data; on skip
+    // the write is skipped (stale rows are purged below).
+    if matches!(outcome, FileIndexOutcome::Indexed) {
+        if let Some(data) = extracted {
+            let path_str = file.to_string_lossy().to_string();
+            let row_count = data.row_count();
+            // A `ShouldDelete` outcome is delete-only: it covers an intentional
+            // skip (empty / oversized) AND a TRANSIENT read failure (a locked or
+            // OneDrive-offline file that can still be stat'd — `read_*_bytes`
+            // returns None for both). We must NOT record a fresh signature for it,
+            // or a warm boot would skip the file forever until its size/mtime
+            // changes, silently dropping a temporarily-unreadable file from search.
+            // Re-attempting the (cheap) read next boot is the fail-safe choice.
+            let delete_only = matches!(data, ExtractedFileData::ShouldDelete);
+            match write_extracted_file(table, &path_str, data, matter, privilege, key).await {
+                Ok(true) => {
+                    // SkippedUnreadable: extraction failed on a readable file. Stale
+                    // rows WERE deleted, so the path is safe — clear any tombstone,
+                    // but do NOT record a manifest signature (retry next boot).
+                    clear_tombstone(state, workspace, &path_str, key).await;
+                    tally.skipped_files += 1;
+                    tally.failed_files += 1;
+                    tally.skipped_paths.push(path_str.clone());
+                    log::warn!(
+                        "rag: counted as failed skip (unreadable): {}",
+                        file.display()
+                    );
+                    let _ = app.emit(
+                        PROGRESS_EVENT,
+                        IndexingProgress {
+                            status: IndexingStatus::Indexing,
+                            processed: processed + 1,
+                            total,
+                            current_path: Some(path_str),
+                            skipped: tally.skipped_files,
+                            failed: tally.failed_files,
+                            timed_out: tally.timed_out_files,
+                            ..Default::default()
+                        },
+                    );
+                    return FileProcess::NotRecorded;
+                }
+                Ok(false) => {
+                    // Normal success (indexed, or a legitimately empty file). Clear
+                    // any prior tombstone (self-heal) and record a fresh signature —
+                    // EXCEPT for a delete-only outcome (see `delete_only` above),
+                    // which we leave unrecorded so a transiently-unreadable file is
+                    // retried next boot rather than cached as fresh-and-empty.
+                    clear_tombstone(state, workspace, &path_str, key).await;
+                    recorded_rows = if delete_only { None } else { Some(row_count) };
+                }
+                Err(e) => {
+                    log::warn!("rag: DB write failed for {}: {e:#}", file.display());
+                    // A failed write may leave stale rows — durably tombstone the
+                    // path so retrieval cannot serve them until a later clean index.
+                    if tombstone_path(state, workspace, &path_str, key).await.is_err() {
+                        tally.durable_tombstone_failed = true;
+                    }
+                    tally.cleanup_failed_files += 1;
+                    tally.skipped_files += 1;
+                    tally.failed_files += 1;
+                    tally.skipped_paths.push(path_str.clone());
+                    let _ = app.emit(
+                        PROGRESS_EVENT,
+                        IndexingProgress {
+                            status: IndexingStatus::Indexing,
+                            processed: processed + 1,
+                            total,
+                            current_path: Some(path_str),
+                            skipped: tally.skipped_files,
+                            failed: tally.failed_files,
+                            timed_out: tally.timed_out_files,
+                            cleanup_failed: tally.cleanup_failed_files,
+                            ..Default::default()
+                        },
+                    );
+                    return FileProcess::NotRecorded;
+                }
+            }
+        } else {
+            // `(Indexed, None)`: user cancelled mid-file. Do nothing; the caller's
+            // next cancel check ends the walk.
+            return FileProcess::CancelledMidFile;
+        }
+    }
+
+    // BUG-099: drop stale rows for any skipped file BEFORE moving on, so retrieval
+    // can never cite an old version of a file we couldn't re-read.
+    let purge = purge_stale_rows_on_skip(table, file, key, &outcome).await;
+    match outcome {
+        FileIndexOutcome::Indexed => {}
+        FileIndexOutcome::Failed(_) => {
+            tally.skipped_files += 1;
+            tally.failed_files += 1;
+        }
+        FileIndexOutcome::TimedOut => {
+            tally.skipped_files += 1;
+            tally.timed_out_files += 1;
+        }
+    }
+    match purge {
+        PurgeOutcome::NotNeeded => {}
+        PurgeOutcome::PurgedCleanly => {
+            let path_str = file.to_string_lossy().to_string();
+            clear_tombstone(state, workspace, &path_str, key).await;
+            tally.skipped_paths.push(path_str);
+        }
+        PurgeOutcome::PurgeFailed => {
+            tally.cleanup_failed_files += 1;
+            let path_str = file.to_string_lossy().to_string();
+            tally.skipped_paths.push(path_str.clone());
+            if tombstone_path(state, workspace, &path_str, key).await.is_err() {
+                tally.durable_tombstone_failed = true;
+            }
+            log::error!(
+                "rag: path tombstoned for {} — skipped file AND cleanup failed; \
+                 its stale rows are excluded from retrieval until a clean re-index",
+                file.display()
+            );
+        }
+    }
+    let _ = app.emit(
+        PROGRESS_EVENT,
+        IndexingProgress {
+            status: IndexingStatus::Indexing,
+            processed: processed + 1,
+            total,
+            current_path: Some(file.to_string_lossy().to_string()),
+            skipped: tally.skipped_files,
+            failed: tally.failed_files,
+            timed_out: tally.timed_out_files,
+            cleanup_failed: tally.cleanup_failed_files,
+            ..Default::default()
+        },
+    );
+
+    match recorded_rows {
+        Some(rc) => FileProcess::Recorded(rc),
+        None => {
+            // Skipped/failed above with no clean write and no early return — this is
+            // a genuinely failed file (Failed/TimedOut). Do not record.
+            FileProcess::NotRecorded
+        }
+    }
+}
+
+/// P1.1 — finalize a walk: apply the BUG-099 completion / fail-closed rules and
+/// emit the terminal progress event. Shared by the full walk and the reconcile
+/// walk so the "when is it safe to stamp completion" decision lives in one place.
+#[allow(clippy::too_many_arguments)]
+async fn finalize_walk(
+    app: &AppHandle,
+    state: &RagState,
+    workspace: &Path,
+    effective_full: bool,
+    total: u32,
+    tally: &IndexTally,
+    reused: u32,
+    reindexed: u32,
+    deleted: u32,
+) {
+    let mut fail_closed_unresolved = tally.durable_tombstone_failed;
+    if tally.durable_tombstone_failed {
+        log::error!(
+            "rag: a durable tombstone write FAILED this walk — NOT stamping the \
+             completion marker so the next launch re-runs a full walk (prevents a \
+             stale citation resurfacing on restart)"
+        );
+    } else if effective_full {
+        // A clean FULL walk re-derived the complete tombstone set (every file was
+        // re-indexed). Rewrite the durable file from the current in-memory set so
+        // it is known-good, clear the integrity-unknown sentinel, then stamp the
+        // schema version. Hold the unsafe-tokens lock across the write so a
+        // concurrent watcher tombstone cannot be lost. (See BUG-099.)
+        let guard = state.unsafe_tokens.lock().await;
+        match store::write_unsafe_tokens(workspace, &guard) {
+            Ok(()) => {
+                store::clear_integrity_unknown(workspace);
+                state.index_integrity_unknown.store(false, Ordering::SeqCst);
+                drop(guard);
+                if let Err(e) = store::write_index_version(workspace) {
+                    log::warn!("rag: failed to write index version marker: {}", e);
+                }
+            }
+            Err(e) => {
+                drop(guard);
+                fail_closed_unresolved = true;
+                log::error!(
+                    "rag: could not rewrite the durable tombstone file after a clean \
+                     full walk ({e:#}); leaving integrity flag set and NOT stamping \
+                     completion so the next launch re-runs"
+                );
+            }
+        }
+    } else {
+        // A clean RECONCILE walk does NOT re-derive the whole tombstone set (it only
+        // touched changed files), so it must NOT rewrite the durable tombstone file
+        // or clear the integrity sentinel — per-file tombstones already persisted
+        // incrementally, and a reconcile is only allowed to run when integrity is
+        // already known-good (an integrity-unknown state forces a full walk). The
+        // schema version is already current (no migration), so stamping is a
+        // harmless refresh that records "the store is up to date".
+        if let Err(e) = store::write_index_version(workspace) {
+            log::warn!("rag: failed to write index version marker: {}", e);
+        }
+    }
+
+    if fail_closed_unresolved {
+        // RECOVERY: re-arm the once-per-activation latch so a retry can re-run, and
+        // emit Error (not a happy Done) so the banner prompts a re-index.
+        state.full_index_pending.store(true, Ordering::SeqCst);
+        let _ = app.emit(
+            PROGRESS_EVENT,
+            IndexingProgress {
+                status: IndexingStatus::Error,
+                processed: total,
+                total,
+                current_path: None,
+                skipped: tally.skipped_files,
+                failed: tally.failed_files,
+                timed_out: tally.timed_out_files,
+                cleanup_failed: tally.cleanup_failed_files,
+                skipped_paths: cap_skipped_paths(&tally.skipped_paths),
+                ..Default::default()
+            },
+        );
+        log::error!(
+            "rag: finished in a FAIL-CLOSED state (durable tombstone not persisted) \
+             — emitted Error, re-armed the full-index latch for retry"
+        );
+        return;
+    }
+
+    let _ = app.emit(
+        PROGRESS_EVENT,
+        IndexingProgress {
+            status: IndexingStatus::Done,
+            processed: total,
+            total,
+            current_path: None,
+            skipped: tally.skipped_files,
+            failed: tally.failed_files,
+            timed_out: tally.timed_out_files,
+            cleanup_failed: tally.cleanup_failed_files,
+            skipped_paths: cap_skipped_paths(&tally.skipped_paths),
+            reused,
+            reindexed,
+            deleted,
+            ..Default::default()
+        },
+    );
+}
+
+/// P1.1 — Unix-seconds "now" for manifest `indexed_at` (best-effort; 0 on a
+/// clock before the epoch).
+fn now_unix_secs() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
+}
+
+/// P1.1 — build the fresh manifest signature for a just-indexed text/office file.
+/// (PDF signatures are recorded separately from the frontend PDF-index path via
+/// `rag_manifest_record_pdf`, since PDFs are not in the Rust walker.)
+fn text_source_signature(
+    file: &Path,
+    matter: &str,
+    privilege: &str,
+    row_count: u32,
+) -> Option<manifest::SourceSignature> {
+    let (size, mtime_ns) = manifest::stat_signature(file)?;
+    Some(manifest::SourceSignature {
+        size,
+        mtime_ns,
+        hash: None,
+        extractor_version: manifest::EXTRACTOR_VERSION,
+        chunker_version: manifest::CHUNKER_VERSION,
+        embedder_version: manifest::EMBEDDER_VERSION.to_string(),
+        pdf: None,
+        matter_id: matter.to_string(),
+        privilege: privilege.to_string(),
+        row_count,
+        indexed_at: now_unix_secs(),
+    })
+}
+
+/// P1.1 — record/refresh a text/office source's manifest signature after a
+/// successful single-file index (watcher, matter re-index). Keeps the manifest
+/// truthful so a later reconcile can safely skip an unchanged file and re-index a
+/// changed one under the RIGHT scope. Best-effort + locked (serialized with the
+/// reconcile walk and the PDF path). `row_count` is informational.
+async fn record_text_manifest_entry(
+    state: &RagState,
+    workspace: &Path,
+    file: &Path,
+    matter: &str,
+    privilege: &str,
+    row_count: u32,
+    key: &[u8; 32],
+) {
+    let Some(sig) = text_source_signature(file, matter, privilege, row_count) else {
+        return;
+    };
+    // Key by the source's path token (matches the rows; no plaintext path on disk).
+    let token = crypto::path_token(key, &file.to_string_lossy());
+    let _mg = state.manifest_lock.lock().await;
+    let mut m = manifest::load(workspace, store::INDEX_VERSION);
+    m.index_version = store::INDEX_VERSION;
+    m.insert(token, sig);
+    if let Err(e) = manifest::save(workspace, &m) {
+        log::warn!("rag: failed to save manifest after single-file index: {e}");
+    }
+}
+
+/// P1.1 — update a source's recorded scope in the manifest after an in-place
+/// retag (`rag_retag_matter` / `rag_retag_privilege`), so a later reconcile
+/// re-indexes a changed file under the CURRENT scope, never a stale one. No-op
+/// when the source isn't in the manifest yet (it will pick up the scope when it
+/// is first indexed). Best-effort + locked.
+async fn update_manifest_scope(
+    state: &RagState,
+    workspace: &Path,
+    path: &str,
+    matter: Option<&str>,
+    privilege: Option<&str>,
+    key: &[u8; 32],
+) {
+    let token = crypto::path_token(key, path);
+    let _mg = state.manifest_lock.lock().await;
+    let mut m = manifest::load(workspace, store::INDEX_VERSION);
+    let mut changed = false;
+    if let Some(sig) = m.sources.get_mut(&token) {
+        if let Some(mt) = matter {
+            if sig.matter_id != mt {
+                sig.matter_id = mt.to_string();
+                changed = true;
+            }
+        }
+        if let Some(pv) = privilege {
+            if sig.privilege != pv {
+                sig.privilege = pv.to_string();
+                changed = true;
+            }
+        }
+    }
+    if changed {
+        if let Err(e) = manifest::save(workspace, &m) {
+            log::warn!("rag: failed to save manifest after retag: {e}");
+        }
+    }
+}
+
 /// Walk the active workspace and index every supported file. Emits
 /// `rag-indexing-progress` events so the UI can render a banner. Honours
-/// `rag_cancel_indexing` mid-walk.
+/// `rag_cancel_indexing` mid-walk. Kept as the FULL-walk entry point: scoped
+/// re-index (`matter_id = Some`) and explicit full rebuilds. Routine boot now
+/// goes through `rag_reconcile_workspace` instead.
 #[tauri::command]
 pub async fn rag_index_workspace(
     app: AppHandle,
     state: State<'_, RagState>,
     matter_id: Option<String>,
+) -> Result<(), String> {
+    run_workspace_index(app, state, matter_id, IndexMode::Full).await
+}
+
+/// P1.1 (Task 4) — the boot indexing command. Cheap stat-walk of the workspace,
+/// then (re)index ONLY new/changed files, purge rows for deleted files, and skip
+/// everything whose signature is unchanged in the persistent manifest. Falls back
+/// to a full rebuild automatically when a schema migration or a fail-closed
+/// integrity-unknown state requires it. Replaces `rag_index_workspace` as the
+/// per-open indexer so a warm boot no longer re-embeds the whole workspace.
+#[tauri::command]
+pub async fn rag_reconcile_workspace(
+    app: AppHandle,
+    state: State<'_, RagState>,
+    matter_id: Option<String>,
+) -> Result<(), String> {
+    run_workspace_index(app, state, matter_id, IndexMode::Reconcile).await
+}
+
+/// P1.1 — shared engine behind `rag_index_workspace` (Full) and
+/// `rag_reconcile_workspace` (Reconcile). See `IndexMode`.
+async fn run_workspace_index(
+    app: AppHandle,
+    state: State<'_, RagState>,
+    matter_id: Option<String>,
+    mode: IndexMode,
 ) -> Result<(), String> {
     // Option B: without the embedding model there is nothing to index. Bail
     // with the typed marker BEFORE consuming the once-per-activation latch
@@ -1567,14 +2125,72 @@ pub async fn rag_index_workspace(
     // column. We never back-fill null (a null matter is a confidentiality
     // hazard) — instead drop the old table and re-index from scratch, which the
     // walk below does anyway. Idempotent + version-gated so it runs at most once.
-    if store::needs_migration(&conn, &workspace)
+    //
+    // P1.1 (Task 2) — schema migration is SEPARATE from routine boot reconcile.
+    // When `migrating` is true, this is a one-time SCHEMA rebuild: it forces a
+    // full walk (below), the stale manifest is dropped so its old-schema
+    // signatures can't wrongly skip files, and the banner reports an honest
+    // "Upgrading search index…" (via the `migrating` progress flag). A routine
+    // boot has `migrating == false` and does the cheap reconcile.
+    let migrating = store::needs_migration(&conn, &workspace)
         .await
-        .map_err(|e| format!("migration check: {e}"))?
-    {
-        log::info!("rag: migrating pre-3.0 vector store (re-index under matter scope)");
+        .map_err(|e| format!("migration check: {e}"))?;
+    // P1.1 — a manifest whose KEY FORMAT predates v2 (keyed by plaintext paths, not
+    // HMAC tokens) can't be matched against the token-keyed rows, so deletions
+    // can't be computed from it. Discarding it while the table survives would leave
+    // a deleted-while-closed file's rows searchable. Rebuild the store from scratch
+    // instead (drop + full reindex), which purges every stale/deleted row.
+    let stale_key_format = manifest::has_stale_key_format(&workspace);
+    if migrating {
+        log::info!("rag: migrating vector store to schema v{} (full re-index)", store::INDEX_VERSION);
         store::drop_table(&conn)
             .await
             .map_err(|e| format!("drop legacy table: {e}"))?;
+        manifest::delete(&workspace);
+    } else if stale_key_format {
+        log::info!("rag: manifest key-format upgrade (v1→v2) — rebuilding vector store from scratch");
+        store::drop_table(&conn)
+            .await
+            .map_err(|e| format!("drop table for manifest key-format upgrade: {e}"))?;
+        manifest::delete(&workspace);
+    }
+
+    // P1.1 — a fail-closed integrity-unknown state (a durable tombstone write
+    // failed on a prior run) is only cleared by a CLEAN FULL walk that rewrites
+    // the tombstone file. A reconcile skips files and would never clear it, so it
+    // must escalate to a full walk. Check both the in-process flag and the durable
+    // cross-process sentinel.
+    let integrity_unknown = state.index_integrity_unknown.load(Ordering::SeqCst)
+        || store::read_unsafe_tokens(&workspace).is_integrity_unknown();
+
+    // P1.1 — if the manifest survives but the LanceDB `chunks` table is ABSENT
+    // (the vectors cache was deleted / corrupted / never built), the store holds
+    // no rows, so trusting the manifest would "reuse" everything and leave search
+    // empty. `open_or_create_table` (below) would happily create a fresh empty
+    // table. Detect the absence FIRST and force a full rebuild.
+    let table_missing = !conn
+        .table_names()
+        .execute()
+        .await
+        .map_err(|e| format!("list tables: {e}"))?
+        .iter()
+        .any(|n| n == store::TABLE_NAME);
+
+    // A migration, a manifest key-format upgrade, a fail-closed recovery, or a
+    // missing vector table forces a full walk regardless of the requested mode.
+    let effective_full = matches!(mode, IndexMode::Full)
+        || migrating
+        || stale_key_format
+        || integrity_unknown
+        || table_missing;
+
+    // If the vector table is missing, the store holds NO rows — so EVERY manifest
+    // signature (text/office AND pdf) is stale. Drop the whole manifest so the
+    // text/office rebuild below isn't skipped AND the frontend PDF fresh-check
+    // (which would otherwise see retained pdf entries as "fresh") re-indexes PDFs
+    // too. (The migration path already deletes it above.)
+    if table_missing {
+        manifest::delete(&workspace);
     }
 
     let table = store::open_or_create_table(&conn)
@@ -1591,8 +2207,30 @@ pub async fn rag_index_workspace(
     let vault_vmk_holder = crate::commands::vault::try_load_vault_vmk(&workspace);
     let vault_vmk: Option<[u8; 32]> = vault_vmk_holder.as_ref().map(|v| *v.as_bytes());
 
-    // Phase 1: walk the tree.
-    let files: Vec<PathBuf> = walkdir::WalkDir::new(&workspace)
+    // ── Phase 1: enumerate the workspace + build the work list ──────────────
+    //
+    // Both modes stat-walk the whole tree (cheap: a directory traversal + one
+    // `metadata()` per file — no reads, extraction, or embedding). A Full walk
+    // then processes every file; a Reconcile walk processes only new/changed
+    // files and skips the rest, comparing each against the persistent manifest.
+    let walk_started = Instant::now();
+
+    // Reconcile surfaces the "checking files" phase distinctly from "indexing
+    // changed files" (Task 4) so the banner can say "Checking files…".
+    if !effective_full {
+        let _ = app.emit(
+            PROGRESS_EVENT,
+            IndexingProgress {
+                status: IndexingStatus::Checking,
+                processed: 0,
+                total: 0,
+                current_path: None,
+                ..Default::default()
+            },
+        );
+    }
+
+    let all_files: Vec<PathBuf> = walkdir::WalkDir::new(&workspace)
         .follow_links(false)
         .into_iter()
         .filter_entry(|e| {
@@ -1605,7 +2243,134 @@ pub async fn rag_index_workspace(
         .filter(|p| extractor::is_indexable(p))
         .collect();
 
-    let total = files.len() as u32;
+    // The manifest is authoritative for "have we already indexed this exact file
+    // version, and under what scope". A Full walk starts from empty (it rebuilds
+    // the text/office portion from scratch); a Reconcile loads the durable one. A
+    // missing/corrupt manifest loads empty → every file looks new → we re-index
+    // everything (correct, just not faster).
+    let mut manifest = if effective_full {
+        manifest::Manifest::new(store::INDEX_VERSION)
+    } else {
+        manifest::load(&workspace, store::INDEX_VERSION)
+    };
+    manifest.index_version = store::INDEX_VERSION;
+
+    // Normalized paths present on disk this walk (used to purge deleted files).
+    // P1.1 — the manifest is keyed by each source's HMAC PATH TOKEN, NOT its
+    // plaintext path: (a) VG-6e privacy parity — no client/matter file map is
+    // written to disk in plaintext (the `.lantern` manifest would otherwise
+    // reintroduce exactly what tokenizing the `path` column removed); and (b) the
+    // token matches the value the LanceDB rows are keyed under (`path_token` over
+    // the SAME path string the rows were written with — un-normalized), so the
+    // deleted-file purge and the tombstoned-file check hit the right rows on every
+    // platform, including Windows where the stored token is over a backslash path.
+    let disk_keys: std::collections::HashSet<String> = all_files
+        .iter()
+        .map(|p| crypto::path_token(&key, &p.to_string_lossy()))
+        .collect();
+
+    // A file to (re)index, plus the scope to write its rows under.
+    struct WorkItem {
+        file: PathBuf,
+        matter: String,
+        privilege: String,
+    }
+    let mut work: Vec<WorkItem> = Vec::new();
+    let mut reused: u32 = 0;
+    // The text/office manifest entries this walk will persist: reused files carry
+    // their existing fresh signature forward; (re)indexed files get a fresh one.
+    let mut next_sources: std::collections::BTreeMap<String, manifest::SourceSignature> =
+        std::collections::BTreeMap::new();
+
+    for file in &all_files {
+        if effective_full {
+            // Full walk: (re)index everything under the workspace-default scope
+            // (the caller's `matter` — UNASSIGNED for the default None, or a real
+            // id for a scoped rebuild — at PRIVILEGE_NONE). Per-file privilege /
+            // matter is re-tagged afterward by the frontend, as it always has been.
+            work.push(WorkItem {
+                file: file.clone(),
+                matter: matter.clone(),
+                privilege: store::PRIVILEGE_NONE.to_string(),
+            });
+            continue;
+        }
+        // Reconcile: the pure `decide_file` decision. Skip an unchanged,
+        // non-tombstoned file; otherwise re-index — a tombstoned file to clear its
+        // tombstone, a changed file under its RECORDED scope (never widened). The
+        // manifest key is the source's path token (matches the stored rows, and
+        // keeps no plaintext path on disk).
+        let token = crypto::path_token(&key, &file.to_string_lossy());
+        let tombstoned = state.unsafe_tokens.lock().await.contains(&token);
+        match manifest::decide_file(
+            manifest.get(&token),
+            manifest::stat_signature(file),
+            tombstoned,
+        ) {
+            manifest::FileDecision::Skip => {
+                if let Some(entry) = manifest.get(&token) {
+                    next_sources.insert(token, entry.clone());
+                }
+                reused += 1;
+            }
+            manifest::FileDecision::Reindex { prior_scope } => {
+                let (m, p) = prior_scope.unwrap_or_else(|| {
+                    (
+                        store::UNASSIGNED_MATTER.to_string(),
+                        store::PRIVILEGE_NONE.to_string(),
+                    )
+                });
+                work.push(WorkItem { file: file.clone(), matter: m, privilege: p });
+            }
+        }
+    }
+
+    // Deleted sources: manifest text/office entries whose file is gone from disk.
+    // PDF entries are preserved (the Rust walk doesn't see PDFs; the frontend owns
+    // their lifecycle). `mail:` / connector rows are never in the manifest, so are
+    // never touched here.
+    let deleted_keys: Vec<String> = manifest
+        .sources
+        .iter()
+        .filter(|(k, sig)| sig.pdf.is_none() && !disk_keys.contains(*k))
+        .map(|(k, _)| k.clone())
+        .collect();
+    // Declared before the deleted-purge loop so a fail-closed tombstone on a
+    // failed purge (below) is recorded in the same tally the walk finalizes with.
+    let mut tally = IndexTally::default();
+    let mut deleted: u32 = 0;
+    for gone in &deleted_keys {
+        // `gone` is the source's HMAC path token — delete/tombstone BY TOKEN, since
+        // the plaintext path is gone from disk and the token is what the rows and
+        // the tombstone set are keyed under.
+        match store::delete_by_token(&table, gone).await {
+            Ok(()) => {
+                clear_tombstone_token(&state, &workspace, gone).await;
+                deleted += 1;
+            }
+            Err(e) => {
+                // FAIL CLOSED: the file is gone from disk but its rows could not be
+                // purged. A deleted file's content must never remain citable, so
+                // durably tombstone the token (retrieval + verification exclude it)
+                // until a later boot successfully purges it. If the durable persist
+                // ALSO fails, mark the walk so it does not stamp completion (next
+                // launch re-runs). Keep the manifest entry so the purge is retried.
+                log::error!(
+                    "rag reconcile: failed to purge rows for a deleted source; \
+                     tombstoning so its content cannot resurface in search: {e:#}"
+                );
+                if tombstone_token(&state, &workspace, gone.clone()).await.is_err() {
+                    tally.durable_tombstone_failed = true;
+                }
+                if let Some(sig) = manifest.get(gone) {
+                    next_sources.insert(gone.clone(), sig.clone());
+                }
+            }
+        }
+    }
+
+    // ── Phase 2: (re)index the work list ────────────────────────────────────
+    let total = work.len() as u32;
     let _ = app.emit(
         PROGRESS_EVENT,
         IndexingProgress {
@@ -1613,31 +2378,14 @@ pub async fn rag_index_workspace(
             processed: 0,
             total,
             current_path: None,
+            migrating,
+            reused,
             ..Default::default()
         },
     );
 
-    // Phase 2: index, emitting progress per file.
-    let walk_started = Instant::now();
-    let mut skipped_files: u32 = 0;
-    let mut failed_files: u32 = 0;
-    let mut timed_out_files: u32 = 0;
-    // BUG-099 separate counter: files where the stale-row cleanup ALSO failed.
-    // These are already counted in skipped_files/failed_files/timed_out_files
-    // (once each). This counter tracks the additional failure (cleanup itself)
-    // without double-counting so the banner's `indexed = total - skipped` stays
-    // correct.
-    let mut cleanup_failed_files: u32 = 0;
-    // BUG-099 fail-closed durability: set true if ANY durable tombstone write
-    // failed during this walk. When true we do NOT stamp the index-version
-    // completion marker, so the next launch re-runs the full walk (re-tombstones
-    // or re-cleans) instead of trusting an index whose on-disk tombstone is
-    // incomplete — a stale citation must not become possible after a restart.
-    let mut durable_tombstone_failed = false;
-    // BUG-099: the paths we skipped, surfaced (bounded) on the terminal event so
-    // the UI can list them. The counts above stay exact regardless of the cap.
-    let mut skipped_paths: Vec<String> = Vec::new();
-    for (i, file) in files.iter().enumerate() {
+    let mut reindexed: u32 = 0;
+    for (i, item) in work.iter().enumerate() {
         if cancel.load(Ordering::SeqCst) {
             let _ = app.emit(
                 PROGRESS_EVENT,
@@ -1646,11 +2394,15 @@ pub async fn rag_index_workspace(
                     processed: i as u32,
                     total,
                     current_path: None,
-                    skipped: skipped_files,
-                    failed: failed_files,
-                    timed_out: timed_out_files,
-                    cleanup_failed: cleanup_failed_files,
-                    skipped_paths: cap_skipped_paths(&skipped_paths),
+                    skipped: tally.skipped_files,
+                    failed: tally.failed_files,
+                    timed_out: tally.timed_out_files,
+                    cleanup_failed: tally.cleanup_failed_files,
+                    skipped_paths: cap_skipped_paths(&tally.skipped_paths),
+                    reused,
+                    reindexed,
+                    deleted,
+                    ..Default::default()
                 },
             );
             return Ok(());
@@ -1661,314 +2413,114 @@ pub async fn rag_index_workspace(
                 status: IndexingStatus::Indexing,
                 processed: i as u32,
                 total,
-                current_path: Some(file.to_string_lossy().to_string()),
-                skipped: skipped_files,
-                failed: failed_files,
-                timed_out: timed_out_files,
+                current_path: Some(item.file.to_string_lossy().to_string()),
+                skipped: tally.skipped_files,
+                failed: tally.failed_files,
+                timed_out: tally.timed_out_files,
+                migrating,
+                reused,
                 ..Default::default()
             },
         );
-        // WS-PRIV: the full-workspace walk indexes everything at PRIVILEGE_NONE.
-        // Privilege is a per-source decision (a whole workspace is never uniformly
-        // privileged), applied via the privilege store + `rag_retag_privilege`
-        // after indexing — mirroring how per-file matter assignment re-tags on top
-        // of the unassigned full walk.
-        //
-        // BLOCKER 2 — single-writer design: the timed task does ONLY extract + embed
-        // (pure computation, no DB access). The parent (this walk) is the SOLE DB
-        // writer. A timed-out child that lingers cannot reach any DB write because
-        // `extract_embed_one_file` holds no table reference.
-        let file_for_task = file.clone();
-        let cancel_for_task = cancel.clone();
-        let vault_vmk_for_task = vault_vmk;
-        let (outcome, extracted) = run_file_extract_task(
-            file.clone(),
-            WORKSPACE_FILE_INDEX_TIMEOUT,
-            async move {
-                extract_embed_one_file(
-                    &file_for_task,
-                    Some(cancel_for_task.as_ref()),
-                    vault_vmk_for_task.as_ref(),
-                )
-                .await
-            },
-        )
-        .await;
-
-        // Parent is sole DB writer: on success write the extracted data; on skip
-        // the write is skipped (stale rows are purged below via purge_stale_rows_on_skip).
-        if matches!(outcome, FileIndexOutcome::Indexed) {
-            if let Some(data) = extracted {
-                let path_str = file.to_string_lossy().to_string();
-                match write_extracted_file(
-                    &table,
-                    &path_str,
-                    data,
-                    &matter,
-                    store::PRIVILEGE_NONE,
-                    &key,
-                )
-                .await
-                {
-                    Ok(true) => {
-                        // SkippedUnreadable: extraction failed on a readable file.
-                        // Count as a failed skip so the UI can surface it. The stale
-                        // rows WERE deleted (write_extracted_file returns Ok(true)
-                        // only after a successful delete), so the path is now safe —
-                        // CLEAR any prior tombstone (no stale rows remain to hide).
-                        clear_tombstone(&state, &workspace, &path_str, &key).await;
-                        skipped_files += 1;
-                        failed_files += 1;
-                        skipped_paths.push(file.to_string_lossy().to_string());
-                        log::warn!(
-                            "rag_index_workspace: counted as failed skip (unreadable): {}",
-                            file.display()
-                        );
-                        let _ = app.emit(
-                            PROGRESS_EVENT,
-                            IndexingProgress {
-                                status: IndexingStatus::Indexing,
-                                processed: i as u32 + 1,
-                                total,
-                                current_path: Some(file.to_string_lossy().to_string()),
-                                skipped: skipped_files,
-                                failed: failed_files,
-                                timed_out: timed_out_files,
-                                ..Default::default()
-                            },
-                        );
-                        continue;
-                    }
-                    Ok(false) => {
-                        // Normal success (indexed or silent empty/missing delete).
-                        // BUG-099 tombstone: a successful re-index CLEARS this path's
-                        // tombstone (self-healing — the stale rows are now replaced
-                        // with fresh ones, so retrieval is safe again). Durable: the
-                        // on-disk tombstone is cleared too so the heal survives restart.
-                        clear_tombstone(&state, &workspace, &path_str, &key).await;
-                    }
-                    Err(e) => {
-                        log::warn!(
-                            "rag_index_workspace: DB write failed for {}: {e:#}",
-                            file.display()
-                        );
-                        // Treat a write failure the same as an extraction failure.
-                        // BUG-099 tombstone: a failed write may leave old rows in the
-                        // DB (if the write was an insert that partially failed, or if
-                        // the new delete-then-add cycle failed mid-way). Durably
-                        // tombstone the path so retrieval cannot serve any stale rows
-                        // for it — including after an app restart. If the durable
-                        // persist ALSO fails, mark the walk so it does not stamp
-                        // completion (next launch re-runs).
-                        if tombstone_path(&state, &workspace, &path_str, &key).await.is_err() {
-                            durable_tombstone_failed = true;
-                        }
-                        cleanup_failed_files += 1;
-                        skipped_files += 1;
-                        failed_files += 1;
-                        skipped_paths.push(file.to_string_lossy().to_string());
-                        let _ = app.emit(
-                            PROGRESS_EVENT,
-                            IndexingProgress {
-                                status: IndexingStatus::Indexing,
-                                processed: i as u32 + 1,
-                                total,
-                                current_path: Some(file.to_string_lossy().to_string()),
-                                skipped: skipped_files,
-                                failed: failed_files,
-                                timed_out: timed_out_files,
-                                cleanup_failed: cleanup_failed_files,
-                                ..Default::default()
-                            },
-                        );
-                        continue;
-                    }
-                }
-            }
-            // `extracted == None` means user cancelled mid-file; the walk's
-            // cancel check on the next iteration will emit the Cancelled event.
-        }
-
-        // BUG-099 blocker 1: drop stale rows for any skipped file BEFORE moving
-        // on, so retrieval can never cite an old version of a file we couldn't
-        // re-read. A cleanly indexed file is left untouched.
-        // If the purge itself FAILS, the file's stale rows remain in the DB —
-        // record it in the durable tombstone set so retrieval ALWAYS excludes
-        // those rows. The skip is counted ONCE (not twice) — `cleanup_failed`
-        // is a separate counter for the second failure (cleanup itself failed).
-        let purge = purge_stale_rows_on_skip(&table, file, &key, &outcome).await;
-        match outcome {
-            FileIndexOutcome::Indexed => {}
-            FileIndexOutcome::Failed(_) => {
-                skipped_files += 1;
-                failed_files += 1;
-            }
-            FileIndexOutcome::TimedOut => {
-                skipped_files += 1;
-                timed_out_files += 1;
-            }
-        }
-        match purge {
-            PurgeOutcome::NotNeeded => {}
-            PurgeOutcome::PurgedCleanly => {
-                let path_str = file.to_string_lossy().to_string();
-                // The stale rows were dropped cleanly — the path is safe now, so
-                // CLEAR any prior tombstone (self-heal on a clean purge too).
-                clear_tombstone(&state, &workspace, &path_str, &key).await;
-                skipped_paths.push(path_str);
-            }
-            PurgeOutcome::PurgeFailed => {
-                // The skip was already counted above (once). Do NOT double-count.
-                // Instead, record the additional failure in `cleanup_failed_files`
-                // and tombstone the path so retrieval cannot serve its stale rows.
-                cleanup_failed_files += 1;
-                let path_str = file.to_string_lossy().to_string();
-                skipped_paths.push(path_str.clone());
-                // BUG-099 durable tombstone: stale rows remain in the DB for this
-                // path. Mark it unsafe (in memory AND on disk) so `rag_retrieve`
-                // excludes it until a successful re-index clears the tombstone —
-                // the fail-closed exclusion survives an app restart. If the durable
-                // persist ALSO fails, mark the walk so it does not stamp completion.
-                if tombstone_path(&state, &workspace, &path_str, &key).await.is_err() {
-                    durable_tombstone_failed = true;
-                }
-                log::error!(
-                    "rag_index_workspace: path tombstoned for {} — skipped file \
-                     AND cleanup failed; its stale rows are excluded from retrieval \
-                     until a successful re-index clears the tombstone",
-                    file.display()
-                );
-            }
-        }
-        let _ = app.emit(
-            PROGRESS_EVENT,
-            IndexingProgress {
-                status: IndexingStatus::Indexing,
-                processed: i as u32 + 1,
-                total,
-                current_path: Some(file.to_string_lossy().to_string()),
-                skipped: skipped_files,
-                failed: failed_files,
-                timed_out: timed_out_files,
-                cleanup_failed: cleanup_failed_files,
-                ..Default::default()
-            },
-        );
-    }
-
-    // WS-B/C: stamp the index version so the one-time migration does not re-run.
-    // Best-effort (a failed write just means we re-check next open).
-    //
-    // BUG-099 fail-closed durability: but ONLY when every durable tombstone was
-    // persisted. If a durable tombstone write failed, we DO NOT stamp completion
-    // — leaving the marker unwritten forces the next launch to re-run the full
-    // walk, which re-tombstones or re-cleans the unsafe paths. Stamping "done"
-    // with an incomplete on-disk tombstone is exactly the restart hole that would
-    // let a stale citation resurface, so we refuse to claim a durable success.
-    // BUG-099 fail-closed durability: track whether the index ended in a
-    // fail-closed-but-UNRESOLVED state (a durable tombstone write failed, so
-    // retrieval is refusing to serve). In that case we must NOT report a happy
-    // "Memory ready" Done, and we must let the user RECOVER: re-arm the
-    // full-index latch so another indexWorkspace() actually re-runs (otherwise
-    // the consumed latch makes a same-session retry a no-op and the user is
-    // stuck until restart), and emit an Error terminal event instead of Done.
-    let mut fail_closed_unresolved = durable_tombstone_failed;
-    if durable_tombstone_failed {
-        log::error!(
-            "rag_index_workspace: a durable tombstone write FAILED this walk — \
-             NOT stamping the index-version completion marker so the next launch \
-             re-runs the full walk (prevents a stale citation resurfacing on restart)"
-        );
-    } else {
-        // BUG-099 fail-closed recovery: a clean walk re-derived the complete
-        // tombstone set (every file was re-indexed: clean files cleared their
-        // token, cleanup failures re-tombstoned). Rewrite the durable file from
-        // the current in-memory set so it is known-good and READABLE, then clear
-        // any prior integrity-unknown flag — retrieval can serve again. If even
-        // this rewrite fails, leave the flag set and skip the completion marker.
-        //
-        // CONCURRENCY (critical): hold the unsafe-tokens lock ACROSS the durable
-        // write so a watcher-triggered `rag_index_file` cannot tombstone a new
-        // path between a snapshot and this write — which would let this stale
-        // snapshot overwrite the watcher's fresh token and then wrongly clear the
-        // sentinel + stamp completion (re-exposing stale rows after restart/MCP).
-        // Same lock `tombstone_path`/`clear_tombstone` use, so they serialize.
-        let guard = state.unsafe_tokens.lock().await;
-        match store::write_unsafe_tokens(&workspace, &guard) {
-            Ok(()) => {
-                // Known-good durable tombstone written (under the lock, so it
-                // reflects every concurrent mutation up to now) → safe to clear
-                // BOTH the in-process flag and the durable cross-process sentinel.
-                store::clear_integrity_unknown(&workspace);
-                state.index_integrity_unknown.store(false, Ordering::SeqCst);
-                drop(guard);
-                if let Err(e) = store::write_index_version(&workspace) {
-                    log::warn!("rag: failed to write index version marker: {}", e);
-                }
-            }
-            Err(e) => {
-                drop(guard);
-                fail_closed_unresolved = true;
-                log::error!(
-                    "rag_index_workspace: could not rewrite the durable tombstone \
-                     file after a clean walk ({e:#}); leaving integrity flag set and \
-                     NOT stamping completion so the next launch re-runs"
-                );
-            }
-        }
-    }
-
-    if fail_closed_unresolved {
-        // RECOVERY: re-arm the once-per-activation full-index latch so the user
-        // (or the auto-wiring) can retry the full walk in THIS session — without
-        // this, the latch consumed at the start of the walk makes a retry a no-op
-        // and leaves the workspace stuck fail-closed until a restart/switch.
-        state.full_index_pending.store(true, Ordering::SeqCst);
-        // Emit an ERROR terminal event (NOT a "Memory ready" Done): retrieval is
-        // refusing to serve, so the banner must reflect that and prompt a re-index.
-        let _ = app.emit(
-            PROGRESS_EVENT,
-            IndexingProgress {
-                status: IndexingStatus::Error,
-                processed: total,
-                total,
-                current_path: None,
-                skipped: skipped_files,
-                failed: failed_files,
-                timed_out: timed_out_files,
-                cleanup_failed: cleanup_failed_files,
-                skipped_paths: cap_skipped_paths(&skipped_paths),
-            },
-        );
-        log::error!(
-            "rag_index_workspace: finished in a FAIL-CLOSED state (durable tombstone \
-             not persisted) — emitted Error, re-armed the full-index latch for retry"
-        );
-        return Ok(());
-    }
-
-    let _ = app.emit(
-        PROGRESS_EVENT,
-        IndexingProgress {
-            status: IndexingStatus::Done,
-            processed: total,
+        // Manifest key = the source's path token (matches the rows; no plaintext).
+        let token = crypto::path_token(&key, &item.file.to_string_lossy());
+        match process_one_workspace_file(
+            &app,
+            &state,
+            &table,
+            &workspace,
+            &item.file,
+            &item.matter,
+            &item.privilege,
+            &key,
+            vault_vmk,
+            &cancel,
+            i as u32,
             total,
-            current_path: None,
-            skipped: skipped_files,
-            failed: failed_files,
-            timed_out: timed_out_files,
-            cleanup_failed: cleanup_failed_files,
-            skipped_paths: cap_skipped_paths(&skipped_paths),
-        },
-    );
-    log::info!(
-        "rag_index_workspace: DONE {} files in {} ms (skipped={}, failed={}, timed_out={}, cleanup_failed={})",
+            &mut tally,
+        )
+        .await
+        {
+            FileProcess::CancelledMidFile => {
+                // Nothing written; the next cancel check ends the walk.
+            }
+            FileProcess::Recorded(rc) => {
+                reindexed += 1;
+                if let Some(sig) =
+                    text_source_signature(&item.file, &item.matter, &item.privilege, rc)
+                {
+                    next_sources.insert(token, sig);
+                }
+            }
+            FileProcess::NotRecorded => {
+                // Attempted but failed/unreadable — record no signature so it is
+                // retried (never wrongly skipped) next boot. NOT counted in
+                // `reindexed` (it counts successful re-indexes only); the failure is
+                // already reflected in the tally's skipped/failed counters.
+            }
+        }
+    }
+
+    // ── Persist the manifest (merge with any concurrent PDF entries) ────────
+    // Reload under the lock, KEEP on-disk PDF signatures (the frontend PDF-index
+    // path writes those concurrently), replace the text/office portion with this
+    // walk's authoritative result, then save. Holding the lock across
+    // reload+save serializes with `rag_manifest_record_pdf`.
+    // Only the DEFAULT walk (matter_id None — reconcile, or a full rebuild on
+    // migration / integrity recovery) is authoritative for the manifest. A SCOPED
+    // full walk (`matter_id = Some`) files every file under one matter as a
+    // deliberate re-tag; persisting that whole-workspace-under-one-matter scope
+    // would let a later reconcile preserve the mis-scope, so it leaves the manifest
+    // untouched. (No frontend path issues a scoped whole-workspace walk today; this
+    // guard keeps it correct if one is ever added.)
+    if matter_id.is_none() {
+        let deleted_set: std::collections::HashSet<&String> = deleted_keys.iter().collect();
+        let _mg = state.manifest_lock.lock().await;
+        let mut on_disk = manifest::load(&workspace, store::INDEX_VERSION);
+        on_disk.index_version = store::INDEX_VERSION;
+        // Keep entries this walk is NOT authoritative for, then apply this walk's
+        // result. "Authoritative for" = a text/office file that was in this walk's
+        // on-disk snapshot (`disk_keys`) or that this walk purged (`deleted_set`).
+        // Everything else — PDF entries (frontend-owned) and text entries a watcher
+        // wrote for a file created AFTER the phase-1 snapshot — is preserved, so a
+        // concurrent single-file index during the walk is never clobbered.
+        on_disk.sources.retain(|k, sig| {
+            sig.pdf.is_some() || (!disk_keys.contains(k) && !deleted_set.contains(k))
+        });
+        for (k, sig) in &next_sources {
+            on_disk.sources.insert(k.clone(), sig.clone());
+        }
+        if let Err(e) = manifest::save(&workspace, &on_disk) {
+            log::warn!("rag reconcile: failed to save manifest: {e}");
+        }
+    }
+
+    // ── Completion / fail-closed rules + terminal event ─────────────────────
+    finalize_walk(
+        &app,
+        &state,
+        &workspace,
+        effective_full,
         total,
+        &tally,
+        reused,
+        reindexed,
+        deleted,
+    )
+    .await;
+
+    log::info!(
+        "rag {}: DONE work={} reused={} reindexed={} deleted={} in {} ms (skipped={}, failed={}, timed_out={}, cleanup_failed={})",
+        if effective_full { "index_workspace" } else { "reconcile" },
+        total,
+        reused,
+        reindexed,
+        deleted,
         walk_started.elapsed().as_millis(),
-        skipped_files,
-        failed_files,
-        timed_out_files,
-        cleanup_failed_files
+        tally.skipped_files,
+        tally.failed_files,
+        tally.timed_out_files,
+        tally.cleanup_failed_files,
     );
     Ok(())
 }
@@ -2776,6 +3328,9 @@ pub async fn rag_retag_privilege(
     let updated = store::retag_privilege_for_path(&table, &path, &privilege, &key)
         .await
         .map_err(|e| format!("retag privilege: {e}"))?;
+    // P1.1: keep the manifest's recorded scope in sync so a later reconcile
+    // re-indexes a changed file under the NEW privilege, never a stale one.
+    update_manifest_scope(&state, &workspace, &path, None, Some(&privilege), &key).await;
     Ok(updated as u32)
 }
 
@@ -2816,7 +3371,211 @@ pub async fn rag_retag_matter(
     let updated = store::retag_matter_for_path(&table, &path, &matter_id, &key)
         .await
         .map_err(|e| format!("retag matter: {e}"))?;
+    // P1.1: keep the manifest's recorded scope in sync so a later reconcile
+    // re-indexes a changed file under the NEW matter, never a stale (wider) one.
+    update_manifest_scope(&state, &workspace, &path, Some(&matter_id), None, &key).await;
     Ok(updated as u32)
+}
+
+/// P1.1 — BATCHED matter retag: apply `matter_id` to MANY sources' rows in one
+/// LanceDB UPDATE (per 512-path chunk). The boot retag of a mapped client folder
+/// calls this once per matter instead of re-embedding — or per-file retagging,
+/// which LanceDB makes ~as slow as re-embedding (one data rewrite per UPDATE).
+/// Also syncs each path's manifest scope. Returns rows updated (0 when the table
+/// or the paths aren't indexed).
+#[tauri::command]
+pub async fn rag_retag_matter_batch(
+    state: State<'_, RagState>,
+    paths: Vec<String>,
+    matter_id: String,
+) -> Result<u32, String> {
+    store::validate_matter_id(&matter_id).map_err(|e| format!("invalid matter id: {e}"))?;
+    if paths.is_empty() {
+        return Ok(0);
+    }
+    let workspace = require_workspace(&state).await?;
+    let conn = store::open_connection(&workspace)
+        .await
+        .map_err(|e| format!("open lancedb: {e}"))?;
+    let names = conn
+        .table_names()
+        .execute()
+        .await
+        .map_err(|e| format!("list tables: {e}"))?;
+    if !names.iter().any(|n| n == store::TABLE_NAME) {
+        return Ok(0);
+    }
+    let table = conn
+        .open_table(store::TABLE_NAME)
+        .execute()
+        .await
+        .map_err(|e| format!("open table: {e}"))?;
+    let key = crypto::get_or_create_master_key().map_err(|e| format!("vectors key: {e}"))?;
+    let updated = store::retag_matter_for_paths(&table, &paths, &matter_id, &key)
+        .await
+        .map_err(|e| format!("batched retag matter: {e}"))?;
+    // Keep the manifest's recorded scope in sync for every retagged source, in a
+    // SINGLE load→modify→save (a per-path loop would defeat the batching).
+    update_manifest_matter_many(&state, &workspace, &paths, &matter_id, &key).await;
+    Ok(updated as u32)
+}
+
+/// P1.1 — set the recorded matter of MANY manifest entries in one
+/// load→modify→save (paired with `rag_retag_matter_batch`).
+async fn update_manifest_matter_many(
+    state: &RagState,
+    workspace: &Path,
+    paths: &[String],
+    matter: &str,
+    key: &[u8; 32],
+) {
+    let _mg = state.manifest_lock.lock().await;
+    let mut m = manifest::load(workspace, store::INDEX_VERSION);
+    let mut changed = false;
+    for p in paths {
+        let token = crypto::path_token(key, p);
+        if let Some(sig) = m.sources.get_mut(&token) {
+            if sig.matter_id != matter {
+                sig.matter_id = matter.to_string();
+                changed = true;
+            }
+        }
+    }
+    if changed {
+        if let Err(e) = manifest::save(workspace, &m) {
+            log::warn!("rag: failed to save manifest after batched retag: {e}");
+        }
+    }
+}
+
+/// P1.1 (Task 3) — is this PDF already indexed at its current version + OCR
+/// settings? The frontend PDF-index loop calls this BEFORE re-extracting a PDF so
+/// an unchanged PDF (the expensive, often-OCR'd case) is skipped on boot. Returns
+/// `false` (→ re-index) when the file is new/changed, tombstoned, or the manifest
+/// can't be trusted — always fail-SAFE toward re-indexing, never toward skipping a
+/// stale file.
+#[tauri::command]
+pub async fn rag_manifest_pdf_fresh(
+    state: State<'_, RagState>,
+    path: String,
+    ocr_enabled: bool,
+) -> Result<bool, String> {
+    let workspace = require_workspace(&state).await?;
+    // A fail-closed integrity-unknown store must re-index everything.
+    if state.index_integrity_unknown.load(Ordering::SeqCst) {
+        return Ok(false);
+    }
+    // Manifest key = the PDF's path token (matches how its rows are keyed, and
+    // keeps no plaintext path on disk). The frontend passes the SAME `path` to
+    // `rag_index_pdf_chunks`, so the token agrees with the stored rows.
+    let key = crypto::get_or_create_master_key().map_err(|e| format!("vectors key: {e}"))?;
+    let token = crypto::path_token(&key, &path);
+    // A tombstoned PDF must re-index to clear the tombstone.
+    if state.unsafe_tokens.lock().await.contains(&token) {
+        return Ok(false);
+    }
+    let Some((size, mtime)) = manifest::stat_signature(Path::new(&path)) else {
+        return Ok(false);
+    };
+    // Fail SAFE when the vector table is MISSING (vectors cache deleted/corrupted):
+    // the store holds no rows, so trusting a "fresh" PDF signature would skip
+    // re-indexing and leave that PDF out of search. Re-index instead. This closes
+    // the race with the concurrent reconcile (which also rebuilds on a missing
+    // table) — the check here is authoritative regardless of ordering.
+    {
+        let conn = store::open_connection(&workspace)
+            .await
+            .map_err(|e| format!("open lancedb: {e}"))?;
+        let table_present = conn
+            .table_names()
+            .execute()
+            .await
+            .map_err(|e| format!("list tables: {e}"))?
+            .iter()
+            .any(|n| n == store::TABLE_NAME);
+        if !table_present {
+            return Ok(false);
+        }
+    }
+    let m = manifest::load(&workspace, store::INDEX_VERSION);
+    // Fail SAFE across a schema migration: if the manifest predates the current
+    // INDEX_VERSION, the LanceDB table is about to be (or was just) dropped and
+    // rebuilt, so its rows can't be trusted. Re-index the PDF rather than skip it.
+    // (The text/office path escalates to a full walk via `effective_full`; this is
+    // the equivalent guard for the separate, concurrent PDF-index path.)
+    if m.index_version != store::INDEX_VERSION {
+        return Ok(false);
+    }
+    let now = manifest::PdfInputs::current(ocr_enabled);
+    Ok(m.get(&token)
+        .map(|s| s.is_fresh(size, mtime, Some(&now)))
+        .unwrap_or(false))
+}
+
+/// P1.1 (Task 3) — record a PDF's signature after the frontend has successfully
+/// indexed it, so a later boot can skip it while unchanged. Locked + merge-safe
+/// with the Rust reconcile walk (which preserves PDF entries it doesn't own).
+#[tauri::command]
+pub async fn rag_manifest_record_pdf(
+    state: State<'_, RagState>,
+    path: String,
+    matter_id: Option<String>,
+    privilege: Option<String>,
+    page_count: u32,
+    ocr_enabled: bool,
+) -> Result<(), String> {
+    let matter = resolve_matter(matter_id.as_deref())?;
+    let privilege = resolve_privilege(privilege.as_deref())?;
+    let workspace = require_workspace(&state).await?;
+    let Some((size, mtime_ns)) = manifest::stat_signature(Path::new(&path)) else {
+        // File vanished between indexing and recording — nothing to record.
+        return Ok(());
+    };
+    let sig = manifest::SourceSignature {
+        size,
+        mtime_ns,
+        hash: None,
+        extractor_version: manifest::EXTRACTOR_VERSION,
+        chunker_version: manifest::CHUNKER_VERSION,
+        embedder_version: manifest::EMBEDDER_VERSION.to_string(),
+        pdf: Some(manifest::PdfSignature {
+            pdf_extractor_version: manifest::PDF_EXTRACTOR_VERSION,
+            ocr_enabled,
+            ocr_version: manifest::OCR_VERSION,
+            page_count,
+        }),
+        matter_id: matter,
+        privilege,
+        row_count: 0,
+        indexed_at: now_unix_secs(),
+    };
+    // Key by the PDF's path token (matches its rows; no plaintext path on disk).
+    let key = crypto::get_or_create_master_key().map_err(|e| format!("vectors key: {e}"))?;
+    let token = crypto::path_token(&key, &path);
+    let _mg = state.manifest_lock.lock().await;
+    let mut m = manifest::load(&workspace, store::INDEX_VERSION);
+    m.index_version = store::INDEX_VERSION;
+    m.insert(token, sig);
+    manifest::save(&workspace, &m).map_err(|e| format!("save manifest: {e}"))?;
+    Ok(())
+}
+
+/// P1.1 (Task 3) — forget ALL PDF manifest entries. Called when the user turns
+/// PDF indexing OFF (which deletes every PDF's rows): without this, the stale
+/// "fresh" signatures would make a later toggle-ON skip re-indexing PDFs whose
+/// rows no longer exist, so they'd silently vanish from search. Text/office
+/// entries are untouched.
+#[tauri::command]
+pub async fn rag_manifest_forget_pdfs(state: State<'_, RagState>) -> Result<(), String> {
+    let workspace = require_workspace(&state).await?;
+    let _mg = state.manifest_lock.lock().await;
+    let mut m = manifest::load(&workspace, store::INDEX_VERSION);
+    let before = m.sources.len();
+    m.sources.retain(|_, sig| sig.pdf.is_none());
+    if m.sources.len() != before {
+        manifest::save(&workspace, &m).map_err(|e| format!("save manifest: {e}"))?;
+    }
+    Ok(())
 }
 
 /// Convenience: register the RAG state with a Tauri builder. Called from
@@ -3410,6 +4169,7 @@ mod tests {
             timed_out: 1,
             cleanup_failed: 0,
             skipped_paths: vec!["/w/stuck.docx".into(), "/w/broken.rtf".into()],
+            ..Default::default()
         };
         let s = serde_json::to_string(&p).unwrap();
         assert!(s.contains("\"skipped\":2"), "got {s}");
@@ -3435,6 +4195,7 @@ mod tests {
             timed_out: 0,
             cleanup_failed: 0,
             skipped_paths: Vec::new(),
+            ..Default::default()
         };
         let s = serde_json::to_string(&p).unwrap();
         assert!(!s.contains("skippedPaths"), "empty paths must be omitted: {s}");

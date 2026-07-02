@@ -32,6 +32,15 @@ export interface RagStatusSnapshot {
   cleanupFailed: number;
   /** Paths of skipped files (capped to 100 by the Rust layer). */
   skippedPaths: string[];
+  /** P1.1 (Task 2): a one-time schema-migration rebuild is running → the banner
+   *  says "Upgrading search index…" instead of a routine "Memory updating". */
+  migrating: boolean;
+  /** P1.1 (Task 4): files a boot reconcile skipped as unchanged (work avoided). */
+  reused: number;
+  /** P1.1 (Task 4): files a boot reconcile re-indexed (new/changed). */
+  reindexed: number;
+  /** P1.1 (Task 4): sources purged because their file was deleted. */
+  deleted: number;
 }
 
 const INITIAL: RagStatusSnapshot = {
@@ -44,6 +53,10 @@ const INITIAL: RagStatusSnapshot = {
   timedOut: 0,
   cleanupFailed: 0,
   skippedPaths: [],
+  migrating: false,
+  reused: 0,
+  reindexed: 0,
+  deleted: 0,
 };
 
 /**
@@ -84,6 +97,12 @@ export function useRagStatus(): RagStatusSnapshot {
               // cleanupFailed is omitted from the wire when zero (skip_serializing_if).
               cleanupFailed: p.cleanupFailed ?? 0,
               skippedPaths: p.skippedPaths ?? [],
+              // P1.1: reconcile / migration signals (omitted from the wire when
+              // falsey/zero, so default here).
+              migrating: p.migrating ?? false,
+              reused: p.reused ?? 0,
+              reindexed: p.reindexed ?? 0,
+              deleted: p.deleted ?? 0,
             });
           },
         );

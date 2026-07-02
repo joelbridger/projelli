@@ -22,7 +22,11 @@ import {
   ragIndexFile,
   ragIndexPdfChunks,
   ragIndexWorkspace,
+  ragManifestForgetPdfs,
+  ragManifestRecordPdf,
+  ragReconcileWorkspace,
   ragRetagMatter,
+  ragRetagMatterBatch,
   ragRetagPrivilege,
   ragRetrieve,
   ragSetWorkspace,
@@ -286,12 +290,18 @@ export const MemoryService = {
       if (workspaceIndexInFlight) return;
       workspaceIndexInFlight = true;
       try {
-        await ragIndexWorkspace(matterId);
+        // P1.1 — the default boot index is now a cheap RECONCILE: it skips files
+        // whose signature is unchanged in the manifest and only re-embeds new /
+        // changed ones (falling back to a full rebuild on a schema migration).
+        // This is what makes a warm boot near-instant instead of a full re-embed.
+        await ragReconcileWorkspace(matterId);
       } finally {
         workspaceIndexInFlight = false;
       }
       return;
     }
+    // A SCOPED re-index (a specific matter's folders) stays a full walk under that
+    // matter id — it is a deliberate re-tag operation, not a boot.
     await ragIndexWorkspace(matterId);
   },
 
@@ -337,6 +347,16 @@ export const MemoryService = {
   async retagMatter(sourceId: string, matterId: string): Promise<number> {
     if (!isMemoryEnabled()) return 0;
     return ragRetagMatter(sourceId, matterId);
+  },
+
+  /**
+   * P1.1 — BATCHED matter retag: re-tag many sources' chunks to `matterId` in one
+   * LanceDB UPDATE per chunk. The boot retag of a mapped client folder uses this
+   * (grouped per matter) so a warm boot of a mapped workspace stays cheap.
+   */
+  async retagMatterBatch(sourceIds: string[], matterId: string): Promise<number> {
+    if (!isMemoryEnabled() || sourceIds.length === 0) return 0;
+    return ragRetagMatterBatch(sourceIds, matterId);
   },
 
   async cancelIndexing(): Promise<void> {
@@ -546,14 +566,28 @@ export const MemoryService = {
     // from default retrieval.
     // VG-2: ONE command call for the whole file — the embed stays batched on
     // the Rust side; pageConfidences aligns with pages.
+    const matterId = resolveMatterForPath(path);
+    const privilege = resolvePrivilegeForPath(path);
     const chunksStored = await ragIndexPdfChunks(
       path,
       pages,
       result.pageCount,
-      resolveMatterForPath(path),
-      resolvePrivilegeForPath(path),
+      matterId,
+      privilege,
       pageConfidences,
     );
+    if (chunksStored > 0) {
+      // P1.1 (Task 3): record the PDF's signature (size/mtime + OCR setting +
+      // page count) so a later boot can SKIP this PDF while unchanged instead of
+      // re-extracting + re-OCR-ing it. Best-effort; never blocks indexing.
+      await ragManifestRecordPdf(
+        path,
+        result.pageCount,
+        isOcrScannedPdfsEnabled(),
+        matterId,
+        privilege,
+      );
+    }
     return {
       indexed: chunksStored > 0,
       pageCount: result.pageCount,
@@ -572,6 +606,10 @@ export const MemoryService = {
         // Best-effort: swallow and keep going.
       }
     }
+    // P1.1 (Task 3): the PDF rows are gone, so drop their manifest signatures too.
+    // Otherwise a later toggle-ON would see them "fresh" and skip re-indexing,
+    // silently dropping those PDFs from search until each file changes.
+    await ragManifestForgetPdfs();
   },
 };
 

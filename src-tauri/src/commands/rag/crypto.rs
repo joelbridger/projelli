@@ -44,13 +44,23 @@ const PATH_TOKEN_DOMAIN: &[u8] = b"keepance-path-token-v1";
 /// the separate AES-256-GCM `path_enc` column and is decrypted on read.
 pub fn path_token(master_key: &[u8; KEY_LEN], path: &str) -> String {
     type HmacSha256 = Hmac<Sha256>;
+    // P1.1 (Windows correctness): HMAC the NORMALIZED path through the ONE shared
+    // normalizer, so `C:\ws\a.docx` (the native form the Rust WalkDir/reconcile
+    // sees) and `C:/ws/a.docx` (the forward-slash form the TS side builds via
+    // appPath, and passes to retag/delete/index) produce the SAME token. Without
+    // this, the two sides tokenized different strings → a retag/delete issued with
+    // the TS form matched ZERO rows written under the native form on Windows, so a
+    // mapped file could silently drop out of matter-scoped search. `chunk_id`
+    // already normalizes; this closes the same trap for the `path` column token.
+    // (`normalize_source_path` preserves `mail:<id>` keys verbatim.)
+    let normalized = super::store::normalize_source_path(path);
     // Derive the domain-separated token key from the master key.
     let mut kdf = HmacSha256::new_from_slice(master_key).expect("HMAC accepts any key length");
     kdf.update(PATH_TOKEN_DOMAIN);
     let token_key = kdf.finalize().into_bytes();
-    // Token = HMAC over the plaintext path under the derived key.
+    // Token = HMAC over the normalized path under the derived key.
     let mut mac = HmacSha256::new_from_slice(&token_key).expect("HMAC accepts any key length");
-    mac.update(path.as_bytes());
+    mac.update(normalized.as_bytes());
     hex::encode(mac.finalize().into_bytes())
 }
 

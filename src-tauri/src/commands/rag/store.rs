@@ -287,7 +287,17 @@ pub const UNASSIGNED_MATTER: &str = "unassigned";
 /// in those columns and the real path AES-256-GCM-encrypted in the new
 /// NOT-NULL `path_enc` column. We never leave plaintext paths behind: the
 /// one-time drop + re-index migration rewrites every row tokenized.
-pub const INDEX_VERSION: u32 = 10;
+///
+/// 11: P1.1 — the `path` token now HMACs the NORMALIZED path (`path_token` runs
+/// `normalize_source_path` first), so the native Windows form `C:\ws\a.docx` and
+/// the forward-slash form `C:/ws/a.docx` map to ONE token. A pre-11 table on
+/// Windows holds tokens over the un-normalized (backslash) path, which the new
+/// code can't match with the forward-slash form the TS retag/delete/index uses —
+/// so a mapped file could silently vanish from matter-scoped search. The one-time
+/// drop + re-index rewrites every row under the normalized token. (On
+/// Linux/macOS the paths were already forward-slash, so the tokens are unchanged
+/// and the rebuild is a no-op cost — but the marker is global, so it runs once.)
+pub const INDEX_VERSION: u32 = 11;
 
 /// Filename (under the vectors dir) holding the integer `INDEX_VERSION` the
 /// current `chunks` table was built with.
@@ -345,6 +355,17 @@ pub fn normalize_source_path(path: &str) -> String {
     if path.starts_with("mail:") {
         path.to_string()
     } else {
+        // Fold backslashes to forward slashes so the native Windows form and the
+        // TS forward-slash form of one file collapse to a single source (used for
+        // chunk ids, path tokens, delete/retag predicates, encrypted `path_enc`).
+        //
+        // KNOWN PATHOLOGICAL EDGE (documented, not a regression): on Unix a
+        // backslash is a LEGAL filename character, so a file literally named
+        // `a\b.docx` folds to the same key as `a/b.docx`. Such a file is
+        // essentially never created in the Windows/macOS advisor workspaces this
+        // targets, and `chunk_id` has always normalized this way — so this only
+        // makes the path-token/delete predicate CONSISTENT with the long-standing
+        // chunk-id behaviour, it does not open a new class of collision.
         path.replace('\\', "/")
     }
 }
@@ -1074,14 +1095,23 @@ pub async fn upsert_grouped(
 /// VG-6e: takes the PLAINTEXT path plus the vector master `key` and computes
 /// the stored token internally — callers never handle tokens.
 pub async fn delete_path(table: &Table, path: &str, key: &[u8; 32]) -> Result<()> {
-    let predicate = format!(
-        "path = '{}'",
-        sql_escape(&super::crypto::path_token(key, path))
-    );
+    delete_by_token(table, &super::crypto::path_token(key, path)).await
+}
+
+/// Delete every row whose stored `path` column equals `token` (an HMAC path
+/// token). Used by the boot reconcile to purge a DELETED file's rows when only
+/// its manifest key — the token — is known (the plaintext path is gone from
+/// disk). The token must be the SAME one the rows were written under
+/// (`path_token(key, path)` over the exact path string used at index time), so
+/// callers that hold a path use `delete_path`; the reconcile holds the token
+/// directly. P1.1: keeps the deleted-file purge correct on Windows, where the
+/// stored token is over a backslash path and normalization would mismatch.
+pub async fn delete_by_token(table: &Table, token: &str) -> Result<()> {
+    let predicate = format!("path = '{}'", sql_escape(token));
     table
         .delete(&predicate)
         .await
-        .with_context(|| format!("delete failed for {}", path))?;
+        .context("delete by path token failed")?;
     Ok(())
 }
 
@@ -1468,6 +1498,46 @@ pub async fn retag_matter_for_path(
         .await
         .with_context(|| format!("retag matter failed for {}", path))?;
     Ok(result.rows_updated)
+}
+
+/// P1.1 — BATCHED `retag_matter_for_path`: re-tag every chunk of ANY path in
+/// `paths` to `matter_id` in ONE LanceDB UPDATE per chunk (`path IN (…tokens)`).
+///
+/// Why batched: LanceDB rewrites data on each UPDATE, so a per-file loop over N
+/// files is ~N full rewrites — measured at ~0.5 s/file (≈ the re-embed cost it
+/// was meant to avoid). Collapsing the boot retag of a mapped folder into a
+/// single UPDATE turns that into one rewrite. The IN-list is chunked so a huge
+/// workspace can't build an unbounded predicate string. Returns rows updated;
+/// empty `paths` is a no-op. Same tokenized predicate + validation as the
+/// single-path version.
+pub async fn retag_matter_for_paths(
+    table: &Table,
+    paths: &[String],
+    matter_id: &str,
+    key: &[u8; 32],
+) -> Result<u64> {
+    if paths.is_empty() {
+        return Ok(0);
+    }
+    let matter_id = validate_matter_id(matter_id)?;
+    let value_expr = format!("'{}'", sql_escape(matter_id));
+    let mut total = 0u64;
+    for chunk in paths.chunks(512) {
+        let tokens: Vec<String> = chunk
+            .iter()
+            .map(|p| format!("'{}'", sql_escape(&super::crypto::path_token(key, p))))
+            .collect();
+        let predicate = format!("path IN ({})", tokens.join(", "));
+        let result = table
+            .update()
+            .only_if(predicate)
+            .column("matter_id", value_expr.clone())
+            .execute()
+            .await
+            .with_context(|| format!("batched retag matter failed for {} paths", chunk.len()))?;
+        total += result.rows_updated;
+    }
+    Ok(total)
 }
 
 /// Read the matter scope a given source path is currently filed under, by
@@ -4703,6 +4773,76 @@ mod tests {
             gone.is_empty(),
             "delete_path must remove the tokenized rows"
         );
+    }
+
+    /// P1.1 (Windows regression): rows written under the NATIVE backslash path
+    /// (what the Rust WalkDir/reconcile sees on Windows) must be reachable by a
+    /// delete/retag issued with the FORWARD-SLASH form (what the TS side builds
+    /// via appPath and passes to retag/delete). Because `path_token` now
+    /// normalizes, the two forms produce the SAME token, so cross-form ops match.
+    /// (Before the fix the tokens differed, the op matched ZERO rows, and a mapped
+    /// file silently dropped out of matter-scoped search on Windows.)
+    #[tokio::test]
+    async fn cross_slash_form_token_matches_rows_on_windows_paths() {
+        use crate::commands::rag::crypto::path_token;
+        let dir = tempfile::TempDir::new().unwrap();
+        let conn = open_connection(dir.path()).await.expect("open conn");
+        let table = open_or_create_table(&conn).await.expect("open table");
+
+        // Written under the native Windows (backslash) form, as WalkDir yields it.
+        let backslash = r"C:\WS\Clients\Acme\engagement.docx";
+        // Referenced later via the forward-slash form the TS side produces.
+        let forward = "C:/WS/Clients/Acme/engagement.docx";
+
+        // The normalizer collapses them to ONE token now (the fix).
+        assert_eq!(
+            path_token(&TEST_KEY, backslash),
+            path_token(&TEST_KEY, forward),
+            "backslash and forward-slash forms of one file must tokenize identically"
+        );
+
+        let rows = vec![(
+            Chunk {
+                path: backslash.into(),
+                paragraph_index: 0,
+                text: "engagement".into(),
+                start_offset: 0,
+                end_offset: 10,
+                locator: None,
+            },
+            vec![0.10f32; EMBEDDING_DIM],
+        )];
+        upsert_chunks_for_path(
+            &table,
+            backslash,
+            rows,
+            SourceType::Docx,
+            UNASSIGNED_MATTER,
+            PRIVILEGE_NONE,
+            &TEST_KEY,
+        )
+        .await
+        .expect("upsert under backslash path");
+
+        // (a) A BATCHED matter retag issued with the FORWARD-slash form (the exact
+        // boot-retag path) must hit the backslash-written rows.
+        let updated = retag_matter_for_paths(&table, &[forward.to_string()], "acme", &TEST_KEY)
+            .await
+            .expect("batched retag via forward-slash form");
+        assert!(updated >= 1, "forward-slash retag must match the backslash rows");
+        let q = vec![0.10f32; EMBEDDING_DIM];
+        let in_acme = nearest(&table, &q, 10, Some("acme"), false, &[]).await.unwrap();
+        assert!(
+            in_acme.iter().any(|h| stored_path(h) == backslash),
+            "the file must now be in the 'acme' matter scope after a forward-slash retag"
+        );
+
+        // (b) delete_by_token over the forward-slash token also purges the rows.
+        delete_by_token(&table, &path_token(&TEST_KEY, forward))
+            .await
+            .expect("delete by forward-slash token");
+        let gone = nearest(&table, &q, 10, None, false, &[]).await.unwrap();
+        assert!(gone.is_empty(), "forward-slash delete must purge the backslash rows");
     }
 
     /// THE RAW-DISK PROOF (VG-6e, mirrors rag_matter_scope.rs's WS-VEC scan
