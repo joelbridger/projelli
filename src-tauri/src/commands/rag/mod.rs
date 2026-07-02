@@ -1663,6 +1663,14 @@ async fn process_one_workspace_file(
         if let Some(data) = extracted {
             let path_str = file.to_string_lossy().to_string();
             let row_count = data.row_count();
+            // A `ShouldDelete` outcome is delete-only: it covers an intentional
+            // skip (empty / oversized) AND a TRANSIENT read failure (a locked or
+            // OneDrive-offline file that can still be stat'd — `read_*_bytes`
+            // returns None for both). We must NOT record a fresh signature for it,
+            // or a warm boot would skip the file forever until its size/mtime
+            // changes, silently dropping a temporarily-unreadable file from search.
+            // Re-attempting the (cheap) read next boot is the fail-safe choice.
+            let delete_only = matches!(data, ExtractedFileData::ShouldDelete);
             match write_extracted_file(table, &path_str, data, matter, privilege, key).await {
                 Ok(true) => {
                     // SkippedUnreadable: extraction failed on a readable file. Stale
@@ -1692,10 +1700,13 @@ async fn process_one_workspace_file(
                     return FileProcess::NotRecorded;
                 }
                 Ok(false) => {
-                    // Normal success (indexed or silent empty/missing delete). Clear
-                    // any prior tombstone (self-heal) and record a fresh signature.
+                    // Normal success (indexed, or a legitimately empty file). Clear
+                    // any prior tombstone (self-heal) and record a fresh signature —
+                    // EXCEPT for a delete-only outcome (see `delete_only` above),
+                    // which we leave unrecorded so a transiently-unreadable file is
+                    // retried next boot rather than cached as fresh-and-empty.
                     clear_tombstone(state, workspace, &path_str, key).await;
-                    recorded_rows = Some(row_count);
+                    recorded_rows = if delete_only { None } else { Some(row_count) };
                 }
                 Err(e) => {
                     log::warn!("rag: DB write failed for {}: {e:#}", file.display());
@@ -2125,9 +2136,23 @@ async fn run_workspace_index(
     let integrity_unknown = state.index_integrity_unknown.load(Ordering::SeqCst)
         || store::read_unsafe_tokens(&workspace).is_integrity_unknown();
 
-    // A migration or a fail-closed recovery forces a full walk regardless of the
-    // caller's requested mode.
-    let effective_full = matches!(mode, IndexMode::Full) || migrating || integrity_unknown;
+    // P1.1 — if the manifest survives but the LanceDB `chunks` table is ABSENT
+    // (the vectors cache was deleted / corrupted / never built), the store holds
+    // no rows, so trusting the manifest would "reuse" everything and leave search
+    // empty. `open_or_create_table` (below) would happily create a fresh empty
+    // table. Detect the absence FIRST and force a full rebuild.
+    let table_missing = !conn
+        .table_names()
+        .execute()
+        .await
+        .map_err(|e| format!("list tables: {e}"))?
+        .iter()
+        .any(|n| n == store::TABLE_NAME);
+
+    // A migration, a fail-closed recovery, or a missing vector table forces a full
+    // walk regardless of the caller's requested mode.
+    let effective_full =
+        matches!(mode, IndexMode::Full) || migrating || integrity_unknown || table_missing;
 
     let table = store::open_or_create_table(&conn)
         .await
