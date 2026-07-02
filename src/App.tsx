@@ -100,6 +100,7 @@ import { useTemplatesMarketplaceStore } from '@/features/workflows/templatesMark
 import { useModelList } from '@/platform/hooks/useModelList';
 import { useContentIndex } from '@/platform/hooks/useContentIndex';
 import { useMailSync } from '@/features/email/useMailSync';
+import { useMailSyncAudit } from '@/platform/connectors/email/useMailSyncAudit';
 
 import type { MailIndexChunk } from '@/platform/utils/mail-commands';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
@@ -338,6 +339,10 @@ function App() {
     });
   }, [contentIndex.upsert]);
   useMailSync({ onMailChunk: handleMailChunk });
+  // Single-mount: write a durable audit row for every terminal mail-sync outcome
+  // (done / error / cancelled), per provider. Lives at the app root so exactly
+  // one row is written per event — never duplicated per connector panel.
+  useMailSyncAudit();
 
   // Shared KeychainService for every API-key surface: the first-run wizard's
   // "connect an AI" step, the "Manage AI Account Keys" manager, AND the live

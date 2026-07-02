@@ -11,9 +11,7 @@ import type { ExtractedContext } from '@/platform/utils/ai-file-context';
 import type { PdfExtractionResult } from '@/lib/pdf-extract';
 import type { ChatProvider } from '@/features/ask/chat/providerModelResolution';
 import type { useTrialGate } from '@/platform/hooks/useTrial';
-import { ClaudeProvider } from '@/platform/providers/ClaudeProvider';
-import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
-import { GeminiProvider } from '@/platform/providers/GeminiProvider';
+import { createProvider } from '@/platform/providers/providerFactory';
 import { ChatCostChip } from '@/features/ask/ChatCostChip';
 import { AIContextIndicator } from '@/features/ask/AIContextIndicator';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
@@ -120,16 +118,18 @@ export function ChatInputBanners({
           const costPerInputToken = showAiCostMeters ? (() => {
             try {
               if (!chatData.provider || !chatData.model) return null;
-              if (chatData.provider === 'anthropic') {
-                const p = new ClaudeProvider({ apiKey: '', model: chatData.model });
-                return p.getMetadata().costPerInputToken ?? null;
-              }
-              if (chatData.provider === 'openai') {
-                const p = new OpenAIProvider({ apiKey: '', model: chatData.model });
-                return p.getMetadata().costPerInputToken ?? null;
-              }
-              if (chatData.provider === 'google') {
-                const p = new GeminiProvider({ apiKey: '', model: chatData.model });
+              // Only cloud providers carry a per-token price; local engines
+              // ('ollama'/'keepance-local') have no cost, so preserve the
+              // original null result for them instead of constructing one just
+              // to read metadata. Build the cloud probe through the shared
+              // factory (fix F2.2) — apiKey is empty because this reads model
+              // metadata only, it never sends.
+              if (
+                chatData.provider === 'anthropic' ||
+                chatData.provider === 'openai' ||
+                chatData.provider === 'google'
+              ) {
+                const p = createProvider({ provider: chatData.provider, apiKey: '', model: chatData.model });
                 return p.getMetadata().costPerInputToken ?? null;
               }
             } catch {

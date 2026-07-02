@@ -19,6 +19,7 @@ import {
 import { getMatters, useMatterStore } from '@/platform/matter/matterStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { AuditService } from '@/platform/audit/AuditService';
+import { sanitizeSyncError } from '@/platform/connectors/syncAuditError';
 import { useOneDriveSync } from '@/platform/connectors/onedrive/useOneDriveSync';
 import { useOneDriveStore } from '@/platform/connectors/onedrive/onedriveStore';
 import { assertLocalOnlyAllowsExternal } from '@/platform/privacy/localOnlyGuard';
@@ -133,10 +134,13 @@ export function OneDriveConnect() {
         buildOneDriveMatterMap(getMatters(), workspaceRoot)
       );
       setLastReport(report);
+      // A stopped sync resolves with real (partial) counts — record it honestly
+      // as cancelled, not as a plain success.
+      const verb = report.cancelled ? 'stopped after importing' : 'imported';
       void oneDriveAudit
         .logDurable(
           'onedrive.sync',
-          `OneDrive sync: imported ${String(report.imported)} file(s) into client folders (${String(report.seen)} items checked).`,
+          `OneDrive sync: ${verb} ${String(report.imported)} file(s) into client folders (${String(report.seen)} items checked).`,
           {
             outputs: {
               imported: report.imported,
@@ -144,16 +148,20 @@ export function OneDriveConnect() {
               indexed: report.indexed,
               pendingPdf: report.pendingPdf,
               removed: report.removed,
+              cancelled: report.cancelled,
             },
           }
         )
         .catch(() => {});
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      // Show the raw reason on the owner's own screen, but persist only a
+      // sanitized category to the append-only audit log — never a raw provider
+      // message that could carry a filename, account id, or token.
       setError(message);
       void oneDriveAudit
-        .logDurable('onedrive.sync', `OneDrive sync failed: ${message}`, {
-          outputs: { error: message },
+        .logDurable('onedrive.sync', 'OneDrive sync failed.', {
+          outputs: { error: sanitizeSyncError(err) },
         })
         .catch(() => {});
     }
@@ -254,7 +262,8 @@ export function OneDriveConnect() {
             <p className="mt-1">
               {lastReport.imported > 0 ? (
                 <>
-                  Imported {lastReport.imported}{' '}
+                  {lastReport.cancelled ? 'Stopped early — imported' : 'Imported'}{' '}
+                  {lastReport.imported}{' '}
                   {lastReport.imported === 1 ? 'file' : 'files'} into your client
                   folders.
                   {lastReport.pendingPdf

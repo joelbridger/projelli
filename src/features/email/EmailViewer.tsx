@@ -54,9 +54,8 @@ import {
 } from '@/platform/types/privilege';
 import { deriveFilenameFromMessage } from '@/platform/utils/fileDrop';
 import { createKeychainService } from '@/platform/providers/KeychainService';
-import { createClaudeProvider } from '@/platform/providers/ClaudeProvider';
-import { createOpenAIProvider } from '@/platform/providers/OpenAIProvider';
-import { createGeminiProvider } from '@/platform/providers/GeminiProvider';
+import { createProvider } from '@/platform/providers/providerFactory';
+import { OPENAI_DEFAULT_MODEL } from '@/platform/providers/OpenAIProvider';
 import { resolveLocalGenerationProvider } from '@/platform/providers/resolveLocalProvider';
 import { isLocalOnlyMode, assertCloudGenerationAllowed, assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
 import type { Provider } from '@/platform/providers/Provider';
@@ -159,9 +158,17 @@ async function resolveEmailProvider(): Promise<ResolvedEmailProvider> {
   // to leave empty on the assured path — `applyAssuredRoute` strips the
   // vendor auth header (x-api-key / x-goog-api-key / Authorization) before
   // the request is ever sent, so it never carries an empty/missing key.
+  // One front door (fix F2.2): build through the shared factory so the email
+  // "Draft with AI" surface resolves the SAME provider mapping as Ask / redline /
+  // Client Map and can never drift. Same key-priority order as before
+  // (anthropic → openai → google), each gated on an explicit confidentiality
+  // choice before any cloud egress. Model is probed via a throwaway factory
+  // call (still the front door — createProvider(), never a per-provider
+  // constructor) so resolveAssuredRoute's `model` argument, and the returned
+  // ResolvedEmailProvider, always reflect what the final provider actually is.
   const kc = createKeychainService();
   const anthropicKey = (await kc.getKey('anthropic'))?.trim() ?? '';
-  const anthropicModel = createClaudeProvider({ apiKey: anthropicKey }).getMetadata().model;
+  const anthropicModel = createProvider({ provider: 'anthropic', apiKey: anthropicKey }).getMetadata().model;
   // `stream: false` (independent reviewer catch, P1) — Draft with AI always
   // calls sendMessage(), never sendMessageStreaming(), so the route must say
   // so; otherwise the proxy sets X-Stream:1 and, for Gemini especially,
@@ -170,29 +177,33 @@ async function resolveEmailProvider(): Promise<ResolvedEmailProvider> {
   if (anthropicKey || anthropicAssured) {
     assertCloudGenerationAllowed();
     return {
-      provider: createClaudeProvider({ apiKey: anthropicKey, model: anthropicModel, ...(anthropicAssured ? { assured: anthropicAssured } : {}) }),
+      provider: createProvider({ provider: 'anthropic', apiKey: anthropicKey, model: anthropicModel, ...(anthropicAssured ? { assured: anthropicAssured } : {}) }),
       providerId: 'anthropic',
       assuredAvailable: !!anthropicAssured,
     };
   }
+  // Preserve the pre-F2.2 default EXACTLY: this surface never lets the user
+  // pick a model, so it must keep using OPENAI_DEFAULT_MODEL ('gpt-4o'), not
+  // the factory's free-tier default ('gpt-4o-mini') — passing it explicitly
+  // (rather than probing) avoids the silent downgrade fix F2.2 called out.
   const openaiKey = (await kc.getKey('openai'))?.trim() ?? '';
-  const openaiModel = createOpenAIProvider({ apiKey: openaiKey }).getMetadata().model;
+  const openaiModel = OPENAI_DEFAULT_MODEL;
   const openaiAssured = resolveAssuredRoute('openai', openaiModel, false);
   if (openaiKey || openaiAssured) {
     assertCloudGenerationAllowed();
     return {
-      provider: createOpenAIProvider({ apiKey: openaiKey, model: openaiModel, ...(openaiAssured ? { assured: openaiAssured } : {}) }),
+      provider: createProvider({ provider: 'openai', apiKey: openaiKey, model: openaiModel, ...(openaiAssured ? { assured: openaiAssured } : {}) }),
       providerId: 'openai',
       assuredAvailable: !!openaiAssured,
     };
   }
   const googleKey = (await kc.getKey('google'))?.trim() ?? '';
-  const googleModel = createGeminiProvider({ apiKey: googleKey }).getMetadata().model;
+  const googleModel = createProvider({ provider: 'google', apiKey: googleKey }).getMetadata().model;
   const googleAssured = resolveAssuredRoute('google', googleModel, false);
   if (googleKey || googleAssured) {
     assertCloudGenerationAllowed();
     return {
-      provider: createGeminiProvider({ apiKey: googleKey, model: googleModel, ...(googleAssured ? { assured: googleAssured } : {}) }),
+      provider: createProvider({ provider: 'google', apiKey: googleKey, model: googleModel, ...(googleAssured ? { assured: googleAssured } : {}) }),
       providerId: 'google',
       assuredAvailable: !!googleAssured,
     };

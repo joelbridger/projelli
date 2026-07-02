@@ -25,12 +25,8 @@ import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { resolveEgress } from '@/platform/privacy/egress';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import type { Provider } from '@/platform/providers/Provider';
-import { ClaudeProvider } from '@/platform/providers/ClaudeProvider';
-import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
-import { GeminiProvider } from '@/platform/providers/GeminiProvider';
-import { OllamaProvider } from '@/platform/providers/OllamaProvider';
-import { AppLocalProvider } from '@/platform/providers/AppLocalProvider';
-import { isLocalProviderId } from '@/platform/providers/providerFactory';
+import { createProvider, isLocalProviderId } from '@/platform/providers/providerFactory';
+import { OPENAI_DEFAULT_MODEL } from '@/platform/providers/OpenAIProvider';
 import {
   effectiveChatProvider,
   resolveAvailableProviders,
@@ -220,8 +216,8 @@ export function useChatSending(deps: UseChatSendingDeps) {
       // AI chat isn't silently rerouted to the user's Ollama daemon (which may
       // not even be running). Both stay fully on-device.
       return chatProvider === 'keepance-local'
-        ? new AppLocalProvider({})
-        : new OllamaProvider({});
+        ? createProvider({ provider: 'keepance-local' })
+        : createProvider({ provider: 'ollama' });
     }
     // Personal-install choice gate (Task 1.3 fix): compression is cloud generation;
     // block it until the user has made an explicit confidentiality choice.
@@ -231,13 +227,16 @@ export function useChatSending(deps: UseChatSendingDeps) {
     assertCloudGenerationAllowed(chatProvider);
     const apiKey = apiKeys.find(k => k.provider === chatProvider && k.isValid);
     if (!apiKey) return null;
+    // One front door (fix F2.2): build the fast compression provider through the
+    // shared factory. The "fast" model ids are pinned here (compression wants a
+    // cheap/quick model, not the chat's main model).
     switch (chatProvider) {
       case 'anthropic':
-        return new ClaudeProvider({ apiKey: apiKey.key, model: 'claude-3-5-haiku-latest' });
+        return createProvider({ provider: 'anthropic', apiKey: apiKey.key, model: 'claude-3-5-haiku-latest' });
       case 'openai':
-        return new OpenAIProvider({ apiKey: apiKey.key, model: 'gpt-4o-mini' });
+        return createProvider({ provider: 'openai', apiKey: apiKey.key, model: 'gpt-4o-mini' });
       case 'google':
-        return new GeminiProvider({ apiKey: apiKey.key, model: 'gemini-1.5-flash' });
+        return createProvider({ provider: 'google', apiKey: apiKey.key, model: 'gemini-1.5-flash' });
       default:
         // Ollama and unknown providers cannot compress.
         return null;
@@ -1252,89 +1251,44 @@ export function useChatSending(deps: UseChatSendingDeps) {
           // the provider check; local-only mode is already caught above; firm installs
           // are a no-op (the gate checks isFirm first and passes through).
           assertCloudGenerationAllowed(chatProvider);
-          // WS-C honesty — this switch is the single chat send path. A LOCAL
-          // selection ('ollama') is handled by its OWN case and constructs the
-          // local provider; it can NEVER fall through to a cloud branch. The
-          // exhaustiveness guard at the end throws on an unknown id rather than
-          // defaulting to Claude, so a confidential/local chat can never be
-          // silently routed to the cloud.
-          switch (chatProvider) {
-            case 'ollama': {
-              // Local model on 127.0.0.1:11434. No API key, $0, nothing leaves
-              // the machine. Ollama does not support file-access tool calling,
-              // so we don't register tools (the non-tool streaming path handles
-              // it; the egress indicator stays "nothing leaves").
-              provider = new OllamaProvider({
-                ...(chatModel ? { model: chatModel } : {}),
-                ...rulesOpt,
-              });
-              break;
-            }
-            case 'keepance-local': {
-              // Embedded llama.cpp engine ("Advisor Prep Hero Local AI"). No API key, $0,
-              // fully on-device. Like Ollama it doesn't support file-access tool
-              // calling, so no tools are registered; the non-tool streaming path
-              // handles it and the egress indicator stays "nothing leaves".
-              provider = new AppLocalProvider({
-                ...(chatModel ? { model: chatModel } : {}),
-                ...rulesOpt,
-              });
-              break;
-            }
-            case 'openai': {
-              const openai = new OpenAIProvider({
-                apiKey: apiKey!.key,
-                ...(chatModel ? { model: chatModel } : {}),
-                ...rulesOpt,
-                ...assuredOpt,
-              });
-              if (hasWorkspaceForTools) {
-                openai.setTools(FILE_ACCESS_TOOLS, toolExecutor);
-                console.log('[AIChat DIAGNOSTIC] Tools registered on OpenAI provider:', FILE_ACCESS_TOOLS.length, 'tools');
-              } else {
-                console.warn('[AIChat DIAGNOSTIC] Tools NOT registered on OpenAI — workspace service or rootPath missing');
-              }
-              provider = openai;
-              break;
-            }
-            case 'google': {
-              const gemini = new GeminiProvider({
-                apiKey: apiKey!.key,
-                ...(chatModel ? { model: chatModel } : {}),
-                ...rulesOpt,
-                ...assuredOpt,
-              });
-              if (hasWorkspaceForTools) {
-                gemini.setTools(FILE_ACCESS_TOOLS, toolExecutor);
-                console.log('[AIChat DIAGNOSTIC] Tools registered on Gemini provider:', FILE_ACCESS_TOOLS.length, 'tools');
-              } else {
-                console.warn('[AIChat DIAGNOSTIC] Tools NOT registered on Gemini — workspace service or rootPath missing');
-              }
-              provider = gemini;
-              break;
-            }
-            case 'anthropic': {
-              const claude = new ClaudeProvider({
-                apiKey: apiKey!.key,
-                ...(chatModel ? { model: chatModel } : {}),
-                ...rulesOpt,
-                ...assuredOpt,
-              });
-              if (hasWorkspaceForTools) {
-                claude.setTools(FILE_ACCESS_TOOLS, toolExecutor);
-                console.log('[AIChat DIAGNOSTIC] Tools registered on Claude provider:', FILE_ACCESS_TOOLS.length, 'tools');
-              } else {
-                console.warn('[AIChat DIAGNOSTIC] Tools NOT registered on Claude — workspace service or rootPath missing');
-              }
-              provider = claude;
-              break;
-            }
-            default: {
-              // Exhaustiveness guard. NOT a Claude fallback — an unrecognised
-              // provider id is a hard error so a local/confidential selection
-              // can never be silently downgraded to a cloud provider.
-              const never: never = chatProvider;
-              throw new Error(`Unsupported chat provider: ${String(never)}`);
+          // WS-C honesty — one front door (fix F2.2): this is the single chat
+          // send path, and it builds the provider through the shared factory so
+          // it can never drift from redline / Client Map / At-a-Glance on which
+          // provider a selection maps to. A LOCAL id ('ollama'/'keepance-local')
+          // constructs the on-device engine and ignores the empty key + assured
+          // route; the factory throws on an unknown id rather than defaulting to
+          // Claude, so a confidential/local chat can never be silently routed to
+          // the cloud. (createProvider ignores `assured` for local ids.)
+          provider = createProvider({
+            provider: chatProvider,
+            apiKey: apiKey?.key ?? '',
+            // Preserve the pre-F2.2 no-model default EXACTLY: when a chat carries
+            // no stored model (a legacy/edge .aichat), OpenAI used its own
+            // constructor default (gpt-4o), not the factory's free-tier default
+            // (gpt-4o-mini). Local ids and Anthropic/Gemini already match, so
+            // only OpenAI needs the explicit fallback.
+            ...(chatModel
+              ? { model: chatModel }
+              : chatProvider === 'openai'
+                ? { model: OPENAI_DEFAULT_MODEL }
+                : {}),
+            ...rulesOpt,
+            ...assuredOpt,
+          });
+          // File-access tools are a CLOUD-provider capability: the local engines
+          // don't support tool calling (the non-tool streaming path handles them
+          // and the egress indicator stays "nothing leaves"). setTools lives on
+          // the concrete cloud classes (Claude/OpenAI/Gemini share the
+          // ClaudeStyleTool shape), not on the base Provider interface — hence
+          // the narrow cast at this one boundary.
+          if (!isLocalProviderId(chatProvider)) {
+            if (hasWorkspaceForTools) {
+              (provider as unknown as {
+                setTools: (tools: typeof FILE_ACCESS_TOOLS, executor: typeof toolExecutor) => void;
+              }).setTools(FILE_ACCESS_TOOLS, toolExecutor);
+              console.log('[AIChat DIAGNOSTIC] Tools registered on', chatProvider, 'provider:', FILE_ACCESS_TOOLS.length, 'tools');
+            } else {
+              console.warn('[AIChat DIAGNOSTIC] Tools NOT registered on', chatProvider, '— workspace service or rootPath missing');
             }
           }
         }
