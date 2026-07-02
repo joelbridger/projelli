@@ -72,12 +72,6 @@ const EMAIL_VIRTUALIZE_ROW_THRESHOLD = 40;
 // virtualizer measures each row's real height once rendered and corrects for
 // it, same pattern as SheetGrid.
 const MAIL_ROW_ESTIMATED_HEIGHT_PX = 88;
-// Bounded height for the results box's own internal scroll, independent of
-// the page's scroll — deliberately NOT `flex: 1`/full-viewport: this list
-// sits inside a page that also scrolls (filters, other states, Ask mode),
-// and giving it a fixed max-height means virtualizing it doesn't require
-// restructuring that page-level scroll model or touching Ask mode at all.
-const EMAIL_LIST_MAX_HEIGHT_PX = 560;
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -459,8 +453,9 @@ export function EmailWorkspace({
 
   // Fix 7: persist list scroll position per-matter in sessionStorage.
   //
-  // Perf (P2.2) — this now targets the results list's OWN bounded-height
-  // scroll container (see EMAIL_LIST_MAX_HEIGHT_PX below), not the outer
+  // Perf (P2.2) — this now targets the results list's OWN scroll container
+  // (a `flex: 1` region that fills whatever space is left below the
+  // toolbar/filters/other states — see the render below), not the outer
   // page. Codex review (round 1) caught that pointing it at the page while
   // introducing a separate, dedicated inner scroll region for the actual
   // rows meant a user's scroll position within a long list was never
@@ -479,13 +474,22 @@ export function EmailWorkspace({
   const { scrollContainerRef, getScrollElement } = useScrollPersistence(activeMatter);
 
   // Perf (P2.2) — virtualize the results list past EMAIL_VIRTUALIZE_ROW_THRESHOLD
-  // rows, using the SAME dedicated, bounded-height scroll container as scroll
-  // persistence above — deliberately separate from the outer page's own
-  // scroll (used by every other state: loading/error/no-results/filters/Ask
-  // mode). Keeping virtualization scoped to its own dedicated, always-present
-  // scroll element means it doesn't need to track the offset of anything
-  // above it (filters panel, bulk-action bar) the way virtualizing a
-  // page-level scroll region would.
+  // rows, using the SAME dedicated scroll container as scroll persistence
+  // above — deliberately separate from the outer page's own scroll (used by
+  // every other state: loading/error/no-results/filters/Ask mode). Keeping
+  // virtualization scoped to its own dedicated, always-present scroll
+  // element means it doesn't need to track the offset of anything above it
+  // (filters panel, bulk-action bar) the way virtualizing a page-level
+  // scroll region would.
+  //
+  // Codex review (round 3): this container was originally a fixed
+  // max-height (560px) box rather than filling available space — that
+  // shrank the safe zone for row popovers (File/Privilege, absolutely
+  // positioned and clipped by any `overflow` ancestor) from the full page
+  // height down to a few hundred pixels, so a dropdown opened on any row
+  // past the first few got visibly clipped. The render below now makes the
+  // results box `flex: 1` (fills remaining page height, same safe zone as
+  // before virtualization existed) instead of a small fixed height.
   const shouldVirtualizeRows = scopedItems.length > EMAIL_VIRTUALIZE_ROW_THRESHOLD;
   const rowVirtualizer = useVirtualizer({
     count: scopedItems.length,
@@ -941,8 +945,22 @@ export function EmailWorkspace({
                   border: '1px solid var(--color-border)',
                   borderRadius: 'var(--radius-lg)',
                   background: '#fff',
-                  overflow: 'hidden',
                   boxShadow: 'var(--kp-shadow-1)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  // Perf (P2.2) fix (Codex review round 3): this box fills
+                  // whatever space remains below the toolbar/filters/other
+                  // states, the same way it did before virtualization —
+                  // giving it a SMALL fixed max-height instead (as the
+                  // original version of this fix did) shrank row popovers'
+                  // (File/Privilege) available room from the full page down
+                  // to a few hundred pixels, so a dropdown opened on any row
+                  // past the first few got clipped by this box's own
+                  // overflow. `flex: 1` + `minHeight: 0` restores the
+                  // original, full-page-height safe zone.
+                  flex: 1,
+                  minHeight: 0,
+                  overflow: 'hidden',
                 }}
               >
                 <div
@@ -953,6 +971,7 @@ export function EmailWorkspace({
                     color: 'var(--color-muted-foreground)',
                     borderBottom: '1px solid var(--color-border)',
                     background: 'rgba(10,37,64,0.02)',
+                    flexShrink: 0,
                   }}
                 >
                   {embedded
@@ -964,7 +983,8 @@ export function EmailWorkspace({
                 <div
                   ref={scrollContainerRef}
                   style={{
-                    maxHeight: EMAIL_LIST_MAX_HEIGHT_PX,
+                    flex: 1,
+                    minHeight: 0,
                     overflowY: 'auto',
                   }}
                 >
@@ -1020,6 +1040,7 @@ export function EmailWorkspace({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
+                      flexShrink: 0,
                     }}
                   >
                     <button

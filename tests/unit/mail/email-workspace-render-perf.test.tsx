@@ -245,6 +245,30 @@ describe('Perf (P2.2) — EmailWorkspace / MailRow render hygiene', () => {
     expect(screen.getAllByTestId('mail-row')).toHaveLength(10);
   });
 
+  // Codex review (P2.2, round 3): giving the results box a small fixed
+  // max-height (560px) — rather than letting it fill the remaining page
+  // height the way it did before virtualization — shrank the "safe zone"
+  // for row popovers (File/Privilege menus, absolutely positioned and
+  // clipped by any `overflow` ancestor) from the full page down to a few
+  // hundred pixels, so a dropdown opened on any row past the first few got
+  // visibly clipped. This checks the structural property that makes that
+  // regression possible: the results box must be a flexible (`flex: 1`),
+  // not a small-fixed-height, region.
+  it('the results box fills available space (flex: 1) instead of a small fixed height', async () => {
+    const items = makeItems(10);
+    setupMocks(items);
+
+    render(<EmailWorkspace />);
+    await waitForInitialLoad();
+
+    const resultsBox = screen.getByTestId('result-count').parentElement;
+    expect(resultsBox).not.toBeNull();
+    // jsdom expands the `flex` shorthand — "1" becomes "1 1 0%".
+    expect(resultsBox!.style.flex).toBe('1 1 0%');
+    // Explicitly guard against reintroducing a small fixed cap.
+    expect(resultsBox!.style.maxHeight).toBe('');
+  });
+
   // Codex review (P2.2, round 1): `scopedItems` used to call `getMatters()`
   // — a non-reactive Zustand SNAPSHOT getter — inside the memoized filter,
   // with `matters` absent from the dependency array. The pre-memo code got
