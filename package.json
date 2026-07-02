@@ -35,6 +35,7 @@
     "brand:check": "node scripts/brand-sync.mjs --check",
     "identity:check": "node scripts/identity-check.mjs",
     "lint:gate": "node scripts/eslint-gate.mjs",
+    "version:bump": "node scripts/bump-version.mjs",
     "prepare": "bash scripts/install-git-hooks.sh || true",
     "i18n:check": "node ./node_modules/.bin/i18next --config i18next-parser.check.config.js --fail-on-warnings",
     "i18n:extract": "node ./node_modules/.bin/i18next --config i18next-parser.config.js",

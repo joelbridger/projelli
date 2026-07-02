@@ -90,15 +90,24 @@ npm run tauri build
 ### Creating a New Release (e.g., v1.0.1)
 
 **Step 1: Update Version Numbers** (WSL2)
+
+Don't hand-edit the 3 files — use `scripts/bump-version.mjs` (`npm run version:bump`). It
+bumps `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml` together,
+refuses to run if they've already drifted apart, updates `package-lock.json`, and
+re-runs `scripts/check-tauri-parity.mjs` to prove all three agree. This is the fix for
+the v2.5.0 release that shipped with no Windows installer because `Cargo.toml` had been
+missed in a manual bump.
+
 ```bash
 cd /mnt/c/Users/james/Projects/keepance
 
-# Edit these 3 files to bump version to 1.0.1:
-# - package.json
-# - src-tauri/tauri.conf.json
-# - src-tauri/Cargo.toml
+npm run version:bump -- patch          # or: minor / major / an explicit version e.g. 1.0.1
+npm run version:bump -- patch --dry-run  # preview the bump without writing anything
 
-git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml
+# The script prints one follow-up it does NOT run for you:
+#   cd src-tauri && cargo build   # updates Cargo.lock
+
+git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml package-lock.json src-tauri/Cargo.lock
 git commit -m "Bump version to 1.0.1"
 git push origin master
 git tag v1.0.1
