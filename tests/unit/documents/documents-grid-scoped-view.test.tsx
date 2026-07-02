@@ -476,6 +476,195 @@ describe('DocumentsHome — B4b: whole-client search scope + matter isolation', 
     expect(context.textContent).not.toContain('Clients');
   });
 
+  it('(COORDINATOR review, isolation-class) searching an ancestor WRAPPER folder name never surfaces it as a result — zero results, not a leaked folder card', () => {
+    // Same pathological nested layout as above: Acme's own mapped folder
+    // sits inside a folder literally named "Beta" (kept only as a
+    // navigational wrapper, never owned by this client). A first pass at
+    // this fix only trimmed the wrapper's name out of a DESCENDANT result's
+    // path context — but flattenForSearch(fileTree) still walked the wrapper
+    // NODES themselves, so searching "Beta" surfaced the wrapper folder
+    // itself as a search RESULT (clickable, name visible). The fix must be
+    // structural: never flatten anything above the client's OWN owned
+    // folder(s), so a wrapper can never appear as a result at all — for
+    // "Beta" (the coincidental other-identity wrapper) AND "Clients" (the
+    // outer wrapper), search inside Acme's scope must return ZERO results.
+    const nestedTree: FileNode[] = [
+      {
+        id: 'clients',
+        name: 'Clients',
+        path: 'Clients',
+        type: 'folder',
+        children: [
+          {
+            id: 'beta-wrapper',
+            name: 'Beta',
+            path: 'Clients/Beta',
+            type: 'folder',
+            children: [
+              {
+                id: 'acme',
+                name: 'Acme',
+                path: 'Clients/Beta/Acme',
+                type: 'folder',
+                children: [
+                  {
+                    id: 'acme-deal',
+                    name: 'deal.docx',
+                    path: 'Clients/Beta/Acme/deal.docx',
+                    type: 'file',
+                    extension: 'docx',
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ];
+    mockStoreFileTree = nestedTree;
+    render(
+      <DocumentsHome
+        {...buildProps()}
+        embedded
+        scopeFolderPaths={[`${ROOT}/Clients/Beta/Acme`]}
+      />,
+    );
+    const search = screen.getByTestId('documents-search-field');
+
+    // Note: the breadcrumb trail (a pre-existing, unrelated navigational
+    // affordance) already shows "Beta" as an ancestor crumb regardless of
+    // search — that's not what this test guards against. It asserts no
+    // SEARCH RESULT card for the wrapper exists, and the grid honestly
+    // reports zero matches.
+    fireEvent.change(search, { target: { value: 'Beta' } });
+    expect(screen.queryByTestId('grid-card-Clients/Beta')).toBeNull();
+    expect(screen.queryByTestId('document-grid-cards')).toBeNull();
+    expect(screen.getByText(/no files match your search/i)).toBeTruthy();
+
+    fireEvent.change(search, { target: { value: 'Clients' } });
+    expect(screen.queryByTestId('grid-card-Clients')).toBeNull();
+    expect(screen.getByText(/no files match your search/i)).toBeTruthy();
+
+    // Sanity: the client's own file is still findable — this isn't a
+    // regression to "nothing ever matches."
+    fireEvent.change(search, { target: { value: 'deal' } });
+    expect(screen.getByText('deal.docx')).toBeTruthy();
+  });
+
+  it('(Codex delta review, P1) one stale/unresolvable extra mapped folder never reopens the wrapper leak for the client\'s OTHER valid folder', () => {
+    // A client can have MULTIPLE mapped folders (`Matter.folderPaths`). The
+    // first pass at resolving them bailed on the ENTIRE list the moment ANY
+    // single entry failed to resolve (e.g. a stale path to a folder that was
+    // deleted/renamed) — discarding every already-resolved VALID root and
+    // falling back to flattening the whole tree, which reopens the exact
+    // wrapper-leak this fix closes. One bad extra entry must never poison
+    // the other, perfectly good, owned folder.
+    const nestedTree: FileNode[] = [
+      {
+        id: 'clients',
+        name: 'Clients',
+        path: 'Clients',
+        type: 'folder',
+        children: [
+          {
+            id: 'beta-wrapper',
+            name: 'Beta',
+            path: 'Clients/Beta',
+            type: 'folder',
+            children: [
+              {
+                id: 'acme',
+                name: 'Acme',
+                path: 'Clients/Beta/Acme',
+                type: 'folder',
+                children: [
+                  {
+                    id: 'acme-deal',
+                    name: 'deal.docx',
+                    path: 'Clients/Beta/Acme/deal.docx',
+                    type: 'file',
+                    extension: 'docx',
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ];
+    mockStoreFileTree = nestedTree;
+    render(
+      <DocumentsHome
+        {...buildProps()}
+        embedded
+        scopeFolderPaths={[
+          `${ROOT}/Clients/Beta/Acme`,
+          // A folder this client "owns" per its stored Matter.folderPaths,
+          // but that no longer exists anywhere in the tree (deleted/renamed).
+          `${ROOT}/Clients/Beta/Acme/DeletedSubfolder`,
+        ]}
+      />,
+    );
+    const search = screen.getByTestId('documents-search-field');
+
+    // The wrapper leak must still be closed even with the stale extra entry.
+    fireEvent.change(search, { target: { value: 'Beta' } });
+    expect(screen.queryByTestId('document-grid-cards')).toBeNull();
+    expect(screen.getByText(/no files match your search/i)).toBeTruthy();
+
+    // The client's own valid folder must still search correctly.
+    fireEvent.change(search, { target: { value: 'deal' } });
+    expect(screen.getByText('deal.docx')).toBeTruthy();
+  });
+
+  it('(Codex delta review, P2) overlapping/nested mapped folders never produce duplicate result cards', () => {
+    // A client can map BOTH a parent folder and one of its own subfolders
+    // (e.g. "/Clients/Acme" and "/Clients/Acme/Contracts"). Without
+    // deduplication, the nested folder's contents get walked twice — once
+    // via the parent root's normal recursion, once again as its own
+    // independent root — producing a duplicate card (and duplicate React
+    // key) for the same file.
+    const nestedTree: FileNode[] = [
+      {
+        id: 'acme',
+        name: 'Acme',
+        path: 'Clients/Acme',
+        type: 'folder',
+        children: [
+          {
+            id: 'acme-contracts',
+            name: 'Contracts',
+            path: 'Clients/Acme/Contracts',
+            type: 'folder',
+            children: [
+              {
+                id: 'acme-nda',
+                name: 'nda.docx',
+                path: 'Clients/Acme/Contracts/nda.docx',
+                type: 'file',
+                extension: 'docx',
+              },
+            ],
+          },
+        ],
+      },
+    ];
+    mockStoreFileTree = nestedTree;
+    render(
+      <DocumentsHome
+        {...buildProps()}
+        embedded
+        scopeFolderPaths={[`${ROOT}/Clients/Acme`, `${ROOT}/Clients/Acme/Contracts`]}
+      />,
+    );
+    const search = screen.getByTestId('documents-search-field');
+    fireEvent.change(search, { target: { value: 'nda' } });
+    expect(screen.getAllByText('nda.docx')).toHaveLength(1);
+    expect(screen.getByTestId('grid-card-context-Clients/Acme/Contracts/nda.docx').textContent).toBe(
+      'Contracts',
+    );
+  });
+
   it('empty state is honest: a query with no match anywhere in the client scope says so, not a stale prior list', () => {
     render(
       <DocumentsHome

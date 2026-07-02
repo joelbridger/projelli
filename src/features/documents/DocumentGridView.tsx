@@ -27,6 +27,8 @@ import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useEditorStore } from '@/platform/state/editorStore';
 import { TrashPanel } from '@/features/documents/TrashPanel';
 import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
+import { toAbsolute, toScopedFolderPath } from '@/features/documents/scopeFileTree';
+import { normalize } from '@/platform/rag/matterResolver';
 import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import type { FileNode } from '@/platform/types/workspace';
 
@@ -110,10 +112,55 @@ function flattenForSearch(nodes: FileNode[], prefix = ''): { node: FileNode; fol
   return out;
 }
 
+// Like `flattenForSearch`, but for a set of CONFIRMED client-owned scope
+// roots (never an ancestor wrapper folder — callers must only pass actual
+// owned folders, e.g. resolved via `toScopedFolderPath`). Each root's OWN
+// name is excluded from its descendants' path context, since the user is
+// already looking at that client's own tab (shown via breadcrumbs/header) —
+// unlike the top-level items of an unscoped tree, a scope root's identity
+// isn't itself useful context to repeat on every one of its own results.
+function flattenScopeRoots(roots: FileNode[]): { node: FileNode; folder: string }[] {
+  const out: { node: FileNode; folder: string }[] = [];
+  for (const root of roots) {
+    out.push({ node: root, folder: '' });
+    if (root.type === 'folder' && root.children) {
+      out.push(...flattenForSearch(root.children, ''));
+    }
+  }
+  return out;
+}
+
+// Remove any resolved scope root that is itself a DESCENDANT of another
+// resolved root (a client can own more than one mapped folder, and one can
+// be nested inside another, e.g. both "/Clients/Acme" and
+// "/Clients/Acme/Contracts"). Without this, `flattenScopeRoots` would walk
+// the nested folder's contents TWICE — once via the parent root's normal
+// recursion, once as its own independent root — producing duplicate result
+// cards (duplicate React keys) with conflicting path context for the same
+// file (Codex review delta). The trailing "/" makes this a real path-segment
+// prefix check, so "/Clients/AcmeCorp" is never wrongly treated as nested
+// inside "/Clients/Acme".
+function dedupeNestedRoots(nodes: FileNode[]): FileNode[] {
+  return nodes.filter(
+    (node) => !nodes.some((other) => other !== node && node.path.startsWith(`${other.path}/`)),
+  );
+}
+
 // Folders first, then files, each group alphabetically.
 function compareNodes(a: FileNode, b: FileNode): number {
   if (a.type === b.type) return a.name.localeCompare(b.name);
   return a.type === 'folder' ? -1 : 1;
+}
+
+function findNodeByPath(nodes: FileNode[], targetPath: string): FileNode | null {
+  for (const node of nodes) {
+    if (node.path === targetPath) return node;
+    if (node.type === 'folder' && node.children) {
+      const found = findNodeByPath(node.children, targetPath);
+      if (found !== null) return found;
+    }
+  }
+  return null;
 }
 
 // ── Breadcrumb ─────────────────────────────────────────────────────────────
@@ -444,6 +491,20 @@ export interface DocumentGridViewProps {
    * is unaffected; this only changes the create target (matter isolation).
    */
   createFolderFallback?: string | null;
+  /**
+   * Embedded (per-client) only: the ABSOLUTE folder path(s) this client
+   * actually OWNS (`Matter.folderPaths` shape — mirrors `scopeFolderPaths` on
+   * `DocumentsHome`). `scopedFileTree` (above) is pruned to this client's
+   * folders but deliberately KEEPS ancestor wrapper folders above them so
+   * they stay reachable via breadcrumbs (e.g. "Clients" above "Clients/Acme",
+   * or — pathologically — another client's own folder if this client's
+   * folder happens to be nested inside it). Search must never treat those
+   * wrappers as candidates: it resolves each path here to its node in
+   * `fileTree` and flattens ONLY from there down, so a wrapper's name can
+   * never appear as a result OR in a result's path context. Undefined = the
+   * unscoped global browser, where the whole tree is fair game.
+   */
+  scopeRootFolderPaths?: string[];
 }
 
 // ── Main export ────────────────────────────────────────────────────────────
@@ -472,6 +533,7 @@ export function DocumentGridView({
   treeView,
   scopedFileTree,
   createFolderFallback,
+  scopeRootFolderPaths,
 }: DocumentGridViewProps) {
   const storeFileTree = useWorkspaceStore((s) => s.fileTree);
   // Per-client Documents sub-tab passes a pre-scoped tree; the global browser
@@ -485,17 +547,6 @@ export function DocumentGridView({
   // create buttons can target the folder you're viewing). Breadcrumbs derive from it.
 
   // ── Tree helpers ─────────────────────────────────────────────────────────
-
-  function findNodeByPath(nodes: FileNode[], targetPath: string): FileNode | null {
-    for (const node of nodes) {
-      if (node.path === targetPath) return node;
-      if (node.type === 'folder' && node.children) {
-        const found = findNodeByPath(node.children, targetPath);
-        if (found !== null) return found;
-      }
-    }
-    return null;
-  }
 
   const folderNode = currentFolderPath !== null ? findNodeByPath(fileTree, currentFolderPath) : null;
   // A folder path that doesn't resolve in this tree (e.g. it was deleted or
@@ -526,47 +577,75 @@ export function DocumentGridView({
 
   const isSearching = searchQuery.trim().length > 0;
 
-  // `scopeFileTreeToFolders` keeps ancestor wrapper folders purely so the
-  // client's mapped folder stays reachable (e.g. "Clients"). If that folder
-  // happens to be nested under a DIFFERENT client's own folder, the wrapper
-  // chain can include that other client's folder name — search itself never
-  // crosses the matter boundary (fileTree is already pruned), but the path
-  // CONTEXT shown on a result card could otherwise leak that name (Codex
-  // review). `createFolderFallback` is this client's own root (absolute);
-  // trim the shown context down to start at its own folder, never above it.
-  const scopeRootName = createFolderFallback
-    ? createFolderFallback.split('/').filter(Boolean).pop()
-    : undefined;
-
-  function trimToScopeRoot(folder: string): string {
-    if (!scopeRootName || !folder) return folder;
-    const parts = folder.split('/');
-    const idx = parts.indexOf(scopeRootName);
-    return idx === -1 ? folder : parts.slice(idx + 1).join('/');
-  }
-
-  // Fix (B4b): search must span the client's ENTIRE scoped tree (`fileTree` —
-  // already pruned to this client's own folders by `scopeFileTreeToFolders`
-  // for the embedded per-client tab, or the full workspace tree for the
-  // global browser), not just `currentNodes` (the open folder's direct
-  // children). Previously both browsing AND search filtered `currentNodes`,
-  // so a match living in a sibling/ancestor/nested folder never surfaced.
-  // `folder` (name-joined ancestor path) rides along so cross-folder matches
-  // can show WHERE they live; it is unused while browsing (not searching).
+  // Codex review (round 2 delta): `scopeFileTreeToFolders` keeps ancestor
+  // WRAPPER folders purely so the client's own mapped folder stays reachable
+  // via breadcrumbs (e.g. "Clients" above "Clients/Acme" — or, pathologically,
+  // another client's OWN folder if this client's folder happens to be nested
+  // inside it). A prior fix only trimmed the wrapper's name out of a result's
+  // displayed path CONTEXT, but the wrapper node itself was still a SEARCH
+  // CANDIDATE — searching that other client's folder name surfaced the
+  // wrapper folder as a result. The correct fix is structural: resolve each
+  // of `scopeRootFolderPaths` (this client's OWNED folders, absolute /
+  // `Matter.folderPaths` shape) to its node in `fileTree`, and flatten
+  // starting AT that node — never touching anything above it — so a wrapper
+  // can never appear as a result OR leak into a result's path context.
+  // `null` means "not a confirmed scope" — either the unscoped global
+  // browser (`scopeRootFolderPaths` absent), the workspace-root special case
+  // (the whole tree legitimately IS the scope, so there's no wrapper to
+  // exclude — nothing exists ABOVE the workspace root to leak), or every
+  // path failed to resolve at all (e.g. the tree hasn't loaded yet) — all
+  // three fall back to flattening the whole (already-scoped) `fileTree`
+  // below, never worse than before this fix.
   //
-  // Flattening + sorting is O(tree size); memoized against `fileTree` (not
-  // `searchQuery`) so it runs once per tree change, not once per keystroke —
-  // otherwise every character typed re-walks and re-sorts the whole client
-  // folder (Codex review).
+  // Codex review (delta round 2): a client can own MORE than one mapped
+  // folder. Each path is checked/resolved INDEPENDENTLY — a single
+  // stale/missing/out-of-root entry is SKIPPED (not treated as a reason to
+  // discard every other already-resolved valid root and fall back to the
+  // whole-tree flatten, which would silently reopen the wrapper leak this
+  // fix closes for the client's OTHER, perfectly valid, folders). Only the
+  // workspace-root case (checked directly here, not inferred from
+  // `toScopedFolderPath`'s null — conflating the two was the bug) forces the
+  // whole-tree fallback, since that's the one case where it's actually
+  // correct. Overlapping/nested resolved roots are then collapsed by
+  // `dedupeNestedRoots` so a nested owned folder isn't walked twice.
+  const resolvedScopeRoots = useMemo(() => {
+    if (!scopeRootFolderPaths || scopeRootFolderPaths.length === 0) return null;
+    const nodes: FileNode[] = [];
+    const seenPaths = new Set<string>();
+    for (const abs of scopeRootFolderPaths) {
+      if (rootPath && toAbsolute(abs, rootPath) === normalize(rootPath)) return null;
+      const treePath = toScopedFolderPath(fileTree, abs, rootPath);
+      if (treePath === null) continue;
+      const node = findNodeByPath(fileTree, treePath);
+      if (node && !seenPaths.has(node.path)) {
+        seenPaths.add(node.path);
+        nodes.push(node);
+      }
+    }
+    return nodes.length > 0 ? dedupeNestedRoots(nodes) : null;
+  }, [scopeRootFolderPaths, fileTree, rootPath]);
+
+  // Fix (B4b): search must span the client's ENTIRE scoped tree, not just
+  // `currentNodes` (the open folder's direct children). Previously both
+  // browsing AND search filtered `currentNodes`, so a match living in a
+  // sibling/ancestor/nested folder never surfaced. `folder` (name-joined
+  // ancestor path) rides along so cross-folder matches can show WHERE they
+  // live; it is unused while browsing (not searching). When `resolvedScopeRoots`
+  // is a confirmed set of owned folders, `flattenScopeRoots` walks ONLY those
+  // (excluding any wrapper ancestor); otherwise the whole `fileTree` is
+  // fair game (unscoped browser / workspace-root scope), matching how the
+  // global browser's own top-level folder names ARE meaningful context.
+  //
+  // Flattening + sorting is O(tree size); memoized against the resolved
+  // scope roots (not `searchQuery`) so it runs once per tree change, not
+  // once per keystroke — otherwise every character typed re-walks and
+  // re-sorts the whole client folder (Codex review).
   const flattenedSorted = useMemo(() => {
-    const flat = flattenForSearch(fileTree).map((e) => ({
-      node: e.node,
-      folder: trimToScopeRoot(e.folder),
-    }));
-    return flat.sort((a, b) => compareNodes(a.node, b.node));
-    // trimToScopeRoot is a pure function of `scopeRootName`, already a dep below.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fileTree, scopeRootName]);
+    const entries = resolvedScopeRoots
+      ? flattenScopeRoots(resolvedScopeRoots)
+      : flattenForSearch(fileTree);
+    return entries.sort((a, b) => compareNodes(a.node, b.node));
+  }, [resolvedScopeRoots, fileTree]);
 
   const searchEntries: { node: FileNode; folder: string }[] = isSearching
     ? flattenedSorted
