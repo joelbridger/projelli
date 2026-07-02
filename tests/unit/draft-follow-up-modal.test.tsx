@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { DraftFollowUpModal } from '@/features/email/DraftFollowUpModal';
+import { buildMailMatterMap } from '@/platform/rag/matterResolver';
 
 const { sendMessage, mailSaveDraft, mailSend, mailConnectedAccounts, logEmailAuditEntry } = vi.hoisted(() => ({
   sendMessage: vi.fn(),
@@ -28,25 +29,36 @@ vi.mock('@/features/email/emailAuditLog', () => ({
   logEmailAuditEntry,
 }));
 
+const mailListMessagesByMatter = vi.hoisted(() => vi.fn(async () => ({
+  items: [
+    {
+      id: '1', subject: 's', fromAddr: 'tom@brennan.com', fromName: 'Tom',
+      snippet: '', receivedDateTime: null, provider: 'm365', account: 'default',
+      folderId: 'inbox', hasAttachments: false,
+    },
+  ],
+  total: 1,
+})));
+
 vi.mock('@/platform/utils/mail-commands', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/platform/utils/mail-commands')>();
   return {
     ...actual,
     mailConnectedAccounts,
-    mailListMessagesByMatter: vi.fn(async () => ({
-      items: [
-        {
-          id: '1', subject: 's', fromAddr: 'tom@brennan.com', fromName: 'Tom',
-          snippet: '', receivedDateTime: null, provider: 'm365', account: 'default',
-          folderId: 'inbox', hasAttachments: false,
-        },
-      ],
-      total: 1,
-    })),
+    mailListMessagesByMatter,
     mailSaveDraft,
     mailSend,
   };
 });
+
+vi.mock('@/platform/matter/matterStore', () => ({
+  useMatters: () => [
+    {
+      id: 'matter-1',
+      mailFolderPaths: ['m365/default/inbox'],
+    },
+  ],
+}));
 
 describe('DraftFollowUpModal — AI proposes, user approves, hostile notes stay harmless', () => {
   beforeEach(() => {
@@ -159,6 +171,47 @@ describe('DraftFollowUpModal — AI proposes, user approves, hostile notes stay 
       metadata: { scope?: { matterId: string } };
     }];
     expect(entry.action).toBe('email.send');
+    expect(entry.metadata.scope).toEqual({ kind: 'matter', matterId: 'matter-1' });
+  });
+
+  it('passes the real folder→matter map when suggesting a To address, not an empty one (codex-review P2)', async () => {
+    render(
+      <DraftFollowUpModal
+        open
+        onOpenChange={() => {}}
+        noteName="Meeting Notes 2026-06-24.docx"
+        noteContent={hostileNote}
+        matterId="matter-1"
+      />,
+    );
+    await waitFor(() => expect(mailListMessagesByMatter).toHaveBeenCalled());
+    const [, matterMap] = mailListMessagesByMatter.mock.calls[0]! as unknown as [string, unknown];
+    expect(matterMap).toEqual(buildMailMatterMap([{ id: 'matter-1', mailFolderPaths: ['m365/default/inbox'] }] as never));
+    expect((matterMap as unknown[]).length).toBeGreaterThan(0);
+  });
+
+  it('records an audit entry when a draft is saved to a real mailbox (codex-review P2)', async () => {
+    render(
+      <DraftFollowUpModal
+        open
+        onOpenChange={() => {}}
+        noteName="Meeting Notes 2026-06-24.docx"
+        noteContent={hostileNote}
+        matterId="matter-1"
+      />,
+    );
+    await waitFor(() =>
+      expect((screen.getByTestId('followup-body') as HTMLTextAreaElement).value).not.toBe(''),
+    );
+    logEmailAuditEntry.mockClear(); // clear the earlier egress-audit call so this only sees the save entry
+    fireEvent.click(screen.getByTestId('followup-save-drafts'));
+    await waitFor(() => expect(mailSaveDraft).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(logEmailAuditEntry).toHaveBeenCalled());
+    const [entry] = logEmailAuditEntry.mock.calls[0]! as [{
+      action: string;
+      metadata: { scope?: { matterId: string } };
+    }];
+    expect(entry.action).toBe('email.draft_saved');
     expect(entry.metadata.scope).toEqual({ kind: 'matter', matterId: 'matter-1' });
   });
 });

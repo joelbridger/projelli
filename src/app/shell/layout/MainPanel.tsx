@@ -18,7 +18,7 @@ import { OutlinePanel } from '@/features/documents/editor/OutlinePanel';
 import { ImageViewer, VideoViewer, isImageFile, isVideoFile } from '@/features/documents/media/MediaViewer';
 import { PDFViewer, isPDFFile, isSpreadsheetFile, isPresentationFile, isWordFile } from '@/features/documents/media/PDFViewer';
 import { DraftFollowUpModal } from '@/features/email/DraftFollowUpModal';
-import { resolveMatterIdForPath } from '@/platform/matter/matterStore';
+import { resolveMatterIdForWorkspacePath } from '@/platform/hooks/useMemoryWiring';
 
 // Heavy doc libraries and feature modules are lazy-loaded so they don't land
 // in the startup bundle. Mermaid (~700KB) and KaTeX are pulled in via
@@ -816,7 +816,7 @@ export function MainPanel({
                   setFollowUpFor({
                     name: tab.name,
                     content: plainText,
-                    matterId: resolveMatterIdForPath(tab.path),
+                    matterId: resolveMatterIdForWorkspacePath(tab.path, rootPath),
                   });
                 }}
               />
@@ -945,7 +945,7 @@ export function MainPanel({
               setFollowUpFor({
                 name: tab.name,
                 content: tab.content,
-                matterId: resolveMatterIdForPath(tab.path),
+                matterId: resolveMatterIdForWorkspacePath(tab.path, rootPath),
               });
             }}
           />

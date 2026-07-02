@@ -27,6 +27,8 @@ import {
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { resolveEgress } from '@/platform/privacy/egress';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
+import { useMatters } from '@/platform/matter/matterStore';
+import { buildMailMatterMap } from '@/platform/rag/matterResolver';
 
 export interface DraftFollowUpModalProps {
   open: boolean;
@@ -58,6 +60,10 @@ export function DraftFollowUpModal({
   const [body, setBody] = useState('');
   const [status, setStatus] = useState<Status>('idle');
   const [error, setError] = useState<string | null>(null);
+  // Codex review catch (P2): the To-suggestion query needs the real
+  // folder→matter map, or account/folder-mapped mail (the normal case) never
+  // matches and only manually-filed message overrides would be found.
+  const matters = useMatters();
 
   // On open: load accounts, suggest To from the client's mail, generate the draft.
   useEffect(() => {
@@ -79,7 +85,7 @@ export function DraftFollowUpModal({
           return;
         }
         try {
-          const page = await mailListMessagesByMatter(matterId, [], {
+          const page = await mailListMessagesByMatter(matterId, buildMailMatterMap(matters), {
             sortBy: 'date',
             sortDesc: true,
             limit: 50,
@@ -153,6 +159,24 @@ export function DraftFollowUpModal({
       draftBodyToHtml(body),
     )
       .then(() => {
+        // Codex review catch (P2): saving a draft writes client content into a
+        // REAL external mailbox (Outlook/Gmail Drafts) — a durable record is
+        // needed here exactly as it is for a direct send, or this outcome
+        // disappears from the Activity Log / confidentiality report.
+        const saveScope = emailMatterScope(matterId, undefined);
+        logEmailAuditEntry({
+          action: 'email.draft_saved',
+          description: `Saved a follow-up draft to your ${account.provider === 'gmail' ? 'Gmail' : 'Outlook'} Drafts (${String(toArr.length)} recipient(s))`,
+          model: undefined,
+          inputs: {},
+          outputs: { recipientCount: toArr.length },
+          userDecision: 'approved',
+          metadata: {
+            account: account.account,
+            mailProvider: account.provider,
+            ...(saveScope ? { scope: saveScope } : {}),
+          },
+        });
         setStatus('saved');
       })
       .catch((e: unknown) => {
