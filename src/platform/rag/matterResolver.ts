@@ -855,7 +855,15 @@ export function buildCalendarMatterMap(matters: Matter[]): CalendarMatterMapEntr
  * Mirrors the Rust `calendar::engine::resolve_event_matters`.
  */
 export function resolveMattersForCalendarEvent(
-  event: { title: string; attendees: { email: string; name: string }[] },
+  event: {
+    title: string;
+    attendees: { email: string; name: string }[];
+    /** Full-diff review finding (P2): when the CLIENT sends the invite
+     *  (common with Google/Graph), attendees may only list the advisor —
+     *  the client's own address lands here, not in attendees. Mirrors the
+     *  Rust engine::resolve_event_matters organizer_email check. */
+    organizerEmail?: string;
+  },
   entries: CalendarMatterMapEntry[],
 ): string[] {
   const map = new Map<string, string>();
@@ -874,6 +882,9 @@ export function resolveMattersForCalendarEvent(
     const byName = map.get(normalizeClientName(attendee.name ?? ''));
     if (byName) matches.add(byName);
   }
+  const organizerEmail = (event.organizerEmail ?? '').trim().toLowerCase();
+  const byOrganizer = organizerEmail ? map.get(organizerEmail) : undefined;
+  if (byOrganizer) matches.add(byOrganizer);
   const byTitle = map.get(normalizeMeetingKey(event.title ?? ''));
   if (byTitle) matches.add(byTitle);
   return [...matches].sort();

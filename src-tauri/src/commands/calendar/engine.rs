@@ -46,6 +46,16 @@ pub fn resolve_event_matters(
             matches.insert(m);
         }
     }
+    // Full-diff review finding (P2): when the CLIENT sends the invite
+    // (common with Google/Graph), the attendee list may only contain the
+    // advisor — the client's own address lands in organizer_email, not
+    // attendees. Without checking it too, that meeting landed unassigned
+    // even though model.rs already captures organizer_email for exactly
+    // this reason.
+    let organizer_email = event.organizer_email.trim().to_ascii_lowercase();
+    if let Some(m) = lookup(matter_map, &organizer_email) {
+        matches.insert(m);
+    }
     // The event title can also carry a taught key (e.g. "Henderson quarterly").
     if let Some(m) = lookup(matter_map, &normalize_key(&event.title)) {
         matches.insert(m);
@@ -340,6 +350,19 @@ mod tests {
             let got = resolve_event_matters(&event, &m);
             assert_eq!(got, expected.iter().map(|s| s.to_string()).collect::<Vec<_>>(), "{why}");
         }
+    }
+
+    #[test]
+    fn resolves_by_organizer_email_when_the_client_sent_the_invite() {
+        // Full-diff review finding (P2): when the CLIENT sends the invite
+        // (common with Google/Graph), the attendee list may only contain
+        // the advisor — the client's own address lands in organizer_email,
+        // not attendees. Previously that meant the meeting landed
+        // unassigned even though a taught key existed for the organizer.
+        let m = map(&[("kim@henderson.com", "m-hend")]);
+        let mut event = ev("outlook:5", "Client-sent invite", &[("adv@firm.com", "Advisor")]);
+        event.organizer_email = "kim@henderson.com".into();
+        assert_eq!(resolve_event_matters(&event, &m), vec!["m-hend".to_string()]);
     }
 
     #[tokio::test]

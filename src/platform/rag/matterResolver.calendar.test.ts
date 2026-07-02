@@ -110,4 +110,18 @@ describe('resolveMattersForCalendarEvent', () => {
       ),
     ).toEqual([]);
   });
+
+  it('matches by organizer email when the client sent the invite (mirrors Rust engine::resolve_event_matters)', () => {
+    // Google/Graph put the sender in `organizer`, not `attendees` — when
+    // the client sends the invite, attendees may only list the advisor.
+    const got = resolveMattersForCalendarEvent(
+      {
+        title: 'Client-sent invite',
+        attendees: [{ email: 'adv@firm.com', name: 'Advisor' }],
+        organizerEmail: 'Kim@Henderson.com',
+      },
+      entries,
+    );
+    expect(got).toEqual(['m-hend']);
+  });
 });
