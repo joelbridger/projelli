@@ -1,7 +1,7 @@
 <#
   robot-snapshot.ps1 - bench-side frozen-workspace snapshot tool.
 
-  Archives a FULLY-INDEXED Keepance workspace (documents + the hidden .keepance
+  Archives a FULLY-INDEXED Keepance workspace (documents + the hidden .lantern
   folder: LanceDB vector index + SQLCipher audit/mail stores) into one .tar, and
   restores it back over the canonical workspace path in seconds - so tests stop
   re-importing and re-embedding hundreds of files every run.
@@ -9,9 +9,9 @@
   Actions:
     Status   non-destructive; reports whether a usable archive exists (+ size).
     Archive  tar the canonical workspace -> -Archive. Refuses if the workspace
-             is not actually indexed (no .keepance\vectors), so we never freeze
+             is not actually indexed (no .lantern\vectors), so we never freeze
              a half-built world.
-    Restore  extract -Archive into a TEMP dir, VERIFY .keepance\vectors is present,
+    Restore  extract -Archive into a TEMP dir, VERIFY .lantern\vectors is present,
              and only THEN atomically swap it into -WsRoot. A failed/partial
              extract can never destroy the live workspace.
 
@@ -103,7 +103,7 @@ try {
     if (-not (Test-Path -LiteralPath $WsRoot)) {
       Emit @{ ok = $false; error = "workspace not found: $WsRoot" }; exit 1
     }
-    $vectors = Join-Path $WsRoot '.keepance\vectors'
+    $vectors = Join-Path $WsRoot '.lantern\vectors'
     if (-not (Test-Path -LiteralPath $vectors)) {
       Emit @{ ok = $false; error = "refusing to archive: workspace is not indexed (missing $vectors)" }; exit 1
     }
@@ -196,15 +196,15 @@ try {
     if ($LASTEXITCODE -ne 0) { Remove-Hard $tempRoot; Emit @{ ok = $false; error = "tar extract failed (exit $LASTEXITCODE)" }; exit 1 }
 
     $staged = Join-Path $tempRoot $wsLeaf
-    $stagedVectors = Join-Path $staged '.keepance\vectors'
+    $stagedVectors = Join-Path $staged '.lantern\vectors'
     if (-not (Test-Path -LiteralPath $stagedVectors)) {
       Remove-Hard $tempRoot
-      Emit @{ ok = $false; error = "refusing to swap: extracted snapshot is missing .keepance\vectors ($stagedVectors)" }; exit 1
+      Emit @{ ok = $false; error = "refusing to swap: extracted snapshot is missing .lantern\vectors ($stagedVectors)" }; exit 1
     }
     # Not a skeleton: the staged tree must contain at least one DOCUMENT (a file
-    # outside .keepance), or we'd be replacing the real workspace with an index-only husk.
+    # outside .lantern), or we'd be replacing the real workspace with an index-only husk.
     $docCount = (Get-ChildItem -LiteralPath $staged -Recurse -File -Force -EA SilentlyContinue |
-      Where-Object { $_.FullName -notlike '*\.keepance\*' } | Measure-Object).Count
+      Where-Object { $_.FullName -notlike '*\.lantern\*' } | Measure-Object).Count
     if ($docCount -lt 1) {
       Remove-Hard $tempRoot
       Emit @{ ok = $false; error = "refusing to swap: extracted snapshot has no documents (skeleton?)" }; exit 1
@@ -249,7 +249,7 @@ try {
     Remove-Hard $backup
     Remove-Hard $tempRoot
 
-    $restoredVectors = Join-Path $WsRoot '.keepance\vectors'
+    $restoredVectors = Join-Path $WsRoot '.lantern\vectors'
     $okSwap = Test-Path -LiteralPath $restoredVectors
     Emit @{ ok = [bool]$okSwap; wsRoot = $WsRoot; restoredFrom = $Archive; archiveBytes = (Get-FileSize $Archive); docCount = $docCount }
     if ($okSwap) { exit 0 } else { exit 1 }

@@ -1,5 +1,7 @@
 import { installAIReplay } from '../fixtures/aiReplay.mjs';
 import { installEgressGuard, egressVerdict } from '../fixtures/egressGuard.mjs';
+import { resolveMatterId } from './matters.mjs';
+import { dismissKnownBlockingDialogs, waitForPdfIndexing } from './workspace.mjs';
 
 const ATT = '[data-testid="ask-cited-attestation"]';
 const WARN = '[data-testid="ask-uncited-warning"]';
@@ -27,7 +29,10 @@ export async function askQuestion(page, args = {}) {
   const question = args.question || 'What is the total portfolio value for this household?';
   const deterministic = args.deterministic ?? false;
   const replay = args.replay ?? 'ask-portfolio';
-  const matterId = args.matterId || 'matter_nc_hollings_family';
+  // matter ids are fresh random UUIDs on every CRM reseed (see matters.mjs) —
+  // the fixture was recorded against Hollings Family specifically, so resolve
+  // ITS current id rather than falling through to whichever matter sorts first.
+  const matterId = args.matterId || (await resolveMatterId(page, 'Hollings Family'));
 
   const out = {
     ok: false,
@@ -51,6 +56,12 @@ export async function askQuestion(page, args = {}) {
   let replayCtl = null;
 
   try {
+    // The separate, slower PDF-indexing pass re-runs on every workspace boot
+    // (even restoring an already-fully-indexed snapshot doesn't skip it) — see
+    // waitForPdfIndexing's doc comment. Asking before it finishes is silently
+    // flaky: the answer text is right but its citation can't resolve yet.
+    out.pdfIndex = await waitForPdfIndexing(page);
+
     if (deterministic) {
       guard = await installEgressGuard(page);
       replayCtl = await installAIReplay(page, replay);
@@ -58,11 +69,18 @@ export async function askQuestion(page, args = {}) {
 
     // Self-navigate to a client's Ask if no ask input is on the current screen.
     if (!(await page.$('[data-testid="ask-composer-input"]')) && !(await page.$('[data-testid="hub-ask-input"]'))) {
+      // The RightCapital-export consent dialog (no data-testid) can appear
+      // between steps and silently block every click below (each .catch(()
+      // => {}) would otherwise swallow the real cause and leave `served: 0`
+      // with no error — see dismissKnownBlockingDialogs's doc comment).
+      await dismissKnownBlockingDialogs(page);
       await page.click('[data-testid="spine-nav-matters"]', { timeout: 8000 }).catch(() => {});
+      await dismissKnownBlockingDialogs(page);
       await page.waitForTimeout(800);
       const launch = page.locator(`[data-testid="matter-launch-ask-${matterId}"]`).first();
       if (await launch.count()) await launch.click({ timeout: 8000 }).catch(() => {});
       else await page.locator('[data-testid^="matter-launch-ask-"]').first().click({ timeout: 8000 }).catch(() => {});
+      await dismissKnownBlockingDialogs(page);
       await page
         .waitForSelector('[data-testid="ask-composer-input"],[data-testid="hub-ask-input"]', { timeout: 15000 })
         .catch(() => {});
@@ -84,6 +102,7 @@ export async function askQuestion(page, args = {}) {
     // Wait until a NEW turn settles: status count grows and no "Answering".
     for (let i = 0; i < 40; i++) {
       await page.waitForTimeout(1000);
+      await dismissKnownBlockingDialogs(page);
       const cur = await count(STATUS_SELECTOR);
       const answering = await page
         .evaluate(() => /Answering…|Answering\.\.\./.test(document.body.innerText))
@@ -129,8 +148,12 @@ export async function askQuestion(page, args = {}) {
 
     // The NEW turn must be cited: a new attestation AND at least one new chip.
     // In deterministic mode it must ALSO be provably air-gapped from live AI.
+    // Fail closed if PDF indexing never finished: a cited answer that happens
+    // to pass anyway doesn't prove the prerequisite this wait enforces, and a
+    // false green here would mask the exact silent-uncited-fallback failure
+    // mode waitForPdfIndexing exists to catch.
     const citedOk = out.settled && out.newCitedAttestation && out.newCitationChips >= 1;
-    out.ok = citedOk && (!deterministic || (out.egress && out.egress.ok));
+    out.ok = citedOk && out.pdfIndex.ok && (!deterministic || (out.egress && out.egress.ok));
   } catch (e) {
     out.err = String(e.message || e);
   }

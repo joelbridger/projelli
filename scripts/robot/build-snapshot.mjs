@@ -47,9 +47,17 @@ import { getPage, reconnect, disconnect } from './connection.mjs';
 import { openWorkspace } from './verbs/workspace.mjs';
 import { verifyIsolation } from './verbs/isolation.mjs';
 import { askQuestion } from './verbs/ask.mjs';
+import { resolveMatterId } from './verbs/matters.mjs';
 
 const args = process.argv.slice(2);
 const SKIP_INDEX_WAIT = args.includes('--skip-index-wait');
+// The live-ask proof needs a real AI provider key configured on the bench —
+// it exists purely to give provenance for LATER recording a fresh fixture
+// (record-ask-fixture.mjs), not to validate the archive itself. The smoke's
+// own Ask replays a committed fixture deterministically and never calls a
+// live provider, so a bench with no key configured can still freeze a
+// perfectly valid archive; skip this proof rather than block on it.
+const SKIP_LIVE_ASK = args.includes('--skip-live-ask');
 const VERSION = Number((args.find((a) => a.startsWith('--version=')) || '--version=1').split('=')[1]) || 1;
 const INDEX_TIMEOUT_MS = Number(process.env.BUILD_SNAPSHOT_INDEX_TIMEOUT_MS || 1_200_000);
 // Floor so a STALLED/partial index can't look "stable" and get frozen. The
@@ -101,6 +109,90 @@ async function waitForIndex(page, { timeoutMs = INDEX_TIMEOUT_MS, stableNeeded =
   return { ok: false, count: last, minHits: MIN_HITS, reason: `index-wait timeout (never reached >= ${MIN_HITS} stable)` };
 }
 
+// Retagging takes noticeably longer than the fast unassigned walk (every file
+// is re-embedded), but is bounded by the same demo-set size — 10 minutes is
+// generous headroom without eating deep into the overall 20-minute default.
+const RETAG_TIMEOUT_MS = Number(process.env.BUILD_SNAPSHOT_RETAG_TIMEOUT_MS || 600_000);
+const PDF_INDEX_TIMEOUT_MS = Number(process.env.BUILD_SNAPSHOT_PDF_TIMEOUT_MS || 600_000);
+
+/**
+ * Wait for the SEPARATE, slower PDF-indexing pass (indexWorkspacePdfs, ~301
+ * files in the demo set) to finish — it runs independently of the main
+ * DOCX/XLSX index+retag waitForIndex/waitForRetag already wait for. Several of
+ * the demo's real citation sources are PDFs (e.g. Hollings Family's RightCapital
+ * plan, the actual source for its portfolio-value answer); freezing the
+ * snapshot or recording/replaying the Ask fixture before this finishes is
+ * flaky — the answer text is right but the citation silently can't resolve
+ * against a not-yet-indexed PDF, and the UI falls back to an uncited "general
+ * guidance" answer with no error. Done = the progress banner disappears.
+ */
+async function waitForPdfIndexing(page, { timeoutMs = PDF_INDEX_TIMEOUT_MS, pollMs = 10_000 } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const progress = await page.locator('[data-testid="rag-pdf-progress"]').textContent().catch(() => null);
+    if (!progress) return { ok: true };
+    log(`pdf-index poll: ${progress.trim()}`);
+    await sleep(pollMs);
+  }
+  return { ok: false, reason: 'pdf-index-wait timeout (rag-pdf-progress banner never cleared)' };
+}
+
+// The 3 clients isolation.mjs actually probes. Retagging runs progressively,
+// one matter's folders at a time — Hollings can finish (and look "done") well
+// before Webb/Voss do, so every probe matter used downstream must be checked,
+// not just the first one to go green.
+const RETAG_PROBE_MATTERS = ['Hollings Family', 'Webb, Marcus', 'Voss, Eleanor'];
+
+async function scopedHitCount(page, matterId) {
+  return page
+    .evaluate(async (mid) => {
+      const inv = window.__TAURI__ && (window.__TAURI__.core?.invoke || window.__TAURI__.invoke);
+      if (!inv) return -1;
+      try {
+        const hits = await inv('rag_retrieve', {
+          query: 'goals retirement estate trust portfolio holdings statement tax meeting',
+          topK: 15,
+          scope: { kind: 'matter', matterId: mid },
+          includePrivileged: false,
+        });
+        return Array.isArray(hits) ? hits.length : -1;
+      } catch {
+        return -1;
+      }
+    }, matterId)
+    .catch(() => -1);
+}
+
+/**
+ * Poll MATTER-SCOPED retrieval (not the broad unscoped one waitForIndex uses)
+ * for every probe matter until ALL return real hits, proving the async
+ * per-file retag pass (fast-index-as-unassigned -> retagExistingMatterFolderPaths)
+ * has actually finished — it runs one matter at a time, so an early matter
+ * going green doesn't mean the whole pass is done. Resolves each matter's
+ * CURRENT id itself since ids are fresh random UUIDs per CRM reseed (matters.mjs).
+ */
+async function waitForRetag(page, { names = RETAG_PROBE_MATTERS, timeoutMs = RETAG_TIMEOUT_MS, pollMs = 10_000 } = {}) {
+  const ids = {};
+  for (const name of names) {
+    const id = await resolveMatterId(page, name);
+    if (!id) return { ok: false, reason: `could not resolve a matter id for "${name}"` };
+    ids[name] = id;
+  }
+
+  const deadline = Date.now() + timeoutMs;
+  let last = {};
+  while (Date.now() < deadline) {
+    const counts = {};
+    for (const name of names) counts[name] = await scopedHitCount(page, ids[name]);
+    last = counts;
+    const pending = names.filter((n) => counts[n] < 1);
+    if (pending.length === 0) return { ok: true, counts, ids };
+    log(`retag poll: ${JSON.stringify(counts)} (still pending: ${pending.join(', ')})`);
+    await sleep(pollMs);
+  }
+  return { ok: false, counts: last, ids, reason: `retag-wait timeout — never resolved for: ${names.filter((n) => last[n] < 1).join(', ')}` };
+}
+
 /** Read the on-disk index schema version (proof the index actually wrote). */
 function readIndexVersion() {
   try {
@@ -146,14 +238,39 @@ async function main() {
     log(`index stable at ${proof.steps.index.count} hits`);
   }
 
+  // 2b. Wait for the ASYNC RETAG pass, not just embedding completion.
+  // MemoryService.indexWorkspace() does a fast full walk that tags every chunk
+  // "unassigned" (see its own doc comment); a SEPARATE step
+  // (retagExistingMatterFolderPaths, chained after indexWorkspace() resolves in
+  // useMemoryWiring.ts's startFullIndex) then re-tags each file to its real
+  // matter. That retag walk re-embeds every file again, so for ~300 demo files
+  // it can take real additional minutes — well past the point the broad,
+  // UNSCOPED hit-count above already looks "stable" (retagging updates rows in
+  // place; it doesn't change the count). Poll a MATTER-SCOPED query until it
+  // actually returns tagged hits before treating the world as ready to freeze.
+  log('waiting for the per-file matter retag pass to finish…');
+  proof.steps.retag = await waitForRetag(page);
+  if (!proof.steps.retag.ok) throw new Error(`matter retagging never completed: ${JSON.stringify(proof.steps.retag)}`);
+  log(`retag complete: ${JSON.stringify(proof.steps.retag.counts)}`);
+
+  log('waiting for the separate PDF-indexing pass to finish…');
+  proof.steps.pdfIndex = await waitForPdfIndexing(page);
+  if (!proof.steps.pdfIndex.ok) throw new Error(`PDF indexing never completed: ${JSON.stringify(proof.steps.pdfIndex)}`);
+  log('PDF indexing complete');
+
   // 3. Prove the world is good BEFORE we freeze it.
   log('proving isolation (matter-scoped, no cross-client leaks)…');
   proof.steps.isolation = await verifyIsolation(page, {});
   if (!proof.steps.isolation.ok) throw new Error(`isolation failed — refusing to freeze a leaky world: ${JSON.stringify(proof.steps.isolation)}`);
 
-  log('proving a cited Ask works (live model — provenance for the fixture later)…');
-  proof.steps.ask = await askQuestion(page, { deterministic: false });
-  if (!proof.steps.ask.ok) throw new Error(`ask failed — refusing to freeze a world that can't answer: ${JSON.stringify(proof.steps.ask)}`);
+  if (SKIP_LIVE_ASK) {
+    log('--skip-live-ask: skipping the live-model Ask proof (no provider key required)');
+    proof.steps.ask = { ok: true, skipped: true };
+  } else {
+    log('proving a cited Ask works (live model — provenance for the fixture later)…');
+    proof.steps.ask = await askQuestion(page, { deterministic: false });
+    if (!proof.steps.ask.ok) throw new Error(`ask failed — refusing to freeze a world that can't answer: ${JSON.stringify(proof.steps.ask)}`);
+  }
 
   const indexVersion = readIndexVersion();
   const demoDataCommit = readDemoDataCommit();
