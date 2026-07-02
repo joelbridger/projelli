@@ -307,6 +307,11 @@ interface MatterState {
   addSharefileFolderKey: (id: string, folderKey: string) => void;
   // Addepar household/account mapping.
   addAddeparKey: (id: string, addeparKey: string) => void;
+
+  /** Teach a calendar/meeting mapping: attach a normalized key (attendee
+   *  email, client phrase, or event title) to this matter. A key belongs to
+   *  exactly one matter — assigning moves it off any other matter. */
+  addMeetingKey: (id: string, key: string) => void;
   /**
    * Remove every trace of Wealthbox from local matters after a disconnect:
    *   - pure-CRM matters (no user files/mail) are deleted;
@@ -784,6 +789,23 @@ export const useMatterStore = create<MatterState>()(
                 }
               : m
           ),
+        }));
+      },
+
+      addMeetingKey: (id, rawKey) => {
+        const key = rawKey.trim();
+        if (!key) return;
+        set((state) => ({
+          matters: state.matters.map((m) => {
+            if (m.id === id) {
+              const existing = m.meetingKeys ?? [];
+              return existing.includes(key) ? m : { ...m, meetingKeys: [...existing, key] };
+            }
+            const others = m.meetingKeys ?? [];
+            return others.includes(key)
+              ? { ...m, meetingKeys: others.filter((k) => k !== key) }
+              : m;
+          }),
         }));
       },
 
