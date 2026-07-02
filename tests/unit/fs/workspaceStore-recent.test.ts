@@ -5,7 +5,7 @@ import {
   useWorkspaceStore,
 } from '@/platform/fs/workspaceStore';
 
-const RECENT_KEY = 'keepance_recent_workspaces';
+const RECENT_KEY = 'lantern_recent_workspaces';
 const mockIsTauriEnvironment = vi.hoisted(() => vi.fn(() => false));
 const mockFsExists = vi.hoisted(() => vi.fn(async (_path?: string) => true));
 

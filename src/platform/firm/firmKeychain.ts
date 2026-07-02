@@ -23,7 +23,7 @@
 
 import { keychainGet, keychainSet, keychainDelete } from '@/platform/utils/tauri-commands';
 import { isTauri } from '@tauri-apps/api/core';
-import { kcUserService, kcMatterService } from '@/config/identity';
+import { kcUserService, kcMatterService, KC_FALLBACK_PREFIX } from '@/config/identity';
 
 /** Service namespace for a user's auth + seat tokens. */
 export function userService(userId: string): string {
@@ -42,15 +42,12 @@ export const KC_SEAT_TOKEN = 'seat_token';
 // Key within a matter service (the raw AES key, base64).
 export const KC_MATTER_KEY = 'content_key';
 
-/** Browser/dev fallback prefix. Clearly namespaced so it is obvious in devtools. */
-const FALLBACK_PREFIX = 'keepance_kc_fallback::';
-
 function fallbackAvailable(): boolean {
   return typeof localStorage !== 'undefined';
 }
 
 function fallbackKey(service: string, key: string): string {
-  return `${FALLBACK_PREFIX}${service}::${key}`;
+  return `${KC_FALLBACK_PREFIX}${service}::${key}`;
 }
 
 /** UTF-8-safe base64 encode (dev fallback only; not a security boundary). */

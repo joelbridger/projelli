@@ -147,7 +147,7 @@ describe('OnboardingV2 navigation', () => {
     // Last scene: button reads "Continue to the app" and completes.
     expect(screen.getByTestId('onboarding-v2-continue').textContent).toContain('Continue to the app');
     clickContinue();
-    expect(localStorage.getItem('keepance_onboarding_complete')).toBe('true');
+    expect(localStorage.getItem('lantern_onboarding_complete')).toBe('true');
     expect(onComplete).toHaveBeenCalledWith({ writeSamples: false });
   });
 

@@ -817,8 +817,9 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     }
     if (!onSave) return;
     const settings = useSettingsStore.getState();
-    // Settings store wins; fall back to the legacy keepance_default_* keys the
-    // older profession-model picker wrote, so a default set there is honored.
+    // Settings store wins; fall back to the legacy SK_DEFAULT_PROVIDER/
+    // SK_DEFAULT_MODEL keys the older profession-model picker wrote, so a
+    // default set there is honored.
     const defaults = resolveSettingsDefaults(
       settings.getSetting('defaultProvider') as string | undefined,
       settings.getSetting('defaultModel') as string | undefined,

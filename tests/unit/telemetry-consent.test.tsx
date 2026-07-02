@@ -59,13 +59,13 @@ describe('useTelemetryConsent', () => {
   });
 
   it('reads enabled from localStorage', () => {
-    store['keepance_telemetry_consent'] = 'enabled';
+    store['lantern_telemetry_consent'] = 'enabled';
     const { result } = renderHook(() => useTelemetryConsent());
     expect(result.current.consent).toBe('enabled');
   });
 
   it('reads disabled from localStorage', () => {
-    store['keepance_telemetry_consent'] = 'disabled';
+    store['lantern_telemetry_consent'] = 'disabled';
     const { result } = renderHook(() => useTelemetryConsent());
     expect(result.current.consent).toBe('disabled');
   });
@@ -76,17 +76,17 @@ describe('useTelemetryConsent', () => {
       result.current.setConsent('enabled');
     });
     expect(result.current.consent).toBe('enabled');
-    expect(store['keepance_telemetry_consent']).toBe('enabled');
+    expect(store['lantern_telemetry_consent']).toBe('enabled');
   });
 
   it('setConsent("unset") removes the key', () => {
-    store['keepance_telemetry_consent'] = 'enabled';
+    store['lantern_telemetry_consent'] = 'enabled';
     const { result } = renderHook(() => useTelemetryConsent());
     act(() => {
       result.current.setConsent('unset');
     });
     expect(result.current.consent).toBe('unset');
-    expect(store['keepance_telemetry_consent']).toBeUndefined();
+    expect(store['lantern_telemetry_consent']).toBeUndefined();
   });
 
   it('fires a cross-tab custom event when consent changes', () => {
@@ -140,26 +140,26 @@ describe('sendEvent', () => {
   });
 
   it('is a no-op when consent is disabled', async () => {
-    store['keepance_telemetry_consent'] = 'disabled';
+    store['lantern_telemetry_consent'] = 'disabled';
     await sendEvent('app_launch');
     expect(fetchCalls).toHaveLength(0);
   });
 
   it('sends only when consent is enabled', async () => {
-    store['keepance_telemetry_consent'] = 'enabled';
+    store['lantern_telemetry_consent'] = 'enabled';
     await sendEvent('app_launch');
     expect(fetchCalls).toHaveLength(1);
   });
 
   it('sends to the /app-event endpoint (not the design-partner endpoint)', async () => {
-    store['keepance_telemetry_consent'] = 'enabled';
+    store['lantern_telemetry_consent'] = 'enabled';
     await sendEvent('app_launch');
     expect(String(fetchCalls[0])).toContain('app-event');
     expect(String(fetchCalls[0])).not.toContain('design-partner');
   });
 
   it('payload contains install_id, app_version, platform, event', async () => {
-    store['keepance_telemetry_consent'] = 'enabled';
+    store['lantern_telemetry_consent'] = 'enabled';
     await sendEvent('license_activated');
     const body = fetchBodies[0]!;
     expect(body).toHaveProperty('install_id');
@@ -169,21 +169,21 @@ describe('sendEvent', () => {
   });
 
   it('payload includes license_tier when provided', async () => {
-    store['keepance_telemetry_consent'] = 'enabled';
+    store['lantern_telemetry_consent'] = 'enabled';
     await sendEvent('license_activated', { license_tier: 'professional' });
     const body = fetchBodies[0]!;
     expect(body['license_tier']).toBe('professional');
   });
 
   it('payload converts days_since_install to string', async () => {
-    store['keepance_telemetry_consent'] = 'enabled';
+    store['lantern_telemetry_consent'] = 'enabled';
     await sendEvent('app_launch', { days_since_install: 14 });
     const body = fetchBodies[0]!;
     expect(body['days_since_install']).toBe('14');
   });
 
   it('swallows network errors silently', async () => {
-    store['keepance_telemetry_consent'] = 'enabled';
+    store['lantern_telemetry_consent'] = 'enabled';
     vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new Error('network error'));
     await expect(sendEvent('app_launch')).resolves.toBeUndefined();
   });
@@ -200,7 +200,7 @@ describe('sendEventOnce', () => {
   beforeEach(() => {
     store = mockLocalStorage();
     fetchCallCount = 0;
-    store['keepance_telemetry_consent'] = 'enabled';
+    store['lantern_telemetry_consent'] = 'enabled';
     // Non-private mode so the fail-closed kill-switch doesn't skip the send.
     store['lantern:settings'] = JSON.stringify({ state: { values: { confidentialityMode: 'direct' } }, version: 1 });
     vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {

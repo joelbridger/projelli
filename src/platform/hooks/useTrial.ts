@@ -26,8 +26,8 @@
 import { useEffect, useState } from 'react';
 import { useEntitlement } from './useEntitlement';
 import { sendEventOnce } from '@/platform/utils/telemetry';
+import { SK_FIRST_LAUNCH_AT } from '@/config/identity';
 
-const FIRST_LAUNCH_KEY = 'keepance_first_launch_at';
 const TRIAL_DAYS = 30;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -45,13 +45,13 @@ export interface TrialState {
 }
 
 function readOrInitFirstLaunch(): Date {
-  const existing = localStorage.getItem(FIRST_LAUNCH_KEY);
+  const existing = localStorage.getItem(SK_FIRST_LAUNCH_AT);
   if (existing) {
     const d = new Date(existing);
     if (!Number.isNaN(d.getTime())) return d;
   }
   const now = new Date();
-  localStorage.setItem(FIRST_LAUNCH_KEY, now.toISOString());
+  localStorage.setItem(SK_FIRST_LAUNCH_AT, now.toISOString());
   // Anonymous funnel marker: this install just started its trial. Gated
   // by sendEventOnce so a localStorage wipe + reset can't double-count;
   // gated again by the consent check inside sendEvent so opted-out

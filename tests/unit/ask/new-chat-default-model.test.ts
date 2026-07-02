@@ -15,7 +15,7 @@ import {
 
 function seedOpenAiModels(ids: string[]): void {
   localStorage.setItem(
-    'keepance_models_openai',
+    'lantern_models_openai',
     JSON.stringify({
       models: ids.map((id) => ({ id, displayName: id, provider: 'openai' })),
     }),
@@ -47,7 +47,7 @@ describe('resolveModelForProvider — curated default wins over a weak models[0]
     // current gemini-2.5-flash, never the older gemini-1.5-flash, even when the
     // live list happens to put 1.5-flash first.
     localStorage.setItem(
-      'keepance_models_google',
+      'lantern_models_google',
       JSON.stringify({
         models: [
           { id: 'gemini-1.5-flash', displayName: 'g', provider: 'google' },

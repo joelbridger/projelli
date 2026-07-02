@@ -3,7 +3,7 @@
  * Campaign Phase 5 — L-177..L-190
  * Trial / license state coverage.
  *
- * The license state is seeded via localStorage (keepance_license_token) with
+ * The license state is seeded via localStorage (lantern_license_token) with
  * a synthetic JWT payload, or by noting that real validation is server-side.
  * States that require a live server (subscription-active via real API) are
  * marked native-only in the ledger.
@@ -12,7 +12,7 @@
  * unlicensed (no token, no trial started), and the UI shells of other states
  * by observing what's shown in License Settings without a real API call.
  *
- * Seeding pattern: write a synthetic JWT-like string to keepance_license_token.
+ * Seeding pattern: write a synthetic JWT-like string to lantern_license_token.
  * The useLicense hook reads it and tries to validate; since the dev server has
  * no real validator, it falls back to last-known-good or unlicensed state.
  * We can verify the UI branch renders without crashing.
@@ -22,8 +22,8 @@ import { test, expect } from '@playwright/test';
 import { snap, collectConsoleErrors, horizontalOverflow } from '../helpers/campaign';
 import { waitForTestModeLoad, hardClick } from '../../e2e/helpers/test-utils';
 
-const STORAGE_KEY = 'keepance_license_token';
-const LAST_GOOD_KEY = 'keepance_license_last_good_at';
+const STORAGE_KEY = 'lantern_license_token';
+const LAST_GOOD_KEY = 'lantern_license_last_good_at';
 
 /** Seed localStorage before navigation */
 async function seedLicenseState(

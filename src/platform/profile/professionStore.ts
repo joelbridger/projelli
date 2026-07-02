@@ -3,7 +3,7 @@
  *
  * The lead ICP is now financial advisors: Advisor Prep Hero is "the private intelligence
  * layer for your advisory practice." The profession the user picked in onboarding
- * (stored under `keepance_profession`) decides whether the founder-era surfaces
+ * (stored under `SK_PROFESSION`) decides whether the founder-era surfaces
  * (Research, Whiteboard, founder templates) appear at all. Before this store,
  * that value sat read-only in localStorage and gated almost nothing; promoting
  * it to reactive Zustand state lets the nav, scaffolding, templates, and copy
@@ -13,15 +13,13 @@
  */
 import { create } from 'zustand';
 import type { Profession } from '@/platform/profile/professionModel';
-
-/** Same key the onboarding wizard's getOnboardingProfession() reads. */
-export const PROFESSION_STORAGE_KEY = 'keepance_profession';
+import { SK_PROFESSION } from '@/config/identity';
 
 const VALID: readonly Profession[] = ['legal', 'tax', 'consulting', 'advisor', 'other'];
 
 function readInitial(): Profession {
   try {
-    const v = localStorage.getItem(PROFESSION_STORAGE_KEY);
+    const v = localStorage.getItem(SK_PROFESSION);
     if (v && (VALID as readonly string[]).includes(v)) return v as Profession;
   } catch {
     // localStorage may be unavailable (strict privacy mode); fall through.
@@ -38,7 +36,7 @@ export const useProfessionStore = create<ProfessionState>((set) => ({
   profession: readInitial(),
   setProfession: (p) => {
     try {
-      localStorage.setItem(PROFESSION_STORAGE_KEY, p);
+      localStorage.setItem(SK_PROFESSION, p);
     } catch {
       // ignore persistence failures; the in-memory value still updates.
     }

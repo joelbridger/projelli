@@ -34,6 +34,7 @@ import { cn } from '@/lib/utils';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import type { FileNode } from '@/platform/types/workspace';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
+import { SK_FIRM_NAME } from '@/config/identity';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -161,7 +162,7 @@ export function WorkflowExecutionTab({
   // Firm name persisted in localStorage — used to brand exported .docx files
   const [firmName, setFirmName] = useState<string>(() => {
     try {
-      return localStorage.getItem('keepance_firm_name') ?? '';
+      return localStorage.getItem(SK_FIRM_NAME) ?? '';
     } catch {
       return '';
     }
@@ -170,7 +171,7 @@ export function WorkflowExecutionTab({
   const handleFirmNameChange = useCallback((value: string) => {
     setFirmName(value);
     try {
-      localStorage.setItem('keepance_firm_name', value);
+      localStorage.setItem(SK_FIRM_NAME, value);
     } catch {
       // localStorage may be unavailable (private browsing, quota exceeded)
     }

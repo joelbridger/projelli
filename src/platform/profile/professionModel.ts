@@ -23,6 +23,7 @@ import {
   type Provider,
 } from '@/platform/utils/defaultModel';
 import { notifyEgressConfigChange } from '@/platform/privacy/egressConfigEvents';
+import { SK_DEFAULT_MODEL, SK_DEFAULT_PROVIDER } from '@/config/identity';
 
 export type Profession = 'legal' | 'tax' | 'consulting' | 'advisor' | 'other';
 
@@ -54,10 +55,14 @@ const PROFESSION_MODEL_DEFAULTS: Record<Profession, ProfessionModelDefault> = {
   other: { provider: 'anthropic', model: DEFAULT_ANTHROPIC_FREE },
 };
 
-/** localStorage key the chosen default model is persisted under. */
-export const PROFESSION_MODEL_STORAGE_KEY = 'keepance_default_model';
-/** localStorage key the chosen default provider is persisted under. */
-export const PROFESSION_PROVIDER_STORAGE_KEY = 'keepance_default_provider';
+/**
+ * localStorage keys the chosen default model/provider are persisted under.
+ * Re-exported under their historical names (several other modules import
+ * these directly) but now backed by the centralized `identity.ts` constants
+ * rather than a locally-duplicated literal.
+ */
+export const PROFESSION_MODEL_STORAGE_KEY = SK_DEFAULT_MODEL;
+export const PROFESSION_PROVIDER_STORAGE_KEY = SK_DEFAULT_PROVIDER;
 
 /**
  * Return the default provider + model for a profession. Unknown professions
@@ -88,11 +93,11 @@ export function persistProfessionModelDefault(
 ): ProfessionModelDefault {
   const def = getModelForProfession(profession);
   try {
-    if (localStorage.getItem(PROFESSION_MODEL_STORAGE_KEY) == null) {
-      localStorage.setItem(PROFESSION_MODEL_STORAGE_KEY, def.model);
+    if (localStorage.getItem(SK_DEFAULT_MODEL) == null) {
+      localStorage.setItem(SK_DEFAULT_MODEL, def.model);
     }
-    if (localStorage.getItem(PROFESSION_PROVIDER_STORAGE_KEY) == null) {
-      localStorage.setItem(PROFESSION_PROVIDER_STORAGE_KEY, def.provider);
+    if (localStorage.getItem(SK_DEFAULT_PROVIDER) == null) {
+      localStorage.setItem(SK_DEFAULT_PROVIDER, def.provider);
       // Let the always-visible egress badge re-resolve against the new default
       // provider (it only honours a default that has a key, so usually a no-op
       // until a key is added — but keeps the single reactive source honest).

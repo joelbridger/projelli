@@ -19,12 +19,11 @@ import { Button } from '@/ui/button';
 import { cn } from '@/lib/utils';
 import { hasDeferredAiSetup } from '@/features/onboarding/aiSetupState';
 import { useProfessionCopy } from '@/features/onboarding/useProfessionCopy';
-
-const SESSION_DISMISS_KEY = 'keepance_ai_setup_reminder_dismissed';
+import { SK_AI_SETUP_REMINDER_DISMISSED } from '@/config/identity';
 
 function dismissedThisSession(): boolean {
   try {
-    return sessionStorage.getItem(SESSION_DISMISS_KEY) === 'true';
+    return sessionStorage.getItem(SK_AI_SETUP_REMINDER_DISMISSED) === 'true';
   } catch {
     return false;
   }
@@ -54,7 +53,7 @@ export function AiSetupReminder({ hasModelConnected, onConnect, className }: AiS
 
   const handleDismiss = () => {
     try {
-      sessionStorage.setItem(SESSION_DISMISS_KEY, 'true');
+      sessionStorage.setItem(SK_AI_SETUP_REMINDER_DISMISSED, 'true');
     } catch {
       // Ignore; worst case it shows again on the next action this session.
     }

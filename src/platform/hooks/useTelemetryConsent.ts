@@ -13,14 +13,12 @@
  */
 
 import { useEffect, useState } from 'react';
-import { EV_TELEMETRY_CONSENT_CHANGE } from '@/config/identity';
-
-const KEY = 'keepance_telemetry_consent';
+import { EV_TELEMETRY_CONSENT_CHANGE, SK_TELEMETRY_CONSENT } from '@/config/identity';
 
 export type TelemetryConsent = 'unset' | 'enabled' | 'disabled';
 
 function read(): TelemetryConsent {
-  const v = localStorage.getItem(KEY);
+  const v = localStorage.getItem(SK_TELEMETRY_CONSENT);
   if (v === 'enabled' || v === 'disabled') return v;
   return 'unset';
 }
@@ -30,8 +28,8 @@ export function getTelemetryConsent(): TelemetryConsent {
 }
 
 export function setTelemetryConsent(c: TelemetryConsent): void {
-  if (c === 'unset') localStorage.removeItem(KEY);
-  else localStorage.setItem(KEY, c);
+  if (c === 'unset') localStorage.removeItem(SK_TELEMETRY_CONSENT);
+  else localStorage.setItem(SK_TELEMETRY_CONSENT, c);
   // Notify subscribers in this tab too — `storage` events only fire
   // cross-tab. Internal pub/sub is light enough.
   window.dispatchEvent(new CustomEvent(EV_TELEMETRY_CONSENT_CHANGE));

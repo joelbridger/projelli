@@ -92,7 +92,7 @@ async function seedAndReload(
       }
 
       // Mark onboarding complete so the overlay doesn't appear
-      localStorage.setItem('keepance_onboarding_complete', 'true');
+      localStorage.setItem('lantern_onboarding_complete', 'true');
     },
     opts
   );
