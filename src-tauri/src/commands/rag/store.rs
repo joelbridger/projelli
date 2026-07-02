@@ -481,6 +481,45 @@ pub async fn open_or_create_table(conn: &Connection) -> Result<Table> {
         .context("create_empty_table chunks failed")
 }
 
+/// P2.3 row 3: build the `path` (token) and `path_enc` (encrypted) columns for
+/// a batch, computing each distinct path's token + ciphertext ONCE and reusing
+/// it for every chunk that shares that path. A 200-chunk PDF has one path, so
+/// this replaces 200 HMACs + 200 AES-GCM encryptions with one of each.
+///
+/// Behaviour is preserved: `path_token` is a deterministic HMAC (already
+/// identical across same-path rows), and same-path rows sharing one `path_enc`
+/// ciphertext still decrypt to the same path on read. This leaks nothing new —
+/// the deterministic `path_token` already groups a source's rows by design — and
+/// is not dangerous nonce reuse: it is the identical (plaintext, key) reused, not
+/// a fresh plaintext under a stale nonce. Memoizing by path also stays correct if
+/// a batch ever mixes paths (each distinct path gets its own token/ciphertext).
+fn path_token_and_enc_columns(
+    rows: &[(Chunk, Vec<f32>)],
+    key: &[u8; 32],
+) -> Result<(Vec<String>, Vec<String>)> {
+    use crate::commands::mail::crypto::encrypt_with_key;
+    let mut cache: std::collections::HashMap<&str, (String, String)> =
+        std::collections::HashMap::new();
+    let mut path_tokens: Vec<String> = Vec::with_capacity(rows.len());
+    let mut path_encs: Vec<String> = Vec::with_capacity(rows.len());
+    for (c, _) in rows.iter() {
+        let (tok, enc) = match cache.get(c.path.as_str()) {
+            Some(pair) => pair.clone(),
+            None => {
+                let tok = super::crypto::path_token(key, &c.path);
+                let blob = encrypt_with_key(c.path.as_bytes(), key)
+                    .map_err(|e| anyhow::anyhow!("encrypt chunk path {}: {e}", c.path))?;
+                let enc = hex::encode(&blob);
+                cache.insert(c.path.as_str(), (tok.clone(), enc.clone()));
+                (tok, enc)
+            }
+        };
+        path_tokens.push(tok);
+        path_encs.push(enc);
+    }
+    Ok((path_tokens, path_encs))
+}
+
 /// Build a RecordBatch from a slice of chunk + vector pairs. All inputs
 /// must have `vector.len() == EMBEDDING_DIM`; assertion failure is a bug.
 ///
@@ -554,14 +593,8 @@ pub fn build_batch(
     // VG-6e: the queryable path/source_id columns carry the deterministic
     // keyed token; the real path is encrypted into path_enc (same key, same
     // wire format as the text column). Plaintext paths are NEVER written.
-    let mut path_tokens: Vec<String> = Vec::with_capacity(rows.len());
-    let mut path_encs: Vec<String> = Vec::with_capacity(rows.len());
-    for (c, _) in rows.iter() {
-        path_tokens.push(super::crypto::path_token(key, &c.path));
-        let blob = encrypt_with_key(c.path.as_bytes(), key)
-            .map_err(|e| anyhow::anyhow!("encrypt chunk path {}: {e}", c.path))?;
-        path_encs.push(hex::encode(&blob));
-    }
+    // P2.3 row 3: token + ciphertext computed once per distinct path.
+    let (path_tokens, path_encs) = path_token_and_enc_columns(rows, key)?;
 
     let vectors = FixedSizeListArray::from_iter_primitive::<Float32Type, _, _>(
         rows.iter()
@@ -708,14 +741,8 @@ pub fn build_batch_mail(
     // VG-6e: same tokenization as build_batch — a "mail:<id>" key on disk is a
     // re-identification surface exactly like a file path (message ids tie back
     // to mailbox provider records), so it gets the same token + path_enc pair.
-    let mut path_tokens: Vec<String> = Vec::with_capacity(rows.len());
-    let mut path_encs: Vec<String> = Vec::with_capacity(rows.len());
-    for (c, _) in rows.iter() {
-        path_tokens.push(super::crypto::path_token(key, &c.path));
-        let blob = encrypt_with_key(c.path.as_bytes(), key)
-            .map_err(|e| anyhow::anyhow!("encrypt mail chunk path {}: {e}", c.path))?;
-        path_encs.push(hex::encode(&blob));
-    }
+    // P2.3 row 3: token + ciphertext computed once per distinct path.
+    let (path_tokens, path_encs) = path_token_and_enc_columns(rows, key)?;
 
     let vectors = FixedSizeListArray::from_iter_primitive::<Float32Type, _, _>(
         rows.iter()
@@ -816,14 +843,8 @@ pub fn build_batch_crm(
 
     // VG-6e: same tokenization as build_batch_mail — a "crm:<kind>:<id>" key is
     // a re-identification surface, so it gets the same token + path_enc pair.
-    let mut path_tokens: Vec<String> = Vec::with_capacity(rows.len());
-    let mut path_encs: Vec<String> = Vec::with_capacity(rows.len());
-    for (c, _) in rows.iter() {
-        path_tokens.push(super::crypto::path_token(key, &c.path));
-        let blob = encrypt_with_key(c.path.as_bytes(), key)
-            .map_err(|e| anyhow::anyhow!("encrypt crm chunk path {}: {e}", c.path))?;
-        path_encs.push(hex::encode(&blob));
-    }
+    // P2.3 row 3: token + ciphertext computed once per distinct path.
+    let (path_tokens, path_encs) = path_token_and_enc_columns(rows, key)?;
 
     let vectors = FixedSizeListArray::from_iter_primitive::<Float32Type, _, _>(
         rows.iter()
@@ -921,14 +942,8 @@ pub fn build_batch_external(
 
     // VG-6e: same tokenization as build_batch_crm — external connector keys
     // are re-identification surfaces, so they get the same token + path_enc pair.
-    let mut path_tokens: Vec<String> = Vec::with_capacity(rows.len());
-    let mut path_encs: Vec<String> = Vec::with_capacity(rows.len());
-    for (c, _) in rows.iter() {
-        path_tokens.push(super::crypto::path_token(key, &c.path));
-        let blob = encrypt_with_key(c.path.as_bytes(), key)
-            .map_err(|e| anyhow::anyhow!("encrypt external chunk path {}: {e}", c.path))?;
-        path_encs.push(hex::encode(&blob));
-    }
+    // P2.3 row 3: token + ciphertext computed once per distinct path.
+    let (path_tokens, path_encs) = path_token_and_enc_columns(rows, key)?;
 
     let vectors = FixedSizeListArray::from_iter_primitive::<Float32Type, _, _>(
         rows.iter()
@@ -2991,6 +3006,68 @@ mod tests {
         assert!(validate_external_source_type("").is_err());
         assert!(validate_external_source_type("docusign").is_err());
         assert!(validate_external_source_type("esign' OR '1'='1").is_err());
+    }
+
+    /// P2.3 row 3 MEASUREMENT (ignored by default; run with
+    /// `cargo test -p lantern --lib measure_path_token_memoization -- --ignored --nocapture`).
+    /// Times the OLD per-chunk path-token+encrypt loop against the NEW memoized
+    /// helper on a 200-chunk single-path batch (a typical PDF), proving the win.
+    #[test]
+    #[ignore]
+    fn measure_path_token_memoization() {
+        use crate::commands::mail::crypto::encrypt_with_key;
+        use std::time::Instant;
+
+        const N: usize = 200;
+        let path = "/workspace/clients/acme/2026-financials-annual-report.pdf";
+        let rows: Vec<(Chunk, Vec<f32>)> = (0..N)
+            .map(|i| {
+                (
+                    Chunk {
+                        path: path.into(),
+                        paragraph_index: i as u32,
+                        text: format!("chunk body number {i}"),
+                        start_offset: 0,
+                        end_offset: 0,
+                        locator: None,
+                    },
+                    vec![0.0f32; EMBEDDING_DIM],
+                )
+            })
+            .collect();
+
+        // OLD: recompute HMAC token + fresh AES-GCM encryption for every chunk.
+        let t0 = Instant::now();
+        let mut old_tokens = Vec::with_capacity(N);
+        let mut old_encs = Vec::with_capacity(N);
+        for (c, _) in rows.iter() {
+            old_tokens.push(super::super::crypto::path_token(&TEST_KEY, &c.path));
+            let blob = encrypt_with_key(c.path.as_bytes(), &TEST_KEY).unwrap();
+            old_encs.push(hex::encode(&blob));
+        }
+        let old_dur = t0.elapsed();
+
+        // NEW: memoized helper — one HMAC + one AES-GCM for the shared path.
+        let t1 = Instant::now();
+        let (new_tokens, new_encs) = path_token_and_enc_columns(&rows, &TEST_KEY).unwrap();
+        let new_dur = t1.elapsed();
+
+        // Same column lengths; tokens identical (deterministic HMAC); every
+        // path_enc still decrypts to the same plaintext path.
+        assert_eq!(new_tokens.len(), N);
+        assert_eq!(new_encs.len(), N);
+        assert_eq!(old_tokens[0], new_tokens[0]);
+        {
+            use crate::commands::mail::crypto::decrypt_with_key;
+            let blob = hex::decode(&new_encs[N - 1]).unwrap();
+            let recovered = String::from_utf8(decrypt_with_key(&blob, &TEST_KEY).unwrap()).unwrap();
+            assert_eq!(recovered, path);
+        }
+
+        eprintln!(
+            "[P2.3 row 3] path cols for {N} chunks/1 path: OLD {old_dur:?}  NEW {new_dur:?}  speedup {:.1}x",
+            old_dur.as_secs_f64() / new_dur.as_secs_f64().max(1e-9)
+        );
     }
 
     #[test]
