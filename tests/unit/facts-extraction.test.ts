@@ -39,6 +39,10 @@ function makeProvider(
       const result = await behavior(prompt);
       return result as never;
     }),
+    formatAttachmentForRequest: () => {
+      throw new Error('not used in these tests');
+    },
+    supportsAttachment: () => false,
   };
 }
 

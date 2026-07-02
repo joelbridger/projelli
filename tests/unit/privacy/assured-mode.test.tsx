@@ -76,7 +76,19 @@ describe('modeNeedsManagedKey', () => {
 // The Assured card is only rendered when the user is in a firm context
 // (session.activated is truthy). Tests that check Assured selectability must
 // set up a firm session so the card appears at all.
-const FIRM_SESSION_STUB = { activated: true, email: 'admin@firm.example', role: 'admin' as const, org: null, seatId: null, seatExpiresAt: null };
+const FIRM_SESSION_STUB = {
+  activated: true,
+  email: 'admin@firm.example',
+  role: 'admin' as const,
+  org: null,
+  seatId: null,
+  seatExpiresAt: null,
+  userId: 'user-1',
+  tier: null,
+  packs: [],
+  seats: 1,
+  lastValidatedAt: null,
+};
 
 describe('ConfidentialityModeSettings — Assured selectability', () => {
   it('gates Assured behind a managed key with a "Needs admin key" hint (never "coming soon")', () => {

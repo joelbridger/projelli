@@ -6,7 +6,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { retryWithBackoff } from '@/lib/retryWithBackoff';
 
-const instantSleep = async () => {};
+const instantSleep = async (_ms: number) => {};
 
 describe('retryWithBackoff', () => {
   it('returns true immediately when the first attempt succeeds, without sleeping', async () => {

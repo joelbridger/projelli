@@ -91,6 +91,11 @@ function makeFakeProvider(replacement: string): Provider {
     },
     // No-op to satisfy the Provider surface we use.
     toolCall: async <T,>(): Promise<T> => ({} as T),
+    // Attachment support is not exercised by these hunk-accept/reject tests.
+    formatAttachmentForRequest: () => {
+      throw new Error('not used in these tests');
+    },
+    supportsAttachment: () => false,
     // sendMessage option to keep TS happy (not used by hook).
     ...(undefined as unknown as { isConfigured?: () => boolean }),
   } satisfies Provider;
@@ -269,6 +274,10 @@ describe('useInlineAiEdit — hunk accept/reject', () => {
         void options;
         return ({} as T);
       },
+      formatAttachmentForRequest: () => {
+        throw new Error('not used in these tests');
+      },
+      supportsAttachment: () => false,
     } satisfies Provider;
 
     const { adapter, getDoc } = makeMemoryAdapter(original, {

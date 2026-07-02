@@ -84,7 +84,7 @@ beforeEach(() => {
 
 describe('handleWorkspaceSelected — in-app unsaved-changes guard', () => {
   it('ABORTS the switch (keeps current workspace) when the user cancels', async () => {
-    const confirm = vi.fn(async () => false); // user picks "Keep editing"
+    const confirm = vi.fn(async (_msg: string, _opts?: unknown) => false); // user picks "Keep editing"
     const { result, refHolder, setRootPath } = renderLifecycle(confirm);
     refHolder.current = fakeService('/old'); // an outgoing workspace exists
 

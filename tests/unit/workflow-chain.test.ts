@@ -161,7 +161,7 @@ describe('WorkflowChain — named output resolution', () => {
       },
     });
     const out = extractNamedOutputs(template, run);
-    expect(out.competitors).toEqual(['Asana', 'Monday']);
+    expect(out['competitors']).toEqual(['Asana', 'Monday']);
   });
 
   it('matches a suffixed key when the direct key is absent', () => {
@@ -171,7 +171,7 @@ describe('WorkflowChain — named output resolution', () => {
       },
     });
     const out = extractNamedOutputs(template, run);
-    expect(out.key_gaps).toEqual(['No mobile app', 'High price']);
+    expect(out['key_gaps']).toEqual(['No mobile app', 'High price']);
   });
 
   it('omits outputs that cannot be located', () => {
@@ -199,7 +199,7 @@ describe('WorkflowChain — input mapping', () => {
       },
       [priorStep]
     );
-    expect(inputs.competitor_list).toEqual(['Asana']);
+    expect(inputs['competitor_list']).toEqual(['Asana']);
     expect(warnings).toHaveLength(0);
   });
 
@@ -213,7 +213,7 @@ describe('WorkflowChain — input mapping', () => {
       },
       [priorStep]
     );
-    expect(inputs.competitor_list).toBeUndefined();
+    expect(inputs['competitor_list']).toBeUndefined();
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toMatch(/Step 2 not available/);
   });
@@ -240,6 +240,6 @@ describe('WorkflowChain — input mapping', () => {
       [],
       { businessName: 'TaskFlow' }
     );
-    expect(inputs.businessName).toBe('TaskFlow');
+    expect(inputs['businessName']).toBe('TaskFlow');
   });
 });

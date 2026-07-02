@@ -99,7 +99,9 @@ describe('AddeparConnect honest sync feedback + durable audit', () => {
         { outputs: { error: 'auth_expired' } }
       );
     });
-    const failureCall = logDurable.mock.calls.find((c) => c[1] === 'Addepar sync failed.');
+    const failureCall = logDurable.mock.calls.find(
+      (c: Parameters<AuditService['logDurable']>) => c[1] === 'Addepar sync failed.'
+    );
     expect(JSON.stringify(failureCall)).not.toContain('xyz');
   });
 });
