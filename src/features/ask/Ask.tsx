@@ -34,6 +34,8 @@ import { SourcePanel } from './SourcePanel';
 import { SampleBridgeCallout } from './SampleBridgeCallout';
 import { TurnBlock } from './TurnBlock';
 import { AskComposer } from './AskComposer';
+import { FileAccessConsentBanner } from './chat/FileAccessConsentBanner';
+import type { ChatProvider } from './chat/providerModelResolution';
 import { ConversationsRail, type RailGroup } from './ConversationsRail';
 import { SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
@@ -88,6 +90,9 @@ export function Ask(props: UseAskProps) {
     isBusy,
     demoQuestions,
     exportConsentDialogProps,
+    fileAccessConsent,
+    fileAccessConsentScope,
+    setFileAccessConsent,
   } = useAsk(props);
 
   const isSampleMatter = activeMatter?.id === SAMPLE_MATTER_ID;
@@ -107,7 +112,12 @@ export function Ask(props: UseAskProps) {
   // everything else (global + other clients) falls into the second group.
   const matterId = activeMatter?.id ?? null;
   const belongsToActiveClient = (sid: string): boolean =>
-    matterId !== null && (sid === `ask-${matterId}` || sid.startsWith(`ask-${matterId}-`));
+    matterId !== null &&
+    // Matches both legacy (`ask-<id>`, `ask-<id>-<ts>`) and F2.5b root-scoped
+    // (`ask-<id>::<root>`, `ask-<id>::<root>-<ts>`) session ids.
+    (sid === `ask-${matterId}` ||
+      sid.startsWith(`ask-${matterId}-`) ||
+      sid.startsWith(`ask-${matterId}::`));
   const railGroups: RailGroup[] = matterId !== null
     ? [
         {
@@ -122,6 +132,25 @@ export function Ask(props: UseAskProps) {
         },
       ]
     : [{ key: 'all', title: null, items: railSessions }];
+
+  // F2.5 — the file-access consent affordance above the composer. Its scope +
+  // label mirror the send-path gate (askConsentScope): a single active client
+  // names that client; an all-clients Ask (no matter, or the "All matters"
+  // scope) names the whole practice and demands its own grant. The banner hides
+  // itself for local engines / no-cloud-provider (it only gates cloud sends).
+  const fileAccessScopeLabel =
+    fileAccessConsentScope.kind === 'matter' && activeMatter
+      ? (activeMatter.client || activeMatter.name)
+      : `all your ${entityLabel.other}`;
+  const consentBanner = (
+    <FileAccessConsentBanner
+      effectiveProvider={displayedProvider as ChatProvider | 'none' | null}
+      consent={fileAccessConsent}
+      consentScope={fileAccessConsentScope}
+      scopeLabel={fileAccessScopeLabel}
+      onChange={(next) => { setFileAccessConsent(chatId, next); }}
+    />
+  );
 
   // Shared composer props (the same controls, different position).
   const composerCommon = {
@@ -143,6 +172,7 @@ export function Ask(props: UseAskProps) {
     egressMode: confidentialityMode,
     filesOnly,
     onFilesOnlyChange: setFilesOnly,
+    banner: consentBanner,
   } as const;
 
   // The SOURCES column reflects the answer the user is looking at: the turn of

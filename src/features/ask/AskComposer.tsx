@@ -13,7 +13,7 @@
  * This is a layout-only split: no backend or state change lives here.
  */
 
-import type { CSSProperties, KeyboardEvent, RefObject } from 'react';
+import type { CSSProperties, KeyboardEvent, ReactNode, RefObject } from 'react';
 import { Sparkles, ArrowRight } from 'lucide-react';
 import { Button, SearchField } from '@/ui/kp';
 import { ScopeToggle } from './ScopeToggle';
@@ -47,6 +47,10 @@ export interface AskComposerProps {
    *  cited-from-your-files-only behaviour (no general knowledge, no drafts). */
   filesOnly: boolean;
   onFilesOnlyChange: (v: boolean) => void;
+  /** F2.5 — the file-access consent affordance, rendered directly above the
+   *  input (the ONE place it appears). Null/undefined when there's nothing to
+   *  ask (local engine, or no cloud provider). */
+  banner?: ReactNode;
 }
 
 // Module-scope label — the i18n lint rule targets JSX text / string props, not
@@ -132,6 +136,7 @@ export function AskComposer({
   egressMode,
   filesOnly,
   onFilesOnlyChange,
+  banner,
 }: AskComposerProps) {
   const centered = variant === 'centered';
 
@@ -191,6 +196,7 @@ export function AskComposer({
           <ScopeToggle scope={askScope} onChange={setAskScope} hasMatter={hasMatter} isSample={isSample} />
           <FilesOnlyToggle value={filesOnly} onChange={onFilesOnlyChange} />
         </div>
+        {banner ? <div style={{ width: '100%' }}>{banner}</div> : null}
         {inputRow}
         <EgressIndicator provider={egressProvider} mode={egressMode} variant="full" />
       </div>
@@ -227,6 +233,7 @@ export function AskComposer({
           <ScopeToggle scope={askScope} onChange={setAskScope} hasMatter={hasMatter} isSample={isSample} />
           <FilesOnlyToggle value={filesOnly} onChange={onFilesOnlyChange} />
         </div>
+        {banner ? <div style={{ width: '100%' }}>{banner}</div> : null}
         {inputRow}
       </div>
     </div>
