@@ -674,6 +674,51 @@ describe('DocumentsHome — search', () => {
     fireEvent.change(searchInput, { target: { value: 'zzznomatch' } });
     expect(screen.getByText(/no files match your search/i)).toBeTruthy();
   });
+
+  it('(B4b fix) search finds a match OUTSIDE the currently open folder', () => {
+    // Before the fix, the search box only filtered the currently open
+    // folder's direct children. Drill into "Contracts" (whose only child is
+    // NDA.docx) and search for "brief" — Brief.md lives at the tree root, a
+    // sibling of Contracts, so this only passes once search spans the whole
+    // tree instead of just the open folder.
+    render(<DocumentsHome {...buildDefaultProps()} />);
+    fireEvent.click(screen.getByTestId('grid-card-/workspace/Contracts'));
+    expect(screen.getByText('NDA.docx')).toBeTruthy();
+
+    const searchInput = screen.getByRole('textbox');
+    fireEvent.change(searchInput, { target: { value: 'brief' } });
+    expect(screen.getByText('Brief.md')).toBeTruthy();
+    expect(screen.queryByText('NDA.docx')).toBeNull();
+  });
+
+  it('(B4b fix) a cross-folder search result shows its path context', () => {
+    render(<DocumentsHome {...buildDefaultProps()} />);
+    fireEvent.click(screen.getByTestId('grid-card-/workspace/Contracts'));
+
+    const searchInput = screen.getByRole('textbox');
+    fireEvent.change(searchInput, { target: { value: 'brief' } });
+    // Brief.md is at the tree root — no ancestor folder — so no path context
+    // chip is needed to disambiguate it; a match at the root of the scope
+    // never needs one.
+    expect(screen.queryByTestId('grid-card-context-/workspace/Brief.md')).toBeNull();
+
+    // NDA.docx (nested under Contracts) does need one when found from a
+    // different vantage point than "you're already looking at Contracts".
+    fireEvent.change(searchInput, { target: { value: 'nda' } });
+    const context = screen.getByTestId('grid-card-context-/workspace/Contracts/NDA.docx');
+    expect(context.textContent).toBe('Contracts');
+  });
+
+  it('(B4b fix) clicking a cross-folder file search result opens it directly', async () => {
+    const onFileOpen = vi.fn().mockResolvedValue(undefined);
+    render(<DocumentsHome {...buildDefaultProps({ onFileOpen })} />);
+    const searchInput = screen.getByRole('textbox');
+    fireEvent.change(searchInput, { target: { value: 'nda' } });
+    fireEvent.click(screen.getByTestId('grid-card-/workspace/Contracts/NDA.docx'));
+    await waitFor(() => {
+      expect(onFileOpen).toHaveBeenCalledWith('/workspace/Contracts/NDA.docx', 'NDA.docx');
+    });
+  });
 });
 
 // ── File / folder interactions ─────────────────────────────────────────────
@@ -1133,14 +1178,17 @@ describe('DocumentGridView — grid count label (Fix 2)', () => {
     expect(label.textContent).not.toContain(' of ');
   });
 
-  it('shows "N of M items" when a search query narrows the results', () => {
+  it('shows a result count (not "N of M items") when a search query narrows the results', () => {
+    // (B4b fix) search now spans the whole tree, not just the current
+    // folder, so "N of M" no longer means anything honest — "M" used to be
+    // this folder's item count, which isn't what's being searched anymore.
     render(<DocumentsHome {...buildDefaultProps()} />);
     const searchInput = screen.getByRole('textbox');
-    // Type a query that matches only "Brief.md" (1 of 3 items)
+    // Type a query that matches only "Brief.md"
     fireEvent.change(searchInput, { target: { value: 'brief' } });
     const label = screen.getByTestId('grid-dir-label');
-    expect(label.textContent).toContain('1 of');
-    expect(label.textContent).toContain('3 items');
+    expect(label.textContent).toMatch(/1 result/i);
+    expect(label.textContent).not.toContain(' of ');
   });
 
   it('restores the plain total label when the search is cleared', () => {
@@ -1151,6 +1199,7 @@ describe('DocumentGridView — grid count label (Fix 2)', () => {
     fireEvent.change(searchInput, { target: { value: '' } });
     const label = screen.getByTestId('grid-dir-label');
     expect(label.textContent).not.toContain(' of ');
+    expect(label.textContent).not.toMatch(/result/i);
     expect(label.textContent).toMatch(/3 items/i);
   });
 });
