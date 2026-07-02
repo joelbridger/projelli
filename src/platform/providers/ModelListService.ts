@@ -1,7 +1,7 @@
 // Model List Service
 // Fetches available models from provider APIs, caches for 24h, falls back to hardcoded defaults
 
-import { getProviderBaseUrl, getCorsSafeFetch, safeJsonParse, type ProviderType } from './fetchUtils';
+import { getProviderBaseUrl, getCorsSafeFetch, safeJsonParse, redactUrl, type ProviderType } from './fetchUtils';
 
 export interface ModelInfo {
   id: string;
@@ -157,8 +157,12 @@ async function fetchOpenAIModels(apiKey: string): Promise<ModelInfo[]> {
 
 async function fetchGoogleModels(apiKey: string): Promise<ModelInfo[]> {
   const baseUrl = getProviderBaseUrl('google');
-  const resp = await fetchWithTimeout(`${baseUrl}/v1beta/models?key=${apiKey}`, {
+  // The key travels in the x-goog-api-key header, never the URL — see the
+  // matching comment in GeminiProvider.ts.
+  const url = redactUrl(`${baseUrl}/v1beta/models`);
+  const resp = await fetchWithTimeout(url, {
     method: 'GET',
+    headers: { 'x-goog-api-key': apiKey },
   });
   if (!resp.ok) throw new Error(`Google API ${resp.status}`);
   const data = await safeJsonParse<{

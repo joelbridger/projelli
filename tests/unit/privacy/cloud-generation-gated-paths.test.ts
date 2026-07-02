@@ -88,6 +88,7 @@ vi.mock('@/platform/providers/OpenAIProvider', () => {
   return {
     OpenAIProvider,
     createOpenAIProvider: (_opts: object) => new OpenAIProvider(),
+    OPENAI_DEFAULT_MODEL: 'gpt-4o',
   };
 });
 
@@ -119,6 +120,30 @@ vi.mock('@/platform/providers/OllamaProvider', () => {
     OllamaProvider,
     OLLAMA_DEFAULT_MODEL: 'llama3:latest',
     detectOllama: vi.fn(async () => ({ reachable: true, models: ['llama3:latest'] })),
+  };
+});
+
+// Fix F2.2 (provider front door): matterAtAGlance / EmailViewer /
+// resolveInlineEditProvider now all build cloud providers through the shared
+// createProvider() factory instead of calling createClaudeProvider() etc.
+// directly — route it to the SAME per-provider mocks above so this file's
+// existing sendMessage/getMetadata assertions still apply.
+vi.mock('@/platform/providers/providerFactory', async () => {
+  const { ClaudeProvider } = await import('@/platform/providers/ClaudeProvider');
+  const { OpenAIProvider } = await import('@/platform/providers/OpenAIProvider');
+  const { GeminiProvider } = await import('@/platform/providers/GeminiProvider');
+  const { OllamaProvider } = await import('@/platform/providers/OllamaProvider');
+  return {
+    createProvider: (opts: { provider: string }) => {
+      switch (opts.provider) {
+        case 'anthropic': return new ClaudeProvider(opts as never);
+        case 'openai': return new OpenAIProvider(opts as never);
+        case 'google': return new GeminiProvider(opts as never);
+        case 'ollama': return new OllamaProvider(opts as never);
+        default: throw new Error(`Unmocked provider: ${opts.provider}`);
+      }
+    },
+    isLocalProviderId: (provider: string) => provider === 'ollama' || provider === 'keepance-local',
   };
 });
 

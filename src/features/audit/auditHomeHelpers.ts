@@ -115,6 +115,7 @@ export const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   'salesforce.connect': Users2,
   'salesforce.sync': Users2,
   'salesforce.disconnect': Users2,
+  'email.send': Send,
   external_export_consent: ShieldCheck,
 };
 
@@ -163,6 +164,7 @@ export const ACTION_LABELS: Record<AuditActionType, string> = {
   'salesforce.connect': 'Salesforce Connected',
   'salesforce.sync': 'Salesforce Synced',
   'salesforce.disconnect': 'Salesforce Disconnected',
+  'email.send': 'Email Sent',
   external_export_consent: 'Exported-Report Consent',
 };
 
@@ -214,6 +216,7 @@ export const ACTION_CATEGORY: Record<AuditActionType, ActionCategory> = {
   'salesforce.connect': 'system',
   'salesforce.sync': 'system',
   'salesforce.disconnect': 'system',
+  'email.send': 'system',
   external_export_consent: 'privilege',
 };
 

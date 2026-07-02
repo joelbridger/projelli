@@ -55,6 +55,42 @@ describe('AuditService.append accepts v2.0 events', () => {
     expect(entry.metadata['org_id']).toBe('org-1');
   });
 
+  // Independent reviewer catch (F2.6a reconciliation): 'assured-proxy' used
+  // to fall into the generic "with your key" branch, so an Assured-only firm
+  // user (no personal key at all) got an Activity Log row that falsely
+  // claimed they'd used their own key. Shared by every surface that logs
+  // assured egress (Ask, redline, matter-at-a-glance, email).
+  it('egress (assured-proxy) describes the firm proxy, not "with your key"', () => {
+    const entry = auditEventToEntry({
+      type: 'egress',
+      timestamp: new Date().toISOString(),
+      payload: {
+        provider: 'anthropic',
+        model: 'claude-haiku-4-5-20251001',
+        mode: 'assured',
+        destination: 'assured-proxy',
+        dataLeaves: true,
+      },
+    });
+    expect(entry.description).toBe("AI request sent to anthropic via your firm's zero-retention proxy");
+    expect(entry.description).not.toContain('with your key');
+  });
+
+  it('egress (provider-direct) still describes BYOK "with your key"', () => {
+    const entry = auditEventToEntry({
+      type: 'egress',
+      timestamp: new Date().toISOString(),
+      payload: {
+        provider: 'anthropic',
+        model: 'claude-haiku-4-5-20251001',
+        mode: 'direct',
+        destination: 'provider-direct',
+        dataLeaves: true,
+      },
+    });
+    expect(entry.description).toBe('AI request sent to anthropic with your key');
+  });
+
   it('matter_shared (no detail) round-trips with plain description', () => {
     const entry = auditEventToEntry({
       type: 'matter_shared',

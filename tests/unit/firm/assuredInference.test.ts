@@ -61,6 +61,17 @@ describe('buildAssuredRequest', () => {
     expect(JSON.stringify(out.headers)).not.toContain('BYOK_OPENAI');
   });
 
+  it('STRIPS the Gemini x-goog-api-key header so a BYOK Google key never reaches the proxy', () => {
+    const googleRoute: AssuredRoute = { ...route, provider: 'google', model: 'gemini-1.5-pro' };
+    const out = buildAssuredRequest(googleRoute, {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': 'AIza-SECRET-GEMINI-KEY',
+    });
+    expect(out.headers['x-goog-api-key']).toBeUndefined();
+    expect(JSON.stringify(out.headers)).not.toContain('AIza-SECRET-GEMINI-KEY');
+    expect(out.headers['X-Provider']).toBe('google');
+  });
+
   it('X-Stream is "0" when streaming is disabled', () => {
     const out = buildAssuredRequest({ ...route, stream: false }, { 'Content-Type': 'application/json' });
     expect(out.headers['X-Stream']).toBe('0');

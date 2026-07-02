@@ -15,7 +15,7 @@ import type {
 } from './Provider';
 import { ProviderError } from './Provider';
 import type { ChatAttachment } from '@/platform/types/ai';
-import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
+import { getCorsSafeFetch, safeJsonParse, redactUrl } from './fetchUtils';
 import { assertCloudSendAllowed } from '@/platform/privacy/cloudSendGuard';
 import { sanitizeForPrompt } from '@/platform/utils/prompt-security';
 import { applyAssuredRoute, type AssuredRoute } from '@/platform/firm/assuredInference';
@@ -58,7 +58,9 @@ export interface GeminiProviderConfig {
    * Firm "Assured" routing. When set, the Google-native request is sent through
    * the firm zero-retention proxy (`POST /assured/infer`) with the org's managed
    * key attached server-side, instead of BYOK-direct. The proxy chooses the
-   * Google endpoint from `X-Stream`, so the `?key=` query is dropped here.
+   * Google endpoint from `X-Stream`, so the request is sent to the firm's own
+   * URL and the `x-goog-api-key` header carrying this instance's key is
+   * stripped by `applyAssuredRoute` before it ever leaves the machine.
    * Undefined => unchanged BYOK-direct behaviour.
    */
   assured?: AssuredRoute;
@@ -440,25 +442,45 @@ export class GeminiProvider implements Provider {
     if (sendOpts.stopSequences) generationConfig.stopSequences = sendOpts.stopSequences;
     if (Object.keys(generationConfig).length > 0) request.generationConfig = generationConfig;
 
-    const url = `${this.baseUrl}/v1beta/models/${this.model}:streamGenerateContent?key=${this.apiKey}&alt=sse`;
+    // The key travels in the x-goog-api-key header, never the URL — Google
+    // supports this header on every REST endpoint, including SSE streaming
+    // (`?key=` on a URL is exposed via browser history, proxy access logs,
+    // and referrer headers in a way a header is not).
+    const url = redactUrl(`${this.baseUrl}/v1beta/models/${this.model}:streamGenerateContent?alt=sse`);
 
     const controlled = composeRequestSignal(signal, this.requestTimeoutMs);
     const safeFetch = await getCorsSafeFetch();
-    const routed = applyAssuredRoute(this.assured, url, { 'Content-Type': 'application/json' });
-    const response = await safeFetch(routed.url, {
-      method: 'POST',
-      headers: routed.headers,
-      body: JSON.stringify(request),
-      signal: controlled.signal,
+    const routed = applyAssuredRoute(this.assured, url, {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': this.apiKey,
     });
+    let response: Response;
+    try {
+      response = await safeFetch(routed.url, {
+        method: 'POST',
+        headers: routed.headers,
+        body: JSON.stringify(request),
+        signal: controlled.signal,
+      });
+    } catch (error) {
+      controlled.cleanup();
+      if (isAbortError(error, controlled.signal) || isTimeoutError(error, controlled.signal)) {
+        throw controlled.signal.reason ?? error;
+      }
+      throw error instanceof Error ? new Error(redactUrl(error.message)) : error;
+    }
 
     if (!response.ok) {
       const errorData = await safeJsonParse<GeminiError>(response);
+      controlled.cleanup();
       throw new Error(`Gemini API error: ${errorData.error.message} (${errorData.error.status})`);
     }
 
     const reader = response.body?.getReader();
-    if (!reader) throw new Error('No response body');
+    if (!reader) {
+      controlled.cleanup();
+      throw new Error('No response body');
+    }
 
     const decoder = new TextDecoder();
     let fullContent = '';
@@ -573,11 +595,16 @@ IMPORTANT: Respond ONLY with the JSON object. No markdown, no code blocks.`;
    * Make HTTP request to Gemini API with retries
    */
   private async makeRequest(request: GeminiRequest, retryCount = 0, signal?: AbortSignal): Promise<GeminiResponse> {
-    const url = `${this.baseUrl}/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`;
+    // The key travels in the x-goog-api-key header, never the URL — see the
+    // matching comment in sendMessageStreaming.
+    const url = redactUrl(`${this.baseUrl}/v1beta/models/${this.model}:generateContent`);
 
     try {
       const safeFetch = await getCorsSafeFetch();
-      const routed = applyAssuredRoute(this.assured, url, { 'Content-Type': 'application/json' });
+      const routed = applyAssuredRoute(this.assured, url, {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': this.apiKey,
+      });
       const controlled = composeRequestSignal(signal, this.requestTimeoutMs);
       let response: Response;
       try {
@@ -591,7 +618,7 @@ IMPORTANT: Respond ONLY with the JSON object. No markdown, no code blocks.`;
         if (isAbortError(error, controlled.signal) || isTimeoutError(error, controlled.signal)) {
           throw controlled.signal.reason ?? error;
         }
-        throw error;
+        throw error instanceof Error ? new Error(redactUrl(error.message)) : error;
       } finally {
         controlled.cleanup();
       }
