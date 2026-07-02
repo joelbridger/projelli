@@ -1,11 +1,14 @@
 /**
- * Unit tests for `scripts/bump-version.mjs` — the pure edit logic that
- * bumps package.json, src-tauri/tauri.conf.json, and src-tauri/Cargo.toml
- * to the same new version string. File I/O and process orchestration live
- * in the script's main(); these tests only exercise the pure functions it
- * calls, on in-memory file contents.
+ * Unit tests for `scripts/bump-version.mjs`: the pure text-edit logic (in
+ * memory), and `bumpVersionFiles` — the write/rollback orchestration — run
+ * against real temp files with the npm-install/parity-check steps injected,
+ * so failure/rollback behavior is covered without shelling out to npm or
+ * touching the real repo. `main()`'s CLI/argv wiring is not covered here.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, afterEach } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 // @ts-expect-error — ESM module with no TS types, intentionally imported raw.
 import * as bumpVersion from '../../scripts/bump-version.mjs';
 
@@ -16,6 +19,7 @@ const {
   assertVersionsAgree,
   setJsonVersionField,
   setCargoPackageVersion,
+  bumpVersionFiles,
 } = bumpVersion;
 
 describe('isValidSemver', () => {
@@ -183,5 +187,98 @@ describe('setCargoPackageVersion', () => {
     const after = setCargoPackageVersion(before, '3.4.0');
     expect(after).toContain('\n[lib]\n');
     expect(after).not.toContain('\nlib]\n');
+  });
+});
+
+describe('bumpVersionFiles', () => {
+  let dir: string;
+
+  afterEach(() => {
+    if (dir) fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  function makeFixture() {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bump-version-'));
+    const pkgJsonPath = path.join(dir, 'package.json');
+    const tauriConfPath = path.join(dir, 'tauri.conf.json');
+    const cargoTomlPath = path.join(dir, 'Cargo.toml');
+    const packageLockPath = path.join(dir, 'package-lock.json');
+    const pkgJsonText = '{\n  "version": "3.3.5"\n}\n';
+    const tauriConfText = '{\n  "version": "3.3.5"\n}\n';
+    const cargoTomlText = '[package]\nversion = "3.3.5"\n';
+    const packageLockText = '{\n  "version": "3.3.5"\n}\n';
+
+    fs.writeFileSync(pkgJsonPath, pkgJsonText);
+    fs.writeFileSync(tauriConfPath, tauriConfText);
+    fs.writeFileSync(cargoTomlPath, cargoTomlText);
+    fs.writeFileSync(packageLockPath, packageLockText);
+
+    return {
+      pkgJsonPath,
+      tauriConfPath,
+      cargoTomlPath,
+      packageLockPath,
+      pkgJsonText,
+      tauriConfText,
+      cargoTomlText,
+      packageLockText,
+    };
+  }
+
+  it('writes the new version to all four files and reports ok on success', () => {
+    const files = makeFixture();
+    const result = bumpVersionFiles({
+      files,
+      newVersion: '3.4.0',
+      writeFile: fs.writeFileSync,
+      runNpmInstall: () => ({ ok: true }),
+      runParityCheck: () => ({ ok: true }),
+    });
+    expect(result).toEqual({ ok: true });
+    expect(fs.readFileSync(files.pkgJsonPath, 'utf8')).toContain('3.4.0');
+    expect(fs.readFileSync(files.tauriConfPath, 'utf8')).toContain('3.4.0');
+    expect(fs.readFileSync(files.cargoTomlPath, 'utf8')).toContain('3.4.0');
+  });
+
+  it('restores ALL FOUR files, including package-lock.json, when the parity check fails after npm install already succeeded', () => {
+    // Regression: an earlier version only rolled back package.json,
+    // tauri.conf.json, and Cargo.toml — package-lock.json (already rewritten
+    // by a successful npm install) was left on the new version, so a
+    // "failed" bump still left the repo half-changed.
+    const files = makeFixture();
+    const result = bumpVersionFiles({
+      files,
+      newVersion: '3.4.0',
+      writeFile: fs.writeFileSync,
+      runNpmInstall: () => ({ ok: true }), // succeeds and (in real usage) rewrites package-lock.json
+      runParityCheck: () => ({ ok: false }), // then this fails
+    });
+    expect(result).toEqual({ ok: false, step: 'parity-check' });
+    expect(fs.readFileSync(files.pkgJsonPath, 'utf8')).toBe(files.pkgJsonText);
+    expect(fs.readFileSync(files.tauriConfPath, 'utf8')).toBe(
+      files.tauriConfText
+    );
+    expect(fs.readFileSync(files.cargoTomlPath, 'utf8')).toBe(
+      files.cargoTomlText
+    );
+    expect(fs.readFileSync(files.packageLockPath, 'utf8')).toBe(
+      files.packageLockText
+    );
+  });
+
+  it('restores all four files when npm install itself fails', () => {
+    const files = makeFixture();
+    const result = bumpVersionFiles({
+      files,
+      newVersion: '3.4.0',
+      writeFile: fs.writeFileSync,
+      runNpmInstall: () => ({ ok: false }),
+      runParityCheck: () => ({ ok: true }),
+    });
+    expect(result).toEqual({ ok: false, step: 'npm-install' });
+    expect(fs.readFileSync(files.pkgJsonPath, 'utf8')).toBe(files.pkgJsonText);
+    expect(fs.readFileSync(files.packageLockPath, 'utf8')).toBe(
+      files.packageLockText
+    );
   });
 });

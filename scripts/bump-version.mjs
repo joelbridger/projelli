@@ -161,6 +161,50 @@ export function setCargoPackageVersion(text, newVersion) {
   );
 }
 
+/** Write all four files to `newVersion`, run the two post-write checks, and
+ *  roll every file back to its original content if either check fails —
+ *  so a failed run never leaves the repo half-bumped (e.g. package-lock.json
+ *  on the new version while package.json rolled back). `writeFile` is
+ *  injected so tests can exercise this against real temp files without
+ *  touching the repo; `runNpmInstall`/`runParityCheck` are injected so tests
+ *  can simulate either step failing without shelling out. Returns
+ *  `{ ok: true }` or `{ ok: false, step }`. */
+export function bumpVersionFiles({
+  files,
+  newVersion,
+  writeFile,
+  runNpmInstall,
+  runParityCheck,
+}) {
+  const { pkgJsonPath, tauriConfPath, cargoTomlPath, packageLockPath } = files;
+  const { pkgJsonText, tauriConfText, cargoTomlText, packageLockText } = files;
+
+  const rollback = () => {
+    writeFile(pkgJsonPath, pkgJsonText);
+    writeFile(tauriConfPath, tauriConfText);
+    writeFile(cargoTomlPath, cargoTomlText);
+    writeFile(packageLockPath, packageLockText);
+  };
+
+  writeFile(pkgJsonPath, setJsonVersionField(pkgJsonText, newVersion));
+  writeFile(tauriConfPath, setJsonVersionField(tauriConfText, newVersion));
+  writeFile(cargoTomlPath, setCargoPackageVersion(cargoTomlText, newVersion));
+
+  const npmResult = runNpmInstall();
+  if (!npmResult.ok) {
+    rollback();
+    return { ok: false, step: 'npm-install' };
+  }
+
+  const parityResult = runParityCheck();
+  if (!parityResult.ok) {
+    rollback();
+    return { ok: false, step: 'parity-check' };
+  }
+
+  return { ok: true };
+}
+
 // ── CLI ─────────────────────────────────────────────────────────────────────
 
 function printUsage() {
@@ -182,10 +226,16 @@ function main() {
   const pkgJsonPath = join(repoRoot, 'package.json');
   const tauriConfPath = join(repoRoot, 'src-tauri', 'tauri.conf.json');
   const cargoTomlPath = join(repoRoot, 'src-tauri', 'Cargo.toml');
+  const packageLockPath = join(repoRoot, 'package-lock.json');
 
   const pkgJsonText = readFileSync(pkgJsonPath, 'utf8');
   const tauriConfText = readFileSync(tauriConfPath, 'utf8');
   const cargoTomlText = readFileSync(cargoTomlPath, 'utf8');
+  // Snapshotted before any writes so a rollback can restore it too — without
+  // this, a parity-check failure after a successful `npm install
+  // --package-lock-only` would leave package-lock.json on the new version
+  // while the three version files roll back, defeating atomicity.
+  const packageLockText = readFileSync(packageLockPath, 'utf8');
 
   const currentVersions = extractCurrentVersions({
     pkgJsonText,
@@ -220,52 +270,53 @@ function main() {
     return;
   }
 
-  // Roll back the three version files on any post-write failure below, so a
-  // failed run never leaves the repo half-bumped — a naive retry of the same
-  // command would otherwise start from the already-bumped version and
-  // silently advance past the intended target.
-  const rollback = () => {
-    writeFileSync(pkgJsonPath, pkgJsonText);
-    writeFileSync(tauriConfPath, tauriConfText);
-    writeFileSync(cargoTomlPath, cargoTomlText);
-    console.error(
-      `(rolled back package.json, tauri.conf.json, and Cargo.toml to ${currentVersion})`
-    );
-  };
-
-  writeFileSync(pkgJsonPath, setJsonVersionField(pkgJsonText, newVersion));
-  writeFileSync(tauriConfPath, setJsonVersionField(tauriConfText, newVersion));
-  writeFileSync(
-    cargoTomlPath,
-    setCargoPackageVersion(cargoTomlText, newVersion)
-  );
-
-  console.log('\n===== npm install --package-lock-only =====');
-  const npmInstall = spawnSync('npm', ['install', '--package-lock-only'], {
-    cwd: repoRoot,
-    stdio: 'inherit',
+  const result = bumpVersionFiles({
+    files: {
+      pkgJsonPath,
+      tauriConfPath,
+      cargoTomlPath,
+      packageLockPath,
+      pkgJsonText,
+      tauriConfText,
+      cargoTomlText,
+      packageLockText,
+    },
+    newVersion,
+    writeFile: writeFileSync,
+    runNpmInstall: () => {
+      console.log('\n===== npm install --package-lock-only =====');
+      const npmInstall = spawnSync('npm', ['install', '--package-lock-only'], {
+        cwd: repoRoot,
+        stdio: 'inherit',
+      });
+      if (npmInstall.status !== 0)
+        console.error('❌ npm install --package-lock-only failed');
+      return { ok: npmInstall.status === 0 };
+    },
+    runParityCheck: () => {
+      console.log('\n===== scripts/check-tauri-parity.mjs =====');
+      const parityCheck = spawnSync(
+        'node',
+        ['scripts/check-tauri-parity.mjs'],
+        {
+          cwd: repoRoot,
+          stdio: 'inherit',
+        }
+      );
+      if (parityCheck.status !== 0) {
+        console.error(
+          '❌ Tauri version parity check failed after bump — see output above'
+        );
+      }
+      return { ok: parityCheck.status === 0 };
+    },
   });
-  if (npmInstall.status !== 0) {
-    console.error('❌ npm install --package-lock-only failed');
-    rollback();
-    process.exit(npmInstall.status ?? 1);
-  }
 
-  console.log('\n===== scripts/check-tauri-parity.mjs =====');
-  const parityCheck = spawnSync('node', ['scripts/check-tauri-parity.mjs'], {
-    cwd: repoRoot,
-    stdio: 'inherit',
-  });
-  if (parityCheck.status !== 0) {
+  if (!result.ok) {
     console.error(
-      '❌ Tauri version parity check failed after bump — see output above'
+      `(rolled back package.json, tauri.conf.json, Cargo.toml, and package-lock.json to ${currentVersion})`
     );
-    rollback();
-    console.error(
-      'Note: package-lock.json may still reflect the new version — ' +
-        'run `npm install --package-lock-only` again once you re-bump.'
-    );
-    process.exit(parityCheck.status ?? 1);
+    process.exit(1);
   }
 
   console.log(
