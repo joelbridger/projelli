@@ -42,4 +42,4 @@ Two efforts run in parallel and must not collide:
 - [`feasibility/`](feasibility/) — the complete Jump feasibility assessment + research
   (moved here from `~/keepance-jump-feasibility`, now the canonical copy).
   Published report: https://jameworld.com/claudereports/r/2026-07-02-keepance-vs-jump-feature-parity-feasibility-assessment.html
-- [`docs/plans/lantern-plus/`](docs/plans/lantern-plus/) — the implementation plans (the deliverable of the Fable planning session).
+- [`docs/plans/lantern-plus/`](docs/plans/lantern-plus/) — the implementation plans + the binding UI-INTEGRATION-SPEC + the NEXT-SESSION-BOOTSTRAP prompt (the deliverables of the Fable planning session).

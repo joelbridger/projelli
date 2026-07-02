@@ -52,7 +52,11 @@ WASAPI for Wave 3, sherpa-onnx sidecar for Wave 4); nothing else without a plan 
    encrypted at rest like their neighbors (SQLCipher / AES-256-GCM patterns).
 6. **UX invariants:** everything lands in the 3-tab IA (Client Map · Ask · Workflows);
    AI proposes → user approves (writes show a diff preview + one Approve); light theme;
-   no per-feature settings jungles; no em dashes in user-facing copy.
+   no per-feature settings jungles; no em dashes in user-facing copy. **All UI work is
+   governed by [`2026-07-02-UI-INTEGRATION-SPEC.md`](2026-07-02-UI-INTEGRATION-SPEC.md)
+   (co-equal with this plan; it wins conflicts with wave-plan UI steps). UI merges
+   require its §5 evidence: frontend-design skill on new surfaces, screenshots +
+   click-counts in the merge note, screenshots to Jameson via notify-jameson.**
 7. **Word-native:** generated artifacts (notes, briefs, attestation reports) are .docx
    via `lantern-docx`, not Markdown, wherever user-facing.
 8. **Mergeability discipline:** prefer new modules (`src/features/meetings/`,
