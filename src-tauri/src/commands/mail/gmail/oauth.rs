@@ -371,6 +371,78 @@ pub async fn await_redirect_code(
     .map_err(|_| anyhow!("timed out waiting for OAuth redirect"))?
 }
 
+/// Race `await_redirect_code` against `cancel` being set, polling every 150ms.
+/// Lets a pending interactive OAuth wait (OneDrive, Salesforce, ...) be
+/// aborted immediately — user clicked Cancel, or closed the browser tab and
+/// gave up — instead of sitting on the full `timeout`. Returns
+/// `Err("cancelled")` when the cancel flag wins. Shared by every loopback
+/// connector so the "5-minute frozen login" fix lives in one place.
+pub async fn await_redirect_code_or_cancel(
+    listener: tokio::net::TcpListener,
+    expected_state: &str,
+    timeout: Duration,
+    cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
+) -> anyhow::Result<String> {
+    let redirect_fut = await_redirect_code(listener, expected_state, timeout);
+    tokio::pin!(redirect_fut);
+    loop {
+        tokio::select! {
+            res = &mut redirect_fut => {
+                // A redirect that lands in the same instant Cancel was
+                // clicked can win this select before the next poll tick
+                // notices — re-check `cancel` here so a late Cancel still
+                // wins instead of silently completing the connect.
+                if cancel.load(std::sync::atomic::Ordering::SeqCst) {
+                    anyhow::bail!("cancelled");
+                }
+                return res;
+            }
+            _ = tokio::time::sleep(Duration::from_millis(150)) => {
+                if cancel.load(std::sync::atomic::Ordering::SeqCst) {
+                    anyhow::bail!("cancelled");
+                }
+            }
+        }
+    }
+}
+
+/// Persist a just-exchanged credential while honoring a cancel that arrives
+/// during the exchange (a network round trip) or between the exchange
+/// finishing and the store completing.
+///
+/// A redirect wait resolving successfully (`await_redirect_code_or_cancel`
+/// returning `Ok`) does NOT mean the flow is done — the token exchange that
+/// follows is itself a slow network call, and Cancel can still be clicked
+/// during it. Without this check, a canceled user could end up connected
+/// with a stored credential and no way to tell from the UI. `store` is only
+/// called if `cancel` is still clear; if `cancel` flips in the (vanishingly
+/// small) window between the check and `store` returning, `rollback` undoes
+/// it so a canceled flow leaves NO NEW credential.
+///
+/// `rollback` is caller-defined on purpose: a fresh connect (no prior
+/// credential) should delete on rollback, but a **reconnect** over an
+/// existing connection must restore the previous credential instead —
+/// deleting unconditionally would let a canceled reconnect attempt silently
+/// disconnect an already-working account. Callers with a possible prior
+/// value should snapshot it before calling this and have `rollback` restore
+/// it (falling back to delete only when there was nothing to restore).
+pub fn store_or_rollback_on_cancel(
+    cancel: &std::sync::atomic::AtomicBool,
+    store: impl FnOnce() -> Result<(), String>,
+    rollback: impl FnOnce(),
+) -> Result<(), String> {
+    use std::sync::atomic::Ordering;
+    if cancel.load(Ordering::SeqCst) {
+        return Err("cancelled".to_string());
+    }
+    store()?;
+    if cancel.load(Ordering::SeqCst) {
+        rollback();
+        return Err("cancelled".to_string());
+    }
+    Ok(())
+}
+
 /// Read and discard bytes from `socket` until the end-of-headers marker
 /// `\r\n\r\n` is seen or 16 KB have been consumed, whichever comes first.
 /// Best-effort: ignores errors (the browser may have already closed its send half).
@@ -759,6 +831,245 @@ mod tests {
             "Content-Length ({cl_value}) must equal actual body length ({})",
             body.len()
         );
+    }
+
+    // ── await_redirect_code_or_cancel — F2.4 "5-minute frozen login" fix ────
+
+    #[tokio::test]
+    async fn await_redirect_code_or_cancel_returns_immediately_when_cancelled() {
+        use std::sync::atomic::AtomicBool;
+        use std::sync::Arc;
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let cancel = Arc::new(AtomicBool::new(true));
+
+        let started = tokio::time::Instant::now();
+        let result = tokio::time::timeout(
+            Duration::from_secs(2),
+            await_redirect_code_or_cancel(listener, "state", Duration::from_secs(300), cancel),
+        )
+        .await
+        .expect("must not hit the 2s outer test timeout — cancellation should be near-instant");
+
+        assert!(result.is_err(), "a cancelled wait must return an error, not a code");
+        assert!(started.elapsed() < Duration::from_secs(1), "cancellation must be detected within one poll tick, not the full timeout");
+    }
+
+    #[tokio::test]
+    async fn await_redirect_code_or_cancel_returns_the_code_when_not_cancelled() {
+        use std::sync::atomic::AtomicBool;
+        use std::sync::Arc;
+        use tokio::io::AsyncWriteExt;
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let cancel = Arc::new(AtomicBool::new(false));
+
+        let task = tokio::spawn(await_redirect_code_or_cancel(
+            listener,
+            "TEST_STATE",
+            Duration::from_secs(5),
+            cancel,
+        ));
+
+        let mut stream = tokio::net::TcpStream::connect(format!("127.0.0.1:{port}")).await.unwrap();
+        let request = "GET /?code=REALCODE&state=TEST_STATE HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n";
+        stream.write_all(request.as_bytes()).await.unwrap();
+        stream.flush().await.unwrap();
+
+        let code = task.await.unwrap().expect("must succeed when never cancelled");
+        assert_eq!(code, "REALCODE");
+    }
+
+    #[tokio::test]
+    async fn await_redirect_code_or_cancel_notices_a_late_cancel() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let cancel = Arc::new(AtomicBool::new(false));
+        let cancel_setter = cancel.clone();
+
+        let task = tokio::spawn(await_redirect_code_or_cancel(
+            listener,
+            "state",
+            Duration::from_secs(300),
+            cancel,
+        ));
+
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        cancel_setter.store(true, Ordering::SeqCst);
+
+        let result = tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .expect("must not hit the 2s outer test timeout")
+            .unwrap();
+        assert!(result.is_err(), "a late cancel must still abort the wait");
+    }
+
+    #[tokio::test]
+    async fn await_redirect_code_or_cancel_rejects_a_redirect_that_lands_after_cancel() {
+        // Regression: cancel is set, then the browser redirect ARRIVES (a
+        // connect-then-cancel race — e.g. the user finishes the OAuth popup
+        // in the same instant they click Cancel). The redirect branch can
+        // become ready before the next 150ms poll tick would have noticed
+        // cancel on its own; the fix re-checks cancel at the moment the
+        // redirect resolves so a Cancel that landed first still wins instead
+        // of silently completing the connect.
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+        use tokio::io::AsyncWriteExt;
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let cancel = Arc::new(AtomicBool::new(false));
+        let cancel_setter = cancel.clone();
+
+        let task = tokio::spawn(await_redirect_code_or_cancel(
+            listener,
+            "TEST_STATE",
+            Duration::from_secs(300),
+            cancel,
+        ));
+
+        // Cancel first, then complete the redirect almost immediately after —
+        // well within the 150ms poll interval, so the redirect branch is very
+        // likely to win the select race against the next sleep tick.
+        cancel_setter.store(true, Ordering::SeqCst);
+        let mut stream = tokio::net::TcpStream::connect(format!("127.0.0.1:{port}")).await.unwrap();
+        let request = "GET /?code=REALCODE&state=TEST_STATE HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n";
+        stream.write_all(request.as_bytes()).await.unwrap();
+        stream.flush().await.unwrap();
+
+        let result = tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .expect("must not hit the 2s outer test timeout")
+            .unwrap();
+        assert!(result.is_err(), "cancel must win even when the redirect lands right after it, not silently return the code");
+    }
+
+    // ── store_or_rollback_on_cancel — "cancel-during-exchange leaves no
+    //    stored token" fix (found in codex review of the redirect race fix) ──
+
+    #[test]
+    fn store_or_rollback_on_cancel_stores_when_never_cancelled() {
+        use std::sync::atomic::AtomicBool;
+
+        let cancel = AtomicBool::new(false);
+        let mut stored = None;
+        let mut deleted = false;
+
+        let result = super::store_or_rollback_on_cancel(
+            &cancel,
+            || { stored = Some("token".to_string()); Ok(()) },
+            || { deleted = true; },
+        );
+
+        assert!(result.is_ok());
+        assert_eq!(stored.as_deref(), Some("token"));
+        assert!(!deleted, "must not delete on the happy path");
+    }
+
+    #[test]
+    fn store_or_rollback_on_cancel_never_stores_when_cancelled_before_the_call() {
+        use std::sync::atomic::AtomicBool;
+
+        // Simulates cancel arriving during the token exchange (a network
+        // round trip) that happens BEFORE store_or_rollback_on_cancel is
+        // even called — the flag is already set by the time we get here.
+        let cancel = AtomicBool::new(true);
+        let mut stored = None;
+        let mut deleted = false;
+
+        let result = super::store_or_rollback_on_cancel(
+            &cancel,
+            || { stored = Some("token".to_string()); Ok(()) },
+            || { deleted = true; },
+        );
+
+        assert!(result.is_err(), "a canceled flow must not connect");
+        assert_eq!(result.unwrap_err(), "cancelled");
+        assert_eq!(stored, None, "a canceled flow must leave NO stored credential");
+        assert!(!deleted, "nothing was stored, so nothing to delete");
+    }
+
+    #[test]
+    fn store_or_rollback_on_cancel_deletes_the_credential_if_cancel_lands_right_after_the_store() {
+        use std::sync::atomic::AtomicBool;
+
+        // Simulates cancel flipping in the (tiny) window between the
+        // pre-store check and the store completing: the store closure
+        // itself flips the flag, mimicking a cancel that lands mid-store.
+        let cancel = AtomicBool::new(false);
+        let mut stored = None;
+        let mut deleted = false;
+
+        let result = super::store_or_rollback_on_cancel(
+            &cancel,
+            || {
+                stored = Some("token".to_string());
+                cancel.store(true, std::sync::atomic::Ordering::SeqCst);
+                Ok(())
+            },
+            || { deleted = true; },
+        );
+
+        assert!(result.is_err(), "a late cancel must still abort the connect");
+        assert_eq!(result.unwrap_err(), "cancelled");
+        assert!(deleted, "a credential stored right before a late cancel must be rolled back — NO credential may survive a cancel");
+    }
+
+    #[test]
+    fn store_or_rollback_on_cancel_restores_a_prior_value_instead_of_only_deleting() {
+        // Regression (found in codex review): a RECONNECT over an existing
+        // connection must not let a cancel-after-store wipe out the
+        // previously-working credential. `rollback` is caller-defined
+        // specifically so a caller who snapshotted a prior value can restore
+        // it instead of deleting — this proves that contract actually works
+        // through the shared helper, mirroring onedrive/commands.rs and
+        // crm/commands.rs's "restore previous or delete if none" callbacks.
+        use std::cell::RefCell;
+        use std::sync::atomic::AtomicBool;
+
+        let cancel = AtomicBool::new(false);
+        let fake_keychain: RefCell<Option<String>> = RefCell::new(Some("old-working-token".to_string()));
+        let previous = fake_keychain.borrow().clone();
+
+        let result = super::store_or_rollback_on_cancel(
+            &cancel,
+            || {
+                *fake_keychain.borrow_mut() = Some("new-token".to_string());
+                cancel.store(true, std::sync::atomic::Ordering::SeqCst);
+                Ok(())
+            },
+            || {
+                *fake_keychain.borrow_mut() = previous.clone();
+            },
+        );
+
+        assert!(result.is_err(), "a late cancel must still abort the reconnect");
+        assert_eq!(
+            fake_keychain.borrow().as_deref(),
+            Some("old-working-token"),
+            "a canceled RECONNECT must restore the prior working credential, not delete it"
+        );
+    }
+
+    #[test]
+    fn store_or_rollback_on_cancel_propagates_a_real_store_error_without_deleting() {
+        use std::sync::atomic::AtomicBool;
+
+        let cancel = AtomicBool::new(false);
+        let mut deleted = false;
+
+        let result = super::store_or_rollback_on_cancel(
+            &cancel,
+            || Err("keychain locked".to_string()),
+            || { deleted = true; },
+        );
+
+        assert_eq!(result, Err("keychain locked".to_string()));
+        assert!(!deleted, "nothing was stored, so delete must not run for an unrelated store failure");
     }
 
     // Live OAuth smoke test for server-side connector validation (no signed build

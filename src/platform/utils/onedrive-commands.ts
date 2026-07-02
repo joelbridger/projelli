@@ -54,6 +54,15 @@ export async function oneDriveConnect(): Promise<void> {
   await invoke('onedrive_connect');
 }
 
+/** Abort a pending oneDriveConnect() sign-in immediately (user clicked Cancel,
+ *  or closed the Microsoft popup and gave up) instead of leaving it to hit the
+ *  5-minute server-side timeout. No-op outside Tauri. Never touches an
+ *  already-working connection. */
+export async function oneDriveConnectCancel(): Promise<void> {
+  if (!isTauri()) return;
+  await invoke('onedrive_connect_cancel');
+}
+
 export async function oneDriveIsConnected(): Promise<boolean> {
   if (!isTauri()) return false;
   return invoke<boolean>('onedrive_is_connected');

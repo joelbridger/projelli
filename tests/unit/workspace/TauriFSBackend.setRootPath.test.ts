@@ -81,3 +81,43 @@ describe('Part B.3 — access failure is reported clearly', () => {
     expect(backend.getRootPath()).toBe('C:\\New');
   });
 });
+
+// F2.4: the instance `exists()` method used to swallow ANY thrown error into
+// `false`, making a permission failure or an offline network/OneDrive path
+// indistinguishable from a genuinely missing file. Same access-error
+// distinction as setRootPath above, applied to the plain exists() check.
+describe('exists() — access failure is not reported as "not found"', () => {
+  async function rootedBackend(): Promise<TauriFSBackend> {
+    exists.mockResolvedValueOnce(true); // for setRootPath's own check
+    const backend = new TauriFSBackend();
+    await backend.setRootPath('C:\\WS');
+    return backend;
+  }
+
+  it('resolves false for a genuinely missing path (never throws)', async () => {
+    const backend = await rootedBackend();
+    exists.mockResolvedValue(false);
+    await expect(backend.exists('some/file.txt')).resolves.toBe(false);
+  });
+
+  it('resolves true when the path exists', async () => {
+    const backend = await rootedBackend();
+    exists.mockResolvedValue(true);
+    await expect(backend.exists('some/file.txt')).resolves.toBe(true);
+  });
+
+  it('throws a clear access error (not "false") when the check itself fails', async () => {
+    const backend = await rootedBackend();
+    exists.mockRejectedValue(new Error('permission denied'));
+
+    let caught: unknown;
+    try {
+      await backend.exists('Locked/file.txt');
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(FileOperationError);
+    const msg = (caught as Error).message;
+    expect(msg).toMatch(/permission|access|offline|network/i);
+  });
+});

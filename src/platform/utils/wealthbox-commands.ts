@@ -117,6 +117,15 @@ export async function crmOAuthConnect(provider: CrmProvider): Promise<CrmConnect
   return invoke<CrmConnectInfo>('crm_oauth_connect', { provider });
 }
 
+/** Abort a pending crmOAuthConnect() sign-in immediately (user clicked
+ *  Cancel, or closed the OAuth popup and gave up) instead of leaving it to
+ *  hit the 5-minute server-side timeout. No-op outside Tauri. Never touches
+ *  an already-working connection. */
+export async function crmOAuthConnectCancel(): Promise<void> {
+  if (!isTauri()) return;
+  await invoke('crm_oauth_connect_cancel');
+}
+
 /** True when a Wealthbox API token is stored in the keychain. */
 export async function crmIsConnected(provider?: CrmProvider): Promise<boolean> {
   if (!isTauri()) return false;
