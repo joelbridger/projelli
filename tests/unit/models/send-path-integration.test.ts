@@ -75,8 +75,8 @@ describe('Full attachment send-path integration', () => {
     const recorded = provider.getLastSendAttachments();
     expect(recorded).not.toBeNull();
     expect(recorded!).toHaveLength(1);
-    expect(recorded![0].att.id).toBe(att.id);
-    expect(Array.from(recorded![0].bytes)).toEqual(Array.from(PNG_BYTES));
+    expect(recorded![0]!.att.id).toBe(att.id);
+    expect(Array.from(recorded![0]!.bytes)).toEqual(Array.from(PNG_BYTES));
   });
 
   it('saves → reads → passes bytes to provider sendMessageStreaming', async () => {
@@ -97,7 +97,7 @@ describe('Full attachment send-path integration', () => {
 
     const recorded = provider.getLastSendAttachments();
     expect(recorded!).toHaveLength(1);
-    expect(recorded![0].att.mimeType).toBe('image/png');
+    expect(recorded![0]!.att.mimeType).toBe('image/png');
     // Chunks should have been emitted (mock streams the response text)
     expect(chunks.length).toBeGreaterThan(0);
   });

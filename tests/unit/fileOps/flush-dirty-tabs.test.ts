@@ -58,7 +58,7 @@ describe('flushDirtyTabs (BUG-046)', () => {
     );
     await flushAllDirtyTabs(svc);
     expect(svc.writeFileBinary).toHaveBeenCalledTimes(1);
-    expect(svc.writeFileBinary.mock.calls[0][0]).toBe('/ws/doc.docx');
+    expect(svc.writeFileBinary.mock.calls[0]![0]).toBe('/ws/doc.docx');
     expect(svc.writeFile).not.toHaveBeenCalled();
     expect(tab('/ws/doc.docx')?.isDirty).toBe(false);
   });

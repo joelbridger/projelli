@@ -82,7 +82,7 @@ describe('CalendlyConnect honest sync feedback + durable audit', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Sync meetings' }));
 
     await waitFor(() => {
-      const call = logDurable.mock.calls.find((c) => c[0] === 'calendly.sync');
+      const call = logDurable.mock.calls.find((c: unknown[]) => c[0] === 'calendly.sync');
       expect(String(call?.[1])).toMatch(/stopped after indexing/i);
       expect((call?.[2] as { outputs: { cancelled: boolean } }).outputs.cancelled).toBe(true);
     });
@@ -102,7 +102,7 @@ describe('CalendlyConnect honest sync feedback + durable audit', () => {
         { outputs: { error: 'auth_expired' } }
       );
     });
-    const failureCall = logDurable.mock.calls.find((c) => c[1] === 'Calendly sync failed.');
+    const failureCall = logDurable.mock.calls.find((c: unknown[]) => c[1] === 'Calendly sync failed.');
     expect(JSON.stringify(failureCall)).not.toContain('xyz');
   });
 });

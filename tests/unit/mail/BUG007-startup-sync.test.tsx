@@ -80,7 +80,7 @@ const mockMailConnectedAccounts = mailConnectedAccounts as ReturnType<typeof vi.
 const mockMailSyncAll = mailSyncAll as ReturnType<typeof vi.fn>;
 const mockMailCancelSync = mailCancelSync as ReturnType<typeof vi.fn>;
 const mockBuildMailMatterMap = buildMailMatterMap as ReturnType<typeof vi.fn>;
-const mockGetMatters = getMatters as ReturnType<typeof vi.fn>;
+const mockGetMatters = vi.mocked(getMatters);
 
 // ── Fixtures ────────────────────────────────────────────────────────────────
 

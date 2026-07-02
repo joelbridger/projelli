@@ -24,8 +24,8 @@ describe('settingsStore.importSettings (BUG-026)', () => {
     );
     expect(ok).toBe(true);
     const v = useSettingsStore.getState().values;
-    expect(v.fontSize).toBeUndefined();
-    expect(v.showWhatsNew).toBe(false);
+    expect(v['fontSize']).toBeUndefined();
+    expect(v['showWhatsNew']).toBe(false);
   });
 
   it('rejects out-of-range numbers and invalid select options', () => {
@@ -33,26 +33,26 @@ describe('settingsStore.importSettings (BUG-026)', () => {
       JSON.stringify({ fontSize: 30, theme: 'rainbow' }), // 30 > max 24; not a theme option
     );
     let v = useSettingsStore.getState().values;
-    expect(v.fontSize).toBeUndefined();
-    expect(v.theme).toBeUndefined();
+    expect(v['fontSize']).toBeUndefined();
+    expect(v['theme']).toBeUndefined();
 
     useSettingsStore.getState().importSettings(JSON.stringify({ fontSize: 16, theme: 'dark' }));
     v = useSettingsStore.getState().values;
-    expect(v.fontSize).toBe(16);
-    expect(v.theme).toBe('dark');
+    expect(v['fontSize']).toBe(16);
+    expect(v['theme']).toBe('dark');
   });
 
   it('MERGES into existing settings rather than replacing them', () => {
     useSettingsStore.setState({ values: { showWhatsNew: false } });
     useSettingsStore.getState().importSettings(JSON.stringify({ theme: 'light' }));
     const v = useSettingsStore.getState().values;
-    expect(v.theme).toBe('light'); // applied
-    expect(v.showWhatsNew).toBe(false); // preserved, NOT reset
+    expect(v['theme']).toBe('light'); // applied
+    expect(v['showWhatsNew']).toBe(false); // preserved, NOT reset
   });
 
   it('ignores unknown keys', () => {
     useSettingsStore.getState().importSettings(JSON.stringify({ notARealSetting: 'x' }));
-    expect(useSettingsStore.getState().values.notARealSetting).toBeUndefined();
+    expect(useSettingsStore.getState().values['notARealSetting']).toBeUndefined();
   });
 
   it('returns false for non-object JSON', () => {
@@ -90,7 +90,7 @@ describe('settingsStore persisted privacy migration (BUG-089)', () => {
 
     await useSettingsStore.persist.rehydrate();
 
-    expect(useSettingsStore.getState().values.confidentialityMode).toBe('local-only');
+    expect(useSettingsStore.getState().values['confidentialityMode']).toBe('local-only');
     expect(getConfidentialityMode()).toBe('local-only');
   });
 });
