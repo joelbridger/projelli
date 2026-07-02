@@ -6,11 +6,23 @@ name: Windows Bench (robot smoke)
 # to that port — no GUI rendering in the job itself.
 #
 # This job is SELF-SUFFICIENT: it does not assume the app (or even Windows'
-# power state) is already correct. It (1) sets the Legion to never sleep, (2)
-# syncs the checked-out tip into the dev app directory so the smoke always
-# tests current code — not whatever was last hand-deployed, (3) restarts the
-# dev app and waits for it to come up, THEN runs the smoke. On failure it
-# writes a job-summary so a red run is loud, never silent.
+# power state) is already correct. It (1) sets the Legion to never sleep,
+# (2) syncs the checked-out tip into the dev app directory so the smoke
+# always tests current code — not whatever was last hand-deployed, (3) starts
+# the app ONLY if it isn't already reachable (cli.mjs reset needs an
+# already-connectable CDP target to attach Playwright to — it can't cold-
+# start the app itself), (4) brings the bench to a clean, fully-indexed,
+# frozen-snapshot state via the robot's own `reset(mode:'snapshot')` — the
+# SAME kill+restore+restart+wait+seed sequence the smoke would otherwise
+# redundantly repeat on top of step 3's boot. The app's ~300-file PDF-index
+# pass re-runs on every boot, so an unconditional restart in step 3 would
+# double the run every time (see the 2026-07-02 timeout postmortem this
+# restructuring fixed) — skipping it when already up means the common case
+# (nothing else kills the app between daily runs) pays for indexing only
+# once, in step 4. ROBOT_SMOKE_FAST=1 then tells the smoke to skip its own
+# reset's kill/restart (mode:'fast': purge + reseed + reload only), since
+# step 4 already did the heavy lifting. On failure it writes a job-summary so
+# a red run is loud, never silent.
 #
 # Manual trigger: gh workflow run windows-bench.yml
 
@@ -28,13 +40,10 @@ jobs:
   robot-smoke:
     runs-on: [self-hosted, windows-bench]
     # Generous budget: a cold Rust rebuild (Legion idle a long time) can take
-    # ~20 min. The demo's ~300-file PDF-indexing pass re-runs from scratch on
-    # EVERY app boot (a real app characteristic, not a fluke), and this job
-    # boots the app twice — once in "Restart the dev app" below (so there's
-    # something for the smoke to connect Playwright to at all) and again
-    # inside the smoke's own reset(mode:'snapshot'), which kills + restarts
-    # it — so the worst case is two full ~20-30 min indexing passes back to
-    # back, the first one wasted when the second restart interrupts it. Most
+    # ~20 min, and the demo's ~300-file PDF-indexing pass re-runs from scratch
+    # on every app boot (a real app characteristic, not a fluke) — this job
+    # boots the app exactly ONCE (see the restructuring note above), so the
+    # worst case is one cold build + one full ~20-30 min indexing pass. Most
     # runs finish far sooner (subsequent-day runs / an already-warm bench).
     timeout-minutes: 120
     steps:
@@ -87,12 +96,24 @@ jobs:
           }
           exit 0
 
-      - name: Restart the dev app (KeepanceDev) and wait for CDP 9223 + Vite 5173
+      - name: Install Playwright package (no browser download — playwright.mjs connects over CDP)
+        run: npm install --no-audit --no-fund --no-save playwright
+
+      - name: Ensure the app is reachable (start it ONLY if it isn't already)
         shell: pwsh
         run: |
-          # The app id is com.lantern.app (facade rename) — the real binary/process
-          # name is "lantern", NOT "keepance". A stale "vite preview" (production)
-          # server can also be left listening on 5173 from a prior manual run.
+          # cli.mjs reset needs an ALREADY-connectable CDP target to attach
+          # Playwright to before it can run its own kill+restore+restart —
+          # it can't cold-start the app itself. Skipping the restart when the
+          # app is already up (the common case — nothing else kills it
+          # between daily runs) means the ~300-file PDF-index pass that
+          # re-runs on every boot only pays once (in the next step) instead
+          # of twice; only a genuinely cold Legion pays for two.
+          $cdp = 0
+          try { $cdp = (Invoke-WebRequest http://127.0.0.1:9223/json/version -UseBasicParsing -TimeoutSec 4).StatusCode } catch {}
+          if ($cdp -eq 200) { Write-Output "app already reachable on CDP 9223 — skipping restart"; exit 0 }
+
+          Write-Output "app not reachable — starting it"
           Stop-Process -Name node,cargo,lantern,msedgewebview2 -Force -ErrorAction SilentlyContinue
           Start-Sleep -Seconds 6
           Start-ScheduledTask -TaskName KeepanceDev
@@ -113,14 +134,30 @@ jobs:
           }
           Write-Output "app up: CDP 9223 + Vite 5173"
 
-      - name: Install Playwright package (no browser download — robot connects over CDP)
-        run: npm install --no-audit --no-fund --no-save playwright
+      - name: Bring the bench to a clean, frozen-snapshot state (kill + restore + restart + seed)
+        shell: pwsh
+        env:
+          ROBOT_LOCAL: '1'
+          DESKTOP_CDP_PORT: '9223'
+        run: |
+          node scripts/robot/cli.mjs reset '{"mode":"snapshot"}' --no-daemon
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "bench reset (snapshot restore) failed — see output above."
+            Get-Content C:\tauri-dev.log -Tail 80 -ErrorAction SilentlyContinue
+            exit 1
+          }
 
       - name: Run the robot smoke (Windows-native, drives the live app over CDP)
         shell: pwsh
         env:
           ROBOT_LOCAL: '1'
           DESKTOP_CDP_PORT: '9223'
+          # The previous step already did the kill+restore+restart+seed cycle
+          # (mode:'snapshot') — ROBOT_SMOKE_FAST makes the smoke's own reset
+          # step 'fast' (purge+reseed+reload, no app kill/restart), so the
+          # ~300-file PDF-index pass that re-runs on every boot only pays once
+          # per run instead of twice.
+          ROBOT_SMOKE_FAST: '1'
         run: node scripts/robot/smoke.mjs
 
       - name: Failure summary (make a red run loud, never silent)

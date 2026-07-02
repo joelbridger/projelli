@@ -98,7 +98,12 @@ export function restartApp() {
   sshExec('Start-ScheduledTask KeepanceDev; Start-Sleep 12');
 }
 
-export async function waitForPorts(timeoutMs = 90000) {
+// 20 min default (was 90s): a cold Rust rebuild (Legion idle a long time, or
+// this is the very first bring-up of a run) can itself take up to ~20 min
+// before CDP/Vite ever come up — a 90s ceiling aborted the reset before the
+// build even finished, which only went unnoticed because the bench usually
+// has a warm cargo cache.
+export async function waitForPorts(timeoutMs = 1_200_000) {
   const deadline = Date.now() + timeoutMs;
   const command = '(Get-NetTCPConnection -LocalPort 9223 -State Listen -EA SilentlyContinue|Measure-Object).Count; (Get-NetTCPConnection -LocalPort 5173 -State Listen -EA SilentlyContinue|Measure-Object).Count';
 
