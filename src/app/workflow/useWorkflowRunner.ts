@@ -27,6 +27,7 @@ import {
 } from '@/features/workflows/engine/workflowFile';
 import { retryWithBackoff } from '@/lib/retryWithBackoff';
 import { createMockProvider } from '@/platform/providers/MockProvider';
+import { OPENAI_DEFAULT_MODEL } from '@/platform/providers/OpenAIProvider';
 import { detectOllama, OLLAMA_DEFAULT_MODEL } from '@/platform/providers/OllamaProvider';
 import { createProvider } from '@/platform/providers/providerFactory';
 import { isEmbeddedLocalModelReady } from '@/platform/providers/resolveLocalProvider';
@@ -421,10 +422,21 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
         // dropping it is a no-op.
         const factoryId =
           cloudProvider === 'claude' ? 'anthropic' : cloudProvider === 'gemini' ? 'google' : 'openai';
+        // Model: normally the resolved cloudModel. When it's undefined (the
+        // BUG-025 key-mismatch fallback deliberately drops the pinned model so
+        // the fallback provider uses ITS OWN default), preserve the pre-F2.2
+        // behavior exactly — only OpenAI's factory free-tier default
+        // (gpt-4o-mini) differs from its constructor default (gpt-4o); Anthropic
+        // and Gemini match, so they need no override.
+        const modelOpt = cloudModel
+          ? { model: cloudModel }
+          : factoryId === 'openai'
+            ? { model: OPENAI_DEFAULT_MODEL }
+            : {};
         provider = createProvider({
           provider: factoryId,
           apiKey: key,
-          ...(cloudModel ? { model: cloudModel } : {}),
+          ...modelOpt,
           ...(aiRulesContent ? { aiRules: aiRulesContent } : {}),
         });
         console.log(

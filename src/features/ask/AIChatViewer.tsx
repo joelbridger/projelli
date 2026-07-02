@@ -26,6 +26,7 @@ import type { AIChatFile } from '@/platform/types/ai';
 import type { AuditEntry } from '@/platform/types/audit';
 import type { Provider } from '@/platform/providers/Provider';
 import { createProvider } from '@/platform/providers/providerFactory';
+import { OPENAI_DEFAULT_MODEL } from '@/platform/providers/OpenAIProvider';
 import { isLocalProviderId } from '@/platform/providers/providerFactory';
 import { isLocalOnlyMode, assertCloudGenerationAllowed } from '@/platform/privacy/localOnlyGuard';
 import { isAssuredProvider } from '@/platform/firm/resolveAssuredRoute';
@@ -457,7 +458,14 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         const provider: Provider = createProvider({
           provider: chatProvider,
           apiKey: apiKey?.key ?? '',
-          ...(chatData.model ? { model: chatData.model } : {}),
+          // Preserve the pre-F2.2 no-model default EXACTLY: only OpenAI's factory
+          // free-tier default (gpt-4o-mini) differs from its constructor default
+          // (gpt-4o) that this path used before; local/Anthropic/Gemini match.
+          ...(chatData.model
+            ? { model: chatData.model }
+            : chatProvider === 'openai'
+              ? { model: OPENAI_DEFAULT_MODEL }
+              : {}),
         });
         const proposals = await runExtraction(provider, messages);
         extractionStateRef.current = markCheckpointRan(

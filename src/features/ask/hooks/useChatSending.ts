@@ -26,6 +26,7 @@ import { resolveEgress } from '@/platform/privacy/egress';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import type { Provider } from '@/platform/providers/Provider';
 import { createProvider, isLocalProviderId } from '@/platform/providers/providerFactory';
+import { OPENAI_DEFAULT_MODEL } from '@/platform/providers/OpenAIProvider';
 import {
   effectiveChatProvider,
   resolveAvailableProviders,
@@ -1261,7 +1262,16 @@ export function useChatSending(deps: UseChatSendingDeps) {
           provider = createProvider({
             provider: chatProvider,
             apiKey: apiKey?.key ?? '',
-            ...(chatModel ? { model: chatModel } : {}),
+            // Preserve the pre-F2.2 no-model default EXACTLY: when a chat carries
+            // no stored model (a legacy/edge .aichat), OpenAI used its own
+            // constructor default (gpt-4o), not the factory's free-tier default
+            // (gpt-4o-mini). Local ids and Anthropic/Gemini already match, so
+            // only OpenAI needs the explicit fallback.
+            ...(chatModel
+              ? { model: chatModel }
+              : chatProvider === 'openai'
+                ? { model: OPENAI_DEFAULT_MODEL }
+                : {}),
             ...rulesOpt,
             ...assuredOpt,
           });

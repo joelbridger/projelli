@@ -55,6 +55,7 @@ import {
 import { deriveFilenameFromMessage } from '@/platform/utils/fileDrop';
 import { createKeychainService } from '@/platform/providers/KeychainService';
 import { createProvider } from '@/platform/providers/providerFactory';
+import { OPENAI_DEFAULT_MODEL } from '@/platform/providers/OpenAIProvider';
 import { resolveLocalGenerationProvider } from '@/platform/providers/resolveLocalProvider';
 import { isLocalOnlyMode, assertCloudGenerationAllowed, assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
 import type { Provider } from '@/platform/providers/Provider';
@@ -134,7 +135,11 @@ export async function buildProviderAsync(): Promise<Provider> {
   const openaiKey = await kc.getKey('openai');
   if (openaiKey?.trim()) {
     assertCloudGenerationAllowed();
-    return createProvider({ provider: 'openai', apiKey: openaiKey.trim() });
+    // Preserve the pre-F2.2 default EXACTLY: this surface never passes a model,
+    // so it used OpenAIProvider's own constructor default (gpt-4o). The shared
+    // factory would otherwise substitute the free-tier default (gpt-4o-mini) and
+    // silently downgrade email drafting — so pass the prior default explicitly.
+    return createProvider({ provider: 'openai', apiKey: openaiKey.trim(), model: OPENAI_DEFAULT_MODEL });
   }
   const googleKey = await kc.getKey('google');
   if (googleKey?.trim()) {
