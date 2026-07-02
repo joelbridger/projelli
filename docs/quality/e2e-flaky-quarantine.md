@@ -22,11 +22,73 @@ same change.
 > `test.skip(!!process.env.E2E_CI_QUARANTINE, '…')` instead, so the file's other
 > passing tests aren't dropped from CI too. This file tracks ownership either way.
 
-## Current state: quarantine is empty (F3.7, 2026-07-02)
+## Current state: 3 files re-quarantined post-merge (F3.7b, 2026-07-02)
 
-`CI_QUARANTINE` in `playwright.config.ts` is `[]`. The 25 whole-file entries
-added 2026-07-01 (F1.3, from a real GitHub Actions CI run post-sharding) plus
-7 files with in-spec skips were burned down over two follow-up changes:
+The F3.7 burndown below (merged into `keepance-3.0` at `c0380e2d`) was verified
+green with LOCAL runs only — branch pushes don't trigger CI, so the first real
+signal came from the post-merge CI run (28559901825), which was red: 3 of 6
+e2e shards, 11 tests. F3.7b (this entry, branch `fix/e2e-ci-remediation`)
+triaged each failure against the exact CI-equivalent env (`vite build --config
+vite.config.e2e.ts` + `vite preview`, `E2E_NO_LIVE=1`, `E2E_CI_QUARANTINE=1`):
+
+- **Visual snapshots (2 tests, FIXED)** — `app-layout.spec.ts` and
+  `status-bar.spec.ts`'s `*-chromium-linux.png` baselines. Root cause: the
+  F3.7 burndown's `d87c96a9` un-quarantine commit only regenerated the `en`
+  project's baselines (`status-bar-en-linux.png`,
+  `main-app-test-mode-en-linux.png`) — the default `chromium` project's
+  baselines (what the CI gate actually checks, `--project=chromium`) were
+  left stale. `status-bar-chromium-linux.png` in particular was stale from
+  well before the burndown (780px width, old fixture filename/trial-day
+  content) — not just a color-pixel diff. Regenerated both with
+  `--update-snapshots` against the CI-equivalent build; visually confirmed
+  both now show the current rebrand/light-theme/faint-text UI. Verified
+  green on 2 consecutive local runs.
+- **`templates-marketplace.spec.ts` (1 test, RE-QUARANTINED — whole file)** —
+  `exposeMarketplaceTestKit()` does `import('/src/features/workflows/
+  marketplace/svc/index.ts')` from the page context, relying on Vite's
+  dev-server module graph serving raw TS source over HTTP. That route
+  doesn't exist under a production `vite build` (CI's preview server serves
+  bundled/hashed `dist/assets/*.js`), so the dynamic import 404s. A real fix
+  needs a product-code test seam (e.g. an `App.tsx`-exposed
+  `window.__marketplaceTestKit` built at app-init time, like other specs'
+  `__templatesMarketplaceStore`) — out of the tests/e2e-only remediation
+  lane's scope.
+- **`web-demo.spec.ts` (4 tests, RE-QUARANTINED — whole file)** — all 4 tests
+  `goto('/index.demo.html')` and wait on `demo-mode-banner`, which is gated
+  behind the `IS_DEMO` flag (`src/web-demo/demoModeFlag.ts`,
+  `__KEEPANCE_DEMO__` global). That define is only set by the separate
+  `vite.config.web-demo.ts` build (`npm run build:web-demo`, its own
+  `index.demo.html` entry) — the e2e CI job builds only via
+  `vite.config.e2e.ts`, which never sets it, so demo mode never activates
+  under the preview server the gate tests against. A real fix needs a CI
+  workflow change (build+serve the web-demo bundle for this job, or a
+  request-time flag) — out of this lane's scope (no CI workflow edits).
+- **`wedge-proof.spec.ts` (4 tests, RE-QUARANTINED — per-test in-spec skip,
+  not whole-file — its 5th test passes clean)** — all 4 fail on real CI with
+  2x `net::ERR_CONNECTION_REFUSED` console errors tripping the specs'
+  zero-console-error assertions. Did not reproduce across 2 local runs
+  (isolated file run, and a full `--shard=6/6` replay matching the exact CI
+  shard) against the CI-equivalent preview build — genuinely CI-runner-
+  timing-sensitive, likely an async connectivity probe (firm-backend or
+  similar) racing page load. Root cause not pinned down within one bounded
+  investigation attempt per the remediation brief.
+
+| Spec | Suspected cause | Owner | Fix-or-delete-by |
+|---|---|---|---|
+| `templates-marketplace.spec.ts` | Dev-only Vite module-graph import; needs a product-code test seam | `fix-plan-F3.7-followup` | 2026-07-09 |
+| `web-demo.spec.ts` | `__KEEPANCE_DEMO__` not set under the e2e job's build; needs a CI workflow change | `fix-plan-F3.7-followup` | 2026-07-09 |
+| `wedge-proof.spec.ts` (4 tests, in-spec skip) | Intermittent CI-only `ERR_CONNECTION_REFUSED`; cause not yet pinned down | `fix-plan-F3.7-followup` | 2026-07-09 |
+
+The F3.7 burndown history (still accurate for everything else it covered)
+follows unchanged.
+
+## F3.7 burndown history (2026-07-02, prior to the F3.7b re-quarantine above)
+
+`CI_QUARANTINE` in `playwright.config.ts` reached `[]` at the end of this
+burndown (it carries 2 entries again as of F3.7b above). The 25 whole-file
+entries added 2026-07-01 (F1.3, from a real GitHub Actions CI run
+post-sharding) plus 7 files with in-spec skips were burned down over two
+follow-up changes:
 
 - **F1.3 same-day fixes** (2026-07-01): `gotoDocuments`'s stale
   `hub-shortcut-documents` testid and `settings-gear`'s stale `settings-modal`
