@@ -479,7 +479,9 @@ function App() {
         console.log('FileSystemWatcher: External file changes detected, refreshing file tree...');
         if (workspaceServiceRef.current) {
           try {
-            const newFileTree = await workspaceServiceRef.current.getFileTree();
+            // P1.1 (Task 6): force a real scan here — this fires when the watcher
+            // detected an EXTERNAL change, so a cached tree would be stale.
+            const newFileTree = await workspaceServiceRef.current.getFileTree({ fresh: true });
             setFileTree(newFileTree);
           } catch (error) {
             console.error('FileSystemWatcher: Failed to refresh file tree:', error);
@@ -492,7 +494,10 @@ function App() {
     watcher.start(async () => {
       if (!workspaceServiceRef.current) return '';
       try {
-        const currentTree = await workspaceServiceRef.current.getFileTree();
+        // P1.1 (Task 6): the watcher's change-detection poll MUST see the real
+        // current tree (a cached read could never detect an external change), and
+        // this fresh scan also keeps the shared cache warm every poll interval.
+        const currentTree = await workspaceServiceRef.current.getFileTree({ fresh: true });
         return createFileTreeSnapshot(currentTree);
       } catch (error) {
         console.error('FileSystemWatcher: Failed to get file tree snapshot:', error);

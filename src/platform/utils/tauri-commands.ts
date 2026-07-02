@@ -176,6 +176,9 @@ export type CitationVerdict =
  *  Mirror of `IndexingStatus` in `src-tauri/src/commands/rag/mod.rs`. */
 export type RagIndexingStatus =
   | 'idle'
+  // P1.1 (Task 4): the cheap stat-walk phase of a boot reconcile (comparing
+  // files against the manifest). Fast even on large workspaces.
+  | 'checking'
   | 'indexing'
   | 'done'
   | 'cancelled'
@@ -212,6 +215,16 @@ export interface RagIndexingProgress {
   cleanupFailed?: number;
   /** Paths of skipped files (bounded to 100 on the wire; use counts for total). */
   skippedPaths?: string[];
+  /** P1.1 (Task 2): true ONLY while a one-time schema-migration rebuild runs.
+   *  The banner shows an honest "Upgrading search index…" then, distinct from a
+   *  routine boot reconcile. Omitted (falsey) on every normal walk. */
+  migrating?: boolean;
+  /** P1.1 (Task 4): files a boot reconcile SKIPPED as unchanged (work avoided). */
+  reused?: number;
+  /** P1.1 (Task 4): files a boot reconcile actually re-indexed (new/changed). */
+  reindexed?: number;
+  /** P1.1 (Task 4): sources whose rows were purged because the file was deleted. */
+  deleted?: number;
 }
 
 /** Tauri event name. Mirror of `PROGRESS_EVENT` in mod.rs. */
@@ -312,6 +325,59 @@ export async function ragIndexWorkspace(matterId?: string): Promise<void> {
   // WS-B/C: also runs the one-time pre-3.0 migration (re-index under matter
   // scope). Omitting matterId files everything under the "unassigned" sentinel.
   return invoke<void>('rag_index_workspace', { matterId });
+}
+
+/** P1.1 (Task 4) — the BOOT indexer. Cheap stat-walk of the workspace, then
+ *  (re)index only new/changed files, purge rows for deleted files, and skip
+ *  everything unchanged (via the persistent manifest). Falls back to a full
+ *  rebuild automatically on a schema migration or fail-closed recovery. Use this
+ *  on workspace open instead of `ragIndexWorkspace` so a warm boot no longer
+ *  re-embeds the whole workspace. Emits the same `rag-indexing-progress` events. */
+export async function ragReconcileWorkspace(matterId?: string): Promise<void> {
+  if (!isTauri()) {
+    throw new Error('RAG is only available in the desktop app.');
+  }
+  return invoke<void>('rag_reconcile_workspace', { matterId });
+}
+
+/** P1.1 (Task 3) — has this PDF already been indexed at its current version +
+ *  OCR setting? The PDF-index loop calls this to skip unchanged PDFs on boot.
+ *  Returns false (→ re-index) when new/changed/tombstoned or unknown. Browser
+ *  mode always returns false (no manifest). */
+export async function ragManifestPdfFresh(
+  path: string,
+  ocrEnabled: boolean,
+): Promise<boolean> {
+  if (!isTauri()) return false;
+  try {
+    return await invoke<boolean>('rag_manifest_pdf_fresh', { path, ocrEnabled });
+  } catch {
+    // Fail safe toward re-indexing.
+    return false;
+  }
+}
+
+/** P1.1 (Task 3) — record a PDF's signature after a successful index so a later
+ *  boot can skip it while unchanged. Best-effort; never throws to the caller. */
+export async function ragManifestRecordPdf(
+  path: string,
+  pageCount: number,
+  ocrEnabled: boolean,
+  matterId?: string,
+  privilege?: string,
+): Promise<void> {
+  if (!isTauri()) return;
+  try {
+    await invoke<void>('rag_manifest_record_pdf', {
+      path,
+      pageCount,
+      ocrEnabled,
+      matterId,
+      privilege,
+    });
+  } catch (err) {
+    console.warn('ragManifestRecordPdf failed (non-fatal):', err);
+  }
 }
 
 /** Cancel the currently-running workspace indexer. Safe to call when no

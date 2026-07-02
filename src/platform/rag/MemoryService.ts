@@ -22,6 +22,8 @@ import {
   ragIndexFile,
   ragIndexPdfChunks,
   ragIndexWorkspace,
+  ragManifestRecordPdf,
+  ragReconcileWorkspace,
   ragRetagMatter,
   ragRetagPrivilege,
   ragRetrieve,
@@ -286,12 +288,18 @@ export const MemoryService = {
       if (workspaceIndexInFlight) return;
       workspaceIndexInFlight = true;
       try {
-        await ragIndexWorkspace(matterId);
+        // P1.1 — the default boot index is now a cheap RECONCILE: it skips files
+        // whose signature is unchanged in the manifest and only re-embeds new /
+        // changed ones (falling back to a full rebuild on a schema migration).
+        // This is what makes a warm boot near-instant instead of a full re-embed.
+        await ragReconcileWorkspace(matterId);
       } finally {
         workspaceIndexInFlight = false;
       }
       return;
     }
+    // A SCOPED re-index (a specific matter's folders) stays a full walk under that
+    // matter id — it is a deliberate re-tag operation, not a boot.
     await ragIndexWorkspace(matterId);
   },
 
@@ -541,14 +549,28 @@ export const MemoryService = {
     // from default retrieval.
     // VG-2: ONE command call for the whole file — the embed stays batched on
     // the Rust side; pageConfidences aligns with pages.
+    const matterId = resolveMatterForPath(path);
+    const privilege = resolvePrivilegeForPath(path);
     const chunksStored = await ragIndexPdfChunks(
       path,
       pages,
       result.pageCount,
-      resolveMatterForPath(path),
-      resolvePrivilegeForPath(path),
+      matterId,
+      privilege,
       pageConfidences,
     );
+    if (chunksStored > 0) {
+      // P1.1 (Task 3): record the PDF's signature (size/mtime + OCR setting +
+      // page count) so a later boot can SKIP this PDF while unchanged instead of
+      // re-extracting + re-OCR-ing it. Best-effort; never blocks indexing.
+      await ragManifestRecordPdf(
+        path,
+        result.pageCount,
+        isOcrScannedPdfsEnabled(),
+        matterId,
+        privilege,
+      );
+    }
     return {
       indexed: chunksStored > 0,
       pageCount: result.pageCount,
