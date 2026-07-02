@@ -17,133 +17,101 @@ same change.
 
 > Quarantined specs **still run locally** (`npx playwright test`) — they are only
 > skipped in the `E2E_CI_QUARANTINE=1` CI gate. Source of truth for whole-file
-> quarantines is the `CI_QUARANTINE` array in `playwright.config.ts`; a few rows
-> below quarantine a single test in an otherwise-healthy file via an in-spec
+> quarantines is the `CI_QUARANTINE` array in `playwright.config.ts`; a spec can
+> also quarantine a single test in an otherwise-healthy file via an in-spec
 > `test.skip(!!process.env.E2E_CI_QUARANTINE, '…')` instead, so the file's other
-> passing tests aren't dropped from CI too — the row says which mechanism
-> applies. This file tracks ownership either way.
+> passing tests aren't dropped from CI too. This file tracks ownership either way.
 
-## Quarantined specs
+## Current state: quarantine is empty (F3.7, 2026-07-02)
 
-Every row has a named owner — no `unassigned` rows (rule set 2026-07-01, F1.3:
-a quarantine with no owner rots). `fix-plan-F1.3-followup` is the standing
-follow-up ticket owner where no more specific person/session has picked it up
-yet; reassign to a specific owner when someone starts working a row. Suspected
-cause is a hypothesis from the spec name + the config comment (state /
-onboarding / timing / visual), not a confirmed diagnosis, unless marked
-"confirmed".
+`CI_QUARANTINE` in `playwright.config.ts` is `[]`. The 25 whole-file entries
+added 2026-07-01 (F1.3, from a real GitHub Actions CI run post-sharding) plus
+7 files with in-spec skips were burned down over two follow-up changes:
 
-| Spec | Suspected cause | Owner | Fix-or-delete by |
-|---|---|---|---|
-| `workflows-panel.spec.ts` | workflow-panel state/timing on cold CI start | fix-plan-F1.3-followup | 2026-07-31 |
-| `web-demo.spec.ts` | demo-route load + route-mock timing | fix-plan-F1.3-followup | 2026-07-31 |
-| `file-tree.spec.ts` | file-tree render/expand timing | fix-plan-F1.3-followup | 2026-07-31 |
-| `citation-persistence.spec.ts` | citation state across reload (persisted-state timing) | fix-plan-F1.3-followup | 2026-07-31 |
-| `app-layout.spec.ts` | layout/visual sensitivity to CI rendering | fix-plan-F1.3-followup | 2026-07-31 |
-| `v1.5-integration-flows.spec.ts` | broad multi-step flow; cold-start timing; ALSO uses the stale `settings-modal` testid fixed elsewhere in this file (2026-07-01), but with conditional branching not verified safe to auto-fix in the time available — see the settings-page section below | fix-plan-F1.3-followup | 2026-07-31 |
-| `templates-marketplace.spec.ts` | templates list state/timing; ALSO uses the stale `settings-modal` testid (open + close/hide assertions) — not fixed here, see the settings-page section below | fix-plan-F1.3-followup | 2026-07-31 |
-| `status-bar.spec.ts` | status-bar state/visual | fix-plan-F1.3-followup | 2026-07-31 |
-| `sidebar-a11y.spec.ts` | sidebar a11y tree timing | fix-plan-F1.3-followup | 2026-07-31 |
-| `search-content.spec.ts` | search depends on the index (browser index is desktop-only) | fix-plan-F1.3-followup | 2026-07-31 |
-| `v1.5-accessibility-full.spec.ts` — only `Workflow picker surface passes a11y` and `Files panel with open tabs passes a11y` (in-spec `test.skip`, not file-level `CI_QUARANTINE`; the other 6 tests in the file pass and keep running in CI, fixed 2026-07-01 by the settings-page testid fix below) | not yet diagnosed past the settings-page fix; both go through `openSidebarTab` | fix-plan-F1.3-followup | 2026-07-31 |
+- **F1.3 same-day fixes** (2026-07-01): `gotoDocuments`'s stale
+  `hub-shortcut-documents` testid and `settings-gear`'s stale `settings-modal`
+  testid (Jameson's 2026-06-27 decision moved Settings to a full-page
+  `settings-page` surface) — 4 files fully fixed, several more partially.
+- **F3.7 burndown** (2026-07-02, this entry): every remaining file, the
+  confirmed WCAG AA contrast bug, and every in-spec skip. Full commit history
+  on `fix/e2e-quarantine-burndown`. Root-cause classes found, most-common first:
 
-### Added 2026-07-01 (F1.3) — from a real GitHub Actions CI run, post-sharding
+1. **Standalone-editor-surface gate** (by far the largest class, ~20 files).
+   MainPanel — the tab bar, toolbar, auto-save indicator, every document/
+   spreadsheet/presentation/.doc/.workflow/.aichat viewer, and the status
+   bar's file-context slot (breadcrumbs, project name) — only mounts when
+   `sidebarActiveTab === 'files'` (App.tsx / StatusBar.tsx's
+   `showFileContext`). In the current 3-tab IA (Client Map / Ask / Workflows)
+   there's no direct spine-nav entry for that surface; a real user reaches it
+   via Ctrl+Shift+A or by opening a cited document. Tests that poked
+   `__openTestFile`/the editor store directly (bypassing the real
+   surface-switch) left `sidebarActiveTab` wherever it was, so this UI never
+   rendered. Fix: `switchToStandaloneEditorSurface` / `openStandaloneFile` /
+   `switchToStandaloneFilesGrid` helpers added to `tests/e2e/helpers/test-utils.ts`.
 
-Sharding the `e2e` job (6-way matrix) fixed the documented tail-timeout
-mechanism (`e2e-suite-batching.md`) but did **not** get the gate green: a real
-CI run on this branch still failed 83 of ~1130 test-instances across 31 spec
-files, consistently across shards. One shared root cause was found and fixed
-in this change — a widely-used test helper (`gotoDocuments` in
-`tests/e2e/helpers/test-utils.ts`) targeted `hub-shortcut-documents`, a
-test-id that no longer exists anywhere in `src/` (removed by the Client Map
-tab redesign in `MatterHub.tsx`, replaced by `hub-subtab-documents`) — a
-100%-deterministic stale reference, not a timing flake, that broke every
-caller. Fixing it turned some failures green outright; for the rest, spot
-checks found **at least two distinct further causes**, not one: a real
-product-behavior drift (`theme-system.spec.ts` expects the first-run theme
-default to be `"system"`; the app now defaults to `"light"` — plausibly
-intentional per Jameson's stated no-dark-mode preference, but that's a
-product call, not a CI-lane call) and a real conditional-rendering mismatch
-(`docs-trash-toggle` is intentionally hidden in the embedded per-matter
-Documents view — see the `empty-states.spec.ts` row below). The remaining
-rows below were **not** individually root-caused past this point — that's
-real, scoped follow-up work, not something to guess at inside this CI-fix.
+2. **`settings-modal` → `settings-page`** (the remaining files from the F1.3
+   list this pattern touched: `v1.5-integration-flows.spec.ts`,
+   `templates-marketplace.spec.ts`, `v1.5-memory-stress.spec.ts`). Settings
+   has no close button or Escape handler as a full page
+   (`SettingsContent.tsx` only wires `onClose` for `variant="modal"`) —
+   "closing" it now means navigating to a different spine tab.
 
-| Spec | Suspected cause | Owner | Fix-or-delete by |
-|---|---|---|---|
-| `create-file-dialog.spec.ts` — only `shows destination and live preview when creating a Word document` (in-spec `test.skip`; `shows destination when creating a folder` passes and keeps running in CI) | not yet diagnosed past the gotoDocuments fix | fix-plan-F1.3-followup | 2026-07-31 |
-| `doc-creation.spec.ts` — only `creates a blank .docx…` and `export menu appears for markdown tabs…` (in-spec `test.skip`; `filename prefill…` passes and keeps running in CI) | `creates a blank .docx…` fails a `toBe(true)` boolean assertion (not visibility/timing) — a real logic mismatch, not diagnosed further | fix-plan-F1.3-followup | 2026-07-31 |
-| `empty-states.spec.ts` — only `Search empty state renders…` and `Trash empty state renders…` (in-spec `test.skip`; the other 2 tests pass and keep running in CI) | **confirmed** for Trash: `docs-trash-toggle` is intentionally hidden in the embedded per-matter Documents view (`DocumentsHome.tsx` `!embedded` gate) that `gotoDocuments` reaches — needs a non-embedded documents route or a product decision, not diagnosed for Search | fix-plan-F1.3-followup | 2026-07-31 |
-| `tab-bar-scroll.spec.ts` | not yet diagnosed past the gotoDocuments fix (only test in file, still red after the fix) | fix-plan-F1.3-followup | 2026-07-31 |
-| `undo-delete-ctrlz.spec.ts` | one of its 2 tests hits the same **confirmed** `docs-trash-toggle`/embedded-view mismatch as `empty-states.spec.ts` above; the other not diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
-| `ai-assistant-tab.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
-| `api-keys-panel.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
-| `auto-save-indicator.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
-| `breadcrumbs.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
-| `doc-editing.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
-| `doc-legacy.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
-| `doc-viewers.spec.ts` | not yet diagnosed; `spreadsheet-viewer` timeout despite an existing 20s explicit wait — may be genuine CI-runner rendering-perf, not just a missing wait | fix-plan-F1.3-followup | 2026-07-31 |
-| `editor-toolbar-overflow.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
-| `history-hidden-nonversioned.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
-| `image-attachment.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
-| `presentation-viewer.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
-| `spreadsheet-improvements.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
-| `updater.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
-| `v1.5-canvas-stress.spec.ts` | heavy stress spec (already the documented pattern in `e2e-suite-batching.md`); not yet individually diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
-| `v1.5-flag-canvas.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
-| `v1.5-memory-stress.spec.ts` | heavy stress spec; ALSO uses the stale `settings-modal` testid (open + a `.not.toBeVisible()` close assertion) — not fixed here, see the settings-page section below | fix-plan-F1.3-followup | 2026-07-31 |
-| `wedge-proof.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
-| `welcome-dialog.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
-| `word-count-md-txt.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
-| `workflow-persistence.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
-| `workflow-tab-overflow.spec.ts` | not yet diagnosed | fix-plan-F1.3-followup | 2026-07-31 |
+3. **PIVOT-A5: legal template pack excluded for the default 'advisor'
+   profession** (`workflows-panel.spec.ts`,
+   `v1.5-integration-flows.spec.ts`'s founder-flow test,
+   `v1.5-accessibility-full.spec.ts`'s workflow-picker test).
+   `prioritizeByProfession.ts` deliberately excludes the whole `legal`
+   category for advisors, floating `advisors` to the top instead. Default
+   profession is `advisor` (`professionStore.ts`) since the 2026-06-23
+   advisor re-aim.
 
-### `settings-modal` → `settings-page`: a second widely-shared stale testid (found 2026-07-01, fixing a reviewer-flagged coverage gap in `v1.5-error-paths.spec.ts`)
+4. **The 2026-07-01 rebrand** (`welcome-dialog.spec.ts`, `updater.spec.ts`).
+   `brand/brand.config.json`'s `BRAND.name` changed from `"Keepance"` to
+   `"Advisor Prep Hero"` ("flip identity to LANTERN + apply Advisor Prep
+   Hero brand"). `AppLogo.tsx` also switched from an `aria-label`-wrapped
+   element to a plain `<img alt={BRAND.name}>`.
 
-A CI-fix review flagged that whole-file-quarantining `v1.5-error-paths.spec.ts`
-dropped real safety-net coverage (no-AI-key, corrupt localStorage, disabled
-downloads) that another change had just started relying on. Root-causing it
-found the SAME class of bug as `gotoDocuments`/`hub-shortcut-documents`:
-`settings-gear` used to open a `settings-modal` dialog; Jameson's 2026-06-27
-decision (`SettingsGearButton.tsx`) made it open the full-page `settings-page`
-surface instead (`AppSurfaceRouter.tsx`, `sidebarActiveTab === 'settings'`) —
-same `SettingsContent`, same inner category/section testids, just a different
-outer container testid. 8 files used the stale `settings-modal` outer testid
-in the exact same `hardClick(settings-gear)` → `expect(settings-modal)` shape.
+5. **Stale `/docs/` seed-data assumption** (`file-tree.spec.ts`,
+   `create-file-dialog.spec.ts`, `doc-creation.spec.ts`). `gotoDocuments()`
+   lands in the embedded per-client Documents tab for the seeded demo
+   client (`matter_demo_brennan`, folderPaths `['/test-workspace/Brennan
+   Household']`) — new files land in the client's own mapped folder, not a
+   generic top-level `/docs/` folder from before the advisor-demo redesign.
 
-**Fixed and fully un-quarantined** (all tests now pass, removed from
-`CI_QUARANTINE`): `v1.5-error-paths.spec.ts`, `v1.5-flag-voice.spec.ts`,
-`v1.5-flag-memory.spec.ts`, `v1.5-voice-ollama-stress.spec.ts`.
+6. **Matter-isolation UI gates** (`tab-bar-scroll.spec.ts`,
+   `undo-delete-ctrlz.spec.ts`, `empty-states.spec.ts`'s Trash test,
+   `v1.5-memory-stress.spec.ts`). `DocumentsHome.tsx` deliberately hides
+   global, cross-client UI (the full document tab strip, the Files/Trash
+   toggle) in the embedded per-client Documents view, so it can never show a
+   foreign client's files/trash. Reach the standalone surface instead of the
+   embedded one for these.
 
-**Fixed partially** (switched to per-test `test.skip` for the 2 tests that
-still fail for an unrelated reason — see the `v1.5-accessibility-full.spec.ts`
-row above): `v1.5-accessibility-full.spec.ts`.
+7. **Genuinely stale copy/product-drift assertions**, one-off per file:
+   `search-content.spec.ts` (Search unified into "Ask" — no separate
+   "Search" verb/button anymore), `theme-system.spec.ts` (default theme is
+   now `light`, not `system` — matches Jameson's stated no-dark-mode
+   preference), `citation-persistence.spec.ts` (the sample-matter demo-chip
+   UI it asserted on is now `IS_DEMO`-gated to the standalone web-demo
+   build only), `api-keys-panel.spec.ts` (Remove goes through an in-app
+   `ConfirmDialog`, not native `window.confirm()` — dead + returns a truthy
+   object in the Tauri WebView2 build), `wedge-proof.spec.ts` (the refusal
+   copy says "your client" now, not "your matter" — the user-facing rename;
+   matter isolation is still the internal engine name).
 
-**Not fixed** — same stale testid confirmed present, but each has more
-complex close/hide assertions or conditional branching around
-`settings-modal` that needs individual verification, not a safe blind
-find-and-replace in the time available: `v1.5-integration-flows.spec.ts`,
-`templates-marketplace.spec.ts`, `v1.5-memory-stress.spec.ts` (all three
-still whole-file quarantined above, now with this cause noted). A follow-up
-that fixes these three the same way should get a meaningful further chunk of
-the CI_QUARANTINE list back.
+8. **The confirmed WCAG AA contrast bug** (`accessibility.spec.ts`'s
+   in-spec-skipped test) — a real product bug, fixed in
+   `src/styles/globals.css`: `--kp-side-fg-dim`, `--kp-side-fg-faint`,
+   `--kp-text-faint`, and `--kp-text-dim` were all under the 4.5:1 AA
+   threshold. Bumped navy-alpha to 0.70 (dim tier) / 0.68 (faint tier).
 
-### `accessibility.spec.ts` contrast fix (fixed 2026-07-01, F3.7)
+9. **Stale visual-snapshot baselines** (`app-layout.spec.ts`,
+   `status-bar.spec.ts`) — regenerated with `--update-snapshots` after
+   visually confirming the new baseline reflects legitimate accumulated UI
+   change (the rebrand, the 3-tab IA, the light sidebar redesign), not a bug.
 
-The confirmed WCAG AA color-contrast failure (`main app UI passes a11y checks
-(test mode)`) was a real product bug, not a test problem. Four `src/styles/globals.css`
-tokens were under the 4.5:1 AA threshold for normal text: `--kp-side-fg-dim`
-(nav labels, 0.64 alpha → 4.19:1 on `--kp-side-bg`), `--kp-side-fg-faint`
-(`Solo account` subtitle, 0.46 alpha → 2.60:1), `--kp-text-faint` (empty-state
-copy, 0.46 alpha → 2.65:1 on white), and `--kp-text-dim` (the main-content
-twin of `--kp-side-fg-dim`, same 0.64 alpha → 4.33:1 on white, not directly
-flagged by this test's page state but the same underlying bug). Bumped the
-navy-alpha to 0.70 for the two "dim" tokens and 0.68 for the two "faint"
-tokens — both clear 4.5:1 with margin on every background they're used
-against, while keeping dim slightly more opaque than faint. Pure CSS
-custom-property change, no component changes needed. The `test.skip` was
-removed from `accessibility.spec.ts`; the test now runs in CI and passed 3
-consecutive local runs.
+No product bugs were found beyond the contrast issue above — everything else
+was tests lagging real, deliberate product changes. Full suite (248 tests,
+6-way shard) is green: `bash scripts/run-e2e-suite.sh en 6`.
 
 ## How to work the list
 
@@ -154,4 +122,6 @@ consecutive local runs.
    `CI_QUARANTINE`.
 3. If the spec no longer pulls its weight (superseded by a lower-layer test, or
    testing a removed surface), delete it.
-4. If it genuinely can't be fixed yet, re-date its row here with a one-line reason.
+4. If it genuinely can't be fixed yet, add a row to a table here (spec | suspected
+   cause | owner | fix-or-delete-by date) and re-date it with a one-line reason
+   as the date approaches.
