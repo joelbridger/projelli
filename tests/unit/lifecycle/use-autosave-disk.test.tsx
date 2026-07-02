@@ -96,10 +96,11 @@ function createMemoryBackend(): FSBackend {
       return [...entries.entries()]
         .filter(([key]) => key !== WORKSPACE_ROOT && key.startsWith(prefix))
         .map(([key, entry]) => ({
+          id: key,
           path: key,
           name: entry.stat.name,
           type: entry.stat.type,
-          children: entry.stat.type === 'folder' ? [] : undefined,
+          ...(entry.stat.type === 'folder' ? { children: [] as FileNode[] } : {}),
         }));
     },
     async isSymlink() {

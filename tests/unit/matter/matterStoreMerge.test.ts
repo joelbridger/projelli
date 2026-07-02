@@ -300,7 +300,7 @@ describe('matter-store merge — hydration from each legacy key', () => {
   it('hydrates snapshots from keepance:matter-ui-snapshots', async () => {
     seed(UI_KEY, { state: { snapshots: { m1: { surface: 'files', activeTabPath: '/ws/Acme/x.docx' } } }, version: 0 });
     await useMatterStore.persist.rehydrate();
-    expect(useMatterStore.getState().snapshots.m1).toEqual({ surface: 'files', activeTabPath: '/ws/Acme/x.docx' });
+    expect(useMatterStore.getState().snapshots['m1']).toEqual({ surface: 'files', activeTabPath: '/ws/Acme/x.docx' });
     // ...and the sibling alias hook reads the same slice.
     expect(useMatterUiStore.getState().getSnapshot('m1')).toEqual({ surface: 'files', activeTabPath: '/ws/Acme/x.docx' });
   });
@@ -309,7 +309,7 @@ describe('matter-store merge — hydration from each legacy key', () => {
     const entry = { result: { summary: 'x', generatedAt: '2026-01-01T00:00:00Z' }, cachedAt: '2026-01-01T00:00:00Z' };
     seed(GLANCE_KEY, { state: { cache: { m1: entry } }, version: 0 });
     await useMatterStore.persist.rehydrate();
-    expect(useMatterStore.getState().cache.m1).toEqual(entry);
+    expect(useMatterStore.getState().cache['m1']).toEqual(entry);
     expect(useMatterAtAGlanceStore.getState().getEntry('m1')).toEqual(entry);
   });
 
@@ -320,8 +320,8 @@ describe('matter-store merge — hydration from each legacy key', () => {
     await useMatterStore.persist.rehydrate();
     const s = useMatterStore.getState();
     expect(s.matters).toHaveLength(1);
-    expect(s.snapshots.m1!.surface).toBe('email');
-    expect(s.cache.m1!.result).toEqual({ summary: 'g' });
+    expect(s.snapshots['m1']!.surface).toBe('email');
+    expect(s.cache['m1']!.result).toEqual({ summary: 'g' });
   });
 
   it('a fresh user (no keys) hydrates to empty defaults', async () => {
@@ -345,27 +345,27 @@ describe('matter-store merge — writes preserve all three legacy keys', () => {
     const glance = readEnvelope(GLANCE_KEY);
 
     // Each key carries ONLY its own slice (no cross-contamination).
-    expect((matters!.state!.matters as unknown[]).length).toBe(1);
+    expect((matters!.state!['matters'] as unknown[]).length).toBe(1);
     expect(matters!.state).not.toHaveProperty('snapshots');
     expect(matters!.state).not.toHaveProperty('cache');
     expect(matters!.version).toBe(10);
 
-    expect((ui!.state!.snapshots as Record<string, unknown>)[m.id]).toEqual({ surface: 'workflows', activeTabPath: null });
+    expect((ui!.state!['snapshots'] as Record<string, unknown>)[m.id]).toEqual({ surface: 'workflows', activeTabPath: null });
     expect(ui!.state).not.toHaveProperty('matters');
 
-    expect((glance!.state!.cache as Record<string, unknown>)[m.id]).toBeDefined();
+    expect((glance!.state!['cache'] as Record<string, unknown>)[m.id]).toBeDefined();
     expect(glance!.state).not.toHaveProperty('matters');
   });
 
   it('the ephemeral sync slice is NEVER written to any persisted key', () => {
     useMatterStore.getState().setStatus('m1', 'live');
-    expect(useMatterStore.getState().statusByMatterId.m1).toBe('live');
+    expect(useMatterStore.getState().statusByMatterId['m1']).toBe('live');
     // statusByMatterId must not appear in any of the three persisted envelopes.
     for (const key of [MATTERS_KEY, UI_KEY, GLANCE_KEY]) {
       const env = readEnvelope(key);
       if (env?.state) expect(env.state).not.toHaveProperty('statusByMatterId');
     }
     // The sync alias hook resolves to the same merged store.
-    expect(useMatterSyncStore.getState().statusByMatterId.m1).toBe('live');
+    expect(useMatterSyncStore.getState().statusByMatterId['m1']).toBe('live');
   });
 });

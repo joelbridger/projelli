@@ -41,6 +41,7 @@ function sampleMessage(overrides: Partial<MailView> = {}): MailView {
     cc: [],
     date: '2026-05-01T14:30:00Z',
     provider: 'm365',
+    account: null,
     body: 'Confirming May 14. The closing is at 10am.',
     hasAttachments: false,
     attachments: [],

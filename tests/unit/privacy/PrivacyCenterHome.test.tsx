@@ -52,9 +52,8 @@ const SAMPLE_MATTER: Matter = {
   id: 'matter_abc',
   name: 'Garcia v. Meridian',
   client: 'Garcia',
-  folders: [],
+  folderPaths: [],
   createdAt: '2026-06-17T00:00:00Z',
-  updatedAt: '2026-06-17T00:00:00Z',
 };
 
 describe('PrivacyCenterHome', () => {
