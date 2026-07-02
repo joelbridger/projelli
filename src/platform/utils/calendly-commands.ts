@@ -18,6 +18,8 @@ export interface CalendlySyncReport {
   inviteesFetched: number;
   meetingsIndexed: number;
   recordsIndexed: number;
+  /** True when the user stopped the sync mid-run (partial counts). */
+  cancelled: boolean;
 }
 
 export type CalendlySyncEventStatus = 'syncing' | 'done' | 'error' | 'cancelled';

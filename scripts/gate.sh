@@ -21,6 +21,19 @@ echo ""; echo "===== i18n key parity (report-only — KNOWN-I18N-01 deferred) ==
 npm run i18n:check || echo "⚠️  i18n key drift (KNOWN-I18N-01, deferred) — not blocking the gate"
 step "Unit tests"      npx vitest run
 step "ESLint gate"     npm run lint:gate
+# ── Connector outcome-contract reviewer check (F2.1) ─────────────────────────
+# A connector operation must NEVER fail silently: no network/IO Result that
+# affects a user-visible sync outcome may be swallowed by `.unwrap_or_default()`,
+# `.unwrap_or(...)`, or `let _ = <io>`. A repo-wide clippy `disallowed-methods`
+# ban on `unwrap_or_default` is infeasible (80+ legitimate JSON/serde defaults),
+# so this stays a REVIEW check, not an auto-gate. When touching a connector under
+# src-tauri/src/commands/{mail,onedrive,boxc,calendly,addepar,connector,crm,...},
+# scan new/changed swallows and confirm each is either (a) pure JSON/string
+# defaulting, or (b) disconnect-time best-effort cleanup — NOT a network/IO
+# result that decides whether the user's sync succeeded:
+#   grep -rnE '\.unwrap_or_default\(\)|\.unwrap_or\(|let _ =' src-tauri/src/commands/
+# Consciously-left sites (best-effort by design) are documented in the F2.1
+# handoff. New load-bearing swallows must propagate or surface instead.
 step "Rust tests"      bash -c "cd src-tauri && CI=1 cargo test --workspace --locked"
 
 if [ "$FULL" -eq 1 ]; then

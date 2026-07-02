@@ -55,6 +55,15 @@ export type AuditActionType =
   | 'wealthbox.disconnect'
   // OneDrive / SharePoint document connector lifecycle events.
   | 'onedrive.sync'
+  // Mail (Microsoft 365 / Gmail / IMAP) connector sync lifecycle. One row per
+  // provider section per sync, so a run that imported zero messages or failed
+  // still leaves a durable record — the same honesty guarantee OneDrive gives.
+  | 'mail.sync'
+  // Box, Calendly, and Addepar connector sync lifecycle. Same contract: every
+  // user-triggered sync leaves a success-with-counts or plain-error record.
+  | 'box.sync'
+  | 'calendly.sync'
+  | 'addepar.sync'
   | 'salesforce.connect'
   | 'salesforce.sync'
   | 'salesforce.disconnect'

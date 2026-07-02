@@ -48,7 +48,25 @@ export type MailSyncStatus = 'idle' | 'syncing' | 'done' | 'cancelled' | 'error'
 /** A sync-progress update for ONE provider. `provider` ("m365" | "imap" |
  *  "gmail") tags which account the update belongs to so each connector panel
  *  reacts only to its own status/count (the two panels are rendered together). */
-export interface MailSyncProgress { status: MailSyncStatus; provider: string; folder?: string | null; written: number; removed: number; }
+export interface MailSyncProgress {
+  status: MailSyncStatus;
+  provider: string;
+  folder?: string | null;
+  written: number;
+  removed: number;
+  /** Present only on a terminal `error` update: the raw failure message, for the
+   *  owner's own screen. Never persisted to the audit log as-is — only a
+   *  sanitized category is stored (see `sanitizeSyncError`). */
+  error?: string | null;
+  /** True on a terminal `done` update when some imported messages are queued for
+   *  the RAG backfill (not yet searchable — e.g. the embedding model is still
+   *  downloading). Recall is deferred to the next-launch backfill, never lost. */
+  backfillPending?: boolean;
+  /** True on a terminal `done` update (Microsoft 365) when a refresh-token
+   *  rotation failed to save this run. The sync succeeded; this is a heads-up
+   *  that the user may need to reconnect on a later launch. */
+  tokenWarning?: boolean;
+}
 export const MAIL_SYNC_EVENT = 'mail-sync-progress';
 export const MAIL_INDEX_CHUNK_EVENT = 'mail-index-chunk';
 
