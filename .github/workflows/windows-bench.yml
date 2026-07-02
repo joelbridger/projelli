@@ -28,11 +28,15 @@ jobs:
   robot-smoke:
     runs-on: [self-hosted, windows-bench]
     # Generous budget: a cold Rust rebuild (Legion idle a long time) can take
-    # ~20 min; the demo's ~300-file PDF-indexing pass re-runs from scratch on
-    # every boot (a real app characteristic, not a fluke) and can itself take
-    # up to ~30 min before the smoke's Ask step can reliably cite a PDF
-    # source. Most runs finish far sooner.
-    timeout-minutes: 75
+    # ~20 min. The demo's ~300-file PDF-indexing pass re-runs from scratch on
+    # EVERY app boot (a real app characteristic, not a fluke), and this job
+    # boots the app twice — once in "Restart the dev app" below (so there's
+    # something for the smoke to connect Playwright to at all) and again
+    # inside the smoke's own reset(mode:'snapshot'), which kills + restarts
+    # it — so the worst case is two full ~20-30 min indexing passes back to
+    # back, the first one wasted when the second restart interrupts it. Most
+    # runs finish far sooner (subsequent-day runs / an already-warm bench).
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
 
