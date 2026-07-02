@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { copyFileSync } from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,8 +12,11 @@ export const LEGION = 'james@100.127.67.22';
 export const WS_ROOT = 'C:\\keepance-demo-northcrest\\Northcrest Wealth Partners';
 // On-disk vector index for the Northcrest demo workspace. Plain Windows path;
 // JS-escaped backslashes only (NOT shell-escaped). Passed inside a PowerShell
-// single-quoted string by deleteIndex(), so PowerShell sees C:\...\.keepance.
-export const WS_KEEPANCE_INDEX = `${WS_ROOT}\\.keepance`;
+// single-quoted string by deleteIndex(), so PowerShell sees C:\...\.lantern.
+// The hidden index folder itself was renamed .keepance -> .lantern as part of
+// the app's facade rename; the export/const name is kept as-is to avoid
+// renaming every import site for a cosmetic label.
+export const WS_KEEPANCE_INDEX = `${WS_ROOT}\\.lantern`;
 
 // --- Frozen snapshot locations (the "save point" we restore instead of re-indexing) ---
 export const SNAPSHOT_DIR = 'C:\\keepance-snapshots';
@@ -28,6 +32,15 @@ const SNAPSHOT_PS_LOCAL = path.resolve(
 );
 
 const SSH_OPTS = ['-o', 'ConnectTimeout=10'];
+// ConnectTimeout above only bounds the SSH HANDSHAKE — once connected, a
+// stuck remote command (a locked file the just-killed app hasn't released
+// yet, a wedged PowerShell process) blocks execFileSync FOREVER, since
+// neither ssh nor execFileSync apply any timeout to the remote command's
+// runtime. A CI run silently hung 42+ minutes past its 20-minute
+// waitForPorts ceiling because of exactly this — every sshExec /
+// runSnapshotAction call below now passes an explicit `timeout` so a genuine
+// hang fails loudly within a bounded time instead of running forever.
+const DEFAULT_SSH_TIMEOUT_MS = 60_000;
 
 function isPortOpen(port) {
   return new Promise((resolve) => {
@@ -45,12 +58,35 @@ function isPortOpen(port) {
   });
 }
 
-export function sshExec(psCommand) {
-  return execFileSync('ssh', [...SSH_OPTS, LEGION, psCommand], { encoding: 'utf8' });
+// ROBOT_LOCAL: this code is running ON the Legion itself (e.g. a CI runner),
+// not on the server driving it remotely. Every sshExec/scpTo/runSnapshotAction
+// call used to go over SSH to the Legion's OWN Tailscale IP regardless — a
+// pure network loopback for no reason, and a CI run proved it isn't even
+// reliable (`spawnSync scp ETIMEDOUT` on a plain file copy, no app or
+// workspace involved at all). Run everything as a local child process instead
+// when we're already on the target machine.
+const IS_LOCAL = () => !!process.env.ROBOT_LOCAL;
+
+export function sshExec(psCommand, timeoutMs = DEFAULT_SSH_TIMEOUT_MS) {
+  if (IS_LOCAL()) {
+    // pwsh.exe (PowerShell 7), NOT powershell.exe (Windows PowerShell 5.1):
+    // the CI workflow's own steps run under `shell: pwsh`, and a 5.1 CHILD
+    // spawned under a 7 PARENT (this Node process) inherits a PSModulePath
+    // that doesn't resolve 5.1's own built-in module set — Get-FileHash
+    // (used deep in the snapshot restore) came back "not recognized" for
+    // exactly this reason on the first local-execution CI proof run.
+    return execFileSync('pwsh.exe', ['-NoProfile', '-Command', psCommand], { encoding: 'utf8', timeout: timeoutMs });
+  }
+  return execFileSync('ssh', [...SSH_OPTS, LEGION, psCommand], { encoding: 'utf8', timeout: timeoutMs });
 }
 
 export function scpTo(localPath, remotePath) {
-  execFileSync('scp', [...SSH_OPTS, localPath, `${LEGION}:${remotePath}`]);
+  if (IS_LOCAL()) {
+    // Both paths are on THIS SAME machine — a plain local copy, no network.
+    copyFileSync(localPath, remotePath);
+    return;
+  }
+  execFileSync('scp', [...SSH_OPTS, localPath, `${LEGION}:${remotePath}`], { timeout: DEFAULT_SSH_TIMEOUT_MS });
 }
 
 export async function ensureTunnel(localPort = 9444, benchPort = 9223) {
@@ -82,18 +118,41 @@ export async function ensureTunnel(localPort = 9444, benchPort = 9223) {
 }
 
 export function killApp() {
-  sshExec('Stop-Process -Name node,cargo,keepance,Keepance,msedgewebview2 -Force -EA SilentlyContinue; Start-Sleep 6');
+  // The real process name is "lantern" (facade rename) — "keepance"/"Keepance"
+  // never matched anything, so this silently failed to kill the app.
+  //
+  // When ROBOT_LOCAL is set, this pwsh.exe runs as a CHILD of the very
+  // node.exe process calling killApp() (this script) — a bare
+  // `Stop-Process -Name node` matches by name only, so it would kill its own
+  // caller mid-reset, silently truncating everything after this call with no
+  // error at all (a CI run stalled on exactly this: the log stopped dead
+  // right after "killing the app to release file locks…"). Exclude our own
+  // PID from the node kill; cargo/lantern/msedgewebview2 are never node.exe,
+  // so no self-conflict there.
+  if (IS_LOCAL()) {
+    sshExec(
+      `Get-Process -Name node -EA SilentlyContinue | Where-Object { $_.Id -ne ${process.pid} } | Stop-Process -Force -EA SilentlyContinue; ` +
+      'Stop-Process -Name cargo,lantern,msedgewebview2 -Force -EA SilentlyContinue; Start-Sleep 6',
+    );
+    return;
+  }
+  sshExec('Stop-Process -Name node,cargo,lantern,msedgewebview2 -Force -EA SilentlyContinue; Start-Sleep 6');
 }
 
 export function deleteIndex() {
-  sshExec(`if (Test-Path '${WS_KEEPANCE_INDEX}') { Remove-Item -LiteralPath '${WS_KEEPANCE_INDEX}' -Recurse -Force; 'deleted .keepance' } else { '.keepance not present' }`);
+  sshExec(`if (Test-Path '${WS_KEEPANCE_INDEX}') { Remove-Item -LiteralPath '${WS_KEEPANCE_INDEX}' -Recurse -Force; 'deleted .lantern' } else { '.lantern not present' }`);
 }
 
 export function restartApp() {
   sshExec('Start-ScheduledTask KeepanceDev; Start-Sleep 12');
 }
 
-export async function waitForPorts(timeoutMs = 90000) {
+// 20 min default (was 90s): a cold Rust rebuild (Legion idle a long time, or
+// this is the very first bring-up of a run) can itself take up to ~20 min
+// before CDP/Vite ever come up — a 90s ceiling aborted the reset before the
+// build even finished, which only went unnoticed because the bench usually
+// has a warm cargo cache.
+export async function waitForPorts(timeoutMs = 1_200_000) {
   const deadline = Date.now() + timeoutMs;
   const command = '(Get-NetTCPConnection -LocalPort 9223 -State Listen -EA SilentlyContinue|Measure-Object).Count; (Get-NetTCPConnection -LocalPort 5173 -State Listen -EA SilentlyContinue|Measure-Object).Count';
 
@@ -216,12 +275,35 @@ export function scpSnapshotPs() {
   scpTo(SNAPSHOT_PS_LOCAL, SNAPSHOT_PS_REMOTE);
 }
 
+// Archive/restore does real file I/O (tar a ~75MB workspace over SSH) — more
+// generous than the general default, but still bounded so a genuinely stuck
+// extraction (e.g. a file handle the just-killed app hasn't released yet)
+// fails loudly instead of hanging the whole reset indefinitely.
+const SNAPSHOT_ACTION_TIMEOUT_MS = 600_000;
+
 /** Run one snapshot.ps1 action over ssh and return the parsed result packet. */
 function runSnapshotAction(action, opts = {}) {
   let raw = '';
   let threw = false;
   try {
-    raw = execFileSync('ssh', [...SSH_OPTS, LEGION, buildSnapshotCmd(action, opts)], { encoding: 'utf8' });
+    if (IS_LOCAL()) {
+      // buildSnapshotCmd's STRING literally starts with "powershell" (for the
+      // remote-ssh path, where the remote shell resolves it from PATH) —
+      // feeding that string to `pwsh.exe -Command` would spawn ANOTHER
+      // nested "powershell" (Windows PowerShell 5.1) child, reintroducing
+      // the exact PSModulePath problem pwsh.exe was chosen to avoid. Invoke
+      // pwsh.exe directly with real argv instead — no string, no nesting,
+      // no ambiguity about which PowerShell version actually runs the
+      // Archive/Restore action.
+      const { archive = SNAPSHOT_ARCHIVE, wsRoot = WS_ROOT, ps = SNAPSHOT_PS_REMOTE } = opts;
+      raw = execFileSync(
+        'pwsh.exe',
+        ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ps, '-Action', action, '-Archive', archive, '-WsRoot', wsRoot],
+        { encoding: 'utf8', timeout: SNAPSHOT_ACTION_TIMEOUT_MS },
+      );
+    } else {
+      raw = execFileSync('ssh', [...SSH_OPTS, LEGION, buildSnapshotCmd(action, opts)], { encoding: 'utf8', timeout: SNAPSHOT_ACTION_TIMEOUT_MS });
+    }
   } catch (e) {
     // PowerShell -File exits non-zero on a guarded refusal; still capture stdout.
     threw = true;

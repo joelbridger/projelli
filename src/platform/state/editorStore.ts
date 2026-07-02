@@ -851,10 +851,41 @@ export const useEditorStore = create<EditorState>()(
 // Watches tab layout changes and persists to localStorage per-workspace
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 
+// Perf (P1.2): `saveWorkspaceState` only ever persists layout fields (path,
+// name, groupId, type, metadata — see its `.map` above), never `content` or
+// `isDirty`. But `updateContent` replaces the WHOLE `openTabs` array on every
+// keystroke (a new array + a new object for the edited tab), so comparing
+// `state.openTabs !== prevState.openTabs` treated every keystroke as a
+// layout change too, spamming a console.log + a reschedule-cancel cycle on
+// every character typed. `updateContent` only ever touches `content`/
+// `isDirty`/`rev` on the edited tab — every other field keeps its old
+// reference — so a per-tab comparison of just the persisted fields
+// correctly no-ops on pure content edits while still catching real
+// layout changes (add/remove/reorder/rename/regroup).
+function tabsLayoutEqual(a: OpenTab[], b: OpenTab[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const ta = a[i];
+    const tb = b[i];
+    if (!ta || !tb) return false;
+    if (
+      ta.path !== tb.path ||
+      ta.name !== tb.name ||
+      ta.groupId !== tb.groupId ||
+      ta.type !== tb.type ||
+      ta.metadata !== tb.metadata
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 useEditorStore.subscribe((state, prevState) => {
   // Only trigger on layout-relevant changes, not content-only changes
   const changed =
-    state.openTabs !== prevState.openTabs ||
+    !tabsLayoutEqual(state.openTabs, prevState.openTabs) ||
     state.activeTabPath !== prevState.activeTabPath ||
     state.tabGroups !== prevState.tabGroups ||
     state.isSplit !== prevState.isSplit ||
