@@ -113,20 +113,35 @@ async function applyPurgeAndSeed(page, matters) {
       localStorage.setItem('keepance_profession', 'advisor');
       localStorage.setItem('keepance_onboarding_complete', 'true');
 
-      // settings: preserve persist wrapper, merge the four flag values on
-      // (persisted under `lantern:settings` post-rename — see settingsStore.ts)
+      // Pin the default AI provider to openai via keepance_default_provider
+      // (professionModel.ts's PROFESSION_PROVIDER_STORAGE_KEY) — the
+      // committed deterministic Ask fixture (ai-replays/ask-portfolio.json)
+      // is OpenAI-wire-format, but Ask otherwise falls back to
+      // anthropic > openai > google by key PRESENCE, so on a bench whose
+      // keychain has a real anthropic key Ask silently calls Anthropic and
+      // the OpenAI-shaped replay renders nothing (wire-format mismatch, no
+      // error — served>=1 still holds because SOME generation URL was
+      // intercepted).
       //
-      // defaultProvider pinned to openai: the committed deterministic Ask
-      // fixture (ai-replays/ask-portfolio.json) is OpenAI-wire-format, but
-      // askHelpers.ts's resolveAskCloudResolution reads THIS setting
-      // (settings.getSetting('defaultProvider')) and otherwise falls back to
-      // anthropic > openai > google by key PRESENCE — so on a bench whose
-      // keychain has a real anthropic key (any bench used for live testing),
-      // Ask silently calls Anthropic and the OpenAI-shaped replay renders
-      // nothing (wire-format mismatch, no error, egress guard still reports
-      // served>=1 because SOME generation URL was intercepted). Without this,
-      // the smoke's Ask result is a coin flip on whatever keys happen to be
-      // configured on the bench.
+      // NOT settings.values.defaultProvider (a previous version of this
+      // seed set that instead): 'defaultProvider' isn't in SETTINGS_SCHEMA,
+      // so settingsStore's sanitizeSettingValue marks it invalid and
+      // getSetting('defaultProvider') always returns undefined — the write
+      // sat in raw localStorage looking correct but was invisible to the
+      // app the moment it hydrated. resolveAskCloudResolution
+      // (askHelpers.ts) reads settings.getSetting('defaultProvider') FIRST
+      // but falls through to keepance_default_provider
+      // (PROFESSION_PROVIDER_STORAGE_KEY) when that's empty — which is the
+      // ONLY reason this ever worked: a leftover value from an earlier,
+      // since-removed direct write to this same key happened to still be
+      // sitting in the bench's persisted browser storage. A genuinely fresh
+      // profile would resolve to 'advisor' -> anthropic
+      // (PROFESSION_MODEL_DEFAULTS) instead and silently break the fixture
+      // match again.
+      localStorage.setItem('keepance_default_provider', 'openai');
+
+      // settings: preserve persist wrapper, merge the three flag values on
+      // (persisted under `lantern:settings` post-rename — see settingsStore.ts)
       let s = null;
       try { s = JSON.parse(localStorage.getItem('lantern:settings') || 'null'); } catch (_) {}
       if (!s || typeof s !== 'object') s = { state: { values: {} }, version: 0 };
@@ -135,7 +150,6 @@ async function applyPurgeAndSeed(page, matters) {
         memoryEnabled: true,
         includePdfsInWorkspaceIndex: true,
         ocrScannedPdfs: true,
-        defaultProvider: 'openai',
       });
       localStorage.setItem('lantern:settings', JSON.stringify(s));
 

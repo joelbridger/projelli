@@ -285,11 +285,25 @@ const SNAPSHOT_ACTION_TIMEOUT_MS = 600_000;
 function runSnapshotAction(action, opts = {}) {
   let raw = '';
   let threw = false;
-  const cmd = buildSnapshotCmd(action, opts);
   try {
-    raw = IS_LOCAL()
-      ? execFileSync('pwsh.exe', ['-NoProfile', '-Command', cmd], { encoding: 'utf8', timeout: SNAPSHOT_ACTION_TIMEOUT_MS })
-      : execFileSync('ssh', [...SSH_OPTS, LEGION, cmd], { encoding: 'utf8', timeout: SNAPSHOT_ACTION_TIMEOUT_MS });
+    if (IS_LOCAL()) {
+      // buildSnapshotCmd's STRING literally starts with "powershell" (for the
+      // remote-ssh path, where the remote shell resolves it from PATH) —
+      // feeding that string to `pwsh.exe -Command` would spawn ANOTHER
+      // nested "powershell" (Windows PowerShell 5.1) child, reintroducing
+      // the exact PSModulePath problem pwsh.exe was chosen to avoid. Invoke
+      // pwsh.exe directly with real argv instead — no string, no nesting,
+      // no ambiguity about which PowerShell version actually runs the
+      // Archive/Restore action.
+      const { archive = SNAPSHOT_ARCHIVE, wsRoot = WS_ROOT, ps = SNAPSHOT_PS_REMOTE } = opts;
+      raw = execFileSync(
+        'pwsh.exe',
+        ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ps, '-Action', action, '-Archive', archive, '-WsRoot', wsRoot],
+        { encoding: 'utf8', timeout: SNAPSHOT_ACTION_TIMEOUT_MS },
+      );
+    } else {
+      raw = execFileSync('ssh', [...SSH_OPTS, LEGION, buildSnapshotCmd(action, opts)], { encoding: 'utf8', timeout: SNAPSHOT_ACTION_TIMEOUT_MS });
+    }
   } catch (e) {
     // PowerShell -File exits non-zero on a guarded refusal; still capture stdout.
     threw = true;

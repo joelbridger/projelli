@@ -37,14 +37,21 @@ export const ADVERSARIAL = {
  * @param {{ cases?: any[], adversarial?: any }} args
  */
 export async function verifyIsolation(page, args = {}) {
+  // Preserve an explicit matterId a caller passed in `cases`/`adversarial`
+  // (a custom args.cases entry that already knows its id) — only resolve by
+  // matterName as a fallback, so passing an explicit id can never be
+  // silently clobbered back to null by a missing/absent matterName.
   const positiveCases = await Promise.all(
-    (args.cases ?? POSITIVE_CASES).map(async (c) => ({ ...c, matterId: await resolveMatterId(page, c.matterName) })),
+    (args.cases ?? POSITIVE_CASES).map(async (c) => ({
+      ...c,
+      matterId: c.matterId ?? (c.matterName ? await resolveMatterId(page, c.matterName) : null),
+    })),
   );
   const rawAdv = args.adversarial ?? ADVERSARIAL;
   const adv = {
     ...rawAdv,
-    webbMatter: await resolveMatterId(page, rawAdv.webbMatterName),
-    controlMatter: await resolveMatterId(page, rawAdv.controlMatterName),
+    webbMatter: rawAdv.webbMatter ?? (rawAdv.webbMatterName ? await resolveMatterId(page, rawAdv.webbMatterName) : null),
+    controlMatter: rawAdv.controlMatter ?? (rawAdv.controlMatterName ? await resolveMatterId(page, rawAdv.controlMatterName) : null),
   };
 
   const data = await page.evaluate(
