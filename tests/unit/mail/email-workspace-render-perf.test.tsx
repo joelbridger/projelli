@@ -191,7 +191,6 @@ describe('Perf (P2.2) — EmailWorkspace / MailRow render hygiene', () => {
     });
 
     const rerenderedRowIds = mockUsePrivilegeForSource.mock.calls.map((call: unknown[]) => call[0]);
-    // eslint-disable-next-line no-console
     console.log(`[perf/email-render] rows re-rendered after 2nd selection: ${JSON.stringify(rerenderedRowIds)}`);
     expect(rerenderedRowIds).toEqual(['mail:msg-0001']);
   });
@@ -216,7 +215,6 @@ describe('Perf (P2.2) — EmailWorkspace / MailRow render hygiene', () => {
       await waitForInitialLoad();
 
       const rows = screen.getAllByTestId('mail-row');
-      // eslint-disable-next-line no-console
       console.log(`[perf/email-render] items=200 mountedRows=${rows.length}`);
 
       // The result-count header is correctness-independent of virtualization

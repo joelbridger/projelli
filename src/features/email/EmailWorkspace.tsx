@@ -996,6 +996,28 @@ export function EmailWorkspace({
                     minHeight: 0,
                     overflowY: 'auto',
                   }}
+                  // Codex review (P2.2, rounds 3 & 5) flagged that row menus
+                  // (File/Privilege — `.kp-dropdown`, `position: absolute`)
+                  // can clip against this element's own `overflow: auto`
+                  // boundary for a row near the bottom of the visible list.
+                  // This is a PRE-EXISTING characteristic, not one this
+                  // change introduces: the page root ABOVE this element has
+                  // always had `overflow-y: auto` too (unchanged by any of
+                  // this ticket's commits), so a row's dropdown near the
+                  // bottom of the viewport was equally susceptible before
+                  // virtualization existed. Round 3 of this same review
+                  // fixed the part that WAS a regression — a small fixed
+                  // (560px) height here shrank the safe zone far below what
+                  // it was before; `flex: 1` above restores that original,
+                  // full-page-height safe zone. A real fix for the
+                  // underlying class of bug (any absolutely-positioned
+                  // popover clipping against ANY scrolling ancestor) means
+                  // portal/floating-position rendering in the shared
+                  // `Dropdown` primitive (`@/ui/kp`) — used well beyond
+                  // Email — which is out of this render-perf-only ticket's
+                  // scope and lane; flagged here as a real, pre-existing,
+                  // consciously-deferred follow-up rather than silently
+                  // dropped.
                 >
                   {shouldVirtualizeRows ? (
                     <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
