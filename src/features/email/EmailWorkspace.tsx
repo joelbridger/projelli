@@ -466,9 +466,17 @@ export function EmailWorkspace({
   // rows meant a user's scroll position within a long list was never
   // persisted — the page container rarely scrolls at all once the list
   // manages its own overflow, so the outer ref was the wrong (and now
-  // largely inert) element to track. `scrollContainerRef` doubles as the
-  // virtualizer's `getScrollElement` below — one ref, one scroll owner.
-  const { scrollContainerRef } = useScrollPersistence(activeMatter);
+  // largely inert) element to track.
+  //
+  // Codex review (round 2) then caught that the results box is itself
+  // CONDITIONALLY rendered (hidden during loading/error/empty), so a plain
+  // object ref + one-time effect (the hook's original design) frequently
+  // ran before that box existed, restoring/saving against `null` forever.
+  // `useScrollPersistence` now returns a callback ref (fires exactly when
+  // the node mounts/unmounts) plus `getScrollElement()` for the
+  // virtualizer, which needs to read the current node imperatively rather
+  // than receive it as a ref object.
+  const { scrollContainerRef, getScrollElement } = useScrollPersistence(activeMatter);
 
   // Perf (P2.2) — virtualize the results list past EMAIL_VIRTUALIZE_ROW_THRESHOLD
   // rows, using the SAME dedicated, bounded-height scroll container as scroll
@@ -481,7 +489,7 @@ export function EmailWorkspace({
   const shouldVirtualizeRows = scopedItems.length > EMAIL_VIRTUALIZE_ROW_THRESHOLD;
   const rowVirtualizer = useVirtualizer({
     count: scopedItems.length,
-    getScrollElement: () => scrollContainerRef.current,
+    getScrollElement,
     estimateSize: () => MAIL_ROW_ESTIMATED_HEIGHT_PX,
     overscan: 8,
     enabled: shouldVirtualizeRows,
