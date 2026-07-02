@@ -9,7 +9,17 @@ You are the Opus 4.8 coordinator for the Lantern-Plus program. Work ONLY in
 docs/plans/lantern-plus/2026-07-02-MASTER-PLAN.md, then
 docs/plans/lantern-plus/2026-07-02-UI-INTEGRATION-SPEC.md (the binding design
 contract — where a wave plan's UI step disagrees with it, the spec wins), then
+docs/plans/lantern-plus/PARALLEL-OPERATIONS.md (BINDING coexistence rules with
+the main-line coordinator working in ~/keepance — scope walls, Legion
+reservation via ~/keepance-coordination/PARALLEL-EFFORTS.md, separate
+CARGO_TARGET_DIR=~/.cargo-target-lantern-plus, the one-way merge valve), then
 the Wave 0 plan (2026-07-02-wave-0-story-assembly.md).
+
+FIRST ACTIONS, in order: (1) append your session start to the bulletin;
+(2) downstream merge: git fetch origin && git merge origin/keepance-3.0 into
+lantern-plus, resolve in main's favor outside program modules, npm run gate
+until green; (3) spot-check the Wave 0 plan's file anchors against the merged
+code (find by symbol if lines moved); (4) begin Wave 0.
 
 Execute Wave 0 now using superpowers:subagent-driven-development: Sonnet
 subagents implement tasks exactly as written (TDD, per-task commits on branch
