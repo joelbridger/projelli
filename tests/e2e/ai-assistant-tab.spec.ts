@@ -10,7 +10,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { waitForTestModeLoad } from './helpers/test-utils';
+import { waitForTestModeLoad, switchToStandaloneEditorSurface } from './helpers/test-utils';
 
 test.describe('AI Assistant main-panel tab (UX-21)', () => {
   test('Ctrl+Shift+A adds an ai-assistant tab to the editor store', async ({ page }) => {
@@ -56,6 +56,10 @@ test.describe('AI Assistant main-panel tab (UX-21)', () => {
   test('existing .aichat flow keeps rendering an AI chat tab (regression)', async ({ page }) => {
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
+    // AIChatViewer renders inside MainPanel, which only mounts on the
+    // standalone editor surface (sidebarActiveTab === 'files') — see
+    // helpers/test-utils.ts.
+    await switchToStandaloneEditorSurface(page);
 
     await page.evaluate(() => {
       const editor = (window as any).__editorStore?.getState?.();
