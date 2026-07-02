@@ -91,6 +91,26 @@ export function fileToolsAllowed(
 }
 
 /**
+ * The narrowest scope that COVERS all of `scopes` — i.e. the scope a grant must
+ * span to legitimately carry file content drawn from every one of them (F2.5b,
+ * Codex round 4). Any all-clients input, or two different single clients, means
+ * the combined content spans the whole practice, so the answer is bound to
+ * all-clients; a set of same-client scopes stays that client. Used to compute a
+ * turn's EFFECTIVE grounding scope when its answer draws on file content from
+ * both fresh retrieval AND file-grounded conversation history.
+ */
+export function broadestConsentScope(scopes: ConsentScope[]): ConsentScope {
+  let matterId: string | null = null;
+  for (const s of scopes) {
+    if (s.kind === 'allMatters') return { kind: 'allMatters' };
+    if (matterId === null) matterId = s.matterId;
+    else if (matterId !== s.matterId) return { kind: 'allMatters' };
+  }
+  // No single-client scope seen (empty input) → widest, the conservative default.
+  return matterId === null ? { kind: 'allMatters' } : { kind: 'matter', matterId };
+}
+
+/**
  * True when the composer should show the "Allow file access" affordance — i.e.
  * file tools are currently gated OFF for this scope and the user could turn them
  * on. The inverse of {@link fileToolsAllowed}.

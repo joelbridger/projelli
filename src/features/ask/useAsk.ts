@@ -20,11 +20,20 @@ import {
   buildWorkspaceContextBlock,
 } from '@/platform/rag/workspaceCommand';
 import type { RagHit, RetrievalScope } from '@/platform/utils/tauri-commands';
-import { useAIChatStore } from '@/platform/state/aiChatStore';
+import {
+  useAIChatStore,
+  useFileAccessConsent,
+  getFileAccessConsent,
+} from '@/platform/state/aiChatStore';
 import type { ChatMessage, WorkspaceSource } from '@/platform/types/ai';
 import type { AuditEntry, AuditScope } from '@/platform/types/audit';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { resolveEgress, isLocalProvider, type ConfidentialityMode } from '@/platform/privacy/egress';
+import {
+  fileToolsAllowed,
+  resolveWorkspaceRetrieval,
+  type ConsentScope,
+} from '@/platform/ai/fileAccessConsent';
 import { IS_DEMO } from '@/web-demo/demoModeFlag';
 import { hasDemoByokKey } from '@/web-demo/demoAIProvider';
 import { getConfidentialityMode, useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
@@ -46,12 +55,15 @@ import {
   buildResolvedAskProvider,
   resolveLocalAskProvider,
   resolveActiveAskProviderId,
+  askConsentScope,
   resolveEmailCitationLabels,
   friendlyErrorMessage,
   buildHistoryBlock,
   reconstructTurns,
   filterHitsByScope,
   bindAnswerCitations,
+  selectHistoryTurns,
+  deriveTurnGrounding,
   buildRecentAskSessions,
   dedupeRecognizedHits,
   recognizeHit,
@@ -75,6 +87,25 @@ const ASK_RAIL_COLLAPSED_KEY = SK_ASK_RAIL_COLLAPSED;
  * entirely. Persisted so the choice survives reloads.
  */
 const ASK_FILES_ONLY_KEY = SK_ASK_FILES_ONLY;
+
+/**
+ * F2.5b — the chatId for an Ask conversation, bound to the WORKSPACE ROOT so its
+ * session (turns) AND its per-conversation file-access consent are workspace-
+ * specific. Without this, `ask-global` (and, if matter ids ever collided, a
+ * matter chat) is shared across workspaces, so a grant + prior client facts
+ * could carry from workspace A into workspace B — a cross-workspace confidentiality
+ * leak (Codex rounds 8-9). Root-scoping every id makes opening/switching a
+ * workspace yield a FRESH conversation that re-asks and carries no other
+ * workspace's turns, while a grant for a given workspace still persists per
+ * workspace. No workspace open → the un-suffixed id (nothing to scope).
+ */
+export function askChatId(
+  matterId: string | null | undefined,
+  rootPath: string | null | undefined,
+): string {
+  const base = matterId ? `ask-${matterId}` : 'ask-global';
+  return rootPath ? `${base}::${rootPath}` : base;
+}
 
 /** Join tool labels for prose: ["RightCapital"] -> "RightCapital";
  *  ["RightCapital","Jump"] -> "RightCapital and Jump". */
@@ -129,26 +160,51 @@ export function useAsk({
   const demoQuestions =
     IS_DEMO && profession === 'advisor' ? WEB_DEMO_ADVISOR_QUESTIONS : getDemoQuestions(profession);
 
-  // Derive chatId from active matter
-  const baseChatId = activeMatter ? `ask-${activeMatter.id}` : 'ask-global';
-  const [chatId, setChatId] = useState<string>(baseChatId);
+  // Derive chatId from the active matter, or — for the no-matter "all clients"
+  // conversation — from the WORKSPACE ROOT (F2.5b, Codex round 8). A matter id is
+  // already workspace-specific, but a bare `ask-global` is shared across every
+  // workspace, so its session (and its per-conversation file-access consent)
+  // would carry a grant + prior client facts from workspace A into workspace B.
+  // Binding the global conversation to the current root makes the session AND the
+  // consent workspace-scoped for free: opening a different workspace yields a
+  // fresh `ask-global::<root>` conversation that re-asks and carries no other
+  // workspace's turns. `matterLabel`-style ids stay stable per matter.
+  const baseChatId = askChatId(activeMatter?.id ?? null, rootPath);
+  // A manual conversation selection (New question / load from the rail), carrying
+  // the workspace root it was made under. F2.5b (Codex round 12): `chatId` is
+  // DERIVED SYNCHRONOUSLY below rather than set in a passive effect, so it can
+  // never lag `rootPath` within a render — otherwise a workspace switch would
+  // leave a one-render window where `chatId` still holds the OLD root while
+  // `rootPath` is new, mis-tagging that session to the new workspace. The override
+  // is honoured only while it belongs to the CURRENT root, so a workspace switch
+  // drops it (falling back to the fresh, root-correct base) with no window.
+  const [sessionOverride, setSessionOverride] = useState<{ id: string; root: string | null } | null>(null);
+  const chatId = sessionOverride && sessionOverride.root === rootPath ? sessionOverride.id : baseChatId;
 
   // Scope toggle — default to 'this-matter' when a matter is active, else 'all-matters'.
   // Reset to appropriate default when the active matter changes.
   const defaultScope = (): AskScope => (activeMatter ? 'this-matter' : 'all-matters');
   const [askScope, setAskScope] = useState<AskScope>(defaultScope);
 
-  // Update chatId + reset scope when active matter changes
+  // Reset the manual selection + scope when the active matter OR workspace root
+  // changes (chatId itself is derived above, so it's already consistent).
   useEffect(() => {
-    setChatId(activeMatter ? `ask-${activeMatter.id}` : 'ask-global');
+    setSessionOverride(null);
     setAskScope(activeMatter ? 'this-matter' : 'all-matters');
-  }, [activeMatter?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeMatter?.id, rootPath]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Store selectors
   const initSession = useAIChatStore((s) => s.initSession);
   const setSessionWorkspaceRoot = useAIChatStore((s) => s.setSessionWorkspaceRoot);
   const addMessage = useAIChatStore((s) => s.addMessage);
   const sessions = useAIChatStore((s) => s.sessions);
+  // F2.5 — per-conversation file-access consent for the PRIMARY Ask surface.
+  // Reactive read drives the composer banner; the setter records grant/deny.
+  // The scope MUST mirror the turn's retrieval scope (askConsentScope), so an
+  // all-clients Ask demands its own grant and switching clients re-asks.
+  const setFileAccessConsent = useAIChatStore((s) => s.setFileAccessConsent);
+  const fileAccessConsent = useFileAccessConsent(chatId);
+  const fileAccessConsentScope: ConsentScope = askConsentScope(activeMatter?.id ?? null, askScope);
 
   // Conversation state
   const [turns, setTurns] = useState<AskTurn[]>([]);
@@ -353,11 +409,9 @@ export function useAsk({
 
   const handleNewAsk = useCallback(() => {
     abortRef.current?.abort();
-    // Generate a new session id to start fresh
-    const newId = activeMatter
-      ? `ask-${activeMatter.id}-${String(Date.now())}`
-      : `ask-global-${String(Date.now())}`;
-    setChatId(newId);
+    // Generate a new session id to start fresh (tagged with the current root).
+    const newId = `${askChatId(activeMatter?.id ?? null, rootPath)}-${String(Date.now())}`;
+    setSessionOverride({ id: newId, root: rootPath });
     setTurns([]);
     setStreamingTurn(null);
     setQuestion('');
@@ -365,11 +419,13 @@ export function useAsk({
     setSelectedTurnIdx(null);
     setErrorMsg(null);
     setStatus('idle');
-  }, [activeMatter]);
+  }, [activeMatter, rootPath]);
 
   const handleLoadSession = useCallback((sid: string) => {
-    setChatId(sid);
-  }, []);
+    // Rail sessions are already filtered to the current workspace, so tag the
+    // selection with the current root (dropped if the workspace later changes).
+    setSessionOverride({ id: sid, root: rootPath });
+  }, [rootPath]);
 
   const buildAuditScope = useCallback((retrievalScope: RetrievalScope): AuditScope => {
     if (retrievalScope.kind === 'matter') {
@@ -394,6 +450,13 @@ export function useAsk({
     const abort = new AbortController();
     abortRef.current = abort;
 
+    // F2.5b (Codex round 11) — capture the workspace GENERATION at send start.
+    // Re-checked just before dispatch so any workspace switch during the send's
+    // awaits — including an A→B→A round-trip that leaves the root string equal —
+    // is caught (the counter is monotonic), preventing a newly-active workspace's
+    // retrieved content from being sent under this send's (old) workspace consent.
+    const sendRootGeneration = useWorkspaceStore.getState().rootGeneration;
+
     setErrorMsg(null);
     setStatus('retrieving');
 
@@ -416,6 +479,10 @@ export function useAsk({
       | null = null;
     let providerCallStarted = false;
     let failedStage: AskFailureStage = 'setup';
+    // F2.5b (Codex P2) — hoisted so the FAILURE audit below can record whether
+    // client file content was part of a send that may already have reached the
+    // provider before it errored. Set once the consent gate resolves.
+    let fileToolsEnabledForAudit = false;
 
     try {
       /* Demo branch: sample matter + no cloud key + matching question */
@@ -476,6 +543,26 @@ export function useAsk({
           return;
         }
       }
+
+      /* F2.5 — file-access consent scope for the PRIMARY Ask surface.
+       * "Reading is sending" with a cloud model: Ask's retrieval is AMBIENT (it
+       * runs on every question — there is no typed `@workspace` here), so for a
+       * CLOUD provider client file content must NOT reach the vendor until the
+       * advisor has allowed file access FOR THIS CONVERSATION. The grant is bound
+       * to the turn's scope (askConsentScope mirrors retrievalScope below), so an
+       * all-clients Ask needs its own grant and switching clients re-asks.
+       *
+       * We capture only the SCOPE here (it's frozen at send time, like
+       * retrievalScope); the consent DECISION itself is re-read at the last
+       * synchronous moment before the send (see the AUTHORITATIVE gate block after
+       * flushSync), so a "Turn off" click during the retrieval/provider-resolution
+       * awaits is honoured. Retrieval below still runs (a LOCAL vector search over
+       * the on-machine index is not egress); the gate decides whether those hits
+       * are INJECTED into the cloud prompt, against the REAL resolved provider. So
+       * nothing leaves the machine without consent, and there is no estimate↔send
+       * drift. Local engines never leak and the web demo runs on synthetic sample
+       * data, so neither is gated there. */
+      const turnConsentScope: ConsentScope = askConsentScope(activeMatter?.id ?? null, askScope);
 
       /* Step 1: RAG retrieval
        * The Tauri-level retrieval scope is matter vs all-matters (confidentiality
@@ -633,46 +720,10 @@ export function useAsk({
       setStatus('answering');
       failedStage = 'provider-resolution';
 
-      const workspaceBlock = hits.length > 0 ? buildWorkspaceContextBlock(hits) : '';
-
-      // B4 (audit honesty): build the prompt scope from the SAME retrievalScope
-      // the retrieval actually used — NOT from activeMatter. Otherwise, when a
-      // matter is active but the user picked the "All matters" scope, the prompt
-      // would tell the AI it's answering for the active client while retrieval ran
-      // across everything — so the prompt and the audited scope would disagree.
-      const matterHint = scopeHintForMatter(
-        retrievalScope.kind === 'matter' && activeMatter ? matterLabel(activeMatter) : null,
-      );
-
-      // Build history from completed turns (last 6)
-      const historyBlock = buildHistoryBlock(turns, 6);
-
-      // BUG-016: the answer prompt is hardened to refuse fabrication. The model
-      // must answer ONLY from the retrieved context, decline with the exact
-      // NO_EVIDENCE_DECLINE wording when the context doesn't contain the answer,
-      // and never state a figure/date/name or cite a source that isn't present
-      // in the context. This is the model-side half of the grounding fix; the
-      // citation-binding step below structurally drops any citation that still
-      // doesn't resolve to a retrieved chunk. The prompt assembly lives in
-      // `askPrompt.ts` so the answer-quality eval (tests/eval/ask) tests the
-      // exact prompt we ship.
-      // Files-only mode keeps the strict, hardened "answer only from context or
-      // decline" prompt. Smart mode (default) uses the source-aware advisor
-      // prompt: same scope/context scaffolding, but the block protocol + the
-      // staleness guardrails replace the no-outside-knowledge contract.
-      const systemPrompt = filesOnly
-        ? buildAskSystemPrompt({
-            scopeHint: matterHint,
-            workspaceBlock,
-            historyBlock,
-          })
-        : buildSmartAskSystemPrompt({
-            scopeHint: matterHint,
-            workspaceBlock,
-            historyBlock,
-            hasEvidence: hits.length > 0,
-          });
-
+      // NOTE: the system prompt (with any retrieved file content) is built BELOW,
+      // AFTER the provider resolves — so the F2.5 consent gate can drop file
+      // content against the REAL send destination, never an estimate (see the
+      // "AUTHORITATIVE consent gate" block after flushSync).
       let answerText = '';
       let resolvedProvider = await buildResolvedAskProvider();
 
@@ -715,6 +766,103 @@ export function useAsk({
         setActiveProvider({ provider: resolvedProvider.providerId, mode: getConfidentialityMode() });
       });
 
+      // F2.5b (Codex round 10/11) — cross-workspace in-flight RACE guard. If the
+      // user switched workspaces while this send was awaiting (retrieval + provider
+      // resolution), the retrieved `hits` may be the NEW workspace's content while
+      // this send's consent + chatId belong to the OLD workspace — so B's client
+      // files could reach the cloud under A's grant. Compare the monotonic
+      // workspace GENERATION (not just the current root string, which an A→B→A
+      // round-trip would leave equal): any switch since send start bails. Read
+      // synchronously; there is NO await between here and the send below.
+      if (useWorkspaceStore.getState().rootGeneration !== sendRootGeneration) return;
+
+      // F2.5 — AUTHORITATIVE file-access consent gate, evaluated against the
+      // provider this send ACTUALLY resolved to (the single source of truth for
+      // where the request goes). If the real destination is a cloud provider and
+      // file access wasn't granted for this conversation's scope, DROP any
+      // retrieved file content so it never reaches the vendor — closing the
+      // estimate↔send drift window from Step 1's skip decision. The web demo is
+      // not gated (synthetic sample data through a shared relay). There is NO
+      // await between here and the send below, so the destination can't change
+      // under us. `groundingHits` (not `hits`) is what actually informs the
+      // prompt and the citations, so a blocked turn can never cite content that
+      // never left the machine.
+      const providerIsCloud =
+        !IS_DEMO && !isLocalProvider(resolvedProvider.providerId);
+      // F2.5b (Codex round 6) — RE-READ consent HERE, at the last synchronous
+      // moment before the prompt is built and sent. The snapshot taken at
+      // handleAsk start is stale by now: retrieval + provider resolution awaited,
+      // and the user may have clicked "Turn off" during that window. This block
+      // (and the send below) has NO further await, so this is the freshest, final
+      // consent decision — it governs the fresh workspace block AND the history.
+      const currentConsent = getFileAccessConsent(chatId);
+      const currentFileAccessGranted = fileToolsAllowed(currentConsent, turnConsentScope);
+      // May THIS send carry client file content to the destination? True for a
+      // local engine (never leaks) or a cloud provider consented for the turn's
+      // scope; false for a cloud provider without consent.
+      const fileContentPermitted = resolveWorkspaceRetrieval({
+        explicitWorkspace: false,
+        askWorkspaceMode: true,
+        isCloudProvider: providerIsCloud,
+        fileAccessGranted: currentFileAccessGranted,
+      }).shouldRetrieve;
+      const groundingHits: RagHit[] = fileContentPermitted ? hits : [];
+
+      const workspaceBlock =
+        groundingHits.length > 0 ? buildWorkspaceContextBlock(groundingHits) : '';
+      // B4 (audit honesty): build the prompt scope from the SAME retrievalScope
+      // the retrieval actually used — NOT from activeMatter. Otherwise, when a
+      // matter is active but the user picked the "All matters" scope, the prompt
+      // would tell the AI it's answering for the active client while retrieval ran
+      // across everything — so the prompt and the audited scope would disagree.
+      const matterHint = scopeHintForMatter(
+        retrievalScope.kind === 'matter' && activeMatter ? matterLabel(activeMatter) : null,
+      );
+      // F2.5b (Codex P1/round-3) — "reading is sending" also covers CONVERSATION
+      // HISTORY. Prior file-grounded answers in `turns` carry retrieved client
+      // facts in their text, so a later CLOUD send re-sends a given prior answer
+      // ONLY when the CURRENT consent covers the scope THAT answer's file content
+      // was grounded under (a single-client grant must not drag an all-clients — or
+      // other-scope — prior answer, even one grounded on an earlier LOCAL turn,
+      // into the cloud prompt). selectHistoryTurns is a pure, unit-tested seam.
+      const historyTurnsForSend = selectHistoryTurns(turns, currentConsent, providerIsCloud, turnConsentScope);
+      const historyBlock = buildHistoryBlock(historyTurnsForSend, 6);
+      // F2.5b (Codex round-4) — grounding is TRANSITIVE: this answer draws on
+      // client file content from fresh hits AND from any file-grounded history in
+      // its prompt (e.g. "summarize what you just said" with no fresh hits). So the
+      // turn's durable marker + EFFECTIVE grounding scope (the broadest of every
+      // contributing source) reflect BOTH, and the egress audit's fileToolsEnabled
+      // is true whenever ANY client file content rode along in this send.
+      const grounding = deriveTurnGrounding({
+        hadFreshHits: groundingHits.length > 0,
+        turnScope: turnConsentScope,
+        historyTurns: historyTurnsForSend,
+      });
+      const fileToolsEnabled = grounding.usedFileContent;
+      fileToolsEnabledForAudit = fileToolsEnabled;
+      // BUG-016: the answer prompt is hardened to refuse fabrication. The model
+      // must answer ONLY from the retrieved context, decline with the exact
+      // NO_EVIDENCE_DECLINE wording when the context doesn't contain the answer,
+      // and never state a figure/date/name or cite a source that isn't present in
+      // the context. The citation-binding step below structurally drops any
+      // citation that doesn't resolve to a grounding chunk. Files-only mode keeps
+      // the strict "answer only from context or decline" prompt; smart mode uses
+      // the source-aware advisor prompt. `hasEvidence` reflects the CONSENT-GATED
+      // grounding set, so a consent-blocked cloud turn correctly leads with an
+      // honest nothing-found block instead of a green, fake-cited claim.
+      const systemPrompt = filesOnly
+        ? buildAskSystemPrompt({
+            scopeHint: matterHint,
+            workspaceBlock,
+            historyBlock,
+          })
+        : buildSmartAskSystemPrompt({
+            scopeHint: matterHint,
+            workspaceBlock,
+            historyBlock,
+            hasEvidence: groundingHits.length > 0,
+          });
+
       const emitSuccessfulEgress = () => {
         if (!providerAudit) return;
         const egress = resolveEgress({
@@ -734,6 +882,8 @@ export function useAsk({
             destination: egress.destination,
             dataLeaves: egress.dataLeaves,
             scope: buildAuditScope(retrievalScope),
+            // F2.5 — was client file content actually part of this send?
+            fileToolsEnabled,
           },
         }));
       };
@@ -799,12 +949,16 @@ export function useAsk({
       let sources: WorkspaceSource[];
       let blocks: AnswerBlock[] | undefined;
       if (filesOnly) {
-        const bound = bindAnswerCitations(answerText, hits, expectedMatterId);
+        // F2.5 — bind against `groundingHits` (the CONSENT-GATED set actually sent
+        // to the model), never `hits`. A consent-blocked cloud turn has an empty
+        // grounding set, so it can never produce a green citation over content
+        // that never left the machine.
+        const bound = bindAnswerCitations(answerText, groundingHits, expectedMatterId);
         rewritten = bound.answer;
         boundCitations = bound.citations;
         sources = bound.sources;
       } else {
-        const bound = bindAnswerBlocks(answerText, hits, expectedMatterId);
+        const bound = bindAnswerBlocks(answerText, groundingHits, expectedMatterId);
         rewritten = bound.answer;
         boundCitations = bound.citations;
         sources = bound.sources;
@@ -829,6 +983,15 @@ export function useAsk({
         citations,
         sources,
         ...(blocks ? { blocks } : {}),
+        // F2.5b (Codex P1) — durable "this answer used client file content"
+        // marker, from the consent-gated grounding set (not the rendered
+        // citations), so a grounded-but-uncited answer is still redacted from
+        // history on a later denied/wrong-scope cloud send.
+        groundedFromFiles: fileToolsEnabled,
+        // F2.5b (Codex round 3/4) — the EFFECTIVE scope the content was grounded
+        // under (broadest of fresh retrieval + file-grounded history), so history
+        // redaction can require the current consent to cover it.
+        ...(grounding.scope ? { groundingScope: grounding.scope } : {}),
       };
 
       // Persist to store as two ChatMessage entries.
@@ -863,6 +1026,16 @@ export function useAsk({
         timestamp: now,
         ...(citations.length > 0 ? { askCitations: citations, askSources: citedSources } : {}),
         ...(blocks ? { askBlocks: blocks.map((b) => ({ kind: b.kind, text: b.text })) } : {}),
+        // F2.5b (Codex P1) — persist the file-grounding marker so history redaction
+        // still works after a reload (reconstructTurns restores it).
+        // F2.5b (Codex round 5) — persist the grounding decision ALWAYS (true OR
+        // false), so a reconstructed turn with an ABSENT marker is known to be
+        // legacy (pre-fix) and can fail closed. A definite `false` is what proves
+        // a general answer is safe to keep in a later narrowed cloud send.
+        askGroundedFromFiles: fileToolsEnabled,
+        // F2.5b (Codex round 3/4) — persist the EFFECTIVE grounding scope for
+        // scope-aware history redaction after a reload.
+        ...(grounding.scope ? { askGroundingScope: grounding.scope } : {}),
       };
       addMessage(chatId, userMsg);
       addMessage(chatId, assistantMsg);
@@ -911,6 +1084,9 @@ export function useAsk({
             mode: getConfidentialityMode(),
             destination: egress.destination,
             dataLeaves: egress.dataLeaves,
+            // F2.5b (Codex P2) — a failed send may already have reached the
+            // provider WITH file content; record it so the audit isn't silent.
+            fileToolsEnabled: fileToolsEnabledForAudit,
           },
         });
       }
@@ -995,5 +1171,9 @@ export function useAsk({
     isBusy,
     // Connector-access: props for the one-time export-consent dialog.
     exportConsentDialogProps,
+    // F2.5 — per-conversation file-access consent for the composer banner.
+    fileAccessConsent,
+    fileAccessConsentScope,
+    setFileAccessConsent,
   };
 }
