@@ -523,22 +523,30 @@ export async function retagExistingMatterFolderPaths(
 export async function startFullIndex(
   workspaceService: MemoryWiringWorkspaceService | null | undefined,
 ): Promise<void> {
+  // P1.1: everything that WRITES the vector table runs AFTER the reconcile
+  // completes — never concurrently with it. The reconcile may DROP + rebuild the
+  // whole table (a schema migration, a missing/corrupt table, or the manifest
+  // key-format upgrade). A concurrent PDF index / mail backfill would write rows
+  // (and, for PDFs, record a "fresh" signature) INTO a table being rebuilt, so
+  // the rebuild could drop rows a fresh signature was just recorded for — leaving
+  // that source "fresh" but absent from search. Sequencing removes the race; it
+  // is still all background work (the shell is already interactive).
   const indexAndRetag = MemoryService.indexWorkspace()
-    .then(() => retagExistingMatterFolderPaths(workspaceService))
+    .then(async () => {
+      // A3: index PDF files (skips unchanged via the manifest fresh-check).
+      if (isPdfIndexingEnabled() && workspaceService) {
+        await indexWorkspacePdfs(workspaceService).catch(() => {});
+      }
+      // Option B healing: re-index any mail imported while the model was still
+      // downloading, from the local encrypted bodies. No-ops fast when the
+      // backfill marker is absent (the common case).
+      await mailBackfillRag(buildMailMatterMap(getMatters())).catch(() => {});
+      // Apply folder→matter scoping to the (now stable) rows, in place.
+      await retagExistingMatterFolderPaths(workspaceService);
+    })
     .catch(() => {
       /* errors are surfaced via the progress event with status: error */
     });
-
-  // A3: if PDF indexing is enabled, also index PDF files in the workspace.
-  if (isPdfIndexingEnabled() && workspaceService) {
-    void indexWorkspacePdfs(workspaceService).catch(() => {});
-  }
-  // Option B healing: re-index any mail imported while the model was
-  // still downloading, from the local encrypted bodies. The Rust side
-  // no-ops fast when the backfill marker is absent (the common case),
-  // so this is safe to fire on every activation. The matter map scopes
-  // each backfilled message exactly as a sync would have.
-  void mailBackfillRag(buildMailMatterMap(getMatters())).catch(() => {});
 
   await indexAndRetag;
 }

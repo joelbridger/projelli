@@ -287,7 +287,17 @@ pub const UNASSIGNED_MATTER: &str = "unassigned";
 /// in those columns and the real path AES-256-GCM-encrypted in the new
 /// NOT-NULL `path_enc` column. We never leave plaintext paths behind: the
 /// one-time drop + re-index migration rewrites every row tokenized.
-pub const INDEX_VERSION: u32 = 10;
+///
+/// 11: P1.1 — the `path` token now HMACs the NORMALIZED path (`path_token` runs
+/// `normalize_source_path` first), so the native Windows form `C:\ws\a.docx` and
+/// the forward-slash form `C:/ws/a.docx` map to ONE token. A pre-11 table on
+/// Windows holds tokens over the un-normalized (backslash) path, which the new
+/// code can't match with the forward-slash form the TS retag/delete/index uses —
+/// so a mapped file could silently vanish from matter-scoped search. The one-time
+/// drop + re-index rewrites every row under the normalized token. (On
+/// Linux/macOS the paths were already forward-slash, so the tokens are unchanged
+/// and the rebuild is a no-op cost — but the marker is global, so it runs once.)
+pub const INDEX_VERSION: u32 = 11;
 
 /// Filename (under the vectors dir) holding the integer `INDEX_VERSION` the
 /// current `chunks` table was built with.
@@ -4754,23 +4764,35 @@ mod tests {
         );
     }
 
-    /// P1.1 (Windows regression): the boot reconcile purges a DELETED file by its
-    /// manifest key, which is `path_token(key, RAW_path)` — the SAME token the
-    /// rows were written under. On Windows the walker yields backslash paths, so
-    /// this proves `delete_by_token` over that token removes the rows. (The bug it
-    /// guards: normalizing the path before tokenizing produced a different token,
-    /// so the delete matched zero rows and the deleted file stayed searchable.)
+    /// P1.1 (Windows regression): rows written under the NATIVE backslash path
+    /// (what the Rust WalkDir/reconcile sees on Windows) must be reachable by a
+    /// delete/retag issued with the FORWARD-SLASH form (what the TS side builds
+    /// via appPath and passes to retag/delete). Because `path_token` now
+    /// normalizes, the two forms produce the SAME token, so cross-form ops match.
+    /// (Before the fix the tokens differed, the op matched ZERO rows, and a mapped
+    /// file silently dropped out of matter-scoped search on Windows.)
     #[tokio::test]
-    async fn delete_by_token_purges_rows_written_under_a_backslash_path() {
+    async fn cross_slash_form_token_matches_rows_on_windows_paths() {
+        use crate::commands::rag::crypto::path_token;
         let dir = tempfile::TempDir::new().unwrap();
         let conn = open_connection(dir.path()).await.expect("open conn");
         let table = open_or_create_table(&conn).await.expect("open table");
 
-        // A raw Windows path exactly as `WalkDir` would yield it (backslashes).
-        let raw_win_path = r"C:\WS\Clients\Acme\engagement.docx";
+        // Written under the native Windows (backslash) form, as WalkDir yields it.
+        let backslash = r"C:\WS\Clients\Acme\engagement.docx";
+        // Referenced later via the forward-slash form the TS side produces.
+        let forward = "C:/WS/Clients/Acme/engagement.docx";
+
+        // The normalizer collapses them to ONE token now (the fix).
+        assert_eq!(
+            path_token(&TEST_KEY, backslash),
+            path_token(&TEST_KEY, forward),
+            "backslash and forward-slash forms of one file must tokenize identically"
+        );
+
         let rows = vec![(
             Chunk {
-                path: raw_win_path.into(),
+                path: backslash.into(),
                 paragraph_index: 0,
                 text: "engagement".into(),
                 start_offset: 0,
@@ -4781,7 +4803,7 @@ mod tests {
         )];
         upsert_chunks_for_path(
             &table,
-            raw_win_path,
+            backslash,
             rows,
             SourceType::Docx,
             UNASSIGNED_MATTER,
@@ -4791,28 +4813,25 @@ mod tests {
         .await
         .expect("upsert under backslash path");
 
-        // The reconcile holds only the manifest key = path_token over the raw path.
-        let manifest_key = crate::commands::rag::crypto::path_token(&TEST_KEY, raw_win_path);
-        // Sanity: normalizing first would produce a DIFFERENT token (the bug).
-        let normalized_token = crate::commands::rag::crypto::path_token(
-            &TEST_KEY,
-            &normalize_source_path(raw_win_path),
-        );
-        assert_ne!(
-            manifest_key, normalized_token,
-            "precondition: raw vs normalized tokens differ on a backslash path"
-        );
-
-        delete_by_token(&table, &manifest_key)
+        // (a) A BATCHED matter retag issued with the FORWARD-slash form (the exact
+        // boot-retag path) must hit the backslash-written rows.
+        let updated = retag_matter_for_paths(&table, &[forward.to_string()], "acme", &TEST_KEY)
             .await
-            .expect("delete by manifest-key token");
-
+            .expect("batched retag via forward-slash form");
+        assert!(updated >= 1, "forward-slash retag must match the backslash rows");
         let q = vec![0.10f32; EMBEDDING_DIM];
-        let gone = nearest(&table, &q, 10, None, false, &[]).await.unwrap();
+        let in_acme = nearest(&table, &q, 10, Some("acme"), false, &[]).await.unwrap();
         assert!(
-            gone.is_empty(),
-            "delete_by_token(manifest key) must purge the backslash-path rows"
+            in_acme.iter().any(|h| stored_path(h) == backslash),
+            "the file must now be in the 'acme' matter scope after a forward-slash retag"
         );
+
+        // (b) delete_by_token over the forward-slash token also purges the rows.
+        delete_by_token(&table, &path_token(&TEST_KEY, forward))
+            .await
+            .expect("delete by forward-slash token");
+        let gone = nearest(&table, &q, 10, None, false, &[]).await.unwrap();
+        assert!(gone.is_empty(), "forward-slash delete must purge the backslash rows");
     }
 
     /// THE RAW-DISK PROOF (VG-6e, mirrors rag_matter_scope.rs's WS-VEC scan
