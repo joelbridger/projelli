@@ -1,6 +1,33 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { Matter } from '@/platform/types/matter';
 
+// Defensive: `save()` only ever writes `String(node.scrollTop)` (always a
+// valid number), but a corrupted/hand-edited sessionStorage value would
+// otherwise turn into `NaN` here — which would silently no-op a real
+// `scrollTop` assignment, or feed `NaN` into the virtualizer's
+// `initialOffset` (undefined behavior for its internal math). Module-level
+// (not per-render) since it's a pure function of its arguments — that also
+// keeps it out of the hooks below's dependency-array analysis, which is
+// exactly right: it never changes.
+function parseOffset(saved: string | null): number | null {
+  if (!saved) return null;
+  const n = Number(saved);
+  return Number.isFinite(n) ? n : null;
+}
+
+function restoreScroll(node: HTMLDivElement, key: string): void {
+  const offset = parseOffset(sessionStorage.getItem(key));
+  if (offset !== null) {
+    node.scrollTop = offset;
+  }
+}
+
+function saveScroll(node: HTMLDivElement | null, key: string): void {
+  if (node) {
+    sessionStorage.setItem(key, String(node.scrollTop));
+  }
+}
+
 /**
  * Persists list scroll position per-matter in sessionStorage.
  * Returns a CALLBACK ref to attach to the scrollable container.
@@ -48,35 +75,23 @@ export function useScrollPersistence(activeMatter: Matter | null | undefined): {
   const scrollKeyRef = useRef(scrollKey);
   const nodeRef = useRef<HTMLDivElement | null>(null);
 
-  const restore = (node: HTMLDivElement, key: string): void => {
-    const saved = sessionStorage.getItem(key);
-    if (saved) {
-      node.scrollTop = Number(saved);
-    }
-  };
-  const save = (node: HTMLDivElement | null, key: string): void => {
-    if (node) {
-      sessionStorage.setItem(key, String(node.scrollTop));
-    }
-  };
-
   // The matter changed while the scroll node stayed mounted (e.g. the
   // non-embedded "Email" nav surface isn't remounted per-matter the way
   // embedded per-client sub-tabs are) — save under the OLD key and restore
   // under the NEW one for whatever node is currently attached.
   useEffect(() => {
     if (scrollKeyRef.current === scrollKey) return;
-    save(nodeRef.current, scrollKeyRef.current);
+    saveScroll(nodeRef.current, scrollKeyRef.current);
     scrollKeyRef.current = scrollKey;
     if (nodeRef.current) {
-      restore(nodeRef.current, scrollKey);
+      restoreScroll(nodeRef.current, scrollKey);
     }
   }, [scrollKey]);
 
   // Whole-component unmount: save whatever is currently attached.
   useEffect(() => {
     return () => {
-      save(nodeRef.current, scrollKeyRef.current);
+      saveScroll(nodeRef.current, scrollKeyRef.current);
     };
   }, []);
 
@@ -85,10 +100,10 @@ export function useScrollPersistence(activeMatter: Matter | null | undefined): {
     // The previously-attached node (if any) is being replaced or removed
     // (e.g. the results box unmounts while a new search is loading) — save
     // its final position before losing the reference to it.
-    save(nodeRef.current, scrollKeyRef.current);
+    saveScroll(nodeRef.current, scrollKeyRef.current);
     nodeRef.current = node;
     if (node) {
-      restore(node, scrollKeyRef.current);
+      restoreScroll(node, scrollKeyRef.current);
     }
   }, []);
 
@@ -99,8 +114,7 @@ export function useScrollPersistence(activeMatter: Matter | null | undefined): {
   // reading live here rather than capturing a stale closure value is both
   // simpler and safer if that assumption ever changes upstream.
   const getInitialScrollOffset = useCallback(() => {
-    const saved = sessionStorage.getItem(scrollKeyRef.current);
-    return saved ? Number(saved) : 0;
+    return parseOffset(sessionStorage.getItem(scrollKeyRef.current)) ?? 0;
   }, []);
 
   return { scrollContainerRef, getScrollElement, getInitialScrollOffset };

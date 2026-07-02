@@ -18,11 +18,18 @@ import { useScrollPersistence } from '@/features/email/useScrollPersistence';
 import type { Matter } from '@/platform/types/matter';
 
 function Harness({ activeMatter, showBox }: { activeMatter: Matter | null; showBox: boolean }) {
-  const { scrollContainerRef } = useScrollPersistence(activeMatter);
+  const { scrollContainerRef, getInitialScrollOffset } = useScrollPersistence(activeMatter);
   if (!showBox) {
     return <div data-testid="loading-placeholder">Loading...</div>;
   }
-  return <div ref={scrollContainerRef} data-testid="scroll-box" style={{ overflow: 'auto', height: 100 }} />;
+  return (
+    <div
+      ref={scrollContainerRef}
+      data-testid="scroll-box"
+      data-initial-offset={getInitialScrollOffset()}
+      style={{ overflow: 'auto', height: 100 }}
+    />
+  );
 }
 
 const MATTER: Matter = {
@@ -83,5 +90,17 @@ describe('useScrollPersistence — conditionally-rendered scroll container', () 
     const { getByTestId } = render(<Harness activeMatter={MATTER} showBox={true} />);
     const box = getByTestId('scroll-box') as HTMLDivElement;
     expect(box.scrollTop).toBe(75);
+  });
+
+  it('getInitialScrollOffset falls back to 0 for a corrupted/non-numeric saved value', () => {
+    sessionStorage.setItem('email-scroll-all', 'not-a-number');
+
+    const { getByTestId } = render(<Harness activeMatter={null} showBox={true} />);
+    const box = getByTestId('scroll-box') as HTMLDivElement;
+    // Must not be NaN (which would break a virtualizer's internal math) —
+    // falls back to a safe, valid 0 instead.
+    expect(box.dataset.initialOffset).toBe('0');
+    // scrollTop restore is similarly guarded — never set to NaN.
+    expect(box.scrollTop).not.toBeNaN();
   });
 });
