@@ -309,7 +309,17 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   // store): useChatSending throttles chunk arrivals into this at most once
   // per animation frame, and commits the final content to the store exactly
   // once when the turn ends. null when no stream is in flight.
-  const [streamingPreview, setStreamingPreview] = useState<string | null>(null);
+  //
+  // Tagged with the `chatId` the stream actually belongs to (Codex review,
+  // P1): MainPanel reuses the SAME AIChatViewer instance across different
+  // open chats (no per-chat `key`), so this local state survives a `chatId`
+  // prop change. A stream started in chat A whose onChunk callbacks are
+  // still firing after the user switches to chat B must never patch B's
+  // messages with A's text — that would leak one client's answer into
+  // another client's chat. `displayMessages` below only applies this
+  // overlay when `streamingPreview.chatId` matches the CURRENTLY VIEWED
+  // chatId.
+  const [streamingPreview, setStreamingPreview] = useState<{ chatId: string; content: string } | null>(null);
 
   // Stream A1 — Pending attachments state.
   const [pendingAttachments, setPendingAttachments] = useState<ChatAttachment[]>([]);
@@ -365,14 +375,16 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   // everything that reads `messages` for logic (memory extraction, drafts,
   // exports, etc.) keeps using the real committed array below.
   const displayMessages = useMemo(() => {
-    if (streamingPreview === null || messages.length === 0) return messages;
+    if (streamingPreview === null || streamingPreview.chatId !== chatId || messages.length === 0) {
+      return messages;
+    }
     const lastIdx = messages.length - 1;
     const last = messages[lastIdx];
-    if (!last || last.role !== 'assistant' || last.content === streamingPreview) return messages;
+    if (!last || last.role !== 'assistant' || last.content === streamingPreview.content) return messages;
     const patched = messages.slice();
-    patched[lastIdx] = { ...last, content: streamingPreview };
+    patched[lastIdx] = { ...last, content: streamingPreview.content };
     return patched;
-  }, [messages, streamingPreview]);
+  }, [messages, streamingPreview, chatId]);
 
   // F-121 (VG-5b) — inputs for the privilege-exclusion "see it work" demo:
   // the user's current question (input draft, falling back to the last user

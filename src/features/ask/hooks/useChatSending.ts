@@ -140,8 +140,16 @@ export interface UseChatSendingDeps {
    * Set to the accumulated text (throttled to at most once per animation
    * frame) while a stream is in flight, and cleared to null once the turn's
    * single final store commit (updateMessages/updateLastMessage) has landed.
+   *
+   * Tagged with the chatId the stream belongs to (Codex review, P1):
+   * AIChatViewer's local state survives a `chatId` prop change (MainPanel
+   * reuses the same instance across open chats, no per-chat `key`), so an
+   * in-flight stream's callbacks — still running after the user switches to
+   * a DIFFERENT chat — must never be mistaken for the newly-viewed chat's
+   * content. The caller only applies this preview when its `chatId` matches
+   * whatever chat is currently being viewed.
    */
-  setStreamingPreview: (content: string | null) => void;
+  setStreamingPreview: (preview: { chatId: string; content: string } | null) => void;
   clearDraftInput: (chatId: string) => void;
   recordCost: (chatId: string, entry: ChatCostEntry) => void;
   chatId: string;
@@ -234,19 +242,24 @@ export function useChatSending(deps: UseChatSendingDeps) {
   const streamBufferRef = useRef('');
   const streamRafRef = useRef<number | null>(null);
 
-  const flushStreamPreviewNow = useCallback(() => {
+  // Both take the chatId THIS turn's stream belongs to (the caller passes
+  // the `chatId` closed over by the specific `handleSendMessage` invocation
+  // that started the stream — not a live-updating value) so a callback that
+  // fires after the viewer has switched to a different chat tags its update
+  // with the ORIGINATING chat, not whatever chat happens to be on screen now.
+  const flushStreamPreviewNow = useCallback((forChatId: string) => {
     if (streamRafRef.current !== null) {
       cancelAnimationFrame(streamRafRef.current);
       streamRafRef.current = null;
     }
-    setStreamingPreview(streamBufferRef.current);
+    setStreamingPreview({ chatId: forChatId, content: streamBufferRef.current });
   }, [setStreamingPreview]);
 
-  const scheduleStreamFlush = useCallback(() => {
+  const scheduleStreamFlush = useCallback((forChatId: string) => {
     if (streamRafRef.current !== null) return;
     streamRafRef.current = requestAnimationFrame(() => {
       streamRafRef.current = null;
-      setStreamingPreview(streamBufferRef.current);
+      setStreamingPreview({ chatId: forChatId, content: streamBufferRef.current });
     });
   }, [setStreamingPreview]);
 
@@ -1571,7 +1584,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
                 // stream finishes (or is aborted) — see the `finally` below
                 // and the citation-verification commit further down.
                 streamBufferRef.current = accumulated;
-                scheduleStreamFlush();
+                scheduleStreamFlush(chatId);
               },
               signal: abortController.signal,
               ...(attachmentBytes ? { attachmentBytes } : {}),
@@ -1581,7 +1594,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
               // User cancelled — keep whatever was streamed so far
               accumulated += '\n\n*(Response stopped by user)*';
               streamBufferRef.current = accumulated;
-              flushStreamPreviewNow();
+              flushStreamPreviewNow(chatId);
               if (streamingAuditState.receivedChunk) {
                 providerSendCompletedOrCancelledAfterEgress = true;
                 emitCancelledEgressAudit();
