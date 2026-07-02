@@ -349,8 +349,11 @@ test.describe('Templates Marketplace E2E', () => {
     await seedMarketplaceForTest(page);
 
     // ---- Step 1: open Settings → Advanced → Extensions/Templates ----
+    // Jameson's 2026-06-27 decision (SettingsGearButton.tsx) made the gear
+    // open the full-page settings-page surface, not the old settings-modal
+    // dialog — same SettingsContent, different outer container.
     await hardClick(page.getByTestId('settings-gear'));
-    await expect(page.getByTestId('settings-modal')).toBeVisible();
+    await expect(page.getByTestId('settings-page')).toBeVisible();
     await hardClick(page.getByTestId('settings-category-advanced'));
     await expect(page.getByTestId('marketplace-tab')).toBeVisible();
 
@@ -443,13 +446,17 @@ test.describe('Templates Marketplace E2E', () => {
     // ---- Step 6: switch to Installed subtab and see the entry ----
     await hardClick(page.getByTestId('templates-tab-subview-installed'));
     // The InstalledTemplatesList renders one row per installed entry; we
-    // assert the entry's name shows up somewhere inside the modal.
-    await expect(page.getByTestId('settings-modal')).toContainText(
+    // assert the entry's name shows up somewhere on the settings page.
+    await expect(page.getByTestId('settings-page')).toContainText(
       TEMPLATE_NAME,
     );
 
-    // ---- Step 7: close Settings ----
-    await page.keyboard.press('Escape');
-    await expect(page.getByTestId('settings-modal')).toBeHidden();
+    // ---- Step 7: leave Settings ----
+    // settings-page is a full nav surface (not a dialog) — there's no close
+    // button or Escape handler (SettingsContent.tsx only wires onClose for
+    // variant="modal"). Leaving it means navigating to a different spine tab,
+    // same as a real user would.
+    await hardClick(page.getByTestId('spine-nav-matters'));
+    await expect(page.getByTestId('settings-page')).toBeHidden();
   });
 });

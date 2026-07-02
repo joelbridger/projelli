@@ -34,7 +34,6 @@ const E2E_BASE_URL = process.env['E2E_BASE_URL'] ?? 'http://localhost:5173';
 const CI_QUARANTINE = [
   '**/app-layout.spec.ts',
   '**/v1.5-integration-flows.spec.ts',
-  '**/templates-marketplace.spec.ts',
   '**/status-bar.spec.ts',
   // Added 2026-07-01 (F1.3): confirmed failing on a REAL GitHub Actions CI run
   // (post-sharding — sharding fixed the documented tail-timeout mechanism but
