@@ -36,6 +36,7 @@ use quick_xml::escape::resolve_predefined_entity;
 use quick_xml::events::{BytesEnd, BytesRef, BytesStart, Event};
 use quick_xml::name::QName;
 use quick_xml::reader::Reader;
+use quick_xml::XmlVersion;
 
 use crate::error::{DocxError, Result};
 use crate::model::{
@@ -78,7 +79,8 @@ fn attr(e: &BytesStart, want_local: &str) -> Option<String> {
             None => kb,
         };
         if local == want_local.as_bytes() {
-            return Some(match a.unescape_value() {
+            // OOXML parts are always XML 1.0 (ECMA-376 never emits a 1.1 decl).
+            return Some(match a.normalized_value(XmlVersion::Implicit1_0) {
                 Ok(v) => v.into_owned(),
                 Err(_) => String::from_utf8_lossy(&a.value).into_owned(),
             });
@@ -468,7 +470,7 @@ pub(crate) fn general_ref_text(r: &BytesRef) -> Option<String> {
 fn read_text_content(reader: &mut SliceReader, tag: &str, out: &mut String) -> Result<()> {
     loop {
         match reader.read_event().map_err(xml_err)? {
-            Event::Text(t) => out.push_str(&t.xml_content().map_err(xml_err)?),
+            Event::Text(t) => out.push_str(&t.xml_content(XmlVersion::Implicit1_0).map_err(xml_err)?),
             Event::GeneralRef(r) => {
                 if let Some(s) = general_ref_text(&r) {
                     out.push_str(&s);
@@ -548,7 +550,7 @@ fn flatten_text(fragment: &str) -> String {
             Ok(Event::Start(e)) if local_name(&e) == "t" => in_t = true,
             Ok(Event::End(e)) if local_of(e.name()) == "t" => in_t = false,
             Ok(Event::Text(t)) if in_t => {
-                if let Ok(s) = t.xml_content() {
+                if let Ok(s) = t.xml_content(XmlVersion::Implicit1_0) {
                     text.push_str(&s);
                 }
             }

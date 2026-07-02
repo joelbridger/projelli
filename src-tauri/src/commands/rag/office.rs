@@ -31,6 +31,7 @@ use quick_xml::escape::resolve_predefined_entity;
 use quick_xml::events::{BytesRef, BytesStart, Event};
 use quick_xml::name::QName;
 use quick_xml::reader::Reader;
+use quick_xml::XmlVersion;
 use zip::ZipArchive;
 
 // ---------------------------------------------------------------------------
@@ -141,9 +142,9 @@ fn local_of(name: QName) -> String {
 
 /// Read an attribute by local name, XML-unescaped. Attribute text that lands
 /// in the index (sheet names: `<sheet name="P&amp;L"/>`) MUST go through
-/// `unescape_value()` — raw `.value` bytes would index "P&amp;L" verbatim
+/// `normalized_value()` — raw `.value` bytes would index "P&amp;L" verbatim
 /// (the lantern-docx bug fixed after 4fe47ac). Malformed escapes fall back
-/// to the raw bytes (preserve-don't-crash).
+/// to the raw bytes (preserve-don't-crash). OOXML parts are always XML 1.0.
 fn attr_unescaped(e: &BytesStart, want_local: &str) -> Option<String> {
     for a in e.attributes().with_checks(false).flatten() {
         let kb = a.key.as_ref();
@@ -152,7 +153,7 @@ fn attr_unescaped(e: &BytesStart, want_local: &str) -> Option<String> {
             None => kb,
         };
         if local == want_local.as_bytes() {
-            return Some(match a.unescape_value() {
+            return Some(match a.normalized_value(XmlVersion::Implicit1_0) {
                 Ok(v) => v.into_owned(),
                 Err(_) => String::from_utf8_lossy(&a.value).into_owned(),
             });
@@ -162,7 +163,7 @@ fn attr_unescaped(e: &BytesStart, want_local: &str) -> Option<String> {
 }
 
 /// Resolve a general-reference event (`&amp;`, `&#8212;`, …) to its character
-/// content. quick-xml 0.38 splits text at entity boundaries and emits
+/// content. quick-xml splits text at entity boundaries and emits
 /// `Event::GeneralRef` for each reference — every text-collecting loop must
 /// handle it or silently DROP characters ("P&L" losing its "&"). Numeric
 /// character references and the five predefined XML entities resolve; unknown
@@ -183,7 +184,7 @@ fn general_ref_text(r: &BytesRef) -> Option<String> {
 fn append_content(ev: &Event, out: &mut String) {
     match ev {
         Event::Text(t) => {
-            if let Ok(s) = t.xml_content() {
+            if let Ok(s) = t.xml_content(XmlVersion::Implicit1_0) {
                 out.push_str(&s);
             }
         }
@@ -872,7 +873,7 @@ mod tests {
     #[test]
     fn xlsx_sheet_name_attribute_unescapes_entities() {
         // Sheet NAMES are attributes (<sheet name="P&amp;L"/>). Attribute
-        // text that lands in the index must go through unescape_value(),
+        // text that lands in the index must go through normalized_value(),
         // never the raw bytes ("P&amp;L" indexed verbatim is the bug class
         // fixed in lantern-docx after 4fe47ac).
         let wb = workbook_xml("P&amp;L");
