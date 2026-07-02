@@ -26,7 +26,7 @@
  * Light theme only. CSS variables + inline styles. No dark mode.
  */
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   Mail,
@@ -515,6 +515,54 @@ export function EmailWorkspace({
     overscan: 8,
     enabled: shouldVirtualizeRows,
   });
+
+  // Codex review (round 9): `initialOffset` only seeds the virtualizer's
+  // internal `scrollOffset` ONCE, at instance construction (this component's
+  // first-ever render) — it is NOT re-read on later `scrollResultsKey`
+  // changes. Worse, most filter/query changes are debounced 200ms (see
+  // Effect A above) before the actual re-fetch starts, so the results box
+  // stays MOUNTED, showing the OLD items, for a beat after the filter state
+  // itself already changed — `scrollContainerRef`'s own mount-time reset
+  // (round 8, in useScrollPersistence) never fires in that window, because
+  // no (re)mount happens.
+  //
+  // This resets the DOM node directly (covering that "stays mounted" gap
+  // round 8 can't reach), then dispatches a synthetic `scroll` event so the
+  // virtualizer's own internal offset tracking (which only ever updates via
+  // its `scroll` listener, never by reading `scrollTop` on demand) picks up
+  // the reset — deliberately NOT `rowVirtualizer.scrollToOffset`, which
+  // routes through the library's default `scrollToFn` (a real
+  // `element.scrollTo` call) and depends on the BROWSER's own native
+  // `scroll` event eventually following it: an inherently async step with
+  // no synchronous guarantee, and one jsdom doesn't implement at all
+  // (making that approach unverifiable by a test).
+  //
+  // The dispatch itself is deferred to a microtask, NOT fired synchronously
+  // inline here: @tanstack/react-virtual's scroll listener calls
+  // `flushSync` for a live scroll event, and `flushSync` cannot run from
+  // inside a React lifecycle method that's already committing (this
+  // `useLayoutEffect`) — React warns "Cannot flush when React is already
+  // rendering" and the update is unreliable. A microtask runs immediately
+  // after this commit's call stack finishes unwinding — still well before
+  // the browser paints, so there's no visible flash — but gives React a
+  // clean, non-reentrant call stack to flush into. `useLayoutEffect` (not
+  // `useEffect`) so the DOM `scrollTop` reset itself still lands in the
+  // same commit as `scrollContainerRef`'s own mutations. Skipped on the
+  // very first render — that mount already restores correctly via
+  // `initialOffset`.
+  const isFirstScrollResultsKeyRenderRef = useRef(true);
+  useLayoutEffect(() => {
+    if (isFirstScrollResultsKeyRenderRef.current) {
+      isFirstScrollResultsKeyRenderRef.current = false;
+      return;
+    }
+    const node = getScrollElement();
+    if (!node) return;
+    node.scrollTop = 0;
+    queueMicrotask(() => {
+      node.dispatchEvent(new Event('scroll'));
+    });
+  }, [scrollResultsKey, getScrollElement]);
 
   // ── Render ────────────────────────────────────────────────────────────────
 

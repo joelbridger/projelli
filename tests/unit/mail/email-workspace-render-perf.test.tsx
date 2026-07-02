@@ -289,6 +289,81 @@ describe('Perf (P2.2) — EmailWorkspace / MailRow render hygiene', () => {
     }
   });
 
+  // Codex review (P2.2, round 9): `initialOffset` only seeds the
+  // virtualizer's internal scroll-offset state ONCE, at instance
+  // construction — a LATER query/filter change doesn't re-consult it. The
+  // debounced re-fetch (200ms, see Effect A) means the results box keeps
+  // showing the OLD items and stays MOUNTED for a beat after the filter
+  // state itself changes — `scrollContainerRef`'s own mount-time reset
+  // (round 8) never fires in that window because no (re)mount happens.
+  // Without an explicit `scrollToOffset(0)` reacting to the fingerprint
+  // change, the deep window seeded by `initialOffset` here would still be
+  // showing when the fingerprint (and soon after, the real results) change.
+  it('virtualization: a filter change resets the row window even before the box remounts', async () => {
+    const heightDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight');
+    const widthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetWidth');
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, get() { return 560; } });
+    Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, get() { return 800; } });
+
+    try {
+      sessionStorage.clear();
+      // Seed a deep saved offset so the virtualizer's FIRST-ever
+      // construction (this component's first render) starts deep into the
+      // list — the same mechanism the round-6 test above already proves
+      // works, reused here just to get the virtualizer's internal state
+      // away from 0 before the filter change under test.
+      sessionStorage.setItem('email-scroll-all', String(100 * 88));
+
+      const items = makeItems(200);
+      setupMocks(items);
+
+      render(<EmailWorkspace />);
+      await waitForInitialLoad();
+
+      const readIndexes = () =>
+        screen
+          .getAllByTestId('mail-row')
+          .map((r) => r.textContent?.match(/Message (\d+)/)?.[1])
+          .filter((v): v is string => v !== undefined)
+          .map(Number);
+
+      // Sanity: confirm the seeded deep offset actually took effect before
+      // testing the reset.
+      expect(readIndexes()[0]).toBeGreaterThan(20);
+
+      act(() => {
+        fireEvent.click(screen.getByTestId('filters-toggle'));
+      });
+      // Do NOT advance fake timers afterward — the real re-fetch is
+      // debounced 200ms (see Effect A), so at this point `loading` is
+      // still false and the results box is still mounted showing the
+      // OLD 200 items. This is deliberately the window BEFORE any
+      // unmount/remount could paper over a missing fix.
+      //
+      // The reset's virtualizer-side half is dispatched via a microtask
+      // (see EmailWorkspace's round-9 comment — `flushSync` can't run
+      // synchronously nested inside the `useLayoutEffect` that resets
+      // `scrollTop`), so awaiting one extra microtask tick here lets it
+      // land before reading the rendered rows.
+      await act(async () => {
+        fireEvent.click(screen.getByTestId('attachment-filter'));
+        await Promise.resolve();
+      });
+
+      const resetIndexes = readIndexes();
+      console.log(`[perf/email-render] post-filter-change window (no remount): rows ${resetIndexes[0]}-${resetIndexes[resetIndexes.length - 1]}`);
+      expect(resetIndexes[0]).toBeLessThanOrEqual(5);
+    } finally {
+      sessionStorage.clear();
+      if (heightDescriptor) {
+        Object.defineProperty(HTMLElement.prototype, 'offsetHeight', heightDescriptor);
+      }
+      if (widthDescriptor) {
+        Object.defineProperty(HTMLElement.prototype, 'offsetWidth', widthDescriptor);
+      }
+    }
+  });
+
   it('a small inbox (below the virtualize threshold) still renders every row directly', async () => {
     const items = makeItems(10);
     setupMocks(items);
