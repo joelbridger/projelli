@@ -55,7 +55,7 @@ describe('MemoryService toggle', () => {
     (tauri.ragRetrieve as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
       { path: '/a.md', chunkText: 'hello', score: 0.9, paragraphIndex: 0 },
     ]);
-    const hits = await MemoryService.retrieve('hello', 5);
+    const hits = await MemoryService.retrieve('hello', 5, { kind: 'allMatters' });
     // WS-B/C: retrieve defaults to an explicit cross-matter scope (no silent
     // "everything" — the command requires a named scope).
     // WS-PRIV: includePrivileged defaults to false (privileged content excluded).
@@ -143,22 +143,22 @@ describe('MemoryService toggle', () => {
 
   it('short-circuits retrieve with [] when disabled (no Tauri call)', async () => {
     setMemoryEnabledReader(() => false);
-    const hits = await MemoryService.retrieve('hello', 5);
+    const hits = await MemoryService.retrieve('hello', 5, { kind: 'allMatters' });
     expect(hits).toEqual([]);
     expect(tauri.ragRetrieve).not.toHaveBeenCalled();
   });
 
   it('returns [] for empty query without invoking the embedder', async () => {
     setMemoryEnabledReader(() => true);
-    expect(await MemoryService.retrieve('', 5)).toEqual([]);
-    expect(await MemoryService.retrieve('   ', 5)).toEqual([]);
+    expect(await MemoryService.retrieve('', 5, { kind: 'allMatters' })).toEqual([]);
+    expect(await MemoryService.retrieve('   ', 5, { kind: 'allMatters' })).toEqual([]);
     expect(tauri.ragRetrieve).not.toHaveBeenCalled();
   });
 
   it('returns [] for topK <= 0 without invoking the embedder', async () => {
     setMemoryEnabledReader(() => true);
-    expect(await MemoryService.retrieve('hi', 0)).toEqual([]);
-    expect(await MemoryService.retrieve('hi', -1)).toEqual([]);
+    expect(await MemoryService.retrieve('hi', 0, { kind: 'allMatters' })).toEqual([]);
+    expect(await MemoryService.retrieve('hi', -1, { kind: 'allMatters' })).toEqual([]);
     expect(tauri.ragRetrieve).not.toHaveBeenCalled();
   });
 

@@ -460,6 +460,65 @@ pub async fn mail_list_messages(
     .map_err(|e| format!("join: {e}"))?
 }
 
+/// A message's EFFECTIVE matter, computed with the SAME shared resolver
+/// (`resolve_effective_matter` + `resolve_mail_matter`) that sync, backfill, the
+/// folder-remap, and the viewer use — the durable per-message filing taken OVER
+/// the folder→matter mapping. This is deliberately NOT a forked SQL copy of that
+/// logic (same-ownership-resolver doctrine): browsing must agree with indexing
+/// message-for-message, so a manual filing wins over the folder default and a
+/// delete-tombstone (`UNASSIGNED_MATTER`) never leaks into another matter.
+fn effective_mail_matter(
+    matter_map: &[MailMatterMapEntry],
+    override_opt: Option<&str>,
+    key: &crate::commands::mail::store::MailFolderKey,
+) -> String {
+    let folder_default =
+        resolve_mail_matter(matter_map, &key.provider, &key.account, &key.folder_id);
+    resolve_effective_matter(override_opt, &folder_default)
+}
+
+/// Browse / keyword-search stored email metadata SCOPED to a single matter.
+///
+/// Unlike `mail_list_messages` (which browses every message and lets the frontend
+/// filter a page), this enforces per-client isolation IN THE ENGINE: within one
+/// read transaction it resolves — via the shared per-message/folder resolver — the
+/// exact set of messages that belong to `matter_id`, then applies the standard
+/// keyword/date/provider/sort/pagination query restricted to that set. Doing both
+/// on one snapshot means a concurrent filing/sync can't slip another client's mail
+/// in between the two steps. So the embedded per-client Email tab can never surface
+/// another client's mail, and its pagination totals are honest. Never decrypts a blob.
+#[tauri::command]
+pub async fn mail_list_messages_by_matter(
+    state: State<'_, MailState>,
+    matter_id: String,
+    matter_map: Vec<MailMatterMapEntry>,
+    query: MailListQuery,
+) -> Result<MailListPage, String> {
+    // Validate up front (defence-in-depth) — a malformed matter id can never match.
+    crate::commands::rag::store::validate_matter_id(&matter_id)
+        .map_err(|e| format!("invalid matter id: {e}"))?;
+    let workspace = state
+        .workspace
+        .lock()
+        .await
+        .clone()
+        .ok_or("workspace not set")?;
+    let key = crate::commands::mail::crypto::get_or_create_master_key()
+        .map_err(|e| e.to_string())?;
+    // SQLite + per-message override lookups are blocking; run off the async runtime.
+    tokio::task::spawn_blocking(move || -> Result<MailListPage, String> {
+        let store =
+            EncryptedMailStore::open_with_key(&workspace, &key).map_err(|e| e.to_string())?;
+        store
+            .list_messages_for_matter(&query, &matter_id, |override_opt, key| {
+                effective_mail_matter(&matter_map, override_opt, key)
+            })
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| format!("join: {e}"))?
+}
+
 /// WS-B/C: re-tag every message stored under a (provider, account, folder) to a
 /// matter, IN PLACE in the RAG store (no re-embedding) — the same re-tag path
 /// files use. Called by the frontend when a mail folder's matter mapping
@@ -2498,7 +2557,7 @@ async fn send_imap(
 
 #[cfg(test)]
 mod tests {
-    use super::{await_redirect_code_or_cancel, frontmatter_subject, get_message_with_key, resolve_effective_matter, resolve_mail_matter, should_sync_provider, yaml_unescape, MailMatterMapEntry};
+    use super::{await_redirect_code_or_cancel, effective_mail_matter, frontmatter_subject, get_message_with_key, resolve_effective_matter, resolve_mail_matter, should_sync_provider, yaml_unescape, MailMatterMapEntry};
     use crate::commands::mail::store::EncryptedMailStore;
     use crate::commands::rag::store::UNASSIGNED_MATTER;
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -2674,6 +2733,90 @@ mod tests {
         );
         // Other folders fall back to the account-level mapping.
         assert_eq!(resolve_mail_matter(&map, "m365", "default", "inbox"), "matter_account");
+    }
+
+    // ── F2.6b: per-matter membership combines folder mapping + per-message filing ──
+
+    /// Minimal stored record for the membership tests below (searchable columns
+    /// blank — membership is decided by folder key + per-message filing, not text).
+    fn rec(id: &str, provider: &str, account: &str, folder: &str) -> crate::commands::mail::store::MailRecord {
+        crate::commands::mail::store::MailRecord {
+            id: id.into(),
+            folder_id: folder.into(),
+            internet_message_id: None,
+            relative_path: format!("x/{id}.enc"),
+            received_date_time: Some("2026-06-01T00:00:00Z".into()),
+            provider: provider.into(),
+            account: account.into(),
+            subject: String::new(),
+            from_addr: String::new(),
+            from_name: String::new(),
+            snippet: String::new(),
+            has_attachments: false,
+        }
+    }
+
+    #[test]
+    fn list_messages_for_matter_honors_folder_mapping_filings_and_isolation() {
+        use crate::commands::mail::store::MailStore;
+        let dir = tempfile::TempDir::new().unwrap();
+        let key = [0x51u8; 32];
+        let store = EncryptedMailStore::open_with_key(dir.path(), &key).unwrap();
+
+        // Two folders: m365/default/inbox → matter_acme, gmail/default/INBOX → matter_globex.
+        let map = vec![
+            entry("m365", "default", "inbox", "matter_acme"),
+            entry("gmail", "default", "INBOX", "matter_globex"),
+        ];
+
+        // a,b live in acme's folder; c lives in globex's folder.
+        store.upsert(&rec("a", "m365", "default", "inbox")).unwrap();
+        store.upsert(&rec("b", "m365", "default", "inbox")).unwrap();
+        store.upsert(&rec("c", "gmail", "default", "INBOX")).unwrap();
+        // d lives in an UNMAPPED folder (should never belong to any real matter).
+        store.upsert(&rec("d", "m365", "default", "sent")).unwrap();
+
+        // A manual filing overrides the folder default both ways:
+        //  - b is filed to globex even though its folder maps to acme (moves OUT of acme, INTO globex)
+        //  - c is filed to acme even though its folder maps to globex (moves OUT of globex, INTO acme)
+        store.set_message_matter("b", "matter_globex").unwrap();
+        store.set_message_matter("c", "matter_acme").unwrap();
+        // e lives in the unmapped folder but is manually filed to acme.
+        store.upsert(&rec("e", "m365", "default", "sent")).unwrap();
+        store.set_message_matter("e", "matter_acme").unwrap();
+        // f is a delete-tombstone (its matter was deleted): stays unassigned, never leaks.
+        store.upsert(&rec("f", "m365", "default", "inbox")).unwrap();
+        store.set_message_matter("f", UNASSIGNED_MATTER).unwrap();
+
+        // Query returns a large page in id order-independent form; we assert the id set.
+        let q = super::MailListQuery {
+            keyword: None, folder_id: None, provider: None, account: None,
+            date_from: None, date_to: None, has_attachments: None,
+            sort_by: "date".into(), sort_desc: true, limit: 200, offset: 0,
+        };
+        let list = |matter: &str| {
+            let page = store
+                .list_messages_for_matter(&q, matter, |ov, k| effective_mail_matter(&map, ov, k))
+                .unwrap();
+            let mut ids: Vec<String> = page.items.iter().map(|i| i.id.clone()).collect();
+            ids.sort();
+            (ids, page.total)
+        };
+
+        let (acme, acme_total) = list("matter_acme");
+        // a (folder), c (filing), e (filing) — NOT b (filed away), NOT f (tombstone), NOT d (unmapped).
+        assert_eq!(acme, vec!["a".to_string(), "c".to_string(), "e".to_string()]);
+        assert_eq!(acme_total, 3);
+
+        let (globex, globex_total) = list("matter_globex");
+        // b (filing) — c moved to acme; the globex folder had only c.
+        assert_eq!(globex, vec!["b".to_string()]);
+        assert_eq!(globex_total, 1);
+
+        // A matter with no mail → empty page (no cross-client leak).
+        let (empty, empty_total) = list("matter_empty");
+        assert!(empty.is_empty());
+        assert_eq!(empty_total, 0);
     }
 
     #[test]

@@ -28,6 +28,7 @@ import { render, screen, fireEvent, act } from '@testing-library/react';
 
 vi.mock('@/platform/utils/mail-commands', () => ({
   mailListMessages: vi.fn(),
+  mailListMessagesByMatter: vi.fn(),
   mailGetMessage: vi.fn(),
   mailConnectedAccounts: vi.fn(),
   mailRetagFolderMatter: vi.fn(),
@@ -63,12 +64,13 @@ vi.mock('@/platform/rag/matterResolver', () => ({
 
 import {
   mailListMessages,
+  mailListMessagesByMatter,
   mailConnectedAccounts,
 } from '@/platform/utils/mail-commands';
 import { useActiveMatter, useMatters } from '@/platform/matter/matterStore';
 import { usePrivilegeStore, usePrivilegeForSource } from '@/platform/firm/privilegeStore';
 import { isMemoryEnabled } from '@/platform/rag/MemoryService';
-import { resolveMailMatter } from '@/platform/rag/matterResolver';
+import { buildMailMatterMap } from '@/platform/rag/matterResolver';
 import { EmailWorkspace } from '@/features/email/EmailWorkspace';
 import { MailRow } from '@/features/email/MailRow';
 
@@ -515,42 +517,51 @@ describe('Perf (P2.2) — EmailWorkspace / MailRow render hygiene', () => {
     expect(scrollContainer.style.overflowY).toBe('auto');
   });
 
-  // Codex review (P2.2, round 1): `scopedItems` used to call `getMatters()`
-  // — a non-reactive Zustand SNAPSHOT getter — inside the memoized filter,
-  // with `matters` absent from the dependency array. The pre-memo code got
-  // away with reading a stale snapshot because it re-ran on every render for
-  // ANY reason; once memoized, a matters/folder-mapping change (e.g. another
-  // client claiming a more specific folder) landing with none of the OTHER
-  // deps changing would never be picked up until something unrelated also
-  // happened to re-render the component. This proves the fix: `matters`
-  // (via the reactive `useMatters()`) is a real dependency, so a matters-only
-  // change, surfaced through an otherwise-unrelated re-render, does update
-  // which items are shown.
-  it('scopedItems (embedded mode) reflects a matters/folder-mapping change, not a stale scan', async () => {
+  // F2.6b reconcile: per-client scoping moved from a client-side `resolveMailMatter`
+  // scan into the BACKEND (`mailListMessagesByMatter`). The reactivity concern the
+  // original P2.2 memoization test guarded still holds, just via a different
+  // mechanism: the folder→matter map is `buildMailMatterMap(useMatters())`, so a
+  // folder-mapping change re-runs the scoped fetch. This proves that — a
+  // matters-only change (nothing about items/embedded/activeMatter) still updates
+  // which rows show, now by refetching the scoped list rather than re-filtering.
+  it('scopedItems (embedded mode) reflects a matters/folder-mapping change via a backend refetch', async () => {
     const items = makeItems(1);
     setupMocks(items);
     mockUseActiveMatter.mockReturnValue({ id: 'matter-1', name: 'Acme', client: 'Acme Corp', folderPaths: [], createdAt: '2026-01-01T00:00:00Z' });
-    const mockResolveMailMatter = resolveMailMatter as ReturnType<typeof vi.fn>;
 
-    // Initially: no matter's folder mapping covers this item.
+    const mockByMatter = mailListMessagesByMatter as ReturnType<typeof vi.fn>;
+    const mockBuildMap = buildMailMatterMap as ReturnType<typeof vi.fn>;
+    // The reactive map is derived from matters, so it changes when a folder
+    // mapping is added; the scoped backend returns the client's mail only once a
+    // mapping covers it (mirrors real per-matter membership).
+    mockBuildMap.mockImplementation((ms: Array<{ mailFolderPaths?: string[] }>) =>
+      ms.flatMap((m) => (m.mailFolderPaths ?? []).map((f: string) => {
+        const [provider, account, folderId] = f.split(':');
+        return { provider, account, folderId, matterId: 'matter-1' };
+      })),
+    );
+    mockByMatter.mockImplementation((_id: string, map: unknown[]) =>
+      Promise.resolve(map.length > 0 ? { items, total: items.length } : { items: [], total: 0 }),
+    );
+
+    // Initially: no folder mapping covers this client → scoped fetch is empty.
     mockUseMatters.mockReturnValue([]);
-    mockResolveMailMatter.mockReturnValue('unassigned');
-
     render(<EmailWorkspace embedded />);
     await waitForInitialLoad();
     expect(screen.queryAllByTestId('mail-row')).toHaveLength(0);
 
-    // A folder mapping is added elsewhere (e.g. the matter manager) — the
-    // matters list changes, resolveMailMatter would now match this item to
-    // the active matter. Nothing about `items`/`embedded`/`activeMatter`
-    // changes.
+    // A folder mapping is added elsewhere (e.g. the matter manager) — the matters
+    // list changes, so the reactive map changes and the scoped list refetches.
+    // Nothing about `items`/`embedded`/`activeMatter` changes.
     mockUseMatters.mockReturnValue([{ id: 'matter-1', name: 'Acme', client: 'Acme Corp', folderPaths: [], mailFolderPaths: ['m365:default:inbox'], createdAt: '2026-01-01T00:00:00Z' }]);
-    mockResolveMailMatter.mockReturnValue('matter-1');
-
-    // Trigger a re-render via something entirely UNRELATED to matters
-    // scoping — toggling the filters panel is pure local UI state.
+    // Trigger a re-render via something entirely UNRELATED to matters scoping —
+    // toggling the filters panel is pure local UI state — then let the debounced
+    // scoped refetch run.
     act(() => {
       fireEvent.click(screen.getByTestId('filters-toggle'));
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
     });
 
     expect(screen.getAllByTestId('mail-row')).toHaveLength(1);

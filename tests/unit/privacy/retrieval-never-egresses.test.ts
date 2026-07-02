@@ -189,21 +189,21 @@ describe('retrieval-never-egresses: personal install, choiceMade=false', () => {
   it('returns retrieved hits successfully even though choiceMade=false', async () => {
     // This is THE core assertion: retrieval must not throw ConfidentialityChoiceRequiredError
     // and must return the local RAG results unchanged.
-    const hits = await MemoryService.retrieve('liability admission', 5);
+    const hits = await MemoryService.retrieve('liability admission', 5, { kind: 'allMatters' });
     expect(hits).toHaveLength(2);
     expect(hits[0]?.chunkText).toBe('The defendant admitted liability on page 47.');
     expect(hits[1]?.chunkText).toBe('Contract dated March 15, 2024.');
   });
 
   it('routes to the local Tauri command, not a cloud LLM', async () => {
-    await MemoryService.retrieve('contract terms', 5);
+    await MemoryService.retrieve('contract terms', 5, { kind: 'allMatters' });
     expect(tauri.ragRetrieve).toHaveBeenCalledTimes(1);
     expect(h.cloudProviderConstructed).toBe(false);
     expect(h.cloudSendCalled).toBe(false);
   });
 
   it('passes the query and topK to ragRetrieve with the default allMatters scope', async () => {
-    await MemoryService.retrieve('deposition deadline', 10);
+    await MemoryService.retrieve('deposition deadline', 10, { kind: 'allMatters' });
     expect(tauri.ragRetrieve).toHaveBeenCalledWith(
       'deposition deadline',
       10,
@@ -229,12 +229,12 @@ describe('retrieval-never-egresses: personal install, choiceMade=false', () => {
   });
 
   it('never constructs ClaudeProvider, OpenAIProvider, or GeminiProvider during retrieval', async () => {
-    await MemoryService.retrieve('privilege log', 5);
+    await MemoryService.retrieve('privilege log', 5, { kind: 'allMatters' });
     expect(h.cloudProviderConstructed).toBe(false);
   });
 
   it('never calls cloud provider sendMessage or structuredOutput during retrieval', async () => {
-    await MemoryService.retrieve('witness list', 5);
+    await MemoryService.retrieve('witness list', 5, { kind: 'allMatters' });
     expect(h.cloudSendCalled).toBe(false);
   });
 
@@ -268,14 +268,14 @@ describe('retrieval-never-egresses: personal install, choiceMade=false', () => {
   });
 
   it('short-circuits to [] for an empty query without touching any provider', async () => {
-    const hits = await MemoryService.retrieve('   ', 5);
+    const hits = await MemoryService.retrieve('   ', 5, { kind: 'allMatters' });
     expect(hits).toEqual([]);
     expect(tauri.ragRetrieve).not.toHaveBeenCalled();
     expect(h.cloudProviderConstructed).toBe(false);
   });
 
   it('short-circuits to [] when topK<=0 without touching any provider', async () => {
-    const hits = await MemoryService.retrieve('contract', 0);
+    const hits = await MemoryService.retrieve('contract', 0, { kind: 'allMatters' });
     expect(hits).toEqual([]);
     expect(tauri.ragRetrieve).not.toHaveBeenCalled();
     expect(h.cloudProviderConstructed).toBe(false);
@@ -301,7 +301,7 @@ describe('retrieval-never-egresses: invariant holds regardless of install type',
 
   it('retrieval still goes local when choiceMade=true (personal, cloud gen allowed)', async () => {
     h.choiceMade = true;
-    const hits = await MemoryService.retrieve('summary judgment', 5);
+    const hits = await MemoryService.retrieve('summary judgment', 5, { kind: 'allMatters' });
     expect(hits).toHaveLength(2);
     expect(tauri.ragRetrieve).toHaveBeenCalledTimes(1);
     expect(h.cloudProviderConstructed).toBe(false);
@@ -309,7 +309,7 @@ describe('retrieval-never-egresses: invariant holds regardless of install type',
 
   it('retrieval still goes local on a firm install (cloud gen allowed for firms)', async () => {
     h.firmActivated = true;
-    const hits = await MemoryService.retrieve('billing entries', 5);
+    const hits = await MemoryService.retrieve('billing entries', 5, { kind: 'allMatters' });
     expect(hits).toHaveLength(2);
     expect(tauri.ragRetrieve).toHaveBeenCalledTimes(1);
     expect(h.cloudProviderConstructed).toBe(false);

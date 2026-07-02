@@ -158,7 +158,24 @@ fn escape_like(kw: &str) -> String {
 /// Shared list/search implementation used by both store impls.
 /// Builds a fully-parameterized query — user text is NEVER interpolated into SQL.
 /// The list path NEVER touches an encrypted blob.
-fn query_list_messages(conn: &Connection, q: &MailListQuery) -> Result<MailListPage> {
+///
+/// `restrict_ids`, when `Some`, limits the result to that exact set of message ids
+/// (the ids the caller resolved as belonging to one matter — see the per-matter
+/// browse path in `mod.rs`). The set is injected via a TEMP table join, NOT a
+/// giant `id IN (?, ?, …)`, so it stays correct past SQLite's bound-parameter
+/// limit; every keyword / date / sort / pagination rule below is shared with the
+/// unrestricted list path. An empty set matches nothing (an empty page).
+fn query_list_messages(
+    conn: &Connection,
+    q: &MailListQuery,
+    restrict_ids: Option<&[String]>,
+) -> Result<MailListPage> {
+    // Empty restriction: no message can match. Return early without a query (and
+    // without leaving an empty temp table behind).
+    if matches!(restrict_ids, Some(ids) if ids.is_empty()) {
+        return Ok(MailListPage { items: Vec::new(), total: 0 });
+    }
+
     let limit = q.limit.clamp(1, 200);
     let offset = q.offset.max(0);
 
@@ -177,6 +194,24 @@ fn query_list_messages(conn: &Connection, q: &MailListQuery) -> Result<MailListP
     let mut conditions: Vec<String> = Vec::new();
     let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
     let mut idx: usize = 1;
+
+    // F2.6b: restrict to a caller-supplied id set via a TEMP table + subquery
+    // (no bound parameter — the subquery is static SQL). Drop any leftover from a
+    // prior call on this pooled connection first, then materialize the set.
+    if let Some(ids) = restrict_ids {
+        conn.execute_batch(
+            "DROP TABLE IF EXISTS temp.mail_restrict_ids;
+             CREATE TEMP TABLE mail_restrict_ids (id TEXT PRIMARY KEY);",
+        )?;
+        {
+            let mut ins =
+                conn.prepare("INSERT OR IGNORE INTO mail_restrict_ids (id) VALUES (?1)")?;
+            for id in ids {
+                ins.execute([id])?;
+            }
+        }
+        conditions.push("id IN (SELECT id FROM mail_restrict_ids)".to_string());
+    }
 
     // Keyword: case-insensitive LIKE against subject / from_addr / from_name.
     // The ESCAPE clause is mandatory when matching literal %, _, \.
@@ -273,8 +308,68 @@ fn query_list_messages(conn: &Connection, q: &MailListQuery) -> Result<MailListP
             },
         )?
         .collect::<rusqlite::Result<Vec<MailListItem>>>()?;
+    drop(stmt);
+
+    // Drop the temp restriction table so it can never leak into a later query on
+    // this pooled connection (a stale set would silently narrow the next list).
+    if restrict_ids.is_some() {
+        conn.execute_batch("DROP TABLE IF EXISTS temp.mail_restrict_ids;")?;
+    }
 
     Ok(MailListPage { items, total })
+}
+
+/// A message's folder key: the (provider, account, folder_id) tuple needed to
+/// resolve its folder→matter default, plus its id. Returned by `all_folder_keys`
+/// for the per-matter browse path (F2.6b).
+#[derive(Debug, Clone)]
+pub struct MailFolderKey {
+    pub id: String,
+    pub provider: String,
+    pub account: String,
+    pub folder_id: String,
+}
+
+/// Read one `meta` value on a given connection (usable inside a transaction, so
+/// a snapshot read stays consistent). `None` when absent; `Err` on a real DB
+/// error — callers must never read "DB broken" as "value absent".
+fn get_meta_conn(conn: &Connection, key: &str) -> Result<Option<String>> {
+    use rusqlite::OptionalExtension;
+    Ok(conn
+        .query_row("SELECT value FROM meta WHERE key = ?1", [key], |r| r.get(0))
+        .optional()?)
+}
+
+/// Read a message's durable matter override on a given connection, honoring the
+/// legacy folder-scoped IMAP id fallback. The SINGLE source of truth shared by
+/// `get_message_matter` (its own lock) and the transactional per-matter list
+/// (inside the tx) — so the override is resolved identically either way. (BUG-013.)
+fn read_message_matter_override(conn: &Connection, id: &str) -> Result<Option<String>> {
+    if let Some(matter) = get_meta_conn(conn, &message_matter_key(id))? {
+        return Ok(Some(matter));
+    }
+    if let Some(legacy_id) = legacy_imap_message_id(id) {
+        return get_meta_conn(conn, &message_matter_key(&legacy_id));
+    }
+    Ok(None)
+}
+
+/// Every stored message's folder key. The per-matter browse path resolves each
+/// one's effective matter in Rust (via the shared resolver) to decide membership,
+/// so this NEVER touches an encrypted blob. Shared by both store impls.
+fn query_all_folder_keys(conn: &Connection) -> Result<Vec<MailFolderKey>> {
+    let mut stmt = conn.prepare("SELECT id, provider, account, folder_id FROM messages")?;
+    let rows = stmt
+        .query_map([], |r| {
+            Ok(MailFolderKey {
+                id: r.get(0)?,
+                provider: r.get(1)?,
+                account: r.get(2)?,
+                folder_id: r.get(3)?,
+            })
+        })?
+        .collect::<rusqlite::Result<Vec<MailFolderKey>>>()?;
+    Ok(rows)
 }
 
 // ---------------------------------------------------------------------------
@@ -548,7 +643,7 @@ impl MailStore for SqliteMailStore {
 
     fn list_messages(&self, q: &MailListQuery) -> Result<MailListPage> {
         let c = self.conn.lock().unwrap();
-        query_list_messages(&c, q)
+        query_list_messages(&c, q, None)
     }
 }
 
@@ -707,12 +802,8 @@ impl EncryptedMailStore {
     /// read "the DB is broken" as "the marker is absent" — the backfill probe
     /// skips its pass on Err instead of wrongly concluding there is no work.
     pub fn get_meta(&self, key: &str) -> Result<Option<String>> {
-        use rusqlite::OptionalExtension;
         let c = self.conn.lock().unwrap();
-        Ok(c.query_row("SELECT value FROM meta WHERE key = ?1", [key], |r| {
-            r.get(0)
-        })
-        .optional()?)
+        get_meta_conn(&c, key)
     }
 
     /// Set (upsert) one meta value. Idempotent.
@@ -776,13 +867,8 @@ impl EncryptedMailStore {
 impl MailStore for EncryptedMailStore {
     /// BUG-013: read the durable per-message matter override from `meta`.
     fn get_message_matter(&self, id: &str) -> Result<Option<String>> {
-        if let Some(matter) = self.get_meta(&message_matter_key(id))? {
-            return Ok(Some(matter));
-        }
-        if let Some(legacy_id) = legacy_imap_message_id(id) {
-            return self.get_meta(&message_matter_key(&legacy_id));
-        }
-        Ok(None)
+        let c = self.conn.lock().unwrap();
+        read_message_matter_override(&c, id)
     }
 
     fn upsert(&self, rec: &MailRecord) -> Result<()> {
@@ -893,7 +979,43 @@ impl MailStore for EncryptedMailStore {
 
     fn list_messages(&self, q: &MailListQuery) -> Result<MailListPage> {
         let c = self.conn.lock().unwrap();
-        query_list_messages(&c, q)
+        query_list_messages(&c, q, None)
+    }
+}
+
+impl EncryptedMailStore {
+    /// Per-matter browse in ONE read transaction (F2.6b): resolve which messages
+    /// belong to `matter_id`, then return the paginated page for exactly those
+    /// messages — ATOMICALLY. Because both the membership resolution and the list
+    /// read happen inside a single SQLite snapshot, a concurrent
+    /// `mail_retag_message_matter` or sync can't change a message's filing between
+    /// the two steps and slip mail from another client into the result (or drop a
+    /// message mid-read). `effective_matter(override, key)` returns a message's
+    /// effective matter from its durable override + folder key — the caller passes
+    /// the shared resolver so the store stays agnostic of the mapping type, and so
+    /// browsing agrees with sync/backfill message-for-message. Never decrypts a blob.
+    pub fn list_messages_for_matter(
+        &self,
+        q: &MailListQuery,
+        matter_id: &str,
+        effective_matter: impl Fn(Option<&str>, &MailFolderKey) -> String,
+    ) -> Result<MailListPage> {
+        let mut c = self.conn.lock().unwrap();
+        // A single read transaction = a consistent snapshot for BOTH reads below.
+        let tx = c.transaction()?;
+        let keys = query_all_folder_keys(&tx)?;
+        let mut ids = Vec::new();
+        for k in &keys {
+            let override_matter = read_message_matter_override(&tx, &k.id)?;
+            if effective_matter(override_matter.as_deref(), k) == matter_id {
+                ids.push(k.id.clone());
+            }
+        }
+        let page = query_list_messages(&tx, q, Some(&ids))?;
+        // Read-only work: nothing to persist. Rolling back releases the snapshot
+        // (the temp restriction table was already dropped inside query_list_messages).
+        tx.rollback().ok();
+        Ok(page)
     }
 }
 
@@ -1274,6 +1396,64 @@ mod tests {
             s2.get_meta("rag_backfill_needed").unwrap().as_deref(),
             Some("1")
         );
+    }
+
+    // -----------------------------------------------------------------------
+    // F2.6b — atomic per-matter browse (list_messages_for_matter)
+    // -----------------------------------------------------------------------
+
+    /// Test resolver: effective matter = the override if present, else the folder id.
+    /// (mod.rs tests the REAL shared resolver; here we only exercise the store
+    /// plumbing — the transaction, restriction, filters, and temp-table cleanup.)
+    fn folder_or_override(ov: Option<&str>, k: &MailFolderKey) -> String {
+        ov.map(|s| s.to_string()).unwrap_or_else(|| k.folder_id.clone())
+    }
+
+    #[test]
+    fn list_for_matter_restricts_to_membership_and_applies_filters() {
+        let (_d, s) = enc_store();
+        s.upsert(&mk_full("a", "inbox", "m365", "default", "Annual review", "alice@x.com", "Alice", "hello", "2026-06-01T00:00:00Z", false)).unwrap();
+        s.upsert(&mk_full("b", "inbox", "m365", "default", "Beneficiary form", "bob@x.com", "Bob", "hi", "2026-06-02T00:00:00Z", false)).unwrap();
+        s.upsert(&mk_full("c", "sent", "m365", "default", "Statement ready", "carol@x.com", "Carol", "yo", "2026-06-03T00:00:00Z", false)).unwrap();
+        // c is manually filed to "inbox" (override beats its "sent" folder).
+        s.set_message_matter("c", "inbox").unwrap();
+
+        let q = default_query();
+        // Members of "inbox": a, b (folder) + c (override). NOT any "sent"-only mail.
+        let page = s.list_messages_for_matter(&q, "inbox", folder_or_override).unwrap();
+        let mut ids: Vec<&str> = page.items.iter().map(|i| i.id.as_str()).collect();
+        ids.sort();
+        assert_eq!(page.total, 3);
+        assert_eq!(ids, vec!["a", "b", "c"]);
+
+        // A matter with no members → empty page (no leak).
+        let empty = s.list_messages_for_matter(&q, "nonexistent", folder_or_override).unwrap();
+        assert_eq!(empty.total, 0);
+        assert!(empty.items.is_empty());
+
+        // Keyword still applies WITHIN the scoped set.
+        let mut kw = default_query();
+        kw.keyword = Some("Beneficiary".into());
+        let page2 = s.list_messages_for_matter(&kw, "inbox", folder_or_override).unwrap();
+        assert_eq!(page2.total, 1);
+        assert_eq!(page2.items[0].id, "b");
+    }
+
+    #[test]
+    fn list_for_matter_leaves_unrestricted_list_intact() {
+        // The temp restriction table (and the read transaction) must be cleaned up
+        // so a later plain list on the same pooled connection sees ALL rows.
+        let (_d, s) = enc_store();
+        s.upsert(&mk_full("a", "inbox", "m365", "default", "A", "a@x.com", "A", "", "2026-06-01T00:00:00Z", false)).unwrap();
+        s.upsert(&mk_full("b", "sent", "m365", "default", "B", "b@x.com", "B", "", "2026-06-02T00:00:00Z", false)).unwrap();
+        let q = default_query();
+        let scoped = s.list_messages_for_matter(&q, "inbox", folder_or_override).unwrap();
+        assert_eq!(scoped.total, 1, "only the inbox message is in the 'inbox' matter");
+        let all = s.list_messages(&q).unwrap();
+        assert_eq!(all.total, 2, "unrestricted list must see all rows after a scoped call");
+        // And a subsequent upsert (write) still works — the read tx was released.
+        s.upsert(&mk_rec("c", "inbox", "m365", "default")).unwrap();
+        assert_eq!(s.count().unwrap(), 3);
     }
 
     #[test]
