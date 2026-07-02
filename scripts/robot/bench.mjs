@@ -69,7 +69,13 @@ const IS_LOCAL = () => !!process.env.ROBOT_LOCAL;
 
 export function sshExec(psCommand, timeoutMs = DEFAULT_SSH_TIMEOUT_MS) {
   if (IS_LOCAL()) {
-    return execFileSync('powershell.exe', ['-NoProfile', '-Command', psCommand], { encoding: 'utf8', timeout: timeoutMs });
+    // pwsh.exe (PowerShell 7), NOT powershell.exe (Windows PowerShell 5.1):
+    // the CI workflow's own steps run under `shell: pwsh`, and a 5.1 CHILD
+    // spawned under a 7 PARENT (this Node process) inherits a PSModulePath
+    // that doesn't resolve 5.1's own built-in module set — Get-FileHash
+    // (used deep in the snapshot restore) came back "not recognized" for
+    // exactly this reason on the first local-execution CI proof run.
+    return execFileSync('pwsh.exe', ['-NoProfile', '-Command', psCommand], { encoding: 'utf8', timeout: timeoutMs });
   }
   return execFileSync('ssh', [...SSH_OPTS, LEGION, psCommand], { encoding: 'utf8', timeout: timeoutMs });
 }
@@ -115,7 +121,7 @@ export function killApp() {
   // The real process name is "lantern" (facade rename) — "keepance"/"Keepance"
   // never matched anything, so this silently failed to kill the app.
   //
-  // When ROBOT_LOCAL is set, this powershell.exe runs as a CHILD of the very
+  // When ROBOT_LOCAL is set, this pwsh.exe runs as a CHILD of the very
   // node.exe process calling killApp() (this script) — a bare
   // `Stop-Process -Name node` matches by name only, so it would kill its own
   // caller mid-reset, silently truncating everything after this call with no
@@ -282,7 +288,7 @@ function runSnapshotAction(action, opts = {}) {
   const cmd = buildSnapshotCmd(action, opts);
   try {
     raw = IS_LOCAL()
-      ? execFileSync('powershell.exe', ['-NoProfile', '-Command', cmd], { encoding: 'utf8', timeout: SNAPSHOT_ACTION_TIMEOUT_MS })
+      ? execFileSync('pwsh.exe', ['-NoProfile', '-Command', cmd], { encoding: 'utf8', timeout: SNAPSHOT_ACTION_TIMEOUT_MS })
       : execFileSync('ssh', [...SSH_OPTS, LEGION, cmd], { encoding: 'utf8', timeout: SNAPSHOT_ACTION_TIMEOUT_MS });
   } catch (e) {
     // PowerShell -File exits non-zero on a guarded refusal; still capture stdout.
