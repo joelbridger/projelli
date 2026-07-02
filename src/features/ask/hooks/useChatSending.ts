@@ -147,9 +147,12 @@ export interface UseChatSendingDeps {
    * in-flight stream's callbacks — still running after the user switches to
    * a DIFFERENT chat — must never be mistaken for the newly-viewed chat's
    * content. The caller only applies this preview when its `chatId` matches
-   * whatever chat is currently being viewed.
+   * whatever chat is currently being viewed. It's a real `useState` setter
+   * (not a plain callback) so `createStreamFlusher`'s `finish()` can use the
+   * functional-update form to clear it only when it still belongs to the
+   * finishing turn, without racing a read of the current value.
    */
-  setStreamingPreview: (preview: { chatId: string; content: string } | null) => void;
+  setStreamingPreview: React.Dispatch<React.SetStateAction<{ chatId: string; content: string } | null>>;
   clearDraftInput: (chatId: string) => void;
   recordCost: (chatId: string, entry: ChatCostEntry) => void;
   chatId: string;
@@ -182,6 +185,71 @@ export interface UseChatSendingDeps {
   setCompressionModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
   // Refs.
   abortControllerRef: React.MutableRefObject<AbortController | null>;
+}
+
+/**
+ * Perf (P1.2) — per-turn token-stream buffering. `onChunk` fires once per
+ * SSE token (dozens of times a second); this coalesces arrivals into at
+ * most one flush per animation frame instead of a React/Zustand write per
+ * token.
+ *
+ * Codex review (P1, round 4): this MUST be created fresh per `sendMessage`
+ * call, never shared as a hook-level ref. `AIChatViewer`'s local streaming-
+ * preview state outlives a `chatId` prop change (MainPanel reuses the same
+ * instance across open chats), so if the user switches chats and sends
+ * again before the first turn's stream finishes, two concurrent streams
+ * would exist. A SHARED buffer/frame-id pair would let a late chunk from
+ * the old turn overwrite the new turn's buffered text just before its
+ * flush fires — publishing the WRONG chat's content under the right
+ * chatId, still a confidentiality leak even with the chatId tag from the
+ * previous fix. Each call to `createStreamFlusher` closes over its own
+ * `buffer`/`rafId`, so two turns in flight at once never share state.
+ */
+export function createStreamFlusher(
+  chatId: string,
+  setStreamingPreview: UseChatSendingDeps['setStreamingPreview'],
+) {
+  let buffer = '';
+  let rafId: number | null = null;
+  return {
+    /** Buffer a chunk and schedule a flush if one isn't already pending. */
+    push(content: string) {
+      buffer = content;
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        setStreamingPreview({ chatId, content: buffer });
+      });
+    },
+    /** Flush immediately (terminal states: abort, or the outer error catch). */
+    flushNow(content: string) {
+      buffer = content;
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      setStreamingPreview({ chatId, content: buffer });
+    },
+    /** Whatever was buffered so far — used to preserve partial text if the
+     *  stream throws a non-abort error (see the outer catch below). */
+    getBuffer() {
+      return buffer;
+    },
+    /**
+     * End of turn: cancel any pending frame (so a late tick can't resurrect
+     * this turn's preview after it's been cleared) and clear the preview —
+     * but ONLY if it's still showing THIS turn's chatId. A different,
+     * still-in-flight turn's live preview (a different or the same chat,
+     * sent again) must not be wiped out just because this one finished.
+     */
+    finish() {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      setStreamingPreview((prev) => (prev && prev.chatId === chatId ? null : prev));
+    },
+  };
 }
 
 export function useChatSending(deps: UseChatSendingDeps) {
@@ -231,46 +299,6 @@ export function useChatSending(deps: UseChatSendingDeps) {
     abortControllerRef,
   } = deps;
   const bypassNextContextLimitRef = useRef(false);
-
-  // Perf (P1.2) — token-stream buffering. `onChunk` fires once per SSE token,
-  // which can be dozens of times a second; accumulating into a ref is free,
-  // but pushing every chunk into React/Zustand state is not. Coalesce chunk
-  // arrivals into at most one flush per animation frame (rAF already caps us
-  // at the display refresh rate, well within the ≤50ms budget) via a single
-  // pending-frame id — a chunk that lands while a flush is already scheduled
-  // just updates the ref and rides the next frame.
-  const streamBufferRef = useRef('');
-  const streamRafRef = useRef<number | null>(null);
-
-  // Both take the chatId THIS turn's stream belongs to (the caller passes
-  // the `chatId` closed over by the specific `handleSendMessage` invocation
-  // that started the stream — not a live-updating value) so a callback that
-  // fires after the viewer has switched to a different chat tags its update
-  // with the ORIGINATING chat, not whatever chat happens to be on screen now.
-  const flushStreamPreviewNow = useCallback((forChatId: string) => {
-    if (streamRafRef.current !== null) {
-      cancelAnimationFrame(streamRafRef.current);
-      streamRafRef.current = null;
-    }
-    setStreamingPreview({ chatId: forChatId, content: streamBufferRef.current });
-  }, [setStreamingPreview]);
-
-  const scheduleStreamFlush = useCallback((forChatId: string) => {
-    if (streamRafRef.current !== null) return;
-    streamRafRef.current = requestAnimationFrame(() => {
-      streamRafRef.current = null;
-      setStreamingPreview({ chatId: forChatId, content: streamBufferRef.current });
-    });
-  }, [setStreamingPreview]);
-
-  const clearStreamPreview = useCallback(() => {
-    if (streamRafRef.current !== null) {
-      cancelAnimationFrame(streamRafRef.current);
-      streamRafRef.current = null;
-    }
-    streamBufferRef.current = '';
-    setStreamingPreview(null);
-  }, [setStreamingPreview]);
 
   const buildFastProvider = useCallback((): import('@/platform/providers/Provider').Provider | null => {
     // The provider this chat actually targets (never a hidden cloud fallback
@@ -812,6 +840,11 @@ export function useChatSending(deps: UseChatSendingDeps) {
     clearDraftInput(chatId); // Clear saved draft after sending
     setMissingSourceWarning(null);
     setLoading(chatId, true);
+
+    // Perf (P1.2): declared here — OUTSIDE the IIFE below — so both its body
+    // (the try/catch/finally) AND the `.catch()` chained onto it can read/
+    // finish the same flusher. Assigned only when the streaming path runs.
+    let streamFlusher: ReturnType<typeof createStreamFlusher> | null = null;
 
     // Call AI provider with streaming. The IIFE is voided because
     // handleSendMessage itself is async — this fire-and-forget inner
@@ -1565,6 +1598,14 @@ export function useChatSending(deps: UseChatSendingDeps) {
           let accumulated = '';
           const streamingAuditState = { receivedChunk: false };
           let streamingResponse: Awaited<ReturnType<NonNullable<typeof provider.sendMessageStreaming>>> | null = null;
+          // Perf (P1.2): fresh per turn (see createStreamFlusher's doc) — if
+          // the user switches chats and sends again before this stream
+          // finishes, the two turns' flushers never share buffer/frame state.
+          // Captured into a local `const` (not just the outer mutable
+          // `streamFlusher`) so the nested `onChunk`/abort-catch closures
+          // below get a use that TS can narrow as non-null.
+          const flusher = createStreamFlusher(chatId, setStreamingPreview);
+          streamFlusher = flusher;
 
           try {
             // Race guard (defense-in-depth; cloud providers also fail-closed
@@ -1578,13 +1619,12 @@ export function useChatSending(deps: UseChatSendingDeps) {
               onChunk: (chunk: string) => {
                 streamingAuditState.receivedChunk = true;
                 accumulated += chunk;
-                // Perf (P1.2): buffer locally (component state, not the
-                // Zustand store) and flush at most once per animation frame.
-                // The store gets exactly one write for this turn, once the
-                // stream finishes (or is aborted) — see the `finally` below
-                // and the citation-verification commit further down.
-                streamBufferRef.current = accumulated;
-                scheduleStreamFlush(chatId);
+                // Buffer locally (component state, not the Zustand store)
+                // and flush at most once per animation frame. The store
+                // gets exactly one write for this turn, once the stream
+                // finishes (or is aborted) — see the `finally` below and
+                // the citation-verification commit further down.
+                flusher.push(accumulated);
               },
               signal: abortController.signal,
               ...(attachmentBytes ? { attachmentBytes } : {}),
@@ -1593,8 +1633,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
             if (err instanceof DOMException && err.name === 'AbortError') {
               // User cancelled — keep whatever was streamed so far
               accumulated += '\n\n*(Response stopped by user)*';
-              streamBufferRef.current = accumulated;
-              flushStreamPreviewNow(chatId);
+              flusher.flushNow(accumulated);
               if (streamingAuditState.receivedChunk) {
                 providerSendCompletedOrCancelledAfterEgress = true;
                 emitCancelledEgressAudit();
@@ -1751,14 +1790,15 @@ export function useChatSending(deps: UseChatSendingDeps) {
         // Perf (P1.2) fix: a stream that throws mid-response (e.g. a network
         // reset) after at least one chunk has arrived left its partial text
         // stranded in the local buffer — it was never written to the store
-        // per-chunk, and `clearStreamPreview()` below wipes the local
+        // per-chunk, and the flusher's `finish()` below wipes the local
         // preview too. Without this, the placeholder assistant message
         // (added empty when the stream started) stays empty forever and the
         // user loses the partial answer they already saw on screen. Commit
         // whatever was streamed so far to that placeholder before the error
         // bubble is appended below.
-        if (streamBufferRef.current) {
-          updateLastMessage(chatId, streamBufferRef.current);
+        const bufferedPartial = streamFlusher?.getBuffer();
+        if (bufferedPartial) {
+          updateLastMessage(chatId, bufferedPartial);
         }
 
         const chatProvider = effectiveProvider;
@@ -1864,8 +1904,11 @@ export function useChatSending(deps: UseChatSendingDeps) {
         setLoading(chatId, false);
         // Perf (P1.2): the turn is over one way or another (success, abort,
         // or error) — drop the local streaming buffer/preview now that the
-        // store holds whatever final content this turn produced.
-        clearStreamPreview();
+        // store holds whatever final content this turn produced. `finish()`
+        // only clears the preview if it's still showing THIS turn's chatId,
+        // so it can't wipe a different (or the same, re-sent) chat's still-
+        // in-flight preview out from under it.
+        streamFlusher?.finish();
         // BUG-060 batch mode: now that the turn is done, show the end-of-turn
         // review if any file changes were applied (no-op in other modes / when
         // nothing changed, and even after an abort so applied changes surface).
@@ -1876,10 +1919,10 @@ export function useChatSending(deps: UseChatSendingDeps) {
       // conversation failure isn't silently swallowed.
       console.error('Unexpected error escaping AI chat IIFE:', err);
       setLoading(chatId, false);
-      clearStreamPreview();
+      streamFlusher?.finish();
       useAiBatchReviewStore.getState().openReview();
     });
-  }, [inputValue, pendingAttachments, pdfExtractions, previewUrls, messages, chatData, localAvailability, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, updateMessages, setLoading, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules, openFiles, scopedOpenFiles, scopedFolder, recordCost, clearDraftInput, askWorkspaceMode, activeMatter, includePrivileged, scheduleStreamFlush, flushStreamPreviewNow, clearStreamPreview]);
+  }, [inputValue, pendingAttachments, pdfExtractions, previewUrls, messages, chatData, localAvailability, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, updateMessages, setLoading, setStreamingPreview, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules, openFiles, scopedOpenFiles, scopedFolder, recordCost, clearDraftInput, askWorkspaceMode, activeMatter, includePrivileged]);
 
   const handleSendAnyway = useCallback(() => {
     bypassNextContextLimitRef.current = true;
