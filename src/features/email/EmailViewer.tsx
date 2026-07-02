@@ -146,51 +146,55 @@ async function resolveEmailProvider(): Promise<ResolvedEmailProvider> {
   }
   // Personal-install choice gate (Task 1.3): email draft generation is cloud generation,
   // so block it until the user has made an explicit confidentiality choice. Gate ONLY on
-  // the cloud branches, after confirming a cloud key exists, so a personal install with no
-  // cloud key still falls back to local Ollama (no egress). Local-only mode already
-  // returned above; firm installs are a no-op inside assertCloudGenerationAllowed.
+  // the cloud branches, after confirming a cloud key OR a firm assured route exists, so
+  // a personal install with no cloud key still falls back to local Ollama (no egress).
+  // Local-only mode already returned above; firm installs are a no-op inside
+  // assertCloudGenerationAllowed.
+  //
+  // Assured availability is checked ALONGSIDE the personal key, not only after
+  // finding one (independent reviewer catch, P2): the whole point of Assured
+  // mode is a firm-managed key the user never has to paste in personally, so
+  // gating it behind a BYOK key would silently drop an assured-only firm user
+  // to the local model instead of the zero-retention proxy. `apiKey` is safe
+  // to leave empty on the assured path — `applyAssuredRoute` strips the
+  // vendor auth header (x-api-key / x-goog-api-key / Authorization) before
+  // the request is ever sent, so it never carries an empty/missing key.
   const kc = createKeychainService();
-  const anthropicKey = await kc.getKey('anthropic');
-  if (anthropicKey?.trim()) {
+  const anthropicKey = (await kc.getKey('anthropic'))?.trim() ?? '';
+  const anthropicModel = createClaudeProvider({ apiKey: anthropicKey }).getMetadata().model;
+  // `stream: false` (independent reviewer catch, P1) — Draft with AI always
+  // calls sendMessage(), never sendMessageStreaming(), so the route must say
+  // so; otherwise the proxy sets X-Stream:1 and, for Gemini especially,
+  // routes to the streaming endpoint while this code parses a JSON response.
+  const anthropicAssured = resolveAssuredRoute('anthropic', anthropicModel, false);
+  if (anthropicKey || anthropicAssured) {
     assertCloudGenerationAllowed();
-    const apiKey = anthropicKey.trim();
-    // Firm Assured routing (same seam Chat/redline use): route through the
-    // zero-retention proxy when the firm actually has one configured for this
-    // provider, instead of always going raw BYOK-direct with the personal key.
-    // `stream: false` (independent reviewer catch, P1) — Draft with AI always
-    // calls sendMessage(), never sendMessageStreaming(), so the route must say
-    // so; otherwise the proxy sets X-Stream:1 and, for Gemini especially,
-    // routes to the streaming endpoint while this code parses a JSON response.
-    const model = createClaudeProvider({ apiKey }).getMetadata().model;
-    const assured = resolveAssuredRoute('anthropic', model, false);
     return {
-      provider: createClaudeProvider({ apiKey, model, ...(assured ? { assured } : {}) }),
+      provider: createClaudeProvider({ apiKey: anthropicKey, model: anthropicModel, ...(anthropicAssured ? { assured: anthropicAssured } : {}) }),
       providerId: 'anthropic',
-      assuredAvailable: !!assured,
+      assuredAvailable: !!anthropicAssured,
     };
   }
-  const openaiKey = await kc.getKey('openai');
-  if (openaiKey?.trim()) {
+  const openaiKey = (await kc.getKey('openai'))?.trim() ?? '';
+  const openaiModel = createOpenAIProvider({ apiKey: openaiKey }).getMetadata().model;
+  const openaiAssured = resolveAssuredRoute('openai', openaiModel, false);
+  if (openaiKey || openaiAssured) {
     assertCloudGenerationAllowed();
-    const apiKey = openaiKey.trim();
-    const model = createOpenAIProvider({ apiKey }).getMetadata().model;
-    const assured = resolveAssuredRoute('openai', model, false);
     return {
-      provider: createOpenAIProvider({ apiKey, model, ...(assured ? { assured } : {}) }),
+      provider: createOpenAIProvider({ apiKey: openaiKey, model: openaiModel, ...(openaiAssured ? { assured: openaiAssured } : {}) }),
       providerId: 'openai',
-      assuredAvailable: !!assured,
+      assuredAvailable: !!openaiAssured,
     };
   }
-  const googleKey = await kc.getKey('google');
-  if (googleKey?.trim()) {
+  const googleKey = (await kc.getKey('google'))?.trim() ?? '';
+  const googleModel = createGeminiProvider({ apiKey: googleKey }).getMetadata().model;
+  const googleAssured = resolveAssuredRoute('google', googleModel, false);
+  if (googleKey || googleAssured) {
     assertCloudGenerationAllowed();
-    const apiKey = googleKey.trim();
-    const model = createGeminiProvider({ apiKey }).getMetadata().model;
-    const assured = resolveAssuredRoute('google', model, false);
     return {
-      provider: createGeminiProvider({ apiKey, model, ...(assured ? { assured } : {}) }),
+      provider: createGeminiProvider({ apiKey: googleKey, model: googleModel, ...(googleAssured ? { assured: googleAssured } : {}) }),
       providerId: 'google',
-      assuredAvailable: !!assured,
+      assuredAvailable: !!googleAssured,
     };
   }
   // No cloud key — fall back to the on-device engine (embedded model when ready,

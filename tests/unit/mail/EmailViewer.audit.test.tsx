@@ -242,6 +242,33 @@ describe('EmailViewer — AI-draft audit records the ACTUAL assured route (indep
     expect(mockResolveAssuredRoute).toHaveBeenCalledWith('anthropic', expect.any(String), false);
   });
 
+  it('routes through assured with NO personal key at all (independent reviewer catch, P2) — never falls through to the local model', async () => {
+    mockGetKey.mockResolvedValue(null); // no personal key for ANY provider
+    mockResolveAssuredRoute.mockImplementation((provider: string) =>
+      provider === 'anthropic'
+        ? { provider: 'anthropic', model: 'claude-haiku-4-5-20251001', accessToken: 'ACCESS', seatToken: 'SEAT', stream: false }
+        : undefined,
+    );
+    mockMailGetMessage.mockResolvedValue(sampleMessage({ matterId: null }));
+    render(<EmailViewer sourceId="AAMk-xyz" />);
+    await screen.findByTestId('email-reply-area');
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('reply-draft-ai-btn'));
+    });
+
+    await waitFor(() => expect(emitterSpy).toHaveBeenCalled());
+    const entry = emitterSpy.mock.calls[0]![0];
+    // The whole point of Assured is a firm-managed key the user never pastes
+    // in — this must NOT silently fall back to the local model just because
+    // no personal key is configured.
+    expect(entry.metadata['provider']).toBe('anthropic');
+    expect(entry.metadata['destination']).toBe('assured-proxy');
+    expect(createClaudeProviderMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ apiKey: '', assured: expect.objectContaining({ accessToken: 'ACCESS' }) }),
+    );
+  });
+
   it('logs destination "provider-direct" (honest BYOK fallback) when assured mode is selected but the firm has no managed key yet', async () => {
     mockResolveAssuredRoute.mockReturnValue(undefined); // no managed key / no live firm session
     mockMailGetMessage.mockResolvedValue(sampleMessage({ matterId: null }));
