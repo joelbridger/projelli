@@ -306,6 +306,382 @@ function resolveMatterIdWithWorkspaceForms(path: string): string {
 }
 
 /**
+ * Delete-flood guard (frontend half — the backend LanceDB writer-race is a
+ * separate lane). A mass delete (e.g. dragging a folder with thousands of
+ * files to trash) fires one `workspace-file-changed` event PER FILE. Firing
+ * `MemoryService.deletePath` per event with no error handling meant a
+ * 2,000+ file storm issued that many concurrent backend calls AND surfaced
+ * every failure as an unhandled-rejection pageerror (2,292 of them observed
+ * in a 4-minute bench). This batcher:
+ *   1. buffers paths over a short window and dedupes repeats, so a storm
+ *      becomes one bounded, SEQUENTIAL sweep instead of N concurrent calls;
+ *   2. never rejects — every call is wrapped, failures are logged once per
+ *      batch, not once per file;
+ *   3. opens a breaker after N consecutive failures, bounding a doomed burst
+ *      to at most N backend calls per cooldown cycle (never hammers a fully
+ *      down backend). Every path is PAUSED, never dropped — a failed or
+ *      not-yet-attempted path is put back on the queue, with not-yet-
+ *      attempted paths rotated to the FRONT so the same leading run of
+ *      chronic failures can't perpetually block what's behind it. A delete
+ *      is a privacy operation (a deleted client file must stop being
+ *      searchable); losing one silently would leave stale content indexed
+ *      indefinitely, so this batcher only ever paces and reorders retries,
+ *      never abandons a path;
+ *   4. exposes `cancel(path)` so the caller can drop a queued delete when a
+ *      create/modify for the SAME path arrives first — otherwise a
+ *      delete-then-recreate within the buffer window (an atomic save/replace
+ *      or a sync restore) would index the fresh content and then have the
+ *      stale queued delete remove it moments later.
+ */
+export type DeleteBurstBatcherOptions = {
+  /** How long to buffer incoming paths before issuing the batch. */
+  windowMs?: number;
+  /** Consecutive per-path failures before the breaker opens. */
+  breakerThreshold?: number;
+  /** How long the breaker stays open (pauses retries) once tripped. */
+  cooldownMs?: number;
+  /** Injectable for tests; defaults to console.warn. */
+  onLog?: (message: string) => void;
+  /**
+   * Called (best-effort, fire-and-forget — errors are swallowed) when a
+   * path's delete was cancelled by a create/modify that arrived WHILE its
+   * `deletePath` call was already in flight and had ALREADY SUCCEEDED by the
+   * time the cancellation was noticed. `cancel()` can mark such a path but
+   * can't un-send the request already issued, so the delete may have just
+   * removed chunks the create/modify handler wrote moments before. The
+   * caller should re-index `path` to restore it.
+   */
+  onCancelledAfterDelete?: (path: string) => void;
+};
+
+export type DeleteBurstBatcher = {
+  /** Queue a path for deletion; the batch flushes after `windowMs` of quiet. */
+  enqueue: (path: string) => void;
+  /**
+   * Drop a queued-but-not-yet-flushed delete for `path`, if one is pending.
+   * Returns true if a queued delete was cancelled. Call this when a
+   * create/modify event for the same path arrives, so a delete→recreate
+   * race can't remove freshly-indexed content.
+   */
+  cancel: (path: string) => boolean;
+  /** Cancel any pending timers and drop queued paths (call on teardown). */
+  dispose: () => void;
+};
+
+const DEFAULT_DELETE_BATCH_WINDOW_MS = 250;
+const DEFAULT_DELETE_BREAKER_THRESHOLD = 5;
+const DEFAULT_DELETE_BREAKER_COOLDOWN_MS = 15_000;
+
+export function createDeleteBurstBatcher(
+  deletePath: (path: string) => Promise<void>,
+  options: DeleteBurstBatcherOptions = {},
+): DeleteBurstBatcher {
+  const windowMs = options.windowMs ?? DEFAULT_DELETE_BATCH_WINDOW_MS;
+  const breakerThreshold = options.breakerThreshold ?? DEFAULT_DELETE_BREAKER_THRESHOLD;
+  const cooldownMs = options.cooldownMs ?? DEFAULT_DELETE_BREAKER_COOLDOWN_MS;
+  const log =
+    options.onLog ??
+    ((message: string) => {
+      console.warn(message);
+    });
+  const onCancelledAfterDelete = options.onCancelledAfterDelete;
+
+  let pending = new Set<string>();
+  let flushTimer: ReturnType<typeof setTimeout> | null = null;
+  let cooldownTimer: ReturnType<typeof setTimeout> | null = null;
+  let isFlushing = false;
+  let consecutiveFailures = 0;
+  let breakerOpenUntil = 0;
+  let disposed = false;
+  // Read through a function, not the bare `disposed` binding, at every
+  // check inside `flush`'s loop. `dispose()` is a SEPARATE closure the
+  // caller can invoke at any point — including during an `await` this
+  // function is suspended on — so `disposed` genuinely can change between
+  // one check and the next even though nothing in `flush`'s own textual
+  // body assigns it. TypeScript's control-flow narrowing can't see that
+  // (it only tracks mutations reachable from this function's own code) and
+  // flags the checks as always-true/false; reading through a function call
+  // is opaque to that narrowing while still observing the live value.
+  const isDisposed = () => disposed;
+  // The current round's snapshot (see `flush`) and which of its paths have
+  // been cancelled since being pulled out of `pending`. A path is briefly
+  // "in flight" — no longer in `pending`, but not yet attempted — between
+  // the moment a round snapshots it and the moment its turn comes up in the
+  // for-loop below. `cancel()` alone can't reach it there (it only touches
+  // `pending`), so a create/modify arriving in that window would otherwise
+  // still let the stale delete run and remove the fresh content moments
+  // after indexing it. These two let `cancel()` reach an in-flight path too.
+  let inFlightPaths: Set<string> | null = null;
+  let cancelledInFlight = new Set<string>();
+
+  // Wakes the batcher up once a breaker's cooldown elapses, even if no new
+  // path is ever enqueued in the meantime — otherwise paths queued at trip
+  // time (or added during the cooldown) would have nothing left to trigger
+  // their retry.
+  const scheduleCooldownRetry = (delayMs: number) => {
+    if (cooldownTimer || disposed) return;
+    cooldownTimer = setTimeout(() => {
+      cooldownTimer = null;
+      void flush();
+    }, delayMs);
+  };
+
+  // Drains `pending` in a loop rather than a single pass, guarded by
+  // `isFlushing`. A sustained delete storm keeps calling `enqueue` while a
+  // batch is still awaiting `deletePath`; without this guard a new debounce
+  // timer would fire and start a SECOND concurrent flush, bringing back the
+  // exact overlapping-backend-calls problem this batcher exists to prevent.
+  // New arrivals during an in-flight flush are simply picked up by the next
+  // loop iteration — no extra timer needed.
+  const flush = async (): Promise<void> => {
+    flushTimer = null;
+    if (isFlushing || disposed) return;
+    if (Date.now() < breakerOpenUntil) {
+      // Still cooling down. Don't touch `pending` — nothing queued is ever
+      // dropped, it just waits for the scheduled retry below.
+      scheduleCooldownRetry(breakerOpenUntil - Date.now());
+      return;
+    }
+    isFlushing = true;
+    // Reset once per flush invocation (i.e. once per cooldown wake-up), not
+    // per internal while-round. Otherwise a single path that NEVER recovers
+    // stays first in `pending` (Set insertion order) and, since its failure
+    // count was already at/above threshold when the breaker last tripped,
+    // instantly re-trips on the very next attempt. Resetting here gives every
+    // post-cooldown attempt a fresh threshold budget.
+    consecutiveFailures = 0;
+    try {
+      while (pending.size > 0 && !isDisposed()) {
+        const paths = Array.from(pending);
+        pending = new Set();
+        inFlightPaths = new Set(paths);
+        cancelledInFlight = new Set();
+        let failed = 0;
+        let breakerTripped = false;
+        for (const path of paths) {
+          if (isDisposed()) return;
+          if (cancelledInFlight.delete(path)) {
+            // Cancelled after this round snapshotted it but before we even
+            // started it — a create/modify beat us to it. Skip the stale
+            // delete entirely; the fresh content stays indexed.
+            inFlightPaths.delete(path);
+            continue;
+          }
+          // Deliberately KEEP `path` in `inFlightPaths` through the whole
+          // await below (only cleared in `finally`) — not just until we
+          // start it. A create/modify can still race the ALREADY-ISSUED
+          // `deletePath` call itself (not just the queue); `cancel()` can't
+          // un-send that call, but it CAN mark it here so we notice once it
+          // settles.
+          try {
+            // Deliberate: sequential, bounded processing is the fix (never N
+            // concurrent backend calls).
+            await deletePath(path);
+            if (isDisposed()) return;
+            // The workspace could have closed/switched WHILE this delete was
+            // in flight. Bail before any bookkeeping or recovery below —
+            // `onCancelledAfterDelete` re-indexes via the shared
+            // MemoryService, which targets whatever workspace is CURRENTLY
+            // active on the backend; running it after a switch would
+            // misroute this (old-workspace) path's content into the NEW
+            // workspace's index. The disposed batcher's own `pending` is
+            // already discarded, so there is nothing left worth updating
+            // here either way.
+            consecutiveFailures = 0;
+            if (cancelledInFlight.delete(path)) {
+              // A create/modify arrived WHILE this delete was already in
+              // flight — too late for `cancel()` to stop the call, and the
+              // delete has now completed (successfully) AFTER the file was
+              // recreated. It may have just removed the fresh content's
+              // chunks (if the create/modify handler's own re-index landed
+              // before this delete finished). Ask the caller to re-index
+              // this path to restore it. Best-effort: never let this
+              // recovery hook break the flush loop.
+              try {
+                onCancelledAfterDelete?.(path);
+              } catch {
+                // Best-effort recovery hook.
+              }
+            }
+          } catch {
+            if (isDisposed()) return; // same guard on the failure path
+            failed += 1;
+            consecutiveFailures += 1;
+            if (cancelledInFlight.delete(path)) {
+              // Cancelled AND the delete failed: nothing to undo (no rows
+              // were removed) and nothing to retry — the create/modify
+              // handler already re-indexed the recreated file, so requeuing
+              // a delete for this path would just remove it again once
+              // retried. Drop it here; that's the correct outcome of the
+              // cancellation, not a lost delete.
+            } else {
+              // Never lose this path: a failed delete is retried, not abandoned.
+              pending.add(path);
+            }
+            if (consecutiveFailures >= breakerThreshold) {
+              // Stop attempting NOW — bounded exposure. A 2,000-file delete
+              // storm against a fully-down backend must cost at most
+              // `breakerThreshold` doomed calls per cooldown cycle, not
+              // hammer through the whole burst before backing off.
+              breakerOpenUntil = Date.now() + cooldownMs;
+              // Fairness: paths this round never even got to attempt go to
+              // the FRONT of the next round, AHEAD of the run that just
+              // tripped the breaker. Without this, the same leading
+              // chronically-bad paths would occupy the front of `pending`
+              // again next round (Set insertion order) and re-trip before
+              // ever reaching what's behind them — starving good deletes
+              // forever. Rotating guarantees every path gets priority for a
+              // real attempt within one cooldown cycle of being blocked.
+              // Exclude anything already cancelled in-flight — a create/
+              // modify already told us that path exists again; requeuing it
+              // here would undo the cancellation and let it get deleted
+              // again once this round's requeue is retried.
+              const notYetAttempted = paths
+                .slice(paths.indexOf(path) + 1)
+                .filter((p) => !cancelledInFlight.has(p));
+              pending = new Set([...notYetAttempted, ...pending]);
+              log(
+                `[memory] ${String(consecutiveFailures)} consecutive delete failures; backing off for ${String(cooldownMs)}ms, ` +
+                  `retrying ${String(pending.size)} pending delete event(s) after cooldown`,
+              );
+              scheduleCooldownRetry(cooldownMs);
+              breakerTripped = true;
+              break;
+            }
+          } finally {
+            inFlightPaths.delete(path);
+          }
+        }
+        if (breakerTripped) break;
+        if (failed > 0) {
+          log(`[memory] ${String(failed)} of ${String(paths.length)} delete event(s) failed; retrying`);
+        }
+      }
+    } finally {
+      isFlushing = false;
+      // Nothing is "in flight" once we're outside the for-loop (this round's
+      // leftovers, if any, are back in `pending`, reachable by `cancel()`
+      // the normal way) — clear so a `cancel()` between now and the next
+      // round's snapshot can't match a stale reference.
+      inFlightPaths = null;
+    }
+  };
+
+  return {
+    enqueue(path: string) {
+      if (disposed) return;
+      pending.add(path);
+      // While a flush is in-flight it will drain this addition itself (see
+      // above) — starting a timer here would race a second flush in.
+      if (!flushTimer && !isFlushing) {
+        flushTimer = setTimeout(() => {
+          void flush();
+        }, windowMs);
+      }
+    },
+    cancel(path: string): boolean {
+      // Check BOTH — never short-circuit. A duplicate delete event for the
+      // same path during an active round can leave a copy in `pending` (a
+      // fresh enqueue) AND a stale copy already snapshotted in-flight at the
+      // same time; cancelling must defeat both; stopping at the first found
+      // would leave the other to still run and delete freshly-recreated
+      // content.
+      const removedFromPending = pending.delete(path);
+      let cancelledInFlightNow = false;
+      if (inFlightPaths?.has(path)) {
+        cancelledInFlight.add(path);
+        cancelledInFlightNow = true;
+      }
+      return removedFromPending || cancelledInFlightNow;
+    },
+    dispose() {
+      disposed = true;
+      if (flushTimer) {
+        clearTimeout(flushTimer);
+        flushTimer = null;
+      }
+      if (cooldownTimer) {
+        clearTimeout(cooldownTimer);
+        cooldownTimer = null;
+      }
+      if (pending.size > 0) {
+        // Deliberately NOT fired here. `deletePath` (rag_delete_path) has no
+        // per-call workspace-scoping parameter — it always targets whatever
+        // workspace is CURRENTLY active on the Rust side. On a workspace
+        // switch, the next effect's `MemoryService.setWorkspace(newRoot)`
+        // can race ahead of an async IPC call fired from here (a Tauri
+        // invoke crosses the IPC boundary asynchronously; there is no
+        // ordering guarantee it reaches the backend before the new
+        // workspace is set). Firing these now risks misrouting an OLD
+        // workspace's deletes into the NEW workspace's index — a worse bug
+        // than the one being avoided. A workspace-scoped delete command
+        // would need a Rust-side signature change, out of scope for this
+        // frontend fix. The Rust boot reconcile heals the OLD workspace's
+        // index the next time it's opened, so these paths are stale until
+        // then, not permanently lost.
+        log(
+          `[memory] workspace closed with ${String(pending.size)} delete(s) still queued; ` +
+            'leaving them for the next boot reconcile rather than risk misrouting to a new workspace',
+        );
+      }
+      pending = new Set();
+    },
+  };
+}
+
+export type WorkspaceFileChangedHandlerDeps = {
+  deleteBatcher: Pick<DeleteBurstBatcher, 'enqueue' | 'cancel'>;
+  workspaceService: MemoryWiringWorkspaceService | null | undefined;
+};
+
+/**
+ * Route one `workspace-file-changed` event: buffer deletes through the burst
+ * batcher, and for a create/modify, first cancel any delete still queued for
+ * the same path (the delete→recreate race guard — see
+ * createDeleteBurstBatcher) before (re)indexing it. Extracted out of the
+ * `listen()` callback so the race guard is unit-testable without standing up
+ * the full Tauri event-listener machinery.
+ */
+export function handleWorkspaceFileChangedEvent(
+  payload: WorkspaceChangeEvent | null | undefined,
+  deps: WorkspaceFileChangedHandlerDeps,
+): void {
+  if (!payload?.path) return;
+  const { deleteBatcher, workspaceService } = deps;
+  // fix/ask-list-hang — NEVER react to churn in the app's own internal
+  // `.lantern/` directory (the MCP session-scope heartbeat rewrites a file
+  // there constantly). This must run BEFORE the delete queue / PDF indexing
+  // below: an internal-file event should never even enter the coalescing
+  // batcher (it would otherwise sit there consuming a debounce window and
+  // a breaker "slot" for something that must never be deleted or indexed)
+  // or trigger a PDF (re)index. Internal files are never user documents.
+  if (isInternalWorkspacePath(payload.path)) return;
+  // Best-effort: don't await, don't surface errors.
+  const isPdf = payload.path.toLowerCase().endsWith('.pdf');
+  if (payload.kind === 'delete') {
+    // Buffered/bounded/backoff-guarded — see createDeleteBurstBatcher.
+    deleteBatcher.enqueue(payload.path);
+    return;
+  }
+  // A create/modify for this path means it exists again — drop any delete
+  // still queued for it (delete-then-recreate within the buffer window, e.g.
+  // an atomic save/replace or a sync restore) so the fresh content isn't
+  // removed moments after being indexed.
+  deleteBatcher.cancel(payload.path);
+  if (isPdf && workspaceService) {
+    // Only re-index PDF on change if the toggle is on.
+    if (isPdfIndexingEnabled() && workspaceService.readFileBinary) {
+      const binaryWs = {
+        readBinary: (p: string) => workspaceService.readFileBinary!(p),
+      };
+      void MemoryService.indexPdfFile(payload.path, binaryWs).catch(() => {});
+    }
+  } else {
+    void MemoryService.indexFile(payload.path);
+  }
+}
+
+/**
  * WS-B/C — diff two matter lists and return the set of folder paths whose
  * matter assignment changed (added, removed, or moved between matters). When a
  * mapping changes we re-index every file under the affected folders so their
@@ -632,6 +1008,22 @@ export function useMemoryWiring(
     let unlisten: (() => void) | null = null;
     const stopModelListeners: Array<() => void> = [];
     let cancelled = false;
+    const deleteBatcher = createDeleteBurstBatcher(
+      (path) => MemoryService.deletePath(path),
+      {
+        onCancelledAfterDelete: (path) => {
+          // A create/modify raced an already-in-flight delete for this path
+          // and lost — the delete finished AFTER the file was recreated, so
+          // it may have just removed the fresh content's chunks. Re-run the
+          // exact same create/modify routing (cancel — a no-op here, the
+          // delete already settled — then (re)index) to restore it.
+          handleWorkspaceFileChangedEvent(
+            { kind: 'modify', path },
+            { deleteBatcher, workspaceService },
+          );
+        },
+      },
+    );
 
     void (async () => {
       try {
@@ -697,29 +1089,10 @@ export function useMemoryWiring(
         const stop = await listen<WorkspaceChangeEvent>(
           'workspace-file-changed',
           (event) => {
-            const payload = event.payload;
-            if (!payload?.path) return;
-            // fix/ask-list-hang — NEVER react to churn in the app's own internal
-            // `.lantern/` directory (the MCP session-scope heartbeat rewrites a
-            // file there constantly). Indexing that churn kept LanceDB busy
-            // forever and hung Ask retrieval. Internal files are never user docs.
-            if (isInternalWorkspacePath(payload.path)) return;
-            // Best-effort: don't await, don't surface errors.
-            const isPdf = payload.path.toLowerCase().endsWith('.pdf');
-            if (payload.kind === 'delete') {
-              void MemoryService.deletePath(payload.path);
-            } else if (isPdf && workspaceService) {
-              // Only re-index PDF on change if the toggle is on.
-              if (isPdfIndexingEnabled() && workspaceService.readFileBinary) {
-                const binaryWs = {
-                  readBinary: (p: string) =>
-                    workspaceService.readFileBinary!(p),
-                };
-                void MemoryService.indexPdfFile(payload.path, binaryWs).catch(() => {});
-              }
-            } else {
-              void MemoryService.indexFile(payload.path);
-            }
+            handleWorkspaceFileChangedEvent(event.payload, {
+              deleteBatcher,
+              workspaceService,
+            });
           },
         );
         if (cancelled) {
@@ -777,6 +1150,7 @@ export function useMemoryWiring(
       stopModelListeners.forEach((s) => {
         s();
       });
+      deleteBatcher.dispose();
     };
     // Depend on workspaceService too. On open the service is created/set AFTER
     // rootPath (the recent-open path sets rootPath, then App creates the service
