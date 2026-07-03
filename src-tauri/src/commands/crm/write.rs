@@ -59,6 +59,8 @@ pub enum CrmWriteError {
     Throttled,
     #[error("a previous identical write may have been delivered — verification pending, retry shortly")]
     VerifyPending,
+    #[error("this exact write is already being sent — wait a moment before retrying")]
+    InProgress,
     #[error("writes are not yet supported for {0}")]
     NotSupported(&'static str),
     #[error("invalid write request: {0}")]
@@ -140,15 +142,22 @@ impl CrmWriteSource for crate::commands::crm::client::WealthboxClient {
         &self,
         req: &CrmWriteRequest,
     ) -> Result<Option<String>, CrmWriteError> {
-        // Recovery path: list recent objects and match on normalized content.
-        // Full-list is acceptable at solo scale; the 1 rps gate bounds cost.
+        // Recovery path: list recent objects and match on normalized content
+        // AND target household. Matching content alone is not proof this write
+        // landed — a different household could hold an identical note/task, or
+        // one could have existed before this attempt ever ran. Full-list is
+        // acceptable at solo scale; the 1 rps gate bounds cost.
+        let contact_id = wealthbox_contact_id(&req.household_key)?;
         match req.kind {
             CrmWriteKind::Note => {
                 let notes = self.list_notes(None).await.map_err(map_http_err)?;
                 let want = norm(&format!("{}\n\n{}", req.title.trim(), req.body.trim()));
                 Ok(notes
                     .iter()
-                    .find(|n| norm(&n.content) == want)
+                    .find(|n| {
+                        norm(&n.content) == want
+                            && n.linked_to.iter().any(|l| l.id == contact_id)
+                    })
                     .map(|n| n.id.to_string()))
             }
             CrmWriteKind::Task => {
@@ -158,6 +167,7 @@ impl CrmWriteSource for crate::commands::crm::client::WealthboxClient {
                     .find(|t| {
                         norm(&t.name) == norm(req.title.trim())
                             && norm(&t.description) == norm(req.body.trim())
+                            && t.linked_to.iter().any(|l| l.id == contact_id)
                     })
                     .map(|t| t.id.to_string()))
             }
@@ -189,9 +199,27 @@ fn map_http_err(e: anyhow::Error) -> CrmWriteError {
     CrmWriteError::VerifyPending
 }
 
+/// RAII claim on a dedup key, scoped to one `CrmStore` (see
+/// `CrmStore::claim_in_flight_write`) — releases it on drop so an early
+/// return (via `?`) can never leave a key stuck claimed.
+struct InFlightClaim<'a> {
+    store: &'a crate::commands::crm::store::CrmStore,
+    key: String,
+}
+impl Drop for InFlightClaim<'_> {
+    fn drop(&mut self) {
+        self.store.release_in_flight_write(&self.key);
+    }
+}
+
 /// Idempotent, verify-before-resend orchestration around a `CrmWriteSource`.
 ///
 /// Semantics:
+/// 0. Claim an in-process in-flight slot for `dedup_key(req)` on `store`; a
+///    concurrent call for the identical write (e.g. a rapid double-approve)
+///    is rejected immediately (`InProgress`) rather than racing the ledger —
+///    without this, two overlapping calls could both see no-row-yet/
+///    `pending` and both post, defeating the ledger's idempotency guarantee.
 /// 1. `key = dedup_key(req)`; look up the ledger.
 /// 2. `sent` → return the recorded receipt (never re-post).
 /// 3. `pending_verify` → call `find_recent_matching`; found → mark `sent`,
@@ -208,6 +236,12 @@ pub async fn push_crm_write(
     req: &CrmWriteRequest,
 ) -> Result<WriteReceipt, CrmWriteError> {
     let key = dedup_key(req);
+
+    if !store.claim_in_flight_write(&key) {
+        return Err(CrmWriteError::InProgress);
+    }
+    let _claim = InFlightClaim { store, key: key.clone() };
+
     let existing = store.outbound_get(&key).map_err(|_| CrmWriteError::InvalidInput("ledger read failed"))?;
 
     if let Some(row) = &existing {
@@ -389,6 +423,63 @@ mod tests {
         assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 2);
     }
 
+    #[tokio::test]
+    async fn concurrent_identical_pushes_second_is_rejected_as_in_progress() {
+        let (_dir, store) = test_store();
+
+        struct SlowSource {
+            started: std::sync::Arc<tokio::sync::Notify>,
+            proceed: std::sync::Arc<tokio::sync::Notify>,
+            calls: std::sync::atomic::AtomicUsize,
+        }
+        #[async_trait::async_trait]
+        impl CrmWriteSource for SlowSource {
+            fn provider_id(&self) -> &'static str {
+                "wealthbox"
+            }
+            async fn create_note(&self, _r: &CrmWriteRequest) -> Result<String, CrmWriteError> {
+                self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                self.started.notify_one();
+                self.proceed.notified().await;
+                Ok("555".into())
+            }
+            async fn create_task(&self, r: &CrmWriteRequest) -> Result<String, CrmWriteError> {
+                self.create_note(r).await
+            }
+            async fn find_recent_matching(
+                &self,
+                _r: &CrmWriteRequest,
+            ) -> Result<Option<String>, CrmWriteError> {
+                Ok(None)
+            }
+        }
+
+        let source = SlowSource {
+            started: std::sync::Arc::new(tokio::sync::Notify::new()),
+            proceed: std::sync::Arc::new(tokio::sync::Notify::new()),
+            calls: std::sync::atomic::AtomicUsize::new(0),
+        };
+        let req = note_req();
+
+        // First call claims the in-flight slot and blocks inside create_note
+        // until signaled. The second call, released only once the first has
+        // provably already claimed the slot, must be rejected immediately
+        // instead of racing the ledger and posting a duplicate.
+        let (first, second) = tokio::join!(
+            push_crm_write(&source, &store, &req),
+            async {
+                source.started.notified().await;
+                let result = push_crm_write(&source, &store, &req).await;
+                source.proceed.notify_one();
+                result
+            }
+        );
+
+        assert!(matches!(second, Err(CrmWriteError::InProgress)));
+        assert_eq!(first.unwrap().remote_id, "555");
+        assert_eq!(source.calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
     fn note_req() -> CrmWriteRequest {
         CrmWriteRequest {
             kind: CrmWriteKind::Note,
@@ -456,6 +547,28 @@ mod tests {
         req.household_key = "sfdc:001XYZ".into();
         let err = client.create_note(&req).await.unwrap_err();
         assert!(matches!(err, CrmWriteError::InvalidInput(_)));
+    }
+
+    #[tokio::test]
+    async fn find_recent_matching_ignores_identical_content_on_another_household() {
+        use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(matchers::method("GET"))
+            .and(matchers::path("/notes"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "status_updates": [{
+                    "id": 999,
+                    "content": "Q3 review follow-up\n\nDiscussed 529 rollover.",
+                    "linked_to": [{"id": 99999, "type": "Contact", "name": "Someone Else"}],
+                }]
+            })))
+            .mount(&server)
+            .await;
+        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        // note_req() targets household 12345 — the identical-content note above
+        // belongs to a different household (99999) and must NOT count as a match.
+        let found = client.find_recent_matching(&note_req()).await.unwrap();
+        assert_eq!(found, None, "identical content on a different household is not this write");
     }
 
     #[test]

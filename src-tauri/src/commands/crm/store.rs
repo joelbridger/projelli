@@ -139,6 +139,12 @@ pub struct CrmStore {
     conn: std::sync::Mutex<Connection>,
     #[allow(dead_code)]
     workspace_root: PathBuf,
+    /// Dedup keys of outbound CRM writes currently mid-send (see
+    /// `write.rs::push_crm_write`). Scoped to this store instance (one per
+    /// open workspace) rather than a process-wide static, so unrelated
+    /// workspaces — and unrelated tests, each of which opens its own store —
+    /// never contend on the same key.
+    in_flight_writes: std::sync::Mutex<std::collections::HashSet<String>>,
 }
 
 impl CrmStore {
@@ -210,6 +216,7 @@ impl CrmStore {
         Ok(Self {
             conn: std::sync::Mutex::new(conn),
             workspace_root: workspace_root.to_path_buf(),
+            in_flight_writes: std::sync::Mutex::new(std::collections::HashSet::new()),
         })
     }
 
@@ -679,6 +686,19 @@ impl CrmStore {
             ],
         )?;
         Ok(())
+    }
+
+    /// Atomically claim `key` as an in-flight outbound write. Returns `true`
+    /// if this call won the claim, `false` if another in-flight call already
+    /// holds it (the caller must not proceed with the send). Pair with
+    /// [`Self::release_in_flight_write`] — always release, even on error.
+    pub fn claim_in_flight_write(&self, key: &str) -> bool {
+        self.in_flight_writes.lock().unwrap().insert(key.to_string())
+    }
+
+    /// Release a key previously won via [`Self::claim_in_flight_write`].
+    pub fn release_in_flight_write(&self, key: &str) {
+        self.in_flight_writes.lock().unwrap().remove(key);
     }
 
     /// Delete every locally-imported Wealthbox object by removing the encrypted
