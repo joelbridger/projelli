@@ -32,6 +32,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Book view + whole-practice Ask (Lantern-Plus Wave 4, Tracks B/C)** — two new
+  book-level lenses on the existing 3-tab IA, no new tabs.
+  - **Book view**: a "Whole book" segment inside the Client Map tab ranking every
+    active client by a numeric 0-100 completeness score, staleness, and open gaps —
+    neediest first. Click a row to open that client's hub.
+  - **Estate/beneficiary mismatch detection**: a local, deterministic pass that
+    recognizes wills/trusts/beneficiary-designation forms/POAs among a client's
+    sources, cross-checks named beneficiaries against each other and dated life
+    events, and surfaces MISMATCH/STALE/MISSING findings through the existing gap
+    machinery (the "What I'm missing" panel + Book view gap chips). Every finding
+    carries "Flagged for your review. Not legal advice."; a dismissal is audit-logged.
+  - **Whole-practice Ask**: a new "Whole practice" scope that answers book-level
+    questions by aggregating each client's already-built Client Map summary — it
+    never calls raw cross-matter retrieval (guarded by a dedicated test). Requires
+    an all-clients file-access consent grant before a cloud send (same gate normal
+    Ask enforces); results show one chip per matching client with inline cited
+    facts, each opening that client's Client Map or the exact source passage.
+  - Files: `src/features/matters/book/{bookRanking,BookView}.ts(x)`,
+    `src/platform/clientMap/estate/{estateDocs,beneficiaryConsistency}.ts`,
+    `src/features/ask/book/{bookFacts,wholePracticeAsk,BookAnswerPanel}.ts(x)`,
+    `src/features/ask/ScopeToggle.tsx` (`ScopeStatusPill`), `src/features/ask/Ask.tsx`.
+
 - **Field-level blended CRM updates (Task 9c)** — a 3-column review
   (Existing / From this meeting / Blended) folded into the existing
   Wealthbox write-back card for a single allowlisted narrative field
