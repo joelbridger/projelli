@@ -50,11 +50,46 @@ describe('todayWindowUtc', () => {
   it('spans local midnight to local midnight as UTC instants', () => {
     const now = new Date('2026-07-02T09:00:00');
     const { fromUtc, toUtc } = todayWindowUtc(now);
-    expect(new Date(toUtc).getTime() - new Date(fromUtc).getTime()).toBe(
-      24 * 3600 * 1000
-    );
     expect(new Date(fromUtc).getTime()).toBeLessThanOrEqual(now.getTime());
     expect(new Date(toUtc).getTime()).toBeGreaterThan(now.getTime());
+  });
+
+  it('ends at the NEXT LOCAL CALENDAR DATE, not "start + 24h" (DST-safe)', () => {
+    // COORDINATOR FINDING (P2): midnight + 24h is wrong on a DST transition
+    // day (23h "spring forward" / 25h "fall back") — the end would land an
+    // hour before or after the next day's actual local midnight, either
+    // cutting off or over-including an hour of events. This test can't
+    // literally observe a wall-clock DST jump (this environment runs in
+    // UTC, which has no DST), so it checks the STRUCTURAL property the fix
+    // guarantees instead: `toUtc`, read back through local calendar
+    // components, is exactly one calendar day after `fromUtc` — built from
+    // date components (which correctly rolls day/month/year and would
+    // correctly skip/repeat an hour across a real DST boundary), not from
+    // a fixed millisecond offset.
+    const now = new Date('2026-07-02T09:00:00');
+    const { fromUtc, toUtc } = todayWindowUtc(now);
+    const start = new Date(fromUtc);
+    const end = new Date(toUtc);
+    const expectedEnd = new Date(
+      start.getFullYear(),
+      start.getMonth(),
+      start.getDate() + 1
+    );
+    expect(end.getFullYear()).toBe(expectedEnd.getFullYear());
+    expect(end.getMonth()).toBe(expectedEnd.getMonth());
+    expect(end.getDate()).toBe(expectedEnd.getDate());
+    expect(end.getHours()).toBe(0);
+    expect(end.getMinutes()).toBe(0);
+    expect(end.getSeconds()).toBe(0);
+  });
+
+  it('rolls over a month/year boundary correctly (Dec 31 -> Jan 1)', () => {
+    const now = new Date('2026-12-31T09:00:00');
+    const { toUtc } = todayWindowUtc(now);
+    const end = new Date(toUtc);
+    expect(end.getFullYear()).toBe(2027);
+    expect(end.getMonth()).toBe(0);
+    expect(end.getDate()).toBe(1);
   });
 });
 
