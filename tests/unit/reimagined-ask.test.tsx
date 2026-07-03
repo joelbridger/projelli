@@ -20,10 +20,12 @@ vi.mock('@/platform/matter/matterStore', () => ({
 }));
 
 let mockRootPath: string | null = null;
-vi.mock('@/platform/fs/workspaceStore', () => ({
-  useWorkspaceStore: (selector: (s: { rootPath: string | null }) => unknown) =>
-    selector({ rootPath: mockRootPath }),
-}));
+vi.mock('@/platform/fs/workspaceStore', () => {
+  const useWorkspaceStore = (selector: (s: { rootPath: string | null }) => unknown) =>
+    selector({ rootPath: mockRootPath });
+  useWorkspaceStore.getState = () => ({ rootPath: mockRootPath });
+  return { useWorkspaceStore };
+});
 
 let mockProfession = 'legal';
 
@@ -118,7 +120,14 @@ vi.mock('@/platform/state/aiChatStore', () => {
   const hook = (selector: (s: unknown) => unknown) =>
     selector({ initSession: mockInitSession, setSessionWorkspaceRoot: () => undefined, addMessage: mockAddMessage, updateLastMessage: mockUpdateLastMessage, sessions: mockSessions });
   hook.getState = () => ({ initSession: mockInitSession, setSessionWorkspaceRoot: () => undefined, addMessage: mockAddMessage, updateLastMessage: mockUpdateLastMessage, sessions: mockSessions });
-  return { useAIChatStore: hook };
+  // F2.5 — Ask reads per-conversation file-access consent; granted (all-clients)
+  // here so these tests exercise the consented retrieval path.
+  const GRANTED = { state: 'granted', grantedScope: { kind: 'allMatters' } };
+  return {
+    useAIChatStore: hook,
+    useFileAccessConsent: () => GRANTED,
+    getFileAccessConsent: () => GRANTED,
+  };
 });
 
 describe('Ask', () => {

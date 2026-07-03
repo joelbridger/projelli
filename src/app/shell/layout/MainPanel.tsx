@@ -1,7 +1,7 @@
 // Main Panel Component
 // Contains the editor area with tabs, split panes, and side panels
 
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ApiKeySetupCard,
@@ -25,23 +25,18 @@ import { PDFViewer, isPDFFile, isSpreadsheetFile, isPresentationFile, isWordFile
 // components below. DocxViewer is still exported for read-only contexts but
 // MainPanel uses DocxEditor (which also wraps viewer fallbacks) whenever the
 // user can edit the file.
-const MarkdownPreview = lazy(() =>
-  import('@/features/documents/editor/MarkdownPreview').then((m) => ({ default: m.MarkdownPreview }))
-);
-const WaveformEditor = lazy(() =>
-  import('@/features/dictation/audio/WaveformEditor').then((m) => ({ default: m.WaveformEditor }))
-);
-const SpreadsheetViewer = lazy(() =>
-  import('@/features/documents/media/SpreadsheetViewer').then((m) => ({ default: m.SpreadsheetViewer }))
-);
-const DocxEditor = lazy(() =>
-  import('@/features/documents/media/DocxEditor').then((m) => ({ default: m.DocxEditor }))
-);
-const PresentationViewer = lazy(() =>
+const loadMarkdownPreview = () =>
+  import('@/features/documents/editor/MarkdownPreview').then((m) => ({ default: m.MarkdownPreview }));
+const loadWaveformEditor = () =>
+  import('@/features/dictation/audio/WaveformEditor').then((m) => ({ default: m.WaveformEditor }));
+const loadSpreadsheetViewer = () =>
+  import('@/features/documents/media/SpreadsheetViewer').then((m) => ({ default: m.SpreadsheetViewer }));
+const loadDocxEditor = () =>
+  import('@/features/documents/media/DocxEditor').then((m) => ({ default: m.DocxEditor }));
+const loadPresentationViewer = () =>
   import('@/features/documents/media/PresentationViewer').then((m) => ({
     default: m.PresentationViewer,
-  }))
-);
+  }));
 import { SourceFileEditor } from '@/features/ask/research/SourceFileEditor';
 import { AIChatViewer } from '@/features/ask/AIChatViewer';
 import { FileGridView } from '@/features/documents/workspace/FileGridView';
@@ -86,6 +81,7 @@ import { detectOllama } from '@/platform/providers/OllamaProvider';
 import { useLocalLlmModelStatus } from '@/platform/hooks/useLocalLlmModelStatus';
 import { isAudioFile, getFileExtension, shouldVersionFile, isDiskVersioned } from './mainPanelHelpers';
 import { DocLoadingFallback, DocLegacyFallback } from './MainPanelDocFallbacks';
+import { LazyBoundary } from '@/ui/LazyBoundary';
 
 import type {
   WorkflowTemplate,
@@ -740,13 +736,20 @@ export function MainPanel({
       // gets the waveform + edit tools, not a bare HTML5 video player.
       if (isAudio) {
         return (
-          <Suspense fallback={<DocLoadingFallback fileName={tab.name} />}>
-            <WaveformEditor
-              audioSrc={tab.content}
-              filename={tab.name}
-              className="h-full"
-            />
-          </Suspense>
+          <LazyBoundary
+            loader={loadWaveformEditor}
+            resetKey={tab.path}
+            fallback={<DocLoadingFallback fileName={tab.name} />}
+            label={tab.name}
+          >
+            {(WaveformEditor) => (
+              <WaveformEditor
+                audioSrc={tab.content}
+                filename={tab.name}
+                className="h-full"
+              />
+            )}
+          </LazyBoundary>
         );
       }
       if (isVideo) {
@@ -757,25 +760,39 @@ export function MainPanel({
       }
       if (isSpreadsheet) {
         return (
-          <Suspense fallback={<DocLoadingFallback fileName={tab.name} />}>
-            <SpreadsheetViewer
-              src={tab.content}
-              fileName={tab.name}
-              onContentChange={onContentChange}
-              onFirstEdit={() => writeBackupIfNeeded(tab.path)}
-            />
-          </Suspense>
+          <LazyBoundary
+            loader={loadSpreadsheetViewer}
+            resetKey={tab.path}
+            fallback={<DocLoadingFallback fileName={tab.name} />}
+            label={tab.name}
+          >
+            {(SpreadsheetViewer) => (
+              <SpreadsheetViewer
+                src={tab.content}
+                fileName={tab.name}
+                onContentChange={onContentChange}
+                onFirstEdit={() => writeBackupIfNeeded(tab.path)}
+              />
+            )}
+          </LazyBoundary>
         );
       }
       if (isPresentation) {
         return (
-          <Suspense fallback={<DocLoadingFallback fileName={tab.name} />}>
-            <PresentationViewer
-              src={tab.content}
-              fileName={tab.name}
-              filePath={tab.path}
-            />
-          </Suspense>
+          <LazyBoundary
+            loader={loadPresentationViewer}
+            resetKey={tab.path}
+            fallback={<DocLoadingFallback fileName={tab.name} />}
+            label={tab.name}
+          >
+            {(PresentationViewer) => (
+              <PresentationViewer
+                src={tab.content}
+                fileName={tab.name}
+                filePath={tab.path}
+              />
+            )}
+          </LazyBoundary>
         );
       }
       if (isWord) {
@@ -789,22 +806,29 @@ export function MainPanel({
         // `.doc` (legacy binary) still gets the LibreOffice-convert fallback.
         if (extension?.toLowerCase() === 'docx') {
           return (
-            <Suspense fallback={<DocLoadingFallback fileName={tab.name} />}>
-              {/* WS-C honesty — in Local-only mode the redline runs on the
-                  local model (Ollama) so nothing leaves the machine. */}
-              <DocxEditor
-                key={`docx-${tab.path}-${docxReloadNonce}`}
-                filePath={tab.path}
-                src={tab.content}
-                fileName={tab.name}
-                onFirstEdit={() => writeBackupIfNeeded(tab.path)}
-                onAfterSave={handleDocxAfterSave}
-                apiKeys={apiKeys}
-                aiProvider={redlineProvider}
-                {...(redlineLocalOnly && redlineOllamaModel ? { aiModel: redlineOllamaModel } : {})}
-                {...(onAuditLog ? { onAuditLog } : {})}
-              />
-            </Suspense>
+            <LazyBoundary
+              loader={loadDocxEditor}
+              resetKey={tab.path}
+              fallback={<DocLoadingFallback fileName={tab.name} />}
+              label={tab.name}
+            >
+              {(DocxEditor) => (
+                // WS-C honesty — in Local-only mode the redline runs on the
+                // local model (Ollama) so nothing leaves the machine.
+                <DocxEditor
+                  key={`docx-${tab.path}-${docxReloadNonce}`}
+                  filePath={tab.path}
+                  src={tab.content}
+                  fileName={tab.name}
+                  onFirstEdit={() => writeBackupIfNeeded(tab.path)}
+                  onAfterSave={handleDocxAfterSave}
+                  apiKeys={apiKeys}
+                  aiProvider={redlineProvider}
+                  {...(redlineLocalOnly && redlineOllamaModel ? { aiModel: redlineOllamaModel } : {})}
+                  {...(onAuditLog ? { onAuditLog } : {})}
+                />
+              )}
+            </LazyBoundary>
           );
         }
         return (
@@ -822,12 +846,19 @@ export function MainPanel({
 
       if (isPreviewMode && isMarkdown && !isSecondary) {
         return (
-          <Suspense fallback={<DocLoadingFallback fileName={tab.name} />}>
-            <MarkdownPreview
-              content={tab.content}
-              className="h-full"
-            />
-          </Suspense>
+          <LazyBoundary
+            loader={loadMarkdownPreview}
+            resetKey={tab.path}
+            fallback={<DocLoadingFallback fileName={tab.name} />}
+            label={tab.name}
+          >
+            {(MarkdownPreview) => (
+              <MarkdownPreview
+                content={tab.content}
+                className="h-full"
+              />
+            )}
+          </LazyBoundary>
         );
       }
 

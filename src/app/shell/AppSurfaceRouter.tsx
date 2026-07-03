@@ -10,12 +10,11 @@
  * delegates rendering to the appropriate surface component.
  */
 
-import { lazy, Suspense } from 'react';
 import { MattersHome } from '@/features/matters/MattersHome';
 import { Ask } from '@/features/ask/Ask';
 import { DocumentsHome } from '@/features/documents/DocumentsHome';
 import { AssociateHome } from '@/features/workflows/AssociateHome';
-import { ErrorBoundary } from '@/ui/ErrorBoundary';
+import { LazyBoundary } from '@/ui/LazyBoundary';
 import { MainPanel } from '@/app/shell/layout/MainPanel';
 import { SurfaceLoadingFallback } from '@/app/shell/common/SurfaceLoadingFallback';
 import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
@@ -43,16 +42,13 @@ import { EV_OPEN_ACCOUNT, EV_OPEN_EMAIL, SK_FIRM_NAME } from '@/config/identity'
 // every settings section) that a user may never open in a given session.
 // Client Map (matters), Ask, and Documents stay eager — those are the primary
 // demo path and must open instantly with no Suspense flash.
-const EmailWorkspace = lazy(() =>
-  import('@/features/email/EmailWorkspace').then((m) => ({ default: m.EmailWorkspace }))
-);
-const AuditHome = lazy(() =>
-  import('@/features/audit/AuditHome').then((m) => ({ default: m.AuditHome }))
-);
-const PrivacyCenterHome = lazy(() =>
-  import('@/features/privacy/PrivacyCenterHome').then((m) => ({ default: m.PrivacyCenterHome }))
-);
-const SettingsContent = lazy(() => import('@/features/settings/SettingsContent'));
+const loadEmailWorkspace = () =>
+  import('@/features/email/EmailWorkspace').then((m) => ({ default: m.EmailWorkspace }));
+const loadAuditHome = () =>
+  import('@/features/audit/AuditHome').then((m) => ({ default: m.AuditHome }));
+const loadPrivacyCenterHome = () =>
+  import('@/features/privacy/PrivacyCenterHome').then((m) => ({ default: m.PrivacyCenterHome }));
+const loadSettingsContent = () => import('@/features/settings/SettingsContent');
 
 export interface AppSurfaceRouterProps {
   sidebarActiveTab: AppSurface;
@@ -183,27 +179,30 @@ export function AppSurfaceRouter({
       label: 'Privacy Center',
       testid: 'settings-category-privacy-center',
       content: (
-        <Suspense fallback={<SurfaceLoadingFallback />}>
-          <PrivacyCenterHome auditEntries={auditEntries} activeMatter={activeMatter} />
-        </Suspense>
+        <LazyBoundary loader={loadPrivacyCenterHome} fallback={<SurfaceLoadingFallback />} label="Privacy Center">
+          {(PrivacyCenterHome) => (
+            <PrivacyCenterHome auditEntries={auditEntries} activeMatter={activeMatter} />
+          )}
+        </LazyBoundary>
       ),
     },
     {
       id: 'activity-log',
       label: 'Activity Log',
       testid: 'settings-category-activity-log',
-      // Same error-boundary guard the standalone Activity Log surface uses:
-      // a malformed audit row must never white-screen the Settings page.
+      // LazyBoundary's own error boundary covers both a failed chunk fetch
+      // AND a malformed audit row thrown later — a bad row must never
+      // white-screen the Settings page.
       content: (
-        <ErrorBoundary label="Activity Log">
-          <Suspense fallback={<SurfaceLoadingFallback />}>
+        <LazyBoundary loader={loadAuditHome} fallback={<SurfaceLoadingFallback />} label="Activity Log">
+          {(AuditHome) => (
             <AuditHome
               entries={auditEntries}
               integrity={auditIntegrity}
               onVerifyIntegrity={verifyAuditIntegrity}
             />
-          </Suspense>
-        </ErrorBoundary>
+          )}
+        </LazyBoundary>
       ),
     },
   ];
@@ -298,44 +297,62 @@ export function AppSurfaceRouter({
   );
 
   const buildEmailWorkspace = (opts: { embedded?: boolean; scopeMatterId?: string }) => (
-    <Suspense fallback={<SurfaceLoadingFallback />}>
-    <EmailWorkspace
-      // Per-client key — remount on client switch so Email selections / open
-      // detail don't carry from one client into the next (matter isolation).
-      key={opts.scopeMatterId}
-      onSaveToWorkspace={async (content, suggestedName) => {
-        if (!workspaceServiceRef.current || !rootPath) return;
-        // Word-first: saved email content becomes a real .docx.
-        const { resolveUniqueName } = await import('@/platform/utils/fileDrop');
-        const { markdownToDocxBytes, docxBytesToDataUrl } = await import('@/platform/utils/docx-io');
-        const firmName = (() => { try { return localStorage.getItem(SK_FIRM_NAME) ?? ''; } catch { return ''; } })();
-        const base = suggestedName.replace(/\.(md|markdown|txt)$/i, '');
-        const finalName = await resolveUniqueName(workspaceServiceRef.current, rootPath, `${base}.docx`);
-        const path = workspacePath(rootPath, finalName);
-        const bytes = await markdownToDocxBytes(content, finalName, { firmName });
-        const buffer = new ArrayBuffer(bytes.byteLength);
-        new Uint8Array(buffer).set(bytes);
-        await workspaceServiceRef.current.writeFileBinary(path, buffer);
-        const tree = await workspaceServiceRef.current.getFileTree();
-        setFileTree(tree);
-        openFile(path, finalName, docxBytesToDataUrl(bytes));
-      }}
-      onOpenSettings={() => {
-        window.dispatchEvent(new CustomEvent(EV_OPEN_ACCOUNT, { detail: { tab: 'connections' } }));
-      }}
-      {...(opts.embedded ? { embedded: true } : {})}
-    />
-    </Suspense>
+    <LazyBoundary
+      loader={loadEmailWorkspace}
+      // A render error on one client's Email must not stay stuck when the
+      // embedded per-client sub-tab switches to a DIFFERENT client — same
+      // `loadEmailWorkspace` loader, different content.
+      resetKey={opts.scopeMatterId}
+      fallback={<SurfaceLoadingFallback />}
+      label="Email"
+    >
+      {(EmailWorkspace) => (
+        <EmailWorkspace
+          // Per-client key — remount on client switch so Email selections / open
+          // detail don't carry from one client into the next (matter isolation).
+          key={opts.scopeMatterId}
+          onSaveToWorkspace={async (content, suggestedName) => {
+            if (!workspaceServiceRef.current || !rootPath) return;
+            // Word-first: saved email content becomes a real .docx.
+            const { resolveUniqueName } = await import('@/platform/utils/fileDrop');
+            const { markdownToDocxBytes, docxBytesToDataUrl } = await import('@/platform/utils/docx-io');
+            const firmName = (() => { try { return localStorage.getItem(SK_FIRM_NAME) ?? ''; } catch { return ''; } })();
+            const base = suggestedName.replace(/\.(md|markdown|txt)$/i, '');
+            const finalName = await resolveUniqueName(workspaceServiceRef.current, rootPath, `${base}.docx`);
+            const path = workspacePath(rootPath, finalName);
+            const bytes = await markdownToDocxBytes(content, finalName, { firmName });
+            const buffer = new ArrayBuffer(bytes.byteLength);
+            new Uint8Array(buffer).set(bytes);
+            await workspaceServiceRef.current.writeFileBinary(path, buffer);
+            const tree = await workspaceServiceRef.current.getFileTree();
+            setFileTree(tree);
+            openFile(path, finalName, docxBytesToDataUrl(bytes));
+          }}
+          onOpenSettings={() => {
+            window.dispatchEvent(new CustomEvent(EV_OPEN_ACCOUNT, { detail: { tab: 'connections' } }));
+          }}
+          {...(opts.embedded ? { embedded: true } : {})}
+        />
+      )}
+    </LazyBoundary>
   );
 
   const buildActivity = (opts: { scopeMatterId?: string }) => (
-    // Error boundary: the Activity Log is the "auditable / inspectable" trust
-    // surface, so one malformed audit row must never white-screen the whole
-    // app — contain any render failure here.
-    <ErrorBoundary label="Activity Log">
-      {/* Per-client key — remount on client switch so the Activity detail panel
-          / filters don't carry from one client into the next (matter isolation). */}
-      <Suspense fallback={<SurfaceLoadingFallback />}>
+    // LazyBoundary's error boundary is the "auditable / inspectable" trust
+    // surface guard: it contains BOTH a failed chunk fetch and a malformed
+    // audit row thrown later, so neither can white-screen the whole app.
+    // resetKey: a render error on one client's Activity log must not stay
+    // stuck when the embedded per-client sub-tab switches clients — same
+    // `loadAuditHome` loader, different content.
+    <LazyBoundary
+      loader={loadAuditHome}
+      resetKey={opts.scopeMatterId}
+      fallback={<SurfaceLoadingFallback />}
+      label="Activity Log"
+    >
+      {(AuditHome) => (
+        // Per-client key — remount on client switch so the Activity detail panel
+        // / filters don't carry from one client into the next (matter isolation).
         <AuditHome
           key={opts.scopeMatterId}
           entries={auditEntries}
@@ -343,8 +360,8 @@ export function AppSurfaceRouter({
           onVerifyIntegrity={verifyAuditIntegrity}
           {...(opts.scopeMatterId ? { scopeMatterId: opts.scopeMatterId } : {})}
         />
-      </Suspense>
-    </ErrorBoundary>
+      )}
+    </LazyBoundary>
   );
 
   return (
@@ -429,25 +446,29 @@ export function AppSurfaceRouter({
       ) : sidebarActiveTab ==='audit' ? (
         buildActivity({})
       ) : sidebarActiveTab ==='privacy' ? (
-        <Suspense fallback={<SurfaceLoadingFallback />}>
-          <PrivacyCenterHome auditEntries={auditEntries} activeMatter={activeMatter} />
-        </Suspense>
+        <LazyBoundary loader={loadPrivacyCenterHome} fallback={<SurfaceLoadingFallback />} label="Privacy Center">
+          {(PrivacyCenterHome) => (
+            <PrivacyCenterHome auditEntries={auditEntries} activeMatter={activeMatter} />
+          )}
+        </LazyBoundary>
       ) : sidebarActiveTab ==='settings' ? (
         // Full-page Settings surface — the SAME content as the quick modal
         // (5-section nav, search, accordion sub-sections, Export/Import/Reset),
         // rendered in the main window instead of a dialog. The gear / Ctrl+,
         // modal still works for quick, deep-linked access.
         <div className="flex-1 min-w-0 min-h-0 flex flex-col" data-testid="settings-page">
-          <Suspense fallback={<SurfaceLoadingFallback />}>
-            <SettingsContent
-              variant="page"
-              auditEntries={auditEntries}
-              templates={loadAllTemplates()}
-              onAction={handleSettingsAction}
-              onRestartOnboarding={handleSettingsRestartOnboarding}
-              extraSections={settingsNestedSections}
-            />
-          </Suspense>
+          <LazyBoundary loader={loadSettingsContent} fallback={<SurfaceLoadingFallback />} label="Settings">
+            {(SettingsContent) => (
+              <SettingsContent
+                variant="page"
+                auditEntries={auditEntries}
+                templates={loadAllTemplates()}
+                onAction={handleSettingsAction}
+                onRestartOnboarding={handleSettingsRestartOnboarding}
+                extraSections={settingsNestedSections}
+              />
+            )}
+          </LazyBoundary>
         </div>
       ) : (
       <MainPanel

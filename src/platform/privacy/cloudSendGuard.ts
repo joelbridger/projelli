@@ -43,7 +43,7 @@ const SETTINGS_PERSIST_KEY = SK_SETTINGS;
  * Local-only user's send could otherwise slip through before rehydration. The
  * raw value is authoritative the instant the app starts.
  */
-function persistedConfidentialityModeRaw(): ConfidentialityMode | undefined {
+export function persistedConfidentialityModeRaw(): ConfidentialityMode | undefined {
   try {
     if (typeof localStorage === 'undefined') return undefined;
     const raw = localStorage.getItem(SETTINGS_PERSIST_KEY);
@@ -93,4 +93,28 @@ export function assertCloudSendAllowed(providerId: string): void {
   if (isLocalOnlyModeFailClosed()) {
     throw new LocalOnlyEgressError(providerId);
   }
+}
+
+/**
+ * True when the persisted confidentiality choice EXPLICITLY reads
+ * 'local-only'. Reads storage directly (see `persistedConfidentialityModeRaw`)
+ * instead of the in-memory Zustand settings store, so this is correct even
+ * during the store's hydration window at app start — the in-memory store
+ * still reports the schema default ('direct') until rehydration completes,
+ * so a connector sync triggered in that split-second window could otherwise
+ * slip a real network call past a user who had GENUINELY chosen Local-only.
+ *
+ * Distinct from `isLocalOnlyModeFailClosed()`: that guard exists for cloud-AI
+ * GENERATION, where "no explicit choice recorded yet" must ALSO block (the
+ * personal-install choice gate — see `resolvePersonalEgressDefault.ts`).
+ * User-authorized CONNECTOR syncs (OneDrive, ShareFile, Wealthbox, email, ...)
+ * are not subject to that AI-choice gate: for them "no persisted value" just
+ * means the user hasn't touched the setting yet, so the schema default
+ * (`direct`) applies and the sync proceeds — only an EXPLICIT 'local-only'
+ * choice should pause them. Use this (not `isLocalOnlyMode()` and not
+ * `isLocalOnlyModeFailClosed()`) as the enforcement check immediately before
+ * a connector's external call.
+ */
+export function isPersistedLocalOnly(): boolean {
+  return persistedConfidentialityModeRaw() === 'local-only';
 }

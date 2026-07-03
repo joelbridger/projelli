@@ -17,7 +17,7 @@ import {
 } from '@/platform/utils/sharefile-commands';
 import { getMatters, useMatterStore } from '@/platform/matter/matterStore';
 import { buildSharefileMatterMap } from '@/platform/rag/matterResolver';
-import { assertLocalOnlyAllowsExternal } from '@/platform/privacy/localOnlyGuard';
+import { isPersistedLocalOnly } from '@/platform/privacy/localOnlyGuard';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import type { Matter } from '@/platform/types/matter';
 
@@ -113,9 +113,20 @@ export function ShareFileConnect() {
 
   async function connect() {
     setError(null);
+    // A user-authorized connector (pulls the user's own files in, never sends
+    // to a cloud AI) — gate on `isPersistedLocalOnly()`, which reads the
+    // persisted mode directly instead of the in-memory settings store (still
+    // reporting the schema default during the hydration window at app start),
+    // so a sync triggered in that window can't slip past a genuinely-chosen
+    // Local-only mode, while "no choice recorded yet" still allows the sync —
+    // matching every other connector, instead of the fail-closed AI-send guard
+    // this used to (incorrectly) call.
+    if (isPersistedLocalOnly()) {
+      setError('Local-only mode is on, so ShareFile sync is paused. Turn off Local-only mode in the Privacy Center to import documents from ShareFile.');
+      return;
+    }
     setBusy(true);
     try {
-      assertLocalOnlyAllowsExternal('ShareFile document sync');
       await sharefileConnect(accessToken, subdomain);
       setAccessToken('');
       setConnected(true);
@@ -132,9 +143,12 @@ export function ShareFileConnect() {
 
   async function syncNow() {
     setError(null);
+    if (isPersistedLocalOnly()) {
+      setError('Local-only mode is on, so ShareFile sync is paused. Turn off Local-only mode in the Privacy Center to import documents from ShareFile.');
+      return;
+    }
     setSyncing(true);
     try {
-      assertLocalOnlyAllowsExternal('ShareFile document sync');
       await autoLinkSharefileFolders();
       const result = await sharefileSync(buildSharefileMatterMap(getMatters()));
       setReport(result);

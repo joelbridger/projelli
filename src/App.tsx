@@ -5,7 +5,7 @@
  * where AI proposes and the user approves all destructive actions.
  */
 
-import { useState, useCallback, useRef, useEffect, useMemo, lazy, Suspense } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { workspacePath } from '@/platform/fs/appPath';
 import { useGlobalEventBus, type AppSurface } from '@/app/lifecycle/useGlobalEventBus';
 import { useAutosave } from '@/app/lifecycle/useAutosave';
@@ -32,6 +32,7 @@ import { TrustBar } from '@/app/shell/layout/TrustBar';
 import { StatusBar } from '@/app/shell/layout/StatusBar';
 import { AppDialogs } from '@/app/shell/AppDialogs';
 import { AppSurfaceRouter } from '@/app/shell/AppSurfaceRouter';
+import { LazyBoundary } from '@/ui/LazyBoundary';
 
 import { ProjectManager } from '@/features/documents/workspace/ProjectManager';
 import { Button } from '@/ui/button';
@@ -113,7 +114,7 @@ import { installEarlyConnectorEventBridge } from '@/app/shell/connectorEventBrid
 // Nine connector citation viewers, none of which render anything until their
 // own window event fires — bundled into one lazy chunk (see
 // ConnectorSourcePanels.tsx) so they don't ride into the startup bundle.
-const ConnectorSourcePanels = lazy(() => import('@/app/shell/ConnectorSourcePanels'));
+const loadConnectorSourcePanels = () => import('@/app/shell/ConnectorSourcePanels');
 
 // Module-level constants so the onboarding/tour effects have stable deps
 // and never need to be listed in exhaustive-deps disable comments.
@@ -1515,11 +1516,12 @@ function App() {
           chunk is fetched on demand rather than on every cold start. Once
           mounted each one self-gates on its own window event and renders
           nothing until a matching citation is clicked, so a null Suspense
-          fallback is safe here. */}
+          fallback is safe here. LazyBoundary contains a failed chunk fetch
+          behind a Retry card instead of letting it unmount the whole app. */}
       {connectorPanelsNeeded && (
-        <Suspense fallback={null}>
-          <ConnectorSourcePanels />
-        </Suspense>
+        <LazyBoundary loader={loadConnectorSourcePanels} fallback={null} label="Connector panel">
+          {(ConnectorSourcePanels) => <ConnectorSourcePanels />}
+        </LazyBoundary>
       )}
     </div>
   );
