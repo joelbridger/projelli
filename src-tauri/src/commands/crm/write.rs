@@ -152,18 +152,19 @@ impl CrmWriteSource for crate::commands::crm::client::WealthboxClient {
         not_before: chrono::DateTime<chrono::Utc>,
     ) -> Result<Option<String>, CrmWriteError> {
         // Recovery path: list recent objects and match on normalized content,
-        // target household, (for tasks) due_date, and — for notes, where
-        // Wealthbox exposes a timestamp — a "not before" floor set from this
-        // write's own first-attempt time, so a pre-existing identical note
-        // cannot false-positive as proof this write landed. Full-list is
-        // acceptable at solo scale; the 1 rps gate bounds cost.
+        // target household, (for tasks) due_date, and a "not before" floor
+        // set from this write's own first-attempt time, so a pre-existing
+        // identical note/task cannot false-positive as proof this write
+        // landed. Full-list is acceptable at solo scale; the 1 rps gate
+        // bounds cost.
         //
-        // Residual risk (tasks only): CrmTask carries no creation/update
-        // timestamp field, so the floor can't be applied there — a
-        // byte-identical pre-existing task on the same household/due_date
-        // can still false-positive as delivery. Closing this needs Wealthbox
-        // to expose a task timestamp; flagged as a VERIFY-LIVE follow-up
-        // (scripts/crm/wealthbox-write-probe.md, Task 11).
+        // VERIFY-LIVE: `CrmTask.created_at`/`updated_at` were added to mirror
+        // `CrmNote`'s fields for this exact check, but whether Wealthbox's
+        // real task response actually carries them (vs. only notes) is
+        // unconfirmed — `#[serde(default)]` means an absent field is simply
+        // "", which `wealthbox_time_at_or_after` already fails CLOSED on (not
+        // a match), so an untested assumption here degrades to "always
+        // resend on ambiguous task recovery" rather than a false positive.
         let contact_id = wealthbox_contact_id(&req.household_key)?;
         match req.kind {
             CrmWriteKind::Note => {
@@ -187,6 +188,7 @@ impl CrmWriteSource for crate::commands::crm::client::WealthboxClient {
                             && norm(&t.description) == norm(req.body.trim())
                             && t.due_date.as_deref().map(str::trim) == req.due_date.as_deref().map(str::trim)
                             && t.linked_to.iter().any(|l| is_contact_link(l, contact_id))
+                            && wealthbox_time_at_or_after(&t.created_at, &t.updated_at, not_before)
                     })
                     .map(|t| t.id.to_string()))
             }
@@ -839,6 +841,54 @@ mod tests {
         // task, not proof this one was delivered.
         let found = client.find_recent_matching(&task_req(), chrono::Utc::now()).await.unwrap();
         assert_eq!(found, None, "same content with a different due date is not this write");
+    }
+
+    #[tokio::test]
+    async fn find_recent_matching_rejects_a_task_that_predates_this_write_attempt() {
+        use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(matchers::method("GET"))
+            .and(matchers::path("/tasks"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "tasks": [{
+                    "id": 43,
+                    "name": "Q3 review follow-up",
+                    "description": "Discussed 529 rollover.",
+                    "due_date": "2026-07-15",
+                    "created_at": "2020-01-01 09:00 AM -0500",
+                    "updated_at": "2020-01-01 09:00 AM -0500",
+                    "linked_to": [{"id": 12345, "type": "Contact", "name": "Henderson"}],
+                }]
+            })))
+            .mount(&server)
+            .await;
+        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let found = client.find_recent_matching(&task_req(), chrono::Utc::now()).await.unwrap();
+        assert_eq!(found, None, "a task that predates this write attempt is not this write");
+    }
+
+    #[tokio::test]
+    async fn find_recent_matching_accepts_a_task_created_at_or_after_this_write_attempt() {
+        use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(matchers::method("GET"))
+            .and(matchers::path("/tasks"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "tasks": [{
+                    "id": 44,
+                    "name": "Q3 review follow-up",
+                    "description": "Discussed 529 rollover.",
+                    "due_date": "2026-07-15",
+                    "created_at": "2099-01-01 09:00 AM -0500",
+                    "updated_at": "2099-01-01 09:00 AM -0500",
+                    "linked_to": [{"id": 12345, "type": "Contact", "name": "Henderson"}],
+                }]
+            })))
+            .mount(&server)
+            .await;
+        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let found = client.find_recent_matching(&task_req(), chrono::Utc::now()).await.unwrap();
+        assert_eq!(found, Some("44".to_string()));
     }
 
     #[tokio::test]
