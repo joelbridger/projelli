@@ -98,10 +98,16 @@ pub trait CrmWriteSource: Send + Sync {
     /// Creates a task, returning the provider-side remote id.
     async fn create_task(&self, req: &CrmWriteRequest) -> Result<String, CrmWriteError>;
     /// Look for an already-delivered identical write (recovery after an
-    /// ambiguous transport failure). Returns the remote id if found.
+    /// ambiguous transport failure or a stale `pending` row). Returns the
+    /// remote id if found. `not_before` is this write's own first-attempt
+    /// time (the ledger row's `created_at`) — implementations that can see a
+    /// creation/update time on the candidate record should reject anything
+    /// older, so a pre-existing identical record can't false-positive as
+    /// proof this specific write landed.
     async fn find_recent_matching(
         &self,
         req: &CrmWriteRequest,
+        not_before: chrono::DateTime<chrono::Utc>,
     ) -> Result<Option<String>, CrmWriteError>;
 }
 
@@ -141,23 +147,21 @@ impl CrmWriteSource for crate::commands::crm::client::WealthboxClient {
     async fn find_recent_matching(
         &self,
         req: &CrmWriteRequest,
+        not_before: chrono::DateTime<chrono::Utc>,
     ) -> Result<Option<String>, CrmWriteError> {
         // Recovery path: list recent objects and match on normalized content,
-        // target household, and (for tasks) due_date. Full-list is acceptable
-        // at solo scale; the 1 rps gate bounds cost.
+        // target household, (for tasks) due_date, and — for notes, where
+        // Wealthbox exposes a timestamp — a "not before" floor set from this
+        // write's own first-attempt time, so a pre-existing identical note
+        // cannot false-positive as proof this write landed. Full-list is
+        // acceptable at solo scale; the 1 rps gate bounds cost.
         //
-        // Residual risk (not fixed here, see VERIFY-LIVE below): this still
-        // cannot distinguish "this write landed" from "an unrelated,
-        // byte-identical note/task already existed on this household before
-        // this attempt ever ran" — a pre-existing match would be wrongly
-        // treated as delivery, silently swallowing the user-approved write.
-        // A time-window check against the ledger row's created_at would
-        // close this, but note.created_at/updated_at's exact format is
-        // unverified (CrmTask doesn't even carry a timestamp field today),
-        // so guessing at parsing logic here risks its own bug. Add the
-        // time-window check as a follow-up once Task 11's live-token probe
-        // (scripts/crm/wealthbox-write-probe.md) confirms the timestamp
-        // format Wealthbox actually returns.
+        // Residual risk (tasks only): CrmTask carries no creation/update
+        // timestamp field, so the floor can't be applied there — a
+        // byte-identical pre-existing task on the same household/due_date
+        // can still false-positive as delivery. Closing this needs Wealthbox
+        // to expose a task timestamp; flagged as a VERIFY-LIVE follow-up
+        // (scripts/crm/wealthbox-write-probe.md, Task 11).
         let contact_id = wealthbox_contact_id(&req.household_key)?;
         match req.kind {
             CrmWriteKind::Note => {
@@ -168,6 +172,7 @@ impl CrmWriteSource for crate::commands::crm::client::WealthboxClient {
                     .find(|n| {
                         norm(&n.content) == want
                             && n.linked_to.iter().any(|l| l.id == contact_id)
+                            && wealthbox_time_at_or_after(&n.created_at, &n.updated_at, not_before)
                     })
                     .map(|n| n.id.to_string()))
             }
@@ -185,6 +190,30 @@ impl CrmWriteSource for crate::commands::crm::client::WealthboxClient {
             }
         }
     }
+}
+
+/// Wealthbox note timestamps look like `"2026-03-10 09:15 AM -0500"`
+/// (confirmed by the read-side render tests in `render.rs`, which already
+/// depend on this exact shape for display). Accepts a note as "not older
+/// than `floor`" using whichever of created_at/updated_at parses (preferring
+/// created_at). If NEITHER parses, fails CLOSED (returns `false`, i.e. not a
+/// match) rather than open — a spurious resend (a visible, correctable
+/// duplicate) is a far safer outcome than silently treating an unrelated old
+/// note as proof this write landed (an invisible, uncorrectable data loss).
+fn wealthbox_time_at_or_after(
+    created_at: &str,
+    updated_at: &str,
+    floor: chrono::DateTime<chrono::Utc>,
+) -> bool {
+    const FMT: &str = "%Y-%m-%d %I:%M %p %z";
+    // Small margin for clock skew between this machine and Wealthbox's server.
+    let floor = floor - chrono::Duration::minutes(5);
+    for candidate in [created_at, updated_at] {
+        if let Ok(t) = chrono::DateTime::parse_from_str(candidate.trim(), FMT) {
+            return t.with_timezone(&chrono::Utc) >= floor;
+        }
+    }
+    false
 }
 
 fn wealthbox_contact_id(household_key: &str) -> Result<i64, CrmWriteError> {
@@ -211,23 +240,47 @@ fn map_http_err(e: anyhow::Error) -> CrmWriteError {
     CrmWriteError::VerifyPending
 }
 
-/// RAII claim on a dedup key, scoped to one `CrmStore` (see
-/// `CrmStore::claim_in_flight_write`) — releases it on drop so an early
-/// return (via `?`) can never leave a key stuck claimed.
+/// Guards against duplicate concurrent sends of the identical write across
+/// SEPARATE command invocations in one running app — e.g. a rapid
+/// double-click on Approve fires two `crm_create_note`/`crm_create_task`
+/// Tauri calls, each of which opens its own fresh `CrmStore`
+/// (`CrmStore::open(&workspace)` per call). A guard scoped to `CrmStore`
+/// would be invisible to the second call and could not prevent the race, so
+/// this lives on long-lived state instead — `CrmState` in production (one
+/// instance for the life of the running app), one fresh instance per test.
+#[derive(Default)]
+pub struct WriteInFlightGuard(std::sync::Mutex<std::collections::HashSet<String>>);
+
+impl WriteInFlightGuard {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    fn claim(&self, key: &str) -> bool {
+        self.0.lock().unwrap().insert(key.to_string())
+    }
+
+    fn release(&self, key: &str) {
+        self.0.lock().unwrap().remove(key);
+    }
+}
+
+/// RAII claim on a dedup key — releases it on drop so an early return (via
+/// `?`) can never leave a key stuck claimed.
 struct InFlightClaim<'a> {
-    store: &'a crate::commands::crm::store::CrmStore,
+    guard: &'a WriteInFlightGuard,
     key: String,
 }
 impl Drop for InFlightClaim<'_> {
     fn drop(&mut self) {
-        self.store.release_in_flight_write(&self.key);
+        self.guard.release(&self.key);
     }
 }
 
 /// Idempotent, verify-before-resend orchestration around a `CrmWriteSource`.
 ///
 /// Semantics:
-/// 0. Claim an in-process in-flight slot for `dedup_key(req)` on `store`; a
+/// 0. Claim an in-process in-flight slot for `dedup_key(req)` on `guard`; a
 ///    concurrent call for the identical write (e.g. a rapid double-approve)
 ///    is rejected immediately (`InProgress`) rather than racing the ledger —
 ///    without this, two overlapping calls could both see no-row-yet/
@@ -236,9 +289,10 @@ impl Drop for InFlightClaim<'_> {
 /// 2. `sent` → return the recorded receipt (never re-post).
 /// 3. `pending_verify` OR a stale `pending` (e.g. left over from a process
 ///    that crashed after the POST fired but before the response was
-///    recorded — Wealthbox may already hold it) → call `find_recent_matching`;
-///    found → mark `sent`, return a deduped receipt; not found → the earlier
-///    attempt provably didn't land, proceed to send.
+///    recorded — Wealthbox may already hold it) → call `find_recent_matching`
+///    with the row's own `created_at` as the recovery floor; found → mark
+///    `sent`, return a deduped receipt; not found → the earlier attempt
+///    provably didn't land, proceed to send.
 /// 4. none / `failed` (or a `pending`/`pending_verify` that verification just
 ///    cleared) → mark `pending`, call `create_note`/`create_task`.
 /// 5. success → mark `sent` + remote_id, return a fresh receipt.
@@ -248,14 +302,15 @@ impl Drop for InFlightClaim<'_> {
 pub async fn push_crm_write(
     source: &dyn CrmWriteSource,
     store: &crate::commands::crm::store::CrmStore,
+    guard: &WriteInFlightGuard,
     req: &CrmWriteRequest,
 ) -> Result<WriteReceipt, CrmWriteError> {
     let key = dedup_key(req);
 
-    if !store.claim_in_flight_write(&key) {
+    if !guard.claim(&key) {
         return Err(CrmWriteError::InProgress);
     }
-    let _claim = InFlightClaim { store, key: key.clone() };
+    let _claim = InFlightClaim { guard, key: key.clone() };
 
     let existing = store.outbound_get(&key).map_err(|_| CrmWriteError::InvalidInput("ledger read failed"))?;
 
@@ -270,7 +325,10 @@ pub async fn push_crm_write(
         // the response was recorded, so Wealthbox may already hold it.
         // Verify before ever resending rather than trusting the stale state.
         if row.status == "pending_verify" || row.status == "pending" {
-            match source.find_recent_matching(req).await? {
+            let not_before = chrono::DateTime::parse_from_rfc3339(&row.created_at)
+                .map(|t| t.with_timezone(&chrono::Utc))
+                .unwrap_or_else(|_| chrono::DateTime::<chrono::Utc>::from_timestamp(0, 0).unwrap());
+            match source.find_recent_matching(req, not_before).await? {
                 Some(remote_id) => {
                     upsert_ledger(store, &key, source, req, "sent", Some(&remote_id));
                     return Ok(WriteReceipt { remote_id, deduped: true });
@@ -382,6 +440,7 @@ mod tests {
         async fn find_recent_matching(
             &self,
             _r: &CrmWriteRequest,
+            _not_before: chrono::DateTime<chrono::Utc>,
         ) -> Result<Option<String>, CrmWriteError> {
             Ok(self.find_result.clone())
         }
@@ -390,16 +449,17 @@ mod tests {
     #[tokio::test]
     async fn second_identical_push_is_deduped_without_network() {
         let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
         let source = FakeWriteSource {
             create_results: std::sync::Mutex::new(vec![Ok("555".into())]),
             find_result: None,
             create_calls: std::sync::atomic::AtomicUsize::new(0),
         };
         let req = note_req();
-        let first = push_crm_write(&source, &store, &req).await.unwrap();
+        let first = push_crm_write(&source, &store, &guard, &req).await.unwrap();
         assert_eq!(first.remote_id, "555");
         assert!(!first.deduped);
-        let second = push_crm_write(&source, &store, &req).await.unwrap();
+        let second = push_crm_write(&source, &store, &guard, &req).await.unwrap();
         assert_eq!(second.remote_id, "555");
         assert!(second.deduped);
         assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
@@ -408,15 +468,16 @@ mod tests {
     #[tokio::test]
     async fn ambiguous_failure_then_verify_found_never_reposts() {
         let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
         let source = FakeWriteSource {
             create_results: std::sync::Mutex::new(vec![Err(CrmWriteError::VerifyPending)]),
             find_result: Some("555".into()),
             create_calls: std::sync::atomic::AtomicUsize::new(0),
         };
         let req = note_req();
-        let first = push_crm_write(&source, &store, &req).await;
+        let first = push_crm_write(&source, &store, &guard, &req).await;
         assert!(matches!(first, Err(CrmWriteError::VerifyPending)));
-        let second = push_crm_write(&source, &store, &req).await.unwrap();
+        let second = push_crm_write(&source, &store, &guard, &req).await.unwrap();
         assert_eq!(second.remote_id, "555");
         assert!(second.deduped);
         assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
@@ -425,6 +486,7 @@ mod tests {
     #[tokio::test]
     async fn ambiguous_failure_then_verify_missing_resends() {
         let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
         let source = FakeWriteSource {
             create_results: std::sync::Mutex::new(vec![
                 Err(CrmWriteError::VerifyPending),
@@ -434,9 +496,9 @@ mod tests {
             create_calls: std::sync::atomic::AtomicUsize::new(0),
         };
         let req = note_req();
-        let first = push_crm_write(&source, &store, &req).await;
+        let first = push_crm_write(&source, &store, &guard, &req).await;
         assert!(matches!(first, Err(CrmWriteError::VerifyPending)));
-        let second = push_crm_write(&source, &store, &req).await.unwrap();
+        let second = push_crm_write(&source, &store, &guard, &req).await.unwrap();
         assert_eq!(second.remote_id, "556");
         assert!(!second.deduped);
         assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 2);
@@ -450,6 +512,7 @@ mod tests {
     #[tokio::test]
     async fn stale_pending_row_is_verified_before_resend_when_it_landed() {
         let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
         let req = note_req();
         store
             .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "pending", None)
@@ -459,7 +522,7 @@ mod tests {
             find_result: Some("555".into()),
             create_calls: std::sync::atomic::AtomicUsize::new(0),
         };
-        let receipt = push_crm_write(&source, &store, &req).await.unwrap();
+        let receipt = push_crm_write(&source, &store, &guard, &req).await.unwrap();
         assert_eq!(receipt.remote_id, "555");
         assert!(receipt.deduped);
         assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 0, "must never repost while verification can still find it");
@@ -468,6 +531,7 @@ mod tests {
     #[tokio::test]
     async fn stale_pending_row_resends_when_verification_finds_nothing() {
         let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
         let req = note_req();
         store
             .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "pending", None)
@@ -477,7 +541,7 @@ mod tests {
             find_result: None,
             create_calls: std::sync::atomic::AtomicUsize::new(0),
         };
-        let receipt = push_crm_write(&source, &store, &req).await.unwrap();
+        let receipt = push_crm_write(&source, &store, &guard, &req).await.unwrap();
         assert_eq!(receipt.remote_id, "556");
         assert!(!receipt.deduped);
         assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
@@ -509,6 +573,7 @@ mod tests {
             async fn find_recent_matching(
                 &self,
                 _r: &CrmWriteRequest,
+                _not_before: chrono::DateTime<chrono::Utc>,
             ) -> Result<Option<String>, CrmWriteError> {
                 Ok(None)
             }
@@ -519,6 +584,7 @@ mod tests {
             proceed: std::sync::Arc::new(tokio::sync::Notify::new()),
             calls: std::sync::atomic::AtomicUsize::new(0),
         };
+        let guard = WriteInFlightGuard::new();
         let req = note_req();
 
         // First call claims the in-flight slot and blocks inside create_note
@@ -526,10 +592,10 @@ mod tests {
         // provably already claimed the slot, must be rejected immediately
         // instead of racing the ledger and posting a duplicate.
         let (first, second) = tokio::join!(
-            push_crm_write(&source, &store, &req),
+            push_crm_write(&source, &store, &guard, &req),
             async {
                 source.started.notified().await;
-                let result = push_crm_write(&source, &store, &req).await;
+                let result = push_crm_write(&source, &store, &guard, &req).await;
                 source.proceed.notify_one();
                 result
             }
@@ -627,7 +693,7 @@ mod tests {
         let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
         // note_req() targets household 12345 — the identical-content note above
         // belongs to a different household (99999) and must NOT count as a match.
-        let found = client.find_recent_matching(&note_req()).await.unwrap();
+        let found = client.find_recent_matching(&note_req(), chrono::Utc::now()).await.unwrap();
         assert_eq!(found, None, "identical content on a different household is not this write");
     }
 
@@ -652,8 +718,55 @@ mod tests {
         // task_req() asks for due_date "2026-07-15" — a same-household,
         // same-name/description task with a DIFFERENT due date is a different
         // task, not proof this one was delivered.
-        let found = client.find_recent_matching(&task_req()).await.unwrap();
+        let found = client.find_recent_matching(&task_req(), chrono::Utc::now()).await.unwrap();
         assert_eq!(found, None, "same content with a different due date is not this write");
+    }
+
+    #[tokio::test]
+    async fn find_recent_matching_rejects_a_note_that_predates_this_write_attempt() {
+        use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(matchers::method("GET"))
+            .and(matchers::path("/notes"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "status_updates": [{
+                    "id": 111,
+                    "content": "Q3 review follow-up\n\nDiscussed 529 rollover.",
+                    "created_at": "2020-01-01 09:00 AM -0500",
+                    "updated_at": "2020-01-01 09:00 AM -0500",
+                    "linked_to": [{"id": 12345, "type": "Contact", "name": "Henderson"}],
+                }]
+            })))
+            .mount(&server)
+            .await;
+        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        // A byte-identical, same-household note from 2020 cannot be proof
+        // that a write attempted in 2026 landed.
+        let found = client.find_recent_matching(&note_req(), chrono::Utc::now()).await.unwrap();
+        assert_eq!(found, None, "a note that predates this write attempt is not this write");
+    }
+
+    #[tokio::test]
+    async fn find_recent_matching_accepts_a_note_created_at_or_after_this_write_attempt() {
+        use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(matchers::method("GET"))
+            .and(matchers::path("/notes"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "status_updates": [{
+                    "id": 222,
+                    "content": "Q3 review follow-up\n\nDiscussed 529 rollover.",
+                    "created_at": "2099-01-01 09:00 AM -0500",
+                    "updated_at": "2099-01-01 09:00 AM -0500",
+                    "linked_to": [{"id": 12345, "type": "Contact", "name": "Henderson"}],
+                }]
+            })))
+            .mount(&server)
+            .await;
+        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let not_before = chrono::Utc::now();
+        let found = client.find_recent_matching(&note_req(), not_before).await.unwrap();
+        assert_eq!(found, Some("222".to_string()));
     }
 
     #[test]

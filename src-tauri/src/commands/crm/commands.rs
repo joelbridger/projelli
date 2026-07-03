@@ -48,6 +48,10 @@ pub struct CrmState {
     /// wait for the browser redirect) without touching sync state. See
     /// `crm_oauth_connect_cancel`.
     pub oauth_cancel: Arc<AtomicBool>,
+    /// Shared across every `crm_create_note`/`crm_create_task` call for the
+    /// life of the running app — see `write::WriteInFlightGuard` for why this
+    /// can't live on the per-call `CrmStore` instead.
+    pub write_guard: write::WriteInFlightGuard,
 }
 
 pub fn manage_state(app: &tauri::App) {
@@ -58,6 +62,7 @@ pub fn manage_state(app: &tauri::App) {
         last_report: tokio::sync::Mutex::new(None),
         progress_households: Arc::new(std::sync::atomic::AtomicU32::new(0)),
         oauth_cancel: Arc::new(AtomicBool::new(false)),
+        write_guard: write::WriteInFlightGuard::new(),
     });
 }
 
@@ -502,7 +507,7 @@ async fn crm_create_write(
         source_ref: source_ref.clone(),
     };
 
-    let receipt = write::push_crm_write(&client, &store, &req)
+    let receipt = write::push_crm_write(&client, &store, &state.write_guard, &req)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -1341,6 +1346,7 @@ mod tests {
             last_report: tokio::sync::Mutex::new(None),
             progress_households: Arc::new(std::sync::atomic::AtomicU32::new(0)),
             oauth_cancel: Arc::new(AtomicBool::new(false)),
+            write_guard: write::WriteInFlightGuard::new(),
         }
     }
 

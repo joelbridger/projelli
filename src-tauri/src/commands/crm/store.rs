@@ -105,6 +105,11 @@ pub struct OutboundWrite {
     /// "pending" | "sent" | "pending_verify" | "failed"
     pub status: String,
     pub remote_id: Option<String>,
+    /// RFC 3339 timestamp of this write's first attempt (set once, never
+    /// updated by later status transitions) — lets recovery verification
+    /// reject a CRM record that predates this attempt, see
+    /// `write.rs::find_recent_matching`.
+    pub created_at: String,
 }
 
 /// The one INSERT-or-update statement `upsert_object` and `apply_ingest_batch`
@@ -139,12 +144,6 @@ pub struct CrmStore {
     conn: std::sync::Mutex<Connection>,
     #[allow(dead_code)]
     workspace_root: PathBuf,
-    /// Dedup keys of outbound CRM writes currently mid-send (see
-    /// `write.rs::push_crm_write`). Scoped to this store instance (one per
-    /// open workspace) rather than a process-wide static, so unrelated
-    /// workspaces — and unrelated tests, each of which opens its own store —
-    /// never contend on the same key.
-    in_flight_writes: std::sync::Mutex<std::collections::HashSet<String>>,
 }
 
 impl CrmStore {
@@ -216,7 +215,6 @@ impl CrmStore {
         Ok(Self {
             conn: std::sync::Mutex::new(conn),
             workspace_root: workspace_root.to_path_buf(),
-            in_flight_writes: std::sync::Mutex::new(std::collections::HashSet::new()),
         })
     }
 
@@ -633,7 +631,7 @@ impl CrmStore {
         use rusqlite::OptionalExtension;
         let c = self.conn.lock().unwrap();
         let mut stmt = c.prepare(
-            "SELECT dedup_key, status, remote_id FROM crm_outbound_writes WHERE dedup_key = ?1",
+            "SELECT dedup_key, status, remote_id, created_at FROM crm_outbound_writes WHERE dedup_key = ?1",
         )?;
         let row = stmt
             .query_row(rusqlite::params![dedup_key], |r| {
@@ -641,6 +639,7 @@ impl CrmStore {
                     dedup_key: r.get(0)?,
                     status: r.get(1)?,
                     remote_id: r.get(2)?,
+                    created_at: r.get(3)?,
                 })
             })
             .optional()?;
@@ -686,19 +685,6 @@ impl CrmStore {
             ],
         )?;
         Ok(())
-    }
-
-    /// Atomically claim `key` as an in-flight outbound write. Returns `true`
-    /// if this call won the claim, `false` if another in-flight call already
-    /// holds it (the caller must not proceed with the send). Pair with
-    /// [`Self::release_in_flight_write`] — always release, even on error.
-    pub fn claim_in_flight_write(&self, key: &str) -> bool {
-        self.in_flight_writes.lock().unwrap().insert(key.to_string())
-    }
-
-    /// Release a key previously won via [`Self::claim_in_flight_write`].
-    pub fn release_in_flight_write(&self, key: &str) {
-        self.in_flight_writes.lock().unwrap().remove(key);
     }
 
     /// Delete every locally-imported Wealthbox object by removing the encrypted
