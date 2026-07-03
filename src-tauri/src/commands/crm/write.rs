@@ -87,6 +87,13 @@ pub enum CrmWriteError {
     StaleFieldValue(String),
     #[error("could not read the current field value from the CRM — try again")]
     ReadFailed,
+    /// Wealthbox's real `POST /tasks` rejects a task with no due date (HTTP
+    /// 422 — confirmed live, see
+    /// docs/evidence/windows-smoke-2/WEALTHBOX-PROBE.md Finding 1). Raised at
+    /// the command boundary, before any network call, instead of letting the
+    /// raw 422 surface to the ledger as an opaque HTTP error.
+    #[error("Wealthbox tasks need a due date")]
+    TaskDueDateRequired,
 }
 
 fn norm(s: &str) -> String {
@@ -247,16 +254,15 @@ impl CrmWriteSource for crate::commands::crm::client::WealthboxClient {
 
     async fn create_task(&self, req: &CrmWriteRequest) -> Result<String, CrmWriteError> {
         let contact_id = wealthbox_contact_id(&req.household_key)?;
-        // VERIFY-LIVE: due_date format (plain date vs "YYYY-MM-DD hh:mm AM -0400").
-        // VERIFY-LIVE: whether Wealthbox actually REQUIRES a due_date for task
-        // creation is unconfirmed — `req.due_date` is allowed to be `None`
-        // and is simply omitted from the body in that case. Deliberately not
-        // adding a local "due_date required" validation without live-token
-        // confirmation: if Wealthbox turns out not to require it, that would
-        // incorrectly block a legitimate date-less task from ever being
-        // created. If it IS required, an unconfirmed local rule risks
-        // guessing wrong in the other direction. Confirm in Task 11's
-        // live probe (scripts/crm/wealthbox-write-probe.md).
+        // Confirmed live: Wealthbox accepts a plain "YYYY-MM-DD" `due_date`
+        // and normalizes it server-side (e.g. to "2026-07-10 12:00 AM
+        // -0400"). `due_date` IS required — a missing one gets HTTP 422 —
+        // but that's rejected earlier, at the command boundary
+        // (`validate_task_due_date`), so `req.due_date` is always `Some`
+        // here in practice. Still built conditionally: this trait method has
+        // no way to enforce that invariant itself, and omitting the key
+        // entirely (rather than sending `null`) is the correct shape either
+        // way. See docs/evidence/windows-smoke-2/WEALTHBOX-PROBE.md.
         let mut body = serde_json::json!({
             "name": req.title.trim(),
             "description": req.body.trim(),
@@ -603,12 +609,20 @@ impl Drop for InFlightClaim<'_> {
 /// 6. `CrmWriteError::VerifyPending` from the source → mark `pending_verify`,
 ///    propagate (the UI shows "will verify on retry").
 /// 7. any other error → mark `failed`, propagate.
+///
+/// Validates the due-date requirement (step -1, before even the ledger
+/// lookup) as a defense-in-depth backstop behind the command-boundary check
+/// in `crm_create_write` — this is the one path every real write (and every
+/// wiremock regression test) actually goes through, so it's what proves "no
+/// network call happens" for a due-date-less Wealthbox task.
 pub async fn push_crm_write(
     source: &dyn CrmWriteSource,
     store: &crate::commands::crm::store::CrmStore,
     guard: &WriteInFlightGuard,
     req: &CrmWriteRequest,
 ) -> Result<WriteReceipt, CrmWriteError> {
+    validate_task_due_date(req.kind, source.provider_id(), req.due_date.as_deref())?;
+
     let key = dedup_key(req);
 
     if !guard.claim(&key) {
@@ -1030,6 +1044,29 @@ pub fn validate_write_inputs(title: &str, body: &str) -> Result<(), CrmWriteErro
         return Err(CrmWriteError::InvalidInput("body is too long (max 20,000 characters)"));
     }
     Ok(())
+}
+
+/// Reject a Wealthbox task with no due date before any network call — the
+/// real API returns HTTP 422 for `POST /tasks` with no `due_date` (confirmed
+/// live, see docs/evidence/windows-smoke-2/WEALTHBOX-PROBE.md Finding 1).
+/// Scoped to (Task, Wealthbox) specifically via `provider_id` (matches
+/// `CrmWriteSource::provider_id`/`CrmProvider::id`, e.g. `"wealthbox"`):
+/// notes have no due date, and other providers aren't live yet and may have
+/// different real constraints. Deliberately never defaults a date — that
+/// would invent advisor data the user never provided; the caller must ask
+/// for one instead.
+pub fn validate_task_due_date(
+    kind: CrmWriteKind,
+    provider_id: &str,
+    due_date: Option<&str>,
+) -> Result<(), CrmWriteError> {
+    if kind != CrmWriteKind::Task || provider_id != "wealthbox" {
+        return Ok(());
+    }
+    match due_date.map(str::trim) {
+        Some(d) if !d.is_empty() => Ok(()),
+        _ => Err(CrmWriteError::TaskDueDateRequired),
+    }
 }
 
 /// Reject an empty or non-RFC3339 `requested_at` before it ever reaches
@@ -1904,6 +1941,69 @@ mod tests {
         let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
         let id = client.create_task(&task_req()).await.unwrap();
         assert_eq!(id, "556");
+    }
+
+    #[test]
+    fn validate_task_due_date_requires_a_date_for_wealthbox_tasks_only() {
+        // The one case it must actually block: a Wealthbox task with no date.
+        assert!(matches!(
+            validate_task_due_date(CrmWriteKind::Task, "wealthbox", None),
+            Err(CrmWriteError::TaskDueDateRequired)
+        ));
+        assert!(matches!(
+            validate_task_due_date(CrmWriteKind::Task, "wealthbox", Some("")),
+            Err(CrmWriteError::TaskDueDateRequired)
+        ));
+        assert!(matches!(
+            validate_task_due_date(CrmWriteKind::Task, "wealthbox", Some("   ")),
+            Err(CrmWriteError::TaskDueDateRequired)
+        ));
+        assert_eq!(
+            validate_task_due_date(CrmWriteKind::Task, "wealthbox", None).unwrap_err().to_string(),
+            "Wealthbox tasks need a due date"
+        );
+
+        // A real date passes.
+        assert!(validate_task_due_date(CrmWriteKind::Task, "wealthbox", Some("2026-07-15")).is_ok());
+
+        // Notes have no due date at all — never gated by this rule.
+        assert!(validate_task_due_date(CrmWriteKind::Note, "wealthbox", None).is_ok());
+
+        // Other providers aren't live yet and may have different real
+        // constraints — this rule is scoped to Wealthbox specifically, not a
+        // blanket "tasks always need a date".
+        assert!(validate_task_due_date(CrmWriteKind::Task, "redtail", None).is_ok());
+        assert!(validate_task_due_date(CrmWriteKind::Task, "salesforce", None).is_ok());
+    }
+
+    /// TDD regression for Wealthbox probe Finding 1 (HTTP 422 on a
+    /// due-date-less task, docs/evidence/windows-smoke-2/WEALTHBOX-PROBE.md):
+    /// `push_crm_write` — the one orchestration path every real
+    /// `crm_create_task` call and every other write test in this module goes
+    /// through — must reject before ever reaching the network. `.expect(0)`
+    /// makes wiremock itself fail the test if `POST /tasks` is ever hit.
+    #[tokio::test]
+    async fn push_crm_write_rejects_task_with_no_due_date_before_any_network_call() {
+        use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(matchers::method("POST"))
+            .and(matchers::path("/tasks"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"id": 999})))
+            .expect(0)
+            .mount(&server)
+            .await;
+
+        let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
+        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let mut req = task_req();
+        req.due_date = None;
+
+        let err = push_crm_write(&client, &store, &guard, &req).await.unwrap_err();
+        assert!(matches!(err, CrmWriteError::TaskDueDateRequired));
+
+        // No ledger row either — a rejected request was never even attempted.
+        assert!(store.outbound_get(&dedup_key(&req)).unwrap().is_none());
     }
 
     #[tokio::test]

@@ -744,6 +744,7 @@ async fn crm_create_write(
 
     write::validate_write_inputs(&title, &body).map_err(|e| e.to_string())?;
     write::validate_requested_at(&requested_at).map_err(|e| e.to_string())?;
+    write::validate_task_due_date(kind, provider.id(), due_date.as_deref()).map_err(|e| e.to_string())?;
 
     let token = read_token(provider).ok_or_else(|| {
         format!(

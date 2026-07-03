@@ -32,6 +32,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Wealthbox task creation allowed a missing due date, which the real API rejects** (live-probe
+  Finding 1, `docs/evidence/windows-smoke-2/WEALTHBOX-PROBE.md`) — `POST /tasks` with no
+  `due_date` returns HTTP 422 on the real Wealthbox API; the app previously let a date-less task
+  through and surfaced the raw 422 as an opaque ledger error. `validate_task_due_date` now
+  rejects before any network call, both at the command boundary (`crm_create_write`) and as a
+  defense-in-depth backstop inside the shared `push_crm_write` orchestrator, with a new typed
+  `CrmWriteError::TaskDueDateRequired` ("Wealthbox tasks need a due date"). Never invents a due
+  date. This write path is code-complete but not yet wired to any UI button, so it hasn't shipped
+  to a real user; Wave-3 wiring will light it up.
+  Files: `src-tauri/src/commands/crm/write.rs`, `src-tauri/src/commands/crm/commands.rs`
 - **Client-of-an-open-document resolution failed on Windows path shapes** (Windows smoke-2 P0) —
   two silently-diverged resolver implementations are now ONE (`resolveMatterIdForWorkspacePath`),
   considering raw/relative/root-joined shapes of the same path together, reusing the canonical
