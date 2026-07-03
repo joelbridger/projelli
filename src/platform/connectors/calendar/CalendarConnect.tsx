@@ -360,6 +360,10 @@ export function CalendarConnect() {
               <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               Read-only · past 7 days + next 14
             </p>
+            <p className="mt-1 text-xs text-slate-500">
+              Briefings prepare in the background while Lantern is open.
+              Lantern does not run when closed.
+            </p>
             {lastSyncedAt && (
               <p className="flex items-center gap-2 text-xs text-slate-500">
                 <RefreshCw

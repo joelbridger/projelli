@@ -66,6 +66,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `src/features/ask/book/{bookFacts,wholePracticeAsk,BookAnswerPanel}.ts(x)`,
     `src/features/ask/ScopeToggle.tsx` (`ScopeStatusPill`), `src/features/ask/Ask.tsx`.
 
+- **In-app scheduled brief rescan (Wave 1 Task 19, v2 trigger)** — `useAutoprepRescan`
+  polls today's calendar every 5 minutes while Lantern is open, so a meeting added
+  mid-day gets its briefing prepared without reopening the app. No OS-level
+  scheduling; CalendarConnect now says so plainly. Mounted from `TodaysMeetingsStrip`
+  next to the existing autoprep hooks.
+  Files: `useMeetingAutoprep.ts`, `TodaysMeetingsStrip.tsx`, `CalendarConnect.tsx`,
+  `tests/unit/meetings/autoprep-rescan.test.ts`
 - **Field-level blended CRM updates (Task 9c)** — a 3-column review
   (Existing / From this meeting / Blended) folded into the existing
   Wealthbox write-back card for a single allowlisted narrative field
