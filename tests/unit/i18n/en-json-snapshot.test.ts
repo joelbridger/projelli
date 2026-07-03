@@ -58,7 +58,7 @@ describe('en.json structure snapshot', () => {
         "local-ai-settings": 8,
         "mail": 6,
         "marketplace": 14,
-        "matter": 106,
+        "matter": 108,
         "media": 80,
         "memory": 6,
         "model-download": 9,
@@ -93,7 +93,8 @@ describe('en.json structure snapshot', () => {
     // +14 = common.ai-setup-help.* (the "I need help setting this up" ticket).
     // +1 = media.docx-editor.concurrent-edit-conflict (CLUSTER-C2 drift guard).
     // +2 = media.docx-editor.draft-follow-up{,-title} (Wave 0 draft-follow-up button).
-    expect(flat.length).toBe(942);
+    // +2 = matter.notes.{send-to-wealthbox,sent-to-wealthbox} (Wave 2 CRM write-back enqueue action).
+    expect(flat.length).toBe(944);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

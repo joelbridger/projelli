@@ -38,8 +38,8 @@ describe('enqueue', () => {
     enqueue({ kind: 'note', matterId: 'm1', title: 'T', body: 'B', sourceRef: 'doc:x' });
     const items = useCrmWriteQueueStore.getState().items;
     expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({ kind: 'note', matterId: 'm1', title: 'T', body: 'B', status: 'proposed' });
-    expect(items[0].id).toBeTruthy();
+    expect(items[0]!).toMatchObject({ kind: 'note', matterId: 'm1', title: 'T', body: 'B', status: 'proposed' });
+    expect(items[0]!.id).toBeTruthy();
   });
 
   it('never triggers a send by itself', async () => {
@@ -54,11 +54,11 @@ describe('approve', () => {
   it('sends sequentially and marks sent', async () => {
     const s = useCrmWriteQueueStore.getState();
     s.enqueue({ kind: 'note', matterId: 'm1', title: 'T', body: 'B', sourceRef: 'doc:x' });
-    const id = useCrmWriteQueueStore.getState().items[0].id;
+    const id = useCrmWriteQueueStore.getState().items[0]!.id;
     await s.approve([id], '12345');
     expect(crmCreateNote).toHaveBeenCalledTimes(1);
     expect(crmCreateNote).toHaveBeenCalledWith(expect.objectContaining({ householdKey: '12345', matterId: 'm1', title: 'T', body: 'B' }));
-    const item = useCrmWriteQueueStore.getState().items[0];
+    const item = useCrmWriteQueueStore.getState().items[0]!;
     expect(item.status).toBe('sent');
     expect(item.remoteId).toBe('555');
   });
@@ -66,12 +66,12 @@ describe('approve', () => {
   it('routes a task item through crmCreateTask with dueDate', async () => {
     const s = useCrmWriteQueueStore.getState();
     s.enqueue({ kind: 'task', matterId: 'm1', title: 'T', body: 'B', dueDate: '2026-07-15', sourceRef: 'doc:x' });
-    const id = useCrmWriteQueueStore.getState().items[0].id;
+    const id = useCrmWriteQueueStore.getState().items[0]!.id;
     await s.approve([id], '12345');
     expect(crmCreateTask).toHaveBeenCalledWith(
       expect.objectContaining({ householdKey: '12345', matterId: 'm1', title: 'T', description: 'B', dueDate: '2026-07-15' })
     );
-    expect(useCrmWriteQueueStore.getState().items[0].status).toBe('sent');
+    expect(useCrmWriteQueueStore.getState().items[0]!.status).toBe('sent');
   });
 
   it('sends multiple approved items one at a time (sequential, not parallel)', async () => {
@@ -96,9 +96,9 @@ describe('approve', () => {
     );
     const s = useCrmWriteQueueStore.getState();
     s.enqueue({ kind: 'note', matterId: 'm1', title: 'T', body: 'B', sourceRef: 'doc:x' });
-    const id = useCrmWriteQueueStore.getState().items[0].id;
+    const id = useCrmWriteQueueStore.getState().items[0]!.id;
     await s.approve([id], '12345');
-    const item = useCrmWriteQueueStore.getState().items[0];
+    const item = useCrmWriteQueueStore.getState().items[0]!;
     expect(item.status).toBe('verify_pending');
   });
 
@@ -106,9 +106,9 @@ describe('approve', () => {
     vi.mocked(crmCreateNote).mockRejectedValueOnce(new Error('CRM write failed (HTTP 500)'));
     const s = useCrmWriteQueueStore.getState();
     s.enqueue({ kind: 'note', matterId: 'm1', title: 'T', body: 'B', sourceRef: 'doc:x' });
-    const id = useCrmWriteQueueStore.getState().items[0].id;
+    const id = useCrmWriteQueueStore.getState().items[0]!.id;
     await s.approve([id], '12345');
-    const item = useCrmWriteQueueStore.getState().items[0];
+    const item = useCrmWriteQueueStore.getState().items[0]!;
     expect(item.status).toBe('failed');
     expect(item.error).toContain('500');
   });
@@ -118,13 +118,13 @@ describe('approve', () => {
     vi.mocked(crmCreateNote).mockReturnValueOnce(new Promise((r) => (resolveFn = r)));
     const s = useCrmWriteQueueStore.getState();
     s.enqueue({ kind: 'note', matterId: 'm1', title: 'T', body: 'B', sourceRef: 'doc:x' });
-    const id = useCrmWriteQueueStore.getState().items[0].id;
+    const id = useCrmWriteQueueStore.getState().items[0]!.id;
     const p = s.approve([id], '12345');
     await new Promise((r) => setTimeout(r, 0));
-    expect(useCrmWriteQueueStore.getState().items[0].status).toBe('sending');
+    expect(useCrmWriteQueueStore.getState().items[0]!.status).toBe('sending');
     resolveFn({ remoteId: '555', deduped: false });
     await p;
-    expect(useCrmWriteQueueStore.getState().items[0].status).toBe('sent');
+    expect(useCrmWriteQueueStore.getState().items[0]!.status).toBe('sent');
   });
 });
 
@@ -132,7 +132,7 @@ describe('dismiss', () => {
   it('removes an item without sending anything', () => {
     const s = useCrmWriteQueueStore.getState();
     s.enqueue({ kind: 'note', matterId: 'm1', title: 'T', body: 'B', sourceRef: 'doc:x' });
-    const id = useCrmWriteQueueStore.getState().items[0].id;
+    const id = useCrmWriteQueueStore.getState().items[0]!.id;
     s.dismiss(id);
     expect(useCrmWriteQueueStore.getState().items).toHaveLength(0);
     expect(crmCreateNote).not.toHaveBeenCalled();
