@@ -463,6 +463,16 @@ export function createDeleteBurstBatcher(
             // eslint-disable-next-line no-await-in-loop -- deliberate: sequential,
             // bounded processing is the fix (never N concurrent backend calls).
             await deletePath(path);
+            if (disposed) return;
+            // The workspace could have closed/switched WHILE this delete was
+            // in flight. Bail before any bookkeeping or recovery below —
+            // `onCancelledAfterDelete` re-indexes via the shared
+            // MemoryService, which targets whatever workspace is CURRENTLY
+            // active on the backend; running it after a switch would
+            // misroute this (old-workspace) path's content into the NEW
+            // workspace's index. The disposed batcher's own `pending` is
+            // already discarded, so there is nothing left worth updating
+            // here either way.
             consecutiveFailures = 0;
             if (cancelledInFlight.delete(path)) {
               // A create/modify arrived WHILE this delete was already in
@@ -480,6 +490,7 @@ export function createDeleteBurstBatcher(
               }
             }
           } catch {
+            if (disposed) return; // same guard on the failure path
             failed += 1;
             consecutiveFailures += 1;
             if (cancelledInFlight.delete(path)) {

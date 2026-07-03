@@ -520,6 +520,43 @@ describe('createDeleteBurstBatcher', () => {
     expect(onCancelledAfterDelete).toHaveBeenCalledWith('/ws/report.docx');
   });
 
+  it('P2-b regression: dispose() during an in-flight, cancelled delete suppresses the recovery callback (never re-indexes into a new workspace)', async () => {
+    // If the workspace closes/switches WHILE a cancelled delete is still
+    // awaiting its backend call, the recovery hook must NOT fire once that
+    // call settles — `onCancelledAfterDelete` re-indexes via the shared
+    // MemoryService, which targets whatever workspace is CURRENTLY active.
+    // Firing it after dispose() could misroute this (old-workspace) path's
+    // content into the workspace that replaced it.
+    let resolveDelete!: () => void;
+    const deletePath = vi.fn().mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveDelete = resolve;
+        }),
+    );
+    const onCancelledAfterDelete = vi.fn();
+    const batcher = createDeleteBurstBatcher(deletePath, {
+      windowMs: 100,
+      onCancelledAfterDelete,
+    });
+
+    batcher.enqueue('/ws/report.docx');
+    await vi.advanceTimersByTimeAsync(100); // deletePath is now in flight, awaiting
+
+    expect(batcher.cancel('/ws/report.docx')).toBe(true);
+
+    // The workspace is torn down (closed/switched) WHILE the delete is still
+    // in flight — this is the exact race the batcher can't prevent, only
+    // react to safely.
+    batcher.dispose();
+
+    // The in-flight delete now resolves.
+    resolveDelete();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(onCancelledAfterDelete).not.toHaveBeenCalled();
+  });
+
   it('P2-b: if the in-flight delete FAILS after being cancelled, it is dropped (not requeued) and recovery is not triggered', async () => {
     let rejectDelete!: (err: Error) => void;
     const deletePath = vi.fn().mockImplementation(
