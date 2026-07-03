@@ -20,7 +20,7 @@ import {
 } from '@/platform/utils/jotform-commands';
 import { getMatters } from '@/platform/matter/matterStore';
 import { buildJotformMatterMap } from '@/platform/rag/matterResolver';
-import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
+import { isPersistedLocalOnly } from '@/platform/privacy/localOnlyGuard';
 import { Button } from '@/ui/kp';
 
 export function JotformConnect() {
@@ -60,7 +60,7 @@ export function JotformConnect() {
       setError('Paste your Jotform API key first.');
       return;
     }
-    if (isLocalOnlyMode()) {
+    if (isPersistedLocalOnly()) {
       setError('Local-only mode is on. Turn it off before connecting Jotform, because connect checks your Jotform account.');
       return;
     }
@@ -71,7 +71,12 @@ export function JotformConnect() {
       setInfo(connectedInfo);
       setConnected(true);
       setApiKey('');
-      setForms(await jotformListForms());
+      // Re-check: jotformConnect() itself just awaited a Jotform call, so a
+      // Local-only switch mid-flight could otherwise slip past the guard
+      // above and still fire this forms-listing call.
+      if (!isPersistedLocalOnly()) {
+        setForms(await jotformListForms());
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -81,7 +86,7 @@ export function JotformConnect() {
 
   async function syncNow() {
     setError(null);
-    if (isLocalOnlyMode()) {
+    if (isPersistedLocalOnly()) {
       setError('Local-only mode is on. Turn it off before syncing Jotform, because it contacts Jotform.');
       return;
     }
@@ -89,8 +94,16 @@ export function JotformConnect() {
     try {
       const result = await jotformSync(buildJotformMatterMap(getMatters()));
       setReport(result);
-      setForms(await jotformListForms());
-      setUnassigned(await jotformListUnassigned());
+      // Re-check before EACH follow-up Jotform call: jotformSync() (and then
+      // jotformListForms()) just awaited a Jotform call, so a Local-only
+      // switch mid-flight could otherwise slip past an earlier guard and
+      // still fire the next one.
+      if (!isPersistedLocalOnly()) {
+        setForms(await jotformListForms());
+        if (!isPersistedLocalOnly()) {
+          setUnassigned(await jotformListUnassigned());
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
