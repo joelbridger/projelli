@@ -448,4 +448,107 @@ describe('createDeleteBurstBatcher', () => {
 
     expect(deletePath).not.toHaveBeenCalled();
   });
+
+  it('P2-a regression: dispose() with paths still queued logs once and leaves them for the boot reconcile, never fires them', async () => {
+    // Firing queued deletes from dispose() would risk misrouting them to a
+    // NEW workspace: `deletePath` has no per-call workspace-scoping
+    // parameter, and a workspace switch's `MemoryService.setWorkspace(new)`
+    // can race ahead of an async IPC call issued here. The Rust boot
+    // reconcile heals the OLD workspace's index next time it's opened, so
+    // this is a deliberate, logged punt — not a silent drop.
+    const deletePath = vi.fn().mockResolvedValue(undefined);
+    const onLog = vi.fn();
+    const batcher = createDeleteBurstBatcher(deletePath, { windowMs: 250, onLog });
+
+    batcher.enqueue('/ws/a.docx');
+    batcher.enqueue('/ws/b.docx');
+    batcher.dispose(); // workspace closed/switched before the 250ms window ever flushed
+
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(deletePath).not.toHaveBeenCalled();
+    expect(onLog).toHaveBeenCalledTimes(1);
+    expect(onLog).toHaveBeenCalledWith(
+      expect.stringContaining('workspace closed with 2 delete(s) still queued'),
+    );
+  });
+
+  it('dispose() with nothing queued does not log anything', () => {
+    const deletePath = vi.fn().mockResolvedValue(undefined);
+    const onLog = vi.fn();
+    const batcher = createDeleteBurstBatcher(deletePath, { windowMs: 250, onLog });
+
+    batcher.dispose();
+
+    expect(onLog).not.toHaveBeenCalled();
+  });
+
+  it('P2-b regression: a create/modify racing an ALREADY-IN-FLIGHT delete (not just the queue) is detected once it settles and triggers recovery', async () => {
+    // cancel() marks `pending` and a round's snapshot before its turn, but a
+    // path already mid-`await deletePath()` is a THIRD window: the call is
+    // already issued and can't be un-sent. This proves it's still tracked —
+    // and the caller is told to repair it — once that call settles.
+    let resolveDelete!: () => void;
+    const deletePath = vi.fn().mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveDelete = resolve;
+        }),
+    );
+    const onCancelledAfterDelete = vi.fn();
+    const batcher = createDeleteBurstBatcher(deletePath, {
+      windowMs: 100,
+      onCancelledAfterDelete,
+    });
+
+    batcher.enqueue('/ws/report.docx');
+    await vi.advanceTimersByTimeAsync(100); // flush starts; deletePath is now in flight, awaiting
+
+    expect(deletePath).toHaveBeenCalledTimes(1);
+    expect(onCancelledAfterDelete).not.toHaveBeenCalled();
+
+    // A create/modify races the ALREADY-ISSUED call — cancel() can't stop
+    // it, but it can mark it.
+    expect(batcher.cancel('/ws/report.docx')).toBe(true);
+    expect(onCancelledAfterDelete).not.toHaveBeenCalled(); // not yet — still in flight
+
+    // The in-flight delete now resolves (it already succeeded on the
+    // backend, AFTER the file was recreated).
+    resolveDelete();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(onCancelledAfterDelete).toHaveBeenCalledWith('/ws/report.docx');
+  });
+
+  it('P2-b: if the in-flight delete FAILS after being cancelled, it is dropped (not requeued) and recovery is not triggered', async () => {
+    let rejectDelete!: (err: Error) => void;
+    const deletePath = vi.fn().mockImplementation(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectDelete = reject;
+        }),
+    );
+    const onCancelledAfterDelete = vi.fn();
+    const batcher = createDeleteBurstBatcher(deletePath, {
+      windowMs: 100,
+      breakerThreshold: 5,
+      onCancelledAfterDelete,
+    });
+
+    batcher.enqueue('/ws/report.docx');
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(batcher.cancel('/ws/report.docx')).toBe(true);
+
+    rejectDelete(new Error('backend race'));
+    await vi.advanceTimersByTimeAsync(0);
+
+    // No rows were actually removed (the call failed) and the file exists
+    // again — there is nothing to repair, and nothing to retry.
+    expect(onCancelledAfterDelete).not.toHaveBeenCalled();
+
+    deletePath.mockClear();
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(deletePath).not.toHaveBeenCalled();
+  });
 });

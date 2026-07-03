@@ -342,6 +342,16 @@ export type DeleteBurstBatcherOptions = {
   cooldownMs?: number;
   /** Injectable for tests; defaults to console.warn. */
   onLog?: (message: string) => void;
+  /**
+   * Called (best-effort, fire-and-forget — errors are swallowed) when a
+   * path's delete was cancelled by a create/modify that arrived WHILE its
+   * `deletePath` call was already in flight and had ALREADY SUCCEEDED by the
+   * time the cancellation was noticed. `cancel()` can mark such a path but
+   * can't un-send the request already issued, so the delete may have just
+   * removed chunks the create/modify handler wrote moments before. The
+   * caller should re-index `path` to restore it.
+   */
+  onCancelledAfterDelete?: (path: string) => void;
 };
 
 export type DeleteBurstBatcher = {
@@ -370,6 +380,7 @@ export function createDeleteBurstBatcher(
   const breakerThreshold = options.breakerThreshold ?? DEFAULT_DELETE_BREAKER_THRESHOLD;
   const cooldownMs = options.cooldownMs ?? DEFAULT_DELETE_BREAKER_COOLDOWN_MS;
   const log = options.onLog ?? ((message: string) => console.warn(message));
+  const onCancelledAfterDelete = options.onCancelledAfterDelete;
 
   let pending = new Set<string>();
   let flushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -435,23 +446,53 @@ export function createDeleteBurstBatcher(
         let breakerTripped = false;
         for (const path of paths) {
           if (disposed) return;
-          inFlightPaths.delete(path);
           if (cancelledInFlight.delete(path)) {
-            // Cancelled after this round snapshotted it but before we
-            // reached it — a create/modify beat us to it. Skip the stale
-            // delete; the fresh content stays indexed.
+            // Cancelled after this round snapshotted it but before we even
+            // started it — a create/modify beat us to it. Skip the stale
+            // delete entirely; the fresh content stays indexed.
+            inFlightPaths.delete(path);
             continue;
           }
+          // Deliberately KEEP `path` in `inFlightPaths` through the whole
+          // await below (only cleared in `finally`) — not just until we
+          // start it. A create/modify can still race the ALREADY-ISSUED
+          // `deletePath` call itself (not just the queue); `cancel()` can't
+          // un-send that call, but it CAN mark it here so we notice once it
+          // settles.
           try {
             // eslint-disable-next-line no-await-in-loop -- deliberate: sequential,
             // bounded processing is the fix (never N concurrent backend calls).
             await deletePath(path);
             consecutiveFailures = 0;
+            if (cancelledInFlight.delete(path)) {
+              // A create/modify arrived WHILE this delete was already in
+              // flight — too late for `cancel()` to stop the call, and the
+              // delete has now completed (successfully) AFTER the file was
+              // recreated. It may have just removed the fresh content's
+              // chunks (if the create/modify handler's own re-index landed
+              // before this delete finished). Ask the caller to re-index
+              // this path to restore it. Best-effort: never let this
+              // recovery hook break the flush loop.
+              try {
+                onCancelledAfterDelete?.(path);
+              } catch {
+                // Best-effort recovery hook.
+              }
+            }
           } catch {
             failed += 1;
             consecutiveFailures += 1;
-            // Never lose this path: a failed delete is retried, not abandoned.
-            pending.add(path);
+            if (cancelledInFlight.delete(path)) {
+              // Cancelled AND the delete failed: nothing to undo (no rows
+              // were removed) and nothing to retry — the create/modify
+              // handler already re-indexed the recreated file, so requeuing
+              // a delete for this path would just remove it again once
+              // retried. Drop it here; that's the correct outcome of the
+              // cancellation, not a lost delete.
+            } else {
+              // Never lose this path: a failed delete is retried, not abandoned.
+              pending.add(path);
+            }
             if (consecutiveFailures >= breakerThreshold) {
               // Stop attempting NOW — bounded exposure. A 2,000-file delete
               // storm against a fully-down backend must cost at most
@@ -482,6 +523,8 @@ export function createDeleteBurstBatcher(
               breakerTripped = true;
               break;
             }
+          } finally {
+            inFlightPaths.delete(path);
           }
         }
         if (breakerTripped) break;
@@ -535,6 +578,26 @@ export function createDeleteBurstBatcher(
       if (cooldownTimer) {
         clearTimeout(cooldownTimer);
         cooldownTimer = null;
+      }
+      if (pending.size > 0) {
+        // Deliberately NOT fired here. `deletePath` (rag_delete_path) has no
+        // per-call workspace-scoping parameter — it always targets whatever
+        // workspace is CURRENTLY active on the Rust side. On a workspace
+        // switch, the next effect's `MemoryService.setWorkspace(newRoot)`
+        // can race ahead of an async IPC call fired from here (a Tauri
+        // invoke crosses the IPC boundary asynchronously; there is no
+        // ordering guarantee it reaches the backend before the new
+        // workspace is set). Firing these now risks misrouting an OLD
+        // workspace's deletes into the NEW workspace's index — a worse bug
+        // than the one being avoided. A workspace-scoped delete command
+        // would need a Rust-side signature change, out of scope for this
+        // frontend fix. The Rust boot reconcile heals the OLD workspace's
+        // index the next time it's opened, so these paths are stale until
+        // then, not permanently lost.
+        log(
+          `[memory] workspace closed with ${pending.size} delete(s) still queued; ` +
+            'leaving them for the next boot reconcile rather than risk misrouting to a new workspace',
+        );
       }
       pending = new Set();
     },
@@ -920,8 +983,21 @@ export function useMemoryWiring(
     let unlisten: (() => void) | null = null;
     const stopModelListeners: Array<() => void> = [];
     let cancelled = false;
-    const deleteBatcher = createDeleteBurstBatcher((path) =>
-      MemoryService.deletePath(path),
+    const deleteBatcher = createDeleteBurstBatcher(
+      (path) => MemoryService.deletePath(path),
+      {
+        onCancelledAfterDelete: (path) => {
+          // A create/modify raced an already-in-flight delete for this path
+          // and lost — the delete finished AFTER the file was recreated, so
+          // it may have just removed the fresh content's chunks. Re-run the
+          // exact same create/modify routing (cancel — a no-op here, the
+          // delete already settled — then (re)index) to restore it.
+          handleWorkspaceFileChangedEvent(
+            { kind: 'modify', path },
+            { deleteBatcher, workspaceService },
+          );
+        },
+      },
     );
 
     void (async () => {
