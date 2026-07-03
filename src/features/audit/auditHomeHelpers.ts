@@ -23,6 +23,7 @@ import {
   ShieldCheck,
   ShieldOff,
   Lock,
+  Fingerprint,
   Target,
   Send,
   Share2,
@@ -126,6 +127,8 @@ export const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   template_updated: PenLine,
   template_install_failed: XCircle,
   beneficiary_finding_dismissed: ShieldCheck,
+  voiceprint_enrolled: Fingerprint,
+  voiceprint_deleted: Fingerprint,
 };
 
 export const ACTION_LABELS: Record<AuditActionType, string> = {
@@ -183,6 +186,8 @@ export const ACTION_LABELS: Record<AuditActionType, string> = {
   template_updated: 'Template Updated',
   template_install_failed: 'Template Install Failed',
   beneficiary_finding_dismissed: 'Beneficiary Check Dismissed',
+  voiceprint_enrolled: 'Voice profile saved',
+  voiceprint_deleted: 'Voice profile deleted',
 };
 
 /** Semantic category per action, drives colour + grouping in filters. */
@@ -243,6 +248,8 @@ export const ACTION_CATEGORY: Record<AuditActionType, ActionCategory> = {
   template_updated: 'system',
   template_install_failed: 'system',
   beneficiary_finding_dismissed: 'privilege',
+  voiceprint_enrolled: 'file',
+  voiceprint_deleted: 'file',
 };
 
 export const CATEGORY_COLOR: Record<ActionCategory, string> = {

@@ -828,6 +828,64 @@ export async function transcribeAudio(
 }
 
 // ---------------------------------------------------------------------------
+// Wave 4 Track A — within-channel speaker diarization + voiceprint naming.
+// Fully local: audio and embeddings never leave the machine.
+// ---------------------------------------------------------------------------
+
+export interface DiarizedSpeakerWire {
+  label: string;
+  turnCount: number;
+  totalMs: number;
+  centroid: number[];
+}
+export interface DiarizeMeetingResult {
+  speakers: DiarizedSpeakerWire[];
+  updatedSegments: number;
+  dims: number;
+}
+
+/** Separate the far-end voices of a recorded meeting (fully local). */
+export async function diarizeMeeting(meetingDir: string, numSpeakers?: number): Promise<DiarizeMeetingResult> {
+  if (!isTauri()) throw new Error('Speaker separation is only available in the desktop app.');
+  return invoke<DiarizeMeetingResult>('diarize_meeting', { meetingDir, numSpeakers });
+}
+
+/** Rename diarized speakers in a meeting transcript ("Speaker 2" -> a client name). */
+export async function applySpeakerNames(meetingDir: string, renames: Record<string, string>): Promise<number> {
+  if (!isTauri()) throw new Error('Speaker naming is only available in the desktop app.');
+  return invoke<number>('apply_speaker_names', { meetingDir, renames });
+}
+
+export interface VoiceprintInfo { id: string; name: string; sampleCount: number; updatedAt: string }
+export interface VoiceprintMatch { id: string; name: string; confidence: number }
+
+/** List stored voice profiles for a client. Empty (not an error) in browser mode. */
+export async function voiceprintList(workspaceRoot: string, matterId: string): Promise<VoiceprintInfo[]> {
+  if (!isTauri()) return [];
+  return invoke<VoiceprintInfo[]>('voiceprint_list', { workspaceRoot, matterId });
+}
+/** Save (or merge into an existing) voiceprint for a named speaker. */
+export async function voiceprintEnroll(workspaceRoot: string, matterId: string, name: string, embedding: number[]): Promise<VoiceprintInfo> {
+  if (!isTauri()) throw new Error('Voice profiles are only available in the desktop app.');
+  return invoke<VoiceprintInfo>('voiceprint_enroll', { workspaceRoot, matterId, name, embedding });
+}
+/** Suggest a stored voice profile for an embedding, or null below the confidence threshold. */
+export async function voiceprintMatch(workspaceRoot: string, matterId: string, embedding: number[]): Promise<VoiceprintMatch | null> {
+  if (!isTauri()) return null;
+  return invoke<VoiceprintMatch | null>('voiceprint_match', { workspaceRoot, matterId, embedding });
+}
+/** Confirm an auto-suggested voice profile match, merging the new embedding in. */
+export async function voiceprintConfirm(workspaceRoot: string, matterId: string, voiceprintId: string, embedding: number[]): Promise<void> {
+  if (!isTauri()) return;
+  return invoke<void>('voiceprint_confirm', { workspaceRoot, matterId, voiceprintId, embedding });
+}
+/** Delete a stored voice profile (biometric data) for a client. */
+export async function voiceprintDelete(workspaceRoot: string, matterId: string, voiceprintId: string): Promise<void> {
+  if (!isTauri()) throw new Error('Voice profiles are only available in the desktop app.');
+  return invoke<void>('voiceprint_delete', { workspaceRoot, matterId, voiceprintId });
+}
+
+// ---------------------------------------------------------------------------
 // Advisor Prep Hero 3.0 — encrypted, append-only audit store (the "defense file").
 //
 // On the desktop the AuditService persists to a SQLCipher-encrypted store

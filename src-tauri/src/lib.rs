@@ -313,6 +313,15 @@ pub fn run() {
             // frontend-only Client Map build counts.
             commands::setup_progress::get_setup_progress,
             commands::setup_progress::setup_report_client_map,
+            // Wave 4 Track A — within-channel speaker diarization + naming.
+            commands::diarize::diarize_meeting,
+            commands::diarize::apply_speaker_names,
+            // Wave 4 Track A — encrypted per-matter voiceprint store.
+            commands::voiceprint::voiceprint_list,
+            commands::voiceprint::voiceprint_enroll,
+            commands::voiceprint::voiceprint_match,
+            commands::voiceprint::voiceprint_confirm,
+            commands::voiceprint::voiceprint_delete,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
