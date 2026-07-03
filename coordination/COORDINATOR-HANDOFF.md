@@ -46,7 +46,7 @@ at each UI merge — his veto = P0 follow-up, not a merge block). Phase 2 =
   sentinel LAST; ACK_IDLE otherwise; STALL on frozen WORKING pane ~4min);
   (2) RAM watchdog + disk-pressure alarm <25G (after the 2026-07-02 disk-full emergency);
   (3) bulletin watcher: `tail -n 0 -F ~/keepance-coordination/PARALLEL-EFFORTS.md | grep -v
-  <your-own-signature>` — main-fleet news (Legion release, tags, rebrand) pings you live;
+  <your-own-signature>` — main-fleet news (Legion release, tags, rebrand) pings you live — then VERIFY it end-to-end by appending a selftest line (non-your-signature) and waiting for the ping; a silently-dead watcher looks identical to a quiet bulletin (a rename heads-up was missed this way 2026-07-03);
   (4) STALE-IDLE backstop: any worker pane idle+unchanged >5min → one ping (caught the
   37-min hung test the transition watcher structurally cannot see);
   (5) BUILD-OVERTIME: cargo/rustc >35min or a test binary from our target dirs >15min →
