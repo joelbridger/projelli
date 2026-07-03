@@ -6,6 +6,7 @@ import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { SK_SETTINGS } from '@/config/identity';
 import type { OneDriveSyncReport } from '@/platform/utils/onedrive-commands';
 import { ONEDRIVE_SYNC_TIMEOUT_MS } from '@/platform/connectors/onedrive/onedriveTimeout';
+import { useOneDriveStore } from '@/platform/connectors/onedrive/onedriveStore';
 
 const oneDriveCancel = vi.fn();
 const oneDriveConnect = vi.fn();
@@ -172,6 +173,12 @@ describe('OneDriveConnect settle-guarantee (fix/onedrive-sync-silence)', () => {
     vi.clearAllMocks();
     localStorage.clear();
     useSettingsStore.getState().resetAll();
+    // The onedriveStore Zustand singleton isn't mocked in this file (the
+    // component reads/writes it directly), so its `progress` slice must be
+    // reset per test — otherwise a prior test's terminal status (e.g. the
+    // 'error' this round's P2-a fix now sets) leaks into the next test's
+    // initial render.
+    useOneDriveStore.setState({ progress: null });
     oneDriveIsConnected.mockResolvedValue(true);
     oneDriveConnect.mockResolvedValue(undefined);
     oneDriveDisconnect.mockResolvedValue(undefined);
@@ -227,6 +234,48 @@ describe('OneDriveConnect settle-guarantee (fix/onedrive-sync-silence)', () => {
       'OneDrive sync failed.',
       expect.objectContaining({ outputs: expect.objectContaining({ error: 'network' }) })
     );
+  }, 15000);
+
+  it('clears a stuck Rust "syncing" progress signal when the frontend timeout backstop fires (round-2 review P2-a)', async () => {
+    // round-2 review finding: if onedrive_sync had ALREADY emitted its
+    // initial {status:'syncing'} progress event before the command genuinely
+    // stalled (no Rust-side terminal event ever coming), the old code only
+    // called setError() in the catch — `progress.status` stayed 'syncing'
+    // forever, and since `syncing` is derived as
+    // `localSyncing || progress?.status === 'syncing'`, the spinner and the
+    // disabled button never cleared even though localSyncing had already
+    // flipped false. The fix must force the derived state to a terminal one.
+    oneDriveListFolders.mockResolvedValue([]);
+    oneDriveSync.mockReturnValue(new Promise<OneDriveSyncReport>(() => {}));
+
+    render(<OneDriveConnect />);
+    const button = await screen.findByRole('button', { name: 'Sync now' });
+    vi.useFakeTimers();
+
+    await act(async () => {
+      fireEvent.click(button);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // Simulate the Rust command having already emitted its initial "syncing"
+    // progress event (exactly what onedrive_sync does before any await that
+    // could stall) — this is the specific race the fix must survive.
+    act(() => {
+      useOneDriveStore.getState().setProgress({ status: 'syncing', seen: 3 });
+    });
+    expect(screen.getByRole('button', { name: 'Syncing...' })).toBeTruthy();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ONEDRIVE_SYNC_TIMEOUT_MS + 50);
+    });
+
+    // Terminal, visible outcome — the stuck 'syncing' signal must not win.
+    expect(screen.getByText(/ran into a problem/i)).toBeTruthy();
+    expect(screen.queryByText(/Importing/i)).toBeNull();
+    const finalButton = screen.getByRole('button', { name: 'Sync now' });
+    expect(finalButton).toBeTruthy();
+    expect(finalButton).not.toBeDisabled();
   }, 15000);
 
   it('shows the Importing spinner during the folder-discovery phase, before onedrive_sync even starts', async () => {

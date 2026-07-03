@@ -424,6 +424,19 @@ async fn collect_folders(
             .list_children(graph_drive_id, &item.id, omit_select)
             .await
             .map_err(|e| e.to_string())?;
+        // Re-check AFTER the await too, not just before it: the check at the
+        // top of this loop only fires on the NEXT iteration — if this was
+        // the LAST item on the stack, there is no next iteration, so a Stop
+        // that lands while this exact list_children call was in flight would
+        // otherwise be silently dropped (the loop just ends and returns Ok).
+        // That's not a cosmetic gap: the caller (onedrive_list_folders) would
+        // then return a normal folder list, `runSync()` would proceed
+        // straight into `onedrive_sync`, and `onedrive_sync` resets
+        // `state.cancel` to false at its own start — so a Stop click that
+        // landed here would be erased and the sync would start anyway.
+        if cancel.load(Ordering::SeqCst) {
+            return Err(CANCELLED.to_string());
+        }
         stack.extend(
             children
                 .into_iter()
@@ -830,6 +843,59 @@ mod tests {
         assert_eq!(result, Err(CANCELLED.to_string()));
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].name, "Clients");
+    }
+
+    #[tokio::test]
+    async fn collect_folders_honors_cancel_flipped_during_the_final_list_children_call() {
+        // round-2 review P2-b: a SINGLE item on the stack (the last/only one
+        // left to visit) — cancel is false when the pre-await check runs,
+        // then flips to true while its own list_children call is in flight.
+        // Before the fix, the top-of-loop check was the ONLY place cancel
+        // was ever re-read, and with the stack now empty there is no next
+        // iteration to catch it — the function returned Ok(()) as if the
+        // Stop click never happened, and the caller (onedrive_list_folders)
+        // would then hand back a normal folder list. runSync() would proceed
+        // straight into onedrive_sync, which unconditionally resets
+        // state.cancel at its own start — silently erasing the user's Stop.
+        use wiremock::matchers::method;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({ "value": [] }))
+                    .set_delay(Duration::from_millis(150)),
+            )
+            .mount(&server)
+            .await;
+        let client = OneDriveClient::new_with_base("AT".into(), server.uri());
+        let cancel = Arc::new(AtomicBool::new(false));
+        let flipper = cancel.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(40)).await;
+            flipper.store(true, Ordering::SeqCst);
+        });
+
+        let mut out = Vec::new();
+        let items = vec![folder("folder-1", "Clients", "drive-1", "/drive/root:", None)];
+        let result = collect_folders(
+            &client,
+            Some("drive-1"),
+            "drive-1",
+            false,
+            None,
+            items,
+            &mut out,
+            &cancel,
+        )
+        .await;
+
+        assert_eq!(
+            result,
+            Err(CANCELLED.to_string()),
+            "a Stop click during the LAST item's in-flight request must still abort the whole walk"
+        );
     }
 
     #[tokio::test]

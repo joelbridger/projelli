@@ -228,6 +228,18 @@ export function OneDriveConnect() {
         useOneDriveStore.getState().setProgress({ status: 'cancelled' });
       } else {
         setError(message);
+        // If onedrive_sync had already emitted its initial "syncing" event
+        // before this failed — including the exact case withOneDriveTimeout
+        // exists for: the command genuinely stalled AFTER that first event,
+        // so no Rust-side terminal event (done/error/cancelled) is ever
+        // coming — `progress.status` would otherwise stay stuck at
+        // 'syncing' forever, and since `syncing` is derived from
+        // `localSyncing || progress?.status === 'syncing'`, the spinner and
+        // the disabled Sync-now button would never clear even though
+        // localSyncing just flipped false in the `finally` below. Force the
+        // derived state to a terminal one regardless of which side (Rust or
+        // this frontend backstop) actually produced the failure.
+        useOneDriveStore.getState().setProgress({ status: 'error' });
       }
       // Show the raw reason on the owner's own screen, but persist only a
       // sanitized category to the append-only audit log — never a raw provider
