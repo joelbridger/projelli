@@ -250,6 +250,16 @@ fn map_http_err(e: anyhow::Error) -> CrmWriteError {
     if let Some(rest) = msg.strip_prefix("Wealthbox request failed (HTTP ") {
         let digits: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
         if let Ok(code) = digits.parse::<u16>() {
+            // A 5xx is ambiguous, not a definitive rejection: Wealthbox may
+            // have already accepted (even persisted) the write before
+            // failing to answer cleanly (a proxy timeout, a post-commit
+            // logging failure, etc). Only a 4xx means the request itself
+            // was rejected — safe to record as a genuine `failed`. Marking
+            // a 5xx `failed` would skip find_recent_matching on retry and
+            // could double-post a write that already landed.
+            if code >= 500 {
+                return CrmWriteError::VerifyPending;
+            }
             return CrmWriteError::Http(code);
         }
     }
@@ -454,9 +464,13 @@ pub fn validate_write_inputs(title: &str, body: &str) -> Result<(), CrmWriteErro
 
 fn remote_id_from(resp: &serde_json::Value) -> Result<String, CrmWriteError> {
     // VERIFY-LIVE: create responses echo the created object with top-level id.
+    // A 2xx response means Wealthbox already accepted (very likely created)
+    // the record — an id we can't find here is a parsing gap on OUR side,
+    // not proof the write failed, so this must be ambiguous (VerifyPending),
+    // never a definitive `failed` that would skip verification on retry.
     resp.get("id")
         .and_then(|v| v.as_i64().map(|n| n.to_string()).or_else(|| v.as_str().map(String::from)))
-        .ok_or(CrmWriteError::InvalidInput("create response had no id"))
+        .ok_or(CrmWriteError::VerifyPending)
 }
 
 #[cfg(test)]
@@ -713,6 +727,41 @@ mod tests {
         // ("422 Unprocessable Entity"), so this must not fall through to
         // VerifyPending just because the whole remainder isn't a bare number.
         assert!(matches!(err, CrmWriteError::Http(422)), "expected Http(422), got {err:?}");
+    }
+
+    #[tokio::test]
+    async fn wealthbox_create_note_5xx_is_ambiguous_not_definitively_failed() {
+        use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(matchers::method("POST"))
+            .and(matchers::path("/notes"))
+            .respond_with(ResponseTemplate::new(503))
+            .mount(&server)
+            .await;
+        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let err = client.create_note(&note_req()).await.unwrap_err();
+        // A 5xx can mean Wealthbox accepted (even persisted) the write before
+        // failing to answer cleanly — this must go through push_crm_write's
+        // verify-before-resend path (VerifyPending), never a definitive
+        // `failed` that would let a retry blindly double-post.
+        assert!(matches!(err, CrmWriteError::VerifyPending), "expected VerifyPending, got {err:?}");
+    }
+
+    #[tokio::test]
+    async fn wealthbox_create_note_missing_id_on_2xx_is_ambiguous_not_invalid() {
+        use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(matchers::method("POST"))
+            .and(matchers::path("/notes"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"ok": true})))
+            .mount(&server)
+            .await;
+        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let err = client.create_note(&note_req()).await.unwrap_err();
+        // A 2xx means Wealthbox already accepted the write; a response we
+        // can't find an id in is OUR parsing gap, not proof of failure — must
+        // go through verify-before-resend, never a definitive `failed`.
+        assert!(matches!(err, CrmWriteError::VerifyPending), "expected VerifyPending, got {err:?}");
     }
 
     #[tokio::test]
