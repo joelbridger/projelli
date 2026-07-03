@@ -174,8 +174,11 @@ interface DocxEditorProps {
    * Wealthbox" enqueue. Omitted (no current matter, e.g. an unassigned
    * note) hides the action entirely; when present it is still gated on the
    * Wealthbox connection (disabled with an explanation until connected).
+   * Returns whether a proposal was actually queued (false for a blank or
+   * table-only document with no extractable title) so the toolbar's
+   * confirmation never claims success for a no-op enqueue (codex-review).
    */
-  onSendToWealthbox?: ((plainText: string) => void) | undefined;
+  onSendToWealthbox?: ((plainText: string) => boolean) | undefined;
 }
 
 type LoadState =
@@ -1300,9 +1303,14 @@ export function DocxEditor({
                     const text = extractIndexedParagraphs(doc)
                       .map(p => p.text)
                       .join('\n');
-                    onSendToWealthbox(text);
-                    setWealthboxQueued(true);
-                    setTimeout(() => { setWealthboxQueued(false); }, 2500);
+                    // codex-review: only show the confirmation when the
+                    // callback actually queued something — a blank or
+                    // table-only document has no extractable title and must
+                    // not claim success for a no-op enqueue.
+                    if (onSendToWealthbox(text)) {
+                      setWealthboxQueued(true);
+                      setTimeout(() => { setWealthboxQueued(false); }, 2500);
+                    }
                   })();
                 }}
                 title={

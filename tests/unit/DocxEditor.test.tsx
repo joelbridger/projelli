@@ -563,8 +563,8 @@ describe('DocxEditor — accept / reject flow', () => {
       expect(screen.queryByTestId('docx-send-to-wealthbox')).not.toBeInTheDocument();
     });
 
-    it('queues the note for CRM review when Wealthbox is connected', async () => {
-      const onSendToWealthbox = vi.fn();
+    it('queues the note for CRM review when Wealthbox is connected, and shows a confirmation', async () => {
+      const onSendToWealthbox = vi.fn().mockReturnValue(true);
       render(
         <TooltipProvider>
           <DocxEditor
@@ -580,6 +580,29 @@ describe('DocxEditor — accept / reject flow', () => {
       fireEvent.click(button);
       await waitFor(() => expect(onSendToWealthbox).toHaveBeenCalled());
       expect(onSendToWealthbox.mock.calls[0]![0] as string).toContain('Client wants a Roth conversion review.');
+      await screen.findByTestId('docx-send-to-wealthbox-confirmation');
+    });
+
+    // codex-review: a blank/table-only document has no extractable title, so
+    // the enqueue callback reports back "nothing queued" — the toolbar must
+    // not claim success for a no-op enqueue.
+    it('does not show a confirmation when the callback reports nothing was queued', async () => {
+      const onSendToWealthbox = vi.fn().mockReturnValue(false);
+      render(
+        <TooltipProvider>
+          <DocxEditor
+            filePath="/ws/agreement.docx"
+            fileName="agreement.docx"
+            onSendToWealthbox={onSendToWealthbox}
+          />
+        </TooltipProvider>,
+      );
+      await screen.findByTestId('docx-run');
+      const button = await screen.findByTestId('docx-send-to-wealthbox');
+      await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+      fireEvent.click(button);
+      await waitFor(() => expect(onSendToWealthbox).toHaveBeenCalled());
+      expect(screen.queryByTestId('docx-send-to-wealthbox-confirmation')).not.toBeInTheDocument();
     });
 
     it('disables the action with an explanation when Wealthbox is not connected', async () => {

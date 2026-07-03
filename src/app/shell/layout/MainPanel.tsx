@@ -855,7 +855,7 @@ export function MainPanel({
                     return matterIdForFile === UNASSIGNED_MATTER_ID ? {} : {
                       onSendToWealthbox: (plainText: string) => {
                         const { title, body } = splitNoteForCrm(plainText);
-                        if (!title) return;
+                        if (!title) return false;
                         enqueueCrmWrite({
                           kind: 'note',
                           matterId: matterIdForFile,
@@ -863,6 +863,7 @@ export function MainPanel({
                           body,
                           sourceRef: `note:${matterIdForFile}`,
                         });
+                        return true;
                       },
                     };
                   })()}
