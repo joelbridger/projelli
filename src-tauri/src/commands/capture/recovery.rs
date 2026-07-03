@@ -17,9 +17,12 @@ pub fn find_orphans(workspace: &Path) -> Result<Vec<OrphanSession>> {
     let active = super::engine::active_meeting_dir();
     let mut out = Vec::new();
     // Meetings dirs sit at <workspace>/<matter folder>/Meetings/<meeting>.
-    // Matter folders may be one or two levels deep; walk breadth-limited.
+    // Matter folders are usually one or two levels deep, but firm/practice
+    // workspaces can nest deeper (e.g. "Clients/Team/Household") — cap
+    // generously to guard against a genuinely pathological/cyclic tree
+    // rather than the couple of levels a real matter folder actually uses.
     fn walk(dir: &Path, depth: u8, out: &mut Vec<OrphanSession>) {
-        if depth > 4 {
+        if depth > 12 {
             return;
         }
         let Ok(entries) = std::fs::read_dir(dir) else { return };

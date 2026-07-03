@@ -33,6 +33,60 @@ pub fn downmix_resample(input: &[f32], channels: u16, src_rate: u32) -> Vec<i16>
         .collect()
 }
 
+/// Stateful wrapper around the same downmix+resample math as
+/// `downmix_resample`, but carrying the fractional resample position
+/// across calls. `downmix_resample` alone is only correct for a single,
+/// complete buffer: cpal delivers audio in many small callbacks (e.g. 1024
+/// frames), and rounding `out_len` fresh in each call resets the phase to
+/// zero every time — for a 48kHz→16kHz stream with 1024-frame callbacks
+/// that's a systematic ~0.33-sample loss per callback, compounding to
+/// several seconds of mic/system-channel drift over a multi-hour meeting.
+/// `Resampler::push` tracks the leftover phase as real state instead.
+pub struct Resampler {
+    /// Fractional source-sample position of the next output sample,
+    /// relative to the start of the NEXT `push()` call's buffer (can be
+    /// negative-of-zero..1.0, i.e. "this many source samples into the next
+    /// buffer before the next output sample is due").
+    phase: f64,
+}
+
+impl Resampler {
+    pub fn new() -> Self {
+        Self { phase: 0.0 }
+    }
+
+    pub fn push(&mut self, input: &[f32], channels: u16, src_rate: u32) -> Vec<i16> {
+        let ch = channels.max(1) as usize;
+        let frames = input.len() / ch;
+        if frames == 0 {
+            return Vec::new();
+        }
+        let mono: Vec<f32> = (0..frames)
+            .map(|f| input[f * ch..f * ch + ch].iter().sum::<f32>() / ch as f32)
+            .collect();
+        let dst_rate = super::chunks::SAMPLE_RATE as f64;
+        let step = src_rate as f64 / dst_rate; // source samples per output sample
+        let mut out = Vec::new();
+        let mut pos = self.phase;
+        while (pos.floor() as usize) < frames {
+            let idx = pos.floor() as usize;
+            let frac = (pos - pos.floor()) as f32;
+            let a = mono[idx];
+            // Boundary approximation: the true next sample may live in the
+            // NEXT callback's buffer, not yet available. Repeating `a`
+            // here only affects the one output sample nearest each
+            // callback boundary and does not accumulate — unlike the
+            // phase itself, which is carried exactly below.
+            let b = *mono.get(idx + 1).unwrap_or(&a);
+            let v = a + (b - a) * frac;
+            out.push((v.clamp(-1.0, 1.0) * 32_767.0) as i16);
+            pos += step;
+        }
+        self.phase = pos - frames as f64;
+        out
+    }
+}
+
 // ---------- cpal-backed sources (Windows/Linux mic + loopback; mac mic) ----
 //
 // cpal's `Device`/`Stream` types are NOT `Send` on every backend (ALSA wraps
@@ -103,11 +157,12 @@ where
 {
     use cpal::traits::DeviceTrait;
     use cpal::Sample as _;
+    let mut resampler = Resampler::new();
     device.build_input_stream(
         stream_config,
         move |data: &[T], _: &cpal::InputCallbackInfo| {
             let as_f32: Vec<f32> = data.iter().map(|&s| f32::from_sample(s)).collect();
-            let mono16 = downmix_resample(&as_f32, channels, rate);
+            let mono16 = resampler.push(&as_f32, channels, rate);
             on_samples(&mono16);
         },
         |e| log::warn!("capture stream error: {e}"),

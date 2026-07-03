@@ -32,23 +32,28 @@ fn canonicalize_allowing_missing_tail(path: &std::path::Path) -> anyhow::Result<
         .join(&tail))
 }
 
-/// Resolve a RELATIVE matter folder under the workspace, refusing absolute
-/// inputs, `..` traversal, and symlink escapes. Every capture command that
-/// receives a folder/dir string MUST route through one of these two guards
-/// before any create/join/delete.
+/// Resolve a matter folder under the workspace, refusing `..` traversal and
+/// symlink escapes. Accepts BOTH a workspace-relative path ("Clients/A")
+/// and an absolute path that resolves inside the workspace — `Matter.
+/// folderPaths` (src/platform/matter/matterStore.ts) stores entries as
+/// absolute, workspace-prefixed paths (e.g. "C:/WS/Clients/Reyes"), which
+/// is what a real `capture_start` caller passes; a relative-only guard
+/// would reject every normal call. An absolute path OUTSIDE the workspace
+/// (e.g. "/etc") still correctly fails the escape check below — this
+/// doesn't relax the security guarantee, only the accepted input shape.
+/// Every capture command that receives a folder/dir string MUST route
+/// through one of these two guards before any create/join/delete.
 pub(crate) fn guard_matter_folder(
     workspace: &std::path::Path,
     matter_folder: &str,
 ) -> anyhow::Result<std::path::PathBuf> {
     use anyhow::{bail, Context};
-    let rel = std::path::Path::new(matter_folder);
-    if rel.is_absolute() {
-        bail!("matter_folder must be workspace-relative, got absolute path");
-    }
+    let input = std::path::Path::new(matter_folder);
     let canon_ws = workspace
         .canonicalize()
         .context("cannot canonicalize workspace")?;
-    let canon = canonicalize_allowing_missing_tail(&canon_ws.join(rel))?;
+    let joined = if input.is_absolute() { input.to_path_buf() } else { canon_ws.join(input) };
+    let canon = canonicalize_allowing_missing_tail(&joined)?;
     if !canon.starts_with(&canon_ws) {
         bail!("path '{}' escapes workspace '{}'", canon.display(), canon_ws.display());
     }
@@ -79,10 +84,21 @@ mod path_guard_tests {
     use super::*;
 
     #[test]
-    fn rejects_absolute_matter_folder() {
+    fn rejects_absolute_matter_folder_outside_workspace() {
         let ws = tempfile::tempdir().unwrap();
         let err = guard_matter_folder(ws.path(), "/etc").unwrap_err();
-        assert!(err.to_string().contains("must be workspace-relative"), "got: {err}");
+        assert!(err.to_string().contains("escapes workspace"), "got: {err}");
+    }
+
+    #[test]
+    fn accepts_absolute_matter_folder_inside_workspace() {
+        // Matter.folderPaths (matterStore.ts) stores absolute, workspace-
+        // prefixed paths — this is the real shape capture_start receives.
+        let ws = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(ws.path().join("Clients/Reyes Household")).unwrap();
+        let abs = ws.path().join("Clients/Reyes Household");
+        let p = guard_matter_folder(ws.path(), abs.to_str().unwrap()).unwrap();
+        assert!(p.starts_with(ws.path().canonicalize().unwrap()));
     }
 
     #[test]
