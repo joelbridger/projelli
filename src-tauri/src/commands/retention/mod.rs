@@ -7,6 +7,39 @@ use sweep::{sweep_matter_folder, SweepOutcome};
 
 const RETENTION_MODES: [&str; 3] = ["keep-everything", "delete-audio-after-days", "summary-only"];
 
+/// Open the audit store AND verify its hash chain, refusing to proceed if
+/// EITHER fails — before any deletion/redaction is attempted. `open()`
+/// alone only opens/migrates the database; a chain that was ALTERED after
+/// the fact (the exact thing this chain exists to detect) is only
+/// discovered lazily inside `append()`, by which point a preflight that
+/// merely opened the store would already have let the caller mutate files.
+/// Shared by `retention_sweep` and `redact_meeting_segments` — both are
+/// data-loss-critical operations that must never happen if their own audit
+/// trail cannot be trusted.
+pub(crate) fn preflight_audit_store(
+    ws: &std::path::Path,
+) -> Result<crate::commands::audit::store::EncryptedAuditStore, String> {
+    let store = crate::commands::audit::store::EncryptedAuditStore::open(ws).map_err(|e| format!("open audit store: {e}"))?;
+    reject_if_chain_altered(store)
+}
+
+/// The decision logic split out from `preflight_audit_store` so it's
+/// unit-testable against a store opened with `open_with_key` (an in-memory
+/// test key) instead of the real OS keychain `open()` goes through — tests
+/// in this sandboxed environment hang against the real keychain (see the
+/// PARK-HANDOFF gotcha this codebase already documents for `retention_sweep`).
+fn reject_if_chain_altered(
+    store: crate::commands::audit::store::EncryptedAuditStore,
+) -> Result<crate::commands::audit::store::EncryptedAuditStore, String> {
+    match store.verify_chain() {
+        Ok(crate::commands::audit::store::AuditChainVerification::Verified { .. }) => Ok(store),
+        Ok(crate::commands::audit::store::AuditChainVerification::Altered { seq, id, reason, .. }) => Err(format!(
+            "audit chain is altered (entry {id} at seq {seq}: {reason}) — refusing to proceed without a trustworthy audit trail"
+        )),
+        Err(e) => Err(format!("verify audit chain: {e}")),
+    }
+}
+
 /// Where RAG-cleanup ids land the INSTANT a transcript deletion or
 /// redaction happens — durably, synchronously, inside the same blocking
 /// Rust call that did the delete/redact, before the command even returns to
@@ -225,10 +258,10 @@ pub async fn retention_sweep(
         }
         // Preflight the audit store BEFORE any deletion: this is data-loss-critical
         // code, so a deletion that cannot be durably recorded must never happen.
-        // Opening is cheap (no writes yet); a bad key/corrupt store fails here,
-        // before a single file is removed.
-        let store = crate::commands::audit::store::EncryptedAuditStore::open(ws)
-            .map_err(|e| format!("open audit store: {e}"))?;
+        // preflight_audit_store both opens AND verifies the hash chain — an
+        // altered chain is only otherwise caught lazily inside append(), by
+        // which point files would already be gone.
+        let store = preflight_audit_store(ws)?;
         // Audit EVERY individual deletion the instant it happens — never
         // batched per-meeting, per-folder, or per-run. A process crash
         // anywhere in the sweep can then lose at most the ONE deletion that
@@ -354,6 +387,55 @@ mod tests {
         let b = new_audit_id();
         assert!(a.starts_with("audit_"));
         assert_ne!(a, b);
+    }
+
+    /// Uses `open_with_key` (in-memory test key), not `open`/`preflight_audit_store`
+    /// itself, so this stays fast and doesn't touch the real OS keychain — this
+    /// covers the DECISION logic `reject_if_chain_altered` makes, which is what
+    /// `preflight_audit_store` delegates to after opening for real.
+    #[test]
+    fn reject_if_chain_altered_passes_a_healthy_chain_and_refuses_a_tampered_one() {
+        use crate::commands::audit::store::{AuditEntryRecord, EncryptedAuditStore};
+        let dir = tempfile::tempdir().unwrap();
+        let key = [0x99u8; 32];
+
+        // A brand-new store (zero entries) must pass — the schema-init step
+        // seeds a valid genesis chain head even with nothing appended yet,
+        // so this must NOT be mistaken for "chain head missing".
+        let fresh = EncryptedAuditStore::open_with_key(dir.path(), &key).unwrap();
+        assert!(reject_if_chain_altered(fresh).is_ok());
+
+        // A healthy chain with real entries also passes.
+        let s = EncryptedAuditStore::open_with_key(dir.path(), &key).unwrap();
+        s.append(&AuditEntryRecord {
+            id: "e1".into(),
+            timestamp: "2026-01-01T00:00:00Z".into(),
+            action: "retention_delete".into(),
+            description: "d1".into(),
+            payload_json: "{}".into(),
+        })
+        .unwrap();
+        let s = EncryptedAuditStore::open_with_key(dir.path(), &key).unwrap();
+        assert!(reject_if_chain_altered(s).is_ok());
+
+        // Tamper with the row directly (bypassing append's own checks) —
+        // the preflight must now refuse, BEFORE anything else runs.
+        let dir2 = tempfile::tempdir().unwrap();
+        let s2 = EncryptedAuditStore::open_with_key(dir2.path(), &key).unwrap();
+        s2.append(&AuditEntryRecord {
+            id: "e1".into(),
+            timestamp: "2026-01-01T00:00:00Z".into(),
+            action: "retention_delete".into(),
+            description: "d1".into(),
+            payload_json: "{}".into(),
+        })
+        .unwrap();
+        s2.tamper_payload_for_test("e1", "{\"tampered\":true}");
+        let err = match reject_if_chain_altered(s2) {
+            Err(e) => e,
+            Ok(_) => panic!("expected a tampered chain to be rejected"),
+        };
+        assert!(err.contains("altered"), "got: {err}");
     }
 
     #[test]

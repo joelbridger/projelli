@@ -361,12 +361,12 @@ pub async fn redact_meeting_segments(
 
         // Preflight the audit store BEFORE any mutation — same rule as
         // retention_sweep in mod.rs: a redaction that cannot be durably
-        // recorded must never happen. Opening is cheap (no writes yet); a
-        // bad key/corrupt store fails HERE, before transcript.json or
-        // notes.docx is touched, instead of after a real redaction already
-        // happened with no way to record it.
-        let store = crate::commands::audit::store::EncryptedAuditStore::open(ws)
-            .map_err(|e| format!("open audit store: {e}"))?;
+        // recorded must never happen. super::preflight_audit_store both
+        // opens AND verifies the hash chain (open() alone only opens the
+        // DB — an ALREADY-altered chain is otherwise only discovered lazily
+        // inside append(), by which point transcript.json/notes.docx would
+        // already be rewritten with no way to durably record it).
+        let store = super::preflight_audit_store(ws)?;
 
         let mut receipt = redact_segments_inner(&canon_ws, &meeting_abs, &segment_indices, now_ms)?;
 
