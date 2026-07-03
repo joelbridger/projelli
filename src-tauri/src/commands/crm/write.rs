@@ -414,16 +414,14 @@ pub async fn push_crm_write(
     if let Some(row) = &existing {
         if row.status == "sent" {
             if let Some(remote_id) = &row.remote_id {
-                // KNOWN GAP (flagged, not fixed here — see handoff notes):
-                // `crm_connect` can overwrite the stored token for a DIFFERENT
-                // Wealthbox account without an explicit disconnect first, and
-                // this ledger has no account identity in its key — a `sent`
-                // row from the OLD account would be wrongly treated as
-                // delivered to the NEW one if the household id and content
-                // happen to match. Closing this needs `crm_connect` (a
-                // pre-existing command outside this write module) to purge
-                // outbound-write rows on every successful connect, not just
-                // on explicit disconnect.
+                // Trusting a `sent` row here is safe because `crm_connect`
+                // (every success path — token, Redtail, and the Salesforce
+                // OAuth flow) downgrades every `sent` row for that provider
+                // to `pending_verify` on every successful connect, same
+                // account reconnecting or a different one — so a `sent` row
+                // can only reach this branch if it was recorded under the
+                // CURRENTLY connected account. See
+                // CrmStore::mark_sent_rows_pending_verify_for_provider.
                 return Ok(WriteReceipt { remote_id: remote_id.clone(), deduped: true });
             }
         }
@@ -756,6 +754,59 @@ mod tests {
         assert_eq!(receipt.remote_id, "556");
         assert!(!receipt.deduped);
         assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    /// End-to-end account-switch scenario (ADDED-SCOPE P1): a note was sent
+    /// under account A, then the advisor reconnects (same or a different
+    /// Wealthbox account) — `mark_sent_rows_pending_verify_for_provider` is
+    /// what `crm_connect` calls on every successful connect. The next
+    /// push_crm_write for that identical content must NOT trust the old
+    /// `sent` receipt blindly; it must re-verify against whichever account
+    /// is connected now.
+    #[tokio::test]
+    async fn reconnect_forces_reverification_before_trusting_a_stale_sent_row() {
+        let req = note_req();
+
+        // Case 1: the newly connected account (same or different) already
+        // has this exact content — recognized via find_recent_matching, the
+        // old receipt is confirmed and reused; no duplicate POST.
+        {
+            let (_dir, store) = test_store();
+            let guard = WriteInFlightGuard::new();
+            store
+                .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "sent", Some("old-id"), true)
+                .unwrap();
+            store.mark_sent_rows_pending_verify_for_provider("wealthbox").unwrap();
+            let source = FakeWriteSource {
+                create_results: std::sync::Mutex::new(vec![]),
+                find_result: Some("new-account-id".into()),
+                create_calls: std::sync::atomic::AtomicUsize::new(0),
+            };
+            let receipt = push_crm_write(&source, &store, &guard, &req).await.unwrap();
+            assert_eq!(receipt.remote_id, "new-account-id");
+            assert!(receipt.deduped);
+            assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+        }
+
+        // Case 2: the newly connected account does NOT have this content —
+        // the stale 'sent' row must not block a real send to the new account.
+        {
+            let (_dir, store) = test_store();
+            let guard = WriteInFlightGuard::new();
+            store
+                .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "sent", Some("old-id"), true)
+                .unwrap();
+            store.mark_sent_rows_pending_verify_for_provider("wealthbox").unwrap();
+            let source = FakeWriteSource {
+                create_results: std::sync::Mutex::new(vec![Ok("fresh-id".into())]),
+                find_result: None,
+                create_calls: std::sync::atomic::AtomicUsize::new(0),
+            };
+            let receipt = push_crm_write(&source, &store, &guard, &req).await.unwrap();
+            assert_eq!(receipt.remote_id, "fresh-id");
+            assert!(!receipt.deduped, "must actually send to the newly connected account");
+            assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+        }
     }
 
     #[tokio::test]

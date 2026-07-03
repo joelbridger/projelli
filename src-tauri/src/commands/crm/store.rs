@@ -715,6 +715,23 @@ impl CrmStore {
         )?)
     }
 
+    /// Downgrade every `sent` outbound-write row for `provider` to
+    /// `pending_verify`, leaving `remote_id`/`created_at` untouched. Called
+    /// on every successful `crm_connect` for that provider (same account
+    /// reconnecting or a genuinely different one) — a `sent` row only proves
+    /// delivery to whichever account was connected when it was recorded, so
+    /// after any reconnect it must be re-verified against whichever account
+    /// is connected NOW before `push_crm_write` ever trusts it as delivered
+    /// again. Returns the number of rows downgraded.
+    pub fn mark_sent_rows_pending_verify_for_provider(&self, provider: &str) -> Result<usize> {
+        let c = self.conn.lock().unwrap();
+        Ok(c.execute(
+            "UPDATE crm_outbound_writes SET status = 'pending_verify', updated_at = ?2
+             WHERE provider = ?1 AND status = 'sent'",
+            rusqlite::params![provider, chrono::Utc::now().to_rfc3339()],
+        )?)
+    }
+
     /// Delete every locally-imported Wealthbox object by removing the encrypted
     /// CRM database file. The file is recreated empty the next time `open` is
     /// called. Invoked by `crm_disconnect` so a disconnected workspace retains no
@@ -889,6 +906,38 @@ mod tests {
         assert_eq!(n, 1);
         assert!(store.outbound_get("wb1").unwrap().is_none(), "wealthbox row must be gone");
         assert!(store.outbound_get("sf1").unwrap().is_some(), "salesforce row must survive a wealthbox disconnect");
+    }
+
+    /// A `sent` row proves delivery only to whichever account was connected
+    /// AT THE TIME it was recorded. If the advisor reconnects — same or a
+    /// DIFFERENT Wealthbox account — that proof no longer holds: a stale
+    /// `sent` row for the SAME household id could otherwise be reused as
+    /// false proof-of-delivery to the newly connected account. Called on
+    /// every successful crm_connect; downgrading (not deleting) to
+    /// `pending_verify` means the NEXT push_crm_write call for that content
+    /// re-verifies against whichever account is now connected before ever
+    /// treating it as already-delivered, reusing the existing verify-before-
+    /// resend machinery instead of blindly forgetting the send happened.
+    #[test]
+    fn mark_sent_rows_pending_verify_only_touches_that_providers_sent_rows() {
+        let (dir, store) = crm_store();
+        let _ = dir;
+        store.outbound_upsert("wb-sent", "wealthbox", "note", "12345", "m1", "doc:a.docx", "sent", Some("1"), true).unwrap();
+        store.outbound_upsert("wb-pending", "wealthbox", "note", "99999", "m1", "doc:b.docx", "pending", None, true).unwrap();
+        store.outbound_upsert("wb-failed", "wealthbox", "note", "88888", "m1", "doc:c.docx", "failed", None, true).unwrap();
+        store.outbound_upsert("sf-sent", "salesforce", "note", "001XYZ", "m1", "doc:d.docx", "sent", Some("2"), true).unwrap();
+
+        let n = store.mark_sent_rows_pending_verify_for_provider("wealthbox").unwrap();
+        assert_eq!(n, 1, "only the one wealthbox 'sent' row should flip");
+
+        assert_eq!(store.outbound_get("wb-sent").unwrap().unwrap().status, "pending_verify");
+        assert_eq!(store.outbound_get("wb-pending").unwrap().unwrap().status, "pending", "non-sent rows must be untouched");
+        assert_eq!(store.outbound_get("wb-failed").unwrap().unwrap().status, "failed", "non-sent rows must be untouched");
+        assert_eq!(store.outbound_get("sf-sent").unwrap().unwrap().status, "sent", "other providers must be untouched");
+        // remote_id and created_at (the recovery-verification floor) must
+        // survive the transition unchanged — find_recent_matching still
+        // needs them to check whichever account is now connected.
+        assert_eq!(store.outbound_get("wb-sent").unwrap().unwrap().remote_id.as_deref(), Some("1"));
     }
 
     /// P2.3 row 8: the cheap digest list MUST match `list_objects_by_household`

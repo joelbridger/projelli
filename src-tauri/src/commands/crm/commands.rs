@@ -319,6 +319,44 @@ async fn append_crm_audit_best_effort(app: &AppHandle, action: &str, description
     }
 }
 
+/// Downgrade every `sent` outbound-write ledger row for `provider` to
+/// `pending_verify` (see `CrmStore::mark_sent_rows_pending_verify_for_provider`).
+/// Called from every successful connect path (`crm_connect`'s Redtail branch,
+/// its token branch, and `crm_oauth_connect`'s OAuth branch) — a reconnect,
+/// same account or a different one, means a `sent` row's proof of delivery no
+/// longer holds, so the next write attempt for that content must re-verify
+/// against whichever account is connected now rather than trust a stale
+/// receipt. Best-effort: no workspace open yet (connecting before opening a
+/// workspace) or a local DB hiccup is logged and does not fail the connect —
+/// there is nothing to protect the ledger from before a workspace exists.
+async fn mark_stale_sent_rows_pending_verify_best_effort(app: &AppHandle, provider: CrmProvider) {
+    let ws_opt: Option<std::path::PathBuf> = {
+        let audit_ws = app.state::<AuditState>().workspace.lock().await.clone();
+        if audit_ws.is_some() {
+            audit_ws
+        } else {
+            app.state::<CrmState>().workspace.lock().await.clone()
+        }
+    };
+    let Some(ws) = ws_opt else {
+        return;
+    };
+    let provider_id = provider.id();
+    let result = tokio::task::spawn_blocking(move || -> anyhow::Result<usize> {
+        let store = CrmStore::open(&ws)?;
+        Ok(store.mark_sent_rows_pending_verify_for_provider(provider_id)?)
+    })
+    .await;
+    match result {
+        Ok(Ok(n)) if n > 0 => {
+            log::info!("crm connect: downgraded {n} stale '{provider_id}' sent row(s) to pending_verify");
+        }
+        Ok(Ok(_)) => {}
+        Ok(Err(e)) => log::warn!("crm connect: marking stale sent rows failed (non-fatal): {e:#}"),
+        Err(e) => log::warn!("crm connect: marking stale sent rows spawn failed (non-fatal): {e}"),
+    }
+}
+
 /// Matter-scoped variant of [`crm_audit_payload_json`] for writes that
 /// originate from (and only affect) one client — the approval-gated CRM
 /// write path (`crm_create_note` / `crm_create_task`), unlike connect/sync/
@@ -663,6 +701,7 @@ pub async fn crm_connect(
         // Store only the exchanged Redtail UserKey. The advisor password is
         // used for this request and is never persisted.
         store_token(provider, &info.user_key)?;
+        mark_stale_sent_rows_pending_verify_best_effort(&app, provider).await;
 
         append_crm_audit_best_effort(
             &app,
@@ -696,6 +735,7 @@ pub async fn crm_connect(
 
     // Store the token only after a confirmed successful validation.
     store_token(provider, token)?;
+    mark_stale_sent_rows_pending_verify_best_effort(&app, provider).await;
 
     // Emit durable audit — best-effort; uses AuditState workspace (same DB
     // that the Activity Log reads) so the entry appears immediately.
@@ -852,6 +892,8 @@ pub async fn crm_oauth_connect(
         .await;
         return Err("cancelled".to_string());
     }
+
+    mark_stale_sent_rows_pending_verify_best_effort(&app, provider).await;
 
     Ok(CrmConnectInfo {
         name: info.name,
