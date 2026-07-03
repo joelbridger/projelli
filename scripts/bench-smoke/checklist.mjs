@@ -6,6 +6,7 @@ import * as setupChecks from './checks/setup.mjs';
 import * as wave0Checks from './checks/wave0.mjs';
 import * as wave1Checks from './checks/wave1.mjs';
 import * as wave2Checks from './checks/wave2.mjs';
+import * as wave4Checks from './checks/wave4.mjs';
 import * as crossCuttingChecks from './checks/crosscutting.mjs';
 import { WAVE_3_STUBS, WAVE_4_STUBS } from './checks/wave-stubs.mjs';
 
@@ -23,6 +24,10 @@ export const CHECKLIST = [
 
   { id: 'wave2-wealthbox-queue-review', section: 'Wave 2 — Send to Wealthbox (queue/review only)', title: 'Send to Wealthbox button renders on a resolvable note and queues a review card', liveOnly: false, run: wave2Checks.checkWealthboxQueueAndReview },
   { id: 'wave2-wealthbox-approve-live', section: 'Wave 2 — Send to Wealthbox (queue/review only)', title: '[--live only, sandbox CRM] Approve the queued card and confirm it posts', liveOnly: true, run: wave2Checks.checkWealthboxApproveLive },
+
+  { id: 'wave4-whole-book-view', section: 'Wave 4 — Depth (Track B: whole-book Client Map)', title: 'Client Map "Whole book" view ranks all clients; a book row opens the client hub', liveOnly: false, run: wave4Checks.checkWholeBookView },
+  { id: 'wave4-estate-beneficiary-gap', section: 'Wave 4 — Depth (Track B: estate/beneficiary gap detection)', title: 'Estate/beneficiary gap chip renders in the book view and dismissing it resolves the gap', liveOnly: false, run: wave4Checks.checkEstateBeneficiaryGap },
+  { id: 'wave4-whole-practice-ask', section: 'Wave 4 — Depth (Track C: whole-practice Ask + consent gate)', title: 'Ask "Whole practice" scope pill renders; cross-client consent gate appears when required', liveOnly: false, run: wave4Checks.checkWholePracticeAsk },
 
   { id: 'cross-cutting-light-theme', section: 'Cross-cutting', title: 'App theme is Light everywhere visited', liveOnly: false, run: crossCuttingChecks.checkLightTheme },
   { id: 'cross-cutting-console-errors', section: 'Cross-cutting', title: 'No console errors while navigating Client Map / Documents / Settings', liveOnly: false, run: crossCuttingChecks.checkConsoleErrors },

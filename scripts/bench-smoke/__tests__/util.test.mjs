@@ -4,7 +4,12 @@ import {
   clickElement,
   openSmokeClientDocuments,
   openSmokeClientOverview,
+  openSmokeClientDocumentsSubtab,
   openSmokeClientNote,
+  openSettingsAiPrivacy,
+  openAccountConnectionsTab,
+  openWholeBookView,
+  openAskSurface,
 } from '../checks/_util.mjs';
 import { DriverError } from '../driver.mjs';
 import { makeResult, STATUS } from '../result.mjs';
@@ -109,5 +114,63 @@ describe('openSmokeClientNote', () => {
   it('throws a DriverError when the docx toolbar never appears', async () => {
     const driver = { doubleClickByText: vi.fn(), waitFor: vi.fn().mockResolvedValue({ found: false, error: 'timed out' }) };
     await expect(openSmokeClientNote(driver, { fileName: 'x.docx' })).rejects.toThrow(DriverError);
+  });
+});
+
+describe('openSmokeClientDocumentsSubtab', () => {
+  it('clicks the hub-subtab-documents testid', async () => {
+    const driver = { click: vi.fn() };
+    await openSmokeClientDocumentsSubtab(driver);
+    expect(driver.click).toHaveBeenCalledWith('hub-subtab-documents');
+  });
+});
+
+describe('openSettingsAiPrivacy', () => {
+  it('clicks settings-gear then settings-category-ai-privacy, in order', async () => {
+    const calls = [];
+    const driver = { click: vi.fn((testid) => calls.push(testid)) };
+    await openSettingsAiPrivacy(driver);
+    expect(calls).toEqual(['settings-gear', 'settings-category-ai-privacy']);
+  });
+
+  it('propagates a DriverError from either click (best-effort callers catch it)', async () => {
+    const driver = { click: vi.fn().mockRejectedValue(new DriverError('gear not found')) };
+    await expect(openSettingsAiPrivacy(driver)).rejects.toThrow(DriverError);
+  });
+});
+
+describe('openAccountConnectionsTab', () => {
+  it('clicks account-identity then account-tab-connections, in order', async () => {
+    const calls = [];
+    const driver = { click: vi.fn((testid) => calls.push(testid)) };
+    await openAccountConnectionsTab(driver);
+    expect(calls).toEqual(['account-identity', 'account-tab-connections']);
+  });
+});
+
+describe('openWholeBookView', () => {
+  it('clicks spine-nav-matters once, then clicks the "Whole book" text toggle, when no hub is left open', async () => {
+    const driver = { click: vi.fn(), clickByText: vi.fn(), evalJs: vi.fn().mockResolvedValue(false) };
+    await openWholeBookView(driver);
+    expect(driver.click).toHaveBeenCalledTimes(1);
+    expect(driver.click).toHaveBeenCalledWith('spine-nav-matters');
+    expect(driver.clickByText).toHaveBeenCalledWith('Whole book');
+  });
+
+  it('clicks spine-nav-matters a second time if a client hub is still open after the first click', async () => {
+    const driver = { click: vi.fn(), clickByText: vi.fn(), evalJs: vi.fn().mockResolvedValue(true) };
+    await openWholeBookView(driver);
+    expect(driver.click).toHaveBeenCalledTimes(2);
+    expect(driver.click).toHaveBeenNthCalledWith(1, 'spine-nav-matters');
+    expect(driver.click).toHaveBeenNthCalledWith(2, 'spine-nav-matters');
+    expect(driver.clickByText).toHaveBeenCalledWith('Whole book');
+  });
+});
+
+describe('openAskSurface', () => {
+  it('clicks spine-nav-search (the Ask surface\'s kept internal spine id)', async () => {
+    const driver = { click: vi.fn() };
+    await openAskSurface(driver);
+    expect(driver.click).toHaveBeenCalledWith('spine-nav-search');
   });
 });

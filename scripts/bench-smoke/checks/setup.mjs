@@ -4,18 +4,47 @@
 // harness does not create workspaces or drive OAuth) — if it isn't, the check
 // reports SETUP-BLOCKED rather than guessing.
 import { STATUS, makeResult } from '../result.mjs';
-import { withGuard, requireSnapshot, findByTestId, findByText, textPresent, openSmokeClientDocuments, openSmokeClientOverview } from './_util.mjs';
+import {
+  withGuard,
+  requireSnapshot,
+  findByTestId,
+  findByText,
+  textPresent,
+  openSmokeClientDocuments,
+  openSmokeClientOverview,
+  openSmokeClientDocumentsSubtab,
+} from './_util.mjs';
 import { SMOKE_CLIENT_MATTER_ID } from './smoke-workspace.mjs';
 
 // Best-effort: navigate to the known smoke client's Documents/Client-Map view
-// before asserting. Swallowed on failure — the assertions below (waitFor
-// 'Documents'/'Client Map') are the real, honest gate; this just saves a
-// human from having to pre-navigate by hand for the common case where the
-// app landed somewhere else (e.g. the whole-book Clients list).
+// before asserting. The two steps are tried INDEPENDENTLY (not one try/catch
+// around both) — this is a deliberate fix for documented flakiness in
+// index-health (see docs/qa/BENCH-SMOKE-HARNESS.md "Known follow-ups").
+// Root cause, confirmed in the app source (MatterHub.tsx): once ANY client
+// hub is open, there is no UI control wired back to the client table
+// (closeHub() is never bound to a visible button), so
+// matter-launch-documents-<matterId> can legitimately disappear the instant
+// a prior check (e.g. Wave 0/Wave 2, which open a docx note) leaves a hub
+// open on a different sub-tab — but the hub's own sub-tab bar
+// (hub-subtab-overview / hub-subtab-documents) is a persistent sibling
+// control that stays present and switchable regardless. A single try/catch
+// wrapping both steps meant that whenever step 1 failed for this reason,
+// step 2 (switching to the actually-desired sub-tab) never even ran — this
+// check would then assert against whatever sub-tab a PRIOR check happened to
+// leave open, which is exactly the "ordering/timing interaction" flakiness
+// this harness saw live (SETUP-BLOCKED some runs, PASS others). Splitting the
+// steps means the sub-tab switch always runs, whether the hub was already
+// open or was just opened by step 1. The assertions below (waitFor
+// 'Documents'/'Client Map') remain the real, honest gate either way.
 async function primeClientView(driver, after) {
   try {
     await openSmokeClientDocuments(driver, { matterId: SMOKE_CLIENT_MATTER_ID });
+  } catch {
+    // Ignored — see comment above.
+  }
+  try {
     if (after === 'overview') await openSmokeClientOverview(driver);
+    else await openSmokeClientDocumentsSubtab(driver);
   } catch {
     // Ignored — see comment above.
   }

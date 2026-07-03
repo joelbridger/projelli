@@ -1,7 +1,7 @@
 // scripts/bench-smoke/checks/crosscutting.mjs — Cross-cutting checks from
 // RUN-LOG.md: light theme, console-error cleanliness, egress indicator.
 import { STATUS, makeResult } from '../result.mjs';
-import { withGuard, requireSnapshot, findByText, clickElement } from './_util.mjs';
+import { withGuard, requireSnapshot, findByText, clickElement, openSettingsAiPrivacy } from './_util.mjs';
 
 const SECTION = 'Cross-cutting';
 
@@ -59,6 +59,13 @@ export const checkConsoleErrors = withGuard('cross-cutting-console-errors', SECT
 });
 
 export const checkEgressIndicator = withGuard('cross-cutting-egress-indicator', SECTION, async ({ driver }) => {
+  try {
+    await openSettingsAiPrivacy(driver);
+  } catch {
+    // Best-effort — see wave0.mjs for the same pattern and rationale. The
+    // findByText check right below is the real, honest gate.
+  }
+
   const elements = await requireSnapshot(driver);
   const localOnlyToggle = findByText(elements, /on this computer only/i);
   if (!localOnlyToggle) {

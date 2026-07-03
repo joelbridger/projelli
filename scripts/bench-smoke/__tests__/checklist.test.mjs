@@ -28,6 +28,13 @@ describe('CHECKLIST', () => {
     const liveOnly = CHECKLIST.filter((c) => c.liveOnly).map((c) => c.id);
     expect(liveOnly).toEqual(['wave2-wealthbox-approve-live']);
   });
+
+  it('includes the promoted Wave 4 Track B/C checks (no longer stubs)', () => {
+    const ids = CHECKLIST.map((c) => c.id);
+    expect(ids).toContain('wave4-whole-book-view');
+    expect(ids).toContain('wave4-estate-beneficiary-gap');
+    expect(ids).toContain('wave4-whole-practice-ask');
+  });
 });
 
 describe('STUBS', () => {
@@ -49,6 +56,15 @@ describe('STUBS', () => {
     expect(new Set(stubIds).size).toBe(stubIds.length);
     const liveIds = new Set(CHECKLIST.map((c) => c.id));
     for (const id of stubIds) expect(liveIds.has(id)).toBe(false);
+  });
+
+  it('keeps only the not-yet-merged Wave 4 tracks (A, D) as stubs', () => {
+    const stubIds = STUBS.map((s) => s.id);
+    expect(stubIds).toContain('wave4-diarization');
+    expect(stubIds).toContain('wave4-retention-attestation');
+    expect(stubIds).not.toContain('wave4-whole-book-view');
+    expect(stubIds).not.toContain('wave4-estate-beneficiary-gap');
+    expect(stubIds).not.toContain('wave4-whole-practice-ask');
   });
 });
 

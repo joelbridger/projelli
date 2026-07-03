@@ -1,11 +1,10 @@
-// scripts/bench-smoke/checks/wave-stubs.mjs — TODO stubs for Wave 3 (local
-// meeting capture) and Wave 4 (depth: book view, cross-client Ask,
-// diarization). These waves either don't have bench-drivable UI yet (Wave 3's
-// capture engine, Wave 4's diarization sidecar are backend/Rust-only so far)
-// or their UI exists but the harness hasn't been wired to drive it yet — per
-// the brief, that wiring is the Wave-3/Wave-4 lanes' own job during their
-// bench verification, not this harness's. Acceptance text below is paraphrased
-// from the plan docs; see the cited file for the authoritative spec.
+// scripts/bench-smoke/checks/wave-stubs.mjs — TODO stubs for waves whose UI
+// isn't bench-drivable yet. Wave 3 (local meeting capture) is backend/Rust-only
+// so far. Wave 4 Track A (diarization) hasn't merged. Wave 4 Tracks B/C
+// (whole-book Client Map + estate/beneficiary gaps, whole-practice Ask +
+// consent gate) DID merge and are now real checks in wave4.mjs, not stubs
+// here — see checklist.mjs. Acceptance text below is paraphrased from the
+// plan docs; see the cited file for the authoritative spec.
 import { makeResult, STATUS } from '../result.mjs';
 
 function stub({ id, section, title, planRef, acceptance }) {
@@ -55,35 +54,19 @@ export const WAVE_3_STUBS = [
 
 export const WAVE_4_STUBS = [
   stub({
-    id: 'wave4-whole-book-view',
-    section: 'Wave 4 — Depth (STUB)',
-    title: 'Client Map "Whole book" view ranks all clients with sourced facts / open gaps / last touch',
-    planRef: 'docs/plans/lantern-plus/2026-07-02-wave-4-depth.md (Track B, Task 1-2)',
-    acceptance:
-      'The Client Map "Clients | Whole book" toggle switches to a ranked list of every client, columns for Sourced Facts / Open Gaps / Last Touch.',
-  }),
-  stub({
-    id: 'wave4-estate-beneficiary-gap',
-    section: 'Wave 4 — Depth (STUB)',
-    title: 'Estate/beneficiary designation gap is flagged on a client with a real inconsistency',
-    planRef: 'docs/plans/lantern-plus/2026-07-02-wave-4-depth.md (Task 2b)',
-    acceptance:
-      'A client whose beneficiary/estate documents are stale or inconsistent shows a gap chip on their Client Map; a client with none shows a clean "none found" cited answer.',
-  }),
-  stub({
-    id: 'wave4-whole-practice-ask',
-    section: 'Wave 4 — Depth (STUB)',
-    title: 'Ask "Whole practice" scope answers a cross-client question with per-client citations',
-    planRef: 'docs/plans/lantern-plus/2026-07-02-wave-4-depth.md (Track C, Task 3-5)',
-    acceptance:
-      'Selecting the "Whole practice" scope pill (after granting the cross-client consent prompt) answers a practice-wide question with clickable client chips and per-fact citations, built only from each client\'s summary (never raw cross-matter RAG).',
-  }),
-  stub({
     id: 'wave4-diarization',
     section: 'Wave 4 — Depth (STUB)',
     title: 'A captured meeting is diarized (speakers separated/named)',
     planRef: 'docs/plans/lantern-plus/2026-07-02-wave-4-depth.md (Track A, Task 6+)',
     acceptance:
       'A recorded meeting transcript shows separate, named (or nameable) speakers rather than one undifferentiated stream. Depends on Wave 3 capture existing first.',
+  }),
+  stub({
+    id: 'wave4-retention-attestation',
+    section: 'Wave 4 — Depth (STUB)',
+    title: 'Retention policy setting is visible and an attestation report exports',
+    planRef: 'docs/plans/lantern-plus/2026-07-02-wave-4-depth.md (Track D, Task 16-17)',
+    acceptance:
+      'Settings > Privacy shows a "Meeting recordings" retention policy control (keep/delete-after choices) whose current state also appears on the Data Map dialog; an "Export attestation report" action produces a .docx summarizing consent, recordings, and deletions.',
   }),
 ];
