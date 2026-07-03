@@ -844,16 +844,17 @@ export interface DiarizeMeetingResult {
   dims: number;
 }
 
-/** Separate the far-end voices of a recorded meeting (fully local). */
-export async function diarizeMeeting(meetingDir: string, numSpeakers?: number): Promise<DiarizeMeetingResult> {
+/** Separate the far-end voices of a recorded meeting (fully local). `workspaceRoot`
+ *  is required so the backend can reject a meetingDir outside the active workspace. */
+export async function diarizeMeeting(workspaceRoot: string, meetingDir: string, numSpeakers?: number): Promise<DiarizeMeetingResult> {
   if (!isTauri()) throw new Error('Speaker separation is only available in the desktop app.');
-  return invoke<DiarizeMeetingResult>('diarize_meeting', { meetingDir, numSpeakers });
+  return invoke<DiarizeMeetingResult>('diarize_meeting', { workspaceRoot, meetingDir, numSpeakers });
 }
 
 /** Rename diarized speakers in a meeting transcript ("Speaker 2" -> a client name). */
-export async function applySpeakerNames(meetingDir: string, renames: Record<string, string>): Promise<number> {
+export async function applySpeakerNames(workspaceRoot: string, meetingDir: string, renames: Record<string, string>): Promise<number> {
   if (!isTauri()) throw new Error('Speaker naming is only available in the desktop app.');
-  return invoke<number>('apply_speaker_names', { meetingDir, renames });
+  return invoke<number>('apply_speaker_names', { workspaceRoot, meetingDir, renames });
 }
 
 export interface VoiceprintInfo { id: string; name: string; sampleCount: number; updatedAt: string }

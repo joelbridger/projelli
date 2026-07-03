@@ -33,7 +33,7 @@ export function SpeakerNamesPanel({ meetingDir, matterId, workspaceRoot, onAppli
   const run = async () => {
     setBusy(true); setError(null);
     try {
-      const result = await diarizeMeeting(meetingDir);
+      const result = await diarizeMeeting(workspaceRoot, meetingDir);
       const next: SpeakerRow[] = [];
       for (const speaker of result.speakers) {
         const suggestion = await voiceprintMatch(workspaceRoot, matterId, speaker.centroid);
@@ -66,7 +66,7 @@ export function SpeakerNamesPanel({ meetingDir, matterId, workspaceRoot, onAppli
           metadata: { matterId, meetingDir },
         });
       }
-      if (Object.keys(renames).length > 0) await applySpeakerNames(meetingDir, renames);
+      if (Object.keys(renames).length > 0) await applySpeakerNames(workspaceRoot, meetingDir, renames);
       setDone(true);
       onApplied?.();
     } catch (e: unknown) {

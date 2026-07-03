@@ -1,6 +1,5 @@
-//! Per-matter encrypted voiceprint store: <workspace>/.lantern/voiceprints/
+//! Per-matter encrypted voiceprint store: <workspace-data-dir>/voiceprints/
 //! <matter>.kpv, AES-256-GCM (lantern-vault KPV1). Local-only by design.
-use crate::identity::WORKSPACE_DATA_DIR;
 use std::path::{Path, PathBuf};
 
 pub const AUTO_SUGGEST_THRESHOLD: f32 = 0.60;
@@ -30,8 +29,12 @@ fn sanitize_for_filename(matter_id: &str) -> String {
 }
 
 pub fn store_path(workspace_root: &Path, matter_id: &str) -> PathBuf {
-    workspace_root
-        .join(WORKSPACE_DATA_DIR)
+    // Migration-aware: an upgraded workspace may still have `.keepance` as
+    // its authoritative data dir. Hardcoding `.lantern` here would create a
+    // real (non-stub) `.lantern/voiceprints` folder that flips the migration
+    // resolver's decision for every OTHER store (mail/audit/RAG), hiding
+    // their still-legacy data. Always go through the shared resolver.
+    crate::commands::data_dir::workspace_data_dir(workspace_root)
         .join("voiceprints")
         .join(format!("{}.kpv", sanitize_for_filename(matter_id)))
 }

@@ -139,6 +139,26 @@ fn resolve_diarize_assets(app: &tauri::AppHandle) -> Result<(std::path::PathBuf,
     Err("Speaker separation is not available: the diarize sidecar or its models were not found. Run: npm run fetch-diarize-models && npm run build-diarize-sidecar".to_string())
 }
 
+/// Reject a renderer-supplied meeting folder that resolves outside the
+/// active workspace (traversal / symlink escape / wrong-workspace bug),
+/// before either command touches the filesystem inside it. Mirrors the
+/// canonicalize-and-contain check `commands::vault::resolve_and_guard` uses
+/// for workspace-relative paths, adapted for an absolute directory that
+/// must already exist (both callers require it to: `diarize_meeting` needs
+/// `audio.wav` inside it, `apply_speaker_names` needs `transcript.json`).
+fn ensure_within_workspace(workspace_root: &Path, dir: &Path) -> Result<(), String> {
+    let canon_root = workspace_root
+        .canonicalize()
+        .map_err(|e| format!("cannot resolve the active workspace: {e}"))?;
+    let canon_dir = dir
+        .canonicalize()
+        .map_err(|e| format!("cannot resolve this meeting folder: {e}"))?;
+    if !canon_dir.starts_with(&canon_root) {
+        return Err("This meeting folder is outside the active workspace.".to_string());
+    }
+    Ok(())
+}
+
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SpeakerWire {
@@ -159,6 +179,7 @@ pub struct DiarizeMeetingResult {
 #[tauri::command]
 pub async fn diarize_meeting(
     app: tauri::AppHandle,
+    workspace_root: String,
     meeting_dir: String,
     num_speakers: Option<u32>,
 ) -> Result<DiarizeMeetingResult, String> {
@@ -167,6 +188,7 @@ pub async fn diarize_meeting(
     if !audio.exists() {
         return Err("The recording for this meeting is no longer on disk (removed by your retention policy), so speakers cannot be separated.".to_string());
     }
+    ensure_within_workspace(Path::new(&workspace_root), &dir)?;
     let (bin, seg, emb) = resolve_diarize_assets(&app)?;
     // Extract the far-end channel next to the meeting (cleaned up after).
     let sys_wav = dir.join(".diarize-sys.wav");
@@ -208,10 +230,12 @@ pub async fn diarize_meeting(
 
 #[tauri::command]
 pub async fn apply_speaker_names(
+    workspace_root: String,
     meeting_dir: String,
     renames: HashMap<String, String>,
 ) -> Result<usize, String> {
     let dir = std::path::PathBuf::from(&meeting_dir);
+    ensure_within_workspace(Path::new(&workspace_root), &dir)?;
     tokio::task::spawn_blocking(move || {
         let mut transcript = read_transcript(&dir)?;
         let n = rename_speakers(&mut transcript, &renames);
@@ -300,5 +324,26 @@ mod tests {
         assert_eq!(segs[0]["speaker"], "You"); // mic never renamed
         assert_eq!(segs[1]["speaker"], "Sarah Henderson");
         assert_eq!(segs[2]["speaker"], "Sarah Henderson");
+    }
+
+    #[test]
+    fn ensure_within_workspace_accepts_nested_dir_and_rejects_outside() {
+        let ws = tempdir().unwrap();
+        let meeting = ws.path().join("ClientA").join("Meetings").join("2026-07-03");
+        std::fs::create_dir_all(&meeting).unwrap();
+        assert!(ensure_within_workspace(ws.path(), &meeting).is_ok());
+
+        let other = tempdir().unwrap();
+        assert!(
+            ensure_within_workspace(ws.path(), other.path()).is_err(),
+            "a folder outside the workspace must be rejected"
+        );
+    }
+
+    #[test]
+    fn ensure_within_workspace_rejects_missing_dir() {
+        let ws = tempdir().unwrap();
+        let missing = ws.path().join("does-not-exist");
+        assert!(ensure_within_workspace(ws.path(), &missing).is_err());
     }
 }
