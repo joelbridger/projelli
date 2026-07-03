@@ -11,6 +11,6 @@ Execute task-by-task, TDD exactly as written (failing test → run → implement
 
 PII RULE (binding, from the plan): raw HTTP response bodies NEVER appear in logs or error strings — status code + endpoint path only. Writes are approval-gated: no code path may POST to the CRM except via the explicit command the user approved.
 
-ENVIRONMENT: export CARGO_TARGET_DIR=$HOME/.cargo-target-lantern-plus in every shell (this effort's own build cache; NEVER the default shared one). ⚠️ CARGO SERIALIZATION: other workers share this target dir — before ANY cargo command run `pgrep -x cargo >/dev/null && echo BUSY` and if BUSY, wait and retry in a few minutes (do test-writing/doc work meanwhile); never queue two cargo builds.
+ENVIRONMENT: export CARGO_TARGET_DIR=$HOME/.cargo-target-lp-w2 in every shell (THIS LANE'S OWN cache — per-lane caches since 2026-07-03; lanes compile concurrently, one cargo within your own lane).
 
 HANDOFF BAR (all required): scoped tests green per task with evidence (command + output summary); `cargo test -p lantern` for your module green at the end (full npm gate is the coordinator's at merge); self-converge: run `codex-review` on your branch diff and fix findings to a clean round BEFORE handing off; then report — HEAD SHA, tasks completed, anchor drifts found, VERIFY-LIVE register entries, decisions made, "NOT self-merged" — and print exactly: WORKER-DONE: lp/crm-writeback ready for review

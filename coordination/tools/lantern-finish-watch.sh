@@ -2,7 +2,7 @@
 # lantern-finish-watch.sh — fleet watcher for cc-lantern-* worker sessions.
 # Emits one line per actionable transition (the coordinator's Monitor turns each
 # line into a notification):
-#   DONE <session> — fresh "WORKER-DONE:" in last 25 pane lines after WORKING→IDLE
+#   DONE <session> — fresh "WORKER-DONE:" in last 45 pane lines after WORKING→IDLE
 #   ACK_IDLE <session> — WORKING→IDLE without the sentinel (worker finished its turn / may need input)
 #   STALL <session> — WORKING but pane frozen > STALL_SECS (default 240)
 # Polls every 30s. States are per-session, kept in bash assoc arrays.
@@ -31,8 +31,8 @@ while true; do
     else
       hash[$s]="$h"; hash_since[$s]=$now
       if [ "$prev" = WORKING ]; then
-        if tmux capture-pane -t "$s" -p 2>/dev/null | tail -25 | grep -q 'WORKER-DONE:'; then
-          echo "DONE $s — $(tmux capture-pane -t "$s" -p | tail -25 | grep 'WORKER-DONE:' | tail -1)"
+        if tmux capture-pane -t "$s" -p 2>/dev/null | tail -45 | grep -q 'WORKER-DONE:'; then
+          echo "DONE $s — $(tmux capture-pane -t "$s" -p | tail -45 | grep 'WORKER-DONE:' | tail -1)"
           acked[$s]=DONE
         else
           echo "ACK_IDLE $s — went idle without sentinel; last line: $(grep -v '^\s*$' <<<"$pane" | tail -1 | cut -c1-120)"
