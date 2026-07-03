@@ -292,6 +292,34 @@ describe('SettingsContent — nav scrolls to the section anchor (Wave B / S4 fla
     expect(screen.getByTestId('settings-anchor-advanced')).toBeInTheDocument();
     expect(screen.getByTestId('settings-anchor-help')).toBeInTheDocument();
   });
+
+  it('does NOT eagerly mount Advanced (and its Marketplace tab) when opening on Workspace (codex-review regression)', () => {
+    // The flatten initially mounted all 5 sections unconditionally, so just
+    // opening Settings on Workspace silently fired Advanced's default-tab
+    // Marketplace refresh. Sections the user hasn't navigated to now render a
+    // lazy placeholder instead of their real (possibly side-effecting) content.
+    render(<SettingsContent variant="page" initialCategory={'general' as never} />);
+    expect(screen.getByTestId('settings-anchor-workspace')).toBeInTheDocument();
+    expect(screen.getByTestId('section-workspace')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-anchor-advanced')).toBeInTheDocument();
+    expect(screen.queryByTestId('marketplace-tab')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('section-advanced')).not.toBeInTheDocument();
+
+    // Clicking Advanced mounts it for real, Marketplace included (its default tab).
+    fireEvent.click(screen.getByTestId('settings-category-advanced'));
+    expect(screen.getByTestId('section-advanced')).toBeInTheDocument();
+    expect(screen.getByTestId('marketplace-tab')).toBeInTheDocument();
+  });
+
+  it('a search shows every matching section\'s real content, bypassing the lazy gate', () => {
+    render(<SettingsContent variant="page" initialCategory={'general' as never} />);
+    expect(screen.queryByTestId('section-advanced')).not.toBeInTheDocument();
+
+    // "marketplace" matches an Advanced/Extensions keyword group.
+    fireEvent.change(screen.getByTestId('settings-search'), { target: { value: 'marketplace' } });
+
+    expect(screen.getByTestId('section-advanced')).toBeInTheDocument();
+  });
 });
 
 describe('SettingsContent — a11y: section nav landmark label', () => {

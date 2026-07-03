@@ -336,6 +336,36 @@ function SectionHeading({ label }: { label: string }) {
   );
 }
 
+/** Defers a section's real content until the user has actually navigated to
+ *  it at least once (`mounted`), or a search is active (results must show
+ *  everywhere they match). Prevents every section's side effects — e.g.
+ *  Advanced's default tab firing an eager marketplace refresh — from running
+ *  on every Settings open just because the page is now flattened. */
+function LazySectionBody({
+  mounted,
+  searchActive,
+  children,
+}: {
+  mounted: boolean;
+  searchActive: boolean;
+  children: React.ReactNode;
+}) {
+  if (!mounted && !searchActive) {
+    return (
+      // A real (not collapsed-to-one-line) minimum height: an unmounted
+      // section's placeholder must occupy roughly the space its real content
+      // would, or the whole flattened page collapses shorter than the
+      // viewport and the IntersectionObserver below sees every placeholder as
+      // "already visible" the instant Settings opens — defeating the lazy
+      // mount entirely (every section would load immediately anyway).
+      <div style={{ minHeight: 260, fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
+        Loading…
+      </div>
+    );
+  }
+  return <>{children}</>;
+}
+
 /**
  * AccordionSection — despite the legacy name, renders a top-level section's
  * sub-sections as a row of horizontal tabs with one content panel below,
@@ -866,6 +896,52 @@ export function SettingsContent({
 
   const [activeSection, setActiveSection] = useState<SectionCategory>(resolveInitial(initialCategory));
 
+  // Wave B / S4 flatten, codex-review finding: mounting all 5 sections
+  // unconditionally on every Settings open regressed performance — Advanced's
+  // default sub-tab mounts MarketplaceTab, which fires an eager marketplace
+  // refresh even when the user only came for Workspace. Sections the user
+  // hasn't actually navigated to render a placeholder (real anchor to scroll
+  // to, no heavy children) until `activeSection` reaches them for the first
+  // time — then they mount for good (never re-collapse; matches the "keeps
+  // its own tab position" behavior of a section you HAVE visited). A search
+  // still needs every matching section's real content to show results, so it
+  // bypasses this gate entirely.
+  const [mountedSections, setMountedSections] = useState<Set<SectionCategory>>(
+    () => new Set<SectionCategory>([resolveInitial(initialCategory)]),
+  );
+  // Render-time state adjustment (React-sanctioned pattern, same as
+  // `prevInitialCategory` below) rather than a useEffect — this just mirrors
+  // `activeSection` into the mounted set, no external system to synchronize.
+  if (!mountedSections.has(activeSection)) {
+    setMountedSections((prev) => (prev.has(activeSection) ? prev : new Set(prev).add(activeSection)));
+  }
+
+  // Scrolling near a not-yet-mounted section also mounts it (not just a nav
+  // click) — a placeholder that never loads on its own would be a dead end.
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') return undefined;
+    const ids: SectionCategory[] = ['workspace', 'ai-privacy', 'voice', 'advanced', 'help'];
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const id = entry.target.id.replace('settings-anchor-', '') as SectionCategory;
+          setMountedSections((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
+        }
+      },
+      // Queried directly (not via a ref) to keep this effect from touching
+      // `contentScrollRef`, which the scroll-reset effect below mutates
+      // `.scrollTop` on — the linter flags a ref read in one effect's setup
+      // and mutated in another as a cross-effect immutability conflict.
+      { root: document.querySelector('[data-testid="settings-content-scroll"]'), rootMargin: '200px 0px' },
+    );
+    for (const id of ids) {
+      const el = document.getElementById(`settings-anchor-${id}`);
+      if (el) observer.observe(el);
+    }
+    return () => { observer.disconnect(); };
+  }, []);
+
   // In-app confirm dialog (native window.confirm is dead in the Tauri WebView2
   // build, so the "reset settings" confirmation renders in the DOM instead).
   const { confirm, dialogProps: confirmDialogProps } = useConfirmDialog();
@@ -1227,31 +1303,41 @@ export function SettingsContent({
                 {visibleSections.has('workspace') && (
                   <div id="settings-anchor-workspace" data-testid="settings-anchor-workspace" className="scroll-mt-4">
                     <SectionHeading label="Workspace" />
-                    <WorkspaceSection {...sectionProps} />
+                    <LazySectionBody mounted={mountedSections.has('workspace')} searchActive={searchActive}>
+                      <WorkspaceSection {...sectionProps} />
+                    </LazySectionBody>
                   </div>
                 )}
                 {visibleSections.has('ai-privacy') && (
                   <div id="settings-anchor-ai-privacy" data-testid="settings-anchor-ai-privacy" className="scroll-mt-4 mt-10">
                     <SectionHeading label="AI & Privacy" />
-                    <AiPrivacySection {...sectionProps} />
+                    <LazySectionBody mounted={mountedSections.has('ai-privacy')} searchActive={searchActive}>
+                      <AiPrivacySection {...sectionProps} />
+                    </LazySectionBody>
                   </div>
                 )}
                 {visibleSections.has('voice') && (
                   <div id="settings-anchor-voice" data-testid="settings-anchor-voice" className="scroll-mt-4 mt-10">
                     <SectionHeading label="Voice" />
-                    <VoiceSection {...sectionProps} />
+                    <LazySectionBody mounted={mountedSections.has('voice')} searchActive={searchActive}>
+                      <VoiceSection {...sectionProps} />
+                    </LazySectionBody>
                   </div>
                 )}
                 {visibleSections.has('advanced') && (
                   <div id="settings-anchor-advanced" data-testid="settings-anchor-advanced" className="scroll-mt-4 mt-10">
                     <SectionHeading label="Advanced" />
-                    <AdvancedSection {...sectionProps} />
+                    <LazySectionBody mounted={mountedSections.has('advanced')} searchActive={searchActive}>
+                      <AdvancedSection {...sectionProps} />
+                    </LazySectionBody>
                   </div>
                 )}
                 {visibleSections.has('help') && (
                   <div id="settings-anchor-help" data-testid="settings-anchor-help" className="scroll-mt-4 mt-10">
                     <SectionHeading label="Help" />
-                    <HelpSection {...sectionProps} />
+                    <LazySectionBody mounted={mountedSections.has('help')} searchActive={searchActive}>
+                      <HelpSection {...sectionProps} />
+                    </LazySectionBody>
                   </div>
                 )}
               </>

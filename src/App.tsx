@@ -276,17 +276,19 @@ function App() {
     sidebarCollapsed || (isClientListView && !autoCollapseDismissed);
   const handleSidebarCollapsedChange = useCallback(
     (next: boolean) => {
-      if (isClientListView && !sidebarCollapsed) {
-        // Currently collapsed ONLY because of the auto-collapse (the user's
-        // own manual preference is still "expanded") — toggling here just
-        // dismisses the auto-collapse for this visit to the list.
-        setAutoCollapseDismissed(!next);
+      if (!next) {
+        // Expanding must win over BOTH sources of collapse at once — the
+        // manual preference and any active auto-collapse — otherwise a
+        // sidebar collapsed by both (e.g. the user had it manually collapsed
+        // and then landed on the Client Map list) would clear only one and
+        // still read as collapsed, making the first Expand click a no-op.
+        setSidebarCollapsed(false);
+        setAutoCollapseDismissed(true);
         return;
       }
-      setSidebarCollapsed(next);
-      if (!next) setAutoCollapseDismissed(false);
+      setSidebarCollapsed(true);
     },
-    [isClientListView, sidebarCollapsed],
+    [],
   );
   // Ctrl+B / command palette drive the same EFFECTIVE state the chevron
   // button does (so pressing "expand" while auto-collapsed on the Client Map
