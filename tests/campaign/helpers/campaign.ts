@@ -144,9 +144,46 @@ const BENIGN_PATTERNS: Array<{ pattern: RegExp; reason: string }> = [
   },
 ];
 
+/**
+ * Resource-load failures that are benign ONLY when they point at a specific
+ * URL — unlike BENIGN_PATTERNS (matched on message text alone), these are
+ * also checked against the failing request's URL so a real connection
+ * failure to a DIFFERENT host still fails the assertion.
+ *
+ * `OllamaProvider.detectOllama()` probes the user's optional local Ollama
+ * daemon (127.0.0.1:11434) directly from the browser — unconditionally on
+ * mount from `ChatModelPicker` and from the egress badge's local-provider
+ * fallback (`askHelpers.ts`'s `resolveActiveAskProviderId` /
+ * `resolveAvailableLocalGenerationProvider`) whenever no cloud provider is
+ * resolved. Both wrap the fetch in try/catch and fall back to "unreachable"
+ * gracefully — but Chromium logs the raw network failure to the DevTools
+ * console (the Log domain, surfaced by Playwright as a `console` event)
+ * regardless of whether application code ever sees the rejection. Ollama is
+ * not installed on any CI runner (confirmed: every GitHub Actions box gets a
+ * genuine `net::ERR_CONNECTION_REFUSED` from this exact probe — pinned down
+ * 2026-07-03 investigating wedge-proof.spec.ts's "2x ERR_CONNECTION_REFUSED"
+ * quarantine entry), so trying and failing is the deliberately-designed,
+ * expected, harmless outcome there. It doesn't reproduce on this dev box
+ * because this server happens to run a real Ollama daemon on :11434 — the
+ * failure is a genuine CI-runner-vs-dev-box environment gap, not flakiness.
+ */
+const BENIGN_RESOURCE_LOAD_FAILURES: Array<{ urlPattern: RegExp; reason: string }> = [
+  {
+    urlPattern: /^https?:\/\/(127\.0\.0\.1|localhost):11434\//,
+    reason:
+      'Ollama daemon not installed on CI runners — detectOllama() catches this and falls back gracefully',
+  },
+];
+
 /** Returns true when the message text matches any known-benign pattern. */
 function isBenign(text: string): boolean {
   return BENIGN_PATTERNS.some(({ pattern }) => pattern.test(text));
+}
+
+/** Returns true when a resource-load failure's URL matches a known-benign target. */
+function isBenignResourceFailure(url: string | undefined): boolean {
+  if (!url) return false;
+  return BENIGN_RESOURCE_LOAD_FAILURES.some(({ urlPattern }) => urlPattern.test(url));
 }
 
 /**
@@ -167,12 +204,16 @@ function isBenign(text: string): boolean {
 export function collectConsoleErrors(page: Page): () => string[] {
   const errors: string[] = [];
 
-  const handler = (msg: { type: () => string; text: () => string }) => {
+  const handler = (msg: {
+    type: () => string;
+    text: () => string;
+    location?: () => { url?: string };
+  }) => {
     if (msg.type() !== 'error' && msg.type() !== 'warning') return;
     const text = msg.text();
-    if (!isBenign(text)) {
-      errors.push(`[${msg.type()}] ${text}`);
-    }
+    if (isBenign(text)) return;
+    if (isBenignResourceFailure(msg.location?.().url)) return;
+    errors.push(`[${msg.type()}] ${text}`);
   };
 
   // `page.on('console', ...)` types differ between Playwright versions;
