@@ -30,6 +30,7 @@ import { ClientMapPanel } from '@/features/matters/ClientMapPanel';
 import { BeforeYouMeetStrip } from '@/features/meetings/BeforeYouMeetStrip';
 import { GuidedInterview } from '@/features/matters/GuidedInterview';
 import { ClientMapUpdatesTray } from '@/features/matters/ClientMapUpdatesTray';
+import { CrmWriteReviewCard } from '@/features/matters/CrmWriteReviewCard';
 import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { useCrmStore } from '@/platform/connectors/crm/crmStore';
@@ -444,6 +445,16 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                     )}
                   </div>
                 )}
+
+                {/* Codex review catch: the Wealthbox write-back queue is
+                    independent of Client Map readiness — a note sent from the
+                    (always-available) shared notes editor must stay reachable
+                    for approval/dismiss even while the map itself is empty,
+                    still generating, or errored. The card is a no-op render
+                    (returns null) when there's nothing queued. */}
+                <div style={{ padding: '0 var(--kp-gutter)' }}>
+                  <CrmWriteReviewCard matterId={matterId} />
+                </div>
 
                 {/* The flat, full-bleed Client Map panel absorbs the questions
                     list, the custom-section composer, and the templates list. */}
