@@ -763,6 +763,130 @@ async fn crm_create_write(
     }
 }
 
+/// Push one approval-gated field-level "blend" (Task 9c) to the connected
+/// CRM and record an audit entry. Same approval-gated contract as
+/// [`crm_create_note`]/[`crm_create_task`] — the frontend's 3-column review
+/// card calls this only after an explicit user Approve click.
+///
+/// `existing_value` is what the review card showed the user (fetched at
+/// proposal time); `push_crm_field_update`'s stale-guard re-fetches the
+/// LIVE value at approve time and refuses to write if it no longer matches
+/// — see `CrmWriteError::StaleFieldValue`.
+#[allow(clippy::too_many_arguments)]
+#[tauri::command]
+pub async fn crm_update_field(
+    app: AppHandle,
+    state: State<'_, CrmState>,
+    matter_id: String,
+    household_key: String,
+    field: String,
+    existing_value: String,
+    new_value: String,
+    final_value: String,
+    source_ref: String,
+    provider: Option<String>,
+) -> Result<WriteReceipt, String> {
+    let provider = CrmProvider::from_optional(provider.as_deref())?;
+
+    // Same in-flight/disconnect/reconnect coordination as crm_create_write —
+    // see its comments for why each check exists.
+    state.write_in_flight.fetch_add(1, Ordering::SeqCst);
+    let _write_slot = WriteInFlightSlot(state.write_in_flight.clone());
+    if state.disconnect_requested.load(Ordering::SeqCst) {
+        return Err(format!(
+            "{} is disconnecting — try again once reconnected",
+            provider.display_name()
+        ));
+    }
+    if state.connect_in_progress.load(Ordering::SeqCst) {
+        return Err(format!(
+            "{} is reconnecting — try again in a moment",
+            provider.display_name()
+        ));
+    }
+
+    let token = read_token(provider).ok_or_else(|| {
+        format!(
+            "{} not connected — connect it in Account → Connections first",
+            provider.display_name()
+        )
+    })?;
+
+    let workspace = state
+        .workspace
+        .lock()
+        .await
+        .clone()
+        .ok_or("workspace not set — call crm_set_workspace first")?;
+
+    let store = CrmStore::open(&workspace).map_err(|e| e.to_string())?;
+    let client = write::write_client_for(provider, token).map_err(|e| e.to_string())?;
+
+    let req = write::CrmFieldUpdateRequest {
+        matter_id: matter_id.clone(),
+        household_key: household_key.clone(),
+        field: field.clone(),
+        existing_value,
+        new_value,
+        final_value,
+        source_ref: source_ref.clone(),
+    };
+
+    let action = provider.audit_action("field_updated");
+    let write_dedup_key = write::dedup_key_field(&req);
+
+    match write::push_crm_field_update(client.as_ref(), &store, &state.write_guard, &req).await {
+        Ok(receipt) => {
+            let description = format!(
+                "field '{field}' updated on {} household {household_key} (source: {source_ref})",
+                provider.display_name(),
+            );
+            append_crm_audit_best_effort_for_matter(
+                &app,
+                &action,
+                &description,
+                &matter_id,
+                Some(&write_dedup_key),
+            )
+            .await;
+            Ok(receipt)
+        }
+        Err(CrmWriteError::StaleFieldValue(current)) => {
+            let description = format!(
+                "field '{field}' update on {} household {household_key} (source: {source_ref}) \
+                 skipped — the value changed in the CRM since this was proposed",
+                provider.display_name(),
+            );
+            append_crm_audit_best_effort_for_matter(
+                &app,
+                &action,
+                &description,
+                &matter_id,
+                Some(&format!("{write_dedup_key}_stale")),
+            )
+            .await;
+            Err(CrmWriteError::StaleFieldValue(current).to_string())
+        }
+        Err(CrmWriteError::VerifyPending) => {
+            let description = format!(
+                "field '{field}' update on {} household {household_key} (source: {source_ref}) \
+                 MAY have been applied — delivery unconfirmed, will verify on retry",
+                provider.display_name(),
+            );
+            append_crm_audit_best_effort_for_matter(
+                &app,
+                &action,
+                &description,
+                &matter_id,
+                Some(&format!("{write_dedup_key}_ambiguous")),
+            )
+            .await;
+            Err(CrmWriteError::VerifyPending.to_string())
+        }
+        Err(e) => Err(e.to_string()),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Commands
 // ---------------------------------------------------------------------------
