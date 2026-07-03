@@ -50,6 +50,7 @@ import {
   scopeHintForMatter,
 } from './askPrompt';
 import { bindAnswerBlocks } from './answerBlockHelpers';
+import { withAskTimeout, ASK_RETRIEVAL_TIMEOUT_MS } from './askTimeout';
 import {
   hasCloudKey,
   buildResolvedAskProvider,
@@ -603,14 +604,28 @@ export function useAsk({
           useSettingsStore.getState().getSetting<boolean>('enableReranker');
         const enableHybridSearch =
           useSettingsStore.getState().getSetting<boolean>('enableHybridSearch');
-        const rawHits = await MemoryService.retrieve(
-          q,
-          DEFAULT_WORKSPACE_TOP_K,
-          retrievalScope,
-          false,
-          undefined,
-          enableReranker,
-          enableHybridSearch,
+        // fix/ask-list-hang — HARD timeout on the context-gather step. This
+        // LOCAL vector search normally returns in well under a second, but on a
+        // large workspace it could stall indefinitely (LanceDB kept perpetually
+        // busy — see the `.lantern` self-indexing fix), leaving the "Answering…"
+        // spinner spinning forever with no error and no way out. Bounding it makes
+        // a stall REJECT with an AskTimeoutError, which the catch below turns into
+        // the honest `failedStage === 'retrieval'` "couldn't search your files yet —
+        // try again" message. We do NOT abort the shared controller on timeout: an
+        // aborted signal means "the user moved on, drop silently", which would
+        // swallow the very error we want to show.
+        const rawHits = await withAskTimeout(
+          MemoryService.retrieve(
+            q,
+            DEFAULT_WORKSPACE_TOP_K,
+            retrievalScope,
+            false,
+            undefined,
+            enableReranker,
+            enableHybridSearch,
+          ),
+          ASK_RETRIEVAL_TIMEOUT_MS,
+          'retrieval',
         );
         failedStage = 'post-retrieval';
         // Apply client-side type filter for Email/Documents scopes.

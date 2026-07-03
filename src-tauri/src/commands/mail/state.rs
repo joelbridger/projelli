@@ -30,6 +30,17 @@ pub(crate) fn gmail_client_secret() -> String {
     // KEEPANCE_GMAIL_CLIENT_SECRET secret; never committed to source.
     option_env!("KEEPANCE_GMAIL_CLIENT_SECRET").unwrap_or("").to_string()
 }
+
+/// True when this build has real Google OAuth client credentials baked in
+/// (both `KEEPANCE_GMAIL_CLIENT_ID` and `_SECRET` were set when `cargo build`
+/// ran — `option_env!` is compile-time, so this is fixed for the lifetime of
+/// the running binary). `gmail_connect` checks this before ever opening a
+/// browser window, so a build missing the secrets fails with an honest
+/// "not_configured" instead of Google's raw "Error 400: invalid_request —
+/// Missing required parameter: client_id".
+pub(crate) fn gmail_oauth_is_configured() -> bool {
+    !gmail_client_id().is_empty() && !gmail_client_secret().is_empty()
+}
 pub const SYNC_PROGRESS_EVENT: &str = "mail-sync-progress";
 /// G5: per-message event that carries decrypted text to the renderer for
 /// MiniSearch indexing. The text lives only in renderer-process memory.
@@ -67,6 +78,12 @@ pub struct MailState {
     /// (`outlook_connect`'s wait for the browser redirect) without touching
     /// sync state. See `outlook_connect_cancel`.
     pub oauth_cancel: Arc<AtomicBool>,
+    /// Same idea as `oauth_cancel`, but for `gmail_connect`'s own pending
+    /// sign-in. Kept separate so cancelling one provider's in-flight OAuth
+    /// (e.g. the user backs out of Gmail) can never also cancel an unrelated
+    /// M365 sign-in that happens to be pending at the same time. See
+    /// `gmail_connect_cancel`.
+    pub gmail_oauth_cancel: Arc<AtomicBool>,
 }
 
 pub fn manage_state(app: &tauri::App) {
@@ -75,6 +92,7 @@ pub fn manage_state(app: &tauri::App) {
         cancel: Arc::new(AtomicBool::new(false)),
         is_syncing: Arc::new(AtomicBool::new(false)),
         oauth_cancel: Arc::new(AtomicBool::new(false)),
+        gmail_oauth_cancel: Arc::new(AtomicBool::new(false)),
     });
 }
 

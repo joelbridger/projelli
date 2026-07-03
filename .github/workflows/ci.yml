@@ -210,6 +210,25 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Build E2E preview bundle
         run: npx vite build --config vite.config.e2e.ts
+      - name: Build + merge web-demo bundle (web-demo.spec.ts needs the real /try build)
+        # F3.7b (2026-07-03): web-demo.spec.ts drives /index.demo.html, which under
+        # `vite dev` Vite serves directly from source (any *.html at the project
+        # root). The e2e job instead serves a production `vite build`, and the
+        # BASE config's `rollupOptions` has no `input` override — it defaults to
+        # `index.html` only — so `dist/` never contained `index.demo.html` at all
+        # (a 404, not merely a missing `__KEEPANCE_DEMO__` define). Build the
+        # dedicated web-demo bundle (the one that actually sets
+        # `__KEEPANCE_DEMO__`/`__KEEPANCE_DESKTOP__`, same as the real
+        # keepance.com/try deploy) into its own `dist-web-demo/` output, then copy
+        # it into the already-built `dist/` so ONE preview server can serve both
+        # the desktop entry and the demo entry side by side:
+        #   dist/index.demo.html        (renamed from dist-web-demo/index.demo.html)
+        #   dist/try/assets/*           (the demo bundle's `base: '/try/'` assets)
+        run: |
+          npx vite build --config vite.config.web-demo.ts
+          mkdir -p dist/try
+          cp -r dist-web-demo/assets dist/try/assets
+          cp dist-web-demo/index.demo.html dist/index.demo.html
       - name: Run browser E2E gate (chromium, offline AI, CI-stable subset, shard ${{ matrix.shard }}/6)
         env:
           E2E_NO_LIVE: '1'

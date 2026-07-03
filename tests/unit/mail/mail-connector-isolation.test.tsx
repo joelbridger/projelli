@@ -9,7 +9,10 @@ import { render, within, act } from '@testing-library/react';
 
 vi.mock('@/platform/utils/mail-commands', () => ({
   outlookConnect: vi.fn().mockResolvedValue(undefined),
+  outlookConnectCancel: vi.fn().mockResolvedValue(undefined),
   gmailConnect: vi.fn().mockResolvedValue(undefined),
+  gmailConnectCancel: vi.fn().mockResolvedValue(undefined),
+  gmailOauthConfigured: vi.fn().mockResolvedValue(true),
   gmailDisconnect: vi.fn().mockResolvedValue(undefined),
   mailIsConnected: vi.fn().mockResolvedValue(true),
   gmailIsConnected: vi.fn().mockResolvedValue(true),

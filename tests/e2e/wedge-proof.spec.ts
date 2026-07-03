@@ -201,14 +201,13 @@ test.describe('VG-1 leg 2 — wedge UI wiring (browser, testMode)', () => {
   test('cited answer renders chips (verified + unverified), sources accordion, scope chip; chip click opens the cited file', async ({
     page,
   }, testInfo) => {
-    test.skip(
-      !!process.env['E2E_CI_QUARANTINE'],
-      'confirmed failing on real CI (F3.7b, 2026-07-02): 2x intermittent ' +
-        'net::ERR_CONNECTION_REFUSED console errors trip the zero-console-error ' +
-        'assertion; did not reproduce across 2 local runs (isolated + full ' +
-        'shard-6 replay) against the CI-equivalent preview build — see ' +
-        'docs/quality/e2e-flaky-quarantine.md'
-    );
+    // F3.7b (2026-07-03) root cause: `detectOllama()` (ChatModelPicker's
+    // mount effect + askHelpers.ts's egress-badge fallback) probes
+    // 127.0.0.1:11434 directly from the browser. CI runners never have
+    // Ollama installed, so the browser logs a genuine (but app-caught)
+    // net::ERR_CONNECTION_REFUSED — allowlisted by URL in
+    // tests/campaign/helpers/campaign.ts's BENIGN_RESOURCE_LOAD_FAILURES.
+    // See docs/quality/e2e-flaky-quarantine.md for the full writeup.
     const getErrors = collectConsoleErrors(page);
 
     const { verifiedChip, unverifiedChip } = await openCitedChat(page);
@@ -275,13 +274,35 @@ test.describe('VG-1 leg 2 — wedge UI wiring (browser, testMode)', () => {
   test('ask-workspace ON in a build without rag REFUSES instead of fabricating; privilege toggle appears', async ({
     page,
   }, testInfo) => {
+    // F3.7b (2026-07-03): this test's ORIGINAL quarantine reason (2x
+    // intermittent net::ERR_CONNECTION_REFUSED tripping the console-error
+    // assertion) is FIXED — see the other 3 tests in this file + the
+    // BENIGN_RESOURCE_LOAD_FAILURES entry in
+    // tests/campaign/helpers/campaign.ts. Re-quarantined here for a NEW,
+    // unrelated, deterministic (not flaky) reason found while verifying the
+    // un-skip: the F2.5 file-access-consent gate (src/platform/ai/
+    // fileAccessConsent.ts, resolveWorkspaceRetrieval) now treats this
+    // fixture's `provider: 'mock'` as a cloud provider (anything that isn't
+    // literally 'ollama'/'keepance-local' is treated as cloud —
+    // isLocalProviderId in src/platform/providers/providerFactory.ts) and
+    // blocks ambient Ask-my-workspace retrieval until file-access consent is
+    // granted for the chat — so the send now short-circuits to
+    // "Ask-my-workspace is paused until you allow file access for this
+    // chat." + a provider-send attempt, and NEVER reaches the retrieval-
+    // failure refusal this test asserts. FileAccessConsentBanner's own
+    // cloud-provider set (src/features/ask/chat/FileAccessConsentBanner.tsx)
+    // doesn't include 'mock' either, so there is no UI affordance to grant
+    // consent for a mock-provider chat — this is squarely an `src/features/
+    // ask/**` product-code concern (owned by fix/ask-list-hang per the
+    // F3.7b lane walls), out of this tests/e2e-only lane's scope. Reproduces
+    // deterministically (confirmed 2026-07-03, not CI-only) — this is a
+    // real regression against the wedge guarantee, not test flakiness.
     test.skip(
       !!process.env['E2E_CI_QUARANTINE'],
-      'confirmed failing on real CI (F3.7b, 2026-07-02): 2x intermittent ' +
-        'net::ERR_CONNECTION_REFUSED console errors trip the ' +
-        'unexpected-console-errors assertion; did not reproduce across 2 local ' +
-        'runs (isolated + full shard-6 replay) against the CI-equivalent ' +
-        'preview build — see docs/quality/e2e-flaky-quarantine.md'
+      'F3.7b (2026-07-03): the F2.5 file-access-consent gate now blocks ambient ' +
+        'workspace retrieval for this mock-provider fixture before it ever reaches ' +
+        'the refusal path this test asserts — a real, deterministic src/features/ask/** ' +
+        'regression, not flakiness. See docs/quality/e2e-flaky-quarantine.md.'
     );
     const getErrors = collectConsoleErrors(page);
 
@@ -348,14 +369,13 @@ test.describe('VG-1 leg 2 — wedge UI wiring (browser, testMode)', () => {
     // tests/unit/spreadsheet-io.test.ts (F-506 describe block). This test is
     // the plan's original round-trip at full assertion strength — formerly
     // the expected-fail tripwire, now a normal test.
-    test.skip(
-      !!process.env['E2E_CI_QUARANTINE'],
-      'confirmed failing on real CI (F3.7b, 2026-07-02): 2x intermittent ' +
-        'net::ERR_CONNECTION_REFUSED console errors trip the zero-console-error ' +
-        'assertion; did not reproduce across 2 local runs (isolated + full ' +
-        'shard-6 replay) against the CI-equivalent preview build — see ' +
-        'docs/quality/e2e-flaky-quarantine.md'
-    );
+    // F3.7b (2026-07-03) root cause: `detectOllama()` (ChatModelPicker's
+    // mount effect + askHelpers.ts's egress-badge fallback) probes
+    // 127.0.0.1:11434 directly from the browser. CI runners never have
+    // Ollama installed, so the browser logs a genuine (but app-caught)
+    // net::ERR_CONNECTION_REFUSED — allowlisted by URL in
+    // tests/campaign/helpers/campaign.ts's BENIGN_RESOURCE_LOAD_FAILURES.
+    // See docs/quality/e2e-flaky-quarantine.md for the full writeup.
 
     const getErrors = collectConsoleErrors(page);
     const xlsxPath = '/test-workspace/matter-corpus/damages-model.xlsx';
@@ -424,14 +444,13 @@ test.describe('VG-1 leg 2 — wedge UI wiring (browser, testMode)', () => {
   test('pptx: exhibit-deck.pptx parses and renders its real slide text via the honest fallback outline', async ({
     page,
   }, testInfo) => {
-    test.skip(
-      !!process.env['E2E_CI_QUARANTINE'],
-      'confirmed failing on real CI (F3.7b, 2026-07-02): 2x intermittent ' +
-        'net::ERR_CONNECTION_REFUSED console errors trip the zero-console-error ' +
-        'assertion; did not reproduce across 2 local runs (isolated + full ' +
-        'shard-6 replay) against the CI-equivalent preview build — see ' +
-        'docs/quality/e2e-flaky-quarantine.md'
-    );
+    // F3.7b (2026-07-03) root cause: `detectOllama()` (ChatModelPicker's
+    // mount effect + askHelpers.ts's egress-badge fallback) probes
+    // 127.0.0.1:11434 directly from the browser. CI runners never have
+    // Ollama installed, so the browser logs a genuine (but app-caught)
+    // net::ERR_CONNECTION_REFUSED — allowlisted by URL in
+    // tests/campaign/helpers/campaign.ts's BENIGN_RESOURCE_LOAD_FAILURES.
+    // See docs/quality/e2e-flaky-quarantine.md for the full writeup.
     const getErrors = collectConsoleErrors(page);
 
     await openTestFile(page, {

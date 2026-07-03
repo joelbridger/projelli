@@ -8,6 +8,9 @@
 import { useTemplatesMarketplace } from '@/features/workflows/useTemplatesMarketplace';
 import { MarketplaceOfflineBanner } from './MarketplaceOfflineBanner';
 import { TemplatesTab } from './TemplatesTab';
+// Side-effect import: installs the `window.__marketplaceTestKit` E2E seam
+// when running under `?testMode=true`. See marketplaceTestKit.ts header.
+import './marketplaceTestKit';
 
 export function MarketplaceTab() {
   const templates = useTemplatesMarketplace();

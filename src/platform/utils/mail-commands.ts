@@ -380,6 +380,28 @@ export async function gmailConnect(): Promise<void> {
   if (!isTauri()) throw new Error('Gmail connect is only available in the desktop app.');
   await invoke('gmail_connect');
 }
+
+/** Abort a pending gmailConnect() sign-in immediately (user clicked Cancel,
+ *  or closed the Google tab and gave up) instead of leaving it to hit the
+ *  5-minute server-side timeout. No-op outside Tauri. Never touches an
+ *  already-working connection. */
+export async function gmailConnectCancel(): Promise<void> {
+  if (!isTauri()) return;
+  await invoke('gmail_connect_cancel');
+}
+
+/** True when this build has real Google OAuth client credentials baked in.
+ *  A build missing them (e.g. a local dev build where the secret env vars
+ *  were never exported before `cargo build` ran) can never complete a Google
+ *  sign-in — the UI checks this up front so it can show an honest "not set
+ *  up" note instead of letting the user hit Google's raw OAuth error.
+ *  Defaults to true outside Tauri (fixture/browser mode never calls
+ *  gmailConnect for real, so there's nothing to warn about). */
+export async function gmailOauthConfigured(): Promise<boolean> {
+  if (!isTauri()) return true;
+  return invoke<boolean>('gmail_oauth_configured');
+}
+
 export async function gmailIsConnected(): Promise<boolean> {
   if (!isTauri()) return false;
   return invoke<boolean>('gmail_is_connected');
