@@ -113,6 +113,15 @@ impl CaptureEngine {
 
 static ENGINE: Mutex<Option<CaptureEngine>> = Mutex::new(None);
 
+/// `cargo test` runs test functions concurrently by default; any test that
+/// drives the global `ENGINE` (via `begin_global_with_sources`/
+/// `begin_global_with_sources_for_tests`) must hold this for its whole
+/// body, or two such tests running in parallel can race each other's
+/// "already recording" guard and flake. Not `pub(crate)` — only test code
+/// in this module and `recovery.rs`'s test module need it.
+#[cfg(test)]
+pub(crate) static ENGINE_TEST_LOCK: Mutex<()> = Mutex::new(());
+
 /// Guard + engine-start, parameterized over already-constructed sources so
 /// tests can drive the "already recording" guard with `FakeSource` instead
 /// of depending on real audio hardware (this dev box is headless — no ALSA
@@ -152,6 +161,30 @@ pub fn try_begin_global(
 #[cfg(test)]
 pub fn end_global_for_tests() {
     ENGINE.lock().unwrap().take();
+}
+
+/// Test-only cross-module hook: drives the same global-engine path as
+/// `try_begin_global`, but with caller-supplied (fake) sources so other
+/// modules' tests (recovery.rs) can exercise "a recording is live" without
+/// depending on real audio hardware.
+#[cfg(test)]
+pub fn begin_global_with_sources_for_tests(
+    workspace: &Path,
+    matter_id: &str,
+    matter_folder: &str,
+    consent: ConsentRecord,
+    mic: Box<dyn AudioSource>,
+    sys: Box<dyn AudioSource>,
+) -> Result<PathBuf, String> {
+    begin_global_with_sources(workspace, matter_id, matter_folder, consent, mic, sys)
+}
+
+/// The meeting directory currently being recorded, if any. Recovery
+/// (`recovery::find_orphans` / `capture_recover`) must never treat this
+/// directory as a crashed/orphaned session — it isn't crashed, it's live,
+/// and finalizing it mid-recording would truncate the rest of the meeting.
+pub fn active_meeting_dir() -> Option<PathBuf> {
+    ENGINE.lock().unwrap().as_ref().map(|e| e.meeting_dir.clone())
 }
 
 #[derive(serde::Serialize)]
@@ -295,6 +328,9 @@ mod tests {
     fn second_start_while_recording_is_rejected() {
         // Drive through the global ENGINE guard used by the Tauri commands,
         // with FakeSource so this doesn't depend on real audio hardware.
+        // Serialized against other ENGINE-touching tests (cargo test runs
+        // tests concurrently by default) — see ENGINE_TEST_LOCK's doc.
+        let _guard = ENGINE_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let ws = tempdir().unwrap();
         let fake = || Box::new(FakeSource::new(vec![])) as Box<dyn AudioSource>;
         let ok = begin_global_with_sources(
