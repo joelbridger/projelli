@@ -883,14 +883,19 @@ pub async fn crm_update_field(
                 "field '{field}' updated on {} household {household_key} (source: {source_ref})",
                 provider.display_name(),
             );
-            append_crm_audit_best_effort_for_matter(
-                &app,
-                &action,
-                &description,
-                &matter_id,
-                Some(&write_dedup_key),
-            )
-            .await;
+            // Codex round 5 (self-converge): dedup_key_field is content-
+            // addressed (household+field+final_value), not approval-event-
+            // addressed — by design, so a genuine retry of the SAME
+            // approval doesn't re-PUT. But that means a LATER approval of
+            // the identical final_value (e.g. restoring it after it
+            // drifted) computes the SAME id, and the audit store's
+            // insert-or-ignore would silently drop this second REAL write's
+            // audit entry. `receipt.deduped` tells us which happened: only
+            // a true cache hit (no network write at all) is safe to
+            // dedupe by that deterministic id; an actual write
+            // (`deduped: false`) always gets its own unique entry.
+            let audit_key = if receipt.deduped { Some(write_dedup_key.as_str()) } else { None };
+            append_crm_audit_best_effort_for_matter(&app, &action, &description, &matter_id, audit_key).await;
             Ok(receipt)
         }
         Err(CrmWriteError::StaleFieldValue(current)) => {
