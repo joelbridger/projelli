@@ -1106,6 +1106,11 @@ pub(crate) async fn finalize_walk(
         match store::write_unsafe_tokens(workspace, &guard) {
             Ok(()) => {
                 store::clear_integrity_unknown(workspace);
+                // A clean full walk (which, on a degraded-purge recovery, was a
+                // drop_table + full re-index) has removed every orphaned row, so
+                // the rebuild-required demand is satisfied. Clear it here — only on
+                // this clean-completion path — so an interrupted rebuild retries.
+                store::clear_rebuild_required(workspace);
                 state.index_integrity_unknown.store(false, Ordering::SeqCst);
                 drop(guard);
                 if let Err(e) = store::write_index_version(workspace) {

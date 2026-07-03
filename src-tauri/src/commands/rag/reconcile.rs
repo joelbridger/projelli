@@ -94,6 +94,22 @@ pub(crate) fn compute_deleted_keys(
         .collect()
 }
 
+/// The reconcile must DROP the table and rebuild from scratch — not merely do a
+/// full WALK — whenever a schema migration, a manifest key-format upgrade, or a
+/// degraded-purge recovery is pending. A full walk re-indexes present files but
+/// never removes rows for files that vanished while closed; only a drop clears
+/// those. Getting `rebuild_required` into this set is the fix for the
+/// degraded-purge content leak: after the breaker/backoff skips the purge, a full
+/// walk alone would leave the un-purged deleted rows live AND then clear the
+/// fail-closed flag, resurfacing deleted content. Pure + unit-tested.
+pub(crate) fn needs_drop_and_rebuild(
+    migrating: bool,
+    stale_key_format: bool,
+    rebuild_required: bool,
+) -> bool {
+    migrating || stale_key_format || rebuild_required
+}
+
 /// P1.1 — shared engine behind `rag_index_workspace` (Full) and
 /// `rag_reconcile_workspace` (Reconcile). See `IndexMode`.
 pub(crate) async fn run_workspace_index(
@@ -181,29 +197,34 @@ pub(crate) async fn run_workspace_index(
     // a deleted-while-closed file's rows searchable. Rebuild the store from scratch
     // instead (drop + full reindex), which purges every stale/deleted row.
     let stale_key_format = manifest::has_stale_key_format(&workspace);
+    // A prior boot's deleted-source purge was DEGRADED (sanity breaker refused it
+    // or the backoff aborted it), leaving deleted-file rows un-purged AND
+    // un-tombstoned. A full WALK alone would re-index present files but never drop
+    // those orphaned rows and would then wrongly clear the fail-closed flag —
+    // resurfacing deleted content. So a durable rebuild-required sentinel forces a
+    // clean drop + full re-index here, exactly like a key-format upgrade. (Cleared
+    // only after this walk completes cleanly — see `finalize_walk`.)
+    let rebuild_required = store::is_rebuild_required(&workspace);
     // P2.1 (Finding 4): a destructive rebuild deletes and recreates the dataset,
     // which the cached handle's read-consistency re-check can't recover from.
     // Drop the cache BEFORE the drop so a concurrent Ask/verify can't keep using
     // the handle to the dataset being purged, and AGAIN after so any handle a read
     // re-cached in the tiny pre-drop window is cleared (the next read then re-opens
     // the freshly recreated table, which read-consistency fills in as rows land).
-    if migrating || stale_key_format {
+    if needs_drop_and_rebuild(migrating, stale_key_format, rebuild_required) {
         invalidate_table_cache(&state).await;
-    }
-    if migrating {
-        log::info!("rag: migrating vector store to schema v{} (full re-index)", store::INDEX_VERSION);
+        let reason = if migrating {
+            format!("schema migration to v{}", store::INDEX_VERSION)
+        } else if stale_key_format {
+            "manifest key-format upgrade (v1/v2→current)".to_string()
+        } else {
+            "degraded-purge recovery".to_string()
+        };
+        log::info!("rag: rebuilding vector store from scratch ({reason})");
         store::drop_table(&conn)
             .await
-            .map_err(|e| format!("drop legacy table: {e}"))?;
+            .map_err(|e| format!("drop table for {reason}: {e}"))?;
         manifest::delete(&workspace);
-    } else if stale_key_format {
-        log::info!("rag: manifest key-format upgrade (v1→v2) — rebuilding vector store from scratch");
-        store::drop_table(&conn)
-            .await
-            .map_err(|e| format!("drop table for manifest key-format upgrade: {e}"))?;
-        manifest::delete(&workspace);
-    }
-    if migrating || stale_key_format {
         invalidate_table_cache(&state).await;
     }
 
@@ -233,6 +254,7 @@ pub(crate) async fn run_workspace_index(
     let effective_full = matches!(mode, IndexMode::Full)
         || migrating
         || stale_key_format
+        || rebuild_required
         || integrity_unknown
         || table_missing;
 
@@ -399,11 +421,12 @@ pub(crate) async fn run_workspace_index(
         .filter(|sig| sig.pdf.is_none())
         .count();
     if purge_looks_catastrophic(deleted_keys.len(), purgeable_total) {
-        // Do NOT purge. Log loudly, mark the reconcile degraded, and set the
-        // durable integrity-unknown sentinel so (a) retrieval/verify fail closed
-        // until recovery and (b) the NEXT boot escalates to a clean full rebuild
-        // (the version-bump migration already forces this for the known cause;
-        // this covers any other cause). `purge_degraded` also stops this walk from
+        // Do NOT purge. Log loudly and mark the reconcile degraded. Two durable
+        // sentinels drive recovery: integrity-unknown makes retrieval/verify fail
+        // closed until recovery; rebuild-required forces the NEXT boot to do a
+        // clean drop_table + full re-index (a full WALK alone would re-index
+        // present files but leave the un-purged deleted rows live and then wrongly
+        // clear the fail-closed flag). `purge_degraded` also stops THIS walk from
         // stamping completion, so the recovery actually runs next launch.
         log::error!(
             "rag reconcile: SANITY BREAKER — {} of {} indexed files look deleted \
@@ -414,6 +437,7 @@ pub(crate) async fn run_workspace_index(
             purgeable_total,
         );
         store::mark_integrity_unknown(&workspace);
+        store::mark_rebuild_required(&workspace);
         state.index_integrity_unknown.store(true, Ordering::SeqCst);
         tally.purge_degraded = true;
     } else {
@@ -459,11 +483,12 @@ pub(crate) async fn run_workspace_index(
                         log::error!(
                             "rag reconcile: DELETE BACKOFF — {} consecutive delete \
                              failures; aborting the purge loop to avoid a runaway \
-                             flood. Marking the index degraded for recovery on next \
-                             launch.",
+                             flood. Marking the index degraded for a clean rebuild \
+                             on next launch.",
                             MAX_CONSECUTIVE_DELETE_FAILURES,
                         );
                         store::mark_integrity_unknown(&workspace);
+                        store::mark_rebuild_required(&workspace);
                         state.index_integrity_unknown.store(true, Ordering::SeqCst);
                         tally.purge_degraded = true;
                         break;
@@ -773,6 +798,35 @@ mod flood_proofing_tests {
         assert!(
             !b.on_failure(),
             "a sprinkling of failures among successes must never trip the backoff"
+        );
+    }
+
+    // ── Degraded-purge recovery must DROP + rebuild (P1: content-leak fix) ──
+    // The Boot-A/Boot-B/Boot-C invariant: a degraded purge (Boot A) sets the
+    // durable rebuild-required sentinel; the recovery boot (Boot B) MUST see that
+    // as a drop-and-rebuild trigger — NOT a plain full walk, which would leave the
+    // un-purged deleted rows live and then clear the fail-closed flag. This locks
+    // `rebuild_required` into the destructive-rebuild decision so a future edit
+    // can't silently downgrade the recovery to a leaky full walk.
+    #[test]
+    fn rebuild_required_forces_a_drop_and_rebuild() {
+        assert!(
+            needs_drop_and_rebuild(false, false, true),
+            "a degraded-purge recovery must drop + rebuild, not just full-walk"
+        );
+    }
+
+    #[test]
+    fn migration_and_stale_key_format_still_force_a_drop_and_rebuild() {
+        assert!(needs_drop_and_rebuild(true, false, false));
+        assert!(needs_drop_and_rebuild(false, true, false));
+    }
+
+    #[test]
+    fn no_signal_means_no_drop() {
+        assert!(
+            !needs_drop_and_rebuild(false, false, false),
+            "a routine reconcile must not drop the table"
         );
     }
 }
