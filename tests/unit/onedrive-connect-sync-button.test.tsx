@@ -1,10 +1,11 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { OneDriveConnect } from '@/platform/connectors/onedrive/OneDriveConnect';
 import { AuditService } from '@/platform/audit/AuditService';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { SK_SETTINGS } from '@/config/identity';
 import type { OneDriveSyncReport } from '@/platform/utils/onedrive-commands';
+import { ONEDRIVE_SYNC_TIMEOUT_MS } from '@/platform/connectors/onedrive/onedriveTimeout';
 
 const oneDriveCancel = vi.fn();
 const oneDriveConnect = vi.fn();
@@ -161,5 +162,171 @@ describe('OneDriveConnect Sync now button', () => {
       await screen.findByText(/local-only mode is on, so oneDrive sync is paused/i)
     ).toBeTruthy();
     expect(oneDriveSync).not.toHaveBeenCalled();
+  });
+});
+
+describe('OneDriveConnect settle-guarantee (fix/onedrive-sync-silence)', () => {
+  let logDurable: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    useSettingsStore.getState().resetAll();
+    oneDriveIsConnected.mockResolvedValue(true);
+    oneDriveConnect.mockResolvedValue(undefined);
+    oneDriveDisconnect.mockResolvedValue(undefined);
+    oneDriveCancel.mockResolvedValue(undefined);
+    oneDriveConnectCancel.mockResolvedValue(undefined);
+    logDurable = vi
+      .spyOn(AuditService.prototype, 'logDurable')
+      .mockResolvedValue({} as never);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('a permanently-hanging oneDriveSync call ends in an honest timeout error and an audit row, never total silence (bench pass-3 regression)', async () => {
+    oneDriveListFolders.mockResolvedValue([]);
+    // The exact regression: the awaited invoke() never resolves or rejects.
+    oneDriveSync.mockReturnValue(new Promise<OneDriveSyncReport>(() => {}));
+
+    render(<OneDriveConnect />);
+    const button = await screen.findByRole('button', { name: 'Sync now' });
+
+    // Switch to fake timers only now that the component has settled into its
+    // connected/idle state — flipping them on before the initial
+    // oneDriveIsConnected() effect resolves starves testing-library's own
+    // internal polling of real time.
+    vi.useFakeTimers();
+
+    await act(async () => {
+      fireEvent.click(button);
+      // Let the folder-discovery phase (a resolved promise) flush.
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // Spinner engages immediately — covers both the folder-discovery phase
+    // and the (here, stuck) sync phase, not just a Rust-emitted event.
+    expect(screen.getByText(/Importing/i)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Syncing...' })).toBeTruthy();
+    expect(screen.queryByText(/ran into a problem/i)).toBeNull();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ONEDRIVE_SYNC_TIMEOUT_MS + 50);
+    });
+
+    // Honest, visible outcome — never an eternal, silent "Syncing...".
+    expect(screen.getByText(/ran into a problem/i)).toBeTruthy();
+    expect(screen.getByText(/timed out/i)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Sync now' })).toBeTruthy();
+    // And the append-only audit trail recorded the attempt honestly.
+    expect(logDurable).toHaveBeenCalledWith(
+      'onedrive.sync',
+      'OneDrive sync failed.',
+      expect.objectContaining({ outputs: expect.objectContaining({ error: 'network' }) })
+    );
+  }, 15000);
+
+  it('shows the Importing spinner during the folder-discovery phase, before onedrive_sync even starts', async () => {
+    let resolveListFolders: (folders: []) => void = () => {};
+    oneDriveListFolders.mockReturnValue(
+      new Promise((resolve) => {
+        resolveListFolders = resolve;
+      })
+    );
+    oneDriveSync.mockResolvedValue(report({ seen: 1, imported: 1, indexed: 1 }));
+
+    render(<OneDriveConnect />);
+    const button = await screen.findByRole('button', { name: 'Sync now' });
+    fireEvent.click(button);
+
+    // Folder discovery is still pending — oneDriveSync must not have run yet —
+    // but the UI must already show a visible in-progress signal, not silence.
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Syncing...' })).toBeTruthy();
+    });
+    expect(oneDriveSync).not.toHaveBeenCalled();
+
+    resolveListFolders([]);
+    await waitFor(() => {
+      expect(oneDriveSync).toHaveBeenCalled();
+    });
+    expect(await screen.findByText(/imported 1 file/i)).toBeTruthy();
+  });
+
+  it('clicking Stop during the folder-discovery phase ends the sync honestly, not as a red error', async () => {
+    let resolveListFolders: (err: Error) => void = () => {};
+    oneDriveListFolders.mockReturnValue(
+      new Promise((_resolve, reject) => {
+        resolveListFolders = reject;
+      })
+    );
+
+    render(<OneDriveConnect />);
+    const button = await screen.findByRole('button', { name: 'Sync now' });
+    fireEvent.click(button);
+
+    const stopButton = await screen.findByRole('button', { name: 'Stop' });
+    fireEvent.click(stopButton);
+    expect(oneDriveCancel).toHaveBeenCalled();
+
+    // Simulate the Rust command honoring the cancel and rejecting with the
+    // same sentinel oneDriveConnect() already uses for a user-initiated stop.
+    await act(async () => {
+      resolveListFolders(new Error('cancelled'));
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Sync now' })).toBeTruthy();
+    });
+    expect(screen.queryByText(/ran into a problem/i)).toBeNull();
+    expect(oneDriveSync).not.toHaveBeenCalled();
+    // The stop is a VISIBLE outcome, not a silent return to idle — reuses the
+    // same "Import stopped." copy a stop mid-sync already shows.
+    expect(screen.getByText(/import stopped/i)).toBeTruthy();
+    // Still an honest, audited attempt even though nothing was imported.
+    expect(logDurable).toHaveBeenCalledWith(
+      'onedrive.sync',
+      'OneDrive sync failed.',
+      expect.objectContaining({ outputs: expect.objectContaining({ error: 'cancelled' }) })
+    );
+  });
+
+  it('a stop during folder discovery does not leave a stale "Imported..." result from a PRIOR successful sync visible', async () => {
+    // Second-round Codex review finding: stopping mid-listing set the
+    // cancelled `progress` state but never cleared a previous run's
+    // `lastReport`, so an old "Imported N files..." success line could still
+    // render right alongside the new "Import stopped." — making the just-
+    // stopped attempt look like it had succeeded with stale counts.
+    oneDriveListFolders.mockResolvedValueOnce([]);
+    oneDriveSync.mockResolvedValueOnce(report({ seen: 5, imported: 5, indexed: 5 }));
+
+    render(<OneDriveConnect />);
+    const button = await screen.findByRole('button', { name: 'Sync now' });
+    fireEvent.click(button);
+    expect(await screen.findByText(/imported 5 files into your client folders/i)).toBeTruthy();
+
+    let resolveListFolders: (err: Error) => void = () => {};
+    oneDriveListFolders.mockReturnValueOnce(
+      new Promise((_resolve, reject) => {
+        resolveListFolders = reject;
+      })
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Sync now' }));
+    const stopButton = await screen.findByRole('button', { name: 'Stop' });
+    fireEvent.click(stopButton);
+
+    await act(async () => {
+      resolveListFolders(new Error('cancelled'));
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/import stopped/i)).toBeTruthy();
+    });
+    expect(screen.queryByText(/imported 5 files/i)).toBeNull();
   });
 });

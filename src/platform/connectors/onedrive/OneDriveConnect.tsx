@@ -23,6 +23,11 @@ import { AuditService } from '@/platform/audit/AuditService';
 import { sanitizeSyncError } from '@/platform/connectors/syncAuditError';
 import { useOneDriveSync } from '@/platform/connectors/onedrive/useOneDriveSync';
 import { useOneDriveStore } from '@/platform/connectors/onedrive/onedriveStore';
+import {
+  ONEDRIVE_LIST_FOLDERS_TIMEOUT_MS,
+  ONEDRIVE_SYNC_TIMEOUT_MS,
+  withOneDriveTimeout,
+} from '@/platform/connectors/onedrive/onedriveTimeout';
 import { isPersistedLocalOnly } from '@/platform/privacy/localOnlyGuard';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { beginOAuth, endOAuth } from '@/platform/connectors/oauthPending';
@@ -102,6 +107,14 @@ export function OneDriveConnect() {
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastReport, setLastReport] = useState<OneDriveSyncReport | null>(null);
+  // Covers the WHOLE runSync() operation, including the folder-discovery walk
+  // (autoLinkOneDriveFolders -> oneDriveListFolders) that runs BEFORE
+  // oneDriveSync ever starts. The Rust `progress` signal below only starts
+  // once onedrive_sync itself begins emitting, so relying on it alone left
+  // the spinner (and the disabled state on the button, preventing a
+  // double-click) dark during the whole folder-listing phase — exactly the
+  // silent-looking window a slow or resource-starved listing hits.
+  const [localSyncing, setLocalSyncing] = useState(false);
   const addOneDriveFolderKey = useMatterStore((s) => s.addOneDriveFolderKey);
   const addFolderPath = useMatterStore((s) => s.addFolderPath);
 
@@ -163,11 +176,23 @@ export function OneDriveConnect() {
       setError(LOCAL_ONLY_BLOCKED_MESSAGE);
       return;
     }
+    // Covers the folder-discovery walk below too, not just the oneDriveSync
+    // call — see the localSyncing declaration for why that phase needs its
+    // own signal instead of relying solely on the Rust `progress` event.
+    setLocalSyncing(true);
+    // Clear the PRIOR attempt's result before this one starts — otherwise a
+    // stop during folder discovery (which sets no `lastReport` of its own)
+    // would leave a stale "Imported N files..." from a previous successful
+    // run visible right alongside the new "Import stopped.", making the just
+    // stopped attempt look like it succeeded.
+    setLastReport(null);
     try {
       await autoLinkOneDriveFolders();
       const workspaceRoot = useWorkspaceStore.getState().rootPath;
-      const report = await oneDriveSync(
-        buildOneDriveMatterMap(getMatters(), workspaceRoot)
+      const report = await withOneDriveTimeout(
+        oneDriveSync(buildOneDriveMatterMap(getMatters(), workspaceRoot)),
+        'sync',
+        ONEDRIVE_SYNC_TIMEOUT_MS
       );
       setLastReport(report);
       // A stopped sync resolves with real (partial) counts — record it honestly
@@ -191,15 +216,29 @@ export function OneDriveConnect() {
         .catch(() => {});
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      if (message === 'cancelled') {
+        // The user clicked Stop before onedrive_sync even started emitting
+        // its own progress (e.g. during the folder-discovery walk) — an
+        // intentional exit, not a failure, matching how connect()'s own
+        // Cancel is treated above. Reuse the SAME "Import stopped." outcome
+        // the Rust-driven `progress.status === 'cancelled'` event already
+        // renders for a stop mid-sync, so a stop during folder discovery is
+        // an equally visible, non-error outcome — never a silent return to
+        // idle.
+        useOneDriveStore.getState().setProgress({ status: 'cancelled' });
+      } else {
+        setError(message);
+      }
       // Show the raw reason on the owner's own screen, but persist only a
       // sanitized category to the append-only audit log — never a raw provider
       // message that could carry a filename, account id, or token.
-      setError(message);
       void oneDriveAudit
         .logDurable('onedrive.sync', 'OneDrive sync failed.', {
           outputs: { error: sanitizeSyncError(err) },
         })
         .catch(() => {});
+    } finally {
+      setLocalSyncing(false);
     }
   }
 
@@ -219,7 +258,11 @@ export function OneDriveConnect() {
   }
 
   async function autoLinkOneDriveFolders(): Promise<void> {
-    const folders = await oneDriveListFolders();
+    const folders = await withOneDriveTimeout(
+      oneDriveListFolders(),
+      'folder discovery',
+      ONEDRIVE_LIST_FOLDERS_TIMEOUT_MS
+    );
     linkOneDriveClientFoldersToMatters(
       folders,
       getMatters(),
@@ -234,7 +277,7 @@ export function OneDriveConnect() {
     );
   }
 
-  const syncing = progress?.status === 'syncing';
+  const syncing = localSyncing || progress?.status === 'syncing';
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-4">
@@ -292,7 +335,7 @@ export function OneDriveConnect() {
           <p className="font-medium text-green-700">Connected.</p>
           {syncing && (
             <div className="mt-1 flex items-center gap-3">
-              <p>Importing... {progress.seen ?? 0} items checked.</p>
+              <p>Importing... {progress?.seen ?? 0} items checked.</p>
               <button
                 type="button"
                 onClick={() => {
