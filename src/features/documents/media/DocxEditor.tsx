@@ -1223,10 +1223,21 @@ export function DocxEditor({
               size="sm"
               className="h-7 gap-1.5 border-[rgba(var(--kp-navy-rgb),0.30)] text-[var(--kp-navy)] hover:bg-[rgba(var(--kp-navy-rgb),0.05)]"
               onClick={() => {
-                const text = extractIndexedParagraphs(currentDoc)
-                  .map(p => p.text)
-                  .join('\n');
-                onDraftFollowUp(text);
+                // Coordinator review catch: commit any in-progress (focused,
+                // un-blurred) edit and drain any already-queued op before
+                // reading the doc, or the draft is built from a snapshot
+                // missing the user's latest keystrokes — the same flush
+                // pattern Export uses (see flushSaveBeforeExport above).
+                void (async () => {
+                  await commitActiveRunEdit();
+                  await docOpQueueRef.current;
+                  const doc = currentDocRef.current;
+                  if (!doc) return;
+                  const text = extractIndexedParagraphs(doc)
+                    .map(p => p.text)
+                    .join('\n');
+                  onDraftFollowUp(text);
+                })();
               }}
               title={t('media.docx-editor.draft-follow-up-title')}
             >
