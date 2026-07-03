@@ -968,14 +968,20 @@ pub async fn push_crm_field_update(
                     upsert_ledger_field(store, &key, source, req, "failed", None);
                     Err(CrmWriteError::WriteNotApplied)
                 }
-                Err(e) => {
+                Err(_) => {
                     // The write itself may well have landed — only the
                     // CONFIRMATION read failed (a transient GET failure right
                     // after a successful PUT). Ambiguous, not a definite
-                    // failure: re-affirm pending_verify so a retry re-checks
-                    // rather than silently trusting an unconfirmed write.
+                    // failure: re-affirm pending_verify AND surface it as
+                    // `VerifyPending` specifically (codex-review catch,
+                    // round 1) — the command wrapper's audit trail only
+                    // special-cases `VerifyPending` to record a "may have
+                    // been applied, unconfirmed" entry; propagating the raw
+                    // read error here would fall through its catch-all and
+                    // silently skip that audit for a write that may have
+                    // genuinely landed.
                     upsert_ledger_field(store, &key, source, req, "pending_verify", None);
-                    Err(e)
+                    Err(CrmWriteError::VerifyPending)
                 }
             }
         }
@@ -2545,6 +2551,10 @@ mod tests {
         /// CRM response (Finding 2), so the readback verification GET
         /// afterward sees the OLD value.
         silently_ignores_write: bool,
+        /// When true, the SECOND `get_contact_field` call (the post-write
+        /// readback, not the pre-write stale-guard check) fails — simulates
+        /// a transient GET failure right after a successful PUT.
+        fail_readback_get: bool,
     }
     #[async_trait::async_trait]
     impl CrmWriteSource for FakeFieldSource {
@@ -2576,7 +2586,10 @@ mod tests {
             result
         }
         async fn get_contact_field(&self, _household_key: &str, _field: &str) -> Result<String, CrmWriteError> {
-            self.get_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            let call_number = self.get_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+            if self.fail_readback_get && call_number == 2 {
+                return Err(CrmWriteError::ReadFailed);
+            }
             Ok(self.remote_value.lock().unwrap().clone())
         }
     }
@@ -2588,6 +2601,7 @@ mod tests {
             update_calls: std::sync::atomic::AtomicUsize::new(0),
             get_calls: std::sync::atomic::AtomicUsize::new(0),
             silently_ignores_write: false,
+            fail_readback_get: false,
         }
     }
 
@@ -2598,6 +2612,18 @@ mod tests {
             update_calls: std::sync::atomic::AtomicUsize::new(0),
             get_calls: std::sync::atomic::AtomicUsize::new(0),
             silently_ignores_write: true,
+            fail_readback_get: false,
+        }
+    }
+
+    fn fake_field_source_with_failing_readback(remote_value: &str, update_result: Result<String, CrmWriteError>) -> FakeFieldSource {
+        FakeFieldSource {
+            remote_value: std::sync::Mutex::new(remote_value.into()),
+            update_results: std::sync::Mutex::new(vec![update_result]),
+            update_calls: std::sync::atomic::AtomicUsize::new(0),
+            get_calls: std::sync::atomic::AtomicUsize::new(0),
+            silently_ignores_write: false,
+            fail_readback_get: true,
         }
     }
 
@@ -2623,6 +2649,28 @@ mod tests {
         assert_eq!(source.update_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
         let row = store.outbound_get(&dedup_key_field(&req)).unwrap().unwrap();
         assert_ne!(row.status, "sent", "a write that didn't actually apply must never be recorded as sent");
+    }
+
+    /// codex-review round 1 catch: when the PUT succeeds but the CONFIRMATION
+    /// read fails (a transient GET failure right after a successful write —
+    /// genuinely ambiguous, not a definite failure), this must surface as
+    /// `VerifyPending` specifically. `crm_update_field`'s command wrapper
+    /// (commands.rs) only special-cases `VerifyPending` to record a "may have
+    /// been applied, unconfirmed" audit entry; any other error type falls
+    /// through its catch-all and silently skips that audit for a write that
+    /// may have genuinely landed.
+    #[tokio::test]
+    async fn field_update_readback_failure_after_a_successful_write_is_verify_pending() {
+        let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
+        let source = fake_field_source_with_failing_readback("Existing background.", Ok("12345".into()));
+        let req = base_field_req();
+
+        let err = push_crm_field_update(&source, &store, &guard, &req).await.unwrap_err();
+        assert!(matches!(err, CrmWriteError::VerifyPending), "expected VerifyPending, got {err:?}");
+
+        let row = store.outbound_get(&dedup_key_field(&req)).unwrap().unwrap();
+        assert_eq!(row.status, "pending_verify");
     }
 
     #[tokio::test]
