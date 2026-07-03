@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 
 const mockGmailConnect = vi.fn();
+const mockGmailConnectCancel = vi.fn();
+const mockGmailOauthConfigured = vi.fn();
 const mockGmailIsConnected = vi.fn();
 const mockGmailDisconnect = vi.fn();
 const mockMailSyncAll = vi.fn();
@@ -9,6 +11,8 @@ const mockMailCancelSync = vi.fn();
 
 vi.mock('@/platform/utils/mail-commands', () => ({
   get gmailConnect() { return mockGmailConnect; },
+  get gmailConnectCancel() { return mockGmailConnectCancel; },
+  get gmailOauthConfigured() { return mockGmailOauthConfigured; },
   get gmailIsConnected() { return mockGmailIsConnected; },
   get gmailDisconnect() { return mockGmailDisconnect; },
   get mailSyncAll() { return mockMailSyncAll; },
@@ -33,6 +37,8 @@ describe('MailGmailConnect', () => {
     mockProgress = undefined;
     mockGmailIsConnected.mockResolvedValue(false);
     mockGmailConnect.mockResolvedValue(undefined);
+    mockGmailConnectCancel.mockResolvedValue(undefined);
+    mockGmailOauthConfigured.mockResolvedValue(true);
     mockGmailDisconnect.mockResolvedValue(undefined);
     mockMailSyncAll.mockResolvedValue(undefined);
     mockMailCancelSync.mockResolvedValue(undefined);
@@ -92,6 +98,96 @@ describe('MailGmailConnect', () => {
     expect(await screen.findByText(/connected\./i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /connect gmail/i })).not.toBeInTheDocument();
   });
+
+  // The bug this fixes: the "not configured" and "stuck waiting" gap found in
+  // bench-pass2 item 9 — Gmail OAuth failed with a raw Google "missing
+  // client_id" error, and the "Waiting for Google sign-in…" state never
+  // cleared on cancel/error short of closing and reopening the panel.
+  it('shows a calm "not set up" note and disables Connect when this build has no Google client credentials', async () => {
+    mockGmailOauthConfigured.mockResolvedValue(false);
+
+    render(<MailGmailConnect />);
+    await waitFor(() => expect(mockGmailOauthConfigured).toHaveBeenCalled());
+
+    expect(await screen.findByTestId('mail-gmail-not-configured')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /connect gmail/i })).toBeDisabled();
+    // Not a red alarm — this is a build/setup gap, not something the user did wrong.
+    expect(screen.queryByText(/something went wrong/i)).not.toBeInTheDocument();
+  });
+
+  it('does not show the "not set up" note when this build has Google client credentials', async () => {
+    render(<MailGmailConnect />);
+    await waitFor(() => expect(mockGmailOauthConfigured).toHaveBeenCalled());
+
+    expect(screen.queryByTestId('mail-gmail-not-configured')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /connect gmail/i })).not.toBeDisabled();
+  });
+
+  it('shows a Cancel button while waiting for Google sign-in', async () => {
+    mockGmailConnect.mockReturnValue(new Promise(() => {}));
+    render(<MailGmailConnect />);
+    await waitFor(() => expect(mockGmailIsConnected).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole('button', { name: /connect gmail/i }));
+
+    expect(await screen.findByTestId('mail-gmail-cancel-connect')).toBeInTheDocument();
+  });
+
+  it('does not show a Cancel button when not connecting', async () => {
+    render(<MailGmailConnect />);
+    await waitFor(() => expect(mockGmailIsConnected).toHaveBeenCalled());
+    await screen.findByRole('button', { name: /connect gmail/i });
+    expect(screen.queryByTestId('mail-gmail-cancel-connect')).not.toBeInTheDocument();
+  });
+
+  it('clicking Cancel calls gmailConnectCancel and, once the pending connect settles, resets the waiting state instead of leaving it stuck', async () => {
+    let rejectConnect: (err: unknown) => void = () => {};
+    mockGmailConnect.mockReturnValue(new Promise((_resolve, reject) => { rejectConnect = reject; }));
+    render(<MailGmailConnect />);
+    await waitFor(() => expect(mockGmailIsConnected).toHaveBeenCalled());
+
+    const connectBtn = screen.getByRole('button', { name: /connect gmail/i });
+    fireEvent.click(connectBtn);
+    await waitFor(() => expect(connectBtn).toHaveTextContent('Waiting for Google sign-in in your browser…'));
+
+    const cancelBtn = await screen.findByTestId('mail-gmail-cancel-connect');
+    fireEvent.click(cancelBtn);
+    await waitFor(() => expect(mockGmailConnectCancel).toHaveBeenCalledTimes(1));
+
+    // Simulate the backend's gmail_connect promise settling with the
+    // "cancelled" error once the abort takes effect (the real Rust side is
+    // gmail_connect_cancel + await_redirect_code_or_cancel).
+    act(() => { rejectConnect('cancelled'); });
+
+    // The button re-enables and goes back to "Connect Gmail" — the panel is
+    // never left stuck on "Waiting for Google sign-in…" requiring a manual
+    // close/reopen of the Connections panel to recover.
+    await waitFor(() => expect(connectBtn).not.toBeDisabled());
+    expect(connectBtn).toHaveTextContent('Connect Gmail');
+    expect(screen.queryByTestId('mail-gmail-cancel-connect')).not.toBeInTheDocument();
+    // A user-initiated cancel is not a "Something went wrong" failure.
+    expect(screen.queryByText(/something went wrong/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^cancelled$/i)).not.toBeInTheDocument();
+  });
+
+  it('resets the waiting state on a real connect error too (not just cancel)', async () => {
+    let rejectConnect: (err: unknown) => void = () => {};
+    mockGmailConnect.mockReturnValue(new Promise((_resolve, reject) => { rejectConnect = reject; }));
+    render(<MailGmailConnect />);
+    await waitFor(() => expect(mockGmailIsConnected).toHaveBeenCalled());
+
+    const connectBtn = screen.getByRole('button', { name: /connect gmail/i });
+    fireEvent.click(connectBtn);
+    await waitFor(() => expect(connectBtn).toHaveTextContent('Waiting for Google sign-in in your browser…'));
+
+    // Simulate the browser tab erroring/closing without the user clicking Cancel.
+    act(() => { rejectConnect(new Error('redirect timed out')); });
+
+    await waitFor(() => expect(connectBtn).not.toBeDisabled());
+    expect(connectBtn).toHaveTextContent('Connect Gmail');
+    expect(screen.queryByTestId('mail-gmail-cancel-connect')).not.toBeInTheDocument();
+    expect(await screen.findByText(/something went wrong/i)).toBeInTheDocument();
+  });
 });
 
 // BUG-008: Reconnect button (no fake timers needed — just needs connected state)
@@ -101,6 +197,8 @@ describe('MailGmailConnect — BUG-008 Reconnect button', () => {
     mockProgress = undefined;
     mockGmailIsConnected.mockResolvedValue(true);
     mockGmailConnect.mockResolvedValue(undefined);
+    mockGmailConnectCancel.mockResolvedValue(undefined);
+    mockGmailOauthConfigured.mockResolvedValue(true);
     mockGmailDisconnect.mockResolvedValue(undefined);
     mockMailSyncAll.mockResolvedValue(undefined);
     mockMailCancelSync.mockResolvedValue(undefined);
@@ -136,6 +234,30 @@ describe('MailGmailConnect — BUG-008 Reconnect button', () => {
     await waitFor(() => expect(mockGmailIsConnected).toHaveBeenCalled());
     expect(await screen.findByRole('button', { name: /disconnect/i })).toBeInTheDocument();
   });
+
+  it('clicking Cancel during Reconnect calls gmailConnectCancel and restores the Reconnect button instead of leaving it stuck', async () => {
+    let rejectConnect: (err: unknown) => void = () => {};
+    mockGmailConnect.mockReturnValue(new Promise((_resolve, reject) => { rejectConnect = reject; }));
+    render(<MailGmailConnect />);
+    await waitFor(() => expect(mockGmailIsConnected).toHaveBeenCalled());
+    const reconnectBtn = await screen.findByTestId('mail-gmail-reconnect');
+    fireEvent.click(reconnectBtn);
+    await waitFor(() => expect(reconnectBtn).toHaveTextContent('Reconnecting…'));
+
+    const cancelBtn = await screen.findByTestId('mail-gmail-cancel-connect');
+    fireEvent.click(cancelBtn);
+    await waitFor(() => expect(mockGmailConnectCancel).toHaveBeenCalledTimes(1));
+
+    act(() => { rejectConnect('cancelled'); });
+
+    await waitFor(() => expect(reconnectBtn).not.toBeDisabled());
+    expect(reconnectBtn).toHaveTextContent('Reconnect');
+    expect(screen.queryByTestId('mail-gmail-cancel-connect')).not.toBeInTheDocument();
+    expect(screen.queryByText(/something went wrong/i)).not.toBeInTheDocument();
+    // The prior working connection was never touched.
+    expect(mockGmailDisconnect).not.toHaveBeenCalled();
+    expect(screen.getByText(/connected\./i)).toBeInTheDocument();
+  });
 });
 
 // BUG-008: sync-stall watchdog (uses fake timers)
@@ -144,6 +266,8 @@ describe('MailGmailConnect — BUG-008 stall watchdog', () => {
     vi.clearAllMocks();
     mockGmailIsConnected.mockResolvedValue(true);
     mockGmailConnect.mockResolvedValue(undefined);
+    mockGmailConnectCancel.mockResolvedValue(undefined);
+    mockGmailOauthConfigured.mockResolvedValue(true);
     mockGmailDisconnect.mockResolvedValue(undefined);
     mockMailSyncAll.mockResolvedValue(undefined);
     mockMailCancelSync.mockResolvedValue(undefined);
