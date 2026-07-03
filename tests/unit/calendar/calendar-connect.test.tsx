@@ -11,9 +11,17 @@ vi.mock('@/platform/utils/calendar-commands', () => ({
   calendarConnectIcs: vi.fn(async () => {}),
   calendarDisconnect: vi.fn(async () => {}),
   calendarSyncAll: vi.fn(async () => ({
-    eventsFetched: 0, eventsChanged: 0, eventsIndexed: 0, recordsIndexed: 0, cancelled: false,
+    eventsFetched: 0,
+    eventsChanged: 0,
+    eventsIndexed: 0,
+    recordsIndexed: 0,
+    cancelled: false,
   })),
-  calendarSyncStatus: vi.fn(async () => ({ syncing: false, eventsIndexed: 0, lastReport: null })),
+  calendarSyncStatus: vi.fn(async () => ({
+    syncing: false,
+    eventsIndexed: 0,
+    lastReport: null,
+  })),
   calendarCancelSync: vi.fn(async () => {}),
   calendarListEvents: vi.fn(async () => []),
   calendarSetWorkspace: vi.fn(async () => {}),
@@ -43,6 +51,8 @@ vi.mock('@/platform/privacy/localOnlyGuard', () => ({
 import {
   calendarConnectIcs,
   calendarConnectOutlook,
+  calendarDisconnect,
+  calendarIsConnected,
 } from '@/platform/utils/calendar-commands';
 
 describe('CalendarConnect', () => {
@@ -58,7 +68,9 @@ describe('CalendarConnect', () => {
   it('starts the Outlook sign-in on click', async () => {
     render(<CalendarConnect />);
     fireEvent.click(await screen.findByTestId('calendar-connect-outlook'));
-    await waitFor(() => expect(calendarConnectOutlook).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(calendarConnectOutlook).toHaveBeenCalledTimes(1)
+    );
   });
 
   it('requires a plausible ICS address before connecting', async () => {
@@ -70,7 +82,30 @@ describe('CalendarConnect', () => {
     });
     fireEvent.click(screen.getByTestId('calendar-ics-connect-button'));
     await waitFor(() =>
-      expect(calendarConnectIcs).toHaveBeenCalledWith('https://example.com/team.ics'),
+      expect(calendarConnectIcs).toHaveBeenCalledWith(
+        'https://example.com/team.ics'
+      )
+    );
+  });
+
+  it('requires confirmation before disconnecting, and only disconnects after confirming', async () => {
+    vi.mocked(calendarIsConnected).mockImplementation(
+      async (id: string) => id === 'outlook'
+    );
+    render(<CalendarConnect />);
+
+    const disconnectButton = await screen.findByText('Disconnect');
+    fireEvent.click(disconnectButton);
+
+    // The dialog is up; the destructive action must not have fired yet.
+    expect(
+      await screen.findByText('Disconnect and delete imported data')
+    ).toBeTruthy();
+    expect(calendarDisconnect).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByText('Disconnect and delete'));
+    await waitFor(() =>
+      expect(calendarDisconnect).toHaveBeenCalledWith('outlook')
     );
   });
 });
