@@ -158,6 +158,11 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
     const household_ = effectiveHousehold;
     const approvedIds = selectedIds;
     const shouldFileCompliance = fileComplianceNote;
+    // Codex review catch (P2): reset immediately, not after the note is
+    // filed — a still-checked toggle would otherwise summarize its OWN
+    // compliance note on the next approval, recursing indefinitely. The
+    // toggle must be re-checked deliberately for each new summary.
+    if (shouldFileCompliance) setFileComplianceNote(false);
     void approve(approvedIds, household_).then(() => {
       if (!shouldFileCompliance) return;
       // Read fresh state after approve() settles — the sent items just
