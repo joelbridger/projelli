@@ -88,6 +88,16 @@ fn norm(s: &str) -> String {
 /// retry from double-posting), but the same content approved again later —
 /// a different `requested_at` — produces a fresh key, so an intentional
 /// repeat send is never silently suppressed as a "duplicate" forever.
+///
+/// SCHEMA-EVOLUTION NOTE: this hash formula changed (added `requested_at`)
+/// after `crm_outbound_writes` already existed. That's safe today because
+/// this write-back feature has never shipped — the only caller
+/// (`crm_create_note`/`crm_create_task`) has no frontend wrapper yet (Task
+/// 8/9), so no real workspace anywhere has a ledger row computed under the
+/// pre-`requested_at` formula. If this hash formula changes AGAIN after the
+/// feature ships, that future change needs either a migration for existing
+/// rows or a fallback lookup under the old formula — skipping that then
+/// would let a retry miss its own `sent`/`pending_verify` row and double-post.
 pub fn dedup_key(req: &CrmWriteRequest) -> String {
     let mut h = Sha256::new();
     for part in [
