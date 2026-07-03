@@ -65,6 +65,8 @@ pub enum CrmWriteError {
     NotSupported(&'static str),
     #[error("invalid write request: {0}")]
     InvalidInput(&'static str),
+    #[error("could not record this write before sending it — try again")]
+    LedgerUnavailable,
 }
 
 fn norm(s: &str) -> String {
@@ -294,7 +296,10 @@ impl Drop for InFlightClaim<'_> {
 ///    `sent`, return a deduped receipt; not found → the earlier attempt
 ///    provably didn't land, proceed to send.
 /// 4. none / `failed` (or a `pending`/`pending_verify` that verification just
-///    cleared) → mark `pending`, call `create_note`/`create_task`.
+///    cleared) → mark `pending` BEFORE sending; if THIS write fails, abort
+///    with `LedgerUnavailable` rather than send with no idempotency record
+///    at all (see `upsert_ledger_before_send`) — then call
+///    `create_note`/`create_task`.
 /// 5. success → mark `sent` + remote_id, return a fresh receipt.
 /// 6. `CrmWriteError::VerifyPending` from the source → mark `pending_verify`,
 ///    propagate (the UI shows "will verify on retry").
@@ -340,7 +345,7 @@ pub async fn push_crm_write(
         }
     }
 
-    upsert_ledger(store, &key, source, req, "pending", None);
+    upsert_ledger_before_send(store, &key, source, req)?;
 
     let create_result = match req.kind {
         CrmWriteKind::Note => source.create_note(req).await,
@@ -363,6 +368,10 @@ pub async fn push_crm_write(
     }
 }
 
+/// Record a ledger transition AFTER the network attempt already happened
+/// (sent / pending_verify / failed). Best-effort: the POST is done and can't
+/// be undone, so a local DB hiccup here is logged, not propagated — there is
+/// nothing left to safely abort.
 fn upsert_ledger(
     store: &crate::commands::crm::store::CrmStore,
     key: &str,
@@ -383,6 +392,34 @@ fn upsert_ledger(
     ) {
         log::warn!("crm outbound ledger write failed (non-fatal): {e:#}");
     }
+}
+
+/// Record `pending` BEFORE the network attempt. This one MUST succeed: the
+/// ledger is the only thing that makes a later retry safe, so if we can't
+/// persist "about to send" we must not send — proceeding anyway would mean
+/// a POST with no idempotency record at all, and a retry after e.g. a crash
+/// could then double-post with nothing to catch it.
+fn upsert_ledger_before_send(
+    store: &crate::commands::crm::store::CrmStore,
+    key: &str,
+    source: &dyn CrmWriteSource,
+    req: &CrmWriteRequest,
+) -> Result<(), CrmWriteError> {
+    store
+        .outbound_upsert(
+            key,
+            source.provider_id(),
+            req.kind.as_str(),
+            &req.household_key,
+            &req.matter_id,
+            &req.source_ref,
+            "pending",
+            None,
+        )
+        .map_err(|e| {
+            log::warn!("crm outbound ledger pre-send write failed: {e:#}");
+            CrmWriteError::LedgerUnavailable
+        })
 }
 
 /// Reject empty titles and oversize content before any network call.
