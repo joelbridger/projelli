@@ -13,7 +13,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('@/platform/rag/MemoryService', async (importOriginal) => {
-  const original = await importOriginal<typeof import('@/platform/rag/MemoryService')>();
+  const original =
+    await importOriginal<typeof import('@/platform/rag/MemoryService')>();
   return {
     ...original,
     MemoryService: {
@@ -24,7 +25,10 @@ vi.mock('@/platform/rag/MemoryService', async (importOriginal) => {
   };
 });
 
-import { createDeleteBurstBatcher, handleWorkspaceFileChangedEvent } from './useMemoryWiring';
+import {
+  createDeleteBurstBatcher,
+  handleWorkspaceFileChangedEvent,
+} from './useMemoryWiring';
 import { MemoryService } from '@/platform/rag/MemoryService';
 import { MCP_SESSION_SCOPE_REL_PATH } from '@/config/identity';
 
@@ -40,18 +44,20 @@ describe('handleWorkspaceFileChangedEvent — delete→recreate race guard (P2)'
 
   it('cancels a queued delete when a create/modify for the same path arrives before the window flushes', async () => {
     const deletePath = vi.fn().mockResolvedValue(undefined);
-    const deleteBatcher = createDeleteBurstBatcher(deletePath, { windowMs: 250 });
+    const deleteBatcher = createDeleteBurstBatcher(deletePath, {
+      windowMs: 250,
+    });
 
     // File is deleted...
     handleWorkspaceFileChangedEvent(
       { kind: 'delete', path: '/ws/report.docx' },
-      { deleteBatcher, workspaceService: null },
+      { deleteBatcher, workspaceService: null }
     );
     // ...then recreated (atomic save/replace, or a sync restore) before the
     // 250ms debounce window has a chance to flush the queued delete.
     handleWorkspaceFileChangedEvent(
       { kind: 'modify', path: '/ws/report.docx' },
-      { deleteBatcher, workspaceService: null },
+      { deleteBatcher, workspaceService: null }
     );
 
     await vi.advanceTimersByTimeAsync(250);
@@ -60,16 +66,20 @@ describe('handleWorkspaceFileChangedEvent — delete→recreate race guard (P2)'
     // that was just (re)indexed, leaving a genuinely-present file unsearchable.
     expect(deletePath).not.toHaveBeenCalled();
     // eslint-disable-next-line @typescript-eslint/unbound-method
-    expect(vi.mocked(MemoryService.indexFile)).toHaveBeenCalledWith('/ws/report.docx');
+    expect(vi.mocked(MemoryService.indexFile)).toHaveBeenCalledWith(
+      '/ws/report.docx'
+    );
   });
 
   it('a delete with no later create/modify for the same path still runs normally', async () => {
     const deletePath = vi.fn().mockResolvedValue(undefined);
-    const deleteBatcher = createDeleteBurstBatcher(deletePath, { windowMs: 250 });
+    const deleteBatcher = createDeleteBurstBatcher(deletePath, {
+      windowMs: 250,
+    });
 
     handleWorkspaceFileChangedEvent(
       { kind: 'delete', path: '/ws/gone.docx' },
-      { deleteBatcher, workspaceService: null },
+      { deleteBatcher, workspaceService: null }
     );
 
     await vi.advanceTimersByTimeAsync(250);
@@ -77,24 +87,28 @@ describe('handleWorkspaceFileChangedEvent — delete→recreate race guard (P2)'
     expect(deletePath).toHaveBeenCalledWith('/ws/gone.docx');
   });
 
-  it('a create/modify for an UNRELATED path does not cancel a different path\'s queued delete', async () => {
+  it("a create/modify for an UNRELATED path does not cancel a different path's queued delete", async () => {
     const deletePath = vi.fn().mockResolvedValue(undefined);
-    const deleteBatcher = createDeleteBurstBatcher(deletePath, { windowMs: 250 });
+    const deleteBatcher = createDeleteBurstBatcher(deletePath, {
+      windowMs: 250,
+    });
 
     handleWorkspaceFileChangedEvent(
       { kind: 'delete', path: '/ws/a.docx' },
-      { deleteBatcher, workspaceService: null },
+      { deleteBatcher, workspaceService: null }
     );
     handleWorkspaceFileChangedEvent(
       { kind: 'modify', path: '/ws/b.docx' },
-      { deleteBatcher, workspaceService: null },
+      { deleteBatcher, workspaceService: null }
     );
 
     await vi.advanceTimersByTimeAsync(250);
 
     expect(deletePath).toHaveBeenCalledWith('/ws/a.docx');
     // eslint-disable-next-line @typescript-eslint/unbound-method
-    expect(vi.mocked(MemoryService.indexFile)).toHaveBeenCalledWith('/ws/b.docx');
+    expect(vi.mocked(MemoryService.indexFile)).toHaveBeenCalledWith(
+      '/ws/b.docx'
+    );
   });
 
   it('fix/ask-list-hang reconcile: a delete event for an internal .lantern path never enters the delete queue', async () => {
@@ -104,16 +118,18 @@ describe('handleWorkspaceFileChangedEvent — delete→recreate race guard (P2)'
     // and a breaker "slot" for something that must never be deleted) or
     // trigger indexing — internal plumbing is never a user document.
     const deletePath = vi.fn().mockResolvedValue(undefined);
-    const deleteBatcher = createDeleteBurstBatcher(deletePath, { windowMs: 250 });
+    const deleteBatcher = createDeleteBurstBatcher(deletePath, {
+      windowMs: 250,
+    });
     const internalPath = `/ws/${MCP_SESSION_SCOPE_REL_PATH}`;
 
     handleWorkspaceFileChangedEvent(
       { kind: 'delete', path: internalPath },
-      { deleteBatcher, workspaceService: null },
+      { deleteBatcher, workspaceService: null }
     );
     handleWorkspaceFileChangedEvent(
       { kind: 'modify', path: internalPath },
-      { deleteBatcher, workspaceService: null },
+      { deleteBatcher, workspaceService: null }
     );
 
     await vi.advanceTimersByTimeAsync(250);
@@ -127,13 +143,21 @@ describe('handleWorkspaceFileChangedEvent — delete→recreate race guard (P2)'
 
   it('ignores an event with no path', () => {
     const deletePath = vi.fn().mockResolvedValue(undefined);
-    const deleteBatcher = createDeleteBurstBatcher(deletePath, { windowMs: 250 });
+    const deleteBatcher = createDeleteBurstBatcher(deletePath, {
+      windowMs: 250,
+    });
 
-    expect(() =>
-      handleWorkspaceFileChangedEvent(null, { deleteBatcher, workspaceService: null }),
-    ).not.toThrow();
-    expect(() =>
-      handleWorkspaceFileChangedEvent(undefined, { deleteBatcher, workspaceService: null }),
-    ).not.toThrow();
+    expect(() => {
+      handleWorkspaceFileChangedEvent(null, {
+        deleteBatcher,
+        workspaceService: null,
+      });
+    }).not.toThrow();
+    expect(() => {
+      handleWorkspaceFileChangedEvent(undefined, {
+        deleteBatcher,
+        workspaceService: null,
+      });
+    }).not.toThrow();
   });
 });

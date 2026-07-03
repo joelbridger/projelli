@@ -379,7 +379,11 @@ export function createDeleteBurstBatcher(
   const windowMs = options.windowMs ?? DEFAULT_DELETE_BATCH_WINDOW_MS;
   const breakerThreshold = options.breakerThreshold ?? DEFAULT_DELETE_BREAKER_THRESHOLD;
   const cooldownMs = options.cooldownMs ?? DEFAULT_DELETE_BREAKER_COOLDOWN_MS;
-  const log = options.onLog ?? ((message: string) => console.warn(message));
+  const log =
+    options.onLog ??
+    ((message: string) => {
+      console.warn(message);
+    });
   const onCancelledAfterDelete = options.onCancelledAfterDelete;
 
   let pending = new Set<string>();
@@ -389,6 +393,16 @@ export function createDeleteBurstBatcher(
   let consecutiveFailures = 0;
   let breakerOpenUntil = 0;
   let disposed = false;
+  // Read through a function, not the bare `disposed` binding, at every
+  // check inside `flush`'s loop. `dispose()` is a SEPARATE closure the
+  // caller can invoke at any point — including during an `await` this
+  // function is suspended on — so `disposed` genuinely can change between
+  // one check and the next even though nothing in `flush`'s own textual
+  // body assigns it. TypeScript's control-flow narrowing can't see that
+  // (it only tracks mutations reachable from this function's own code) and
+  // flags the checks as always-true/false; reading through a function call
+  // is opaque to that narrowing while still observing the live value.
+  const isDisposed = () => disposed;
   // The current round's snapshot (see `flush`) and which of its paths have
   // been cancelled since being pulled out of `pending`. A path is briefly
   // "in flight" — no longer in `pending`, but not yet attempted — between
@@ -437,7 +451,7 @@ export function createDeleteBurstBatcher(
     // post-cooldown attempt a fresh threshold budget.
     consecutiveFailures = 0;
     try {
-      while (pending.size > 0 && !disposed) {
+      while (pending.size > 0 && !isDisposed()) {
         const paths = Array.from(pending);
         pending = new Set();
         inFlightPaths = new Set(paths);
@@ -445,7 +459,7 @@ export function createDeleteBurstBatcher(
         let failed = 0;
         let breakerTripped = false;
         for (const path of paths) {
-          if (disposed) return;
+          if (isDisposed()) return;
           if (cancelledInFlight.delete(path)) {
             // Cancelled after this round snapshotted it but before we even
             // started it — a create/modify beat us to it. Skip the stale
@@ -460,10 +474,10 @@ export function createDeleteBurstBatcher(
           // un-send that call, but it CAN mark it here so we notice once it
           // settles.
           try {
-            // eslint-disable-next-line no-await-in-loop -- deliberate: sequential,
-            // bounded processing is the fix (never N concurrent backend calls).
+            // Deliberate: sequential, bounded processing is the fix (never N
+            // concurrent backend calls).
             await deletePath(path);
-            if (disposed) return;
+            if (isDisposed()) return;
             // The workspace could have closed/switched WHILE this delete was
             // in flight. Bail before any bookkeeping or recovery below —
             // `onCancelledAfterDelete` re-indexes via the shared
@@ -490,7 +504,7 @@ export function createDeleteBurstBatcher(
               }
             }
           } catch {
-            if (disposed) return; // same guard on the failure path
+            if (isDisposed()) return; // same guard on the failure path
             failed += 1;
             consecutiveFailures += 1;
             if (cancelledInFlight.delete(path)) {
@@ -527,8 +541,8 @@ export function createDeleteBurstBatcher(
                 .filter((p) => !cancelledInFlight.has(p));
               pending = new Set([...notYetAttempted, ...pending]);
               log(
-                `[memory] ${consecutiveFailures} consecutive delete failures; backing off for ${cooldownMs}ms, ` +
-                  `retrying ${pending.size} pending delete event(s) after cooldown`,
+                `[memory] ${String(consecutiveFailures)} consecutive delete failures; backing off for ${String(cooldownMs)}ms, ` +
+                  `retrying ${String(pending.size)} pending delete event(s) after cooldown`,
               );
               scheduleCooldownRetry(cooldownMs);
               breakerTripped = true;
@@ -540,7 +554,7 @@ export function createDeleteBurstBatcher(
         }
         if (breakerTripped) break;
         if (failed > 0) {
-          log(`[memory] ${failed} of ${paths.length} delete event(s) failed; retrying`);
+          log(`[memory] ${String(failed)} of ${String(paths.length)} delete event(s) failed; retrying`);
         }
       }
     } finally {
@@ -606,7 +620,7 @@ export function createDeleteBurstBatcher(
         // index the next time it's opened, so these paths are stale until
         // then, not permanently lost.
         log(
-          `[memory] workspace closed with ${pending.size} delete(s) still queued; ` +
+          `[memory] workspace closed with ${String(pending.size)} delete(s) still queued; ` +
             'leaving them for the next boot reconcile rather than risk misrouting to a new workspace',
         );
       }

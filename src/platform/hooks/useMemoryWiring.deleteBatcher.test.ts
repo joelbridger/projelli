@@ -27,7 +27,7 @@ describe('createDeleteBurstBatcher', () => {
     const batcher = createDeleteBurstBatcher(deletePath, { windowMs: 250 });
 
     for (let i = 0; i < 50; i += 1) {
-      batcher.enqueue(`/ws/file-${i}.docx`);
+      batcher.enqueue(`/ws/file-${String(i)}.docx`);
     }
     expect(deletePath).not.toHaveBeenCalled();
 
@@ -62,7 +62,7 @@ describe('createDeleteBurstBatcher', () => {
     const batcher = createDeleteBurstBatcher(deletePath, { windowMs: 250 });
 
     for (let i = 0; i < 20; i += 1) {
-      batcher.enqueue(`/ws/file-${i}.docx`);
+      batcher.enqueue(`/ws/file-${String(i)}.docx`);
     }
     await vi.advanceTimersByTimeAsync(250);
     await vi.runAllTimersAsync();
@@ -79,8 +79,7 @@ describe('createDeleteBurstBatcher', () => {
     let inFlight = 0;
     let maxConcurrent = 0;
     let callCount = 0;
-    let batcher: ReturnType<typeof createDeleteBurstBatcher>;
-    batcher = createDeleteBurstBatcher(
+    const batcher: ReturnType<typeof createDeleteBurstBatcher> = createDeleteBurstBatcher(
       vi.fn().mockImplementation(async () => {
         inFlight += 1;
         maxConcurrent = Math.max(maxConcurrent, inFlight);
@@ -144,7 +143,7 @@ describe('createDeleteBurstBatcher', () => {
     });
 
     for (let i = 0; i < 10; i += 1) {
-      batcher.enqueue(`/ws/file-${i}.docx`);
+      batcher.enqueue(`/ws/file-${String(i)}.docx`);
     }
     await vi.advanceTimersByTimeAsync(250);
 
@@ -200,8 +199,11 @@ describe('createDeleteBurstBatcher', () => {
     // the failure counter it would instantly re-trip the breaker every time
     // and every path queued behind it would be requeued as "not yet
     // attempted" forever — legitimate deletes silently never running.
-    const deletePath = vi.fn().mockImplementation(async (path: string) => {
-      if (path === '/ws/bad.docx') throw new Error('permanently broken row');
+    const deletePath = vi.fn().mockImplementation((path: string) => {
+      if (path === '/ws/bad.docx') {
+        return Promise.reject(new Error('permanently broken row'));
+      }
+      return Promise.resolve();
     });
     const batcher = createDeleteBurstBatcher(deletePath, {
       windowMs: 100,
@@ -243,8 +245,11 @@ describe('createDeleteBurstBatcher', () => {
     // to the FRONT of the next round, ahead of the failing run, so it gets
     // first crack at the very next cooldown wake-up instead of being stuck
     // behind the same bad paths indefinitely.
-    const deletePath = vi.fn().mockImplementation(async (path: string) => {
-      if (path.startsWith('/ws/bad')) throw new Error('permanently broken row');
+    const deletePath = vi.fn().mockImplementation((path: string) => {
+      if (path.startsWith('/ws/bad')) {
+        return Promise.reject(new Error('permanently broken row'));
+      }
+      return Promise.resolve();
     });
     const onLog = vi.fn();
     const batcher = createDeleteBurstBatcher(deletePath, {
@@ -314,7 +319,9 @@ describe('createDeleteBurstBatcher', () => {
     await vi.advanceTimersByTimeAsync(5_000);
 
     expect(deletePath).toHaveBeenCalledTimes(5);
-    const retriedPaths = deletePath.mock.calls.slice(2).map((call) => call[0]);
+    const retriedPaths = deletePath.mock.calls
+      .slice(2)
+      .map((call: unknown[]) => call[0] as string);
     expect(retriedPaths.sort()).toEqual(['/ws/a.docx', '/ws/b.docx', '/ws/c.docx']);
   });
 
@@ -339,16 +346,16 @@ describe('createDeleteBurstBatcher', () => {
     // arrives in that exact window, letting the stale delete still run and
     // remove content that was just (re)indexed.
     const calls: string[] = [];
-    let batcher: ReturnType<typeof createDeleteBurstBatcher>;
-    const deletePath = vi.fn().mockImplementation(async (path: string) => {
+    const deletePath = vi.fn().mockImplementation((path: string) => {
       calls.push(path);
       if (path === '/ws/a.docx') {
         // Simulate a create/modify for 'target' landing right now — while
         // it's already out of `pending` for this round, but before its turn.
         batcher.cancel('/ws/target.docx');
       }
+      return Promise.resolve();
     });
-    batcher = createDeleteBurstBatcher(deletePath, { windowMs: 250 });
+    const batcher = createDeleteBurstBatcher(deletePath, { windowMs: 250 });
 
     batcher.enqueue('/ws/a.docx');
     batcher.enqueue('/ws/target.docx');
@@ -367,8 +374,7 @@ describe('createDeleteBurstBatcher', () => {
     // including ones already cancelled — silently undoing the cancellation
     // and letting the stale delete run after the next cooldown.
     const attempted: string[] = [];
-    let batcher: ReturnType<typeof createDeleteBurstBatcher>;
-    const deletePath = vi.fn().mockImplementation(async (path: string) => {
+    const deletePath = vi.fn().mockImplementation((path: string) => {
       attempted.push(path);
       if (path === '/ws/bad-1.docx') {
         // A create/modify for 'target' lands here — while it's already
@@ -376,9 +382,12 @@ describe('createDeleteBurstBatcher', () => {
         // trips the breaker) or target's own turn.
         batcher.cancel('/ws/target.docx');
       }
-      if (path.startsWith('/ws/bad')) throw new Error('backend down');
+      if (path.startsWith('/ws/bad')) {
+        return Promise.reject(new Error('backend down'));
+      }
+      return Promise.resolve();
     });
-    batcher = createDeleteBurstBatcher(deletePath, {
+    const batcher = createDeleteBurstBatcher(deletePath, {
       windowMs: 100,
       breakerThreshold: 2,
       cooldownMs: 5_000,
@@ -406,16 +415,16 @@ describe('createDeleteBurstBatcher', () => {
     // the ORIGINAL copy is still sitting in-flight in this round's
     // snapshot. cancel() must defeat both, not just whichever it finds
     // first — otherwise the stale in-flight copy still runs.
-    let batcher: ReturnType<typeof createDeleteBurstBatcher>;
     const attempted: string[] = [];
-    const deletePath = vi.fn().mockImplementation(async (path: string) => {
+    const deletePath = vi.fn().mockImplementation((path: string) => {
       attempted.push(path);
       if (path === '/ws/a.docx') {
         batcher.enqueue('/ws/dup.docx');
         expect(batcher.cancel('/ws/dup.docx')).toBe(true);
       }
+      return Promise.resolve();
     });
-    batcher = createDeleteBurstBatcher(deletePath, { windowMs: 250 });
+    const batcher = createDeleteBurstBatcher(deletePath, { windowMs: 250 });
 
     batcher.enqueue('/ws/a.docx');
     batcher.enqueue('/ws/dup.docx');
