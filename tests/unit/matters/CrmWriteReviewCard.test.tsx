@@ -97,6 +97,11 @@ describe('CrmWriteReviewCard', () => {
     expect(crmCreateNote).toHaveBeenCalledWith(
       expect.objectContaining({ householdKey: '12345', matterId: m.id, title: 'Note title', body: 'Note body' }),
     );
+    // The queue store (not the card) owns requestedAt generation, but the
+    // full click-to-invoke path must still carry it through.
+    expect(crmCreateNote).toHaveBeenCalledWith(
+      expect.objectContaining({ requestedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/) }),
+    );
   });
 
   // Task 9b: optional compliance summary, off by default, riding the same card.

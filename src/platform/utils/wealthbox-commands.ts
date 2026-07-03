@@ -218,16 +218,21 @@ export async function crmCreateNote(args: {
   body: string;
   sourceRef: string;
   householdKey: string;
+  /** Identifies the approval event — see `ProposedCrmWrite.requestedAt`'s doc
+   *  comment. Reuse the SAME value for a retry of this exact approval; a
+   *  fresh approval (even of identical content) must pass a new one. */
+  requestedAt: string;
   provider?: CrmProvider;
 }): Promise<CrmWriteReceipt> {
   if (!isTauri()) throw new Error('CRM write is only available in the desktop app.');
-  const { matterId, title, body, sourceRef, householdKey, provider } = args;
+  const { matterId, title, body, sourceRef, householdKey, requestedAt, provider } = args;
   return invoke<CrmWriteReceipt>('crm_create_note', {
     matterId,
     title,
     body,
     sourceRef,
     householdKey,
+    requestedAt,
     ...(provider ? { provider } : {}),
   });
 }
@@ -243,10 +248,12 @@ export async function crmCreateTask(args: {
   dueDate?: string;
   sourceRef: string;
   householdKey: string;
+  /** See {@link crmCreateNote}'s `requestedAt` doc comment. */
+  requestedAt: string;
   provider?: CrmProvider;
 }): Promise<CrmWriteReceipt> {
   if (!isTauri()) throw new Error('CRM write is only available in the desktop app.');
-  const { matterId, title, description, dueDate, sourceRef, householdKey, provider } = args;
+  const { matterId, title, description, dueDate, sourceRef, householdKey, requestedAt, provider } = args;
   return invoke<CrmWriteReceipt>('crm_create_task', {
     matterId,
     title,
@@ -254,6 +261,7 @@ export async function crmCreateTask(args: {
     dueDate: dueDate ?? null,
     sourceRef,
     householdKey,
+    requestedAt,
     ...(provider ? { provider } : {}),
   });
 }
