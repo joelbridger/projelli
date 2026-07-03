@@ -4,14 +4,13 @@
  * panel). Shows today's pre-generated brief with source chips; one keystroke
  * exports it as Word. "It was ready before you asked."
  *
- * Matches the spirit of the approved p2-before-you-meet.html prototype (card
- * look, "Export brief (Word)" copy, a save confirmation) but keeps the
- * plan's simpler data shape — one markdown blob + a flat citation-chip row,
- * not per-bullet citations. Per-bullet citation binding (each brief point
- * carrying its own individually-verifiable source, as the prototype shows)
- * would need the model to emit structured, chunk-tagged output — a bigger
- * lift than this wave's headless generation call — and was explicitly
- * flagged to the coordinator as a Wave 2+ follow-up rather than built here.
+ * Matches the approved p2-before-you-meet.html prototype: each bullet
+ * carries its own citation chip with a hover popover showing the exact
+ * quoted line (generateBrief.ts's per-bullet `bullets`, each grounded in a
+ * real retrieved excerpt — never a model-authored quote). Falls back to the
+ * older one-markdown-blob + flat-citation-row rendering when `bullets` is
+ * empty (bullet generation degraded, or the brief was persisted before this
+ * field existed).
  */
 
 import { useState } from 'react';
@@ -29,6 +28,8 @@ import { todayWindowUtc } from './todayWindow';
 import { agendaMarkdownFromBrief } from './agendaExport';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
+import { CiteChip } from '@/ui/kp/CiteChip';
+import { FileText } from 'lucide-react';
 
 function basename(path: string): string {
   return path.split(/[\\/]/).pop() ?? path;
@@ -175,20 +176,49 @@ export function BeforeYouMeetStrip({ matterId }: { matterId: string }) {
                     New documents arrived since this was written
                   </span>
                 )}
-                <div className="whitespace-pre-wrap text-[13px] text-[var(--kp-navy)]">
-                  {brief.markdown}
-                </div>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {brief.citations.map((c) => (
-                    <span
-                      key={c.path}
-                      title={c.path}
-                      className="rounded-full border border-slate-200 bg-white px-2 py-px text-[11px] text-slate-500"
-                    >
-                      {basename(c.path)}
-                    </span>
-                  ))}
-                </div>
+                {brief.bullets != null && brief.bullets.length > 0 ? (
+                  <div data-testid="brief-bullets" className="flex flex-col">
+                    {brief.bullets.map((b) => (
+                      <div
+                        key={b.id}
+                        className="flex items-start gap-2.5 border-t border-slate-100 py-2 first:border-t-0 first:pt-0"
+                      >
+                        <span className="mt-[7px] h-1.5 w-1.5 flex-none rounded-full bg-slate-400" />
+                        <div className="min-w-0">
+                          <div className="text-[13.5px] leading-snug text-[var(--kp-navy)]">
+                            {b.text}
+                          </div>
+                          <div className="mt-1">
+                            <CiteChip
+                              docLabel={basename(b.sourcePath)}
+                              quote={b.quote}
+                              icon={<FileText size={11} strokeWidth={1.75} />}
+                            >
+                              {basename(b.sourcePath)}
+                            </CiteChip>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <>
+                    <div className="whitespace-pre-wrap text-[13px] text-[var(--kp-navy)]">
+                      {brief.markdown}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {brief.citations.map((c) => (
+                        <span
+                          key={c.path}
+                          title={c.path}
+                          className="rounded-full border border-slate-200 bg-white px-2 py-px text-[11px] text-slate-500"
+                        >
+                          {basename(c.path)}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                )}
                 <div className="mt-2 flex items-center gap-2">
                   <button
                     type="button"
