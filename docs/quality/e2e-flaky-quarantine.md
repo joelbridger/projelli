@@ -22,6 +22,47 @@ same change.
 > `test.skip(!!process.env.E2E_CI_QUARANTINE, '…')` instead, so the file's other
 > passing tests aren't dropped from CI too. This file tracks ownership either way.
 
+## Update (2026-07-03, `fix/consent-mock-provider-refusal`) — supersedes the re-quarantine below
+
+The F3.7b entry below re-quarantined `wedge-proof.spec.ts`'s `ask-workspace ON
+... REFUSES instead of fabricating` test a SECOND time, for a NEW reason found
+while un-skipping it: it failed **deterministically** (100% of runs, local and
+CI, not a flake) because the F2.5 file-access consent gate
+(`src/platform/ai/fileAccessConsent.ts`) classifies any non-local provider id —
+including this test's fixture `provider: 'mock'` — as cloud
+(`isLocalProviderId` in `providerFactory.ts` only recognizes
+`'ollama'`/`'keepance-local'`), so the ambient "Ask my workspace" toggle was
+paused pending consent before retrieval ever ran. `FileAccessConsentBanner.tsx`
+classified cloud providers with its OWN separate hardcoded
+`Set(['anthropic','openai','google'])`, which didn't include `'mock'` — so the
+banner never rendered the "Allow file access" affordance either, making the
+gate's block unreachable-to-fix from the UI. This branch root-caused and fixed
+both halves:
+
+1. **The test never granted consent** — a real gap in the fixture/test, not a
+   product bug on its own (real users only ever have provider ids
+   `anthropic`/`openai`/`google`/`ollama`/`keepance-local`, so `'mock'` never
+   reaches production). Fixed by clicking the real `chat-file-access-allow`
+   affordance in the test before sending, so the send reaches the actual
+   RAG-unavailable path this test is meant to prove.
+2. **A latent product bug (fixed regardless of the test):** the gate
+   (`fileAccessConsent.ts` / `useChatSending.ts`'s `providerIsCloud =
+   !isLocalProviderId(...)`) and the banner used two independent
+   classifications of "cloud." Any provider id neither explicitly local NOR in
+   the banner's small hardcoded list — a future provider added to
+   `ChatProviderId` without also updating the banner, for example — would be
+   gated OFF by the send path with **zero UI escape hatch**, a silent,
+   unrecoverable dead end. Fixed by making `FileAccessConsentBanner.tsx` share
+   the exact same `isLocalProviderId` predicate the gate uses, so "gated" and
+   "has an Allow affordance" can never drift apart again.
+
+Un-quarantined again (the in-spec `test.skip` this branch's own fix added is
+now scoped to locale, not `E2E_CI_QUARANTINE` — see the code comment). History
+now reads: re-quarantined by F3.7b (below) → root-caused + fixed by this
+branch. If a future CI run somehow hits this test again, re-open a fresh
+investigation rather than assuming it's either of the two causes already
+closed out here.
+
 ## Current state: F3.7b remainder resolved (2026-07-03)
 
 The F3.7 burndown below (merged into `keepance-3.0` at `c0380e2d`) was verified
@@ -119,10 +160,13 @@ re-quarantined with a 2026-07-09 fix-or-delete-by date. This entry (branch
   ask/**` — outside this tests/e2e-only lane (owned by `fix/ask-list-hang`
   per the F3.7b lane walls). Re-quarantined (in-spec skip only, same test)
   with the new reason and a fresh 2026-07-16 fix-or-delete-by date.
+  **Superseded 2026-07-03** — see the "Update" section at the top of this
+  file: `fix/consent-mock-provider-refusal` root-caused and fixed this exact
+  regression and re-un-quarantined the test.
 
 | Spec | Suspected cause | Owner | Fix-or-delete-by |
 |---|---|---|---|
-| `wedge-proof.spec.ts` ("ask-workspace ON ... REFUSES", 1 test, in-spec skip) | F2.5 file-access-consent gate blocks ambient retrieval for the `mock` provider before it can reach the refusal path — real `src/features/ask/**` regression, not flakiness | `fix/ask-list-hang` (or its successor) | 2026-07-16 |
+| _(none)_ | `templates-marketplace.spec.ts` and `web-demo.spec.ts` were fixed and removed from `CI_QUARANTINE` by F3.7b (above); `wedge-proof.spec.ts`'s 4th test was fixed and un-quarantined by `fix/consent-mock-provider-refusal` (2026-07-03 update above) — nothing is currently quarantined. | — | — |
 
 The F3.7 burndown history (still accurate for everything else it covered)
 follows unchanged.

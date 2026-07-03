@@ -274,35 +274,34 @@ test.describe('VG-1 leg 2 — wedge UI wiring (browser, testMode)', () => {
   test('ask-workspace ON in a build without rag REFUSES instead of fabricating; privilege toggle appears', async ({
     page,
   }, testInfo) => {
-    // F3.7b (2026-07-03): this test's ORIGINAL quarantine reason (2x
-    // intermittent net::ERR_CONNECTION_REFUSED tripping the console-error
-    // assertion) is FIXED — see the other 3 tests in this file + the
-    // BENIGN_RESOURCE_LOAD_FAILURES entry in
-    // tests/campaign/helpers/campaign.ts. Re-quarantined here for a NEW,
-    // unrelated, deterministic (not flaky) reason found while verifying the
-    // un-skip: the F2.5 file-access-consent gate (src/platform/ai/
-    // fileAccessConsent.ts, resolveWorkspaceRetrieval) now treats this
-    // fixture's `provider: 'mock'` as a cloud provider (anything that isn't
-    // literally 'ollama'/'keepance-local' is treated as cloud —
-    // isLocalProviderId in src/platform/providers/providerFactory.ts) and
-    // blocks ambient Ask-my-workspace retrieval until file-access consent is
-    // granted for the chat — so the send now short-circuits to
-    // "Ask-my-workspace is paused until you allow file access for this
-    // chat." + a provider-send attempt, and NEVER reaches the retrieval-
-    // failure refusal this test asserts. FileAccessConsentBanner's own
-    // cloud-provider set (src/features/ask/chat/FileAccessConsentBanner.tsx)
-    // doesn't include 'mock' either, so there is no UI affordance to grant
-    // consent for a mock-provider chat — this is squarely an `src/features/
-    // ask/**` product-code concern (owned by fix/ask-list-hang per the
-    // F3.7b lane walls), out of this tests/e2e-only lane's scope. Reproduces
-    // deterministically (confirmed 2026-07-03, not CI-only) — this is a
-    // real regression against the wedge guarantee, not test flakiness.
+    // F3.7b (2026-07-03) re-quarantined this test a SECOND time for a NEW,
+    // deterministic (not flaky) reason found while verifying the ERR_CONNECTION_
+    // REFUSED un-skip (fixed on the other 3 tests in this file via
+    // BENIGN_RESOURCE_LOAD_FAILURES in tests/campaign/helpers/campaign.ts): the
+    // F2.5 file-access-consent gate treated this fixture's `provider: 'mock'` as
+    // cloud (isLocalProviderId only recognizes 'ollama'/'keepance-local') and
+    // blocked ambient Ask-my-workspace retrieval pending consent that was never
+    // granted, so the send never reached the retrieval-refusal path this test
+    // asserts. fix/consent-mock-provider-refusal root-caused and fixed BOTH
+    // halves of that: the test now grants consent via the real
+    // `chat-file-access-allow` affordance below, and FileAccessConsentBanner.tsx
+    // shares the exact isLocalProviderId predicate the send-path gate uses (was
+    // its own separate hardcoded provider Set that didn't include 'mock', so the
+    // gate's block had no UI escape hatch) — see
+    // docs/quality/e2e-flaky-quarantine.md for the full writeup. Superseding the
+    // re-quarantine, this test is un-skipped again — except for the assertion
+    // below, which checks LITERAL English refusal copy (no stable per-message
+    // testid exists to key off, since a refusal has no sources/scope chip).
+    // Scoped to chromium/en (both render English; this file's own docstring
+    // already documents `--project=chromium` as its usage) — the `es`/`de`
+    // locale-matrix projects render translated copy this string wouldn't match.
+    // The CI gate only ever runs `--project=chromium` (ci.yml), so this doesn't
+    // narrow real coverage; it just keeps a manual `npx playwright test
+    // tests/e2e/wedge-proof.spec.ts` (no --project flag, so Playwright runs
+    // every configured project) from failing on an out-of-scope locale.
     test.skip(
-      !!process.env['E2E_CI_QUARANTINE'],
-      'F3.7b (2026-07-03): the F2.5 file-access-consent gate now blocks ambient ' +
-        'workspace retrieval for this mock-provider fixture before it ever reaches ' +
-        'the refusal path this test asserts — a real, deterministic src/features/ask/** ' +
-        'regression, not flakiness. See docs/quality/e2e-flaky-quarantine.md.'
+      !['chromium', 'en'].includes(testInfo.project.name),
+      'asserts hardcoded English refusal copy; out of scope for the es/de locale-matrix projects',
     );
     const getErrors = collectConsoleErrors(page);
 
@@ -320,6 +319,16 @@ test.describe('VG-1 leg 2 — wedge UI wiring (browser, testMode)', () => {
     // Turn on "Ask my workspace" — the include-privileged toggle is glued to it.
     await hardClick(page.getByTestId('ask-workspace-toggle'));
     await expect(page.getByTestId('include-privileged-toggle')).toBeVisible();
+
+    // The F2.5 file-access consent gate treats ANY non-local provider id —
+    // including this fixture's 'mock' — as cloud (isLocalProviderId only
+    // recognizes 'ollama'/'keepance-local'), so the ambient Ask-my-workspace
+    // toggle is paused until file access is granted for this chat. That gate
+    // is a separate concern from what THIS test proves (the F-116 honest
+    // refusal when retrieval itself fails); grant it here via the real
+    // consent-banner affordance so the send reaches the actual RAG-unavailable
+    // path instead of stopping earlier on the consent-paused hint.
+    await hardClick(page.getByTestId('chat-file-access-allow'));
 
     const input = page.getByTestId('chat-input');
     await expect(input).toBeVisible();
