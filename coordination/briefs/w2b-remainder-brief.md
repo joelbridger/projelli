@@ -4,7 +4,7 @@ ROLE: Wave 2 remainder worker (CRM write-back completion) for the Lantern-Plus p
 
 READ: LANTERN-PLUS.md → MASTER-PLAN Global Constraints → 2026-07-02-wave-2-crm-writeback.md (YOUR plan) → UI-INTEGRATION-SPEC + prototypes (9b/9c are UI-bearing).
 
-SCOPE — Tasks 9b, 9c, 10, 11:
+SCOPE SPLIT (2026-07-03): THIS batch (w2) = Task 10 + the ADDED-SCOPE P1 below + the live-probe checklist + the CHANGELOG entry for the backend. Tasks 9b/9c (UI-bearing) go to the UI lane AFTER lp/crm-ui merges; the wave-level gate is the coordinator's. Original full scope for reference — Tasks 9b, 9c, 10, 11:
 - 9b: optional compliance summary filed to the CRM (approval-gated like everything).
 - 9c: field-level blended updates with the 3-column review UI (prototype-bound; screenshot evidence + click-counts).
 - 10: Redtail/Salesforce write stubs (NotSupported) + provider registry (Rust).
