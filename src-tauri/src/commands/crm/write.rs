@@ -114,6 +114,47 @@ pub fn dedup_key(req: &CrmWriteRequest) -> String {
     hex::encode(h.finalize())
 }
 
+/// One proposed field-level "blended update" (Task 9c) — a single
+/// allowlisted narrative field on a household/contact, set to a user-edited
+/// blend of the existing value and what a source (e.g. a meeting)
+/// contributed. `existing_value` is what the review card showed the user;
+/// the stale-guard (`push_crm_field_update`) re-fetches the live value at
+/// approve time and refuses to write blind if it no longer matches.
+///
+/// Deliberately has NO `requested_at`: unlike a note/task (each approval
+/// should create a SEPARATE record, so retry-vs-repeat needs the approval
+/// event to tell them apart), a field update is a PUT, idempotent by HTTP
+/// semantics — re-approving the identical (household_key, field,
+/// final_value) is correctly a no-op (the field is already at the desired
+/// value), not a lost write.
+#[derive(Debug, Clone)]
+pub struct CrmFieldUpdateRequest {
+    pub matter_id: String,
+    pub household_key: String,
+    pub field: String,
+    pub existing_value: String,
+    pub new_value: String,
+    pub final_value: String,
+    pub source_ref: String,
+}
+
+/// Stable content-addressed key for a field update: identical (household_key,
+/// field, final_value) collide (a retry, or re-approving an unchanged blend,
+/// is a safe no-op); a different target or final value produces a fresh key.
+pub fn dedup_key_field(req: &CrmFieldUpdateRequest) -> String {
+    let mut h = Sha256::new();
+    for part in [
+        "field",
+        &req.household_key,
+        &norm(&req.field),
+        &norm(&req.final_value),
+    ] {
+        h.update(part.as_bytes());
+        h.update([0u8]);
+    }
+    hex::encode(h.finalize())
+}
+
 /// Provider-agnostic CRM write surface. Wealthbox is the first implementation;
 /// Redtail/Salesforce adopt the same trait once vendor creds land.
 #[async_trait::async_trait]
@@ -135,6 +176,19 @@ pub trait CrmWriteSource: Send + Sync {
         req: &CrmWriteRequest,
         not_before: chrono::DateTime<chrono::Utc>,
     ) -> Result<Option<String>, CrmWriteError>;
+    /// Updates one allowlisted field on `req.household_key` to `req.final_value`.
+    /// Returns the provider-side id of the updated record. A PUT — safe to
+    /// retry with identical input (see `CrmFieldUpdateRequest`'s doc comment).
+    async fn update_field(&self, req: &CrmFieldUpdateRequest) -> Result<String, CrmWriteError>;
+    /// Fetches the CURRENT value of `field` on `household_key` — used by
+    /// `push_crm_field_update`'s stale-guard, which must re-check a blended
+    /// proposal against the live CRM value before ever writing it, since
+    /// someone else could have changed the field since the proposal was shown.
+    async fn get_contact_field(
+        &self,
+        household_key: &str,
+        field: &str,
+    ) -> Result<String, CrmWriteError>;
 }
 
 #[async_trait::async_trait]
@@ -227,6 +281,45 @@ impl CrmWriteSource for crate::commands::crm::client::WealthboxClient {
             }
         }
     }
+
+    async fn update_field(&self, req: &CrmFieldUpdateRequest) -> Result<String, CrmWriteError> {
+        validate_field_is_writable(&req.field)?;
+        let contact_id = wealthbox_contact_id(&req.household_key)?;
+        // VERIFY-LIVE: assumed PUT /contacts/{id} with a flat body
+        // (`{"<field>": "<value>"}`), mirroring the plan's own assumption
+        // for this endpoint. Confirm the exact envelope shape in the Task 11
+        // live probe (scripts/crm/wealthbox-write-probe.md) before relying
+        // on this against a real account.
+        let mut fields = serde_json::Map::new();
+        fields.insert(req.field.clone(), serde_json::Value::String(req.final_value.clone()));
+        let body = serde_json::Value::Object(fields);
+        let resp = self
+            .put_json(&format!("/contacts/{contact_id}"), &body)
+            .await
+            .map_err(map_http_err)?;
+        remote_id_from(&resp)
+    }
+
+    async fn get_contact_field(
+        &self,
+        household_key: &str,
+        field: &str,
+    ) -> Result<String, CrmWriteError> {
+        let contact_id = wealthbox_contact_id(household_key)?;
+        // VERIFY-LIVE: assumed GET /contacts/{id} returns the same flat
+        // field name at the top level that PUT accepts (i.e. the contact
+        // record's JSON has a `<field>` key directly, not nested). Confirm
+        // in the Task 11 live probe.
+        let resp = self
+            .get_json(&format!("/contacts/{contact_id}"), &[])
+            .await
+            .map_err(map_http_err)?;
+        Ok(resp
+            .get(field)
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string())
+    }
 }
 
 #[async_trait::async_trait]
@@ -247,6 +340,12 @@ impl CrmWriteSource for crate::commands::crm::redtail::RedtailClient {
     ) -> Result<Option<String>, CrmWriteError> {
         Err(CrmWriteError::NotSupported("Redtail"))
     }
+    async fn update_field(&self, _req: &CrmFieldUpdateRequest) -> Result<String, CrmWriteError> {
+        Err(CrmWriteError::NotSupported("Redtail"))
+    }
+    async fn get_contact_field(&self, _household_key: &str, _field: &str) -> Result<String, CrmWriteError> {
+        Err(CrmWriteError::NotSupported("Redtail"))
+    }
 }
 
 #[async_trait::async_trait]
@@ -265,6 +364,12 @@ impl CrmWriteSource for crate::commands::crm::salesforce::SalesforceClient {
         _req: &CrmWriteRequest,
         _not_before: chrono::DateTime<chrono::Utc>,
     ) -> Result<Option<String>, CrmWriteError> {
+        Err(CrmWriteError::NotSupported("Salesforce"))
+    }
+    async fn update_field(&self, _req: &CrmFieldUpdateRequest) -> Result<String, CrmWriteError> {
+        Err(CrmWriteError::NotSupported("Salesforce"))
+    }
+    async fn get_contact_field(&self, _household_key: &str, _field: &str) -> Result<String, CrmWriteError> {
         Err(CrmWriteError::NotSupported("Salesforce"))
     }
 }
@@ -576,6 +681,22 @@ fn upsert_ledger_before_send(
         })
 }
 
+/// Wealthbox contact fields this app is allowed to write via the field-update
+/// "blend" path. Deliberately narrow and additive-only: a wrong or
+/// unconfirmed field name could silently overwrite something the advisor
+/// never reviewed. Start with just the one narrative field the plan names;
+/// extending this list is a product decision, not something to guess at.
+const WRITABLE_FIELDS: &[&str] = &["background_information"];
+
+/// Reject any field update whose target isn't on `WRITABLE_FIELDS`.
+pub fn validate_field_is_writable(field: &str) -> Result<(), CrmWriteError> {
+    if WRITABLE_FIELDS.contains(&field) {
+        Ok(())
+    } else {
+        Err(CrmWriteError::InvalidInput("field is not writable"))
+    }
+}
+
 /// Reject empty titles and oversize content before any network call.
 pub fn validate_write_inputs(title: &str, body: &str) -> Result<(), CrmWriteError> {
     if title.trim().is_empty() {
@@ -675,32 +796,30 @@ mod tests {
     #[test]
     fn write_client_for_routes_by_provider() {
         use crate::commands::crm::provider::CrmProvider;
-        // Force the "not configured" precondition regardless of the host
-        // environment (e.g. a machine set up for the live-probe checklist
-        // would otherwise have these exported, making this test's expected
-        // failure silently not happen — a host-dependent test). Safe to
-        // clear unconditionally: grep confirms no other test in this crate
-        // reads either variable.
-        std::env::remove_var("KEEPANCE_REDTAIL_API_KEY");
-        std::env::remove_var("KEEPANCE_SALESFORCE_CLIENT_ID");
 
         let wb = write_client_for(CrmProvider::Wealthbox, "tok".into()).unwrap();
         assert_eq!(wb.provider_id(), "wealthbox");
+
         // Redtail/Salesforce's real constructors need KEEPANCE_REDTAIL_API_KEY /
-        // KEEPANCE_SALESFORCE_CLIENT_ID configured, which aren't set in tests —
-        // assert each fails with ITS OWN provider-specific config error (not a
-        // generic/wrong-provider error), proving the registry actually routes
-        // to that provider's constructor rather than silently no-oping.
-        let rt_err = match write_client_for(CrmProvider::Redtail, "tok".into()) {
-            Err(e) => e.to_string(),
-            Ok(_) => panic!("expected Redtail construction to fail without KEEPANCE_REDTAIL_API_KEY"),
-        };
-        assert!(rt_err.contains("REDTAIL"), "got: {rt_err}");
-        let sf_err = match write_client_for(CrmProvider::Salesforce, "tok".into()) {
-            Err(e) => e.to_string(),
-            Ok(_) => panic!("expected Salesforce construction to fail without KEEPANCE_SALESFORCE_CLIENT_ID"),
-        };
-        assert!(sf_err.contains("SALESFORCE"), "got: {sf_err}");
+        // KEEPANCE_SALESFORCE_CLIENT_ID configured. Whether they ARE configured
+        // on this machine is genuinely out of this test's control: both
+        // `redtail_api_key()` and `salesforce_client_id()` also fall back to
+        // `option_env!`, a COMPILE-TIME value baked into the binary — a
+        // runtime `std::env::remove_var` can't undo that if the var was set
+        // when this test binary was built (e.g. a machine set up for the
+        // live-probe checklist). So don't assert which OUTCOME happens;
+        // assert that whichever outcome happens is the CORRECT one for that
+        // provider — proving the registry actually routes to that provider's
+        // constructor (not a generic/wrong-provider error, and not silently
+        // constructing the wrong client) regardless of this host's config.
+        match write_client_for(CrmProvider::Redtail, "tok".into()) {
+            Ok(client) => assert_eq!(client.provider_id(), "redtail"),
+            Err(e) => assert!(e.to_string().contains("REDTAIL"), "got: {e}"),
+        }
+        match write_client_for(CrmProvider::Salesforce, "tok".into()) {
+            Ok(client) => assert_eq!(client.provider_id(), "salesforce"),
+            Err(e) => assert!(e.to_string().contains("SALESFORCE"), "got: {e}"),
+        }
     }
 
     struct FakeWriteSource {
@@ -727,6 +846,12 @@ mod tests {
             _not_before: chrono::DateTime<chrono::Utc>,
         ) -> Result<Option<String>, CrmWriteError> {
             Ok(self.find_result.clone())
+        }
+        async fn update_field(&self, _r: &CrmFieldUpdateRequest) -> Result<String, CrmWriteError> {
+            unimplemented!("FakeWriteSource does not exercise field updates")
+        }
+        async fn get_contact_field(&self, _household_key: &str, _field: &str) -> Result<String, CrmWriteError> {
+            unimplemented!("FakeWriteSource does not exercise field updates")
         }
     }
 
@@ -862,6 +987,12 @@ mod tests {
             ) -> Result<Option<String>, CrmWriteError> {
                 Err(CrmWriteError::VerifyPending)
             }
+            async fn update_field(&self, _r: &CrmFieldUpdateRequest) -> Result<String, CrmWriteError> {
+                unimplemented!("FlakyFindSource does not exercise field updates")
+            }
+            async fn get_contact_field(&self, _household_key: &str, _field: &str) -> Result<String, CrmWriteError> {
+                unimplemented!("FlakyFindSource does not exercise field updates")
+            }
         }
 
         let (_dir, store) = test_store();
@@ -965,6 +1096,12 @@ mod tests {
             ) -> Result<Option<String>, CrmWriteError> {
                 Ok(None)
             }
+            async fn update_field(&self, _r: &CrmFieldUpdateRequest) -> Result<String, CrmWriteError> {
+                unimplemented!("SlowSource does not exercise field updates")
+            }
+            async fn get_contact_field(&self, _household_key: &str, _field: &str) -> Result<String, CrmWriteError> {
+                unimplemented!("SlowSource does not exercise field updates")
+            }
         }
 
         let source = SlowSource {
@@ -1013,6 +1150,50 @@ mod tests {
             due_date: Some("2026-07-15".into()),
             ..note_req()
         }
+    }
+
+    fn base_field_req() -> CrmFieldUpdateRequest {
+        CrmFieldUpdateRequest {
+            matter_id: "matter-1".into(),
+            household_key: "12345".into(),
+            field: "background_information".into(),
+            existing_value: "Existing background.".into(),
+            new_value: "Retiring spring 2027; stress-test earlier exit.".into(),
+            final_value: "Existing background.\n\nRetiring spring 2027; stress-test earlier exit.".into(),
+            source_ref: "meeting:Clients/Hendersons/Meetings/2026-06-30#0".into(),
+        }
+    }
+
+    #[test]
+    fn field_dedup_key_targets_field_and_value() {
+        let a = base_field_req();
+        let mut b = base_field_req();
+        b.final_value = "different".into();
+        assert_ne!(dedup_key_field(&a), dedup_key_field(&b));
+        let mut c = base_field_req();
+        c.field = "other_field".into();
+        assert_ne!(dedup_key_field(&a), dedup_key_field(&c));
+    }
+
+    #[tokio::test]
+    async fn wealthbox_update_field_puts_exact_shape() {
+        use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        // VERIFY-LIVE: Wealthbox contact update endpoint + field envelope
+        // (assumed PUT /contacts/{id} with a flat field body; confirm in the
+        // Task 11 live probe, scripts/crm/wealthbox-write-probe.md).
+        Mock::given(matchers::method("PUT"))
+            .and(matchers::path("/contacts/12345"))
+            .and(matchers::body_json(serde_json::json!({
+                "background_information": "Existing background.\n\nRetiring spring 2027; stress-test earlier exit."
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"id": 12345})))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let id = client.update_field(&base_field_req()).await.unwrap();
+        assert_eq!(id, "12345");
     }
 
     #[tokio::test]
