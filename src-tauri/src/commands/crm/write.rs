@@ -205,6 +205,61 @@ impl CrmWriteSource for crate::commands::crm::client::WealthboxClient {
     }
 }
 
+#[async_trait::async_trait]
+impl CrmWriteSource for crate::commands::crm::redtail::RedtailClient {
+    fn provider_id(&self) -> &'static str {
+        "redtail"
+    }
+    async fn create_note(&self, _req: &CrmWriteRequest) -> Result<String, CrmWriteError> {
+        Err(CrmWriteError::NotSupported("Redtail"))
+    }
+    async fn create_task(&self, _req: &CrmWriteRequest) -> Result<String, CrmWriteError> {
+        Err(CrmWriteError::NotSupported("Redtail"))
+    }
+    async fn find_recent_matching(
+        &self,
+        _req: &CrmWriteRequest,
+        _not_before: chrono::DateTime<chrono::Utc>,
+    ) -> Result<Option<String>, CrmWriteError> {
+        Err(CrmWriteError::NotSupported("Redtail"))
+    }
+}
+
+#[async_trait::async_trait]
+impl CrmWriteSource for crate::commands::crm::salesforce::SalesforceClient {
+    fn provider_id(&self) -> &'static str {
+        "salesforce"
+    }
+    async fn create_note(&self, _req: &CrmWriteRequest) -> Result<String, CrmWriteError> {
+        Err(CrmWriteError::NotSupported("Salesforce"))
+    }
+    async fn create_task(&self, _req: &CrmWriteRequest) -> Result<String, CrmWriteError> {
+        Err(CrmWriteError::NotSupported("Salesforce"))
+    }
+    async fn find_recent_matching(
+        &self,
+        _req: &CrmWriteRequest,
+        _not_before: chrono::DateTime<chrono::Utc>,
+    ) -> Result<Option<String>, CrmWriteError> {
+        Err(CrmWriteError::NotSupported("Salesforce"))
+    }
+}
+
+/// Provider-agnostic write-client registry — mirrors `provider::client_for`
+/// (the read-side registry, `provider.rs:83-89`) one-for-one, but returns a
+/// `CrmWriteSource` trait object instead of `CrmSource`.
+pub fn write_client_for(
+    provider: crate::commands::crm::provider::CrmProvider,
+    token: String,
+) -> anyhow::Result<Box<dyn CrmWriteSource>> {
+    use crate::commands::crm::provider::CrmProvider;
+    match provider {
+        CrmProvider::Wealthbox => Ok(Box::new(crate::commands::crm::client::WealthboxClient::new(token))),
+        CrmProvider::Redtail => Ok(Box::new(crate::commands::crm::redtail::RedtailClient::new(token)?)),
+        CrmProvider::Salesforce => Ok(Box::new(crate::commands::crm::salesforce::SalesforceClient::new(token)?)),
+    }
+}
+
 /// Wealthbox note timestamps look like `"2026-03-10 09:15 AM -0500"`
 /// (confirmed by the read-side render tests in `render.rs`, which already
 /// depend on this exact shape for display). Accepts a note as "not older
@@ -507,6 +562,72 @@ mod tests {
         let key = [0x44u8; 32];
         let s = CrmStore::open_with_key(dir.path(), &key).expect("crm store open");
         (dir, s)
+    }
+
+    /// Minimal valid Salesforce token-set JSON — bypasses the
+    /// `KEEPANCE_SALESFORCE_CLIENT_ID` env requirement in `SalesforceClient::new`
+    /// by constructing directly via `new_with_token_endpoint`.
+    fn salesforce_client() -> crate::commands::crm::salesforce::SalesforceClient {
+        let stored_json = serde_json::json!({
+            "access_token": "tok",
+            "refresh_token": "refresh",
+            "instance_url": "https://example.my.salesforce.com",
+            "expires_at_unix": 9_999_999_999u64,
+        })
+        .to_string();
+        crate::commands::crm::salesforce::SalesforceClient::new_with_token_endpoint(
+            stored_json,
+            "client-id".into(),
+            "https://example.my.salesforce.com/token".into(),
+        )
+        .expect("build test SalesforceClient")
+    }
+
+    #[tokio::test]
+    async fn redtail_and_salesforce_writes_return_typed_not_supported() {
+        // RedtailClient::new() requires KEEPANCE_REDTAIL_API_KEY (redtail_api_key()),
+        // unset in tests — new_with_base bypasses it, matching redtail.rs's own tests.
+        let r = crate::commands::crm::redtail::RedtailClient::new_with_base(
+            "api-key".into(),
+            "k".into(),
+            "http://127.0.0.1:1".into(),
+        );
+        let err = r.create_note(&note_req()).await.unwrap_err();
+        assert!(matches!(err, CrmWriteError::NotSupported("Redtail")));
+        let err = r.create_task(&note_req()).await.unwrap_err();
+        assert!(matches!(err, CrmWriteError::NotSupported("Redtail")));
+        let err = r.find_recent_matching(&note_req(), chrono::Utc::now()).await.unwrap_err();
+        assert!(matches!(err, CrmWriteError::NotSupported("Redtail")));
+
+        let s = salesforce_client();
+        let err = s.create_note(&note_req()).await.unwrap_err();
+        assert!(matches!(err, CrmWriteError::NotSupported("Salesforce")));
+        let err = s.create_task(&note_req()).await.unwrap_err();
+        assert!(matches!(err, CrmWriteError::NotSupported("Salesforce")));
+        let err = s.find_recent_matching(&note_req(), chrono::Utc::now()).await.unwrap_err();
+        assert!(matches!(err, CrmWriteError::NotSupported("Salesforce")));
+    }
+
+    #[test]
+    fn write_client_for_routes_by_provider() {
+        use crate::commands::crm::provider::CrmProvider;
+        let wb = write_client_for(CrmProvider::Wealthbox, "tok".into()).unwrap();
+        assert_eq!(wb.provider_id(), "wealthbox");
+        // Redtail/Salesforce's real constructors need KEEPANCE_REDTAIL_API_KEY /
+        // KEEPANCE_SALESFORCE_CLIENT_ID configured, which aren't set in tests —
+        // assert each fails with ITS OWN provider-specific config error (not a
+        // generic/wrong-provider error), proving the registry actually routes
+        // to that provider's constructor rather than silently no-oping.
+        let rt_err = match write_client_for(CrmProvider::Redtail, "tok".into()) {
+            Err(e) => e.to_string(),
+            Ok(_) => panic!("expected Redtail construction to fail without KEEPANCE_REDTAIL_API_KEY"),
+        };
+        assert!(rt_err.contains("REDTAIL"), "got: {rt_err}");
+        let sf_err = match write_client_for(CrmProvider::Salesforce, "tok".into()) {
+            Err(e) => e.to_string(),
+            Ok(_) => panic!("expected Salesforce construction to fail without KEEPANCE_SALESFORCE_CLIENT_ID"),
+        };
+        assert!(sf_err.contains("SALESFORCE"), "got: {sf_err}");
     }
 
     struct FakeWriteSource {

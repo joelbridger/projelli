@@ -14,7 +14,6 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::commands::audit::AuditState;
-use crate::commands::crm::client::WealthboxClient;
 use crate::commands::crm::engine;
 use crate::commands::crm::model::crm_key_belongs_to_provider;
 use crate::commands::crm::provider::{
@@ -427,18 +426,6 @@ async fn append_crm_audit_best_effort_for_matter(
     }
 }
 
-/// Resolve the write-back client for `provider`. Wealthbox is the only
-/// implementation today; other providers return `NotSupported` until their
-/// vendor credentials land (the same `CrmWriteSource` trait is ready for them).
-fn write_client_for(
-    provider: CrmProvider,
-    token: String,
-) -> Result<WealthboxClient, CrmWriteError> {
-    match provider {
-        CrmProvider::Wealthbox => Ok(WealthboxClient::new(token)),
-        other => Err(CrmWriteError::NotSupported(other.display_name())),
-    }
-}
 
 /// Push one approval-gated note to the connected CRM and record an audit entry.
 ///
@@ -548,7 +535,7 @@ async fn crm_create_write(
         .ok_or("workspace not set — call crm_set_workspace first")?;
 
     let store = CrmStore::open(&workspace).map_err(|e| e.to_string())?;
-    let client = write_client_for(provider, token).map_err(|e| e.to_string())?;
+    let client = write::write_client_for(provider, token).map_err(|e| e.to_string())?;
 
     let req = CrmWriteRequest {
         kind,
@@ -567,7 +554,7 @@ async fn crm_create_write(
 
     let write_dedup_key = write::dedup_key(&req);
 
-    match write::push_crm_write(&client, &store, &state.write_guard, &req).await {
+    match write::push_crm_write(client.as_ref(), &store, &state.write_guard, &req).await {
         Ok(receipt) => {
             // The audit id is deterministic (see append_crm_audit_best_effort_for_matter)
             // and INSERT-OR-IGNORE at the store layer, so this is always safe
