@@ -24,18 +24,30 @@ evidence + click-counts in merge notes; send UI screenshots to Jameson via notif
 at each UI merge — his veto = P0 follow-up, not a merge block). Phase 2 =
 `docs/plans/lantern-plus/phase-2/` briefs ONLY — never build from them (see its README).
 
-## Current state (as of handoff)
-- **Repo:** `~/lantern-plus`, branch `lantern-plus` @ `be3f5f28` (merge of keepance-3.0
-  @7656f6c3), pushed. Gate GREEN on the merged tree: tsc ✅, vitest ✅ (exit 0), cargo
-  check ✅ (7m cold, now warm) on `CARGO_TARGET_DIR=~/.cargo-target-lantern-plus`.
-- **Fleet (both Sonnet 5, spawned from briefs in `coordination/briefs/`):**
-  - `cc-lantern-w0` in worktree `~/lp-w0` (branch `lp/wave-0`): executing ALL 13 Wave 0
-    tasks. Last seen: Task 1 in progress, waiting on its first cargo test build (using the
-    shared effort target dir — correct). One stuck queued message was fixed by sending
-    Enter; watch for that failure mode.
-  - `cc-lantern-w1` in worktree `~/lp-w1` (branch `lp/wave-1`): scoped to Wave 1 Task 1
-    (Google OAuth submission PACK doc — the filing itself is Jameson's) + Tasks 2–7 ONLY
-    (Rust calendar module). Do NOT let it start TS/UI tasks 8+ yet.
+## Current state (as of 2026-07-03 ~03:45, coordinator-2)
+- **Repo:** `~/lantern-plus`, branch `lantern-plus` @ `5bcb3a3a`+ (pull first), pushed.
+  MERGED: Wave 0 (all 13 tasks) + Wave 1 backend (lp/wave-1b, tasks 1-11) + three
+  downstream merges (last @566d9849). Gates green at each step (5281 vitest; cargo clean;
+  the consent-gate contract test is a KNOWN load-flake — verify in isolation, don't chase).
+  Milestone report published + notify-jameson sent (with UI screenshots, docs/evidence/wave-0/).
+- **Fleet (all Sonnet 5, briefs in `coordination/briefs/`):**
+  - `cc-lantern-w0`: CLOSED (merged; worktree removed).
+  - `cc-lantern-w1` in `~/lp-w1` (branch `lp/wave-1c`, stacked on merged tip): Wave 1
+    finale — tasks 12/14/15/16/18 + google-cancel done; building 13 + 17/17b. Task 17
+    ships the SIMPLER spec'd version (per-bullet citation chips = P0 follow-up, Jameson
+    aware). Cache: `~/.cargo-target-lp-w1`.
+  - `cc-lantern-w2` in `~/lp-w2` (branch `lp/crm-writeback`): CRM Rust tasks 1-7 done, on
+    final verification (fixed a Drop-impl deadlock after a 37-min hang). Cache: the legacy
+    `~/.cargo-target-lantern-plus` (w2-exclusive; DELETE when w2 closes — ~85G).
+  - `cc-lantern-w3` in `~/lp-w3` (branch `lp/crm-ui`, stacked on lp/crm-writeback): Wave 2
+    UI tasks 8+9 ONLY (pure TS, no cargo). First action was merging origin/lantern-plus in.
+  - `lp-gate-build` tmux session: the coordinator's long-cargo runner (not a worker).
+- **Rename freeze:** main line executes the ~/keepance→~/lantern folder rename (symlink-
+  bridged) earliest 2026-07-04 06:00 — bulletin posts EXECUTING/DONE. FREEZE downstream
+  merges between those lines; our ACK + two invariants (repo/branch names unchanged,
+  keepance-coordination un-renamed) are on the bulletin.
+- **P0 follow-up queue (post-wave):** Wave-0 modal citation-chip hover popovers; Task-17
+  per-bullet brief citations; Outlook attendee self-filter parity.
 - **Monitors — SEVEN, and ⚠️ THE LIST IS A CHECKLIST, NOT A MENU** (this session skipped
   two at startup; both misses cost real time: a 37-min undetected hang, and a startable
   Wave-2-UI lane that sat idle for hours until Jameson prompted). Re-arm ALL at YOUR start
@@ -75,20 +87,21 @@ at each UI merge — his veto = P0 follow-up, not a merge block). Phase 2 =
   incremental-cache corruption is real — playbook §7).
 
 ## Next steps, in priority order
-1. Re-arm monitors + baseline sweep (above). Append session-start to the bulletin.
-2. Ride w0 + w1 to WORKER-DONE: review (verify each Codex finding against HEAD), gate,
-   merge Wave 0 → then release w1's remaining scope (tasks 8+) or spawn a fresh Wave 1 UI
-   worker on a new branch off the merged tip; keep lanes disjoint.
-3. After each wave merge: downstream-merge origin/keepance-3.0, gate, push; spot-check the
-   NEXT wave's plan anchors (current wave only); CHANGELOG entry; notify-jameson MILESTONE
-   (plain language, per the 16-year-old rule); bulletin one-liner.
-4. Keep pulling future work forward (playbook parallelize-mandatory): brief the next lane
-   while current builds — Wave 2 (CRM write-back) can start once Wave 0 merges (its Rust
-   crm/ lane is disjoint from Wave 1's calendar/ lane; watch shared files: lib.rs
-   registrations are known-union conflicts you resolve at merge).
-5. Wave 3 starts only after Waves 0–2 are merged + gate-green (no advisor-validation pause
-   — Jameson's override). Its Task 0 is the WASAPI loopback spike on the Legion — reserve
-   the Legion via the bulletin THEN (main line has priority until its release ships).
+1. Re-arm ALL SEVEN monitors + baseline sweep (above). Append session-start to bulletin.
+2. Ride w1 (Wave 1 finale) / w2 (CRM Rust) / w3 (CRM UI) to WORKER-DONE. Each handoff:
+   independent codex-review in a detached temp worktree at the branch HEAD → verify each
+   finding against the code → route confirmed ones back (findings file + one-line pointer)
+   → merge ritual (backup tag → merge --no-ff → typecheck+vitest foreground, cargo via
+   lp-gate-build tmux → red=rollback → push --no-verify). Merge order: wave-1c, then
+   crm-writeback, then crm-ui (rebase-merge origin/lantern-plus into each first).
+3. After each merge: downstream-merge check (FROZEN during the rename window!), CHANGELOG,
+   notify-jameson MILESTONE with UI screenshots where applicable, bulletin line, STATUS.
+4. After Waves 0-2 all merged + green: Wave 2 remaining tasks (9b/9c/10/11) to a worker;
+   then Wave 3 — Task 0 is the WASAPI loopback spike on the Legion (reserve via bulletin;
+   main line has priority until their release ships). Wave 4 after. P0 follow-up queue
+   bundles into one polish lane once wave-1c + crm-ui are merged.
+5. Parked for Jameson (surface gently): Google OAuth filing (pack ready), interview
+   campaign go, vendor API filings, Wealthbox live-probe token (VERIFY-LIVE register).
 
 ## Parked for Jameson (surface gently at good moments, never nag)
 - Vendor API filings (Redtail/Salesforce/DocuSign) — w0 produces the checklist doc.
