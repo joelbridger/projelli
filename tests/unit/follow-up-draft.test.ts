@@ -8,7 +8,7 @@ import {
 import { composeMailAccountId } from '@/platform/utils/mail-commands';
 import type { MailListItem } from '@/platform/utils/mail-commands';
 
-const item = (fromAddr: string): MailListItem => ({
+const item = (fromAddr: string, folderId = 'inbox'): MailListItem => ({
   id: 'x',
   subject: 's',
   fromAddr,
@@ -17,7 +17,7 @@ const item = (fromAddr: string): MailListItem => ({
   receivedDateTime: null,
   provider: 'm365',
   account: 'default',
-  folderId: 'inbox',
+  folderId,
   hasAttachments: false,
 });
 
@@ -68,6 +68,20 @@ describe('suggestClientEmail', () => {
   });
   it('returns null when the client has no mail', () => {
     expect(suggestClientEmail([])).toBeNull();
+  });
+  it('never suggests the advisor\'s own address from Sent-folder mail (codex-review P2)', () => {
+    // fromAddr on a Sent item is the ADVISOR's own address, not the client's —
+    // counting it would prefill the To field with the advisor's own email.
+    const items = [
+      item('advisor@firm.com', 'sent'),
+      item('advisor@firm.com', 'sentitems'),
+      item('advisor@firm.com', 'SENT'),
+      item('tom@brennan.com', 'inbox'),
+    ];
+    expect(suggestClientEmail(items)).toBe('tom@brennan.com');
+  });
+  it('returns null when the client has only Sent-folder mail (no real client address to suggest)', () => {
+    expect(suggestClientEmail([item('advisor@firm.com', 'sent')])).toBeNull();
   });
 });
 

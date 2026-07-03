@@ -53,9 +53,17 @@ export function applyDraftResponse(
  * To field then starts empty). Always user-editable; there is no stored
  * per-client contact email today (verified: Matter has no such field).
  */
+/** Known Sent-folder ids across providers (M365 well-known folder name,
+ *  Gmail's SENT system label, and this app's own dev-fixture spelling). */
+const SENT_FOLDER_IDS = new Set(['sent', 'sentitems', 'sent items']);
+
 export function suggestClientEmail(items: MailListItem[]): string | null {
   const counts = new Map<string, number>();
   for (const it of items) {
+    // Codex review catch (P2): on a Sent item, fromAddr is the ADVISOR's own
+    // address, not the client's — counting it risks prefilling the To field
+    // with the advisor's own email.
+    if (SENT_FOLDER_IDS.has(it.folderId.trim().toLowerCase())) continue;
     const addr = it.fromAddr.trim().toLowerCase();
     if (!addr || !addr.includes('@')) continue;
     counts.set(addr, (counts.get(addr) ?? 0) + 1);
