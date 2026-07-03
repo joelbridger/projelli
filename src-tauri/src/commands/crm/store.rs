@@ -97,6 +97,16 @@ pub struct CrmUpsert {
     pub json: String,
 }
 
+/// One row from `crm_outbound_writes` — the idempotency ledger for the
+/// approval-gated write path (`write.rs::push_crm_write`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OutboundWrite {
+    pub dedup_key: String,
+    /// "pending" | "sent" | "pending_verify" | "failed"
+    pub status: String,
+    pub remote_id: Option<String>,
+}
+
 /// The one INSERT-or-update statement `upsert_object` and `apply_ingest_batch`
 /// share, so the single-row and batched paths can never drift. Runs against a
 /// `Connection` or a `Transaction` (both deref to `Connection`).
@@ -182,6 +192,18 @@ impl CrmStore {
              CREATE TABLE IF NOT EXISTS meta (
                 key    TEXT PRIMARY KEY,
                 value  TEXT NOT NULL
+             );
+             CREATE TABLE IF NOT EXISTS crm_outbound_writes (
+               dedup_key     TEXT PRIMARY KEY,
+               provider      TEXT NOT NULL,
+               kind          TEXT NOT NULL,
+               household_key TEXT NOT NULL,
+               matter_id     TEXT NOT NULL,
+               source_ref    TEXT NOT NULL,
+               status        TEXT NOT NULL,
+               remote_id     TEXT,
+               created_at    TEXT NOT NULL,
+               updated_at    TEXT NOT NULL
              );",
         )?;
         migrate_crm_columns(&conn);
@@ -599,6 +621,66 @@ impl CrmStore {
         Ok(())
     }
 
+    /// Look up an outbound write's ledger row by its content-addressed dedup key.
+    pub fn outbound_get(&self, dedup_key: &str) -> Result<Option<OutboundWrite>> {
+        use rusqlite::OptionalExtension;
+        let c = self.conn.lock().unwrap();
+        let mut stmt = c.prepare(
+            "SELECT dedup_key, status, remote_id FROM crm_outbound_writes WHERE dedup_key = ?1",
+        )?;
+        let row = stmt
+            .query_row(rusqlite::params![dedup_key], |r| {
+                Ok(OutboundWrite {
+                    dedup_key: r.get(0)?,
+                    status: r.get(1)?,
+                    remote_id: r.get(2)?,
+                })
+            })
+            .optional()?;
+        Ok(row)
+    }
+
+    /// Insert or update an outbound write's ledger row. `remote_id` is only
+    /// overwritten when `Some` — a status transition (e.g. `pending` →
+    /// `pending_verify`) that doesn't yet know the remote id must not erase
+    /// one recorded by an earlier call.
+    #[allow(clippy::too_many_arguments)]
+    pub fn outbound_upsert(
+        &self,
+        dedup_key: &str,
+        provider: &str,
+        kind: &str,
+        household_key: &str,
+        matter_id: &str,
+        source_ref: &str,
+        status: &str,
+        remote_id: Option<&str>,
+    ) -> Result<()> {
+        let c = self.conn.lock().unwrap();
+        let now = chrono::Utc::now().to_rfc3339();
+        c.execute(
+            "INSERT INTO crm_outbound_writes
+                (dedup_key, provider, kind, household_key, matter_id, source_ref, status, remote_id, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9)
+             ON CONFLICT(dedup_key) DO UPDATE SET
+                status = excluded.status,
+                remote_id = COALESCE(excluded.remote_id, crm_outbound_writes.remote_id),
+                updated_at = excluded.updated_at",
+            rusqlite::params![
+                dedup_key,
+                provider,
+                kind,
+                household_key,
+                matter_id,
+                source_ref,
+                status,
+                remote_id,
+                now,
+            ],
+        )?;
+        Ok(())
+    }
+
     /// Delete every locally-imported Wealthbox object by removing the encrypted
     /// CRM database file. The file is recreated empty the next time `open` is
     /// called. Invoked by `crm_disconnect` so a disconnected workspace retains no
@@ -685,6 +767,25 @@ mod tests {
         let key = [0x33u8; 32];
         let s = CrmStore::open_with_key(dir.path(), &key).expect("crm store open");
         (dir, s)
+    }
+
+    #[test]
+    fn outbound_ledger_upsert_and_get_roundtrip() {
+        let (dir, store) = crm_store();
+        let _ = dir;
+        assert!(store.outbound_get("k1").unwrap().is_none());
+        store
+            .outbound_upsert("k1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "pending", None)
+            .unwrap();
+        let row = store.outbound_get("k1").unwrap().unwrap();
+        assert_eq!(row.status, "pending");
+        assert_eq!(row.remote_id, None);
+        store
+            .outbound_upsert("k1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "sent", Some("555"))
+            .unwrap();
+        let row = store.outbound_get("k1").unwrap().unwrap();
+        assert_eq!(row.status, "sent");
+        assert_eq!(row.remote_id.as_deref(), Some("555"));
     }
 
     /// P2.3 row 8: the cheap digest list MUST match `list_objects_by_household`
