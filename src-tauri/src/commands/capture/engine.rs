@@ -18,6 +18,15 @@ pub struct CaptureEngine {
     sys: Box<dyn AudioSource>,
     started: Instant,
     _awake: Option<keepawake::KeepAwake>,
+    /// First `ChunkWriter::write` error from either channel's callback, if
+    /// any. The callbacks run on the source's own OS/audio thread and can't
+    /// propagate an `Err` back through `AudioSource::start`'s `Box<dyn
+    /// FnMut>` signature — silently dropping a write failure (disk full,
+    /// permissions changed, rotate/flush error) would let `stop()` return a
+    /// normal-looking `audio.wav` path even though part of the meeting was
+    /// never actually written to disk. `stop()` checks this and fails
+    /// loudly instead.
+    write_error: Arc<Mutex<Option<String>>>,
 }
 
 fn slugify(matter_id: &str) -> String {
@@ -62,7 +71,7 @@ impl CaptureEngine {
             &mut mic,
             &mut sys,
         ) {
-            Ok(()) => {
+            Ok(write_error) => {
                 let awake = keepawake::Builder::default()
                     .display(false)
                     .idle(true)
@@ -70,7 +79,14 @@ impl CaptureEngine {
                     .reason("Recording a client meeting")
                     .create()
                     .ok();
-                Ok(Self { meeting_dir, mic, sys, started: Instant::now(), _awake: awake })
+                Ok(Self {
+                    meeting_dir,
+                    mic,
+                    sys,
+                    started: Instant::now(),
+                    _awake: awake,
+                    write_error,
+                })
             }
             Err(e) => {
                 // A failure here (e.g. no Linux monitor device, missing
@@ -93,7 +109,7 @@ impl CaptureEngine {
         consent: ConsentRecord,
         mic: &mut Box<dyn AudioSource>,
         sys: &mut Box<dyn AudioSource>,
-    ) -> Result<()> {
+    ) -> Result<Arc<Mutex<Option<String>>>> {
         std::fs::create_dir_all(cap)?;
         SessionManifest {
             meeting_dir: meeting_dir.to_path_buf(),
@@ -105,27 +121,47 @@ impl CaptureEngine {
 
         let mic_writer = Arc::new(Mutex::new(ChunkWriter::new(cap, "mic")?));
         let sys_writer = Arc::new(Mutex::new(ChunkWriter::new(cap, "sys")?));
+        let write_error: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
         {
             let w = mic_writer.clone();
+            let err = write_error.clone();
             mic.start(Box::new(move |s| {
                 if let Ok(mut w) = w.lock() {
-                    let _ = w.write(s);
+                    if let Err(e) = w.write(s) {
+                        let mut err = err.lock().unwrap();
+                        if err.is_none() {
+                            *err = Some(format!("mic channel: {e}"));
+                        }
+                    }
                 }
             }))?;
         }
         {
             let w = sys_writer.clone();
+            let err = write_error.clone();
             sys.start(Box::new(move |s| {
                 if let Ok(mut w) = w.lock() {
-                    let _ = w.write(s);
+                    if let Err(e) = w.write(s) {
+                        let mut err = err.lock().unwrap();
+                        if err.is_none() {
+                            *err = Some(format!("system audio channel: {e}"));
+                        }
+                    }
                 }
             }))?;
         }
-        Ok(())
+        Ok(write_error)
     }
 
     pub fn elapsed_ms(&self) -> u64 {
         self.started.elapsed().as_millis() as u64
+    }
+
+    /// First write failure seen so far, if any. Surfaced live via
+    /// `capture_status` so the UI can warn mid-recording, not just after
+    /// the fact.
+    pub fn write_error(&self) -> Option<String> {
+        self.write_error.lock().unwrap().clone()
     }
 
     pub fn stop(mut self) -> Result<StopResult> {
@@ -133,6 +169,18 @@ impl CaptureEngine {
         self.sys.stop()?;
         // ChunkWriters finalize on drop (Task 1); finalize merges them.
         let audio_path = finalize_session(&self.meeting_dir)?;
+        // A chunk write failure during recording means part of the meeting
+        // was never saved even though finalize_session succeeded on
+        // whatever chunks DID make it to disk — fail loudly rather than
+        // hand back a normal-looking StopResult that implies a complete
+        // recording. audio.wav still exists at this path if the caller
+        // wants to recover the partial audio.
+        if let Some(err) = self.write_error() {
+            anyhow::bail!(
+                "recording stopped, but part of the audio failed to save ({err}); partial audio at {}",
+                audio_path.display()
+            );
+        }
         Ok(StopResult {
             meeting_dir: self.meeting_dir.clone(),
             audio_path,
@@ -279,6 +327,10 @@ pub struct CaptureStatus {
     pub recording: bool,
     pub meeting_dir: Option<String>,
     pub elapsed_ms: u64,
+    /// First chunk-write failure seen so far this recording, if any (see
+    /// `CaptureEngine::write_error`'s doc). The UI should surface this as a
+    /// live warning — it means part of the meeting is not being saved.
+    pub write_error: Option<String>,
 }
 
 #[tauri::command]
@@ -352,13 +404,17 @@ pub async fn capture_status() -> Result<CaptureStatus, String> {
             recording: true,
             meeting_dir: Some(e.meeting_dir.to_string_lossy().into_owned()),
             elapsed_ms: e.elapsed_ms(),
+            write_error: e.write_error(),
         },
         EngineState::Stopping(dir) => CaptureStatus {
             recording: true,
             meeting_dir: Some(dir.to_string_lossy().into_owned()),
             elapsed_ms: 0,
+            write_error: None,
         },
-        EngineState::Idle => CaptureStatus { recording: false, meeting_dir: None, elapsed_ms: 0 },
+        EngineState::Idle => {
+            CaptureStatus { recording: false, meeting_dir: None, elapsed_ms: 0, write_error: None }
+        }
     })
 }
 
@@ -390,6 +446,37 @@ mod tests {
         assert!(result.meeting_dir.join(".capture").exists() == false);
         // Manifest breadcrumb must NOT survive finalize.
         assert!(!SessionManifest::path_in(&result.meeting_dir).exists());
+    }
+
+    /// Regression for the codex-review round-9 finding: the mic/sys
+    /// callbacks used to swallow `ChunkWriter::write` errors with `let _ =`,
+    /// so `stop()` could return a normal-looking `StopResult` even though
+    /// part of the meeting was never written. `write_error` can't easily be
+    /// triggered by a real disk-full/permission failure in a unit test, so
+    /// this sets it directly (as if a callback had recorded one) and proves
+    /// `stop()` fails loudly and names both the cause and the partial-audio
+    /// path, instead of silently succeeding.
+    #[test]
+    fn stop_fails_loudly_when_a_chunk_write_error_occurred() {
+        let ws = tempdir().unwrap();
+        let mic = Box::new(FakeSource::new(vec![vec![100i16; 16_000]]));
+        let sys = Box::new(FakeSource::new(vec![vec![-100i16; 16_000]]));
+        let engine = CaptureEngine::start_with_sources(
+            ws.path(),
+            "m-writeerr",
+            "Clients/WriteErr Household",
+            consent("one-party"),
+            mic,
+            sys,
+        )
+        .unwrap();
+        *engine.write_error.lock().unwrap() = Some("mic channel: simulated disk full".into());
+        let err = match engine.stop() {
+            Err(e) => e,
+            Ok(_) => panic!("stop() must fail when a chunk write error occurred"),
+        };
+        assert!(err.to_string().contains("simulated disk full"), "got: {err}");
+        assert!(err.to_string().contains("partial audio"), "got: {err}");
     }
 
     /// Always fails to start — proves a failed sys/mic source doesn't leave

@@ -199,17 +199,49 @@ impl AudioSource for CpalSource {
             let rate = config.sample_rate().0;
             let format = config.sample_format();
             let stream_config: cpal::StreamConfig = config.into();
+            // `build_typed_stream` is generic over any `T: cpal::SizedSample`
+            // with `f32: cpal::FromSample<T>` — every format cpal itself
+            // defines qualifies (dasp_sample provides the full N-way
+            // conversion matrix), so there is no real device format this
+            // can't handle. Match every KNOWN variant explicitly (not a
+            // wildcard) so a future cpal upgrade adding a new format is a
+            // compile error here, not a silent "unsupported" rejection of a
+            // perfectly good device.
             let stream = match format {
                 cpal::SampleFormat::F32 => {
                     build_typed_stream::<f32>(&device, &stream_config, channels, rate, on_samples)
                 }
+                cpal::SampleFormat::F64 => {
+                    build_typed_stream::<f64>(&device, &stream_config, channels, rate, on_samples)
+                }
+                cpal::SampleFormat::I8 => {
+                    build_typed_stream::<i8>(&device, &stream_config, channels, rate, on_samples)
+                }
                 cpal::SampleFormat::I16 => {
                     build_typed_stream::<i16>(&device, &stream_config, channels, rate, on_samples)
+                }
+                cpal::SampleFormat::I32 => {
+                    build_typed_stream::<i32>(&device, &stream_config, channels, rate, on_samples)
+                }
+                cpal::SampleFormat::I64 => {
+                    build_typed_stream::<i64>(&device, &stream_config, channels, rate, on_samples)
+                }
+                cpal::SampleFormat::U8 => {
+                    build_typed_stream::<u8>(&device, &stream_config, channels, rate, on_samples)
                 }
                 cpal::SampleFormat::U16 => {
                     build_typed_stream::<u16>(&device, &stream_config, channels, rate, on_samples)
                 }
+                cpal::SampleFormat::U32 => {
+                    build_typed_stream::<u32>(&device, &stream_config, channels, rate, on_samples)
+                }
+                cpal::SampleFormat::U64 => {
+                    build_typed_stream::<u64>(&device, &stream_config, channels, rate, on_samples)
+                }
                 other => {
+                    // cpal::SampleFormat is #[non_exhaustive] — only reachable
+                    // on a future cpal version that adds a format this match
+                    // doesn't yet know about.
                     let _ = ready_tx.send(Err(format!("unsupported device sample format: {other:?}")));
                     return;
                 }
