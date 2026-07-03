@@ -379,6 +379,14 @@ pub struct CrmTask {
     pub complete: bool,
     pub priority: String,
     pub description: String,
+    /// Present for completeness with `CrmNote`'s same fields (used by the
+    /// write path's recovery-verification time floor, `write.rs`); not
+    /// otherwise rendered or synced. Defaults to "" if Wealthbox's task
+    /// response doesn't carry them.
+    #[serde(default)]
+    pub created_at: String,
+    #[serde(default)]
+    pub updated_at: String,
     pub linked_to: Vec<CrmLink>,
 }
 

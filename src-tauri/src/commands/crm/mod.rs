@@ -16,6 +16,7 @@ pub mod render;
 pub mod salesforce;
 pub mod source;
 pub mod store;
+pub mod write;
 
 use std::path::{Path, PathBuf};
 

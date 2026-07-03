@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::commands::audit::AuditState;
+use crate::commands::crm::client::WealthboxClient;
 use crate::commands::crm::engine;
 use crate::commands::crm::model::crm_key_belongs_to_provider;
 use crate::commands::crm::provider::{
@@ -25,6 +26,9 @@ use crate::commands::crm::salesforce::{
     exchange_salesforce_code, salesforce_client_id,
 };
 use crate::commands::crm::store::CrmStore;
+use crate::commands::crm::write::{
+    self, CrmWriteError, CrmWriteKind, CrmWriteRequest, WriteReceipt,
+};
 
 // ---------------------------------------------------------------------------
 // CrmState + manage_state + RAII guard
@@ -44,6 +48,21 @@ pub struct CrmState {
     /// wait for the browser redirect) without touching sync state. See
     /// `crm_oauth_connect_cancel`.
     pub oauth_cancel: Arc<AtomicBool>,
+    /// Shared across every `crm_create_note`/`crm_create_task` call for the
+    /// life of the running app — see `write::WriteInFlightGuard` for why this
+    /// can't live on the per-call `CrmStore` instead.
+    pub write_guard: write::WriteInFlightGuard,
+    /// Count of `crm_create_note`/`crm_create_task` calls currently in
+    /// flight (POST sent, ledger not yet settled). Disconnect waits for this
+    /// to drain to zero before purging, mirroring how it already waits on
+    /// `is_syncing` — otherwise a write started just before disconnect could
+    /// still POST to Wealthbox (with the about-to-be-revoked token) while
+    /// local state is mid-purge. See `WriteInFlightSlot`.
+    pub write_in_flight: Arc<std::sync::atomic::AtomicUsize>,
+    /// Set by disconnect before it waits for `write_in_flight` to drain; a
+    /// NEW write checks this and refuses to start rather than racing a
+    /// disconnect that's already underway.
+    pub disconnect_requested: Arc<AtomicBool>,
 }
 
 pub fn manage_state(app: &tauri::App) {
@@ -54,7 +73,20 @@ pub fn manage_state(app: &tauri::App) {
         last_report: tokio::sync::Mutex::new(None),
         progress_households: Arc::new(std::sync::atomic::AtomicU32::new(0)),
         oauth_cancel: Arc::new(AtomicBool::new(false)),
+        write_guard: write::WriteInFlightGuard::new(),
+        write_in_flight: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+        disconnect_requested: Arc::new(AtomicBool::new(false)),
     });
+}
+
+/// RAII guard: decrements `write_in_flight` when dropped, covering all exit
+/// paths (normal return, early return via `?`, and panic) — pairs with the
+/// increment in `crm_create_write`.
+struct WriteInFlightSlot(Arc<std::sync::atomic::AtomicUsize>);
+impl Drop for WriteInFlightSlot {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::SeqCst);
+    }
 }
 
 /// RAII guard: sets `is_syncing` to false when dropped, covering all exit paths
@@ -285,6 +317,304 @@ async fn append_crm_audit_best_effort(app: &AppHandle, action: &str, description
         }
         Ok(Err(e)) => log::warn!("crm audit append failed (non-fatal): {e:#}"),
         Err(e) => log::warn!("crm audit spawn failed (non-fatal): {e}"),
+    }
+}
+
+/// Matter-scoped variant of [`crm_audit_payload_json`] for writes that
+/// originate from (and only affect) one client — the approval-gated CRM
+/// write path (`crm_create_note` / `crm_create_task`), unlike connect/sync/
+/// disconnect which are workspace-wide (`allMatters`).
+fn crm_audit_payload_json_for_matter(
+    id: &str,
+    timestamp: &str,
+    action: &str,
+    description: &str,
+    matter_id: &str,
+) -> String {
+    serde_json::json!({
+        "id": id,
+        "timestamp": timestamp,
+        "action": action,
+        "description": description,
+        "model": serde_json::Value::Null,
+        "inputs": {},
+        "outputs": {},
+        "userDecision": serde_json::Value::Null,
+        "metadata": {
+            "auditEventType": action,
+            "source": "crm-backend",
+            "scope": { "kind": "matter", "matterId": matter_id },
+        },
+    })
+    .to_string()
+}
+
+/// Matter-scoped variant of [`append_crm_audit_best_effort`] — same
+/// best-effort contract (never propagates to the calling command).
+/// `write_dedup_key`: when `Some`, the audit entry's id is DETERMINISTIC
+/// (derived from the write's own dedup key) instead of randomly generated.
+/// `EncryptedAuditStore::append` is `INSERT OR IGNORE` on id — a deterministic
+/// id makes re-auditing the SAME logical write idempotent-safe: a genuine
+/// retry/dedup of an already-audited write silently no-ops (no duplicate
+/// "pushed" entry), while a write that landed but whose process crashed
+/// before this call ever ran gets audited for the first time on the very
+/// next retry that recovers it, instead of never being audited at all.
+async fn append_crm_audit_best_effort_for_matter(
+    app: &AppHandle,
+    action: &str,
+    description: &str,
+    matter_id: &str,
+    write_dedup_key: Option<&str>,
+) {
+    use crate::commands::audit::store::{AuditEntryRecord, EncryptedAuditStore};
+
+    let ws_opt: Option<std::path::PathBuf> = {
+        let audit_ws = app.state::<AuditState>().workspace.lock().await.clone();
+        if audit_ws.is_some() {
+            audit_ws
+        } else {
+            app.state::<CrmState>().workspace.lock().await.clone()
+        }
+    };
+    let Some(ws) = ws_opt else {
+        log::warn!("crm audit append skipped (non-fatal): no workspace path available");
+        return;
+    };
+
+    let action_s = action.to_string();
+    let desc_s = description.to_string();
+    let matter_id_s = matter_id.to_string();
+    let write_dedup_key = write_dedup_key.map(str::to_string);
+
+    let result = tokio::task::spawn_blocking(move || -> anyhow::Result<AuditEntryRecord> {
+        let store = EncryptedAuditStore::open(&ws)?;
+
+        let timestamp = chrono::Utc::now().to_rfc3339();
+        let id = match &write_dedup_key {
+            Some(key) => format!("audit_crmwrite_{key}"),
+            None => {
+                let nanos = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_nanos())
+                    .unwrap_or_default();
+                let mut rng_bytes = [0u8; 4];
+                rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut rng_bytes);
+                format!("audit_crm_{}_{}", nanos, hex::encode(rng_bytes))
+            }
+        };
+
+        let payload_json =
+            crm_audit_payload_json_for_matter(&id, &timestamp, &action_s, &desc_s, &matter_id_s);
+
+        let rec = AuditEntryRecord {
+            id,
+            timestamp,
+            action: action_s,
+            description: desc_s,
+            payload_json,
+        };
+        store.append(&rec)?;
+        Ok(rec)
+    })
+    .await;
+
+    match result {
+        Ok(Ok(rec)) => {
+            let _ = app.emit(CRM_AUDIT_APPENDED_EVENT, &rec);
+        }
+        Ok(Err(e)) => log::warn!("crm audit append failed (non-fatal): {e:#}"),
+        Err(e) => log::warn!("crm audit spawn failed (non-fatal): {e}"),
+    }
+}
+
+/// Resolve the write-back client for `provider`. Wealthbox is the only
+/// implementation today; other providers return `NotSupported` until their
+/// vendor credentials land (the same `CrmWriteSource` trait is ready for them).
+fn write_client_for(
+    provider: CrmProvider,
+    token: String,
+) -> Result<WealthboxClient, CrmWriteError> {
+    match provider {
+        CrmProvider::Wealthbox => Ok(WealthboxClient::new(token)),
+        other => Err(CrmWriteError::NotSupported(other.display_name())),
+    }
+}
+
+/// Push one approval-gated note to the connected CRM and record an audit entry.
+///
+/// The write only happens because the frontend's review card called this
+/// command after an explicit user Approve click — there is no other call
+/// site. `household_key` is resolved by the frontend from the matter's
+/// `crmHouseholdKeys` (the backend does not persist the matter map).
+#[tauri::command]
+pub async fn crm_create_note(
+    app: AppHandle,
+    state: State<'_, CrmState>,
+    matter_id: String,
+    title: String,
+    body: String,
+    source_ref: String,
+    household_key: String,
+    provider: Option<String>,
+) -> Result<WriteReceipt, String> {
+    crm_create_write(
+        app,
+        state,
+        CrmWriteKind::Note,
+        matter_id,
+        title,
+        body,
+        None,
+        source_ref,
+        household_key,
+        provider,
+    )
+    .await
+}
+
+/// Push one approval-gated task to the connected CRM and record an audit entry.
+/// See [`crm_create_note`] for the shared write-then-audit contract.
+#[tauri::command]
+pub async fn crm_create_task(
+    app: AppHandle,
+    state: State<'_, CrmState>,
+    matter_id: String,
+    title: String,
+    description: String,
+    due_date: Option<String>,
+    source_ref: String,
+    household_key: String,
+    provider: Option<String>,
+) -> Result<WriteReceipt, String> {
+    crm_create_write(
+        app,
+        state,
+        CrmWriteKind::Task,
+        matter_id,
+        title,
+        description,
+        due_date,
+        source_ref,
+        household_key,
+        provider,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn crm_create_write(
+    app: AppHandle,
+    state: State<'_, CrmState>,
+    kind: CrmWriteKind,
+    matter_id: String,
+    title: String,
+    body: String,
+    due_date: Option<String>,
+    source_ref: String,
+    household_key: String,
+    provider: Option<String>,
+) -> Result<WriteReceipt, String> {
+    let provider = CrmProvider::from_optional(provider.as_deref())?;
+
+    // Register as in-flight BEFORE reading the token, so a disconnect that's
+    // already waiting on `write_in_flight` (see crm_disconnect_logic) sees us
+    // and doesn't purge underneath this call. If disconnect got there first
+    // (flag already set), bail immediately — better to reject the write than
+    // POST with a token that's about to be revoked. The guard decrements on
+    // every exit path (normal return, `?`, or panic).
+    state.write_in_flight.fetch_add(1, Ordering::SeqCst);
+    let _write_slot = WriteInFlightSlot(state.write_in_flight.clone());
+    if state.disconnect_requested.load(Ordering::SeqCst) {
+        return Err(format!(
+            "{} is disconnecting — try again once reconnected",
+            provider.display_name()
+        ));
+    }
+
+    write::validate_write_inputs(&title, &body).map_err(|e| e.to_string())?;
+
+    let token = read_token(provider).ok_or_else(|| {
+        format!(
+            "{} not connected — connect it in Account → Connections first",
+            provider.display_name()
+        )
+    })?;
+
+    let workspace = state
+        .workspace
+        .lock()
+        .await
+        .clone()
+        .ok_or("workspace not set — call crm_set_workspace first")?;
+
+    let store = CrmStore::open(&workspace).map_err(|e| e.to_string())?;
+    let client = write_client_for(provider, token).map_err(|e| e.to_string())?;
+
+    let req = CrmWriteRequest {
+        kind,
+        matter_id: matter_id.clone(),
+        household_key: household_key.clone(),
+        title,
+        body,
+        due_date,
+        source_ref: source_ref.clone(),
+    };
+
+    let action = provider.audit_action(match kind {
+        CrmWriteKind::Note => "create_note",
+        CrmWriteKind::Task => "create_task",
+    });
+
+    let write_dedup_key = write::dedup_key(&req);
+
+    match write::push_crm_write(&client, &store, &state.write_guard, &req).await {
+        Ok(receipt) => {
+            // The audit id is deterministic (see append_crm_audit_best_effort_for_matter)
+            // and INSERT-OR-IGNORE at the store layer, so this is always safe
+            // to call even on a deduped receipt: a genuine retry of an
+            // already-audited write silently no-ops (no duplicate "pushed"
+            // entry), but a write that landed and whose process crashed
+            // BEFORE this call ever ran on its first attempt gets audited
+            // for the first time right here, on the recovering retry —
+            // instead of never being audited at all.
+            let description = format!(
+                "{} pushed to {} household {household_key} (source: {source_ref})",
+                kind.as_str(),
+                provider.display_name(),
+            );
+            append_crm_audit_best_effort_for_matter(
+                &app,
+                &action,
+                &description,
+                &matter_id,
+                Some(&write_dedup_key),
+            )
+            .await;
+            Ok(receipt)
+        }
+        // Wealthbox may already have accepted (even persisted) this write —
+        // record that possibility now rather than leaving the audit trail
+        // silent about a CRM change that may exist until a later retry
+        // resolves it. Distinct id suffix from the confirmed case above, so
+        // an eventual confirmation still gets its OWN audit entry rather
+        // than being silently ignored as a duplicate of this ambiguous one.
+        Err(CrmWriteError::VerifyPending) => {
+            let description = format!(
+                "{} MAY have been pushed to {} household {household_key} (source: {source_ref}) — delivery unconfirmed, will verify on retry",
+                kind.as_str(),
+                provider.display_name(),
+            );
+            append_crm_audit_best_effort_for_matter(
+                &app,
+                &action,
+                &description,
+                &matter_id,
+                Some(&format!("{write_dedup_key}_ambiguous")),
+            )
+            .await;
+            Err(CrmWriteError::VerifyPending.to_string())
+        }
+        Err(e) => Err(e.to_string()),
     }
 }
 
@@ -578,24 +908,46 @@ pub async fn crm_disconnect_logic(state: &CrmState) -> CrmDisconnectResult {
     crm_disconnect_logic_for_provider(state, CrmProvider::default()).await
 }
 
+/// RAII guard: resets `disconnect_requested` to false when dropped, covering
+/// every exit path — so an aborted/deferred disconnect never leaves new
+/// writes permanently blocked.
+struct DisconnectRequestedGuard(Arc<AtomicBool>);
+impl Drop for DisconnectRequestedGuard {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::SeqCst);
+    }
+}
+
 async fn crm_disconnect_logic_for_provider(
     state: &CrmState,
     provider: CrmProvider,
 ) -> CrmDisconnectResult {
     let mut result = CrmDisconnectResult::default();
 
-    // P3 — stop any in-flight sync and CLAIM the single-flight slot BEFORE purging, so
-    // nothing re-inserts CRM chunks after the purge and the DB file isn't locked. Signal
-    // cancel, then spin until we win the slot (the running sync releases it when it sees
-    // cancel between matters) or a short timeout elapses.
+    // Stop NEW writes from starting immediately; the wait loop below drains
+    // any already-in-flight ones before we touch the token or local data —
+    // otherwise a write started just before disconnect could still POST
+    // with the about-to-be-revoked token while the purge runs underneath it.
+    state.disconnect_requested.store(true, Ordering::SeqCst);
+    let _disconnect_requested_guard = DisconnectRequestedGuard(state.disconnect_requested.clone());
+
+    // P3 — stop any in-flight sync, drain in-flight writes, and CLAIM the
+    // single-flight slot BEFORE purging, so nothing re-inserts CRM chunks or
+    // posts a stray write after the purge starts and the DB file isn't
+    // locked. Signal cancel, then spin until we win the slot AND no write is
+    // in flight (a running sync releases the slot when it sees cancel
+    // between matters; a running write releases its count on completion) or
+    // a short timeout elapses.
     state.cancel.store(true, Ordering::SeqCst);
     let mut claimed = false;
     let mut waited_ms: u64 = 0;
     loop {
-        if state
-            .is_syncing
-            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
-            .is_ok()
+        let no_writes_in_flight = state.write_in_flight.load(Ordering::SeqCst) == 0;
+        if no_writes_in_flight
+            && state
+                .is_syncing
+                .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+                .is_ok()
         {
             claimed = true;
             break;
@@ -688,6 +1040,31 @@ async fn crm_disconnect_logic_for_provider(
                 result.warnings.push(format!(
                     "The CRM database encryption key could not be removed from the keychain: {e}"
                 ));
+            }
+            // `CrmStore::purge` above already deleted the whole shared DB
+            // file (nothing else has CRM data left), which took the
+            // outbound-write ledger with it — nothing further to do here.
+        } else {
+            // The shared DB file survives (another CRM provider still has
+            // data), so purge only THIS provider's outbound-write ledger
+            // rows directly. Only reached once disconnect has actually
+            // committed (this whole block is gated on rag_purged &&
+            // crm_db_purged) — never before, so a failed disconnect can't
+            // strand a connected account with its duplicate-protection
+            // ledger already erased.
+            match CrmStore::open(&ws) {
+                Ok(store) => {
+                    if let Err(e) = store.purge_outbound_writes_for_provider(provider.id()) {
+                        log::warn!("crm_disconnect: outbound ledger purge failed (non-fatal): {e:#}");
+                        result.warnings.push(format!(
+                            "{} write history could not be fully cleared: {e}",
+                            provider.display_name()
+                        ));
+                    }
+                }
+                Err(e) => {
+                    log::warn!("crm_disconnect: could not open crm store to purge outbound ledger (non-fatal): {e:#}");
+                }
             }
         }
     } else {
@@ -1109,6 +1486,9 @@ mod tests {
             last_report: tokio::sync::Mutex::new(None),
             progress_households: Arc::new(std::sync::atomic::AtomicU32::new(0)),
             oauth_cancel: Arc::new(AtomicBool::new(false)),
+            write_guard: write::WriteInFlightGuard::new(),
+            write_in_flight: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+            disconnect_requested: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -1181,6 +1561,46 @@ mod tests {
         assert!(
             !state.is_syncing.load(Ordering::SeqCst),
             "the claimed slot must be released"
+        );
+    }
+
+    /// A disconnect must not purge/revoke while a write is still POSTing —
+    /// it signals `disconnect_requested` (so no NEW write starts) and waits
+    /// for `write_in_flight` to drain, mirroring how it already waits for a
+    /// running sync. Here the "in-flight write" finishes shortly after
+    /// disconnect starts waiting; disconnect must claim the slot and proceed
+    /// (not defer), and must reset `disconnect_requested` afterward so a
+    /// later write isn't stuck permanently blocked.
+    #[tokio::test]
+    async fn disconnect_waits_for_in_flight_write_to_drain_then_proceeds() {
+        let state = test_state(false);
+        state.write_in_flight.store(1, Ordering::SeqCst); // a write is "in flight"
+
+        let write_in_flight = state.write_in_flight.clone();
+        let disconnect_requested = state.disconnect_requested.clone();
+        tokio::spawn(async move {
+            while !disconnect_requested.load(Ordering::SeqCst) {
+                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            write_in_flight.store(0, Ordering::SeqCst);
+        });
+
+        let result = crm_disconnect_logic(&state).await;
+
+        assert!(
+            result.warnings.iter().any(|w| w.contains("No workspace")),
+            "expected the no-workspace path (claimed after waiting); got {:?}",
+            result.warnings
+        );
+        assert!(
+            !result.warnings.iter().any(|w| w.contains("still running")),
+            "must NOT be the deferred path; got {:?}",
+            result.warnings
+        );
+        assert!(
+            !state.disconnect_requested.load(Ordering::SeqCst),
+            "disconnect_requested must be reset so a later write isn't stuck blocked"
         );
     }
 

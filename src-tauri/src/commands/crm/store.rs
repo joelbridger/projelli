@@ -97,6 +97,21 @@ pub struct CrmUpsert {
     pub json: String,
 }
 
+/// One row from `crm_outbound_writes` — the idempotency ledger for the
+/// approval-gated write path (`write.rs::push_crm_write`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OutboundWrite {
+    pub dedup_key: String,
+    /// "pending" | "sent" | "pending_verify" | "failed"
+    pub status: String,
+    pub remote_id: Option<String>,
+    /// RFC 3339 timestamp of this write's first attempt (set once, never
+    /// updated by later status transitions) — lets recovery verification
+    /// reject a CRM record that predates this attempt, see
+    /// `write.rs::find_recent_matching`.
+    pub created_at: String,
+}
+
 /// The one INSERT-or-update statement `upsert_object` and `apply_ingest_batch`
 /// share, so the single-row and batched paths can never drift. Runs against a
 /// `Connection` or a `Transaction` (both deref to `Connection`).
@@ -182,6 +197,18 @@ impl CrmStore {
              CREATE TABLE IF NOT EXISTS meta (
                 key    TEXT PRIMARY KEY,
                 value  TEXT NOT NULL
+             );
+             CREATE TABLE IF NOT EXISTS crm_outbound_writes (
+               dedup_key     TEXT PRIMARY KEY,
+               provider      TEXT NOT NULL,
+               kind          TEXT NOT NULL,
+               household_key TEXT NOT NULL,
+               matter_id     TEXT NOT NULL,
+               source_ref    TEXT NOT NULL,
+               status        TEXT NOT NULL,
+               remote_id     TEXT,
+               created_at    TEXT NOT NULL,
+               updated_at    TEXT NOT NULL
              );",
         )?;
         migrate_crm_columns(&conn);
@@ -599,6 +626,95 @@ impl CrmStore {
         Ok(())
     }
 
+    /// Look up an outbound write's ledger row by its content-addressed dedup key.
+    pub fn outbound_get(&self, dedup_key: &str) -> Result<Option<OutboundWrite>> {
+        use rusqlite::OptionalExtension;
+        let c = self.conn.lock().unwrap();
+        let mut stmt = c.prepare(
+            "SELECT dedup_key, status, remote_id, created_at FROM crm_outbound_writes WHERE dedup_key = ?1",
+        )?;
+        let row = stmt
+            .query_row(rusqlite::params![dedup_key], |r| {
+                Ok(OutboundWrite {
+                    dedup_key: r.get(0)?,
+                    status: r.get(1)?,
+                    remote_id: r.get(2)?,
+                    created_at: r.get(3)?,
+                })
+            })
+            .optional()?;
+        Ok(row)
+    }
+
+    /// Insert or update an outbound write's ledger row. `remote_id` is only
+    /// overwritten when `Some` — a status transition (e.g. `pending` →
+    /// `pending_verify`) that doesn't yet know the remote id must not erase
+    /// one recorded by an earlier call.
+    #[allow(clippy::too_many_arguments)]
+    /// `reset_created_at` MUST be `true` only from the call that's about to
+    /// make a genuinely NEW send attempt (`write.rs::upsert_ledger_before_send`)
+    /// — every other transition (recording the outcome of THAT SAME attempt:
+    /// sent/pending_verify/failed) must pass `false` to preserve the floor
+    /// `find_recent_matching`'s recovery check just used. Getting this wrong
+    /// in either direction is a correctness bug: resetting on a
+    /// non-fresh-attempt transition would make an in-flight recovery check
+    /// re-evaluate against a floor that moved out from under it; never
+    /// resetting (the previous design, keyed off "was the old status
+    /// `failed`") left the floor stale across an attempt that failed
+    /// ambiguously, verified as a miss, and then resent — the resend's own
+    /// eventual verification could still match a coincidental CRM record
+    /// created between the FIRST attempt and the resend.
+    pub fn outbound_upsert(
+        &self,
+        dedup_key: &str,
+        provider: &str,
+        kind: &str,
+        household_key: &str,
+        matter_id: &str,
+        source_ref: &str,
+        status: &str,
+        remote_id: Option<&str>,
+        reset_created_at: bool,
+    ) -> Result<()> {
+        let c = self.conn.lock().unwrap();
+        let now = chrono::Utc::now().to_rfc3339();
+        c.execute(
+            "INSERT INTO crm_outbound_writes
+                (dedup_key, provider, kind, household_key, matter_id, source_ref, status, remote_id, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9)
+             ON CONFLICT(dedup_key) DO UPDATE SET
+                status = excluded.status,
+                remote_id = COALESCE(excluded.remote_id, crm_outbound_writes.remote_id),
+                updated_at = excluded.updated_at,
+                created_at = CASE WHEN ?10 THEN excluded.created_at ELSE crm_outbound_writes.created_at END",
+            rusqlite::params![
+                dedup_key,
+                provider,
+                kind,
+                household_key,
+                matter_id,
+                source_ref,
+                status,
+                remote_id,
+                now,
+                reset_created_at,
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Delete every outbound-write ledger row for `provider` (e.g. "wealthbox").
+    /// Called on disconnect so a later reconnect — same or different account —
+    /// can't reuse a stale `sent`/`pending` row to skip a write that was
+    /// never actually delivered to the newly connected account.
+    pub fn purge_outbound_writes_for_provider(&self, provider: &str) -> Result<usize> {
+        let c = self.conn.lock().unwrap();
+        Ok(c.execute(
+            "DELETE FROM crm_outbound_writes WHERE provider = ?1",
+            [provider],
+        )?)
+    }
+
     /// Delete every locally-imported Wealthbox object by removing the encrypted
     /// CRM database file. The file is recreated empty the next time `open` is
     /// called. Invoked by `crm_disconnect` so a disconnected workspace retains no
@@ -685,6 +801,94 @@ mod tests {
         let key = [0x33u8; 32];
         let s = CrmStore::open_with_key(dir.path(), &key).expect("crm store open");
         (dir, s)
+    }
+
+    #[test]
+    fn outbound_ledger_upsert_and_get_roundtrip() {
+        let (dir, store) = crm_store();
+        let _ = dir;
+        assert!(store.outbound_get("k1").unwrap().is_none());
+        store
+            .outbound_upsert("k1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "pending", None, true)
+            .unwrap();
+        let row = store.outbound_get("k1").unwrap().unwrap();
+        assert_eq!(row.status, "pending");
+        assert_eq!(row.remote_id, None);
+        store
+            .outbound_upsert("k1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "sent", Some("555"), false)
+            .unwrap();
+        let row = store.outbound_get("k1").unwrap().unwrap();
+        assert_eq!(row.status, "sent");
+        assert_eq!(row.remote_id.as_deref(), Some("555"));
+    }
+
+    /// `reset_created_at` is an explicit, caller-decided flag rather than a
+    /// heuristic keyed off the previous status: `write.rs::upsert_ledger_before_send`
+    /// (a genuinely NEW send attempt) always passes `true`;
+    /// `write.rs::upsert_ledger` (recording THAT SAME attempt's outcome —
+    /// sent/pending_verify/failed) always passes `false`. This is what makes
+    /// the recovery-verification floor (`find_recent_matching`'s not_before)
+    /// correct across a resend: a prior design keyed the reset off "was the
+    /// old status `failed`", which left the floor stale when a `pending`/
+    /// `pending_verify` row was verified as a miss and resent — that resend's
+    /// own eventual verification could then match a coincidental CRM record
+    /// created between the FIRST attempt and the resend.
+    #[test]
+    fn outbound_ledger_created_at_only_resets_when_a_fresh_attempt_begins() {
+        let (dir, store) = crm_store();
+        let _ = dir;
+        let fresh_attempt = |status: &str| {
+            store
+                .outbound_upsert("k2", "wealthbox", "note", "12345", "m1", "doc:a.docx", status, None, true)
+                .unwrap();
+        };
+        let record_outcome = |status: &str| {
+            store
+                .outbound_upsert("k2", "wealthbox", "note", "12345", "m1", "doc:a.docx", status, None, false)
+                .unwrap();
+        };
+
+        fresh_attempt("pending");
+        let first_created = store.outbound_get("k2").unwrap().unwrap().created_at;
+
+        // Recording this SAME attempt's outcome must never move the floor,
+        // no matter which status it lands on.
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        record_outcome("pending_verify");
+        assert_eq!(
+            store.outbound_get("k2").unwrap().unwrap().created_at,
+            first_created,
+            "recording an outcome must not move the floor"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        record_outcome("failed");
+        assert_eq!(
+            store.outbound_get("k2").unwrap().unwrap().created_at,
+            first_created,
+            "recording an outcome must not move the floor, even a definitive one"
+        );
+
+        // A genuinely NEW send attempt must start a fresh floor.
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        fresh_attempt("pending");
+        assert_ne!(
+            store.outbound_get("k2").unwrap().unwrap().created_at,
+            first_created,
+            "a fresh send attempt must start a new recovery-verification floor"
+        );
+    }
+
+    #[test]
+    fn purge_outbound_writes_for_provider_only_removes_that_providers_rows() {
+        let (dir, store) = crm_store();
+        let _ = dir;
+        store.outbound_upsert("wb1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "sent", Some("1"), true).unwrap();
+        store.outbound_upsert("sf1", "salesforce", "note", "001XYZ", "m1", "doc:a.docx", "sent", Some("2"), true).unwrap();
+
+        let n = store.purge_outbound_writes_for_provider("wealthbox").unwrap();
+        assert_eq!(n, 1);
+        assert!(store.outbound_get("wb1").unwrap().is_none(), "wealthbox row must be gone");
+        assert!(store.outbound_get("sf1").unwrap().is_some(), "salesforce row must survive a wealthbox disconnect");
     }
 
     /// P2.3 row 8: the cheap digest list MUST match `list_objects_by_household`

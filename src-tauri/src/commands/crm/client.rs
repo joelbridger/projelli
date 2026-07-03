@@ -1,7 +1,7 @@
 //! HTTP client for the Wealthbox CRM REST API.
 //!
-//! **Read-only: GET requests only.** This module never creates, updates, or
-//! deletes any Wealthbox record.
+//! GETs for sync; POSTs exist ONLY for the approval-gated write path in
+//! `write.rs` — no update/delete anywhere.
 //!
 //! # Auth
 //! The header **`ACCESS_TOKEN: <token>`** (not Bearer / Authorization) is
@@ -174,6 +174,53 @@ impl WealthboxClient {
             "Wealthbox: throttled past retry budget ({} attempts)",
             MAX_429_RETRIES
         )
+    }
+
+    /// POST `path` with a JSON `body`, returning the parsed JSON response.
+    ///
+    /// Same rate gate and PII discipline as [`Self::get_json`]. Retries ONLY
+    /// on 429 (the request was rejected, so a retry cannot double-create).
+    /// Any other failure returns immediately — the caller's idempotency
+    /// ledger (see `write.rs`) decides whether a re-send is safe.
+    pub async fn post_json(
+        &self,
+        path: &str,
+        body: &serde_json::Value,
+    ) -> anyhow::Result<serde_json::Value> {
+        let url = if path.starts_with("http") {
+            path.to_string()
+        } else {
+            format!("{}{}", self.base, path)
+        };
+        for attempt in 0..MAX_429_RETRIES {
+            self.rate_gate().await;
+            let resp = self
+                .http
+                .post(&url)
+                .header("ACCESS_TOKEN", &self.token)
+                .json(body)
+                .send()
+                .await
+                .context("Wealthbox HTTP send")?;
+            if resp.status().as_u16() == 429 {
+                let ra = resp
+                    .headers()
+                    .get("Retry-After")
+                    .and_then(|v| v.to_str().ok())
+                    .map(String::from);
+                tokio::time::sleep(retry_delay(ra.as_deref(), attempt)).await;
+                continue;
+            }
+            let status = resp.status();
+            let text = resp.text().await.context("read Wealthbox response body")?;
+            if !status.is_success() {
+                // Status + endpoint only — body is NEVER logged (may contain advisor/client PII).
+                log::warn!("Wealthbox write failed: HTTP {} at {}", status, path);
+                anyhow::bail!("Wealthbox request failed (HTTP {})", status);
+            }
+            return serde_json::from_str(&text).context("parse Wealthbox JSON response");
+        }
+        anyhow::bail!("Wealthbox: throttled past retry budget ({} attempts)", MAX_429_RETRIES)
     }
 
     // -----------------------------------------------------------------------
@@ -571,5 +618,60 @@ mod tests {
             wb_array_from(&body, "users").is_empty(),
             "absent key → empty"
         );
+    }
+
+    #[tokio::test]
+    async fn post_json_sends_token_header_and_parses_response() {
+        use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(matchers::method("POST"))
+            .and(matchers::path("/notes"))
+            .and(matchers::header("ACCESS_TOKEN", "tok-1"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"id": 777})))
+            .mount(&server)
+            .await;
+        let client = WealthboxClient::new_with_base("tok-1".into(), server.uri());
+        let out = client
+            .post_json("/notes", &serde_json::json!({"content": "hi"}))
+            .await
+            .unwrap();
+        assert_eq!(out["id"].as_i64(), Some(777));
+    }
+
+    #[tokio::test]
+    async fn post_json_error_carries_status_but_never_body() {
+        use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(matchers::method("POST"))
+            .respond_with(ResponseTemplate::new(422).set_body_string("SSN 123-45-6789"))
+            .mount(&server)
+            .await;
+        let client = WealthboxClient::new_with_base("t".into(), server.uri());
+        let err = client
+            .post_json("/notes", &serde_json::json!({}))
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("422"), "status surfaced: {err}");
+        assert!(!err.contains("6789"), "body must never leak into errors");
+    }
+
+    #[tokio::test]
+    async fn post_json_does_not_retry_non_429_failures() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use wiremock::{matchers, Mock, MockServer, Respond, ResponseTemplate};
+        static HITS: AtomicUsize = AtomicUsize::new(0);
+        struct Count;
+        impl Respond for Count {
+            fn respond(&self, _: &wiremock::Request) -> ResponseTemplate {
+                HITS.fetch_add(1, Ordering::SeqCst);
+                ResponseTemplate::new(500)
+            }
+        }
+        let server = MockServer::start().await;
+        Mock::given(matchers::method("POST")).respond_with(Count).mount(&server).await;
+        let client = WealthboxClient::new_with_base("t".into(), server.uri());
+        let _ = client.post_json("/notes", &serde_json::json!({})).await;
+        assert_eq!(HITS.load(Ordering::SeqCst), 1, "a POST must never blind-retry on 5xx — double-post risk");
     }
 }
