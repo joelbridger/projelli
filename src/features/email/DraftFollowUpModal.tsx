@@ -102,7 +102,13 @@ export function DraftFollowUpModal({
         const accts = await mailConnectedAccounts();
         if (cancelled) return;
         setAccounts(accts);
-        setAccountIdx(0);
+        // codex-review (smoke P0 #1): the backend can legitimately return an
+        // IMAP account first (or IMAP-only) once M365/Gmail isn't the sole
+        // connection — default to the first DRAFT-CAPABLE account instead of
+        // always index 0, or Save silently stayed disabled forever whenever
+        // IMAP happened to sort first.
+        const draftCapableIdx = accts.findIndex((a) => a.provider !== 'imap');
+        setAccountIdx(draftCapableIdx === -1 ? 0 : draftCapableIdx);
         // Codex review catch (P1): with no connected mailbox this feature is
         // unusable (there is nowhere to save/send the draft), so never send
         // confidential note content to an AI provider for nothing. The UI
@@ -517,9 +523,20 @@ export function DraftFollowUpModal({
               borderTop: '1px solid var(--color-border)',
             }}
           >
-            <span style={{ flex: 1, fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)', lineHeight: 1.4 }}>
-              Saves as a draft in your mailbox. You send it from your own inbox.
-            </span>
+            {canSaveDraft ? (
+              <span style={{ flex: 1, fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)', lineHeight: 1.4 }}>
+                Saves as a draft in your mailbox. You send it from your own inbox.
+              </span>
+            ) : (
+              <span
+                data-testid="followup-save-drafts-explanation"
+                style={{ flex: 1, fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)', lineHeight: 1.4 }}
+              >
+                {accounts.some((a) => a.provider !== 'imap')
+                  ? 'This account can’t save drafts. Pick your Outlook or Gmail account above to save one.'
+                  : 'This account can’t save drafts. Connect an Outlook or Gmail account in Settings to save one.'}
+              </span>
+            )}
             <button
               type="button"
               data-testid="followup-send"
