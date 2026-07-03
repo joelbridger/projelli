@@ -6,9 +6,11 @@
  */
 
 import type { Provider } from '@/platform/providers/Provider';
-import { buildProviderForGlance } from '@/platform/matter/matterAtAGlance';
+import { buildResolvedProviderForGlance } from '@/platform/matter/matterAtAGlance';
 import { assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
 import { AuditService } from '@/platform/audit/AuditService';
+import { resolveEgress } from '@/platform/privacy/egress';
+import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import type { GeneratedBrief } from './generateBrief';
 
 // codex-review (wave-1c self-review round 2, P2): this direct
@@ -66,16 +68,53 @@ export function fallbackAgenda(
 
 export async function agendaMarkdownFromBrief(
   brief: Pick<GeneratedBrief, 'markdown'>,
-  opts: { clientLabel: string; eventTitle: string; provider?: Provider }
+  opts: { clientLabel: string; eventTitle: string; matterId: string; provider?: Provider }
 ): Promise<string> {
-  const provider = opts.provider ?? (await buildProviderForGlance());
+  // codex-review catch (round 2): getMetadata().providerId is unset on the
+  // real cloud providers (Claude/OpenAI/Gemini only expose name/model), so
+  // resolve through buildResolvedProviderForGlance() for its own reliable
+  // providerId rather than falling back to 'unknown' for every real cloud
+  // agenda export — that would mislabel this send in the egress audit.
+  let provider: Provider;
+  let providerId: string;
+  if (opts.provider) {
+    provider = opts.provider;
+    providerId = opts.provider.getMetadata().providerId ?? 'unknown';
+  } else {
+    const resolved = await buildResolvedProviderForGlance();
+    provider = resolved.provider;
+    providerId = resolved.providerId;
+  }
   try {
-    const providerId = provider.getMetadata().providerId ?? 'unknown';
     // Re-check right before the send (matterAtAGlance's gold pattern): the
     // provider was resolved above, possibly after awaiting keychain reads,
     // so a Local-only flip mid-resolve must not slip this client's brief to
     // the cloud anyway.
     assertLocalOnlyAllowsSend(providerId);
+    // Trust-fixes finding #1: log egress IMMEDIATELY BEFORE the send, not
+    // only a model_call entry after success — a timeout or provider error
+    // previously left no trace that this client's brief left the machine.
+    const egress = resolveEgress({
+      provider: providerId,
+      mode: getConfidentialityMode(),
+      isDemo: false,
+      assuredAvailable: false,
+    });
+    agendaAudit.append({
+      type: 'egress',
+      timestamp: new Date().toISOString(),
+      payload: {
+        provider: egress.provider,
+        model: provider.getMetadata().model,
+        mode: getConfidentialityMode(),
+        destination: egress.destination,
+        dataLeaves: egress.dataLeaves,
+        // Coordinator review catch: without scope, this send only ever
+        // showed up in the all-matters Activity Log view, never in this
+        // client's own confidentiality report.
+        scope: { kind: 'matter', matterId: opts.matterId },
+      },
+    });
     const res = await provider.sendMessage(
       `Client: ${opts.clientLabel}\nMeeting: ${opts.eventTitle}\n<internal_brief>\n${brief.markdown}\n</internal_brief>`,
       { systemPrompt: SYSTEM_PROMPT, maxTokens: 700 }

@@ -156,14 +156,19 @@ export function buildWorkspaceContextBlock(hits: RagHit[]): string {
           ? `page ${hit.pageNumber}`
           : `paragraph ${hit.paragraphIndex}`;
       const provNote = provenance
-        ? ` (source: ${describeProvenanceForPrompt(provenance, now)})`
+        ? ` (source: ${sanitizeForPrompt(describeProvenanceForPrompt(provenance, now))})`
         : '';
       // Sanitize chunk text before embedding — email is attacker-controlled.
       // sanitizeForPrompt escapes ``` delimiters, role prefixes (SYSTEM: etc.),
       // XML instruction tags, and control characters without altering the
       // [N] source header line or the citation numbering contract.
       const safeChunk = sanitizeForPrompt(hit.chunkText);
-      return `[${n}] ${hit.path} ${location}${provNote}\n${safeChunk}`;
+      // The source path is also attacker-influenceable (a synced file name or
+      // an email-derived source label) and sat in the header un-sanitized —
+      // sanitize it the same way as the chunk body so it can't close the
+      // <workspace_context> envelope or inject a role prefix.
+      const safePath = sanitizeForPrompt(hit.path);
+      return `[${n}] ${safePath} ${location}${provNote}\n${safeChunk}`;
     })
     .join('\n\n');
   // When any source is a recognized external export, tell the model to be honest

@@ -476,6 +476,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                     }}
                     onFlagForClient={(gap) => { flagForClient(matterId, gap.text); }}
                     onStartInterview={() => { setShowInterview((v) => !v); }}
+                    {...(onAuditLog ? { onAuditLog } : {})}
                   />
                 )}
               </div>
