@@ -135,8 +135,109 @@
 
 | Finding | Severity | Status |
 |---|---|---|
-| Send to Wealthbox button missing from docx toolbar (matter-resolution bug for open editor tabs) | **P0** | Confirmed FAIL, root-caused, not fixed |
+| Send to Wealthbox button missing from docx toolbar (matter-resolution bug for open editor tabs) | **P0** | Confirmed FAIL in this run, root-caused → **fixed and verified in the Wave-2 re-test below** |
+| `background_information` field-blend write uses the wrong Wealthbox wire field name — silent no-op | **P0/P1** | **New, found during the Wave-2 re-test's live-probe** (see below) — not yet fixed |
+| Wealthbox task creation requires `due_date`; code currently allows omitting it, which 422s | P2 | **New, found during the Wave-2 re-test's live-probe** — not yet fixed |
 | Calendar/Mail OAuth scope not shared — Draft-follow-up needs a separate Mail reconnect the first time | P2 | Product/UX call, not a defect |
 | "Not a client meeting · skip" doesn't persist across reload | P3 | Minor UX gap |
 | First-time calendar sync never auto-matches (no client email field to match against) | P3 (by design, worth awareness) | Not a defect |
 | Export dialogs are real native OS windows, easy to lose track of during CDP-only testing | N/A | Testing-methodology note for future runs |
+
+---
+
+## Wave-2 re-test (2026-07-03, after the `lp/matter-resolve-windows` fix merged)
+
+**Tip pulled:** `fa172efa` — "docs: changelog for the Windows matter-resolver fix", includes
+`03e0bd32 fix(matters): unify workspace-path matter resolution, fail closed on cross-matter
+ambiguity (smoke-2 P0 #5)`. Bench app restarted clean via `LanternPlusDev` (no Rust changes in
+this pull, so it was a fast dev-server-only restart, ~2s). Prior session state (Today-strip
+meeting assignment, workspace folder mapping) persisted correctly across the restart.
+
+### Send to Wealthbox — **P0 #5 fix CONFIRMED WORKING**
+
+Reopened the exact same `Meeting Notes 2024-05-20 - Caldwell, Jennifer.docx` that previously
+failed to show the button at all. **The button now renders and is enabled.** The client wasn't
+yet linked to a Wealthbox household (correct, expected state — this workspace had never synced
+Wealthbox before) — the app surfaced its own correct guidance ("Link this client to a Wealthbox
+household first") rather than failing silently. Ran a normal Wealthbox **Sync now** (Connections
+panel), imported 40 households, Caldwell auto-linked to household `66158044`. The note then
+appeared in the **Update Wealthbox** review card ("Nothing sends until you approve") → clicked
+**Approve 1 change** → note landed in Wealthbox as id `271197631`, correctly linked, content and
+citations intact. Full live-probe detail (including two real backend findings surfaced along the
+way) in `WEALTHBOX-PROBE.md` in this same folder.
+Screenshots: `wave2-retest-01-send-to-wealthbox-renders.png`, `-02-review-card-queued.png`,
+`-03-approved-sent.png`.
+
+### Draft follow-up "To" auto-suggest — same resolver, retested
+
+Reopened Draft follow-up on the same note. Modal opened correctly and generated a properly-cited
+draft (2 citation chips, hover previews worked) — this alone confirms the matter-id resolver fix
+also applies here (previously this exact modal's To-suggestion lookup was suspected to be
+feeding off the same broken resolver). The "To" field itself is still empty, but for the
+already-documented reason from the first smoke-2 pass: no real prior email correspondence exists
+with `jennifer.caldwell@example.com` in this fresh mailbox (only a manually-saved Draft, which
+doesn't count as "history"). Not a new finding — re-confirms the earlier P2 note.
+Screenshot: `wave2-retest-04-draft-followup-resolver-fix.png`.
+
+### Disconnect/reconnect, no duplicate posts
+
+Disconnected Wealthbox (Account → Connections → "Disconnect and delete imported data") —
+confirmed Microsoft 365 stayed connected throughout, unaffected. Reconnected with the same
+token, re-imported all 40 households, Caldwell re-linked to the same household automatically.
+The already-sent note stayed shown as sent (not re-queued). Directly verified the underlying
+idempotency mechanism (not just the UI's memory) by invoking the write command twice with an
+identical `requestedAt` — second call correctly returned `deduped: true` with no second Wealthbox
+note created. **Dedup/idempotency across disconnect-reconnect: confirmed working correctly.**
+Full detail, including an initial test-methodology mistake on my part that looked like a bug and
+wasn't, in `WEALTHBOX-PROBE.md`.
+
+### Wealthbox write-path live-probe — 2 real findings
+
+Ran the full `scripts/crm/wealthbox-write-probe.md` checklist against the sandbox (Steps 1-3),
+plus the field-blend step (Step 4, marked "deferred" in that doc pending Task 9c's UI — run
+anyway via direct backend invocation since the coordinator's brief asked for it and the backend
+command is fully implemented). **Two real, unfixed bugs found** — full detail, repro steps, and
+exact code locations in `WEALTHBOX-PROBE.md`:
+
+1. **`background_information` field-blend writes silently do nothing** — the code translates the
+   app-facing field name to the wrong wire name for PUT requests (right for GET, backwards for
+   PUT). Wealthbox returns HTTP 200 with no error; the field is genuinely unchanged. Confirmed on
+   both a Household and a Person contact record; ruled out propagation delay and general
+   PUT-permission problems (a control write to `job_title` worked normally). **High priority** —
+   this hasn't shipped to any user yet only because Task 9c's UI is still dormant, but it will
+   silently fail the moment that UI ships unless fixed first.
+2. **Wealthbox tasks require a `due_date`** — omitting it returns HTTP 422. The code currently
+   just omits it when the user doesn't set one, with no client-side validation. Confirmed the
+   plain `"YYYY-MM-DD"` format IS accepted when present (normalizes correctly server-side), and
+   that `created_at`/`updated_at` ARE present on real task responses (the code's speculative
+   empty-string default for these was overly cautious but harmless, not a bug).
+
+All sandbox mutations from this probe were either restored to original values (the two
+`background_info` fields) or left as clearly-labeled test artifacts the API's token doesn't have
+permission to delete (three duplicate/probe notes — see `WEALTHBOX-PROBE.md` for exact ids and
+why). Nothing destructive or unrecoverable was done to the sandbox.
+
+---
+
+## Wave-4 evidence (new in this tip — Whole book, estate/beneficiary gaps, Ask whole-practice)
+
+Per the coordinator's addendum, captured evidence for the Wave-4 features that landed in the
+same tip pull:
+
+1. **Client Map → Whole book view** — `View: Clients | Whole book` toggle on the Client Map,
+   ranked list of all 40 clients (26 originally folder-mapped + 40 total after the Wealthbox
+   household import — some overlap) with Sourced Facts / Open Gaps / Last Touch columns.
+   Screenshot: `wave4-01-whole-book-view.png`.
+2. **Estate/beneficiary gap chip** — checked via a targeted Whole-practice Ask question
+   ("Which clients have a beneficiary designation gap or estate-document inconsistency?").
+   Result: **none found** in this demo dataset — the check itself clearly ran (cited "Answered
+   from each client's saved summary"), it just found nothing to flag, so there was no gap chip
+   to screenshot on any individual client. Per the coordinator's own instruction, skipped rather
+   than forced. Screenshot of the "none found" result kept as evidence the feature works:
+   `wave4-03-beneficiary-gap-check-none-found.png`.
+3. **Ask → Whole practice** — selected the "Whole practice" scope pill, granted the "Allow for
+   all" cross-client consent prompt when it appeared, asked a real practice-wide question
+   ("Which clients have the highest advisory-fee assets, and are any below their target equity
+   allocation?"). Got a cited answer identifying the Hollings Family ($50.2M, below target
+   equity) with a clickable "Hollings Family" client-chip result and per-fact citations.
+   Screenshot: `wave4-02-ask-whole-practice.png`.
