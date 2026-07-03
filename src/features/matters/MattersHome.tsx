@@ -268,6 +268,8 @@ function MatterRow({ matter, isActive, showConfidentialityColumn, onSelect, onAr
   const label = matterLabel(matter);
   const folderCount = matter.folderPaths.length;
   const [hovered, setHovered] = useState(false);
+  const [focusWithin, setFocusWithin] = useState(false);
+  const showQuickActions = hovered || focusWithin;
 
   const launchSurface = (surface: MatterSurface, e: React.MouseEvent) => {
     // Prevent the button click from also firing onSelect twice
@@ -286,6 +288,13 @@ function MatterRow({ matter, isActive, showConfidentialityColumn, onSelect, onAr
       style={{ borderBottom: '1px solid var(--color-border)' }}
       onMouseEnter={() => { setHovered(true); }}
       onMouseLeave={() => { setHovered(false); }}
+      onFocus={() => { setFocusWithin(true); }}
+      onBlur={(e) => {
+        // Only clear when focus moves entirely outside the row (mirrors MailRow).
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+          setFocusWithin(false);
+        }
+      }}
     >
       {/* Primary row — click to select */}
       <button
@@ -390,10 +399,12 @@ function MatterRow({ matter, isActive, showConfidentialityColumn, onSelect, onAr
       </button>
 
       {/*
-       * Quick-action row.
-       * Accessible at rest (opacity 0.85 > 3:1 contrast on white at navy text)
-       * AND visible on keyboard :focus-within of the row's wrapper div.
-       * The wrapper div is not itself focusable; focus enters via the buttons.
+       * Quick-action row — hidden at rest (Wave B / S1: the row itself is the
+       * primary affordance; a permanent 3-button-per-row wall reads as busy
+       * across a full client list). Revealed on hover OR keyboard :focus-within
+       * of the row's wrapper div (mirrors MailRow's hover/focusWithin pattern),
+       * so it stays fully reachable without a mouse. The wrapper div is not
+       * itself focusable; focus enters via the buttons.
        */}
       <div
         data-testid={`matter-quick-actions-${matter.id}`}
@@ -404,8 +415,9 @@ function MatterRow({ matter, isActive, showConfidentialityColumn, onSelect, onAr
           paddingLeft: '23px',
           paddingRight: 20,
           paddingBottom: 8,
-          opacity: hovered ? 1 : 0.85,
-          transition: 'opacity 0.15s',
+          opacity: showQuickActions ? 1 : 0,
+          pointerEvents: showQuickActions ? 'auto' : 'none',
+          transition: 'opacity 0.12s',
           background: isActive ? 'rgba(10,37,64,0.04)' : hovered ? 'rgba(10,37,64,0.02)' : 'transparent',
           borderLeft: isActive ? '3px solid var(--kp-navy)' : '3px solid transparent',
         }}

@@ -258,6 +258,50 @@ function App() {
   // F-509 — controlled sidebar collapse so the global Ctrl+B shortcut and the
   // command palette can drive the same collapse the chevron button does.
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // Wave B / S1 — one mental model: the sidebar is the client switcher, the
+  // main area is the workspace. When the main area IS the Client Map list
+  // (the same client list the sidebar already shows), the sidebar
+  // auto-collapses to the icon rail so the list isn't rendered twice at
+  // once. This is layered ON TOP of the manual `sidebarCollapsed` preference
+  // (never overrides an explicit manual collapse) and is dismissible per
+  // visit to the list — expanding it back re-collapses next time the user
+  // returns to the Client Map list, rather than sticking "expanded" forever.
+  const clientMapHubId = useMatterStore((s) => s.clientMapHubId);
+  const isClientListView = sidebarActiveTab === 'matters' && clientMapHubId === null;
+  const [autoCollapseDismissed, setAutoCollapseDismissed] = useState(false);
+  useEffect(() => {
+    if (!isClientListView) setAutoCollapseDismissed(false);
+  }, [isClientListView]);
+  const effectiveSidebarCollapsed =
+    sidebarCollapsed || (isClientListView && !autoCollapseDismissed);
+  const handleSidebarCollapsedChange = useCallback(
+    (next: boolean) => {
+      if (isClientListView && !sidebarCollapsed) {
+        // Currently collapsed ONLY because of the auto-collapse (the user's
+        // own manual preference is still "expanded") — toggling here just
+        // dismisses the auto-collapse for this visit to the list.
+        setAutoCollapseDismissed(!next);
+        return;
+      }
+      setSidebarCollapsed(next);
+      if (!next) setAutoCollapseDismissed(false);
+    },
+    [isClientListView, sidebarCollapsed],
+  );
+  // Ctrl+B / command palette drive the same EFFECTIVE state the chevron
+  // button does (so pressing "expand" while auto-collapsed on the Client Map
+  // list dismisses the auto-collapse instead of silently no-op'ing against
+  // an already-false manual preference).
+  const toggleSidebarCollapsed = useCallback<React.Dispatch<React.SetStateAction<boolean>>>(
+    (value) => {
+      const next =
+        typeof value === 'function'
+          ? (value as (prev: boolean) => boolean)(effectiveSidebarCollapsed)
+          : value;
+      handleSidebarCollapsedChange(next);
+    },
+    [effectiveSidebarCollapsed, handleSidebarCollapsedChange],
+  );
   // Fix 1: which view the Documents surface should land on. DocumentsHome
   // UNMOUNTS/REMOUNTS on every tab switch, so a counter "reset signal" can't work
   // (its refs reset on remount). Instead App owns the intent here (it persists
@@ -1187,13 +1231,13 @@ function App() {
 
 
   // Command-palette commands. See src/app/commands/useAppCommands.ts.
-  const commands = useAppCommands({ openTabs, activeTabPath, handleSaveFile, closeTab, toggleOutline, isSplit, splitPane, closeSplit, handleOpenBrowserTab, handleCreateDefaultDocument, sidebarActiveTab, setSidebarCollapsed, setShowWorkspaceSelector, openAIAssistantTab, setShowSettingsModal, prompt });
+  const commands = useAppCommands({ openTabs, activeTabPath, handleSaveFile, closeTab, toggleOutline, isSplit, splitPane, closeSplit, handleOpenBrowserTab, handleCreateDefaultDocument, sidebarActiveTab, setSidebarCollapsed: toggleSidebarCollapsed, setShowWorkspaceSelector, openAIAssistantTab, setShowSettingsModal, prompt });
 
   // Global keyboard shortcuts. See src/app/commands/useKeyboardShortcuts.ts.
   useKeyboardShortcuts({
     sidebarActiveTab, openTabs, activeTabPath, isSplit,
     setShowSettingsModal, setShowCommandPalette, setShowQuickOpen,
-    setSidebarCollapsed, setShowShortcutsOverlay, setFileTree, setDocumentsView, setSidebarActiveTab,
+    setSidebarCollapsed: toggleSidebarCollapsed, setShowShortcutsOverlay, setFileTree, setDocumentsView, setSidebarActiveTab,
     handleSaveFile, closeTab, toggleOutline, splitPane, closeSplit,
     openAIAssistantTab, handleRestoreFromTrash, handleFileOpen, handleCreateDefaultDocument,
     workspaceServiceRef, undoStackRef, deleteHistoryRef, renameHistoryRef,
@@ -1444,8 +1488,8 @@ function App() {
             }
             setSidebarActiveTab(tab as typeof sidebarActiveTab);
           }}
-          collapsed={sidebarCollapsed}
-          onCollapsedChange={setSidebarCollapsed}
+          collapsed={effectiveSidebarCollapsed}
+          onCollapsedChange={handleSidebarCollapsedChange}
         />
 
         {/* Main editor panel, or a full-page reimagined surface (matters/Ask/Email). */}

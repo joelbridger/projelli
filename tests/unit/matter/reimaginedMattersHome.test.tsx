@@ -137,10 +137,16 @@ describe('MattersHome — B1 sample badge', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// B4 — Quick-actions visible at rest in MattersHome
+// Quick-actions in MattersHome — DOM presence + a11y (kept from R2-B); the
+// VISUAL reveal rule flipped under Wave B (UX-EVALUATION-2026-07-03 S1): a
+// permanent 3-4-button row per matter reads as "busy" across a full client
+// list (78-104 buttons for 26 clients), so the row is now hidden at rest and
+// revealed on hover/keyboard focus-within instead of R2-B's "always dim,
+// full on hover" discoverability compromise. Still fully in the DOM, never
+// aria-hidden, and keyboard-reachable — only the at-rest opacity changed.
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('MattersHome — B4 quick-actions visible at rest', () => {
+describe('MattersHome — quick-actions hover/focus-revealed (Wave B / S1)', () => {
   beforeEach(resetStore);
 
   it('renders Ask / Documents / Email buttons in the DOM (not hidden) for each matter', () => {
@@ -162,6 +168,40 @@ describe('MattersHome — B4 quick-actions visible at rest', () => {
     expect(askBtn.closest('[aria-hidden="true"]')).toBeNull();
     expect(docsBtn.closest('[aria-hidden="true"]')).toBeNull();
     expect(emailBtn.closest('[aria-hidden="true"]')).toBeNull();
+  });
+
+  it('is hidden (opacity 0) at rest, and revealed (opacity 1) on hover', () => {
+    useMatterStore.getState().createMatter({ name: 'Reveal Test', client: 'Client' });
+    const matter = useMatterStore.getState().matters[0]!;
+
+    render(<MattersHome />);
+
+    const quickActions = screen.getByTestId(`matter-quick-actions-${matter.id}`);
+    expect(quickActions.style.opacity).toBe('0');
+
+    const row = quickActions.parentElement!;
+    fireEvent.mouseEnter(row);
+    expect(quickActions.style.opacity).toBe('1');
+
+    fireEvent.mouseLeave(row);
+    expect(quickActions.style.opacity).toBe('0');
+  });
+
+  it('is revealed on keyboard focus-within even without hover', () => {
+    useMatterStore.getState().createMatter({ name: 'Keyboard Reveal', client: 'Client' });
+    const matter = useMatterStore.getState().matters[0]!;
+
+    render(<MattersHome />);
+
+    const askBtn = screen.getByTestId(`matter-launch-ask-${matter.id}`);
+    const quickActions = screen.getByTestId(`matter-quick-actions-${matter.id}`);
+    expect(quickActions.style.opacity).toBe('0');
+
+    fireEvent.focus(askBtn);
+    expect(quickActions.style.opacity).toBe('1');
+
+    fireEvent.blur(askBtn);
+    expect(quickActions.style.opacity).toBe('0');
   });
 
   it('quick-action buttons have correct aria-labels', () => {
