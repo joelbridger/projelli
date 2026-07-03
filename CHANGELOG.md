@@ -32,6 +32,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Field-level blended CRM updates (Task 9c)** — a 3-column review
+  (Existing / From this meeting / Blended) folded into the existing
+  Wealthbox write-back card for a single allowlisted narrative field
+  (`background_information`): scalar fields would replace outright,
+  narrative fields get an AI-composed merge via the app's Provider
+  interface (deterministic `existing + new` fallback with no provider
+  configured), always user-editable before approval. The backend
+  re-fetches the live field at approve time and never blind-overwrites —
+  a drifted value flips the row to a dedicated re-review state with the
+  fresh live value, the advisor's edit left untouched.
+  - Files: `src/platform/state/fieldBlend.ts`,
+    `src/platform/state/crmWriteQueueStore.ts` (`enqueueFieldUpdate`),
+    `src/features/matters/CrmWriteReviewCard.tsx`,
+    `src/platform/utils/wealthbox-commands.ts` (`crmUpdateField`)
 - **CRM write-back backend (Wealthbox)** — approval-gated Tauri commands
   (`crm_create_note`, `crm_create_task`) to push notes/tasks to a client's
   linked Wealthbox household, with an idempotency ledger, verify-before-resend
