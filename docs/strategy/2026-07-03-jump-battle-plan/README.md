@@ -27,7 +27,63 @@ to one without rereading everything.
 
 ## Executive summary
 
-*(Filled in last — see the bottom of this file once the sections are final.)*
+**1. Jump is strong, liked, and well-run — and has a structural blind spot we own.**
+They're the category leader (~10% of US advisors, highest satisfaction among
+notetakers, $105M raised, LPL/Osaic/Cetera distribution) executing a competent
+platform expansion. Your "panic-adding mess" read is wrong on "panic" — but right
+about the tension: they're becoming "connect 60 things" while their document layer
+stays shallow, their price restructures under pressure from $49 CRM bundles, and
+everything they do runs through their cloud. **They can't copy our architecture;
+we can't copy their distribution.** That asymmetry shapes the whole plan. (Also: the
+"started as a note-taker, pivoted on an investor's tip" story is partly wrong — they
+started as a B2B sales tool and pivoted on customer discovery. Never use it publicly.)
+
+**2. At program completion we match or beat their core loop and honestly lose four
+things:** mobile capture, capture-anywhere (closed laptop/any phone), integration
+breadth, and enterprise machinery (SOC 2, admin consoles, support teams). The five
+beats that carry the deck: no bot + nothing leaves your machine; answers cited from
+the whole file pile (not just what's connected); real Word notes where every bullet
+clicks back to the moment it was said; safe approval-gated CRM writes; about half the
+price with the AI bill at cost.
+
+**3. The "replace, don't add" insight is externally validated** — Kitces says it
+almost verbatim ("any new software tool needs to competitively bid to either replace
+some other tool… or it's a drag on profitability"), advisors run 15–25 tools and are
+on record hating it. What an advisor cancels with Lantern: their notetaker
+(Jump/Zocks/FinMate), their dictation service, and the ChatGPT-on-the-side habit —
+roughly $1,400–2,600/yr replaced by ~$1,000–1,100 all-in. What we loudly do NOT
+replace: their CRM, planning, portfolio tools — that restraint is what makes the rest
+credible.
+
+**4. The aggression goes into receipts, not adjectives.** The three strongest attack
+angles are Jump's own documents: their MSA converts customer data into Jump-owned
+"Anonymized Data… for any legal purpose"; their benchmarks product is built from
+"hundreds of thousands of… advisor-client transcripts" (opt-in — we always say so);
+their brand-new MCP feature ships client data out unfiltered with a written "we
+cannot control… whether your data may be used to train" disclaimer. Seven angles are
+safe to fire at program completion; the reliability attack waits for pilot proof;
+the origin-story attack is dropped.
+
+**5. Claims climb a ladder tied to evidence.** Comparison page + contract essay +
+replacement math at program completion (names Jump, fully cited, calm voice) →
+"Lantern can replace Jump" after 3 real-data pilots → switcher stories → the "Cancel
+Jump" campaign at ~10 documented switchers, backed by a capped switch-credit
+incentive. An independent adversarial pass (Codex) argued the case *against* this
+strategy; its strongest objections — zero-customer credibility, capture reliability,
+the mobile gap, one-person support — are answered inside the plan rather than waved
+away, and both a "replace" door and a "coexist with Jump" door stay open in every
+asset.
+
+**6. After parity, we leave their home field.** The beyond-parity trio (estate/
+beneficiary mismatch detection, exam-binder-on-demand, tax-season pack) turns the
+story from "Jump, but private and cheaper" into "carries the whole practice on your
+own machine" — value Jump can't follow without asking advisors to upload everything.
+
+**Nine decisions are yours** (section 8), the big ones: adopt the evidence-gated
+ladder for how aggressive we go publicly (recommended: yes); name Jump on comparison
+pages but not the homepage (yes); start interview *recruiting* now while the build
+finishes (yes); pick the one public brand name before anything fires (longest-lead
+item); fix the current vs-Jump page's factual errors this week (yes).
 
 ## Ground rules this package obeys
 
