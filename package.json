@@ -46,6 +46,7 @@
     "fetch-llama-sidecar": "bash scripts/fetch-llama-sidecar.sh",
     "test:desktop": "bash tests/desktop/run.sh",
     "robot:test": "vitest run --config scripts/robot/vitest.config.mjs",
+    "bench-smoke:test": "vitest run --config scripts/bench-smoke/vitest.config.mjs",
     "robot:daemon": "node scripts/robot/server.mjs",
     "robot:smoke": "node scripts/robot/smoke.mjs",
     "robot:build-snapshot": "node scripts/robot/build-snapshot.mjs",
