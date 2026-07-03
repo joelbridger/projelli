@@ -699,6 +699,18 @@ impl CrmStore {
         Ok(())
     }
 
+    /// Delete every outbound-write ledger row for `provider` (e.g. "wealthbox").
+    /// Called on disconnect so a later reconnect — same or different account —
+    /// can't reuse a stale `sent`/`pending` row to skip a write that was
+    /// never actually delivered to the newly connected account.
+    pub fn purge_outbound_writes_for_provider(&self, provider: &str) -> Result<usize> {
+        let c = self.conn.lock().unwrap();
+        Ok(c.execute(
+            "DELETE FROM crm_outbound_writes WHERE provider = ?1",
+            [provider],
+        )?)
+    }
+
     /// Delete every locally-imported Wealthbox object by removing the encrypted
     /// CRM database file. The file is recreated empty the next time `open` is
     /// called. Invoked by `crm_disconnect` so a disconnected workspace retains no
@@ -844,6 +856,19 @@ mod tests {
             first_created,
             "a retry after a definitive failure must start a fresh recovery-verification floor"
         );
+    }
+
+    #[test]
+    fn purge_outbound_writes_for_provider_only_removes_that_providers_rows() {
+        let (dir, store) = crm_store();
+        let _ = dir;
+        store.outbound_upsert("wb1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "sent", Some("1")).unwrap();
+        store.outbound_upsert("sf1", "salesforce", "note", "001XYZ", "m1", "doc:a.docx", "sent", Some("2")).unwrap();
+
+        let n = store.purge_outbound_writes_for_provider("wealthbox").unwrap();
+        assert_eq!(n, 1);
+        assert!(store.outbound_get("wb1").unwrap().is_none(), "wealthbox row must be gone");
+        assert!(store.outbound_get("sf1").unwrap().is_some(), "salesforce row must survive a wealthbox disconnect");
     }
 
     /// P2.3 row 8: the cheap digest list MUST match `list_objects_by_household`

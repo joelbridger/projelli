@@ -514,12 +514,19 @@ async fn crm_create_write(
 
     match write::push_crm_write(&client, &store, &state.write_guard, &req).await {
         Ok(receipt) => {
-            let description = format!(
-                "{} pushed to {} household {household_key} (source: {source_ref})",
-                kind.as_str(),
-                provider.display_name(),
-            );
-            append_crm_audit_best_effort_for_matter(&app, &action, &description, &matter_id).await;
+            // A deduped receipt means NO new CRM write happened on this call
+            // — the ledger only suppressed a duplicate of a write already
+            // audited when it actually landed. Auditing it again here would
+            // create a misleading "pushed" entry for every retry of an
+            // already-sent item.
+            if !receipt.deduped {
+                let description = format!(
+                    "{} pushed to {} household {household_key} (source: {source_ref})",
+                    kind.as_str(),
+                    provider.display_name(),
+                );
+                append_crm_audit_best_effort_for_matter(&app, &action, &description, &matter_id).await;
+            }
             Ok(receipt)
         }
         // Wealthbox may already have accepted (even persisted) this write —
@@ -1017,6 +1024,12 @@ async fn purge_crm_data_for_provider(
         CrmProvider::Salesforce => CrmProviderDataScope::ProviderMarker("sfdc:"),
         CrmProvider::Redtail => CrmProviderDataScope::ProviderMarker("redtail:"),
     };
+    // Outbound-write ledger rows are keyed by a direct `provider` column
+    // (not the crm_key marker scheme above), so purge them independently —
+    // otherwise a disconnect leaves stale sent/pending rows behind, and a
+    // later reconnect (same or different account) could reuse a stale
+    // `sent` row to skip a write that was never actually sent to it.
+    store.purge_outbound_writes_for_provider(provider.id())?;
     purge_provider_crm_data_with_store_and_key(ws, &store, scope, &key).await
 }
 
