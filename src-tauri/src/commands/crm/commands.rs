@@ -943,6 +943,21 @@ pub async fn crm_set_workspace(
 ) -> Result<(), String> {
     let provider = CrmProvider::from_optional(provider.as_deref())?;
     let ws = PathBuf::from(path);
+
+    // Codex round 4 P1 (self-converge): block NEW writes for the ENTIRE
+    // workspace-publish + downgrade transition, not just the downgrade
+    // check itself -- otherwise a write could start in the gap between the
+    // workspace becoming visible below and the downgrade completing, open
+    // the JUST-SET workspace, and trust a stale `sent` row that hasn't been
+    // downgraded yet. Mirrors crm_connect's own use of this exact flag for
+    // the identical underlying race (see ConnectInProgressGuard's doc
+    // comment) -- claiming it here even when there's no token yet (the
+    // common case, nothing to protect) is a negligible cost, since the
+    // guard drops immediately once this function returns.
+    let Some(_connect_guard) = claim_connect_in_progress(&state) else {
+        return Err("A connect is already in progress — try again in a moment.".to_string());
+    };
+
     *state.workspace.lock().await = Some(ws.clone());
 
     // See downgrade_stale_sent_rows_for_workspace's doc comment: this covers

@@ -151,7 +151,16 @@ pub fn dedup_key_field(req: &CrmFieldUpdateRequest) -> String {
         "field",
         &req.household_key,
         &norm(&req.field),
-        &norm(&req.final_value),
+        // Codex round 4 (self-converge): the EXACT final_value, not
+        // norm()'d — push_crm_field_update compares live values exactly
+        // (formatting/paragraph-breaks are part of what the user
+        // approved), so the ledger/audit key must distinguish two
+        // approvals that differ only in formatting too. Colliding them
+        // would let the second (formatting-only) approval's audit entry be
+        // silently suppressed as a "duplicate" of the first (both compute
+        // the same deterministic audit id), and could wrongly reject a
+        // concurrent one as "in progress".
+        req.final_value.as_str(),
     ] {
         h.update(part.as_bytes());
         h.update([0u8]);
@@ -681,8 +690,16 @@ pub async fn push_crm_write(
                 }
                 Ok(None) => {
                     // Provably didn't land under the interrupted attempt —
-                    // fall through to a fresh send below, same as the
-                    // exact-key recovery path above.
+                    // retire the OLD candidate row (mark it `failed`, a
+                    // terminal state excluded from future content-key
+                    // lookups) before falling through to a fresh send.
+                    // Codex round 4 (self-converge): without this, the row
+                    // stays `pending`/`pending_verify` and, if a LATER
+                    // intentional repeat lands within the recovery window,
+                    // it could match the record THIS send is about to
+                    // create — incorrectly deduping the later repeat
+                    // against a delivery it had nothing to do with.
+                    upsert_ledger(store, &row.dedup_key, source, req, "failed", None);
                 }
                 Err(e) => {
                     // Codex round 3: re-affirm the ORIGINAL candidate row
@@ -1293,6 +1310,16 @@ mod tests {
 
         let row = store.outbound_get(&dedup_key(&new_req)).unwrap().unwrap();
         assert_eq!(row.status, "sent");
+
+        // Codex round 4 finding #2 (self-converge): the OLD candidate row
+        // must be retired (marked failed), not left pending/pending_verify
+        // — otherwise a LATER intentional repeat within the recovery
+        // window could match the record THIS send just created.
+        let old_row = store.outbound_get(&dedup_key(&old_req)).unwrap().unwrap();
+        assert_eq!(
+            old_row.status, "failed",
+            "a verified miss must retire the old candidate row so it can't satisfy a future unrelated approval"
+        );
     }
 
     /// Regression guard for ADDED SCOPE #2.1: an intentional repeat (a
@@ -1673,6 +1700,23 @@ mod tests {
         let mut c = base_field_req();
         c.field = "other_field".into();
         assert_ne!(dedup_key_field(&a), dedup_key_field(&c));
+    }
+
+    /// Codex round 4 finding #3 (self-converge): push_crm_field_update
+    /// compares live values EXACTLY (formatting is part of what the user
+    /// approved), so the dedup key must distinguish formatting-only
+    /// differences too — otherwise a formatting-only re-approval collides
+    /// into the SAME ledger row/audit id as an earlier one, silently
+    /// losing its own audit entry.
+    #[test]
+    fn field_dedup_key_distinguishes_formatting_only_differences() {
+        let a = base_field_req();
+        let mut b = base_field_req();
+        b.final_value = format!("{}\n", a.final_value); // trailing newline only
+        assert_ne!(
+            dedup_key_field(&a), dedup_key_field(&b),
+            "formatting-only differences (e.g. a trailing newline) must produce distinct keys"
+        );
     }
 
     #[tokio::test]
