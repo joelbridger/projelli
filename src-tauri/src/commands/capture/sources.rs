@@ -287,15 +287,27 @@ impl AudioSource for MacTapSource {
         let mut stdout = child.stdout.take().ok_or_else(|| anyhow!("no stdout"))?;
         let reader = std::thread::spawn(move || {
             let mut buf = [0u8; 4096];
+            // stdout is a raw byte stream — a single `read` is not
+            // guaranteed to land on a 2-byte (i16) boundary. Carrying over
+            // a stray trailing byte to the next read (instead of
+            // `chunks_exact(2)` silently dropping it) is required: dropping
+            // it would permanently shift every subsequent sample's byte
+            // pairing for the rest of the recording, not just lose one byte.
+            let mut carry: Vec<u8> = Vec::new();
             loop {
                 match stdout.read(&mut buf) {
                     Ok(0) | Err(_) => break,
                     Ok(n) => {
-                        let samples: Vec<i16> = buf[..n]
-                            .chunks_exact(2)
-                            .map(|b| i16::from_le_bytes([b[0], b[1]]))
-                            .collect();
-                        on_samples(&samples);
+                        carry.extend_from_slice(&buf[..n]);
+                        let usable = carry.len() - (carry.len() % 2);
+                        if usable > 0 {
+                            let samples: Vec<i16> = carry[..usable]
+                                .chunks_exact(2)
+                                .map(|b| i16::from_le_bytes([b[0], b[1]]))
+                                .collect();
+                            carry.drain(..usable);
+                            on_samples(&samples);
+                        }
                     }
                 }
             }

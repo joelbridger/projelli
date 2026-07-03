@@ -125,7 +125,15 @@ mod path_guard_tests {
 
 #[cfg(target_os = "macos")]
 pub fn mac_sidecar_path() -> Option<std::path::PathBuf> {
-    let names = ["capture-mac"];
+    // Both filename conventions are checked: the bare name (matches
+    // commands::voice's other sidecars once staged/bundled without a
+    // suffix) and the target-triple-suffixed name the capture-mac README
+    // documents as the staging convention (`capture-mac-<target-triple>`,
+    // never renamed since capture-mac isn't in tauri.conf.json's
+    // `externalBin` — that mechanism is what strips the suffix for piper/
+    // llama-server, and capture-mac deliberately isn't wired into it yet).
+    let triple_named = format!("capture-mac-{}-apple-darwin", std::env::consts::ARCH);
+    let names = ["capture-mac", triple_named.as_str()];
     // 1. Packaged .app bundle: the running executable sits at
     //    Contents/MacOS/<exe>; staged binaries live in Contents/Resources/
     //    (the same location Tauri's own `resource_dir()` resolves to for a
