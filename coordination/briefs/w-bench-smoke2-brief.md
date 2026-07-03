@@ -2,7 +2,11 @@ ROLE: Windows bench worker — CORRECTED re-smoke of Lantern-Plus Waves 0-2 (smo
 
 BASE: everything in w-bench-smoke-brief.md still binds (bench access, fork rules, read-only-except-evidence, main-line handover conditions: C:\bench-backups\ and C:\KeepanceWorkspaces\ untouched). Evidence dir for THIS run: docs/evidence/windows-smoke-2/ on branch lp/windows-smoke-evidence.
 
-PRE-FLIGHT (coordinator confirms before you start): lantern-plus tip includes the 2 P0 fixes (lp/smoke-p0-fixes merged). Pull that tip on the bench. Fresh-checkout gotcha from smoke-1: copy src-tauri/binaries/* Windows sidecars from an existing checkout (e.g. C:\keepance\src-tauri\binaries\) before the first build.
+PHASING (run as two phases so prep parallelizes with the fix merge):
+- PHASE 1 — START IMMEDIATELY on the CURRENT lantern-plus tip (none of this depends on the pending fixes, and all of it survives a later git pull): bench prep (pull tip, sidecars gotcha below, npm install, app running); the 3 setup corrections below INCLUDING their VERIFY steps for #1 and #2 (folderPaths rebind + re-index are setup artifacts, testable now); and the calendar OAuth (#3) including the Jameson passkey ask — the stored token survives the pull. Report "PHASE-1 PREP COMPLETE" (plain text, not the sentinel) with what verified.
+- PHASE 2 — ONLY after the coordinator messages you that lp/smoke-p0-fixes is merged: git pull the final tip, restart the app, then run the full smoke script + the 2 fix re-tests below.
+
+Fresh-checkout gotcha from smoke-1: copy src-tauri/binaries/* Windows sidecars from an existing checkout (e.g. C:\keepance\src-tauri\binaries\) before the first build.
 
 THE 3 SETUP CORRECTIONS (the whole point of this run — each smoke-1 artifact, corrected):
 1. WORKSPACE (fixes smoke-1 #2, per-client Files empty + docs-to-root): after copying/placing the demo workspace at C:\lantern-plus-smoke\, the matter→folder bindings (`folderPaths`) MUST point at real folders under the NEW path before you test. Do it the way an advisor would if possible (re-associate the client folders in the app UI); if there's no UI path, rebind the stored matter folderPaths for the new root (you have the code: AppSurfaceRouter.tsx:377 / scopeFileTree.ts:193 show what's read). VERIFY before proceeding: per-client Files tab shows the client's real files, and a new doc created from a client lands in that client's folder, not root docs/.
