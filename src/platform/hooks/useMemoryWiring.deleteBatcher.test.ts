@@ -191,6 +191,44 @@ describe('createDeleteBurstBatcher', () => {
     expect(onLog).not.toHaveBeenCalled();
   });
 
+  it('P1 regression: one chronically-failing path never permanently starves unrelated deletes queued behind it', async () => {
+    // '/ws/bad.docx' NEVER succeeds; everything else always does. Because
+    // Set insertion order keeps `bad` first, without a per-cooldown reset of
+    // the failure counter it would instantly re-trip the breaker every time
+    // and every path queued behind it would be requeued as "not yet
+    // attempted" forever — legitimate deletes silently never running.
+    const deletePath = vi.fn().mockImplementation(async (path: string) => {
+      if (path === '/ws/bad.docx') throw new Error('permanently broken row');
+    });
+    const batcher = createDeleteBurstBatcher(deletePath, {
+      windowMs: 100,
+      breakerThreshold: 2,
+      cooldownMs: 5_000,
+    });
+
+    // 'bad' alone trips the breaker (2 consecutive failures against itself,
+    // since it's the only thing queued).
+    batcher.enqueue('/ws/bad.docx');
+    await vi.advanceTimersByTimeAsync(100);
+    expect(deletePath).toHaveBeenCalledTimes(2);
+    expect(deletePath).toHaveBeenCalledWith('/ws/bad.docx');
+
+    // Two unrelated, perfectly-deletable paths arrive while the breaker is
+    // still cooling down from 'bad'.
+    deletePath.mockClear();
+    batcher.enqueue('/ws/good1.docx');
+    batcher.enqueue('/ws/good2.docx');
+    await vi.advanceTimersByTimeAsync(100); // still well within the 5s cooldown
+    expect(deletePath).not.toHaveBeenCalled(); // correctly paced, not starved yet
+
+    // Cooldown elapses — the retry round must reach good1/good2, not get
+    // stuck re-tripping on 'bad' before ever attempting them.
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(deletePath).toHaveBeenCalledWith('/ws/good1.docx');
+    expect(deletePath).toHaveBeenCalledWith('/ws/good2.docx');
+  });
+
   it('P1 regression: every originally-queued path is eventually retried and succeeds once the backend recovers — none lost across the breaker/cooldown cycle', async () => {
     const deletePath = vi
       .fn()

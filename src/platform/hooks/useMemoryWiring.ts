@@ -384,6 +384,17 @@ export function createDeleteBurstBatcher(
       return;
     }
     isFlushing = true;
+    // Reset once per flush invocation (i.e. once per cooldown wake-up), not
+    // per internal while-round. Otherwise a single path that NEVER recovers
+    // stays first in `pending` (Set insertion order) and, since its failure
+    // count was already at/above threshold when the breaker last tripped,
+    // instantly re-trips on the very next attempt — requeuing every path
+    // behind it as "not yet attempted" without ever trying them. That
+    // starves unrelated, perfectly-deletable paths forever. Resetting here
+    // gives every post-cooldown attempt a fresh threshold budget, so this
+    // round always gets to try the paths queued behind a chronic failure
+    // before it can trip the breaker again.
+    consecutiveFailures = 0;
     try {
       while (pending.size > 0 && !disposed) {
         const paths = Array.from(pending);
