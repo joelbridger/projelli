@@ -50,6 +50,22 @@ function newId(): string {
   return `crmw-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
 }
 
+// Codex review catch (P2): a bare `new Date().toISOString()` is not
+// guaranteed unique — two DIFFERENT items approved within the same
+// millisecond (a real risk: approve() can move on to its next item as soon
+// as a fast mocked/local call resolves) would get an identical requestedAt,
+// and since the backend's dedup key doesn't include matterId/sourceRef, the
+// second legitimate write would be silently treated as a retry of the first
+// and dropped. Track the last-issued millisecond and always bump forward by
+// at least 1ms, so a fresh requestedAt is strictly monotonic within this
+// session no matter how fast two approvals fire back to back.
+let lastRequestedAtMs = 0;
+function newRequestedAt(): string {
+  const now = Date.now();
+  lastRequestedAtMs = now > lastRequestedAtMs ? now : lastRequestedAtMs + 1;
+  return new Date(lastRequestedAtMs).toISOString();
+}
+
 function setItem(id: string, patch: Partial<ProposedCrmWrite>) {
   useCrmWriteQueueStore.setState((state) => ({
     items: state.items.map((item) => (item.id === id ? { ...item, ...patch } : item)),
@@ -73,7 +89,7 @@ async function sendOne(item: ProposedCrmWrite, householdKey: string): Promise<vo
   // time it's called, so a manual Retry sees the value persisted below).
   // Never regenerated per attempt — that would defeat the backend's
   // retry-vs-fresh-approval dedup guarantee (see the field's doc comment).
-  const requestedAt = item.requestedAt ?? new Date().toISOString();
+  const requestedAt = item.requestedAt ?? newRequestedAt();
   setItemClearingError(item.id, { status: 'sending', requestedAt });
   try {
     const receipt =

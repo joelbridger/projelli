@@ -188,6 +188,37 @@ describe('approve', () => {
     }
   });
 
+  // Codex adversarial review catch (P2): a bare Date.now()/toISOString() can
+  // collide within the same millisecond — two genuinely separate approvals
+  // must never end up sharing a requestedAt just because they landed in the
+  // same 1ms window, or the second legitimate write would be dropped as a
+  // "duplicate" of the first (the backend dedup key doesn't include
+  // matterId/sourceRef to break the tie).
+  it('never collides even when two fresh approvals land in the exact same millisecond', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2026-07-02T14:41:00.000Z'));
+      const s = useCrmWriteQueueStore.getState();
+      s.enqueue({ kind: 'note', matterId: 'm1', title: 'Left voicemail', body: 'B', sourceRef: 'doc:x' });
+      const id1 = useCrmWriteQueueStore.getState().items[0]!.id;
+      await s.approve([id1], '12345');
+      const firstRequestedAt = useCrmWriteQueueStore.getState().items[0]!.requestedAt;
+
+      // Clock deliberately NOT advanced — simulates two approvals firing
+      // back to back within the same millisecond.
+      s.enqueue({ kind: 'note', matterId: 'm1', title: 'Left voicemail', body: 'B', sourceRef: 'doc:y' });
+      const id2 = useCrmWriteQueueStore.getState().items[1]!.id;
+      await s.approve([id2], '12345');
+      const secondRequestedAt = useCrmWriteQueueStore.getState().items[1]!.requestedAt;
+
+      expect(secondRequestedAt).not.toBe(firstRequestedAt);
+      // Still a valid RFC3339 timestamp, just monotonically bumped forward.
+      expect(secondRequestedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('sets status "sending" while the request is in flight', async () => {
     let resolveFn!: (v: { remoteId: string; deduped: boolean }) => void;
     vi.mocked(crmCreateNote).mockReturnValueOnce(new Promise((r) => (resolveFn = r)));
