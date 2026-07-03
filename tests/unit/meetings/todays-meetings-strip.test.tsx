@@ -85,19 +85,65 @@ describe('TodaysMeetingsStrip', () => {
     expect(onOpen).toHaveBeenCalledWith('m-hend');
   });
 
-  it('shows unmatched meetings as unassigned and teaches on assign', async () => {
-    listEvents.mockResolvedValue([unmatched]);
+  it('teaches immediately (one click) when there is only one candidate identifier', async () => {
+    // organizerEmail === the only attendee's email: a single candidate after
+    // dedup, so this must stay the one-click flow (no disambiguation step).
+    const singleCandidate = {
+      ...unmatched,
+      id: 'outlook:e3',
+      organizerEmail: 'stranger@x.com',
+    };
+    listEvents.mockResolvedValue([singleCandidate]);
     render(<TodaysMeetingsStrip onOpenClient={() => {}} />);
-    const assign = await screen.findByTestId('meeting-assign-outlook:e2');
+    const assign = await screen.findByTestId('meeting-assign-outlook:e3');
     fireEvent.click(assign);
-    // Picker lists the matter; choosing it persists the attendee email as a
-    // taught meetingKey and the chip re-resolves to Henderson.
     fireEvent.click(await screen.findByTestId('meeting-assign-option-m-hend'));
     await waitFor(() => {
       expect(
         useMatterStore.getState().matters.find((m) => m.id === 'm-hend')
           ?.meetingKeys
       ).toContain('stranger@x.com');
+    });
+    expect(
+      (await screen.findByTestId('meeting-chip-outlook:e3')).textContent
+    ).toContain('Henderson');
+  });
+
+  it('asks the user to disambiguate when organizer and attendee differ, and teaches ONLY the confirmed one', async () => {
+    // organizerEmail ('adv@firm.com') and the attendee ('stranger@x.com')
+    // are two DIFFERENT plausible identifiers — the exact ambiguity a
+    // codex-review P1 flagged: picking blindly risks teaching the ADVISOR's
+    // own address as a client key, misfiling every future meeting that
+    // carries it. The user must pick which one is the real client.
+    listEvents.mockResolvedValue([unmatched]);
+    render(<TodaysMeetingsStrip onOpenClient={() => {}} />);
+    const assign = await screen.findByTestId('meeting-assign-outlook:e2');
+    fireEvent.click(assign);
+    fireEvent.click(await screen.findByTestId('meeting-assign-option-m-hend'));
+
+    // Picking the client does NOT teach yet — a second, identifier-picking
+    // step must appear first.
+    expect(
+      useMatterStore.getState().matters.find((m) => m.id === 'm-hend')
+        ?.meetingKeys
+    ).not.toContain('stranger@x.com');
+    expect(
+      useMatterStore.getState().matters.find((m) => m.id === 'm-hend')
+        ?.meetingKeys
+    ).not.toContain('adv@firm.com');
+    expect(await screen.findByText('stranger@x.com')).toBeTruthy();
+    expect(await screen.findByText('adv@firm.com')).toBeTruthy();
+
+    fireEvent.click(
+      await screen.findByTestId('meeting-assign-identifier-stranger@x.com')
+    );
+    await waitFor(() => {
+      const keys = useMatterStore
+        .getState()
+        .matters.find((m) => m.id === 'm-hend')?.meetingKeys;
+      expect(keys).toContain('stranger@x.com');
+      // The advisor's own (unconfirmed) address must NOT be taught.
+      expect(keys).not.toContain('adv@firm.com');
     });
     expect(
       (await screen.findByTestId('meeting-chip-outlook:e2')).textContent
