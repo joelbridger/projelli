@@ -50,9 +50,11 @@ function isWealthboxHouseholdKey(key: string): boolean {
 function summaryLabel(items: ProposedCrmWrite[]): string {
   const notes = items.filter((i) => i.kind === 'note').length;
   const tasks = items.filter((i) => i.kind === 'task').length;
+  const fields = items.filter((i) => i.kind === 'field').length;
   const parts: string[] = [];
   if (notes > 0) parts.push(pluralize(notes, 'note'));
   if (tasks > 0) parts.push(pluralize(tasks, 'task'));
+  if (fields > 0) parts.push(pluralize(fields, 'field update'));
   return parts.join(' · ');
 }
 
@@ -221,7 +223,7 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
               Update Wealthbox
             </span>
             <span style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
-              {summaryLabel(items)} drafted from this note
+              {summaryLabel(items)} ready for review
             </span>
           </div>
           <span

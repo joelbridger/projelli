@@ -418,6 +418,24 @@ function enqueueFieldItem(matterId: string, overrides: Record<string, unknown> =
 }
 
 describe('CrmWriteReviewCard — field updates (Task 9c)', () => {
+  // Self-found while converging on Codex's round-2 pass (it flagged
+  // summaryLabel as a maybe, not a formal finding): a queue with ONLY field
+  // items must not render a blank collapsed summary ("" + " ready for
+  // review" reading as a stray leading space).
+  it('the collapsed summary counts field updates too (no blank label for a field-only queue)', async () => {
+    const m = useMatterStore.getState().createMatter({
+      name: 'Henderson',
+      client: 'Henderson',
+      crmHouseholdKeys: ['12345'],
+    });
+    enqueueFieldItem(m.id);
+
+    render(<CrmWriteReviewCard matterId={m.id} />);
+    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
+
+    expect(screen.getByText('1 field update ready for review')).toBeInTheDocument();
+  });
+
   it('renders three labeled columns for a field item: Existing / From this meeting / Blended', async () => {
     const m = useMatterStore.getState().createMatter({
       name: 'Henderson',
