@@ -35,6 +35,12 @@ Every piece of marketing offers the same two entrances:
 3. Archive every cited Jump page (MSA, privacy policy, methodology, pricing) — the
    receipts vault behind the hard rules.
 4. Legal pass on the comparison page + one-pager.
+5. **Support-readiness gate** (the red-team's strongest unanswered objection gets a
+   concrete answer before any replace claim ships): a written founder-support promise
+   with a stated response window, the known-limits list, the backup/export story, the
+   entity + insurance checklist, and an explicit "not for enterprise rollout yet"
+   line. Selling replacement of an operational workflow means being the vendor of
+   record — the early-access posture must be written down, not implied.
 
 ### Stage 1 (at program completion): the discovery campaign, upgraded — PEOPLE FIRST
 The staged-but-unfired campaign (`~/keepance/docs/marketing/campaigns/

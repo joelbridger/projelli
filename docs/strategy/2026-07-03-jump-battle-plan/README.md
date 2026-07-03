@@ -41,7 +41,9 @@ started as a B2B sales tool and pivoted on customer discovery. Never use it publ
 **2. At program completion we match or beat their core loop and honestly lose four
 things:** mobile capture, capture-anywhere (closed laptop/any phone), integration
 breadth, and enterprise machinery (SOC 2, admin consoles, support teams). The five
-beats that carry the deck: no bot + nothing leaves your machine; answers cited from
+beats that carry the deck: no bot + no Lantern server anywhere (in local-only mode
+nothing leaves the machine at all; in BYOK mode only the advisor's chosen AI provider
+sees prompts — never us); answers cited from
 the whole file pile (not just what's connected); real Word notes where every bullet
 clicks back to the moment it was said; safe approval-gated CRM writes; about half the
 price with the AI bill at cost.

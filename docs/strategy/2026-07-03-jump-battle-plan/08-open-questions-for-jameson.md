@@ -26,7 +26,7 @@ could hand Jump a win.
 
 **My recommendation: comparison pages, the essay, and outbound conversations — yes.
 Homepage — no.** The homepage sells our story ("connect your files, ask cited
-questions, nothing leaves your machine"); a homepage that leads with a competitor's
+questions, no vendor server in the middle"); a homepage that leads with a competitor's
 name makes them the reference point and us the accessory. Advisors who are evaluating
 Jump will find the comparison page — that's what comparison SEO is for. This is also
 the standard practice that keeps legal exposure boxed to pages a lawyer has reviewed.

@@ -53,8 +53,9 @@ because honesty is the whole game:
 **Tier A — clean replacement (say it plainly):**
 1. **The AI meeting notetaker** — Jump Meet ($100/mo, $75 small-firm), or Zocks
    ($67–109/mo), FinMate ($95–150/mo), Zeplyn, Fathom/Otter/Fireflies for those using
-   generic ones. Waves 1–3 cover capture → notes → tasks → CRM sync → follow-up →
-   prep briefs, plus the agenda export, dictation notes, and keyword tracking.
+   generic ones. Waves 1–4 cover capture → notes → tasks → CRM sync → follow-up →
+   prep briefs, plus the agenda export, dictation notes, and keyword tracking
+   (keyword tracking is Wave 4).
 2. **The dictation/transcription service** — Mobile Assistant-style dictation (now
    owned by Jump) and generic transcription subscriptions; Wave 3's dictation +
    import path covers it.
@@ -80,7 +81,8 @@ because honesty is the whole game:
 - **Planning software** (eMoney/RightCapital/MoneyGuide), **portfolio/reporting**
   (Orion etc.), **custodial platforms**, **e-signature**, **email archiving/
   supervision** (our follow-ups ride the advisor's own inbox, so existing archiving
-  keeps working — by design).
+  keeps working — by design; firms that also want AI-draft approval records get them
+  from Lantern's audit log).
 - **Word itself.** We're Word-native on purpose; Lantern makes Word the AI surface
   instead of replacing it.
 
@@ -141,7 +143,7 @@ unlocks on proof):
 
 | Rung | Claim | Unlocked by |
 |---|---|---|
-| 1 — now | "Costs less than Jump and nothing leaves your machine." Comparison-page voice: factual, cited, calm. | Program completion + the kill sheet's facts |
+| 1 — now | "Costs less than Jump, with no vendor server in the middle" (local-only mode: nothing leaves the machine; BYOK: prompts go only to the advisor's chosen provider). Comparison-page voice: factual, cited, calm. | Program completion + the kill sheet's facts |
 | 2 | "Lantern can replace Jump for desk-based advisors." | 3+ real-data pilots where capture→notes→CRM ran reliably for weeks (the 06-28 memo's funnel) |
 | 3 | "Advisors are replacing Jump with Lantern." | The first 3–5 named or anonymized switchers with their stories |
 | 4 — the war cry | "Cancel Jump. Keep the intelligence." (and the full replace-campaign of section 6) | ~10 documented switchers + support capacity to absorb them |
@@ -158,8 +160,10 @@ written to the house voice rules.
    The guide existing *is itself marketing*: it says switching is safe.
 3. **The "what happens to your data when you leave a cloud notetaker" explainer** —
    quietly devastating, entirely factual: with Lantern, leaving means your files are…
-   still your files. With any cloud vendor, leaving means hoping the export worked
-   before the retention clock ran out.
+   still your files. With a cloud vendor, leaving means an export window and a
+   contract to read (Jump's MSA gives 90 days to download after termination — and its
+   anonymized derivatives aren't part of any deletion duty). Precision here, not
+   generalization: quote the specific terms.
 
 ## 4.5 The honest limits of the claim today (print these inside the package, never bury them)
 

@@ -57,7 +57,7 @@ the sales story) · **GAP** (they win this row today, honestly).
 | Unified client profiles | "Evergreen" profiles fed by meetings/CRM | Client Map: cited, curated, completeness-scored, gap-flagged | **BEAT** on citations + gap analysis; their live structured feeds refresh from more connected systems |
 | Book-level view | Grow dashboards, Signals, Scorecards (+$50/mo) | Wave 4: Book view (completeness/staleness ranking) + whole-practice Ask (summaries-only isolation) | **DIFFERENT** — we deliberately refuse revenue/sentiment surveillance; sales story: "insight without informing on your clients" |
 | Keyword tracking | Per-meeting analytics | Wave 4: local per-client topic chips, no dashboards | **MATCH** (shaped to our stance) |
-| Benchmarks from aggregated transcripts | Yes — the Insights product | Never — structurally impossible for us | **DIFFERENT** — attack line #11: "your clients' conversations never train anyone's benchmarks" |
+| Benchmarks from aggregated transcripts | Yes — the Insights product | Never — structurally impossible for us | **DIFFERENT** — attack line #11: "your clients' conversations never feed anyone's benchmarks" (say "feed," never "train" — Jump's methodology page denies model training) |
 | MCP / API access | MCP on all plans (Jun 2026); enterprise API | Local MCP server BACKLOGGED (our answer: your agent tools reach your data locally) | **GAP today / DIFFERENT later** — and their MCP carries the unfiltered-egress disclosure we can quote |
 
 ## 2.5 Compliance & trust

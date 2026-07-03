@@ -43,8 +43,10 @@ early mistake). This is "the E&O claim that ends careers" — every client, high
 Why Jump can't follow fast: it requires reading the actual document pile, which their
 cloud would have to ingest wholesale. Why cheap for us: completeness scoring, gap chips,
 and OCR already exist; the new work is estate-document extraction rules. **Also the
-single best demo moment discovered** ("it caught the stale beneficiary"). The discovery
-report already recommends letting this one ride beside Wave 4's completeness work.
+single best demo moment discovered** ("it caught the stale beneficiary"). **Status:
+already decided — Jameson folded this into Wave 4** (deterministic, no-LLM version;
+see the Wave 4 plan). Listed here so the scoring context survives; the rest of this
+section remains recommendations only.
 
 **2. Exam-packet assembly ("audit binder on demand")** — Impact 5 · Defensibility 4 · Cost M
 One action: assemble every record of type X for clients Y over period Z into an
@@ -114,8 +116,8 @@ build.
 
 ## How this sequences with the parity program
 
-1. **Now:** finish Waves 3–4; touch nothing here except #1 if it rides Wave 4's
-   completeness work as the discovery report suggests.
+1. **Now:** finish Waves 3–4; touch nothing here (#1 already rides Wave 4's
+   completeness work, per Jameson's decision).
 2. **At program completion:** pick Tier 1 (#1–#3) as the first "beyond Jump" trio —
    they share the same extraction+templates muscle, they're all demo-friendly, and each
    produces a marketing moment Jump can't answer ("it caught the stale beneficiary,"

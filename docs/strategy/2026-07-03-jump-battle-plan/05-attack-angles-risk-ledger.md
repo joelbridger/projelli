@@ -26,17 +26,27 @@ DO NOT USE. Hard rules first, because aggression only works from clean hands.*
 
 ## The angles
 
+*Label definitions: **SAFE NOW** = safe to publish at Stage 0/1 — i.e., at program
+completion, when the referenced capability has passed its wave's acceptance gates —
+with no further evidence needed. It does not mean "publish today while Waves 3–4 are
+still building." **NEEDS EVIDENCE** = gated on real-pilot proof beyond the build
+itself. **DO NOT USE** = retired regardless of evidence.*
+
 ### Angle 1 — "Read their contract" (the license grant) — SAFE NOW ✅ (strongest angle we have)
 - **Factual basis (VERIFIED, jump.ai/msa):** Jump's customer agreement grants Jump a
   "worldwide, non-exclusive, irrevocable (during the Term), royalty-free… sublicensable
   and transferable license to use, process… and prepare derivative works of the
   Customer Data… (d) to convert Customer Data to Anonymized Data for Jump to use **for
-  any legal purpose**" — and Jump owns Anonymized Data outright ("Customer hereby
-  assigns all such right, title, and interest").
+  any legal purpose**." The MSA declares Jump "the sole and exclusive owner" of
+  Anonymized Data, and the customer signs away any claim to it ("To the extent
+  Customer has any right, title or interest in the Anonymized Data… Customer hereby
+  assigns all such right, title, and interest"). Public use must keep that "to the
+  extent" qualifier — quote, don't compress.
 - **Punchy version (draft, house voice):** *"I read Jump's customer agreement so you
-  don't have to. Once your client meetings become 'anonymized data,' they're Jump's
-  property, for any legal purpose, forever. My contract can't say that. There's no
-  server to license your data to."*
+  don't have to. It licenses your client meetings to Jump to 'prepare derivative
+  works,' and once they become 'anonymized data,' the contract makes Jump the sole
+  and exclusive owner, for any legal purpose. Their words, not mine. My contract
+  can't say any of that. There's no server to license your data to."*
 - **Blowback:** Jump's fair reply is "standard SaaS language, benchmarks are opt-in,
   we never train models on your data." All true — so we must never say "they train on
   your data" (they contractually don't) and never conflate the opt-in benchmarks
@@ -45,7 +55,7 @@ DO NOT USE. Hard rules first, because aggression only works from clean hands.*
   risk: low if verbatim. Credibility risk: low — it invites advisors to read the
   contract, which is exactly the behavior a fiduciary respects.
 
-### Angle 2 — "Your clients never train anyone's benchmarks" — SAFE NOW ✅ (with the honesty caveat)
+### Angle 2 — "Your clients never feed anyone's benchmarks" — SAFE NOW ✅ (with the honesty caveat)
 - **Factual basis (VERIFIED, jump.ai/insights-data-methodology):** Jump's benchmarks
   are built from "hundreds of thousands of anonymized and aggregated advisor-client
   transcripts." Participation is "entirely optional and off by default" — an *account
@@ -53,7 +63,9 @@ DO NOT USE. Hard rules first, because aggression only works from clean hands.*
 - **Punchy version:** *"Jump built a benchmarks product out of hundreds of thousands of
   advisor-client conversations. Anonymized, aggregated, opt-in for the firm. Still:
   did the client in that meeting opt in? With Lantern the question can't come up. The
-  conversation never leaves the room."*
+  conversation never leaves the room."* (Wording discipline: say conversations
+  "feed" or "power" their benchmarks — never "train," which Jump could read as a
+  model-training accusation their methodology page explicitly denies.)
 - **Blowback:** Must always include "anonymized, opt-in" or we're materially
   misleading and they get a clean public correction. With the caveat included, the
   angle actually *strengthens* — we're being fairer to Jump than Jump's competitors
@@ -61,23 +73,25 @@ DO NOT USE. Hard rules first, because aggression only works from clean hands.*
 
 ### Angle 3 — The MCP egress disclosure — SAFE NOW ✅ (fresh: their June 2026 launch)
 - **Factual basis (VERIFIED, jump.ai/privacy-policy, updated June 30, 2026):** when a
-  firm connects a third-party AI to Jump (their new MCP support, launched June 25),
-  transcripts, documents, contact data, "incidental health information," financial
-  and family details flow out; Jump's policy states the connector "does not filter or
-  redact sensitive content before delivery" and "Jump cannot control and is not
-  responsible for how the third-party service processes, stores, retains, or uses
-  your data… including whether your data may be used to train or improve the
-  third-party service's AI models."
+  firm authorizes a third-party AI connection to Jump (their new MCP support, launched
+  June 25 — read-only, acting "on your behalf"), transcripts, documents, contact data,
+  "incidental health information," financial and family details flow out; Jump's
+  policy states the connector "does not filter or redact sensitive content before
+  delivery unless you or your firm has special configurations or agreements in place
+  with Jump," and "Jump cannot control and is not responsible for how the third-party
+  service processes, stores, retains, or uses your data… including whether your data
+  may be used to train or improve the third-party service's AI models."
 - **Punchy version:** *"Jump just added MCP so other AI tools can read your meetings.
-  Their own privacy policy says what leaves: transcripts, documents, health details,
-  family details, unfiltered, and once it's out, Jump 'cannot control' whether it
-  trains someone else's model. Their words, June 30, 2026. Lantern's version of MCP
-  will run on your machine, where 'out' doesn't exist."*
-- **Blowback:** Their reply: "it's user-initiated and read-only." True and stated in
-  the same policy — include it. The sting survives: the *firm* initiates, the *client's*
-  health details flow, and the local alternative is structurally different. Legal
-  risk: minimal (verbatim policy quotes). Note: our own MCP answer is backlogged —
-  don't promise dates.
+  It's your firm's choice to connect one, and it's read-only. But read their privacy
+  policy on what goes out when you do: transcripts, documents, health details, family
+  details, not filtered by default, and once it's out, Jump 'cannot control' whether
+  it trains someone else's model. Their words, June 30, 2026. Lantern's version of
+  MCP will run on your machine, where 'out' doesn't exist."*
+- **Blowback:** with the authorized/read-only framing built in (above), their fair
+  reply is already inside our copy — which is the strongest position. The sting
+  survives: the *firm* authorizes, the *clients* in the transcripts were never asked,
+  and the local alternative is structurally different. Legal risk: minimal (verbatim
+  policy quotes). Note: our own MCP answer is backlogged — don't promise dates.
 
 ### Angle 4 — "No bot in the room" — SAFE NOW ✅ (ships with Wave 3)
 - **Factual basis:** Jump's capture is a notetaker bot/cloud recorder clients can see
@@ -103,8 +117,10 @@ DO NOT USE. Hard rules first, because aggression only works from clean hands.*
   the InvestmentNews price-compression analysis; our §4.3 table.
 - **Punchy version:** *"Jump's stack runs $1,200 to $2,640 per advisor per year, and
   the price has been restructured twice in 18 months. Lantern is one license, about
-  half that, and the AI runs on your own key at cost — pennies, with a receipt. When
-  the AI industry raises prices, your bill doesn't move."*
+  half the full Jump stack at today's list prices, and the AI runs on your own key at
+  cost — pennies, with a receipt. When the AI industry raises prices, your bill
+  doesn't move."* (Re-run this sentence against whatever price Q6 in section 8
+  lands on — it must stay literally true at the chosen price.)
 - **Blowback:** price wars favor the funded incumbent; they can cut again. Which is
   why price is one pillar of five, never the lead. Keep numbers dated ("as of July
   2026, jump.ai/pricing") so their next price change doesn't make us liars.
@@ -165,13 +181,15 @@ DO NOT USE. Hard rules first, because aggression only works from clean hands.*
   contrast without asserting anything about Jump. Even this stays low-key.
 
 ### Angle 10 — "What happens when you leave" — SAFE NOW ✅ (the quiet closer)
-- **Factual basis:** Jump's retention modes and export exist, but a departing
-  customer's records live in Jump until exported; Cooley's 204-2 analysis notes
-  deletion of a required record "may itself be the violation." Lantern's artifacts
-  are ordinary files on the advisor's machine; if we vanish, nothing is stranded.
+- **Factual basis:** Jump's MSA gives a departing customer 90 days to download
+  Customer Data after termination, and its anonymized derivatives sit outside any
+  deletion duty (VERIFIED, jump.ai/msa); Cooley's 204-2 analysis notes deletion of a
+  required record "may itself be the violation." Lantern's artifacts are ordinary
+  files on the advisor's machine; if we vanish, nothing is stranded.
 - **Punchy version:** *"Ask any vendor two questions. What do you keep when I leave?
   And what happens to my records if you shut down? My answers: nothing, and nothing.
-  Your files were always yours."*
+  Your files were always yours. Jump's contract answers differently: 90 days to
+  download, and the anonymized data stays theirs."*
 - **Blowback:** near-zero; it simultaneously answers the "one-person vendor" fear —
   the strongest objection to us — by making vendor risk symmetrical and ours smaller.
 

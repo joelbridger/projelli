@@ -51,20 +51,26 @@ notetaking is only the beginning."
 2. **The contract takes more than the marketing admits.** Their MSA grants Jump an
    irrevocable (during term), sublicensable, transferable license to "prepare
    derivative works of the Customer Data… to convert Customer Data to Anonymized Data
-   for Jump to use **for any legal purpose**" — and Jump *owns* that Anonymized Data
-   outright; the customer contractually assigns any interest in it (VERIFIED,
-   jump.ai/msa). This is the legal machinery behind their benchmarks product, which
+   for Jump to use **for any legal purpose**" — and the customer contractually signs
+   away any interest in that Anonymized Data ("To the extent Customer has any right,
+   title or interest in the Anonymized Data… Customer hereby assigns all such right,
+   title, and interest") while the MSA elsewhere declares Jump "the sole and exclusive
+   owner" of it (VERIFIED, jump.ai/msa — quote with the qualifier intact whenever this
+   goes public). This is the legal machinery behind their benchmarks product, which
    they describe as built from "hundreds of thousands of anonymized and aggregated
    advisor-client transcripts" (VERIFIED, jump.ai/insights-data-methodology; the
    benchmark *program* is opt-in and off by default — the MSA license is not).
-3. **Their new openness is a new leak.** Jump's own privacy policy says that when a
-   firm connects a third-party AI service via their connectors/MCP, meeting
-   transcripts, documents, contact data, "incidental health information," financial
-   and family details flow out **unfiltered** ("It does not filter or redact sensitive
-   content before delivery"), and "Jump cannot control and is not responsible for how
-   the third-party service processes, stores, retains, or uses your data… **including
+3. **Their new openness is a new egress path.** Jump's own privacy policy says that
+   when a firm connects a third-party AI service via their connectors/MCP (read-only,
+   authorized by the firm, acting "on your behalf"), meeting transcripts, documents,
+   contact data, "incidental health information," financial and family details flow
+   out — and Jump's connector "does not filter or redact sensitive content before
+   delivery unless you or your firm has special configurations or agreements in place
+   with Jump," after which "Jump cannot control and is not responsible for how the
+   third-party service processes, stores, retains, or uses your data… **including
    whether your data may be used to train or improve the third-party service's AI
-   models**" (VERIFIED, jump.ai/privacy-policy, updated June 30, 2026).
+   models**" (VERIFIED, jump.ai/privacy-policy, updated June 30, 2026). The firm
+   authorizes the connection; the clients in the transcripts don't.
 4. **A bot in the room.** Capture is a notetaker bot or cloud recorder; clients see
    it join. Competitor Zocks attacks this exact surface ("clients often don't want to
    be recorded"), and recording triggers all-party-consent law in ~12 states plus
