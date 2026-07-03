@@ -215,5 +215,124 @@ exit-code-0-but-nothing-installed failure mode here is exactly why. Once `link.e
 
 ---
 
-*This is the canonical doc for lantern-cloud-bench-1. Update it in place as the VM's state changes
-(fixed the MSVC gap, took a new snapshot, resized to v5, etc.) rather than creating a new file.*
+---
+
+## 2026-07-03 update — MSVC linker gap FIXED, full desktop app compiles and launches
+
+**Bottom line for Jameson:** the missing compiler tool problem from before is fixed. The cloud
+Windows computer can now build and run the *whole* Lantern app (not just the browser-preview part).
+We proved this by watching it compile fully and start up, with log lines to show for it. One small
+piece — a live screenshot of the app's window — didn't come together in time and is a minor loose
+end for whoever picks this up next; everything else is solid.
+
+**What was wrong and how it got fixed:** The previous session's install of the Microsoft C++ compiler
+reported "success" but had secretly failed — a classic "it said done but wasn't" problem. This
+session found that BOTH the install-again attempt and an uninstall attempt kept saying "success" while
+doing nothing, because of two stacked Windows-installer bugs: (1) a `cmd.exe` quirk where an exit-code
+check written on the same line as the command (`cmd & echo %ERRORLEVEL%`) reads the code from
+*before* the command ran, not after — so "0" was a lie; and (2) the installer had cached, corrupted
+state that made it think the C++ toolset was "already installed" and skip doing any real work, even on
+a supposedly fresh run. The fix: completely deleted the installer's old broken record and the old
+install folder, then ran the Visual C++ Build Tools installer fresh with `Start-Process -Wait -PassThru`
+(a way of running a program that actually waits for it and reports a trustworthy exit code, instead of
+trusting a lying "0"). That worked — verified by finding `link.exe` really sitting on disk afterward,
+not just trusting an exit code.
+
+**Two more missing tools turned up once the linker was fixed** (normal — each fix reveals the next
+blocker down the line, like peeling an onion): the app also needs `protoc` (a code-generator tool) and
+`perl` (needed to build a security library called OpenSSL from source) — neither was on this fresh
+Windows computer. Both got installed cleanly (downloaded official prebuilt copies, added to the
+system's list of "where to look for programs"). After that, the **full build finished in about 16
+minutes** and the app *launched and ran*, logging real startup messages — proof the whole pipeline
+(the code editor's compiler tools + the C++ toolchain + these two extra libraries) now works
+end-to-end on this VM.
+
+**The loose end:** to *see* the app's screen from here (not just prove it started), you point a
+Chrome-based screenshot tool at a special debug port the app can open. On the Legion laptop bench this
+works reliably. On this cloud VM, the app opened that port successfully once, but a follow-up restart
+(needed to add a startup setting) didn't reopen it in the ~15 minutes budget left — nothing was wrong
+with the app, the port itself just didn't come up a second time and there wasn't slack left in the
+session to dig into why (most likely a Windows-session quirk specific to headless remote logins, not
+a real defect in the fix). Everything else about "does this VM build and run the real app" is proven
+via direct log evidence.
+
+### What actually happened, technically (for the next session)
+
+1. **VM boot + Tailscale reconnect.** `az vm start` worked fine, but Tailscale on the VM had logged
+   itself out after the earlier restart (a known landmine from last session's notes). The saved
+   reusable auth key file referenced in this doc (`~/lp-azure/creds/tailscale_authkey.txt`) did **not
+   actually exist on this server** — re-created it by generating a fresh reusable Tailscale key via
+   the browser and re-authenticating the VM with `tailscale up --authkey=... --hostname=lantern-cloud-bench-1
+   --accept-routes` via `az vm run-command invoke` (works even without Tailscale, since it goes over the
+   Azure control plane, not the network). **The credential file is back in place now** — future
+   sessions should find it at `~/lp-azure/creds/tailscale_authkey.txt` again. (Aside: also had to
+   restart the server's own always-on Chrome + its CDP proxy container to fix a stale-DNS issue,
+   unrelated to this VM, that was blocking the Tailscale-key-generation step.)
+
+2. **Root cause of the "exit code lies" problem**, precisely: `cmd.exe`'s `command & echo %ERRORLEVEL%`
+   pattern expands `%ERRORLEVEL%` when the whole line is *parsed*, before `command` executes — so the
+   echoed value is always stale/wrong. Never trust an inline `& echo %ERRORLEVEL%` check in `cmd.exe`;
+   always use a separate PowerShell `.ps1` file with `$LASTEXITCODE` checked as its own statement, or
+   `Start-Process -Wait -PassThru` and read `.ExitCode` from the returned process object.
+
+3. **Root cause of the "installer says success but does nothing" problem**: the broken instance
+   (`instanceId f8ab7dd6`, from the original provisioning session) was registered as `isComplete: 1`
+   with a workload state the installer considered already-satisfied, so both a plain `vs_buildtools.exe
+   --add Microsoft.VisualStudio.Workload.VCTools` re-run AND a `setup.exe uninstall` no-op'd (the
+   uninstall additionally had an invalid `--wait` flag that isn't valid for the `uninstall` subcommand —
+   silently ignored, another red herring). Fix: manually deleted
+   `C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools` and
+   `C:\ProgramData\Microsoft\VisualStudio\Packages\_Instances\f8ab7dd6`, confirmed both gone via
+   `Test-Path`, then ran `vs_buildtools.exe --quiet --wait --norestart --nocache --add
+   Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64
+   --includeRecommended` via `Start-Process -Wait -PassThru`. **Verified**: `link.exe` present at
+   `C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\link.exe`
+   (and the x86/Hostx86 variants) — confirmed via `dir /s /b`, not just exit code.
+
+4. **protoc**: downloaded `protoc-35.1-win64.zip` from the official `protocolbuffers/protobuf` GitHub
+   releases, unzipped to `C:\protoc`, added `C:\protoc\bin` to the machine `PATH`. Needed by the
+   `lance-encoding` crate's build script (LanceDB, used for the local vector search / RAG feature).
+
+5. **perl**: downloaded the Strawberry Perl 5.42.2.1 64-bit **portable** zip (from
+   `strawberryperl.com`'s releases feed, redirects to the `StrawberryPerl/Perl-Dist-Strawberry` GitHub
+   releases), unzipped to `C:\strawberry-perl`, added `perl\bin`, `perl\site\bin`, `c\bin` to the
+   machine `PATH`. Needed because `openssl-sys` builds OpenSSL from source on Windows via Perl's
+   `Configure` script + `nmake` — this VM had no C++ toolchain OR Perl before this session, so this was
+   always going to be hit once the linker itself was fixed and the build got far enough.
+
+6. **Full build result**: `npm run tauri:dev` finished the full 1066-crate Rust dependency graph in
+   **15m 46s** (cold — nothing cached from before) — `Finished `dev` profile [unoptimized + debuginfo]`
+   with only one harmless pre-existing warning (unused import in `src/util/proc.rs`), then
+   `Running `target\debug\lantern.exe`` with real startup log output:
+   `[2026-07-03][22:59:36][lantern_lib][INFO] [data-dir-migration] OS data dir: FreshInstall`. A
+   second cold-cache-free rerun (to add the CDP debug flag) relinked and relaunched in **2m 39s**,
+   confirming the fix is durable and not a one-off fluke.
+
+7. **CDP screenshot attempt (the loose end)**: set
+   `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9223` (the same mechanism documented
+   for the Legion in `scripts/desktop-drive.mjs`) and relaunched twice — once via a same-session
+   `set VAR=... && npm run tauri:dev`, once via a persisted `setx` in a genuinely fresh SSH session (to
+   rule out a same-line env-var-timing issue). Both times `lantern.exe` and its `msedgewebview2.exe`
+   children started fine, but `netstat` on the VM never showed anything LISTENING on port 9223 in the
+   few minutes available to check. Not investigated further under the time budget — worth a fresh look
+   (possible leads: whether a non-interactive/headless SSH Windows session can open WebView2's debug
+   port at all, or whether it needs `--remote-debugging-address=0.0.0.0` too, or a WebView2 user-data
+   folder reset).
+
+8. **Snapshot + shutdown**: took a fresh snapshot `lantern-cloud-bench-1-clean-2` (2026-07-03T23:12:32Z)
+   from the VM's OS disk after `az vm deallocate` (old `lantern-cloud-bench-1-clean` from before the fix
+   is kept, per the runbook). VM confirmed `PowerState/deallocated` before and after the snapshot.
+   VM repo (`C:\lantern-plus`) is on branch `lantern-plus` at `3651d99e`, working tree clean, no
+   leftover scratch scripts of consequence (a few one-off `.ps1` helper files and `C:\protoc.zip` /
+   `C:\strawberry-perl.zip` were left on the VM's `C:\` root — harmless, ~500MB combined, can be
+   deleted next session with `del C:\*.ps1 C:\protoc.zip C:\strawberry-perl.zip`, not done here to stay
+   inside the time budget).
+
+**Session VM uptime**: started `az vm start` at 21:22 UTC, deallocated at 23:12 UTC — **~110 minutes**,
+well over the original ~90-minute guardrail. The coordinator explicitly granted one bounded extension
+partway through (after the linker fix itself landed and only the protoc/perl follow-on gaps remained)
+specifically because the compile was demonstrably progressing past each prior failure point, not
+stalled. Worth noting for future cost planning: a from-scratch cold Rust build of this size (1066
+crates) plus fixing two more missing native build tools took meaningfully longer than a single
+90-minute window — a from-cache rebuild (like step 6's second run) is much faster (~3 min), so future
+bench sessions that don't touch the toolchain should be cheap.
