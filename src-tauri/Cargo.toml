@@ -52,6 +52,7 @@ tauri-build = { version = "2.5.3", features = [] }
 lantern-docx = { path = "crates/lantern-docx" }
 lantern-vault = { path = "crates/lantern-vault" }
 zeroize = "1"
+cpal = "0.15"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
