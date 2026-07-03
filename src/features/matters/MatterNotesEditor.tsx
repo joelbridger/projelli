@@ -109,6 +109,19 @@ export function MatterNotesEditor({
     // eslint-disable-next-line @typescript-eslint/no-base-to-string -- Y.Text.toString() is the documented way to read its content (same pattern as the EditorState.create() call below).
     return syncClient?.doc.getText('notes').toString() ?? '';
   });
+  // Codex review catch (P2): if this component instance is reused for a
+  // DIFFERENT client (syncClient changes without unmounting), the lazy
+  // useState initializer above only ran once — noteText would keep the
+  // previous client's text until the user typed, and "Send to Wealthbox"
+  // could queue the wrong client's note under the new matter.id. React's
+  // "adjust state during render" pattern resyncs it without the cascading-
+  // render effect-setState lint issue.
+  const [prevSyncClient, setPrevSyncClient] = useState(syncClient);
+  if (syncClient !== prevSyncClient) {
+    setPrevSyncClient(syncClient);
+    // eslint-disable-next-line @typescript-eslint/no-base-to-string -- see above.
+    setNoteText(syncClient?.doc.getText('notes').toString() ?? '');
+  }
   const [sentConfirmation, setSentConfirmation] = useState(false);
   const enqueueCrmWrite = useCrmWriteQueueStore((s) => s.enqueue);
   // BUG-032 (data loss): flushes the latest pending disk-mirror write. Set while

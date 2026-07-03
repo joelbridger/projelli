@@ -257,6 +257,29 @@ describe('MatterNotesEditor', () => {
     expect(items[0]).toMatchObject({ title: 'One line only', body: 'One line only' });
   });
 
+  // Codex adversarial review catch (P2): a reused editor instance switching
+  // to a different client's syncClient must drop the previous client's note
+  // text immediately, or "Send to Wealthbox" could queue the WRONG client's
+  // note under the NEW client's matter.id — a cross-client data leak.
+  it('resets note text when the syncClient switches to a different client (no unmount)', () => {
+    const matterA = makeMatter({ id: 'matter-a', firmMatterId: 'fm-a' });
+    const matterB = makeMatter({ id: 'matter-b', firmMatterId: 'fm-b' });
+    const ydocA = new Y.Doc();
+    ydocA.getText('notes').insert(0, "Client A's confidential note");
+    const clientA = makeMockClient(ydocA);
+    const clientB = makeMockClient(new Y.Doc()); // client B's notes are empty
+
+    const { rerender } = render(<MatterNotesEditor matter={matterA} syncClient={clientA} />);
+    expect(screen.getByTestId('matter-notes-send-to-wealthbox')).not.toBeDisabled();
+
+    // Same component instance, switched to a different client with an empty doc.
+    rerender(<MatterNotesEditor matter={matterB} syncClient={clientB} />);
+
+    // Must reflect client B's (empty) notes, not leak client A's text — if the
+    // bug were present this would still be enabled with A's stale text.
+    expect(screen.getByTestId('matter-notes-send-to-wealthbox')).toBeDisabled();
+  });
+
   it('"Send to Wealthbox" is disabled when the notes are empty', () => {
     const matter = makeMatter();
     const client = makeMockClient();

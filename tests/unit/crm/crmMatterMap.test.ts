@@ -162,6 +162,15 @@ describe('buildInverseCrmMap', () => {
   it('returns an empty map for an empty matters list', () => {
     expect(buildInverseCrmMap([]).size).toBe(0);
   });
+
+  it('dedupes a household that appears in TWO matters (first wins) — mirrors buildCrmMatterMap BUG-B defense', () => {
+    // A stale duplicate must resolve to exactly ONE matter, or the review
+    // card could approve a write into the wrong client's CRM household.
+    const matters = [matter('m1', ['hh-dup']), matter('m2', ['hh-dup'])];
+    const inv = buildInverseCrmMap(matters);
+    expect(inv.get('m1')).toEqual(['hh-dup']);
+    expect(inv.get('m2')).toBeUndefined();
+  });
 });
 
 describe('additive connector matter-map shells', () => {
