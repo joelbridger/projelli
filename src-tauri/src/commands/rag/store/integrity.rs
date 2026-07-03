@@ -40,6 +40,19 @@ const UNSAFE_PATHS_FILE: &str = ".unsafe_tokens";
 /// the tombstone file successfully.
 const INTEGRITY_UNKNOWN_FILE: &str = ".integrity_unknown";
 
+/// Durable "a clean full rebuild is required" sentinel (sibling of the others).
+/// Set when the boot reconcile's deleted-source purge is DEGRADED — the
+/// mass-deletion sanity breaker refused to purge, or the consecutive-failure
+/// backoff aborted the purge loop — leaving deleted-file rows un-purged and
+/// un-tombstoned. Unlike the integrity-unknown sentinel (which only forces a full
+/// WALK that re-indexes present files but never drops orphaned rows), this forces
+/// the reconcile to `drop_table` + full re-index on the next boot, exactly like a
+/// manifest key-format upgrade. That is the only recovery that actually removes
+/// the un-purged rows (a false mass-deletion re-indexes every present file under
+/// correct tokens; a real-but-unpurgeable deletion is dropped with the table).
+/// Removed only after that clean full walk completes.
+const REBUILD_REQUIRED_FILE: &str = ".rebuild_required";
+
 /// Path of the durable tombstone file. Lives in the `.lantern/` dir (the parent
 /// of `vectors/`) so a locked/unwritable LanceDB dataset dir cannot block it.
 pub(crate) fn unsafe_paths_path(workspace_root: &Path) -> PathBuf {
@@ -77,6 +90,46 @@ pub fn clear_integrity_unknown(workspace_root: &Path) {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
         Err(e) => log::warn!(
             "rag: failed to clear integrity-unknown sentinel {:?}: {e}",
+            path
+        ),
+    }
+}
+
+/// Path of the durable rebuild-required sentinel (sibling of `.integrity_unknown`).
+fn rebuild_required_path(workspace_root: &Path) -> PathBuf {
+    workspace_root
+        .join(crate::identity::WORKSPACE_DATA_DIR)
+        .join(REBUILD_REQUIRED_FILE)
+}
+
+/// Mark the workspace as needing a clean `drop_table` + full re-index on the next
+/// boot. Set by the degraded deleted-source purge (breaker/backoff). Best-effort;
+/// logged on failure. See [`REBUILD_REQUIRED_FILE`] for why a full WALK alone is
+/// not enough.
+pub fn mark_rebuild_required(workspace_root: &Path) {
+    let path = rebuild_required_path(workspace_root);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).ok();
+    }
+    if let Err(e) = std::fs::write(&path, b"1") {
+        log::error!("rag: failed to write rebuild-required sentinel {:?}: {e}", path);
+    }
+}
+
+/// True iff a clean full rebuild is durably pending (the sentinel file exists).
+pub fn is_rebuild_required(workspace_root: &Path) -> bool {
+    rebuild_required_path(workspace_root).exists()
+}
+
+/// Clear the durable rebuild-required sentinel after the clean full rebuild it
+/// demanded has completed.
+pub fn clear_rebuild_required(workspace_root: &Path) {
+    let path = rebuild_required_path(workspace_root);
+    match std::fs::remove_file(&path) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => log::warn!(
+            "rag: failed to clear rebuild-required sentinel {:?}: {e}",
             path
         ),
     }

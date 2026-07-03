@@ -79,6 +79,14 @@ pub async fn rag_set_workspace(
             }
         }
     }
+    // A stale-key-format manifest (older than the current MANIFEST_VERSION) must
+    // force a drop+rebuild. Record that durably NOW, at the earliest per-open
+    // hook, so a pre-reconcile incremental manifest write (PDF-record / watcher
+    // index) can't load+save it forward to the current version and erase the
+    // signal before reconcile checks it. (Every manifest writer calls
+    // `require_workspace`, which needs the root set below — so this always wins.)
+    mark_rebuild_if_manifest_stale(&target);
+
     *guard = Some(target);
     state.cancel_flag.store(false, Ordering::SeqCst);
     if changed {
@@ -867,6 +875,11 @@ pub(crate) struct IndexTally {
     /// BUG-099: set if ANY durable tombstone write failed this walk. When true the
     /// walk must NOT stamp completion, so the next launch re-runs a full walk.
     pub(crate) durable_tombstone_failed: bool,
+    /// Set when the deleted-source purge was aborted by the mass-deletion sanity
+    /// breaker or the consecutive-failure backoff. Like `durable_tombstone_failed`
+    /// it stops the walk stamping completion, so the escalated rebuild (already
+    /// armed via the durable integrity-unknown sentinel) actually runs next launch.
+    pub(crate) purge_degraded: bool,
     pub(crate) skipped_paths: Vec<String>,
 }
 
@@ -1090,12 +1103,17 @@ pub(crate) async fn finalize_walk(
     reindexed: u32,
     deleted: u32,
 ) {
-    let mut fail_closed_unresolved = tally.durable_tombstone_failed;
-    if tally.durable_tombstone_failed {
+    let mut fail_closed_unresolved = tally.durable_tombstone_failed || tally.purge_degraded;
+    if tally.durable_tombstone_failed || tally.purge_degraded {
         log::error!(
-            "rag: a durable tombstone write FAILED this walk — NOT stamping the \
+            "rag: this walk did not complete cleanly ({}) — NOT stamping the \
              completion marker so the next launch re-runs a full walk (prevents a \
-             stale citation resurfacing on restart)"
+             stale citation resurfacing on restart)",
+            if tally.durable_tombstone_failed {
+                "a durable tombstone write failed"
+            } else {
+                "the deleted-source purge was aborted by the sanity breaker/backoff"
+            }
         );
     } else if effective_full {
         // A clean FULL walk re-derived the complete tombstone set (every file was
@@ -1107,6 +1125,11 @@ pub(crate) async fn finalize_walk(
         match store::write_unsafe_tokens(workspace, &guard) {
             Ok(()) => {
                 store::clear_integrity_unknown(workspace);
+                // A clean full walk (which, on a degraded-purge recovery, was a
+                // drop_table + full re-index) has removed every orphaned row, so
+                // the rebuild-required demand is satisfied. Clear it here — only on
+                // this clean-completion path — so an interrupted rebuild retries.
+                store::clear_rebuild_required(workspace);
                 state.index_integrity_unknown.store(false, Ordering::SeqCst);
                 drop(guard);
                 if let Err(e) = store::write_index_version(workspace) {
