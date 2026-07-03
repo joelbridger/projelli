@@ -71,6 +71,42 @@ describe('createDeleteBurstBatcher', () => {
     expect(maxConcurrent).toBe(1);
   });
 
+  it('never runs a second flush while one is in-flight, even when new deletes arrive mid-batch', async () => {
+    // Regression for a race: enqueuing more paths WHILE a batch is still
+    // awaiting deletePath used to be able to arm a second debounce timer,
+    // firing an overlapping concurrent flush — exactly the storm this
+    // batcher exists to prevent.
+    let inFlight = 0;
+    let maxConcurrent = 0;
+    let callCount = 0;
+    let batcher: ReturnType<typeof createDeleteBurstBatcher>;
+    batcher = createDeleteBurstBatcher(
+      vi.fn().mockImplementation(async () => {
+        inFlight += 1;
+        maxConcurrent = Math.max(maxConcurrent, inFlight);
+        callCount += 1;
+        // First call: while still awaiting, more deletes stream in — this is
+        // the moment a second flush could previously have started.
+        if (callCount === 1) {
+          batcher.enqueue('/ws/mid-batch-1.docx');
+          batcher.enqueue('/ws/mid-batch-2.docx');
+        }
+        await Promise.resolve();
+        await Promise.resolve();
+        inFlight -= 1;
+      }),
+      { windowMs: 250 },
+    );
+
+    batcher.enqueue('/ws/a.docx');
+    batcher.enqueue('/ws/b.docx');
+    await vi.advanceTimersByTimeAsync(250);
+    await vi.runAllTimersAsync();
+
+    expect(maxConcurrent).toBe(1);
+    expect(callCount).toBe(4); // a, b, mid-batch-1, mid-batch-2 — all drained by one flush
+  });
+
   it('never lets a per-path failure become an unhandled rejection, and logs once per batch', async () => {
     const deletePath = vi
       .fn()

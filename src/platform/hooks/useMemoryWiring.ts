@@ -333,48 +333,68 @@ export function createDeleteBurstBatcher(
 
   let pending = new Set<string>();
   let flushTimer: ReturnType<typeof setTimeout> | null = null;
+  let isFlushing = false;
   let consecutiveFailures = 0;
   let breakerOpenUntil = 0;
   let disposed = false;
 
+  // Drains `pending` in a loop rather than a single pass, guarded by
+  // `isFlushing`. A sustained delete storm keeps calling `enqueue` while a
+  // batch is still awaiting `deletePath`; without this guard a new debounce
+  // timer would fire and start a SECOND concurrent flush, bringing back the
+  // exact overlapping-backend-calls problem this batcher exists to prevent.
+  // New arrivals during an in-flight flush are simply picked up by the next
+  // loop iteration — no extra timer needed.
   const flush = async (): Promise<void> => {
     flushTimer = null;
-    const paths = Array.from(pending);
-    pending = new Set();
-    if (disposed || paths.length === 0) return;
-
-    if (Date.now() < breakerOpenUntil) {
-      log(
-        `[memory] delete backend failing repeatedly; dropping ${paths.length} delete event(s) during cooldown`,
-      );
-      return;
-    }
-
-    let failed = 0;
-    for (const path of paths) {
-      if (disposed) return;
-      try {
-        // eslint-disable-next-line no-await-in-loop -- deliberate: sequential,
-        // bounded processing is the fix (never N concurrent backend calls).
-        await deletePath(path);
-        consecutiveFailures = 0;
-      } catch {
-        failed += 1;
-        consecutiveFailures += 1;
-        if (consecutiveFailures >= breakerThreshold) {
-          breakerOpenUntil = Date.now() + cooldownMs;
-          const processed = paths.indexOf(path) + 1;
-          const remaining = paths.length - processed;
+    if (isFlushing || disposed) return;
+    isFlushing = true;
+    try {
+      while (pending.size > 0 && !disposed) {
+        if (Date.now() < breakerOpenUntil) {
+          const dropped = pending.size;
+          pending = new Set();
           log(
-            `[memory] ${consecutiveFailures} consecutive delete failures; backing off for ${cooldownMs}ms` +
-              (remaining > 0 ? `, dropping ${remaining} pending delete event(s)` : ''),
+            `[memory] delete backend failing repeatedly; dropping ${dropped} delete event(s) during cooldown`,
           );
-          return;
+          break;
+        }
+
+        const paths = Array.from(pending);
+        pending = new Set();
+        let failed = 0;
+        let breakerTripped = false;
+        for (const path of paths) {
+          if (disposed) return;
+          try {
+            // eslint-disable-next-line no-await-in-loop -- deliberate: sequential,
+            // bounded processing is the fix (never N concurrent backend calls).
+            await deletePath(path);
+            consecutiveFailures = 0;
+          } catch {
+            failed += 1;
+            consecutiveFailures += 1;
+            if (consecutiveFailures >= breakerThreshold) {
+              breakerOpenUntil = Date.now() + cooldownMs;
+              const processed = paths.indexOf(path) + 1;
+              const remaining = paths.length - processed + pending.size;
+              pending = new Set();
+              log(
+                `[memory] ${consecutiveFailures} consecutive delete failures; backing off for ${cooldownMs}ms` +
+                  (remaining > 0 ? `, dropping ${remaining} pending delete event(s)` : ''),
+              );
+              breakerTripped = true;
+              break;
+            }
+          }
+        }
+        if (breakerTripped) break;
+        if (failed > 0) {
+          log(`[memory] ${failed} of ${paths.length} delete event(s) failed`);
         }
       }
-    }
-    if (failed > 0) {
-      log(`[memory] ${failed} of ${paths.length} delete event(s) failed`);
+    } finally {
+      isFlushing = false;
     }
   };
 
@@ -382,7 +402,9 @@ export function createDeleteBurstBatcher(
     enqueue(path: string) {
       if (disposed) return;
       pending.add(path);
-      if (!flushTimer) {
+      // While a flush is in-flight it will drain this addition itself (see
+      // above) — starting a timer here would race a second flush in.
+      if (!flushTimer && !isFlushing) {
         flushTimer = setTimeout(() => {
           void flush();
         }, windowMs);
