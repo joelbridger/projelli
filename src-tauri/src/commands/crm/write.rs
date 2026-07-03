@@ -77,6 +77,8 @@ pub enum CrmWriteError {
     InvalidInput(&'static str),
     #[error("could not record this write before sending it — try again")]
     LedgerUnavailable,
+    #[error("this field changed in the CRM since the proposal — review the new value before approving again")]
+    StaleFieldValue(String),
 }
 
 fn norm(s: &str) -> String {
@@ -674,6 +676,124 @@ fn upsert_ledger_before_send(
             "pending",
             None,
             true, // fresh send attempt starting now — always reset the recovery floor
+        )
+        .map_err(|e| {
+            log::warn!("crm outbound ledger pre-send write failed: {e:#}");
+            CrmWriteError::LedgerUnavailable
+        })
+}
+
+/// Idempotent orchestration around a `CrmFieldUpdateRequest` (Task 9c) —
+/// mirrors `push_crm_write`'s ledger/in-flight-guard/audit-path reuse (same
+/// `crm_outbound_writes` table, same `WriteInFlightGuard`), but its
+/// idempotency story is different because the underlying HTTP verb is
+/// different: a note/task CREATE is a POST (a duplicate call makes a SECOND
+/// object, so `push_crm_write` must verify-before-resend against an
+/// ambiguous prior attempt); a field update is a PUT (idempotent by HTTP
+/// semantics — repeating an identical PUT has the same end effect), so a
+/// blind retry is safe and no verify-before-resend dance is needed.
+///
+/// What DOES need protecting for a field update: the blended proposal going
+/// stale between when the user reviewed it and when they approved it
+/// (someone else changed the field in the CRM in the meantime). That's the
+/// stale-guard below — it runs on EVERY attempt (not just retries), re-fetches
+/// the live value, and refuses to write if it no longer matches
+/// `req.existing_value`, flipping the ledger row to `pending_verify` instead
+/// so the review card can re-render with the fresh value rather than
+/// blindly overwriting it.
+pub async fn push_crm_field_update(
+    source: &dyn CrmWriteSource,
+    store: &crate::commands::crm::store::CrmStore,
+    guard: &WriteInFlightGuard,
+    req: &CrmFieldUpdateRequest,
+) -> Result<WriteReceipt, CrmWriteError> {
+    validate_field_is_writable(&req.field)?;
+
+    let key = dedup_key_field(req);
+    if !guard.claim(&key) {
+        return Err(CrmWriteError::InProgress);
+    }
+    let _claim = InFlightClaim { guard, key: key.clone() };
+
+    let existing = store.outbound_get(&key).map_err(|_| CrmWriteError::InvalidInput("ledger read failed"))?;
+    if let Some(row) = &existing {
+        if row.status == "sent" {
+            if let Some(remote_id) = &row.remote_id {
+                // Safe for the same reason push_crm_write's cache-hit is
+                // safe: crm_connect downgrades every `sent` row for a
+                // provider to `pending_verify` on every successful connect.
+                return Ok(WriteReceipt { remote_id: remote_id.clone(), deduped: true });
+            }
+        }
+    }
+
+    let current_value = source.get_contact_field(&req.household_key, &req.field).await?;
+    if norm(&current_value) != norm(&req.existing_value) {
+        upsert_ledger_field(store, &key, source, req, "pending_verify", None);
+        return Err(CrmWriteError::StaleFieldValue(current_value));
+    }
+
+    upsert_ledger_field_before_send(store, &key, source, req)?;
+
+    match source.update_field(req).await {
+        Ok(remote_id) => {
+            upsert_ledger_field(store, &key, source, req, "sent", Some(&remote_id));
+            Ok(WriteReceipt { remote_id, deduped: false })
+        }
+        Err(CrmWriteError::VerifyPending) => {
+            upsert_ledger_field(store, &key, source, req, "pending_verify", None);
+            Err(CrmWriteError::VerifyPending)
+        }
+        Err(e) => {
+            upsert_ledger_field(store, &key, source, req, "failed", None);
+            Err(e)
+        }
+    }
+}
+
+/// Ledger transition for a field update AFTER the network attempt (or the
+/// stale-guard's rejection) already happened — mirrors `upsert_ledger`.
+fn upsert_ledger_field(
+    store: &crate::commands::crm::store::CrmStore,
+    key: &str,
+    source: &dyn CrmWriteSource,
+    req: &CrmFieldUpdateRequest,
+    status: &str,
+    remote_id: Option<&str>,
+) {
+    if let Err(e) = store.outbound_upsert(
+        key,
+        source.provider_id(),
+        "field",
+        &req.household_key,
+        &req.matter_id,
+        &req.source_ref,
+        status,
+        remote_id,
+        false,
+    ) {
+        log::warn!("crm outbound ledger write failed (non-fatal): {e:#}");
+    }
+}
+
+/// Record `pending` BEFORE the network attempt — mirrors `upsert_ledger_before_send`.
+fn upsert_ledger_field_before_send(
+    store: &crate::commands::crm::store::CrmStore,
+    key: &str,
+    source: &dyn CrmWriteSource,
+    req: &CrmFieldUpdateRequest,
+) -> Result<(), CrmWriteError> {
+    store
+        .outbound_upsert(
+            key,
+            source.provider_id(),
+            "field",
+            &req.household_key,
+            &req.matter_id,
+            &req.source_ref,
+            "pending",
+            None,
+            true,
         )
         .map_err(|e| {
             log::warn!("crm outbound ledger pre-send write failed: {e:#}");
@@ -1635,5 +1755,150 @@ mod tests {
         b.title = "a".into();
         b.body = "bc".into();
         assert_ne!(dedup_key(&a), dedup_key(&b));
+    }
+
+    // -------------------------------------------------------------------
+    // push_crm_field_update (Task 9c orchestrator)
+    // -------------------------------------------------------------------
+
+    struct FakeFieldSource {
+        /// What get_contact_field returns for the live remote value.
+        remote_value: std::sync::Mutex<String>,
+        update_results: std::sync::Mutex<Vec<Result<String, CrmWriteError>>>,
+        update_calls: std::sync::atomic::AtomicUsize,
+        get_calls: std::sync::atomic::AtomicUsize,
+    }
+    #[async_trait::async_trait]
+    impl CrmWriteSource for FakeFieldSource {
+        fn provider_id(&self) -> &'static str {
+            "wealthbox"
+        }
+        async fn create_note(&self, _r: &CrmWriteRequest) -> Result<String, CrmWriteError> {
+            unimplemented!("FakeFieldSource only exercises field updates")
+        }
+        async fn create_task(&self, _r: &CrmWriteRequest) -> Result<String, CrmWriteError> {
+            unimplemented!("FakeFieldSource only exercises field updates")
+        }
+        async fn find_recent_matching(
+            &self,
+            _r: &CrmWriteRequest,
+            _not_before: chrono::DateTime<chrono::Utc>,
+        ) -> Result<Option<String>, CrmWriteError> {
+            unimplemented!("FakeFieldSource only exercises field updates")
+        }
+        async fn update_field(&self, _r: &CrmFieldUpdateRequest) -> Result<String, CrmWriteError> {
+            self.update_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            self.update_results.lock().unwrap().remove(0)
+        }
+        async fn get_contact_field(&self, _household_key: &str, _field: &str) -> Result<String, CrmWriteError> {
+            self.get_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(self.remote_value.lock().unwrap().clone())
+        }
+    }
+
+    fn fake_field_source(remote_value: &str, update_result: Result<String, CrmWriteError>) -> FakeFieldSource {
+        FakeFieldSource {
+            remote_value: std::sync::Mutex::new(remote_value.into()),
+            update_results: std::sync::Mutex::new(vec![update_result]),
+            update_calls: std::sync::atomic::AtomicUsize::new(0),
+            get_calls: std::sync::atomic::AtomicUsize::new(0),
+        }
+    }
+
+    #[tokio::test]
+    async fn field_update_writes_through_when_remote_still_matches_existing_value() {
+        let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
+        let source = fake_field_source("Existing background.", Ok("12345".into()));
+        let req = base_field_req();
+
+        let receipt = push_crm_field_update(&source, &store, &guard, &req).await.unwrap();
+        assert_eq!(receipt.remote_id, "12345");
+        assert!(!receipt.deduped);
+        assert_eq!(source.get_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+        assert_eq!(source.update_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+
+        let row = store.outbound_get(&dedup_key_field(&req)).unwrap().unwrap();
+        assert_eq!(row.status, "sent");
+        assert_eq!(row.remote_id.as_deref(), Some("12345"));
+    }
+
+    #[tokio::test]
+    async fn field_update_refuses_to_write_when_remote_value_has_drifted() {
+        let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
+        // Someone else changed the field in Wealthbox since the proposal was shown.
+        let source = fake_field_source("Someone else already edited this.", Ok("should-not-be-used".into()));
+        let req = base_field_req();
+
+        let err = push_crm_field_update(&source, &store, &guard, &req).await.unwrap_err();
+        match err {
+            CrmWriteError::StaleFieldValue(current) => {
+                assert_eq!(current, "Someone else already edited this.");
+            }
+            other => panic!("expected StaleFieldValue, got {other:?}"),
+        }
+        assert_eq!(
+            source.update_calls.load(std::sync::atomic::Ordering::SeqCst),
+            0,
+            "must never write a blend proposed against a value that has since changed"
+        );
+
+        let row = store.outbound_get(&dedup_key_field(&req)).unwrap().unwrap();
+        assert_eq!(row.status, "pending_verify", "a stale detection must still produce a ledger entry (for the audit path)");
+    }
+
+    #[tokio::test]
+    async fn field_update_second_identical_push_is_deduped_without_network() {
+        let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
+        let source = fake_field_source("Existing background.", Ok("12345".into()));
+        let req = base_field_req();
+
+        push_crm_field_update(&source, &store, &guard, &req).await.unwrap();
+        let second = push_crm_field_update(&source, &store, &guard, &req).await.unwrap();
+
+        assert_eq!(second.remote_id, "12345");
+        assert!(second.deduped);
+        // Only the FIRST push should have touched the network at all.
+        assert_eq!(source.get_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+        assert_eq!(source.update_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn field_update_rejects_a_non_writable_field() {
+        let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
+        let source = fake_field_source("x", Ok("1".into()));
+        let mut req = base_field_req();
+        req.field = "ssn".into();
+
+        let err = push_crm_field_update(&source, &store, &guard, &req).await.unwrap_err();
+        assert!(matches!(err, CrmWriteError::InvalidInput(_)));
+        assert_eq!(
+            source.get_calls.load(std::sync::atomic::Ordering::SeqCst),
+            0,
+            "a disallowed field must be rejected before ever touching the network"
+        );
+    }
+
+    #[tokio::test]
+    async fn concurrent_identical_field_pushes_second_is_rejected_as_in_progress() {
+        let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
+        let req = base_field_req();
+
+        let key = dedup_key_field(&req);
+        assert!(guard.claim(&key)); // simulate a first push already holding the slot
+
+        let err = push_crm_field_update(
+            &fake_field_source("Existing background.", Ok("x".into())),
+            &store,
+            &guard,
+            &req,
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(err, CrmWriteError::InProgress));
     }
 }
