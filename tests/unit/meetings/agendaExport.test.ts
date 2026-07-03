@@ -47,7 +47,7 @@ describe('agendaMarkdownFromBrief — audit ordering', () => {
 
     const md = await agendaMarkdownFromBrief(
       { markdown: '- Talk about the Roth conversion.' },
-      { clientLabel: 'Robert Johnson', eventTitle: 'Q3 review', provider: fakeProvider(sendMessage) },
+      { clientLabel: 'Robert Johnson', eventTitle: 'Q3 review', matterId: 'matter_johnson_123', provider: fakeProvider(sendMessage) },
     );
 
     // Errors degrade to the deterministic fallback rather than throwing.
@@ -75,10 +75,34 @@ describe('agendaMarkdownFromBrief — audit ordering', () => {
 
     await agendaMarkdownFromBrief(
       { markdown: '- Talk about the Roth conversion.' },
-      { clientLabel: 'Robert Johnson', eventTitle: 'Q3 review' },
+      { clientLabel: 'Robert Johnson', eventTitle: 'Q3 review', matterId: 'matter_johnson_123' },
     );
 
     expect(loggedProvider).toBe('anthropic');
+    appendSpy.mockRestore();
+  });
+
+  it('includes the matter scope in the egress audit entry, so the send appears in that client\'s confidentiality report', async () => {
+    // Coordinator review catch: scope was omitted entirely, so this send only
+    // ever showed up in the all-matters Activity Log view — never in the
+    // specific client's own confidentiality report.
+    const sendMessage = vi.fn().mockResolvedValue({ content: 'irrelevant, malformed on purpose' });
+    let loggedScope: unknown;
+    const appendSpy = vi.spyOn(AuditService.prototype, 'append').mockImplementation((event) => {
+      if (event.type === 'egress') loggedScope = event.payload.scope;
+    });
+
+    await agendaMarkdownFromBrief(
+      { markdown: '- Talk about the Roth conversion.' },
+      {
+        clientLabel: 'Robert Johnson',
+        eventTitle: 'Q3 review',
+        matterId: 'matter_johnson_123',
+        provider: fakeProvider(sendMessage),
+      },
+    );
+
+    expect(loggedScope).toEqual({ kind: 'matter', matterId: 'matter_johnson_123' });
     appendSpy.mockRestore();
   });
 
@@ -90,7 +114,7 @@ describe('agendaMarkdownFromBrief — audit ordering', () => {
 
     await agendaMarkdownFromBrief(
       { markdown: '- Talk about the Roth conversion.' },
-      { clientLabel: 'Robert Johnson', eventTitle: 'Q3 review', provider: fakeProvider(sendMessage) },
+      { clientLabel: 'Robert Johnson', eventTitle: 'Q3 review', matterId: 'matter_johnson_123', provider: fakeProvider(sendMessage) },
     );
 
     expect(logSpy).toHaveBeenCalledWith(

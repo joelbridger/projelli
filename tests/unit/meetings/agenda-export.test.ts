@@ -26,6 +26,7 @@ describe('agendaMarkdownFromBrief', () => {
     const md = await agendaMarkdownFromBrief(brief, {
       clientLabel: 'The Hendersons',
       eventTitle: 'Retirement plan review',
+      matterId: 'matter_henderson_1',
       provider: fakeProvider(reply),
     });
     expect(md).toContain('## Topics to cover');
@@ -43,6 +44,7 @@ describe('agendaMarkdownFromBrief', () => {
     const md = await agendaMarkdownFromBrief(brief, {
       clientLabel: 'The Hendersons',
       eventTitle: 'Retirement plan review',
+      matterId: 'matter_henderson_1',
       provider: fakeProvider('Sure! Here is a poem about agendas.'),
     });
     // Malformed rewrite -> deterministic fallback, never a hard failure.
@@ -60,6 +62,7 @@ describe('agendaMarkdownFromBrief', () => {
     const md = await agendaMarkdownFromBrief(brief, {
       clientLabel: 'The Hendersons',
       eventTitle: 'Retirement plan review',
+      matterId: 'matter_henderson_1',
       provider: boom,
     });
     expect(md).toContain('## Topics to cover');

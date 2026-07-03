@@ -68,7 +68,7 @@ export function fallbackAgenda(
 
 export async function agendaMarkdownFromBrief(
   brief: Pick<GeneratedBrief, 'markdown'>,
-  opts: { clientLabel: string; eventTitle: string; provider?: Provider }
+  opts: { clientLabel: string; eventTitle: string; matterId: string; provider?: Provider }
 ): Promise<string> {
   // codex-review catch (round 2): getMetadata().providerId is unset on the
   // real cloud providers (Claude/OpenAI/Gemini only expose name/model), so
@@ -109,6 +109,10 @@ export async function agendaMarkdownFromBrief(
         mode: getConfidentialityMode(),
         destination: egress.destination,
         dataLeaves: egress.dataLeaves,
+        // Coordinator review catch: without scope, this send only ever
+        // showed up in the all-matters Activity Log view, never in this
+        // client's own confidentiality report.
+        scope: { kind: 'matter', matterId: opts.matterId },
       },
     });
     const res = await provider.sendMessage(
