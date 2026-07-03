@@ -27,10 +27,18 @@ pub fn find_orphans(workspace: &Path) -> Result<Vec<OrphanSession>> {
         }
         let Ok(entries) = std::fs::read_dir(dir) else { return };
         for e in entries.flatten() {
-            let p = e.path();
-            if !p.is_dir() {
+            // `DirEntry::file_type()` reports the entry itself without
+            // following a symlink (unlike `Path::is_dir()`, which resolves
+            // through symlinks via `fs::metadata`). Directory symlinks are
+            // skipped rather than followed, so a workspace containing one
+            // can't make this scan crawl outside the workspace boundary —
+            // matching the symlink-escape guard the rest of this module
+            // already enforces for direct path lookups.
+            let Ok(ft) = e.file_type() else { continue };
+            if !ft.is_dir() {
                 continue;
             }
+            let p = e.path();
             if p.file_name().and_then(|n| n.to_str()) == Some(".capture") {
                 if let Ok(m) = SessionManifest::load(p.parent().unwrap_or(&p)) {
                     out.push(OrphanSession {
@@ -120,6 +128,42 @@ mod tests {
         let audio = recover(&meeting).unwrap();
         assert!(audio.exists());
         assert!(find_orphans(ws.path()).unwrap().is_empty());
+    }
+
+    // Symlink creation on Windows requires elevated/dev-mode privileges and a
+    // different API — matching the convention already used for the
+    // guard_matter_folder symlink test in mod.rs.
+    #[cfg(unix)]
+    #[test]
+    fn orphan_scan_does_not_follow_directory_symlinks_out_of_the_workspace() {
+        let ws = tempdir().unwrap();
+        let outside = tempdir().unwrap();
+        // An orphan session that lives OUTSIDE the workspace, reachable only
+        // by following a symlink planted inside it.
+        let crashed = outside.path().join("Clients/Escaped/Meetings/2026-06-01-mescaped");
+        let mut w = ChunkWriter::new(&crashed.join(".capture"), "mic").unwrap();
+        w.write(&vec![7i16; 16_000]).unwrap();
+        drop(w);
+        SessionManifest {
+            meeting_dir: crashed.clone(),
+            matter_id: "m-escaped".into(),
+            started_at: "2026-06-01T10:00:00Z".into(),
+            consent: ConsentRecord {
+                mode: "one-party".into(),
+                confirmed_by: "user".into(),
+                confirmed_at: "2026-06-01T09:59:00Z".into(),
+                note: String::new(),
+            },
+        }
+        .save()
+        .unwrap();
+        std::os::unix::fs::symlink(outside.path(), ws.path().join("escape-link")).unwrap();
+
+        let orphans = find_orphans(ws.path()).unwrap();
+        assert!(
+            orphans.is_empty(),
+            "orphan scan followed a directory symlink out of the workspace: {orphans:?}"
+        );
     }
 
     #[test]

@@ -145,6 +145,25 @@ impl CaptureEngine {
 
 static ENGINE: Mutex<Option<CaptureEngine>> = Mutex::new(None);
 
+/// The meeting currently mid-`stop()` (sources stopping + chunks finalizing),
+/// if any. `capture_stop` must remove the engine from `ENGINE` before it can
+/// call `.stop(self)` (it's a by-value method), which opens a window where
+/// `ENGINE` is `None` but the `.capture/session.json` + chunk files are still
+/// on disk and being written to `finalize_session`. Without this, a
+/// concurrent `capture_recover` on the same directory would race the stop
+/// path's own finalize, corrupting or deleting files mid-merge. Cleared by
+/// `StoppingGuard::drop`, so it's cleared on every exit from `capture_stop`
+/// (success, error, or panic), not just the happy path.
+static STOPPING: Mutex<Option<PathBuf>> = Mutex::new(None);
+
+struct StoppingGuard;
+
+impl Drop for StoppingGuard {
+    fn drop(&mut self) {
+        *STOPPING.lock().unwrap() = None;
+    }
+}
+
 /// `cargo test` runs test functions concurrently by default; any test that
 /// drives the global `ENGINE` (via `begin_global_with_sources`/
 /// `begin_global_with_sources_for_tests`) must hold this for its whole
@@ -216,6 +235,9 @@ pub fn begin_global_with_sources_for_tests(
 /// directory as a crashed/orphaned session — it isn't crashed, it's live,
 /// and finalizing it mid-recording would truncate the rest of the meeting.
 pub fn active_meeting_dir() -> Option<PathBuf> {
+    if let Some(dir) = STOPPING.lock().unwrap().clone() {
+        return Some(dir);
+    }
     ENGINE.lock().unwrap().as_ref().map(|e| e.meeting_dir.clone())
 }
 
@@ -268,6 +290,8 @@ pub async fn capture_start(
 #[tauri::command]
 pub async fn capture_stop() -> Result<CaptureStopResult, String> {
     let engine = ENGINE.lock().unwrap().take().ok_or("not recording")?;
+    *STOPPING.lock().unwrap() = Some(engine.meeting_dir.clone());
+    let _stopping_guard = StoppingGuard;
     let r = engine.stop().map_err(|e| e.to_string())?;
     Ok(CaptureStopResult {
         meeting_dir: r.meeting_dir.to_string_lossy().into_owned(),
@@ -422,6 +446,31 @@ mod tests {
         );
         assert!(err.unwrap_err().contains("already recording"));
         end_global_for_tests();
+    }
+
+    /// Regression for the codex-review round-8 finding: `capture_stop` must
+    /// take the engine out of `ENGINE` before it can call the by-value
+    /// `.stop(self)`, which would otherwise make `active_meeting_dir()`
+    /// report `None` (recoverable) while the real stop path is still
+    /// finalizing chunks on disk — a window `capture_recover` could race.
+    /// `STOPPING` closes that window; this proves the mechanism directly
+    /// (deterministic, no timing dependency on a slow fake stop()).
+    #[test]
+    fn active_meeting_dir_reports_stopping_session_after_engine_is_cleared() {
+        let _guard = ENGINE_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        assert_eq!(ENGINE.lock().unwrap().as_ref().map(|_| ()), None);
+        assert_eq!(active_meeting_dir(), None);
+
+        let dir = PathBuf::from("/tmp/lp-w4-test-stopping-meeting");
+        *STOPPING.lock().unwrap() = Some(dir.clone());
+        let stopping_guard = StoppingGuard;
+        assert_eq!(
+            active_meeting_dir(),
+            Some(dir),
+            "must report the stopping session even though ENGINE is empty"
+        );
+        drop(stopping_guard);
+        assert_eq!(active_meeting_dir(), None, "StoppingGuard::drop must clear STOPPING");
     }
 
     fn consent(mode: &str) -> ConsentRecord {
