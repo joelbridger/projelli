@@ -1,5 +1,10 @@
 # Lantern-Plus Coordination STATUS
 
+## UPDATE 2026-07-03 late-night #2 — SEVEN lanes; strategy + testing-speedup lanes opened
+- Jameson-directed: cc-lantern-strategy (FABLE 5 · high — his explicit exception to sonnet-workers rule) building the Jump battle plan → lp/jump-strategy:docs/strategy/2026-07-03-jump-battle-plan/ (brief w-jump-strategy-brief.md; internal only, cited-facts rule, board decisions framed as recommendations).
+- Testing-speedup pair (his "anything parallel / speed up testing?" ask): cc-lantern-bench = Legion pre-warm to current tip + health verify + headset presence check (worktree ~/lp-bench PERMANENTLY on lp/windows-smoke-evidence — branch-switch landmine closed); cc-lantern-harness = scripted smoke harness scripts/bench-smoke.mjs (lp/bench-smoke-harness; additive-only, queue-only default, Legion access only via coordinator ask).
+- Legion sequence: bench-prep → w3 Task 6 device verification (headset!) → harness live validation. One driver at a time.
+
 ## UPDATE 2026-07-03 late-night — CRM wire-fixes MERGED @b3bca9a0
 - lp/crm-wire-fixes merged+pushed: Wealthbox due-date 422 validation (typed error, command boundary + defense-in-depth) + read/write field-name split (writes send literal background_information) + GENERIC post-write readback verification (200-but-ignored class killed; normalized comparison per my review catch; ambiguous confirm-read → VerifyPending). Gate: tsc clean, 5608 vitest, 1108 cargo lib, clippy clean. Codex independent pass clean; 2 worker self-converge clean rounds + 1 coordinator round. crmfix lane closed (session/worktree/cache removed).
 - The dormant-path guard is in place: field-update/task producer UI (Wave-3 wiring) can now ship on top of a correct wire contract.
