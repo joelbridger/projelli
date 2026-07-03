@@ -83,8 +83,40 @@ impl CpalSource {
     }
 }
 
+/// Build a stream for one concrete cpal sample type, converting every
+/// sample to f32 before handing it to the existing `downmix_resample` path.
+/// Devices are free to report any native format (WASAPI shared-mode is
+/// nearly always F32, but cheaper USB mics commonly report I16/U16) —
+/// hardcoding an `&[f32]` callback made `build_input_stream` fail outright
+/// on any non-F32 device, so `capture_start` would reject an otherwise
+/// perfectly good microphone.
+fn build_typed_stream<T>(
+    device: &cpal::Device,
+    stream_config: &cpal::StreamConfig,
+    channels: u16,
+    rate: u32,
+    mut on_samples: Box<dyn FnMut(&[i16]) + Send>,
+) -> std::result::Result<cpal::Stream, cpal::BuildStreamError>
+where
+    T: cpal::SizedSample,
+    f32: cpal::FromSample<T>,
+{
+    use cpal::traits::DeviceTrait;
+    use cpal::Sample as _;
+    device.build_input_stream(
+        stream_config,
+        move |data: &[T], _: &cpal::InputCallbackInfo| {
+            let as_f32: Vec<f32> = data.iter().map(|&s| f32::from_sample(s)).collect();
+            let mono16 = downmix_resample(&as_f32, channels, rate);
+            on_samples(&mono16);
+        },
+        |e| log::warn!("capture stream error: {e}"),
+        None,
+    )
+}
+
 impl AudioSource for CpalSource {
-    fn start(&mut self, mut on_samples: Box<dyn FnMut(&[i16]) + Send>) -> Result<()> {
+    fn start(&mut self, on_samples: Box<dyn FnMut(&[i16]) + Send>) -> Result<()> {
         use cpal::traits::{DeviceTrait, StreamTrait};
         let (stop_tx, stop_rx) = std::sync::mpsc::channel::<()>();
         let (ready_tx, ready_rx) = std::sync::mpsc::channel::<std::result::Result<(), String>>();
@@ -110,15 +142,23 @@ impl AudioSource for CpalSource {
             };
             let channels = config.channels();
             let rate = config.sample_rate().0;
-            let stream = device.build_input_stream(
-                &config.into(),
-                move |data: &[f32], _: &cpal::InputCallbackInfo| {
-                    let mono16 = downmix_resample(data, channels, rate);
-                    on_samples(&mono16);
-                },
-                |e| log::warn!("capture stream error: {e}"),
-                None,
-            );
+            let format = config.sample_format();
+            let stream_config: cpal::StreamConfig = config.into();
+            let stream = match format {
+                cpal::SampleFormat::F32 => {
+                    build_typed_stream::<f32>(&device, &stream_config, channels, rate, on_samples)
+                }
+                cpal::SampleFormat::I16 => {
+                    build_typed_stream::<i16>(&device, &stream_config, channels, rate, on_samples)
+                }
+                cpal::SampleFormat::U16 => {
+                    build_typed_stream::<u16>(&device, &stream_config, channels, rate, on_samples)
+                }
+                other => {
+                    let _ = ready_tx.send(Err(format!("unsupported device sample format: {other:?}")));
+                    return;
+                }
+            };
             let stream = match stream {
                 Ok(s) => s,
                 Err(e) => {
@@ -220,6 +260,30 @@ impl AudioSource for MacTapSource {
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
             .spawn()?;
+
+        // Permission-denial handshake: the sidecar contract says it exits 3
+        // immediately (before writing any PCM) when it lacks the macOS
+        // System Audio/Screen Recording permission. Give it a short grace
+        // period to fail fast so capture_start surfaces the real error
+        // instead of silently recording an empty system channel.
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        if let Ok(Some(status)) = child.try_wait() {
+            let mut stderr_msg = String::new();
+            if let Some(mut stderr) = child.stderr.take() {
+                let _ = stderr.read_to_string(&mut stderr_msg);
+            }
+            let stderr_msg = stderr_msg.trim();
+            return Err(anyhow!(
+                "capture-mac sidecar exited immediately (code {}): {}",
+                status.code().unwrap_or(-1),
+                if stderr_msg.is_empty() {
+                    "no stderr output — likely missing System Audio/Screen Recording permission"
+                } else {
+                    stderr_msg
+                }
+            ));
+        }
+
         let mut stdout = child.stdout.take().ok_or_else(|| anyhow!("no stdout"))?;
         let reader = std::thread::spawn(move || {
             let mut buf = [0u8; 4096];
