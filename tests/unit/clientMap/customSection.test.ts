@@ -34,4 +34,34 @@ describe('buildCustomSection', () => {
     expect(sec.items).toEqual([]);
     expect(sendMock).not.toHaveBeenCalled();
   });
+
+  it('logs an egress audit entry BEFORE provider.sendMessage, not only after success', async () => {
+    // Trust-fixes finding #1: buildCustomSection previously had NO audit
+    // logging at all — a custom Client Map section sent this client's context
+    // to a cloud AI provider with nothing recorded in the Activity Log.
+    retrieveMock.mockResolvedValue([{ path: '/policy.pdf', sourceId: '/policy.pdf', chunkText: 'limit 1M', score: 1, paragraphIndex: 0, id: 'c1' } as RagHit]);
+    const order: string[] = [];
+    sendMock.mockImplementation(() => {
+      order.push('send');
+      return Promise.reject(new Error('simulated timeout'));
+    });
+    const onAuditLog = vi.fn((entry: { action?: string }) => {
+      if (entry.action === 'egress') order.push('egress-audit');
+    });
+    await expect(
+      buildCustomSection('m1', 'sec-uuid', 'Insurance coverage', 'track insurance', { onAuditLog }),
+    ).rejects.toThrow('simulated timeout');
+    expect(order).toEqual(['egress-audit', 'send']);
+  });
+
+  it('logs a model_call audit entry after a successful send', async () => {
+    retrieveMock.mockResolvedValue([{ path: '/policy.pdf', sourceId: '/policy.pdf', chunkText: 'limit 1M', score: 1, paragraphIndex: 0, id: 'c1' } as RagHit]);
+    sendMock.mockResolvedValue({ content: JSON.stringify({ items: [] }) });
+    const onAuditLog = vi.fn();
+    await buildCustomSection('m1', 'sec-uuid', 'Insurance coverage', 'track insurance', { onAuditLog });
+    const modelCallEntries = onAuditLog.mock.calls
+      .map((c) => c[0] as { action?: string })
+      .filter((e) => e.action === 'model_call');
+    expect(modelCallEntries.length).toBe(1);
+  });
 });

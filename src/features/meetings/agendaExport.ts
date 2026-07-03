@@ -9,6 +9,8 @@ import type { Provider } from '@/platform/providers/Provider';
 import { buildProviderForGlance } from '@/platform/matter/matterAtAGlance';
 import { assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
 import { AuditService } from '@/platform/audit/AuditService';
+import { resolveEgress } from '@/platform/privacy/egress';
+import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import type { GeneratedBrief } from './generateBrief';
 
 // codex-review (wave-1c self-review round 2, P2): this direct
@@ -76,6 +78,26 @@ export async function agendaMarkdownFromBrief(
     // so a Local-only flip mid-resolve must not slip this client's brief to
     // the cloud anyway.
     assertLocalOnlyAllowsSend(providerId);
+    // Trust-fixes finding #1: log egress IMMEDIATELY BEFORE the send, not
+    // only a model_call entry after success — a timeout or provider error
+    // previously left no trace that this client's brief left the machine.
+    const egress = resolveEgress({
+      provider: providerId,
+      mode: getConfidentialityMode(),
+      isDemo: false,
+      assuredAvailable: false,
+    });
+    agendaAudit.append({
+      type: 'egress',
+      timestamp: new Date().toISOString(),
+      payload: {
+        provider: egress.provider,
+        model: provider.getMetadata().model,
+        mode: getConfidentialityMode(),
+        destination: egress.destination,
+        dataLeaves: egress.dataLeaves,
+      },
+    });
     const res = await provider.sendMessage(
       `Client: ${opts.clientLabel}\nMeeting: ${opts.eventTitle}\n<internal_brief>\n${brief.markdown}\n</internal_brief>`,
       { systemPrompt: SYSTEM_PROMPT, maxTokens: 700 }

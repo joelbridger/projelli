@@ -323,10 +323,9 @@ Rules:
   // mid-resolve can never send this client's context to the cloud. Throws for a
   // cloud provider in Local-only; a resolved local provider (ollama) passes.
   assertLocalOnlyAllowsSend(resolvedProvider.providerId);
-  const response = await provider.sendMessage(
-    'Summarize this client for the advisor.',
-    sendOpts,
-  );
+  // Trust-fixes finding #1: log egress IMMEDIATELY BEFORE the send, not only
+  // after a successful response, so a timeout or provider error still leaves
+  // an egress record in the Activity Log.
   const egress = resolveEgress({
     provider: resolvedProvider.providerId,
     mode: getConfidentialityMode(),
@@ -345,6 +344,10 @@ Rules:
       scope,
     },
   }));
+  const response = await provider.sendMessage(
+    'Summarize this client for the advisor.',
+    sendOpts,
+  );
   options?.onAuditLog?.({
     action: 'model_call',
     description: `At-a-glance summary to ${resolvedProvider.model}`,

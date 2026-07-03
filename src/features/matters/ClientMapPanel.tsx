@@ -36,6 +36,7 @@ import { ClientQuestionsList } from '@/features/matters/ClientQuestionsList';
 import { SourcePanel } from '@/features/ask/SourcePanel';
 import type { AnswerCitation } from '@/features/ask/askHelpers';
 import { skClientMapTab } from '@/config/identity';
+import type { AuditEntry } from '@/platform/types/audit';
 
 // ── Sources column helpers ────────────────────────────────────────────────────
 // Map the Client Map's cited sources (SourceRef) onto the Ask SourcePanel's
@@ -625,9 +626,11 @@ function MissingPanel({
 function AddSectionPanel({
   matterId,
   onCreated,
+  onAuditLog,
 }: {
   matterId: string;
   onCreated: (key: string) => void;
+  onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
 }) {
   const [title, setTitle] = useState('');
   const [prompt, setPrompt] = useState('');
@@ -689,7 +692,7 @@ function AddSectionPanel({
           ],
         };
       } else {
-        populated = await buildCustomSection(matterId, sectionId, t, p);
+        populated = await buildCustomSection(matterId, sectionId, t, p, onAuditLog ? { onAuditLog } : undefined);
       }
       // D3: merge the AI-populated items into the section rather than replacing
       // it wholesale — the section started empty, so anything already in it here
@@ -711,7 +714,7 @@ function AddSectionPanel({
     if (applying) return;
     setApplying(templateId);
     try {
-      await applyTemplateToMatter(templateId, matterId);
+      await applyTemplateToMatter(templateId, matterId, onAuditLog ? { onAuditLog } : undefined);
     } finally {
       setApplying(null);
     }
@@ -886,6 +889,7 @@ export function ClientMapPanel({
   onAnswerQuestion,
   onFlagForClient,
   onStartInterview,
+  onAuditLog,
 }: {
   map: ClientMap;
   onOpenSource: (r: SourceRef) => void;
@@ -894,6 +898,10 @@ export function ClientMapPanel({
   onFlagForClient?: (question: GapQuestion) => void;
   /** Toggle the guided-interview panel — rendered as a button at the rail bottom. */
   onStartInterview?: () => void;
+  /** Audit sink for custom-section builds (Trust-fixes finding #1) — threaded
+   *  down to AddSectionPanel so a custom section or applied template records
+   *  an egress entry before it sends this client's context to an AI provider. */
+  onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
 }) {
   const removeSection = useClientMapStore((s) => s.removeSection);
   const saveTemplate = useTemplatesStore((s) => s.saveTemplate);
@@ -1052,6 +1060,7 @@ export function ClientMapPanel({
               onCreated={(key) => {
                 select(key);
               }}
+              {...(onAuditLog ? { onAuditLog } : {})}
             />
           ) : activeKey === MISSING_KEY || activeSection === undefined ? (
             <MissingPanel
