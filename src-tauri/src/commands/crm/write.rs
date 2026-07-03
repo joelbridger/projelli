@@ -173,7 +173,7 @@ impl CrmWriteSource for crate::commands::crm::client::WealthboxClient {
                     .iter()
                     .find(|n| {
                         norm(&n.content) == want
-                            && n.linked_to.iter().any(|l| l.id == contact_id)
+                            && n.linked_to.iter().any(|l| is_contact_link(l, contact_id))
                             && wealthbox_time_at_or_after(&n.created_at, &n.updated_at, not_before)
                     })
                     .map(|n| n.id.to_string()))
@@ -186,7 +186,7 @@ impl CrmWriteSource for crate::commands::crm::client::WealthboxClient {
                         norm(&t.name) == norm(req.title.trim())
                             && norm(&t.description) == norm(req.body.trim())
                             && t.due_date.as_deref().map(str::trim) == req.due_date.as_deref().map(str::trim)
-                            && t.linked_to.iter().any(|l| l.id == contact_id)
+                            && t.linked_to.iter().any(|l| is_contact_link(l, contact_id))
                     })
                     .map(|t| t.id.to_string()))
             }
@@ -225,17 +225,33 @@ fn wealthbox_contact_id(household_key: &str) -> Result<i64, CrmWriteError> {
         .map_err(|_| CrmWriteError::InvalidInput("household key is not a Wealthbox numeric id"))
 }
 
+/// True when `link` points at `contact_id` AND is actually a contact link —
+/// Wealthbox ids are not namespaced per object type, so a Project/Opportunity
+/// (or any other object) could coincidentally share the target contact's
+/// numeric id. Matching on id alone would let that unrelated object
+/// false-positive as proof this write landed. Case-insensitive because the
+/// exact casing Wealthbox returns is unverified (VERIFY-LIVE) — we always
+/// create links with type "Contact" (see create_note/create_task above), so
+/// a case-insensitive match against "contact" is safe regardless of which
+/// casing comes back, while still excluding genuinely different types.
+fn is_contact_link(link: &crate::commands::crm::model::CrmLink, contact_id: i64) -> bool {
+    link.id == contact_id && link.r#type.eq_ignore_ascii_case("contact")
+}
+
 fn map_http_err(e: anyhow::Error) -> CrmWriteError {
     let msg = e.to_string();
     if msg.contains("throttled past retry budget") {
         return CrmWriteError::Throttled;
     }
-    if let Some(code) = msg
-        .strip_prefix("Wealthbox request failed (HTTP ")
-        .and_then(|s| s.strip_suffix(')'))
-        .and_then(|s| s.parse::<u16>().ok())
-    {
-        return CrmWriteError::Http(code);
+    // `reqwest::StatusCode`'s Display includes the reason phrase (e.g.
+    // "422 Unprocessable Entity"), so `get_json`/`post_json`'s "HTTP {status}"
+    // message is NOT a bare number — take only the leading digits, don't
+    // require the whole remainder to parse as u16.
+    if let Some(rest) = msg.strip_prefix("Wealthbox request failed (HTTP ") {
+        let digits: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+        if let Ok(code) = digits.parse::<u16>() {
+            return CrmWriteError::Http(code);
+        }
     }
     // Transport-level failure (send error / body read error): the request MAY
     // have been delivered. Callers must go through the pending_verify path.
@@ -683,6 +699,23 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn wealthbox_create_note_maps_http_error_status_not_verify_pending() {
+        use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(matchers::method("POST"))
+            .and(matchers::path("/notes"))
+            .respond_with(ResponseTemplate::new(422))
+            .mount(&server)
+            .await;
+        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let err = client.create_note(&note_req()).await.unwrap_err();
+        // reqwest::StatusCode's Display includes the reason phrase
+        // ("422 Unprocessable Entity"), so this must not fall through to
+        // VerifyPending just because the whole remainder isn't a bare number.
+        assert!(matches!(err, CrmWriteError::Http(422)), "expected Http(422), got {err:?}");
+    }
+
+    #[tokio::test]
     async fn wealthbox_create_task_posts_exact_shape() {
         use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
         let server = MockServer::start().await;
@@ -804,6 +837,30 @@ mod tests {
         let not_before = chrono::Utc::now();
         let found = client.find_recent_matching(&note_req(), not_before).await.unwrap();
         assert_eq!(found, Some("222".to_string()));
+    }
+
+    #[tokio::test]
+    async fn find_recent_matching_ignores_a_same_id_link_that_is_not_a_contact() {
+        use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(matchers::method("GET"))
+            .and(matchers::path("/notes"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "status_updates": [{
+                    "id": 333,
+                    "content": "Q3 review follow-up\n\nDiscussed 529 rollover.",
+                    "created_at": "2099-01-01 09:00 AM -0500",
+                    "updated_at": "2099-01-01 09:00 AM -0500",
+                    // Wealthbox ids are not namespaced per object type — a Project
+                    // happens to share the numeric id 12345 with the target contact.
+                    "linked_to": [{"id": 12345, "type": "Project", "name": "Some Project"}],
+                }]
+            })))
+            .mount(&server)
+            .await;
+        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let found = client.find_recent_matching(&note_req(), chrono::Utc::now()).await.unwrap();
+        assert_eq!(found, None, "a same-id link on a non-contact object must not count as proof of delivery");
     }
 
     #[test]
