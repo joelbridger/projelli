@@ -31,6 +31,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Save-to-Drafts stuck disabled with an IMAP-first mailbox** (Windows smoke P0 #1) — the
+  Draft follow-up modal now defaults to the first draft-capable account instead of index 0,
+  and explains the disabled state in plain language when only IMAP is connected.
+  Files: `DraftFollowUpModal.tsx`, `draft-follow-up-modal.test.tsx`
+- **No discoverable "Send to Wealthbox" on normal Word notes** (Windows smoke P0 #5) — new
+  toolbar action on the DOCX editor (hidden without a current client, disabled until
+  Wealthbox connects) queues the note into the existing approval-gated CRM write queue,
+  with provenance pinned to the document path (`doc:<path>`). Shared title/body split
+  extracted to `crmNoteFormat.ts` so the two enqueue surfaces can't drift.
+  Files: `DocxEditor.tsx`, `MainPanel.tsx`, `MatterNotesEditor.tsx`, `crmNoteFormat.ts`, `en.json`
+
 ### Added
 - **Field-level blended CRM updates (Task 9c)** — a 3-column review
   (Existing / From this meeting / Blended) folded into the existing
