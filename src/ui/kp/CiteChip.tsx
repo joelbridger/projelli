@@ -12,6 +12,14 @@ export interface CiteChipProps {
   /** Optional section/heading within the source, appended after docLabel. */
   sourceLabel?: string | undefined;
   icon?: ReactNode;
+  /**
+   * Which side of the chip the popover opens toward. Default 'below' matches
+   * the p4-draft-followup prototype (chips inline in flowing paragraph
+   * text, nothing dense underneath). Use 'above' for chips stacked in a
+   * vertical list (e.g. one per bullet, p2-before-you-meet's prototype) —
+   * opening below would drop the popover on top of the next item.
+   */
+  popoverPosition?: 'above' | 'below';
 }
 
 /**
@@ -20,7 +28,17 @@ export interface CiteChipProps {
  * quoted line it is grounded in. Pure-CSS hover (no JS state) so it never
  * needs a portal or z-index dance beyond --kp-z-popover.
  */
-export function CiteChip({ index, children, docLabel, quote, sourceLabel, icon }: CiteChipProps) {
+export function CiteChip({
+  index,
+  children,
+  docLabel,
+  quote,
+  sourceLabel,
+  icon,
+  popoverPosition = 'below',
+}: CiteChipProps) {
+  const positionClasses =
+    popoverPosition === 'above' ? 'bottom-[calc(100%+7px)]' : 'top-[calc(100%+7px)]';
   return (
     <span className="group relative inline-flex align-baseline" data-testid="cite-chip">
       <span
@@ -37,7 +55,7 @@ export function CiteChip({ index, children, docLabel, quote, sourceLabel, icon }
       <span
         role="tooltip"
         data-testid="cite-chip-popover"
-        className="invisible absolute left-0 top-[calc(100%+7px)] z-[1200] w-[280px] rounded-lg border border-slate-200 bg-white p-3 text-left opacity-0 shadow-lg transition-opacity duration-100 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
+        className={`invisible absolute left-0 ${positionClasses} z-[1200] w-[280px] rounded-lg border border-slate-200 bg-white p-3 text-left opacity-0 shadow-lg transition-opacity duration-100 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100`}
       >
         <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">
           {icon}

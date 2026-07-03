@@ -193,6 +193,7 @@ export function BeforeYouMeetStrip({ matterId }: { matterId: string }) {
                               docLabel={basename(b.sourcePath)}
                               quote={b.quote}
                               icon={<FileText size={11} strokeWidth={1.75} />}
+                              popoverPosition="above"
                             >
                               {basename(b.sourcePath)}
                             </CiteChip>
