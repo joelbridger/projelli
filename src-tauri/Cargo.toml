@@ -187,6 +187,11 @@ tauri-plugin-process = "2"
 [target."cfg(windows)".dependencies]
 windows-sys = { version = "0.59", features = ["Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_Foundation"] }
 
+# macOS-only: MacTapSource (capture::sources) sends SIGTERM to the
+# capture-mac sidecar for a graceful stop per its documented contract.
+[target."cfg(target_os = \"macos\")".dependencies]
+libc = "0.2"
+
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }
 # Integration tests for the `lantern-mcp` sidecar need a throwaway workspace

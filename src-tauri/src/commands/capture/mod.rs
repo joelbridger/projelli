@@ -92,6 +92,11 @@ mod path_guard_tests {
         assert!(err.to_string().contains("escapes workspace"), "got: {err}");
     }
 
+    // Symlink creation on Windows requires elevated/dev-mode privileges and a
+    // different API (std::os::windows::fs::symlink_dir); the escape-guard
+    // logic itself is platform-agnostic (proven by the Unix run), so this
+    // test only runs on Unix rather than skipping the check on Windows CI.
+    #[cfg(unix)]
     #[test]
     fn rejects_symlink_escape() {
         let ws = tempfile::tempdir().unwrap();

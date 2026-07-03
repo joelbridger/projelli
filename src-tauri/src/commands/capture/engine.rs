@@ -39,10 +39,20 @@ impl CaptureEngine {
             return Err(anyhow!("invalid matter folder"));
         }
         let date = chrono::Utc::now().format("%Y-%m-%d");
-        let meeting_dir = workspace
-            .join(matter_folder)
-            .join("Meetings")
-            .join(format!("{date}-{}", slugify(matter_id)));
+        let meetings_dir = workspace.join(matter_folder).join("Meetings");
+        let base_slug = format!("{date}-{}", slugify(matter_id));
+        // The Meeting Artifact Contract's folder name is `<date>-<slug>` for
+        // the common case (one meeting per client per day). A second
+        // same-day meeting for the same client would otherwise collide on
+        // that exact name and silently merge/overwrite the first meeting's
+        // already-finalized audio.wav — fall back to a numeric disambiguator
+        // only when that exact folder is already taken.
+        let mut meeting_dir = meetings_dir.join(&base_slug);
+        let mut suffix = 2;
+        while meeting_dir.exists() {
+            meeting_dir = meetings_dir.join(format!("{base_slug}-{suffix}"));
+            suffix += 1;
+        }
         let cap = meeting_dir.join(".capture");
         std::fs::create_dir_all(&cap)?;
 
@@ -242,6 +252,43 @@ mod tests {
         assert!(result.meeting_dir.join(".capture").exists() == false);
         // Manifest breadcrumb must NOT survive finalize.
         assert!(!SessionManifest::path_in(&result.meeting_dir).exists());
+    }
+
+    #[test]
+    fn second_same_day_meeting_for_same_client_gets_a_disambiguated_folder_not_an_overwrite() {
+        let ws = tempdir().unwrap();
+        let fake = || Box::new(FakeSource::new(vec![])) as Box<dyn AudioSource>;
+
+        let first = CaptureEngine::start_with_sources(
+            ws.path(),
+            "m-dup",
+            "Clients/Dup Household",
+            consent("one-party"),
+            fake(),
+            fake(),
+        )
+        .unwrap();
+        let first_result = first.stop().unwrap();
+
+        let second = CaptureEngine::start_with_sources(
+            ws.path(),
+            "m-dup",
+            "Clients/Dup Household",
+            consent("one-party"),
+            fake(),
+            fake(),
+        )
+        .unwrap();
+        let second_result = second.stop().unwrap();
+
+        assert_ne!(
+            first_result.meeting_dir, second_result.meeting_dir,
+            "two same-day meetings for the same client must not share a folder"
+        );
+        // The first meeting's finalized audio must still be intact — not
+        // clobbered by the second meeting's (empty) chunks.
+        assert!(first_result.audio_path.exists());
+        assert!(second_result.audio_path.exists());
     }
 
     #[test]

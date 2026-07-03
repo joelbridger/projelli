@@ -177,10 +177,23 @@ pub fn loopback_source() -> Result<Box<dyn AudioSource>> {
     MacTapSource::spawn()
 }
 
+// Plain OS thread + std::process (not tokio) for the same reason as
+// `CpalSource` above: `AudioSource::stop()` is a synchronous method that
+// `CaptureEngine::stop()` calls right before `finalize_session()` reads the
+// chunk files off disk. `finalize_session()` must never run until every
+// sample the sidecar already wrote has been drained and handed to the
+// `ChunkWriter` — with a detached `tokio::spawn` reader, `stop()` could
+// return (and finalize could start) before the reader task's last
+// `on_samples()` call lands, silently dropping the tail of the loopback
+// channel. A real `std::thread::JoinHandle` gives `stop()` a synchronous
+// `.join()` with no async-runtime hazards (calling `Handle::block_on` from
+// inside an already-async Tauri command panics — see
+// `commands::capture::transcribe::SidecarTranscriber` for the
+// `spawn_blocking` workaround this file deliberately avoids needing).
 #[cfg(target_os = "macos")]
 pub struct MacTapSource {
-    child: Option<tokio::process::Child>,
-    reader_task: Option<tokio::task::JoinHandle<()>>,
+    child: Option<std::process::Child>,
+    reader: Option<std::thread::JoinHandle<()>>,
 }
 
 #[cfg(target_os = "macos")]
@@ -193,25 +206,25 @@ impl MacTapSource {
     /// to stderr with exit 3 (surfaced to the UI as the macOS permission
     /// onboarding moment, Task 13).
     pub fn spawn() -> Result<Box<dyn AudioSource>> {
-        Ok(Box::new(Self { child: None, reader_task: None }))
+        Ok(Box::new(Self { child: None, reader: None }))
     }
 }
 
 #[cfg(target_os = "macos")]
 impl AudioSource for MacTapSource {
     fn start(&mut self, mut on_samples: Box<dyn FnMut(&[i16]) + Send>) -> Result<()> {
-        use tokio::io::AsyncReadExt;
+        use std::io::Read;
         let binary = crate::commands::capture::mac_sidecar_path()
             .ok_or_else(|| anyhow!("capture-mac sidecar not bundled"))?;
-        let mut cmd = tokio::process::Command::new(binary);
-        cmd.stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped());
-        let mut child = cmd.spawn()?;
+        let mut child = std::process::Command::new(binary)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()?;
         let mut stdout = child.stdout.take().ok_or_else(|| anyhow!("no stdout"))?;
-        self.reader_task = Some(tokio::spawn(async move {
+        let reader = std::thread::spawn(move || {
             let mut buf = [0u8; 4096];
             loop {
-                match stdout.read(&mut buf).await {
+                match stdout.read(&mut buf) {
                     Ok(0) | Err(_) => break,
                     Ok(n) => {
                         let samples: Vec<i16> = buf[..n]
@@ -222,15 +235,42 @@ impl AudioSource for MacTapSource {
                     }
                 }
             }
-        }));
+        });
         self.child = Some(child);
+        self.reader = Some(reader);
         Ok(())
     }
     fn stop(&mut self) -> Result<()> {
         if let Some(mut c) = self.child.take() {
-            let _ = c.start_kill();
+            // Graceful first — matches the sidecar's documented contract
+            // ("flush + exit 0 on SIGTERM") — with a bounded poll so a
+            // misbehaving sidecar can't hang the stop path; hard-kill only
+            // as the backstop.
+            unsafe {
+                libc::kill(c.id() as i32, libc::SIGTERM);
+            }
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+            loop {
+                match c.try_wait() {
+                    Ok(Some(_)) => break,
+                    Ok(None) if std::time::Instant::now() < deadline => {
+                        std::thread::sleep(std::time::Duration::from_millis(50));
+                    }
+                    _ => {
+                        let _ = c.kill();
+                        let _ = c.wait();
+                        break;
+                    }
+                }
+            }
         }
-        self.reader_task.take();
+        // Join the reader thread so any PCM already sitting in the pipe
+        // buffer is fully drained (and written through on_samples) before
+        // this returns — finalize_session() runs right after stop() and
+        // must not race the reader for the tail of the recording.
+        if let Some(r) = self.reader.take() {
+            let _ = r.join();
+        }
         Ok(())
     }
 }

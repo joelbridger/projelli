@@ -5848,6 +5848,7 @@ dependencies = [
  "lantern-docx",
  "lantern-vault",
  "lettre",
+ "libc",
  "log",
  "lru",
  "mail-parser",
