@@ -1199,6 +1199,28 @@
       "restore__sourceHash": "",
       "archived-section-label": "Archivierte Mandanten",
       "archived-section-label__sourceHash": ""
+    },
+    "book": {
+      "view-toggle": "Client Map view",
+      "view-clients": "Clients",
+      "view-book": "Whole book",
+      "col-client": "Client",
+      "col-completeness": "Client Map",
+      "col-facts": "Sourced facts",
+      "col-gaps": "Open gaps",
+      "col-last-touch": "Last touch",
+      "level-thin": "Thin",
+      "level-getting-there": "Getting there",
+      "level-solid": "Solid",
+      "level-not-built": "Not built yet",
+      "stale-days": "{{count}} days ago",
+      "stale-today": "Today",
+      "empty": "No clients yet. Add a client to see your whole book here.",
+      "subtitle": "Every client, ranked by who needs attention: how complete their Client Map is and how long since it was touched."
+    },
+    "beneficiary": {
+      "chip-title": "Beneficiary check",
+      "review-note": "Flagged for your review. Not legal advice."
     }
   },
   "firm": {

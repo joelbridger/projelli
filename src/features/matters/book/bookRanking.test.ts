@@ -1,10 +1,23 @@
 import { describe, it, expect } from 'vitest';
 import type { Matter } from '@/platform/types/matter';
-import type { ClientMap, ClientMapItem } from '@/platform/clientMap/types';
+import type { ClientMap, ClientMapItem, GapQuestion } from '@/platform/clientMap/types';
 import { emptyClientMap } from '@/platform/clientMap/types';
 import { completenessScore, buildBookRows, sortBookRows, staleDaysFrom } from './bookRanking';
 
 const NOW = '2026-07-02T12:00:00.000Z';
+
+/** Index into an array under `noUncheckedIndexedAccess` without a non-null
+ *  assertion: throws (failing the test with a clear message) if the index is
+ *  out of range, instead of silently narrowing away `undefined`. */
+function at<T>(arr: T[], i: number): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`expected index ${String(i)} to exist`);
+  return v;
+}
+
+function items(n: number, prefix: string, over: Partial<ClientMapItem> = {}): ClientMapItem[] {
+  return Array.from({ length: n }, (_, i) => item(`${prefix}${String(i)}`, over));
+}
 
 function matter(id: string, over: Partial<Matter> = {}): Matter {
   return {
@@ -22,25 +35,25 @@ function item(id: string, over: Partial<ClientMapItem> = {}): ClientMapItem {
 function builtMap(matterId: string, know: number, assuming: number, ask: number, lastBuiltAt: string): ClientMap {
   const map = emptyClientMap(matterId);
   map.lastBuiltAt = lastBuiltAt;
-  map.sections[0]!.items = [
-    ...Array.from({ length: know }, (_, i) => item(`k${i}`)),
-    ...Array.from({ length: assuming }, (_, i) => item(`a${i}`, { isAssumption: true, sources: [] })),
+  at(map.sections, 0).items = [
+    ...items(know, 'k'),
+    ...items(assuming, 'a', { isAssumption: true, sources: [] }),
   ];
-  map.completeness.ask = Array.from({ length: ask }, (_, i) => ({ text: `gap ${i}`, sectionKey: 'money' }));
+  map.completeness.ask = Array.from({ length: ask }, (_, i) => ({ text: `gap ${String(i)}`, sectionKey: 'money' }));
   return map;
 }
 
 describe('completenessScore', () => {
   it('gives 100 to a comfortably solid map and 0 to an empty one', () => {
-    expect(completenessScore({ level: 'solid', know: Array(10).fill(item('x')), assuming: [], ask: [] })).toBe(100);
+    expect(completenessScore({ level: 'solid', know: items(10, 'x'), assuming: [], ask: [] })).toBe(100);
     expect(completenessScore({ level: 'thin', know: [], assuming: [], ask: [] })).toBe(40); // 0 base + full no-assumption/no-gap credit
   });
   it('is monotonic in sourced facts and penalized by assumptions/gaps', () => {
-    const base = { level: 'getting-there' as const, assuming: [], ask: [] };
-    const s4 = completenessScore({ ...base, know: Array(4).fill(item('x')) });
-    const s8 = completenessScore({ ...base, know: Array(8).fill(item('x')) });
+    const base = { level: 'getting-there' as const, assuming: [] as ClientMapItem[], ask: [] as GapQuestion[] };
+    const s4 = completenessScore({ ...base, know: items(4, 'x') });
+    const s8 = completenessScore({ ...base, know: items(8, 'x') });
     expect(s8).toBeGreaterThan(s4);
-    const withAssume = completenessScore({ level: 'thin', know: Array(8).fill(item('x')), assuming: Array(5).fill(item('a')), ask: [] });
+    const withAssume = completenessScore({ level: 'thin', know: items(8, 'x'), assuming: items(5, 'a'), ask: [] });
     expect(withAssume).toBeLessThan(s8);
   });
 });
@@ -66,16 +79,16 @@ describe('buildBookRows', () => {
     };
     const rows = buildBookRows(matters, maps, NOW, label);
     expect(rows.map((r) => r.matterId)).toEqual(['unbuilt', 'poor', 'rich']);
-    expect(rows[0]!.level).toBe('not-built');
-    expect(rows[0]!.score).toBe(0);
-    expect(rows[2]!.score).toBe(100);
-    expect(rows[2]!.staleDays).toBe(1); // lastBuiltAt 7/1 vs NOW 7/2
+    expect(at(rows, 0).level).toBe('not-built');
+    expect(at(rows, 0).score).toBe(0);
+    expect(at(rows, 2).score).toBe(100);
+    expect(at(rows, 2).staleDays).toBe(1); // lastBuiltAt 7/1 vs NOW 7/2
   });
   it('derives lastTouch from the max of lastBuiltAt and item updatedAt', () => {
     const map = builtMap('m1', 2, 0, 0, '2026-05-01T00:00:00.000Z');
-    map.sections[0]!.items[0]!.updatedAt = '2026-06-20T00:00:00.000Z';
+    at(at(map.sections, 0).items, 0).updatedAt = '2026-06-20T00:00:00.000Z';
     const rows = buildBookRows([matter('m1')], { m1: map }, NOW, label);
-    expect(rows[0]!.lastTouchIso).toBe('2026-06-20T00:00:00.000Z');
+    expect(at(rows, 0).lastTouchIso).toBe('2026-06-20T00:00:00.000Z');
   });
 });
 
@@ -87,9 +100,9 @@ describe('sortBookRows', () => {
       NOW, (m) => m.id,
     );
     const byScoreDesc = sortBookRows(rows, { key: 'score', dir: 'desc' });
-    expect(byScoreDesc[0]!.matterId).toBe('a');
+    expect(at(byScoreDesc, 0).matterId).toBe('a');
     expect(rows).not.toBe(byScoreDesc);
     const byLabel = sortBookRows(rows, { key: 'label', dir: 'asc' });
-    expect(byLabel[0]!.label).toBe('a');
+    expect(at(byLabel, 0).label).toBe('a');
   });
 });
