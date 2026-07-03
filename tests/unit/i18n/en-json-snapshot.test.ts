@@ -47,6 +47,7 @@ describe('en.json structure snapshot', () => {
         "ai": 48,
         "analysis": 10,
         "app": 2,
+        "ask": 12,
         "audio": 1,
         "chat": 12,
         "citation": 3,
@@ -58,7 +59,7 @@ describe('en.json structure snapshot', () => {
         "local-ai-settings": 8,
         "mail": 6,
         "marketplace": 14,
-        "matter": 108,
+        "matter": 126,
         "media": 80,
         "memory": 6,
         "model-download": 9,
@@ -94,7 +95,9 @@ describe('en.json structure snapshot', () => {
     // +1 = media.docx-editor.concurrent-edit-conflict (CLUSTER-C2 drift guard).
     // +2 = media.docx-editor.draft-follow-up{,-title} (Wave 0 draft-follow-up button).
     // +2 = matter.notes.{send-to-wealthbox,sent-to-wealthbox} (Wave 2 CRM write-back enqueue action).
-    expect(flat.length).toBe(944);
+    // +18 = matter.book.* (14) + matter.beneficiary.* (2) (Wave 4 Track B: Book view + estate/beneficiary gap chips).
+    // +12 = ask.scope-pill.* (5) + ask.book.* (7) (Wave 4 Track C: whole-practice Ask).
+    expect(flat.length).toBe(974);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {
