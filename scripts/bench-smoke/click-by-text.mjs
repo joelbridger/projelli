@@ -23,27 +23,40 @@ export function clickByTextScript(needle, { double = false } = {}) {
     .replace(/\n/g, ' ');
   // Live on the Legion bench, a single .click() found and "clicked" a file-tree
   // row (it's a real DOM click, correctly bubbling) but did not open the file
-  // — this app's file tree opens on double-click, same as a native file
-  // manager. A plain .click() doesn't synthesize the browser's native
-  // dblclick-from-two-clicks detection, so double-click needs its own
-  // MouseEvent('dblclick') with real coordinates (some libraries key off
-  // clientX/clientY rather than trusting the event alone).
-  const dispatch = double
-    ? "const r = match.getBoundingClientRect();" +
-      "match.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true, view: window, clientX: r.x + r.width / 2, clientY: r.y + r.height / 2 }));"
-    : 'match.click();';
+  // — Tree view's rows are plain unstyled leaves (no button semantics) and
+  // open on double-click, same as a native file manager. A plain .click()
+  // doesn't synthesize the browser's native dblclick-from-two-clicks
+  // detection, so that path needs its own MouseEvent('dblclick') with real
+  // coordinates (some libraries key off clientX/clientY rather than trusting
+  // the event alone).
+  //
+  // Grid view is a DIFFERENT case, found live via an independent Codex
+  // review: its file cards ARE real <button> elements that open on a single
+  // click (a normal onClick handler). Those match in the `controls` tier
+  // below, not the leaf-node fallback — dispatching only a synthetic
+  // 'dblclick' at a real button never fires the native 'click' event React's
+  // onClick listens for, so the file silently never opens and a caller
+  // (openSmokeClientNote) times out waiting for it, misreporting a visible,
+  // working file as SETUP-BLOCKED. So `double` is only ever honored for the
+  // leaf-node fallback; a matched interactive control always gets a real
+  // single click, since that's how every semantic control (buttons, Grid
+  // cards, links) actually opens.
+  const dblclickDispatch =
+    "const r = match.getBoundingClientRect();" +
+    "match.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true, view: window, clientX: r.x + r.width / 2, clientY: r.y + r.height / 2 }));";
   return (
     "(() => {" +
     `const needle = '${escaped}'.toLowerCase();` +
     "const textOf = (e) => (e.textContent || e.getAttribute('aria-label') || e.getAttribute('placeholder') || '').trim().toLowerCase();" +
     "const controls = [...document.querySelectorAll('[data-testid], button, a, [role=\"button\"], input, textarea')];" +
     "let match = controls.find(e => textOf(e).includes(needle));" +
+    "let isControl = !!match;" +
     "if (!match) {" +
     "const leaves = [...document.querySelectorAll('body *')].filter(e => e.children.length === 0);" +
     "match = leaves.find(e => textOf(e).includes(needle));" +
     "}" +
     "if (!match) return 'not-found';" +
-    dispatch +
+    `if (isControl || !${JSON.stringify(double)}) { match.click(); } else { ${dblclickDispatch} }` +
     "return 'clicked';" +
     "})()"
   );
