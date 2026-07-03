@@ -26,6 +26,9 @@ import { localDay, useBriefStore, type MeetingBrief } from './briefStore';
 import { enqueueBriefs } from './briefQueue';
 import { calendarListEvents } from '@/platform/utils/calendar-commands';
 import { todayWindowUtc } from './todayWindow';
+import { agendaMarkdownFromBrief } from './agendaExport';
+import { useMatterStore } from '@/platform/matter/matterStore';
+import { matterLabel } from '@/platform/rag/matterResolver';
 
 function basename(path: string): string {
   return path.split(/[\\/]/).pop() ?? path;
@@ -33,9 +36,13 @@ function basename(path: string): string {
 
 export function BeforeYouMeetStrip({ matterId }: { matterId: string }) {
   const briefs = useBriefStore((s) => s.briefs);
+  const matter = useMatterStore((s) =>
+    s.matters.find((m) => m.id === matterId)
+  );
   const [collapsed, setCollapsed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [savedKey, setSavedKey] = useState<string | null>(null);
+  const [savedAgendaKey, setSavedAgendaKey] = useState<string | null>(null);
 
   const today = localDay();
   const todays: MeetingBrief[] = Object.values(briefs)
@@ -76,6 +83,40 @@ export function BeforeYouMeetStrip({ matterId }: { matterId: string }) {
     } catch (error) {
       if (error instanceof Error && error.name !== 'AbortError') {
         console.error('Failed to export brief as .docx:', error);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function exportAgenda(brief: MeetingBrief) {
+    setBusy(true);
+    try {
+      const clientLabel = matter ? matterLabel(matter) : matterId;
+      const md = await agendaMarkdownFromBrief(brief, {
+        clientLabel,
+        eventTitle: brief.eventTitle,
+      });
+      const { markdownToDocxBytes } = await import('@/platform/utils/docx-io');
+      const { saveFile } = await import('@/platform/utils/saveFile');
+      const suggestedName = `Agenda - ${clientLabel}.docx`;
+      const bytes = await markdownToDocxBytes(md, suggestedName, {});
+      await saveFile(bytes, {
+        suggestedName,
+        types: [
+          {
+            description: 'Word Documents',
+            accept: {
+              'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+                ['.docx'],
+            },
+          },
+        ],
+      });
+      setSavedAgendaKey(brief.key);
+    } catch (error) {
+      if (error instanceof Error && error.name !== 'AbortError') {
+        console.error('Failed to export agenda as .docx:', error);
       }
     } finally {
       setBusy(false);
@@ -157,6 +198,18 @@ export function BeforeYouMeetStrip({ matterId }: { matterId: string }) {
                   </button>
                   <button
                     type="button"
+                    data-testid="agenda-export-docx"
+                    onClick={() => {
+                      void exportAgenda(brief);
+                    }}
+                    disabled={busy}
+                    className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-[var(--kp-navy)] hover:bg-slate-50 disabled:opacity-60"
+                  >
+                    <FileType size={13} />
+                    Agenda (Word)
+                  </button>
+                  <button
+                    type="button"
                     data-testid="brief-refresh"
                     onClick={() => {
                       void refresh(brief);
@@ -166,7 +219,7 @@ export function BeforeYouMeetStrip({ matterId }: { matterId: string }) {
                     <RefreshCw size={13} />
                     Refresh
                   </button>
-                  {savedKey === brief.key && (
+                  {(savedKey === brief.key || savedAgendaKey === brief.key) && (
                     <span className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--kp-success)]">
                       <CheckCircle2 size={14} />
                       Saved
