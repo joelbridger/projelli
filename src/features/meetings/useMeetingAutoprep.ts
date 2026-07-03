@@ -9,13 +9,17 @@
  */
 
 import { useEffect } from 'react';
-import type { CalendarEventDto } from '@/platform/utils/calendar-commands';
+import {
+  calendarListEvents,
+  type CalendarEventDto,
+} from '@/platform/utils/calendar-commands';
 import {
   buildCalendarMatterMap,
   resolveMattersForCalendarEvent,
 } from '@/platform/rag/matterResolver';
 import type { Matter } from '@/platform/types/matter';
 import { enqueueBriefs, type BriefJob } from './briefQueue';
+import { todayWindowUtc } from './todayWindow';
 
 export function jobsForEvents(
   events: CalendarEventDto[],
@@ -66,4 +70,43 @@ export function useMeetingAutoprep(
     enqueueBriefs(jobsForEvents(events, matters));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventsSignature, matterIdsKey, meetingKeysKey]);
+}
+
+export const RESCAN_INTERVAL_MS = 5 * 60 * 1000;
+
+/**
+ * v2 trigger: while the app is running, rescan today's calendar every few
+ * minutes so meetings added during the day get briefs too. The app must be
+ * open — there is deliberately no OS-level scheduler, and the UI says so.
+ */
+export function useAutoprepRescan(matters: Matter[]): void {
+  const matterIdsKey = matters.map((m) => m.id).join(',');
+  // codex-review P2: same class of bug already fixed in useMeetingAutoprep
+  // above — teaching/moving a meeting key changes no matter id, so without
+  // signing on meetingKeys too the interval keeps matching events against a
+  // stale key set until the strip remounts.
+  const meetingKeysKey = matters
+    .map((m) => (m.meetingKeys ?? []).join('+'))
+    .join('|');
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = setInterval(() => {
+      void (async () => {
+        const { fromUtc, toUtc } = todayWindowUtc();
+        const events = await calendarListEvents(fromUtc, toUtc).catch(
+          () => []
+        );
+        if (cancelled) return;
+        if (events.length > 0) {
+          enqueueBriefs(jobsForEvents(events, matters));
+        }
+      })();
+    }, RESCAN_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matterIdsKey, meetingKeysKey]);
 }
