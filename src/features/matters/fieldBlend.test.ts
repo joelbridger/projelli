@@ -23,11 +23,16 @@ import { describe, expect, it, vi } from 'vitest';
 import { composeFieldBlend, isNarrativeField, WEALTHBOX_NARRATIVE_FIELDS } from './fieldBlend';
 import type { Provider } from '@/platform/providers/Provider';
 
-function fakeProvider(response: string): Provider {
-  return {
+// Returns the mock alongside the provider (rather than letting callers pull
+// `provider.sendMessage` back off the object) — referencing a vi.fn() as an
+// object METHOD trips @typescript-eslint/unbound-method on every assertion.
+function fakeProvider(response: string) {
+  const sendMessage = vi.fn().mockResolvedValue({ content: response });
+  const provider = {
     getMetadata: () => ({ id: 'fake', name: 'Fake', model: 'fake-model' }) as never,
-    sendMessage: vi.fn().mockResolvedValue({ content: response }),
+    sendMessage,
   } as unknown as Provider;
+  return { provider, sendMessage };
 }
 
 describe('isNarrativeField', () => {
@@ -47,7 +52,7 @@ describe('isNarrativeField', () => {
 
 describe('composeFieldBlend — scalar fields', () => {
   it('replaces outright with the new value, never calling a provider', async () => {
-    const provider = fakeProvider('should not be used');
+    const { provider, sendMessage } = fakeProvider('should not be used');
     const finalValue = await composeFieldBlend({
       field: 'risk_tolerance',
       existingValue: 'Moderate',
@@ -55,7 +60,7 @@ describe('composeFieldBlend — scalar fields', () => {
       provider,
     });
     expect(finalValue).toBe('Aggressive');
-    expect(provider.sendMessage).not.toHaveBeenCalled();
+    expect(sendMessage).not.toHaveBeenCalled();
   });
 
   it('replaces outright even when no provider is configured', async () => {
@@ -70,7 +75,7 @@ describe('composeFieldBlend — scalar fields', () => {
 
 describe('composeFieldBlend — narrative fields, provider configured', () => {
   it('sends a merge instruction to the provider and returns its response verbatim', async () => {
-    const provider = fakeProvider('Robert owns a rental property. Retiring spring 2027.');
+    const { provider, sendMessage } = fakeProvider('Robert owns a rental property. Retiring spring 2027.');
     const finalValue = await composeFieldBlend({
       field: 'background_information',
       existingValue: 'Robert owns a rental property.',
@@ -78,8 +83,10 @@ describe('composeFieldBlend — narrative fields, provider configured', () => {
       provider,
     });
     expect(finalValue).toBe('Robert owns a rental property. Retiring spring 2027.');
-    expect(provider.sendMessage).toHaveBeenCalledTimes(1);
-    const prompt = vi.mocked(provider.sendMessage).mock.calls[0]![0];
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    const call = sendMessage.mock.calls[0];
+    expect(call).toBeDefined();
+    const prompt: string = typeof call?.[0] === 'string' ? call[0] : '';
     expect(prompt).toContain('Merge the new information into the existing text');
     expect(prompt).toContain('Keep every existing fact');
     expect(prompt).toContain('Robert owns a rental property.');
@@ -88,10 +95,10 @@ describe('composeFieldBlend — narrative fields, provider configured', () => {
 
   it('calls onBeforeProviderCall before provider.sendMessage (egress-audit seam)', async () => {
     const order: string[] = [];
-    const provider = fakeProvider('merged');
-    vi.mocked(provider.sendMessage).mockImplementation(async () => {
+    const { provider, sendMessage } = fakeProvider('merged');
+    sendMessage.mockImplementation(() => {
       order.push('sendMessage');
-      return { content: 'merged' } as never;
+      return Promise.resolve({ content: 'merged' } as never);
     });
     await composeFieldBlend({
       field: 'background_information',
@@ -105,11 +112,12 @@ describe('composeFieldBlend — narrative fields, provider configured', () => {
 
   it('does not call onBeforeProviderCall for a scalar field (no provider call happens)', async () => {
     const onBeforeProviderCall = vi.fn();
+    const { provider } = fakeProvider('unused');
     await composeFieldBlend({
       field: 'risk_tolerance',
       existingValue: 'Moderate',
       newValue: 'Aggressive',
-      provider: fakeProvider('unused'),
+      provider,
       onBeforeProviderCall,
     });
     expect(onBeforeProviderCall).not.toHaveBeenCalled();

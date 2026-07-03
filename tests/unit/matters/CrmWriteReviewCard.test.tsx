@@ -529,7 +529,11 @@ describe('CrmWriteReviewCard — field updates (Task 9c)', () => {
     );
   });
 
-  it('a verify_pending field item shows the re-review message with a Retry button', async () => {
+  // Corrected once the real Rust contract landed: the backend's stale-guard
+  // is a DISTINCT error/status ('stale'), not the generic 'verify_pending'
+  // ambiguous-delivery case — see CrmWriteError::StaleFieldValue in
+  // src-tauri/src/commands/crm/write.rs.
+  it('a stale field item shows the re-review message with a Retry button', async () => {
     const m = useMatterStore.getState().createMatter({
       name: 'Henderson',
       client: 'Henderson',
@@ -539,11 +543,11 @@ describe('CrmWriteReviewCard — field updates (Task 9c)', () => {
     const id = useCrmWriteQueueStore.getState().items[0]!.id;
     // enqueue() always starts an item at 'proposed' (status isn't a caller
     // input) — force the stale-guard state directly, same as the store's own
-    // tests reach 'failed'/'verify_pending' via a rejected wrapper call.
+    // tests reach it via a rejected wrapper call.
     useCrmWriteQueueStore.setState((s) => ({
       items: s.items.map((i) =>
         i.id === id
-          ? { ...i, status: 'verify_pending', error: 'This field changed in Wealthbox since the proposal — review again' }
+          ? { ...i, status: 'stale', error: 'this field changed in the CRM since the proposal — current value: Fresh live value.' }
           : i,
       ),
     }));
