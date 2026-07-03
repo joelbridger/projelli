@@ -111,6 +111,9 @@ describe('useClientMap', () => {
     await waitFor(() => expect(result.current.status).toBe('error'));
     expect(result.current.errorMessage).toMatch(/Settings.*Privacy|Privacy.*choose/i);
     expect(result.current.errorMessage).not.toMatch(/AI connection/i);
+    // needsConfidentialityChoice classifies this as the needs-you gate the UI
+    // resolves with the inline consent prompt, not a generic error message.
+    expect(result.current.needsConfidentialityChoice).toBe(true);
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       expect.stringMatching(/Client Map build failed/i),
       expect.any(ConfidentialityChoiceRequiredError),
@@ -148,6 +151,7 @@ describe('useClientMap', () => {
     await waitFor(() => expect(result.current.status).toBe('error'));
     expect(result.current.errorMessage).toMatch(/Settings.*Privacy|Privacy.*choose/i);
     expect(result.current.errorMessage).not.toMatch(/Before sending to a cloud AI/i);
+    expect(result.current.needsConfidentialityChoice).toBe(true);
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       expect.stringMatching(/Client Map update check failed/i),
       expect.any(ConfidentialityChoiceRequiredError),

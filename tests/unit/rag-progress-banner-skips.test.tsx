@@ -117,4 +117,35 @@ describe('RagProgressBanner — BUG-099 skip count rendering', () => {
     render(<RagProgressBanner status={snap} />);
     expect(screen.getByTestId('rag-pdf-progress').textContent).toContain('2 / 40');
   });
+
+  it('combines the office pass and the concurrent PDF pass into one total', () => {
+    // Regression: the office count (338 total, 71 processed) and the PDF
+    // count (40 total, 2 processed) used to render as two separate lines
+    // ("77 files" + a separate "2 / 40" PDF line). They must fold into one
+    // honest total instead: 378 files, 73 done.
+    pdfState.progress = { processed: 2, total: 40, currentPath: null };
+    const snap = makeSnap({ status: 'indexing', processed: 71, total: 338 });
+    const { getByTestId, queryByTestId } = render(<RagProgressBanner status={snap} />);
+    const banner = getByTestId('rag-progress-banner');
+    expect(banner.textContent).toContain('378 files');
+    expect(banner.textContent).toContain('73 done');
+    expect(banner.textContent).toContain('Nothing leaves your machine');
+    expect(queryByTestId('rag-pdf-progress')).toBeNull();
+  });
+
+  it('ignores a FINISHED pdf pass lingering in its post-completion display grace period', () => {
+    // Regression (codex review finding): usePdfIndexProgressStore.clearSoon()
+    // keeps a completed PDF pass's numbers around for a few seconds purely so
+    // its own "done" line doesn't blink away instantly. A brand new, unrelated
+    // office-file run that starts inside that window must NOT fold the
+    // finished PDF's totals into its own count (e.g. "41 files, 40 done" for
+    // a genuine 1-file update, because a finished 40/40 PDF pass is still
+    // sitting in the store).
+    pdfState.progress = { processed: 40, total: 40, currentPath: null };
+    const snap = makeSnap({ status: 'indexing', processed: 0, total: 1 });
+    const { getByTestId } = render(<RagProgressBanner status={snap} />);
+    const banner = getByTestId('rag-progress-banner');
+    expect(banner.textContent).toContain('1 file');
+    expect(banner.textContent).not.toContain('41 file');
+  });
 });

@@ -18,9 +18,9 @@ import { isTauri } from '@tauri-apps/api/core';
 import { useMatters, useActiveMatterPrivileged, useMatterStore, SAMPLE_MATTER_ID, type ClientMapHubTab } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
-import { Badge } from '@/ui/kp';
+import { Badge, AiConsentPrompt } from '@/ui/kp';
 import SurfaceHeader from '@/ui/SurfaceHeader';
-import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
+import { useConfidentialityMode, useRecordConfidentialityChoice } from '@/platform/hooks/useConfidentialityMode';
 import { useActiveEgressProvider } from '@/platform/hooks/useActiveEgressProvider';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import { useClientMap } from '@/features/matters/useClientMap';
@@ -90,6 +90,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
     autoBuild: matterId !== SAMPLE_MATTER_ID,
   });
   const { checkForUpdates } = clientMap;
+  const recordConfidentialityChoice = useRecordConfidentialityChoice();
   const matters = useMatters();
   const matter = matters.find((m) => m.id === matterId) ?? null;
   const isPrivileged = useActiveMatterPrivileged();
@@ -409,7 +410,25 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                       </div>
                     )}
 
-                    {clientMap.status === 'error' && (
+                    {clientMap.status === 'error' && clientMap.needsConfidentialityChoice && (
+                      // S2/S3: the personal-install confidentiality-choice gate is a
+                      // needs-you moment, not a dead-end sentence pointing at Settings.
+                      // One click ("Build map") records the choice AND retries the
+                      // build, using the SAME shared consent prompt family as Ask's
+                      // FileAccessConsentBanner (reuse, not a fork).
+                      <AiConsentPrompt
+                        data-testid="hub-clientmap-needs-consent"
+                        message={`Ready to build the ${matterLabel(matter)} Client Map`}
+                        actionLabel="Build map"
+                        onAction={() => {
+                          recordConfidentialityChoice('direct');
+                          void clientMap.generate();
+                        }}
+                        note="Uses your cloud AI"
+                      />
+                    )}
+
+                    {clientMap.status === 'error' && !clientMap.needsConfidentialityChoice && (
                       <div
                         data-testid="hub-clientmap-error"
                         style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}

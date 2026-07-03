@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { AlertTriangle, Check, Loader2, Sparkles, Wand2, X } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { Textarea } from '@/ui/textarea';
+import { AiConsentPrompt } from '@/ui/kp';
 import { cn } from '@/lib/utils';
 import type { RedlineSummary } from './docxEditorHelpers';
 
@@ -66,6 +67,8 @@ export function RedlineComposer({
   onInstructionChange,
   busy,
   error,
+  needsConfidentialityChoice,
+  onEnableCloudAi,
   hasKey,
   aiPaused,
   onRun,
@@ -75,6 +78,11 @@ export function RedlineComposer({
   onInstructionChange: (v: string) => void;
   busy: boolean;
   error: string | null;
+  /** True when `error` is specifically the personal-install confidentiality-
+   *  choice gate — a needs-you moment resolved with one click, rendered as
+   *  the shared inline consent prompt instead of a plain error sentence. */
+  needsConfidentialityChoice: boolean;
+  onEnableCloudAi: () => void;
   hasKey: boolean;
   /** True when AI features are paused (lapsed subscription / expired trial). */
   aiPaused: boolean;
@@ -130,7 +138,16 @@ export function RedlineComposer({
             {t('media.docx-editor.redline-need-key')}
           </p>
         )}
-        {error && (
+        {error && needsConfidentialityChoice && (
+          <AiConsentPrompt
+            data-testid="docx-redline-needs-consent"
+            message="AI redline needs a one-time privacy choice"
+            actionLabel="Enable cloud AI"
+            onAction={onEnableCloudAi}
+            note="Your account, your key"
+          />
+        )}
+        {error && !needsConfidentialityChoice && (
           <p
             data-testid="docx-redline-error"
             className="rounded bg-red-50 px-2 py-1 text-[11px] text-red-700"

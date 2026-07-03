@@ -58,9 +58,21 @@ export function RagProgressBanner({ status }: RagProgressBannerProps) {
   const doneVisible = snap.status === 'done' && dismissedKey !== doneKey;
 
   if (snap.status === 'indexing' && snap.total > 0) {
-    const pct = Math.min(100, Math.round((snap.processed / snap.total) * 100));
-    const fileLabel =
-      snap.processed === 1 ? 'file' : 'files';
+    // Office/text files and PDFs are two separate passes under the hood (PDFs
+    // extract in the renderer, so Rust can't report their progress through
+    // the same event) — but the user is just watching "how much of my stuff
+    // is left", so fold both counters into one total instead of two lines
+    // that read as two unrelated jobs. A FINISHED pdf pass lingers in the
+    // store for a few seconds after completion (clearSoon's display grace
+    // period) purely so its own "done" line doesn't blink away instantly —
+    // only fold it in while it's still genuinely mid-pass, so a brand new,
+    // unrelated office-file run that starts in that grace window doesn't
+    // inherit stale finished PDF numbers into its own total.
+    const pdfActive = pdf !== null && pdf.processed < pdf.total;
+    const combinedTotal = snap.total + (pdfActive ? pdf.total : 0);
+    const combinedProcessed = snap.processed + (pdfActive ? pdf.processed : 0);
+    const pct = Math.min(100, Math.round((combinedProcessed / combinedTotal) * 100));
+    const fileLabel = combinedTotal === 1 ? 'file' : 'files';
     const current = snap.currentPath
       ? truncateLeft(snap.currentPath, 60)
       : null;
@@ -77,8 +89,10 @@ export function RagProgressBanner({ status }: RagProgressBannerProps) {
                 migration rebuild, vs a routine update of new/changed files. Keep
                 the numbers as JSX children (not template-literal expressions) so
                 they don't trip @typescript-eslint/restrict-template-expressions. */}
-            {snap.migrating ? 'Upgrading search index: ' : 'Memory updating: '}
-            {snap.processed} / {snap.total} {fileLabel} ({pct}%)
+            {snap.migrating ? 'Upgrading search index: ' : 'Indexing '}
+            {combinedTotal} {fileLabel},{' '}
+            {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string */}
+            {combinedProcessed} done · Nothing leaves your machine.
           </div>
           {current && (
             <div className="truncate text-muted-foreground" title={snap.currentPath ?? ''}>
@@ -88,15 +102,6 @@ export function RagProgressBanner({ status }: RagProgressBannerProps) {
           {ocrLine && (
             <div data-testid="rag-ocr-progress" className="truncate text-muted-foreground">
               {ocrLine}
-            </div>
-          )}
-          {pdfLine && (
-            <div
-              data-testid="rag-pdf-progress"
-              className="truncate text-muted-foreground"
-              title={pdf?.currentPath ?? ''}
-            >
-              {pdfLine}
             </div>
           )}
         </div>

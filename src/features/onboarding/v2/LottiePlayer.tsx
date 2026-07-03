@@ -27,13 +27,20 @@ type AnimItem = { destroy: () => void; goToAndStop: (frame: number, isFrame: boo
 export function LottiePlayer({ src, size, className, ariaLabel }: LottiePlayerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [failed, setFailed] = useState(false);
-  // Ref (not a plain boolean) so TS doesn't narrow the post-await guards to a
-  // literal `false` — same pattern as useLocalLlmModelStatus.
-  const cancelledRef = useRef(false);
 
   useEffect(() => {
-    cancelledRef.current = false;
-    const isCancelled = () => cancelledRef.current;
+    // `local.cancelled` lives on an object created FRESH by this effect
+    // invocation's closure — NOT a ref shared across invocations. Under
+    // StrictMode (dev), React runs mount -> cleanup -> mount synchronously for
+    // every effect; a shared ref meant run B's mount (which reset the ref to
+    // false) could un-cancel run A's still-pending async work, so both
+    // loadAnimation calls would proceed and append two <svg> instances into
+    // the same container. An object scoped to this closure can only ever be
+    // flipped by THIS invocation's own cleanup, so a superseded run can never
+    // be revived by a later one. (A plain `let` instead of an object property
+    // would read the same, but TS narrows a bare closed-over `let` read after
+    // an `await` to its initial literal type, defeating the post-await guard.)
+    const local = { cancelled: false };
     let anim: AnimItem | null = null;
 
     const reduceMotion =
@@ -45,7 +52,12 @@ export function LottiePlayer({ src, size, className, ariaLabel }: LottiePlayerPr
       try {
         const mod = await import('lottie-web');
         const lottie = mod.default;
-        if (isCancelled() || !containerRef.current) return;
+        if (local.cancelled || !containerRef.current) return;
+        // Defense in depth: clear any stray prior content before mounting so
+        // a duplicate render can never visually stack two icons even if some
+        // other path (e.g. Fast Refresh) re-runs this effect without a clean
+        // unmount in between.
+        containerRef.current.replaceChildren();
         const instance = lottie.loadAnimation({
           container: containerRef.current,
           renderer: 'svg',
@@ -63,12 +75,12 @@ export function LottiePlayer({ src, size, className, ariaLabel }: LottiePlayerPr
           }
         }
       } catch {
-        if (!isCancelled()) setFailed(true);
+        if (!local.cancelled) setFailed(true);
       }
     })();
 
     return () => {
-      cancelledRef.current = true;
+      local.cancelled = true;
       if (anim) {
         try {
           anim.destroy();

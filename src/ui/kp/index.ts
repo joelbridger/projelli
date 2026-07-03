@@ -26,6 +26,8 @@ export { EmptyState } from './EmptyState';
 export type { EmptyStateProps } from './EmptyState';
 export { Callout } from './Callout';
 export type { CalloutProps } from './Callout';
+export { AiConsentPrompt } from './AiConsentPrompt';
+export type { AiConsentPromptProps } from './AiConsentPrompt';
 export { Dropdown } from './Dropdown';
 export type { DropdownProps } from './Dropdown';
 export { SlidePanel } from './SlidePanel';

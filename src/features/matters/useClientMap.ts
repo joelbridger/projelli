@@ -60,13 +60,19 @@ export function useClientMap(
     autoBuild?: boolean;
   },
 ): {
-  status: ClientMapStatus; errorMessage: string | null; map: ClientMap | undefined; generate: () => Promise<void>; checkForUpdates: () => Promise<void>;
+  status: ClientMapStatus; errorMessage: string | null; needsConfidentialityChoice: boolean; map: ClientMap | undefined; generate: () => Promise<void>; checkForUpdates: () => Promise<void>;
 } {
   const map = useClientMapStore((s) => s.maps[matterId]);
   const setMap = useClientMapStore((s) => s.setMap);
   const onAuditLog = options?.onAuditLog;
   const [status, setStatus] = useState<ClientMapStatus>(mapHasContent(map) ? 'ready' : map ? 'empty' : 'idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // Classifies an 'error' status: true when the block is specifically the
+  // personal-install confidentiality-choice gate (a needs-you moment the UI
+  // can resolve in one click), false for any other build failure (a plain
+  // error message). Derived from the SAME `isConfidentialityChoiceRequiredError`
+  // guard already used to build `errorMessage` below — no new gate logic.
+  const [needsConfidentialityChoice, setNeedsConfidentialityChoice] = useState(false);
   const generate = useCallback(async () => {
     // Dedupe concurrent builds for the same matter (auto-build vs manual click,
     // StrictMode double-invoke). A build already in flight wins; this call no-ops.
@@ -74,6 +80,7 @@ export function useClientMap(
     clientMapBuildsInFlight.add(matterId);
     setStatus('generating');
     setErrorMessage(null);
+    setNeedsConfidentialityChoice(false);
     try {
       // Fingerprint the source BEFORE the build, so the stored fingerprint
       // reflects the source state the build actually saw. If content arrives
@@ -117,8 +124,10 @@ export function useClientMap(
       setStatus(mapHasContent(builtMap) ? 'ready' : 'empty');
     } catch (error) {
       console.error('Client Map build failed', error);
+      const needsChoice = isConfidentialityChoiceRequiredError(error);
+      setNeedsConfidentialityChoice(needsChoice);
       setErrorMessage(
-        isConfidentialityChoiceRequiredError(error)
+        needsChoice
           ? error.message
           : 'Could not build client map. Check your AI connection and try again.',
       );
@@ -168,8 +177,10 @@ export function useClientMap(
       });
     } catch (error) {
       console.error('Client Map update check failed', error);
+      const needsChoice = isConfidentialityChoiceRequiredError(error);
+      setNeedsConfidentialityChoice(needsChoice);
       setErrorMessage(
-        isConfidentialityChoiceRequiredError(error)
+        needsChoice
           ? error.message
           : 'Could not check for client map updates. Try again in a moment.',
       );
@@ -207,5 +218,5 @@ export function useClientMap(
     }
   }, [autoBuild, resolvedStatus, generate]);
 
-  return { status: resolvedStatus, errorMessage, map, generate, checkForUpdates };
+  return { status: resolvedStatus, errorMessage, needsConfidentialityChoice, map, generate, checkForUpdates };
 }

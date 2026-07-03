@@ -145,7 +145,7 @@ export function OnboardingShell({
 
       {/* Scrolling content area */}
       <div className="kp-onbv2-scroll relative z-10 flex-1 overflow-y-auto">
-        <div className="mx-auto flex min-h-full max-w-[1200px] flex-col items-center justify-center px-6 py-20 text-center">
+        <div className="mx-auto flex min-h-full max-w-[1200px] flex-col items-center justify-center px-6 py-10 text-center">
           {children}
         </div>
       </div>

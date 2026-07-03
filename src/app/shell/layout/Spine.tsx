@@ -11,6 +11,7 @@ import {
   Map as MapIcon, Plus, ChevronLeft, ChevronRight, type LucideIcon,
 } from 'lucide-react';
 import { useMatters, useActiveMatterId } from '@/platform/matter/matterStore';
+import type { Matter } from '@/platform/types/matter';
 import { AccountIdentity } from './AccountIdentity';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
@@ -37,6 +38,18 @@ interface SpineProps {
 }
 
 /** The Advisor Prep Hero keep-mark from keepance.com — white keep + gradient sparkle. */
+/** A real secondary fact for a matter row's subtitle line — never a repeat of
+ *  the title. `matterLabel()` already folds in `m.client` when the matter has
+ *  its own distinct name (returning "Client - Matter"), so showing `m.client`
+ *  again below is only ever non-redundant when the label diverged from it. */
+function matterSecondaryLine(m: Matter): string | null {
+  const label = matterLabel(m);
+  if (label !== m.client) return m.client;
+  const folderCount = m.folderPaths.length;
+  if (folderCount > 0) return `${folderCount.toString()} ${folderCount === 1 ? 'folder' : 'folders'}`;
+  return null;
+}
+
 function AppBrandMark() {
   return (
     <svg viewBox="0 99 651 652" width="22" height="22" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style={{ flex: 'none' }}>
@@ -163,6 +176,7 @@ export function Spine({
             </div>
             {matters.map((m) => {
               const on = m.id === activeMatterId;
+              const secondary = matterSecondaryLine(m);
               return (
                 <button key={m.id} type="button"
                   onClick={() => {
@@ -173,7 +187,9 @@ export function Spine({
                   style={{ display: 'block', width: '100%', textAlign: 'left', border: 0, cursor: 'pointer', background: on ? 'var(--kp-side-active-bg)' : 'transparent', color: 'var(--kp-side-fg)', padding: 'var(--kp-space-xs) var(--kp-space-sm)', borderRadius: 'var(--radius-md)', position: 'relative' }}>
                   {on && <span style={{ position: 'absolute', left: 3, top: 8, bottom: 8, width: 3, borderRadius: 3, background: 'var(--kp-side-accent)' }} />}
                   <div style={{ fontSize: 'var(--kp-font-sm)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-side-fg)', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{matterLabel(m)}</div>
-                  <div style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--kp-side-fg-faint)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.client}</div>
+                  {secondary !== null && (
+                    <div style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--kp-side-fg-faint)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{secondary}</div>
+                  )}
                 </button>
               );
             })}

@@ -43,13 +43,23 @@ describe('SettingsContent — full-page variant', () => {
       .filter((b) => (b.getAttribute('data-testid') ?? '').startsWith('settings-category-'));
     expect(navBtns).toHaveLength(5);
 
-    // Footer Export / Import / Reset are present.
+    // Footer keeps Export / Import; Reset to Defaults moved into the Advanced
+    // section so a destructive, rarely-used action isn't a permanent
+    // page-level control on every settings screen.
     expect(screen.getByTestId('settings-export')).toBeInTheDocument();
     expect(screen.getByTestId('settings-import')).toBeInTheDocument();
-    expect(screen.getByTestId('settings-reset')).toBeInTheDocument();
+    expect(screen.queryByTestId('settings-reset')).not.toBeInTheDocument();
 
     // No modal close X in page variant (that belongs to the dialog chrome).
     expect(screen.getByTestId('settings-content-scroll')).toBeInTheDocument();
+  });
+
+  it('shows Reset to Defaults only inside the Advanced section', () => {
+    render(<SettingsContent variant="page" initialCategory="advanced" />);
+    // The Advanced section itself is a tab strip; its "Advanced" sub-tab
+    // (not "Extensions", the first/default one) holds the Reset control.
+    fireEvent.click(screen.getByTestId('subheader-advanced-heading'));
+    expect(screen.getByTestId('settings-reset')).toBeInTheDocument();
   });
 });
 

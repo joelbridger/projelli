@@ -357,6 +357,27 @@ describe('FirmSetupScene drives bars from useSetupProgress', () => {
     expect(aiRow.querySelector('[data-testid="progress-status"]')?.textContent).toBe('Not verified');
   });
 
+  it('never shows the cloud "not verified yet" copy on the local-AI path', () => {
+    // Regression: cloudUnverified must stay gated on ai.mode === 'cloud'. A
+    // local install with no cloud key and no verified provider must fall
+    // through to the local-path label, never the cloud "key saved but
+    // unverified" copy (that sentence is meaningless without a cloud key).
+    h.progress = makeProgress({
+      ai: {
+        mode: 'local',
+        state: 'downloading',
+        percent: 40,
+        cloudKeyPresent: false,
+        localLlm: { state: 'downloading', percent: 40 },
+        searchModel: { state: 'ready', percent: null },
+      },
+    });
+    gotoFirm();
+    const aiRow = screen.getByTestId('firm-row-ai');
+    expect(aiRow.textContent).not.toContain('not verified yet');
+    expect(aiRow.textContent).toContain('Downloading your private AI');
+  });
+
   it('shows a failed AI setup row and retries failed model downloads', () => {
     h.progress = makeProgress({
       ai: {

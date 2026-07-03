@@ -502,6 +502,10 @@ interface SectionProps {
   templates?: WorkflowTemplate[] | undefined;
   onRestartOnboarding?: (() => void) | undefined;
   onNavigate: (section: SectionCategory) => void;
+  /** Wipes all settings back to defaults after a confirm dialog. Rendered
+   *  inside the Advanced section, not as a permanent page-level control — a
+   *  destructive, rarely-used action doesn't belong on every settings page. */
+  onResetDefaults: () => void;
 }
 
 /** Does any of `keys` survive the current search filter? Used to decide
@@ -694,6 +698,7 @@ function VoiceSection(props: SectionProps) {
 }
 
 function AdvancedSection(props: SectionProps) {
+  const { t } = useTranslation();
   const updatesKeys = ['autoUpdateCheck', 'updateChannel', 'manualCheckNow'];
   // Power-user / developer-view toggles (e.g. the AI cost & usage meters,
   // which are off by default so the assistant doesn't read like a dev console).
@@ -744,6 +749,24 @@ function AdvancedSection(props: SectionProps) {
           {renderRows(advancedKeys, props)}
           <AdvancedSettings />
           <MobileSettings />
+          <div className="mt-8 border-t border-border/50 pt-6">
+            {/* eslint-disable lantern-i18n/no-hardcoded-string */}
+            <Eyebrow primary>Reset</Eyebrow>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Wipe every setting back to its default. This cannot be undone.
+            </p>
+            {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+            <Button
+              data-testid="settings-reset"
+              variant="danger"
+              size="sm"
+              iconLeft={RotateCcw}
+              className="mt-2"
+              onClick={props.onResetDefaults}
+            >
+              {t('settings.modal.reset')}
+            </Button>
+          </div>
         </SubSection>
       </AccordionSection>
     </div>
@@ -1026,6 +1049,7 @@ export function SettingsContent({
     templates,
     onRestartOnboarding,
     onNavigate: setActiveSection,
+    onResetDefaults: handleReset,
   };
 
   return (
@@ -1196,15 +1220,6 @@ export function SettingsContent({
             onClick={handleImport}
           >
             {t('settings.modal.import')}
-          </Button>
-          <Button
-            data-testid="settings-reset"
-            variant="danger"
-            size="sm"
-            iconLeft={RotateCcw}
-            onClick={handleReset}
-          >
-            {t('settings.modal.reset')}
           </Button>
           <input
             ref={fileInputRef}

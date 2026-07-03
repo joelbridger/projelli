@@ -23,6 +23,8 @@ function renderComposer(overrides: Partial<React.ComponentProps<typeof RedlineCo
     onInstructionChange: vi.fn(),
     busy: false,
     error: null,
+    needsConfidentialityChoice: false,
+    onEnableCloudAi: vi.fn(),
     hasKey: true,
     aiPaused: false,
     onRun: vi.fn(),
@@ -61,5 +63,21 @@ describe('RedlineComposer key gate (E4 / BUG-009)', () => {
     expect(screen.getByTestId('docx-redline-ai-paused')).toBeTruthy();
     // When paused we surface the pause reason, not the (irrelevant) key hint.
     expect(screen.queryByTestId('docx-redline-need-key')).toBeNull();
+  });
+
+  it('shows the inline consent prompt (not a plain error sentence) for the confidentiality-choice gate', () => {
+    renderComposer({
+      hasKey: true,
+      error: 'Before sending to a cloud AI, go to Settings → Privacy and choose how you want AI requests handled.',
+      needsConfidentialityChoice: true,
+    });
+    expect(screen.getByTestId('docx-redline-needs-consent')).toBeTruthy();
+    expect(screen.queryByTestId('docx-redline-error')).toBeNull();
+  });
+
+  it('shows the plain error sentence for a non-consent error', () => {
+    renderComposer({ hasKey: true, error: 'Something else went wrong.', needsConfidentialityChoice: false });
+    expect(screen.getByTestId('docx-redline-error')).toBeTruthy();
+    expect(screen.queryByTestId('docx-redline-needs-consent')).toBeNull();
   });
 });

@@ -71,8 +71,8 @@ import {
 import { writeCoordinator } from '@/platform/fs/writeCoordinator';
 import { createProvider, isLocalProviderId, type ChatProviderId } from '@/platform/providers/providerFactory';
 import { useTrialGate } from '@/platform/hooks/useTrial';
-import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
-import { assertCloudGenerationAllowed } from '@/platform/privacy/localOnlyGuard';
+import { getConfidentialityMode, useRecordConfidentialityChoice } from '@/platform/hooks/useConfidentialityMode';
+import { assertCloudGenerationAllowed, isConfidentialityChoiceRequiredError } from '@/platform/privacy/localOnlyGuard';
 import { getActiveScope } from '@/platform/matter/matterStore';
 import { IS_DEMO } from '@/web-demo/demoModeFlag';
 import {
@@ -210,6 +210,11 @@ export function DocxEditor({
   const [redlineInstruction, setRedlineInstruction] = useState('');
   const [redlineBusy, setRedlineBusy] = useState(false);
   const [redlineError, setRedlineError] = useState<string | null>(null);
+  // Classifies redlineError: true only for the personal-install confidentiality-
+  // choice gate, so the composer can render the shared inline consent prompt
+  // (one click resolves it) instead of a plain error sentence.
+  const [redlineNeedsConfidentialityChoice, setRedlineNeedsConfidentialityChoice] = useState(false);
+  const recordConfidentialityChoice = useRecordConfidentialityChoice();
   // A short summary of the last AI redline: the reasons + how many anchored.
   const [redlineSummary, setRedlineSummary] = useState<RedlineSummary | null>(
     null,
@@ -965,16 +970,19 @@ export function DocxEditor({
     // expired trial. Never a lockout — the document is still fully editable and
     // exportable; only this AI action is unavailable until they resubscribe.
     if (aiGated) {
+      setRedlineNeedsConfidentialityChoice(false);
       setRedlineError(t('media.docx-editor.redline-ai-paused'));
       return;
     }
     // Cloud providers require a key; a local (Ollama) provider does not.
     if (!isLocalRedline && !redlineKey) {
+      setRedlineNeedsConfidentialityChoice(false);
       setRedlineError(t('media.docx-editor.redline-need-key'));
       return;
     }
     setRedlineBusy(true);
     setRedlineError(null);
+    setRedlineNeedsConfidentialityChoice(false);
     setRedlineSummary(null);
     try {
       // Personal-install choice gate (Task 1.3 fix): redline is cloud generation;
@@ -1069,6 +1077,7 @@ export function DocxEditor({
         : err instanceof Error
           ? err.message
           : String(err);
+      setRedlineNeedsConfidentialityChoice(!isLocalRedline && isConfidentialityChoiceRequiredError(err));
       setRedlineError(message);
       console.error('[DocxEditor] AI redline failed:', err);
     } finally {
@@ -1350,6 +1359,13 @@ export function DocxEditor({
           onInstructionChange={setRedlineInstruction}
           busy={redlineBusy}
           error={redlineError}
+          needsConfidentialityChoice={redlineNeedsConfidentialityChoice}
+          onEnableCloudAi={() => {
+            recordConfidentialityChoice('direct');
+            setRedlineNeedsConfidentialityChoice(false);
+            setRedlineError(null);
+            void runRedline();
+          }}
           hasKey={redlineReady}
           aiPaused={aiGated}
           onRun={() => void runRedline()}

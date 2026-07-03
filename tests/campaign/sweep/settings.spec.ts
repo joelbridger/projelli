@@ -104,6 +104,10 @@ test.describe('Settings actions + search (L-031..L-034)', () => {
   test('L-033 settings reset action visible + escape closes', async ({ page, browserName: _b }, testInfo) => {
     const getErrors = collectConsoleErrors(page);
     await openSettings(page);
+    // Reset to Defaults lives inside the Advanced section's "Advanced" sub-tab
+    // now (moved off the permanent footer, S4 demotion), not visible on open.
+    await hardClick(page.getByTestId('settings-category-advanced'));
+    await hardClick(page.getByTestId('subheader-advanced-heading'));
     const resetBtn = page.getByTestId('settings-reset');
     await expect(resetBtn).toBeVisible();
     await snap(page, testInfo, 'L-033-settings-reset');
