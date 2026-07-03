@@ -13,7 +13,7 @@
 //!   - transcript.json is deleted only in summary-only mode AND only when
 //!     notes.docx exists (never delete the only record of a meeting).
 //!   - Every failure is reported in `errors`, never swallowed.
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub const MEETINGS_DIR_NAME: &str = "Meetings";
 const DAY_MS: u64 = 86_400_000;
@@ -40,14 +40,54 @@ pub struct SweepOutcome {
 /// Last line of defense: every unlink re-verifies canonical containment in the
 /// workspace. The command-level guard already rejected bad folder inputs; this
 /// catches anything a symlink inside a matter folder could smuggle in.
-fn contained(path: &Path, canon_ws: &Path) -> bool {
+/// `pub(crate)` so redact.rs (Task 17b) reuses this instead of duplicating it.
+pub(crate) fn contained(path: &Path, canon_ws: &Path) -> bool {
     match path.parent().and_then(|p| p.canonicalize().ok()) {
         Some(parent) => parent.starts_with(canon_ws),
         None => false,
     }
 }
 
-fn remove_file(path: &Path, kind: &str, canon_ws: &Path, out: &mut SweepOutcome) {
+/// Resolve a caller-supplied workspace-relative path to its canonical form,
+/// refusing an absolute or escaping input outright (never "helpfully" swept
+/// or touched). Returns `Ok(None)` when the path doesn't exist on disk —
+/// callers decide what that means for them: `retention_sweep` treats a
+/// vanished matter folder as benign (enumerated, then removed, before the
+/// sweep ran) and skips it; a command that targets one specific,
+/// caller-chosen path (like Task 17b's redaction) should treat "doesn't
+/// exist" as a hard error instead. `pub(crate)` so both call sites share the
+/// same security-critical validation rather than duplicating it.
+pub(crate) fn canonicalize_workspace_relative(
+    canon_ws: &Path,
+    relative: &str,
+) -> Result<Option<PathBuf>, String> {
+    let p = Path::new(relative);
+    if p.is_absolute() {
+        return Err(format!("path must be workspace-relative: {relative}"));
+    }
+    let abs = match canon_ws.join(p).canonicalize() {
+        Ok(c) => c,
+        Err(_) => return Ok(None),
+    };
+    if !abs.starts_with(canon_ws) {
+        return Err(format!("path escapes workspace: {relative}"));
+    }
+    Ok(Some(abs))
+}
+
+/// Called immediately after EVERY confirmed unlink/rmdir, before the sweep
+/// moves on to the next artifact — never batched per-meeting, per-folder, or
+/// per-run. A process crash anywhere in the sweep can then lose at most the
+/// ONE deletion that was in flight, never a whole folder or batch's worth of
+/// already-deleted, not-yet-audited files. `rag_ids` carries the RAG-doc ids
+/// this specific deletion makes stale (only the summary-only mode's
+/// transcript.json delete has any; every other kind passes `&[]`), so those
+/// ids land durably in the SAME audit entry as the deletion that orphaned
+/// them, not only in the Tauri IPC response the renderer might never finish
+/// processing before a crash.
+type DeleteAudit<'a> = &'a mut dyn FnMut(&SweepDeletion, &[String]) -> Result<(), String>;
+
+fn remove_file(path: &Path, kind: &str, canon_ws: &Path, out: &mut SweepOutcome, rag_ids: &[String], on_delete: DeleteAudit) {
     if !path.exists() {
         return;
     }
@@ -56,12 +96,21 @@ fn remove_file(path: &Path, kind: &str, canon_ws: &Path, out: &mut SweepOutcome)
         return;
     }
     match std::fs::remove_file(path) {
-        Ok(()) => out.deleted.push(SweepDeletion { path: path.to_string_lossy().into_owned(), kind: kind.to_string() }),
+        Ok(()) => {
+            let d = SweepDeletion { path: path.to_string_lossy().into_owned(), kind: kind.to_string() };
+            if let Err(e) = on_delete(&d, rag_ids) {
+                out.errors.push(e);
+            }
+            if !rag_ids.is_empty() {
+                out.rag_cleanup_source_ids.extend(rag_ids.iter().cloned());
+            }
+            out.deleted.push(d);
+        }
         Err(e) => out.errors.push(format!("delete {}: {e}", path.display())),
     }
 }
 
-fn remove_dir(path: &Path, kind: &str, canon_ws: &Path, out: &mut SweepOutcome) {
+fn remove_dir(path: &Path, kind: &str, canon_ws: &Path, out: &mut SweepOutcome, on_delete: DeleteAudit) {
     if !path.exists() {
         return;
     }
@@ -70,7 +119,13 @@ fn remove_dir(path: &Path, kind: &str, canon_ws: &Path, out: &mut SweepOutcome) 
         return;
     }
     match std::fs::remove_dir_all(path) {
-        Ok(()) => out.deleted.push(SweepDeletion { path: path.to_string_lossy().into_owned(), kind: kind.to_string() }),
+        Ok(()) => {
+            let d = SweepDeletion { path: path.to_string_lossy().into_owned(), kind: kind.to_string() };
+            if let Err(e) = on_delete(&d, &[]) {
+                out.errors.push(e);
+            }
+            out.deleted.push(d);
+        }
         Err(e) => out.errors.push(format!("delete {}: {e}", path.display())),
     }
 }
@@ -119,17 +174,17 @@ pub fn transcript_rag_source_ids(meeting_dir: &Path) -> Vec<String> {
         .collect()
 }
 
-fn remove_raw_audio(meeting_dir: &Path, canon_ws: &Path, out: &mut SweepOutcome) {
-    remove_file(&meeting_dir.join("audio.wav"), "audio", canon_ws, out);
+fn remove_raw_audio(meeting_dir: &Path, canon_ws: &Path, out: &mut SweepOutcome, on_delete: DeleteAudit) {
+    remove_file(&meeting_dir.join("audio.wav"), "audio", canon_ws, out, &[], on_delete);
     // import-original.<any ext> + diarization temp channel extracts (.diarize-*.wav)
     if let Ok(entries) = std::fs::read_dir(meeting_dir) {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().into_owned();
             if name.starts_with("import-original.") {
-                remove_file(&entry.path(), "import-original", canon_ws, out);
+                remove_file(&entry.path(), "import-original", canon_ws, out, &[], on_delete);
             }
             if name.starts_with(".diarize-") && name.ends_with(".wav") {
-                remove_file(&entry.path(), "diarize-temp", canon_ws, out);
+                remove_file(&entry.path(), "diarize-temp", canon_ws, out, &[], on_delete);
             }
         }
     }
@@ -142,6 +197,7 @@ pub fn sweep_matter_folder(
     audio_retention_days: u32,
     now_ms: u64,
     out: &mut SweepOutcome,
+    on_delete: DeleteAudit,
 ) {
     let meetings = matter_folder.join(MEETINGS_DIR_NAME);
     let Ok(entries) = std::fs::read_dir(&meetings) else {
@@ -157,14 +213,14 @@ pub fn sweep_matter_folder(
             continue; // recording/transcription in flight — NEVER touch
         }
         // Finalized: caches + breadcrumbs go in EVERY mode.
-        remove_dir(&dir.join(".capture"), "chunk-cache", canon_ws, out);
-        remove_file(&dir.join(".transcribe-progress.json"), "progress", canon_ws, out);
+        remove_dir(&dir.join(".capture"), "chunk-cache", canon_ws, out, on_delete);
+        remove_file(&dir.join(".transcribe-progress.json"), "progress", canon_ws, out, &[], on_delete);
         // Diarization temps also die in every mode (Track A writes .diarize-*.wav next to audio.wav).
         if let Ok(files) = std::fs::read_dir(&dir) {
             for f in files.flatten() {
                 let n = f.file_name().to_string_lossy().into_owned();
                 if n.starts_with(".diarize-") && n.ends_with(".wav") {
-                    remove_file(&f.path(), "diarize-temp", canon_ws, out);
+                    remove_file(&f.path(), "diarize-temp", canon_ws, out, &[], on_delete);
                 }
             }
         }
@@ -177,25 +233,22 @@ pub fn sweep_matter_folder(
                 let started = meeting_started_ms(&dir).unwrap_or(now_ms);
                 let age_ms = now_ms.saturating_sub(started);
                 if age_ms > u64::from(audio_retention_days) * DAY_MS {
-                    remove_raw_audio(&dir, canon_ws, out);
+                    remove_raw_audio(&dir, canon_ws, out, on_delete);
                 } else {
                     out.kept_meetings += 1;
                 }
             }
             "summary-only" => {
-                remove_raw_audio(&dir, canon_ws, out);
+                remove_raw_audio(&dir, canon_ws, out, on_delete);
                 if dir.join("notes.docx").exists() {
-                    let ids = transcript_rag_source_ids(&dir);
                     // Only queue RAG cleanup once transcript.json is CONFIRMED
-                    // gone — queuing before the delete is attempted means a
-                    // locked file, a permission error, or a containment
-                    // refusal still wipes the searchable RAG index for a
-                    // transcript that's still sitting on disk.
-                    let deleted_before = out.deleted.len();
-                    remove_file(&dir.join("transcript.json"), "transcript", canon_ws, out);
-                    if out.deleted.len() > deleted_before {
-                        out.rag_cleanup_source_ids.extend(ids);
-                    }
+                    // gone — remove_file only extends rag_cleanup_source_ids
+                    // (and only invokes on_delete with these ids) on the
+                    // Ok(()) branch, so a locked file, a permission error, or
+                    // a containment refusal never wipes the searchable RAG
+                    // index for a transcript that's still sitting on disk.
+                    let ids = transcript_rag_source_ids(&dir);
+                    remove_file(&dir.join("transcript.json"), "transcript", canon_ws, out, &ids, on_delete);
                 } else {
                     out.kept_meetings += 1; // transcript is the only record
                 }
@@ -258,7 +311,7 @@ mod tests {
 
         let mut out = SweepOutcome::default();
         let canon_ws = ws.path().canonicalize().unwrap();
-        sweep_matter_folder(&matter, &canon_ws, "delete-audio-after-days", 30, now, &mut out);
+        sweep_matter_folder(&matter, &canon_ws, "delete-audio-after-days", 30, now, &mut out, &mut |_d, _ids| Ok(()));
 
         // Old meeting: every raw-audio location gone; text artifacts kept.
         assert!(!old.join("audio.wav").exists());
@@ -313,7 +366,7 @@ mod tests {
 
         let mut out = SweepOutcome::default();
         let canon_ws = ws.path().canonicalize().unwrap();
-        sweep_matter_folder(&matter, &canon_ws, "summary-only", 30, now, &mut out);
+        sweep_matter_folder(&matter, &canon_ws, "summary-only", 30, now, &mut out, &mut |_d, _ids| Ok(()));
 
         assert!(!m.join("transcript.json").exists());
         assert!(!m.join("audio.wav").exists());
@@ -322,6 +375,66 @@ mod tests {
         // 90 segments -> 3 rag doc ids computed BEFORE deletion
         assert_eq!(out.rag_cleanup_source_ids.iter().filter(|s| s.contains("2026-06-01-review")).count(), 3);
         assert!(out.rag_cleanup_source_ids[0].starts_with("meeting:"));
+    }
+
+    /// The audit callback fires exactly once per confirmed deletion — not
+    /// once per meeting, not once per folder, not once for the whole sweep —
+    /// and only the transcript.json deletion carries its RAG-cleanup ids
+    /// (every other kind gets an empty slice). This is the interleaving the
+    /// data-loss-critical audit trail depends on: a crash mid-sweep can only
+    /// ever lose the ONE deletion the callback was in the middle of auditing.
+    #[test]
+    fn on_delete_fires_once_per_deletion_with_rag_ids_only_for_transcript() {
+        let ws = tempdir().unwrap();
+        let matter = ws.path().join("Clients/H");
+        let now = now_ms();
+        make_meeting(&matter, "2026-06-01-review", 10, now, true);
+
+        let mut out = SweepOutcome::default();
+        let canon_ws = ws.path().canonicalize().unwrap();
+        let mut audited: Vec<(String, String, Vec<String>)> = Vec::new();
+        sweep_matter_folder(&matter, &canon_ws, "summary-only", 30, now, &mut out, &mut |d, ids| {
+            audited.push((d.path.clone(), d.kind.clone(), ids.to_vec()));
+            Ok(())
+        });
+
+        // Every out.deleted entry has a matching, immediately-fired audit call.
+        assert_eq!(audited.len(), out.deleted.len());
+        assert_eq!(
+            audited.iter().map(|(p, ..)| p.clone()).collect::<Vec<_>>(),
+            out.deleted.iter().map(|d| d.path.clone()).collect::<Vec<_>>(),
+        );
+        let transcript_calls: Vec<_> = audited.iter().filter(|(_, kind, _)| kind == "transcript").collect();
+        assert_eq!(transcript_calls.len(), 1);
+        assert_eq!(transcript_calls[0].2.len(), 3, "the transcript delete's own audit call must carry its RAG ids");
+        for (_, kind, ids) in audited.iter().filter(|(_, kind, _)| kind != "transcript") {
+            assert!(ids.is_empty(), "{kind} deletion must not carry RAG ids");
+        }
+    }
+
+    /// If the audit callback fails for one deletion (simulating an audit-store
+    /// hiccup), the sweep must still record that deletion in `out.deleted`
+    /// (the file really is gone) and keep processing later deletions — a
+    /// single audit-append failure must never make the caller lose visibility
+    /// into everything that was actually deleted.
+    #[test]
+    fn on_delete_failure_does_not_lose_the_deletion_or_stop_the_sweep() {
+        let ws = tempdir().unwrap();
+        let matter = ws.path().join("Clients/H");
+        let now = now_ms();
+        make_meeting(&matter, "2026-05-01-review", 40, now, true);
+
+        let mut out = SweepOutcome::default();
+        let canon_ws = ws.path().canonicalize().unwrap();
+        let mut calls = 0u32;
+        sweep_matter_folder(&matter, &canon_ws, "delete-audio-after-days", 30, now, &mut out, &mut |_d, _ids| {
+            calls += 1;
+            Err("simulated audit-store failure".to_string())
+        });
+
+        assert!(calls > 0, "the callback must have been invoked");
+        assert!(out.deleted.iter().any(|d| d.kind == "audio"), "the deletion itself must still be recorded");
+        assert!(out.errors.iter().any(|e| e.contains("simulated audit-store failure")));
     }
 
     /// summary-only mode must never queue a transcript's RAG-doc ids for
@@ -351,7 +464,7 @@ mod tests {
 
         let mut out = SweepOutcome::default();
         let canon_ws = ws.path().canonicalize().unwrap();
-        sweep_matter_folder(&matter, &canon_ws, "summary-only", 30, now, &mut out);
+        sweep_matter_folder(&matter, &canon_ws, "summary-only", 30, now, &mut out, &mut |_d, _ids| Ok(()));
         drop(restore); // restore write perms so tempdir cleanup can delete it
 
         assert!(m.join("transcript.json").exists(), "delete must have actually failed for this test to be meaningful");
@@ -387,7 +500,7 @@ mod tests {
         let m = make_meeting(&matter, "2026-05-01-review", 40, now, true);
         let mut out = SweepOutcome::default();
         let canon_ws = ws.path().canonicalize().unwrap();
-        sweep_matter_folder(&matter, &canon_ws, "keep-everything", 30, now, &mut out);
+        sweep_matter_folder(&matter, &canon_ws, "keep-everything", 30, now, &mut out, &mut |_d, _ids| Ok(()));
         assert!(m.join("audio.wav").exists());
         assert!(m.join("transcript.json").exists());
         assert!(!m.join(".capture").exists());
@@ -396,6 +509,9 @@ mod tests {
 
     /// Deletion code refuses to reach outside the workspace — both a symlinked
     /// Meetings dir and a symlinked artifact must be refused, not deleted.
+    /// Unix-only: `std::os::unix::fs::symlink` doesn't exist on Windows (a
+    /// shipped target platform) — gate so `cargo test` still compiles there.
+    #[cfg(unix)]
     #[test]
     fn sweep_refuses_symlink_escape() {
         let ws = tempdir().unwrap();
@@ -412,7 +528,7 @@ mod tests {
 
         let mut out = SweepOutcome::default();
         let canon_ws = ws.path().canonicalize().unwrap();
-        sweep_matter_folder(&matter, &canon_ws, "summary-only", 30, now, &mut out);
+        sweep_matter_folder(&matter, &canon_ws, "summary-only", 30, now, &mut out, &mut |_d, _ids| Ok(()));
 
         // NOTE on semantics: unlinking a symlink inside the workspace removes
         // only the link, never the target — `contained()` checks the LINK's

@@ -49,18 +49,10 @@ pub async fn retention_sweep(
         // absolute or escaping path must fail fast, not wait on the store first.
         let mut valid_folders: Vec<std::path::PathBuf> = Vec::with_capacity(matter_folders.len());
         for folder in &matter_folders {
-            let p = std::path::Path::new(folder);
-            if p.is_absolute() {
-                return Err(format!("matter folder must be workspace-relative: {folder}"));
+            match sweep::canonicalize_workspace_relative(&canon_ws, folder)? {
+                Some(abs) => valid_folders.push(abs),
+                None => continue, // vanished since enumeration — nothing to sweep
             }
-            let abs = match canon_ws.join(p).canonicalize() {
-                Ok(c) => c,
-                Err(_) => continue, // vanished since enumeration — nothing to sweep
-            };
-            if !abs.starts_with(&canon_ws) {
-                return Err(format!("matter folder escapes workspace: {folder}"));
-            }
-            valid_folders.push(abs);
         }
         // Preflight the audit store BEFORE any deletion: this is data-loss-critical
         // code, so a deletion that cannot be durably recorded must never happen.
@@ -68,47 +60,56 @@ pub async fn retention_sweep(
         // before a single file is removed.
         let store = crate::commands::audit::store::EncryptedAuditStore::open(ws)
             .map_err(|e| format!("open audit store: {e}"))?;
-        // Audit each folder's deletions IMMEDIATELY after they happen, rather
-        // than deleting across every matter folder first and only writing the
-        // audit trail once the whole batch is done: batching the audit writes
-        // means a process crash anywhere during a multi-folder sweep could
-        // leave every deletion in that run with NO durable audit record at
-        // all. Interleaving bounds that blast radius to at most the folder
-        // that was mid-sweep when the crash happened, not the entire batch.
-        let mut audited_up_to = 0usize;
+        // Audit EVERY individual deletion the instant it happens — never
+        // batched per-meeting, per-folder, or per-run. A process crash
+        // anywhere in the sweep can then lose at most the ONE deletion that
+        // was in flight, never a whole folder or run's worth of
+        // already-deleted, not-yet-audited files. `rag_ids` (only non-empty
+        // for a summary-only transcript.json delete) rides along in the SAME
+        // audit entry, so those ids are durable the moment the file is gone —
+        // not only inside the Tauri IPC response the renderer might crash
+        // before finishing to process.
+        let mode_for_audit = mode.clone();
+        let mut on_delete = |d: &sweep::SweepDeletion, rag_ids: &[String]| -> Result<(), String> {
+            let entry_id = new_audit_id();
+            let entry_ts = chrono::Utc::now().to_rfc3339();
+            let entry = crate::commands::audit::store::AuditEntryRecord {
+                id: entry_id.clone(),
+                timestamp: entry_ts.clone(),
+                action: "retention_delete".to_string(),
+                description: format!("Retention policy removed {}: {}", d.kind, d.path),
+                // FULL AuditEntry shape — the frontend reconstructs entries with
+                // `JSON.parse(payloadJson) as AuditEntry`; a thin payload with no
+                // `metadata` key white-screens the Activity Log (see the warning on
+                // `crm_audit_payload_json`, src-tauri/src/commands/crm/commands.rs).
+                payload_json: serde_json::json!({
+                    "id": entry_id,
+                    "timestamp": entry_ts,
+                    "action": "retention_delete",
+                    "description": format!("Retention policy removed {}: {}", d.kind, d.path),
+                    "model": serde_json::Value::Null,
+                    "inputs": { "mode": mode_for_audit, "kind": d.kind, "path": d.path, "ragCleanupSourceIds": rag_ids },
+                    "outputs": {},
+                    "userDecision": serde_json::Value::Null,
+                    "metadata": {
+                        "auditEventType": "retention_delete",
+                        "source": "retention-backend",
+                        "scope": { "kind": "allMatters" },
+                    },
+                }).to_string(),
+            };
+            // A failed audit append (e.g. a corrupted chain head) must NEVER
+            // erase what the caller already knows: the file is ALREADY gone
+            // by this point, so propagating Err out of the whole command
+            // would drop `out` entirely — including every RAG-cleanup id
+            // already collected — and the renderer would never learn a
+            // deletion happened at all. Report the failure as a regular
+            // sweep error (handled by remove_file/remove_dir, which push
+            // whatever this returns into out.errors) and keep sweeping.
+            store.append(&entry).map(|_| ()).map_err(|e| format!("audit append for {}: {e}", d.path))
+        };
         for abs in &valid_folders {
-            sweep_matter_folder(abs, &canon_ws, &mode, audio_retention_days, now_ms, &mut out);
-            for d in &out.deleted[audited_up_to..] {
-                let entry_id = new_audit_id();
-                let entry_ts = chrono::Utc::now().to_rfc3339();
-                let entry = crate::commands::audit::store::AuditEntryRecord {
-                    id: entry_id.clone(),
-                    timestamp: entry_ts.clone(),
-                    action: "retention_delete".to_string(),
-                    description: format!("Retention policy removed {}: {}", d.kind, d.path),
-                    // FULL AuditEntry shape — the frontend reconstructs entries with
-                    // `JSON.parse(payloadJson) as AuditEntry`; a thin payload with no
-                    // `metadata` key white-screens the Activity Log (see the warning on
-                    // `crm_audit_payload_json`, src-tauri/src/commands/crm/commands.rs).
-                    payload_json: serde_json::json!({
-                        "id": entry_id,
-                        "timestamp": entry_ts,
-                        "action": "retention_delete",
-                        "description": format!("Retention policy removed {}: {}", d.kind, d.path),
-                        "model": serde_json::Value::Null,
-                        "inputs": { "mode": mode, "kind": d.kind, "path": d.path },
-                        "outputs": {},
-                        "userDecision": serde_json::Value::Null,
-                        "metadata": {
-                            "auditEventType": "retention_delete",
-                            "source": "retention-backend",
-                            "scope": { "kind": "allMatters" },
-                        },
-                    }).to_string(),
-                };
-                store.append(&entry).map_err(|e| format!("audit append: {e}"))?;
-            }
-            audited_up_to = out.deleted.len();
+            sweep_matter_folder(abs, &canon_ws, &mode, audio_retention_days, now_ms, &mut out, &mut on_delete);
         }
         let summary_id = new_audit_id();
         let summary_ts = chrono::Utc::now().to_rfc3339();
@@ -142,7 +143,13 @@ pub async fn retention_sweep(
                 },
             }).to_string(),
         };
-        store.append(&summary).map_err(|e| format!("audit append: {e}"))?;
+        // Same reasoning as above: the summary is a convenience rollup, not
+        // the record of truth for what was deleted — a failure to write it
+        // must not hide the per-deletion outcome (and per-deletion audit
+        // entries, where they succeeded) already gathered in `out`.
+        if let Err(e) = store.append(&summary) {
+            out.errors.push(format!("audit summary append: {e}"));
+        }
         Ok(out)
     })
     .await
