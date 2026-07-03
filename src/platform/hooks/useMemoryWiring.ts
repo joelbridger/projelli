@@ -388,19 +388,15 @@ export function createDeleteBurstBatcher(
     // per internal while-round. Otherwise a single path that NEVER recovers
     // stays first in `pending` (Set insertion order) and, since its failure
     // count was already at/above threshold when the breaker last tripped,
-    // instantly re-trips on the very next attempt — requeuing every path
-    // behind it as "not yet attempted" without ever trying them. That
-    // starves unrelated, perfectly-deletable paths forever. Resetting here
-    // gives every post-cooldown attempt a fresh threshold budget, so this
-    // round always gets to try the paths queued behind a chronic failure
-    // before it can trip the breaker again.
+    // instantly re-trips on the very next attempt. Resetting here gives every
+    // post-cooldown attempt a fresh threshold budget.
     consecutiveFailures = 0;
     try {
       while (pending.size > 0 && !disposed) {
         const paths = Array.from(pending);
         pending = new Set();
         let failed = 0;
-        let breakerTripped = false;
+        let peakConsecutiveFailures = 0;
         for (const path of paths) {
           if (disposed) return;
           try {
@@ -411,28 +407,30 @@ export function createDeleteBurstBatcher(
           } catch {
             failed += 1;
             consecutiveFailures += 1;
+            peakConsecutiveFailures = Math.max(peakConsecutiveFailures, consecutiveFailures);
             // Never lose this path: a failed delete is retried, not abandoned.
             pending.add(path);
-            if (consecutiveFailures >= breakerThreshold) {
-              breakerOpenUntil = Date.now() + cooldownMs;
-              // The rest of this batch hasn't been attempted at all — queue
-              // it for the same retry, rather than attempting (and possibly
-              // failing) it right now.
-              const notYetAttempted = paths.slice(paths.indexOf(path) + 1);
-              for (const p of notYetAttempted) pending.add(p);
-              log(
-                `[memory] ${consecutiveFailures} consecutive delete failures; backing off for ${cooldownMs}ms, ` +
-                  `retrying ${pending.size} pending delete event(s) after cooldown`,
-              );
-              scheduleCooldownRetry(cooldownMs);
-              breakerTripped = true;
-              break;
-            }
           }
+          // Deliberately NEVER break out of this loop early on a run of
+          // failures. `breakerThreshold` or more chronically-broken paths
+          // sitting ahead of a perfectly good one in `pending` (Set
+          // insertion order) would otherwise starve that good delete
+          // forever — every round would re-trip on the same leading bad
+          // paths before ever reaching it. Every distinct queued path
+          // always gets a real attempt THIS round; the breaker only decides
+          // whether to pace the NEXT round via a cooldown.
         }
-        if (breakerTripped) break;
         if (failed > 0) {
           log(`[memory] ${failed} of ${paths.length} delete event(s) failed; retrying`);
+        }
+        if (peakConsecutiveFailures >= breakerThreshold) {
+          breakerOpenUntil = Date.now() + cooldownMs;
+          log(
+            `[memory] ${peakConsecutiveFailures} consecutive delete failures; backing off for ${cooldownMs}ms, ` +
+              `retrying ${pending.size} pending delete event(s) after cooldown`,
+          );
+          scheduleCooldownRetry(cooldownMs);
+          break;
         }
       }
     } finally {
