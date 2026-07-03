@@ -39,6 +39,7 @@ import {
   Mail,
   PanelRightClose,
   PanelRightOpen,
+  Send,
   ShieldCheck,
   Wand2,
   X,
@@ -76,6 +77,7 @@ import { useTrialGate } from '@/platform/hooks/useTrial';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { assertCloudGenerationAllowed } from '@/platform/privacy/localOnlyGuard';
 import { getActiveScope } from '@/platform/matter/matterStore';
+import { crmIsConnected } from '@/platform/utils/wealthbox-commands';
 import { IS_DEMO } from '@/web-demo/demoModeFlag';
 import {
   REDLINE_AUTHOR,
@@ -166,6 +168,14 @@ interface DocxEditorProps {
   coedit?: { session: CoeditSession };
   /** Wave 0: opens the "Draft follow-up" email modal with the document's plain text. */
   onDraftFollowUp?: ((plainText: string) => void) | undefined;
+  /**
+   * Smoke P0 #5: queues the document's plain text as a proposed Wealthbox
+   * note for the CURRENT matter — mirrors MatterNotesEditor's "Send to
+   * Wealthbox" enqueue. Omitted (no current matter, e.g. an unassigned
+   * note) hides the action entirely; when present it is still gated on the
+   * Wealthbox connection (disabled with an explanation until connected).
+   */
+  onSendToWealthbox?: ((plainText: string) => void) | undefined;
 }
 
 type LoadState =
@@ -189,6 +199,7 @@ export function DocxEditor({
   onAuditLog,
   coedit,
   onDraftFollowUp,
+  onSendToWealthbox,
 }: DocxEditorProps) {
   const { t } = useTranslation();
 
@@ -204,6 +215,21 @@ export function DocxEditor({
   const [isDirty, setIsDirty] = useState(false);
   // The comment whose card is highlighted (clicked anchor <-> card linking).
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
+
+  // ---- Smoke P0 #5: Send to Wealthbox -------------------------------------
+  // Checked only when the action can appear at all (a current matter is
+  // present), mirroring the one-shot connection check every other Wealthbox
+  // entry point (CrmWriteReviewCard, WealthboxConnect) already does.
+  const [wealthboxConnected, setWealthboxConnected] = useState(false);
+  const [wealthboxQueued, setWealthboxQueued] = useState(false);
+  useEffect(() => {
+    if (!onSendToWealthbox) return;
+    let cancelled = false;
+    crmIsConnected('wealthbox')
+      .then((connected) => { if (!cancelled) setWealthboxConnected(connected); })
+      .catch(() => { if (!cancelled) setWealthboxConnected(false); });
+    return () => { cancelled = true; };
+  }, [onSendToWealthbox]);
 
   // ---- A4: AI redline state ----------------------------------------------
   // Entitlement gate: AI redline is an AI feature, so it is gated off for a
@@ -1244,6 +1270,51 @@ export function DocxEditor({
               <Mail className="h-3.5 w-3.5" />
               {t('media.docx-editor.draft-follow-up')}
             </Button>
+          )}
+
+          {onSendToWealthbox && (
+            <>
+              {wealthboxQueued && (
+                <span
+                  data-testid="docx-send-to-wealthbox-confirmation"
+                  className="text-xs text-emerald-700"
+                >
+                  {t('matter.notes.sent-to-wealthbox')}
+                </span>
+              )}
+              <Button
+                data-testid="docx-send-to-wealthbox"
+                variant="outline"
+                size="sm"
+                disabled={!wealthboxConnected}
+                className="h-7 gap-1.5 border-[rgba(var(--kp-navy-rgb),0.30)] text-[var(--kp-navy)] hover:bg-[rgba(var(--kp-navy-rgb),0.05)]"
+                onClick={() => {
+                  // Same flush pattern as Draft follow-up above — the note
+                  // sent to Wealthbox must include the advisor's latest
+                  // in-progress edit, not a stale snapshot.
+                  void (async () => {
+                    await commitActiveRunEdit();
+                    await docOpQueueRef.current;
+                    const doc = currentDocRef.current;
+                    if (!doc) return;
+                    const text = extractIndexedParagraphs(doc)
+                      .map(p => p.text)
+                      .join('\n');
+                    onSendToWealthbox(text);
+                    setWealthboxQueued(true);
+                    setTimeout(() => { setWealthboxQueued(false); }, 2500);
+                  })();
+                }}
+                title={
+                  wealthboxConnected
+                    ? t('matter.notes.send-to-wealthbox')
+                    : t('media.docx-editor.send-to-wealthbox-disconnected')
+                }
+              >
+                <Send className="h-3.5 w-3.5" />
+                {t('matter.notes.send-to-wealthbox')}
+              </Button>
+            </>
           )}
 
           {/* A6: discoverable Export — a clearly-labeled menu (not a bare icon)
