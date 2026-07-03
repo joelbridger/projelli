@@ -8,7 +8,7 @@
 // enforced in code since the harness has no way to know which Wealthbox
 // token a bench is using).
 import { STATUS, makeResult } from '../result.mjs';
-import { withGuard, requireSnapshot, findByTestId, findByText } from './_util.mjs';
+import { withGuard, requireSnapshot, findByTestId, findByText, clickElement } from './_util.mjs';
 
 const ID = 'wave2-wealthbox-queue-review';
 const SECTION = 'Wave 2 — Send to Wealthbox (queue/review only)';
@@ -89,7 +89,7 @@ export const checkWealthboxApproveLive = withGuard(APPROVE_ID, SECTION, async ({
     });
   }
 
-  await driver.click(approveButton.testid ?? undefined);
+  await clickElement(driver, approveButton);
 
   const sentWait = await driver.waitFor('sent', 15);
   const shot = await driver.captureScreenshot('wave2-wealthbox-approved-sent');

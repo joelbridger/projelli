@@ -8,6 +8,7 @@ import path from 'node:path';
 import { runDesktopDrive, downloadFile, probeReachable } from './remote.mjs';
 import { parseSnapshot, parsePages, parseEvalResult } from './parse.mjs';
 import { installScript, readAndClearScript, interpretConsoleErrors } from './console-watch.mjs';
+import { clickByTextScript } from './click-by-text.mjs';
 
 export class DriverError extends Error {}
 
@@ -38,6 +39,18 @@ export class Driver {
     const { code, stdout, stderr } = await runDesktopDrive(this.target, ['click', testid]);
     if (code !== 0) throw new DriverError(`click(${testid}) failed (exit ${code}): ${stderr || stdout}`);
     return stdout.trim();
+  }
+
+  /** Click an element that was matched by visible text (no data-testid),
+   * via the existing `eval` command rather than desktop-drive.mjs's `click`
+   * (which only accepts a data-testid). Throws DriverError if nothing
+   * matched — never silently no-ops. */
+  async clickByText(needle) {
+    const result = await this.evalJs(clickByTextScript(needle));
+    if (result !== 'clicked') {
+      throw new DriverError(`clickByText("${needle}") found no matching element to click`);
+    }
+    return result;
   }
 
   async type(testid, text, { submit = false } = {}) {

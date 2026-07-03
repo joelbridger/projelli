@@ -1,7 +1,7 @@
 // scripts/bench-smoke/checks/crosscutting.mjs — Cross-cutting checks from
 // RUN-LOG.md: light theme, console-error cleanliness, egress indicator.
 import { STATUS, makeResult } from '../result.mjs';
-import { withGuard, requireSnapshot, findByText } from './_util.mjs';
+import { withGuard, requireSnapshot, findByText, clickElement } from './_util.mjs';
 
 const SECTION = 'Cross-cutting';
 
@@ -70,14 +70,14 @@ export const checkEgressIndicator = withGuard('cross-cutting-egress-indicator', 
     });
   }
 
-  await driver.click(localOnlyToggle.testid ?? undefined);
+  await clickElement(driver, localOnlyToggle);
   const isolated = await driver.waitFor('outside connections are blocked', 10);
   const shot = await driver.captureScreenshot('cross-cutting-egress-local-only');
 
   // Always try to revert to the recommended default, even if the assertion
   // above failed, so the bench isn't left in Local-only for the next check.
   const cloudToggle = findByText(await requireSnapshot(driver), /cloud ai.*your account/i);
-  if (cloudToggle) await driver.click(cloudToggle.testid ?? undefined).catch(() => {});
+  if (cloudToggle) await clickElement(driver, cloudToggle).catch(() => {});
 
   if (!isolated.found) {
     return makeResult({

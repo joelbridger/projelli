@@ -38,3 +38,20 @@ export async function requireSnapshot(driver) {
 }
 
 export { findByTestId, findByText };
+
+/**
+ * Click a snapshot()-matched element correctly regardless of how it was
+ * found: by its real data-testid when present (desktop-drive.mjs's own
+ * `click` command), or by its visible text when it isn't (driver.clickByText).
+ * A prior version of these checks did `driver.click(el.testid ?? undefined)`,
+ * which silently sent the literal string "undefined" as a testid whenever an
+ * element matched only by text — every such click would time out looking for
+ * `[data-testid="undefined"]`. Route through this helper instead of calling
+ * driver.click directly with a possibly-missing testid.
+ */
+export async function clickElement(driver, element) {
+  if (!element) throw new DriverError('clickElement: no element to click');
+  if (element.testid) return driver.click(element.testid);
+  if (element.text) return driver.clickByText(element.text);
+  throw new DriverError('clickElement: matched element has neither a testid nor visible text to click by');
+}

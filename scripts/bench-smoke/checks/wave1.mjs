@@ -5,7 +5,7 @@
 // harness can see, so it can't be verified this way without the pyautogui
 // native-dialog agent (scripts/legion_agent.py) — out of scope for this pass.
 import { STATUS, makeResult } from '../result.mjs';
-import { withGuard, requireSnapshot, findByText } from './_util.mjs';
+import { withGuard, requireSnapshot, findByText, clickElement } from './_util.mjs';
 
 const ID = 'wave1-calendar-brief-export';
 const SECTION = 'Wave 1 — Calendar sync, meeting matching, briefs, exports';
@@ -26,7 +26,7 @@ export const checkCalendarBriefExport = withGuard(ID, SECTION, async ({ driver }
   // Wealthbox both do, per RUN-LOG's "ambiguous textContent" note), this
   // harness must be pointed at the Calendar card specifically once its own
   // testid is known — tracked as a follow-up, not guessed here.
-  await driver.click(syncButton.testid ?? undefined);
+  await clickElement(driver, syncButton);
 
   const synced = await driver.waitFor('Synced', 20);
   if (!synced.found) {
