@@ -109,6 +109,18 @@ export async function calendarListEvents(
   fromUtc: string,
   toUtc: string
 ): Promise<CalendarEventDto[]> {
+  // Evidence/marketing-capture only: calendarListEvents is Tauri-gated and
+  // always returns [] in a browser session, so TodaysMeetingsStrip has no
+  // other way to render its matched/unmatched states for a screenshot.
+  // Dead-code-eliminated from production (see main.tsx's identical
+  // VITE_MARKETING_CAPTURE gate on the bridge that sets this global).
+  if (
+    import.meta.env['VITE_MARKETING_CAPTURE'] === '1' &&
+    typeof window !== 'undefined' &&
+    window.__keepance_calendarEvents
+  ) {
+    return window.__keepance_calendarEvents;
+  }
   if (!isTauri()) return [];
   return invoke<CalendarEventDto[]>('calendar_list_events', { fromUtc, toUtc });
 }
