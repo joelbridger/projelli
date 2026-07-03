@@ -1,10 +1,25 @@
 //! Retention policy enforcement (Wave 4 Track D). See sweep.rs for the engine
 //! and the mandatory location-enumeration test.
+pub mod redact;
 pub mod sweep;
 
 use sweep::{sweep_matter_folder, SweepOutcome};
 
 const RETENTION_MODES: [&str; 3] = ["keep-everything", "delete-audio-after-days", "summary-only"];
+
+/// Where RAG-cleanup ids land the INSTANT a transcript deletion happens —
+/// durably, synchronously, inside the same blocking Rust call that did the
+/// delete, before `retention_sweep` even returns to the renderer. This
+/// closes a real crash window: the renderer's OWN persistence
+/// (`retentionRunner.ts`'s `setPendingRagCleanup`) only runs after the full
+/// Tauri IPC round-trip completes, so a process crash between the Rust-side
+/// delete and that JS line executing would otherwise lose these ids forever
+/// (once transcript.json is gone, they can never be recomputed). The
+/// renderer reads + clears this file once at workspace-open time
+/// (`retention_take_pending_rag_cleanup`) and merges it into its own
+/// pending-cleanup state, so even a full process kill in that narrow window
+/// is recovered on the next launch.
+const PENDING_RAG_CLEANUP_FILE: &str = ".lantern/pending-rag-cleanup.json";
 
 pub(crate) fn new_audit_id() -> String {
     format!(
@@ -12,6 +27,60 @@ pub(crate) fn new_audit_id() -> String {
         chrono::Utc::now().timestamp_millis(),
         rand::random::<u32>() % 1_000_000
     )
+}
+
+fn read_pending_rag_cleanup_ids(path: &std::path::Path) -> Vec<String> {
+    std::fs::read(path)
+        .ok()
+        .and_then(|raw| serde_json::from_slice::<serde_json::Value>(&raw).ok())
+        .and_then(|v| v.get("ids").and_then(|i| i.as_array().cloned()))
+        .map(|arr| arr.into_iter().filter_map(|x| x.as_str().map(str::to_string)).collect())
+        .unwrap_or_default()
+}
+
+/// Read-modify-write union (never drops ids already pending). Best effort: a
+/// failure here is reported as a sweep error but never blocks or undoes the
+/// deletion that already happened — the audit entry (which also carries
+/// these same ids, see the `on_delete` closure below) is the fallback record
+/// if this file write itself fails.
+fn append_pending_rag_cleanup(ws: &std::path::Path, ids: &[String]) -> Result<(), String> {
+    if ids.is_empty() {
+        return Ok(());
+    }
+    let path = ws.join(PENDING_RAG_CLEANUP_FILE);
+    let mut existing = read_pending_rag_cleanup_ids(&path);
+    for id in ids {
+        if !existing.contains(id) {
+            existing.push(id.clone());
+        }
+    }
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| format!("create .lantern dir: {e}"))?;
+    }
+    let payload = serde_json::json!({ "ids": existing });
+    std::fs::write(&path, serde_json::to_vec(&payload).map_err(|e| e.to_string())?)
+        .map_err(|e| format!("write pending-rag-cleanup.json: {e}"))
+}
+
+/// Read + clear the durable pending-RAG-cleanup file. Called once at
+/// workspace-open time (`runRetentionSweep` in retentionRunner.ts) so ids
+/// that survived a crash are merged into the renderer's own pending-cleanup
+/// state instead of being lost. Clearing is best-effort: if the ids are
+/// non-empty, the caller is now responsible for them (via the returned
+/// list), so a failed clear just risks re-delivering the same ids next time
+/// — which the renderer's own dedup (a Set union) already handles safely.
+#[tauri::command]
+pub async fn retention_take_pending_rag_cleanup(workspace: String) -> Result<Vec<String>, String> {
+    tokio::task::spawn_blocking(move || {
+        let path = std::path::Path::new(&workspace).join(PENDING_RAG_CLEANUP_FILE);
+        let ids = read_pending_rag_cleanup_ids(&path);
+        if !ids.is_empty() {
+            let _ = std::fs::remove_file(&path);
+        }
+        Ok(ids)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Sweep every given matter folder under `workspace_root` according to the
@@ -71,6 +140,17 @@ pub async fn retention_sweep(
         // before finishing to process.
         let mode_for_audit = mode.clone();
         let mut on_delete = |d: &sweep::SweepDeletion, rag_ids: &[String]| -> Result<(), String> {
+            // Durable side-file FIRST — the cheapest, most likely-to-succeed
+            // write, and the primary safety net for the renderer-crash
+            // window described on PENDING_RAG_CLEANUP_FILE above. A failure
+            // here is folded into this call's returned error (still handled
+            // as a non-fatal sweep error by remove_file/remove_dir), not
+            // swallowed — but it never blocks the audit entry below, which
+            // durably carries the same ids as a second, independent record.
+            let mut pending_write_error = None;
+            if let Err(e) = append_pending_rag_cleanup(&canon_ws, rag_ids) {
+                pending_write_error = Some(e);
+            }
             let entry_id = new_audit_id();
             let entry_ts = chrono::Utc::now().to_rfc3339();
             let entry = crate::commands::audit::store::AuditEntryRecord {
@@ -106,7 +186,15 @@ pub async fn retention_sweep(
             // deletion happened at all. Report the failure as a regular
             // sweep error (handled by remove_file/remove_dir, which push
             // whatever this returns into out.errors) and keep sweeping.
-            store.append(&entry).map(|_| ()).map_err(|e| format!("audit append for {}: {e}", d.path))
+            let audit_result = store
+                .append(&entry)
+                .map(|_| ())
+                .map_err(|e| format!("audit append for {}: {e}", d.path));
+            match (pending_write_error, audit_result) {
+                (Some(pe), Err(ae)) => Err(format!("{pe}; {ae}")),
+                (Some(pe), Ok(())) => Err(pe),
+                (None, res) => res,
+            }
         };
         for abs in &valid_folders {
             sweep_matter_folder(abs, &canon_ws, &mode, audio_retention_days, now_ms, &mut out, &mut on_delete);

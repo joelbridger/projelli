@@ -912,3 +912,36 @@ export async function retentionSweep(
     workspaceRoot, matterFolders, mode, audioRetentionDays,
   });
 }
+
+/** Read + clear the durable side-file Rust writes the INSTANT a
+ *  transcript.json delete produces RAG-cleanup ids — before retention_sweep
+ *  even returns. Call once at workspace-open time and merge the result into
+ *  the renderer's own pending-cleanup state, so a crash between a native
+ *  delete and the renderer's own persistence step is recovered instead of
+ *  leaving those ids stuck in a deleted transcript forever. */
+export async function retentionTakePendingRagCleanup(workspaceRoot: string): Promise<string[]> {
+  if (!isTauri()) return [];
+  return invoke<string[]>('retention_take_pending_rag_cleanup', { workspace: workspaceRoot });
+}
+
+// ── Local redaction of meeting artifacts (Wave 4 Track D, Task 17b) ────────
+
+export interface RedactionReceiptWire {
+  redactedCount: number;
+  marker: string;
+  docxFlattened: boolean;
+  ragCleanupSourceIds: string[];
+  auditError?: string;
+}
+
+/** Redact whole transcript segments from one meeting: rewrites
+ *  transcript.json + notes.docx (revision-safe — see redact.rs) and writes
+ *  one hash-chained audit entry. Desktop-only, throws in the browser. */
+export async function redactMeetingSegments(
+  workspace: string, matterFolder: string, meetingDir: string, segmentIndices: number[],
+): Promise<RedactionReceiptWire> {
+  if (!isTauri()) throw new Error('Redaction runs only in the desktop app.');
+  return invoke<RedactionReceiptWire>('redact_meeting_segments', {
+    workspace, matterFolder, meetingDir, segmentIndices,
+  });
+}

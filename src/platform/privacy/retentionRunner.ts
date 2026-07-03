@@ -2,7 +2,7 @@
 // runner supplies the policy + matter folders, then removes the RAG docs of
 // any deleted transcript and records the sweep for the Data Map.
 import { isTauri } from '@tauri-apps/api/core';
-import { retentionSweep, ragDeletePath } from '@/platform/utils/tauri-commands';
+import { retentionSweep, ragDeletePath, retentionTakePendingRagCleanup } from '@/platform/utils/tauri-commands';
 import { getMatters } from '@/platform/matter/matterStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { toWorkspaceRelativeFolder } from '@/platform/rag/matterResolver';
@@ -37,6 +37,22 @@ export async function runRetentionSweep(
   opts?: { force?: boolean },
 ): Promise<RetentionSweepRecord | null> {
   if (!isTauri() || !workspaceRoot) return null;
+  // Reclaim any ids Rust already wrote DURABLY to disk the instant a
+  // transcript delete happened, before the native call even returned last
+  // time (see PENDING_RAG_CLEANUP_FILE in retention/mod.rs). This closes the
+  // narrow crash window between the native retentionSweep() call resolving
+  // and the setPendingRagCleanup call below running: even a full process
+  // kill in that window is recovered here on the next launch, since Rust's
+  // durable write happened independent of whether this renderer code ever
+  // got to run.
+  const recoveredIds = await retentionTakePendingRagCleanup(workspaceRoot).catch(() => []);
+  if (recoveredIds.length > 0) {
+    const current = useRetentionPolicyStore.getState().pendingRagCleanup[workspaceRoot] ?? [];
+    useRetentionPolicyStore.getState().setPendingRagCleanup(
+      workspaceRoot,
+      Array.from(new Set([...current, ...recoveredIds])),
+    );
+  }
   // Finish any cleanup a previous crashed run left pending — this repairs
   // already-committed deletions, so it runs even when the sweep itself below
   // is about to be skipped by the debounce.

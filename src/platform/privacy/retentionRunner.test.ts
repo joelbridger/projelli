@@ -21,6 +21,7 @@ beforeEach(() => {
     if (cmd === 'retention_sweep') {
       return Promise.resolve({ deleted: [{ path: '/x/audio.wav', kind: 'audio' }], keptMeetings: 1, skippedInFlight: 0, errors: [], ragCleanupSourceIds: ['meeting:/x#0', 'meeting:/x#400000'] });
     }
+    if (cmd === 'retention_take_pending_rag_cleanup') return Promise.resolve([]);
     return Promise.resolve(undefined);
   });
 });
@@ -59,6 +60,7 @@ describe('runRetentionSweep', () => {
         return Promise.resolve({ deleted: [], keptMeetings: 0, skippedInFlight: 0, errors: [], ragCleanupSourceIds: ['meeting:/x#0', 'meeting:/x#1'] });
       }
       if (cmd === 'rag_delete_path' && args?.['path'] === 'meeting:/x#1') return Promise.reject(new Error('lancedb unavailable'));
+      if (cmd === 'retention_take_pending_rag_cleanup') return Promise.resolve([]);
       return Promise.resolve(undefined);
     });
     const rec = await runRetentionSweep('/ws', { force: true });
@@ -66,5 +68,20 @@ describe('runRetentionSweep', () => {
     // The one that failed stays pending for the next run; the one that
     // succeeded is cleared.
     expect(useRetentionPolicyStore.getState().pendingRagCleanup['/ws']).toEqual(['meeting:/x#1']);
+  });
+  it('recovers RAG cleanup ids Rust durably wrote but the renderer never got to persist last time', async () => {
+    // Simulates: a previous run's native delete succeeded and Rust wrote
+    // PENDING_RAG_CLEANUP_FILE, but the renderer crashed before this file's
+    // JS-side setPendingRagCleanup ever ran, so Zustand's pendingRagCleanup
+    // for '/ws' is empty on this fresh launch.
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'retention_take_pending_rag_cleanup') return Promise.resolve(['meeting:/z#0']);
+      return Promise.resolve(undefined);
+    });
+    useRetentionPolicyStore.getState().recordSweep('/ws', { sweptAt: new Date().toISOString(), deletedCount: 0, errors: [] });
+    await runRetentionSweep('/ws'); // debounced — no new native sweep needed to exercise recovery
+    const ragCalls = invokeMock.mock.calls.filter(([c]) => c === 'rag_delete_path');
+    expect(ragCalls.map(([, args]) => (args as { path: string }).path)).toEqual(['meeting:/z#0']);
+    expect(useRetentionPolicyStore.getState().pendingRagCleanup['/ws']).toEqual([]);
   });
 });

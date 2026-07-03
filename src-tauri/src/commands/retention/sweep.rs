@@ -110,6 +110,34 @@ fn remove_file(path: &Path, kind: &str, canon_ws: &Path, out: &mut SweepOutcome,
     }
 }
 
+/// Walk a directory tree and unlink every FILE individually (via
+/// `remove_file`, so each one gets its own immediate audit call) rather than
+/// a single `remove_dir_all` — a `.capture` chunk-cache can hold several
+/// files, and auditing only once after the whole recursive delete finishes
+/// would mean a crash mid-delete could leave several already-gone chunks
+/// with zero audit trail, defeating the per-unlink guarantee `remove_file`
+/// otherwise provides. A symlink entry falls through to `remove_file`'s own
+/// containment check (which removes only the link, never the target) same
+/// as everywhere else in this module.
+fn remove_dir_files_individually(
+    dir: &Path,
+    kind: &str,
+    canon_ws: &Path,
+    out: &mut SweepOutcome,
+    on_delete: DeleteAudit,
+) -> std::io::Result<()> {
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let p = entry.path();
+        if entry.file_type()?.is_dir() {
+            remove_dir_files_individually(&p, kind, canon_ws, out, on_delete)?;
+        } else {
+            remove_file(&p, kind, canon_ws, out, &[], on_delete);
+        }
+    }
+    Ok(())
+}
+
 fn remove_dir(path: &Path, kind: &str, canon_ws: &Path, out: &mut SweepOutcome, on_delete: DeleteAudit) {
     if !path.exists() {
         return;
@@ -118,15 +146,15 @@ fn remove_dir(path: &Path, kind: &str, canon_ws: &Path, out: &mut SweepOutcome, 
         out.errors.push(format!("refused (outside workspace): {}", path.display()));
         return;
     }
-    match std::fs::remove_dir_all(path) {
-        Ok(()) => {
-            let d = SweepDeletion { path: path.to_string_lossy().into_owned(), kind: kind.to_string() };
-            if let Err(e) = on_delete(&d, &[]) {
-                out.errors.push(e);
-            }
-            out.deleted.push(d);
-        }
-        Err(e) => out.errors.push(format!("delete {}: {e}", path.display())),
+    if let Err(e) = remove_dir_files_individually(path, kind, canon_ws, out, on_delete) {
+        out.errors.push(format!("delete {}: {e}", path.display()));
+        return;
+    }
+    // Every file inside is already gone and individually audited above —
+    // this only removes the now-empty directory tree structure itself (no
+    // data content, so one plain filesystem call is fine here).
+    if let Err(e) = std::fs::remove_dir_all(path) {
+        out.errors.push(format!("delete {}: {e}", path.display()));
     }
 }
 
@@ -410,6 +438,42 @@ mod tests {
         for (_, kind, ids) in audited.iter().filter(|(_, kind, _)| kind != "transcript") {
             assert!(ids.is_empty(), "{kind} deletion must not carry RAG ids");
         }
+    }
+
+    /// `.capture` (the chunk-cache directory) holds MULTIPLE files
+    /// (mic/sys .wav chunks + session.json). Each one must get its own
+    /// immediate audit call — not one call after a single `remove_dir_all` —
+    /// so a crash mid-directory-delete can only ever lose the one chunk file
+    /// in flight, never the whole cache's contents with zero audit trail.
+    #[test]
+    fn capture_dir_audits_each_chunk_file_individually_not_the_whole_dir_at_once() {
+        let ws = tempdir().unwrap();
+        let matter = ws.path().join("Clients/H");
+        let now = now_ms();
+        let m = make_meeting(&matter, "2026-06-01-review", 10, now, true);
+        let capture_files: Vec<_> = std::fs::read_dir(m.join(".capture")).unwrap().map(|e| e.unwrap().path()).collect();
+        assert!(capture_files.len() >= 2, "fixture must actually have multiple chunk-cache files for this test to mean anything");
+
+        let mut out = SweepOutcome::default();
+        let canon_ws = ws.path().canonicalize().unwrap();
+        let mut chunk_cache_calls: Vec<String> = Vec::new();
+        sweep_matter_folder(&matter, &canon_ws, "keep-everything", 30, now, &mut out, &mut |d, _ids| {
+            if d.kind == "chunk-cache" {
+                chunk_cache_calls.push(d.path.clone());
+            }
+            Ok(())
+        });
+
+        assert_eq!(
+            chunk_cache_calls.len(),
+            capture_files.len(),
+            "every file inside .capture must get its own audit call, not one call for the whole directory"
+        );
+        for f in &capture_files {
+            let p = f.to_string_lossy().into_owned();
+            assert!(chunk_cache_calls.contains(&p), "missing individual audit call for {p}");
+        }
+        assert!(!m.join(".capture").exists());
     }
 
     /// If the audit callback fails for one deletion (simulating an audit-store

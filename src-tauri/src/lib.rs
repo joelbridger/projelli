@@ -315,6 +315,8 @@ pub fn run() {
             commands::setup_progress::setup_report_client_map,
             // Wave 4 Track D — per-workspace retention policy sweep.
             commands::retention::retention_sweep,
+            commands::retention::retention_take_pending_rag_cleanup,
+            commands::retention::redact::redact_meeting_segments,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
