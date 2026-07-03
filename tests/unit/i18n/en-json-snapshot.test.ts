@@ -59,8 +59,9 @@ describe('en.json structure snapshot', () => {
         "local-ai-settings": 8,
         "mail": 6,
         "marketplace": 14,
-        "matter": 126,
+        "matter": 134,
         "media": 81,
+        "meetings": 9,
         "memory": 6,
         "model-download": 9,
         "onboarding": 65,
@@ -99,7 +100,8 @@ describe('en.json structure snapshot', () => {
     //      Send to Wealthbox action on normal docx notes, disabled-with-explanation state).
     // +18 = matter.book.* (14) + matter.beneficiary.* (2) (Wave 4 Track B: Book view + estate/beneficiary gap chips).
     // +12 = ask.scope-pill.* (5) + ask.book.* (7) (Wave 4 Track C: whole-practice Ask).
-    expect(flat.length).toBe(975);
+    // +17 = meetings.speakers.* (9) + matter.voiceprints.* (8) (Wave 4 Track A: speaker naming panel + voice profiles card).
+    expect(flat.length).toBe(992);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {
