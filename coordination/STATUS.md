@@ -1,5 +1,12 @@
 # Lantern-Plus Coordination STATUS
 
+## UPDATE 2026-07-03 night — relay #4 seated post-reboot; 2TB NVMe live; FOUR lanes building
+- Reboot clean; @reboot auto-resume worked (this coordinator = cc-lantern-coordinator-5). All 6 monitors re-armed; baseline sweep done.
+- **2TB NVMe (nvme0n1) wiped→ext4→/mnt/devcache** (fstab UUID, noatime, nofail). LP cargo caches (lp-w4 104G, lp-w4d 46G, lp-gate 63G) migrated + home paths symlinked. ALSO migrating main-line's caches (shared 205G + kpcoord 101G) per their handoff (Jameson's directive — we own the drive setup); bulletin heads-up posted. ~/.cache deferred (12G only, held open by live processes — not worth the risk). Root frees ~520G total when swaps complete. build-overtime watcher patched for /mnt/devcache-resolved exe paths.
+- **Fleet (4 lanes):** w3 = Wave-3 capture resumed (tmux-resurrect relaunched the right claude cmd in ~/lp-w4; prompt redelivered; mid Task 5). w4d = Wave-4 Track D retention resumed (~/lp-w4d, mid Task 14). NEW: crmfix = Wealthbox wire-fix lane (~/lp-crmfix, lp/crm-wire-fixes, brief w-crm-wire-fixes-brief.md — the 2 probe bugs: due_date 422 validation + background_information write-name split w/ readback verification). NEW: w4a = Wave-4 Track A diarization (~/lp-w4a, lp/diarization, brief w-wave4-a-brief.md, Tasks 6-12; NO Legion — reserved for w3 Task 6).
+- New lane caches seeded warm from lp-gate on the NVMe (~/.cargo-target-lp-{crmfix,w4a} symlinks). Delete *.old home-dir cache copies after each lane's first green compile.
+- Merge queue: empty; likely order w4d → w3 (both xhigh-class review) → crmfix → w4a.
+
 ## UPDATE 2026-07-03 evening — Azure cloud bench built (lantern-cloud-bench-1), verify DEFERRED
 - Full detail: `coordination/azure-bench/SETUP-LOG.md`. Windows 11 VM up on Tailscale (100.75.247.98, `ssh lpbench@100.75.247.98`), repo cloned + sidecars copied from Legion, git/node/rust installed. Gap: MSVC linker (`link.exe`) never actually installed despite VS Build Tools reporting success, so `tauri dev` can't compile yet (Vite-only frontend confirmed working). VM deallocated (costs nothing), clean snapshot taken (predates the linker fix — see log for the fix + re-snapshot follow-up).
 
