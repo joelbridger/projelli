@@ -100,6 +100,14 @@ export function CalendarConnect() {
     }
   }
 
+  // Live cancel while the Outlook sign-in browser tab is still open — the
+  // catch-block call in connectOAuth only fires after calendarConnectOutlook
+  // has already rejected, so it can't abort a pending wait (matches the
+  // OneDriveConnect cancelConnect pattern).
+  function cancelOutlookSignIn() {
+    calendarConnectOutlookCancel().catch(() => {});
+  }
+
   async function connectIcs() {
     const trimmed = icsUrl.trim();
     if (!trimmed) {
@@ -251,6 +259,16 @@ export function CalendarConnect() {
                   ? 'Waiting for sign-in…'
                   : 'Connect Microsoft'}
               </Button>
+              {busy === 'outlook' && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  data-testid="calendar-cancel-outlook"
+                  onClick={cancelOutlookSignIn}
+                >
+                  Cancel
+                </Button>
+              )}
               <Button
                 size="sm"
                 data-testid="calendar-connect-google"

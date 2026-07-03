@@ -51,12 +51,19 @@ vi.mock('@/platform/privacy/localOnlyGuard', () => ({
 import {
   calendarConnectIcs,
   calendarConnectOutlook,
+  calendarConnectOutlookCancel,
   calendarDisconnect,
   calendarIsConnected,
 } from '@/platform/utils/calendar-commands';
 
 describe('CalendarConnect', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // clearAllMocks resets call history but not a custom mockImplementation
+    // set by an earlier test (e.g. the disconnect test below) — restore the
+    // module's default so each test starts from "nothing connected".
+    vi.mocked(calendarIsConnected).mockImplementation(async () => false);
+  });
 
   it('renders one card with all three connection paths', async () => {
     render(<CalendarConnect />);
@@ -106,6 +113,22 @@ describe('CalendarConnect', () => {
     fireEvent.click(screen.getByText('Disconnect and delete'));
     await waitFor(() =>
       expect(calendarDisconnect).toHaveBeenCalledWith('outlook')
+    );
+  });
+
+  it('offers a live cancel while an Outlook sign-in is pending', async () => {
+    // Never resolves — simulates the browser tab still being open, so
+    // `busy === 'outlook'` stays true for the assertions below.
+    vi.mocked(calendarConnectOutlook).mockImplementation(
+      () => new Promise(() => {})
+    );
+    render(<CalendarConnect />);
+    fireEvent.click(await screen.findByTestId('calendar-connect-outlook'));
+
+    const cancelButton = await screen.findByTestId('calendar-cancel-outlook');
+    fireEvent.click(cancelButton);
+    await waitFor(() =>
+      expect(calendarConnectOutlookCancel).toHaveBeenCalledTimes(1)
     );
   });
 });
