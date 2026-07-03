@@ -297,15 +297,24 @@ function resolveMatterIdWithWorkspaceForms(path: string): string {
  *      becomes one bounded, SEQUENTIAL sweep instead of N concurrent calls;
  *   2. never rejects — every call is wrapped, failures are logged once per
  *      batch, not once per file;
- *   3. opens a breaker after N consecutive failures and drops the rest of
- *      the burst rather than continuing to hammer a failing backend.
+ *   3. opens a breaker after N consecutive failures and PAUSES (never drops)
+ *      — a failed or not-yet-attempted path is put back on the queue and
+ *      retried once the cooldown elapses. A delete is a privacy operation
+ *      (a deleted client file must stop being searchable); losing one
+ *      silently would leave stale content indexed indefinitely, so this
+ *      batcher only ever paces retries, never abandons a path;
+ *   4. exposes `cancel(path)` so the caller can drop a queued delete when a
+ *      create/modify for the SAME path arrives first — otherwise a
+ *      delete-then-recreate within the buffer window (an atomic save/replace
+ *      or a sync restore) would index the fresh content and then have the
+ *      stale queued delete remove it moments later.
  */
 export type DeleteBurstBatcherOptions = {
   /** How long to buffer incoming paths before issuing the batch. */
   windowMs?: number;
   /** Consecutive per-path failures before the breaker opens. */
   breakerThreshold?: number;
-  /** How long the breaker stays open (drops incoming bursts) once tripped. */
+  /** How long the breaker stays open (pauses retries) once tripped. */
   cooldownMs?: number;
   /** Injectable for tests; defaults to console.warn. */
   onLog?: (message: string) => void;
@@ -314,7 +323,14 @@ export type DeleteBurstBatcherOptions = {
 export type DeleteBurstBatcher = {
   /** Queue a path for deletion; the batch flushes after `windowMs` of quiet. */
   enqueue: (path: string) => void;
-  /** Cancel any pending flush and drop queued paths (call on teardown). */
+  /**
+   * Drop a queued-but-not-yet-flushed delete for `path`, if one is pending.
+   * Returns true if a queued delete was cancelled. Call this when a
+   * create/modify event for the same path arrives, so a delete→recreate
+   * race can't remove freshly-indexed content.
+   */
+  cancel: (path: string) => boolean;
+  /** Cancel any pending timers and drop queued paths (call on teardown). */
   dispose: () => void;
 };
 
@@ -333,10 +349,23 @@ export function createDeleteBurstBatcher(
 
   let pending = new Set<string>();
   let flushTimer: ReturnType<typeof setTimeout> | null = null;
+  let cooldownTimer: ReturnType<typeof setTimeout> | null = null;
   let isFlushing = false;
   let consecutiveFailures = 0;
   let breakerOpenUntil = 0;
   let disposed = false;
+
+  // Wakes the batcher up once a breaker's cooldown elapses, even if no new
+  // path is ever enqueued in the meantime — otherwise paths queued at trip
+  // time (or added during the cooldown) would have nothing left to trigger
+  // their retry.
+  const scheduleCooldownRetry = (delayMs: number) => {
+    if (cooldownTimer || disposed) return;
+    cooldownTimer = setTimeout(() => {
+      cooldownTimer = null;
+      void flush();
+    }, delayMs);
+  };
 
   // Drains `pending` in a loop rather than a single pass, guarded by
   // `isFlushing`. A sustained delete storm keeps calling `enqueue` while a
@@ -348,18 +377,15 @@ export function createDeleteBurstBatcher(
   const flush = async (): Promise<void> => {
     flushTimer = null;
     if (isFlushing || disposed) return;
+    if (Date.now() < breakerOpenUntil) {
+      // Still cooling down. Don't touch `pending` — nothing queued is ever
+      // dropped, it just waits for the scheduled retry below.
+      scheduleCooldownRetry(breakerOpenUntil - Date.now());
+      return;
+    }
     isFlushing = true;
     try {
       while (pending.size > 0 && !disposed) {
-        if (Date.now() < breakerOpenUntil) {
-          const dropped = pending.size;
-          pending = new Set();
-          log(
-            `[memory] delete backend failing repeatedly; dropping ${dropped} delete event(s) during cooldown`,
-          );
-          break;
-        }
-
         const paths = Array.from(pending);
         pending = new Set();
         let failed = 0;
@@ -374,15 +400,20 @@ export function createDeleteBurstBatcher(
           } catch {
             failed += 1;
             consecutiveFailures += 1;
+            // Never lose this path: a failed delete is retried, not abandoned.
+            pending.add(path);
             if (consecutiveFailures >= breakerThreshold) {
               breakerOpenUntil = Date.now() + cooldownMs;
-              const processed = paths.indexOf(path) + 1;
-              const remaining = paths.length - processed + pending.size;
-              pending = new Set();
+              // The rest of this batch hasn't been attempted at all — queue
+              // it for the same retry, rather than attempting (and possibly
+              // failing) it right now.
+              const notYetAttempted = paths.slice(paths.indexOf(path) + 1);
+              for (const p of notYetAttempted) pending.add(p);
               log(
-                `[memory] ${consecutiveFailures} consecutive delete failures; backing off for ${cooldownMs}ms` +
-                  (remaining > 0 ? `, dropping ${remaining} pending delete event(s)` : ''),
+                `[memory] ${consecutiveFailures} consecutive delete failures; backing off for ${cooldownMs}ms, ` +
+                  `retrying ${pending.size} pending delete event(s) after cooldown`,
               );
+              scheduleCooldownRetry(cooldownMs);
               breakerTripped = true;
               break;
             }
@@ -390,7 +421,7 @@ export function createDeleteBurstBatcher(
         }
         if (breakerTripped) break;
         if (failed > 0) {
-          log(`[memory] ${failed} of ${paths.length} delete event(s) failed`);
+          log(`[memory] ${failed} of ${paths.length} delete event(s) failed; retrying`);
         }
       }
     } finally {
@@ -410,15 +441,66 @@ export function createDeleteBurstBatcher(
         }, windowMs);
       }
     },
+    cancel(path: string): boolean {
+      return pending.delete(path);
+    },
     dispose() {
       disposed = true;
       if (flushTimer) {
         clearTimeout(flushTimer);
         flushTimer = null;
       }
+      if (cooldownTimer) {
+        clearTimeout(cooldownTimer);
+        cooldownTimer = null;
+      }
       pending = new Set();
     },
   };
+}
+
+export type WorkspaceFileChangedHandlerDeps = {
+  deleteBatcher: Pick<DeleteBurstBatcher, 'enqueue' | 'cancel'>;
+  workspaceService: MemoryWiringWorkspaceService | null | undefined;
+};
+
+/**
+ * Route one `workspace-file-changed` event: buffer deletes through the burst
+ * batcher, and for a create/modify, first cancel any delete still queued for
+ * the same path (the delete→recreate race guard — see
+ * createDeleteBurstBatcher) before (re)indexing it. Extracted out of the
+ * `listen()` callback so the race guard is unit-testable without standing up
+ * the full Tauri event-listener machinery.
+ */
+export function handleWorkspaceFileChangedEvent(
+  payload: WorkspaceChangeEvent | null | undefined,
+  deps: WorkspaceFileChangedHandlerDeps,
+): void {
+  if (!payload?.path) return;
+  const { deleteBatcher, workspaceService } = deps;
+  // Best-effort: don't await, don't surface errors.
+  const isPdf = payload.path.toLowerCase().endsWith('.pdf');
+  if (payload.kind === 'delete') {
+    // Buffered/bounded/backoff-guarded — see createDeleteBurstBatcher.
+    deleteBatcher.enqueue(payload.path);
+    return;
+  }
+  // A create/modify for this path means it exists again — drop any delete
+  // still queued for it (delete-then-recreate within the buffer window, e.g.
+  // an atomic save/replace or a sync restore) so the fresh content isn't
+  // removed moments after being indexed.
+  deleteBatcher.cancel(payload.path);
+  if (isPdf && workspaceService) {
+    // Only re-index PDF on change if the toggle is on.
+    if (isPdfIndexingEnabled() && workspaceService.readFileBinary) {
+      const binaryWs = {
+        readBinary: (p: string) => workspaceService.readFileBinary!(p),
+      };
+      void MemoryService.indexPdfFile(payload.path, binaryWs).catch(() => {});
+    }
+  } else {
+    void MemoryService.indexFile(payload.path);
+  }
 }
 
 /**
@@ -816,25 +898,10 @@ export function useMemoryWiring(
         const stop = await listen<WorkspaceChangeEvent>(
           'workspace-file-changed',
           (event) => {
-            const payload = event.payload;
-            if (!payload?.path) return;
-            // Best-effort: don't await, don't surface errors.
-            const isPdf = payload.path.toLowerCase().endsWith('.pdf');
-            if (payload.kind === 'delete') {
-              // Buffered/bounded/backoff-guarded — see createDeleteBurstBatcher.
-              deleteBatcher.enqueue(payload.path);
-            } else if (isPdf && workspaceService) {
-              // Only re-index PDF on change if the toggle is on.
-              if (isPdfIndexingEnabled() && workspaceService.readFileBinary) {
-                const binaryWs = {
-                  readBinary: (p: string) =>
-                    workspaceService.readFileBinary!(p),
-                };
-                void MemoryService.indexPdfFile(payload.path, binaryWs).catch(() => {});
-              }
-            } else {
-              void MemoryService.indexFile(payload.path);
-            }
+            handleWorkspaceFileChangedEvent(event.payload, {
+              deleteBatcher,
+              workspaceService,
+            });
           },
         );
         if (cancelled) {

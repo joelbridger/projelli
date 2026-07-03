@@ -107,7 +107,7 @@ describe('createDeleteBurstBatcher', () => {
     expect(callCount).toBe(4); // a, b, mid-batch-1, mid-batch-2 — all drained by one flush
   });
 
-  it('never lets a per-path failure become an unhandled rejection, and logs once per batch', async () => {
+  it('never lets a per-path failure become an unhandled rejection, logs once per batch, and retries the failed path', async () => {
     const deletePath = vi
       .fn()
       .mockRejectedValueOnce(new Error('backend race'))
@@ -124,12 +124,16 @@ describe('createDeleteBurstBatcher', () => {
 
     await vi.advanceTimersByTimeAsync(250);
 
-    expect(deletePath).toHaveBeenCalledTimes(2);
+    // bad(fail) + good(success) + bad(retry, now succeeds) — the failed path
+    // is never abandoned, it's requeued and retried within the same flush.
+    expect(deletePath).toHaveBeenCalledTimes(3);
     expect(onLog).toHaveBeenCalledTimes(1);
-    expect(onLog).toHaveBeenCalledWith(expect.stringContaining('1 of 2 delete event(s) failed'));
+    expect(onLog).toHaveBeenCalledWith(
+      expect.stringContaining('1 of 2 delete event(s) failed; retrying'),
+    );
   });
 
-  it('opens the breaker after N consecutive failures and drops the rest of the burst', async () => {
+  it('P1 regression: opens the breaker after N consecutive failures but queues (never drops) the rest of the burst', async () => {
     const deletePath = vi.fn().mockRejectedValue(new Error('lancedb writer race'));
     const onLog = vi.fn();
     const batcher = createDeleteBurstBatcher(deletePath, {
@@ -144,15 +148,20 @@ describe('createDeleteBurstBatcher', () => {
     }
     await vi.advanceTimersByTimeAsync(250);
 
-    // Breaker trips after 3 consecutive failures — the other 7 in this burst
-    // are dropped, not attempted.
+    // Breaker trips after 3 consecutive failures — only those 3 were actually
+    // attempted. The other 7 are NOT attempted right now, but critically they
+    // are also NOT dropped: every one of the 10 originally-queued paths is
+    // still queued for the scheduled retry after cooldown (a deleted client
+    // file must never silently stay searchable).
     expect(deletePath).toHaveBeenCalledTimes(3);
     expect(onLog).toHaveBeenCalledTimes(1);
     expect(onLog).toHaveBeenCalledWith(expect.stringContaining('3 consecutive delete failures'));
-    expect(onLog).toHaveBeenCalledWith(expect.stringContaining('dropping 7 pending delete event(s)'));
+    expect(onLog).toHaveBeenCalledWith(
+      expect.stringContaining('retrying 10 pending delete event(s) after cooldown'),
+    );
   });
 
-  it('drops an entire new burst during the cooldown window without calling the backend', async () => {
+  it('P1 regression: a burst enqueued during cooldown is queued, not dropped, and is not attempted until cooldown elapses', async () => {
     const deletePath = vi.fn().mockRejectedValue(new Error('lancedb writer race'));
     const onLog = vi.fn();
     const batcher = createDeleteBurstBatcher(deletePath, {
@@ -176,12 +185,13 @@ describe('createDeleteBurstBatcher', () => {
     batcher.enqueue('/ws/e.docx');
     await vi.advanceTimersByTimeAsync(100);
 
+    // Not attempted yet (still cooling down) — but NOT logged as dropped,
+    // because nothing was dropped. It's silently waiting for the retry.
     expect(deletePath).not.toHaveBeenCalled();
-    expect(onLog).toHaveBeenCalledTimes(1);
-    expect(onLog).toHaveBeenCalledWith(expect.stringContaining('dropping 3 delete event(s) during cooldown'));
+    expect(onLog).not.toHaveBeenCalled();
   });
 
-  it('resumes normal processing once the cooldown elapses', async () => {
+  it('P1 regression: every originally-queued path is eventually retried and succeeds once the backend recovers — none lost across the breaker/cooldown cycle', async () => {
     const deletePath = vi
       .fn()
       .mockRejectedValueOnce(new Error('e1'))
@@ -198,19 +208,35 @@ describe('createDeleteBurstBatcher', () => {
     batcher.enqueue('/ws/a.docx');
     batcher.enqueue('/ws/b.docx');
     await vi.advanceTimersByTimeAsync(100);
-    expect(deletePath).toHaveBeenCalledTimes(2); // breaker opens
+    expect(deletePath).toHaveBeenCalledTimes(2); // both fail, breaker opens
 
-    // Still within cooldown — dropped.
+    // A third path arrives mid-cooldown — queued, not dropped.
+    await vi.advanceTimersByTimeAsync(100);
     batcher.enqueue('/ws/c.docx');
     await vi.advanceTimersByTimeAsync(100);
-    expect(deletePath).toHaveBeenCalledTimes(2);
+    expect(deletePath).toHaveBeenCalledTimes(2); // still cooling — no new attempts
 
-    // Cooldown elapses — the next burst goes through normally.
+    // Cooldown elapses — the dedicated cooldown-retry timer wakes the
+    // batcher on its own (no fresh enqueue required) and drains everything
+    // that was ever queued: a, b (retried) and c.
     await vi.advanceTimersByTimeAsync(5_000);
-    batcher.enqueue('/ws/d.docx');
-    await vi.advanceTimersByTimeAsync(100);
-    expect(deletePath).toHaveBeenCalledTimes(3);
-    expect(deletePath).toHaveBeenLastCalledWith('/ws/d.docx');
+
+    expect(deletePath).toHaveBeenCalledTimes(5);
+    const retriedPaths = deletePath.mock.calls.slice(2).map((call) => call[0]);
+    expect(retriedPaths.sort()).toEqual(['/ws/a.docx', '/ws/b.docx', '/ws/c.docx']);
+  });
+
+  it('cancel() removes a queued-but-not-yet-flushed delete for a path', async () => {
+    const deletePath = vi.fn().mockResolvedValue(undefined);
+    const batcher = createDeleteBurstBatcher(deletePath, { windowMs: 250 });
+
+    batcher.enqueue('/ws/a.docx');
+    expect(batcher.cancel('/ws/a.docx')).toBe(true);
+    expect(batcher.cancel('/ws/a.docx')).toBe(false); // already gone
+
+    await vi.advanceTimersByTimeAsync(250);
+
+    expect(deletePath).not.toHaveBeenCalled();
   });
 
   it('handles a single normal delete promptly after the debounce window', async () => {
