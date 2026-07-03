@@ -24,6 +24,15 @@ impl CrmWriteKind {
 /// id (Wealthbox: numeric string; other providers use their prefixed crm_key).
 /// `source_ref` is provenance for the audit log (document path or transcript
 /// timestamp) — it is never sent to the CRM.
+///
+/// `requested_at` identifies the APPROVAL EVENT, not the content — the
+/// caller (the review-card UI) generates it once when the user clicks
+/// Approve and reuses the SAME value for any automatic retry of that exact
+/// approval (a crash, a timeout, an ambiguous 5xx). A fresh, later approval
+/// of identical content (e.g. a recurring "Left voicemail" note) must
+/// generate a NEW `requested_at`. This is what lets `dedup_key` protect
+/// against retry duplication without also silently suppressing an
+/// intentional repeat send — see `dedup_key_is_scoped_to_the_approval_event_not_content_alone`.
 #[derive(Debug, Clone)]
 pub struct CrmWriteRequest {
     pub kind: CrmWriteKind,
@@ -33,6 +42,7 @@ pub struct CrmWriteRequest {
     pub body: String,
     pub due_date: Option<String>,
     pub source_ref: String,
+    pub requested_at: String,
 }
 
 /// Receipt for a completed (or deduplicated) write.
@@ -73,8 +83,11 @@ fn norm(s: &str) -> String {
     s.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-/// Stable content-addressed key: identical (provider-visible) writes collide,
-/// any change to target or content produces a fresh key.
+/// Stable content-addressed key scoped to ONE approval event: identical
+/// (provider-visible) writes from the SAME approval collide (protecting a
+/// retry from double-posting), but the same content approved again later —
+/// a different `requested_at` — produces a fresh key, so an intentional
+/// repeat send is never silently suppressed as a "duplicate" forever.
 pub fn dedup_key(req: &CrmWriteRequest) -> String {
     let mut h = Sha256::new();
     for part in [
@@ -83,6 +96,7 @@ pub fn dedup_key(req: &CrmWriteRequest) -> String {
         &norm(&req.title),
         &norm(&req.body),
         req.due_date.as_deref().unwrap_or(""),
+        req.requested_at.as_str(),
     ] {
         h.update(part.as_bytes());
         h.update([0u8]); // field separator so "a","bc" != "ab","c"
@@ -877,6 +891,7 @@ mod tests {
             body: "Discussed 529 rollover.".into(),
             due_date: None,
             source_ref: "doc:Clients/Henderson/notes.docx".into(),
+            requested_at: "2026-07-02T14:41:00Z".into(),
         }
     }
 
@@ -1166,6 +1181,29 @@ mod tests {
         let mut other_house = note_req();
         other_house.household_key = "99".into();
         assert_ne!(a, dedup_key(&other_house), "target change → new key");
+    }
+
+    /// ADDED SCOPE #2.1: identical content approved on two SEPARATE occasions
+    /// (e.g. a recurring "Left voicemail" note) must NOT collide into one
+    /// dedup key forever — the ledger's job is protecting a single approval
+    /// event against a RETRY (crash, timeout, double-click), not blocking a
+    /// deliberate repeat send. `requested_at` is set once per approval action
+    /// by the caller and reused for any automatic retry of THAT SAME
+    /// approval, but a fresh approval generates a new one.
+    #[test]
+    fn dedup_key_is_scoped_to_the_approval_event_not_content_alone() {
+        let a = note_req();
+        let mut b = note_req();
+        b.requested_at = "2026-07-09T09:00:00Z".into(); // a week later, same text
+        assert_ne!(
+            dedup_key(&a),
+            dedup_key(&b),
+            "identical content approved at a different time must be a different write, not a suppressed duplicate"
+        );
+        // But the SAME approval (identical requested_at) still dedupes —
+        // that's the retry-protection case this ledger exists for.
+        let c = note_req();
+        assert_eq!(dedup_key(&a), dedup_key(&c), "same approval, retried, must still dedupe");
     }
 
     #[test]

@@ -471,6 +471,16 @@ async fn append_crm_audit_best_effort_for_matter(
 /// command after an explicit user Approve click — there is no other call
 /// site. `household_key` is resolved by the frontend from the matter's
 /// `crmHouseholdKeys` (the backend does not persist the matter map).
+///
+/// `requested_at` identifies THIS approval event (an ISO timestamp the
+/// frontend generates once, when the user clicks Approve) — see
+/// `CrmWriteRequest`'s doc comment for why the idempotency ledger needs it:
+/// without it, identical content approved on two separate occasions (e.g. a
+/// recurring "Left voicemail" note) would collide into one dedup key
+/// forever, and the second approval would be silently swallowed as a
+/// "duplicate" of the first. The frontend must reuse the SAME value for any
+/// automatic retry of this exact approval, and generate a NEW one for a
+/// fresh approval — even of identical content.
 #[tauri::command]
 pub async fn crm_create_note(
     app: AppHandle,
@@ -480,6 +490,7 @@ pub async fn crm_create_note(
     body: String,
     source_ref: String,
     household_key: String,
+    requested_at: String,
     provider: Option<String>,
 ) -> Result<WriteReceipt, String> {
     crm_create_write(
@@ -492,13 +503,15 @@ pub async fn crm_create_note(
         None,
         source_ref,
         household_key,
+        requested_at,
         provider,
     )
     .await
 }
 
 /// Push one approval-gated task to the connected CRM and record an audit entry.
-/// See [`crm_create_note`] for the shared write-then-audit contract.
+/// See [`crm_create_note`] for the shared write-then-audit contract and the
+/// `requested_at` contract.
 #[tauri::command]
 pub async fn crm_create_task(
     app: AppHandle,
@@ -509,6 +522,7 @@ pub async fn crm_create_task(
     due_date: Option<String>,
     source_ref: String,
     household_key: String,
+    requested_at: String,
     provider: Option<String>,
 ) -> Result<WriteReceipt, String> {
     crm_create_write(
@@ -521,6 +535,7 @@ pub async fn crm_create_task(
         due_date,
         source_ref,
         household_key,
+        requested_at,
         provider,
     )
     .await
@@ -537,6 +552,7 @@ async fn crm_create_write(
     due_date: Option<String>,
     source_ref: String,
     household_key: String,
+    requested_at: String,
     provider: Option<String>,
 ) -> Result<WriteReceipt, String> {
     let provider = CrmProvider::from_optional(provider.as_deref())?;
@@ -583,6 +599,7 @@ async fn crm_create_write(
         body,
         due_date,
         source_ref: source_ref.clone(),
+        requested_at,
     };
 
     let action = provider.audit_action(match kind {
