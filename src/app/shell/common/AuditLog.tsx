@@ -41,6 +41,7 @@ import {
   KeyRound as KeyIcon,
   UserX,
   Save,
+  Fingerprint,
 } from 'lucide-react';
 import type { AuditEntry, AuditActionType } from '@/platform/types/audit';
 import { EmptyState } from '@/ui/EmptyState';
@@ -125,6 +126,8 @@ const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   template_updated: PenLine,
   template_install_failed: XCircle,
   beneficiary_finding_dismissed: ShieldCheck,
+  voiceprint_enrolled: Fingerprint,
+  voiceprint_deleted: Fingerprint,
 };
 
 const ACTION_LABELS: Record<AuditActionType, string> = {
@@ -184,6 +187,8 @@ const ACTION_LABELS: Record<AuditActionType, string> = {
   template_updated: 'Template Updated',
   template_install_failed: 'Template Install Failed',
   beneficiary_finding_dismissed: 'Beneficiary Check Dismissed',
+  voiceprint_enrolled: 'Voice profile saved',
+  voiceprint_deleted: 'Voice profile deleted',
 };
 
 const ACTION_COLORS: Record<AuditActionType, string> = {
@@ -243,6 +248,8 @@ const ACTION_COLORS: Record<AuditActionType, string> = {
   template_updated: 'text-blue-600 dark:text-blue-400',
   template_install_failed: 'text-red-600 dark:text-red-400',
   beneficiary_finding_dismissed: 'text-indigo-600 dark:text-indigo-400',
+  voiceprint_enrolled: 'text-indigo-600 dark:text-indigo-400',
+  voiceprint_deleted: 'text-red-600 dark:text-red-400',
 };
 
 export function AuditLog({

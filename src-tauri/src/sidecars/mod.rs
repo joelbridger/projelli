@@ -27,6 +27,8 @@ pub mod piper;
 pub use piper::PiperSidecar;
 pub mod llama_server;
 pub use llama_server::LlamaServerSidecar;
+pub mod diarize;
+pub use diarize::DiarizeSidecar;
 
 pub trait Sidecar: Send + Sync {
     fn name(&self) -> &str;

@@ -12,3 +12,10 @@
 # To populate locally: cd src-tauri && cargo run --bin prefetch_model
 # The .gitkeep files inside are committed; the model blobs are not.
 /resources/embeddings/models--intfloat--multilingual-e5-small/
+
+# Diarization models (populated by scripts/fetch-diarize-models.sh, never committed).
+/resources/diarize/*.onnx
+
+# lantern-diarize is a standalone crate (own [workspace] table, own target dir
+# unless CARGO_TARGET_DIR is set) — never linked into this workspace's target.
+/sidecar-src/lantern-diarize/target/
