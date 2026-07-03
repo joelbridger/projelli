@@ -93,6 +93,22 @@ pub fn is_in_skipped_dir(path: &Path) -> bool {
     })
 }
 
+/// True when `path` is inside a skipped dir RELATIVE TO `workspace_root` — i.e.
+/// the file lives under `.lantern/` (or another skipped dir like a user-placed
+/// `node_modules/`) INSIDE the workspace. Scoping the check to the
+/// workspace-relative components is what keeps a workspace that merely LIVES
+/// under a folder named `build`/`target`/`node_modules`/… (e.g.
+/// `C:\Users\me\build\ws\Clients\a.docx`) from having every file wrongly treated
+/// as internal and silently dropped from the index. Mirrors the full walker,
+/// which descends from the root and so only ever sees relative components. A
+/// path not under `workspace_root` is NOT treated as internal here.
+pub fn is_in_skipped_dir_under(workspace_root: &Path, path: &Path) -> bool {
+    match path.strip_prefix(workspace_root) {
+        Ok(rel) => is_in_skipped_dir(rel),
+        Err(_) => false,
+    }
+}
+
 /// Returns true if the path lives inside a directory we always skip
 /// (`node_modules`, `.git`, the internal data dir, etc). Keeps the workspace walker
 /// O(useful files) rather than O(every file on disk).
@@ -268,5 +284,32 @@ mod tests {
             "/ws/Clients/Webb/Agreements/plan.docx"
         )));
         assert!(!is_in_skipped_dir(&PathBuf::from("/ws/Clients/statement.pdf")));
+    }
+
+    #[test]
+    fn in_skipped_dir_under_scopes_to_workspace_relative_path() {
+        let data_dir = crate::identity::WORKSPACE_DATA_DIR;
+        // A real workspace that merely LIVES under a folder named `build` (a
+        // skipped name) — the P2 false-positive case.
+        let ws = PathBuf::from("/Users/me/build/ws");
+
+        // `.lantern` INSIDE the workspace is still skipped (the churn we must drop).
+        assert!(is_in_skipped_dir_under(
+            &ws,
+            &ws.join(format!("{data_dir}/mcp-session-scope.json")),
+        ));
+        // A real user document under the same workspace STILL INDEXES, despite the
+        // `build` parent above the workspace root — this is the bug being fixed.
+        assert!(!is_in_skipped_dir_under(
+            &ws,
+            &ws.join("Clients/Webb/Agreements/plan.docx"),
+        ));
+        // A user-placed `node_modules` INSIDE the workspace is still skipped.
+        assert!(is_in_skipped_dir_under(&ws, &ws.join("node_modules/pkg/index.js")));
+        // A path not under the workspace is not treated as internal here.
+        assert!(!is_in_skipped_dir_under(
+            &ws,
+            &PathBuf::from("/other/place/.lantern/x.json"),
+        ));
     }
 }
