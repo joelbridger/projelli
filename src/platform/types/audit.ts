@@ -59,10 +59,12 @@ export type AuditActionType =
   // provider section per sync, so a run that imported zero messages or failed
   // still leaves a durable record — the same honesty guarantee OneDrive gives.
   | 'mail.sync'
-  // Box, Calendly, and Addepar connector sync lifecycle. Same contract: every
-  // user-triggered sync leaves a success-with-counts or plain-error record.
+  // Box, Calendly, Calendar, and Addepar connector sync lifecycle. Same
+  // contract: every user-triggered sync leaves a success-with-counts or
+  // plain-error record.
   | 'box.sync'
   | 'calendly.sync'
+  | 'calendar.sync'
   | 'addepar.sync'
   | 'salesforce.connect'
   | 'salesforce.sync'
