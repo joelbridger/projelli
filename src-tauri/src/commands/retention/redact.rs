@@ -26,6 +26,13 @@ use super::sweep::{canonicalize_workspace_relative, contained, transcript_rag_so
 // BOTH transcript.json and notes.docx before committing either.
 use super::{commit_atomically, stage_atomically};
 
+/// Guards the entire `redact_meeting_segments` read-modify-write-commit
+/// sequence. Without this, two concurrent redaction calls could each read
+/// the same original files, compute independent changes, and have the
+/// later commit silently clobber the earlier one. See its use site for the
+/// full reasoning (same tradeoff as PENDING_RAG_CLEANUP_LOCK in mod.rs).
+static REDACTION_LOCK: std::sync::LazyLock<std::sync::Mutex<()>> = std::sync::LazyLock::new(|| std::sync::Mutex::new(()));
+
 fn redaction_marker(now_ms: u64) -> String {
     let date = chrono::DateTime::from_timestamp_millis(now_ms as i64)
         .map(|d| d.format("%Y-%m-%d").to_string())
@@ -231,12 +238,6 @@ pub(crate) fn redact_segments_inner(
         }
     }
 
-    // RAG ids for this transcript's chunks, computed from the PRE-redaction
-    // bytes — same contract as Task 14's transcript_rag_source_ids ("must
-    // run BEFORE transcript.json is removed"): here it's rewritten rather
-    // than removed, but the chunks it identifies just went stale either way.
-    let rag_cleanup_source_ids = transcript_rag_source_ids(meeting_dir);
-
     let marker = redaction_marker(now_ms);
     let mut needles: Vec<String> = Vec::with_capacity(segment_indices.len());
     for &i in segment_indices {
@@ -249,6 +250,26 @@ pub(crate) fn redact_segments_inner(
         seg["text"] = serde_json::Value::String(marker.clone());
         seg["redacted"] = serde_json::Value::Bool(true);
     }
+    // Longest-first: if selected segments overlap or one's text is a
+    // substring of another's (e.g. "John" and "John has cancer"), replacing
+    // the SHORT needle first would eat into the long one — "John has
+    // cancer" -> "[redacted] has cancer" — leaving "has cancer" behind with
+    // neither needle matching whole anymore, so the survival check below
+    // would never catch the residue. Matching longest-first means a shorter
+    // needle can never partially consume a longer one still waiting to be
+    // replaced whole.
+    needles.sort_by_key(|b| std::cmp::Reverse(b.len()));
+
+    // RAG ids for this transcript's chunks, computed from the PRE-redaction
+    // bytes — same contract as Task 14's transcript_rag_source_ids ("must
+    // run BEFORE transcript.json is removed"): here it's rewritten rather
+    // than removed, but the chunks it identifies just went stale either way.
+    // Only computed when something ACTUALLY changed (`needles` non-empty) —
+    // a true no-op call (every selected segment already redacted or empty)
+    // must not hand back cleanup ids for the whole transcript and cause the
+    // caller to delete RAG rows that were never touched.
+    let rag_cleanup_source_ids =
+        if needles.is_empty() { Vec::new() } else { transcript_rag_source_ids(meeting_dir) };
 
     let notes_path = meeting_dir.join("notes.docx");
     refuse_symlink(&notes_path)?;
@@ -352,6 +373,14 @@ pub async fn redact_meeting_segments(
     segment_indices: Vec<usize>,
 ) -> Result<RedactionReceipt, String> {
     tokio::task::spawn_blocking(move || {
+        // Serialize the ENTIRE redact-and-commit sequence: two concurrent
+        // redact_meeting_segments calls (even against different meetings,
+        // for simplicity — this is a rare, non-perf-critical operation, same
+        // tradeoff as PENDING_RAG_CLEANUP_LOCK) could otherwise both read
+        // the same original transcript.json/notes.docx, compute their own
+        // changes independently, and have the LATER commit silently
+        // overwrite the earlier one — bringing already-redacted text back.
+        let _guard = REDACTION_LOCK.lock().unwrap_or_else(|p| p.into_inner());
         let ws = Path::new(&workspace);
         let canon_ws = ws
             .canonicalize()
@@ -669,7 +698,62 @@ mod tests {
 
         let first = redact_segments_inner(&canon_ws, &paths.dir, &[1], 1_777_000_000_000).unwrap();
         assert_eq!(first.redacted_count, 1);
+        assert!(!first.rag_cleanup_source_ids.is_empty(), "the first, real redaction should report cleanup ids");
         let second = redact_segments_inner(&canon_ws, &paths.dir, &[1], 1_777_000_000_100).unwrap();
         assert_eq!(second.redacted_count, 0, "already-redacted segment must be a no-op, not re-counted");
+        assert!(
+            second.rag_cleanup_source_ids.is_empty(),
+            "a true no-op must not report cleanup ids — nothing changed, so nothing needs re-flushing: {:?}",
+            second.rag_cleanup_source_ids
+        );
+    }
+
+    /// If selected segments overlap textually (one's text is a substring of
+    /// another's — e.g. two segments where one says "John" and another says
+    /// "John has cancer"), replacing the SHORT needle first in notes.docx
+    /// would eat into the long one mid-match, leaving residual sensitive
+    /// text ("has cancer") that no longer matches either needle whole. Both
+    /// must come out fully redacted regardless of which segment index comes
+    /// first in the selection.
+    #[test]
+    fn overlapping_needles_are_both_fully_redacted_not_partially_consumed() {
+        let short_needle = "John";
+        let long_needle = "John has cancer";
+        let ws = tempdir().unwrap();
+        let dir = ws.path().join("Clients/H/Meetings/2026-05-01-review");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let transcript = serde_json::json!({
+            "segments": [
+                { "startMs": 0, "endMs": 2000, "channel": "sys", "speaker": "Them", "text": short_needle },
+                { "startMs": 2000, "endMs": 5000, "channel": "sys", "speaker": "Them", "text": long_needle },
+            ],
+            "meta": { "startedAt": "2026-05-01T10:00:00Z", "durationMs": 5000, "matterId": "m-1" },
+        });
+        std::fs::write(dir.join("transcript.json"), serde_json::to_vec(&transcript).unwrap()).unwrap();
+
+        // notes.docx contains BOTH phrases as plain text.
+        let doc = Document {
+            format_version: lantern_docx::DOM_FORMAT_VERSION,
+            body: vec![BlockContent::Paragraph(Paragraph::from_inlines(vec![Inline::Run(Run::new(format!(
+                "Client update: {long_needle}. Also, {short_needle} called back."
+            )))]))],
+            comments: Default::default(),
+        };
+        std::fs::write(dir.join("notes.docx"), lantern_docx::serialize_docx_bytes(&doc).unwrap()).unwrap();
+
+        let canon_ws = ws.path().canonicalize().unwrap();
+        // Select index 0 (short) BEFORE index 1 (long) — the ordering that
+        // would trigger the bug if needles weren't sorted longest-first.
+        let receipt = redact_segments_inner(&canon_ws, &dir, &[0, 1], 1_777_000_000_000).unwrap();
+        assert_eq!(receipt.redacted_count, 2);
+
+        let docx_bytes = std::fs::read(dir.join("notes.docx")).unwrap();
+        assert!(!needle_survives_in_docx_package(&docx_bytes, short_needle), "short needle must not survive");
+        assert!(!needle_survives_in_docx_package(&docx_bytes, long_needle), "long needle must not survive");
+        assert!(
+            !needle_survives_in_docx_package(&docx_bytes, "has cancer"),
+            "no residual fragment of the long needle may survive after the short needle's replacement"
+        );
     }
 }

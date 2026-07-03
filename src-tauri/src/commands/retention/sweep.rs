@@ -142,6 +142,20 @@ fn remove_dir(path: &Path, kind: &str, canon_ws: &Path, out: &mut SweepOutcome, 
     if !path.exists() {
         return;
     }
+    // If the directory ITSELF is a symlink, contained()'s check (which only
+    // verifies the PARENT resolves inside the workspace) would happily pass
+    // even when the symlink's TARGET is some other, unrelated in-workspace
+    // directory — walking and deleting through it could destroy a different
+    // client's files entirely. Refuse outright: never walk through a
+    // symlinked directory, no matter where it resolves to.
+    match path.symlink_metadata() {
+        Ok(m) if m.file_type().is_symlink() => {
+            out.errors.push(format!("refused (symlink): {}", path.display()));
+            return;
+        }
+        Err(_) => return, // vanished between exists() and here — nothing to do
+        Ok(_) => {}
+    }
     if !contained(path, canon_ws) {
         out.errors.push(format!("refused (outside workspace): {}", path.display()));
         return;
@@ -598,6 +612,36 @@ mod tests {
         // only the link, never the target — `contained()` checks the LINK's
         // parent. The victim file outside the workspace must survive.
         assert!(victim.exists(), "sweep must never delete through a symlink");
+    }
+
+    /// `.capture` being a symlink to a DIFFERENT, unrelated IN-WORKSPACE
+    /// directory (e.g. another client's folder) must be refused outright —
+    /// `contained()` alone would pass (the symlink's target really is inside
+    /// canon_ws), so walking and deleting through it could destroy a
+    /// completely different client's files.
+    #[cfg(unix)]
+    #[test]
+    fn sweep_refuses_a_symlinked_capture_directory_even_when_its_target_is_in_workspace() {
+        let ws = tempdir().unwrap();
+        let now = now_ms();
+
+        // A real directory belonging to a DIFFERENT client, with a file that
+        // must never be touched.
+        let victim_dir = ws.path().join("Clients/OtherClient/precious-data");
+        std::fs::create_dir_all(&victim_dir).unwrap();
+        std::fs::write(victim_dir.join("secret.txt"), b"do not delete me").unwrap();
+
+        let matter = ws.path().join("Clients/Evil");
+        let meeting = make_meeting(&matter, "2026-05-01-x", 40, now, true);
+        std::fs::remove_dir_all(meeting.join(".capture")).unwrap();
+        std::os::unix::fs::symlink(&victim_dir, meeting.join(".capture")).unwrap();
+
+        let mut out = SweepOutcome::default();
+        let canon_ws = ws.path().canonicalize().unwrap();
+        sweep_matter_folder(&matter, &canon_ws, "summary-only", 30, now, &mut out, &mut |_d, _ids| Ok(()));
+
+        assert!(victim_dir.join("secret.txt").exists(), "must never walk/delete through a symlinked directory");
+        assert!(out.errors.iter().any(|e| e.contains("symlink")), "the refusal should be reported: {:?}", out.errors);
     }
 
     #[test]
