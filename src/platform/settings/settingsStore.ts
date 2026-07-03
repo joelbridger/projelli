@@ -10,6 +10,7 @@
  * the user's existing preferences carry forward.
  */
 
+import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { SETTINGS_SCHEMA, getSchemaDefaults, type SettingDefinition } from '@/platform/settings/schema';
@@ -297,3 +298,21 @@ const unsub = useSettingsStore.persist.onFinishHydration(() => {
   migrateLegacySettings();
   unsub();
 });
+
+/**
+ * Reactive "has the persisted settings blob finished loading" flag. Reading
+ * `useSettingsStore.getState().getSetting(...)` before hydration silently
+ * returns the schema default even when a different value is on disk — fine
+ * for most UI, but callers that make a one-time boot decision from a setting
+ * (e.g. auto-resuming the last workspace) need to know when it's safe to
+ * trust the value. `persist.hasHydrated()` is imperative-only; this wraps it
+ * in a hook so components can wait for hydration before deciding.
+ */
+export function useSettingsHydrated(): boolean {
+  const [hydrated, setHydrated] = useState(() => useSettingsStore.persist.hasHydrated());
+  useEffect(() => {
+    if (hydrated) return undefined;
+    return useSettingsStore.persist.onFinishHydration(() => { setHydrated(true); });
+  }, [hydrated]);
+  return hydrated;
+}
