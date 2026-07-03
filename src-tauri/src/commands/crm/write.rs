@@ -661,6 +661,15 @@ mod tests {
     #[test]
     fn write_client_for_routes_by_provider() {
         use crate::commands::crm::provider::CrmProvider;
+        // Force the "not configured" precondition regardless of the host
+        // environment (e.g. a machine set up for the live-probe checklist
+        // would otherwise have these exported, making this test's expected
+        // failure silently not happen — a host-dependent test). Safe to
+        // clear unconditionally: grep confirms no other test in this crate
+        // reads either variable.
+        std::env::remove_var("KEEPANCE_REDTAIL_API_KEY");
+        std::env::remove_var("KEEPANCE_SALESFORCE_CLIENT_ID");
+
         let wb = write_client_for(CrmProvider::Wealthbox, "tok".into()).unwrap();
         assert_eq!(wb.provider_id(), "wealthbox");
         // Redtail/Salesforce's real constructors need KEEPANCE_REDTAIL_API_KEY /
