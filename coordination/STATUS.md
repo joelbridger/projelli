@@ -5,6 +5,9 @@
 - Lanes: cc-lantern-p0 (~/lp-p0, lp/smoke-p0-fixes, TS-only) building the 2 real smoke bugs (Save-to-Drafts IMAP default; Send-to-Wealthbox on normal notes) — brief w-p0-smoke-fixes-brief.md. cc-lantern-w6 (lp/wave-4-bc) in codex self-converge round 2 — review (xhigh isolation guard) + merge when DONE.
 - Corrected smoke-2 brief STAGED (w-bench-smoke2-brief.md): 3 setup corrections (rebind folderPaths; re-index; never cancel OAuth) + re-tests of the 2 fixes. Fires on cc-lantern-bench once lp/smoke-p0-fixes merges. Legion still ours.
 - Done-gate recalibrated per handoff: merged+unit-green ≠ done; bench-verified is the bar. Wave 3 stays gated behind a green smoke-2.
+- P0 fixes MERGED @4fb22264 (gate green 5540 vitest; changelog @43cc7e57); p0 lane closed. Bench got Phase-2 GO.
+- REACHABILITY AUDIT (coordination/smoke-1/REACHABILITY-AUDIT.md): 2 findings. (a) Wave-1 Task 19 (recurring calendar rescan) was silently never built — fix lane cc-lantern-t19 (lp/wave1-task19-rescan) spawned. (b) CRM field-update 3-column review has NO production producer (plan never tasked one; natural producer = Wave-3 meeting extraction) — added to Wave-3 wiring notes + Jameson product note; bench told to treat as known-dormant.
+- P0-follow-up queue addition: wire meeting-note/extraction proposals into crmWriteQueueStore.enqueueFieldUpdate (Wave 3 or a scoped follow-up; product call for Jameson on the producer).
 
 ## UPDATE 2026-07-03 midday — SMOKE FOUND END-TO-END GAPS; coordinator relay #3 taking over
 - lantern-plus @46cc3697 (pushed): Waves 0/1/2 + polish + trust-fixes all MERGED, unit-green (5529 vitest + 1100 cargo lib). BUT the interim real-Windows smoke shows the assembled app does NOT run end-to-end yet. Full detail: COORDINATOR-HANDOFF.md (rewritten) + coordination/smoke-1/{RUN-LOG.md,P0-TRIAGE.txt}.
