@@ -137,7 +137,14 @@ fn redact_run_text(text: &str, needles: &[String], marker: &str) -> String {
             let start = search_from + rel;
             let end = start + needle.len();
             intervals.push((start, end));
-            search_from = start + 1; // step by 1 byte so overlapping matches of different needles are all found
+            // Step forward by one CHARACTER (not one byte) so overlapping
+            // matches starting at any subsequent position are still found,
+            // while never landing mid-character — `text[start..].find(...)`
+            // and every other slice here requires a char-boundary index, and
+            // `start + 1` can split a multi-byte UTF-8 character (e.g. "é",
+            // "Élodie") and panic on the next slice.
+            let step = text[start..].chars().next().map_or(1, char::len_utf8);
+            search_from = start + step;
         }
     }
     if intervals.is_empty() {
@@ -852,6 +859,43 @@ mod tests {
         assert!(!needle_survives_in_docx_package(&docx_bytes, needle_b));
         assert!(!needle_survives_in_docx_package(&docx_bytes, "HIV"), "no fragment of either overlapping needle may survive");
         assert!(!needle_survives_in_docx_package(&docx_bytes, "test result"), "the union span, not just the two needles literally, must be gone");
+    }
+
+    /// A needle starting with (or entirely made of) a multi-byte UTF-8
+    /// character — e.g. an accented client name — must not panic the
+    /// interval scanner. `search_from = start + 1` would land mid-character
+    /// for "Élodie" (É is 2 bytes) or a lone "é", causing the next slice to
+    /// panic on a non-char-boundary index.
+    #[test]
+    fn redact_run_text_handles_multi_byte_utf8_needles_without_panicking() {
+        let needle = "Élodie";
+        let ws = tempdir().unwrap();
+        let dir = ws.path().join("Clients/H/Meetings/2026-05-01-review");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let transcript = serde_json::json!({
+            "segments": [
+                { "startMs": 0, "endMs": 2000, "channel": "sys", "speaker": "Them", "text": needle },
+            ],
+            "meta": { "startedAt": "2026-05-01T10:00:00Z", "durationMs": 2000, "matterId": "m-1" },
+        });
+        std::fs::write(dir.join("transcript.json"), serde_json::to_vec(&transcript).unwrap()).unwrap();
+
+        let doc = Document {
+            format_version: lantern_docx::DOM_FORMAT_VERSION,
+            body: vec![BlockContent::Paragraph(Paragraph::from_inlines(vec![Inline::Run(Run::new(format!(
+                "Client: {needle}. Also mentioned: {needle} again and é alone."
+            )))]))],
+            comments: Default::default(),
+        };
+        std::fs::write(dir.join("notes.docx"), lantern_docx::serialize_docx_bytes(&doc).unwrap()).unwrap();
+
+        let canon_ws = ws.path().canonicalize().unwrap();
+        // Must not panic, and must actually redact both occurrences.
+        let receipt = redact_segments_inner(&canon_ws, &dir, &[0], 1_777_000_000_000).unwrap();
+        assert_eq!(receipt.redacted_count, 1);
+        let docx_bytes = std::fs::read(dir.join("notes.docx")).unwrap();
+        assert!(!needle_survives_in_docx_package(&docx_bytes, needle));
     }
 
     /// A segment redacted on an EARLIER day has an OLDER marker string
