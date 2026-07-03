@@ -78,6 +78,12 @@ describe('parseBookAskResponse', () => {
     expect(r.matches).toHaveLength(1);
     expect(at(r.matches, 0).facts.map((f) => f.itemId)).toEqual(['m1-i0']);
   });
+  it('replaces the free-text answer with a verified summary when a client or fact id was hallucinated', () => {
+    const raw = '{"answer":"Alvarez and Evil Corp both match.","matches":[{"matterId":"evil","factItemIds":["nope"]},{"matterId":"m1","factItemIds":["m1-i0"]}]}';
+    const r = parseBookAskResponse(raw, digest);
+    expect(r.answer).not.toContain('Evil Corp');
+    expect(r.answer).toContain('Alvarez');
+  });
   it('throws a plain error on non-JSON', () => {
     expect(() => parseBookAskResponse('sorry, I cannot', digest)).toThrow(/could not be read/i);
   });

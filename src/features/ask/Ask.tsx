@@ -26,7 +26,7 @@
  *   - Documents    (only non-mail: chunks)
  */
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   Sparkles, AlertTriangle,
 } from 'lucide-react';
@@ -108,6 +108,30 @@ export function Ask(props: UseAskProps) {
   const [bookLoading, setBookLoading] = useState(false);
   const [bookError, setBookError] = useState<string | null>(null);
 
+  // Stale-response guard: a workspace/client switch (chatId changes) or a
+  // second whole-practice question submitted while one is in flight must never
+  // let the OLDER response commit over the newer state. One monotonic counter
+  // covers both: every submit bumps it (in the event handler below), and every
+  // chatId change bumps it too (in the ref-only effect below — no setState
+  // there, so this doesn't trip the no-setState-in-effect rule).
+  const bookRequestIdRef = useRef(0);
+  useEffect(() => {
+    bookRequestIdRef.current += 1;
+  }, [chatId]);
+
+  // A workspace/client switch changes chatId — clear any lingering result so a
+  // stale client's facts never show under the new conversation, even when no
+  // new whole-practice question is asked. React's "adjusting state when a prop
+  // changes" render-time pattern (setState only, no refs, so this stays clear
+  // of the no-refs-during-render rule).
+  const [bookResultChatId, setBookResultChatId] = useState(chatId);
+  if (chatId !== bookResultChatId) {
+    setBookResultChatId(chatId);
+    setBookResult(null);
+    setBookLoading(false);
+    setBookError(null);
+  }
+
   const submitQuestion = (q?: string) => {
     if (askScope === 'whole-practice') {
       const asked = (q ?? question).trim();
@@ -115,11 +139,13 @@ export function Ask(props: UseAskProps) {
       setQuestion('');
       setBookLoading(true);
       setBookError(null);
+      const requestId = ++bookRequestIdRef.current;
+      const isStale = () => bookRequestIdRef.current !== requestId;
       const auditOpts = props.onAuditLog ? { onAuditLog: props.onAuditLog } : undefined;
-      void runWholePracticeAsk(asked, auditOpts)
-        .then(setBookResult)
-        .catch((e: unknown) => { setBookError(e instanceof Error ? e.message : String(e)); })
-        .finally(() => { setBookLoading(false); });
+      void runWholePracticeAsk(asked, chatId, auditOpts)
+        .then((r) => { if (!isStale()) setBookResult(r); })
+        .catch((e: unknown) => { if (!isStale()) setBookError(e instanceof Error ? e.message : String(e)); })
+        .finally(() => { if (!isStale()) setBookLoading(false); });
       return;
     }
     void handleAsk(q);

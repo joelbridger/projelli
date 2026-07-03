@@ -82,7 +82,10 @@ export function askConsentScope(
   activeMatterId: string | null | undefined,
   askScope: AskScope,
 ): ConsentScope {
-  return activeMatterId && askScope !== 'all-matters'
+  // whole-practice spans every client's summary, same as all-matters — an
+  // active single client must never narrow its consent scope (Codex review:
+  // a single-client grant must not silently cover a book-wide send).
+  return activeMatterId && askScope !== 'all-matters' && askScope !== 'whole-practice'
     ? { kind: 'matter', matterId: activeMatterId }
     : { kind: 'allMatters' };
 }

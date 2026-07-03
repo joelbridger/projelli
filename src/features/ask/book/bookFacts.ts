@@ -69,6 +69,17 @@ Rules:
   return { systemPrompt, userMessage: question };
 }
 
+/** A deterministic, hallucination-free stand-in for the model's free-text
+ *  answer, built only from the client labels that survived id verification.
+ *  Used when the model named at least one client/fact that isn't in the
+ *  digest — at that point the model has demonstrated it fabricated content
+ *  this turn, so its prose can't be trusted even for the clients it got right. */
+function synthesizeAnswer(matches: BookAskMatch[]): string {
+  if (matches.length === 0) return '';
+  const labels = matches.map((m) => m.label);
+  return `Matches found for: ${labels.join(', ')}.`;
+}
+
 export function parseBookAskResponse(raw: string, digest: BookFactsDigest): BookAskResult {
   let text = raw.trim();
   if (text.startsWith('```')) {
@@ -81,17 +92,28 @@ export function parseBookAskResponse(raw: string, digest: BookFactsDigest): Book
     throw new Error('The AI response could not be read. Try asking again.');
   }
   const obj = (parsed ?? {}) as { answer?: unknown; matches?: unknown };
-  const answer = typeof obj.answer === 'string' ? obj.answer : '';
   const byId = new Map(digest.clients.map((c) => [c.matterId, c]));
   const matches: BookAskMatch[] = [];
+  let hallucinationDetected = false;
   if (Array.isArray(obj.matches)) {
     for (const m of obj.matches as Array<{ matterId?: unknown; factItemIds?: unknown }>) {
       const client = typeof m.matterId === 'string' ? byId.get(m.matterId) : undefined;
-      if (!client) continue; // hallucinated client — drop
-      const wanted = new Set(Array.isArray(m.factItemIds) ? (m.factItemIds as unknown[]).filter((x): x is string => typeof x === 'string') : []);
+      if (!client) {
+        hallucinationDetected = true; // hallucinated client — drop
+        continue;
+      }
+      const rawIds = Array.isArray(m.factItemIds) ? (m.factItemIds as unknown[]).filter((x): x is string => typeof x === 'string') : [];
+      const wanted = new Set(rawIds);
       const facts = client.facts.filter((f) => wanted.has(f.itemId));
+      if (facts.length < wanted.size) hallucinationDetected = true; // some cited fact id didn't exist
       matches.push({ matterId: client.matterId, label: client.label, facts });
     }
   }
+  // A hallucinated client or fact id means the model fabricated something this
+  // turn — its free-text "answer" prose can no longer be trusted (it may name
+  // the dropped client), so replace it with a synthesized, verified-only summary.
+  const answer = hallucinationDetected
+    ? synthesizeAnswer(matches)
+    : typeof obj.answer === 'string' ? obj.answer : '';
   return { answer, matches };
 }

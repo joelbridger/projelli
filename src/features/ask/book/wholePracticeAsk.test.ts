@@ -11,13 +11,14 @@ const invokeMock = vi.fn();
 vi.mock('@tauri-apps/api/core', () => ({ invoke: (...a: unknown[]): unknown => invokeMock(...a) }));
 
 const sendMessageMock = vi.fn();
+let mockProviderId: 'ollama' | 'anthropic' = 'ollama';
 vi.mock('@/platform/matter/matterAtAGlance', async (importOriginal) => {
   const mod = await importOriginal<typeof import('@/platform/matter/matterAtAGlance')>();
   return {
     ...mod,
     buildResolvedProviderForGlance: vi.fn(() => ({
       provider: { sendMessage: sendMessageMock, getMetadata: () => ({ model: 'test-model' }) },
-      providerId: 'ollama' as const,
+      providerId: mockProviderId,
       model: 'test-model',
     })),
   };
@@ -27,11 +28,12 @@ vi.mock('@/platform/privacy/localOnlyGuard', async (importOriginal) => {
   return { ...mod, assertLocalOnlyAllowsSend: vi.fn() };
 });
 
-import { runWholePracticeAsk } from './wholePracticeAsk';
+import { runWholePracticeAsk, WholePracticeConsentRequiredError } from './wholePracticeAsk';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { emptyClientMap } from '@/platform/clientMap/types';
 import type { Matter } from '@/platform/types/matter';
+import { useAIChatStore } from '@/platform/state/aiChatStore';
 
 function at<T>(arr: T[], i: number): T {
   const v = arr[i];
@@ -39,10 +41,14 @@ function at<T>(arr: T[], i: number): T {
   return v;
 }
 
+const CHAT_ID = 'ask-global';
+
 beforeEach(() => {
   retrieveMock.mockReset();
   invokeMock.mockReset();
   sendMessageMock.mockReset();
+  mockProviderId = 'ollama';
+  useAIChatStore.setState({ fileAccessConsent: {} });
   const m = { id: 'm1', name: 'Alvarez', client: 'Alvarez', folderPaths: [], createdAt: '2026-01-01T00:00:00.000Z' } as Matter;
   useMatterStore.setState({ matters: [m] });
   const map = emptyClientMap('m1');
@@ -60,7 +66,7 @@ describe('runWholePracticeAsk', () => {
       content: '{"answer":"Alvarez mentions a 529.","matches":[{"matterId":"m1","factItemIds":["m1-i0"]}]}',
       usage: { inputTokens: 10, outputTokens: 10, totalTokens: 20 }, cost: 0,
     });
-    const r = await runWholePracticeAsk('which clients mention 529 plans?');
+    const r = await runWholePracticeAsk('which clients mention 529 plans?', CHAT_ID);
     expect(at(r.matches, 0).label).toBe('Alvarez');
     expect(r.model).toBe('test-model');
     expect(retrieveMock).not.toHaveBeenCalled();
@@ -68,8 +74,37 @@ describe('runWholePracticeAsk', () => {
   });
   it('returns an empty result without a model call when no maps are built', async () => {
     useClientMapStore.setState({ maps: {} });
-    const r = await runWholePracticeAsk('anything');
+    const r = await runWholePracticeAsk('anything', CHAT_ID);
     expect(r.matches).toHaveLength(0);
     expect(sendMessageMock).not.toHaveBeenCalled();
+  });
+
+  describe('file-access consent gate (cloud provider)', () => {
+    beforeEach(() => {
+      mockProviderId = 'anthropic';
+    });
+    it('refuses to send every client summary to a cloud provider without all-clients consent', async () => {
+      await expect(runWholePracticeAsk('which clients mention 529 plans?', CHAT_ID)).rejects.toThrow(
+        WholePracticeConsentRequiredError,
+      );
+      expect(sendMessageMock).not.toHaveBeenCalled();
+    });
+    it('sends once all-clients file access is granted for the conversation', async () => {
+      useAIChatStore.getState().setFileAccessConsent(CHAT_ID, { state: 'granted', grantedScope: { kind: 'allMatters' } });
+      sendMessageMock.mockResolvedValue({
+        content: '{"answer":"Alvarez mentions a 529.","matches":[{"matterId":"m1","factItemIds":["m1-i0"]}]}',
+        usage: { inputTokens: 10, outputTokens: 10, totalTokens: 20 }, cost: 0,
+      });
+      const r = await runWholePracticeAsk('which clients mention 529 plans?', CHAT_ID);
+      expect(sendMessageMock).toHaveBeenCalledTimes(1);
+      expect(at(r.matches, 0).label).toBe('Alvarez');
+    });
+    it('a single-client grant does NOT cover the whole-practice send', async () => {
+      useAIChatStore.getState().setFileAccessConsent(CHAT_ID, { state: 'granted', grantedScope: { kind: 'matter', matterId: 'm1' } });
+      await expect(runWholePracticeAsk('which clients mention 529 plans?', CHAT_ID)).rejects.toThrow(
+        WholePracticeConsentRequiredError,
+      );
+      expect(sendMessageMock).not.toHaveBeenCalled();
+    });
   });
 });

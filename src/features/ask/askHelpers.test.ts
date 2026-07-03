@@ -5,6 +5,7 @@ import {
   buildRecentAskSessions,
   sessionBelongsToWorkspace,
   filterHitsByScope,
+  askConsentScope,
 } from './askHelpers';
 
 function hit(overrides: Partial<RagHit> = {}): RagHit {
@@ -22,6 +23,19 @@ describe('filterHitsByScope', () => {
   it('whole-practice scope passes hits through unchanged (scope never reaches retrieval anyway)', () => {
     const hits = [hit()];
     expect(filterHitsByScope(hits, 'whole-practice')).toEqual(hits);
+  });
+});
+
+describe('askConsentScope', () => {
+  it('an active client does NOT narrow whole-practice to a single-matter grant (book-wide send)', () => {
+    expect(askConsentScope('m1', 'whole-practice')).toEqual({ kind: 'allMatters' });
+  });
+  it('still narrows this-matter to the active client', () => {
+    expect(askConsentScope('m1', 'this-matter')).toEqual({ kind: 'matter', matterId: 'm1' });
+  });
+  it('all-matters and no active client both stay all-clients', () => {
+    expect(askConsentScope('m1', 'all-matters')).toEqual({ kind: 'allMatters' });
+    expect(askConsentScope(null, 'this-matter')).toEqual({ kind: 'allMatters' });
   });
 });
 
