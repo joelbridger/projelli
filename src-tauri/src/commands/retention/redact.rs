@@ -62,6 +62,18 @@ pub struct RedactionReceipt {
     /// one redaction is incomplete.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub audit_error: Option<String>,
+    /// Set ONLY in the narrow window where notes.docx's commit (rename)
+    /// succeeded but transcript.json's commit then failed (e.g. a locked
+    /// file on Windows) — the one gap the two-phase stage/commit design
+    /// doesn't fully close (see write_atomically/stage_atomically/
+    /// commit_atomically's docs). When this is set, `redacted_count` is 0
+    /// (transcript.json — the source of truth this design's retry-safety
+    /// depends on — was NOT actually updated) but notes.docx WAS mutated;
+    /// the caller must still get an audit entry for that real change
+    /// instead of losing all visibility into it, and should prompt a retry
+    /// (safe: redacting an already-redacted notes.docx run is a no-op).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub partial_commit_error: Option<String>,
 }
 
 /// `fs::write` FOLLOWS a symlink to its target — unlike sweep.rs's unlink
@@ -249,7 +261,19 @@ fn needle_survives_in_docx_package(docx_bytes: &[u8], needle: &str) -> bool {
         return true;
     }
     match lantern_docx::parse_docx_bytes(docx_bytes) {
-        Ok(doc) => lantern_docx::extract_paragraph_texts(&doc).iter().any(|t| t.contains(needle)),
+        Ok(doc) => {
+            let in_body = lantern_docx::extract_paragraph_texts(&doc).iter().any(|t| t.contains(needle));
+            // Word can split a COMMENT's text across adjacent <w:t> runs the
+            // same way it splits paragraph text — the raw package_hit scan
+            // above would miss that (XML tags sit between the fragments),
+            // and extract_paragraph_texts only covers doc.body. Comment.text
+            // is the parser's own already-FLATTENED/joined text for the
+            // comment body (see lantern-docx's model.rs), so checking it
+            // directly catches a split comment without needing to re-parse
+            // comments.xml's raw run structure ourselves.
+            let in_comments = doc.comments.values().any(|c| c.text.contains(needle));
+            in_body || in_comments
+        }
         Err(_) => true,
     }
 }
@@ -403,11 +427,29 @@ pub(crate) fn redact_segments_inner(
     // Both artifacts are now fully written to temp files and verified safe
     // (the docx path already hard-failed above if the needle survived) —
     // commit both. If notes.docx has nothing staged (no needle in it), only
-    // transcript.json commits.
+    // transcript.json commits. If the notes.docx commit itself fails,
+    // NOTHING has changed yet (transcript.json is still only staged, not
+    // committed) — a clean `?` failure is correct here.
     if let Some(tmp) = &notes_tmp {
         commit_atomically(tmp, &notes_path)?;
     }
-    commit_atomically(&transcript_tmp, &transcript_path)?;
+    // The transcript.json commit is the one place a failure here CAN leave
+    // a real, already-applied mutation (notes.docx) with no receipt at all
+    // if propagated via `?` — the caller would get nothing to audit. Return
+    // Ok with partial_commit_error set instead, so redact_meeting_segments
+    // can still record what actually happened on disk.
+    if let Err(e) = commit_atomically(&transcript_tmp, &transcript_path) {
+        return Ok(RedactionReceipt {
+            redacted_count: 0, // transcript.json — the source of truth — was NOT updated
+            marker,
+            docx_flattened,
+            rag_cleanup_source_ids: Vec::new(), // nothing durably changed on the transcript side
+            audit_error: None,
+            partial_commit_error: Some(format!(
+                "notes.docx was updated but transcript.json commit failed: {e} — retry this redaction to complete it"
+            )),
+        });
+    }
 
     Ok(RedactionReceipt {
         redacted_count: needles.len(),
@@ -415,6 +457,7 @@ pub(crate) fn redact_segments_inner(
         docx_flattened,
         rag_cleanup_source_ids,
         audit_error: None,
+        partial_commit_error: None,
     })
 }
 
@@ -480,7 +523,14 @@ pub async fn redact_meeting_segments(
         // this command's Err.
         let entry_id = new_audit_id();
         let entry_ts = chrono::Utc::now().to_rfc3339();
-        let description = format!("Redacted {} segment(s) in {meeting_dir}", receipt.redacted_count);
+        // A partial-commit case (notes.docx changed, transcript.json didn't)
+        // gets an honest, distinct description — this is a REAL mutation
+        // that happened, and it must be visible in the audit log even
+        // though the overall redaction didn't fully complete.
+        let description = match &receipt.partial_commit_error {
+            Some(e) => format!("PARTIAL redaction in {meeting_dir}: notes.docx updated but transcript.json was not ({e})"),
+            None => format!("Redacted {} segment(s) in {meeting_dir}", receipt.redacted_count),
+        };
         let entry = crate::commands::audit::store::AuditEntryRecord {
             id: entry_id.clone(),
             timestamp: entry_ts.clone(),
@@ -501,6 +551,7 @@ pub async fn redact_meeting_segments(
                     "redactedCount": receipt.redacted_count,
                     "docxFlattened": receipt.docx_flattened,
                     "ragCleanupSourceIds": receipt.rag_cleanup_source_ids,
+                    "partialCommitError": receipt.partial_commit_error,
                 },
                 "userDecision": serde_json::Value::Null,
                 "metadata": {
@@ -526,7 +577,7 @@ pub async fn redact_meeting_segments(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lantern_docx::{BlockContent, Document, Inline, Paragraph, RevisionMeta, Run};
+    use lantern_docx::{BlockContent, Comment, Document, Inline, Paragraph, RevisionMeta, Run};
     use tempfile::tempdir;
 
     struct MeetingPaths {
@@ -702,6 +753,44 @@ mod tests {
         };
         let clean_bytes = lantern_docx::serialize_docx_bytes(&clean).unwrap();
         assert!(!needle_survives_in_docx_package(&clean_bytes, needle));
+    }
+
+    /// A needle sitting in a COMMENT's text (not the main document body) must
+    /// also be caught — `replace_in_document` never touches `doc.comments`,
+    /// and the raw package-level scan alone would miss a comment whose text
+    /// got split across adjacent `<w:t>` runs on serialize/parse. Comment.text
+    /// is the crate's own already-flattened text for the comment body, so
+    /// checking it directly is the reliable way to catch this.
+    #[test]
+    fn needle_survives_check_finds_text_inside_a_comment_body() {
+        let needle = "client disclosed a prior bankruptcy";
+        let mut comments = std::collections::BTreeMap::new();
+        comments.insert(
+            "1".to_string(),
+            Comment {
+                id: "1".into(),
+                author: "Advisor".into(),
+                date: "2026-05-01T10:00:00Z".into(),
+                initials: None,
+                text: format!("Follow up: {needle}"),
+                body_xml: None,
+            },
+        );
+        let doc = Document {
+            format_version: lantern_docx::DOM_FORMAT_VERSION,
+            body: vec![BlockContent::Paragraph(Paragraph::from_inlines(vec![
+                Inline::CommentRangeStart { id: "1".into() },
+                Inline::Run(Run::new("Unrelated body text.")),
+                Inline::CommentRangeEnd { id: "1".into() },
+                Inline::CommentReference { id: "1".into() },
+            ]))],
+            comments,
+        };
+        let bytes = lantern_docx::serialize_docx_bytes(&doc).unwrap();
+        assert!(
+            needle_survives_in_docx_package(&bytes, needle),
+            "a needle living only in a comment body must still be detected"
+        );
     }
 
     /// Word can split what reads as one phrase across adjacent runs (spell

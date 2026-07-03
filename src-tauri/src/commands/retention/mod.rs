@@ -154,7 +154,14 @@ fn read_pending_rag_cleanup_ids(path: &std::path::Path) -> Vec<String> {
 
 fn write_pending_rag_cleanup_ids(path: &std::path::Path, ids: &[String]) -> Result<(), String> {
     if ids.is_empty() {
-        let _ = std::fs::remove_file(path);
+        // The non-empty path below goes through write_atomically, which
+        // refuses a symlinked PARENT directory (refuse_symlink_parent) —
+        // this remove-on-empty branch bypassed that guard entirely: if
+        // `.lantern` were a symlink, `remove_file` would resolve through it
+        // and delete whatever sits at that path outside the workspace.
+        if refuse_symlink_parent(path).is_ok() {
+            let _ = std::fs::remove_file(path);
+        }
         return Ok(());
     }
     if let Some(parent) = path.parent() {
@@ -475,6 +482,26 @@ mod tests {
         write_pending_rag_cleanup_ids(&path, &[]).unwrap();
         assert!(!path.exists());
         assert!(read_pending_rag_cleanup_ids(&path).is_empty());
+    }
+
+    /// The empty-ids "clear" branch of write_pending_rag_cleanup_ids used to
+    /// call remove_file directly, bypassing the symlinked-parent guard the
+    /// non-empty (write_atomically) path already had. If `.lantern` is a
+    /// symlink to somewhere outside the workspace, clearing the last pending
+    /// id must NOT delete a same-named file at that external location.
+    #[test]
+    #[cfg(unix)]
+    fn write_pending_rag_cleanup_ids_empty_branch_refuses_a_symlinked_parent() {
+        let ws = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let victim = outside.path().join("pending-rag-cleanup.json");
+        std::fs::write(&victim, b"not yours to delete").unwrap();
+        std::os::unix::fs::symlink(outside.path(), ws.path().join(".lantern")).unwrap();
+
+        let path = ws.path().join(PENDING_RAG_CLEANUP_FILE);
+        write_pending_rag_cleanup_ids(&path, &[]).unwrap();
+
+        assert!(victim.exists(), "must never delete through a symlinked parent directory");
     }
 
     /// If the deterministic temp path (`<name>.retention-tmp`) is already a
