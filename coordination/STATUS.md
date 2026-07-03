@@ -1,5 +1,12 @@
 # Lantern-Plus Coordination STATUS
 
+## UPDATE 2026-07-03 ~late-morning — 🏁 ALL SOFTWARE WAVES COMPLETE
+- lantern-plus @307bcbde (pushed): Waves 0 ✅ 1 ✅ 2 ✅ + polish lane ✅ all merged. Final gates: 5512 vitest + 1100 cargo lib, ZERO failures. Five downstream merges absorbed (last incl. main's rename Phase-1 data-dir migration).
+- FLEET: all workers retired clean (w0-w4); all lane worktrees, scratch dirs, and cargo caches removed except lp-gate (the merge-gate cache — KEEP). lp-gate-build tmux session kept (the long-job runner). Disk 308G free.
+- Milestone: Wave 2 report + notify sent (claudereports 2026-07-03-lantern-plus-wave-2-complete...). PRODUCT-JOURNEY entry added.
+- WAITING ON: (1) Legion release by main line → interim Windows smoke of waves 0-2, then Wave 3 (brief staged: coordination/briefs/w-wave3-brief.md); (2) rename window (freeze downstream merges EXECUTING→DONE); (3) Jameson: Google OAuth filing, interview campaign, Wealthbox probe token. Product questions for Jameson: background-AI consent gate scope; bullet-vs-quote verification pass.
+- Wave 4 (depth) follows Wave 3. Phase 2 = briefs only, never build.
+
 ## UPDATE 2026-07-03 ~05:30 — WAVES 0+1 DONE; WAVE 2 NEARLY DONE
 - lantern-plus @5f64aea0+ (pushed): Wave 0 ✅ · Wave 1 ✅ (all 20 tasks + evidence) · Wave 2: backend ✅ + approval UI ✅ merged; remainder Rust batch (w2) on final verification; 9b compliance toggle (lp/crm-ui2 @4c5dab7d) under review; 9c HELD (needs an unowned Rust contact-update command — routes to w2 next).
 - Lanes: w2 = crm remainder (task 10 + 3 cross-lane P1/P2 fixes + checklist/changelog); w3 = review-fix reserve (9b under review); w4 = polish lane (citation popovers, per-bullet citations, calendar purge-failure fix, Outlook self-filter). w0+w1 retired clean (caches deleted).
