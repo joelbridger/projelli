@@ -955,20 +955,15 @@ pub async fn crm_set_workspace(
     let provider = CrmProvider::from_optional(provider.as_deref())?;
     let ws = PathBuf::from(path);
 
-    // Codex round 4 P1 (self-converge): block NEW writes for the ENTIRE
-    // workspace-publish + downgrade transition, not just the downgrade
-    // check itself -- otherwise a write could start in the gap between the
-    // workspace becoming visible below and the downgrade completing, open
-    // the JUST-SET workspace, and trust a stale `sent` row that hasn't been
-    // downgraded yet. Mirrors crm_connect's own use of this exact flag for
-    // the identical underlying race (see ConnectInProgressGuard's doc
-    // comment) -- claiming it here even when there's no token yet (the
-    // common case, nothing to protect) is a negligible cost, since the
-    // guard drops immediately once this function returns.
-    let Some(_connect_guard) = claim_connect_in_progress(&state) else {
-        return Err("A connect is already in progress — try again in a moment.".to_string());
-    };
-
+    // Codex round 9 (self-converge): ALWAYS store the workspace path,
+    // unconditionally — never gate this on connect_in_progress. Round 4's
+    // fix refused the WHOLE command (workspace never set) when a connect
+    // was already in progress, but the frontend calls crm_set_workspace at
+    // routine app/workspace-open time and only logs a failure here (it
+    // doesn't retry) — so a race against an in-progress connect could
+    // leave CrmState.workspace permanently None for the rest of the
+    // session, breaking sync/write/disconnect entirely. That's a much
+    // worse failure mode than the downgrade race this originally guarded.
     *state.workspace.lock().await = Some(ws.clone());
 
     // See downgrade_stale_sent_rows_for_workspace's doc comment: this covers
@@ -982,12 +977,29 @@ pub async fn crm_set_workspace(
     // check (another crm_set_workspace call, or a future connect) clears
     // it -- see CrmState::downgrade_unconfirmed's doc comment.
     if read_token(provider).is_some() {
-        let confirmed = downgrade_stale_sent_rows_for_workspace(ws, provider, "crm set_workspace").await;
-        let mut unconfirmed = state.downgrade_unconfirmed.lock().await;
-        if confirmed {
-            unconfirmed.remove(provider.id());
-        } else {
-            unconfirmed.insert(provider.id().to_string());
+        // Only the DOWNGRADE CHECK itself needs the connect_in_progress
+        // race protection (a concurrent connect could be mid-transition on
+        // the SAME provider's ledger rows) — the workspace path above is
+        // never gated on it. If a connect is already running, we can't
+        // safely run the check ourselves right now; mark this provider
+        // unconfirmed (same "couldn't verify" signal a failed downgrade
+        // produces) rather than either racing it or silently skipping.
+        // Whichever connect is running will complete its OWN downgrade
+        // check regardless, resolving this naturally if it's the same
+        // provider.
+        match claim_connect_in_progress(&state) {
+            Some(_connect_guard) => {
+                let confirmed = downgrade_stale_sent_rows_for_workspace(ws, provider, "crm set_workspace").await;
+                let mut unconfirmed = state.downgrade_unconfirmed.lock().await;
+                if confirmed {
+                    unconfirmed.remove(provider.id());
+                } else {
+                    unconfirmed.insert(provider.id().to_string());
+                }
+            }
+            None => {
+                state.downgrade_unconfirmed.lock().await.insert(provider.id().to_string());
+            }
         }
     }
     Ok(())
