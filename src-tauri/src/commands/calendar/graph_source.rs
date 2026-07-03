@@ -64,6 +64,13 @@ impl CalendarSource for GraphCalendarSource {
         to_utc: &str,
     ) -> anyhow::Result<Vec<CalendarEvent>> {
         let access = (self.token)().await.map_err(|e| anyhow::anyhow!(e))?;
+        // Google's API tells us per-attendee which one is "me" (`self: true`);
+        // Graph's attendee objects carry no such field, so parity requires a
+        // separate lookup of the advisor's own mailbox address to filter it
+        // out of the attendees list the same way Google's source does. A
+        // failed lookup degrades to "don't filter" (today's behavior) rather
+        // than failing the whole calendar fetch over a cosmetic mismatch.
+        let self_email = fetch_self_email(&self.base_url, &self.http, &access).await;
         let mut url = format!(
             "{}/me/calendarView?startDateTime={}&endDateTime={}&$top=100",
             self.base_url, from_utc, to_utc
@@ -86,7 +93,7 @@ impl CalendarSource for GraphCalendarSource {
             }
             let v: serde_json::Value = resp.json().await?;
             for item in v.get("value").and_then(|x| x.as_array()).unwrap_or(&vec![]) {
-                out.push(map_graph_event(item)?);
+                out.push(map_graph_event(item, self_email.as_deref())?);
             }
             match v.get("@odata.nextLink").and_then(|x| x.as_str()) {
                 Some(next) if !next.is_empty() => url = next.to_string(),
@@ -95,6 +102,27 @@ impl CalendarSource for GraphCalendarSource {
         }
         Ok(out)
     }
+}
+
+/// The signed-in user's own mailbox address, via Graph's `/me` (already
+/// covered by the `User.Read` scope this connector requests — see
+/// `oauth.rs`'s `MS_SCOPES`). `mail` is preferred; some tenants leave it
+/// null for accounts provisioned without an Exchange mailbox alias, so
+/// `userPrincipalName` is the fallback. Returns `None` on any failure
+/// (network, non-2xx, missing fields) — callers treat that as "can't
+/// determine self, don't filter" rather than failing the calendar fetch.
+async fn fetch_self_email(base_url: &str, http: &reqwest::Client, access: &str) -> Option<String> {
+    let url = format!("{base_url}/me?$select=mail,userPrincipalName");
+    let resp = http.get(&url).bearer_auth(access).send().await.ok()?;
+    if !resp.status().is_success() {
+        return None;
+    }
+    let v: serde_json::Value = resp.json().await.ok()?;
+    v.get("mail")
+        .and_then(|x| x.as_str())
+        .filter(|s| !s.is_empty())
+        .or_else(|| v.get("userPrincipalName").and_then(|x| x.as_str()))
+        .map(|s| s.to_string())
 }
 
 /// Graph returns "2026-07-02T16:00:00.0000000" + a timeZone name; with the
@@ -120,7 +148,10 @@ fn graph_time_to_utc(v: &serde_json::Value) -> anyhow::Result<String> {
     Ok(utc.to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
 }
 
-fn map_graph_event(item: &serde_json::Value) -> anyhow::Result<CalendarEvent> {
+fn map_graph_event(
+    item: &serde_json::Value,
+    self_email: Option<&str>,
+) -> anyhow::Result<CalendarEvent> {
     let id = item
         .get("id")
         .and_then(|x| x.as_str())
@@ -132,6 +163,14 @@ fn map_graph_event(item: &serde_json::Value) -> anyhow::Result<CalendarEvent> {
             list.iter()
                 .filter_map(|a| {
                     let email = a.pointer("/emailAddress/address")?.as_str()?.to_string();
+                    // Parity with google_source.rs's `self: true` filter: Graph
+                    // has no per-attendee "is me" flag, so this compares against
+                    // the advisor's own mailbox address fetched separately.
+                    if let Some(me) = self_email {
+                        if email.eq_ignore_ascii_case(me) {
+                            return None; // the advisor is not a "client attendee"
+                        }
+                    }
                     let name = a
                         .pointer("/emailAddress/name")
                         .and_then(|n| n.as_str())
@@ -249,5 +288,111 @@ mod tests {
         assert_eq!(e1.organizer_email, "adv@firm.com");
         assert!(!e1.self_declined);
         assert!(events[1].self_declined, "responseStatus declined maps to self_declined");
+    }
+
+    #[tokio::test]
+    async fn filters_the_advisors_own_address_out_of_attendees_like_google_does() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/me"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "mail": "adv@firm.com",
+                "userPrincipalName": "adv@firm.com"
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/me/calendarView"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "value": [{
+                    "id": "AAMkEvent3",
+                    "subject": "Henderson check-in",
+                    "bodyPreview": "",
+                    "start": { "dateTime": "2026-07-02T16:00:00.0000000", "timeZone": "UTC" },
+                    "end": { "dateTime": "2026-07-02T17:00:00.0000000", "timeZone": "UTC" },
+                    "attendees": [
+                        { "emailAddress": { "address": "kim@henderson.com", "name": "Kim Henderson" },
+                          "status": { "response": "accepted" } },
+                        { "emailAddress": { "address": "ADV@FIRM.COM", "name": "Advisor" },
+                          "status": { "response": "organizer" } }
+                    ],
+                    "organizer": { "emailAddress": { "address": "adv@firm.com", "name": "Advisor" } },
+                    "isCancelled": false,
+                    "responseStatus": { "response": "organizer" }
+                }],
+                "@odata.nextLink": null
+            })))
+            .mount(&server)
+            .await;
+
+        let source = GraphCalendarSource::new_with_base(server.uri(), || async {
+            Ok("test-token".to_string())
+        });
+        let events = source
+            .fetch_events("2026-07-01T00:00:00Z", "2026-07-10T00:00:00Z")
+            .await
+            .unwrap();
+
+        assert_eq!(events.len(), 1);
+        assert_eq!(
+            events[0].attendees.len(),
+            1,
+            "the advisor's own address (case-insensitive) is filtered out, matching google_source.rs"
+        );
+        assert_eq!(events[0].attendees[0].email, "kim@henderson.com");
+    }
+
+    #[tokio::test]
+    async fn keeps_all_attendees_when_the_self_lookup_fails_rather_than_erroring_the_whole_fetch() {
+        // No /me mock is registered — wiremock returns its default 404, and
+        // fetch_self_email must degrade to None (today's pre-fix behavior)
+        // rather than failing the calendar fetch over a cosmetic mismatch.
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/me/calendarView"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(page(None)))
+            .mount(&server)
+            .await;
+
+        let source = GraphCalendarSource::new_with_base(server.uri(), || async {
+            Ok("test-token".to_string())
+        });
+        let events = source
+            .fetch_events("2026-07-01T00:00:00Z", "2026-07-10T00:00:00Z")
+            .await
+            .unwrap();
+        assert_eq!(events[0].attendees.len(), 1, "unfiltered when self-email can't be determined");
+    }
+
+    #[test]
+    fn map_graph_event_is_case_insensitive_when_matching_self_email() {
+        let item = serde_json::json!({
+            "id": "e1",
+            "subject": "t",
+            "start": { "dateTime": "2026-07-02T16:00:00.0000000", "timeZone": "UTC" },
+            "end": { "dateTime": "2026-07-02T17:00:00.0000000", "timeZone": "UTC" },
+            "attendees": [
+                { "emailAddress": { "address": "Kim@Henderson.com", "name": "Kim" } },
+                { "emailAddress": { "address": "ADV@firm.com", "name": "Advisor" } }
+            ],
+        });
+        let event = map_graph_event(&item, Some("adv@firm.com")).unwrap();
+        assert_eq!(event.attendees.len(), 1);
+        assert_eq!(event.attendees[0].email, "Kim@Henderson.com");
+    }
+
+    #[test]
+    fn map_graph_event_keeps_everyone_when_self_email_is_unknown() {
+        let item = serde_json::json!({
+            "id": "e1",
+            "subject": "t",
+            "start": { "dateTime": "2026-07-02T16:00:00.0000000", "timeZone": "UTC" },
+            "end": { "dateTime": "2026-07-02T17:00:00.0000000", "timeZone": "UTC" },
+            "attendees": [
+                { "emailAddress": { "address": "kim@henderson.com", "name": "Kim" } }
+            ],
+        });
+        let event = map_graph_event(&item, None).unwrap();
+        assert_eq!(event.attendees.len(), 1);
     }
 }
