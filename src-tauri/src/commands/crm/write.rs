@@ -602,6 +602,47 @@ pub async fn push_crm_write(
                 }
             }
         }
+    } else {
+        // REVIEW FINDING 3 (self-converge): no row under the requested_at-
+        // scoped key, but a crash before the response was recorded,
+        // followed by a restart, can leave an orphaned pending/
+        // pending_verify row under a DIFFERENT key for the SAME logical
+        // write — the write queue is session-only, so a re-approval after
+        // restart mints a brand new `requested_at`. Without this recovery
+        // step, `dedup_key` alone could never find that orphaned row, and
+        // this would fall straight through to a blind resend — exactly the
+        // double-post risk the pending/pending_verify verification exists
+        // to close, just reopened by the new requested_at breaking the
+        // exact-key lookup. Deliberately does NOT match `sent` rows (see
+        // `outbound_find_recovery_candidate`'s doc comment): an intentional
+        // repeat of already-delivered content must still send under its
+        // own new key, not be silently matched against a past delivery.
+        let recovery = store
+            .outbound_find_recovery_candidate(source.provider_id(), &content_shape_key(req))
+            .map_err(|_| CrmWriteError::InvalidInput("ledger read failed"))?;
+        if let Some(row) = recovery {
+            let not_before = chrono::DateTime::parse_from_rfc3339(&row.created_at)
+                .map(|t| t.with_timezone(&chrono::Utc))
+                .unwrap_or_else(|_| chrono::DateTime::<chrono::Utc>::from_timestamp(0, 0).unwrap());
+            match source.find_recent_matching(req, not_before).await {
+                Ok(Some(remote_id)) => {
+                    // Landed under the interrupted attempt — record it under
+                    // THIS (new) key too, so a future retry under the same
+                    // requested_at hits the ordinary sent-row fast path.
+                    upsert_ledger(store, &key, source, req, "sent", Some(&remote_id));
+                    return Ok(WriteReceipt { remote_id, deduped: true });
+                }
+                Ok(None) => {
+                    // Provably didn't land under the interrupted attempt —
+                    // fall through to a fresh send below, same as the
+                    // exact-key recovery path above.
+                }
+                Err(e) => {
+                    upsert_ledger(store, &key, source, req, "pending_verify", None);
+                    return Err(e);
+                }
+            }
+        }
     }
 
     upsert_ledger_before_send(store, &key, source, req)?;
@@ -627,6 +668,31 @@ pub async fn push_crm_write(
     }
 }
 
+/// Stable, `requested_at`-INDEPENDENT identity for a write's CONTENT (not
+/// the approval event) — used ONLY for crash-recovery lookups (see
+/// `push_crm_write`'s content-key recovery step). Unlike `dedup_key`, which
+/// purposely changes with each new `requested_at` (so an intentional
+/// repeat isn't silently suppressed), this stays constant across a
+/// crash-and-re-approve of the SAME logical write. The write queue is
+/// session-only, so after a restart a re-approval mints a brand new
+/// `requested_at` — `dedup_key` alone can then no longer find the
+/// interrupted attempt's `pending`/`pending_verify` row, which would
+/// otherwise mean a blind resend with no idempotency protection at all.
+fn content_shape_key(req: &CrmWriteRequest) -> String {
+    let mut h = Sha256::new();
+    for part in [
+        req.kind.as_str(),
+        &req.household_key,
+        &norm(&req.title),
+        &norm(&req.body),
+        req.due_date.as_deref().unwrap_or(""),
+    ] {
+        h.update(part.as_bytes());
+        h.update([0u8]);
+    }
+    hex::encode(h.finalize())
+}
+
 /// Record a ledger transition AFTER the network attempt already happened
 /// (sent / pending_verify / failed). Best-effort: the POST is done and can't
 /// be undone, so a local DB hiccup here is logged, not propagated — there is
@@ -649,6 +715,7 @@ fn upsert_ledger(
         status,
         remote_id,
         false, // preserve the floor upsert_ledger_before_send just set for THIS attempt
+        &content_shape_key(req),
     ) {
         log::warn!("crm outbound ledger write failed (non-fatal): {e:#}");
     }
@@ -676,6 +743,7 @@ fn upsert_ledger_before_send(
             "pending",
             None,
             true, // fresh send attempt starting now — always reset the recovery floor
+            &content_shape_key(req),
         )
         .map_err(|e| {
             log::warn!("crm outbound ledger pre-send write failed: {e:#}");
@@ -771,6 +839,10 @@ fn upsert_ledger_field(
         status,
         remote_id,
         false,
+        // A field update's dedup_key IS its content shape (no requested_at
+        // in the formula — see CrmFieldUpdateRequest's doc comment), so
+        // there's no separate crash-recovery identity needed here.
+        key,
     ) {
         log::warn!("crm outbound ledger write failed (non-fatal): {e:#}");
     }
@@ -794,6 +866,7 @@ fn upsert_ledger_field_before_send(
             "pending",
             None,
             true,
+            key,
         )
         .map_err(|e| {
             log::warn!("crm outbound ledger pre-send write failed: {e:#}");
@@ -1044,7 +1117,7 @@ mod tests {
         let guard = WriteInFlightGuard::new();
         let req = note_req();
         store
-            .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "pending", None, true)
+            .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "pending", None, true, &content_shape_key(&req))
             .unwrap();
         let source = FakeWriteSource {
             create_results: std::sync::Mutex::new(vec![]),
@@ -1063,7 +1136,7 @@ mod tests {
         let guard = WriteInFlightGuard::new();
         let req = note_req();
         store
-            .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "pending", None, true)
+            .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "pending", None, true, &content_shape_key(&req))
             .unwrap();
         let source = FakeWriteSource {
             create_results: std::sync::Mutex::new(vec![Ok("556".into())]),
@@ -1074,6 +1147,122 @@ mod tests {
         assert_eq!(receipt.remote_id, "556");
         assert!(!receipt.deduped);
         assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    /// REVIEW FINDING 3 (self-converge, from the integration branch review):
+    /// requested_at joining the dedup key (ADDED SCOPE #2.1) broke CRASH
+    /// idempotency — the write queue is session-only, so after a crash a
+    /// re-approval mints a NEW requested_at, and the OLD pending row (from
+    /// the interrupted attempt) becomes unreachable by dedup_key alone. The
+    /// content-key recovery lookup must find it anyway and verify against
+    /// the CRM before ever blind-resending.
+    #[tokio::test]
+    async fn crash_then_retry_with_new_requested_at_recovers_via_content_key_when_it_landed() {
+        let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
+
+        let mut old_req = note_req();
+        old_req.requested_at = "2026-07-01T00:00:00Z".into();
+        store
+            .outbound_upsert(
+                &dedup_key(&old_req), "wealthbox", "note", &old_req.household_key,
+                &old_req.matter_id, &old_req.source_ref, "pending", None, true,
+                &content_shape_key(&old_req),
+            )
+            .unwrap();
+
+        let mut new_req = note_req();
+        new_req.requested_at = "2026-07-02T00:00:00Z".into();
+        assert_ne!(
+            dedup_key(&old_req), dedup_key(&new_req),
+            "a different requested_at must produce a different exact key (this is the scenario the recovery lookup exists for)"
+        );
+
+        let source = FakeWriteSource {
+            create_results: std::sync::Mutex::new(vec![]),
+            find_result: Some("999".into()), // the interrupted attempt actually landed
+            create_calls: std::sync::atomic::AtomicUsize::new(0),
+        };
+        let receipt = push_crm_write(&source, &store, &guard, &new_req).await.unwrap();
+        assert_eq!(receipt.remote_id, "999");
+        assert!(receipt.deduped);
+        assert_eq!(
+            source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 0,
+            "must never blind-resend when the interrupted attempt actually landed"
+        );
+
+        let row = store.outbound_get(&dedup_key(&new_req)).unwrap().unwrap();
+        assert_eq!(row.status, "sent", "the NEW key must also be recorded as sent, so a future retry under the SAME new requested_at hits the ordinary fast path");
+        assert_eq!(row.remote_id.as_deref(), Some("999"));
+    }
+
+    #[tokio::test]
+    async fn crash_then_retry_sends_fresh_when_the_interrupted_attempt_never_landed() {
+        let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
+
+        let mut old_req = note_req();
+        old_req.requested_at = "2026-07-01T00:00:00Z".into();
+        store
+            .outbound_upsert(
+                &dedup_key(&old_req), "wealthbox", "note", &old_req.household_key,
+                &old_req.matter_id, &old_req.source_ref, "pending", None, true,
+                &content_shape_key(&old_req),
+            )
+            .unwrap();
+
+        let mut new_req = note_req();
+        new_req.requested_at = "2026-07-02T00:00:00Z".into();
+
+        let source = FakeWriteSource {
+            create_results: std::sync::Mutex::new(vec![Ok("1000".into())]),
+            find_result: None, // provably didn't land under the interrupted attempt
+            create_calls: std::sync::atomic::AtomicUsize::new(0),
+        };
+        let receipt = push_crm_write(&source, &store, &guard, &new_req).await.unwrap();
+        assert_eq!(receipt.remote_id, "1000");
+        assert!(!receipt.deduped);
+        assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+
+        let row = store.outbound_get(&dedup_key(&new_req)).unwrap().unwrap();
+        assert_eq!(row.status, "sent");
+    }
+
+    /// Regression guard for ADDED SCOPE #2.1: an intentional repeat (a
+    /// genuinely NEW approval of identical content, e.g. a recurring "left
+    /// voicemail" note) must still send under its own new key — the
+    /// content-key recovery lookup must NOT match a `sent` row from a past
+    /// approval, only `pending`/`pending_verify` ones.
+    #[tokio::test]
+    async fn intentional_repeat_of_already_sent_content_still_sends_under_its_own_new_key() {
+        let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
+
+        let mut old_req = note_req();
+        old_req.requested_at = "2026-07-01T00:00:00Z".into();
+        store
+            .outbound_upsert(
+                &dedup_key(&old_req), "wealthbox", "note", &old_req.household_key,
+                &old_req.matter_id, &old_req.source_ref, "sent", Some("111"), true,
+                &content_shape_key(&old_req),
+            )
+            .unwrap();
+
+        let mut new_req = note_req();
+        new_req.requested_at = "2026-07-02T00:00:00Z".into(); // a genuinely new approval
+
+        let source = FakeWriteSource {
+            create_results: std::sync::Mutex::new(vec![Ok("222".into())]),
+            find_result: None,
+            create_calls: std::sync::atomic::AtomicUsize::new(0),
+        };
+        let receipt = push_crm_write(&source, &store, &guard, &new_req).await.unwrap();
+        assert_eq!(receipt.remote_id, "222");
+        assert!(!receipt.deduped);
+        assert_eq!(
+            source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 1,
+            "an intentional repeat must still send under its own new key, not be silently matched against a past SENT row"
+        );
     }
 
     /// ADDED SCOPE #2.2: when the recovery check ITSELF is ambiguous (the
@@ -1119,7 +1308,7 @@ mod tests {
         let guard = WriteInFlightGuard::new();
         let req = note_req();
         store
-            .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "pending_verify", None, true)
+            .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "pending_verify", None, true, &content_shape_key(&req))
             .unwrap();
         let source = FlakyFindSource { create_calls: std::sync::atomic::AtomicUsize::new(0) };
 
@@ -1151,7 +1340,7 @@ mod tests {
             let (_dir, store) = test_store();
             let guard = WriteInFlightGuard::new();
             store
-                .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "sent", Some("old-id"), true)
+                .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "sent", Some("old-id"), true, &content_shape_key(&req))
                 .unwrap();
             store.mark_sent_rows_pending_verify_for_provider("wealthbox").unwrap();
             let source = FakeWriteSource {
@@ -1171,7 +1360,7 @@ mod tests {
             let (_dir, store) = test_store();
             let guard = WriteInFlightGuard::new();
             store
-                .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "sent", Some("old-id"), true)
+                .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "sent", Some("old-id"), true, &content_shape_key(&req))
                 .unwrap();
             store.mark_sent_rows_pending_verify_for_provider("wealthbox").unwrap();
             let source = FakeWriteSource {

@@ -208,7 +208,8 @@ impl CrmStore {
                status        TEXT NOT NULL,
                remote_id     TEXT,
                created_at    TEXT NOT NULL,
-               updated_at    TEXT NOT NULL
+               updated_at    TEXT NOT NULL,
+               content_key   TEXT NOT NULL DEFAULT ''
              );",
         )?;
         migrate_crm_columns(&conn);
@@ -664,6 +665,7 @@ impl CrmStore {
     /// ambiguously, verified as a miss, and then resent — the resend's own
     /// eventual verification could still match a coincidental CRM record
     /// created between the FIRST attempt and the resend.
+    #[allow(clippy::too_many_arguments)]
     pub fn outbound_upsert(
         &self,
         dedup_key: &str,
@@ -675,18 +677,20 @@ impl CrmStore {
         status: &str,
         remote_id: Option<&str>,
         reset_created_at: bool,
+        content_key: &str,
     ) -> Result<()> {
         let c = self.conn.lock().unwrap();
         let now = chrono::Utc::now().to_rfc3339();
         c.execute(
             "INSERT INTO crm_outbound_writes
-                (dedup_key, provider, kind, household_key, matter_id, source_ref, status, remote_id, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9)
+                (dedup_key, provider, kind, household_key, matter_id, source_ref, status, remote_id, created_at, updated_at, content_key)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?11)
              ON CONFLICT(dedup_key) DO UPDATE SET
                 status = excluded.status,
                 remote_id = COALESCE(excluded.remote_id, crm_outbound_writes.remote_id),
                 updated_at = excluded.updated_at,
-                created_at = CASE WHEN ?10 THEN excluded.created_at ELSE crm_outbound_writes.created_at END",
+                created_at = CASE WHEN ?10 THEN excluded.created_at ELSE crm_outbound_writes.created_at END,
+                content_key = excluded.content_key",
             rusqlite::params![
                 dedup_key,
                 provider,
@@ -698,9 +702,44 @@ impl CrmStore {
                 remote_id,
                 now,
                 reset_created_at,
+                content_key,
             ],
         )?;
         Ok(())
+    }
+
+    /// Find the most recent `pending`/`pending_verify` row for `provider`
+    /// whose CONTENT (not approval-event) matches `content_key` — used by
+    /// `push_crm_write`'s crash-recovery lookup. The write queue is
+    /// session-only, so after a crash a re-approval of the same logical
+    /// write mints a NEW `requested_at` (a new `dedup_key`), and the
+    /// interrupted attempt's row can only be found by its content shape.
+    /// Deliberately excludes `sent` rows: an intentional repeat of
+    /// already-delivered content must still send under its own new key, not
+    /// be silently matched against a past delivery.
+    pub fn outbound_find_recovery_candidate(
+        &self,
+        provider: &str,
+        content_key: &str,
+    ) -> Result<Option<OutboundWrite>> {
+        use rusqlite::OptionalExtension;
+        let c = self.conn.lock().unwrap();
+        let mut stmt = c.prepare(
+            "SELECT dedup_key, status, remote_id, created_at FROM crm_outbound_writes
+             WHERE provider = ?1 AND content_key = ?2 AND status IN ('pending', 'pending_verify')
+             ORDER BY created_at ASC LIMIT 1",
+        )?;
+        let row = stmt
+            .query_row(rusqlite::params![provider, content_key], |r| {
+                Ok(OutboundWrite {
+                    dedup_key: r.get(0)?,
+                    status: r.get(1)?,
+                    remote_id: r.get(2)?,
+                    created_at: r.get(3)?,
+                })
+            })
+            .optional()?;
+        Ok(row)
     }
 
     /// Delete every outbound-write ledger row for `provider` (e.g. "wealthbox").
@@ -801,6 +840,10 @@ fn migrate_crm_columns(conn: &Connection) {
         "ALTER TABLE crm_objects ADD COLUMN kind TEXT NOT NULL DEFAULT ''",
         [],
     );
+    let _ = conn.execute(
+        "ALTER TABLE crm_outbound_writes ADD COLUMN content_key TEXT NOT NULL DEFAULT ''",
+        [],
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -826,13 +869,13 @@ mod tests {
         let _ = dir;
         assert!(store.outbound_get("k1").unwrap().is_none());
         store
-            .outbound_upsert("k1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "pending", None, true)
+            .outbound_upsert("k1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "pending", None, true, "ck")
             .unwrap();
         let row = store.outbound_get("k1").unwrap().unwrap();
         assert_eq!(row.status, "pending");
         assert_eq!(row.remote_id, None);
         store
-            .outbound_upsert("k1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "sent", Some("555"), false)
+            .outbound_upsert("k1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "sent", Some("555"), false, "ck")
             .unwrap();
         let row = store.outbound_get("k1").unwrap().unwrap();
         assert_eq!(row.status, "sent");
@@ -856,12 +899,12 @@ mod tests {
         let _ = dir;
         let fresh_attempt = |status: &str| {
             store
-                .outbound_upsert("k2", "wealthbox", "note", "12345", "m1", "doc:a.docx", status, None, true)
+                .outbound_upsert("k2", "wealthbox", "note", "12345", "m1", "doc:a.docx", status, None, true, "ck")
                 .unwrap();
         };
         let record_outcome = |status: &str| {
             store
-                .outbound_upsert("k2", "wealthbox", "note", "12345", "m1", "doc:a.docx", status, None, false)
+                .outbound_upsert("k2", "wealthbox", "note", "12345", "m1", "doc:a.docx", status, None, false, "ck")
                 .unwrap();
         };
 
@@ -899,8 +942,8 @@ mod tests {
     fn purge_outbound_writes_for_provider_only_removes_that_providers_rows() {
         let (dir, store) = crm_store();
         let _ = dir;
-        store.outbound_upsert("wb1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "sent", Some("1"), true).unwrap();
-        store.outbound_upsert("sf1", "salesforce", "note", "001XYZ", "m1", "doc:a.docx", "sent", Some("2"), true).unwrap();
+        store.outbound_upsert("wb1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "sent", Some("1"), true, "ck").unwrap();
+        store.outbound_upsert("sf1", "salesforce", "note", "001XYZ", "m1", "doc:a.docx", "sent", Some("2"), true, "ck").unwrap();
 
         let n = store.purge_outbound_writes_for_provider("wealthbox").unwrap();
         assert_eq!(n, 1);
@@ -922,10 +965,10 @@ mod tests {
     fn mark_sent_rows_pending_verify_only_touches_that_providers_sent_rows() {
         let (dir, store) = crm_store();
         let _ = dir;
-        store.outbound_upsert("wb-sent", "wealthbox", "note", "12345", "m1", "doc:a.docx", "sent", Some("1"), true).unwrap();
-        store.outbound_upsert("wb-pending", "wealthbox", "note", "99999", "m1", "doc:b.docx", "pending", None, true).unwrap();
-        store.outbound_upsert("wb-failed", "wealthbox", "note", "88888", "m1", "doc:c.docx", "failed", None, true).unwrap();
-        store.outbound_upsert("sf-sent", "salesforce", "note", "001XYZ", "m1", "doc:d.docx", "sent", Some("2"), true).unwrap();
+        store.outbound_upsert("wb-sent", "wealthbox", "note", "12345", "m1", "doc:a.docx", "sent", Some("1"), true, "ck").unwrap();
+        store.outbound_upsert("wb-pending", "wealthbox", "note", "99999", "m1", "doc:b.docx", "pending", None, true, "ck").unwrap();
+        store.outbound_upsert("wb-failed", "wealthbox", "note", "88888", "m1", "doc:c.docx", "failed", None, true, "ck").unwrap();
+        store.outbound_upsert("sf-sent", "salesforce", "note", "001XYZ", "m1", "doc:d.docx", "sent", Some("2"), true, "ck").unwrap();
 
         let n = store.mark_sent_rows_pending_verify_for_provider("wealthbox").unwrap();
         assert_eq!(n, 1, "only the one wealthbox 'sent' row should flip");
