@@ -1,0 +1,19 @@
+ROLE: P0 smoke-fix worker for the Lantern-Plus program. The real-Windows smoke of merged Waves 0-2 found 2 REAL bugs (both UI-wiring; a read-only Codex triage confirmed root causes + fix directions — trust these). This lane is Jameson's explicit #1 priority. Both fixes are TS-only, small, well-localized. TDD.
+
+WORKDIR: ~/lp-p0 (git worktree, branch lp/smoke-p0-fixes off the current origin/lantern-plus tip — pull first). NEVER touch ~/keepance or ~/lantern-plus directly. NOT self-merged — the coordinator merges.
+
+READ IN ORDER: LANTERN-PLUS.md → coordination/smoke-1/RUN-LOG.md (the smoke evidence; steps 2d + the Wave-2 section) → docs/plans/lantern-plus/2026-07-02-UI-INTEGRATION-SPEC.md (binding for any UI surface you touch).
+
+FIX 1 — Save-to-Drafts button stuck disabled (smoke P0 #1, WIRING):
+- Evidence: `src/features/email/DraftFollowUpModal.tsx:196` + `:554` disable Save when the SELECTED mail account is IMAP; the backend account list (`src-tauri/src/commands/mail/connect.rs:263`) can legitimately return IMAP-first or IMAP-only when M365 isn't connected. Existing tests (`tests/unit/draft-follow-up-modal.test.tsx:10`) only cover M365, so they missed it.
+- Fix direction (from triage): default the account selection to the FIRST draft-capable account (not just the first account); keep Save disabled only when the selection is genuinely draft-incapable (IMAP), with a plain-language explanation visible to the advisor ("This account can't save drafts — pick your Outlook/Gmail account" style, match existing copy voice). Add tests: IMAP-first-but-M365-present (auto-picks the draft-capable one, Save enabled), IMAP-only (Save disabled + explanation shown), plus keep existing M365 cases green.
+
+FIX 2 — No discoverable "Send to Wealthbox" from normal notes (smoke P0 #5, WIRING):
+- Evidence: the only enqueue button lives in `src/features/matters/MatterNotesEditor.tsx:247`+`:307`, which mounts ONLY for shared matters via `matter-notes:/…` (`src/features/matters/logic/openMatterNotes.ts:28` refuses non-shared). Ordinary Word notes (`src/features/documents/media/DocxEditor.tsx:1219` toolbar) have only Draft-follow-up + Export. The review card IS already mounted (`src/features/matters/MatterHub.tsx:455`) — nothing ever queues into it from normal notes.
+- Fix direction (from triage): add a "Send to Wealthbox" action to the normal note/DOCX toolbar surface (beside Draft follow-up / Export in DocxEditor), enqueueing into `src/platform/state/crmWriteQueueStore.ts` for the CURRENT matter — mirror MatterNotesEditor's existing enqueue behavior (read it first; reuse, don't fork logic). Respect the approval-gate flow: the action only QUEUES a proposed write; the advisor approves in the review card. Sensible states: hidden or disabled-with-tooltip when there's no current matter or Wealthbox isn't connected (match how Draft-follow-up handles its preconditions). Add tests for: enqueue from a normal docx note lands in the queue with the right matterId; the button's disabled/hidden preconditions.
+
+NON-NEGOTIABLES: TS-only lane (NO Rust edits — if you believe a fix genuinely needs Rust, STOP and ask the coordinator in plain text prefixed COORDINATOR:). Never rename `matter_id`/`Matter`. Light theme. No new interactive-menu widgets. Stay in-lane: only the files needed for these 2 fixes + their tests.
+
+ENVIRONMENT: no cargo needed (TS-only). Run tests via `npx vitest run <paths>`; full check before handoff: `npx tsc --noEmit` + `npx vitest run` (wrap long runs in `timeout 1200 …`).
+
+RULES: TDD (red test first per fix), one commit per fix minimum; self-converge via codex-review on your own diff to a clean round before handoff; verify all anchors above by symbol (they were verified 2026-07-03 but the tip moves). Evidence handoff: HEAD SHA, test counts before/after, files touched, decisions/drifts, "NOT self-merged". Print the sentinel as the very LAST line: WORKER-DONE: lp/smoke-p0-fixes ready for review
