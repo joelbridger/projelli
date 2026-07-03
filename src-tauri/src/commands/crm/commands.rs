@@ -69,6 +69,18 @@ pub struct CrmState {
     /// reading the OLD token (or racing the downgrade) during a reconnect
     /// that's already underway. See `ConnectInProgressGuard`.
     pub connect_in_progress: Arc<AtomicBool>,
+    /// Set when `crm_set_workspace`'s stale-row downgrade fails (persistent,
+    /// post-retries) for the provider already connected at workspace-open
+    /// time. Unlike a connect (a discrete user action that can just refuse
+    /// and ask the user to retry), `crm_set_workspace` runs automatically on
+    /// workspace open — hard-failing it would block the user from opening
+    /// their workspace at all over a transient ledger hiccup. Instead this
+    /// flag blocks NEW writes (mirroring `disconnect_requested`/
+    /// `connect_in_progress`) until a LATER successful downgrade check
+    /// (another `crm_set_workspace` call, or a future connect's own check)
+    /// clears it — see `downgrade_stale_sent_rows_for_workspace`'s doc
+    /// comment for why an unconfirmed downgrade can't be trusted silently.
+    pub downgrade_unconfirmed: Arc<AtomicBool>,
 }
 
 pub fn manage_state(app: &tauri::App) {
@@ -83,6 +95,7 @@ pub fn manage_state(app: &tauri::App) {
         write_in_flight: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
         disconnect_requested: Arc::new(AtomicBool::new(false)),
         connect_in_progress: Arc::new(AtomicBool::new(false)),
+        downgrade_unconfirmed: Arc::new(AtomicBool::new(false)),
     });
 }
 
@@ -399,7 +412,15 @@ async fn confirm_stale_sent_rows_downgraded(app: &AppHandle, provider: CrmProvid
     let Some(ws) = ws_opt else {
         return true;
     };
-    downgrade_stale_sent_rows_for_workspace(ws, provider, "crm connect").await
+    let confirmed = downgrade_stale_sent_rows_for_workspace(ws, provider, "crm connect").await;
+    if confirmed {
+        // A confirmed downgrade here also resolves any EARLIER
+        // crm_set_workspace failure for this provider (same underlying
+        // safety property) — clear the flag so writes aren't left blocked
+        // by a since-superseded failure.
+        app.state::<CrmState>().downgrade_unconfirmed.store(false, Ordering::SeqCst);
+    }
+    confirmed
 }
 
 /// Shared core of the stale-`sent`-row downgrade (see
@@ -682,6 +703,12 @@ async fn crm_create_write(
             provider.display_name()
         ));
     }
+    if state.downgrade_unconfirmed.load(Ordering::SeqCst) {
+        return Err(
+            "CRM sync state couldn't be verified — try reopening your workspace before writing."
+                .to_string(),
+        );
+    }
 
     write::validate_write_inputs(&title, &body).map_err(|e| e.to_string())?;
     write::validate_requested_at(&requested_at).map_err(|e| e.to_string())?;
@@ -813,6 +840,12 @@ pub async fn crm_update_field(
             provider.display_name()
         ));
     }
+    if state.downgrade_unconfirmed.load(Ordering::SeqCst) {
+        return Err(
+            "CRM sync state couldn't be verified — try reopening your workspace before writing."
+                .to_string(),
+        );
+    }
 
     let token = read_token(provider).ok_or_else(|| {
         format!(
@@ -915,11 +948,16 @@ pub async fn crm_set_workspace(
     // See downgrade_stale_sent_rows_for_workspace's doc comment: this covers
     // the ordering connect couldn't (a connect that happened before this
     // workspace was ever opened, whose downgrade attempt at connect time
-    // found no workspace to touch). Best-effort here — unlike a connect,
-    // there's no in-flight token swap to refuse; a failure is already
-    // logged inside downgrade_stale_sent_rows_for_workspace.
+    // found no workspace to touch). Can't fail-closed the same way connect
+    // does (refuse the whole command) -- this runs automatically on
+    // workspace open, and hard-failing it would block the user from ever
+    // opening their workspace over a transient ledger hiccup. Instead,
+    // block NEW writes via downgrade_unconfirmed until a LATER successful
+    // check (another crm_set_workspace call, or a future connect) clears
+    // it -- see CrmState::downgrade_unconfirmed's doc comment.
     if read_token(provider).is_some() {
-        let _ = downgrade_stale_sent_rows_for_workspace(ws, provider, "crm set_workspace").await;
+        let confirmed = downgrade_stale_sent_rows_for_workspace(ws, provider, "crm set_workspace").await;
+        state.downgrade_unconfirmed.store(!confirmed, Ordering::SeqCst);
     }
     Ok(())
 }
@@ -1894,6 +1932,7 @@ mod tests {
             write_in_flight: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
             disconnect_requested: Arc::new(AtomicBool::new(false)),
             connect_in_progress: Arc::new(AtomicBool::new(false)),
+            downgrade_unconfirmed: Arc::new(AtomicBool::new(false)),
         }
     }
 

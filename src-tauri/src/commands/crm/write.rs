@@ -79,6 +79,8 @@ pub enum CrmWriteError {
     LedgerUnavailable,
     #[error("this field changed in the CRM since the proposal — review the new value before approving again")]
     StaleFieldValue(String),
+    #[error("could not read the current field value from the CRM — try again")]
+    ReadFailed,
 }
 
 fn norm(s: &str) -> String {
@@ -315,7 +317,7 @@ impl CrmWriteSource for crate::commands::crm::client::WealthboxClient {
         let resp = self
             .get_json(&format!("/contacts/{contact_id}"), &[])
             .await
-            .map_err(map_http_err)?;
+            .map_err(map_http_err_for_read)?;
         Ok(resp
             .get(field)
             .and_then(|v| v.as_str())
@@ -480,6 +482,28 @@ fn map_http_err(e: anyhow::Error) -> CrmWriteError {
     // Transport-level failure (send error / body read error): the request MAY
     // have been delivered. Callers must go through the pending_verify path.
     CrmWriteError::VerifyPending
+}
+
+/// Maps a GET (read) failure — unlike `map_http_err` (for POST/PUT), a read
+/// has no "might have already applied" ambiguity, so even a 5xx or a
+/// transport-level failure maps to a definite `Http`/`Throttled` error
+/// rather than `VerifyPending`. Using `map_http_err` for reads would let a
+/// transient failure during the field-update stale-guard's preflight GET
+/// propagate as `VerifyPending` — and `crm_update_field` would then
+/// (wrongly) audit that as "may have been applied", even though no write
+/// was ever attempted.
+fn map_http_err_for_read(e: anyhow::Error) -> CrmWriteError {
+    let msg = e.to_string();
+    if msg.contains("throttled past retry budget") {
+        return CrmWriteError::Throttled;
+    }
+    if let Some(rest) = msg.strip_prefix("Wealthbox request failed (HTTP ") {
+        let digits: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+        if let Ok(code) = digits.parse::<u16>() {
+            return CrmWriteError::Http(code);
+        }
+    }
+    CrmWriteError::ReadFailed
 }
 
 /// Guards against duplicate concurrent sends of the identical write across
@@ -790,8 +814,15 @@ pub async fn push_crm_field_update(
     // `sent` row whose value was later changed OUTSIDE the app (or by
     // someone else) would make a re-approval of the identical final_value
     // report success while leaving the CRM unchanged.
+    // Codex round 2 (self-converge): EXACT comparison here, not `norm()` —
+    // `norm()` collapses whitespace/paragraph breaks, which is right for
+    // dedup/search matching but wrong for a narrative field's actual
+    // content. Formatting (blank lines between paragraphs, etc.) is part of
+    // what the user approved; `norm()`-equal-but-not-identical would either
+    // silently skip sending the user's approved formatting (the success
+    // check) or fail to notice a genuine drift (the stale-guard).
     let current_value = source.get_contact_field(&req.household_key, &req.field).await?;
-    if norm(&current_value) == norm(&req.final_value) {
+    if current_value == req.final_value {
         // Already applied — whether this exact write already landed (a
         // prior attempt whose response was ambiguous, or a genuine retry),
         // or nothing needs to change. Confirm success rather than
@@ -800,7 +831,7 @@ pub async fn push_crm_field_update(
         upsert_ledger_field(store, &key, source, req, "sent", Some(&req.household_key));
         return Ok(WriteReceipt { remote_id: req.household_key.clone(), deduped: true });
     }
-    if norm(&current_value) != norm(&req.existing_value) {
+    if current_value != req.existing_value {
         upsert_ledger_field(store, &key, source, req, "pending_verify", None);
         return Err(CrmWriteError::StaleFieldValue(current_value));
     }
