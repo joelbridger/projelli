@@ -77,7 +77,13 @@ pub enum CrmWriteError {
     InvalidInput(&'static str),
     #[error("could not record this write before sending it — try again")]
     LedgerUnavailable,
-    #[error("this field changed in the CRM since the proposal — review the new value before approving again")]
+    // Codex round 6 (self-converge): the current value IS included here
+    // (unlike other error variants that deliberately never embed raw
+    // response bodies) — it's the SAME field the advisor is already
+    // reviewing in this exact flow, not unrelated data from a raw API
+    // response, and the review card needs it to re-render the 3 columns
+    // with the fresh value rather than just showing a generic "it changed".
+    #[error("this field changed in the CRM since the proposal — current value: {0}")]
     StaleFieldValue(String),
     #[error("could not read the current field value from the CRM — try again")]
     ReadFailed,
@@ -110,7 +116,13 @@ pub fn dedup_key(req: &CrmWriteRequest) -> String {
         &norm(&req.title),
         &norm(&req.body),
         req.due_date.as_deref().unwrap_or(""),
-        req.requested_at.as_str(),
+        // Codex round 6 (self-converge, P3): trim before hashing —
+        // validate_requested_at already validates the TRIMMED value parses
+        // as RFC3339, but hashing the raw string would let incidental
+        // whitespace (e.g. a caller-side copy/paste or serialization quirk)
+        // on a retry of the SAME approval produce a DIFFERENT key, missing
+        // its own pending/sent row and risking a duplicate send.
+        req.requested_at.trim(),
     ] {
         h.update(part.as_bytes());
         h.update([0u8]); // field separator so "a","bc" != "ab","c"
@@ -304,7 +316,10 @@ impl CrmWriteSource for crate::commands::crm::client::WealthboxClient {
         // live probe (scripts/crm/wealthbox-write-probe.md) before relying
         // on this against a real account.
         let mut fields = serde_json::Map::new();
-        fields.insert(req.field.clone(), serde_json::Value::String(req.final_value.clone()));
+        fields.insert(
+            wealthbox_wire_field_name(&req.field).to_string(),
+            serde_json::Value::String(req.final_value.clone()),
+        );
         let body = serde_json::Value::Object(fields);
         let resp = self
             .put_json(&format!("/contacts/{contact_id}"), &body)
@@ -328,7 +343,7 @@ impl CrmWriteSource for crate::commands::crm::client::WealthboxClient {
             .await
             .map_err(map_http_err_for_read)?;
         Ok(resp
-            .get(field)
+            .get(wealthbox_wire_field_name(field))
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string())
@@ -971,6 +986,24 @@ pub fn validate_field_is_writable(field: &str) -> Result<(), CrmWriteError> {
         Ok(())
     } else {
         Err(CrmWriteError::InvalidInput("field is not writable"))
+    }
+}
+
+/// Maps the app-facing field name (the allowlist/review-UI name) to the
+/// WIRE field name Wealthbox's REST API actually uses on the contact
+/// record. Codex round 6 (self-converge): the live API returns
+/// `background_information` as `background_info` — already confirmed and
+/// handled on the READ side via `CrmContact`'s serde alias (see
+/// `model.rs`'s `background_info_alias_populates_background_information`
+/// test) — but `get_contact_field`/`update_field` talk to the raw JSON
+/// directly (no serde struct), so without this mapping the stale-guard's
+/// GET would read an empty string for every real contact (the key
+/// literally isn't present under the app-facing name) and the PUT would
+/// write to a field name Wealthbox doesn't recognize.
+fn wealthbox_wire_field_name(app_field: &str) -> &str {
+    match app_field {
+        "background_information" => "background_info",
+        other => other,
     }
 }
 
@@ -1719,17 +1752,25 @@ mod tests {
         );
     }
 
+    #[test]
+    fn wealthbox_wire_field_name_maps_the_only_writable_field() {
+        assert_eq!(wealthbox_wire_field_name("background_information"), "background_info");
+        assert_eq!(wealthbox_wire_field_name("something_else"), "something_else");
+    }
+
     #[tokio::test]
     async fn wealthbox_update_field_puts_exact_shape() {
         use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
         let server = MockServer::start().await;
         // VERIFY-LIVE: Wealthbox contact update endpoint + field envelope
         // (assumed PUT /contacts/{id} with a flat field body; confirm in the
-        // Task 11 live probe, scripts/crm/wealthbox-write-probe.md).
+        // Task 11 live probe, scripts/crm/wealthbox-write-probe.md). The key
+        // is the WIRE name (background_info), not the app-facing name — see
+        // wealthbox_wire_field_name's doc comment.
         Mock::given(matchers::method("PUT"))
             .and(matchers::path("/contacts/12345"))
             .and(matchers::body_json(serde_json::json!({
-                "background_information": "Existing background.\n\nRetiring spring 2027; stress-test earlier exit."
+                "background_info": "Existing background.\n\nRetiring spring 2027; stress-test earlier exit."
             })))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"id": 12345})))
             .expect(1)
@@ -1738,6 +1779,27 @@ mod tests {
         let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
         let id = client.update_field(&base_field_req()).await.unwrap();
         assert_eq!(id, "12345");
+    }
+
+    /// Codex round 6 (self-converge): get_contact_field must read the WIRE
+    /// name (background_info), matching CrmContact's own confirmed serde
+    /// alias for this exact field (model.rs) — reading the app-facing name
+    /// directly off the raw JSON would return empty for every real contact.
+    #[tokio::test]
+    async fn wealthbox_get_contact_field_reads_the_wire_name() {
+        use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(matchers::method("GET"))
+            .and(matchers::path("/contacts/12345"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": 12345,
+                "background_info": "Existing background."
+            })))
+            .mount(&server)
+            .await;
+        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let value = client.get_contact_field("12345", "background_information").await.unwrap();
+        assert_eq!(value, "Existing background.");
     }
 
     #[tokio::test]
@@ -2088,6 +2150,19 @@ mod tests {
         assert_ne!(a, dedup_key(&other_house), "target change → new key");
     }
 
+    /// Codex round 6 finding #3 (self-converge): incidental whitespace
+    /// around requested_at (harmless per validate_requested_at, which
+    /// trims before parsing) must not produce a different dedup key — a
+    /// retry of the SAME approval with a whitespace-padded requested_at
+    /// would otherwise miss its own pending/sent row.
+    #[test]
+    fn dedup_key_trims_requested_at_before_hashing() {
+        let a = note_req();
+        let mut b = note_req();
+        b.requested_at = format!("  {}  ", a.requested_at);
+        assert_eq!(dedup_key(&a), dedup_key(&b));
+    }
+
     /// ADDED SCOPE #2.1: identical content approved on two SEPARATE occasions
     /// (e.g. a recurring "Left voicemail" note) must NOT collide into one
     /// dedup key forever — the ledger's job is protecting a single approval
@@ -2122,6 +2197,18 @@ mod tests {
     fn write_error_display_never_embeds_body() {
         let e = CrmWriteError::Http(500);
         assert_eq!(e.to_string(), "CRM write failed (HTTP 500)");
+    }
+
+    /// Codex round 6 (self-converge): unlike other errors, StaleFieldValue
+    /// DELIBERATELY embeds the current value — the review card needs it to
+    /// re-render the 3 columns with the fresh CRM value. This is the
+    /// advisor's own field they're already reviewing, not unrelated raw
+    /// response-body data, so the PII discipline that keeps bodies out of
+    /// other errors doesn't apply here.
+    #[test]
+    fn stale_field_value_display_includes_the_current_value() {
+        let e = CrmWriteError::StaleFieldValue("Someone else's edit.".into());
+        assert!(e.to_string().contains("Someone else's edit."));
     }
 
     #[test]
