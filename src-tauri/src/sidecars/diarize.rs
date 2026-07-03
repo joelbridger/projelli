@@ -72,7 +72,13 @@ impl DiarizeSidecar {
         cmd.args(self.build_args(wav, num_speakers))
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped());
+            .stderr(std::process::Stdio::piped())
+            // On timeout below, the `wait_with_output()` future (which owns
+            // `child`) is dropped without ever being awaited to completion.
+            // Without kill_on_drop, tokio does NOT kill the OS process on
+            // drop, so a stuck/slow diarization would keep burning CPU as an
+            // orphan after the caller sees a timeout error.
+            .kill_on_drop(true);
         hide_console_tokio(&mut cmd);
         let child = cmd.spawn()?;
         let output = timeout(Duration::from_secs(DIARIZE_TIMEOUT_SECS), child.wait_with_output())
