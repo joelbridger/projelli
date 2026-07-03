@@ -27,14 +27,18 @@ test.describe('Search surface', () => {
     await expect(input).toHaveAttribute('placeholder', /ask across all clients/i);
   });
 
-  test('scope toggle exposes current search scopes', async ({ page }) => {
-    await expect(page.getByTestId('scope-toggle')).toBeVisible();
+  test('scope control exposes current search scopes', async ({ page }) => {
+    // Wave B / S4: Email/Documents moved into the "More" popover.
+    await expect(page.getByTestId('ask-scope-control')).toBeVisible();
     await expect(page.getByTestId('scope-option-all-matters')).toBeVisible();
+    await expect(page.getByTestId('scope-option-more')).toBeVisible();
+    await hardClick(page.getByTestId('scope-option-more'));
     await expect(page.getByTestId('scope-option-email')).toBeVisible();
     await expect(page.getByTestId('scope-option-documents')).toBeVisible();
   });
 
   test('document scope changes the composer placeholder', async ({ page }) => {
+    await hardClick(page.getByTestId('scope-option-more'));
     await hardClick(page.getByTestId('scope-option-documents'));
     await expect(page.getByTestId('ask-composer-input')).toHaveAttribute(
       'placeholder',

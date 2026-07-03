@@ -91,7 +91,7 @@ vi.mock('@/platform/utils/openExternal', () => ({
 }));
 
 import { AIChatViewer } from '@/features/ask/AIChatViewer';
-import { ScopeToggle } from '@/features/ask/ScopeToggle';
+import { AskScopeControl } from '@/features/ask/AskScopeControl';
 import type { AskScope } from '@/features/ask/askHelpers';
 import type { AIChatFile } from '@/platform/types/ai';
 import type { AuditEntry } from '@/platform/types/audit';
@@ -230,15 +230,21 @@ describe('High-risk chat/setup coverage from the current UI', () => {
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1));
   });
 
-  it('CHAT-34 changes the Ask retrieval scope chip safely between matter, all matters, email, and documents', () => {
+  it('CHAT-34 changes the Ask retrieval scope safely between matter, all matters, email, and documents', () => {
+    // Wave B / S4: email/documents moved from sibling pills into the "More"
+    // popover (segmented control: This matter / All matters / More), so this
+    // harness now uses AskScopeControl and opens "More" before picking them.
     function ScopeHarness() {
       const [scope, setScope] = useState<AskScope>('this-matter');
+      const [filesOnly, setFilesOnly] = useState(false);
       return (
-        <ScopeToggle
+        <AskScopeControl
           scope={scope}
           onChange={setScope}
           hasMatter
           isSample={false}
+          filesOnly={filesOnly}
+          onFilesOnlyChange={setFilesOnly}
         />
       );
     }
@@ -251,13 +257,14 @@ describe('High-risk chat/setup coverage from the current UI', () => {
     expect(screen.getByTestId('scope-option-all-matters')).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByTestId('scope-option-this-matter')).toHaveAttribute('aria-pressed', 'false');
 
+    fireEvent.keyDown(screen.getByTestId('scope-option-more'), { key: 'Enter' });
     fireEvent.click(screen.getByTestId('scope-option-email'));
-    expect(screen.getByTestId('scope-option-email')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('scope-option-more')).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByTestId('scope-option-all-matters')).toHaveAttribute('aria-pressed', 'false');
 
+    fireEvent.keyDown(screen.getByTestId('scope-option-more'), { key: 'Enter' });
     fireEvent.click(screen.getByTestId('scope-option-documents'));
-    expect(screen.getByTestId('scope-option-documents')).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByTestId('scope-option-email')).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByTestId('scope-option-more')).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('CHAT-16 scopes chat context to one client folder and excludes the other folder from the AI prompt', async () => {

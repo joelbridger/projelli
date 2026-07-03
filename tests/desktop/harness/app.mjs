@@ -107,7 +107,15 @@ export async function gotoSurface(session, label) {
     Workflows: 'spine-nav-workflows',
   }[label];
   if (railTestid) {
-    const btn = await session.find('xpath', `//*[@data-testid=${xpathLiteral(railTestid)}]`, 15_000);
+    // Wave B / S1: the sidebar auto-collapses to the icon rail on the Client
+    // Map list, which renders `spine-nav-collapsed-*` instead of
+    // `spine-nav-*`. Match either — only one is ever mounted at a time.
+    const collapsedTestid = railTestid.replace('spine-nav-', 'spine-nav-collapsed-');
+    const btn = await session.find(
+      'xpath',
+      `//*[@data-testid=${xpathLiteral(railTestid)} or @data-testid=${xpathLiteral(collapsedTestid)}]`,
+      15_000,
+    );
     await session.click(btn);
     return;
   }

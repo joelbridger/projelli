@@ -458,39 +458,49 @@ describe('Ask', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Scope toggle — rendering
+  // Scope control — rendering (Wave B / S4: one segmented control + a "More"
+  // popover for Email/Documents/Files-only, replacing the old five-pill wall)
   // -------------------------------------------------------------------------
 
-  it('renders scope toggle', () => {
+  /** Opens the "More" popover (Email/Documents/Files-only) — Radix needs a
+   *  real key event to open in jsdom, a plain click does not register. */
+  function openMore() {
+    fireEvent.keyDown(screen.getByTestId('scope-option-more'), { key: 'Enter' });
+  }
+
+  it('renders the scope control', () => {
     render(<Ask />);
-    expect(screen.getByTestId('scope-toggle')).toBeDefined();
+    expect(screen.getByTestId('ask-scope-control')).toBeDefined();
   });
 
-  it('shows only "All matters" option when no matter is active', () => {
+  it('shows only "All matters" + "More" when no matter is active', () => {
     mockActiveMatter = null;
     render(<Ask />);
     // "This matter" should not be present
     expect(screen.queryByTestId('scope-option-this-matter')).toBeNull();
     expect(screen.getByTestId('scope-option-all-matters')).toBeDefined();
-    // Email and Documents visible (not sample matter)
+    // Email and Documents reachable via "More" (not sample matter)
+    expect(screen.getByTestId('scope-option-more')).toBeDefined();
+    openMore();
     expect(screen.getByTestId('scope-option-email')).toBeDefined();
     expect(screen.getByTestId('scope-option-documents')).toBeDefined();
   });
 
-  it('shows "This matter" + "All matters" + Email + Documents when a non-sample matter is active', () => {
+  it('shows "This matter" + "All matters" + a "More" popover with Email + Documents when a non-sample matter is active', () => {
     mockActiveMatter = { id: 'matter_abc', name: 'ABC v. XYZ' };
     render(<Ask />);
     expect(screen.getByTestId('scope-option-this-matter')).toBeDefined();
     expect(screen.getByTestId('scope-option-all-matters')).toBeDefined();
+    expect(screen.getByTestId('scope-option-more')).toBeDefined();
+    openMore();
     expect(screen.getByTestId('scope-option-email')).toBeDefined();
     expect(screen.getByTestId('scope-option-documents')).toBeDefined();
   });
 
-  it('hides Email and Documents options on the sample matter', () => {
+  it('hides the "More" popover (Email/Documents) on the sample matter', () => {
     mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
     render(<Ask />);
-    expect(screen.queryByTestId('scope-option-email')).toBeNull();
-    expect(screen.queryByTestId('scope-option-documents')).toBeNull();
+    expect(screen.queryByTestId('scope-option-more')).toBeNull();
     // This matter and All matters still shown
     expect(screen.getByTestId('scope-option-this-matter')).toBeDefined();
     expect(screen.getByTestId('scope-option-all-matters')).toBeDefined();
@@ -510,21 +520,21 @@ describe('Ask', () => {
     expect(allMattersBtn.getAttribute('aria-pressed')).toBe('true');
   });
 
-  it('clicking the Email scope option changes active scope to email', () => {
+  it('clicking the Email scope option (inside "More") changes active scope to email', () => {
     mockActiveMatter = { id: 'matter_abc', name: 'ABC v. XYZ' };
     render(<Ask />);
-    const emailBtn = screen.getByTestId('scope-option-email');
-    fireEvent.click(emailBtn);
-    expect((screen.getByTestId('scope-option-email') as HTMLButtonElement).getAttribute('aria-pressed')).toBe('true');
+    openMore();
+    fireEvent.click(screen.getByTestId('scope-option-email'));
+    expect((screen.getByTestId('scope-option-more') as HTMLButtonElement).getAttribute('aria-pressed')).toBe('true');
     expect((screen.getByTestId('scope-option-this-matter') as HTMLButtonElement).getAttribute('aria-pressed')).toBe('false');
   });
 
-  it('clicking the Documents scope option changes active scope to documents', () => {
+  it('clicking the Documents scope option (inside "More") changes active scope to documents', () => {
     mockActiveMatter = null;
     render(<Ask />);
-    const docsBtn = screen.getByTestId('scope-option-documents');
-    fireEvent.click(docsBtn);
-    expect((screen.getByTestId('scope-option-documents') as HTMLButtonElement).getAttribute('aria-pressed')).toBe('true');
+    openMore();
+    fireEvent.click(screen.getByTestId('scope-option-documents'));
+    expect((screen.getByTestId('scope-option-more') as HTMLButtonElement).getAttribute('aria-pressed')).toBe('true');
     expect((screen.getByTestId('scope-option-all-matters') as HTMLButtonElement).getAttribute('aria-pressed')).toBe('false');
   });
 
@@ -550,9 +560,9 @@ describe('Ask', () => {
     mockActiveMatter = { id: 'matter_abc', name: 'ABC v. XYZ' };
     render(<Ask />);
 
-    // Switch to Email scope then submit a question
-    const emailBtn = screen.getByTestId('scope-option-email');
-    fireEvent.click(emailBtn);
+    // Switch to Email scope (inside "More") then submit a question
+    openMore();
+    fireEvent.click(screen.getByTestId('scope-option-email'));
 
     const input = screen.getByRole('textbox');
     fireEvent.change(input, { target: { value: 'Who emailed?' } });
@@ -560,8 +570,9 @@ describe('Ask', () => {
     fireEvent.click(askBtn);
 
     // isMemoryEnabled() returns false in mock, so retrieve is NOT called.
-    // The scope toggle itself (the thing under test) is verified by aria-pressed.
-    expect((screen.getByTestId('scope-option-email') as HTMLButtonElement).getAttribute('aria-pressed')).toBe('true');
+    // The scope control itself (the thing under test) is verified by the
+    // "More" segment's aria-pressed state.
+    expect((screen.getByTestId('scope-option-more') as HTMLButtonElement).getAttribute('aria-pressed')).toBe('true');
   });
 
   it('filterHitsByScope keeps only non-mail hits for documents scope', async () => {
@@ -574,12 +585,12 @@ describe('Ask', () => {
     mockActiveMatter = { id: 'matter_def', name: 'DEF Matter' };
     render(<Ask />);
 
-    // Switch to Documents scope
-    const docsBtn = screen.getByTestId('scope-option-documents');
-    fireEvent.click(docsBtn);
+    // Switch to Documents scope (inside "More")
+    openMore();
+    fireEvent.click(screen.getByTestId('scope-option-documents'));
 
     // Verify the scope selection registered
-    expect((screen.getByTestId('scope-option-documents') as HTMLButtonElement).getAttribute('aria-pressed')).toBe('true');
+    expect((screen.getByTestId('scope-option-more') as HTMLButtonElement).getAttribute('aria-pressed')).toBe('true');
     expect((screen.getByTestId('scope-option-this-matter') as HTMLButtonElement).getAttribute('aria-pressed')).toBe('false');
   });
 

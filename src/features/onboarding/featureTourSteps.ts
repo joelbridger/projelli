@@ -5,7 +5,11 @@
  * (Client Map · Ask · Workflows). The relocated surfaces — Documents, Email,
  * Activity Log, Privacy Center, Settings — are taught against where they now
  * live: inside a client (Client Map), the Ask source filter, and the gear menu.
- * Target selectors: data-testid first, fallback to CSS selector.
+ * Target selectors: data-testid first, fallback to CSS selector. The Spine
+ * nav-tab selectors list BOTH the expanded (`spine-nav-*`) and collapsed
+ * (`spine-nav-collapsed-*`) testids as a comma-separated selector (Wave B /
+ * S1: the sidebar auto-collapses to the icon rail on the Client Map list, so
+ * whichever one is actually mounted still resolves).
  * Placement: 'top' | 'bottom' | 'left' | 'right' | 'center' (center
  * = modal-in-the-middle, for intro + outro steps).
  */
@@ -30,35 +34,35 @@ export const FEATURE_TOUR_STEPS: FeatureTourStep[] = [
     id: 'matters',
     title: 'Your Client Map',
     body: 'Advisor Prep Hero leads with your clients, not loose files. Each client gets their own private space, and opening one shows their Client Map: documents, emails, and AI conversations all stay inside that client boundary so the wrong client never sees the wrong file. Create one with the plus button next to Clients.',
-    targetSelector: '[data-testid="spine-nav-matters"]',
+    targetSelector: '[data-testid="spine-nav-matters"], [data-testid="spine-nav-collapsed-matters"]',
     placement: 'right',
   },
   {
     id: 'ask',
     title: 'Ask finds anything in your work',
     body: 'Type a question, a phrase, a client name, or an account number. Ask looks across every document and email in your workspace and answers with citations you can click back to the source. It also runs full AI conversations when you need them.',
-    targetSelector: '[data-testid="spine-nav-search"]',
+    targetSelector: '[data-testid="spine-nav-search"], [data-testid="spine-nav-collapsed-search"]',
     placement: 'right',
   },
   {
     id: 'documents',
     title: 'Your documents, as real files',
     body: 'Word documents, Markdown, PDFs, transcripts: all stored as real files on your disk, inside the client they belong to. Open a client from the Client Map to see their documents. Every edit saves automatically and keeps a version history you can back up with any folder sync tool.',
-    targetSelector: '[data-testid="spine-nav-matters"]',
+    targetSelector: '[data-testid="spine-nav-matters"], [data-testid="spine-nav-collapsed-matters"]',
     placement: 'right',
   },
   {
     id: 'email',
     title: 'Email, imported and searchable',
     body: 'Connect your Microsoft 365 or Gmail inbox and Advisor Prep Hero imports your client emails. Filter Ask to Email to search across them and cite them in your answers. Your email stays encrypted on your machine; nothing is uploaded to Advisor Prep Hero servers.',
-    targetSelector: '[data-testid="spine-nav-search"]',
+    targetSelector: '[data-testid="spine-nav-search"], [data-testid="spine-nav-collapsed-search"]',
     placement: 'right',
   },
   {
     id: 'workflows',
     title: 'Workflows run your repeatable tasks',
     body: 'A workflow is a multi-step task you define once and run whenever you need it: drafting a follow-up letter, preparing for a meeting, building a client summary. Every run is saved with its inputs and outputs so you can replay it or hand it to a colleague.',
-    targetSelector: '[data-testid="spine-nav-workflows"]',
+    targetSelector: '[data-testid="spine-nav-workflows"], [data-testid="spine-nav-collapsed-workflows"]',
     placement: 'right',
   },
   {
