@@ -1,5 +1,12 @@
 # Lantern-Plus Coordination STATUS
 
+## UPDATE 2026-07-03 midday — SMOKE FOUND END-TO-END GAPS; coordinator relay #3 taking over
+- lantern-plus @46cc3697 (pushed): Waves 0/1/2 + polish + trust-fixes all MERGED, unit-green (5529 vitest + 1100 cargo lib). BUT the interim real-Windows smoke shows the assembled app does NOT run end-to-end yet. Full detail: COORDINATOR-HANDOFF.md (rewritten) + coordination/smoke-1/{RUN-LOG.md,P0-TRIAGE.txt}.
+- Triage verdict: 2 REAL bugs (ours, UI-wiring: Save-to-Drafts IMAP default; Send-to-Wealthbox entry point) + 3 bench-SETUP artifacts (copied workspace not rebound/re-indexed; cancelled calendar OAuth). Core/privacy behavior PASSED on real Windows.
+- SUCCESSOR'S #1 JOB (Jameson paused execution to hand off before corrections): fix the 2 real bugs + set up & re-run a CORRECTED bench smoke to actually verify 0-2. Wave 3 gated behind that.
+- Fleet at handoff: cc-lantern-w6 (Wave 4 Tracks B+C, lp/wave-4-bc, finishing verification — review+merge); cc-lantern-bench (smoke done, evidence pushed, bench restored quiet — KEEP for re-test); lp-gate-build runner. w0-w5,w7 retired.
+- Legion RESERVED for us (bulletin). Recalibrated done-gate: merged+unit-green ≠ done; real-app bench verification is the true gate.
+
 ## UPDATE 2026-07-03 ~late-morning — 🏁 ALL SOFTWARE WAVES COMPLETE
 - lantern-plus @307bcbde (pushed): Waves 0 ✅ 1 ✅ 2 ✅ + polish lane ✅ all merged. Final gates: 5512 vitest + 1100 cargo lib, ZERO failures. Five downstream merges absorbed (last incl. main's rename Phase-1 data-dir migration).
 - FLEET: all workers retired clean (w0-w4); all lane worktrees, scratch dirs, and cargo caches removed except lp-gate (the merge-gate cache — KEEP). lp-gate-build tmux session kept (the long-job runner). Disk 308G free.
