@@ -112,7 +112,57 @@ fn resolve_meeting_dir(canon_ws: &Path, matter_folder: &str, meeting_dir: &str) 
 /// engine doesn't model — tables, unmodeled revision shapes, etc.) is opaque
 /// to this pass by design; that's exactly why the byte-scan + flatten
 /// fallback exists.
-fn replace_in_document(doc: &mut lantern_docx::Document, needle: &str, marker: &str) {
+/// Redact every occurrence of every needle in `text` — handling needles
+/// that OVERLAP without either containing the other (e.g. "HIV positive"
+/// and "positive test" inside "HIV positive test"). Doing this needle-by-
+/// needle sequentially (even longest-first) can leave a fragment behind:
+/// replacing "positive test" first turns "HIV positive test" into
+/// "HIV [marker]", after which "HIV positive" no longer matches ANYTHING
+/// (its own text was partly consumed) — so it's never detected as
+/// surviving, even though "HIV" is still sitting right there. Instead, find
+/// every match interval for every needle up front, merge any that overlap
+/// or touch, and replace each merged span with exactly one marker. This
+/// also naturally subsumes the substring/containment case (a shorter
+/// needle's interval is fully inside a longer one's, so they merge into
+/// one span) — no ordering dependency needed at all.
+fn redact_run_text(text: &str, needles: &[String], marker: &str) -> String {
+    let mut intervals: Vec<(usize, usize)> = Vec::new();
+    for needle in needles {
+        if needle.is_empty() {
+            continue;
+        }
+        let mut search_from = 0usize;
+        while search_from <= text.len() {
+            let Some(rel) = text[search_from..].find(needle.as_str()) else { break };
+            let start = search_from + rel;
+            let end = start + needle.len();
+            intervals.push((start, end));
+            search_from = start + 1; // step by 1 byte so overlapping matches of different needles are all found
+        }
+    }
+    if intervals.is_empty() {
+        return text.to_string();
+    }
+    intervals.sort_unstable();
+    let mut merged: Vec<(usize, usize)> = Vec::with_capacity(intervals.len());
+    for (s, e) in intervals {
+        match merged.last_mut() {
+            Some(last) if s <= last.1 => last.1 = last.1.max(e),
+            _ => merged.push((s, e)),
+        }
+    }
+    let mut out = String::with_capacity(text.len());
+    let mut cursor = 0usize;
+    for (s, e) in merged {
+        out.push_str(&text[cursor..s]);
+        out.push_str(marker);
+        cursor = e;
+    }
+    out.push_str(&text[cursor..]);
+    out
+}
+
+fn replace_in_document(doc: &mut lantern_docx::Document, needles: &[String], marker: &str) {
     for block in &mut doc.body {
         if let lantern_docx::BlockContent::Paragraph(p) = block {
             for inline in &mut p.inlines {
@@ -123,9 +173,7 @@ fn replace_in_document(doc: &mut lantern_docx::Document, needle: &str, marker: &
                     _ => &mut [],
                 };
                 for run in runs {
-                    if run.text.contains(needle) {
-                        run.text = run.text.replace(needle, marker);
-                    }
+                    run.text = redact_run_text(&run.text, needles, marker);
                 }
             }
         }
@@ -242,23 +290,30 @@ pub(crate) fn redact_segments_inner(
     let mut needles: Vec<String> = Vec::with_capacity(segment_indices.len());
     for &i in segment_indices {
         let seg = &mut segments[i];
+        // Check the `redacted` FLAG, not marker-string equality: the marker
+        // embeds today's date, so a segment redacted on an earlier day has
+        // an OLDER marker string that would never equal today's — comparing
+        // by text would treat it as "new" sensitive content, needlessly
+        // adding the (harmless, but pointless) old marker text as a needle
+        // and returning whole-transcript RAG cleanup ids for a call that
+        // changed nothing real.
+        let already_redacted = seg.get("redacted").and_then(|r| r.as_bool()).unwrap_or(false);
         let text = seg.get("text").and_then(|t| t.as_str()).unwrap_or("").to_string();
-        if text.is_empty() || text == marker {
+        if text.is_empty() || already_redacted {
             continue; // already redacted (or empty) — idempotent no-op, not an error
         }
         needles.push(text);
         seg["text"] = serde_json::Value::String(marker.clone());
         seg["redacted"] = serde_json::Value::Bool(true);
     }
-    // Longest-first: if selected segments overlap or one's text is a
-    // substring of another's (e.g. "John" and "John has cancer"), replacing
-    // the SHORT needle first would eat into the long one — "John has
-    // cancer" -> "[redacted] has cancer" — leaving "has cancer" behind with
-    // neither needle matching whole anymore, so the survival check below
-    // would never catch the residue. Matching longest-first means a shorter
-    // needle can never partially consume a longer one still waiting to be
-    // replaced whole.
-    needles.sort_by_key(|b| std::cmp::Reverse(b.len()));
+    // Note: replace_in_document/redact_run_text handle every needle for a
+    // run TOGETHER, via interval merging — not one sequential
+    // needle.replace() call per needle — so overlapping or substring
+    // needles (e.g. "John" and "John has cancer", or "HIV positive" and
+    // "positive test") are redacted correctly regardless of processing
+    // order, with no residual fragment left behind. See redact_run_text's
+    // doc comment for why a sequential approach (even longest-first) isn't
+    // enough on its own.
 
     // RAG ids for this transcript's chunks, computed from the PRE-redaction
     // bytes — same contract as Task 14's transcript_rag_source_ids ("must
@@ -292,9 +347,7 @@ pub(crate) fn redact_segments_inner(
 
         let opened = lantern_docx::open_docx_bytes(&original_bytes).map_err(|e| format!("parse notes.docx: {e}"))?;
         let mut doc = opened.document.clone();
-        for needle in &needles {
-            replace_in_document(&mut doc, needle, &marker);
-        }
+        replace_in_document(&mut doc, &needles, &marker);
         let mut new_bytes = opened
             .with_document(doc)
             .save_bytes()
@@ -315,9 +368,7 @@ pub(crate) fn redact_segments_inner(
             let flat_opened = lantern_docx::open_docx_bytes(&flattened_bytes)
                 .map_err(|e| format!("reparse flattened notes.docx: {e}"))?;
             let mut flat_doc = flat_opened.document.clone();
-            for needle in &needles {
-                replace_in_document(&mut flat_doc, needle, &marker);
-            }
+            replace_in_document(&mut flat_doc, &needles, &marker);
             let final_bytes = flat_opened
                 .with_document(flat_doc)
                 .save_bytes()
@@ -755,5 +806,77 @@ mod tests {
             !needle_survives_in_docx_package(&docx_bytes, "has cancer"),
             "no residual fragment of the long needle may survive after the short needle's replacement"
         );
+    }
+
+    /// The harder case: needles that overlap WITHOUT either containing the
+    /// other — "HIV positive" and "positive test" inside "HIV positive
+    /// test". Longest-first sequential replacement (the round-13 fix) isn't
+    /// enough here: replacing "positive test" first turns the source into
+    /// "HIV [marker]", after which "HIV positive" no longer matches
+    /// anything at all (its own text was partly consumed), so it would
+    /// never be flagged as surviving — even though the literal word "HIV"
+    /// is still sitting there. Interval merging (redact_run_text) must
+    /// treat the union of both spans as one redacted region.
+    #[test]
+    fn non_contained_overlapping_needles_leave_no_fragment() {
+        let needle_a = "HIV positive";
+        let needle_b = "positive test";
+        let ws = tempdir().unwrap();
+        let dir = ws.path().join("Clients/H/Meetings/2026-05-01-review");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let transcript = serde_json::json!({
+            "segments": [
+                { "startMs": 0, "endMs": 2000, "channel": "sys", "speaker": "Them", "text": needle_a },
+                { "startMs": 2000, "endMs": 5000, "channel": "sys", "speaker": "Them", "text": needle_b },
+            ],
+            "meta": { "startedAt": "2026-05-01T10:00:00Z", "durationMs": 5000, "matterId": "m-1" },
+        });
+        std::fs::write(dir.join("transcript.json"), serde_json::to_vec(&transcript).unwrap()).unwrap();
+
+        let doc = Document {
+            format_version: lantern_docx::DOM_FORMAT_VERSION,
+            body: vec![BlockContent::Paragraph(Paragraph::from_inlines(vec![Inline::Run(Run::new(
+                "Client update: HIV positive test result received today.",
+            ))]))],
+            comments: Default::default(),
+        };
+        std::fs::write(dir.join("notes.docx"), lantern_docx::serialize_docx_bytes(&doc).unwrap()).unwrap();
+
+        let canon_ws = ws.path().canonicalize().unwrap();
+        let receipt = redact_segments_inner(&canon_ws, &dir, &[0, 1], 1_777_000_000_000).unwrap();
+        assert_eq!(receipt.redacted_count, 2);
+
+        let docx_bytes = std::fs::read(dir.join("notes.docx")).unwrap();
+        assert!(!needle_survives_in_docx_package(&docx_bytes, needle_a));
+        assert!(!needle_survives_in_docx_package(&docx_bytes, needle_b));
+        assert!(!needle_survives_in_docx_package(&docx_bytes, "HIV"), "no fragment of either overlapping needle may survive");
+        assert!(!needle_survives_in_docx_package(&docx_bytes, "test result"), "the union span, not just the two needles literally, must be gone");
+    }
+
+    /// A segment redacted on an EARLIER day has an OLDER marker string
+    /// (the marker embeds the date) that will never equal TODAY's marker —
+    /// comparing by text equality would wrongly treat it as new sensitive
+    /// content. The no-op check must use the `redacted` flag instead.
+    #[test]
+    fn redacting_again_on_a_later_day_is_still_a_no_op() {
+        let needle = "sensitive detail";
+        let ws = tempdir().unwrap();
+        let paths = make_meeting_with_tracked_change(ws.path(), needle);
+        let canon_ws = ws.path().canonicalize().unwrap();
+
+        let day1_ms = 1_777_000_000_000;
+        let day2_ms = day1_ms + 86_400_000; // +1 day -> a different marker date string
+        let first = redact_segments_inner(&canon_ws, &paths.dir, &[1], day1_ms).unwrap();
+        assert_eq!(first.redacted_count, 1);
+
+        let second = redact_segments_inner(&canon_ws, &paths.dir, &[1], day2_ms).unwrap();
+        assert_eq!(second.redacted_count, 0, "a segment already redacted on an earlier day must still be a no-op");
+        assert!(second.rag_cleanup_source_ids.is_empty(), "a true no-op must not report cleanup ids");
+
+        // The transcript keeps day 1's marker text — a later no-op call must
+        // NOT overwrite it with today's marker.
+        let tj: serde_json::Value = serde_json::from_slice(&std::fs::read(paths.dir.join("transcript.json")).unwrap()).unwrap();
+        assert_eq!(tj["segments"][1]["text"], serde_json::json!(first.marker));
     }
 }

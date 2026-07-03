@@ -247,6 +247,18 @@ pub fn sweep_matter_folder(
     };
     for entry in entries.flatten() {
         let dir = entry.path();
+        // `DirEntry::file_type()` does NOT follow symlinks (unlike
+        // `Path::is_dir()`, used below) — so a MEETING FOLDER ENTRY that is
+        // itself a symlink to a different, unrelated in-workspace directory
+        // (e.g. another client's real meeting) is caught HERE, before
+        // anything under it is ever joined/walked/deleted. The `.capture`
+        // symlink guard in `remove_dir` alone isn't enough: it only protects
+        // the specific subdirectory it's called on, not a symlink one level
+        // up at the meeting-folder entry itself.
+        if entry.file_type().map(|t| t.is_symlink()).unwrap_or(false) {
+            out.errors.push(format!("refused (symlink): {}", dir.display()));
+            continue;
+        }
         if !dir.is_dir() {
             continue; // .consent-ledger.json and friends
         }
@@ -641,6 +653,33 @@ mod tests {
         sweep_matter_folder(&matter, &canon_ws, "summary-only", 30, now, &mut out, &mut |_d, _ids| Ok(()));
 
         assert!(victim_dir.join("secret.txt").exists(), "must never walk/delete through a symlinked directory");
+        assert!(out.errors.iter().any(|e| e.contains("symlink")), "the refusal should be reported: {:?}", out.errors);
+    }
+
+    /// A MEETING FOLDER ENTRY itself (not just an artifact one level deeper,
+    /// like `.capture`) being a symlink to another client's real meeting
+    /// must be refused BEFORE anything under it is touched — `Path::is_dir()`
+    /// follows symlinks, so without a check using `DirEntry::file_type()`
+    /// (which does not), the sweep would walk straight into it.
+    #[cfg(unix)]
+    #[test]
+    fn sweep_refuses_a_symlinked_meeting_folder_entry() {
+        let ws = tempdir().unwrap();
+        let now = now_ms();
+
+        let victim_matter = ws.path().join("Clients/OtherClient");
+        let victim_meeting = make_meeting(&victim_matter, "2026-05-01-real", 40, now, true);
+
+        let evil_matter = ws.path().join("Clients/Evil");
+        std::fs::create_dir_all(evil_matter.join("Meetings")).unwrap();
+        std::os::unix::fs::symlink(&victim_meeting, evil_matter.join("Meetings/link")).unwrap();
+
+        let mut out = SweepOutcome::default();
+        let canon_ws = ws.path().canonicalize().unwrap();
+        sweep_matter_folder(&evil_matter, &canon_ws, "summary-only", 30, now, &mut out, &mut |_d, _ids| Ok(()));
+
+        assert!(victim_meeting.join("audio.wav").exists(), "the OTHER client's real meeting must be completely untouched");
+        assert!(victim_meeting.join("transcript.json").exists());
         assert!(out.errors.iter().any(|e| e.contains("symlink")), "the refusal should be reported: {:?}", out.errors);
     }
 
