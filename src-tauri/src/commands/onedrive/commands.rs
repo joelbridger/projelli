@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 
 use serde::Serialize;
 use std::collections::BTreeSet;
@@ -20,6 +21,31 @@ use crate::commands::onedrive::store::OneDriveStore;
 const KEYCHAIN_SERVICE: &str = crate::identity::DOCS_MS_SERVICE;
 const KEYCHAIN_REFRESH_KEY: &str = "ms-refresh-token";
 pub const ONEDRIVE_SYNC_PROGRESS_EVENT: &str = "onedrive-sync-progress";
+
+/// Hard ceiling on the folder-discovery walk (`onedrive_list_folders`), the
+/// step `runSync()` awaits BEFORE it ever calls `onedrive_sync` — a purely
+/// sequential, un-paginated-progress recursive tree walk with no per-request
+/// bound beyond each individual Graph call's own 60s timeout (`GraphClient`).
+/// A very large or slow-to-enumerate account (or ambient resource pressure
+/// from anything else running on the machine) can otherwise leave this
+/// awaited from the frontend for many minutes with zero visible feedback,
+/// since Rust progress events for `ONEDRIVE_SYNC_PROGRESS_EVENT` only start
+/// once the later `onedrive_sync` call begins — this command never fires one.
+/// 3 minutes is generous headroom over any legitimate metadata-only listing.
+const LIST_FOLDERS_TIMEOUT: Duration = Duration::from_secs(180);
+
+/// Hard ceiling on the whole `onedrive_sync` command, independent of the
+/// user-triggered `onedrive_cancel` flag. Downloading real files can
+/// legitimately take a while, so this is a generous backstop against a true
+/// stall (not a normal-case budget) — the per-request 60s Graph timeout
+/// already bounds any single call; this bounds the whole sequential chain of
+/// them so the command can never hang the awaiting frontend forever.
+const SYNC_TIMEOUT: Duration = Duration::from_secs(30 * 60);
+
+const TIMED_OUT_LIST_FOLDERS: &str =
+    "OneDrive took too long to respond while listing folders. Try syncing again.";
+const TIMED_OUT_SYNC: &str = "OneDrive sync timed out. Try syncing again.";
+const CANCELLED: &str = "cancelled";
 
 pub struct OneDriveState {
     pub workspace: tokio::sync::Mutex<Option<PathBuf>>,
@@ -289,13 +315,30 @@ pub async fn onedrive_list_drives() -> Result<Vec<Drive>, String> {
 }
 
 #[tauri::command]
-pub async fn onedrive_list_folders() -> Result<Vec<OneDriveFolderDto>, String> {
+pub async fn onedrive_list_folders(
+    state: State<'_, OneDriveState>,
+) -> Result<Vec<OneDriveFolderDto>, String> {
+    // Fresh call, fresh cancel intent — a flag left set by a PRIOR stop
+    // (Cancel button, or a cancelled sync) must not immediately kill this
+    // brand new listing before it even starts.
+    state.cancel.store(false, Ordering::SeqCst);
+    let cancel = state.cancel.clone();
+    match tokio::time::timeout(LIST_FOLDERS_TIMEOUT, list_folders_body(cancel)).await {
+        Ok(result) => result,
+        Err(_elapsed) => Err(TIMED_OUT_LIST_FOLDERS.to_string()),
+    }
+}
+
+async fn list_folders_body(cancel: Arc<AtomicBool>) -> Result<Vec<OneDriveFolderDto>, String> {
     let token = fresh_access_token().await?;
     let client = OneDriveClient::new_with_refresh(token, graph_token_refresh());
     let drives = client.list_drives().await.map_err(|e| e.to_string())?;
     let mut out = Vec::new();
     let mut listed_default_drive = false;
     for drive in drives {
+        if cancel.load(Ordering::SeqCst) {
+            return Err(CANCELLED.to_string());
+        }
         if is_personal_drive(&drive) {
             if listed_default_drive {
                 continue;
@@ -310,8 +353,17 @@ pub async fn onedrive_list_folders() -> Result<Vec<OneDriveFolderDto>, String> {
                 .await
                 .map(|default_drive| default_drive.id)
                 .unwrap_or_else(|_| drive.id.clone());
-            collect_folders(&client, None, &folder_drive_id, true, None, roots, &mut out)
-                .await?;
+            collect_folders(
+                &client,
+                None,
+                &folder_drive_id,
+                true,
+                None,
+                roots,
+                &mut out,
+                &cancel,
+            )
+            .await?;
             continue;
         }
         let roots = client
@@ -326,12 +378,14 @@ pub async fn onedrive_list_folders() -> Result<Vec<OneDriveFolderDto>, String> {
             None,
             roots,
             &mut out,
+            &cancel,
         )
         .await?;
     }
     Ok(out)
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn collect_folders(
     client: &OneDriveClient,
     graph_drive_id: Option<&str>,
@@ -340,6 +394,7 @@ async fn collect_folders(
     site_id: Option<String>,
     items: Vec<DriveItem>,
     out: &mut Vec<OneDriveFolderDto>,
+    cancel: &Arc<AtomicBool>,
 ) -> Result<(), String> {
     let mut stack: Vec<(DriveItem, Option<String>)> = items
         .into_iter()
@@ -347,6 +402,9 @@ async fn collect_folders(
         .map(|i| (i, site_id.clone()))
         .collect();
     while let Some((item, inherited_site_id)) = stack.pop() {
+        if cancel.load(Ordering::SeqCst) {
+            return Err(CANCELLED.to_string());
+        }
         let item_site_id = item.site_id().or(inherited_site_id);
         let path = item_folder_path(&item);
         out.push(OneDriveFolderDto {
@@ -366,6 +424,19 @@ async fn collect_folders(
             .list_children(graph_drive_id, &item.id, omit_select)
             .await
             .map_err(|e| e.to_string())?;
+        // Re-check AFTER the await too, not just before it: the check at the
+        // top of this loop only fires on the NEXT iteration — if this was
+        // the LAST item on the stack, there is no next iteration, so a Stop
+        // that lands while this exact list_children call was in flight would
+        // otherwise be silently dropped (the loop just ends and returns Ok).
+        // That's not a cosmetic gap: the caller (onedrive_list_folders) would
+        // then return a normal folder list, `runSync()` would proceed
+        // straight into `onedrive_sync`, and `onedrive_sync` resets
+        // `state.cancel` to false at its own start — so a Stop click that
+        // landed here would be erased and the sync would start anyway.
+        if cancel.load(Ordering::SeqCst) {
+            return Err(CANCELLED.to_string());
+        }
         stack.extend(
             children
                 .into_iter()
@@ -437,12 +508,11 @@ pub async fn onedrive_sync(
         .await
         .clone()
         .ok_or("workspace not set")?;
-    let token = fresh_access_token().await?;
-    let refresh = graph_token_refresh();
-    let store = OneDriveStore::open(&workspace).map_err(|e| e.to_string())?;
-    let rag_key =
-        crate::commands::rag::crypto::get_or_create_master_key().map_err(|e| e.to_string())?;
 
+    // Emit the "syncing" signal, and start the periodic progress emitter,
+    // BEFORE the token fetch / Graph calls below — those can themselves be
+    // slow (or, pre-fix, hang), and the frontend's spinner should engage the
+    // moment the command starts, not only once the first document is seen.
     let _ = app.emit(
         ONEDRIVE_SYNC_PROGRESS_EVENT,
         serde_json::json!({ "status": "syncing", "seen": 0 }),
@@ -464,53 +534,33 @@ pub async fn onedrive_sync(
         }
     });
 
-    let available_drives = OneDriveClient::new_with_refresh(token.clone(), refresh.clone())
-        .list_drives()
-        .await
-        .unwrap_or_default();
-    let drive_ids = sync_drive_ids(&matter_map, &available_drives);
-    let mut merged_report = OneDriveSyncReport::default();
-    let result = if drive_ids.is_empty() {
-        let omit_select = OneDriveClient::new_with_refresh(token.clone(), refresh.clone())
-            .default_drive()
+    // The whole token-fetch-through-sync-loop chain, bounded by SYNC_TIMEOUT
+    // so this command can never leave the awaiting frontend hanging forever —
+    // a stall anywhere in it (auth refresh, Graph calls, disk I/O) now ends in
+    // an honest timeout error instead of silence.
+    let sync_future = async {
+        let token = fresh_access_token().await?;
+        let refresh = graph_token_refresh();
+        let store = OneDriveStore::open(&workspace).map_err(|e| e.to_string())?;
+        let rag_key = crate::commands::rag::crypto::get_or_create_master_key()
+            .map_err(|e| e.to_string())?;
+
+        let available_drives = OneDriveClient::new_with_refresh(token.clone(), refresh.clone())
+            .list_drives()
             .await
-            .map(|drive| is_personal_drive(&drive))
-            .unwrap_or(false);
-        let source =
-            GraphDocumentSource::new_for_default_drive_with_refresh(token, omit_select, refresh);
-        sync_documents(
-            &source,
-            &store,
-            &workspace,
-            &matter_map,
-            &state.cancel,
-            &rag_key,
-            &state.progress_seen,
-        )
-        .await
-        .map(|report| {
-            merged_report.merge_from(report);
-            merged_report
-        })
-    } else {
-        let mut result = Ok(());
-        for drive_id in drive_ids {
-            if state.cancel.load(Ordering::SeqCst) {
-                merged_report.cancelled = true;
-                break;
-            }
-            let omit_select = available_drives
-                .iter()
-                .find(|drive| drive.id == drive_id)
-                .map(is_personal_drive)
+            .unwrap_or_default();
+        let drive_ids = sync_drive_ids(&matter_map, &available_drives);
+        let mut merged_report = OneDriveSyncReport::default();
+        if drive_ids.is_empty() {
+            let omit_select = OneDriveClient::new_with_refresh(token.clone(), refresh.clone())
+                .default_drive()
+                .await
+                .map(|drive| is_personal_drive(&drive))
                 .unwrap_or(false);
-            let source = GraphDocumentSource::new_for_drive_with_refresh(
-                token.clone(),
-                drive_id,
-                omit_select,
-                refresh.clone(),
+            let source = GraphDocumentSource::new_for_default_drive_with_refresh(
+                token, omit_select, refresh,
             );
-            match sync_documents(
+            sync_documents(
                 &source,
                 &store,
                 &workspace,
@@ -520,32 +570,75 @@ pub async fn onedrive_sync(
                 &state.progress_seen,
             )
             .await
-            {
-                Ok(report) => {
-                    let cancelled = report.cancelled;
-                    merged_report.merge_from(report);
-                    if cancelled {
+            .map_err(|e| e.to_string())
+            .map(|report| {
+                merged_report.merge_from(report);
+                merged_report
+            })
+        } else {
+            let mut result = Ok(());
+            for drive_id in drive_ids {
+                if state.cancel.load(Ordering::SeqCst) {
+                    merged_report.cancelled = true;
+                    break;
+                }
+                let omit_select = available_drives
+                    .iter()
+                    .find(|drive| drive.id == drive_id)
+                    .map(is_personal_drive)
+                    .unwrap_or(false);
+                let source = GraphDocumentSource::new_for_drive_with_refresh(
+                    token.clone(),
+                    drive_id,
+                    omit_select,
+                    refresh.clone(),
+                );
+                match sync_documents(
+                    &source,
+                    &store,
+                    &workspace,
+                    &matter_map,
+                    &state.cancel,
+                    &rag_key,
+                    &state.progress_seen,
+                )
+                .await
+                {
+                    Ok(report) => {
+                        let cancelled = report.cancelled;
+                        merged_report.merge_from(report);
+                        if cancelled {
+                            break;
+                        }
+                    }
+                    Err(e) => {
+                        result = Err(e.to_string());
                         break;
                     }
                 }
-                Err(e) => {
-                    result = Err(e);
-                    break;
-                }
             }
+            result.map(|_| merged_report)
         }
-        result.map(|_| merged_report)
     };
+
+    let outcome = tokio::time::timeout(SYNC_TIMEOUT, sync_future).await;
     emitter.abort();
 
-    let report = match result {
-        Ok(report) => report,
-        Err(e) => {
+    let report = match outcome {
+        Ok(Ok(report)) => report,
+        Ok(Err(e)) => {
             let _ = app.emit(
                 ONEDRIVE_SYNC_PROGRESS_EVENT,
                 serde_json::json!({ "status": "error" }),
             );
             return Err(e.to_string());
+        }
+        Err(_elapsed) => {
+            let _ = app.emit(
+                ONEDRIVE_SYNC_PROGRESS_EVENT,
+                serde_json::json!({ "status": "error" }),
+            );
+            return Err(TIMED_OUT_SYNC.to_string());
         }
     };
     let status = if report.cancelled {
@@ -666,6 +759,190 @@ mod tests {
         let path = item_folder_path(&item);
         let key = folder_key(DEFAULT_ACCOUNT, item_site_id.as_deref(), "drive-sp", &path);
         assert_eq!(key, "m365/default/site-123/drive-sp:/clients/tax");
+    }
+
+    // fix/onedrive-sync-silence: regression tests for the two guarantees that
+    // close the bench pass-3 "total silence" bug — a cancelled listing walk
+    // stops honestly, and a stalled walk is bounded by an outer timeout.
+
+    #[tokio::test]
+    async fn collect_folders_stops_immediately_when_already_cancelled() {
+        // No mocks registered on this server — if collect_folders made ANY
+        // HTTP call before honoring cancel, it would hit an unmatched-request
+        // panic (wiremock's default behavior), proving the check happens
+        // before any network I/O, not just eventually.
+        let server = wiremock::MockServer::start().await;
+        let client = OneDriveClient::new_with_base("AT".into(), server.uri());
+        let cancel = Arc::new(AtomicBool::new(true));
+        let mut out = Vec::new();
+        let items = vec![folder("folder-1", "Clients", "drive-1", "/drive/root:", None)];
+
+        let result = collect_folders(
+            &client,
+            Some("drive-1"),
+            "drive-1",
+            false,
+            None,
+            items,
+            &mut out,
+            &cancel,
+        )
+        .await;
+
+        assert_eq!(result, Err(CANCELLED.to_string()));
+        assert!(out.is_empty());
+    }
+
+    #[tokio::test]
+    async fn collect_folders_honors_cancel_flipped_mid_walk() {
+        // Two roots on the stack; collect_folders pops LIFO, so "folder-2" is
+        // visited first. Its list_children call is deliberately slow — long
+        // enough for a background task to flip `cancel` (simulating a Stop
+        // click landing while that request is in flight) before the loop
+        // reaches "folder-1". Proves cancellation is honored BETWEEN
+        // iterations of a real walk, not just when set before it starts —
+        // and that whatever was already collected up to that point
+        // (folder-2 itself) is real work, not silently discarded mid-request.
+        use wiremock::matchers::method;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({ "value": [] }))
+                    .set_delay(Duration::from_millis(150)),
+            )
+            .mount(&server)
+            .await;
+        let client = OneDriveClient::new_with_base("AT".into(), server.uri());
+        let cancel = Arc::new(AtomicBool::new(false));
+        let flipper = cancel.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(40)).await;
+            flipper.store(true, Ordering::SeqCst);
+        });
+
+        let mut out = Vec::new();
+        let items = vec![
+            folder("folder-1", "Should Not Visit", "drive-1", "/drive/root:", None),
+            folder("folder-2", "Clients", "drive-1", "/drive/root:", None),
+        ];
+        let result = collect_folders(
+            &client,
+            Some("drive-1"),
+            "drive-1",
+            false,
+            None,
+            items,
+            &mut out,
+            &cancel,
+        )
+        .await;
+
+        assert_eq!(result, Err(CANCELLED.to_string()));
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].name, "Clients");
+    }
+
+    #[tokio::test]
+    async fn collect_folders_honors_cancel_flipped_during_the_final_list_children_call() {
+        // round-2 review P2-b: a SINGLE item on the stack (the last/only one
+        // left to visit) — cancel is false when the pre-await check runs,
+        // then flips to true while its own list_children call is in flight.
+        // Before the fix, the top-of-loop check was the ONLY place cancel
+        // was ever re-read, and with the stack now empty there is no next
+        // iteration to catch it — the function returned Ok(()) as if the
+        // Stop click never happened, and the caller (onedrive_list_folders)
+        // would then hand back a normal folder list. runSync() would proceed
+        // straight into onedrive_sync, which unconditionally resets
+        // state.cancel at its own start — silently erasing the user's Stop.
+        use wiremock::matchers::method;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({ "value": [] }))
+                    .set_delay(Duration::from_millis(150)),
+            )
+            .mount(&server)
+            .await;
+        let client = OneDriveClient::new_with_base("AT".into(), server.uri());
+        let cancel = Arc::new(AtomicBool::new(false));
+        let flipper = cancel.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(40)).await;
+            flipper.store(true, Ordering::SeqCst);
+        });
+
+        let mut out = Vec::new();
+        let items = vec![folder("folder-1", "Clients", "drive-1", "/drive/root:", None)];
+        let result = collect_folders(
+            &client,
+            Some("drive-1"),
+            "drive-1",
+            false,
+            None,
+            items,
+            &mut out,
+            &cancel,
+        )
+        .await;
+
+        assert_eq!(
+            result,
+            Err(CANCELLED.to_string()),
+            "a Stop click during the LAST item's in-flight request must still abort the whole walk"
+        );
+    }
+
+    #[tokio::test]
+    async fn collect_folders_walk_is_bounded_by_an_outer_timeout() {
+        // Regression for the bench pass-3 "total silence" root cause: before
+        // this fix, onedrive_list_folders's recursive walk had no bound at
+        // all, so a stalled Graph call (or, in production, ambient resource
+        // starvation slowing every call) left the frontend awaiting forever.
+        // This proves the mechanism onedrive_list_folders now relies on
+        // (wrapping the walk in tokio::time::timeout) genuinely interrupts a
+        // stall mid-flight, not just before the walk starts.
+        use wiremock::matchers::method;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({ "value": [] }))
+                    .set_delay(Duration::from_millis(300)),
+            )
+            .mount(&server)
+            .await;
+        let client = OneDriveClient::new_with_base("AT".into(), server.uri());
+        let cancel = Arc::new(AtomicBool::new(false));
+        let mut out = Vec::new();
+        let items = vec![folder("folder-1", "Clients", "drive-1", "/drive/root:", None)];
+
+        let outcome = tokio::time::timeout(
+            Duration::from_millis(50),
+            collect_folders(
+                &client,
+                Some("drive-1"),
+                "drive-1",
+                false,
+                None,
+                items,
+                &mut out,
+                &cancel,
+            ),
+        )
+        .await;
+
+        assert!(
+            outcome.is_err(),
+            "expected the outer timeout to fire while the Graph call was still stalled"
+        );
     }
 }
 
