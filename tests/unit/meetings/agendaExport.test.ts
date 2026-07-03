@@ -15,6 +15,14 @@ vi.mock('@/platform/privacy/localOnlyGuard', () => ({
   assertLocalOnlyAllowsSend: vi.fn(),
 }));
 
+const buildResolvedProviderForGlanceMock = vi.hoisted(() => vi.fn());
+vi.mock('@/platform/matter/matterAtAGlance', async () => {
+  const actual = await vi.importActual<typeof import('@/platform/matter/matterAtAGlance')>(
+    '@/platform/matter/matterAtAGlance',
+  );
+  return { ...actual, buildResolvedProviderForGlance: buildResolvedProviderForGlanceMock };
+});
+
 function fakeProvider(sendMessage: ReturnType<typeof vi.fn>): Provider {
   return {
     sendMessage,
@@ -45,6 +53,32 @@ describe('agendaMarkdownFromBrief — audit ordering', () => {
     // Errors degrade to the deterministic fallback rather than throwing.
     expect(md).toBe(fallbackAgenda('- Talk about the Roth conversion.', 'Q3 review'));
     expect(order).toEqual(['egress-audit', 'send']);
+    appendSpy.mockRestore();
+  });
+
+  it('records the real resolved providerId in the egress audit for the default (non-injected) provider path', async () => {
+    // codex-review catch (round 2): getMetadata().providerId is unset on the
+    // real cloud providers (Claude/OpenAI/Gemini only expose name/model), so
+    // the default path must use buildResolvedProviderForGlance()'s own
+    // providerId, not provider.getMetadata().providerId ?? 'unknown' — else
+    // every real cloud agenda export logs egress with provider: "unknown".
+    const sendMessage = vi.fn().mockResolvedValue({ content: 'irrelevant, malformed on purpose' });
+    buildResolvedProviderForGlanceMock.mockResolvedValue({
+      provider: { sendMessage, getMetadata: () => ({ model: 'claude-sonnet-4-6' }) },
+      providerId: 'anthropic',
+      model: 'claude-sonnet-4-6',
+    });
+    let loggedProvider: string | undefined;
+    const appendSpy = vi.spyOn(AuditService.prototype, 'append').mockImplementation((event) => {
+      if (event.type === 'egress') loggedProvider = event.payload.provider;
+    });
+
+    await agendaMarkdownFromBrief(
+      { markdown: '- Talk about the Roth conversion.' },
+      { clientLabel: 'Robert Johnson', eventTitle: 'Q3 review' },
+    );
+
+    expect(loggedProvider).toBe('anthropic');
     appendSpy.mockRestore();
   });
 
