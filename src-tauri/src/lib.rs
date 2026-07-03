@@ -41,6 +41,10 @@ pub fn run() {
             // (`.keepance` → `.lantern`). Called from the renderer at workspace
             // open, BEFORE any store (audit/mail/rag/…) is opened.
             commands::data_dir::migrate_workspace_data_dir,
+            // Resolve the live internal data-dir name (`.lantern` / legacy
+            // `.keepance`) so renderer-side writers land on the same folder the
+            // Rust stores use, even in the migration fail-safe state.
+            commands::data_dir::resolve_workspace_data_dir_name,
             commands::fs::open_in_explorer,
             commands::fs::detect_libreoffice,
             commands::fs::convert_doc_to_docx,

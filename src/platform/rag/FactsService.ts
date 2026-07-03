@@ -105,6 +105,16 @@ export interface FactsStorage {
 /** Options accepted by `createFactsService`. */
 export interface FactsServiceOptions {
   storage: FactsStorage;
+  /**
+   * The LIVE internal data-dir name for this workspace (`.lantern`, or the legacy
+   * `.keepance` in the migration fail-safe state), as resolved by the Rust
+   * `resolve_workspace_data_dir_name` command. The facts file is read from and
+   * written to `<dataDirName>/memory.json`, so a FIRST-ever write in the fail-safe
+   * state lands in the live legacy folder — never seeding the stub `.lantern`,
+   * which would make the next migration adopt the stub and strand the workspace.
+   * Defaults to `WORKSPACE_DATA_DIR` (`.lantern`) when omitted (fresh / browser).
+   */
+  dataDirName?: string;
   /** Override the id generator (e.g. for deterministic tests). */
   generateId?: () => string;
   /** Override the clock (e.g. for deterministic tests). */
@@ -239,20 +249,19 @@ export function createFactsService(opts: FactsServiceOptions): FactsServiceApi {
   const generateId = opts.generateId ?? defaultGenerateId;
   const now = opts.now ?? (() => new Date());
 
-  // Resolve the live facts path, mirroring the Rust data-dir resolver: prefer
-  // the current `.lantern/memory.json`, but if only the legacy
-  // `.keepance/memory.json` exists (the rename fail-safe left the old dir live),
-  // read AND write there so facts never fork across the two folders.
-  async function resolveFactsPath(): Promise<string> {
-    if (await storage.exists(FACTS_FILE_RELATIVE_PATH)) return FACTS_FILE_RELATIVE_PATH;
-    if (await storage.exists(LEGACY_FACTS_FILE_RELATIVE_PATH)) {
-      return LEGACY_FACTS_FILE_RELATIVE_PATH;
-    }
-    return FACTS_FILE_RELATIVE_PATH;
-  }
+  // The facts file lives under the LIVE data dir (`.lantern`, or the legacy
+  // `.keepance` in the migration fail-safe) as decided by the Rust resolver and
+  // passed in as `dataDirName`. Keying on the live DIRECTORY — not merely on
+  // "does a legacy facts file exist" — means a first-ever write in the fail-safe
+  // state lands in `.keepance` (the live folder) instead of seeding the stub
+  // `.lantern`, which would strand the user's mail/RAG/audit on the next launch.
+  const factsPath =
+    opts.dataDirName && opts.dataDirName.length > 0
+      ? `${opts.dataDirName}/memory.json`
+      : FACTS_FILE_RELATIVE_PATH;
 
   async function loadFacts(): Promise<MemoryFacts> {
-    const path = await resolveFactsPath();
+    const path = factsPath;
     const exists = await storage.exists(path);
     if (!exists) {
       const empty: MemoryFacts = {
@@ -270,9 +279,10 @@ export function createFactsService(opts: FactsServiceOptions): FactsServiceApi {
 
   async function saveFacts(facts: MemoryFacts): Promise<void> {
     const serialized = serializeMemoryFacts(facts);
-    // Write back to the SAME folder the facts were resolved from (so a fail-safe
-    // legacy file stays put instead of forking a new `.lantern` copy).
-    const path = await resolveFactsPath();
+    // Write into the live data dir (`factsPath`). In the fail-safe state this is
+    // `.keepance/memory.json` (the live folder), so a first-ever write never
+    // seeds the stub `.lantern` and strands the workspace.
+    const path = factsPath;
     const tmpPath = `${path}.tmp`;
     // Atomic write: tmp first, then final, then best-effort tmp cleanup.
     // If the final write throws the tmp lives on — the next save will

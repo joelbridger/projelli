@@ -61,6 +61,20 @@ export async function migrateWorkspaceDataDir(
 }
 
 /**
+ * Resolve the LIVE internal data-dir name for a workspace (`.lantern`, or the
+ * legacy `.keepance` in the migration fail-safe state) — the same decision the
+ * Rust stores use. Renderer-side writers into the data dir resolve their path
+ * against this so a write never lands in the wrong folder. Returns `null` in the
+ * browser/dev (no Tauri); callers default to `.lantern`.
+ */
+export async function resolveWorkspaceDataDirName(
+  workspaceRoot: string,
+): Promise<string | null> {
+  if (!isTauri()) return null;
+  return invoke<string>('resolve_workspace_data_dir_name', { workspaceRoot });
+}
+
+/**
  * Convert a legacy `.doc` file to `.docx` using LibreOffice in headless mode.
  * The output `.docx` is written next to the input file.
  *

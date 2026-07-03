@@ -769,6 +769,25 @@ pub async fn vault_decrypt_all(
 /// The operation is intentionally NOT gated on the vault being unlocked —
 /// delete_vmk is idempotent (no-op if absent). The metadata file check is
 /// the functional gate.
+/// Remove EVERY vault-metadata file in `root` — the current `.lantern-vault.json`
+/// and the legacy `.keepance-vault.json`. Used by `vault_disable` so a
+/// both-metadata conflict (data-dir migration) is fully torn down; leaving the
+/// legacy file behind would let `vault_status` fall back to it and report the
+/// vault still enabled. Idempotent: an absent file is skipped.
+fn remove_all_vault_metadata(root: &Path) -> Result<(), VaultCommandError> {
+    for name in [
+        lantern_vault::metadata::METADATA_FILENAME,
+        lantern_vault::metadata::LEGACY_METADATA_FILENAME,
+    ] {
+        let meta_path = root.join(name);
+        if meta_path.exists() {
+            std::fs::remove_file(&meta_path)
+                .map_err(|e| VaultCommandError::Io(format!("failed to delete metadata: {e}")))?;
+        }
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn vault_disable(workspace: String) -> Result<(), VaultCommandError> {
     let root = PathBuf::from(&workspace);
@@ -787,12 +806,12 @@ pub async fn vault_disable(workspace: String) -> Result<(), VaultCommandError> {
     // If metadata is absent, the vault is already disabled — succeed idempotently.
     let vault_id_result = vault_id_for(&root);
 
-    // Delete the metadata file (the LIVE one — current or a legacy fail-safe copy).
-    let meta_path = lantern_vault::metadata::metadata_path(&root);
-    if meta_path.exists() {
-        std::fs::remove_file(&meta_path)
-            .map_err(|e| VaultCommandError::Io(format!("failed to delete metadata: {e}")))?;
-    }
+    // Delete BOTH the current and any legacy metadata file (see
+    // `remove_all_vault_metadata`): in the both-metadata conflict state removing
+    // only the current one would leave the preserved `.keepance-vault.json`, and
+    // the next `vault_status` would fall back to it and report the vault still
+    // enabled — so disable could never take effect.
+    remove_all_vault_metadata(&root)?;
 
     // Delete the keychain VMK (idempotent — silently ok if already absent).
     if let Ok(id) = vault_id_result {
@@ -947,6 +966,36 @@ fn days_to_ymd(days: u64) -> (u64, u64, u64) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── vault metadata teardown (data-dir migration conflict) ─────────────────
+
+    /// P2 (Codex round 2): in the both-metadata conflict state, disabling the
+    /// vault must remove BOTH files — otherwise `vault_status` would fall back to
+    /// the preserved legacy file and report the vault still enabled, so disable
+    /// could never take effect and a new vault could not be created.
+    #[test]
+    fn remove_all_vault_metadata_clears_both_current_and_legacy() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        std::fs::write(root.join(lantern_vault::metadata::METADATA_FILENAME), b"{}").unwrap();
+        std::fs::write(
+            root.join(lantern_vault::metadata::LEGACY_METADATA_FILENAME),
+            b"{}",
+        )
+        .unwrap();
+
+        remove_all_vault_metadata(root).unwrap();
+
+        // Both gone → the resolver reports no live metadata → status would be
+        // disabled, and vault_create is no longer blocked.
+        assert!(!root.join(lantern_vault::metadata::METADATA_FILENAME).exists());
+        assert!(!root
+            .join(lantern_vault::metadata::LEGACY_METADATA_FILENAME)
+            .exists());
+        assert!(!lantern_vault::metadata::metadata_path(root).exists());
+        // Idempotent: a second call on a clean workspace is a no-op.
+        remove_all_vault_metadata(root).unwrap();
+    }
 
     // ── workspace_id ──────────────────────────────────────────────────────────
 

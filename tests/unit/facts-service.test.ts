@@ -240,29 +240,36 @@ describe('FactsService — schema version + corruption handling', () => {
     expect(parsed.facts[0]?.text).toBe('A');
   });
 
-  // Data-dir migration fail-safe: if only the legacy `.keepance/memory.json`
-  // exists (rename could not complete, old dir still live), facts must be READ
-  // from and WRITTEN back to the legacy path — never forked into a new
-  // `.lantern/memory.json` copy that hides the user's facts.
-  it('reads and writes the legacy path when only the legacy facts file exists', async () => {
+  // Data-dir migration fail-safe: the live data dir is the legacy `.keepance`
+  // (rename could not complete). Keyed on the LIVE dir name, facts read from and
+  // write to `.keepance/memory.json` — never the stub `.lantern`.
+  it('reads existing legacy facts when the live dir is .keepance', async () => {
     const mock = makeStorageMock();
     mock.files.set(
       LEGACY_FACTS_FILE_RELATIVE_PATH,
       JSON.stringify({ version: FACTS_SCHEMA_VERSION, facts: [{ id: 'a', text: 'legacy', created: 'c', approved_by: 'user' }] }),
     );
-    const service = createFactsService({ storage: mock.storage });
+    const service = createFactsService({ storage: mock.storage, dataDirName: '.keepance' });
 
     const loaded = await service.loadFacts();
     expect(loaded.facts[0]?.text).toBe('legacy');
+  });
 
-    await service.addFact({ text: 'B', approved_by: 'user' });
-    // The write stayed on the legacy file; no `.lantern` fork was created.
+  // P1 (Codex round 2): fail-safe live-legacy with NO facts file yet — the FIRST
+  // write must land in `.keepance` (the live folder), NEVER seed the stub
+  // `.lantern`, which the next migration would adopt and strand the workspace.
+  it('first-ever facts write lands in the live legacy dir (never seeds the stub .lantern)', async () => {
+    const mock = makeStorageMock();
+    const service = createFactsService({ storage: mock.storage, dataDirName: '.keepance' });
+
+    await service.addFact({ text: 'first', approved_by: 'user' });
+
     expect(mock.files.has(LEGACY_FACTS_FILE_RELATIVE_PATH)).toBe(true);
     expect(mock.files.has(FACTS_FILE_RELATIVE_PATH)).toBe(false);
     expect(mock.writes.some((p) => p.startsWith(FACTS_FILE_RELATIVE_PATH))).toBe(false);
   });
 
-  it('defaults new facts to the current .lantern path on a fresh workspace', async () => {
+  it('defaults new facts to the current .lantern path when no dataDirName is given', async () => {
     const mock = makeStorageMock();
     const service = createFactsService({ storage: mock.storage });
     await service.addFact({ text: 'fresh', approved_by: 'user' });

@@ -285,7 +285,12 @@ fn dir_is_pure_stub(dir: &Path) -> bool {
             continue;
         }
         match name.as_ref() {
-            MIGRATION_MARKER | "mcp-session-scope.json" => {}
+            // `memory.json` (user facts) is allowlisted as NON-blocking: a
+            // `.lantern` holding only facts must NOT win over a legacy `.keepance`
+            // that has the substantial data (mail/RAG/audit). The promotion path
+            // recovers the facts into the promoted dir (see `migrate_dir`), so
+            // treating a facts-only `.lantern` as a stub loses nothing.
+            MIGRATION_MARKER | "mcp-session-scope.json" | "memory.json" => {}
             "audit-enc.db" | "audit-enc.db-wal" | "audit-enc.db-shm" => {
                 // The audit store is the ONE DB created merely by opening a
                 // workspace, so its presence alone cannot mark real data — else
@@ -400,10 +405,28 @@ fn migrate_dir(old: &Path, new: &Path) -> DirOutcome {
             match std::fs::rename(new, &quarantine).and_then(|()| std::fs::rename(old, new)) {
                 Ok(()) => {
                     ensure_marker(new);
+                    // Recover the user's facts file from the quarantined stub: a
+                    // facts-only `.lantern` (e.g. seeded while the legacy dir was
+                    // live) is treated as a stub, but its `memory.json` is real
+                    // user data. Move it into the promoted dir when that dir has
+                    // none — a targeted, conflict-free single-file recovery so the
+                    // facts stay active instead of being stranded in quarantine.
+                    let stub_facts = quarantine.join("memory.json");
+                    let promoted_facts = new.join("memory.json");
+                    if stub_facts.is_file() && !promoted_facts.exists() {
+                        if let Err(e) = std::fs::rename(&stub_facts, &promoted_facts) {
+                            log::warn!(
+                                "[data-dir-migration] could not recover facts {} → {}: {e} \
+                                 (facts remain in the quarantine dir)",
+                                stub_facts.display(),
+                                promoted_facts.display()
+                            );
+                        }
+                    }
                     log::warn!(
-                        "[data-dir-migration] found a legacy {} beside an empty {}; \
-                         promoted the legacy data and quarantined the stub at {} \
-                         (nothing merged or deleted).",
+                        "[data-dir-migration] found a legacy {} beside a stub {}; \
+                         promoted the legacy data (recovering any facts) and quarantined \
+                         the stub at {} (nothing else merged or deleted).",
                         old.display(),
                         new.display(),
                         quarantine.display()
@@ -512,6 +535,17 @@ pub fn migrate_workspace_data_dir(workspace_root: String) -> Result<WorkspaceMig
         return Err(format!("workspace root is not a directory: {workspace_root}"));
     }
     Ok(migrate_workspace(&root))
+}
+
+/// Tauri command: return the LIVE internal data-dir NAME for a workspace
+/// (`.lantern`, or `.keepance` in the legacy/fail-safe state) — the single
+/// authority `workspace_data_dir_name` also gives the Rust stores. Renderer-side
+/// consumers that write into the data dir (e.g. the facts file) resolve their
+/// path against this so a first-ever write in the fail-safe state lands in the
+/// live legacy folder rather than stranding the workspace by seeding the stub.
+#[tauri::command]
+pub fn resolve_workspace_data_dir_name(workspace_root: String) -> String {
+    workspace_data_dir_name(&PathBuf::from(&workspace_root)).to_string()
 }
 
 #[cfg(test)]
@@ -735,23 +769,49 @@ mod tests {
     }
 
     #[test]
-    fn small_real_lantern_data_is_a_conflict_not_a_stub() {
+    fn small_real_connector_data_in_lantern_is_a_conflict_not_a_stub() {
         // Regression (Codex round 3, P1): a SMALL real artifact in .lantern
-        // (e.g. memory.json or a connector DB, well under any size threshold)
-        // must be treated as a conflict — never quarantined as an empty stub.
+        // (e.g. a connector DB, well under any size threshold) must be treated as
+        // a conflict — never quarantined as an empty stub.
         let tmp = TempDir::new().unwrap();
         let root = tmp.path();
         seed(&old_dir(root), "mail-enc.db", b"legacy-real");
         fs::create_dir_all(new_dir(root)).unwrap();
-        fs::write(new_dir(root).join("memory.json"), b"{\"facts\":[\"x\"]}").unwrap();
+        fs::write(new_dir(root).join("onedrive-enc.db"), b"real-connector").unwrap();
 
         assert_eq!(migrate_workspace(root).data_dir, DirOutcome::ConflictKeptNew);
         assert!(old_dir(root).exists(), "legacy preserved");
+        assert_eq!(workspace_data_dir(root), new_dir(root));
+    }
+
+    #[test]
+    fn facts_only_lantern_promotes_legacy_and_recovers_the_facts() {
+        // Codex round-2 delta (major): a `.lantern` seeded with ONLY `memory.json`
+        // (facts) beside a substantial legacy `.keepance` must NOT strand the
+        // legacy mail/RAG/audit. The facts-only `.lantern` is a stub → promote
+        // `.keepance`, and the facts are RECOVERED into the promoted dir.
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path();
+        seed(&old_dir(root), "mail-enc.db", b"substantial-legacy-data");
+        fs::create_dir_all(new_dir(root)).unwrap();
+        fs::write(new_dir(root).join("memory.json"), b"{\"facts\":[\"keep me\"]}").unwrap();
+
+        assert_eq!(migrate_workspace(root).data_dir, DirOutcome::PromotedOverStub);
+
+        // The substantial legacy data is now active…
+        assert_eq!(
+            fs::read(new_dir(root).join("mail-enc.db")).unwrap(),
+            b"substantial-legacy-data"
+        );
+        // …and the facts were recovered into the promoted dir (not stranded).
         assert_eq!(
             fs::read(new_dir(root).join("memory.json")).unwrap(),
-            b"{\"facts\":[\"x\"]}"
+            b"{\"facts\":[\"keep me\"]}"
         );
-        // Resolver mirrors the decision even before/without the marker being read.
+        // The (now facts-less) stub is still quarantined, never deleted.
+        assert!(root
+            .join(format!("{WORKSPACE_DATA_DIR}.pre-migration-stub"))
+            .exists());
         assert_eq!(workspace_data_dir(root), new_dir(root));
     }
 
@@ -776,13 +836,13 @@ mod tests {
     #[test]
     fn resolver_prefers_real_lantern_over_legacy_when_unmarked() {
         // Regression (Codex round 3, P1): with both dirs present, no marker, and
-        // REAL data in .lantern, the pure resolver must return .lantern (not fork
-        // back onto legacy) even before migrate_workspace runs.
+        // genuinely REAL (substantial) data in .lantern, the pure resolver must
+        // return .lantern (not fork back onto legacy) even before migrate runs.
         let tmp = TempDir::new().unwrap();
         let root = tmp.path();
         seed(&old_dir(root), "mail-enc.db", b"legacy");
         fs::create_dir_all(new_dir(root)).unwrap();
-        fs::write(new_dir(root).join("memory.json"), b"real").unwrap();
+        fs::write(new_dir(root).join("mail-enc.db"), b"real-substantial").unwrap();
         assert_eq!(workspace_data_dir(root), new_dir(root));
         assert_eq!(workspace_data_dir_name(root), WORKSPACE_DATA_DIR);
     }

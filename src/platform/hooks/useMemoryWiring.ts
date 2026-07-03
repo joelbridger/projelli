@@ -54,6 +54,7 @@ import {
   MODEL_DOWNLOAD_EVENT,
   modelStatus,
   ragManifestPdfFresh,
+  resolveWorkspaceDataDirName,
   watchWorkspace,
   type ModelDownloadProgress,
   type WorkspaceChangeEvent,
@@ -622,9 +623,29 @@ export function useMemoryWiring(
       setFactsService(null);
       return;
     }
+    // Object holder (not a bare `let`) so TS doesn't narrow the flag to a
+    // constant across the async closure below.
+    const guard = { cancelled: false };
     const storage = buildFactsStorage(workspaceService, rootPath);
-    setFactsService(createFactsService({ storage }));
+    // Resolve the LIVE data-dir name (`.lantern`, or the legacy `.keepance` in the
+    // migration fail-safe) so facts read/write the same folder the Rust stores
+    // use. Without this, a first-ever facts write in the fail-safe state would
+    // seed the stub `.lantern` and strand the workspace on the next launch.
+    // Falls back to the default (`.lantern`) in the browser / on any error.
+    void (async () => {
+      let dataDirName: string | undefined;
+      try {
+        dataDirName = (await resolveWorkspaceDataDirName(rootPath)) ?? undefined;
+      } catch {
+        dataDirName = undefined;
+      }
+      if (guard.cancelled) return;
+      setFactsService(
+        createFactsService(dataDirName ? { storage, dataDirName } : { storage }),
+      );
+    })();
     return () => {
+      guard.cancelled = true;
       setFactsService(null);
     };
   }, [rootPath, workspaceService]);
