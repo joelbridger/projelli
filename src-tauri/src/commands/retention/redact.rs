@@ -80,6 +80,14 @@ fn resolve_meeting_dir(canon_ws: &Path, matter_folder: &str, meeting_dir: &str) 
         .join(rel_meeting)
         .canonicalize()
         .map_err(|e| format!("meeting dir does not exist: {meeting_dir}: {e}"))?;
+    // Scoped to the SELECTED matter folder, not just "somewhere in the
+    // workspace": meeting_dir is documented as relative to matter_folder, so
+    // a `../OtherClient/...` escape must be refused here — otherwise a
+    // caller could redact a DIFFERENT client's meeting while the audit entry
+    // (which records matter_folder verbatim) claims it was this one.
+    if !meeting_abs.starts_with(&matter_abs) {
+        return Err(format!("meeting dir escapes its matter folder: {meeting_dir}"));
+    }
     if !meeting_abs.starts_with(canon_ws) {
         return Err(format!("meeting dir escapes workspace: {meeting_dir}"));
     }
@@ -114,6 +122,46 @@ fn replace_in_document(doc: &mut lantern_docx::Document, needle: &str, marker: &
 
 fn contains_bytes(haystack: &[u8], needle: &[u8]) -> bool {
     !needle.is_empty() && haystack.windows(needle.len()).any(|w| w == needle)
+}
+
+/// Write-to-temp-then-rename: a disk-full or interrupted write can only ever
+/// leave the TEMP file truncated/corrupt — `rename` itself either replaces
+/// the real file atomically or doesn't happen at all, so the real file is
+/// never left half-written. Doesn't make the two-file (transcript.json +
+/// notes.docx) update a single transaction — if the second file's write
+/// fails after the first already succeeded, the two are briefly
+/// inconsistent — but both redact_segments_inner's "already redacted ==
+/// no-op" checks (`text == marker` for a segment, `replace_in_document`
+/// finding nothing left to replace) make retrying the SAME call safe: a
+/// retry only finishes whichever half didn't land, it never re-applies or
+/// corrupts the half that already did.
+fn write_atomically(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("artifact");
+    let tmp = path.with_file_name(format!("{file_name}.redact-tmp"));
+    std::fs::write(&tmp, bytes).map_err(|e| format!("write {}: {e}", tmp.display()))?;
+    std::fs::rename(&tmp, path).map_err(|e| format!("rename {} -> {}: {e}", tmp.display(), path.display()))
+}
+
+/// `.docx` is a ZIP archive — its parts are DEFLATE-compressed, so scanning
+/// the raw serialized `.docx` bytes for a plain-text needle is close to
+/// meaningless (compression scrambles byte patterns; a hit-or-miss match
+/// proves nothing either way). The real safety check has to look at every
+/// PART's decompressed content — `word/document.xml`, but also
+/// `word/comments.xml`, `customXml/**`, footnotes/headers/footers, and
+/// anything else the package carries — not just the outer archive bytes or
+/// only the modeled paragraph text. If the bytes don't even parse as a
+/// package, fail closed (treat as "still present") rather than silently
+/// reporting success on something we can no longer verify.
+fn needle_survives_in_docx_package(docx_bytes: &[u8], needle: &str) -> bool {
+    let Ok(pkg) = lantern_docx::Package::read_from_bytes(docx_bytes) else {
+        return true;
+    };
+    let needle_bytes = needle.as_bytes();
+    let part_names: Vec<&String> = pkg.part_names().collect();
+    let found = part_names
+        .into_iter()
+        .any(|name| pkg.get(name).is_some_and(|raw| contains_bytes(raw, needle_bytes)));
+    found
 }
 
 /// Pure(ish) core: redact `segment_indices` from `meeting_dir`'s
@@ -193,7 +241,7 @@ pub(crate) fn redact_segments_inner(
             .save_bytes()
             .map_err(|e| format!("serialize notes.docx: {e}"))?;
 
-        if needles.iter().any(|n| contains_bytes(&new_bytes, n.as_bytes())) {
+        if needles.iter().any(|n| needle_survives_in_docx_package(&new_bytes, n)) {
             // Fallback: re-open the ORIGINAL bytes fresh, flatten tracked
             // changes (accept all, drop comments), re-apply the same
             // replacement, re-scan.
@@ -216,7 +264,7 @@ pub(crate) fn redact_segments_inner(
                 .save_bytes()
                 .map_err(|e| format!("serialize flattened notes.docx: {e}"))?;
 
-            if needles.iter().any(|n| contains_bytes(&final_bytes, n.as_bytes())) {
+            if needles.iter().any(|n| needle_survives_in_docx_package(&final_bytes, n)) {
                 // HARD FAIL: never report success on a partial redaction —
                 // and nothing on disk has been written yet, so a failure
                 // here leaves both transcript.json and notes.docx untouched.
@@ -228,7 +276,7 @@ pub(crate) fn redact_segments_inner(
             new_bytes = final_bytes;
             docx_flattened = true;
         }
-        std::fs::write(&notes_path, &new_bytes).map_err(|e| format!("write notes.docx: {e}"))?;
+        write_atomically(&notes_path, &new_bytes)?;
     }
 
     // Only write transcript.json once notes.docx is confirmed safe (or there
@@ -236,7 +284,7 @@ pub(crate) fn redact_segments_inner(
     // while notes.docx still holds the needle.
     let transcript_bytes =
         serde_json::to_vec_pretty(&v).map_err(|e| format!("serialize transcript.json: {e}"))?;
-    std::fs::write(&transcript_path, transcript_bytes).map_err(|e| format!("write transcript.json: {e}"))?;
+    write_atomically(&transcript_path, &transcript_bytes)?;
 
     Ok(RedactionReceipt {
         redacted_count: needles.len(),
@@ -268,6 +316,19 @@ pub async fn redact_meeting_segments(
         let now_ms = chrono::Utc::now().timestamp_millis() as u64;
 
         let mut receipt = redact_segments_inner(&canon_ws, &meeting_abs, &segment_indices, now_ms)?;
+
+        // Durable side-file FIRST, same file + same reasoning as the sweep's
+        // PENDING_RAG_CLEANUP_FILE (retention/mod.rs): if the app crashes
+        // after the writes above land but before the renderer ever receives
+        // this receipt, these RAG rows would otherwise stay searchable
+        // forever with the redacted text still in them. Written durably
+        // INSIDE this blocking call, before the command even returns.
+        if let Err(e) = super::append_pending_rag_cleanup(&canon_ws, &receipt.rag_cleanup_source_ids) {
+            receipt.audit_error = Some(match &receipt.audit_error {
+                Some(existing) => format!("{existing}; {e}"),
+                None => e,
+            });
+        }
 
         // Audit AFTER the mutation. This is a single atomic operation (not a
         // batch like the sweep), so there's no "later work" whose visibility
@@ -311,11 +372,17 @@ pub async fn redact_meeting_segments(
                     .to_string(),
                 };
                 if let Err(e) = store.append(&entry) {
-                    receipt.audit_error = Some(format!("audit append: {e}"));
+                    receipt.audit_error = Some(match &receipt.audit_error {
+                        Some(existing) => format!("{existing}; audit append: {e}"),
+                        None => format!("audit append: {e}"),
+                    });
                 }
             }
             Err(e) => {
-                receipt.audit_error = Some(format!("open audit store: {e}"));
+                receipt.audit_error = Some(match &receipt.audit_error {
+                    Some(existing) => format!("{existing}; open audit store: {e}"),
+                    None => format!("open audit store: {e}"),
+                });
             }
         }
         Ok(receipt)
@@ -457,6 +524,52 @@ mod tests {
         let canon_ws = ws.path().canonicalize().unwrap();
         let err = resolve_meeting_dir(&canon_ws, "../../etc", "passwd").unwrap_err();
         assert!(!err.is_empty());
+    }
+
+    /// `meeting_dir` is documented as relative to `matter_folder` — a caller
+    /// must not be able to climb OUT of the selected matter folder into a
+    /// DIFFERENT (but still in-workspace) client's folder via `../`. Without
+    /// this check the redaction would touch the wrong client's meeting while
+    /// the audit entry (which records matter_folder verbatim) claims it
+    /// touched the original one.
+    #[test]
+    fn rejects_meeting_dir_escaping_its_own_matter_folder_into_a_sibling_client() {
+        let ws = tempdir().unwrap();
+        make_meeting_with_tracked_change(ws.path(), "x"); // Clients/H/Meetings/2026-05-01-review
+        std::fs::create_dir_all(ws.path().join("Clients/Acme")).unwrap();
+        let canon_ws = ws.path().canonicalize().unwrap();
+
+        let err = resolve_meeting_dir(&canon_ws, "Clients/Acme", "../H/Meetings/2026-05-01-review").unwrap_err();
+        assert!(err.contains("matter folder"), "got: {err}");
+    }
+
+    /// The whole point of `needle_survives_in_docx_package`: a `.docx` is a
+    /// ZIP archive with DEFLATE-compressed parts, so a raw byte-scan over the
+    /// serialized file can miss text that's genuinely still present. This
+    /// confirms the package-aware check actually finds it by decompressing.
+    #[test]
+    fn needle_survives_check_finds_text_inside_the_compressed_package() {
+        let needle = "a fairly distinctive phrase repeated enough to compress predictably";
+        let doc = Document {
+            format_version: lantern_docx::DOM_FORMAT_VERSION,
+            body: vec![BlockContent::Paragraph(Paragraph::from_inlines(vec![Inline::Run(Run::new(
+                needle.repeat(20),
+            ))]))],
+            comments: Default::default(),
+        };
+        let bytes = lantern_docx::serialize_docx_bytes(&doc).unwrap();
+        assert!(
+            needle_survives_in_docx_package(&bytes, needle),
+            "the needle really is in this document — the package-aware check must find it"
+        );
+        // A document that never had the needle at all must NOT false-positive.
+        let clean = Document {
+            format_version: lantern_docx::DOM_FORMAT_VERSION,
+            body: vec![BlockContent::Paragraph(Paragraph::from_inlines(vec![Inline::Run(Run::new("unrelated text"))]))],
+            comments: Default::default(),
+        };
+        let clean_bytes = lantern_docx::serialize_docx_bytes(&clean).unwrap();
+        assert!(!needle_survives_in_docx_package(&clean_bytes, needle));
     }
 
     /// Redacting an already-redacted segment (or the same call twice) is a

@@ -43,7 +43,7 @@ fn read_pending_rag_cleanup_ids(path: &std::path::Path) -> Vec<String> {
 /// deletion that already happened — the audit entry (which also carries
 /// these same ids, see the `on_delete` closure below) is the fallback record
 /// if this file write itself fails.
-fn append_pending_rag_cleanup(ws: &std::path::Path, ids: &[String]) -> Result<(), String> {
+pub(crate) fn append_pending_rag_cleanup(ws: &std::path::Path, ids: &[String]) -> Result<(), String> {
     if ids.is_empty() {
         return Ok(());
     }
@@ -254,6 +254,25 @@ mod tests {
         let b = new_audit_id();
         assert!(a.starts_with("audit_"));
         assert_ne!(a, b);
+    }
+
+    #[test]
+    fn pending_rag_cleanup_persists_across_appends_and_is_cleared_on_read() {
+        let ws = tempfile::tempdir().unwrap();
+        append_pending_rag_cleanup(ws.path(), &["meeting:/a#0".to_string()]).unwrap();
+        append_pending_rag_cleanup(ws.path(), &["meeting:/a#1".to_string(), "meeting:/a#0".to_string()]).unwrap();
+        let path = ws.path().join(PENDING_RAG_CLEANUP_FILE);
+        let ids = read_pending_rag_cleanup_ids(&path);
+        // Union, deduplicated — the second append repeats one id already present.
+        assert_eq!(ids, vec!["meeting:/a#0".to_string(), "meeting:/a#1".to_string()]);
+
+        // The file survives an empty append (no-op) untouched...
+        append_pending_rag_cleanup(ws.path(), &[]).unwrap();
+        assert_eq!(read_pending_rag_cleanup_ids(&path).len(), 2);
+        // ...and a real read-and-clear (what retention_take_pending_rag_cleanup
+        // does) removes it, so a second read comes back empty.
+        std::fs::remove_file(&path).unwrap();
+        assert!(read_pending_rag_cleanup_ids(&path).is_empty());
     }
 
     #[tokio::test]
