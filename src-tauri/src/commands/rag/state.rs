@@ -481,6 +481,36 @@ impl Drop for IndexingGuard {
     }
 }
 
+/// RAII re-arm for the once-per-activation full-index latch. A DEFAULT walk
+/// (`matter_id == None`) consumes the latch up front; if it then bails during
+/// SETUP — before `finalize_walk` gets to decide the latch's fate — the latch
+/// would stay `false` and every later default reconcile in the SAME activation
+/// short-circuits, so a fail-closed index (e.g. after a transient Windows/LanceDB
+/// lock on the forced-rebuild `drop_table`) could only recover on an app/workspace
+/// restart. This guard re-arms the latch on such an early bail. Call `disarm()`
+/// once setup succeeds, handing the latch decision to `finalize_walk`.
+pub(crate) struct RelatchGuard {
+    latch: Arc<AtomicBool>,
+    armed: bool,
+}
+
+impl RelatchGuard {
+    pub(crate) fn new(latch: Arc<AtomicBool>) -> Self {
+        Self { latch, armed: true }
+    }
+    pub(crate) fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for RelatchGuard {
+    fn drop(&mut self) {
+        if self.armed {
+            self.latch.store(true, Ordering::SeqCst);
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum FileIndexOutcome {
     Indexed,

@@ -168,6 +168,8 @@ pub fn run() {
             commands::mail::mail_imap_disconnect,
             // Gmail native provider (loopback PKCE OAuth).
             commands::mail::gmail_connect,
+            commands::mail::gmail_connect_cancel,
+            commands::mail::gmail_oauth_configured,
             commands::mail::gmail_is_connected,
             commands::mail::gmail_disconnect,
             // Outlook loopback auth-code + PKCE (replaces device-code for personal accounts).
@@ -175,6 +177,8 @@ pub fn run() {
             commands::mail::outlook_connect_cancel,
             // Email send — compose and send from any connected provider (M365/Gmail/IMAP).
             commands::mail::mail_send,
+            // Wave 0 — save an AI-proposed draft into the account's real mailbox Drafts folder.
+            commands::mail::mail_save_draft,
             // Plan 1B.4 — Wealthbox CRM connector commands (connect/sync/status/disconnect).
             commands::crm::commands::crm_set_workspace,
             commands::crm::commands::crm_connect,

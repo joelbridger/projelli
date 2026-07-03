@@ -40,6 +40,7 @@ import {
   Users2,
   KeyRound as KeyIcon,
   UserX,
+  Save,
 } from 'lucide-react';
 import type { AuditEntry, AuditActionType } from '@/platform/types/audit';
 import { EmptyState } from '@/ui/EmptyState';
@@ -116,6 +117,7 @@ const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   'salesforce.sync': Users2,
   'salesforce.disconnect': Users2,
   'email.send': Send,
+  'email.draft_saved': Save,
   external_export_consent: ShieldCheck,
   // Marketplace template lifecycle.
   template_installed_from_marketplace: FilePlus,
@@ -173,6 +175,7 @@ const ACTION_LABELS: Record<AuditActionType, string> = {
   'salesforce.sync': 'Salesforce Synced',
   'salesforce.disconnect': 'Salesforce Disconnected',
   'email.send': 'Email Sent',
+  'email.draft_saved': 'Draft Saved',
   external_export_consent: 'Exported-Report Consent',
   // Marketplace template lifecycle.
   template_installed_from_marketplace: 'Template Installed',
@@ -230,6 +233,7 @@ const ACTION_COLORS: Record<AuditActionType, string> = {
   'salesforce.sync': 'text-sky-600 dark:text-sky-400',
   'salesforce.disconnect': 'text-orange-600 dark:text-orange-400',
   'email.send': 'text-sky-600 dark:text-sky-400',
+  'email.draft_saved': 'text-sky-600 dark:text-sky-400',
   external_export_consent: 'text-sky-600 dark:text-sky-400',
   // Marketplace template lifecycle.
   template_installed_from_marketplace: 'text-green-600 dark:text-green-400',

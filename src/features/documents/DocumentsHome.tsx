@@ -990,6 +990,7 @@ export function DocumentsHome({
             onSetCurrentFolderPath={setCurrentFolderPath}
             {...(embeddedCreateFallback ? { createFolderFallback: embeddedCreateFallback } : {})}
             {...(scopedFileTree !== undefined ? { scopedFileTree } : {})}
+            {...(embedded && safeScopeFolderPaths ? { scopeRootFolderPaths: safeScopeFolderPaths } : {})}
             treeView={
               <FileTree
                 hideToolbar

@@ -278,3 +278,182 @@ async fn send_imap(
     .await
     .map_err(|e| e.to_string())
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// mail_save_draft — Wave 0: save an AI-proposed draft into the account's REAL
+// mailbox Drafts folder (Graph POST /me/messages, Gmail drafts.create), so the
+// advisor reviews and sends from their own email client. Never sends.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Parse a Wave-0 composite `account_id` ("<provider>:<account>", e.g.
+/// "m365:default", "gmail:default") into (provider, account).
+///
+/// The composite form exists because the cross-wave contract pins the command
+/// signature to a single `account_id` parameter while the mail stack addresses
+/// accounts as (provider, account) pairs (see `ConnectedAccount`). Split on the
+/// FIRST ':' only — IMAP account names are user-controlled strings.
+fn parse_account_id(account_id: &str) -> Result<(String, String), String> {
+    match account_id.split_once(':') {
+        Some((p, a)) if !p.is_empty() && !a.is_empty() => Ok((p.to_string(), a.to_string())),
+        _ => Err(format!(
+            "invalid account_id {account_id:?}: expected \"<provider>:<account>\""
+        )),
+    }
+}
+
+/// Save a draft email into the provider's real Drafts folder. NEVER sends.
+///
+/// Parameters
+/// ----------
+/// * `account_id`  — "<provider>:<account>" (compose with the frontend's
+///                    `composeMailAccountId`); providers: "m365" | "gmail".
+///                    IMAP has no draft-save path (would need IMAP APPEND) and
+///                    returns an error.
+/// * `to`          — recipient address strings. ONLY ever sourced from the
+///                    user-controlled To field — never from AI output.
+/// * `subject`     — draft subject.
+/// * `body_html`   — HTML body (per the cross-wave contract).
+/// * `in_reply_to` — provider message id of the message being replied to
+///                    (a leading `mail:` prefix is tolerated). None for a
+///                    fresh (non-reply) draft — the normal Wave 0 case.
+///
+/// Returns the PROVIDER DRAFT ID on success.
+///
+/// Error strings: `"scope_upgrade_required"` (stored token predates the
+/// Mail.ReadWrite / gmail.compose scopes; the frontend prompts a reconnect,
+/// same as mail_send's scope handling) or a human-readable message.
+#[tauri::command]
+pub async fn mail_save_draft(
+    state: State<'_, MailState>,
+    account_id: String,
+    to: Vec<String>,
+    subject: String,
+    body_html: String,
+    in_reply_to: Option<String>,
+) -> Result<String, String> {
+    // Never log recipients or the body (PII / privileged content).
+    log::info!(
+        "mail_save_draft: account_id={account_id} subject_len={}",
+        subject.len()
+    );
+    let (provider, _account) = parse_account_id(&account_id)?;
+    match provider.as_str() {
+        "m365" => save_draft_m365(to, subject, body_html, in_reply_to).await,
+        "gmail" => save_draft_gmail(state, to, subject, body_html, in_reply_to).await,
+        "imap" => Err("saving drafts is not supported for IMAP accounts".to_string()),
+        other => Err(format!("unknown provider: {other}")),
+    }
+}
+
+async fn save_draft_m365(
+    to: Vec<String>,
+    subject: String,
+    body_html: String,
+    in_reply_to: Option<String>,
+) -> Result<String, String> {
+    // Surfaces "scope_upgrade_required" for pre-upgrade tokens.
+    let token = fresh_access_token().await?;
+    let client = crate::commands::mail::graph::GraphClient::new_with_refresh(
+        token,
+        graph_token_refresh(),
+    );
+    match in_reply_to {
+        Some(orig) => {
+            let raw = orig.strip_prefix("mail:").unwrap_or(&orig).to_string();
+            client
+                .create_reply_draft(&raw, &to, &subject, &body_html)
+                .await
+                .map_err(|e| e.to_string())
+        }
+        None => client
+            .create_draft(&to, &subject, &body_html)
+            .await
+            .map_err(|e| e.to_string()),
+    }
+}
+
+async fn save_draft_gmail(
+    state: State<'_, MailState>,
+    to: Vec<String>,
+    subject: String,
+    body_html: String,
+    in_reply_to: Option<String>,
+) -> Result<String, String> {
+    let token = fresh_gmail_access_token().await?;
+
+    // Reply threading headers from the stored original (same path send_gmail
+    // uses; non-fatal if unresolvable — the draft is saved unthreaded).
+    let (in_reply_to_hdr, references) = if let Some(ref orig_id) = in_reply_to {
+        let raw_id = orig_id.strip_prefix("mail:").unwrap_or(orig_id).to_string();
+        let workspace = state.workspace.lock().await.clone();
+        if let Some(ws) = workspace {
+            let key = crate::commands::mail::crypto::get_or_create_master_key()
+                .map_err(|e| e.to_string())?;
+            tokio::task::spawn_blocking(move || resolve_threading_headers(&ws, &raw_id, &key))
+                .await
+                .unwrap_or((None, None))
+        } else {
+            (None, None)
+        }
+    } else {
+        (None, None)
+    };
+
+    let gmail_client = crate::commands::mail::gmail::api::GmailClient::new(token);
+    let from = gmail_client
+        .get_sender_address()
+        .await
+        .map_err(|e| e.to_string())?;
+    gmail_client
+        .create_draft(
+            &from,
+            &to,
+            &subject,
+            &body_html,
+            in_reply_to_hdr.as_deref(),
+            references.as_deref(),
+        )
+        .await
+        .map_err(|e| {
+            // A pre-upgrade Gmail access token lacks gmail.compose and the API
+            // answers 403. Map it to the same reconnect signal mail_send uses.
+            // VERIFY-LIVE: confirm 403 (not 401) on a real pre-upgrade token.
+            let msg = e.to_string();
+            if msg.contains("HTTP 403") {
+                "scope_upgrade_required".to_string()
+            } else {
+                msg
+            }
+        })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_account_id;
+
+    #[test]
+    fn parse_account_id_splits_provider_and_account() {
+        assert_eq!(
+            parse_account_id("m365:default").unwrap(),
+            ("m365".to_string(), "default".to_string())
+        );
+        assert_eq!(
+            parse_account_id("gmail:default").unwrap(),
+            ("gmail".to_string(), "default".to_string())
+        );
+        // IMAP accounts are usernames that may themselves contain '@' — only
+        // the FIRST ':' splits, the rest stays in the account part.
+        assert_eq!(
+            parse_account_id("imap:user@example.com").unwrap(),
+            ("imap".to_string(), "user@example.com".to_string())
+        );
+    }
+
+    #[test]
+    fn parse_account_id_rejects_malformed_ids() {
+        assert!(parse_account_id("m365").is_err());
+        assert!(parse_account_id(":default").is_err());
+        assert!(parse_account_id("m365:").is_err());
+        assert!(parse_account_id("").is_err());
+    }
+}

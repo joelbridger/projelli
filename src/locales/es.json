@@ -1431,6 +1431,8 @@
       "orphan-comment": "sin anclaje",
       "orphan-comment__sourceHash": "b657fa592b57d50a5470e8989a09df01f65d3ae2a63b8cbe94ed2e90677a6a73",
       "revise-with-ai": "Revisar con IA",
+      "draft-follow-up": "Redactar seguimiento",
+      "draft-follow-up-title": "Redactar un correo de seguimiento a partir de este documento",
       "redline-placeholder": "Indica a la IA cómo revisar este documento. Por ejemplo: \"ajustar la cláusula de indemnización\", \"hacerlo más formal\", \"acortar un 20%\".",
       "redline-submit": "Sugerir cambios",
       "redline-working": "Pensando…",

@@ -32,15 +32,25 @@ import {
   LocalOnlyEgressError,
   isLocalOnlyModeFailClosed,
   assertCloudSendAllowed,
+  isPersistedLocalOnly,
 } from '@/platform/privacy/cloudSendGuard';
 
-export { LocalOnlyEgressError, isLocalOnlyModeFailClosed, assertCloudSendAllowed };
+export {
+  LocalOnlyEgressError,
+  isLocalOnlyModeFailClosed,
+  assertCloudSendAllowed,
+  isPersistedLocalOnly,
+};
 
 /** True when Local-only confidentiality mode is in effect (global or matter-forced).
  *  NON-fail-closed: reflects the current in-memory setting (schema-defaulted to
- *  'direct' before hydration). Use for UI display / skip decisions where a
- *  transient default is harmless. Privacy ENFORCEMENT must use
- *  `isLocalOnlyModeFailClosed()` / the assert* guards below. */
+ *  'direct' before hydration, so this can be briefly wrong during the
+ *  hydration race). Use for UI display / skip decisions where a transient
+ *  default is harmless (e.g. disabling a button, showing a banner) — never as
+ *  the enforcement check immediately before an external call. Privacy
+ *  ENFORCEMENT must use `isLocalOnlyModeFailClosed()` (cloud-AI generation) or
+ *  `isPersistedLocalOnly()` (user-authorized connector syncs) / the assert*
+ *  guards below. */
 export function isLocalOnlyMode(): boolean {
   return getConfidentialityMode() === 'local-only';
 }

@@ -737,6 +737,8 @@
       "final-view-note": "Showing the final document. Turn on Reviewing to accept or reject individual changes inline.",
       "orphan-comment": "no anchor",
       "revise-with-ai": "Revise with AI",
+      "draft-follow-up": "Draft follow-up",
+      "draft-follow-up-title": "Draft a follow-up email from this document",
       "redline-placeholder": "Tell the AI how to revise this document. For example: \"tighten the indemnity clause\", \"make this more formal\", \"shorten by 20%\".",
       "redline-submit": "Suggest changes",
       "redline-working": "Thinking…",

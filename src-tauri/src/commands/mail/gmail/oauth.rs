@@ -9,7 +9,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 const AUTH_ENDPOINT: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_ENDPOINT: &str = "https://oauth2.googleapis.com/token";
-pub const SCOPE: &str = "openid email https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send";
+pub const SCOPE: &str = "openid email https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.compose";
 
 // ── PKCE ──────────────────────────────────────────────────────────────────
 
@@ -521,6 +521,7 @@ mod tests {
             "gmail.readonly scope missing from URL: {url}"
         );
         assert!(url.contains("gmail.send"), "gmail.send scope missing from URL: {url}");
+        assert!(url.contains("gmail.compose"), "gmail.compose scope missing from URL: {url}");
         assert!(url.contains("access_type=offline"), "missing access_type=offline");
         assert!(url.contains("prompt=consent"), "missing prompt=consent");
         assert!(url.contains("response_type=code"), "missing response_type=code");

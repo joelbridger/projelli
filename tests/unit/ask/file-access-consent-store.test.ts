@@ -50,4 +50,13 @@ describe('aiChatStore.fileAccessConsent', () => {
     useAIChatStore.getState().clearAllSessions();
     expect(getFileAccessConsent('chat-a')).toEqual({ state: 'unasked' });
   });
+
+  it('a workspace-scoped chatId isolates consent per workspace (F2.5b root-scoping)', () => {
+    // The Ask surface keys the conversation by `ask-...::<root>`, so a grant in
+    // one workspace is stored under a different key than another workspace's.
+    useAIChatStore.getState().setFileAccessConsent('ask-global::/ws/A', { state: 'granted', grantedScope: { kind: 'allMatters' } });
+    expect(getFileAccessConsent('ask-global::/ws/A')).toEqual({ state: 'granted', grantedScope: { kind: 'allMatters' } });
+    // Opening a different workspace looks up a DIFFERENT key → re-asks.
+    expect(getFileAccessConsent('ask-global::/ws/B')).toEqual({ state: 'unasked' });
+  });
 });

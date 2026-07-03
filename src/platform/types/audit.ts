@@ -73,6 +73,10 @@ export type AuditActionType =
   // client's inbound email content going into a cloud AI draft is recorded
   // under the existing 'egress' action above, not a separate type).
   | 'email.send'
+  // Wave 0 draft-follow-up: a generated draft written into the advisor's REAL
+  // mailbox Drafts folder (never sent by the app itself). A distinct type from
+  // 'email.send' because the draft still needs the advisor's own review/send.
+  | 'email.draft_saved'
   // Connector-access: the advisor's one-time decision on whether their firm
   // permits storing + AI-processing exported reports/notes recognized from
   // outside tools (RightCapital, Jump). A defensible, timestamped record.

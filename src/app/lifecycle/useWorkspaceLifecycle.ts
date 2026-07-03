@@ -18,6 +18,7 @@ import {
 import { isLawExperience } from '@/platform/profile/professionStore';
 import { createWorkspaceService, type WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { createFSBackend } from '@/platform/fs/BackendFactory';
+import { withTimeout } from '@/lib/withTimeout';
 import { AuditService } from '@/platform/audit/AuditService';
 import { writeDenyAllMcpSessionScopeFile } from '@/platform/mcp/mcpSessionScope';
 import type { AuditEntry, AuditActionType } from '@/platform/types/audit';
@@ -27,6 +28,16 @@ import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import type { SourceCard } from '@/features/ask/types/research';
 import type { AIChatFile } from '@/platform/types/ai';
 import type { ConfirmOptions } from '@/platform/hooks/useConfirmDialog';
+
+// Bounds only the native SETUP (backend creation + initialize) — the SAME
+// budget/label WorkspaceSelector's manual "Open Existing" flow uses for the
+// identical step, so a hung native call (e.g. an unreachable network share)
+// can never leave the caller waiting forever. The recursive file-tree SCAN
+// inside handleWorkspaceSelected is deliberately left unbounded, matching
+// WorkspaceSelector: a legitimately large or slow-but-healthy workspace must
+// still be allowed to open.
+const WORKSPACE_OPEN_TIMEOUT_MS = 30_000;
+const WORKSPACE_OPEN_LABEL = 'Opening the workspace';
 
 export interface UseWorkspaceLifecycleOptions {
   workspaceServiceRef: React.MutableRefObject<WorkspaceService | null>;
@@ -324,9 +335,16 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
   // Handle opening a recent project directly by path (Tauri only)
   const handleOpenRecentProject = useCallback(async (workspacePath: string) => {
     try {
-      const backend = await createFSBackend(workspacePath);
-      const service = createWorkspaceService();
-      await service.initialize(backend, workspacePath);
+      const service = await withTimeout(
+        (async () => {
+          const backend = await createFSBackend(workspacePath);
+          const svc = createWorkspaceService();
+          await svc.initialize(backend, workspacePath);
+          return svc;
+        })(),
+        WORKSPACE_OPEN_TIMEOUT_MS,
+        WORKSPACE_OPEN_LABEL,
+      );
       await handleWorkspaceSelected(service);
     } catch (err) {
       console.error('[App] Failed to open recent project:', err);

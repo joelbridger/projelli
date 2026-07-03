@@ -15,6 +15,7 @@
 import { useCallback, useRef } from 'react';
 import type { useTranslation } from 'react-i18next';
 import { loadAttachmentBytes } from './loadAttachmentBytes';
+import { withAskTimeout, ASK_RETRIEVAL_TIMEOUT_MS } from '@/features/ask/askTimeout';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { estimateImageTokens } from '@/features/ask/attachments/imageTokens';
 import { estimatePdfTokens } from '@/features/ask/attachments/pdfTokens';
@@ -530,14 +531,23 @@ export function useChatSending(deps: UseChatSendingDeps) {
             useSettingsStore.getState().getSetting<boolean>('enableReranker');
           const enableHybridSearch =
             useSettingsStore.getState().getSetting<boolean>('enableHybridSearch');
-          const hits = await MemoryService.retrieve(
-            retrievalQuery,
-            DEFAULT_WORKSPACE_TOP_K,
-            retrievalScope,
-            includePrivileged,
-            undefined,
-            enableReranker,
-            enableHybridSearch,
+          // fix/ask-list-hang — bound this LOCAL vector search with a hard
+          // timeout so a stalled retrieval (LanceDB kept busy on a large
+          // workspace) rejects instead of hanging the send forever. The throw is
+          // caught just below (sets the "retrieval failed" hint → the F-116
+          // guard refuses honestly) rather than leaving an infinite spinner.
+          const hits = await withAskTimeout(
+            MemoryService.retrieve(
+              retrievalQuery,
+              DEFAULT_WORKSPACE_TOP_K,
+              retrievalScope,
+              includePrivileged,
+              undefined,
+              enableReranker,
+              enableHybridSearch,
+            ),
+            ASK_RETRIEVAL_TIMEOUT_MS,
+            'retrieval',
           );
           // D1 — filter workspace retrieval results to the active folder scope
           // so @workspace searches don't surface documents from other client

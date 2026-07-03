@@ -45,6 +45,10 @@ const INTERNAL_EXACT_SERVICES: &[&str] = &[
     identity::JOTFORM_SERVICE,
     identity::ZOCKS_SERVICE,
     identity::ADDEPAR_SERVICE,
+    // Calendly connector API token slot (exact). The SQLCipher master key
+    // (`keepance-calendly-enc`) and any future Calendly-scoped secret are
+    // covered by CALENDLY_SERVICE_PREFIX below.
+    identity::CALENDLY_SERVICE,
 ];
 const INTERNAL_SERVICE_PREFIXES: &[&str] = &[
     // Vault VMKs are Rust-owned. Firm collaboration keys use
@@ -77,6 +81,13 @@ const INTERNAL_SERVICE_PREFIXES: &[&str] = &[
     // codex-review P1 (2026-07-02): without this the generic keychain
     // bridge would let any renderer code read these directly.
     identity::CALENDAR_SERVICE_PREFIX,
+    // Calendly connector namespace. Covers the SQLCipher master key
+    // (`keepance-calendly-enc`) plus any future per-connector secret. The
+    // bare API token slot (`keepance-calendly`) is listed in the exact set
+    // above. codex-review flagged (2026-07-02, lantern-plus 381cb64a) that
+    // this connector was missing from both denylists, letting any renderer
+    // code read Calendly credentials directly through the generic bridge.
+    identity::CALENDLY_SERVICE_PREFIX,
 ];
 
 /// Structured error returned to the frontend. Separating "not found" from
@@ -264,6 +275,9 @@ mod tests {
         let calendar_google = identity::calendar_keychain_service("google");
         let calendar_ics = identity::calendar_keychain_service("ics");
         let future_calendar = format!("{}future-secret", identity::CALENDAR_SERVICE_PREFIX);
+        // Calendly's DB key is a dynamic prefix + suffix (`keepance-calendly-enc`),
+        // so build the future-secret probe the same way as the other connectors.
+        let future_calendly = format!("{}future-secret", identity::CALENDLY_SERVICE_PREFIX);
         // Every connector service name that exists in the codebase today.
         let denied: &[&str] = &[
             // OneDrive
@@ -291,11 +305,15 @@ mod tests {
             &calendar_google,
             &calendar_ics,
             identity::CALENDAR_ENC_SERVICE,
+            // Calendly: API token slot (exact) + SQLCipher DB key (prefix).
+            identity::CALENDLY_SERVICE,
+            identity::CALENDLY_ENC_SERVICE,
             // Future connectors under the same namespaces must be denied by default.
             &future_crm,
             &future_onedrive,
             &future_box,
             &future_calendar,
+            &future_calendly,
             identity::ADDEPAR_ENC_SERVICE,
         ];
         for svc in denied {

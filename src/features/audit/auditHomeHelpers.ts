@@ -29,6 +29,7 @@ import {
   Users2,
   KeyRound,
   UserX,
+  Save,
 } from 'lucide-react';
 import type { AuditEntry, AuditActionType } from '@/platform/types/audit';
 import { asRecord } from './audit-export';
@@ -117,6 +118,7 @@ export const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   'salesforce.sync': Users2,
   'salesforce.disconnect': Users2,
   'email.send': Send,
+  'email.draft_saved': Save,
   external_export_consent: ShieldCheck,
   // Marketplace template lifecycle.
   template_installed_from_marketplace: FilePlus,
@@ -172,6 +174,7 @@ export const ACTION_LABELS: Record<AuditActionType, string> = {
   'salesforce.sync': 'Salesforce Synced',
   'salesforce.disconnect': 'Salesforce Disconnected',
   'email.send': 'Email Sent',
+  'email.draft_saved': 'Draft Saved',
   external_export_consent: 'Exported-Report Consent',
   // Marketplace template lifecycle.
   template_installed_from_marketplace: 'Template Installed',
@@ -230,6 +233,7 @@ export const ACTION_CATEGORY: Record<AuditActionType, ActionCategory> = {
   'salesforce.sync': 'system',
   'salesforce.disconnect': 'system',
   'email.send': 'system',
+  'email.draft_saved': 'system',
   external_export_consent: 'privilege',
   // Marketplace template lifecycle.
   template_installed_from_marketplace: 'system',

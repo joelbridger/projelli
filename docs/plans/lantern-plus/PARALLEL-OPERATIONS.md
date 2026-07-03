@@ -63,11 +63,22 @@ is the entire isolation model, and it's enough.
    ("LEGION: main — release smoke, until done"). **Main line has priority until the
    standalone release ships.** Plus needs it rarely before Wave 3 (the WASAPI
    loopback spike is the first real need) — schedule around main.
-2. **Rust compiles: separate target directories.** Lantern-Plus sets its own
-   `CARGO_TARGET_DIR` (e.g. `~/.cargo-target-lantern-plus`) so the two efforts never
-   contend for the shared warm cache (which serializes and makes blocked Codex jobs
-   self-abort with exit 144). Within each effort: still one cargo compile at a time.
-   Disk cost is acceptable; the 64GB box handles two compiles when they collide.
+2. **Rust compiles: separate target directories — now PER LANE (upgraded 2026-07-03,
+   Jameson's direction, after lock-contention made three lanes take turns).**
+   Lantern-Plus runs one `CARGO_TARGET_DIR` per concurrent Rust lane, seeded warm by
+   rsync from the previous shared cache (deps artifacts are workspace-path-independent;
+   `debug/incremental` is deliberately NOT copied — it's the corruption-prone piece):
+   `~/.cargo-target-lp-w1` (calendar lane), `~/.cargo-target-lp-w2` (CRM lane),
+   `~/.cargo-target-lp-gate` (coordinator merge gates in `~/lantern-plus`),
+   `~/.cargo-target-lantern-plus` (legacy shared — w0 finishes on it, then it's deleted).
+   Consequences: (a) the old "one cargo at a time within the effort" rule is REPLACED by
+   "one cargo per LANE, lanes compile concurrently" — CPU is governed by `jobs = 6` in
+   `~/.cargo/config.toml` + memq; (b) cross-worktree incremental corruption is
+   structurally gone (one source lineage per cache); (c) merge gates never race worker
+   builds; (d) DISK is the new watched resource (~45G per warm cache) — the Plus
+   coordinator runs a <25G disk alarm, deletes a lane's cache when the lane closes, and
+   never lets a new lane seed while disk <80G free. Main line unaffected (their dirs are
+   separate); FYI posted on the bulletin.
 3. **Ports:** main keeps 5173 (and its existing allocations); Plus uses 5273 (dev)
    and 5299 (prototype server). New ports go in the bulletin.
 4. **Memory governance:** both fleets obey the existing memq admission queue and
