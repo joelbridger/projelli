@@ -356,6 +356,33 @@ describe('DraftFollowUpModal — AI proposes, user approves, hostile notes stay 
     expect(screen.getByTestId('cite-chip-popover').textContent).toContain('Action items');
   });
 
+  it('hides the citation preview once an edit removes the only cited phrase (codex-review P2)', async () => {
+    structuredOutput.mockResolvedValue({
+      body: 'I will confirm the beneficiary designations on the rollover IRA before our next meeting.',
+      citations: [
+        {
+          matchText: 'beneficiary designations on the rollover IRA',
+          quote: 'Confirm the beneficiary designations on the rollover IRA.',
+          label: 'Action items',
+        },
+      ],
+    });
+    render(
+      <DraftFollowUpModal
+        open
+        onOpenChange={() => {}}
+        noteName="Annual review notes.docx"
+        noteContent="Action items\nConfirm the beneficiary designations on the rollover IRA."
+        matterId="matter-1"
+      />,
+    );
+    await screen.findByTestId('followup-citation-preview');
+    fireEvent.change(screen.getByTestId('followup-body'), {
+      target: { value: 'A completely rewritten message with nothing cited.' },
+    });
+    expect(screen.queryByTestId('followup-citation-preview')).toBeNull();
+  });
+
   it('shows no citation preview when the AI returns no verifiable citations', async () => {
     structuredOutput.mockResolvedValue({ body: 'Plain follow-up, nothing cited.', citations: [] });
     render(

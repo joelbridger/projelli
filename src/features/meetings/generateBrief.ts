@@ -16,6 +16,7 @@ import { useMatterStore } from '@/platform/matter/matterStore';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { AuditService, auditEventToEntry } from '@/platform/audit/AuditService';
 import { resolveEgress } from '@/platform/privacy/egress';
+import { sanitizeForPrompt } from '@/platform/utils/prompt-security';
 import type { Provider } from '@/platform/providers/Provider';
 import type { OutputSchema } from '@/platform/providers/Provider';
 import type { RagHit, RetrievalScope } from '@/platform/utils/tauri-commands';
@@ -101,8 +102,13 @@ const BULLET_SYSTEM_PROMPT =
   'source from the list you are given; never invent a sourceIndex that is not in the list.';
 
 function buildBulletPrompt(event: CalendarEventDto, clientLabel: string, hits: RagHit[]): string {
+  // codex-review P1: hit.chunkText is retrieved client-document/email
+  // content — attacker-controlled the same way buildWorkspaceContextBlock's
+  // doc comment describes ("email is attacker-controlled") — so it must be
+  // sanitized before joining the instruction stream, exactly like that
+  // shared choke-point already does for the main brief's keyClientFacts.
   const sourceList = hits
-    .map((h, i) => `${String(i + 1)}. [${h.path}] ${h.chunkText}`)
+    .map((h, i) => `${String(i + 1)}. [${h.path}] ${sanitizeForPrompt(h.chunkText)}`)
     .join('\n');
   // The event title comes from an external calendar and is UNTRUSTED (same
   // guard as the main brief's eventBlock below) — fenced as data, never
@@ -143,33 +149,38 @@ async function generateBriefBullets(
   onAuditLog: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void,
 ): Promise<MeetingBriefBullet[]> {
   if (hits.length === 0) return [];
+  const prompt = buildBulletPrompt(event, clientLabel, hits);
+  // codex-review P1: logged BEFORE the send (matching every other egress
+  // site in this codebase, e.g. DraftFollowUpModal), not only after a
+  // successful response — otherwise a timed-out or malformed-response
+  // attempt that still reached the provider would never appear in the
+  // Activity Log / confidentiality report.
+  const egress = resolveEgress({
+    provider: provider.getMetadata().providerId ?? 'unknown',
+    mode: getConfidentialityMode(),
+    isDemo: false,
+    assuredAvailable: false,
+  });
+  onAuditLog(
+    auditEventToEntry({
+      type: 'egress',
+      timestamp: new Date().toISOString(),
+      payload: {
+        provider: egress.provider,
+        model: provider.getMetadata().model,
+        mode: getConfidentialityMode(),
+        destination: egress.destination,
+        dataLeaves: egress.dataLeaves,
+        scope: { kind: 'matter', matterId },
+      },
+    }),
+  );
   try {
-    const prompt = buildBulletPrompt(event, clientLabel, hits);
     const result = await provider.structuredOutput<{ bullets?: unknown }>(prompt, {
       schema: BULLET_SCHEMA,
       systemPrompt: BULLET_SYSTEM_PROMPT,
       temperature: 0,
     });
-    const egress = resolveEgress({
-      provider: provider.getMetadata().providerId ?? 'unknown',
-      mode: getConfidentialityMode(),
-      isDemo: false,
-      assuredAvailable: false,
-    });
-    onAuditLog(
-      auditEventToEntry({
-        type: 'egress',
-        timestamp: new Date().toISOString(),
-        payload: {
-          provider: egress.provider,
-          model: provider.getMetadata().model,
-          mode: getConfidentialityMode(),
-          destination: egress.destination,
-          dataLeaves: egress.dataLeaves,
-          scope: { kind: 'matter', matterId },
-        },
-      }),
-    );
     const rawBullets = Array.isArray(result.bullets) ? result.bullets : [];
     const bullets: MeetingBriefBullet[] = [];
     rawBullets.forEach((raw: unknown, i) => {
@@ -194,7 +205,20 @@ async function generateBriefBullets(
       metadata: { feature: 'meeting_brief_bullets' },
     });
     return bullets;
-  } catch {
+  } catch (err) {
+    // codex-review P1: a failed send still gets a model_call record — the
+    // egress entry above already shows client content left the machine;
+    // silently dropping the outcome would leave that attempt looking
+    // unresolved in the Activity Log.
+    onAuditLog({
+      action: 'model_call',
+      description: 'Per-bullet citations for meeting brief (failed)',
+      model: provider.getMetadata().model,
+      inputs: { matterId },
+      outputs: { error: err instanceof Error ? err.message : String(err) },
+      userDecision: 'auto',
+      metadata: { feature: 'meeting_brief_bullets', failed: true },
+    });
     return [];
   }
 }

@@ -195,6 +195,10 @@ export function DraftFollowUpModal({
   const account = accounts[accountIdx];
   const canSaveDraft = account != null && account.provider !== 'imap';
   const toArr = parseRecipients(to);
+  // Recomputed from the CURRENT body on every render, not stored — an edit
+  // that removes a cited phrase drops its chip automatically.
+  const citationSegments = splitBodyWithCitations(body, citations);
+  const activeCitationCount = citationSegments.filter((s) => s.type === 'citation').length;
   const scopeHint = (msg: string) =>
     msg === 'scope_upgrade_required'
       ? 'Your email connection needs one more permission to save drafts. Open Settings and reconnect the account.'
@@ -418,7 +422,7 @@ export function DraftFollowUpModal({
                   edit that changes a cited phrase quietly drops that chip
                   rather than showing a citation for text that's no longer
                   there. Hidden entirely when there's nothing to cite. */}
-              {citations.length > 0 && (
+              {citationSegments.some((seg) => seg.type === 'citation') && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                   <span style={labelStyle}>Cited</span>
                   <div
@@ -433,7 +437,7 @@ export function DraftFollowUpModal({
                       color: 'var(--color-foreground)',
                     }}
                   >
-                    {splitBodyWithCitations(body, citations).map((seg, i) =>
+                    {citationSegments.map((seg, i) =>
                       seg.type === 'text' ? (
                         <span key={i}>{seg.value}</span>
                       ) : (
@@ -450,9 +454,14 @@ export function DraftFollowUpModal({
                     )}
                   </div>
                   <span style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--kp-text-faint, var(--color-muted-foreground))' }}>
-                    {citations.length === 1
+                    {/* codex-review P2: counts the segments actually still
+                        matched against the current (possibly edited) body,
+                        not the original citations array — an edit that
+                        removes a cited phrase drops its chip above, and the
+                        count here must drop with it. */}
+                    {activeCitationCount === 1
                       ? 'One detail is cited from your notes. Hover it to see the exact line.'
-                      : `${String(citations.length)} details are cited from your notes. Hover one to see the exact line.`}
+                      : `${String(activeCitationCount)} details are cited from your notes. Hover one to see the exact line.`}
                   </span>
                 </div>
               )}
