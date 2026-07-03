@@ -20,9 +20,11 @@ use std::path::{Path, PathBuf};
 
 use super::new_audit_id;
 use super::sweep::{canonicalize_workspace_relative, contained, transcript_rag_source_ids};
-// write_atomically lives in mod.rs (shared with append_pending_rag_cleanup,
-// which had the exact same truncate-in-place and temp-path-symlink risks).
-use super::write_atomically;
+// stage_atomically/commit_atomically live in mod.rs (shared with
+// append_pending_rag_cleanup, which had the exact same truncate-in-place
+// and temp-path-symlink risks). The two-phase split lets redact.rs stage
+// BOTH transcript.json and notes.docx before committing either.
+use super::{commit_atomically, stage_atomically};
 
 fn redaction_marker(now_ms: u64) -> String {
     let date = chrono::DateTime::from_timestamp_millis(now_ms as i64)
@@ -254,6 +256,16 @@ pub(crate) fn redact_segments_inner(
         return Err(format!("refused (outside workspace): {}", notes_path.display()));
     }
     let mut docx_flattened = false;
+    // Two-phase commit across BOTH artifacts: stage everything to temp files
+    // first (this is where a failure — disk full, an interrupted write —
+    // can happen, and it leaves NEITHER real file touched), and only once
+    // every stage succeeds does either commit (rename) run. A rename is a
+    // single filesystem metadata operation, not a data copy, so the window
+    // where a commit failure could leave the two artifacts inconsistent
+    // shrinks from "however long a whole docx/JSON write takes" down to
+    // "however long two rename syscalls take" — the closest this engine
+    // gets to real cross-file atomicity without a write-ahead log.
+    let mut notes_tmp: Option<PathBuf> = None;
     if notes_path.exists() && !needles.is_empty() {
         let original_bytes = std::fs::read(&notes_path).map_err(|e| format!("read notes.docx: {e}"))?;
 
@@ -302,15 +314,21 @@ pub(crate) fn redact_segments_inner(
             new_bytes = final_bytes;
             docx_flattened = true;
         }
-        write_atomically(&notes_path, &new_bytes)?;
+        notes_tmp = Some(stage_atomically(&notes_path, &new_bytes)?);
     }
 
-    // Only write transcript.json once notes.docx is confirmed safe (or there
-    // was nothing to redact there): never leave transcript.json rewritten
-    // while notes.docx still holds the needle.
     let transcript_bytes =
         serde_json::to_vec_pretty(&v).map_err(|e| format!("serialize transcript.json: {e}"))?;
-    write_atomically(&transcript_path, &transcript_bytes)?;
+    let transcript_tmp = stage_atomically(&transcript_path, &transcript_bytes)?;
+
+    // Both artifacts are now fully written to temp files and verified safe
+    // (the docx path already hard-failed above if the needle survived) —
+    // commit both. If notes.docx has nothing staged (no needle in it), only
+    // transcript.json commits.
+    if let Some(tmp) = &notes_tmp {
+        commit_atomically(tmp, &notes_path)?;
+    }
+    commit_atomically(&transcript_tmp, &transcript_path)?;
 
     Ok(RedactionReceipt {
         redacted_count: needles.len(),
@@ -341,9 +359,18 @@ pub async fn redact_meeting_segments(
         let meeting_abs = resolve_meeting_dir(&canon_ws, &matter_folder, &meeting_dir)?;
         let now_ms = chrono::Utc::now().timestamp_millis() as u64;
 
+        // Preflight the audit store BEFORE any mutation — same rule as
+        // retention_sweep in mod.rs: a redaction that cannot be durably
+        // recorded must never happen. Opening is cheap (no writes yet); a
+        // bad key/corrupt store fails HERE, before transcript.json or
+        // notes.docx is touched, instead of after a real redaction already
+        // happened with no way to record it.
+        let store = crate::commands::audit::store::EncryptedAuditStore::open(ws)
+            .map_err(|e| format!("open audit store: {e}"))?;
+
         let mut receipt = redact_segments_inner(&canon_ws, &meeting_abs, &segment_indices, now_ms)?;
 
-        // Durable side-file FIRST, same file + same reasoning as the sweep's
+        // Durable side-file, same file + same reasoning as the sweep's
         // PENDING_RAG_CLEANUP_FILE (retention/mod.rs): if the app crashes
         // after the writes above land but before the renderer ever receives
         // this receipt, these RAG rows would otherwise stay searchable
@@ -356,60 +383,52 @@ pub async fn redact_meeting_segments(
             });
         }
 
-        // Audit AFTER the mutation. This is a single atomic operation (not a
-        // batch like the sweep), so there's no "later work" whose visibility
-        // an audit failure could hide — but a failed audit-store write must
+        // Append the audit entry using the store opened above. The mutation
+        // has already happened by this point (this is a single atomic
+        // operation, not a batch like the sweep, so there's no "later work"
+        // whose visibility an append failure could hide) — but a failed
+        // APPEND (as opposed to a failed OPEN, already handled above) must
         // still never erase the receipt the caller needs to flush RAG
         // cleanup, so it's recorded on the receipt instead of propagated as
-        // this command's Err (same rule as retention_sweep in mod.rs).
-        match crate::commands::audit::store::EncryptedAuditStore::open(ws) {
-            Ok(store) => {
-                let entry_id = new_audit_id();
-                let entry_ts = chrono::Utc::now().to_rfc3339();
-                let description = format!("Redacted {} segment(s) in {meeting_dir}", receipt.redacted_count);
-                let entry = crate::commands::audit::store::AuditEntryRecord {
-                    id: entry_id.clone(),
-                    timestamp: entry_ts.clone(),
-                    action: "meeting_redaction".to_string(),
-                    description: description.clone(),
-                    payload_json: serde_json::json!({
-                        "id": entry_id,
-                        "timestamp": entry_ts,
-                        "action": "meeting_redaction",
-                        "description": description,
-                        "model": serde_json::Value::Null,
-                        "inputs": {
-                            "matterFolder": matter_folder,
-                            "meetingDir": meeting_dir,
-                            "segmentIndices": segment_indices,
-                        },
-                        "outputs": {
-                            "redactedCount": receipt.redacted_count,
-                            "docxFlattened": receipt.docx_flattened,
-                            "ragCleanupSourceIds": receipt.rag_cleanup_source_ids,
-                        },
-                        "userDecision": serde_json::Value::Null,
-                        "metadata": {
-                            "auditEventType": "meeting_redaction",
-                            "source": "retention-backend",
-                            "scope": { "kind": "allMatters" },
-                        },
-                    })
-                    .to_string(),
-                };
-                if let Err(e) = store.append(&entry) {
-                    receipt.audit_error = Some(match &receipt.audit_error {
-                        Some(existing) => format!("{existing}; audit append: {e}"),
-                        None => format!("audit append: {e}"),
-                    });
-                }
-            }
-            Err(e) => {
-                receipt.audit_error = Some(match &receipt.audit_error {
-                    Some(existing) => format!("{existing}; open audit store: {e}"),
-                    None => format!("open audit store: {e}"),
-                });
-            }
+        // this command's Err.
+        let entry_id = new_audit_id();
+        let entry_ts = chrono::Utc::now().to_rfc3339();
+        let description = format!("Redacted {} segment(s) in {meeting_dir}", receipt.redacted_count);
+        let entry = crate::commands::audit::store::AuditEntryRecord {
+            id: entry_id.clone(),
+            timestamp: entry_ts.clone(),
+            action: "meeting_redaction".to_string(),
+            description: description.clone(),
+            payload_json: serde_json::json!({
+                "id": entry_id,
+                "timestamp": entry_ts,
+                "action": "meeting_redaction",
+                "description": description,
+                "model": serde_json::Value::Null,
+                "inputs": {
+                    "matterFolder": matter_folder,
+                    "meetingDir": meeting_dir,
+                    "segmentIndices": segment_indices,
+                },
+                "outputs": {
+                    "redactedCount": receipt.redacted_count,
+                    "docxFlattened": receipt.docx_flattened,
+                    "ragCleanupSourceIds": receipt.rag_cleanup_source_ids,
+                },
+                "userDecision": serde_json::Value::Null,
+                "metadata": {
+                    "auditEventType": "meeting_redaction",
+                    "source": "retention-backend",
+                    "scope": { "kind": "allMatters" },
+                },
+            })
+            .to_string(),
+        };
+        if let Err(e) = store.append(&entry) {
+            receipt.audit_error = Some(match &receipt.audit_error {
+                Some(existing) => format!("{existing}; audit append: {e}"),
+                None => format!("audit append: {e}"),
+            });
         }
         Ok(receipt)
     })

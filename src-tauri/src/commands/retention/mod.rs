@@ -33,25 +33,40 @@ pub(crate) fn new_audit_id() -> String {
     )
 }
 
-/// Write-to-temp-then-rename, symlink-safe. Two separate hazards this
-/// avoids:
-///   - A disk-full or interrupted write can only ever leave the TEMP file
-///     truncated/corrupt — `rename` itself either replaces the real file
-///     atomically or doesn't happen at all, so the real file is never left
-///     half-written.
-///   - The temp path is DETERMINISTIC (`<name>.retention-tmp`), so a stale
-///     leftover from a prior crashed attempt — or a symlink an attacker
-///     planted at that exact path pointing outside the workspace — must
-///     never be silently written through. `create_new` (`O_EXCL`) refuses
-///     to open if ANYTHING already exists at that path, including a
-///     symlink (even a dangling one), so this can't be tricked into
-///     following one out of the workspace. A best-effort `remove_file`
-///     first (itself symlink-safe: unlinking a symlink never touches its
-///     target) clears a stale tmp file from an earlier crash before the
-///     `create_new`; a TOCTOU recreation between the two is still caught by
-///     `create_new`'s own atomicity.
-pub(crate) fn write_atomically(path: &std::path::Path, bytes: &[u8]) -> Result<(), String> {
+/// A directory symlink can smuggle a write anywhere: `.lantern` (or a
+/// meeting folder) being a symlink means every path built by joining onto
+/// it resolves through that symlink, no matter how careful the file name
+/// itself is. Refuse outright rather than silently writing through it.
+fn refuse_symlink_parent(path: &std::path::Path) -> Result<(), String> {
+    let Some(parent) = path.parent() else { return Ok(()) };
+    match parent.symlink_metadata() {
+        Ok(m) if m.file_type().is_symlink() => Err(format!("refused (symlink parent): {}", parent.display())),
+        _ => Ok(()),
+    }
+}
+
+/// Phase 1 of a two-phase atomic write: write `bytes` to a fresh, unique temp
+/// file next to `path` and return its path. Nothing about `path` itself
+/// changes yet — a failure here (disk full, interrupted write, permissions)
+/// leaves the real file completely untouched, which is exactly the property
+/// [`redact_segments_inner`] needs to stage BOTH transcript.json and
+/// notes.docx before committing either: if staging either one fails, NEITHER
+/// real file is touched, rather than one already being renamed into place.
+///
+/// The temp path is DETERMINISTIC (`<name>.retention-tmp`), so a stale
+/// leftover from a prior crashed attempt — or a symlink an attacker planted
+/// at that exact path — must never be silently written through.
+/// `create_new` (`O_EXCL`) refuses to open if ANYTHING already exists there,
+/// including a symlink (even a dangling one). A best-effort `remove_file`
+/// first (itself symlink-safe: unlinking a symlink never touches its
+/// target) clears a genuine stale leftover before the `create_new`; a
+/// TOCTOU recreation between the two is still caught by `create_new`'s own
+/// atomicity. `refuse_symlink_parent` additionally refuses if the
+/// CONTAINING directory itself is a symlink (e.g. a symlinked `.lantern`),
+/// which neither `create_new` nor `rename` would otherwise catch.
+pub(crate) fn stage_atomically(path: &std::path::Path, bytes: &[u8]) -> Result<std::path::PathBuf, String> {
     use std::io::Write;
+    refuse_symlink_parent(path)?;
     let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("artifact");
     let tmp = path.with_file_name(format!("{file_name}.retention-tmp"));
     let _ = std::fs::remove_file(&tmp);
@@ -61,9 +76,39 @@ pub(crate) fn write_atomically(path: &std::path::Path, bytes: &[u8]) -> Result<(
         .open(&tmp)
         .map_err(|e| format!("create {}: {e}", tmp.display()))?;
     f.write_all(bytes).map_err(|e| format!("write {}: {e}", tmp.display()))?;
-    drop(f);
-    std::fs::rename(&tmp, path).map_err(|e| format!("rename {} -> {}: {e}", tmp.display(), path.display()))
+    Ok(tmp)
 }
+
+/// Phase 2: atomically replace `path` with the already-staged `tmp`. This is
+/// a single filesystem metadata operation (not a data copy), so once every
+/// artifact in a multi-file update has been staged (phase 1, for every file,
+/// all succeeded), the window where a commit failure could leave the update
+/// half-applied shrinks from "however long a whole write takes" down to
+/// "however long a `rename` syscall takes" — as close to atomic as this
+/// engine gets without a full write-ahead log.
+pub(crate) fn commit_atomically(tmp: &std::path::Path, path: &std::path::Path) -> Result<(), String> {
+    std::fs::rename(tmp, path).map_err(|e| format!("rename {} -> {}: {e}", tmp.display(), path.display()))
+}
+
+/// Single-file convenience: stage then immediately commit.
+pub(crate) fn write_atomically(path: &std::path::Path, bytes: &[u8]) -> Result<(), String> {
+    let tmp = stage_atomically(path, bytes)?;
+    commit_atomically(&tmp, path)
+}
+
+/// Guards every read-modify-write of `PENDING_RAG_CLEANUP_FILE`.
+/// `write_atomically`'s rename makes any SINGLE write atomic, but
+/// `append_pending_rag_cleanup` and `retention_clear_pending_rag_cleanup_id`
+/// both READ the file, compute a new list, and write it back — two such
+/// calls racing (e.g. a sweep's `on_delete` appending a fresh id while the
+/// renderer is concurrently clearing an unrelated one already flushed) could
+/// each read the same starting state and the second write to land would
+/// silently clobber the first's change, dropping whichever id it added or
+/// removed. All access to this file within the process goes through this
+/// lock. (Retention operations are infrequent and never hot-path, so a
+/// single global mutex — not per-workspace — is a fine, simple tradeoff.)
+static PENDING_RAG_CLEANUP_LOCK: std::sync::LazyLock<std::sync::Mutex<()>> =
+    std::sync::LazyLock::new(|| std::sync::Mutex::new(()));
 
 fn read_pending_rag_cleanup_ids(path: &std::path::Path) -> Vec<String> {
     std::fs::read(path)
@@ -95,6 +140,7 @@ pub(crate) fn append_pending_rag_cleanup(ws: &std::path::Path, ids: &[String]) -
     if ids.is_empty() {
         return Ok(());
     }
+    let _guard = PENDING_RAG_CLEANUP_LOCK.lock().unwrap_or_else(|p| p.into_inner());
     let path = ws.join(PENDING_RAG_CLEANUP_FILE);
     let mut existing = read_pending_rag_cleanup_ids(&path);
     for id in ids {
@@ -128,6 +174,7 @@ pub async fn retention_read_pending_rag_cleanup(workspace: String) -> Result<Vec
 #[tauri::command]
 pub async fn retention_clear_pending_rag_cleanup_id(workspace: String, id: String) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
+        let _guard = PENDING_RAG_CLEANUP_LOCK.lock().unwrap_or_else(|p| p.into_inner());
         let path = std::path::Path::new(&workspace).join(PENDING_RAG_CLEANUP_FILE);
         let remaining: Vec<String> = read_pending_rag_cleanup_ids(&path).into_iter().filter(|x| x != &id).collect();
         write_pending_rag_cleanup_ids(&path, &remaining)
@@ -368,6 +415,55 @@ mod tests {
 
         assert_eq!(std::fs::read(&victim).unwrap(), b"untouched", "the symlink target must never be written through");
         assert_eq!(std::fs::read(&target).unwrap(), b"new content", "the real write must still succeed (tmp is replaced, not followed)");
+    }
+
+    /// A symlinked CONTAINING directory (e.g. `.lantern` itself pointing
+    /// outside the workspace) resolves every path built by joining onto it —
+    /// neither the temp-path `create_new` guard nor `rename` would catch
+    /// this on their own, since both operate on the FINAL path component,
+    /// not the parent chain.
+    #[test]
+    #[cfg(unix)]
+    fn write_atomically_refuses_a_symlinked_parent_directory() {
+        let ws = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::os::unix::fs::symlink(outside.path(), ws.path().join(".lantern")).unwrap();
+
+        let target = ws.path().join(".lantern/pending-rag-cleanup.json");
+        let err = write_atomically(&target, b"payload").unwrap_err();
+        assert!(err.contains("symlink"), "got: {err}");
+        assert!(!outside.path().join("pending-rag-cleanup.json").exists(), "must never write through the symlinked parent");
+    }
+
+    /// append_pending_rag_cleanup and retention_clear_pending_rag_cleanup_id
+    /// both do read-modify-write on the same file; without the global lock,
+    /// concurrent calls racing could each read the same starting state and
+    /// the second write to land would silently clobber the first's change.
+    /// Spawn many threads each appending a DIFFERENT id concurrently and
+    /// confirm every single one survives — a lost update would show up as
+    /// fewer than N ids in the final file.
+    #[test]
+    fn concurrent_pending_rag_cleanup_appends_lose_no_ids() {
+        let ws = tempfile::tempdir().unwrap();
+        let ws_path = ws.path().to_path_buf();
+        const N: usize = 24;
+        let handles: Vec<_> = (0..N)
+            .map(|i| {
+                let ws_path = ws_path.clone();
+                std::thread::spawn(move || {
+                    append_pending_rag_cleanup(&ws_path, &[format!("meeting:/concurrent#{i}")]).unwrap();
+                })
+            })
+            .collect();
+        for h in handles {
+            h.join().unwrap();
+        }
+        let path = ws_path.join(PENDING_RAG_CLEANUP_FILE);
+        let ids = read_pending_rag_cleanup_ids(&path);
+        assert_eq!(ids.len(), N, "a lost update would drop one or more concurrently-appended ids; got: {ids:?}");
+        for i in 0..N {
+            assert!(ids.contains(&format!("meeting:/concurrent#{i}")), "missing id {i}");
+        }
     }
 
     #[tokio::test]
