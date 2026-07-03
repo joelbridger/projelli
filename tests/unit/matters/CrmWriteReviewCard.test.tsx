@@ -99,6 +99,72 @@ describe('CrmWriteReviewCard', () => {
     );
   });
 
+  // Task 9b: optional compliance summary, off by default, riding the same card.
+  it('files a compliance note when the toggle is checked at approve time', async () => {
+    const m = useMatterStore.getState().createMatter({
+      name: 'Henderson',
+      client: 'Henderson',
+      crmHouseholdKeys: ['12345'],
+    });
+    useCrmWriteQueueStore.getState().enqueue({
+      kind: 'note',
+      matterId: m.id,
+      title: 'Note title',
+      body: 'Note body',
+      sourceRef: 'doc:notes.docx',
+    });
+
+    render(<CrmWriteReviewCard matterId={m.id} />);
+    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
+    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+
+    fireEvent.click(screen.getByTestId('file-compliance-note'));
+    fireEvent.click(screen.getByRole('button', { name: /approve 1 change/i }));
+
+    await waitFor(() => {
+      expect(crmCreateNote).toHaveBeenCalledTimes(1);
+    });
+
+    // The compliance note lands back in the queue as a new PROPOSED item —
+    // it is never sent directly, only enqueued like everything else.
+    await waitFor(() => {
+      const items = useCrmWriteQueueStore.getState().items.filter((i) => i.matterId === m.id);
+      const complianceItem = items.find((i) => i.title.includes('Compliance summary'));
+      expect(complianceItem).toBeDefined();
+      expect(complianceItem?.status).toBe('proposed');
+    });
+    // Only the original note was ever sent to Wealthbox — the compliance note
+    // itself must NOT have been pushed as part of this same approval.
+    expect(crmCreateNote).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not file a compliance note when the toggle is left unchecked', async () => {
+    const m = useMatterStore.getState().createMatter({
+      name: 'Henderson',
+      client: 'Henderson',
+      crmHouseholdKeys: ['12345'],
+    });
+    useCrmWriteQueueStore.getState().enqueue({
+      kind: 'note',
+      matterId: m.id,
+      title: 'Note title',
+      body: 'Note body',
+      sourceRef: 'doc:notes.docx',
+    });
+
+    render(<CrmWriteReviewCard matterId={m.id} />);
+    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
+    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+
+    expect(screen.getByTestId('file-compliance-note')).not.toBeChecked();
+    fireEvent.click(screen.getByRole('button', { name: /approve 1 change/i }));
+
+    await waitFor(() => { expect(crmCreateNote).toHaveBeenCalledTimes(1); });
+
+    const items = useCrmWriteQueueStore.getState().items.filter((i) => i.matterId === m.id);
+    expect(items.some((i) => i.title.includes('Compliance summary'))).toBe(false);
+  });
+
   it('shows the link-first empty state and no Approve button when the matter has zero households', async () => {
     const m = useMatterStore.getState().createMatter({ name: 'Ortiz', client: 'Ortiz' });
     useCrmWriteQueueStore.getState().enqueue({
