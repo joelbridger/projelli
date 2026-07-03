@@ -32,6 +32,7 @@ describe('markBriefsStaleForPath', () => {
           generatedAt: 'now',
           markdown: '# B',
           citations: [],
+          eventTitle: 'Review',
         },
       },
     });
@@ -45,7 +46,7 @@ describe('markBriefsStaleForPath', () => {
     expect(got).toBe('m-hend');
     const brief =
       useBriefStore.getState().briefs[briefKey(localDay(), 'e1', 'm-hend')];
-    expect(brief.stale).toBe(true);
+    expect(brief?.stale).toBe(true);
   });
 
   it('does nothing for files outside every client folder', () => {
@@ -53,6 +54,6 @@ describe('markBriefsStaleForPath', () => {
     expect(got).toBeNull();
     const brief =
       useBriefStore.getState().briefs[briefKey(localDay(), 'e1', 'm-hend')];
-    expect(brief.stale).toBe(false);
+    expect(brief?.stale).toBe(false);
   });
 });

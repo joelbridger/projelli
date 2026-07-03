@@ -21,6 +21,10 @@ export interface MeetingBrief {
   generatedAt: string;
   stale: boolean;
   error?: string;
+  /** The calendar event's title, captured at enqueue time — Task 17b's
+   *  agenda export needs it and shouldn't have to re-fetch the event just
+   *  to read a label it already had when the job was queued. */
+  eventTitle: string;
 }
 
 export function localDay(d: Date = new Date()): string {

@@ -44,6 +44,7 @@ describe('BeforeYouMeetStrip', () => {
           generatedAt: 'now',
           markdown: '# Briefing\n- Cash position discussed',
           citations: [{ path: '/ws/Henderson/estate-plan.pdf', score: 0.9 }],
+          eventTitle: 'Retirement plan review',
         },
       },
     });
@@ -76,6 +77,7 @@ describe('BeforeYouMeetStrip', () => {
           generatedAt: 'now',
           markdown: '# B',
           citations: [],
+          eventTitle: 'Review',
         },
       },
     });

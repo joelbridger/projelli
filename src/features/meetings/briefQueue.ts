@@ -47,6 +47,7 @@ export function enqueueBriefs(jobs: BriefJob[]): void {
       citations: existing?.citations ?? [],
       generatedAt: existing?.generatedAt ?? '',
       stale: false,
+      eventTitle: job.event.title,
     });
     pending.push(job);
   }
@@ -76,6 +77,7 @@ async function pump(): Promise<void> {
           citations: result.citations,
           generatedAt: result.generatedAt,
           stale: false,
+          eventTitle: job.event.title,
         });
       } catch (err) {
         if (gen !== generation) return;
