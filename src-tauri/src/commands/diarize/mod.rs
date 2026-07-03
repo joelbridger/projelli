@@ -11,37 +11,65 @@ pub fn overlap_ms(a: (u64, u64), b: (u64, u64)) -> u64 {
     end.saturating_sub(start)
 }
 
-/// Stereo (L=mic, R=sys) -> mono right channel; mono input copied as-is
-/// (imported meetings are single-channel all-sys per Wave 3 Task 11).
+/// sherpa-onnx's pyannote segmentation + speaker-embedding models require
+/// exactly 16 kHz mono input (lantern-diarize hard-rejects anything else —
+/// see EXPECTED_SAMPLE_RATE in sidecar-src/lantern-diarize/src/main.rs).
+/// Meeting recordings are typically 44.1/48 kHz, so this extractor must
+/// resample, not just copy the rate through.
+const DIARIZE_SAMPLE_RATE: u32 = 16_000;
+
+/// Stereo (L=mic, R=sys) -> mono right channel, resampled to 16 kHz; mono
+/// input (imported meetings are single-channel all-sys per Wave 3 Task 11)
+/// -> resampled to 16 kHz.
 pub fn extract_system_channel(audio_wav: &Path, out_wav: &Path) -> Result<(), String> {
     let mut reader = hound::WavReader::open(audio_wav).map_err(|e| format!("open {}: {e}", audio_wav.display()))?;
     let spec = reader.spec();
+    let mono: Vec<i16> = match spec.channels {
+        1 => reader.samples::<i16>().collect::<Result<_, _>>().map_err(|e| e.to_string())?,
+        2 => reader
+            .samples::<i16>()
+            .enumerate()
+            .filter_map(|(i, s)| if i % 2 == 1 { Some(s) } else { None }) // right channel = system loopback
+            .collect::<Result<_, _>>()
+            .map_err(|e| e.to_string())?,
+        n => return Err(format!("unsupported channel count: {n}")),
+    };
+    let resampled = resample_linear(&mono, spec.sample_rate, DIARIZE_SAMPLE_RATE);
+
     let out_spec = hound::WavSpec {
         channels: 1,
-        sample_rate: spec.sample_rate,
+        sample_rate: DIARIZE_SAMPLE_RATE,
         bits_per_sample: 16,
         sample_format: hound::SampleFormat::Int,
     };
     let mut writer = hound::WavWriter::create(out_wav, out_spec).map_err(|e| format!("create {}: {e}", out_wav.display()))?;
-    match spec.channels {
-        1 => {
-            for s in reader.samples::<i16>() {
-                writer.write_sample(s.map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
-            }
-        }
-        2 => {
-            for (i, s) in reader.samples::<i16>().enumerate() {
-                let v = s.map_err(|e| e.to_string())?;
-                if i % 2 == 1 {
-                    // odd interleaved index = right channel = system loopback
-                    writer.write_sample(v).map_err(|e| e.to_string())?;
-                }
-            }
-        }
-        n => return Err(format!("unsupported channel count: {n}")),
+    for s in resampled {
+        writer.write_sample(s).map_err(|e| e.to_string())?;
     }
     writer.finalize().map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// Linear-interpolation resampler. Speech-diarization inputs (segmentation
+/// + speaker embeddings), not audio production, so simple interpolation is
+/// the right tradeoff over pulling in a full resampling crate. A no-op copy
+/// when the rates already match.
+fn resample_linear(samples: &[i16], from_hz: u32, to_hz: u32) -> Vec<i16> {
+    if from_hz == to_hz || samples.is_empty() {
+        return samples.to_vec();
+    }
+    let ratio = f64::from(to_hz) / f64::from(from_hz);
+    let out_len = ((samples.len() as f64) * ratio).round() as usize;
+    let mut out = Vec::with_capacity(out_len);
+    for i in 0..out_len {
+        let src_pos = i as f64 / ratio;
+        let idx = src_pos.floor() as usize;
+        let frac = src_pos - src_pos.floor();
+        let a = samples[idx.min(samples.len() - 1)];
+        let b = samples[(idx + 1).min(samples.len() - 1)];
+        out.push((f64::from(a) + (f64::from(b) - f64::from(a)) * frac).round() as i16);
+    }
+    out
 }
 
 /// Rewrite `speaker` on sys-channel segments to the diarized speaker label
@@ -310,6 +338,42 @@ mod tests {
         assert_eq!(r.spec().channels, 1);
         let first: i16 = r.samples::<i16>().next().unwrap().unwrap();
         assert_eq!(first, 9999); // right channel, not left
+    }
+
+    #[test]
+    fn resample_linear_is_noop_when_rates_match() {
+        let s = vec![1i16, 2, 3, 4];
+        assert_eq!(resample_linear(&s, 16_000, 16_000), s);
+    }
+
+    #[test]
+    fn resample_linear_halves_length_on_2x_downsample() {
+        let s: Vec<i16> = (0..3200).map(|i| (i % 100) as i16).collect();
+        let out = resample_linear(&s, 32_000, 16_000);
+        assert!((out.len() as i64 - 1600).abs() <= 1, "got {} expected ~1600", out.len());
+    }
+
+    #[test]
+    fn extract_system_channel_resamples_a_48khz_recording_to_16khz() {
+        let dir = tempdir().unwrap();
+        let src = dir.path().join("audio-48k.wav");
+        let dst = dir.path().join("sys-16k.wav");
+        let spec = hound::WavSpec { channels: 2, sample_rate: 48_000, bits_per_sample: 16, sample_format: hound::SampleFormat::Int };
+        let mut w = hound::WavWriter::create(&src, spec).unwrap();
+        for _ in 0..(48_000 * 2 / 100) {
+            // 20ms of stereo audio: left silence, right a fixed tone-ish value
+            w.write_sample(0i16).unwrap();
+            w.write_sample(1234i16).unwrap();
+        }
+        w.finalize().unwrap();
+
+        extract_system_channel(&src, &dst).unwrap();
+        let mut r = hound::WavReader::open(&dst).unwrap();
+        assert_eq!(r.spec().channels, 1);
+        assert_eq!(r.spec().sample_rate, 16_000);
+        // 20ms @ 48kHz stereo -> 20ms @ 16kHz mono ~= 320 samples
+        let n = r.samples::<i16>().count();
+        assert!((n as i64 - 320).abs() <= 2, "got {n} samples, expected ~320");
     }
 
     fn transcript_fixture() -> serde_json::Value {
