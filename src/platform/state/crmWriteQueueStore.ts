@@ -26,6 +26,17 @@ export interface ProposedCrmWrite {
   status: CrmWriteStatus;
   remoteId?: string;
   error?: string;
+  /**
+   * Identifies THIS approval event (an RFC3339 timestamp), not the content —
+   * set once the first time this item is sent, then reused verbatim on every
+   * retry of that same item. The backend's dedup ledger includes it in the
+   * write's idempotency key: a retry with the same requestedAt collides with
+   * (and is safely suppressed as) its own earlier attempt, while a later,
+   * separate approval of identical content gets a fresh item (and thus a
+   * fresh requestedAt) and is never mistaken for a duplicate. See
+   * `crm_create_note`'s doc comment in `src-tauri/src/commands/crm/commands.rs`.
+   */
+  requestedAt?: string;
 }
 
 interface CrmWriteQueueState {
@@ -37,6 +48,22 @@ interface CrmWriteQueueState {
 
 function newId(): string {
   return `crmw-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+}
+
+// Codex review catch (P2): a bare `new Date().toISOString()` is not
+// guaranteed unique — two DIFFERENT items approved within the same
+// millisecond (a real risk: approve() can move on to its next item as soon
+// as a fast mocked/local call resolves) would get an identical requestedAt,
+// and since the backend's dedup key doesn't include matterId/sourceRef, the
+// second legitimate write would be silently treated as a retry of the first
+// and dropped. Track the last-issued millisecond and always bump forward by
+// at least 1ms, so a fresh requestedAt is strictly monotonic within this
+// session no matter how fast two approvals fire back to back.
+let lastRequestedAtMs = 0;
+function newRequestedAt(): string {
+  const now = Date.now();
+  lastRequestedAtMs = now > lastRequestedAtMs ? now : lastRequestedAtMs + 1;
+  return new Date(lastRequestedAtMs).toISOString();
 }
 
 function setItem(id: string, patch: Partial<ProposedCrmWrite>) {
@@ -57,7 +84,13 @@ function setItemClearingError(id: string, patch: Partial<Omit<ProposedCrmWrite, 
 }
 
 async function sendOne(item: ProposedCrmWrite, householdKey: string): Promise<void> {
-  setItemClearingError(item.id, { status: 'sending' });
+  // Set once, on this item's FIRST send attempt, then reused verbatim on
+  // every retry (approve() re-fetches the item fresh from the store each
+  // time it's called, so a manual Retry sees the value persisted below).
+  // Never regenerated per attempt — that would defeat the backend's
+  // retry-vs-fresh-approval dedup guarantee (see the field's doc comment).
+  const requestedAt = item.requestedAt ?? newRequestedAt();
+  setItemClearingError(item.id, { status: 'sending', requestedAt });
   try {
     const receipt =
       item.kind === 'note'
@@ -67,6 +100,7 @@ async function sendOne(item: ProposedCrmWrite, householdKey: string): Promise<vo
             body: item.body,
             sourceRef: item.sourceRef,
             householdKey,
+            requestedAt,
           })
         : await crmCreateTask({
             matterId: item.matterId,
@@ -75,6 +109,7 @@ async function sendOne(item: ProposedCrmWrite, householdKey: string): Promise<vo
             ...(item.dueDate !== undefined ? { dueDate: item.dueDate } : {}),
             sourceRef: item.sourceRef,
             householdKey,
+            requestedAt,
           });
     setItemClearingError(item.id, { status: 'sent', remoteId: receipt.remoteId });
   } catch (err) {

@@ -24,6 +24,15 @@ impl CrmWriteKind {
 /// id (Wealthbox: numeric string; other providers use their prefixed crm_key).
 /// `source_ref` is provenance for the audit log (document path or transcript
 /// timestamp) — it is never sent to the CRM.
+///
+/// `requested_at` identifies the APPROVAL EVENT, not the content — the
+/// caller (the review-card UI) generates it once when the user clicks
+/// Approve and reuses the SAME value for any automatic retry of that exact
+/// approval (a crash, a timeout, an ambiguous 5xx). A fresh, later approval
+/// of identical content (e.g. a recurring "Left voicemail" note) must
+/// generate a NEW `requested_at`. This is what lets `dedup_key` protect
+/// against retry duplication without also silently suppressing an
+/// intentional repeat send — see `dedup_key_is_scoped_to_the_approval_event_not_content_alone`.
 #[derive(Debug, Clone)]
 pub struct CrmWriteRequest {
     pub kind: CrmWriteKind,
@@ -33,6 +42,7 @@ pub struct CrmWriteRequest {
     pub body: String,
     pub due_date: Option<String>,
     pub source_ref: String,
+    pub requested_at: String,
 }
 
 /// Receipt for a completed (or deduplicated) write.
@@ -73,8 +83,21 @@ fn norm(s: &str) -> String {
     s.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-/// Stable content-addressed key: identical (provider-visible) writes collide,
-/// any change to target or content produces a fresh key.
+/// Stable content-addressed key scoped to ONE approval event: identical
+/// (provider-visible) writes from the SAME approval collide (protecting a
+/// retry from double-posting), but the same content approved again later —
+/// a different `requested_at` — produces a fresh key, so an intentional
+/// repeat send is never silently suppressed as a "duplicate" forever.
+///
+/// SCHEMA-EVOLUTION NOTE: this hash formula changed (added `requested_at`)
+/// after `crm_outbound_writes` already existed. That's safe today because
+/// this write-back feature has never shipped — the only caller
+/// (`crm_create_note`/`crm_create_task`) has no frontend wrapper yet (Task
+/// 8/9), so no real workspace anywhere has a ledger row computed under the
+/// pre-`requested_at` formula. If this hash formula changes AGAIN after the
+/// feature ships, that future change needs either a migration for existing
+/// rows or a fallback lookup under the old formula — skipping that then
+/// would let a retry miss its own `sent`/`pending_verify` row and double-post.
 pub fn dedup_key(req: &CrmWriteRequest) -> String {
     let mut h = Sha256::new();
     for part in [
@@ -83,6 +106,7 @@ pub fn dedup_key(req: &CrmWriteRequest) -> String {
         &norm(&req.title),
         &norm(&req.body),
         req.due_date.as_deref().unwrap_or(""),
+        req.requested_at.as_str(),
     ] {
         h.update(part.as_bytes());
         h.update([0u8]); // field separator so "a","bc" != "ab","c"
@@ -205,14 +229,84 @@ impl CrmWriteSource for crate::commands::crm::client::WealthboxClient {
     }
 }
 
-/// Wealthbox note timestamps look like `"2026-03-10 09:15 AM -0500"`
+#[async_trait::async_trait]
+impl CrmWriteSource for crate::commands::crm::redtail::RedtailClient {
+    fn provider_id(&self) -> &'static str {
+        "redtail"
+    }
+    async fn create_note(&self, _req: &CrmWriteRequest) -> Result<String, CrmWriteError> {
+        Err(CrmWriteError::NotSupported("Redtail"))
+    }
+    async fn create_task(&self, _req: &CrmWriteRequest) -> Result<String, CrmWriteError> {
+        Err(CrmWriteError::NotSupported("Redtail"))
+    }
+    async fn find_recent_matching(
+        &self,
+        _req: &CrmWriteRequest,
+        _not_before: chrono::DateTime<chrono::Utc>,
+    ) -> Result<Option<String>, CrmWriteError> {
+        Err(CrmWriteError::NotSupported("Redtail"))
+    }
+}
+
+#[async_trait::async_trait]
+impl CrmWriteSource for crate::commands::crm::salesforce::SalesforceClient {
+    fn provider_id(&self) -> &'static str {
+        "salesforce"
+    }
+    async fn create_note(&self, _req: &CrmWriteRequest) -> Result<String, CrmWriteError> {
+        Err(CrmWriteError::NotSupported("Salesforce"))
+    }
+    async fn create_task(&self, _req: &CrmWriteRequest) -> Result<String, CrmWriteError> {
+        Err(CrmWriteError::NotSupported("Salesforce"))
+    }
+    async fn find_recent_matching(
+        &self,
+        _req: &CrmWriteRequest,
+        _not_before: chrono::DateTime<chrono::Utc>,
+    ) -> Result<Option<String>, CrmWriteError> {
+        Err(CrmWriteError::NotSupported("Salesforce"))
+    }
+}
+
+/// Provider-agnostic write-client registry — mirrors `provider::client_for`
+/// (the read-side registry, `provider.rs:83-89`) one-for-one, but returns a
+/// `CrmWriteSource` trait object instead of `CrmSource`.
+pub fn write_client_for(
+    provider: crate::commands::crm::provider::CrmProvider,
+    token: String,
+) -> anyhow::Result<Box<dyn CrmWriteSource>> {
+    use crate::commands::crm::provider::CrmProvider;
+    match provider {
+        CrmProvider::Wealthbox => Ok(Box::new(crate::commands::crm::client::WealthboxClient::new(token))),
+        CrmProvider::Redtail => Ok(Box::new(crate::commands::crm::redtail::RedtailClient::new(token)?)),
+        CrmProvider::Salesforce => Ok(Box::new(crate::commands::crm::salesforce::SalesforceClient::new(token)?)),
+    }
+}
+
+/// How long after a write's own first-attempt time a recovered CRM record
+/// can still count as proof THAT attempt landed. Generous enough to cover
+/// Wealthbox's worst-case 429 retry/backoff window (`MAX_429_RETRIES` = 6,
+/// each capped at `MAX_RETRY_AFTER_SECS` = 120s — well under 15 minutes
+/// total) plus normal network latency, but short enough that a LATER,
+/// separate approval of identical content (an intentional repeat — see
+/// `CrmWriteRequest::requested_at`) can't be mistaken for proof THIS
+/// approval landed. Without a ceiling, approval A going ambiguous, followed
+/// by approval B (same text, a genuinely later intentional repeat) actually
+/// succeeding, would let a later retry of A match B's note and mark A
+/// "sent" too — silently believing two deliveries happened when only one
+/// physical CRM record exists.
+const RECOVERY_WINDOW_MINUTES: i64 = 30;
+
+/// Wealthbox note/task timestamps look like `"2026-03-10 09:15 AM -0500"`
 /// (confirmed by the read-side render tests in `render.rs`, which already
-/// depend on this exact shape for display). Accepts a note as "not older
-/// than `floor`" using whichever of created_at/updated_at parses (preferring
-/// created_at). If NEITHER parses, fails CLOSED (returns `false`, i.e. not a
-/// match) rather than open — a spurious resend (a visible, correctable
-/// duplicate) is a far safer outcome than silently treating an unrelated old
-/// note as proof this write landed (an invisible, uncorrectable data loss).
+/// depend on this exact shape for display). Accepts a record as "within
+/// [floor, floor + RECOVERY_WINDOW_MINUTES]" using whichever of
+/// created_at/updated_at parses (preferring created_at). If NEITHER parses,
+/// fails CLOSED (returns `false`, i.e. not a match) rather than open — a
+/// spurious resend (a visible, correctable duplicate) is a far safer outcome
+/// than silently treating an unrelated record as proof this write landed
+/// (an invisible, uncorrectable data loss).
 fn wealthbox_time_at_or_after(
     created_at: &str,
     updated_at: &str,
@@ -220,10 +314,12 @@ fn wealthbox_time_at_or_after(
 ) -> bool {
     const FMT: &str = "%Y-%m-%d %I:%M %p %z";
     // Small margin for clock skew between this machine and Wealthbox's server.
-    let floor = floor - chrono::Duration::minutes(5);
+    let lower = floor - chrono::Duration::minutes(5);
+    let upper = floor + chrono::Duration::minutes(RECOVERY_WINDOW_MINUTES);
     for candidate in [created_at, updated_at] {
         if let Ok(t) = chrono::DateTime::parse_from_str(candidate.trim(), FMT) {
-            return t.with_timezone(&chrono::Utc) >= floor;
+            let t = t.with_timezone(&chrono::Utc);
+            return t >= lower && t <= upper;
         }
     }
     false
@@ -359,16 +455,14 @@ pub async fn push_crm_write(
     if let Some(row) = &existing {
         if row.status == "sent" {
             if let Some(remote_id) = &row.remote_id {
-                // KNOWN GAP (flagged, not fixed here — see handoff notes):
-                // `crm_connect` can overwrite the stored token for a DIFFERENT
-                // Wealthbox account without an explicit disconnect first, and
-                // this ledger has no account identity in its key — a `sent`
-                // row from the OLD account would be wrongly treated as
-                // delivered to the NEW one if the household id and content
-                // happen to match. Closing this needs `crm_connect` (a
-                // pre-existing command outside this write module) to purge
-                // outbound-write rows on every successful connect, not just
-                // on explicit disconnect.
+                // Trusting a `sent` row here is safe because `crm_connect`
+                // (every success path — token, Redtail, and the Salesforce
+                // OAuth flow) downgrades every `sent` row for that provider
+                // to `pending_verify` on every successful connect, same
+                // account reconnecting or a different one — so a `sent` row
+                // can only reach this branch if it was recorded under the
+                // CURRENTLY connected account. See
+                // CrmStore::mark_sent_rows_pending_verify_for_provider.
                 return Ok(WriteReceipt { remote_id: remote_id.clone(), deduped: true });
             }
         }
@@ -380,13 +474,24 @@ pub async fn push_crm_write(
             let not_before = chrono::DateTime::parse_from_rfc3339(&row.created_at)
                 .map(|t| t.with_timezone(&chrono::Utc))
                 .unwrap_or_else(|_| chrono::DateTime::<chrono::Utc>::from_timestamp(0, 0).unwrap());
-            match source.find_recent_matching(req, not_before).await? {
-                Some(remote_id) => {
+            match source.find_recent_matching(req, not_before).await {
+                Ok(Some(remote_id)) => {
                     upsert_ledger(store, &key, source, req, "sent", Some(&remote_id));
                     return Ok(WriteReceipt { remote_id, deduped: true });
                 }
-                None => {
+                Ok(None) => {
                     // Provably didn't land — fall through to (re)send below.
+                }
+                Err(e) => {
+                    // The recovery check ITSELF was ambiguous (e.g. a
+                    // transient transport failure listing notes/tasks) —
+                    // explicitly re-affirm `pending_verify` rather than
+                    // silently returning without touching the ledger, so the
+                    // row's state is never left implicit. The caller (every
+                    // crm_create_write call site) audits every `Err` outcome
+                    // unconditionally, so this still produces its audit entry.
+                    upsert_ledger(store, &key, source, req, "pending_verify", None);
+                    return Err(e);
                 }
             }
         }
@@ -485,6 +590,20 @@ pub fn validate_write_inputs(title: &str, body: &str) -> Result<(), CrmWriteErro
     Ok(())
 }
 
+/// Reject an empty or non-RFC3339 `requested_at` before it ever reaches
+/// `dedup_key`'s hash — this field is now part of the idempotency
+/// guarantee (see `CrmWriteRequest::requested_at`'s doc comment), so a
+/// malformed or empty value from a buggy caller must fail loudly at the IPC
+/// boundary rather than silently collapsing separate approvals into one key.
+pub fn validate_requested_at(requested_at: &str) -> Result<(), CrmWriteError> {
+    if requested_at.trim().is_empty() {
+        return Err(CrmWriteError::InvalidInput("requested_at must not be empty"));
+    }
+    chrono::DateTime::parse_from_rfc3339(requested_at.trim())
+        .map(|_| ())
+        .map_err(|_| CrmWriteError::InvalidInput("requested_at must be an RFC3339 timestamp"))
+}
+
 fn remote_id_from(resp: &serde_json::Value) -> Result<String, CrmWriteError> {
     // VERIFY-LIVE: create responses echo the created object with top-level id.
     // A 2xx response means Wealthbox already accepted (very likely created)
@@ -507,6 +626,81 @@ mod tests {
         let key = [0x44u8; 32];
         let s = CrmStore::open_with_key(dir.path(), &key).expect("crm store open");
         (dir, s)
+    }
+
+    /// Minimal valid Salesforce token-set JSON — bypasses the
+    /// `KEEPANCE_SALESFORCE_CLIENT_ID` env requirement in `SalesforceClient::new`
+    /// by constructing directly via `new_with_token_endpoint`.
+    fn salesforce_client() -> crate::commands::crm::salesforce::SalesforceClient {
+        let stored_json = serde_json::json!({
+            "access_token": "tok",
+            "refresh_token": "refresh",
+            "instance_url": "https://example.my.salesforce.com",
+            "expires_at_unix": 9_999_999_999u64,
+        })
+        .to_string();
+        crate::commands::crm::salesforce::SalesforceClient::new_with_token_endpoint(
+            stored_json,
+            "client-id".into(),
+            "https://example.my.salesforce.com/token".into(),
+        )
+        .expect("build test SalesforceClient")
+    }
+
+    #[tokio::test]
+    async fn redtail_and_salesforce_writes_return_typed_not_supported() {
+        // RedtailClient::new() requires KEEPANCE_REDTAIL_API_KEY (redtail_api_key()),
+        // unset in tests — new_with_base bypasses it, matching redtail.rs's own tests.
+        let r = crate::commands::crm::redtail::RedtailClient::new_with_base(
+            "api-key".into(),
+            "k".into(),
+            "http://127.0.0.1:1".into(),
+        );
+        let err = r.create_note(&note_req()).await.unwrap_err();
+        assert!(matches!(err, CrmWriteError::NotSupported("Redtail")));
+        let err = r.create_task(&note_req()).await.unwrap_err();
+        assert!(matches!(err, CrmWriteError::NotSupported("Redtail")));
+        let err = r.find_recent_matching(&note_req(), chrono::Utc::now()).await.unwrap_err();
+        assert!(matches!(err, CrmWriteError::NotSupported("Redtail")));
+
+        let s = salesforce_client();
+        let err = s.create_note(&note_req()).await.unwrap_err();
+        assert!(matches!(err, CrmWriteError::NotSupported("Salesforce")));
+        let err = s.create_task(&note_req()).await.unwrap_err();
+        assert!(matches!(err, CrmWriteError::NotSupported("Salesforce")));
+        let err = s.find_recent_matching(&note_req(), chrono::Utc::now()).await.unwrap_err();
+        assert!(matches!(err, CrmWriteError::NotSupported("Salesforce")));
+    }
+
+    #[test]
+    fn write_client_for_routes_by_provider() {
+        use crate::commands::crm::provider::CrmProvider;
+        // Force the "not configured" precondition regardless of the host
+        // environment (e.g. a machine set up for the live-probe checklist
+        // would otherwise have these exported, making this test's expected
+        // failure silently not happen — a host-dependent test). Safe to
+        // clear unconditionally: grep confirms no other test in this crate
+        // reads either variable.
+        std::env::remove_var("KEEPANCE_REDTAIL_API_KEY");
+        std::env::remove_var("KEEPANCE_SALESFORCE_CLIENT_ID");
+
+        let wb = write_client_for(CrmProvider::Wealthbox, "tok".into()).unwrap();
+        assert_eq!(wb.provider_id(), "wealthbox");
+        // Redtail/Salesforce's real constructors need KEEPANCE_REDTAIL_API_KEY /
+        // KEEPANCE_SALESFORCE_CLIENT_ID configured, which aren't set in tests —
+        // assert each fails with ITS OWN provider-specific config error (not a
+        // generic/wrong-provider error), proving the registry actually routes
+        // to that provider's constructor rather than silently no-oping.
+        let rt_err = match write_client_for(CrmProvider::Redtail, "tok".into()) {
+            Err(e) => e.to_string(),
+            Ok(_) => panic!("expected Redtail construction to fail without KEEPANCE_REDTAIL_API_KEY"),
+        };
+        assert!(rt_err.contains("REDTAIL"), "got: {rt_err}");
+        let sf_err = match write_client_for(CrmProvider::Salesforce, "tok".into()) {
+            Err(e) => e.to_string(),
+            Ok(_) => panic!("expected Salesforce construction to fail without KEEPANCE_SALESFORCE_CLIENT_ID"),
+        };
+        assert!(sf_err.contains("SALESFORCE"), "got: {sf_err}");
     }
 
     struct FakeWriteSource {
@@ -637,6 +831,110 @@ mod tests {
         assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
     }
 
+    /// ADDED SCOPE #2.2: when the recovery check ITSELF is ambiguous (the
+    /// `find_recent_matching` call fails, e.g. a transient transport error
+    /// listing notes), push_crm_write must not silently return without
+    /// touching the ledger — the row's `pending_verify` state is explicitly
+    /// re-affirmed (never a re-send attempt in this path: create_calls stays
+    /// 0) and the resulting Err(VerifyPending) is exactly what every
+    /// crm_create_write call site audits unconditionally.
+    #[tokio::test]
+    async fn recovery_check_failure_itself_re_affirms_ledger_state_before_propagating() {
+        struct FlakyFindSource {
+            create_calls: std::sync::atomic::AtomicUsize,
+        }
+        #[async_trait::async_trait]
+        impl CrmWriteSource for FlakyFindSource {
+            fn provider_id(&self) -> &'static str {
+                "wealthbox"
+            }
+            async fn create_note(&self, _r: &CrmWriteRequest) -> Result<String, CrmWriteError> {
+                self.create_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                Ok("should-not-be-called".into())
+            }
+            async fn create_task(&self, r: &CrmWriteRequest) -> Result<String, CrmWriteError> {
+                self.create_note(r).await
+            }
+            async fn find_recent_matching(
+                &self,
+                _r: &CrmWriteRequest,
+                _not_before: chrono::DateTime<chrono::Utc>,
+            ) -> Result<Option<String>, CrmWriteError> {
+                Err(CrmWriteError::VerifyPending)
+            }
+        }
+
+        let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
+        let req = note_req();
+        store
+            .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "pending_verify", None, true)
+            .unwrap();
+        let source = FlakyFindSource { create_calls: std::sync::atomic::AtomicUsize::new(0) };
+
+        let result = push_crm_write(&source, &store, &guard, &req).await;
+        assert!(matches!(result, Err(CrmWriteError::VerifyPending)));
+        assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 0, "must never attempt a send while the recovery check itself is ambiguous");
+        assert_eq!(
+            store.outbound_get(&dedup_key(&req)).unwrap().unwrap().status,
+            "pending_verify",
+            "the row's state must be explicitly re-affirmed, not left implicit"
+        );
+    }
+
+    /// End-to-end account-switch scenario (ADDED-SCOPE P1): a note was sent
+    /// under account A, then the advisor reconnects (same or a different
+    /// Wealthbox account) — `mark_sent_rows_pending_verify_for_provider` is
+    /// what `crm_connect` calls on every successful connect. The next
+    /// push_crm_write for that identical content must NOT trust the old
+    /// `sent` receipt blindly; it must re-verify against whichever account
+    /// is connected now.
+    #[tokio::test]
+    async fn reconnect_forces_reverification_before_trusting_a_stale_sent_row() {
+        let req = note_req();
+
+        // Case 1: the newly connected account (same or different) already
+        // has this exact content — recognized via find_recent_matching, the
+        // old receipt is confirmed and reused; no duplicate POST.
+        {
+            let (_dir, store) = test_store();
+            let guard = WriteInFlightGuard::new();
+            store
+                .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "sent", Some("old-id"), true)
+                .unwrap();
+            store.mark_sent_rows_pending_verify_for_provider("wealthbox").unwrap();
+            let source = FakeWriteSource {
+                create_results: std::sync::Mutex::new(vec![]),
+                find_result: Some("new-account-id".into()),
+                create_calls: std::sync::atomic::AtomicUsize::new(0),
+            };
+            let receipt = push_crm_write(&source, &store, &guard, &req).await.unwrap();
+            assert_eq!(receipt.remote_id, "new-account-id");
+            assert!(receipt.deduped);
+            assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+        }
+
+        // Case 2: the newly connected account does NOT have this content —
+        // the stale 'sent' row must not block a real send to the new account.
+        {
+            let (_dir, store) = test_store();
+            let guard = WriteInFlightGuard::new();
+            store
+                .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "sent", Some("old-id"), true)
+                .unwrap();
+            store.mark_sent_rows_pending_verify_for_provider("wealthbox").unwrap();
+            let source = FakeWriteSource {
+                create_results: std::sync::Mutex::new(vec![Ok("fresh-id".into())]),
+                find_result: None,
+                create_calls: std::sync::atomic::AtomicUsize::new(0),
+            };
+            let receipt = push_crm_write(&source, &store, &guard, &req).await.unwrap();
+            assert_eq!(receipt.remote_id, "fresh-id");
+            assert!(!receipt.deduped, "must actually send to the newly connected account");
+            assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+        }
+    }
+
     #[tokio::test]
     async fn concurrent_identical_pushes_second_is_rejected_as_in_progress() {
         let (_dir, store) = test_store();
@@ -705,6 +1003,7 @@ mod tests {
             body: "Discussed 529 rollover.".into(),
             due_date: None,
             source_ref: "doc:Clients/Henderson/notes.docx".into(),
+            requested_at: "2026-07-02T14:41:00Z".into(),
         }
     }
 
@@ -888,6 +1187,14 @@ mod tests {
         assert_eq!(found, None, "a task that predates this write attempt is not this write");
     }
 
+    /// A fixed floor for the recovery-window tests below — avoids coupling
+    /// test fixtures to the real wall clock (`chrono::Utc::now()`).
+    fn test_not_before() -> chrono::DateTime<chrono::Utc> {
+        chrono::DateTime::parse_from_rfc3339("2026-07-02T14:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc)
+    }
+
     #[tokio::test]
     async fn find_recent_matching_accepts_a_task_created_at_or_after_this_write_attempt() {
         use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
@@ -900,16 +1207,47 @@ mod tests {
                     "name": "Q3 review follow-up",
                     "description": "Discussed 529 rollover.",
                     "due_date": "2026-07-15",
-                    "created_at": "2099-01-01 09:00 AM -0500",
-                    "updated_at": "2099-01-01 09:00 AM -0500",
+                    // 5 minutes after test_not_before() — inside the recovery window.
+                    "created_at": "2026-07-02 09:05 AM -0500",
+                    "updated_at": "2026-07-02 09:05 AM -0500",
                     "linked_to": [{"id": 12345, "type": "Contact", "name": "Henderson"}],
                 }]
             })))
             .mount(&server)
             .await;
         let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
-        let found = client.find_recent_matching(&task_req(), chrono::Utc::now()).await.unwrap();
+        let found = client.find_recent_matching(&task_req(), test_not_before()).await.unwrap();
         assert_eq!(found, Some("44".to_string()));
+    }
+
+    #[tokio::test]
+    async fn find_recent_matching_rejects_a_task_created_well_after_the_recovery_window() {
+        // ADDED SCOPE #2 (codex): a task created HOURS after this write's own
+        // attempt cannot be proof THIS attempt landed — it's far more likely
+        // to be a separate, later, intentionally-repeated approval of
+        // identical content. Without an upper bound, this would incorrectly
+        // dedupe as "already delivered" and silently swallow this approval.
+        use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(matchers::method("GET"))
+            .and(matchers::path("/tasks"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "tasks": [{
+                    "id": 45,
+                    "name": "Q3 review follow-up",
+                    "description": "Discussed 529 rollover.",
+                    "due_date": "2026-07-15",
+                    // 3 hours after test_not_before() — well outside the window.
+                    "created_at": "2026-07-02 12:00 PM -0500",
+                    "updated_at": "2026-07-02 12:00 PM -0500",
+                    "linked_to": [{"id": 12345, "type": "Contact", "name": "Henderson"}],
+                }]
+            })))
+            .mount(&server)
+            .await;
+        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let found = client.find_recent_matching(&task_req(), test_not_before()).await.unwrap();
+        assert_eq!(found, None, "a task created hours later is a separate approval, not proof this one landed");
     }
 
     #[tokio::test]
@@ -946,17 +1284,46 @@ mod tests {
                 "status_updates": [{
                     "id": 222,
                     "content": "Q3 review follow-up\n\nDiscussed 529 rollover.",
-                    "created_at": "2099-01-01 09:00 AM -0500",
-                    "updated_at": "2099-01-01 09:00 AM -0500",
+                    // 5 minutes after test_not_before() — inside the recovery window.
+                    "created_at": "2026-07-02 09:05 AM -0500",
+                    "updated_at": "2026-07-02 09:05 AM -0500",
                     "linked_to": [{"id": 12345, "type": "Contact", "name": "Henderson"}],
                 }]
             })))
             .mount(&server)
             .await;
         let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
-        let not_before = chrono::Utc::now();
-        let found = client.find_recent_matching(&note_req(), not_before).await.unwrap();
+        let found = client.find_recent_matching(&note_req(), test_not_before()).await.unwrap();
         assert_eq!(found, Some("222".to_string()));
+    }
+
+    #[tokio::test]
+    async fn find_recent_matching_rejects_a_note_created_well_after_the_recovery_window() {
+        // ADDED SCOPE #2 (codex): without an upper bound on the recovery
+        // window, this exact scenario would silently confuse two SEPARATE,
+        // intentional approvals of identical content: approval A goes
+        // ambiguous, approval B (a genuinely later repeat) succeeds and
+        // creates this note — a retry of A must NOT match B's note and
+        // falsely conclude A was also delivered.
+        use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(matchers::method("GET"))
+            .and(matchers::path("/notes"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "status_updates": [{
+                    "id": 223,
+                    "content": "Q3 review follow-up\n\nDiscussed 529 rollover.",
+                    // 3 hours after test_not_before() — well outside the window.
+                    "created_at": "2026-07-02 12:00 PM -0500",
+                    "updated_at": "2026-07-02 12:00 PM -0500",
+                    "linked_to": [{"id": 12345, "type": "Contact", "name": "Henderson"}],
+                }]
+            })))
+            .mount(&server)
+            .await;
+        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let found = client.find_recent_matching(&note_req(), test_not_before()).await.unwrap();
+        assert_eq!(found, None, "a note created hours later is a separate approval, not proof this one landed");
     }
 
     #[tokio::test]
@@ -996,6 +1363,29 @@ mod tests {
         assert_ne!(a, dedup_key(&other_house), "target change → new key");
     }
 
+    /// ADDED SCOPE #2.1: identical content approved on two SEPARATE occasions
+    /// (e.g. a recurring "Left voicemail" note) must NOT collide into one
+    /// dedup key forever — the ledger's job is protecting a single approval
+    /// event against a RETRY (crash, timeout, double-click), not blocking a
+    /// deliberate repeat send. `requested_at` is set once per approval action
+    /// by the caller and reused for any automatic retry of THAT SAME
+    /// approval, but a fresh approval generates a new one.
+    #[test]
+    fn dedup_key_is_scoped_to_the_approval_event_not_content_alone() {
+        let a = note_req();
+        let mut b = note_req();
+        b.requested_at = "2026-07-09T09:00:00Z".into(); // a week later, same text
+        assert_ne!(
+            dedup_key(&a),
+            dedup_key(&b),
+            "identical content approved at a different time must be a different write, not a suppressed duplicate"
+        );
+        // But the SAME approval (identical requested_at) still dedupes —
+        // that's the retry-protection case this ledger exists for.
+        let c = note_req();
+        assert_eq!(dedup_key(&a), dedup_key(&c), "same approval, retried, must still dedupe");
+    }
+
     #[test]
     fn dedup_key_normalizes_whitespace_only() {
         let mut ws = note_req();
@@ -1015,6 +1405,20 @@ mod tests {
         assert!(matches!(validate_write_inputs("", "b"), Err(CrmWriteError::InvalidInput(_))));
         assert!(matches!(validate_write_inputs(&"x".repeat(501), "b"), Err(CrmWriteError::InvalidInput(_))));
         assert!(matches!(validate_write_inputs("t", &"x".repeat(20_001)), Err(CrmWriteError::InvalidInput(_))));
+    }
+
+    /// ADDED SCOPE #2 (codex round 6): requested_at is now part of the
+    /// idempotency guarantee (dedup_key), so the IPC boundary must reject an
+    /// empty or malformed value before it ever reaches dedup_key's hash —
+    /// otherwise a UI bug (empty string, or accidentally reusing one value
+    /// for every approval) would silently collapse separate approvals back
+    /// into the same ledger key, exactly the bug requested_at exists to fix.
+    #[test]
+    fn requested_at_must_be_a_real_rfc3339_timestamp() {
+        assert!(validate_requested_at("2026-07-02T14:41:00Z").is_ok());
+        assert!(matches!(validate_requested_at(""), Err(CrmWriteError::InvalidInput(_))));
+        assert!(matches!(validate_requested_at("   "), Err(CrmWriteError::InvalidInput(_))));
+        assert!(matches!(validate_requested_at("not-a-timestamp"), Err(CrmWriteError::InvalidInput(_))));
     }
 
     #[tokio::test]

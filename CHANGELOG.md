@@ -32,6 +32,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **CRM write-back backend (Wealthbox)** — approval-gated Tauri commands
+  (`crm_create_note`, `crm_create_task`) to push notes/tasks to a client's
+  linked Wealthbox household, with an idempotency ledger, verify-before-resend
+  on ambiguous network results, matter-scoped audit entries, and PII-safe error
+  handling (raw response bodies never logged or surfaced). No write ever fires
+  except through these two explicit commands — there is no background/silent
+  sync path. A `CrmWriteSource` trait + provider registry (`write_client_for`)
+  is ready for Redtail/Salesforce, which return a typed "not yet supported"
+  error today pending vendor credentials. The Client Map review-card UI that
+  calls these commands is a separate, not-yet-merged lane.
+  - **Idempotency:** every write is keyed by a content-addressed dedup hash
+    recorded in a new `crm_outbound_writes` ledger table before the network
+    call ever fires; a retry after a crash, timeout, 5xx, or an unparseable-but-
+    successful response re-verifies against the CRM (rather than blindly
+    resending) before deciding whether to post again.
+  - **Account-switch safety:** reconnecting Wealthbox — same account or a
+    different one — downgrades every previously-`sent` ledger row to
+    "needs re-verification" instead of leaving it as stale proof-of-delivery,
+    so a stale receipt from an old connection can never masquerade as delivery
+    to a newly connected account sharing the same household id.
+  - **Write coordination:** disconnecting Wealthbox waits for any in-flight
+    write to finish before revoking the token and purging local data, instead
+    of letting a write started just before disconnect race the purge.
+  - Files: `src-tauri/src/commands/crm/{write.rs,client.rs,store.rs,commands.rs,model.rs}`,
+    `src-tauri/src/lib.rs`.
+  - Live-probe checklist for the still-`VERIFY-LIVE`-tagged Wealthbox API
+    assumptions (exact response shapes, field requirements) once a real
+    sandbox token is available: `scripts/crm/wealthbox-write-probe.md`.
 - **Draft follow-up from a note** - one click on an open document drafts a client
   follow-up email; the advisor reviews it, then saves it into their real
   Outlook/Gmail Drafts folder (new `mail_save_draft` command, Graph + Gmail) or
@@ -74,6 +102,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reconnect the first time they save a draft.
 
 ### Fixed
+- **CRM write-back UI/backend integration: `crm_create_note`/`crm_create_task` gained a required `requested_at` param (the backend's dedup ledger now needs it to tell a retry apart from a fresh, intentional repeat send) and would have failed at runtime — not typecheck, since Tauri `invoke()` args aren't compile-checked — because the review card's queue store still called the old shape.** Every `ProposedCrmWrite` now carries a `requestedAt`, generated once (monotonically, so two approvals in the same millisecond can never collide) the first time an item is sent and reused verbatim on every manual Retry of that same item; a fresh item (even identical content) gets its own. `crmConnect`'s new `state: State<'_, CrmState>` Rust param needed no TS change — Tauri auto-injects `State<>` extractors, they were never part of the `invoke()` payload.
+  - Files: `src/platform/state/crmWriteQueueStore.ts`, `src/platform/utils/wealthbox-commands.ts`.
 - **Connector Local-only guards: Box, Addepar, DocuSign, Jotform, and Zocks could silently contact their cloud APIs despite a persisted Local-only privacy choice (privacy, HIGH).** Root cause: all five connectors gated `connect()`/`syncNow()` with `isLocalOnlyMode()`, which reads the in-memory Zustand settings store — during the store's hydration window at app start (or any window where a persisted choice hadn't loaded yet), that store reports the schema default (cloud-allowed), so a click in that split-second window (or any mid-operation privacy-mode flip) could fire a real network call to the connector while the user's genuine Local-only choice was ignored. DocuSign's `syncNow()` additionally had **no guard at all** — a permanent gap, not just a race, unaffected by hydration timing.
   - Swapped every guard call-site (`connect()` and `syncNow()`) in all five connectors to `isPersistedLocalOnly()` (already shipped for OneDrive/ShareFile), which reads the persisted confidentiality mode straight from `localStorage`, bypassing the in-memory store, so the check is correct even before hydration completes.
   - Added the missing guard to DocuSign's `syncNow()`.
