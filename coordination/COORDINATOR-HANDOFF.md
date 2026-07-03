@@ -97,7 +97,12 @@ at each UI merge — his veto = P0 follow-up, not a merge block). Phase 2 =
 3. After each merge: downstream-merge check (FROZEN during the rename window!), CHANGELOG,
    notify-jameson MILESTONE with UI screenshots where applicable, bulletin line, STATUS.
 4. After Waves 0-2 all merged + green: Wave 2 remaining tasks (9b/9c/10/11) to a worker;
-   then Wave 3 — Task 0 is the WASAPI loopback spike on the Legion (reserve via bulletin;
+   AND (Jameson, 2026-07-03) an INTERIM REAL-WINDOWS SMOKE of the merged Waves 0-2 features
+   as soon as the Legion frees (reserve via bulletin): bring the bench to the lantern-plus
+   tip, drive the new features like an advisor (calendar connect UI, draft-follow-up from a
+   note into real drafts, CRM approve card, meetings strips), fix what breaks BEFORE Wave 3
+   starts. The AI drives the bench (desktop-drive.mjs + legion_agent.py), never Jameson.
+   Then Wave 3 — Task 0 is the WASAPI loopback spike on the Legion (reserve via bulletin;
    main line has priority until their release ships). Wave 4 after. P0 follow-up queue
    bundles into one polish lane once wave-1c + crm-ui are merged.
 5. Parked for Jameson (surface gently): Google OAuth filing (pack ready), interview
