@@ -671,7 +671,19 @@ impl CrmStore {
              ON CONFLICT(dedup_key) DO UPDATE SET
                 status = excluded.status,
                 remote_id = COALESCE(excluded.remote_id, crm_outbound_writes.remote_id),
-                updated_at = excluded.updated_at",
+                updated_at = excluded.updated_at,
+                -- A `failed` row is a DEFINITIVE terminal state (4xx — the
+                -- request was rejected, nothing was created): a later retry
+                -- is a fresh attempt, so its recovery-verification floor
+                -- (write.rs::find_recent_matching's not_before) must start
+                -- from NOW, not the original failed attempt's time — else a
+                -- coincidental manual CRM entry made between the failure and
+                -- this retry could sit inside the stale floor and get
+                -- wrongly treated as proof THIS retry landed. Any other old
+                -- status (pending/pending_verify/sent) means an attempt is
+                -- still unresolved or done, so its original created_at stays.
+                created_at = CASE WHEN crm_outbound_writes.status = 'failed'
+                    THEN excluded.created_at ELSE crm_outbound_writes.created_at END",
             rusqlite::params![
                 dedup_key,
                 provider,
@@ -792,6 +804,46 @@ mod tests {
         let row = store.outbound_get("k1").unwrap().unwrap();
         assert_eq!(row.status, "sent");
         assert_eq!(row.remote_id.as_deref(), Some("555"));
+    }
+
+    #[test]
+    fn outbound_ledger_created_at_resets_after_a_failed_attempt_but_not_after_pending() {
+        let (dir, store) = crm_store();
+        let _ = dir;
+        let upsert = |status: &str| {
+            store
+                .outbound_upsert("k2", "wealthbox", "note", "12345", "m1", "doc:a.docx", status, None)
+                .unwrap();
+        };
+        upsert("pending");
+        let first_created = store.outbound_get("k2").unwrap().unwrap().created_at;
+
+        // pending -> pending_verify is still ONE unresolved attempt: the
+        // recovery floor must not move.
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        upsert("pending_verify");
+        assert_eq!(
+            store.outbound_get("k2").unwrap().unwrap().created_at,
+            first_created,
+            "an unresolved attempt's floor must not move"
+        );
+
+        // A DEFINITIVE failure, then a FRESH send attempt (pending again),
+        // must start a new floor — the old one is no longer relevant.
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        upsert("failed");
+        assert_eq!(
+            store.outbound_get("k2").unwrap().unwrap().created_at,
+            first_created,
+            "failed itself doesn't reset — only the NEXT fresh attempt does"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        upsert("pending");
+        assert_ne!(
+            store.outbound_get("k2").unwrap().unwrap().created_at,
+            first_created,
+            "a retry after a definitive failure must start a fresh recovery-verification floor"
+        );
     }
 
     /// P2.3 row 8: the cheap digest list MUST match `list_objects_by_household`

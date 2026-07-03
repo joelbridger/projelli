@@ -134,6 +134,15 @@ impl CrmWriteSource for crate::commands::crm::client::WealthboxClient {
     async fn create_task(&self, req: &CrmWriteRequest) -> Result<String, CrmWriteError> {
         let contact_id = wealthbox_contact_id(&req.household_key)?;
         // VERIFY-LIVE: due_date format (plain date vs "YYYY-MM-DD hh:mm AM -0400").
+        // VERIFY-LIVE: whether Wealthbox actually REQUIRES a due_date for task
+        // creation is unconfirmed — `req.due_date` is allowed to be `None`
+        // and is simply omitted from the body in that case. Deliberately not
+        // adding a local "due_date required" validation without live-token
+        // confirmation: if Wealthbox turns out not to require it, that would
+        // incorrectly block a legitimate date-less task from ever being
+        // created. If it IS required, an unconfirmed local rule risks
+        // guessing wrong in the other direction. Confirm in Task 11's
+        // live probe (scripts/crm/wealthbox-write-probe.md).
         let mut body = serde_json::json!({
             "name": req.title.trim(),
             "description": req.body.trim(),

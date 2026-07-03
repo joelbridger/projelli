@@ -507,22 +507,36 @@ async fn crm_create_write(
         source_ref: source_ref.clone(),
     };
 
-    let receipt = write::push_crm_write(&client, &store, &state.write_guard, &req)
-        .await
-        .map_err(|e| e.to_string())?;
-
     let action = provider.audit_action(match kind {
         CrmWriteKind::Note => "create_note",
         CrmWriteKind::Task => "create_task",
     });
-    let description = format!(
-        "{} pushed to {} household {household_key} (source: {source_ref})",
-        kind.as_str(),
-        provider.display_name(),
-    );
-    append_crm_audit_best_effort_for_matter(&app, &action, &description, &matter_id).await;
 
-    Ok(receipt)
+    match write::push_crm_write(&client, &store, &state.write_guard, &req).await {
+        Ok(receipt) => {
+            let description = format!(
+                "{} pushed to {} household {household_key} (source: {source_ref})",
+                kind.as_str(),
+                provider.display_name(),
+            );
+            append_crm_audit_best_effort_for_matter(&app, &action, &description, &matter_id).await;
+            Ok(receipt)
+        }
+        // Wealthbox may already have accepted (even persisted) this write —
+        // record that possibility now rather than leaving the audit trail
+        // silent about a CRM change that may exist until a later retry
+        // resolves it.
+        Err(CrmWriteError::VerifyPending) => {
+            let description = format!(
+                "{} MAY have been pushed to {} household {household_key} (source: {source_ref}) — delivery unconfirmed, will verify on retry",
+                kind.as_str(),
+                provider.display_name(),
+            );
+            append_crm_audit_best_effort_for_matter(&app, &action, &description, &matter_id).await;
+            Err(CrmWriteError::VerifyPending.to_string())
+        }
+        Err(e) => Err(e.to_string()),
+    }
 }
 
 // ---------------------------------------------------------------------------
