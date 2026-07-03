@@ -120,6 +120,8 @@ pub fn run() {
             commands::capture::engine::capture_start,
             commands::capture::engine::capture_stop,
             commands::capture::engine::capture_status,
+            commands::capture::recovery::capture_find_orphans,
+            commands::capture::recovery::capture_recover,
             // Stream B TTS (v2.0) — Piper sidecar speech synthesis.
             commands::tts::tts_sidecar_available,
             commands::tts::tts_speak,

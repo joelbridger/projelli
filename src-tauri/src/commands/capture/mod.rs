@@ -2,6 +2,7 @@
 //! recording. NO network paths exist in this module by design.
 pub mod chunks;
 pub mod engine;
+pub mod recovery;
 pub mod session;
 pub mod sources;
 
