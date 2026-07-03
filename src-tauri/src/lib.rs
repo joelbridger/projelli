@@ -168,6 +168,8 @@ pub fn run() {
             commands::mail::mail_imap_disconnect,
             // Gmail native provider (loopback PKCE OAuth).
             commands::mail::gmail_connect,
+            commands::mail::gmail_connect_cancel,
+            commands::mail::gmail_oauth_configured,
             commands::mail::gmail_is_connected,
             commands::mail::gmail_disconnect,
             // Outlook loopback auth-code + PKCE (replaces device-code for personal accounts).
@@ -175,6 +177,8 @@ pub fn run() {
             commands::mail::outlook_connect_cancel,
             // Email send — compose and send from any connected provider (M365/Gmail/IMAP).
             commands::mail::mail_send,
+            // Wave 0 — save an AI-proposed draft into the account's real mailbox Drafts folder.
+            commands::mail::mail_save_draft,
             // Plan 1B.4 — Wealthbox CRM connector commands (connect/sync/status/disconnect).
             commands::crm::commands::crm_set_workspace,
             commands::crm::commands::crm_connect,
@@ -266,6 +270,18 @@ pub fn run() {
             commands::calendly::commands::calendly_sync_all,
             commands::calendly::commands::calendly_sync_status,
             commands::calendly::commands::calendly_cancel_sync,
+            // Calendar connector — read-only Outlook/Google/ICS events.
+            commands::calendar::commands::calendar_set_workspace,
+            commands::calendar::commands::calendar_connect_outlook,
+            commands::calendar::commands::calendar_connect_outlook_cancel,
+            commands::calendar::commands::calendar_connect_google,
+            commands::calendar::commands::calendar_connect_ics,
+            commands::calendar::commands::calendar_is_connected,
+            commands::calendar::commands::calendar_disconnect,
+            commands::calendar::commands::calendar_sync_all,
+            commands::calendar::commands::calendar_sync_status,
+            commands::calendar::commands::calendar_cancel_sync,
+            commands::calendar::commands::calendar_list_events,
             // Wave 3a SSO — firm-tier OIDC desktop dance (loopback + browser).
             commands::firm::sso::firm_sso_authenticate,
             commands::firm::sso::firm_sso_cancel,
@@ -323,6 +339,8 @@ pub fn run() {
             commands::addepar::commands::manage_state(app);
             // Calendly connector — manage workspace, single-flight sync, and progress.
             commands::calendly::commands::manage_state(app);
+            // Calendar connector — workspace, single-flight sync, progress.
+            commands::calendar::commands::manage_state(app);
             // Wave 3a SSO — manage the pending-sign-in cancel flag.
             commands::firm::sso::manage_state(app);
             // Advisor Prep Hero 3.0 — manage encrypted audit-store state (active workspace).

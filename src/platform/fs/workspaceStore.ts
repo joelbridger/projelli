@@ -82,6 +82,13 @@ function persistRecentWorkspaces(workspaces: RecentWorkspace[]): void {
 interface WorkspaceState {
   // Current workspace
   rootPath: string | null;
+  /**
+   * F2.5b — a monotonic counter bumped on every ACTUAL workspace-root change.
+   * An in-flight Ask send captures this at send start and re-checks it just
+   * before dispatching, so an A→B→A round-trip (which the final root string
+   * would compare equal) is still caught — the counter can only move forward.
+   */
+  rootGeneration: number;
   fileTree: FileNode[];
   selectedPath: string | null;
   expandedPaths: Set<string>;
@@ -92,6 +99,16 @@ interface WorkspaceState {
 
   // Recent workspaces
   recentWorkspaces: RecentWorkspace[];
+  /**
+   * True once loadRecentWorkspaces() has run at least once this session
+   * (regardless of whether it found anything). recentWorkspaces starts as
+   * `[]` and is only populated by an async-relative-to-mount effect, so
+   * `recentWorkspaces.length === 0` alone can't distinguish "not loaded
+   * yet" from "genuinely no recent workspaces" — callers that need to make
+   * a boot-time decision (e.g. auto-resuming the last workspace) must wait
+   * for this flag before trusting recentWorkspaces.
+   */
+  recentWorkspacesLoaded: boolean;
 
   // Actions
   setRootPath: (path: string) => void;
@@ -120,15 +137,24 @@ interface WorkspaceState {
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   rootPath: null,
+  rootGeneration: 0,
   fileTree: [],
   selectedPath: null,
   expandedPaths: new Set(),
   selectedPaths: new Set(),
   lastSelectedPath: null,
   recentWorkspaces: [],
+  recentWorkspacesLoaded: false,
 
   setRootPath: (path) => {
-    set({ rootPath: path });
+    // Bump the generation ONLY on a real change (F2.5b), so an in-flight Ask send
+    // can detect any workspace switch — including an A→B→A round-trip — since the
+    // counter is monotonic and never returns to a prior value.
+    set((state) =>
+      state.rootPath === path
+        ? { rootPath: path }
+        : { rootPath: path, rootGeneration: state.rootGeneration + 1 },
+    );
   },
 
   setFileTree: (tree) => {
@@ -262,7 +288,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
           ...w,
           lastOpened: new Date(w.lastOpened),
         })));
-        set({ recentWorkspaces: restored });
+        set({ recentWorkspaces: restored, recentWorkspacesLoaded: true });
         try {
           persistRecentWorkspaces(restored);
         } catch (error) {
@@ -279,7 +305,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         });
       } catch (error) {
         console.error('Failed to load recent workspaces:', error);
+        set({ recentWorkspacesLoaded: true });
       }
+    } else {
+      set({ recentWorkspacesLoaded: true });
     }
   },
 

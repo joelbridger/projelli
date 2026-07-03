@@ -47,6 +47,7 @@ import {
   resolveMatterId,
   findMatter,
   normalize as normalizeMatterPath,
+  normalizeMeetingKey,
 } from '@/platform/rag/matterResolver';
 import { isAbsolutePath, joinWorkspacePath } from '@/platform/fs/appPath';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
@@ -307,6 +308,11 @@ interface MatterState {
   addSharefileFolderKey: (id: string, folderKey: string) => void;
   // Addepar household/account mapping.
   addAddeparKey: (id: string, addeparKey: string) => void;
+
+  /** Teach a calendar/meeting mapping: attach a normalized key (attendee
+   *  email, client phrase, or event title) to this matter. A key belongs to
+   *  exactly one matter — assigning moves it off any other matter. */
+  addMeetingKey: (id: string, key: string) => void;
   /**
    * Remove every trace of Wealthbox from local matters after a disconnect:
    *   - pure-CRM matters (no user files/mail) are deleted;
@@ -784,6 +790,31 @@ export const useMatterStore = create<MatterState>()(
                 }
               : m
           ),
+        }));
+      },
+
+      addMeetingKey: (id, rawKey) => {
+        const key = rawKey.trim();
+        if (!key) return;
+        // codex-review P2: compare/filter by the SAME normalized form the
+        // resolver uses (buildCalendarMatterMap / buildMeetingMatterMap),
+        // not the raw trimmed string — otherwise assigning a
+        // differently-cased or whitespace-varied form of an already-taught
+        // key (e.g. "Kim@Henderson.COM" vs a stored "kim@henderson.com")
+        // fails to move it off the other matter, leaving two matters with
+        // what the resolver treats as the same key.
+        const normalized = normalizeMeetingKey(key);
+        set((state) => ({
+          matters: state.matters.map((m) => {
+            if (m.id === id) {
+              const existing = m.meetingKeys ?? [];
+              const alreadyPresent = existing.some((k) => normalizeMeetingKey(k) === normalized);
+              return alreadyPresent ? m : { ...m, meetingKeys: [...existing, key] };
+            }
+            const others = m.meetingKeys ?? [];
+            const filtered = others.filter((k) => normalizeMeetingKey(k) !== normalized);
+            return filtered.length === others.length ? m : { ...m, meetingKeys: filtered };
+          }),
         }));
       },
 

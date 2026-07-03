@@ -51,7 +51,20 @@ use serde::{Deserialize, Serialize};
 /// token lookups (which would treat every entry as missing and could pass a
 /// plaintext key to a token-based delete). The version mismatch discards it and a
 /// full reconcile rebuilds it correctly.
-pub const MANIFEST_VERSION: u32 = 2;
+///
+/// v3: `path_token` now NORMALIZES the path (folds `\`→`/`) before the HMAC, so
+/// the native-Windows form and the forward-slash form of one file tokenize
+/// identically (commit 74e24612). That change altered how EVERY token is
+/// derived, but did not bump this version at the time. A v2 manifest written
+/// BEFORE normalization holds tokens over the raw backslash path; after
+/// normalization the disk walk computes forward-slash tokens, so every v2 entry
+/// mismatches and the whole workspace looks deleted — the boot-reconcile
+/// delete-flood. We cannot tell a normalized-v2 from a non-normalized-v2 file on
+/// disk (both just say `manifest_version: 2`), so any pre-v3 manifest is treated
+/// as stale-key-format and REBUILT from scratch (drop table + full re-index),
+/// which re-derives every token under the normalizer. This is a one-time reindex
+/// for existing installs and the only correct migration.
+pub const MANIFEST_VERSION: u32 = 3;
 
 /// Bump when the text/office extraction pipeline changes in a way that would
 /// produce different chunk TEXT for the same bytes (new extractor, changed
@@ -339,17 +352,30 @@ pub fn save(workspace_root: &Path, manifest: &Manifest) -> std::io::Result<()> {
     Ok(())
 }
 
-/// True iff a manifest file exists on disk AND was written in the v1 plaintext-key
-/// format (its `sources` are keyed by paths, not HMAC tokens). Such a manifest
-/// cannot be matched against the v2 token-keyed LanceDB rows, so the reconcile
-/// must REBUILD the store from scratch rather than silently discard it — silently
-/// discarding it would strand a deleted-while-closed file's rows (its token is
-/// only recoverable from the plaintext key), leaving deleted content searchable.
-/// Absent / unreadable / already-v2+ manifests return false (no rebuild needed).
+/// True iff a manifest file exists on disk AND was written in an OLDER key-format
+/// version than the live `MANIFEST_VERSION` (`1 <= version < MANIFEST_VERSION`).
+///
+/// Any such manifest may hold source keys whose HMAC-token derivation differs
+/// from the current one, so its keys cannot be reliably matched against the
+/// LanceDB rows written by this build:
+///   - v1 kept plaintext-path keys (a token-based delete could get a plaintext
+///     key), and
+///   - a pre-v3 (v2) manifest predates path normalization, so its tokens are
+///     over the raw backslash path while the disk walk now tokenizes the
+///     normalized path — a mismatch that makes the whole workspace look deleted
+///     (the boot-reconcile delete-flood).
+///
+/// Either way the reconcile must REBUILD the store from scratch (drop table +
+/// full re-index) rather than silently discard the manifest — discarding it
+/// while the table survives would strand a deleted-while-closed file's rows
+/// (their token is only recoverable from the stale key), leaving deleted content
+/// searchable. Absent / unreadable / already-current / newer (future) manifests
+/// return false (no rebuild needed — a newer format is forward-compat and load()
+/// simply starts empty).
 pub fn has_stale_key_format(workspace_root: &Path) -> bool {
     match std::fs::read_to_string(manifest_path(workspace_root)) {
         Ok(s) => serde_json::from_str::<Manifest>(&s)
-            .map(|m| m.manifest_version == 1)
+            .map(|m| m.manifest_version >= 1 && m.manifest_version < MANIFEST_VERSION)
             .unwrap_or(false),
         Err(_) => false,
     }
@@ -532,20 +558,67 @@ mod tests {
     }
 
     #[test]
-    fn has_stale_key_format_detects_v1_only() {
+    fn has_stale_key_format_detects_all_older_formats() {
         let dir = tempfile::TempDir::new().unwrap();
         // Absent → false.
         assert!(!has_stale_key_format(dir.path()));
-        // Current (v2) → false.
+        // Current (MANIFEST_VERSION) → false.
         save(dir.path(), &Manifest::new(10)).unwrap();
         assert!(!has_stale_key_format(dir.path()));
-        // A v1 (plaintext-key era) manifest → true.
         let p = manifest_path(dir.path());
+        // A v1 (plaintext-key era) manifest → true.
         std::fs::write(&p, br#"{"manifest_version":1,"index_version":10,"sources":{}}"#).unwrap();
         assert!(has_stale_key_format(dir.path()));
-        // A hypothetical future version → false (not the plaintext-key format).
+        // A v2 (pre-normalization token era) manifest → true — this is the
+        // boot-reconcile delete-flood case: its tokens are over raw backslash
+        // paths and no longer match the normalized disk walk, so it must rebuild.
+        std::fs::write(&p, br#"{"manifest_version":2,"index_version":10,"sources":{}}"#).unwrap();
+        assert!(has_stale_key_format(dir.path()));
+        // A hypothetical future version → false (forward-compat; load() starts empty).
         std::fs::write(&p, br#"{"manifest_version":9,"index_version":10,"sources":{}}"#).unwrap();
         assert!(!has_stale_key_format(dir.path()));
+    }
+
+    // Round-3 P1 regression: a pre-reconcile incremental manifest write (PDF-record
+    // or watcher index) load+saves the manifest, which upgrades a stale v2 file to
+    // the current version and erases the has_stale_key_format signal. The durable
+    // rebuild-required marker planted at workspace-open must survive that write, so
+    // the boot reconcile STILL drops + rebuilds and deleted-while-closed rows are
+    // purged.
+    #[test]
+    fn stale_v2_manifest_still_forces_rebuild_after_a_pre_reconcile_incremental_write() {
+        use crate::commands::rag::reconcile::mark_rebuild_if_manifest_stale;
+        use crate::commands::rag::store::is_rebuild_required;
+        let dir = tempfile::TempDir::new().unwrap();
+        let root = dir.path();
+        let p = manifest_path(root);
+        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        // A pre-normalization v2 manifest is on disk.
+        std::fs::write(&p, br#"{"manifest_version":2,"index_version":10,"sources":{}}"#).unwrap();
+        assert!(has_stale_key_format(root), "v2 is stale");
+        assert!(!is_rebuild_required(root), "no rebuild marker yet");
+
+        // rag_set_workspace (earliest per-open hook) observes the stale manifest and
+        // durably records the rebuild-required — BEFORE any writer runs.
+        mark_rebuild_if_manifest_stale(root);
+        assert!(is_rebuild_required(root), "workspace-open must plant the marker");
+
+        // Now an incremental writer (rag_manifest_record_pdf) runs BEFORE reconcile:
+        // load() treats the v2 file as empty and save() writes a fresh CURRENT-version
+        // manifest — erasing the has_stale_key_format signal.
+        let mut m = load(root, 10);
+        m.insert("some-pdf-token".to_string(), text_sig(100, 42));
+        save(root, &m).unwrap();
+        assert!(
+            !has_stale_key_format(root),
+            "the incremental save upgraded the on-disk version (the trap)"
+        );
+
+        // ...but the durable rebuild marker SURVIVES, so reconcile still rebuilds.
+        assert!(
+            is_rebuild_required(root),
+            "the rebuild signal must survive a pre-reconcile incremental write"
+        );
     }
 
     #[test]

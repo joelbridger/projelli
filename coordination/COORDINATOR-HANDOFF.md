@@ -36,7 +36,11 @@ at each UI merge — his veto = P0 follow-up, not a merge block). Phase 2 =
   - `cc-lantern-w1` in worktree `~/lp-w1` (branch `lp/wave-1`): scoped to Wave 1 Task 1
     (Google OAuth submission PACK doc — the filing itself is Jameson's) + Tasks 2–7 ONLY
     (Rust calendar module). Do NOT let it start TS/UI tasks 8+ yet.
-- **Monitors:** re-arm at YOUR start (the old session's monitors die with it): the
+- **Monitors:** re-arm at YOUR start (the old session's monitors die with it). FOUR now:
+  (1) fleet watcher, (2) RAM watchdog (+ disk-pressure alarm <25G — added after the
+  2026-07-02 disk-full emergency), (3) bulletin watcher: `tail -n 0 -F
+  ~/keepance-coordination/PARALLEL-EFFORTS.md | grep -v <your-own-signature>` so main-fleet
+  news (Legion release, release tags, rebrand heads-up) pings you live, (4) below: the
   cc-lantern-* fleet watcher (inline script — see the Monitor the previous coordinator
   armed; recreate: poll tmux panes of `cc-lantern-*` every 30s, emit DONE on fresh
   `WORKER-DONE:` in last 25 lines after WORKING→IDLE, ACK_IDLE otherwise, STALL on frozen
@@ -76,9 +80,13 @@ at each UI merge — his veto = P0 follow-up, not a merge block). Phase 2 =
 - NEVER touch `~/keepance` / push `keepance-3.0` / deploy/release from this fork.
 - NEVER rename `matter_id`/`Matter`. Never claim SOC 2. No cloud transcription EVER.
 - Workers named `cc-lantern-*` ONLY (main fleet sweeps `cc-keepance-*`).
-- Every lantern-plus shell exports `CARGO_TARGET_DIR=~/.cargo-target-lantern-plus`; one
-  cargo at a time within this effort; sidecar stubs may need `touch src-tauri/binaries/
-  {piper,llama-server}-x86_64-unknown-linux-gnu` before cargo in fresh worktrees.
+- CARGO CACHES ARE PER-LANE now (2026-07-03): w1→`~/.cargo-target-lp-w1`,
+  w2→`~/.cargo-target-lp-w2`, coordinator merge gates→`~/.cargo-target-lp-gate`;
+  legacy `~/.cargo-target-lantern-plus` dies with w0 (delete it when w0 closes). One
+  cargo per LANE; lanes compile concurrently. Watch DISK (~45G/cache; <25G alarm armed;
+  delete a lane's cache at lane close; don't seed a new lane under 80G free). Seed new
+  lanes with `rsync -a --exclude debug/incremental` from any warm cache, cargo-quiet.
+  Sidecar stubs may still need `touch src-tauri/binaries/{piper,llama-server}-x86_64-unknown-linux-gnu` in fresh worktrees.
 - The rebrand merge from main is the one known chunky downstream merge — dedicated session.
 - Plans' line anchors may drift after downstream merges — verify by symbol, current wave only.
 - Jameson communication: plain language always; no time estimates; publish substantial

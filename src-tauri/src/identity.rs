@@ -100,6 +100,9 @@ pub const CALENDLY_SERVICE: &str = concat!(app_ns!(), "-calendly");
 /// Calendly connector DB encryption key service.
 pub const CALENDLY_ENC_SERVICE: &str = concat!(app_ns!(), "-calendly-enc");
 
+/// Calendar connector DB encryption key service.
+pub const CALENDAR_ENC_SERVICE: &str = concat!(app_ns!(), "-calendar-enc");
+
 /// DocuSign connector token slot (exact).
 pub const DOCUSIGN_SERVICE: &str = concat!(app_ns!(), "-docusign");
 
@@ -139,6 +142,20 @@ pub const ZOCKS_SERVICE_PREFIX: &str = concat!(app_ns!(), "-zocks-");
 
 /// Addepar connector namespace prefix.
 pub const ADDEPAR_SERVICE_PREFIX: &str = concat!(app_ns!(), "-addepar-");
+
+/// Calendar connector namespace prefix. Covers per-provider token slots
+/// (`-calendar-ms`, `-calendar-google`, `-calendar-ics`) and the DB key.
+pub const CALENDAR_SERVICE_PREFIX: &str = concat!(app_ns!(), "-calendar-");
+
+/// Build a calendar provider keychain service string.
+pub fn calendar_keychain_service(provider_id: &str) -> String {
+    format!("{}{}", CALENDAR_SERVICE_PREFIX, provider_id)
+}
+
+/// Calendly connector namespace prefix. Covers the SQLCipher master key
+/// (`keepance-calendly-enc`) and any future Calendly-scoped secret. The bare
+/// API token slot (`keepance-calendly`) is the exact `CALENDLY_SERVICE` above.
+pub const CALENDLY_SERVICE_PREFIX: &str = concat!(app_ns!(), "-calendly-");
 
 // ── Per-workspace hidden data directory ──────────────────────────────────────
 

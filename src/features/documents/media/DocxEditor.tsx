@@ -36,6 +36,7 @@ import {
   FileText,
   FileType,
   Loader2,
+  Mail,
   PanelRightClose,
   PanelRightOpen,
   ShieldCheck,
@@ -69,6 +70,7 @@ import {
   isDocxEngineAvailable,
 } from '@/platform/utils/docx-commands';
 import { writeCoordinator } from '@/platform/fs/writeCoordinator';
+import { extractIndexedParagraphs } from '@/features/documents/docx/redline';
 import { createProvider, isLocalProviderId, type ChatProviderId } from '@/platform/providers/providerFactory';
 import { useTrialGate } from '@/platform/hooks/useTrial';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
@@ -162,6 +164,8 @@ interface DocxEditorProps {
    * When absent (default), the solo path is used byte-for-byte.
    */
   coedit?: { session: CoeditSession };
+  /** Wave 0: opens the "Draft follow-up" email modal with the document's plain text. */
+  onDraftFollowUp?: ((plainText: string) => void) | undefined;
 }
 
 type LoadState =
@@ -184,6 +188,7 @@ export function DocxEditor({
   authorName = 'You',
   onAuditLog,
   coedit,
+  onDraftFollowUp,
 }: DocxEditorProps) {
   const { t } = useTranslation();
 
@@ -1209,6 +1214,36 @@ export function DocxEditor({
                 ? '1 other editing'
                 : `${String(otherEditors)} others editing`}
             </span>
+          )}
+
+          {onDraftFollowUp && (
+            <Button
+              data-testid="docx-draft-follow-up"
+              variant="outline"
+              size="sm"
+              className="h-7 gap-1.5 border-[rgba(var(--kp-navy-rgb),0.30)] text-[var(--kp-navy)] hover:bg-[rgba(var(--kp-navy-rgb),0.05)]"
+              onClick={() => {
+                // Coordinator review catch: commit any in-progress (focused,
+                // un-blurred) edit and drain any already-queued op before
+                // reading the doc, or the draft is built from a snapshot
+                // missing the user's latest keystrokes — the same flush
+                // pattern Export uses (see flushSaveBeforeExport above).
+                void (async () => {
+                  await commitActiveRunEdit();
+                  await docOpQueueRef.current;
+                  const doc = currentDocRef.current;
+                  if (!doc) return;
+                  const text = extractIndexedParagraphs(doc)
+                    .map(p => p.text)
+                    .join('\n');
+                  onDraftFollowUp(text);
+                })();
+              }}
+              title={t('media.docx-editor.draft-follow-up-title')}
+            >
+              <Mail className="h-3.5 w-3.5" />
+              {t('media.docx-editor.draft-follow-up')}
+            </Button>
           )}
 
           {/* A6: discoverable Export — a clearly-labeled menu (not a bare icon)

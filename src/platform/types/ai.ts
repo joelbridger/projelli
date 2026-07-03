@@ -1,5 +1,7 @@
 // AI Chat Types
 
+import type { ConsentScope } from '@/platform/ai/fileAccessConsent';
+
 /**
  * API key configuration for AI providers
  */
@@ -112,6 +114,22 @@ export interface ChatMessage {
    * pre-smart legacy messages, which restore via the flat path.
    */
   askBlocks?: PersistedAnswerBlock[];
+  /**
+   * F2.5b (Codex P1) — persisted DURABLE marker that this Ask answer was produced
+   * with client file content sent to the model, independent of whether a citation
+   * survived. Restored onto the reconstructed turn so, after a reload, a later
+   * denied/wrong-scope cloud send still redacts this answer from the history
+   * block. Absent on legacy messages → the citations/sources heuristic backs it up.
+   */
+  askGroundedFromFiles?: boolean;
+  /**
+   * F2.5b (Codex round 3) — persisted grounding scope (which client(s) this
+   * answer's file content came from), restored onto the reconstructed turn so
+   * history redaction can require the CURRENT consent to cover that scope before
+   * re-sending the answer to a cloud provider. Absent on legacy messages → the
+   * redaction assumes the widest scope (all clients), the conservative default.
+   */
+  askGroundingScope?: ConsentScope;
   /**
    * M2 — workspace retrieval hits associated with this turn. For
    * user-role messages this is the list of chunks that were retrieved

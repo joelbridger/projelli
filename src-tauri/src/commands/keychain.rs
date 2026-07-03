@@ -45,6 +45,10 @@ const INTERNAL_EXACT_SERVICES: &[&str] = &[
     identity::JOTFORM_SERVICE,
     identity::ZOCKS_SERVICE,
     identity::ADDEPAR_SERVICE,
+    // Calendly connector API token slot (exact). The SQLCipher master key
+    // (`keepance-calendly-enc`) and any future Calendly-scoped secret are
+    // covered by CALENDLY_SERVICE_PREFIX below.
+    identity::CALENDLY_SERVICE,
 ];
 const INTERNAL_SERVICE_PREFIXES: &[&str] = &[
     // Vault VMKs are Rust-owned. Firm collaboration keys use
@@ -70,6 +74,20 @@ const INTERNAL_SERVICE_PREFIXES: &[&str] = &[
     identity::JOTFORM_SERVICE_PREFIX,
     identity::ZOCKS_SERVICE_PREFIX,
     identity::ADDEPAR_SERVICE_PREFIX,
+    // Calendar connector namespace. Covers the per-provider OAuth refresh
+    // token slots (`keepance-calendar-ms` / `-google`), the secret ICS feed
+    // URL (`keepance-calendar-ics` — the URL itself commonly embeds an
+    // access token), and the SQLCipher master key (`keepance-calendar-enc`).
+    // codex-review P1 (2026-07-02): without this the generic keychain
+    // bridge would let any renderer code read these directly.
+    identity::CALENDAR_SERVICE_PREFIX,
+    // Calendly connector namespace. Covers the SQLCipher master key
+    // (`keepance-calendly-enc`) plus any future per-connector secret. The
+    // bare API token slot (`keepance-calendly`) is listed in the exact set
+    // above. codex-review flagged (2026-07-02, lantern-plus 381cb64a) that
+    // this connector was missing from both denylists, letting any renderer
+    // code read Calendly credentials directly through the generic bridge.
+    identity::CALENDLY_SERVICE_PREFIX,
 ];
 
 /// Structured error returned to the frontend. Separating "not found" from
@@ -252,6 +270,14 @@ mod tests {
         let future_crm = identity::crm_keychain_service("newprovider");
         let future_onedrive = format!("{}future-secret", identity::ONEDRIVE_SERVICE_PREFIX);
         let future_box = format!("{}future-secret", identity::BOX_SERVICE_PREFIX);
+        // Calendar provider services are dynamic (prefix + provider id) too.
+        let calendar_ms = identity::calendar_keychain_service("ms");
+        let calendar_google = identity::calendar_keychain_service("google");
+        let calendar_ics = identity::calendar_keychain_service("ics");
+        let future_calendar = format!("{}future-secret", identity::CALENDAR_SERVICE_PREFIX);
+        // Calendly's DB key is a dynamic prefix + suffix (`keepance-calendly-enc`),
+        // so build the future-secret probe the same way as the other connectors.
+        let future_calendly = format!("{}future-secret", identity::CALENDLY_SERVICE_PREFIX);
         // Every connector service name that exists in the codebase today.
         let denied: &[&str] = &[
             // OneDrive
@@ -273,10 +299,21 @@ mod tests {
             identity::ZOCKS_SERVICE,
             identity::ZOCKS_ENC_SERVICE,
             identity::ADDEPAR_SERVICE,
+            // Calendar connector: per-provider refresh tokens / ICS URL
+            // (dynamic, prefix) + SQLCipher master key (exact).
+            &calendar_ms,
+            &calendar_google,
+            &calendar_ics,
+            identity::CALENDAR_ENC_SERVICE,
+            // Calendly: API token slot (exact) + SQLCipher DB key (prefix).
+            identity::CALENDLY_SERVICE,
+            identity::CALENDLY_ENC_SERVICE,
             // Future connectors under the same namespaces must be denied by default.
             &future_crm,
             &future_onedrive,
             &future_box,
+            &future_calendar,
+            &future_calendly,
             identity::ADDEPAR_ENC_SERVICE,
         ];
         for svc in denied {

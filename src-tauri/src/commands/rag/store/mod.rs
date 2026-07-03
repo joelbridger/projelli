@@ -891,6 +891,29 @@ mod tests {
     }
 
     #[test]
+    fn rebuild_required_sentinel_survives_across_boots() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let root = dir.path();
+        // Absent by default (a healthy workspace never needs a forced rebuild).
+        assert!(!is_rebuild_required(root), "clean state first");
+        // Boot A: a degraded purge marks the durable sentinel.
+        mark_rebuild_required(root);
+        // Boot B: a fresh process (any reader of the same dir) sees it and must
+        // drop + rebuild — this is what stops the degraded-purge content leak.
+        assert!(
+            is_rebuild_required(root),
+            "the durable sentinel must survive to the next boot to force a rebuild"
+        );
+        // Boot B's clean full rebuild clears it → Boot C is a normal reconcile
+        // (no re-trip / oscillation).
+        clear_rebuild_required(root);
+        assert!(
+            !is_rebuild_required(root),
+            "a completed clean rebuild clears the sentinel"
+        );
+    }
+
+    #[test]
     fn chunk_id_is_stable() {
         let a = chunk_id("/a/b.md", 3);
         let b = chunk_id("/a/b.md", 3);

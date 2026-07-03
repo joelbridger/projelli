@@ -10,8 +10,9 @@
  * local WhatsNewLayer wrapper.
  */
 
-import { lazy, Suspense, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { LazyBoundary } from '@/ui/LazyBoundary';
 
 import { McpApprovalGate } from '@/features/settings/McpApprovalGate';
 import { AiWriteApprovalModal } from '@/features/ask/AiWriteApprovalModal';
@@ -53,7 +54,7 @@ import type { SettingCategory } from '@/platform/settings/schema';
 // OneDrive, Box, DocuSign, ShareFile, Jotform, Zocks, Addepar, Calendly,
 // Salesforce, Redtail, plus mail + firm admin) — lazy so none of that rides
 // into the startup bundle until the user actually opens Account settings.
-const AccountWindow = lazy(() => import('@/features/account/AccountWindow'));
+const loadAccountWindow = () => import('@/features/account/AccountWindow');
 
 export interface AppDialogsProps {
   // MCP gate
@@ -284,19 +285,23 @@ export function AppDialogs({
           import() immediately. Suspense fallback is `null`, not a spinner:
           once opened it stays mounted (Radix Dialog controls visibility via
           `open`, not mount) so a visible fallback would flash on later opens
-          while re-rendering, not just the first cold fetch. */}
+          while re-rendering, not just the first cold fetch. LazyBoundary
+          contains a failed chunk fetch behind a Retry card instead of
+          letting it unmount the whole app (bench pass 2). */}
       {accountWindowEverOpened && (
-        <Suspense fallback={null}>
-          <AccountWindow
-            open={accountWindowOpen}
-            onOpenChange={(open) => {
-              setAccountWindowOpen(open);
-              if (!open) onAccountWindowClosed?.();
-            }}
-            auditEntries={auditEntries}
-            initialTab={accountWindowInitialTab}
-          />
-        </Suspense>
+        <LazyBoundary loader={loadAccountWindow} fallback={null} label="Account settings">
+          {(AccountWindow) => (
+            <AccountWindow
+              open={accountWindowOpen}
+              onOpenChange={(open) => {
+                setAccountWindowOpen(open);
+                if (!open) onAccountWindowClosed?.();
+              }}
+              auditEntries={auditEntries}
+              initialTab={accountWindowInitialTab}
+            />
+          )}
+        </LazyBoundary>
       )}
 
       {/* Advisor Prep Hero 3.0: rebuilt first-run wizard — the live first-run surface.

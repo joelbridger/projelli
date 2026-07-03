@@ -5,13 +5,14 @@
  * where AI proposes and the user approves all destructive actions.
  */
 
-import { useState, useCallback, useRef, useEffect, useMemo, lazy, Suspense } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { workspacePath } from '@/platform/fs/appPath';
 import { useGlobalEventBus, type AppSurface } from '@/app/lifecycle/useGlobalEventBus';
 import { useAutosave } from '@/app/lifecycle/useAutosave';
 import { useFlushOnExit } from '@/app/lifecycle/useFlushOnExit';
 import { useThemeManager } from '@/app/lifecycle/useThemeManager';
 import { useWorkspaceLifecycle } from '@/app/lifecycle/useWorkspaceLifecycle';
+import { useAutoResumeWorkspace } from '@/app/lifecycle/useAutoResumeWorkspace';
 import { useTestModeWorkspace } from '@/app/lifecycle/useTestModeWorkspace';
 import { useKeyboardShortcuts } from '@/app/commands/useKeyboardShortcuts';
 import { useAppCommands } from '@/app/commands/useAppCommands';
@@ -32,8 +33,10 @@ import { TrustBar } from '@/app/shell/layout/TrustBar';
 import { StatusBar } from '@/app/shell/layout/StatusBar';
 import { AppDialogs } from '@/app/shell/AppDialogs';
 import { AppSurfaceRouter } from '@/app/shell/AppSurfaceRouter';
+import { LazyBoundary } from '@/ui/LazyBoundary';
 
 import { ProjectManager } from '@/features/documents/workspace/ProjectManager';
+import { AppLogo } from '@/ui/brand/AppLogo';
 import { Button } from '@/ui/button';
 import { Command, Moon, Monitor, Sun } from 'lucide-react';
 import { TrialBanner } from '@/features/account/trial';
@@ -96,6 +99,9 @@ import { useTrash } from '@/platform/hooks/useTrash';
 import { useSourceCards } from '@/app/hooks/useSourceCards';
 import { useAIChatFiles } from '@/platform/hooks/useAIChatFiles';
 import { useApiKeys } from '@/platform/hooks/useApiKeys';
+import { useSettingsStore, useSettingsHydrated } from '@/platform/settings/settingsStore';
+import { vaultStatus } from '@/platform/firm/vault/vaultClient';
+import { withTimeout } from '@/lib/withTimeout';
 import { useOpenFileAIContext } from '@/platform/hooks/useOpenFileAIContext';
 import { useTemplatesMarketplaceStore } from '@/features/workflows/templatesMarketplaceStore';
 import { useModelList } from '@/platform/hooks/useModelList';
@@ -113,7 +119,7 @@ import { installEarlyConnectorEventBridge } from '@/app/shell/connectorEventBrid
 // Nine connector citation viewers, none of which render anything until their
 // own window event fires — bundled into one lazy chunk (see
 // ConnectorSourcePanels.tsx) so they don't ride into the startup bundle.
-const ConnectorSourcePanels = lazy(() => import('@/app/shell/ConnectorSourcePanels'));
+const loadConnectorSourcePanels = () => import('@/app/shell/ConnectorSourcePanels');
 
 // Module-level constants so the onboarding/tour effects have stable deps
 // and never need to be listed in exhaustive-deps disable comments.
@@ -284,11 +290,12 @@ function App() {
   // to any of those stores anywhere in the app. useShallow keeps the same
   // destructured shape while only re-rendering when one of these fields
   // itself changes.
-  const { rootPath, setRootPath, setFileTree, recentWorkspaces, fileTree, expandedPaths, expandAllFolders, loadRecentWorkspaces } = useWorkspaceStore(useShallow((s) => ({
+  const { rootPath, setRootPath, setFileTree, recentWorkspaces, recentWorkspacesLoaded, fileTree, expandedPaths, expandAllFolders, loadRecentWorkspaces } = useWorkspaceStore(useShallow((s) => ({
     rootPath: s.rootPath,
     setRootPath: s.setRootPath,
     setFileTree: s.setFileTree,
     recentWorkspaces: s.recentWorkspaces,
+    recentWorkspacesLoaded: s.recentWorkspacesLoaded,
     fileTree: s.fileTree,
     expandedPaths: s.expandedPaths,
     expandAllFolders: s.expandAllFolders,
@@ -787,6 +794,39 @@ function App() {
     loadSourceCards, setSourceCards, loadChatFiles, setChatFiles, confirm,
   });
 
+  // Boot: silently reopen the last workspace when "Reopen last workspace" is
+  // on, instead of always showing the picker (only Tauri can do this without
+  // a fresh user gesture — browser directory handles need a picker click).
+  // See useAutoResumeWorkspace for why this waits on explicit hydration
+  // flags rather than reading the stores synchronously at mount, and for the
+  // hang- and vault-safety guarantees below.
+  const settingsHydrated = useSettingsHydrated();
+  const startupBehavior = useSettingsStore((s) => s.getSetting<string>('startupBehavior'));
+  // A locked vault needs WorkspaceSelector's own VaultLockedPrompt UI to
+  // unlock, so auto-resume must never silently open one — it preflights with
+  // the SAME vaultStatus() check WorkspaceSelector's manual open path uses,
+  // bounded by a short timeout (this is a UX preflight, not the security
+  // boundary, so it fails OPEN — i.e. "not locked" — on its own error/timeout,
+  // same as WorkspaceSelector's non-fatal catch for this call).
+  const isWorkspaceVaultLocked = useCallback(async (path: string): Promise<boolean> => {
+    if (!isTauriEnvironment()) return false;
+    try {
+      const status = await withTimeout(vaultStatus(path), 5_000, 'Checking vault status');
+      return status.enabled && status.locked;
+    } catch {
+      return false;
+    }
+  }, []);
+  const isAutoResumingWorkspace = useAutoResumeWorkspace({
+    isEligibleEnvironment: !IS_TEST_MODE && !IS_DEMO_MODE && isTauriEnvironment(),
+    settingsHydrated,
+    recentWorkspacesLoaded,
+    startupBehavior,
+    recentWorkspaces,
+    isWorkspaceVaultLocked,
+    openWorkspace: handleOpenRecentProject,
+  });
+
   // First-run workspace-first step. The onboarding overlay (OnboardingV2) calls
   // this BEFORE its connect/Client-Map steps so a workspace always exists by the
   // time connectors/import/Client-Map need one (Cluster-3 "workspace must be
@@ -1209,6 +1249,21 @@ function App() {
   // wizard finishes (which clears showFirstRun) keeps the wizard mounted and
   // advancing. This matches the documented design: "the wizard layers over the
   // workspace selector as a full-screen overlay."
+  // While a "Reopen last workspace" auto-resume attempt is in flight, keep
+  // the picker off-screen entirely — otherwise it flashes before the resumed
+  // workspace takes over (or, if boot data is read too early, never gets
+  // dismissed at all — the bug this hook fixes).
+  if (!IS_TEST_MODE && isAutoResumingWorkspace) {
+    return (
+      <div
+        data-testid="workspace-auto-resume-loading"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-white dark:bg-white"
+      >
+        <AppLogo height={48} />
+      </div>
+    );
+  }
+
   if (!IS_TEST_MODE && (showWorkspaceSelector || !rootPath || showFirstRun) && !(IS_DEMO_MODE && !demoOpenFailed)) {
     const canDismiss = Boolean(rootPath);
     return (
@@ -1515,11 +1570,12 @@ function App() {
           chunk is fetched on demand rather than on every cold start. Once
           mounted each one self-gates on its own window event and renders
           nothing until a matching citation is clicked, so a null Suspense
-          fallback is safe here. */}
+          fallback is safe here. LazyBoundary contains a failed chunk fetch
+          behind a Retry card instead of letting it unmount the whole app. */}
       {connectorPanelsNeeded && (
-        <Suspense fallback={null}>
-          <ConnectorSourcePanels />
-        </Suspense>
+        <LazyBoundary loader={loadConnectorSourcePanels} fallback={null} label="Connector panel">
+          {(ConnectorSourcePanels) => <ConnectorSourcePanels />}
+        </LazyBoundary>
       )}
     </div>
   );

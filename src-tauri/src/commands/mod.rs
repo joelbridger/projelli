@@ -20,6 +20,8 @@ pub mod docusign;
 pub mod jotform;
 // Read-only Zocks connector — meeting notes/transcripts into client memory.
 pub mod zocks;
+// Calendar connector — read-only Outlook/Google/ICS events into meeting RAG + Client Map prep.
+pub mod calendar;
 // Calendly connector — read-only scheduled events + invitee intake into meeting RAG.
 pub mod calendly;
 // Shared additive connector foundation — generic external RAG ingestion bridge.

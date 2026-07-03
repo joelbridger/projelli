@@ -1,5 +1,14 @@
 # Lantern-Plus Coordination STATUS
 
+## UPDATE 2026-07-03 ~03:00 — WAVES 0 + 1-BACKEND MERGED 🎉
+- lantern-plus @d64f7d58 (pushed): Wave 0 (13 tasks) + Wave 1 backend (tasks 1-11, lp/wave-1b) + downstream merge #3 (22 main-line commits incl. their calendly denylist fix). Gates: typecheck ✅, vitest 5281 ✅ (consent contract test = known load-flake, passes isolated), cargo keychain tests 16/16 ✅. Backup tags: backup-pre-wave0-merge / -wave1b-merge / -downstream3-20260703.
+- Milestone report published (claudereports: 2026-07-02-lantern-plus-waves-0-1-backend-merged) + notify-jameson sent with UI screenshots (docs/evidence/wave-0/ on lp/wave-0).
+- w0 CLOSED (merged, evidence delivered; worktree + scratch removed). Legacy cargo cache ~/.cargo-target-lantern-plus is now w2-EXCLUSIVE (85G — delete when w2 closes).
+- w1 → lp/wave-1c finale: merged tip pulled in, building tasks 13 + 17/17b (Client Map strips + brief export). Tasks 12/14/15/16/18 done on 1c. Task 17 ships the SIMPLER spec'd version (per-bullet citation chips = flagged P0 follow-up for Jameson).
+- w2 → CRM Rust tasks 1-7 done, on final verification (a Drop-impl deadlock found+fixed after a 37-min hung test).
+- PER-LANE CARGO CACHES live: lp-w1 / lp-w2(=legacy dir) / lp-gate. Lanes compile concurrently. Disk is the watch-item (~150G free; <25G alarm armed).
+- P0 follow-ups queue: citation-chip hover popovers (Wave 0 modal), per-bullet brief citations (Task 17), Outlook attendee self-filter parity.
+
 *Live board for the Lantern-Plus coordinator (Fable). Playbook: ~/keepance-coordination/coordinator/PLAYBOOK.md (technique) + ~/lantern-plus/docs/plans/lantern-plus/PARALLEL-OPERATIONS.md (coexistence rules — BINDING). Wave plans = the work source. Session names: cc-lantern-*.*
 
 ## UPDATE 2026-07-02 (later) — coordinator relay #2 seated
