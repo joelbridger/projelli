@@ -5,9 +5,17 @@ Scripted, repeatable automation of the manual Windows/Azure bench smoke test
 Wave 4, final integration re-verify) is a command + a human skim of
 screenshots + `summary.json`, not hours of manual driving.
 
-**Status:** built and unit-tested from the server; **not yet run against a live
-bench** (that's a separate, explicit go/no-go — see "Running against a real
-bench" below). Not self-merged into `lantern-plus`.
+**Status:** built, unit-tested, and **live-validated against the Legion bench**
+(2026-07-03, read-only/queue-only, no `--live`). 6 of 8 non-stub checks PASS
+against the real app: workspace binding, per-client Documents, Wave 0 (Draft
+follow-up — 3 real citations, confirmed against a screenshot), Wave 2 (Send to
+Wealthbox renders and queues a review card — confirms the smoke-2 P0 #5 fix is
+still working), light theme, console errors. Live testing surfaced and fixed
+four real bugs in the harness itself (see "Bugs found live" below); the two
+remaining `SETUP-BLOCKED` checks (Wave 1 calendar sync, egress indicator) need
+a Settings/Connections navigation helper this pass didn't build — tracked as a
+follow-up below, not a defect in what exists. Not self-merged into
+`lantern-plus`.
 
 ---
 
@@ -132,7 +140,7 @@ advisor's Wealthbox — only the smoke sandbox account used in
 ## Testing without a bench
 
 ```bash
-npm run bench-smoke:test        # vitest — 58 tests, pure logic, no SSH/bench required
+npm run bench-smoke:test        # vitest — 77 tests, pure logic, no SSH/bench required
 node --check scripts/bench-smoke.mjs && for f in scripts/bench-smoke/*.mjs scripts/bench-smoke/checks/*.mjs; do node --check "$f"; done
 node scripts/bench-smoke.mjs --plan   # dry run, prints the checklist
 node scripts/bench-smoke.mjs --host 127.0.0.1 --user nobody --evidence-dir /tmp/bs-test   # exercises the real CLI end to end against a deliberately-unreachable host; every check reports SETUP-BLOCKED, exit code 3
@@ -152,22 +160,75 @@ still match the live app. That's exactly what a live validation run confirms.
 
 ---
 
-## Running against a real bench (not done yet)
+## Live validation (2026-07-03, Legion bench)
 
-This has **not** been run against the Legion or the Azure bench yet — the
-Legion is owned by the bench-prep lane right now and then by Wave-3 device
-verification, and the harness needed to exist first. Before a live run:
+Run read-only (no `--live`) against the Legion, bench state per
+`docs/evidence/windows-smoke-2/BENCH-READY.md`. Final result after fixing what
+the run surfaced:
 
-1. Confirm the bench's app is running with `DESKTOP_CDP_PORT`/remote-debug
-   wired up (same precondition `legion-drive.sh` already assumes).
-2. Confirm a workspace is open with real client folders bound (Phase 1 in
-   RUN-LOG.md) — the harness does not create workspaces or drive OAuth.
-3. Run `node scripts/bench-smoke.mjs --target legion` (read-only) first.
-   Expect some `SETUP-BLOCKED` rows on the first-ever run while real
-   `data-testid`s / button text get confirmed against `checks/*.mjs` — that's
-   the harness doing its job (honest about failure), not a defect.
-4. Only add `--live` once the read-only pass is clean and you're pointed at
-   the sandbox Wealthbox account.
+| Check | Result |
+|---|---|
+| workspace-binding | **PASS** |
+| per-client-files-visible | **PASS** (real files: DocuSign cert, Form ADV, Meeting Notes, Schwab Statement) |
+| index-health | SETUP-BLOCKED (passed on one run, blocked on another — see "Known flakiness" below) |
+| wave0-draft-followup | **PASS** — 3 real citation chips confirmed in a screenshot ("May 20, 2024", "adopt the 53% target-equity policy mix", "next review is scheduled for approximately one year out") |
+| wave1-calendar-brief-export | SETUP-BLOCKED — needs a Settings/Connections navigation helper this pass didn't build (see "Known follow-ups") |
+| wave2-wealthbox-queue-review | **PASS** — Send to Wealthbox button renders and queues a review card; **confirms the smoke-2 P0 #5 matter-resolution fix is still working** |
+| wave2-wealthbox-approve-live | SKIPPED (no `--live` passed — correct default) |
+| cross-cutting-light-theme | **PASS** |
+| cross-cutting-console-errors | **PASS** |
+| cross-cutting-egress-indicator | SETUP-BLOCKED — same Settings-navigation gap as Wave 1 |
+
+### Bugs found live and fixed (all covered by new/updated unit tests)
+
+1. **`driver.click(el.testid ?? undefined)` silently sent the literal string
+   `"undefined"` as a testid** whenever a check matched an element by text
+   instead of a real `data-testid` — every such click timed out. Fixed with
+   `driver.clickByText()` + a `clickElement()` routing helper
+   (`checks/_util.mjs`).
+2. **A modal/overlay left open from a PRIOR session blocks every click**
+   underneath it (confirmed: a stale Clients-management dialog was still open
+   at bench handoff). Fixed with `driver.dismissBlockingOverlay()` (dispatches
+   a real Escape keydown/keyup), run before every check, not just once at
+   start.
+3. **A custom "Draft follow-up" modal does not close on Escape** and stayed
+   open across checks, blocking a later check's click on a real button
+   underneath it. Fixed by extending `dismissBlockingOverlay()` to also click
+   the first button inside any still-open `[role="dialog"]` /
+   `[data-testid$="-modal"]` container (confirmed live: that first button is
+   the icon-only close control).
+4. **`findByText()` on `driver.snapshot()` false-negatives on plain
+   informational text** (captions, banners) — desktop-drive.mjs's `snapshot()`
+   only captures interactive elements (`[data-testid], button, a,
+   [role="button"], input, textarea`), so text like "3 details are cited from
+   your notes" (a plain `<p>`) never appears in it. This produced a false
+   `FAIL` on `wave0-draft-followup` even though the screenshot showed the
+   citations working correctly. Fixed with a `textPresent()` helper built on
+   `driver.waitFor()` (Playwright's `getByText`, which searches the whole
+   rendered DOM) instead of the restricted snapshot.
+
+Also added, as a direct byproduct of live navigation debugging: a two-tier
+search in `clickByTextScript()` (interactive elements first, then a
+leaf-DOM-node fallback for elements like Documents file-tree rows that have no
+testid/button/role at all) and `driver.doubleClickByText()` (file-tree rows
+open on double-click, not single-click — confirmed live).
+
+### Known follow-ups (not fixed this pass)
+
+- **Wave 1 / egress-indicator need a Settings→Connections navigation helper.**
+  Both checks currently assume the app is already on that view; this pass only
+  built navigation for the Documents/Client-Map views (`checks/_util.mjs`'s
+  `openSmokeClient*` helpers). Same shape of fix, just a different
+  destination — a natural next ticket.
+- **`index-health` is flaky** — passed once, `SETUP-BLOCKED` once, likely an
+  ordering/timing interaction with the checks that ran immediately before it
+  (each check re-primes navigation independently; Wave 0/Wave 2 leave the app
+  on a docx editor tab, not the Client Map). Worth revisiting if it's still
+  flaky once the Settings-navigation follow-up above is done.
+- The `SMOKE_CLIENT_MATTER_ID` / `SMOKE_NOTE_FILENAME` constants in
+  `checks/smoke-workspace.mjs` are specific to the Northcrest Wealth Partners
+  demo workspace used in every RUN-LOG pass — update them there if a future
+  smoke run ever targets a different demo dataset.
 
 ## Adding a Wave-3/4 check once its UI exists
 

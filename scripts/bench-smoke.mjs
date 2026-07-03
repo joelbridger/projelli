@@ -88,6 +88,15 @@ async function main() {
   const reachable = await driver.isReachable();
   console.log(`[bench-smoke] reachable: ${reachable}`);
 
+  if (reachable) {
+    const overlay = await driver.dismissBlockingOverlay();
+    if (overlay.before > 0) {
+      console.log(
+        `[bench-smoke] dismissed a pre-existing open overlay via Escape (open elements: ${overlay.before} -> ${overlay.after})`
+      );
+    }
+  }
+
   const checksToRun = args.only ? [findCheck(args.only)].filter(Boolean) : CHECKLIST;
   const stubsToRun = args.only ? [findCheck(args.only)].filter((c) => c && STUBS.includes(c)) : STUBS;
   if (args.only && !findCheck(args.only)) {
@@ -111,6 +120,11 @@ async function main() {
   } else {
     for (const check of checksToRun) {
       if (STUBS.includes(check)) continue;
+      // Best-effort: a modal a PREVIOUS check opened (e.g. wave0's Draft
+      // follow-up dialog) can still be open and intercept this check's own
+      // clicks — confirmed live. Dismiss before every check, not just once
+      // at the very start.
+      await driver.dismissBlockingOverlay();
       console.log(`[bench-smoke] running: ${check.id}`);
       const result = await check.run({ driver, live: args.live, target });
       console.log(`[bench-smoke]   -> ${result.status}: ${result.detail}`);

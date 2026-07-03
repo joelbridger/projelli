@@ -1,14 +1,31 @@
 // scripts/bench-smoke/checks/wave0.mjs — Wave 0: Draft follow-up modal +
-// Client Map review tray, from RUN-LOG.md's "Wave 0" section. Assumes a docx
-// note is already the active tab (the harness doesn't open files — that's
-// setup/precondition, reported as SETUP-BLOCKED if missing).
+// Client Map review tray, from RUN-LOG.md's "Wave 0" section. Best-effort
+// opens the known smoke-test note first (see smoke-workspace.mjs); if that
+// navigation doesn't land on a docx tab, reports SETUP-BLOCKED rather than
+// guessing.
 import { STATUS, makeResult } from '../result.mjs';
-import { withGuard, requireSnapshot, findByTestId, findByText } from './_util.mjs';
+import {
+  withGuard,
+  requireSnapshot,
+  findByTestId,
+  textPresent,
+  openSmokeClientDocuments,
+  openSmokeClientNote,
+} from './_util.mjs';
+import { SMOKE_CLIENT_MATTER_ID, SMOKE_NOTE_FILENAME } from './smoke-workspace.mjs';
 
 const ID = 'wave0-draft-followup';
 const SECTION = 'Wave 0 — Draft follow-up, Client Map review tray';
 
 export const checkDraftFollowupAndReviewTray = withGuard(ID, SECTION, async ({ driver }) => {
+  try {
+    await openSmokeClientDocuments(driver, { matterId: SMOKE_CLIENT_MATTER_ID });
+    await openSmokeClientNote(driver, { fileName: SMOKE_NOTE_FILENAME });
+  } catch {
+    // Best-effort — the docx-draft-follow-up testid check right below is the
+    // real, honest gate (a note may already have been open from a prior check).
+  }
+
   const elements = await requireSnapshot(driver);
   const draftButton = findByTestId(elements, 'docx-draft-follow-up');
   if (!draftButton) {
@@ -32,8 +49,7 @@ export const checkDraftFollowupAndReviewTray = withGuard(ID, SECTION, async ({ d
     });
   }
 
-  const postClickElements = await requireSnapshot(driver);
-  const citationChip = findByText(postClickElements, /citation|source|cited/i);
+  const citationChip = await textPresent(driver, 'cited');
   const draftShot = await driver.captureScreenshot('wave0-draft-followup-modal');
 
   if (!citationChip) {
@@ -49,7 +65,7 @@ export const checkDraftFollowupAndReviewTray = withGuard(ID, SECTION, async ({ d
   // Client Map review tray is a separate surface from the modal just opened;
   // check its presence non-fatally (report within the same result's detail)
   // rather than failing the whole check if the modal is still open on top of it.
-  const reviewTray = findByText(postClickElements, /updates to review|accept|dismiss/i);
+  const reviewTray = await textPresent(driver, 'updates to review');
 
   return makeResult({
     id: ID,

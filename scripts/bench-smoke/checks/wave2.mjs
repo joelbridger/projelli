@@ -8,12 +8,28 @@
 // enforced in code since the harness has no way to know which Wealthbox
 // token a bench is using).
 import { STATUS, makeResult } from '../result.mjs';
-import { withGuard, requireSnapshot, findByTestId, findByText, clickElement } from './_util.mjs';
+import {
+  withGuard,
+  requireSnapshot,
+  findByTestId,
+  findByText,
+  clickElement,
+  openSmokeClientDocuments,
+  openSmokeClientNote,
+} from './_util.mjs';
+import { SMOKE_CLIENT_MATTER_ID, SMOKE_NOTE_FILENAME } from './smoke-workspace.mjs';
 
 const ID = 'wave2-wealthbox-queue-review';
 const SECTION = 'Wave 2 — Send to Wealthbox (queue/review only)';
 
 export const checkWealthboxQueueAndReview = withGuard(ID, SECTION, async ({ driver }) => {
+  try {
+    await openSmokeClientDocuments(driver, { matterId: SMOKE_CLIENT_MATTER_ID });
+    await openSmokeClientNote(driver, { fileName: SMOKE_NOTE_FILENAME });
+  } catch {
+    // Best-effort — see wave0.mjs for the same pattern and rationale.
+  }
+
   const elements = await requireSnapshot(driver);
   const sendButton = findByTestId(elements, 'docx-send-to-wealthbox');
   if (!sendButton) {

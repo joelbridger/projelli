@@ -5,28 +5,31 @@
 // harness can see, so it can't be verified this way without the pyautogui
 // native-dialog agent (scripts/legion_agent.py) — out of scope for this pass.
 import { STATUS, makeResult } from '../result.mjs';
-import { withGuard, requireSnapshot, findByText, clickElement } from './_util.mjs';
+import { withGuard, requireSnapshot, findByTestId, textPresent } from './_util.mjs';
 
 const ID = 'wave1-calendar-brief-export';
 const SECTION = 'Wave 1 — Calendar sync, meeting matching, briefs, exports';
 
+// The real data-testid for the Calendar connector's own Sync now button
+// (src/platform/connectors/calendar/CalendarConnect.tsx) — used instead of a
+// text match because RUN-LOG.md documented that the Wealthbox connector card
+// renders identical "Sync now" text, and an ambiguous textContent selector
+// mis-hit it twice during a real manual run.
+const CALENDAR_SYNC_TESTID = 'calendar-sync-button';
+
 export const checkCalendarBriefExport = withGuard(ID, SECTION, async ({ driver }) => {
   const elements = await requireSnapshot(driver);
-  const syncButton = findByText(elements, /^sync now$/i);
+  const syncButton = findByTestId(elements, CALENDAR_SYNC_TESTID);
   if (!syncButton) {
     return makeResult({
       id: ID,
       section: SECTION,
       status: STATUS.SETUP_BLOCKED,
-      detail: 'No "Sync now" control found — Calendar connector may not be connected on this bench yet.',
+      detail: `No [data-testid="${CALENDAR_SYNC_TESTID}"] control found — Calendar connector may not be connected on this bench, or its Settings/Connections view isn't open.`,
     });
   }
 
-  // Note: if more than one connector card exposes "Sync now" (Calendar +
-  // Wealthbox both do, per RUN-LOG's "ambiguous textContent" note), this
-  // harness must be pointed at the Calendar card specifically once its own
-  // testid is known — tracked as a follow-up, not guessed here.
-  await clickElement(driver, syncButton);
+  await driver.click(CALENDAR_SYNC_TESTID);
 
   const synced = await driver.waitFor('Synced', 20);
   if (!synced.found) {
@@ -39,8 +42,7 @@ export const checkCalendarBriefExport = withGuard(ID, SECTION, async ({ driver }
   }
 
   const todayStrip = await driver.waitFor('Today', 10);
-  const briefElements = await requireSnapshot(driver);
-  const briefCitation = findByText(briefElements, /citation|source|cited/i);
+  const briefCitation = await textPresent(driver, 'cited');
 
   const shot = await driver.captureScreenshot('wave1-calendar-sync-brief');
 

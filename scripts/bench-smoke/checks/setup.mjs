@@ -4,7 +4,22 @@
 // harness does not create workspaces or drive OAuth) — if it isn't, the check
 // reports SETUP-BLOCKED rather than guessing.
 import { STATUS, makeResult } from '../result.mjs';
-import { withGuard, requireSnapshot, findByTestId, findByText } from './_util.mjs';
+import { withGuard, requireSnapshot, findByTestId, findByText, textPresent, openSmokeClientDocuments, openSmokeClientOverview } from './_util.mjs';
+import { SMOKE_CLIENT_MATTER_ID } from './smoke-workspace.mjs';
+
+// Best-effort: navigate to the known smoke client's Documents/Client-Map view
+// before asserting. Swallowed on failure — the assertions below (waitFor
+// 'Documents'/'Client Map') are the real, honest gate; this just saves a
+// human from having to pre-navigate by hand for the common case where the
+// app landed somewhere else (e.g. the whole-book Clients list).
+async function primeClientView(driver, after) {
+  try {
+    await openSmokeClientDocuments(driver, { matterId: SMOKE_CLIENT_MATTER_ID });
+    if (after === 'overview') await openSmokeClientOverview(driver);
+  } catch {
+    // Ignored — see comment above.
+  }
+}
 
 export const checkWorkspaceBinding = withGuard(
   'workspace-binding',
@@ -36,6 +51,7 @@ export const checkPerClientFilesVisible = withGuard(
   'per-client-files-visible',
   'Phase 1 — setup',
   async ({ driver }) => {
+    await primeClientView(driver);
     const wait = await driver.waitFor('Documents', 10);
     if (!wait.found) {
       return makeResult({
@@ -72,6 +88,7 @@ export const checkIndexHealth = withGuard(
   'index-health',
   'Phase 1 — setup',
   async ({ driver }) => {
+    await primeClientView(driver, 'overview');
     const wait = await driver.waitFor('Client Map', 10);
     if (!wait.found) {
       return makeResult({
@@ -82,18 +99,20 @@ export const checkIndexHealth = withGuard(
       });
     }
 
-    const elements = await requireSnapshot(driver);
-    const brokenIndex = findByText(elements, /memory integrity uncertain|ai-connection error|indexing failed/i);
+    const brokenIndex =
+      (await textPresent(driver, 'memory integrity uncertain', 3)) ||
+      (await textPresent(driver, 'ai-connection error', 3)) ||
+      (await textPresent(driver, 'indexing failed', 3));
     if (brokenIndex) {
       return makeResult({
         id: 'index-health',
         section: 'Phase 1 — setup',
         status: STATUS.FAIL,
-        detail: `Client Map is showing an index-health error: "${brokenIndex.text}"`,
+        detail: 'Client Map is showing an index-health error (memory integrity uncertain / AI-connection error / indexing failed).',
       });
     }
 
-    const citedFact = findByText(elements, /cited|citation|source/i);
+    const citedFact = await textPresent(driver, 'cited');
     if (!citedFact) {
       return makeResult({
         id: 'index-health',

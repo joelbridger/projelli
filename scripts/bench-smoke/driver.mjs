@@ -9,6 +9,7 @@ import { runDesktopDrive, downloadFile, probeReachable } from './remote.mjs';
 import { parseSnapshot, parsePages, parseEvalResult } from './parse.mjs';
 import { installScript, readAndClearScript, interpretConsoleErrors } from './console-watch.mjs';
 import { clickByTextScript } from './click-by-text.mjs';
+import { dismissOverlayScript } from './overlay-dismiss.mjs';
 
 export class DriverError extends Error {}
 
@@ -53,6 +54,16 @@ export class Driver {
     return result;
   }
 
+  /** Same as clickByText, but dispatches a dblclick — needed for file-tree
+   * rows, which (confirmed live) open on double-click, not a single click. */
+  async doubleClickByText(needle) {
+    const result = await this.evalJs(clickByTextScript(needle, { double: true }));
+    if (result !== 'clicked') {
+      throw new DriverError(`doubleClickByText("${needle}") found no matching element to click`);
+    }
+    return result;
+  }
+
   async type(testid, text, { submit = false } = {}) {
     const args = ['type', testid, text];
     if (submit) args.push('--submit');
@@ -75,6 +86,19 @@ export class Driver {
     const { code, stdout, stderr } = await runDesktopDrive(this.target, ['waitfor', text, String(seconds)]);
     if (code !== 0) return { found: false, error: stderr || stdout };
     return { found: true, detail: stdout.trim() };
+  }
+
+  /** Best-effort: close any modal/overlay left open from a prior session
+   * before checks start (a stale dialog's backdrop otherwise intercepts every
+   * click meant for the app underneath it). Never throws — a failed dismiss
+   * just means "nothing to dismiss" or "eval briefly unavailable," neither of
+   * which should abort the whole run. */
+  async dismissBlockingOverlay() {
+    try {
+      return await this.evalJs(dismissOverlayScript());
+    } catch {
+      return { before: 0, after: 0 };
+    }
   }
 
   async installConsoleWatch() {

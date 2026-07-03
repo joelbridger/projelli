@@ -40,6 +40,23 @@ export async function requireSnapshot(driver) {
 export { findByTestId, findByText };
 
 /**
+ * Check for plain informational text (captions, labels, banners) ANYWHERE on
+ * the rendered page. Deliberately NOT findByText(snapshot(), ...): confirmed
+ * live that desktop-drive.mjs's snapshot() only captures interactive elements
+ * ([data-testid], button, a, [role="button"], input, textarea) — a caption
+ * like "3 details are cited from your notes" sits in a plain <p>/<span> and
+ * never appears in that list, so findByText on a snapshot false-negatives on
+ * exactly the kind of confirmation text these checks look for. driver.waitFor
+ * is built on Playwright's getByText, which searches the whole rendered DOM
+ * (case-insensitive substring) regardless of tag — reuse it here for a
+ * short, non-blocking presence check instead of a new capability.
+ */
+export async function textPresent(driver, text, seconds = 5) {
+  const result = await driver.waitFor(text, seconds);
+  return result.found;
+}
+
+/**
  * Click a snapshot()-matched element correctly regardless of how it was
  * found: by its real data-testid when present (desktop-drive.mjs's own
  * `click` command), or by its visible text when it isn't (driver.clickByText).
@@ -54,4 +71,40 @@ export async function clickElement(driver, element) {
   if (element.testid) return driver.click(element.testid);
   if (element.text) return driver.clickByText(element.text);
   throw new DriverError('clickElement: matched element has neither a testid nor visible text to click by');
+}
+
+/**
+ * Navigate into the known smoke-test client's Documents view (confirmed live:
+ * clicking the per-row `matter-launch-documents-<matterId>` quick action from
+ * the Clients/Client-Map list enters that client's "hub" — Client Map /
+ * Documents / Email / Activity sub-tabs). Idempotent: if already on that
+ * client's Documents (or the button simply isn't present because we're
+ * already past the Clients list), the click may no-op or fail — callers
+ * treat a thrown DriverError as SETUP-BLOCKED (bench state doesn't allow
+ * getting there this run), not a hard failure.
+ */
+export async function openSmokeClientDocuments(driver, { matterId, waitForText = 'Documents' } = {}) {
+  await driver.click(`matter-launch-documents-${matterId}`);
+  const wait = await driver.waitFor(waitForText, 10);
+  if (!wait.found) {
+    throw new DriverError(`clicked into the client's Documents view but "${waitForText}" never appeared: ${wait.error}`);
+  }
+}
+
+/** From inside a client's hub (see openSmokeClientDocuments), switch to the
+ * "Client Map" sub-tab (`hub-subtab-overview`) — where RUN-LOG.md's
+ * per-client cited facts render. */
+export async function openSmokeClientOverview(driver) {
+  await driver.click('hub-subtab-overview');
+}
+
+/** Double-click a file-tree row by its visible filename to open it as a docx
+ * editor tab — confirmed live that file rows have no data-testid/button/role
+ * and open on double-click, not a single click (see click-by-text.mjs). */
+export async function openSmokeClientNote(driver, { fileName, waitForText = 'Draft follow-up' } = {}) {
+  await driver.doubleClickByText(fileName);
+  const wait = await driver.waitFor(waitForText, 10);
+  if (!wait.found) {
+    throw new DriverError(`double-clicked "${fileName}" but the docx editor toolbar never appeared: ${wait.error}`);
+  }
 }

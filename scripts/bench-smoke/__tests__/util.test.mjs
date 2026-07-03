@@ -1,5 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
-import { withGuard, clickElement } from '../checks/_util.mjs';
+import {
+  withGuard,
+  clickElement,
+  openSmokeClientDocuments,
+  openSmokeClientOverview,
+  openSmokeClientNote,
+} from '../checks/_util.mjs';
 import { DriverError } from '../driver.mjs';
 import { makeResult, STATUS } from '../result.mjs';
 
@@ -67,5 +73,41 @@ describe('clickElement', () => {
   it('throws when there is no element at all', async () => {
     const driver = { click: vi.fn(), clickByText: vi.fn() };
     await expect(clickElement(driver, undefined)).rejects.toThrow(/no element to click/);
+  });
+});
+
+describe('openSmokeClientDocuments', () => {
+  it('clicks the matter-launch-documents testid for the given matterId, then waits for the given text', async () => {
+    const driver = { click: vi.fn(), waitFor: vi.fn().mockResolvedValue({ found: true }) };
+    await openSmokeClientDocuments(driver, { matterId: 'matter_abc', waitForText: 'Documents' });
+    expect(driver.click).toHaveBeenCalledWith('matter-launch-documents-matter_abc');
+    expect(driver.waitFor).toHaveBeenCalledWith('Documents', 10);
+  });
+
+  it('throws a DriverError when the expected text never appears', async () => {
+    const driver = { click: vi.fn(), waitFor: vi.fn().mockResolvedValue({ found: false, error: 'timed out' }) };
+    await expect(openSmokeClientDocuments(driver, { matterId: 'matter_abc' })).rejects.toThrow(DriverError);
+  });
+});
+
+describe('openSmokeClientOverview', () => {
+  it('clicks the hub-subtab-overview testid', async () => {
+    const driver = { click: vi.fn() };
+    await openSmokeClientOverview(driver);
+    expect(driver.click).toHaveBeenCalledWith('hub-subtab-overview');
+  });
+});
+
+describe('openSmokeClientNote', () => {
+  it('double-clicks the filename, then waits for the docx toolbar text', async () => {
+    const driver = { doubleClickByText: vi.fn(), waitFor: vi.fn().mockResolvedValue({ found: true }) };
+    await openSmokeClientNote(driver, { fileName: 'Meeting Notes.docx', waitForText: 'Draft follow-up' });
+    expect(driver.doubleClickByText).toHaveBeenCalledWith('Meeting Notes.docx');
+    expect(driver.waitFor).toHaveBeenCalledWith('Draft follow-up', 10);
+  });
+
+  it('throws a DriverError when the docx toolbar never appears', async () => {
+    const driver = { doubleClickByText: vi.fn(), waitFor: vi.fn().mockResolvedValue({ found: false, error: 'timed out' }) };
+    await expect(openSmokeClientNote(driver, { fileName: 'x.docx' })).rejects.toThrow(DriverError);
   });
 });

@@ -25,4 +25,13 @@ describe('clickByTextScript', () => {
     const js = clickByTextScript('line one\nline two');
     expect(js).not.toContain('\n');
   });
+
+  it('falls back to a leaf-element (no element children) text search when no control matches', () => {
+    // Needed for file-tree rows: plain divs/spans with no data-testid, button,
+    // role, or link semantics — desktop-drive.mjs's own snapshot() can't see
+    // them either, so this is a deliberately separate second pass.
+    const js = clickByTextScript('Meeting Notes 2024-05-20 - Caldwell, Jennifer.docx');
+    expect(js).toContain('children.length === 0');
+    expect(js).toContain("document.querySelectorAll('body *')");
+  });
 });
