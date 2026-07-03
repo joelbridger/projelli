@@ -56,7 +56,9 @@ export function buildBookAskPrompt(
   const blocks = digest.clients
     .map((c) => {
       const lines = c.facts.map((f) => `- [${f.itemId}] ${escapeForPromptFence(f.text.replace(/\n/g, ' '))}`).join('\n');
-      return `### ${c.label} (matterId: ${c.matterId})\n${lines || '- (no facts recorded yet)'}`;
+      // The client label is user-controlled free text too (a folder/CRM
+      // import name) — same fence-escaping applies as fact text.
+      return `### ${escapeForPromptFence(c.label)} (matterId: ${c.matterId})\n${lines || '- (no facts recorded yet)'}`;
     })
     .join('\n\n');
   const systemPrompt = `You are a private assistant for a financial advisory practice. Below are short fact summaries for each client, gathered from the advisor's own records. Answer the advisor's question about their whole book of clients.

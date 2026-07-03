@@ -47,7 +47,8 @@ import { useAsk, type UseAskProps } from './useAsk';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { IS_DEMO } from '@/web-demo/demoModeFlag';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
-import { EV_OPEN_SETTINGS, EV_MATTER_LAUNCH, EV_OPEN_EMAIL } from '@/config/identity';
+import { EV_OPEN_SETTINGS, EV_MATTER_LAUNCH } from '@/config/identity';
+import { dispatchOpenSource } from '@/features/matters/clientMap/openSource';
 import { ScopeStatusPill } from './ScopeToggle';
 import { BookAnswerPanel } from './book/BookAnswerPanel';
 import { runWholePracticeAsk } from './book/wholePracticeAsk';
@@ -450,22 +451,7 @@ export function Ask(props: UseAskProps) {
                 onOpenClient={(id) => {
                   window.dispatchEvent(new CustomEvent(EV_MATTER_LAUNCH, { detail: { matterId: id } }));
                 }}
-                onOpenSource={(matterId, source) => {
-                  // Mirror SourcePanel's openCitation: email opens the mail
-                  // viewer; CRM sources have no open handler (existing
-                  // behavior, unchanged); everything else opens as a document
-                  // in that client's files, at the cited passage.
-                  if (source.ref.startsWith('mail:')) {
-                    window.dispatchEvent(new CustomEvent(EV_OPEN_EMAIL, { detail: { sourceId: source.ref } }));
-                    return;
-                  }
-                  if (source.kind === 'crm') return;
-                  window.dispatchEvent(
-                    new CustomEvent(EV_MATTER_LAUNCH, {
-                      detail: { matterId, surface: 'files', source: { kind: 'document', ref: source.ref, snippet: source.snippet } },
-                    }),
-                  );
-                }}
+                onOpenSource={(matterId, source) => { dispatchOpenSource(matterId, source); }}
               />
             ) : (
               <>
