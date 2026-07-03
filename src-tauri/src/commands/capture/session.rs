@@ -39,7 +39,7 @@ impl SessionManifest {
     }
 }
 
-fn read_channel_samples(cap_dir: &Path, channel: &str) -> Result<Vec<i16>> {
+fn sorted_channel_files(cap_dir: &Path, channel: &str) -> Result<Vec<PathBuf>> {
     let mut files: Vec<PathBuf> = std::fs::read_dir(cap_dir)?
         .filter_map(|e| e.ok().map(|e| e.path()))
         .filter(|p| {
@@ -50,25 +50,66 @@ fn read_channel_samples(cap_dir: &Path, channel: &str) -> Result<Vec<i16>> {
         })
         .collect();
     files.sort();
-    let mut out = Vec::new();
-    for f in files {
-        let mut r = hound::WavReader::open(&f).with_context(|| format!("open {}", f.display()))?;
-        for s in r.samples::<i16>() {
-            out.push(s?);
+    Ok(files)
+}
+
+/// Streams one channel's samples across its (possibly many) chunk files
+/// without ever holding more than one chunk's decoded samples in memory —
+/// a multi-hour meeting is hundreds of MB of i16 samples per channel, which
+/// a `Vec<i16>` collect-then-interleave approach would hold twice over
+/// (once per channel) for the whole merge.
+struct ChannelSampleStream {
+    files: std::collections::VecDeque<PathBuf>,
+    current: Option<Box<dyn Iterator<Item = hound::Result<i16>>>>,
+}
+
+impl ChannelSampleStream {
+    fn new(files: Vec<PathBuf>) -> Result<Self> {
+        let mut s = Self { files: files.into(), current: None };
+        s.advance()?;
+        Ok(s)
+    }
+
+    fn advance(&mut self) -> Result<()> {
+        self.current = None;
+        if let Some(f) = self.files.pop_front() {
+            let r = hound::WavReader::open(&f).with_context(|| format!("open {}", f.display()))?;
+            self.current = Some(Box::new(r.into_samples::<i16>()));
+        }
+        Ok(())
+    }
+}
+
+impl Iterator for ChannelSampleStream {
+    type Item = Result<i16>;
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            match self.current.as_mut()?.next() {
+                Some(Ok(s)) => return Some(Ok(s)),
+                Some(Err(e)) => return Some(Err(e.into())),
+                None => {
+                    if let Err(e) = self.advance() {
+                        return Some(Err(e));
+                    }
+                    self.current.as_ref()?;
+                    // Loop again: the just-advanced file may itself be
+                    // empty (defensive — chunk rotation never produces
+                    // zero-length chunks, but don't assume it).
+                }
+            }
         }
     }
-    Ok(out)
 }
 
 /// Merge chunked channels into `<meeting_dir>/audio.wav` (stereo: L=mic,
 /// R=sys), then remove `.capture/`. Idempotent-safe: if audio.wav already
 /// exists it is overwritten from chunks (chunks are the source of truth
-/// until this returns Ok).
+/// until this returns Ok). Streams both channels sample-by-sample rather
+/// than loading either into memory.
 pub fn finalize_session(meeting_dir: &Path) -> Result<PathBuf> {
     let cap = meeting_dir.join(".capture");
-    let mic = read_channel_samples(&cap, "mic")?;
-    let sys = read_channel_samples(&cap, "sys")?;
-    let len = mic.len().max(sys.len());
+    let mut mic = ChannelSampleStream::new(sorted_channel_files(&cap, "mic")?)?;
+    let mut sys = ChannelSampleStream::new(sorted_channel_files(&cap, "sys")?)?;
     let spec = hound::WavSpec {
         channels: 2,
         sample_rate: crate::commands::capture::chunks::SAMPLE_RATE,
@@ -77,9 +118,14 @@ pub fn finalize_session(meeting_dir: &Path) -> Result<PathBuf> {
     };
     let audio_path = meeting_dir.join("audio.wav");
     let mut w = hound::WavWriter::create(&audio_path, spec)?;
-    for i in 0..len {
-        w.write_sample(*mic.get(i).unwrap_or(&0))?;
-        w.write_sample(*sys.get(i).unwrap_or(&0))?;
+    loop {
+        let m = mic.next().transpose()?;
+        let s = sys.next().transpose()?;
+        if m.is_none() && s.is_none() {
+            break;
+        }
+        w.write_sample(m.unwrap_or(0))?;
+        w.write_sample(s.unwrap_or(0))?;
     }
     w.finalize()?;
     std::fs::remove_dir_all(&cap).ok();

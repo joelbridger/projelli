@@ -54,18 +54,57 @@ impl CaptureEngine {
             suffix += 1;
         }
         let cap = meeting_dir.join(".capture");
-        std::fs::create_dir_all(&cap)?;
+        match Self::start_sources_and_manifest(
+            &meeting_dir,
+            &cap,
+            matter_id,
+            consent,
+            &mut mic,
+            &mut sys,
+        ) {
+            Ok(()) => {
+                let awake = keepawake::Builder::default()
+                    .display(false)
+                    .idle(true)
+                    .sleep(true)
+                    .reason("Recording a client meeting")
+                    .create()
+                    .ok();
+                Ok(Self { meeting_dir, mic, sys, started: Instant::now(), _awake: awake })
+            }
+            Err(e) => {
+                // A failure here (e.g. no Linux monitor device, missing
+                // macOS sidecar/permission) must not leave a phantom
+                // `.capture/session.json` behind — capture never actually
+                // started, so find_orphans must never later report this
+                // directory as a crashed meeting to recover.
+                let _ = mic.stop();
+                let _ = sys.stop();
+                let _ = std::fs::remove_dir_all(&meeting_dir);
+                Err(e)
+            }
+        }
+    }
 
+    fn start_sources_and_manifest(
+        meeting_dir: &Path,
+        cap: &Path,
+        matter_id: &str,
+        consent: ConsentRecord,
+        mic: &mut Box<dyn AudioSource>,
+        sys: &mut Box<dyn AudioSource>,
+    ) -> Result<()> {
+        std::fs::create_dir_all(cap)?;
         SessionManifest {
-            meeting_dir: meeting_dir.clone(),
+            meeting_dir: meeting_dir.to_path_buf(),
             matter_id: matter_id.to_string(),
             started_at: chrono::Utc::now().to_rfc3339(),
             consent,
         }
         .save()?;
 
-        let mic_writer = Arc::new(Mutex::new(ChunkWriter::new(&cap, "mic")?));
-        let sys_writer = Arc::new(Mutex::new(ChunkWriter::new(&cap, "sys")?));
+        let mic_writer = Arc::new(Mutex::new(ChunkWriter::new(cap, "mic")?));
+        let sys_writer = Arc::new(Mutex::new(ChunkWriter::new(cap, "sys")?));
         {
             let w = mic_writer.clone();
             mic.start(Box::new(move |s| {
@@ -82,14 +121,7 @@ impl CaptureEngine {
                 }
             }))?;
         }
-        let awake = keepawake::Builder::default()
-            .display(false)
-            .idle(true)
-            .sleep(true)
-            .reason("Recording a client meeting")
-            .create()
-            .ok();
-        Ok(Self { meeting_dir, mic, sys, started: Instant::now(), _awake: awake })
+        Ok(())
     }
 
     pub fn elapsed_ms(&self) -> u64 {
@@ -285,6 +317,44 @@ mod tests {
         assert!(result.meeting_dir.join(".capture").exists() == false);
         // Manifest breadcrumb must NOT survive finalize.
         assert!(!SessionManifest::path_in(&result.meeting_dir).exists());
+    }
+
+    /// Always fails to start — proves a failed sys/mic source doesn't leave
+    /// a phantom `.capture/session.json` that `find_orphans` would later
+    /// mistake for a crashed (but never-actually-started) meeting.
+    struct FailingSource;
+    impl AudioSource for FailingSource {
+        fn start(&mut self, _: Box<dyn FnMut(&[i16]) + Send>) -> anyhow::Result<()> {
+            Err(anyhow!("simulated device failure"))
+        }
+        fn stop(&mut self) -> anyhow::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn failed_source_start_leaves_no_phantom_meeting_dir() {
+        let ws = tempdir().unwrap();
+        let mic = Box::new(FakeSource::new(vec![])) as Box<dyn AudioSource>;
+        let sys = Box::new(FailingSource) as Box<dyn AudioSource>;
+        let result = CaptureEngine::start_with_sources(
+            ws.path(),
+            "m-fail",
+            "Clients/Fail Household",
+            consent("one-party"),
+            mic,
+            sys,
+        );
+        let err = result.err().expect("start_with_sources must fail when a source fails");
+        assert!(err.to_string().contains("simulated device failure"));
+
+        // Nothing should remain under Meetings/ — not the meeting dir, not
+        // a lingering .capture/session.json.
+        let meetings = ws.path().join("Clients/Fail Household/Meetings");
+        let remaining: Vec<_> = std::fs::read_dir(&meetings)
+            .map(|d| d.filter_map(|e| e.ok()).collect())
+            .unwrap_or_default();
+        assert!(remaining.is_empty(), "expected no leftover meeting dirs, got: {remaining:?}");
     }
 
     #[test]
