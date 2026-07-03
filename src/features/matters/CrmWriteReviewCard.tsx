@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronRight, ChevronUp, Check, AlertTriangle, CalendarDays } from 'lucide-react';
+import { ChevronRight, ChevronUp, Check, AlertTriangle, CalendarDays, Pencil } from 'lucide-react';
 import { Card, Button } from '@/ui/kp';
 import { useCrmWriteQueueStore, type ProposedCrmWrite } from '@/platform/state/crmWriteQueueStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
@@ -27,7 +27,7 @@ export interface CrmWriteReviewCardProps {
   matterId: string;
 }
 
-const RETRYABLE_STATUSES: ProposedCrmWrite['status'][] = ['proposed', 'failed', 'verify_pending'];
+const RETRYABLE_STATUSES: ProposedCrmWrite['status'][] = ['proposed', 'failed', 'verify_pending', 'stale'];
 
 /** How often to re-check the Wealthbox connection while disconnected and a
  *  write is queued, so connecting elsewhere unsticks this card without a
@@ -50,9 +50,11 @@ function isWealthboxHouseholdKey(key: string): boolean {
 function summaryLabel(items: ProposedCrmWrite[]): string {
   const notes = items.filter((i) => i.kind === 'note').length;
   const tasks = items.filter((i) => i.kind === 'task').length;
+  const fields = items.filter((i) => i.kind === 'field').length;
   const parts: string[] = [];
   if (notes > 0) parts.push(pluralize(notes, 'note'));
   if (tasks > 0) parts.push(pluralize(tasks, 'task'));
+  if (fields > 0) parts.push(pluralize(fields, 'field update'));
   return parts.join(' · ');
 }
 
@@ -62,6 +64,7 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
   const approve = useCrmWriteQueueStore((s) => s.approve);
   const dismiss = useCrmWriteQueueStore((s) => s.dismiss);
   const enqueue = useCrmWriteQueueStore((s) => s.enqueue);
+  const updateFinalValue = useCrmWriteQueueStore((s) => s.updateFinalValue);
   const matters = useMatterStore((s) => s.matters);
 
   const [expanded, setExpanded] = useState(false);
@@ -85,6 +88,34 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
     setUncheckedIds(new Set());
     setExpanded(false);
     setFileComplianceNote(false);
+  }
+
+  // Coordinator review catch (P2): a stale item's finalValue gets rebuilt by
+  // the store (see crmWriteQueueStore.ts), but a stale item that was already
+  // checked stayed checked and re-selectable with one Approve click — the
+  // rebuilt blend still hadn't been REVIEWED by the advisor, so approving it
+  // sight-unseen is exactly the "one click overwrites the concurrent edit"
+  // failure this exists to prevent. Every newly-stale item is deselected the
+  // moment it's detected (compared during render, same pattern as the
+  // matterId reset above) — the advisor must look at the rebuilt Blended
+  // text and consciously re-check the box before it can send again.
+  const staleKey = items
+    .filter((i) => i.status === 'stale')
+    .map((i) => i.id)
+    .sort()
+    .join(',');
+  const [prevStaleKey, setPrevStaleKey] = useState('');
+  if (staleKey !== prevStaleKey) {
+    const prevStaleIds = new Set(prevStaleKey.split(',').filter(Boolean));
+    const newlyStaleIds = staleKey.split(',').filter((id) => id !== '' && !prevStaleIds.has(id));
+    if (newlyStaleIds.length > 0) {
+      setUncheckedIds((prev) => {
+        const next = new Set(prev);
+        newlyStaleIds.forEach((id) => { next.add(id); });
+        return next;
+      });
+    }
+    setPrevStaleKey(staleKey);
   }
 
   const householdKeys = useMemo(
@@ -141,8 +172,10 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
   if (connected !== true) return null;
 
   const selectable = items.filter((i) => RETRYABLE_STATUSES.includes(i.status));
-  const selectedIds = selectable.filter((i) => !uncheckedIds.has(i.id)).map((i) => i.id);
-  const approveDisabled = selectedIds.length === 0 || effectiveHousehold === null;
+  const selectedItems = selectable.filter((i) => !uncheckedIds.has(i.id));
+  const selectedIds = selectedItems.map((i) => i.id);
+  const hasBlankFieldBlend = selectedItems.some((i) => i.kind === 'field' && (i.finalValue ?? '').trim() === '');
+  const approveDisabled = selectedIds.length === 0 || effectiveHousehold === null || hasBlankFieldBlend;
 
   function toggle(id: string) {
     setUncheckedIds((prev) => {
@@ -218,7 +251,7 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
               Update Wealthbox
             </span>
             <span style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
-              {summaryLabel(items)} drafted from this note
+              {summaryLabel(items)} ready for review
             </span>
           </div>
           <span
@@ -317,6 +350,7 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
                   onToggle={() => { toggle(item.id); }}
                   onRetry={() => { handleRetry(item.id); }}
                   onDismiss={() => { dismiss(item.id); }}
+                  onFinalValueChange={(value) => { updateFinalValue(item.id, value); }}
                 />
               ))}
             </div>
@@ -362,23 +396,34 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
   );
 }
 
+const KIND_LABEL: Record<ProposedCrmWrite['kind'], string> = {
+  note: 'Note',
+  task: 'Task',
+  field: 'Field update',
+};
+
 function CrmWriteRow({
   item,
   checked,
   onToggle,
   onRetry,
   onDismiss,
+  onFinalValueChange,
 }: {
   item: ProposedCrmWrite;
   checked: boolean;
   onToggle: () => void;
   onRetry: () => void;
   onDismiss: () => void;
+  onFinalValueChange: (value: string) => void;
 }) {
   const isSent = item.status === 'sent';
   const isSending = item.status === 'sending';
   const isFailed = item.status === 'failed';
   const isVerifyPending = item.status === 'verify_pending';
+  const isStale = item.status === 'stale';
+  const isField = item.kind === 'field';
+  const needsAttention = isFailed || isVerifyPending || isStale;
 
   return (
     <div
@@ -389,10 +434,14 @@ function CrmWriteRow({
         padding: '12px 14px',
         marginBottom: 8,
         borderRadius: 'var(--radius-md)',
-        background: isSent ? '#fff' : (isFailed || isVerifyPending) ? 'var(--kp-warning-bg)' : 'var(--kp-success-bg)',
-        border: `1px solid ${isSent ? 'var(--color-border)' : (isFailed || isVerifyPending) ? 'var(--kp-warning-line)' : 'var(--kp-success-line)'}`,
+        // Field rows stay neutral at the row level — the tracked-changes
+        // green lives on the Blended column alone, since Existing/From this
+        // meeting are reference, not the proposed change (see fieldBlend.ts).
+        background: isSent ? '#fff' : needsAttention ? 'var(--kp-warning-bg)' : isField ? '#fff' : 'var(--kp-success-bg)',
+        border: `1px solid ${isSent ? 'var(--color-border)' : needsAttention ? 'var(--kp-warning-line)' : isField ? 'var(--color-border)' : 'var(--kp-success-line)'}`,
       }}
     >
+      {/* eslint-disable lantern-i18n/no-hardcoded-string */}
       {isSent ? (
         <span
           style={{
@@ -422,14 +471,54 @@ function CrmWriteRow({
 
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--color-muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-          {item.kind === 'note' ? 'Note' : 'Task'}
+          {KIND_LABEL[item.kind]}
         </div>
-        <div style={{ fontSize: 'var(--kp-font-sm)', fontWeight: 'var(--kp-weight-semibold)', color: '#0a4d38' }}>
+        <div style={{ fontSize: 'var(--kp-font-sm)', fontWeight: 'var(--kp-weight-semibold)', color: isField ? 'var(--kp-navy)' : '#0a4d38' }}>
           {item.title}
         </div>
-        <div style={{ fontSize: 'var(--kp-font-xs)', color: '#0a5c43', marginTop: 3 }}>
-          {item.body}
-        </div>
+
+        {isField ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+            <FieldColumn label="Existing" testId={`crm-field-existing-${item.id}`} value={item.existingValue ?? ''} />
+            <FieldColumn label="From this meeting" testId={`crm-field-new-${item.id}`} value={item.newValue ?? ''} />
+            <div>
+              <div
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', color: '#0a5c43', marginBottom: 4,
+                }}
+              >
+                <Pencil size={11} strokeWidth={2} />
+                Blended — edit before approving
+              </div>
+              <textarea
+                data-testid={`crm-field-blended-${item.id}`}
+                value={item.finalValue ?? ''}
+                onChange={(e) => { onFinalValueChange(e.target.value); }}
+                disabled={isSending || isSent}
+                rows={3}
+                style={{
+                  width: '100%',
+                  resize: 'vertical',
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: 'var(--kp-font-xs)',
+                  lineHeight: 1.5,
+                  color: '#0a5c43',
+                  background: 'var(--kp-success-bg)',
+                  border: '1px solid var(--kp-success-line)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '7px 9px',
+                  outlineColor: 'var(--kp-success)',
+                }}
+              />
+            </div>
+          </div>
+        ) : (
+          <div style={{ fontSize: 'var(--kp-font-xs)', color: '#0a5c43', marginTop: 3 }}>
+            {item.body}
+          </div>
+        )}
+
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 6 }}>
           {item.kind === 'task' && item.dueDate != null && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', color: '#0a5c43' }}>
@@ -443,7 +532,7 @@ function CrmWriteRow({
           {isSent && <span style={{ fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-success)' }}>In Wealthbox</span>}
         </div>
 
-        {(isFailed || isVerifyPending) && (
+        {needsAttention && (
           <div
             style={{
               display: 'flex', alignItems: 'center', gap: 7, marginTop: 8, padding: '7px 10px',
@@ -452,7 +541,11 @@ function CrmWriteRow({
             }}
           >
             <AlertTriangle size={14} strokeWidth={1.9} color="var(--kp-warning)" />
-            {isFailed ? "Couldn't reach Wealthbox" : 'Delivery unconfirmed. Will verify on next try.'}
+            {isFailed
+              ? "Couldn't reach Wealthbox"
+              : isStale
+                ? 'This field changed in Wealthbox since the proposal. Review again.'
+                : 'Delivery unconfirmed. Will verify on next try.'}
             <button
               type="button"
               onClick={onRetry}
@@ -477,6 +570,36 @@ function CrmWriteRow({
           Dismiss
         </button>
       )}
+      {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+    </div>
+  );
+}
+
+function FieldColumn({ label, testId, value }: { label: string; testId: string; value: string }) {
+  return (
+    <div>
+      <div style={{ fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--color-muted-foreground)', marginBottom: 4 }}>
+        {label}
+      </div>
+      <div
+        data-testid={testId}
+        style={{
+          fontSize: 'var(--kp-font-xs)',
+          lineHeight: 1.5,
+          color: 'var(--kp-navy)',
+          background: 'var(--kp-bg-soft, #f8f9fb)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-sm)',
+          padding: '7px 9px',
+          // Coordinator review catch (P3): a plain <div> collapses newlines,
+          // so a multi-paragraph narrative value (e.g. background_information)
+          // rendered as one run-on line — the advisor wasn't seeing the true
+          // text they were approving against.
+          whiteSpace: 'pre-wrap',
+        }}
+      >
+        {value}
+      </div>
     </div>
   );
 }

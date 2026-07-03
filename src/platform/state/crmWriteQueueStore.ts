@@ -11,13 +11,15 @@
 
 import { create } from 'zustand';
 
-import { crmCreateNote, crmCreateTask } from '@/platform/utils/wealthbox-commands';
+import { crmCreateNote, crmCreateTask, crmUpdateField } from '@/platform/utils/wealthbox-commands';
+import { composeFieldBlend, isWritableField } from '@/platform/state/fieldBlend';
+import type { Provider } from '@/platform/providers/Provider';
 
-export type CrmWriteStatus = 'proposed' | 'sending' | 'sent' | 'failed' | 'verify_pending';
+export type CrmWriteStatus = 'proposed' | 'sending' | 'sent' | 'failed' | 'verify_pending' | 'stale';
 
 export interface ProposedCrmWrite {
   id: string;
-  kind: 'note' | 'task';
+  kind: 'note' | 'task' | 'field';
   matterId: string;
   title: string;
   body: string;
@@ -37,6 +39,19 @@ export interface ProposedCrmWrite {
    * `crm_create_note`'s doc comment in `src-tauri/src/commands/crm/commands.rs`.
    */
   requestedAt?: string;
+  /**
+   * Task 9c — field-level blended update (`kind: 'field'` only). `field` is
+   * the provider field path (e.g. `background_information`); `existingValue`
+   * /`newValue` are the 3-column review's reference columns; `finalValue` is
+   * the user-editable blend that actually gets written. `existingValue` is
+   * REPLACED with the fresh live value if the backend's stale-guard rejects
+   * the write because the field drifted since the proposal was drafted (see
+   * the 'stale' status below).
+   */
+  field?: string;
+  existingValue?: string;
+  newValue?: string;
+  finalValue?: string;
 }
 
 interface CrmWriteQueueState {
@@ -44,6 +59,34 @@ interface CrmWriteQueueState {
   enqueue: (item: Omit<ProposedCrmWrite, 'id' | 'status'>) => void;
   approve: (ids: string[], householdKey: string) => Promise<void>;
   dismiss: (id: string) => void;
+  /** Task 9c: the advisor editing a field item's Blended column. `kind:
+   *  'field'` items only — a no-op on any other item. */
+  updateFinalValue: (id: string, finalValue: string) => void;
+  /**
+   * Task 9c: the ONLY way to enqueue a field-level blended update — computes
+   * `finalValue` via `composeFieldBlend` (scalar replace / narrative merge /
+   * deterministic fallback) before the item ever reaches the queue, so a
+   * caller can never enqueue a field proposal with a blank blend. Calling
+   * `enqueue()` directly with `kind: 'field'` and no `finalValue` is a bug —
+   * this is the real entry point for that item shape.
+   */
+  enqueueFieldUpdate: (
+    args: {
+      matterId: string;
+      title: string;
+      field: string;
+      existingValue: string;
+      newValue: string;
+      sourceRef: string;
+    } & (
+      | { provider?: undefined; onBeforeProviderCall?: undefined }
+      // Codex review catch (P2): onBeforeProviderCall is REQUIRED whenever a
+      // provider is passed — mirrors composeFieldBlend's own constraint, so
+      // the required egress-audit hook can't be silently dropped at this
+      // (the real) entry point either. See fieldBlend.ts's doc comment.
+      | { provider: Provider; onBeforeProviderCall: (prompt: string) => void }
+    ),
+  ) => Promise<void>;
 }
 
 function newId(): string {
@@ -83,7 +126,18 @@ function setItemClearingError(id: string, patch: Partial<Omit<ProposedCrmWrite, 
   }));
 }
 
+// Matches the Rust CrmWriteError::StaleFieldValue Display impl exactly:
+// "this field changed in the CRM since the proposal — current value: {0}".
+// The captured group can legitimately contain newlines (it's the live field
+// content), hence the /s flag.
+const STALE_FIELD_VALUE_RE = /this field changed in the CRM since the proposal — current value: (.*)$/s;
+
 async function sendOne(item: ProposedCrmWrite, householdKey: string): Promise<void> {
+  // Defense-in-depth: the card is expected to disable Approve while a field
+  // item's finalValue is blank, but the store must never fire a network call
+  // for one even if that guard is somehow bypassed.
+  if (item.kind === 'field' && (item.finalValue ?? '').trim() === '') return;
+
   // Set once, on this item's FIRST send attempt, then reused verbatim on
   // every retry (approve() re-fetches the item fresh from the store each
   // time it's called, so a manual Retry sees the value persisted below).
@@ -102,18 +156,58 @@ async function sendOne(item: ProposedCrmWrite, householdKey: string): Promise<vo
             householdKey,
             requestedAt,
           })
-        : await crmCreateTask({
-            matterId: item.matterId,
-            title: item.title,
-            description: item.body,
-            ...(item.dueDate !== undefined ? { dueDate: item.dueDate } : {}),
-            sourceRef: item.sourceRef,
-            householdKey,
-            requestedAt,
-          });
+        : item.kind === 'task'
+          ? await crmCreateTask({
+              matterId: item.matterId,
+              title: item.title,
+              description: item.body,
+              ...(item.dueDate !== undefined ? { dueDate: item.dueDate } : {}),
+              sourceRef: item.sourceRef,
+              householdKey,
+              requestedAt,
+            })
+          : await crmUpdateField({
+              matterId: item.matterId,
+              householdKey,
+              field: item.field ?? '',
+              existingValue: item.existingValue ?? '',
+              newValue: item.newValue ?? '',
+              finalValue: item.finalValue ?? '',
+              sourceRef: item.sourceRef,
+              requestedAt,
+            });
     setItemClearingError(item.id, { status: 'sent', remoteId: receipt.remoteId });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    const staleMatch = STALE_FIELD_VALUE_RE.exec(message);
+    if (staleMatch) {
+      // Coordinator review catch (P2): never blind-overwrite. Re-render the 3
+      // columns with the fresh live value instead of the stale one the
+      // proposal was drafted against — AND rebuild finalValue from it. The
+      // OLD blend was computed against the OLD existingValue and never
+      // accounts for the concurrent edit; leaving it in place let a later
+      // retry (which resends this refreshed existingValue) pass the
+      // backend's stale-guard and silently overwrite the concurrent change
+      // the moment the live value stopped drifting further. No provider
+      // handle survives a stale rejection (nothing is persisted on the
+      // item), so this is always composeFieldBlend's deterministic
+      // concatenation, even for an originally AI-blended narrative field —
+      // correct-shape and never drops either side's content, which is what
+      // matters for a rebuild the advisor hasn't reviewed yet.
+      const freshExistingValue = staleMatch[1] ?? '';
+      const rebuiltFinalValue = await composeFieldBlend({
+        field: item.field ?? '',
+        existingValue: freshExistingValue,
+        newValue: item.newValue ?? '',
+      });
+      setItem(item.id, {
+        status: 'stale',
+        error: message,
+        existingValue: freshExistingValue,
+        finalValue: rebuiltFinalValue,
+      });
+      return;
+    }
     const status: CrmWriteStatus = message.includes('verification pending') ? 'verify_pending' : 'failed';
     setItem(item.id, { status, error: message });
   }
@@ -140,5 +234,42 @@ export const useCrmWriteQueueStore = create<CrmWriteQueueState>((set, get) => ({
 
   dismiss: (id) => {
     set((state) => ({ items: state.items.filter((i) => i.id !== id) }));
+  },
+
+  updateFinalValue: (id, finalValue) => {
+    setItem(id, { finalValue });
+  },
+
+  enqueueFieldUpdate: async (args) => {
+    // Codex review catch (P2): mirrors the backend's validate_field_is_writable
+    // — enqueueing a field the desktop app doesn't accept would show the
+    // advisor an approval-ready change that's guaranteed to fail every time.
+    if (!isWritableField(args.field)) {
+      throw new Error(`"${args.field}" is not a writable Wealthbox field yet.`);
+    }
+    const finalValue = args.provider
+      ? await composeFieldBlend({
+          field: args.field,
+          existingValue: args.existingValue,
+          newValue: args.newValue,
+          provider: args.provider,
+          onBeforeProviderCall: args.onBeforeProviderCall,
+        })
+      : await composeFieldBlend({
+          field: args.field,
+          existingValue: args.existingValue,
+          newValue: args.newValue,
+        });
+    get().enqueue({
+      kind: 'field',
+      matterId: args.matterId,
+      title: args.title,
+      body: '',
+      field: args.field,
+      existingValue: args.existingValue,
+      newValue: args.newValue,
+      finalValue,
+      sourceRef: args.sourceRef,
+    });
   },
 }));

@@ -265,3 +265,38 @@ export async function crmCreateTask(args: {
     ...(provider ? { provider } : {}),
   });
 }
+
+/**
+ * Push one approval-gated field-level blended update to the connected CRM
+ * (Task 9c). See {@link crmCreateNote} for the shared approval-gating and
+ * `requestedAt` contract. `existingValue`/`newValue` are what the review
+ * card showed the advisor for context; `finalValue` is the actual write —
+ * the backend re-fetches the live field at approve time and rejects with a
+ * stale-value error (never blind-overwrites) if it drifted since the
+ * proposal was drafted.
+ */
+export async function crmUpdateField(args: {
+  matterId: string;
+  householdKey: string;
+  field: string;
+  existingValue: string;
+  newValue: string;
+  finalValue: string;
+  sourceRef: string;
+  requestedAt: string;
+  provider?: CrmProvider;
+}): Promise<CrmWriteReceipt> {
+  if (!isTauri()) throw new Error('CRM write is only available in the desktop app.');
+  const { matterId, householdKey, field, existingValue, newValue, finalValue, sourceRef, requestedAt, provider } = args;
+  return invoke<CrmWriteReceipt>('crm_update_field', {
+    matterId,
+    householdKey,
+    field,
+    existingValue,
+    newValue,
+    finalValue,
+    sourceRef,
+    requestedAt,
+    ...(provider ? { provider } : {}),
+  });
+}

@@ -13,6 +13,18 @@ export interface ComplianceNoteMeta {
   retentionPolicy?: string;
 }
 
+// Codex review catch (P2, Task 9c integration): this hardcoded to Note/Task
+// before field updates existed, so an approved field write showed up in the
+// compliance record mislabeled as "Task" — a real accuracy problem for a
+// compliance/audit artifact.
+function crmWriteKindLabel(kind: ProposedCrmWrite['kind']): string {
+  switch (kind) {
+    case 'note': return 'Note';
+    case 'task': return 'Task';
+    case 'field': return 'Field update';
+  }
+}
+
 export function composeComplianceNote(
   items: ProposedCrmWrite[],
   meta: ComplianceNoteMeta,
@@ -24,7 +36,7 @@ export function composeComplianceNote(
     '',
     'Records filed:',
     ...sent.map(
-      (i) => `- ${i.kind === 'note' ? 'Note' : 'Task'}: "${i.title}" (receipt ${i.remoteId ?? 'pending'}; source ${i.sourceRef})`,
+      (i) => `- ${crmWriteKindLabel(i.kind)}: "${i.title}" (receipt ${i.remoteId ?? 'pending'}; source ${i.sourceRef})`,
     ),
   ];
   if (meta.consent) {
