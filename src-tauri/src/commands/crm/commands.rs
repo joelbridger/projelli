@@ -69,6 +69,22 @@ pub struct CrmState {
     /// reading the OLD token (or racing the downgrade) during a reconnect
     /// that's already underway. See `ConnectInProgressGuard`.
     pub connect_in_progress: Arc<AtomicBool>,
+    /// Provider ids (see `CrmProvider::id`) whose stale-row downgrade
+    /// failed (persistent, post-retries) at workspace-open time via
+    /// `crm_set_workspace`. Unlike a connect (a discrete user action that
+    /// can just refuse and ask the user to retry), `crm_set_workspace` runs
+    /// automatically on workspace open — hard-failing it would block the
+    /// user from opening their workspace at all over a transient ledger
+    /// hiccup. Instead a provider's presence in this set blocks NEW writes
+    /// FOR THAT PROVIDER (mirroring `disconnect_requested`/
+    /// `connect_in_progress`) until a LATER successful downgrade check
+    /// (another `crm_set_workspace` call, or a future connect's own check,
+    /// for the SAME provider) removes it — see
+    /// `downgrade_stale_sent_rows_for_workspace`'s doc comment for why an
+    /// unconfirmed downgrade can't be trusted silently. Per-provider (not a
+    /// single flag): a different provider's successful downgrade must never
+    /// clear an unrelated provider's still-unconfirmed one.
+    pub downgrade_unconfirmed: tokio::sync::Mutex<std::collections::HashSet<String>>,
 }
 
 pub fn manage_state(app: &tauri::App) {
@@ -83,6 +99,7 @@ pub fn manage_state(app: &tauri::App) {
         write_in_flight: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
         disconnect_requested: Arc::new(AtomicBool::new(false)),
         connect_in_progress: Arc::new(AtomicBool::new(false)),
+        downgrade_unconfirmed: tokio::sync::Mutex::new(std::collections::HashSet::new()),
     });
 }
 
@@ -364,6 +381,32 @@ async fn wait_for_writes_to_drain(state: &CrmState) -> bool {
     true
 }
 
+/// Wait (bounded, 10s, same budget/poll as `wait_for_writes_to_drain`) for
+/// an in-progress connect/reconnect to finish. Used by `crm_set_workspace`
+/// when it can't claim `connect_in_progress` itself (self-converge, review
+/// findings on lp/crm-9c-rust) — a plain "can't claim it, just mark this
+/// provider unconfirmed and move on" was racy: if the concurrent connect's
+/// OWN downgrade check finished and cleared `downgrade_unconfirmed` for
+/// this provider BEFORE `crm_set_workspace`'s insert landed, the insert
+/// would silently override that fresh confirmation, leaving writes blocked
+/// with no path to recovery short of another workspace-open or connect.
+/// Waiting first means `crm_set_workspace` runs its OWN downgrade check
+/// strictly AFTER the other connect finishes — sequencing instead of
+/// racing, so whichever check's result lands last reflects the current
+/// truth rather than two concurrent inserts/removes interleaving
+/// unpredictably.
+async fn wait_for_connect_in_progress_to_clear(state: &CrmState) -> bool {
+    let mut waited_ms: u64 = 0;
+    while state.connect_in_progress.load(Ordering::SeqCst) {
+        if waited_ms >= 10_000 {
+            return false;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        waited_ms += 50;
+    }
+    true
+}
+
 /// Downgrade every `sent` outbound-write ledger row for `provider` to
 /// `pending_verify` (see `CrmStore::mark_sent_rows_pending_verify_for_provider`).
 /// Called from every successful connect path (`crm_connect`'s Redtail branch,
@@ -374,7 +417,14 @@ async fn wait_for_writes_to_drain(state: &CrmState) -> bool {
 /// receipt. Best-effort: no workspace open yet (connecting before opening a
 /// workspace) or a local DB hiccup is logged and does not fail the connect —
 /// there is nothing to protect the ledger from before a workspace exists.
-async fn mark_stale_sent_rows_pending_verify_best_effort(app: &AppHandle, provider: CrmProvider) {
+/// Returns `true` if there's nothing to protect yet (no workspace open) OR
+/// the downgrade is CONFIRMED to have succeeded; `false` if a workspace
+/// exists but the downgrade could not be confirmed after retries. Every
+/// `crm_connect`/`crm_oauth_connect` success path calls this BEFORE storing
+/// the new token and MUST refuse the connect (return Err, token untouched)
+/// on `false` — see `downgrade_stale_sent_rows_for_workspace`'s doc comment
+/// for why this ordering avoids needing any rollback plumbing.
+async fn confirm_stale_sent_rows_downgraded(app: &AppHandle, provider: CrmProvider) -> bool {
     // Connect can happen before ANY workspace is ever opened (e.g. from a
     // general Account/Connections screen) — in that case there's no ledger
     // to touch yet. `crm_set_workspace` runs the SAME downgrade for whichever
@@ -390,38 +440,49 @@ async fn mark_stale_sent_rows_pending_verify_best_effort(app: &AppHandle, provid
         }
     };
     let Some(ws) = ws_opt else {
-        return;
+        return true;
     };
-    downgrade_stale_sent_rows_for_workspace_best_effort(ws, provider, "crm connect").await;
+    let confirmed = downgrade_stale_sent_rows_for_workspace(ws, provider, "crm connect").await;
+    if confirmed {
+        // A confirmed downgrade here also resolves any EARLIER
+        // crm_set_workspace failure for THIS provider (same underlying
+        // safety property) — remove just this provider's id so writes for
+        // it aren't left blocked by a since-superseded failure. Per-
+        // provider, not a global clear: an unrelated provider's still-
+        // unconfirmed downgrade must be untouched.
+        app.state::<CrmState>().downgrade_unconfirmed.lock().await.remove(provider.id());
+    }
+    confirmed
 }
 
 /// Shared core of the stale-`sent`-row downgrade (see
 /// `CrmStore::mark_sent_rows_pending_verify_for_provider`) — called from
 /// every `crm_connect`/`crm_oauth_connect` success path (via
-/// `mark_stale_sent_rows_pending_verify_best_effort`, which resolves the
-/// workspace path from app state) AND from `crm_set_workspace` (which
-/// already has the path directly, covering the reverse ordering: a connect
-/// that happened before any workspace was open).
-async fn downgrade_stale_sent_rows_for_workspace_best_effort(
+/// `confirm_stale_sent_rows_downgraded`, which resolves the workspace path
+/// from app state and gates the token store on this returning `true`) AND
+/// from `crm_set_workspace` (which already has the path directly, covering
+/// the reverse ordering: a connect that happened before any workspace was
+/// open — that call site stays best-effort; there's no in-flight connect to
+/// refuse there, just an already-open workspace).
+///
+/// Retries a few times against a TRANSIENT failure (the most realistic real
+/// cause — e.g. another operation briefly holding the SQLite file lock)
+/// before giving up.
+///
+/// A workspace-open connect leaving stale 'sent' rows un-downgraded is a
+/// failed safety-critical write, not a "nothing to protect" case — so on
+/// persistent (non-transient) failure the CONNECT call sites refuse the
+/// connect (return `false`) rather than proceeding with a token swap the
+/// old 'sent' rows can't be trusted to survive. This is what makes a
+/// rollback unnecessary: the downgrade is confirmed BEFORE the token is
+/// ever stored, so a failure here means nothing has changed yet — there's
+/// nothing to roll back.
+async fn downgrade_stale_sent_rows_for_workspace(
     ws: std::path::PathBuf,
     provider: CrmProvider,
     caller: &'static str,
-) {
+) -> bool {
     let provider_id = provider.id();
-    // Retry a few times against a TRANSIENT failure (the most realistic real
-    // cause — e.g. another operation briefly holding the SQLite file lock)
-    // before giving up. A workspace-open connect leaving stale 'sent' rows
-    // un-downgraded is not merely "nothing to protect" (the no-workspace
-    // case) — it's a failed safety-critical write, so it's worth a few
-    // retries rather than a single best-effort attempt.
-    //
-    // Residual (not fully closed): if the failure is NOT transient (e.g. the
-    // CRM database file itself is corrupt), all retries exhaust and this
-    // still logs + proceeds without downgrading — closing that fully would
-    // need the connect to fail and roll back the just-stored token, which
-    // the Redtail and plain-token connect paths don't currently have
-    // plumbing for (unlike the OAuth path's rollback_token). Flagged for a
-    // follow-up rather than restructuring all three connect paths now.
     const ATTEMPTS: u32 = 3;
     let mut last_err: Option<anyhow::Error> = None;
     for attempt in 0..ATTEMPTS {
@@ -439,7 +500,7 @@ async fn downgrade_stale_sent_rows_for_workspace_best_effort(
                 if n > 0 {
                     log::info!("{caller}: downgraded {n} stale '{provider_id}' sent row(s) to pending_verify");
                 }
-                return;
+                return true;
             }
             Ok(Err(e)) => last_err = Some(e),
             Err(e) => last_err = Some(anyhow::anyhow!("spawn failed: {e}")),
@@ -447,10 +508,11 @@ async fn downgrade_stale_sent_rows_for_workspace_best_effort(
     }
     if let Some(e) = last_err {
         log::warn!(
-            "{caller}: marking stale sent rows failed after {ATTEMPTS} attempts (non-fatal, \
-             but any 'sent' rows for '{provider_id}' remain un-downgraded): {e:#}"
+            "{caller}: marking stale sent rows failed after {ATTEMPTS} attempts — any 'sent' \
+             rows for '{provider_id}' remain un-downgraded: {e:#}"
         );
     }
+    false
 }
 
 /// Matter-scoped variant of [`crm_audit_payload_json`] for writes that
@@ -673,6 +735,12 @@ async fn crm_create_write(
             provider.display_name()
         ));
     }
+    if state.downgrade_unconfirmed.lock().await.contains(provider.id()) {
+        return Err(
+            "CRM sync state couldn't be verified — try reopening your workspace before writing."
+                .to_string(),
+        );
+    }
 
     write::validate_write_inputs(&title, &body).map_err(|e| e.to_string())?;
     write::validate_requested_at(&requested_at).map_err(|e| e.to_string())?;
@@ -763,6 +831,154 @@ async fn crm_create_write(
     }
 }
 
+/// Push one approval-gated field-level "blend" (Task 9c) to the connected
+/// CRM and record an audit entry. Same approval-gated contract as
+/// [`crm_create_note`]/[`crm_create_task`] — the frontend's 3-column review
+/// card calls this only after an explicit user Approve click.
+///
+/// `existing_value` is what the review card showed the user (fetched at
+/// proposal time); `push_crm_field_update`'s stale-guard re-fetches the
+/// LIVE value at approve time and refuses to write if it no longer matches
+/// — see `CrmWriteError::StaleFieldValue`.
+#[allow(clippy::too_many_arguments)]
+#[tauri::command]
+pub async fn crm_update_field(
+    app: AppHandle,
+    state: State<'_, CrmState>,
+    matter_id: String,
+    household_key: String,
+    field: String,
+    existing_value: String,
+    new_value: String,
+    final_value: String,
+    source_ref: String,
+    requested_at: String,
+    provider: Option<String>,
+) -> Result<WriteReceipt, String> {
+    let provider = CrmProvider::from_optional(provider.as_deref())?;
+
+    // Same in-flight/disconnect/reconnect coordination as crm_create_write —
+    // see its comments for why each check exists.
+    state.write_in_flight.fetch_add(1, Ordering::SeqCst);
+    let _write_slot = WriteInFlightSlot(state.write_in_flight.clone());
+    if state.disconnect_requested.load(Ordering::SeqCst) {
+        return Err(format!(
+            "{} is disconnecting — try again once reconnected",
+            provider.display_name()
+        ));
+    }
+    if state.connect_in_progress.load(Ordering::SeqCst) {
+        return Err(format!(
+            "{} is reconnecting — try again in a moment",
+            provider.display_name()
+        ));
+    }
+    if state.downgrade_unconfirmed.lock().await.contains(provider.id()) {
+        return Err(
+            "CRM sync state couldn't be verified — try reopening your workspace before writing."
+                .to_string(),
+        );
+    }
+
+    write::validate_requested_at(&requested_at).map_err(|e| e.to_string())?;
+
+    let token = read_token(provider).ok_or_else(|| {
+        format!(
+            "{} not connected — connect it in Account → Connections first",
+            provider.display_name()
+        )
+    })?;
+
+    let workspace = state
+        .workspace
+        .lock()
+        .await
+        .clone()
+        .ok_or("workspace not set — call crm_set_workspace first")?;
+
+    let store = CrmStore::open(&workspace).map_err(|e| e.to_string())?;
+    let client = write::write_client_for(provider, token).map_err(|e| e.to_string())?;
+
+    let req = write::CrmFieldUpdateRequest {
+        matter_id: matter_id.clone(),
+        household_key: household_key.clone(),
+        field: field.clone(),
+        existing_value,
+        new_value,
+        final_value,
+        source_ref: source_ref.clone(),
+        requested_at: requested_at.clone(),
+    };
+
+    let action = provider.audit_action("field_updated");
+    // Codex round 10 (self-converge): the audit id incorporates
+    // requested_at (unlike dedup_key_field, the WRITE-safety key, which
+    // deliberately doesn't) — without it, a genuine retry (this exact
+    // command re-invoked after its response was lost) and a LATER, separate
+    // approval that happens to restore the same final_value are
+    // indistinguishable from content alone: one wants the SAME audit entry
+    // (no duplicate), the other wants its own. See CrmFieldUpdateRequest's
+    // doc comment.
+    //
+    // Trimmed here (self-converge, review findings on lp/crm-9c-rust):
+    // validate_requested_at accepts (and validates) the TRIMMED value, so a
+    // retry with incidental whitespace around an otherwise-identical
+    // requested_at must still compute the SAME audit id — hashing the raw
+    // string would let harmless whitespace defeat the INSERT OR IGNORE
+    // dedup this id exists for.
+    let write_dedup_key = format!("{}_{}", write::dedup_key_field(&req), requested_at.trim());
+
+    match write::push_crm_field_update(client.as_ref(), &store, &state.write_guard, &req).await {
+        Ok(receipt) => {
+            let description = format!(
+                "field '{field}' updated on {} household {household_key} (source: {source_ref})",
+                provider.display_name(),
+            );
+            // write_dedup_key now includes requested_at (see above), so
+            // this single deterministic id correctly handles all three
+            // cases: a genuine retry (same requested_at) of either a real
+            // write or a cache hit collides with its own prior entry (no
+            // duplicate); a LATER, separate approval (new requested_at) of
+            // the same content always gets its own entry.
+            append_crm_audit_best_effort_for_matter(&app, &action, &description, &matter_id, Some(&write_dedup_key)).await;
+            Ok(receipt)
+        }
+        Err(CrmWriteError::StaleFieldValue(current)) => {
+            let description = format!(
+                "field '{field}' update on {} household {household_key} (source: {source_ref}) \
+                 skipped — the value changed in the CRM since this was proposed",
+                provider.display_name(),
+            );
+            append_crm_audit_best_effort_for_matter(
+                &app,
+                &action,
+                &description,
+                &matter_id,
+                Some(&format!("{write_dedup_key}_stale")),
+            )
+            .await;
+            Err(CrmWriteError::StaleFieldValue(current).to_string())
+        }
+        Err(CrmWriteError::VerifyPending) => {
+            let description = format!(
+                "field '{field}' update on {} household {household_key} (source: {source_ref}) \
+                 MAY have been applied — delivery unconfirmed, will verify on retry",
+                provider.display_name(),
+            );
+            append_crm_audit_best_effort_for_matter(
+                &app,
+                &action,
+                &description,
+                &matter_id,
+                Some(&format!("{write_dedup_key}_ambiguous")),
+            )
+            .await;
+            Err(CrmWriteError::VerifyPending.to_string())
+        }
+        Err(e) => Err(e.to_string()),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Commands
 // ---------------------------------------------------------------------------
@@ -777,14 +993,67 @@ pub async fn crm_set_workspace(
 ) -> Result<(), String> {
     let provider = CrmProvider::from_optional(provider.as_deref())?;
     let ws = PathBuf::from(path);
+
+    // Codex round 9 (self-converge): ALWAYS store the workspace path,
+    // unconditionally — never gate this on connect_in_progress. Round 4's
+    // fix refused the WHOLE command (workspace never set) when a connect
+    // was already in progress, but the frontend calls crm_set_workspace at
+    // routine app/workspace-open time and only logs a failure here (it
+    // doesn't retry) — so a race against an in-progress connect could
+    // leave CrmState.workspace permanently None for the rest of the
+    // session, breaking sync/write/disconnect entirely. That's a much
+    // worse failure mode than the downgrade race this originally guarded.
     *state.workspace.lock().await = Some(ws.clone());
 
-    // See downgrade_stale_sent_rows_for_workspace_best_effort's doc comment:
-    // this covers the ordering connect couldn't (a connect that happened
-    // before this workspace was ever opened, whose downgrade attempt at
-    // connect time found no workspace to touch).
+    // See downgrade_stale_sent_rows_for_workspace's doc comment: this covers
+    // the ordering connect couldn't (a connect that happened before this
+    // workspace was ever opened, whose downgrade attempt at connect time
+    // found no workspace to touch). Can't fail-closed the same way connect
+    // does (refuse the whole command) -- this runs automatically on
+    // workspace open, and hard-failing it would block the user from ever
+    // opening their workspace over a transient ledger hiccup. Instead,
+    // block NEW writes via downgrade_unconfirmed until a LATER successful
+    // check (another crm_set_workspace call, or a future connect) clears
+    // it -- see CrmState::downgrade_unconfirmed's doc comment.
     if read_token(provider).is_some() {
-        downgrade_stale_sent_rows_for_workspace_best_effort(ws, provider, "crm set_workspace").await;
+        // Only the DOWNGRADE CHECK itself needs the connect_in_progress
+        // race protection (a concurrent connect could be mid-transition on
+        // the SAME provider's ledger rows) — the workspace path above is
+        // never gated on it.
+        //
+        // Self-converge (review findings on lp/crm-9c-rust): a plain
+        // "can't claim it right now, just mark this provider unconfirmed"
+        // was itself racy — connect_in_progress is a single flag shared by
+        // ALL providers, so if the concurrent connect (for this SAME
+        // provider) finished and cleared downgrade_unconfirmed BEFORE this
+        // function's own insert landed, the insert would silently override
+        // that fresh confirmation, leaving writes blocked with no path to
+        // recovery short of another workspace-open or connect. So: if the
+        // claim fails, WAIT (bounded) for the other connect to finish
+        // first, then claim again — this makes our own check run strictly
+        // AFTER theirs (sequenced, not racing), so whichever result lands
+        // last is the current truth. Only if contention persists past the
+        // wait budget do we fall back to marking unconfirmed as a
+        // last-resort, self-healing signal.
+        let mut connect_guard = claim_connect_in_progress(&state);
+        if connect_guard.is_none() {
+            wait_for_connect_in_progress_to_clear(&state).await;
+            connect_guard = claim_connect_in_progress(&state);
+        }
+        match connect_guard {
+            Some(_connect_guard) => {
+                let confirmed = downgrade_stale_sent_rows_for_workspace(ws, provider, "crm set_workspace").await;
+                let mut unconfirmed = state.downgrade_unconfirmed.lock().await;
+                if confirmed {
+                    unconfirmed.remove(provider.id());
+                } else {
+                    unconfirmed.insert(provider.id().to_string());
+                }
+            }
+            None => {
+                state.downgrade_unconfirmed.lock().await.insert(provider.id().to_string());
+            }
+        }
     }
     Ok(())
 }
@@ -842,10 +1111,21 @@ pub async fn crm_connect(
                     .to_string(),
             );
         }
+        // Confirm the stale-row downgrade BEFORE ever storing the new
+        // token — fail closed rather than proceed with a token swap the old
+        // 'sent' rows can't be trusted to survive. See
+        // downgrade_stale_sent_rows_for_workspace's doc comment for why
+        // this ordering means no rollback is needed on failure: nothing has
+        // changed yet.
+        if !confirm_stale_sent_rows_downgraded(&app, provider).await {
+            return Err(
+                "Could not verify your previous Redtail activity before reconnecting — try again in a moment."
+                    .to_string(),
+            );
+        }
         // Store only the exchanged Redtail UserKey. The advisor password is
         // used for this request and is never persisted.
         store_token(provider, &info.user_key)?;
-        mark_stale_sent_rows_pending_verify_best_effort(&app, provider).await;
 
         append_crm_audit_best_effort(
             &app,
@@ -890,9 +1170,19 @@ pub async fn crm_connect(
                 .to_string(),
         );
     }
+    // Confirm the stale-row downgrade BEFORE ever storing the new token —
+    // fail closed rather than proceed with a token swap the old 'sent' rows
+    // can't be trusted to survive. See
+    // downgrade_stale_sent_rows_for_workspace's doc comment for why this
+    // ordering means no rollback is needed on failure: nothing has changed yet.
+    if !confirm_stale_sent_rows_downgraded(&app, provider).await {
+        return Err(format!(
+            "Could not verify your previous {} activity before reconnecting — try again in a moment.",
+            provider.display_name()
+        ));
+    }
     // Store the token only after a confirmed successful validation.
     store_token(provider, token)?;
-    mark_stale_sent_rows_pending_verify_best_effort(&app, provider).await;
 
     // Emit durable audit — best-effort; uses AuditState workspace (same DB
     // that the Activity Log reads) so the entry appears immediately.
@@ -1001,6 +1291,20 @@ pub async fn crm_oauth_connect(
         );
     }
 
+    // Confirm the stale-row downgrade BEFORE ever storing the new token —
+    // fail closed rather than proceed with a token swap the old 'sent' rows
+    // can't be trusted to survive. Nothing has been stored yet at this
+    // point either, so — like the drain-wait check above — this needs no
+    // rollback: just don't store the token. See
+    // downgrade_stale_sent_rows_for_workspace's doc comment for the full
+    // reasoning.
+    if !confirm_stale_sent_rows_downgraded(&app, provider).await {
+        return Err(format!(
+            "Could not verify your previous {} activity before reconnecting — try again in a moment.",
+            provider.display_name()
+        ));
+    }
+
     crate::commands::mail::gmail::oauth::store_or_rollback_on_cancel(
         &cancel,
         || store_token(provider, &stored),
@@ -1037,14 +1341,6 @@ pub async fn crm_oauth_connect(
         ),
     )
     .await;
-
-    // Downgrade stale sent rows BEFORE the final cancel check below, not
-    // after — it's itself an awaited operation, so putting it after that
-    // check would reopen exactly the race the check exists to close (a
-    // cancel landing during this await would otherwise be missed entirely
-    // and this command would return Ok with the new credential still
-    // stored).
-    mark_stale_sent_rows_pending_verify_best_effort(&app, provider).await;
 
     // The Cancel button stays live until this command settles, and the work
     // above is itself awaited disk I/O — check one more time before
@@ -1732,6 +2028,7 @@ mod tests {
             write_in_flight: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
             disconnect_requested: Arc::new(AtomicBool::new(false)),
             connect_in_progress: Arc::new(AtomicBool::new(false)),
+            downgrade_unconfirmed: tokio::sync::Mutex::new(std::collections::HashSet::new()),
         }
     }
 
@@ -1907,6 +2204,36 @@ mod tests {
         assert!(
             claim_connect_in_progress(&state).is_some(),
             "a new claim must succeed once the first is released"
+        );
+    }
+
+    /// Self-converge (review findings on lp/crm-9c-rust, P2): proves the
+    /// primitive crm_set_workspace's race fix relies on — it must actually
+    /// wait for a held claim to release, not return immediately, so a
+    /// caller that then re-claims runs its own check strictly AFTER the
+    /// original connect finishes (sequenced, not racing).
+    #[tokio::test]
+    async fn wait_for_connect_in_progress_to_clear_waits_for_the_flag_then_returns_true() {
+        let state = test_state(false);
+        let guard = claim_connect_in_progress(&state).expect("first claim must succeed");
+
+        let connect_in_progress = state.connect_in_progress.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(30)).await;
+            drop(guard);
+            let _ = connect_in_progress; // guard's Drop clears the flag; keep the clone alive until then
+        });
+
+        let started = std::time::Instant::now();
+        let cleared = wait_for_connect_in_progress_to_clear(&state).await;
+        assert!(cleared, "must report success once the claim is released");
+        assert!(
+            started.elapsed() >= std::time::Duration::from_millis(25),
+            "must actually wait for the held claim, not return immediately"
+        );
+        assert!(
+            claim_connect_in_progress(&state).is_some(),
+            "a fresh claim must succeed once wait_for_connect_in_progress_to_clear reports cleared"
         );
     }
 
@@ -2874,5 +3201,71 @@ mod tests {
             AuditChainVerification::Verified { checked: 2 },
             "hash chain must be valid after two CRM audit appends"
         );
+    }
+
+    /// REVIEW FINDING 1 (self-converge, lp/crm-remainder): confirms both
+    /// outcomes of the renamed downgrade helper — every connect path now
+    /// calls this BEFORE storing the new token and must refuse the connect
+    /// on `false`. Both cases live in ONE test (rather than two) because
+    /// both need `KEEPANCE_HEADLESS_TEST_CRM_MASTER_KEY_HEX` set to bypass
+    /// the OS keychain (which can BLOCK indefinitely on a headless box
+    /// without a working D-Bus secret service) — that env var is
+    /// process-global, and `cargo test` runs tests in parallel THREADS by
+    /// default, so two separate tests each doing their own set/remove would
+    /// race each other.
+    #[tokio::test]
+    async fn downgrade_stale_sent_rows_for_workspace_reports_success_and_failure_correctly() {
+        const KEY_HEX: &str = "2222222222222222222222222222222222222222222222222222222222222222";
+        std::env::set_var("KEEPANCE_HEADLESS_TEST_CRM_MASTER_KEY_HEX", KEY_HEX);
+
+        // Success: a real, writable workspace with a seeded 'sent' row.
+        let workspace = tempfile::TempDir::new().unwrap();
+        let key: [u8; 32] = hex::decode(KEY_HEX).unwrap().try_into().unwrap();
+        {
+            let store = crate::commands::crm::store::CrmStore::open_with_key(workspace.path(), &key)
+                .expect("open crm store");
+            store
+                .outbound_upsert(
+                    "dedup-1",
+                    "wealthbox",
+                    "note",
+                    "12345",
+                    "matter-1",
+                    "doc:x",
+                    "sent",
+                    Some("999"),
+                    true,
+                    "ck-1",
+                )
+                .expect("seed a sent row");
+        }
+        let ok = downgrade_stale_sent_rows_for_workspace(
+            workspace.path().to_path_buf(),
+            CrmProvider::Wealthbox,
+            "test",
+        )
+        .await;
+        assert!(ok, "downgrade must report success against a real, writable workspace");
+        let store = crate::commands::crm::store::CrmStore::open_with_key(workspace.path(), &key).unwrap();
+        let row = store.outbound_get("dedup-1").unwrap().unwrap();
+        assert_eq!(row.status, "pending_verify", "the sent row must have been downgraded");
+
+        // Failure: the "workspace" is a plain file, so the DB can never be
+        // opened — the caller (every crm_connect/crm_oauth_connect success
+        // path) relies on this `false` to refuse the reconnect instead of
+        // swapping the token.
+        let not_a_workspace = tempfile::NamedTempFile::new().unwrap();
+        let ok = downgrade_stale_sent_rows_for_workspace(
+            not_a_workspace.path().to_path_buf(),
+            CrmProvider::Wealthbox,
+            "test",
+        )
+        .await;
+        assert!(
+            !ok,
+            "must report failure when the underlying store can never be opened, so the caller fails closed"
+        );
+
+        std::env::remove_var("KEEPANCE_HEADLESS_TEST_CRM_MASTER_KEY_HEX");
     }
 }

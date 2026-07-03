@@ -208,7 +208,8 @@ impl CrmStore {
                status        TEXT NOT NULL,
                remote_id     TEXT,
                created_at    TEXT NOT NULL,
-               updated_at    TEXT NOT NULL
+               updated_at    TEXT NOT NULL,
+               content_key   TEXT NOT NULL DEFAULT ''
              );",
         )?;
         migrate_crm_columns(&conn);
@@ -664,6 +665,7 @@ impl CrmStore {
     /// ambiguously, verified as a miss, and then resent — the resend's own
     /// eventual verification could still match a coincidental CRM record
     /// created between the FIRST attempt and the resend.
+    #[allow(clippy::too_many_arguments)]
     pub fn outbound_upsert(
         &self,
         dedup_key: &str,
@@ -675,18 +677,35 @@ impl CrmStore {
         status: &str,
         remote_id: Option<&str>,
         reset_created_at: bool,
+        content_key: &str,
     ) -> Result<()> {
         let c = self.conn.lock().unwrap();
         let now = chrono::Utc::now().to_rfc3339();
         c.execute(
             "INSERT INTO crm_outbound_writes
-                (dedup_key, provider, kind, household_key, matter_id, source_ref, status, remote_id, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9)
+                (dedup_key, provider, kind, household_key, matter_id, source_ref, status, remote_id, created_at, updated_at, content_key)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?11)
              ON CONFLICT(dedup_key) DO UPDATE SET
                 status = excluded.status,
-                remote_id = COALESCE(excluded.remote_id, crm_outbound_writes.remote_id),
+                -- Codex round 8 (self-converge): a FRESH send attempt
+                -- (reset_created_at = true, from upsert_ledger_before_send)
+                -- must clear any STALE remote_id from a PRIOR attempt under
+                -- this same key (e.g. a `sent` row downgraded to
+                -- pending_verify by a reconnect, then resent to the newly
+                -- connected account) rather than preserving it via COALESCE
+                -- — otherwise, if the app crashes right after this insert
+                -- (before this NEW attempt's own remote_id is ever known),
+                -- the row is indistinguishable from the OLD downgraded-sent
+                -- row for outbound_find_recovery_candidate's `remote_id IS
+                -- NULL` filter, hiding this genuinely interrupted NEW
+                -- attempt from crash recovery. Every OTHER transition
+                -- (recording sent/pending_verify/failed for the attempt
+                -- THIS row already represents) still preserves remote_id
+                -- via COALESCE when passed NULL.
+                remote_id = CASE WHEN ?10 THEN excluded.remote_id ELSE COALESCE(excluded.remote_id, crm_outbound_writes.remote_id) END,
                 updated_at = excluded.updated_at,
-                created_at = CASE WHEN ?10 THEN excluded.created_at ELSE crm_outbound_writes.created_at END",
+                created_at = CASE WHEN ?10 THEN excluded.created_at ELSE crm_outbound_writes.created_at END,
+                content_key = excluded.content_key",
             rusqlite::params![
                 dedup_key,
                 provider,
@@ -698,7 +717,74 @@ impl CrmStore {
                 remote_id,
                 now,
                 reset_created_at,
+                content_key,
             ],
+        )?;
+        Ok(())
+    }
+
+    /// Find the most recent GENUINELY-INTERRUPTED `pending`/`pending_verify`
+    /// row for `provider` whose CONTENT (not approval-event) matches
+    /// `content_key` — used by `push_crm_write`'s crash-recovery lookup. The
+    /// write queue is session-only, so after a crash a re-approval of the
+    /// same logical write mints a NEW `requested_at` (a new `dedup_key`),
+    /// and the interrupted attempt's row can only be found by its content
+    /// shape.
+    ///
+    /// Deliberately excludes `sent` rows: an intentional repeat of
+    /// already-delivered content must still send under its own new key, not
+    /// be silently matched against a past delivery.
+    ///
+    /// Also excludes rows with a `remote_id` (codex round 7, self-converge):
+    /// a `sent` row DOWNGRADED to `pending_verify` on reconnect (see
+    /// `mark_sent_rows_pending_verify_for_provider`) keeps its `remote_id`
+    /// — it proves delivery under SOME account, just needs re-verification
+    /// against whichever account is connected now (which the EXACT-key
+    /// lookup already does correctly). Treating it as a content-key
+    /// recovery candidate too would let a fresh approval — of the same
+    /// content, made after a reconnect — find that OLD delivery and get
+    /// silently deduped against it, skipping the actual send under the
+    /// (possibly different) now-connected account. A genuinely interrupted
+    /// attempt (crashed before a response was ever recorded) always has
+    /// `remote_id = NULL` — see `upsert_ledger`'s ambiguous-failure and
+    /// `upsert_ledger_before_send` call sites.
+    pub fn outbound_find_recovery_candidate(
+        &self,
+        provider: &str,
+        content_key: &str,
+    ) -> Result<Option<OutboundWrite>> {
+        use rusqlite::OptionalExtension;
+        let c = self.conn.lock().unwrap();
+        let mut stmt = c.prepare(
+            "SELECT dedup_key, status, remote_id, created_at FROM crm_outbound_writes
+             WHERE provider = ?1 AND content_key = ?2 AND status IN ('pending', 'pending_verify')
+               AND remote_id IS NULL
+             ORDER BY created_at DESC LIMIT 1",
+        )?;
+        let row = stmt
+            .query_row(rusqlite::params![provider, content_key], |r| {
+                Ok(OutboundWrite {
+                    dedup_key: r.get(0)?,
+                    status: r.get(1)?,
+                    remote_id: r.get(2)?,
+                    created_at: r.get(3)?,
+                })
+            })
+            .optional()?;
+        Ok(row)
+    }
+
+    /// TEST ONLY: force-set a ledger row's `created_at` to an arbitrary
+    /// (possibly backdated) timestamp — `outbound_upsert`'s public surface
+    /// deliberately always stamps `created_at` with the real time on
+    /// insert, so tests that need to simulate an OLD orphaned row (e.g. for
+    /// `push_crm_write`'s recovery-window bound) need this escape hatch.
+    #[cfg(test)]
+    pub fn outbound_backdate_for_test(&self, dedup_key: &str, created_at: &str) -> Result<()> {
+        let c = self.conn.lock().unwrap();
+        c.execute(
+            "UPDATE crm_outbound_writes SET created_at = ?2 WHERE dedup_key = ?1",
+            rusqlite::params![dedup_key, created_at],
         )?;
         Ok(())
     }
@@ -801,6 +887,10 @@ fn migrate_crm_columns(conn: &Connection) {
         "ALTER TABLE crm_objects ADD COLUMN kind TEXT NOT NULL DEFAULT ''",
         [],
     );
+    let _ = conn.execute(
+        "ALTER TABLE crm_outbound_writes ADD COLUMN content_key TEXT NOT NULL DEFAULT ''",
+        [],
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -826,13 +916,13 @@ mod tests {
         let _ = dir;
         assert!(store.outbound_get("k1").unwrap().is_none());
         store
-            .outbound_upsert("k1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "pending", None, true)
+            .outbound_upsert("k1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "pending", None, true, "ck")
             .unwrap();
         let row = store.outbound_get("k1").unwrap().unwrap();
         assert_eq!(row.status, "pending");
         assert_eq!(row.remote_id, None);
         store
-            .outbound_upsert("k1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "sent", Some("555"), false)
+            .outbound_upsert("k1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "sent", Some("555"), false, "ck")
             .unwrap();
         let row = store.outbound_get("k1").unwrap().unwrap();
         assert_eq!(row.status, "sent");
@@ -856,12 +946,12 @@ mod tests {
         let _ = dir;
         let fresh_attempt = |status: &str| {
             store
-                .outbound_upsert("k2", "wealthbox", "note", "12345", "m1", "doc:a.docx", status, None, true)
+                .outbound_upsert("k2", "wealthbox", "note", "12345", "m1", "doc:a.docx", status, None, true, "ck")
                 .unwrap();
         };
         let record_outcome = |status: &str| {
             store
-                .outbound_upsert("k2", "wealthbox", "note", "12345", "m1", "doc:a.docx", status, None, false)
+                .outbound_upsert("k2", "wealthbox", "note", "12345", "m1", "doc:a.docx", status, None, false, "ck")
                 .unwrap();
         };
 
@@ -899,8 +989,8 @@ mod tests {
     fn purge_outbound_writes_for_provider_only_removes_that_providers_rows() {
         let (dir, store) = crm_store();
         let _ = dir;
-        store.outbound_upsert("wb1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "sent", Some("1"), true).unwrap();
-        store.outbound_upsert("sf1", "salesforce", "note", "001XYZ", "m1", "doc:a.docx", "sent", Some("2"), true).unwrap();
+        store.outbound_upsert("wb1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "sent", Some("1"), true, "ck").unwrap();
+        store.outbound_upsert("sf1", "salesforce", "note", "001XYZ", "m1", "doc:a.docx", "sent", Some("2"), true, "ck").unwrap();
 
         let n = store.purge_outbound_writes_for_provider("wealthbox").unwrap();
         assert_eq!(n, 1);
@@ -922,10 +1012,10 @@ mod tests {
     fn mark_sent_rows_pending_verify_only_touches_that_providers_sent_rows() {
         let (dir, store) = crm_store();
         let _ = dir;
-        store.outbound_upsert("wb-sent", "wealthbox", "note", "12345", "m1", "doc:a.docx", "sent", Some("1"), true).unwrap();
-        store.outbound_upsert("wb-pending", "wealthbox", "note", "99999", "m1", "doc:b.docx", "pending", None, true).unwrap();
-        store.outbound_upsert("wb-failed", "wealthbox", "note", "88888", "m1", "doc:c.docx", "failed", None, true).unwrap();
-        store.outbound_upsert("sf-sent", "salesforce", "note", "001XYZ", "m1", "doc:d.docx", "sent", Some("2"), true).unwrap();
+        store.outbound_upsert("wb-sent", "wealthbox", "note", "12345", "m1", "doc:a.docx", "sent", Some("1"), true, "ck").unwrap();
+        store.outbound_upsert("wb-pending", "wealthbox", "note", "99999", "m1", "doc:b.docx", "pending", None, true, "ck").unwrap();
+        store.outbound_upsert("wb-failed", "wealthbox", "note", "88888", "m1", "doc:c.docx", "failed", None, true, "ck").unwrap();
+        store.outbound_upsert("sf-sent", "salesforce", "note", "001XYZ", "m1", "doc:d.docx", "sent", Some("2"), true, "ck").unwrap();
 
         let n = store.mark_sent_rows_pending_verify_for_provider("wealthbox").unwrap();
         assert_eq!(n, 1, "only the one wealthbox 'sent' row should flip");
@@ -938,6 +1028,75 @@ mod tests {
         // survive the transition unchanged — find_recent_matching still
         // needs them to check whichever account is now connected.
         assert_eq!(store.outbound_get("wb-sent").unwrap().unwrap().remote_id.as_deref(), Some("1"));
+    }
+
+    /// Codex round 7 (self-converge): a `sent` row downgraded by
+    /// `mark_sent_rows_pending_verify_for_provider` keeps its `remote_id`
+    /// and its `status` becomes `pending_verify` — indistinguishable from a
+    /// genuinely interrupted attempt UNLESS the recovery lookup also checks
+    /// `remote_id`. Without this exclusion, a fresh approval of the same
+    /// content after a reconnect could find this OLD delivery and get
+    /// silently deduped against it, skipping the actual send under the
+    /// (possibly different) now-connected account.
+    #[test]
+    fn recovery_candidate_excludes_a_downgraded_sent_row_with_a_remote_id() {
+        let (dir, store) = crm_store();
+        let _ = dir;
+        store.outbound_upsert("wb-sent", "wealthbox", "note", "12345", "m1", "doc:a.docx", "sent", Some("1"), true, "shared-content").unwrap();
+        store.mark_sent_rows_pending_verify_for_provider("wealthbox").unwrap();
+        assert_eq!(store.outbound_get("wb-sent").unwrap().unwrap().status, "pending_verify");
+
+        assert!(
+            store.outbound_find_recovery_candidate("wealthbox", "shared-content").unwrap().is_none(),
+            "a downgraded sent row (has a remote_id) must not be treated as a crash-recovery candidate"
+        );
+
+        // A genuinely interrupted attempt (no remote_id) with the SAME
+        // content_key must still be found.
+        store.outbound_upsert("wb-interrupted", "wealthbox", "note", "12345", "m1", "doc:a.docx", "pending", None, true, "shared-content").unwrap();
+        let candidate = store.outbound_find_recovery_candidate("wealthbox", "shared-content").unwrap();
+        assert_eq!(candidate.map(|r| r.dedup_key), Some("wb-interrupted".to_string()));
+    }
+
+    /// Codex round 8 (self-converge): a FRESH send attempt reusing an
+    /// EXISTING key (the write.rs exact-key path resending after a
+    /// downgraded sent row was found un-verified under the newly connected
+    /// account) must clear that row's stale remote_id — otherwise, if the
+    /// app crashes right after this insert, the row is indistinguishable
+    /// from the OLD downgraded-sent row for
+    /// `outbound_find_recovery_candidate`'s `remote_id IS NULL` filter,
+    /// hiding this genuinely interrupted NEW attempt from crash recovery.
+    #[test]
+    fn a_fresh_send_attempt_clears_a_stale_remote_id_from_a_downgraded_sent_row() {
+        let (dir, store) = crm_store();
+        let _ = dir;
+        // A row that was `sent` (remote_id set), then downgraded by a
+        // reconnect — status flips to pending_verify, remote_id survives.
+        store.outbound_upsert("k1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "sent", Some("111"), true, "ck").unwrap();
+        store.mark_sent_rows_pending_verify_for_provider("wealthbox").unwrap();
+        assert_eq!(store.outbound_get("k1").unwrap().unwrap().remote_id.as_deref(), Some("111"));
+
+        // A FRESH send attempt under the SAME key (mirrors
+        // write.rs::upsert_ledger_before_send, always reset_created_at=true,
+        // remote_id=None) must clear the stale remote_id, not preserve it.
+        store.outbound_upsert("k1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "pending", None, true, "ck").unwrap();
+        let row = store.outbound_get("k1").unwrap().unwrap();
+        assert_eq!(row.status, "pending");
+        assert_eq!(
+            row.remote_id, None,
+            "a fresh send attempt must clear a stale remote_id inherited from a downgraded sent row"
+        );
+
+        // But recording THIS attempt's own outcome (reset_created_at=false)
+        // must still preserve a remote_id when passed None — e.g. a
+        // pending -> pending_verify transition for the SAME attempt.
+        store.outbound_upsert("k1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "sent", Some("222"), false, "ck").unwrap();
+        store.outbound_upsert("k1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "pending_verify", None, false, "ck").unwrap();
+        assert_eq!(
+            store.outbound_get("k1").unwrap().unwrap().remote_id.as_deref(),
+            Some("222"),
+            "a non-fresh-attempt transition must still preserve remote_id via COALESCE when passed None"
+        );
     }
 
     /// P2.3 row 8: the cheap digest list MUST match `list_objects_by_household`
