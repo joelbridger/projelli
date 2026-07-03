@@ -69,6 +69,16 @@ export function DraftFollowUpModal({
   // On open: load accounts, suggest To from the client's mail, generate the draft.
   useEffect(() => {
     if (!open) return;
+    // Coordinator review catch: this is a controlled modal — closing it (the
+    // `open` prop flips false) does not by itself stop this in-flight async
+    // work. Without this guard, an account lookup / provider resolution that
+    // was still pending when the user dismissed the modal would carry on and
+    // still send the note content to the AI provider after dismissal — a
+    // privacy-sensitive egress happening behind the user's back. Checked
+    // after every await, and always immediately before the two things that
+    // must never fire post-close: building/logging the egress audit entry
+    // and calling provider.sendMessage.
+    let cancelled = false;
     setStatus('generating');
     setError(null);
     setBody('');
@@ -82,6 +92,7 @@ export function DraftFollowUpModal({
     void (async () => {
       try {
         const accts = await mailConnectedAccounts();
+        if (cancelled) return;
         setAccounts(accts);
         setAccountIdx(0);
         // Codex review catch (P1): with no connected mailbox this feature is
@@ -104,13 +115,19 @@ export function DraftFollowUpModal({
               limit: 50,
               offset: 0,
             });
+            if (cancelled) return;
             const suggestion = suggestClientEmail(page.items);
             if (suggestion) setTo(suggestion);
           }
         } catch {
           // No mail for this client (or browser mode) — To stays empty, user types it.
         }
+        if (cancelled) return;
         const { provider, providerId, assuredAvailable } = await resolveEmailProvider();
+        // Coordinator review catch: the modal may have been closed while
+        // provider resolution (keychain reads, etc.) was in flight — checked
+        // here, BEFORE building the egress audit entry or the prompt at all.
+        if (cancelled) return;
         assertLocalOnlyAllowsSend(providerId);
         // Codex review catch (P1): every other AI surface (Ask, redline, the
         // reply-draft flow this modal is modeled on) records an egress audit
@@ -140,16 +157,25 @@ export function DraftFollowUpModal({
           metadata: { ...auditEntry.metadata, noteName },
         });
         const prompt = buildFollowUpPrompt({ noteName, noteContent });
+        // Coordinator review catch: re-checked immediately before the actual
+        // send, the one call that must never fire after the user dismissed
+        // the modal.
+        if (cancelled) return;
         const response = await provider.sendMessage(prompt);
+        if (cancelled) return;
         const applied = applyDraftResponse(noteName, response.content);
         setSubject(applied.subject);
         setBody(applied.body);
         setStatus('idle');
       } catch (e) {
+        if (cancelled) return;
         setError(e instanceof Error ? e.message : String(e));
         setStatus('error');
       }
     })();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 

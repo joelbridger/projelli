@@ -3,7 +3,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { DraftFollowUpModal } from '@/features/email/DraftFollowUpModal';
 import { buildMailMatterMap } from '@/platform/rag/matterResolver';
 
-const { sendMessage, mailSaveDraft, mailSend, mailConnectedAccounts, logEmailAuditEntry } = vi.hoisted(() => ({
+const { sendMessage, mailSaveDraft, mailSend, mailConnectedAccounts, logEmailAuditEntry, resolveEmailProvider } = vi.hoisted(() => ({
   sendMessage: vi.fn(),
   mailSaveDraft: vi.fn(async () => 'draft-id-1'),
   mailSend: vi.fn(async () => ''),
@@ -11,14 +11,15 @@ const { sendMessage, mailSaveDraft, mailSend, mailConnectedAccounts, logEmailAud
     { provider: 'm365', account: 'default', label: 'Microsoft 365' },
   ]),
   logEmailAuditEntry: vi.fn(),
-}));
-
-vi.mock('@/features/email/resolveEmailProvider', () => ({
   resolveEmailProvider: vi.fn(async () => ({
     provider: { sendMessage, getMetadata: () => ({ model: 'claude-test', providerId: 'anthropic' }) },
     providerId: 'anthropic',
     assuredAvailable: false,
   })),
+}));
+
+vi.mock('@/features/email/resolveEmailProvider', () => ({
+  resolveEmailProvider,
   assertLocalOnlyAllowsSend: vi.fn(),
 }));
 
@@ -276,5 +277,53 @@ describe('DraftFollowUpModal — AI proposes, user approves, hostile notes stay 
     );
     expect(mailListMessagesByMatter).not.toHaveBeenCalled();
     expect((screen.getByTestId('followup-to') as HTMLInputElement).value).toBe('');
+  });
+
+  it('never sends the note to the AI provider after the modal is closed mid-resolve (coordinator review)', async () => {
+    // Hold provider resolution open so we can close the modal WHILE it is
+    // still pending — the exact race the finding describes.
+    let resolveProvider!: (v: {
+      provider: { sendMessage: typeof sendMessage; getMetadata: () => { model: string; providerId: string } };
+      providerId: string;
+      assuredAvailable: boolean;
+    }) => void;
+    resolveEmailProvider.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveProvider = resolve; }),
+    );
+
+    const { rerender } = render(
+      <DraftFollowUpModal
+        open
+        onOpenChange={() => {}}
+        noteName="Meeting Notes 2026-06-24.docx"
+        noteContent={hostileNote}
+        matterId="matter-1"
+      />,
+    );
+    await waitFor(() => expect(resolveEmailProvider).toHaveBeenCalled());
+
+    // Close the modal (controlled `open` prop, same contract exercised
+    // elsewhere in this file) BEFORE provider resolution ever settles.
+    rerender(
+      <DraftFollowUpModal
+        open={false}
+        onOpenChange={() => {}}
+        noteName="Meeting Notes 2026-06-24.docx"
+        noteContent={hostileNote}
+        matterId="matter-1"
+      />,
+    );
+
+    // Now let the (now-abandoned) resolution finish.
+    resolveProvider({
+      provider: { sendMessage, getMetadata: () => ({ model: 'claude-test', providerId: 'anthropic' }) },
+      providerId: 'anthropic',
+      assuredAvailable: false,
+    });
+    // Give the microtask queue a turn to run the (would-be) continuation.
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(logEmailAuditEntry).not.toHaveBeenCalled();
   });
 });
