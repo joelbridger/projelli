@@ -54,8 +54,14 @@ export async function runRetentionSweep(
   const outcome = await retentionSweep(workspaceRoot, matterFolders, policy.mode, policy.audioRetentionDays);
   // Persist the pending cleanup list BEFORE attempting it: if the renderer
   // crashes mid-loop, the next sweep (or app start) picks up exactly what's
-  // left via flushPendingRagCleanup above.
-  useRetentionPolicyStore.getState().setPendingRagCleanup(workspaceRoot, outcome.ragCleanupSourceIds);
+  // left via flushPendingRagCleanup above. MERGE with whatever the initial
+  // flushPendingRagCleanup call above didn't manage to clear — overwriting
+  // with only this sweep's ids would silently drop any id that failed AGAIN
+  // on that retry, and once transcript.json is gone that id can never be
+  // recomputed, leaving its RAG chunks searchable forever.
+  const stillPending = useRetentionPolicyStore.getState().pendingRagCleanup[workspaceRoot] ?? [];
+  const mergedPending = Array.from(new Set([...stillPending, ...outcome.ragCleanupSourceIds]));
+  useRetentionPolicyStore.getState().setPendingRagCleanup(workspaceRoot, mergedPending);
   const cleanupErrors = await flushPendingRagCleanup(workspaceRoot);
 
   const rec: RetentionSweepRecord = {

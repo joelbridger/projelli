@@ -186,8 +186,16 @@ pub fn sweep_matter_folder(
                 remove_raw_audio(&dir, canon_ws, out);
                 if dir.join("notes.docx").exists() {
                     let ids = transcript_rag_source_ids(&dir);
-                    out.rag_cleanup_source_ids.extend(ids);
+                    // Only queue RAG cleanup once transcript.json is CONFIRMED
+                    // gone — queuing before the delete is attempted means a
+                    // locked file, a permission error, or a containment
+                    // refusal still wipes the searchable RAG index for a
+                    // transcript that's still sitting on disk.
+                    let deleted_before = out.deleted.len();
                     remove_file(&dir.join("transcript.json"), "transcript", canon_ws, out);
+                    if out.deleted.len() > deleted_before {
+                        out.rag_cleanup_source_ids.extend(ids);
+                    }
                 } else {
                     out.kept_meetings += 1; // transcript is the only record
                 }
@@ -314,6 +322,61 @@ mod tests {
         // 90 segments -> 3 rag doc ids computed BEFORE deletion
         assert_eq!(out.rag_cleanup_source_ids.iter().filter(|s| s.contains("2026-06-01-review")).count(), 3);
         assert!(out.rag_cleanup_source_ids[0].starts_with("meeting:"));
+    }
+
+    /// summary-only mode must never queue a transcript's RAG-doc ids for
+    /// deletion when the transcript.json unlink itself failed — here, a
+    /// read-only meeting folder lets the transcript still be READ (so the ids
+    /// are computed, same as a real run) but refuses the actual unlink
+    /// (Unix requires write+exec on the containing dir to remove an entry),
+    /// so the searchable index must stay in sync with what's really on disk.
+    /// Unix-only: the read-only-directory trick to force a deterministic
+    /// unlink failure relies on `std::os::unix::fs::PermissionsExt`, which
+    /// doesn't exist on Windows (a shipped target platform) — gate the whole
+    /// test + its helper so `cargo test` still compiles cross-platform.
+    #[cfg(unix)]
+    #[test]
+    fn summary_only_never_queues_rag_cleanup_when_transcript_delete_fails() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let ws = tempdir().unwrap();
+        let matter = ws.path().join("Clients/H");
+        let now = now_ms();
+        let m = make_meeting(&matter, "2026-05-01-x", 40, now, true);
+
+        // Read-only meeting dir: read(transcript.json) still works, but
+        // unlinking any entry inside it (including transcript.json) fails.
+        std::fs::set_permissions(&m, std::fs::Permissions::from_mode(0o555)).unwrap();
+        let restore = scopeguard(&m);
+
+        let mut out = SweepOutcome::default();
+        let canon_ws = ws.path().canonicalize().unwrap();
+        sweep_matter_folder(&matter, &canon_ws, "summary-only", 30, now, &mut out);
+        drop(restore); // restore write perms so tempdir cleanup can delete it
+
+        assert!(m.join("transcript.json").exists(), "delete must have actually failed for this test to be meaningful");
+        assert!(
+            out.rag_cleanup_source_ids.is_empty(),
+            "RAG cleanup must not be queued when the transcript delete didn't happen: {:?}",
+            out.rag_cleanup_source_ids
+        );
+        assert!(!out.errors.is_empty(), "the failed delete should be reported");
+    }
+
+    /// Restores a directory's permissions to 0o755 when dropped, so a
+    /// read-only-dir test cleans up after itself even on an early return.
+    #[cfg(unix)]
+    struct RestorePerms<'a>(&'a std::path::Path);
+    #[cfg(unix)]
+    impl Drop for RestorePerms<'_> {
+        fn drop(&mut self) {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(self.0, std::fs::Permissions::from_mode(0o755));
+        }
+    }
+    #[cfg(unix)]
+    fn scopeguard(p: &std::path::Path) -> RestorePerms<'_> {
+        RestorePerms(p)
     }
 
     #[test]

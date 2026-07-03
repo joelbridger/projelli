@@ -68,40 +68,47 @@ pub async fn retention_sweep(
         // before a single file is removed.
         let store = crate::commands::audit::store::EncryptedAuditStore::open(ws)
             .map_err(|e| format!("open audit store: {e}"))?;
+        // Audit each folder's deletions IMMEDIATELY after they happen, rather
+        // than deleting across every matter folder first and only writing the
+        // audit trail once the whole batch is done: batching the audit writes
+        // means a process crash anywhere during a multi-folder sweep could
+        // leave every deletion in that run with NO durable audit record at
+        // all. Interleaving bounds that blast radius to at most the folder
+        // that was mid-sweep when the crash happened, not the entire batch.
+        let mut audited_up_to = 0usize;
         for abs in &valid_folders {
             sweep_matter_folder(abs, &canon_ws, &mode, audio_retention_days, now_ms, &mut out);
-        }
-        // Audit trail: one hash-chained entry per deletion + one summary.
-        // Written Rust-side so the trail cannot be lost to a renderer crash.
-        for d in &out.deleted {
-            let entry_id = new_audit_id();
-            let entry_ts = chrono::Utc::now().to_rfc3339();
-            let entry = crate::commands::audit::store::AuditEntryRecord {
-                id: entry_id.clone(),
-                timestamp: entry_ts.clone(),
-                action: "retention_delete".to_string(),
-                description: format!("Retention policy removed {}: {}", d.kind, d.path),
-                // FULL AuditEntry shape — the frontend reconstructs entries with
-                // `JSON.parse(payloadJson) as AuditEntry`; a thin payload with no
-                // `metadata` key white-screens the Activity Log (see the warning on
-                // `crm_audit_payload_json`, src-tauri/src/commands/crm/commands.rs).
-                payload_json: serde_json::json!({
-                    "id": entry_id,
-                    "timestamp": entry_ts,
-                    "action": "retention_delete",
-                    "description": format!("Retention policy removed {}: {}", d.kind, d.path),
-                    "model": serde_json::Value::Null,
-                    "inputs": { "mode": mode, "kind": d.kind, "path": d.path },
-                    "outputs": {},
-                    "userDecision": serde_json::Value::Null,
-                    "metadata": {
-                        "auditEventType": "retention_delete",
-                        "source": "retention-backend",
-                        "scope": { "kind": "allMatters" },
-                    },
-                }).to_string(),
-            };
-            store.append(&entry).map_err(|e| format!("audit append: {e}"))?;
+            for d in &out.deleted[audited_up_to..] {
+                let entry_id = new_audit_id();
+                let entry_ts = chrono::Utc::now().to_rfc3339();
+                let entry = crate::commands::audit::store::AuditEntryRecord {
+                    id: entry_id.clone(),
+                    timestamp: entry_ts.clone(),
+                    action: "retention_delete".to_string(),
+                    description: format!("Retention policy removed {}: {}", d.kind, d.path),
+                    // FULL AuditEntry shape — the frontend reconstructs entries with
+                    // `JSON.parse(payloadJson) as AuditEntry`; a thin payload with no
+                    // `metadata` key white-screens the Activity Log (see the warning on
+                    // `crm_audit_payload_json`, src-tauri/src/commands/crm/commands.rs).
+                    payload_json: serde_json::json!({
+                        "id": entry_id,
+                        "timestamp": entry_ts,
+                        "action": "retention_delete",
+                        "description": format!("Retention policy removed {}: {}", d.kind, d.path),
+                        "model": serde_json::Value::Null,
+                        "inputs": { "mode": mode, "kind": d.kind, "path": d.path },
+                        "outputs": {},
+                        "userDecision": serde_json::Value::Null,
+                        "metadata": {
+                            "auditEventType": "retention_delete",
+                            "source": "retention-backend",
+                            "scope": { "kind": "allMatters" },
+                        },
+                    }).to_string(),
+                };
+                store.append(&entry).map_err(|e| format!("audit append: {e}"))?;
+            }
+            audited_up_to = out.deleted.len();
         }
         let summary_id = new_audit_id();
         let summary_ts = chrono::Utc::now().to_rfc3339();

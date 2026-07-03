@@ -20,7 +20,7 @@
  */
 
 import { UNASSIGNED_MATTER_ID, type Matter } from '@/platform/types/matter';
-import { isAbsolutePath, sameOrInside, joinWorkspacePath, relativeInside } from '@/platform/fs/appPath';
+import { isAbsolutePath, sameOrInside, joinWorkspacePath, relativeInside, collapseDotSegments } from '@/platform/fs/appPath';
 
 /** Normalise a path for comparison: backslashes to slashes, strip trailing slashes. */
 export function normalize(p: string): string {
@@ -566,7 +566,17 @@ export function toWorkspaceRelativeFolder(
   workspaceRoot?: string | null,
 ): string {
   const p = normalize(folderPath);
-  if (!isAbsolutePath(p)) return p.replace(/^\/+/, '');
+  if (!isAbsolutePath(p)) {
+    // A relative input is assumed already-relative-to-the-workspace, so it
+    // should never need to climb above where it started. Resolve `.`/`..`
+    // the same way the containment checks below do; if anything is left
+    // climbing (a leading `..`), that's an escape attempt — refuse it
+    // instead of handing back a path outside the intended scope (this
+    // result feeds the retention sweep's delete boundary).
+    const resolved = collapseDotSegments(p.replace(/^\/+/, ''));
+    if (resolved === '..' || resolved.startsWith('../')) return '';
+    return resolved;
+  }
   if (!workspaceRoot) return '';
   const root = normalize(workspaceRoot);
   const rel = relativeInside(root, p);
