@@ -49,6 +49,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Docs** - "Keep your notetaker" user recipes (`docs/features/keep-your-notetaker.md`)
   and the vendor-credential applications checklist
   (`docs/plans/lantern-plus/vendor-applications-checklist.md`).
+- **CRM write-back review card (Wave 2, Tasks 8-9)** - the approval-gated UI
+  for pushing notes/tasks to Wealthbox: a collapsed "Update Wealthbox" stamp
+  on the Client Map that expands into tracked-changes-green rows, a
+  household picker when a client links to two Wealthbox households, one
+  Approve button, and per-row Retry for failed/unconfirmed writes. A
+  "Send to Wealthbox" action on the shared matter notes editor enqueues the
+  first line as the note title and the rest as the body.
+  - Files: `src/platform/state/crmWriteQueueStore.ts`,
+    `src/features/matters/CrmWriteReviewCard.tsx`,
+    `src/platform/rag/matterResolver.ts` (`buildInverseCrmMap`),
+    `src/platform/utils/wealthbox-commands.ts` (`crmCreateNote`/`crmCreateTask`),
+    `src/features/matters/MatterHub.tsx`, `src/features/matters/MatterNotesEditor.tsx`
 
 ### Changed
 - Mail OAuth scopes now include `Mail.ReadWrite` (Microsoft) and `gmail.compose`
