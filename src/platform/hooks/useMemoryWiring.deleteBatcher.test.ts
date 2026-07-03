@@ -360,6 +360,73 @@ describe('createDeleteBurstBatcher', () => {
     expect(deletePath).not.toHaveBeenCalledWith('/ws/target.docx');
   });
 
+  it('a cancelled in-flight path is NOT resurrected when an earlier path trips the breaker before the loop ever reaches it', async () => {
+    // If the breaker trips on a path BEFORE the loop ever reaches an
+    // already-cancelled in-flight path further down the snapshot, the old
+    // requeue logic blindly carried every not-yet-attempted path forward —
+    // including ones already cancelled — silently undoing the cancellation
+    // and letting the stale delete run after the next cooldown.
+    const attempted: string[] = [];
+    let batcher: ReturnType<typeof createDeleteBurstBatcher>;
+    const deletePath = vi.fn().mockImplementation(async (path: string) => {
+      attempted.push(path);
+      if (path === '/ws/bad-1.docx') {
+        // A create/modify for 'target' lands here — while it's already
+        // snapshotted in-flight, but before the loop reaches bad-2 (which
+        // trips the breaker) or target's own turn.
+        batcher.cancel('/ws/target.docx');
+      }
+      if (path.startsWith('/ws/bad')) throw new Error('backend down');
+    });
+    batcher = createDeleteBurstBatcher(deletePath, {
+      windowMs: 100,
+      breakerThreshold: 2,
+      cooldownMs: 5_000,
+    });
+
+    batcher.enqueue('/ws/bad-1.docx');
+    batcher.enqueue('/ws/bad-2.docx');
+    batcher.enqueue('/ws/target.docx');
+
+    await vi.advanceTimersByTimeAsync(100);
+
+    // The breaker trips on bad-2 before the loop ever reaches target's turn.
+    expect(attempted).toEqual(['/ws/bad-1.docx', '/ws/bad-2.docx']);
+
+    attempted.length = 0;
+    await vi.advanceTimersByTimeAsync(5_000); // cooldown elapses, retry runs
+
+    // target must stay excluded — not silently resurrected into the retry.
+    expect(attempted).not.toContain('/ws/target.docx');
+  });
+
+  it('cancel() defeats BOTH a duplicate pending copy and the older in-flight copy of the same path', async () => {
+    // A duplicate delete event for the same path arriving mid-round (e.g.
+    // the watcher double-reporting) leaves a FRESH copy in `pending` while
+    // the ORIGINAL copy is still sitting in-flight in this round's
+    // snapshot. cancel() must defeat both, not just whichever it finds
+    // first — otherwise the stale in-flight copy still runs.
+    let batcher: ReturnType<typeof createDeleteBurstBatcher>;
+    const attempted: string[] = [];
+    const deletePath = vi.fn().mockImplementation(async (path: string) => {
+      attempted.push(path);
+      if (path === '/ws/a.docx') {
+        batcher.enqueue('/ws/dup.docx');
+        expect(batcher.cancel('/ws/dup.docx')).toBe(true);
+      }
+    });
+    batcher = createDeleteBurstBatcher(deletePath, { windowMs: 250 });
+
+    batcher.enqueue('/ws/a.docx');
+    batcher.enqueue('/ws/dup.docx');
+
+    await vi.advanceTimersByTimeAsync(250);
+    await vi.runAllTimersAsync();
+
+    expect(attempted).toEqual(['/ws/a.docx']);
+    expect(deletePath).not.toHaveBeenCalledWith('/ws/dup.docx');
+  });
+
   it('handles a single normal delete promptly after the debounce window', async () => {
     const deletePath = vi.fn().mockResolvedValue(undefined);
     const batcher = createDeleteBurstBatcher(deletePath, { windowMs: 250 });

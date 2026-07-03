@@ -446,7 +446,13 @@ export function createDeleteBurstBatcher(
               // ever reaching what's behind them — starving good deletes
               // forever. Rotating guarantees every path gets priority for a
               // real attempt within one cooldown cycle of being blocked.
-              const notYetAttempted = paths.slice(paths.indexOf(path) + 1);
+              // Exclude anything already cancelled in-flight — a create/
+              // modify already told us that path exists again; requeuing it
+              // here would undo the cancellation and let it get deleted
+              // again once this round's requeue is retried.
+              const notYetAttempted = paths
+                .slice(paths.indexOf(path) + 1)
+                .filter((p) => !cancelledInFlight.has(p));
               pending = new Set([...notYetAttempted, ...pending]);
               log(
                 `[memory] ${consecutiveFailures} consecutive delete failures; backing off for ${cooldownMs}ms, ` +
@@ -486,15 +492,19 @@ export function createDeleteBurstBatcher(
       }
     },
     cancel(path: string): boolean {
-      if (pending.delete(path)) return true;
-      // Not in `pending` — it may have already been snapshotted into the
-      // current round but not yet attempted. Mark it so the in-flight round
-      // skips it when it gets there.
+      // Check BOTH — never short-circuit. A duplicate delete event for the
+      // same path during an active round can leave a copy in `pending` (a
+      // fresh enqueue) AND a stale copy already snapshotted in-flight at the
+      // same time; cancelling must defeat both; stopping at the first found
+      // would leave the other to still run and delete freshly-recreated
+      // content.
+      const removedFromPending = pending.delete(path);
+      let cancelledInFlightNow = false;
       if (inFlightPaths?.has(path)) {
         cancelledInFlight.add(path);
-        return true;
+        cancelledInFlightNow = true;
       }
-      return false;
+      return removedFromPending || cancelledInFlightNow;
     },
     dispose() {
       disposed = true;
