@@ -1705,6 +1705,24 @@
       "title-manual": "Netzwerk-Plugins und MCP-Server sind deaktiviert.",
       "title-privileged-matter": "Aktiviert, weil der aktive Mandant privilegiert ist. Netzwerk-Plugins und MCP-Server sind deaktiviert.",
       "title-local-only": "Aktiviert, weil Nur lokal ausgewählt ist. Netzwerk-Plugins und MCP-Server sind deaktiviert."
+    },
+    "retention": {
+      "title": "Besprechungsaufnahmen",
+      "subtitle": "Wählen Sie, was mit Aufnahmen auf diesem Computer geschieht. Löschungen werden in Ihrem Prüfprotokoll erfasst.",
+      "mode-keep": "Alles behalten",
+      "mode-keep-hint": "Audio, Transkript und Notizen bleiben erhalten, bis Sie sie löschen.",
+      "mode-days": "Audio nach {{count}} Tagen löschen, Transkript behalten",
+      "mode-days-hint": "Die Aufnahme wird planmäßig entfernt. Transkript und Notizen bleiben erhalten.",
+      "mode-summary": "Nur Zusammenfassung",
+      "mode-summary-hint": "Audio und Transkript werden entfernt, sobald Notizen vorhanden sind. Nur die Notizen bleiben.",
+      "days-label": "Tage, die Audio aufbewahrt wird",
+      "run-now": "Bereinigung jetzt ausführen",
+      "last-sweep": "Letzte Bereinigung: {{when}}, {{count}} Elemente entfernt",
+      "never-swept": "Die Bereinigung wurde noch nicht ausgeführt.",
+      "datamap-title": "Aufbewahrung von Besprechungsaufnahmen",
+      "sweep-errors": "{{count}} Elemente konnten nicht entfernt werden. Siehe Prüfprotokoll.",
+      "attestation-button": "Bestätigungsbericht exportieren (Word)",
+      "attestation-done": "Gespeichert unter {{path}}"
     }
   },
   "mail": {

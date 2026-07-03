@@ -1705,6 +1705,24 @@
       "title-manual": "Los complementos de red y los servidores MCP están desactivados.",
       "title-privileged-matter": "Activado porque el cliente activo es privilegiado. Los complementos de red y los servidores MCP están desactivados.",
       "title-local-only": "Activado porque está seleccionado Solo local. Los complementos de red y los servidores MCP están desactivados."
+    },
+    "retention": {
+      "title": "Grabaciones de reuniones",
+      "subtitle": "Elige qué sucede con las grabaciones en este ordenador. Las eliminaciones se registran en tu registro de auditoría.",
+      "mode-keep": "Conservar todo",
+      "mode-keep-hint": "El audio, la transcripción y las notas se conservan hasta que las elimines.",
+      "mode-days": "Eliminar el audio tras {{count}} días, conservar la transcripción",
+      "mode-days-hint": "La grabación se elimina según el calendario. La transcripción y las notas se conservan.",
+      "mode-summary": "Solo resumen",
+      "mode-summary-hint": "El audio y la transcripción se eliminan en cuanto existen las notas. Solo se conservan las notas.",
+      "days-label": "Días para conservar el audio",
+      "run-now": "Ejecutar limpieza ahora",
+      "last-sweep": "Última limpieza: {{when}}, se eliminaron {{count}} elementos",
+      "never-swept": "La limpieza aún no se ha ejecutado.",
+      "datamap-title": "Retención de grabaciones de reuniones",
+      "sweep-errors": "No se pudieron eliminar {{count}} elementos. Consulta el registro de auditoría.",
+      "attestation-button": "Exportar informe de certificación (Word)",
+      "attestation-done": "Guardado en {{path}}"
     }
   },
   "mail": {

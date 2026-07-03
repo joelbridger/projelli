@@ -174,6 +174,12 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
         console.warn('[App] Audit store hydrate failed:', err);
         setAuditIntegrity(undefined);
       }
+      // Wave 4 Track D — enforce this workspace's retention policy at most once
+      // a day. Best-effort and dynamically imported so a slow/failed sweep never
+      // blocks workspace selection or grows the lifecycle hook's static graph.
+      void import('@/platform/privacy/retentionRunner')
+        .then(({ runRetentionSweep }) => runRetentionSweep(newRootPath))
+        .catch((err: unknown) => { console.warn('[App] Retention sweep failed:', err); });
     }
 
     // Stream C1 — Construct the templates marketplace service for this

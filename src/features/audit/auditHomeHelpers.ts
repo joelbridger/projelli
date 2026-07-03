@@ -30,6 +30,7 @@ import {
   KeyRound,
   UserX,
   Save,
+  Timer,
 } from 'lucide-react';
 import type { AuditEntry, AuditActionType } from '@/platform/types/audit';
 import { asRecord } from './audit-export';
@@ -126,6 +127,12 @@ export const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   template_updated: PenLine,
   template_install_failed: XCircle,
   beneficiary_finding_dismissed: ShieldCheck,
+  retention_delete: Timer,
+  retention_swept: Timer,
+  meeting_redaction: Scissors,
+  meeting_capture_started: FilePlus,
+  meeting_recorded: FileText,
+  meeting_audio_deleted: FileX,
 };
 
 export const ACTION_LABELS: Record<AuditActionType, string> = {
@@ -183,6 +190,12 @@ export const ACTION_LABELS: Record<AuditActionType, string> = {
   template_updated: 'Template Updated',
   template_install_failed: 'Template Install Failed',
   beneficiary_finding_dismissed: 'Beneficiary Check Dismissed',
+  retention_delete: 'Retention Removed a File',
+  retention_swept: 'Retention Sweep Finished',
+  meeting_redaction: 'Meeting Content Redacted',
+  meeting_capture_started: 'Meeting Recording Started',
+  meeting_recorded: 'Meeting Recorded',
+  meeting_audio_deleted: 'Meeting Audio Deleted',
 };
 
 /** Semantic category per action, drives colour + grouping in filters. */
@@ -243,6 +256,12 @@ export const ACTION_CATEGORY: Record<AuditActionType, ActionCategory> = {
   template_updated: 'system',
   template_install_failed: 'system',
   beneficiary_finding_dismissed: 'privilege',
+  retention_delete: 'file',
+  retention_swept: 'file',
+  meeting_redaction: 'file',
+  meeting_capture_started: 'system',
+  meeting_recorded: 'system',
+  meeting_audio_deleted: 'file',
 };
 
 export const CATEGORY_COLOR: Record<ActionCategory, string> = {

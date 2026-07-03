@@ -20,7 +20,7 @@
  */
 
 import { UNASSIGNED_MATTER_ID, type Matter } from '@/platform/types/matter';
-import { isAbsolutePath, sameOrInside, joinWorkspacePath } from '@/platform/fs/appPath';
+import { isAbsolutePath, sameOrInside, joinWorkspacePath, relativeInside } from '@/platform/fs/appPath';
 
 /** Normalise a path for comparison: backslashes to slashes, strip trailing slashes. */
 export function normalize(p: string): string {
@@ -554,8 +554,14 @@ export function oneDriveDestFolderForMatter(
 }
 
 /** Resolve a possibly-absolute matter folder to a workspace-relative path.
- *  Returns '' for an absolute path that is not under the workspace root. */
-function toWorkspaceRelativeFolder(
+ *  Returns '' for an absolute path that is not under the workspace root.
+ *  Containment uses `relativeInside` (case-sensitive per directory segment,
+ *  case-folded only for a Windows drive/UNC volume root) rather than a full
+ *  lowercase compare, so a path that merely SHARES a name with something
+ *  inside the workspace but differs by segment case is never mistaken for
+ *  being inside it — callers of this helper (retention sweep included) use
+ *  the result to decide what gets deleted. */
+export function toWorkspaceRelativeFolder(
   folderPath: string,
   workspaceRoot?: string | null,
 ): string {
@@ -563,11 +569,8 @@ function toWorkspaceRelativeFolder(
   if (!isAbsolutePath(p)) return p.replace(/^\/+/, '');
   if (!workspaceRoot) return '';
   const root = normalize(workspaceRoot);
-  const lp = p.toLowerCase();
-  const lr = root.toLowerCase();
-  if (lp === lr) return '';
-  if (lp.startsWith(`${lr}/`)) return p.slice(root.length).replace(/^\/+/, '');
-  return '';
+  const rel = relativeInside(root, p);
+  return rel ?? '';
 }
 
 export function buildOneDriveMatterMap(

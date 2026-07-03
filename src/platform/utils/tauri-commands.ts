@@ -889,3 +889,26 @@ export async function auditVerifyIntegrity(): Promise<AuditIntegrityVerdict | un
   if (!isTauri()) return undefined;
   return invoke<AuditIntegrityVerdict>('audit_verify_integrity');
 }
+
+// ── Retention sweep (Wave 4 Track D) ────────────────────────────────────────
+
+export interface SweepDeletionWire { path: string; kind: string }
+export interface SweepOutcomeWire {
+  deleted: SweepDeletionWire[];
+  keptMeetings: number;
+  skippedInFlight: number;
+  errors: string[];
+  ragCleanupSourceIds: string[];
+}
+
+/** Enforce the workspace's retention policy over every matter folder given.
+ *  Rust deletes the artifacts the policy calls for and appends the
+ *  hash-chained audit trail; desktop-only, throws in the browser. */
+export async function retentionSweep(
+  workspaceRoot: string, matterFolders: string[], mode: string, audioRetentionDays: number,
+): Promise<SweepOutcomeWire> {
+  if (!isTauri()) throw new Error('Retention runs only in the desktop app.');
+  return invoke<SweepOutcomeWire>('retention_sweep', {
+    workspaceRoot, matterFolders, mode, audioRetentionDays,
+  });
+}

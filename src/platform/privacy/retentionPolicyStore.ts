@@ -36,9 +36,22 @@ export function sanitizePolicy(input: unknown): RetentionPolicy {
 interface RetentionPolicyState {
   policies: Record<string, RetentionPolicy>;
   lastSweep: Record<string, RetentionSweepRecord>;
+  /**
+   * RAG source ids awaiting `rag_delete_path`, keyed by workspace root. A sweep
+   * that deletes `transcript.json` (summary-only mode) sets this BEFORE the
+   * transcript is gone from disk from the caller's perspective — really, before
+   * the RAG cleanup for it is confirmed — so a renderer crash mid-cleanup
+   * leaves a durable, persisted list the next sweep retries. Without this, a
+   * crash here would let deleted-transcript text remain searchable in RAG
+   * forever, since the ids can no longer be recomputed once transcript.json
+   * is gone.
+   */
+  pendingRagCleanup: Record<string, string[]>;
   getPolicy: (workspaceRoot: string) => RetentionPolicy;
   setPolicy: (workspaceRoot: string, policy: RetentionPolicy) => void;
   recordSweep: (workspaceRoot: string, rec: RetentionSweepRecord) => void;
+  setPendingRagCleanup: (workspaceRoot: string, ids: string[]) => void;
+  clearPendingRagCleanupId: (workspaceRoot: string, id: string) => void;
 }
 
 export const useRetentionPolicyStore = create<RetentionPolicyState>()(
@@ -46,17 +59,27 @@ export const useRetentionPolicyStore = create<RetentionPolicyState>()(
     (set, get) => ({
       policies: {},
       lastSweep: {},
+      pendingRagCleanup: {},
       getPolicy: (workspaceRoot) => sanitizePolicy(get().policies[workspaceRoot]),
       setPolicy: (workspaceRoot, policy) =>
         set((s) => ({ policies: { ...s.policies, [workspaceRoot]: sanitizePolicy(policy) } })),
       recordSweep: (workspaceRoot, rec) =>
         set((s) => ({ lastSweep: { ...s.lastSweep, [workspaceRoot]: rec } })),
+      setPendingRagCleanup: (workspaceRoot, ids) =>
+        set((s) => ({ pendingRagCleanup: { ...s.pendingRagCleanup, [workspaceRoot]: ids } })),
+      clearPendingRagCleanupId: (workspaceRoot, id) =>
+        set((s) => ({
+          pendingRagCleanup: {
+            ...s.pendingRagCleanup,
+            [workspaceRoot]: (s.pendingRagCleanup[workspaceRoot] ?? []).filter((x) => x !== id),
+          },
+        })),
     }),
     {
       name: SK_RETENTION_POLICIES,
       version: 1,
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ policies: s.policies, lastSweep: s.lastSweep }),
+      partialize: (s) => ({ policies: s.policies, lastSweep: s.lastSweep, pendingRagCleanup: s.pendingRagCleanup }),
     },
   ),
 );

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { useRetentionPolicyStore, sanitizePolicy, DEFAULT_RETENTION_POLICY } from './retentionPolicyStore';
 
 beforeEach(() => {
-  useRetentionPolicyStore.setState({ policies: {}, lastSweep: {} });
+  useRetentionPolicyStore.setState({ policies: {}, lastSweep: {}, pendingRagCleanup: {} });
 });
 
 describe('sanitizePolicy', () => {
@@ -26,5 +26,11 @@ describe('useRetentionPolicyStore', () => {
   it('records the last sweep per workspace', () => {
     useRetentionPolicyStore.getState().recordSweep('/ws-a', { sweptAt: 't1', deletedCount: 3, errors: [] });
     expect(useRetentionPolicyStore.getState().lastSweep['/ws-a']?.deletedCount).toBe(3);
+  });
+  it('tracks pending RAG cleanup ids per workspace so a crash mid-cleanup is recoverable', () => {
+    useRetentionPolicyStore.getState().setPendingRagCleanup('/ws-a', ['meeting:/x#0', 'meeting:/x#400000']);
+    expect(useRetentionPolicyStore.getState().pendingRagCleanup['/ws-a']).toEqual(['meeting:/x#0', 'meeting:/x#400000']);
+    useRetentionPolicyStore.getState().clearPendingRagCleanupId('/ws-a', 'meeting:/x#0');
+    expect(useRetentionPolicyStore.getState().pendingRagCleanup['/ws-a']).toEqual(['meeting:/x#400000']);
   });
 });

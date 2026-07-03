@@ -313,6 +313,8 @@ pub fn run() {
             // frontend-only Client Map build counts.
             commands::setup_progress::get_setup_progress,
             commands::setup_progress::setup_report_client_map,
+            // Wave 4 Track D — per-workspace retention policy sweep.
+            commands::retention::retention_sweep,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
