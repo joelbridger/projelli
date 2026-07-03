@@ -16,6 +16,8 @@ export { Badge } from './Badge';
 export type { BadgeProps } from './Badge';
 export { Chip } from './Chip';
 export type { ChipProps } from './Chip';
+export { CiteChip } from './CiteChip';
+export type { CiteChipProps } from './CiteChip';
 export { CountBadge } from './CountBadge';
 export type { CountBadgeProps } from './CountBadge';
 export { Eyebrow } from './Eyebrow';
