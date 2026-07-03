@@ -102,6 +102,24 @@ describe('splitBodyWithCitations — builds an ordered text/citation run', () =>
   it('returns a single text segment when there are no citations', () => {
     expect(splitBodyWithCitations('Plain body.', [])).toEqual([{ type: 'text', value: 'Plain body.' }]);
   });
+
+  it('still renders a verified citation whose phrase wrapped onto a new line in the body (codex-review round 5 P3)', () => {
+    // The body text has a line-wrap inside the phrase; matchText (as the
+    // model reported it) does not. verifyDraftCitations already accepts
+    // this via whitespace normalization — the splitter must not then drop it.
+    const body = 'I will confirm the beneficiary\ndesignations on the rollover IRA soon.';
+    const citations = [
+      {
+        id: 'a',
+        matchText: 'beneficiary designations on the rollover IRA',
+        quote: 'q',
+        label: undefined,
+      },
+    ];
+    const segments = splitBodyWithCitations(body, citations);
+    const citationSegments = segments.filter((s) => s.type === 'citation');
+    expect(citationSegments).toHaveLength(1);
+  });
 });
 
 describe('applyDraftResponse — shape tolerance and subject derivation', () => {
@@ -125,5 +143,16 @@ describe('applyDraftResponse — shape tolerance and subject derivation', () => 
     const result = applyDraftResponse('Notes.docx', { body: 42, citations: 'not an array' }, 'note');
     expect(result.body).toBe('');
     expect(result.citations).toEqual([]);
+  });
+
+  it('never throws when the top-level response is null, an array, or a bare string (codex-review round 5 P3)', () => {
+    expect(() => applyDraftResponse('Notes.docx', null as never, 'note')).not.toThrow();
+    expect(() => applyDraftResponse('Notes.docx', [] as never, 'note')).not.toThrow();
+    expect(() => applyDraftResponse('Notes.docx', 'oops' as never, 'note')).not.toThrow();
+    expect(applyDraftResponse('Notes.docx', null as never, 'note')).toEqual({
+      subject: 'Follow-up: Notes',
+      body: '',
+      citations: [],
+    });
   });
 });

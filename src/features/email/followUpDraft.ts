@@ -151,32 +151,57 @@ export type DraftBodySegment =
  * (already consumed by an earlier citation, or a verification-time false
  * positive) is dropped rather than shown attached to the wrong phrase.
  */
+/**
+ * Find matchText in body from fromIndex onward. Tries an exact
+ * (case-insensitive) substring first; if that fails, falls back to a
+ * whitespace-tolerant match (each whitespace run in matchText becomes
+ * `\s+`) — codex-review round 5 (P3): verifyDraftCitations already accepts
+ * a citation via whitespace-normalized comparison, so a phrase that wrapped
+ * onto a new line or picked up an extra space must not then silently
+ * vanish here just because this search was stricter than verification.
+ */
+function findCitationMatch(
+  body: string,
+  matchText: string,
+  fromIndex: number,
+): { index: number; length: number } | null {
+  const trimmed = matchText.trim();
+  if (!trimmed) return null;
+  const exact = body.toLowerCase().indexOf(trimmed.toLowerCase(), fromIndex);
+  if (exact !== -1) return { index: exact, length: trimmed.length };
+  const escaped = trimmed
+    .split(/\s+/)
+    .map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('\\s+');
+  const match = new RegExp(escaped, 'i').exec(body.slice(fromIndex));
+  return match ? { index: fromIndex + match.index, length: match[0].length } : null;
+}
+
 export function splitBodyWithCitations(
   body: string,
   citations: DraftCitation[],
 ): DraftBodySegment[] {
-  const lowerBody = body.toLowerCase();
   // codex-review round 3 (P3): the schema doesn't require citations to be
   // returned in body order. Sorting by each citation's first occurrence
   // before the sequential scan below means an out-of-order, earlier-in-body
   // citation is no longer skipped just because the cursor already passed it
   // while consuming a later-listed one.
   const ordered = citations
-    .map((citation) => ({
-      citation,
-      firstIndex: lowerBody.indexOf(citation.matchText.toLowerCase()),
-    }))
-    .filter((c) => c.firstIndex !== -1)
-    .sort((a, b) => a.firstIndex - b.firstIndex);
+    .map((citation) => ({ citation, first: findCitationMatch(body, citation.matchText, 0) }))
+    .filter(
+      (c): c is { citation: DraftCitation; first: { index: number; length: number } } =>
+        c.first !== null,
+    )
+    .sort((a, b) => a.first.index - b.first.index);
 
   const segments: DraftBodySegment[] = [];
   let cursor = 0;
   for (const { citation } of ordered) {
-    const idx = lowerBody.indexOf(citation.matchText.toLowerCase(), cursor);
-    if (idx === -1) continue;
-    if (idx > cursor) segments.push({ type: 'text', value: body.slice(cursor, idx) });
+    const found = findCitationMatch(body, citation.matchText, cursor);
+    if (!found) continue;
+    if (found.index > cursor) segments.push({ type: 'text', value: body.slice(cursor, found.index) });
     segments.push({ type: 'citation', citation });
-    cursor = idx + citation.matchText.length;
+    cursor = found.index + found.length;
   }
   if (cursor < body.length) segments.push({ type: 'text', value: body.slice(cursor) });
   return segments;
@@ -191,12 +216,21 @@ export function splitBodyWithCitations(
  */
 export function applyDraftResponse(
   noteName: string,
-  response: RawDraftResponse,
+  // codex-review round 5 (P3): accepts `unknown`, not RawDraftResponse — the
+  // declared response type is only a compile-time hint at the call site
+  // (provider.structuredOutput<RawDraftResponse>()); a weaker/local
+  // structured-output model can still hand back valid JSON of the wrong
+  // top-level shape (`null`, an array, a bare string) at runtime, which
+  // would otherwise throw reading `.body`/`.citations` here and turn the
+  // whole modal into an error state instead of the intended
+  // empty-but-editable draft.
+  response: unknown,
   noteContent: string,
 ): { subject: string; body: string; citations: DraftCitation[] } {
   const base = noteName.replace(/\.[^.]+$/, '');
-  const body = typeof response.body === 'string' ? response.body.trim() : '';
-  const citations = verifyDraftCitations(response.citations, body, noteContent);
+  const r = response !== null && typeof response === 'object' ? (response as RawDraftResponse) : null;
+  const body = r && typeof r.body === 'string' ? r.body.trim() : '';
+  const citations = r ? verifyDraftCitations(r.citations, body, noteContent) : [];
   return { subject: `Follow-up: ${base}`, body, citations };
 }
 
