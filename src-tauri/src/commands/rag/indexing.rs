@@ -79,6 +79,14 @@ pub async fn rag_set_workspace(
             }
         }
     }
+    // A stale-key-format manifest (older than the current MANIFEST_VERSION) must
+    // force a drop+rebuild. Record that durably NOW, at the earliest per-open
+    // hook, so a pre-reconcile incremental manifest write (PDF-record / watcher
+    // index) can't load+save it forward to the current version and erase the
+    // signal before reconcile checks it. (Every manifest writer calls
+    // `require_workspace`, which needs the root set below — so this always wins.)
+    mark_rebuild_if_manifest_stale(&target);
+
     *guard = Some(target);
     state.cancel_flag.store(false, Ordering::SeqCst);
     if changed {

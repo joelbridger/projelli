@@ -94,6 +94,29 @@ pub(crate) fn compute_deleted_keys(
         .collect()
 }
 
+/// Durably record a rebuild-required the instant a stale-key-format manifest is
+/// first observed on workspace open — BEFORE any incremental manifest writer runs.
+///
+/// Why this is necessary: bumping `MANIFEST_VERSION` makes `manifest::load` treat
+/// an older on-disk manifest as empty and `manifest::save` then writes it forward
+/// to the CURRENT version. So a pre-reconcile incremental write (a PDF-record via
+/// `rag_manifest_record_pdf`, or a watcher-driven single-file index) would upgrade
+/// the file to the current version and erase the `has_stale_key_format` signal
+/// before the boot reconcile ever checks it — skipping the drop+rebuild and
+/// leaving deleted-while-closed files' rows searchable. Setting the durable
+/// `rebuild_required` sentinel here makes the signal survive any later write:
+/// every manifest writer requires the workspace to be set first (`require_workspace`),
+/// and `rag_set_workspace` is where this runs, so it always wins the race.
+pub(crate) fn mark_rebuild_if_manifest_stale(workspace: &Path) {
+    if manifest::has_stale_key_format(workspace) {
+        log::info!(
+            "rag: stale-format manifest observed on open — marking rebuild-required \
+             so a later incremental write can't erase the migration signal"
+        );
+        store::mark_rebuild_required(workspace);
+    }
+}
+
 /// The reconcile must DROP the table and rebuild from scratch — not merely do a
 /// full WALK — whenever a schema migration, a manifest key-format upgrade, or a
 /// degraded-purge recovery is pending. A full walk re-indexes present files but

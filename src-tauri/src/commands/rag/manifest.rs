@@ -579,6 +579,48 @@ mod tests {
         assert!(!has_stale_key_format(dir.path()));
     }
 
+    // Round-3 P1 regression: a pre-reconcile incremental manifest write (PDF-record
+    // or watcher index) load+saves the manifest, which upgrades a stale v2 file to
+    // the current version and erases the has_stale_key_format signal. The durable
+    // rebuild-required marker planted at workspace-open must survive that write, so
+    // the boot reconcile STILL drops + rebuilds and deleted-while-closed rows are
+    // purged.
+    #[test]
+    fn stale_v2_manifest_still_forces_rebuild_after_a_pre_reconcile_incremental_write() {
+        use crate::commands::rag::reconcile::mark_rebuild_if_manifest_stale;
+        use crate::commands::rag::store::is_rebuild_required;
+        let dir = tempfile::TempDir::new().unwrap();
+        let root = dir.path();
+        let p = manifest_path(root);
+        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        // A pre-normalization v2 manifest is on disk.
+        std::fs::write(&p, br#"{"manifest_version":2,"index_version":10,"sources":{}}"#).unwrap();
+        assert!(has_stale_key_format(root), "v2 is stale");
+        assert!(!is_rebuild_required(root), "no rebuild marker yet");
+
+        // rag_set_workspace (earliest per-open hook) observes the stale manifest and
+        // durably records the rebuild-required — BEFORE any writer runs.
+        mark_rebuild_if_manifest_stale(root);
+        assert!(is_rebuild_required(root), "workspace-open must plant the marker");
+
+        // Now an incremental writer (rag_manifest_record_pdf) runs BEFORE reconcile:
+        // load() treats the v2 file as empty and save() writes a fresh CURRENT-version
+        // manifest — erasing the has_stale_key_format signal.
+        let mut m = load(root, 10);
+        m.insert("some-pdf-token".to_string(), text_sig(100, 42));
+        save(root, &m).unwrap();
+        assert!(
+            !has_stale_key_format(root),
+            "the incremental save upgraded the on-disk version (the trap)"
+        );
+
+        // ...but the durable rebuild marker SURVIVES, so reconcile still rebuilds.
+        assert!(
+            is_rebuild_required(root),
+            "the rebuild signal must survive a pre-reconcile incremental write"
+        );
+    }
+
     #[test]
     fn delete_removes_file_and_is_idempotent() {
         let dir = tempfile::TempDir::new().unwrap();
