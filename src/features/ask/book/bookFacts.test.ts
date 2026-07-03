@@ -105,4 +105,10 @@ describe('parseBookAskResponse', () => {
   it('throws a plain error on non-JSON', () => {
     expect(() => parseBookAskResponse('sorry, I cannot', digest)).toThrow(/could not be read/i);
   });
+  it('drops a claimed match that names a real client but cites no verified facts (ungrounded)', () => {
+    const raw = '{"answer":"Alvarez matches.","matches":[{"matterId":"m1","factItemIds":[]}]}';
+    const r = parseBookAskResponse(raw, digest);
+    expect(r.matches).toHaveLength(0);
+    expect(r.answer).not.toContain('Alvarez'); // ungrounded claim treated as a hallucination
+  });
 });

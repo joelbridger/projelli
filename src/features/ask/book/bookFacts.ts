@@ -116,6 +116,13 @@ export function parseBookAskResponse(raw: string, digest: BookFactsDigest): Book
       const wanted = new Set(rawIds);
       const facts = client.facts.filter((f) => wanted.has(f.itemId));
       if (facts.length < wanted.size) hallucinationDetected = true; // some cited fact id didn't exist
+      // A claimed match with zero verified facts isn't grounded in anything —
+      // drop it (and treat it the same as a hallucination, since the model
+      // asserted a match it can't actually back up).
+      if (facts.length === 0) {
+        hallucinationDetected = true;
+        continue;
+      }
       matches.push({ matterId: client.matterId, label: client.label, facts });
     }
   }

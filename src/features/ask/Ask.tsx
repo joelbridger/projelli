@@ -230,7 +230,11 @@ export function Ask(props: UseAskProps) {
     onSubmit: () => { submitQuestion(); },
     placeholder: composerPlaceholder,
     ariaLabel: composerAriaLabel,
-    isBusy,
+    // A whole-practice send has its own loading state (bookLoading) outside
+    // useAsk's turn-based status — combine both so the input/submit button
+    // disable during EITHER kind of in-flight request (otherwise a double
+    // Enter/click could fire a second book-wide summary send).
+    isBusy: isBusy || bookLoading,
     status,
     submitLabel: askVerb,
     egressProvider: displayedProvider,
@@ -449,7 +453,10 @@ export function Ask(props: UseAskProps) {
                 loading={bookLoading}
                 error={bookError}
                 onOpenClient={(id) => {
-                  window.dispatchEvent(new CustomEvent(EV_MATTER_LAUNCH, { detail: { matterId: id } }));
+                  // Explicit 'matters' surface: always open THIS client's
+                  // Client Map, never a restored snapshot of wherever they
+                  // last were (that's the point of the chip).
+                  window.dispatchEvent(new CustomEvent(EV_MATTER_LAUNCH, { detail: { matterId: id, surface: 'matters' } }));
                 }}
                 onOpenSource={(matterId, source) => { dispatchOpenSource(matterId, source); }}
               />
