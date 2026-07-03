@@ -279,8 +279,7 @@ pub fn decide_file(
 
 /// Absolute path of the manifest file for a workspace.
 pub fn manifest_path(workspace_root: &Path) -> PathBuf {
-    workspace_root
-        .join(crate::identity::WORKSPACE_DATA_DIR)
+    crate::commands::data_dir::workspace_data_dir(workspace_root)
         .join(MANIFEST_FILE)
 }
 

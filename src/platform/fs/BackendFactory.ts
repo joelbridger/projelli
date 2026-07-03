@@ -6,6 +6,7 @@ import { WebFSBackend } from './WebFSBackend';
 import { TauriFSBackend } from './TauriFSBackend';
 import { VaultFSBackend } from './VaultFSBackend';
 import { vaultStatus } from '@/platform/firm/vault/vaultClient';
+import { migrateWorkspaceDataDir } from '@/platform/utils/tauri-commands';
 
 /**
  * Detects if running in Tauri environment
@@ -43,8 +44,23 @@ export async function createFSBackend(
     await backend.setRootPath(workspacePath, options);
     console.log('[BackendFactory] Backend initialized successfully');
 
+    // Data-folder rename migration (`.keepance` → `.lantern`) — MUST run here,
+    // the single desktop backend factory every open path funnels through, and
+    // BEFORE vault_status below. A legacy workspace still has its vault metadata
+    // at `.keepance-vault.json`; migrating it first means vault_status sees the
+    // renamed `.lantern-vault.json` and correctly wraps the backend, instead of
+    // opening a vaulted workspace unwrapped (ciphertext) for a session. This
+    // also migrates the data stores before audit/mail/RAG open them. Idempotent
+    // + fail-safe on the Rust side; best-effort (never blocks opening).
+    try {
+      const report = await migrateWorkspaceDataDir(workspacePath);
+      if (report) console.log('[data-dir-migration]', report);
+    } catch (err) {
+      console.warn('[data-dir-migration] failed (using data in place):', err);
+    }
+
     // Wrap in VaultFSBackend if the workspace has an active vault.
-    // The vault_status command is cheap (just reads .keepance-vault.json).
+    // The vault_status command is cheap (just reads .lantern-vault.json).
     // Browser/Web backend is NEVER wrapped — vault is Tauri-only.
     try {
       const status = await vaultStatus(workspacePath);

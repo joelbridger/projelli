@@ -10,6 +10,7 @@ import { WebFSBackend, createWebFSBackend } from '@/platform/fs/WebFSBackend';
 import { WorkspaceService, createWorkspaceService } from '@/platform/fs/WorkspaceService';
 import { createFSBackend, isTauriEnvironment } from '@/platform/fs/BackendFactory';
 import { vaultStatus } from '@/platform/firm/vault/vaultClient';
+import { migrateWorkspaceDataDir } from '@/platform/utils/tauri-commands';
 import { DEFAULT_WORKSPACE_FOLDERS } from '@/platform/fs/types';
 import type { FSBackend } from '@/platform/fs/types';
 import { openExternal } from '@/platform/utils/openExternal';
@@ -170,6 +171,19 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
    * VaultLockedPrompt instead of opening normally.
    */
   const openWorkspacePath = async (workspacePath: string) => {
+    // Data-folder rename migration (`.keepance` → `.lantern`) must run BEFORE the
+    // vault check below: a legacy vaulted workspace still stores its metadata at
+    // `.keepance-vault.json`, so without migrating first, vaultStatus would read
+    // the not-yet-renamed `.lantern-vault.json` (absent), report "not enabled",
+    // and skip the graceful vault-locked prompt. Idempotent + fail-safe on the
+    // Rust side (createFSBackend runs it again harmlessly); browser/dev no-op.
+    if (isTauri) {
+      try {
+        await migrateWorkspaceDataDir(workspacePath);
+      } catch {
+        // Best-effort: never block opening on the migration.
+      }
+    }
     // Vault check — Tauri only; browser workspaces can never be vaulted.
     if (isTauri) {
       try {

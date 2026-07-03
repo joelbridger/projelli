@@ -321,7 +321,7 @@ pub fn resolve_workspace_path(workspace: &Path, relative: &str) -> Result<PathBu
         if part.is_empty() || part == "." {
             continue;
         }
-        if !saw_path_segment && part.eq_ignore_ascii_case(lantern_lib::identity::WORKSPACE_DATA_DIR) {
+        if !saw_path_segment && lantern_lib::commands::data_dir::is_workspace_data_dir_name(part) {
             return Err("App internal files are not exposed over MCP".into());
         }
         saw_path_segment = true;

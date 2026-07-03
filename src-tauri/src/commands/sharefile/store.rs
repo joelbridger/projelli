@@ -63,7 +63,7 @@ fn master_key() -> Result<[u8; KEY_LEN]> {
 
 impl SharefileStore {
     pub fn db_path(workspace_root: &Path) -> PathBuf {
-        workspace_root.join(crate::identity::WORKSPACE_DATA_DIR).join("sharefile-enc.db")
+        crate::commands::data_dir::workspace_data_dir(workspace_root).join("sharefile-enc.db")
     }
 
     pub fn open(workspace_root: &Path) -> Result<Self> {

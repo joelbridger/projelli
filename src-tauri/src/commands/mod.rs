@@ -8,6 +8,10 @@
 pub mod fs;
 pub mod http;
 pub mod keychain;
+// Single seam for resolving + migrating the per-workspace internal data folder
+// (`.keepance` → `.lantern`), the vault-metadata file, and the OS-level data
+// subdir. See data_dir.rs for the marker-based, fail-safe migration.
+pub mod data_dir;
 // Advisor Prep Hero 3.0 — SQLCipher-encrypted, append-only audit "defense file" store.
 pub mod audit;
 // Read-only Addepar portfolio connector — household holdings/performance into RAG.

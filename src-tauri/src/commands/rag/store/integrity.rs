@@ -56,13 +56,12 @@ const REBUILD_REQUIRED_FILE: &str = ".rebuild_required";
 /// Path of the durable tombstone file. Lives in the `.lantern/` dir (the parent
 /// of `vectors/`) so a locked/unwritable LanceDB dataset dir cannot block it.
 pub(crate) fn unsafe_paths_path(workspace_root: &Path) -> PathBuf {
-    workspace_root.join(crate::identity::WORKSPACE_DATA_DIR).join(UNSAFE_PATHS_FILE)
+    crate::commands::data_dir::workspace_data_dir(workspace_root).join(UNSAFE_PATHS_FILE)
 }
 
 /// Path of the durable integrity-unknown sentinel (sibling of `.unsafe_tokens`).
 fn integrity_unknown_path(workspace_root: &Path) -> PathBuf {
-    workspace_root
-        .join(crate::identity::WORKSPACE_DATA_DIR)
+    crate::commands::data_dir::workspace_data_dir(workspace_root)
         .join(INTEGRITY_UNKNOWN_FILE)
 }
 
@@ -97,8 +96,7 @@ pub fn clear_integrity_unknown(workspace_root: &Path) {
 
 /// Path of the durable rebuild-required sentinel (sibling of `.integrity_unknown`).
 fn rebuild_required_path(workspace_root: &Path) -> PathBuf {
-    workspace_root
-        .join(crate::identity::WORKSPACE_DATA_DIR)
+    crate::commands::data_dir::workspace_data_dir(workspace_root)
         .join(REBUILD_REQUIRED_FILE)
 }
 

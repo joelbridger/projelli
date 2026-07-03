@@ -37,6 +37,14 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::fs::check_path,
             commands::fs::get_home_dir,
+            // First-launch migration of the per-workspace data folder
+            // (`.keepance` → `.lantern`). Called from the renderer at workspace
+            // open, BEFORE any store (audit/mail/rag/…) is opened.
+            commands::data_dir::migrate_workspace_data_dir,
+            // Resolve the live internal data-dir name (`.lantern` / legacy
+            // `.keepance`) so renderer-side writers land on the same folder the
+            // Rust stores use, even in the migration fail-safe state.
+            commands::data_dir::resolve_workspace_data_dir_name,
             commands::fs::open_in_explorer,
             commands::fs::detect_libreoffice,
             commands::fs::convert_doc_to_docx,
@@ -313,6 +321,15 @@ pub fn run() {
                         .level(log::LevelFilter::Info)
                         .build(),
                 )?;
+            }
+            // Migrate the OS-level data subdir (`<data_dir>/keepance` →
+            // `<data_dir>/lantern`, holding downloaded models + logs) once at
+            // startup, before anything resolves a model/log path. Best-effort:
+            // these artifacts are regenerable, so a fail-safe outcome only means
+            // a one-time re-download, never data loss.
+            match commands::data_dir::migrate_os_data_dir() {
+                Some(outcome) => log::info!("[data-dir-migration] OS data dir: {outcome:?}"),
+                None => log::warn!("[data-dir-migration] OS data dir unavailable; skipped"),
             }
             // Phase 3 M1 — manage shared RAG state (active workspace +
             // cancellation flag for the workspace indexer). Required by all

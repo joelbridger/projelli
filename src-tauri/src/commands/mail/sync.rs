@@ -52,7 +52,7 @@ pub fn apply_page(store: &dyn MailStore, workspace_root: &Path, folder_id: &str,
         if id.is_empty() { continue; }
         if MailMessage::is_removed(item) {
             if let Some(rel) = store.tombstone(id)? {
-                let _ = std::fs::remove_file(workspace_root.join(&rel));
+                let _ = std::fs::remove_file(crate::commands::data_dir::resolve_workspace_relative(workspace_root, &rel));
                 stats.removed += 1;
             }
             continue;
@@ -127,7 +127,7 @@ where
     for id in removed_ids {
         if id.is_empty() { continue; }
         if let Some(rel) = store.tombstone(id)? {
-            let _ = std::fs::remove_file(workspace_root.join(&rel));
+            let _ = std::fs::remove_file(crate::commands::data_dir::resolve_workspace_relative(workspace_root, &rel));
             tombstone_callback(id);
             stats.removed += 1;
         }
@@ -150,7 +150,7 @@ where
     for msg in messages {
         let markdown = to_markdown(msg);
         let rel = encrypted_blob_relative_path(provider, account, &msg.id);
-        let blob_abs = workspace_root.join(&rel);
+        let blob_abs = crate::commands::data_dir::resolve_workspace_relative(workspace_root, &rel);
         if let Some(parent) = blob_abs.parent() {
             std::fs::create_dir_all(parent)?;
         }
@@ -287,7 +287,7 @@ pub fn migrate_plaintext(workspace_root: &Path) {
     // mail.db holds message ids, folder ids, relative paths, and timestamps —
     // all metadata disclosure on a stolen laptop.  Best-effort: ignore errors
     // (file may not exist, or may already be deleted).
-    let mail_db = workspace_root.join(crate::identity::WORKSPACE_DATA_DIR).join("mail.db");
+    let mail_db = crate::commands::data_dir::workspace_data_dir(workspace_root).join("mail.db");
     let _ = std::fs::remove_file(&mail_db);
 }
 

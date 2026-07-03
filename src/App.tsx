@@ -520,9 +520,10 @@ function App() {
       return;
     }
 
-    // Create and start watcher
+    // Create and start watcher. `pollInterval` only applies to the browser
+    // fallback (no OS file-change events there) — the default (30s) is used;
+    // on Tauri the watcher subscribes to native events instead of polling.
     const watcher = new FileSystemWatcher({
-      pollInterval: 3000, // Check every 3 seconds
       onFileTreeChange: async () => {
         console.log('FileSystemWatcher: External file changes detected, refreshing file tree...');
         if (workspaceServiceRef.current) {
@@ -538,13 +539,16 @@ function App() {
       },
     });
 
-    // Start watching
-    watcher.start(async () => {
+    // Start watching. On Tauri this starts/confirms the native watcher for
+    // rootPath and subscribes to its `workspace-file-changed` event (no
+    // polling); the snapshot getter below is only used by the browser poll
+    // fallback.
+    void watcher.start(rootPath, async () => {
       if (!workspaceServiceRef.current) return '';
       try {
-        // P1.1 (Task 6): the watcher's change-detection poll MUST see the real
-        // current tree (a cached read could never detect an external change), and
-        // this fresh scan also keeps the shared cache warm every poll interval.
+        // P1.1 (Task 6): the browser fallback's change-detection poll MUST see
+        // the real current tree (a cached read could never detect an external
+        // change), and this fresh scan also keeps the shared cache warm.
         const currentTree = await workspaceServiceRef.current.getFileTree({ fresh: true });
         return createFileTreeSnapshot(currentTree);
       } catch (error) {
