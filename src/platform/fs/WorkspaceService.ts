@@ -45,12 +45,15 @@ export class WorkspaceService {
    * that concurrent boot callers share ONE underlying walk.
    *
    * Correctness: the cache is invalidated on every mutation that goes through
-   * this service (write/delete/move/copy/rename/mkdir), and the `FileSystemWatcher`
-   * refreshes it every poll by calling `getFileTree({ fresh: true })` (which both
-   * bypasses AND repopulates the cache). So a cached read is never staler than the
-   * watcher's poll interval — the same freshness the displayed tree already had —
-   * and in-app edits are reflected immediately. Each call returns a structural
-   * CLONE so a consumer mutating its tree can't corrupt another's.
+   * this service (write/delete/move/copy/rename/mkdir). On Tauri, the
+   * `FileSystemWatcher` also refreshes it — event-driven, not polled — by
+   * calling `getFileTree({ fresh: true })` whenever the Rust backend's native
+   * file watcher reports a real change (which both bypasses AND repopulates
+   * the cache), so a cached read is never staler than the last real change. In
+   * the browser (no OS file-change events), `FileSystemWatcher` falls back to
+   * a slow poll that does the same `{ fresh: true }` refresh. Each call
+   * returns a structural CLONE so a consumer mutating its tree can't corrupt
+   * another's.
    */
   private treeScan: Promise<FileNode[]> | null = null;
 
