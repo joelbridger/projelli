@@ -116,8 +116,14 @@ export function Ask(props: UseAskProps) {
   // chatId change bumps it too (in the ref-only effect below — no setState
   // there, so this doesn't trip the no-setState-in-effect rule).
   const bookRequestIdRef = useRef(0);
+  // The abort side of the same guard: ignoring a stale response in the UI
+  // isn't enough — a workspace switch mid-flight must also cancel the
+  // in-flight send so the OLD workspace's client summaries never actually
+  // reach the provider after the user has moved on (Codex P1).
+  const bookAbortRef = useRef<AbortController | null>(null);
   useEffect(() => {
     bookRequestIdRef.current += 1;
+    bookAbortRef.current?.abort();
   }, [chatId]);
 
   // A workspace/client switch changes chatId — clear any lingering result so a
@@ -140,10 +146,13 @@ export function Ask(props: UseAskProps) {
       setQuestion('');
       setBookLoading(true);
       setBookError(null);
+      bookAbortRef.current?.abort(); // cancel any still-in-flight prior send
+      const controller = new AbortController();
+      bookAbortRef.current = controller;
       const requestId = ++bookRequestIdRef.current;
       const isStale = () => bookRequestIdRef.current !== requestId;
-      const auditOpts = props.onAuditLog ? { onAuditLog: props.onAuditLog } : undefined;
-      void runWholePracticeAsk(asked, chatId, auditOpts)
+      const opts = { signal: controller.signal, ...(props.onAuditLog ? { onAuditLog: props.onAuditLog } : {}) };
+      void runWholePracticeAsk(asked, chatId, opts)
         .then((r) => { if (!isStale()) setBookResult(r); })
         .catch((e: unknown) => { if (!isStale()) setBookError(e instanceof Error ? e.message : String(e)); })
         .finally(() => { if (!isStale()) setBookLoading(false); });
@@ -259,7 +268,11 @@ export function Ask(props: UseAskProps) {
       : streamingTurn && streamingTurn.citations.length > 0
         ? streamingTurn
         : null;
-  const sourceCitations = sourceTurn?.citations ?? [];
+  // Whole-practice answers cite sources inline per client chip (BookAnswerPanel),
+  // never through this turn-based panel — otherwise a PRIOR cited answer's
+  // sources would linger next to the new book-wide answer, looking like its
+  // citations when they aren't.
+  const sourceCitations = askScope === 'whole-practice' ? [] : (sourceTurn?.citations ?? []);
 
   const errorBanner = status === 'error' && errorMsg ? (
     <div

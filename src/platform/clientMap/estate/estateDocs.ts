@@ -30,6 +30,12 @@ const FILENAME_SIGNALS: Array<[EstateDocKind, RegExp]> = [
 ];
 const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
 
+/** Connector source-ref schemes (SourceRef['kind'] minus 'document'), e.g.
+ *  `mail:<id>`, `crm:<kind>:<id>`. A Windows absolute path also contains a
+ *  colon (`C:\...`), so filename classification must reject THESE specific
+ *  scheme prefixes, not any colon. */
+const CONNECTOR_SCHEME_RE = /^(mail|crm|onedrive|esign|meeting|box|jotform|sharefile|zocks|addepar):/i;
+
 function parseLongDate(text: string): string | null {
   const m = /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),?\s+(\d{4})\b/i.exec(text);
   if (!m) return null;
@@ -48,8 +54,9 @@ export function classifyEstateSource(input: { path: string; text: string }):
     if (re.test(input.text)) return { kind, docDateIso: parseLongDate(input.text), confidence: 'high' };
   }
   // Filename signal alone: medium, and ONLY for unambiguous names on document
-  // paths (never mail:/crm: refs) — conservative by design.
-  if (!input.path.includes(':')) {
+  // paths (never mail:/crm:/etc connector refs) — conservative by design.
+  // NOT a blanket colon check: a Windows absolute path (C:\...) has one too.
+  if (!CONNECTOR_SCHEME_RE.test(input.path)) {
     const base = input.path.split('/').pop() ?? '';
     for (const [kind, re] of FILENAME_SIGNALS) {
       if (re.test(base) && /\.(pdf|docx?)$/i.test(base)) {
