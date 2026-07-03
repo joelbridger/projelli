@@ -18,7 +18,7 @@
  *   - Search: typing a query auto-selects the first matching tab (its panel appears).
  */
 
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { SettingsContent } from '@/features/settings/SettingsContent';
 
@@ -84,12 +84,19 @@ describe('SettingsContent — deep-link resolution survives the extraction', () 
     ['about', 'section-help'],
   ];
 
+  // Wave B / S4: the page is flattened (all 5 sections always render), so
+  // `section-X` presence no longer discriminates which one a deep-link
+  // "landed on" — every section-X testid is always in the DOM. The nav
+  // button's aria-current is what still meaningfully reflects the resolved
+  // section (and is what the anchor-scroll effect keys off of).
   for (const [alias, sectionTestId] of cases) {
+    const categoryId = sectionTestId.replace(/^section-/, '');
     it(`initialCategory="${alias}" lands on ${sectionTestId}`, () => {
       render(
         <SettingsContent variant="page" initialCategory={alias as never} />,
       );
       expect(screen.getByTestId(sectionTestId)).toBeInTheDocument();
+      expect(screen.getByTestId(`settings-category-${categoryId}`).getAttribute('aria-current')).toBe('page');
     });
   }
 
@@ -97,11 +104,12 @@ describe('SettingsContent — deep-link resolution survives the extraction', () 
     const { rerender } = render(
       <SettingsContent variant="page" initialCategory={'general' as never} />,
     );
-    expect(screen.getByTestId('section-workspace')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-category-workspace').getAttribute('aria-current')).toBe('page');
     rerender(
       <SettingsContent variant="page" initialCategory={'ai' as never} />,
     );
-    expect(screen.getByTestId('section-ai-privacy')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-category-ai-privacy').getAttribute('aria-current')).toBe('page');
+    expect(screen.getByTestId('settings-category-workspace').hasAttribute('aria-current')).toBe(false);
   });
 });
 
@@ -258,20 +266,31 @@ describe('SettingsContent — search auto-selects matching tab', () => {
   });
 });
 
-describe('SettingsContent — scroll resets on section change', () => {
-  it('resets the content scroll container to top when the active section changes', () => {
+describe('SettingsContent — nav scrolls to the section anchor (Wave B / S4 flatten)', () => {
+  // The page flattened to one continuous scroll (all 5 sections render at
+  // once); a nav click no longer switches mounted content, so "reset scroll
+  // to top" no longer applies — it scrolls the clicked section's anchor into
+  // view instead. jsdom doesn't implement layout/scrollIntoView, so this
+  // verifies the call rather than an actual scroll position.
+  it('scrolls to the target section anchor when a nav button is clicked', () => {
     render(<SettingsContent variant="page" />);
-    const scroller = screen.getByTestId('settings-content-scroll');
+    const scrollIntoViewMock = vi.fn();
+    const anchor = document.getElementById('settings-anchor-ai-privacy');
+    expect(anchor).not.toBeNull();
+    anchor!.scrollIntoView = scrollIntoViewMock;
 
-    // Simulate the user having scrolled down within the current section.
-    scroller.scrollTop = 250;
-    expect(scroller.scrollTop).toBe(250);
-
-    // Switch to a different top-level section.
     fireEvent.click(screen.getByTestId('settings-category-ai-privacy'));
 
-    // The scroll-reset effect must have returned the container to the top.
-    expect(scroller.scrollTop).toBe(0);
+    expect(scrollIntoViewMock).toHaveBeenCalled();
+  });
+
+  it('all 5 section anchors are present at once (flattened, not switched)', () => {
+    render(<SettingsContent variant="page" />);
+    expect(screen.getByTestId('settings-anchor-workspace')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-anchor-ai-privacy')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-anchor-voice')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-anchor-advanced')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-anchor-help')).toBeInTheDocument();
   });
 });
 

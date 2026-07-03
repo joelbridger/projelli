@@ -401,12 +401,13 @@ describe('SettingsModal tab sub-sections', () => {
     ).toBe('false');
   });
 
-  it('switching top-level sections resets to the first tab of the new section', () => {
+  it('a newly-visited section starts on its first tab', () => {
     renderModal('workspace');
     // Activate a non-first tab in Workspace.
     expandSubsection('subheader-files');
     expect(screen.getByTestId('subsection-files')).toBeInTheDocument();
-    // Switch to AI & Privacy → first tab (AI) should be active.
+    // Switch to AI & Privacy → first tab (AI) should be active (never
+    // visited before in this render, so its tab strip is on its default).
     fireEvent.click(screen.getByTestId('settings-category-ai-privacy'));
     expect(screen.getByTestId('subsection-ai')).toBeInTheDocument();
     expect(screen.queryByTestId('subsection-memory')).not.toBeInTheDocument();
@@ -415,10 +416,26 @@ describe('SettingsModal tab sub-sections', () => {
     expect(screen.getByTestId('subheader-ai-heading').getAttribute('aria-selected')).toBe('true');
     // AI header tab is present.
     expect(screen.getByTestId('subheader-ai')).toBeInTheDocument();
-    // Switch back to Workspace → resets to first tab (General).
+  });
+
+  it('a section keeps its own tab position when the nav scrolls away and back (Wave B / S4 flatten)', () => {
+    // The page flattened to one continuous scroll (all 5 sections mounted at
+    // once); switching sections now scrolls the nav to a different anchor
+    // instead of unmounting/remounting the section left behind. So a
+    // section's own tab-strip position persists across a visit elsewhere —
+    // it does NOT reset to the first tab every time, unlike the old
+    // switched-content model.
+    renderModal('workspace');
+    expandSubsection('subheader-files');
+    expect(screen.getByTestId('subsection-files')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('settings-category-ai-privacy'));
+    expect(screen.getByTestId('subsection-ai')).toBeInTheDocument();
+
+    // Back to Workspace: still on Files (never unmounted), not reset to General.
     fireEvent.click(screen.getByTestId('settings-category-workspace'));
-    expect(screen.getByTestId('subsection-general')).toBeInTheDocument();
-    expect(screen.queryByTestId('subsection-files')).not.toBeInTheDocument();
+    expect(screen.getByTestId('subsection-files')).toBeInTheDocument();
+    expect(screen.queryByTestId('subsection-general')).not.toBeInTheDocument();
   });
 });
 

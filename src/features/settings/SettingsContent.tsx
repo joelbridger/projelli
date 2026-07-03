@@ -322,6 +322,20 @@ function SubSection({ testid, children }: SubSectionProps) {
   );
 }
 
+/** Section heading for the flattened settings page (Wave B / S4) — gives
+ *  each anchor-scrolled block a scannable title, since the left nav no
+ *  longer doubles as an in-content heading once all 5 sections render at
+ *  once. `label` values come from SETTING_CATEGORIES, not user input. */
+function SectionHeading({ label }: { label: string }) {
+  return (
+    <h2
+      className="mb-4 border-b pb-2 text-base font-semibold text-foreground"
+    >
+      {label}
+    </h2>
+  );
+}
+
 /**
  * AccordionSection — despite the legacy name, renders a top-level section's
  * sub-sections as a row of horizontal tabs with one content panel below,
@@ -867,15 +881,8 @@ export function SettingsContent({
   const searchRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // R62.3 — the right content scroll container. Reset to top whenever the
-  // active section changes so a deep-scrolled section never carries its
-  // scroll position into the next one.
+  // R62.3 — the right content scroll container.
   const contentScrollRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (contentScrollRef.current) {
-      contentScrollRef.current.scrollTop = 0;
-    }
-  }, [activeSection, activeExtraId]);
 
   // Re-apply initialCategory whenever it changes (deep-link support). Uses the
   // React-sanctioned "adjust state during render when a prop changes" pattern
@@ -901,6 +908,28 @@ export function SettingsContent({
   const activeExtra = viewingExtra
     ? (extraSections ?? []).find((s) => s.id === activeExtraId)
     : undefined;
+
+  // Wave B / S4: the settings page is flattened to one continuous scroll —
+  // all 5 sections render at once, so the left nav scrolls to a section's
+  // anchor instead of switching which content is mounted. Fires whenever
+  // `activeSection` changes for ANY reason (a nav click, a deep-link
+  // `initialCategory` update, or the search auto-jump below), so there is
+  // one place that keeps "what's active" and "where the view actually is"
+  // in sync. Extra surfaces (Privacy Center / Activity Log) fully replace
+  // the content instead — there's no anchor to scroll to, so they keep the
+  // simpler "reset to top" behavior.
+  useEffect(() => {
+    if (viewingExtra) return;
+    document
+      .getElementById(`settings-anchor-${activeSection}`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [activeSection, viewingExtra]);
+
+  useEffect(() => {
+    if (viewingExtra && contentScrollRef.current) {
+      contentScrollRef.current.scrollTop = 0;
+    }
+  }, [activeExtraId, viewingExtra]);
 
   // Keys that match the current search query
   const filteredKeys = useMemo<Set<string>>(() => {
@@ -1179,7 +1208,13 @@ export function SettingsContent({
             )}
           </nav>
 
-          {/* Content area */}
+          {/* Content area — Wave B / S4: flattened to ONE scrollable page. All
+              5 sections render at once (unless narrowed by an active search,
+              same relevance gate `visibleSections` always used); the left nav
+              is now a set of scroll-to-anchor links, not a content switch. The
+              nested "extra" surfaces (Privacy Center / Activity Log) are
+              real, separate apps-within-settings, not preference sections —
+              those keep the old switched (one-at-a-time) behavior. */}
           <div
             ref={contentScrollRef}
             data-testid="settings-content-scroll"
@@ -1187,16 +1222,39 @@ export function SettingsContent({
           >
             {activeExtra ? (
               activeExtra.content
-            ) : activeSection === 'workspace' ? (
-              <WorkspaceSection {...sectionProps} />
-            ) : activeSection === 'ai-privacy' ? (
-              <AiPrivacySection {...sectionProps} />
-            ) : activeSection === 'voice' ? (
-              <VoiceSection {...sectionProps} />
-            ) : activeSection === 'advanced' ? (
-              <AdvancedSection {...sectionProps} />
             ) : (
-              <HelpSection {...sectionProps} />
+              <>
+                {visibleSections.has('workspace') && (
+                  <div id="settings-anchor-workspace" data-testid="settings-anchor-workspace" className="scroll-mt-4">
+                    <SectionHeading label="Workspace" />
+                    <WorkspaceSection {...sectionProps} />
+                  </div>
+                )}
+                {visibleSections.has('ai-privacy') && (
+                  <div id="settings-anchor-ai-privacy" data-testid="settings-anchor-ai-privacy" className="scroll-mt-4 mt-10">
+                    <SectionHeading label="AI & Privacy" />
+                    <AiPrivacySection {...sectionProps} />
+                  </div>
+                )}
+                {visibleSections.has('voice') && (
+                  <div id="settings-anchor-voice" data-testid="settings-anchor-voice" className="scroll-mt-4 mt-10">
+                    <SectionHeading label="Voice" />
+                    <VoiceSection {...sectionProps} />
+                  </div>
+                )}
+                {visibleSections.has('advanced') && (
+                  <div id="settings-anchor-advanced" data-testid="settings-anchor-advanced" className="scroll-mt-4 mt-10">
+                    <SectionHeading label="Advanced" />
+                    <AdvancedSection {...sectionProps} />
+                  </div>
+                )}
+                {visibleSections.has('help') && (
+                  <div id="settings-anchor-help" data-testid="settings-anchor-help" className="scroll-mt-4 mt-10">
+                    <SectionHeading label="Help" />
+                    <HelpSection {...sectionProps} />
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
