@@ -330,6 +330,12 @@ async fn append_crm_audit_best_effort(app: &AppHandle, action: &str, description
 /// workspace) or a local DB hiccup is logged and does not fail the connect —
 /// there is nothing to protect the ledger from before a workspace exists.
 async fn mark_stale_sent_rows_pending_verify_best_effort(app: &AppHandle, provider: CrmProvider) {
+    // Connect can happen before ANY workspace is ever opened (e.g. from a
+    // general Account/Connections screen) — in that case there's no ledger
+    // to touch yet. `crm_set_workspace` runs the SAME downgrade for whichever
+    // provider is already connected, closing the other half of this
+    // ordering: connect-with-no-workspace, then later open a workspace that
+    // has stale 'sent' rows from a past connection.
     let ws_opt: Option<std::path::PathBuf> = {
         let audit_ws = app.state::<AuditState>().workspace.lock().await.clone();
         if audit_ws.is_some() {
@@ -341,6 +347,21 @@ async fn mark_stale_sent_rows_pending_verify_best_effort(app: &AppHandle, provid
     let Some(ws) = ws_opt else {
         return;
     };
+    downgrade_stale_sent_rows_for_workspace_best_effort(ws, provider, "crm connect").await;
+}
+
+/// Shared core of the stale-`sent`-row downgrade (see
+/// `CrmStore::mark_sent_rows_pending_verify_for_provider`) — called from
+/// every `crm_connect`/`crm_oauth_connect` success path (via
+/// `mark_stale_sent_rows_pending_verify_best_effort`, which resolves the
+/// workspace path from app state) AND from `crm_set_workspace` (which
+/// already has the path directly, covering the reverse ordering: a connect
+/// that happened before any workspace was open).
+async fn downgrade_stale_sent_rows_for_workspace_best_effort(
+    ws: std::path::PathBuf,
+    provider: CrmProvider,
+    caller: &'static str,
+) {
     let provider_id = provider.id();
     let result = tokio::task::spawn_blocking(move || -> anyhow::Result<usize> {
         let store = CrmStore::open(&ws)?;
@@ -349,11 +370,11 @@ async fn mark_stale_sent_rows_pending_verify_best_effort(app: &AppHandle, provid
     .await;
     match result {
         Ok(Ok(n)) if n > 0 => {
-            log::info!("crm connect: downgraded {n} stale '{provider_id}' sent row(s) to pending_verify");
+            log::info!("{caller}: downgraded {n} stale '{provider_id}' sent row(s) to pending_verify");
         }
         Ok(Ok(_)) => {}
-        Ok(Err(e)) => log::warn!("crm connect: marking stale sent rows failed (non-fatal): {e:#}"),
-        Err(e) => log::warn!("crm connect: marking stale sent rows spawn failed (non-fatal): {e}"),
+        Ok(Err(e)) => log::warn!("{caller}: marking stale sent rows failed (non-fatal): {e:#}"),
+        Err(e) => log::warn!("{caller}: marking stale sent rows spawn failed (non-fatal): {e}"),
     }
 }
 
@@ -672,8 +693,17 @@ pub async fn crm_set_workspace(
     path: String,
     provider: Option<String>,
 ) -> Result<(), String> {
-    let _provider = CrmProvider::from_optional(provider.as_deref())?;
-    *state.workspace.lock().await = Some(PathBuf::from(path));
+    let provider = CrmProvider::from_optional(provider.as_deref())?;
+    let ws = PathBuf::from(path);
+    *state.workspace.lock().await = Some(ws.clone());
+
+    // See downgrade_stale_sent_rows_for_workspace_best_effort's doc comment:
+    // this covers the ordering connect couldn't (a connect that happened
+    // before this workspace was ever opened, whose downgrade attempt at
+    // connect time found no workspace to touch).
+    if read_token(provider).is_some() {
+        downgrade_stale_sent_rows_for_workspace_best_effort(ws, provider, "crm set_workspace").await;
+    }
     Ok(())
 }
 
