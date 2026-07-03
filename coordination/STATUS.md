@@ -6,6 +6,8 @@
 - **Fleet (4 lanes):** w3 = Wave-3 capture resumed (tmux-resurrect relaunched the right claude cmd in ~/lp-w4; prompt redelivered; mid Task 5). w4d = Wave-4 Track D retention resumed (~/lp-w4d, mid Task 14). NEW: crmfix = Wealthbox wire-fix lane (~/lp-crmfix, lp/crm-wire-fixes, brief w-crm-wire-fixes-brief.md — the 2 probe bugs: due_date 422 validation + background_information write-name split w/ readback verification). NEW: w4a = Wave-4 Track A diarization (~/lp-w4a, lp/diarization, brief w-wave4-a-brief.md, Tasks 6-12; NO Legion — reserved for w3 Task 6).
 - New lane caches seeded warm from lp-gate on the NVMe (~/.cargo-target-lp-{crmfix,w4a} symlinks). Delete *.old home-dir cache copies after each lane's first green compile.
 - Merge queue: empty; likely order w4d → w3 (both xhigh-class review) → crmfix → w4a.
+- 5th lane opened (parallel-check ritual): azfix = Azure bench MSVC-linker fix (~/lp-azure2, lp/azure-bench-fix, brief w-azure-linker-fix-brief.md; VM cost guardrails in brief).
+- Jameson plugged a REAL HEADSET into the Legion (2026-07-03 night) — w3 informed; Task 6 device verification should cover headset mic + headset loopback, not just built-ins.
 
 ## UPDATE 2026-07-03 evening — Azure cloud bench built (lantern-cloud-bench-1), verify DEFERRED
 - Full detail: `coordination/azure-bench/SETUP-LOG.md`. Windows 11 VM up on Tailscale (100.75.247.98, `ssh lpbench@100.75.247.98`), repo cloned + sidecars copied from Legion, git/node/rust installed. Gap: MSVC linker (`link.exe`) never actually installed despite VS Build Tools reporting success, so `tauri dev` can't compile yet (Vite-only frontend confirmed working). VM deallocated (costs nothing), clean snapshot taken (predates the linker fix — see log for the fix + re-snapshot follow-up).
