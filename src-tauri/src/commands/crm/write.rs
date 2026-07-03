@@ -359,6 +359,16 @@ pub async fn push_crm_write(
     if let Some(row) = &existing {
         if row.status == "sent" {
             if let Some(remote_id) = &row.remote_id {
+                // KNOWN GAP (flagged, not fixed here — see handoff notes):
+                // `crm_connect` can overwrite the stored token for a DIFFERENT
+                // Wealthbox account without an explicit disconnect first, and
+                // this ledger has no account identity in its key — a `sent`
+                // row from the OLD account would be wrongly treated as
+                // delivered to the NEW one if the household id and content
+                // happen to match. Closing this needs `crm_connect` (a
+                // pre-existing command outside this write module) to purge
+                // outbound-write rows on every successful connect, not just
+                // on explicit disconnect.
                 return Ok(WriteReceipt { remote_id: remote_id.clone(), deduped: true });
             }
         }
@@ -426,6 +436,7 @@ fn upsert_ledger(
         &req.source_ref,
         status,
         remote_id,
+        false, // preserve the floor upsert_ledger_before_send just set for THIS attempt
     ) {
         log::warn!("crm outbound ledger write failed (non-fatal): {e:#}");
     }
@@ -452,6 +463,7 @@ fn upsert_ledger_before_send(
             &req.source_ref,
             "pending",
             None,
+            true, // fresh send attempt starting now — always reset the recovery floor
         )
         .map_err(|e| {
             log::warn!("crm outbound ledger pre-send write failed: {e:#}");
@@ -593,7 +605,7 @@ mod tests {
         let guard = WriteInFlightGuard::new();
         let req = note_req();
         store
-            .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "pending", None)
+            .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "pending", None, true)
             .unwrap();
         let source = FakeWriteSource {
             create_results: std::sync::Mutex::new(vec![]),
@@ -612,7 +624,7 @@ mod tests {
         let guard = WriteInFlightGuard::new();
         let req = note_req();
         store
-            .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "pending", None)
+            .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "pending", None, true)
             .unwrap();
         let source = FakeWriteSource {
             create_results: std::sync::Mutex::new(vec![Ok("556".into())]),

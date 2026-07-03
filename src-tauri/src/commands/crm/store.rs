@@ -651,6 +651,19 @@ impl CrmStore {
     /// `pending_verify`) that doesn't yet know the remote id must not erase
     /// one recorded by an earlier call.
     #[allow(clippy::too_many_arguments)]
+    /// `reset_created_at` MUST be `true` only from the call that's about to
+    /// make a genuinely NEW send attempt (`write.rs::upsert_ledger_before_send`)
+    /// — every other transition (recording the outcome of THAT SAME attempt:
+    /// sent/pending_verify/failed) must pass `false` to preserve the floor
+    /// `find_recent_matching`'s recovery check just used. Getting this wrong
+    /// in either direction is a correctness bug: resetting on a
+    /// non-fresh-attempt transition would make an in-flight recovery check
+    /// re-evaluate against a floor that moved out from under it; never
+    /// resetting (the previous design, keyed off "was the old status
+    /// `failed`") left the floor stale across an attempt that failed
+    /// ambiguously, verified as a miss, and then resent — the resend's own
+    /// eventual verification could still match a coincidental CRM record
+    /// created between the FIRST attempt and the resend.
     pub fn outbound_upsert(
         &self,
         dedup_key: &str,
@@ -661,6 +674,7 @@ impl CrmStore {
         source_ref: &str,
         status: &str,
         remote_id: Option<&str>,
+        reset_created_at: bool,
     ) -> Result<()> {
         let c = self.conn.lock().unwrap();
         let now = chrono::Utc::now().to_rfc3339();
@@ -672,18 +686,7 @@ impl CrmStore {
                 status = excluded.status,
                 remote_id = COALESCE(excluded.remote_id, crm_outbound_writes.remote_id),
                 updated_at = excluded.updated_at,
-                -- A `failed` row is a DEFINITIVE terminal state (4xx — the
-                -- request was rejected, nothing was created): a later retry
-                -- is a fresh attempt, so its recovery-verification floor
-                -- (write.rs::find_recent_matching's not_before) must start
-                -- from NOW, not the original failed attempt's time — else a
-                -- coincidental manual CRM entry made between the failure and
-                -- this retry could sit inside the stale floor and get
-                -- wrongly treated as proof THIS retry landed. Any other old
-                -- status (pending/pending_verify/sent) means an attempt is
-                -- still unresolved or done, so its original created_at stays.
-                created_at = CASE WHEN crm_outbound_writes.status = 'failed'
-                    THEN excluded.created_at ELSE crm_outbound_writes.created_at END",
+                created_at = CASE WHEN ?10 THEN excluded.created_at ELSE crm_outbound_writes.created_at END",
             rusqlite::params![
                 dedup_key,
                 provider,
@@ -694,6 +697,7 @@ impl CrmStore {
                 status,
                 remote_id,
                 now,
+                reset_created_at,
             ],
         )?;
         Ok(())
@@ -805,56 +809,72 @@ mod tests {
         let _ = dir;
         assert!(store.outbound_get("k1").unwrap().is_none());
         store
-            .outbound_upsert("k1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "pending", None)
+            .outbound_upsert("k1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "pending", None, true)
             .unwrap();
         let row = store.outbound_get("k1").unwrap().unwrap();
         assert_eq!(row.status, "pending");
         assert_eq!(row.remote_id, None);
         store
-            .outbound_upsert("k1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "sent", Some("555"))
+            .outbound_upsert("k1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "sent", Some("555"), false)
             .unwrap();
         let row = store.outbound_get("k1").unwrap().unwrap();
         assert_eq!(row.status, "sent");
         assert_eq!(row.remote_id.as_deref(), Some("555"));
     }
 
+    /// `reset_created_at` is an explicit, caller-decided flag rather than a
+    /// heuristic keyed off the previous status: `write.rs::upsert_ledger_before_send`
+    /// (a genuinely NEW send attempt) always passes `true`;
+    /// `write.rs::upsert_ledger` (recording THAT SAME attempt's outcome —
+    /// sent/pending_verify/failed) always passes `false`. This is what makes
+    /// the recovery-verification floor (`find_recent_matching`'s not_before)
+    /// correct across a resend: a prior design keyed the reset off "was the
+    /// old status `failed`", which left the floor stale when a `pending`/
+    /// `pending_verify` row was verified as a miss and resent — that resend's
+    /// own eventual verification could then match a coincidental CRM record
+    /// created between the FIRST attempt and the resend.
     #[test]
-    fn outbound_ledger_created_at_resets_after_a_failed_attempt_but_not_after_pending() {
+    fn outbound_ledger_created_at_only_resets_when_a_fresh_attempt_begins() {
         let (dir, store) = crm_store();
         let _ = dir;
-        let upsert = |status: &str| {
+        let fresh_attempt = |status: &str| {
             store
-                .outbound_upsert("k2", "wealthbox", "note", "12345", "m1", "doc:a.docx", status, None)
+                .outbound_upsert("k2", "wealthbox", "note", "12345", "m1", "doc:a.docx", status, None, true)
                 .unwrap();
         };
-        upsert("pending");
+        let record_outcome = |status: &str| {
+            store
+                .outbound_upsert("k2", "wealthbox", "note", "12345", "m1", "doc:a.docx", status, None, false)
+                .unwrap();
+        };
+
+        fresh_attempt("pending");
         let first_created = store.outbound_get("k2").unwrap().unwrap().created_at;
 
-        // pending -> pending_verify is still ONE unresolved attempt: the
-        // recovery floor must not move.
+        // Recording this SAME attempt's outcome must never move the floor,
+        // no matter which status it lands on.
         std::thread::sleep(std::time::Duration::from_millis(5));
-        upsert("pending_verify");
+        record_outcome("pending_verify");
         assert_eq!(
             store.outbound_get("k2").unwrap().unwrap().created_at,
             first_created,
-            "an unresolved attempt's floor must not move"
+            "recording an outcome must not move the floor"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        record_outcome("failed");
+        assert_eq!(
+            store.outbound_get("k2").unwrap().unwrap().created_at,
+            first_created,
+            "recording an outcome must not move the floor, even a definitive one"
         );
 
-        // A DEFINITIVE failure, then a FRESH send attempt (pending again),
-        // must start a new floor — the old one is no longer relevant.
+        // A genuinely NEW send attempt must start a fresh floor.
         std::thread::sleep(std::time::Duration::from_millis(5));
-        upsert("failed");
-        assert_eq!(
-            store.outbound_get("k2").unwrap().unwrap().created_at,
-            first_created,
-            "failed itself doesn't reset — only the NEXT fresh attempt does"
-        );
-        std::thread::sleep(std::time::Duration::from_millis(5));
-        upsert("pending");
+        fresh_attempt("pending");
         assert_ne!(
             store.outbound_get("k2").unwrap().unwrap().created_at,
             first_created,
-            "a retry after a definitive failure must start a fresh recovery-verification floor"
+            "a fresh send attempt must start a new recovery-verification floor"
         );
     }
 
@@ -862,8 +882,8 @@ mod tests {
     fn purge_outbound_writes_for_provider_only_removes_that_providers_rows() {
         let (dir, store) = crm_store();
         let _ = dir;
-        store.outbound_upsert("wb1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "sent", Some("1")).unwrap();
-        store.outbound_upsert("sf1", "salesforce", "note", "001XYZ", "m1", "doc:a.docx", "sent", Some("2")).unwrap();
+        store.outbound_upsert("wb1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "sent", Some("1"), true).unwrap();
+        store.outbound_upsert("sf1", "salesforce", "note", "001XYZ", "m1", "doc:a.docx", "sent", Some("2"), true).unwrap();
 
         let n = store.purge_outbound_writes_for_provider("wealthbox").unwrap();
         assert_eq!(n, 1);
