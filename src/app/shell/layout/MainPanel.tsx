@@ -21,7 +21,7 @@ import { DraftFollowUpModal } from '@/features/email/DraftFollowUpModal';
 import { resolveMatterIdForWorkspacePath } from '@/platform/hooks/useMemoryWiring';
 import { UNASSIGNED_MATTER_ID } from '@/platform/types/matter';
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
-import { splitNoteForCrm } from '@/features/matters/logic/crmNoteFormat';
+import { buildDocNoteCrmWrite } from '@/features/matters/logic/crmNoteFormat';
 
 // Heavy doc libraries and feature modules are lazy-loaded so they don't land
 // in the startup bundle. Mermaid (~700KB) and KaTeX are pulled in via
@@ -854,15 +854,9 @@ export function MainPanel({
                     const matterIdForFile = resolveMatterIdForWorkspacePath(tab.path, rootPath);
                     return matterIdForFile === UNASSIGNED_MATTER_ID ? {} : {
                       onSendToWealthbox: (plainText: string) => {
-                        const { title, body } = splitNoteForCrm(plainText);
-                        if (!title) return false;
-                        enqueueCrmWrite({
-                          kind: 'note',
-                          matterId: matterIdForFile,
-                          title,
-                          body,
-                          sourceRef: `note:${matterIdForFile}`,
-                        });
+                        const write = buildDocNoteCrmWrite(tab.path, matterIdForFile, plainText);
+                        if (!write) return false;
+                        enqueueCrmWrite(write);
                         return true;
                       },
                     };
