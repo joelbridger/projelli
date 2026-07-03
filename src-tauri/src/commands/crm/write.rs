@@ -189,6 +189,91 @@ fn map_http_err(e: anyhow::Error) -> CrmWriteError {
     CrmWriteError::VerifyPending
 }
 
+/// Idempotent, verify-before-resend orchestration around a `CrmWriteSource`.
+///
+/// Semantics:
+/// 1. `key = dedup_key(req)`; look up the ledger.
+/// 2. `sent` → return the recorded receipt (never re-post).
+/// 3. `pending_verify` → call `find_recent_matching`; found → mark `sent`,
+///    return a deduped receipt; not found → the earlier attempt provably
+///    didn't land, proceed to send.
+/// 4. none / `pending` / `failed` → mark `pending`, call `create_note`/`create_task`.
+/// 5. success → mark `sent` + remote_id, return a fresh receipt.
+/// 6. `CrmWriteError::VerifyPending` from the source → mark `pending_verify`,
+///    propagate (the UI shows "will verify on retry").
+/// 7. any other error → mark `failed`, propagate.
+pub async fn push_crm_write(
+    source: &dyn CrmWriteSource,
+    store: &crate::commands::crm::store::CrmStore,
+    req: &CrmWriteRequest,
+) -> Result<WriteReceipt, CrmWriteError> {
+    let key = dedup_key(req);
+    let existing = store.outbound_get(&key).map_err(|_| CrmWriteError::InvalidInput("ledger read failed"))?;
+
+    if let Some(row) = &existing {
+        if row.status == "sent" {
+            if let Some(remote_id) = &row.remote_id {
+                return Ok(WriteReceipt { remote_id: remote_id.clone(), deduped: true });
+            }
+        }
+        if row.status == "pending_verify" {
+            match source.find_recent_matching(req).await? {
+                Some(remote_id) => {
+                    upsert_ledger(store, &key, source, req, "sent", Some(&remote_id));
+                    return Ok(WriteReceipt { remote_id, deduped: true });
+                }
+                None => {
+                    // Provably didn't land — fall through to (re)send below.
+                }
+            }
+        }
+    }
+
+    upsert_ledger(store, &key, source, req, "pending", None);
+
+    let create_result = match req.kind {
+        CrmWriteKind::Note => source.create_note(req).await,
+        CrmWriteKind::Task => source.create_task(req).await,
+    };
+
+    match create_result {
+        Ok(remote_id) => {
+            upsert_ledger(store, &key, source, req, "sent", Some(&remote_id));
+            Ok(WriteReceipt { remote_id, deduped: false })
+        }
+        Err(CrmWriteError::VerifyPending) => {
+            upsert_ledger(store, &key, source, req, "pending_verify", None);
+            Err(CrmWriteError::VerifyPending)
+        }
+        Err(e) => {
+            upsert_ledger(store, &key, source, req, "failed", None);
+            Err(e)
+        }
+    }
+}
+
+fn upsert_ledger(
+    store: &crate::commands::crm::store::CrmStore,
+    key: &str,
+    source: &dyn CrmWriteSource,
+    req: &CrmWriteRequest,
+    status: &str,
+    remote_id: Option<&str>,
+) {
+    if let Err(e) = store.outbound_upsert(
+        key,
+        source.provider_id(),
+        req.kind.as_str(),
+        &req.household_key,
+        &req.matter_id,
+        &req.source_ref,
+        status,
+        remote_id,
+    ) {
+        log::warn!("crm outbound ledger write failed (non-fatal): {e:#}");
+    }
+}
+
 fn remote_id_from(resp: &serde_json::Value) -> Result<String, CrmWriteError> {
     // VERIFY-LIVE: create responses echo the created object with top-level id.
     resp.get("id")
@@ -199,6 +284,96 @@ fn remote_id_from(resp: &serde_json::Value) -> Result<String, CrmWriteError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::commands::crm::store::CrmStore;
+
+    /// Open a CrmStore with a deterministic test key — bypasses the OS keychain.
+    fn test_store() -> (tempfile::TempDir, CrmStore) {
+        let dir = tempfile::TempDir::new().unwrap();
+        let key = [0x44u8; 32];
+        let s = CrmStore::open_with_key(dir.path(), &key).expect("crm store open");
+        (dir, s)
+    }
+
+    struct FakeWriteSource {
+        create_results: std::sync::Mutex<Vec<Result<String, CrmWriteError>>>,
+        find_result: Option<String>,
+        create_calls: std::sync::atomic::AtomicUsize,
+    }
+    #[async_trait::async_trait]
+    impl CrmWriteSource for FakeWriteSource {
+        fn provider_id(&self) -> &'static str {
+            "wealthbox"
+        }
+        async fn create_note(&self, _r: &CrmWriteRequest) -> Result<String, CrmWriteError> {
+            self.create_calls
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            self.create_results.lock().unwrap().remove(0)
+        }
+        async fn create_task(&self, r: &CrmWriteRequest) -> Result<String, CrmWriteError> {
+            self.create_note(r).await
+        }
+        async fn find_recent_matching(
+            &self,
+            _r: &CrmWriteRequest,
+        ) -> Result<Option<String>, CrmWriteError> {
+            Ok(self.find_result.clone())
+        }
+    }
+
+    #[tokio::test]
+    async fn second_identical_push_is_deduped_without_network() {
+        let (_dir, store) = test_store();
+        let source = FakeWriteSource {
+            create_results: std::sync::Mutex::new(vec![Ok("555".into())]),
+            find_result: None,
+            create_calls: std::sync::atomic::AtomicUsize::new(0),
+        };
+        let req = note_req();
+        let first = push_crm_write(&source, &store, &req).await.unwrap();
+        assert_eq!(first.remote_id, "555");
+        assert!(!first.deduped);
+        let second = push_crm_write(&source, &store, &req).await.unwrap();
+        assert_eq!(second.remote_id, "555");
+        assert!(second.deduped);
+        assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn ambiguous_failure_then_verify_found_never_reposts() {
+        let (_dir, store) = test_store();
+        let source = FakeWriteSource {
+            create_results: std::sync::Mutex::new(vec![Err(CrmWriteError::VerifyPending)]),
+            find_result: Some("555".into()),
+            create_calls: std::sync::atomic::AtomicUsize::new(0),
+        };
+        let req = note_req();
+        let first = push_crm_write(&source, &store, &req).await;
+        assert!(matches!(first, Err(CrmWriteError::VerifyPending)));
+        let second = push_crm_write(&source, &store, &req).await.unwrap();
+        assert_eq!(second.remote_id, "555");
+        assert!(second.deduped);
+        assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn ambiguous_failure_then_verify_missing_resends() {
+        let (_dir, store) = test_store();
+        let source = FakeWriteSource {
+            create_results: std::sync::Mutex::new(vec![
+                Err(CrmWriteError::VerifyPending),
+                Ok("556".into()),
+            ]),
+            find_result: None,
+            create_calls: std::sync::atomic::AtomicUsize::new(0),
+        };
+        let req = note_req();
+        let first = push_crm_write(&source, &store, &req).await;
+        assert!(matches!(first, Err(CrmWriteError::VerifyPending)));
+        let second = push_crm_write(&source, &store, &req).await.unwrap();
+        assert_eq!(second.remote_id, "556");
+        assert!(!second.deduped);
+        assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 2);
+    }
 
     fn note_req() -> CrmWriteRequest {
         CrmWriteRequest {
