@@ -727,7 +727,7 @@ impl CrmStore {
         let mut stmt = c.prepare(
             "SELECT dedup_key, status, remote_id, created_at FROM crm_outbound_writes
              WHERE provider = ?1 AND content_key = ?2 AND status IN ('pending', 'pending_verify')
-             ORDER BY created_at ASC LIMIT 1",
+             ORDER BY created_at DESC LIMIT 1",
         )?;
         let row = stmt
             .query_row(rusqlite::params![provider, content_key], |r| {

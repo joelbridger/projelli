@@ -783,19 +783,23 @@ pub async fn push_crm_field_update(
     }
     let _claim = InFlightClaim { guard, key: key.clone() };
 
-    let existing = store.outbound_get(&key).map_err(|_| CrmWriteError::InvalidInput("ledger read failed"))?;
-    if let Some(row) = &existing {
-        if row.status == "sent" {
-            if let Some(remote_id) = &row.remote_id {
-                // Safe for the same reason push_crm_write's cache-hit is
-                // safe: crm_connect downgrades every `sent` row for a
-                // provider to `pending_verify` on every successful connect.
-                return Ok(WriteReceipt { remote_id: remote_id.clone(), deduped: true });
-            }
-        }
-    }
-
+    // Codex round 1 (self-converge): a field update is a PUT — cheap and
+    // idempotent to check/repeat — so EVERY attempt (fresh, retry, or a
+    // re-approval of an unchanged blend) re-checks the LIVE value first,
+    // rather than trusting a local ledger `sent` row blind. Without this, a
+    // `sent` row whose value was later changed OUTSIDE the app (or by
+    // someone else) would make a re-approval of the identical final_value
+    // report success while leaving the CRM unchanged.
     let current_value = source.get_contact_field(&req.household_key, &req.field).await?;
+    if norm(&current_value) == norm(&req.final_value) {
+        // Already applied — whether this exact write already landed (a
+        // prior attempt whose response was ambiguous, or a genuine retry),
+        // or nothing needs to change. Confirm success rather than
+        // re-issuing the PUT or (wrongly) rejecting this as stale just
+        // because it no longer matches existing_value.
+        upsert_ledger_field(store, &key, source, req, "sent", Some(&req.household_key));
+        return Ok(WriteReceipt { remote_id: req.household_key.clone(), deduped: true });
+    }
     if norm(&current_value) != norm(&req.existing_value) {
         upsert_ledger_field(store, &key, source, req, "pending_verify", None);
         return Err(CrmWriteError::StaleFieldValue(current_value));
@@ -1975,9 +1979,16 @@ mod tests {
         ) -> Result<Option<String>, CrmWriteError> {
             unimplemented!("FakeFieldSource only exercises field updates")
         }
-        async fn update_field(&self, _r: &CrmFieldUpdateRequest) -> Result<String, CrmWriteError> {
+        async fn update_field(&self, r: &CrmFieldUpdateRequest) -> Result<String, CrmWriteError> {
             self.update_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            self.update_results.lock().unwrap().remove(0)
+            let result = self.update_results.lock().unwrap().remove(0);
+            if result.is_ok() {
+                // Mirror a real CRM: after a successful PUT, the field
+                // actually holds the new value — later get_contact_field
+                // calls in the same test must see it.
+                *self.remote_value.lock().unwrap() = r.final_value.clone();
+            }
+            result
         }
         async fn get_contact_field(&self, _household_key: &str, _field: &str) -> Result<String, CrmWriteError> {
             self.get_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -2037,8 +2048,35 @@ mod tests {
         assert_eq!(row.status, "pending_verify", "a stale detection must still produce a ledger entry (for the audit path)");
     }
 
+    /// Codex round 1 finding #2 (self-converge): a PUT whose response was
+    /// ambiguous (VerifyPending) but that actually reached Wealthbox must
+    /// be recognized as SUCCESS on a retry — the live value now equals
+    /// final_value, not existing_value, so this must not be misreported as
+    /// StaleFieldValue just because it no longer matches existing_value.
     #[tokio::test]
-    async fn field_update_second_identical_push_is_deduped_without_network() {
+    async fn field_update_retry_recognizes_an_ambiguous_attempt_that_actually_landed() {
+        let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
+        let req = base_field_req();
+
+        // The live value is ALREADY final_value — as if the first PUT
+        // landed server-side even though its response was lost/ambiguous.
+        let source = fake_field_source(&req.final_value, Ok("should-not-be-used".into()));
+
+        let receipt = push_crm_field_update(&source, &store, &guard, &req).await.unwrap();
+        assert_eq!(receipt.remote_id, req.household_key);
+        assert!(receipt.deduped);
+        assert_eq!(
+            source.update_calls.load(std::sync::atomic::Ordering::SeqCst), 0,
+            "must not re-PUT when the live value already equals final_value"
+        );
+
+        let row = store.outbound_get(&dedup_key_field(&req)).unwrap().unwrap();
+        assert_eq!(row.status, "sent", "an already-landed value must be confirmed sent, not left pending_verify");
+    }
+
+    #[tokio::test]
+    async fn field_update_second_identical_push_is_deduped_without_a_redundant_write() {
         let (_dir, store) = test_store();
         let guard = WriteInFlightGuard::new();
         let source = fake_field_source("Existing background.", Ok("12345".into()));
@@ -2047,10 +2085,14 @@ mod tests {
         push_crm_field_update(&source, &store, &guard, &req).await.unwrap();
         let second = push_crm_field_update(&source, &store, &guard, &req).await.unwrap();
 
-        assert_eq!(second.remote_id, "12345");
+        assert_eq!(second.remote_id, req.household_key);
         assert!(second.deduped);
-        // Only the FIRST push should have touched the network at all.
-        assert_eq!(source.get_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+        // Codex round 1 (self-converge): the second push MUST still
+        // re-verify the live value (a cheap GET) before deduping — a `sent`
+        // row that's since drifted (e.g. edited outside the app) must not
+        // silently report success without actually writing. It must NOT
+        // repeat the actual PUT, since the field already holds final_value.
+        assert_eq!(source.get_calls.load(std::sync::atomic::Ordering::SeqCst), 2);
         assert_eq!(source.update_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
     }
 
