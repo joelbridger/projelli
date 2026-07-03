@@ -69,18 +69,22 @@ pub struct CrmState {
     /// reading the OLD token (or racing the downgrade) during a reconnect
     /// that's already underway. See `ConnectInProgressGuard`.
     pub connect_in_progress: Arc<AtomicBool>,
-    /// Set when `crm_set_workspace`'s stale-row downgrade fails (persistent,
-    /// post-retries) for the provider already connected at workspace-open
-    /// time. Unlike a connect (a discrete user action that can just refuse
-    /// and ask the user to retry), `crm_set_workspace` runs automatically on
-    /// workspace open — hard-failing it would block the user from opening
-    /// their workspace at all over a transient ledger hiccup. Instead this
-    /// flag blocks NEW writes (mirroring `disconnect_requested`/
+    /// Provider ids (see `CrmProvider::id`) whose stale-row downgrade
+    /// failed (persistent, post-retries) at workspace-open time via
+    /// `crm_set_workspace`. Unlike a connect (a discrete user action that
+    /// can just refuse and ask the user to retry), `crm_set_workspace` runs
+    /// automatically on workspace open — hard-failing it would block the
+    /// user from opening their workspace at all over a transient ledger
+    /// hiccup. Instead a provider's presence in this set blocks NEW writes
+    /// FOR THAT PROVIDER (mirroring `disconnect_requested`/
     /// `connect_in_progress`) until a LATER successful downgrade check
-    /// (another `crm_set_workspace` call, or a future connect's own check)
-    /// clears it — see `downgrade_stale_sent_rows_for_workspace`'s doc
-    /// comment for why an unconfirmed downgrade can't be trusted silently.
-    pub downgrade_unconfirmed: Arc<AtomicBool>,
+    /// (another `crm_set_workspace` call, or a future connect's own check,
+    /// for the SAME provider) removes it — see
+    /// `downgrade_stale_sent_rows_for_workspace`'s doc comment for why an
+    /// unconfirmed downgrade can't be trusted silently. Per-provider (not a
+    /// single flag): a different provider's successful downgrade must never
+    /// clear an unrelated provider's still-unconfirmed one.
+    pub downgrade_unconfirmed: tokio::sync::Mutex<std::collections::HashSet<String>>,
 }
 
 pub fn manage_state(app: &tauri::App) {
@@ -95,7 +99,7 @@ pub fn manage_state(app: &tauri::App) {
         write_in_flight: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
         disconnect_requested: Arc::new(AtomicBool::new(false)),
         connect_in_progress: Arc::new(AtomicBool::new(false)),
-        downgrade_unconfirmed: Arc::new(AtomicBool::new(false)),
+        downgrade_unconfirmed: tokio::sync::Mutex::new(std::collections::HashSet::new()),
     });
 }
 
@@ -415,10 +419,12 @@ async fn confirm_stale_sent_rows_downgraded(app: &AppHandle, provider: CrmProvid
     let confirmed = downgrade_stale_sent_rows_for_workspace(ws, provider, "crm connect").await;
     if confirmed {
         // A confirmed downgrade here also resolves any EARLIER
-        // crm_set_workspace failure for this provider (same underlying
-        // safety property) — clear the flag so writes aren't left blocked
-        // by a since-superseded failure.
-        app.state::<CrmState>().downgrade_unconfirmed.store(false, Ordering::SeqCst);
+        // crm_set_workspace failure for THIS provider (same underlying
+        // safety property) — remove just this provider's id so writes for
+        // it aren't left blocked by a since-superseded failure. Per-
+        // provider, not a global clear: an unrelated provider's still-
+        // unconfirmed downgrade must be untouched.
+        app.state::<CrmState>().downgrade_unconfirmed.lock().await.remove(provider.id());
     }
     confirmed
 }
@@ -703,7 +709,7 @@ async fn crm_create_write(
             provider.display_name()
         ));
     }
-    if state.downgrade_unconfirmed.load(Ordering::SeqCst) {
+    if state.downgrade_unconfirmed.lock().await.contains(provider.id()) {
         return Err(
             "CRM sync state couldn't be verified — try reopening your workspace before writing."
                 .to_string(),
@@ -840,7 +846,7 @@ pub async fn crm_update_field(
             provider.display_name()
         ));
     }
-    if state.downgrade_unconfirmed.load(Ordering::SeqCst) {
+    if state.downgrade_unconfirmed.lock().await.contains(provider.id()) {
         return Err(
             "CRM sync state couldn't be verified — try reopening your workspace before writing."
                 .to_string(),
@@ -977,7 +983,12 @@ pub async fn crm_set_workspace(
     // it -- see CrmState::downgrade_unconfirmed's doc comment.
     if read_token(provider).is_some() {
         let confirmed = downgrade_stale_sent_rows_for_workspace(ws, provider, "crm set_workspace").await;
-        state.downgrade_unconfirmed.store(!confirmed, Ordering::SeqCst);
+        let mut unconfirmed = state.downgrade_unconfirmed.lock().await;
+        if confirmed {
+            unconfirmed.remove(provider.id());
+        } else {
+            unconfirmed.insert(provider.id().to_string());
+        }
     }
     Ok(())
 }
@@ -1952,7 +1963,7 @@ mod tests {
             write_in_flight: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
             disconnect_requested: Arc::new(AtomicBool::new(false)),
             connect_in_progress: Arc::new(AtomicBool::new(false)),
-            downgrade_unconfirmed: Arc::new(AtomicBool::new(false)),
+            downgrade_unconfirmed: tokio::sync::Mutex::new(std::collections::HashSet::new()),
         }
     }
 

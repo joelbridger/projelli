@@ -708,15 +708,31 @@ impl CrmStore {
         Ok(())
     }
 
-    /// Find the most recent `pending`/`pending_verify` row for `provider`
-    /// whose CONTENT (not approval-event) matches `content_key` — used by
-    /// `push_crm_write`'s crash-recovery lookup. The write queue is
-    /// session-only, so after a crash a re-approval of the same logical
-    /// write mints a NEW `requested_at` (a new `dedup_key`), and the
-    /// interrupted attempt's row can only be found by its content shape.
+    /// Find the most recent GENUINELY-INTERRUPTED `pending`/`pending_verify`
+    /// row for `provider` whose CONTENT (not approval-event) matches
+    /// `content_key` — used by `push_crm_write`'s crash-recovery lookup. The
+    /// write queue is session-only, so after a crash a re-approval of the
+    /// same logical write mints a NEW `requested_at` (a new `dedup_key`),
+    /// and the interrupted attempt's row can only be found by its content
+    /// shape.
+    ///
     /// Deliberately excludes `sent` rows: an intentional repeat of
     /// already-delivered content must still send under its own new key, not
     /// be silently matched against a past delivery.
+    ///
+    /// Also excludes rows with a `remote_id` (codex round 7, self-converge):
+    /// a `sent` row DOWNGRADED to `pending_verify` on reconnect (see
+    /// `mark_sent_rows_pending_verify_for_provider`) keeps its `remote_id`
+    /// — it proves delivery under SOME account, just needs re-verification
+    /// against whichever account is connected now (which the EXACT-key
+    /// lookup already does correctly). Treating it as a content-key
+    /// recovery candidate too would let a fresh approval — of the same
+    /// content, made after a reconnect — find that OLD delivery and get
+    /// silently deduped against it, skipping the actual send under the
+    /// (possibly different) now-connected account. A genuinely interrupted
+    /// attempt (crashed before a response was ever recorded) always has
+    /// `remote_id = NULL` — see `upsert_ledger`'s ambiguous-failure and
+    /// `upsert_ledger_before_send` call sites.
     pub fn outbound_find_recovery_candidate(
         &self,
         provider: &str,
@@ -727,6 +743,7 @@ impl CrmStore {
         let mut stmt = c.prepare(
             "SELECT dedup_key, status, remote_id, created_at FROM crm_outbound_writes
              WHERE provider = ?1 AND content_key = ?2 AND status IN ('pending', 'pending_verify')
+               AND remote_id IS NULL
              ORDER BY created_at DESC LIMIT 1",
         )?;
         let row = stmt
@@ -996,6 +1013,34 @@ mod tests {
         // survive the transition unchanged — find_recent_matching still
         // needs them to check whichever account is now connected.
         assert_eq!(store.outbound_get("wb-sent").unwrap().unwrap().remote_id.as_deref(), Some("1"));
+    }
+
+    /// Codex round 7 (self-converge): a `sent` row downgraded by
+    /// `mark_sent_rows_pending_verify_for_provider` keeps its `remote_id`
+    /// and its `status` becomes `pending_verify` — indistinguishable from a
+    /// genuinely interrupted attempt UNLESS the recovery lookup also checks
+    /// `remote_id`. Without this exclusion, a fresh approval of the same
+    /// content after a reconnect could find this OLD delivery and get
+    /// silently deduped against it, skipping the actual send under the
+    /// (possibly different) now-connected account.
+    #[test]
+    fn recovery_candidate_excludes_a_downgraded_sent_row_with_a_remote_id() {
+        let (dir, store) = crm_store();
+        let _ = dir;
+        store.outbound_upsert("wb-sent", "wealthbox", "note", "12345", "m1", "doc:a.docx", "sent", Some("1"), true, "shared-content").unwrap();
+        store.mark_sent_rows_pending_verify_for_provider("wealthbox").unwrap();
+        assert_eq!(store.outbound_get("wb-sent").unwrap().unwrap().status, "pending_verify");
+
+        assert!(
+            store.outbound_find_recovery_candidate("wealthbox", "shared-content").unwrap().is_none(),
+            "a downgraded sent row (has a remote_id) must not be treated as a crash-recovery candidate"
+        );
+
+        // A genuinely interrupted attempt (no remote_id) with the SAME
+        // content_key must still be found.
+        store.outbound_upsert("wb-interrupted", "wealthbox", "note", "12345", "m1", "doc:a.docx", "pending", None, true, "shared-content").unwrap();
+        let candidate = store.outbound_find_recovery_candidate("wealthbox", "shared-content").unwrap();
+        assert_eq!(candidate.map(|r| r.dedup_key), Some("wb-interrupted".to_string()));
     }
 
     /// P2.3 row 8: the cheap digest list MUST match `list_objects_by_household`
