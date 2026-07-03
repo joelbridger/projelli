@@ -29,6 +29,7 @@ import { PromptDialog } from '@/ui/PromptDialog';
 import { ClientMapPanel } from '@/features/matters/ClientMapPanel';
 import { GuidedInterview } from '@/features/matters/GuidedInterview';
 import { ClientMapUpdatesTray } from '@/features/matters/ClientMapUpdatesTray';
+import { CrmWriteReviewCard } from '@/features/matters/CrmWriteReviewCard';
 import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { useCrmStore } from '@/platform/connectors/crm/crmStore';
@@ -430,6 +431,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                 {clientMap.status === 'ready' && clientMap.map !== undefined && (
                   <div style={{ padding: '0 var(--kp-gutter)' }}>
                     <ClientMapUpdatesTray matterId={matterId} />
+                    <CrmWriteReviewCard matterId={matterId} />
                     {showInterview && (
                       <div style={{ margin: 'var(--kp-surface-gap) 0 12px' }}>
                         <GuidedInterview

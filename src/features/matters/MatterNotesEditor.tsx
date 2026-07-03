@@ -24,7 +24,7 @@
  * in scope for Task 4. Cursor awareness is the named next increment.
  */
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { EditorState } from '@codemirror/state';
 import { EditorView, keymap, drawSelection } from '@codemirror/view';
@@ -32,10 +32,25 @@ import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { yCollab } from 'y-codemirror.next';
+import { Send } from 'lucide-react';
 import type { MatterSyncClient } from '@/platform/firm/MatterSyncClient';
 import type { Matter } from '@/platform/types/matter';
 import { useMatterSyncStatus } from '@/platform/matter/matterSyncStore';
+import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
 import { cn } from '@/lib/utils';
+
+/** How long the "added" confirmation stays visible after Send to Wealthbox. */
+const SEND_CONFIRMATION_MS = 2500;
+
+/** Split the note text into a Wealthbox-ready (title, body) pair: title is
+ *  the first non-blank line, body is everything after it (or the same text
+ *  again when the note is a single line, so the body is never empty). */
+function splitNoteForCrm(text: string): { title: string; body: string } {
+  const trimmed = text.trim();
+  const newlineIdx = trimmed.indexOf('\n');
+  if (newlineIdx === -1) return { title: trimmed, body: trimmed };
+  return { title: trimmed.slice(0, newlineIdx).trim(), body: trimmed.slice(newlineIdx + 1).trim() };
+}
 
 /** How often (ms) we debounce-write the disk mirror. */
 const DISK_MIRROR_DEBOUNCE_MS = 2000;
@@ -90,6 +105,12 @@ export function MatterNotesEditor({
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const editorViewRef = useRef<EditorView | null>(null);
   const diskMirrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [noteText, setNoteText] = useState(() => {
+    // eslint-disable-next-line @typescript-eslint/no-base-to-string -- Y.Text.toString() is the documented way to read its content (same pattern as the EditorState.create() call below).
+    return syncClient?.doc.getText('notes').toString() ?? '';
+  });
+  const [sentConfirmation, setSentConfirmation] = useState(false);
+  const enqueueCrmWrite = useCrmWriteQueueStore((s) => s.enqueue);
   // BUG-032 (data loss): flushes the latest pending disk-mirror write. Set while
   // a write is debounced; called on unmount so navigating away within the
   // debounce window doesn't silently drop the last lines of notes. Cleared once
@@ -166,10 +187,15 @@ export function MatterNotesEditor({
     // the app's own undo stack on close.
     const collabExtension = yCollab(yText, null, { undoManager: false });
 
-    // Mirror text to disk on every local doc update (debounced).
+    // Mirror text to disk on every local doc update (debounced), and keep
+    // noteText in sync so the "Send to Wealthbox" button reflects the live
+    // content (including remote peers' edits, which yCollab applies as a
+    // CodeMirror transaction too).
     const diskMirrorExtension = EditorView.updateListener.of((update) => {
       if (update.docChanged) {
-        scheduleDiskMirror(update.state.doc.toString());
+        const text = update.state.doc.toString();
+        scheduleDiskMirror(text);
+        setNoteText(text);
       }
     });
 
@@ -204,6 +230,14 @@ export function MatterNotesEditor({
       editorViewRef.current = null;
     };
   }, [syncClient, scheduleDiskMirror]);
+
+  const handleSendToWealthbox = useCallback(() => {
+    const { title, body } = splitNoteForCrm(noteText);
+    if (!title) return;
+    enqueueCrmWrite({ kind: 'note', matterId: matter.id, title, body, sourceRef: `note:${matter.id}` });
+    setSentConfirmation(true);
+    setTimeout(() => { setSentConfirmation(false); }, SEND_CONFIRMATION_MS);
+  }, [noteText, matter.id, enqueueCrmWrite]);
 
   // Fail-closed: no sync client means no access.
   if (!syncClient) {
@@ -248,6 +282,23 @@ export function MatterNotesEditor({
           <p className="text-xs text-gray-500 mt-0.5">
             {t('matter.notes.subtitle')}
           </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {sentConfirmation && (
+            <span data-testid="matter-notes-sent-confirmation" className="text-xs text-emerald-700">
+              {t('matter.notes.sent-to-wealthbox')}
+            </span>
+          )}
+          <button
+            type="button"
+            data-testid="matter-notes-send-to-wealthbox"
+            onClick={handleSendToWealthbox}
+            disabled={noteText.trim() === ''}
+            className="flex items-center gap-1.5 text-xs font-medium text-gray-700 border border-gray-300 rounded-md px-2.5 py-1.5 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-default disabled:hover:bg-white"
+          >
+            <Send className="w-3.5 h-3.5" strokeWidth={1.75} />
+            {t('matter.notes.send-to-wealthbox')}
+          </button>
         </div>
       </div>
 

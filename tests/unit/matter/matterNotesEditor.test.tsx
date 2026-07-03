@@ -15,13 +15,14 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, act, waitFor } from '@testing-library/react';
+import { render, screen, act, waitFor, fireEvent } from '@testing-library/react';
 import * as Y from 'yjs';
 import type { MatterSyncClient } from '@/platform/firm/MatterSyncClient';
 import type { Matter } from '@/platform/types/matter';
 import { useMatterSyncStore } from '@/platform/matter/matterSyncStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useEditorStore } from '@/platform/state/editorStore';
+import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
 import en from '@/locales/en.json';
 import es from '@/locales/es.json';
 import de from '@/locales/de.json';
@@ -106,6 +107,7 @@ function resetStores() {
   useMatterSyncStore.setState({ statusByMatterId: {} });
   useMatterStore.setState({ matters: [], activeMatterId: null });
   useEditorStore.setState({ openTabs: [], activeTabPath: null });
+  useCrmWriteQueueStore.setState({ items: [] });
 }
 
 // ── Import components lazily to avoid issues with vi.mock order ──────────────
@@ -215,6 +217,53 @@ describe('MatterNotesEditor', () => {
 
     const badge = screen.getByTestId('matter-notes-sync-badge');
     expect(badge).toHaveTextContent('Offline');
+  });
+
+  // ── Test 4b: "Send to Wealthbox" enqueues the current note text ───────────
+  it('"Send to Wealthbox" enqueues a note with title from the first line and the rest as body', async () => {
+    const matter = makeMatter();
+    const ydoc = new Y.Doc();
+    const client = makeMockClient(ydoc);
+    const yText = ydoc.getText('notes');
+    yText.insert(0, 'Annual review follow-up\nDiscussed 529 rollover.\nNext steps pending.');
+
+    render(<MatterNotesEditor matter={matter} syncClient={client} />);
+
+    fireEvent.click(screen.getByTestId('matter-notes-send-to-wealthbox'));
+
+    const items = useCrmWriteQueueStore.getState().items;
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      kind: 'note',
+      matterId: matter.id,
+      title: 'Annual review follow-up',
+      body: 'Discussed 529 rollover.\nNext steps pending.',
+      sourceRef: `note:${matter.id}`,
+    });
+  });
+
+  it('"Send to Wealthbox" uses the whole text as both title and body when there is only one line', () => {
+    const matter = makeMatter();
+    const ydoc = new Y.Doc();
+    const client = makeMockClient(ydoc);
+    const yText = ydoc.getText('notes');
+    yText.insert(0, 'One line only');
+
+    render(<MatterNotesEditor matter={matter} syncClient={client} />);
+
+    fireEvent.click(screen.getByTestId('matter-notes-send-to-wealthbox'));
+
+    const items = useCrmWriteQueueStore.getState().items;
+    expect(items[0]).toMatchObject({ title: 'One line only', body: 'One line only' });
+  });
+
+  it('"Send to Wealthbox" is disabled when the notes are empty', () => {
+    const matter = makeMatter();
+    const client = makeMockClient();
+
+    render(<MatterNotesEditor matter={matter} syncClient={client} />);
+
+    expect(screen.getByTestId('matter-notes-send-to-wealthbox')).toBeDisabled();
   });
 
   // ── Test 5: MatterNotesEditorWrapper: matter not found ─────────────────────

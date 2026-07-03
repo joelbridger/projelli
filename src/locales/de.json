@@ -1188,7 +1188,9 @@
       "status-catching-up": "Synchronisiere",
       "status-offline": "Offline",
       "status-error": "Synchronisierungsfehler",
-      "status-idle": "Nicht synchronisiert"
+      "status-idle": "Nicht synchronisiert",
+      "send-to-wealthbox": "An Wealthbox senden",
+      "sent-to-wealthbox": "Zur Wealthbox-Prüfkarte auf der Mandantenübersicht hinzugefügt"
     },
     "home": {
       "archive": "Archive",
