@@ -18,7 +18,7 @@ import { isTauri } from '@tauri-apps/api/core';
 import { useMatters, useActiveMatterPrivileged, useMatterStore, SAMPLE_MATTER_ID, type ClientMapHubTab } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
-import { Badge, AiConsentPrompt } from '@/ui/kp';
+import { Badge, AiConsentPrompt, Button } from '@/ui/kp';
 import SurfaceHeader from '@/ui/SurfaceHeader';
 import { useConfidentialityMode, useRecordConfidentialityChoice } from '@/platform/hooks/useConfidentialityMode';
 import { useActiveEgressProvider } from '@/platform/hooks/useActiveEgressProvider';
@@ -429,13 +429,24 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                     )}
 
                     {clientMap.status === 'error' && !clientMap.needsConfidentialityChoice && (
+                      // S3 three-state rule: a needs-you state must have the
+                      // action right there, not just a sentence telling the
+                      // user to "try again" with nothing to click.
                       <div
                         data-testid="hub-clientmap-error"
-                        style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}
                       >
                         {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-                        {clientMap.errorMessage ?? 'Could not build client map. Check your AI connection and try again.'}
+                        <span>{clientMap.errorMessage ?? 'Could not build client map. Check your AI connection and try again.'}</span>
                         {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+                        <Button
+                          data-testid="hub-clientmap-retry"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => { void clientMap.generate(); }}
+                        >
+                          Retry
+                        </Button>
                       </div>
                     )}
                   </div>

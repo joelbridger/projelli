@@ -320,7 +320,14 @@ export function WorkflowExecutionTab({
                 )}
               </p>
             </div>
-            {!isOllama && onOpenSettings && (
+            {/* S3 three-state rule: a needs-you state needs the action right
+                there. The ollama-unreachable case used to tell the user to
+                "start Ollama, then try again" with no button at all —
+                Settings (AI & Privacy) is where Local AI's status is visible
+                and where a cloud provider can be set up instead. Labeled
+                "Open AI Settings" (not "Try again") for both cases — the
+                button opens Settings, so its label says what it does. */}
+            {onOpenSettings && (
               <Button
                 size="sm"
                 onClick={onOpenSettings}

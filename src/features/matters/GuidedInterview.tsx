@@ -9,6 +9,8 @@ const LABEL_SUBMIT = 'I know this';
 const LABEL_FLAG = 'Ask the client';
 const LABEL_ALL_CAUGHT_UP = 'All caught up';
 const LABEL_NO_QUESTIONS = 'No open questions right now.';
+const LABEL_MAP_BUILDING = 'Building the Client Map';
+const LABEL_NO_MAP_YET = 'Still building. Come back once it finishes to answer any open questions.';
 const LABEL_CLOSE = 'Close';
 
 function questionOfLabel(current: number, total: number): string {
@@ -25,7 +27,20 @@ export function GuidedInterview({ matterId, onClose }: GuidedInterviewProps) {
   const [index, setIndex] = useState(0);
   const [answer, setAnswer] = useState('');
 
-  if (!map) return null;
+  // S3 three-state rule: even this defensive edge case (the interview panel
+  // opened before the client's map finished building) gets a plain sentence
+  // + the one way out, not a silent gap.
+  if (!map) {
+    return (
+      <Card variant="raised">
+        <Eyebrow>{LABEL_MAP_BUILDING}</Eyebrow>
+        <p>{LABEL_NO_MAP_YET}</p>
+        <Button variant="secondary" size="sm" onClick={onClose}>
+          {LABEL_CLOSE}
+        </Button>
+      </Card>
+    );
+  }
 
   const questions = interviewQuestions(map);
   const question = questions[index];

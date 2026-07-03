@@ -377,3 +377,27 @@ describe('MatterHub — sub-tab workspace', () => {
     });
   });
 });
+
+describe('MatterHub — Client Map build error is a needs-you state, not a dead end (Wave B / S3)', () => {
+  beforeEach(resetStore);
+
+  it('a build failure (no AI provider configured, the natural failure mode in this test env) shows a Retry button that re-triggers the build', async () => {
+    useMatterStore.getState().createMatter({ name: 'Retry Co', client: 'Retry Co' });
+    const matter = useMatterStore.getState().matters[0]!;
+
+    render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
+
+    const errorBlock = await screen.findByTestId('hub-clientmap-error');
+    expect(errorBlock.textContent).toBeTruthy();
+    const retryBtn = screen.getByTestId('hub-clientmap-retry');
+    expect(retryBtn).toBeInTheDocument();
+
+    // generate() sets status back to 'generating' SYNCHRONOUSLY before any
+    // async work, so clicking Retry must immediately swap the error block for
+    // the loading state — proof the button actually re-triggers a real build
+    // rather than being a dead end.
+    fireEvent.click(retryBtn);
+    expect(screen.getByTestId('hub-clientmap-loading')).toBeInTheDocument();
+    expect(screen.queryByTestId('hub-clientmap-error')).not.toBeInTheDocument();
+  });
+});

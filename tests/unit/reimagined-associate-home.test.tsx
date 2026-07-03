@@ -237,10 +237,14 @@ describe('AssociateHome (law persona)', () => {
     expect(onOpenSettings).toHaveBeenCalledOnce();
   });
 
-  it('shows ollama-unreachable banner (no settings button)', () => {
+  it('shows ollama-unreachable banner WITH a settings button (Wave B / S3: needs-you needs an action)', () => {
+    // Regression: this used to render "make sure it has finished setting up,
+    // then try again" with NO button at all — a needs-you state with no
+    // action to take. Settings (AI & Privacy) is where Local AI's status is
+    // visible, same resolution path as the needs-provider case.
     render(<AssociateHome {...defaultProps({ providerError: 'ollama-unreachable' })} />);
     expect(screen.getByTestId('associate-provider-error')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /open settings/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /open settings/i })).toBeTruthy();
   });
 
   it('renders recent runs strip when runHistory is provided', () => {
@@ -285,9 +289,12 @@ describe('AssociateHome (law persona)', () => {
     expect(onFocusExecutionTab).toHaveBeenCalledOnce();
   });
 
-  it('does not show recent runs strip when runHistory is empty', () => {
+  it('shows an honestly-empty message (not a silent gap) when runHistory is empty', () => {
+    // Wave B / S3: the whole "Recent runs" section used to vanish with zero
+    // explanation when nothing had run yet.
     render(<AssociateHome {...defaultProps({ runHistory: [] })} />);
     expect(screen.queryByTestId('associate-recent-runs')).toBeNull();
+    expect(screen.getByTestId('associate-recent-runs-empty')).toBeTruthy();
   });
 
   // ── Active-matter context chip ────────────────────────────────────────────

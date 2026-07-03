@@ -792,7 +792,12 @@ export function AssociateHome({
                   </span>
                 )}
               </span>
-              {onOpenSettings && providerError === 'needs-provider' && (
+              {/* S3 three-state rule: a needs-you state needs the action right
+                  there. The ollama-unreachable case used to tell the user to
+                  "make sure it has finished setting up" with nothing to
+                  click — Settings (AI & Privacy) is exactly where that setup
+                  status is visible, same as the needs-provider case. */}
+              {onOpenSettings && (
                 <Button
                   variant="primary"
                   size="sm"
@@ -835,12 +840,14 @@ export function AssociateHome({
           gap: 0,
         }}
       >
-        {/* Recent runs strip */}
-        {recentRuns.length > 0 && (
-          <div style={{ marginBottom: 'var(--kp-section-gap)' }}>
-            <div style={{ marginBottom: 6 }}>
-              <Eyebrow primary>Recent runs</Eyebrow>
-            </div>
+        {/* Recent runs strip. S3 three-state rule: an honestly-empty state
+            still says what will show up here — the section used to vanish
+            entirely with zero explanation when nothing had run yet. */}
+        <div style={{ marginBottom: 'var(--kp-section-gap)' }}>
+          <div style={{ marginBottom: 6 }}>
+            <Eyebrow primary>Recent runs</Eyebrow>
+          </div>
+          {recentRuns.length > 0 ? (
             <Card
               variant="flat"
               data-testid="associate-recent-runs"
@@ -854,8 +861,17 @@ export function AssociateHome({
                 />
               ))}
             </Card>
-          </div>
-        )}
+          ) : (
+            <div
+              data-testid="associate-recent-runs-empty"
+              style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}
+            >
+              {/* eslint-disable lantern-i18n/no-hardcoded-string */}
+              Runs you start below will show up here, with their inputs, outputs, and whether they're safe to replay.
+              {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+            </div>
+          )}
+        </div>
 
         {/* The household is surfaced at RUN TIME (the run-confirmation modal),
             not as a persistent "Running in" pill here. */}

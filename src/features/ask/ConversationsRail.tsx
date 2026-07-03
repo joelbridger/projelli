@@ -213,7 +213,7 @@ export function ConversationsRail({
             }}
           >
             {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-            Your conversations will appear here.
+            Your conversations will appear here. Ask something below to start your first one.
             {/* eslint-enable lantern-i18n/no-hardcoded-string */}
           </p>
         ) : (
