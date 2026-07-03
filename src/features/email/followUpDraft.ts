@@ -31,8 +31,8 @@ export function buildFollowUpPrompt(src: FollowUpSource): string {
     `\n${sanitizeForPrompt(src.noteContent)}\n` +
     '</source_note>\n\n' +
     'Write a clear, professional follow-up email to the client summarizing what was ' +
-    'discussed and the agreed next steps. Return ONLY the email body text — no ' +
-    'subject line, no headers, no commentary.\n\n' +
+    'discussed and the agreed next steps. The "body" field must be ONLY the email ' +
+    'body text — no subject line, no headers, no commentary.\n\n' +
     'Also identify up to 4 short phrases in the body that restate a specific detail ' +
     'from the note (a date, a number, a decision, a next step). For each, give the ' +
     'phrase exactly as it appears in the body, the exact sentence from the note it ' +

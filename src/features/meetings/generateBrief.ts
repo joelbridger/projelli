@@ -2,7 +2,7 @@
  * Headless "Before you meet" brief: run the existing
  * MeetingPrepAndSuitabilityNotes template with pre-filled interview answers
  * grounded in matter-scoped retrieval. No UI, cancellable between steps,
- * provider honors the confidentiality mode via buildProviderForGlance().
+ * provider honors the confidentiality mode via buildResolvedProviderForGlance().
  */
 
 import { MeetingPrepAndSuitabilityNotes } from '@/features/workflows/engine/templates/advisors/MeetingPrepAndSuitabilityNotes';
@@ -10,7 +10,7 @@ import { createWorkflowEngine } from '@/features/workflows/engine/WorkflowEngine
 import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
 import { filterHitsForExportConsent } from '@/platform/rag/exportConsent';
 import { buildWorkspaceContextBlock } from '@/platform/rag/workspaceCommand';
-import { buildProviderForGlance } from '@/platform/matter/matterAtAGlance';
+import { buildResolvedProviderForGlance } from '@/platform/matter/matterAtAGlance';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
@@ -165,6 +165,7 @@ function buildBulletPrompt(event: CalendarEventDto, clientLabel: string, hits: R
  */
 async function generateBriefBullets(
   provider: Provider,
+  providerId: string,
   matterId: string,
   event: CalendarEventDto,
   clientLabel: string,
@@ -174,13 +175,15 @@ async function generateBriefBullets(
 ): Promise<MeetingBriefBullet[]> {
   if (hits.length === 0) return [];
   const prompt = buildBulletPrompt(event, clientLabel, hits);
-  // codex-review P1: logged BEFORE the send (matching every other egress
-  // site in this codebase, e.g. DraftFollowUpModal), not only after a
-  // successful response — otherwise a timed-out or malformed-response
-  // attempt that still reached the provider would never appear in the
-  // Activity Log / confidentiality report.
+  // codex-review P1/round-4 P2: logged BEFORE the send (matching every other
+  // egress site in this codebase, e.g. DraftFollowUpModal), not only after a
+  // successful response, and with the REAL resolved providerId (not
+  // provider.getMetadata().providerId, which real cloud providers leave
+  // unset) — otherwise a timed-out/malformed-response attempt would be
+  // invisible in the Activity Log, and a successful one would be mislabeled
+  // "unknown" in the confidentiality report.
   const egress = resolveEgress({
-    provider: provider.getMetadata().providerId ?? 'unknown',
+    provider: providerId,
     mode: getConfidentialityMode(),
     isDemo: false,
     assuredAvailable: false,
@@ -352,8 +355,18 @@ export async function generateMeetingBrief(
   };
 
   // 3. Provider: honor the confidentiality mode (local-only never yields
-  //    cloud). Tests inject a fake via options.provider.
-  const provider = options?.provider ?? (await buildProviderForGlance());
+  //    cloud). Tests inject a fake via options.provider. codex-review
+  //    round 4 (P2): Provider.getMetadata() does NOT set providerId for the
+  //    real cloud providers (Claude/OpenAI/Gemini only set name/model), so
+  //    reading it there — as the engine's audit wiring below already did —
+  //    silently mislabeled every cloud egress as "unknown" in the Activity
+  //    Log. buildResolvedProviderForGlance's own return value carries the
+  //    real resolved id; use that everywhere instead.
+  const resolved = options?.provider
+    ? { provider: options.provider, providerId: options.provider.getMetadata().providerId ?? 'unknown' }
+    : await buildResolvedProviderForGlance();
+  const provider = resolved.provider;
+  const providerId = resolved.providerId;
   throwIfAborted(options?.signal);
 
   // 4. Run the engine headlessly: capture deliverables in memory, answer the
@@ -374,7 +387,7 @@ export async function generateMeetingBrief(
     {
       audit: {
         onAuditLog,
-        providerId: provider.getMetadata().providerId ?? 'unknown',
+        providerId,
         model: provider.getMetadata().model,
         getConfidentialityMode,
       },
@@ -395,6 +408,7 @@ export async function generateMeetingBrief(
   //    [] on any failure rather than failing the brief that's already ready.
   const bullets = await generateBriefBullets(
     provider,
+    providerId,
     matterId,
     event,
     clientName,
