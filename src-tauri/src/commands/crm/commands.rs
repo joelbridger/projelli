@@ -327,8 +327,21 @@ async fn append_crm_audit_best_effort(app: &AppHandle, action: &str, description
     }
 }
 
-/// Wait (bounded, best-effort) for any write ALREADY in flight to finish
+/// Wait (bounded, 10s — matching `crm_disconnect_logic_for_provider`'s own
+/// `is_syncing` wait budget) for any write ALREADY in flight to finish
 /// BEFORE a connect path overwrites the token and downgrades the ledger.
+/// Returns `true` once drained, `false` on timeout.
+///
+/// The caller MUST refuse to proceed (not swap the token) on `false` rather
+/// than proceeding anyway — `post_json` can legitimately keep a write alive
+/// far longer than 10s under heavy 429 throttling (`MAX_429_RETRIES` = 6,
+/// each capped at `MAX_RETRY_AFTER_SECS` = 120s), so a short wait can easily
+/// time out during a perfectly healthy, still-in-progress write. Blocking
+/// the connect command for the many minutes that would take to rule out
+/// is worse UX than failing fast and asking the user to try again shortly
+/// (the same trade-off `crm_disconnect_logic_for_provider` already makes:
+/// short wait, then defer rather than either a long hang or an unsafe
+/// proceed).
 ///
 /// This only handles writes that started before the connect did — new ones
 /// are blocked separately by `connect_in_progress`/`ConnectInProgressGuard`
@@ -338,27 +351,17 @@ async fn append_crm_audit_best_effort(app: &AppHandle, action: &str, description
 /// already ran — recording a fresh `sent` row with a NEW `created_at` that
 /// the downgrade never touched, so a later retry would wrongly trust it as
 /// proof of delivery to the NEWLY connected account, when it was actually
-/// delivered to the old one. Mirrors `crm_disconnect_logic_for_provider`'s
-/// wait for `is_syncing`/`write_in_flight` (same 10s budget, same 50ms
-/// poll). If writes are still in flight after the budget, logs a warning
-/// and proceeds anyway — refusing to complete a login because of an
-/// unrelated background write would be a worse UX regression than this
-/// already narrow (new writes are already blocked by this point) residual.
-async fn wait_for_writes_to_drain_best_effort(state: &CrmState, provider: CrmProvider) {
+/// delivered to the old one.
+async fn wait_for_writes_to_drain(state: &CrmState) -> bool {
     let mut waited_ms: u64 = 0;
     while state.write_in_flight.load(Ordering::SeqCst) > 0 {
         if waited_ms >= 10_000 {
-            log::warn!(
-                "crm connect ({}): a write was still in flight after 10s — proceeding with the \
-                 reconnect anyway; that write may record a 'sent' row attributable to the \
-                 previous connection",
-                provider.display_name()
-            );
-            return;
+            return false;
         }
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         waited_ms += 50;
     }
+    true
 }
 
 /// Downgrade every `sent` outbound-write ledger row for `provider` to
@@ -800,7 +803,12 @@ pub async fn crm_connect(
         // comment for why a drain wait alone isn't a safe handoff.
         state.connect_in_progress.store(true, Ordering::SeqCst);
         let _connect_guard = ConnectInProgressGuard(state.connect_in_progress.clone());
-        wait_for_writes_to_drain_best_effort(&state, provider).await;
+        if !wait_for_writes_to_drain(&state).await {
+            return Err(
+                "A CRM write is still in progress — wait a moment and try connecting again."
+                    .to_string(),
+            );
+        }
         // Store only the exchanged Redtail UserKey. The advisor password is
         // used for this request and is never persisted.
         store_token(provider, &info.user_key)?;
@@ -840,7 +848,12 @@ pub async fn crm_connect(
     // just the drain wait) — see ConnectInProgressGuard's doc comment.
     state.connect_in_progress.store(true, Ordering::SeqCst);
     let _connect_guard = ConnectInProgressGuard(state.connect_in_progress.clone());
-    wait_for_writes_to_drain_best_effort(&state, provider).await;
+    if !wait_for_writes_to_drain(&state).await {
+        return Err(
+            "A CRM write is still in progress — wait a moment and try connecting again."
+                .to_string(),
+        );
+    }
     // Store the token only after a confirmed successful validation.
     store_token(provider, token)?;
     mark_stale_sent_rows_pending_verify_best_effort(&app, provider).await;
@@ -939,7 +952,15 @@ pub async fn crm_oauth_connect(
     // comment for why a drain wait alone isn't a safe handoff.
     state.connect_in_progress.store(true, Ordering::SeqCst);
     let _connect_guard = ConnectInProgressGuard(state.connect_in_progress.clone());
-    wait_for_writes_to_drain_best_effort(&state, provider).await;
+    if !wait_for_writes_to_drain(&state).await {
+        // Nothing has been stored yet at this point (we're still before
+        // store_or_rollback_on_cancel) — a plain Err is enough, no rollback
+        // needed.
+        return Err(
+            "A CRM write is still in progress — wait a moment and try connecting again."
+                .to_string(),
+        );
+    }
 
     crate::commands::mail::gmail::oauth::store_or_rollback_on_cancel(
         &cancel,
@@ -1773,7 +1794,7 @@ mod tests {
     /// record a fresh 'sent' row the downgrade never touched, which a later
     /// retry would wrongly trust as delivered under the NEW connection.
     #[tokio::test]
-    async fn wait_for_writes_to_drain_best_effort_waits_for_in_flight_write() {
+    async fn wait_for_writes_to_drain_waits_for_in_flight_write_then_returns_true() {
         let state = test_state(false);
         state.write_in_flight.store(1, Ordering::SeqCst); // a write is "in flight"
 
@@ -1784,7 +1805,8 @@ mod tests {
         });
 
         let started = std::time::Instant::now();
-        wait_for_writes_to_drain_best_effort(&state, CrmProvider::Wealthbox).await;
+        let drained = wait_for_writes_to_drain(&state).await;
+        assert!(drained, "must report success once the write actually drains");
         assert!(
             started.elapsed() >= std::time::Duration::from_millis(25),
             "must actually wait for the in-flight write, not return immediately"
