@@ -10,6 +10,7 @@
 //      field in the review modal.
 import { sanitizeForPrompt } from '@/platform/utils/prompt-security';
 import type { MailListItem } from '@/platform/utils/mail-commands';
+import type { OutputSchema } from '@/platform/providers/Provider';
 
 export interface FollowUpSource {
   noteName: string;
@@ -31,20 +32,159 @@ export function buildFollowUpPrompt(src: FollowUpSource): string {
     '</source_note>\n\n' +
     'Write a clear, professional follow-up email to the client summarizing what was ' +
     'discussed and the agreed next steps. Return ONLY the email body text — no ' +
-    'subject line, no headers, no commentary.'
+    'subject line, no headers, no commentary.\n\n' +
+    'Also identify up to 4 short phrases in the body that restate a specific detail ' +
+    'from the note (a date, a number, a decision, a next step). For each, give the ' +
+    'phrase exactly as it appears in the body, the exact sentence from the note it ' +
+    'came from (copied verbatim, do not paraphrase), and, if the note has a heading ' +
+    'above that sentence, that heading as a short label.'
   );
 }
 
+/** JSON-schema contract for the structured draft response (Provider.structuredOutput). */
+export const DRAFT_RESPONSE_SCHEMA: OutputSchema = {
+  type: 'object',
+  properties: {
+    body: {
+      type: 'string',
+      description: 'The full follow-up email body text, no subject line or headers.',
+    },
+    citations: {
+      type: 'array',
+      description: 'Up to 4 phrases in the body grounded in a specific line of the note.',
+      items: {
+        type: 'object',
+        properties: {
+          matchText: {
+            type: 'string',
+            description: 'The short phrase exactly as it appears in the body.',
+          },
+          quote: {
+            type: 'string',
+            description: 'The exact sentence from the note this phrase restates, copied verbatim.',
+          },
+          label: {
+            type: 'string',
+            description: 'The heading in the note above that sentence, if any.',
+          },
+        },
+        required: ['matchText', 'quote'],
+      },
+    },
+  },
+  required: ['body', 'citations'],
+};
+
+const DRAFT_SYSTEM_PROMPT =
+  'You draft follow-up emails for a financial advisor. Respond only with JSON matching ' +
+  'the given schema. Never invent a quote — every "quote" must be copied verbatim from ' +
+  'the note text you were given.';
+
+export const draftStructuredOutputOptions = {
+  schema: DRAFT_RESPONSE_SCHEMA,
+  systemPrompt: DRAFT_SYSTEM_PROMPT,
+  temperature: 0,
+};
+
+export interface RawDraftCitation {
+  matchText?: unknown;
+  quote?: unknown;
+  label?: unknown;
+}
+
+export interface RawDraftResponse {
+  body?: unknown;
+  citations?: unknown;
+}
+
+export interface DraftCitation {
+  id: string;
+  matchText: string;
+  quote: string;
+  label: string | undefined;
+}
+
+/** Collapse whitespace so a copy/paste-perfect substring check tolerates line-wrap differences. */
+function normalizeForMatch(s: string): string {
+  return s.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
 /**
- * The AI response may only ever become the BODY. The subject derives from the
- * note name; recipients are never parsed out of model output.
+ * A citation is only ever shown to the advisor if its quote is verifiably a
+ * real sentence from the (sanitized) note and its matchText is verifiably
+ * present in the drafted body — otherwise it is dropped silently. This is
+ * the guard against a hallucinated "quote" being presented as if it were
+ * traceable to the client's own note.
+ */
+export function verifyDraftCitations(
+  rawCitations: unknown,
+  body: string,
+  noteContent: string,
+): DraftCitation[] {
+  if (!Array.isArray(rawCitations)) return [];
+  const normalizedNote = normalizeForMatch(noteContent);
+  const normalizedBody = normalizeForMatch(body);
+  const verified: DraftCitation[] = [];
+  rawCitations.forEach((raw: unknown, i) => {
+    if (!raw || typeof raw !== 'object') return;
+    const r = raw as RawDraftCitation;
+    const matchText = typeof r.matchText === 'string' ? r.matchText.trim() : '';
+    const quote = typeof r.quote === 'string' ? r.quote.trim() : '';
+    const label = typeof r.label === 'string' && r.label.trim() ? r.label.trim() : undefined;
+    if (!matchText || !quote) return;
+    if (!normalizedNote.includes(normalizeForMatch(quote))) return;
+    if (!normalizedBody.includes(normalizeForMatch(matchText))) return;
+    verified.push({ id: `cite-${String(i)}`, matchText, quote, label });
+  });
+  return verified;
+}
+
+export type DraftBodySegment =
+  | { type: 'text'; value: string }
+  | { type: 'citation'; citation: DraftCitation };
+
+/**
+ * Split the plain-text body into an ordered run of text/citation segments
+ * for rendering. Citations are matched in list order, left to right, each
+ * consuming the first not-yet-consumed occurrence of its matchText — a
+ * citation whose matchText can't be found from the current cursor onward
+ * (already consumed by an earlier citation, or a verification-time false
+ * positive) is dropped rather than shown attached to the wrong phrase.
+ */
+export function splitBodyWithCitations(
+  body: string,
+  citations: DraftCitation[],
+): DraftBodySegment[] {
+  const segments: DraftBodySegment[] = [];
+  let cursor = 0;
+  const lowerBody = body.toLowerCase();
+  for (const citation of citations) {
+    const idx = lowerBody.indexOf(citation.matchText.toLowerCase(), cursor);
+    if (idx === -1) continue;
+    if (idx > cursor) segments.push({ type: 'text', value: body.slice(cursor, idx) });
+    segments.push({ type: 'citation', citation });
+    cursor = idx + citation.matchText.length;
+  }
+  if (cursor < body.length) segments.push({ type: 'text', value: body.slice(cursor) });
+  return segments;
+}
+
+/**
+ * Turn the raw structuredOutput result into { subject, body, citations }.
+ * The subject always derives from the note name; the body is whatever
+ * string the model returned (or '' if the shape is unexpected — the modal
+ * surfaces that as an empty draft the advisor can still type into, rather
+ * than crashing). Citations are independently verified before use.
  */
 export function applyDraftResponse(
   noteName: string,
-  responseText: string,
-): { subject: string; body: string } {
+  response: RawDraftResponse,
+  noteContent: string,
+): { subject: string; body: string; citations: DraftCitation[] } {
   const base = noteName.replace(/\.[^.]+$/, '');
-  return { subject: `Follow-up: ${base}`, body: responseText.trim() };
+  const body = typeof response.body === 'string' ? response.body.trim() : '';
+  const citations = verifyDraftCitations(response.citations, body, noteContent);
+  return { subject: `Follow-up: ${base}`, body, citations };
 }
 
 /**
