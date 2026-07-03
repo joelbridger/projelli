@@ -488,3 +488,31 @@ export async function mailSend(
     attachments: attachments && attachments.length > 0 ? attachments : null,
   });
 }
+
+/** Compose the "<provider>:<account>" account id `mail_save_draft` parses. */
+export function composeMailAccountId(provider: string, account: string): string {
+  return `${provider}:${account}`;
+}
+
+/**
+ * Save a draft into the account's REAL mailbox Drafts folder (Wave 0 contract).
+ * Never sends. Returns the provider draft id. m365/gmail only — the backend
+ * rejects IMAP. Throws "scope_upgrade_required" when the stored token predates
+ * the draft scopes (caller shows the standard reconnect prompt).
+ */
+export async function mailSaveDraft(
+  accountId: string,
+  to: string[],
+  subject: string,
+  bodyHtml: string,
+  inReplyTo?: string,
+): Promise<string> {
+  if (!isTauri()) throw new Error('Saving drafts is only available in the desktop app.');
+  return invoke<string>('mail_save_draft', {
+    accountId,
+    to,
+    subject,
+    bodyHtml,
+    inReplyTo: inReplyTo ?? null,
+  });
+}

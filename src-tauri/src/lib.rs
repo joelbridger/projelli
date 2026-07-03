@@ -175,6 +175,8 @@ pub fn run() {
             commands::mail::outlook_connect_cancel,
             // Email send — compose and send from any connected provider (M365/Gmail/IMAP).
             commands::mail::mail_send,
+            // Wave 0 — save an AI-proposed draft into the account's real mailbox Drafts folder.
+            commands::mail::mail_save_draft,
             // Plan 1B.4 — Wealthbox CRM connector commands (connect/sync/status/disconnect).
             commands::crm::commands::crm_set_workspace,
             commands::crm::commands::crm_connect,

@@ -495,6 +495,44 @@ describe('DocxEditor — accept / reject flow', () => {
     );
   });
 
+  // Coordinator review finding: Draft-follow-up must not build the email from
+  // a stale snapshot missing an in-progress (focused, un-blurred) edit — the
+  // same flush pattern Export already uses.
+  it('coordinator review: commits an in-progress edit before Draft follow-up reads the document', async () => {
+    const oneRunDoc: DocumentJson = {
+      formatVersion: 1,
+      body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'original text' }] }],
+      comments: {},
+    };
+
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'docx_open') return Promise.resolve(oneRunDoc);
+      if (cmd === 'docx_save') return Promise.resolve(undefined);
+      return Promise.resolve(undefined);
+    });
+
+    const onDraftFollowUp = vi.fn();
+    render(
+      <TooltipProvider>
+        <DocxEditor
+          filePath="/ws/agreement.docx"
+          fileName="agreement.docx"
+          onDraftFollowUp={onDraftFollowUp}
+        />
+      </TooltipProvider>,
+    );
+    const run = await screen.findByTestId('docx-run');
+    fireEvent.click(screen.getByTestId('docx-reviewing-toggle'));
+
+    fireEvent.focus(run);
+    run.textContent = 'original text EDITED';
+    // No blur — go straight to Draft follow-up.
+    fireEvent.click(await screen.findByTestId('docx-draft-follow-up'));
+
+    await waitFor(() => expect(onDraftFollowUp).toHaveBeenCalled());
+    expect(onDraftFollowUp.mock.calls[0]![0] as string).toContain('original text EDITED');
+  });
+
   // CLUSTER-C1 (data loss, coordinator review): a run that blurs JUST before
   // the tab closes has already cleared activeRunRef (nothing left for
   // commitActiveRunEdit to commit), but its blur already enqueued an ASYNC

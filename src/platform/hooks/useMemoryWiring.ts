@@ -248,7 +248,14 @@ function pathInAnyFolder(path: string, folders: string[], rootPath: string | nul
   });
 }
 
-function resolveMatterIdForWorkspacePath(path: string, rootPath: string | null | undefined): string {
+/**
+ * Resolve a matter id for a file path that may be workspace-relative (as
+ * MainPanel's open tabs store it) OR already absolute (as `Matter.folderPaths`
+ * store it) — tries the raw path first, then the workspace-root-joined
+ * absolute form. Exported (Wave 0) so any caller with a tab path + the
+ * workspace root can resolve correctly, not just this hook's own indexing.
+ */
+export function resolveMatterIdForWorkspacePath(path: string, rootPath: string | null | undefined): string {
   const direct = resolveMatterIdForPath(path);
   if (direct !== UNASSIGNED_MATTER_ID || !rootPath || isAbsoluteWorkspacePath(path)) {
     return direct;

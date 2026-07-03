@@ -1,4 +1,4 @@
-pub const SCOPES: &str = "offline_access openid User.Read Mail.Read Mail.Send";
+pub const SCOPES: &str = "offline_access openid User.Read Mail.Read Mail.ReadWrite Mail.Send";
 
 const MS_AUTH_ENDPOINT: &str =
     "https://login.microsoftonline.com/common/oauth2/v2.0/authorize";
@@ -279,6 +279,7 @@ mod tests {
         assert!(url.contains("state_xyz"), "missing state");
         assert!(url.contains("prompt=select_account"), "missing prompt=select_account");
         assert!(url.contains("offline_access"), "missing offline_access scope");
+        assert!(url.contains("Mail.ReadWrite"), "missing Mail.ReadWrite scope (drafts)");
         assert!(!url.contains("client_secret"), "client_secret must NOT be in the authorize URL");
     }
 

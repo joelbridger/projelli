@@ -29,6 +29,7 @@ import {
   Download,
   ChevronDown,
   MoreHorizontal,
+  Mail,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePromptDialog } from '@/platform/hooks/usePromptDialog';
@@ -55,6 +56,8 @@ interface FormattingToolbarProps {
    * visible) so nothing regresses for unrecognised extensions.
    */
   fileType?: ToolbarFileType;
+  /** Wave 0: opens the "Draft follow-up" email modal for the open document. */
+  onDraftFollowUp?: (() => void) | undefined;
 }
 
 interface ToolbarButton {
@@ -149,7 +152,7 @@ const advancedToolbarButtons: ToolbarButton[] = [
   },
 ];
 
-export function FormattingToolbar({ editorRef, className, isPreviewMode, onTogglePreview, fileContent, fileName, fileType = 'other' }: FormattingToolbarProps) {
+export function FormattingToolbar({ editorRef, className, isPreviewMode, onTogglePreview, fileContent, fileName, fileType = 'other', onDraftFollowUp }: FormattingToolbarProps) {
   // A5: derive visibility flags from file type.
   // .txt  → only Export (no headings, lists, bold/italic, Preview, or More menu;
   //          all controls are Markdown syntax that a plain-text editor ignores)
@@ -508,6 +511,21 @@ export function FormattingToolbar({ editorRef, className, isPreviewMode, onToggl
 
       {/* Spacer */}
       <div className="flex-1" />
+
+      {onDraftFollowUp && (
+        <Button
+          data-testid="draft-followup-button"
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 gap-1"
+          onClick={onDraftFollowUp}
+          title="Draft a follow-up email to the client from this document"
+        >
+          <Mail className="h-4 w-4" />
+          {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string */}
+          <span className="text-xs">Draft follow-up</span>
+        </Button>
+      )}
 
       {/* Export menu — markdown files get format choices; other file types fall
           back to the original single-button save. */}
