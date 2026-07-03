@@ -11,7 +11,7 @@ declare -A state hash hash_since acked
 while true; do
   for s in $(tmux ls -F '#{session_name}' 2>/dev/null | grep '^cc-lantern-' | grep -v coordinator); do
     pane=$(tmux capture-pane -t "$s" -p 2>/dev/null) || continue
-    if grep -q 'esc to interrupt' <<<"$pane"; then cur=WORKING; else cur=IDLE; fi
+    if grep -qE 'esc to interrupt|^\s*[◯●] (Explore|Plan|claude|general|Task|[A-Za-z-]+) ' <<<"$pane"; then cur=WORKING; else cur=IDLE; fi
     h=$(md5sum <<<"$pane" | cut -d' ' -f1)
     now=$(date +%s)
     prev="${state[$s]:-IDLE}"
