@@ -399,4 +399,54 @@ describe('DraftFollowUpModal — AI proposes, user approves, hostile notes stay 
     );
     expect(screen.queryByTestId('followup-citation-preview')).toBeNull();
   });
+
+  it('defaults to a draft-capable account when the backend returns IMAP first, with M365 also connected (smoke P0 #1)', async () => {
+    mailConnectedAccounts.mockResolvedValueOnce([
+      { provider: 'imap', account: 'firm@firm.com', label: 'IMAP (firm@firm.com)' },
+      { provider: 'm365', account: 'default', label: 'Microsoft 365' },
+    ]);
+    render(
+      <DraftFollowUpModal
+        open
+        onOpenChange={() => {}}
+        noteName="Meeting Notes 2026-06-24.docx"
+        noteContent={hostileNote}
+        matterId="matter-1"
+      />,
+    );
+    await waitFor(() =>
+      expect((screen.getByTestId('followup-body') as HTMLTextAreaElement).value).not.toBe(''),
+    );
+    const saveButton = screen.getByTestId('followup-save-drafts') as HTMLButtonElement;
+    expect(saveButton.disabled).toBe(false);
+    const select = screen.getByTestId('followup-account') as HTMLSelectElement;
+    expect(select.value).toBe('1');
+    fireEvent.click(saveButton);
+    await waitFor(() => expect(mailSaveDraft).toHaveBeenCalledTimes(1));
+    const [accountId] = mailSaveDraft.mock.calls[0]! as unknown as [string];
+    expect(accountId).toBe('m365:default');
+  });
+
+  it('disables Save with a plain-language explanation when only an IMAP account is connected (smoke P0 #1)', async () => {
+    mailConnectedAccounts.mockResolvedValueOnce([
+      { provider: 'imap', account: 'firm@firm.com', label: 'IMAP (firm@firm.com)' },
+    ]);
+    render(
+      <DraftFollowUpModal
+        open
+        onOpenChange={() => {}}
+        noteName="Meeting Notes 2026-06-24.docx"
+        noteContent={hostileNote}
+        matterId="matter-1"
+      />,
+    );
+    await waitFor(() =>
+      expect((screen.getByTestId('followup-body') as HTMLTextAreaElement).value).not.toBe(''),
+    );
+    const saveButton = screen.getByTestId('followup-save-drafts') as HTMLButtonElement;
+    expect(saveButton.disabled).toBe(true);
+    expect(screen.getByTestId('followup-save-drafts-explanation').textContent).toMatch(
+      /can.t save drafts/i,
+    );
+  });
 });

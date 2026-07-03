@@ -59,7 +59,7 @@ describe('en.json structure snapshot', () => {
         "mail": 6,
         "marketplace": 14,
         "matter": 108,
-        "media": 80,
+        "media": 81,
         "memory": 6,
         "model-download": 9,
         "onboarding": 65,
@@ -94,7 +94,9 @@ describe('en.json structure snapshot', () => {
     // +1 = media.docx-editor.concurrent-edit-conflict (CLUSTER-C2 drift guard).
     // +2 = media.docx-editor.draft-follow-up{,-title} (Wave 0 draft-follow-up button).
     // +2 = matter.notes.{send-to-wealthbox,sent-to-wealthbox} (Wave 2 CRM write-back enqueue action).
-    expect(flat.length).toBe(944);
+    // +1 = media.docx-editor.send-to-wealthbox-disconnected (smoke P0 #5 fix: discoverable
+    //      Send to Wealthbox action on normal docx notes, disabled-with-explanation state).
+    expect(flat.length).toBe(945);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

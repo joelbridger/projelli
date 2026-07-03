@@ -37,20 +37,11 @@ import type { MatterSyncClient } from '@/platform/firm/MatterSyncClient';
 import type { Matter } from '@/platform/types/matter';
 import { useMatterSyncStatus } from '@/platform/matter/matterSyncStore';
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
+import { splitNoteForCrm } from '@/features/matters/logic/crmNoteFormat';
 import { cn } from '@/lib/utils';
 
 /** How long the "added" confirmation stays visible after Send to Wealthbox. */
 const SEND_CONFIRMATION_MS = 2500;
-
-/** Split the note text into a Wealthbox-ready (title, body) pair: title is
- *  the first non-blank line, body is everything after it (or the same text
- *  again when the note is a single line, so the body is never empty). */
-function splitNoteForCrm(text: string): { title: string; body: string } {
-  const trimmed = text.trim();
-  const newlineIdx = trimmed.indexOf('\n');
-  if (newlineIdx === -1) return { title: trimmed, body: trimmed };
-  return { title: trimmed.slice(0, newlineIdx).trim(), body: trimmed.slice(newlineIdx + 1).trim() };
-}
 
 /** How often (ms) we debounce-write the disk mirror. */
 const DISK_MIRROR_DEBOUNCE_MS = 2000;

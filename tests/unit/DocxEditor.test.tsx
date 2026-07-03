@@ -533,6 +533,103 @@ describe('DocxEditor — accept / reject flow', () => {
     expect(onDraftFollowUp.mock.calls[0]![0] as string).toContain('original text EDITED');
   });
 
+  // Smoke P0 #5: normal Word notes had no discoverable "Send to Wealthbox"
+  // action at all — the only enqueue button lived in the shared-matter-only
+  // MatterNotesEditor. This adds the fold into the toolbar every other docx
+  // note already uses (beside Draft follow-up / Export).
+  describe('Send to Wealthbox (smoke P0 #5)', () => {
+    const oneRunDoc: DocumentJson = {
+      formatVersion: 1,
+      body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'Client wants a Roth conversion review.' }] }],
+      comments: {},
+    };
+
+    beforeEach(() => {
+      invokeMock.mockImplementation((cmd: string) => {
+        if (cmd === 'docx_open') return Promise.resolve(oneRunDoc);
+        if (cmd === 'docx_save') return Promise.resolve(undefined);
+        if (cmd === 'crm_is_connected') return Promise.resolve(true);
+        return Promise.resolve(undefined);
+      });
+    });
+
+    it('is hidden when there is no current matter (no onSendToWealthbox handler passed)', async () => {
+      render(
+        <TooltipProvider>
+          <DocxEditor filePath="/ws/agreement.docx" fileName="agreement.docx" />
+        </TooltipProvider>,
+      );
+      await screen.findByTestId('docx-run');
+      expect(screen.queryByTestId('docx-send-to-wealthbox')).not.toBeInTheDocument();
+    });
+
+    it('queues the note for CRM review when Wealthbox is connected, and shows a confirmation', async () => {
+      const onSendToWealthbox = vi.fn().mockReturnValue(true);
+      render(
+        <TooltipProvider>
+          <DocxEditor
+            filePath="/ws/agreement.docx"
+            fileName="agreement.docx"
+            onSendToWealthbox={onSendToWealthbox}
+          />
+        </TooltipProvider>,
+      );
+      await screen.findByTestId('docx-run');
+      const button = await screen.findByTestId('docx-send-to-wealthbox');
+      await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+      fireEvent.click(button);
+      await waitFor(() => expect(onSendToWealthbox).toHaveBeenCalled());
+      expect(onSendToWealthbox.mock.calls[0]![0] as string).toContain('Client wants a Roth conversion review.');
+      await screen.findByTestId('docx-send-to-wealthbox-confirmation');
+    });
+
+    // codex-review: a blank/table-only document has no extractable title, so
+    // the enqueue callback reports back "nothing queued" — the toolbar must
+    // not claim success for a no-op enqueue.
+    it('does not show a confirmation when the callback reports nothing was queued', async () => {
+      const onSendToWealthbox = vi.fn().mockReturnValue(false);
+      render(
+        <TooltipProvider>
+          <DocxEditor
+            filePath="/ws/agreement.docx"
+            fileName="agreement.docx"
+            onSendToWealthbox={onSendToWealthbox}
+          />
+        </TooltipProvider>,
+      );
+      await screen.findByTestId('docx-run');
+      const button = await screen.findByTestId('docx-send-to-wealthbox');
+      await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+      fireEvent.click(button);
+      await waitFor(() => expect(onSendToWealthbox).toHaveBeenCalled());
+      expect(screen.queryByTestId('docx-send-to-wealthbox-confirmation')).not.toBeInTheDocument();
+    });
+
+    it('disables the action with an explanation when Wealthbox is not connected', async () => {
+      invokeMock.mockImplementation((cmd: string) => {
+        if (cmd === 'docx_open') return Promise.resolve(oneRunDoc);
+        if (cmd === 'crm_is_connected') return Promise.resolve(false);
+        return Promise.resolve(undefined);
+      });
+      const onSendToWealthbox = vi.fn();
+      render(
+        <TooltipProvider>
+          <DocxEditor
+            filePath="/ws/agreement.docx"
+            fileName="agreement.docx"
+            onSendToWealthbox={onSendToWealthbox}
+          />
+        </TooltipProvider>,
+      );
+      await screen.findByTestId('docx-run');
+      const button = await screen.findByTestId('docx-send-to-wealthbox') as HTMLButtonElement;
+      await waitFor(() => expect(button.disabled).toBe(true));
+      expect(button.title.toLowerCase()).toContain('connect');
+      fireEvent.click(button);
+      expect(onSendToWealthbox).not.toHaveBeenCalled();
+    });
+  });
+
   // CLUSTER-C1 (data loss, coordinator review): a run that blurs JUST before
   // the tab closes has already cleared activeRunRef (nothing left for
   // commitActiveRunEdit to commit), but its blur already enqueued an ASYNC
