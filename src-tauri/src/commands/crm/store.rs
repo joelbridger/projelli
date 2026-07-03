@@ -687,7 +687,22 @@ impl CrmStore {
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?11)
              ON CONFLICT(dedup_key) DO UPDATE SET
                 status = excluded.status,
-                remote_id = COALESCE(excluded.remote_id, crm_outbound_writes.remote_id),
+                -- Codex round 8 (self-converge): a FRESH send attempt
+                -- (reset_created_at = true, from upsert_ledger_before_send)
+                -- must clear any STALE remote_id from a PRIOR attempt under
+                -- this same key (e.g. a `sent` row downgraded to
+                -- pending_verify by a reconnect, then resent to the newly
+                -- connected account) rather than preserving it via COALESCE
+                -- — otherwise, if the app crashes right after this insert
+                -- (before this NEW attempt's own remote_id is ever known),
+                -- the row is indistinguishable from the OLD downgraded-sent
+                -- row for outbound_find_recovery_candidate's `remote_id IS
+                -- NULL` filter, hiding this genuinely interrupted NEW
+                -- attempt from crash recovery. Every OTHER transition
+                -- (recording sent/pending_verify/failed for the attempt
+                -- THIS row already represents) still preserves remote_id
+                -- via COALESCE when passed NULL.
+                remote_id = CASE WHEN ?10 THEN excluded.remote_id ELSE COALESCE(excluded.remote_id, crm_outbound_writes.remote_id) END,
                 updated_at = excluded.updated_at,
                 created_at = CASE WHEN ?10 THEN excluded.created_at ELSE crm_outbound_writes.created_at END,
                 content_key = excluded.content_key",
@@ -1041,6 +1056,47 @@ mod tests {
         store.outbound_upsert("wb-interrupted", "wealthbox", "note", "12345", "m1", "doc:a.docx", "pending", None, true, "shared-content").unwrap();
         let candidate = store.outbound_find_recovery_candidate("wealthbox", "shared-content").unwrap();
         assert_eq!(candidate.map(|r| r.dedup_key), Some("wb-interrupted".to_string()));
+    }
+
+    /// Codex round 8 (self-converge): a FRESH send attempt reusing an
+    /// EXISTING key (the write.rs exact-key path resending after a
+    /// downgraded sent row was found un-verified under the newly connected
+    /// account) must clear that row's stale remote_id — otherwise, if the
+    /// app crashes right after this insert, the row is indistinguishable
+    /// from the OLD downgraded-sent row for
+    /// `outbound_find_recovery_candidate`'s `remote_id IS NULL` filter,
+    /// hiding this genuinely interrupted NEW attempt from crash recovery.
+    #[test]
+    fn a_fresh_send_attempt_clears_a_stale_remote_id_from_a_downgraded_sent_row() {
+        let (dir, store) = crm_store();
+        let _ = dir;
+        // A row that was `sent` (remote_id set), then downgraded by a
+        // reconnect — status flips to pending_verify, remote_id survives.
+        store.outbound_upsert("k1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "sent", Some("111"), true, "ck").unwrap();
+        store.mark_sent_rows_pending_verify_for_provider("wealthbox").unwrap();
+        assert_eq!(store.outbound_get("k1").unwrap().unwrap().remote_id.as_deref(), Some("111"));
+
+        // A FRESH send attempt under the SAME key (mirrors
+        // write.rs::upsert_ledger_before_send, always reset_created_at=true,
+        // remote_id=None) must clear the stale remote_id, not preserve it.
+        store.outbound_upsert("k1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "pending", None, true, "ck").unwrap();
+        let row = store.outbound_get("k1").unwrap().unwrap();
+        assert_eq!(row.status, "pending");
+        assert_eq!(
+            row.remote_id, None,
+            "a fresh send attempt must clear a stale remote_id inherited from a downgraded sent row"
+        );
+
+        // But recording THIS attempt's own outcome (reset_created_at=false)
+        // must still preserve a remote_id when passed None — e.g. a
+        // pending -> pending_verify transition for the SAME attempt.
+        store.outbound_upsert("k1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "sent", Some("222"), false, "ck").unwrap();
+        store.outbound_upsert("k1", "wealthbox", "note", "12345", "m1", "doc:a.docx", "pending_verify", None, false, "ck").unwrap();
+        assert_eq!(
+            store.outbound_get("k1").unwrap().unwrap().remote_id.as_deref(),
+            Some("222"),
+            "a non-fresh-attempt transition must still preserve remote_id via COALESCE when passed None"
+        );
     }
 
     /// P2.3 row 8: the cheap digest list MUST match `list_objects_by_household`
