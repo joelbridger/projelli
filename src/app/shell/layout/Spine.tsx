@@ -105,6 +105,7 @@ export function Spine({
     return (
       <nav
         aria-label="Primary"
+        data-testid="sidebar"
         style={{ width: 56, background: 'var(--kp-side-bg)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, paddingTop: 'var(--kp-space-xs)', position: 'relative' }}
       >
         <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 2, background: 'var(--kp-side-edge)', opacity: 1 }} />

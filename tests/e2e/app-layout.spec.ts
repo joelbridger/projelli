@@ -73,9 +73,12 @@ test.describe('Spine Navigation (test mode)', () => {
     await expect(page.getByTestId('associate-home')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Workflows' })).toBeVisible();
 
-    // Back to the Client Map — content switches away from Ask.
+    // Back to the Client Map — content switches away from Ask. Clicking this
+    // nav item re-auto-collapses the sidebar (Wave B / S1: landing back on
+    // the Client Map list re-triggers the icon-rail collapse), so the active
+    // marker moves to the collapsed nav's testid.
     await hardClick(page.getByTestId('spine-nav-matters'));
-    await expect(page.getByTestId('spine-nav-matters')).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByTestId('spine-nav-collapsed-matters')).toHaveAttribute('aria-current', 'page');
     await expect(page.getByTestId('ask-composer-input')).toHaveCount(0);
   });
 

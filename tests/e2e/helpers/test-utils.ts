@@ -62,6 +62,17 @@ export async function waitForTestModeLoad(page: Page) {
   // In test mode, the sidebar should be visible
   // Use 30s timeout since dev server may take time to compile on first load
   await expect(page.getByTestId('sidebar')).toBeVisible({ timeout: 30_000 });
+
+  // Wave B / S1: the sidebar auto-collapses to the icon rail on the default
+  // landing view (the Client Map list), so most existing specs' `spine-nav-*`
+  // selectors (the EXPANDED nav's testids) wouldn't resolve. Normalize to
+  // expanded here, once, so every spec built against the expanded sidebar
+  // keeps working without touching each one's nav-click selectors.
+  const expandButton = page.getByRole('button', { name: 'Expand' });
+  if (await expandButton.isVisible().catch(() => false)) {
+    await expandButton.click();
+    await expect(page.getByTestId('spine-nav')).toBeVisible({ timeout: 10_000 });
+  }
 }
 
 /**
@@ -122,8 +133,12 @@ export async function openAIAssistantPane(page: Page) {
  * Navigate to a sidebar tab
  */
 export async function openSidebarTab(page: Page, tabId: string) {
+  // Wave B / S1: the sidebar auto-collapses to the icon rail on the Client
+  // Map list, which renders `spine-nav-collapsed-*` instead of `spine-nav-*`
+  // — match either, only one is ever mounted at a time.
   const tab = page
     .getByTestId(`spine-nav-${tabId}`)
+    .or(page.getByTestId(`spine-nav-collapsed-${tabId}`))
     .or(page.getByTestId(`sidebar-tab-${tabId}`));
   await hardClick(tab);
 }
