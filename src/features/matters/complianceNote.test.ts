@@ -62,4 +62,26 @@ describe('composeComplianceNote', () => {
     expect(body).toContain('Records filed:');
     expect(body).not.toContain('wb-');
   });
+
+  // Codex adversarial review catch (Task 9c integration): a field update
+  // must not be mislabeled "Task" in a compliance/audit artifact.
+  it('labels a sent field-kind item as "Field update", not "Task"', () => {
+    const fieldItem: ProposedCrmWrite = {
+      id: '4',
+      kind: 'field',
+      matterId: 'm1',
+      title: 'Background information',
+      body: '',
+      field: 'background_information',
+      existingValue: 'Robert owns a rental property.',
+      newValue: 'Retiring spring 2027.',
+      finalValue: 'Robert owns a rental property. Retiring spring 2027.',
+      sourceRef: 'meeting:2026-06-30',
+      status: 'sent',
+      remoteId: 'wb-11',
+    };
+    const { body } = composeComplianceNote([fieldItem], { clientLabel: 'X', whenIso: '2026-07-02T14:41:00Z' });
+    expect(body).toContain('Field update: "Background information"');
+    expect(body).not.toContain('Task: "Background information"');
+  });
 });
