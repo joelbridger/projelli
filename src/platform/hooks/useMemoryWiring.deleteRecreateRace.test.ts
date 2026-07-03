@@ -26,6 +26,7 @@ vi.mock('@/platform/rag/MemoryService', async (importOriginal) => {
 
 import { createDeleteBurstBatcher, handleWorkspaceFileChangedEvent } from './useMemoryWiring';
 import { MemoryService } from '@/platform/rag/MemoryService';
+import { MCP_SESSION_SCOPE_REL_PATH } from '@/config/identity';
 
 describe('handleWorkspaceFileChangedEvent — delete→recreate race guard (P2)', () => {
   beforeEach(() => {
@@ -94,6 +95,34 @@ describe('handleWorkspaceFileChangedEvent — delete→recreate race guard (P2)'
     expect(deletePath).toHaveBeenCalledWith('/ws/a.docx');
     // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(vi.mocked(MemoryService.indexFile)).toHaveBeenCalledWith('/ws/b.docx');
+  });
+
+  it('fix/ask-list-hang reconcile: a delete event for an internal .lantern path never enters the delete queue', async () => {
+    // The MCP session-scope heartbeat rewrites .lantern/mcp-session-scope.json
+    // constantly; a rewrite can surface as a delete+create pair. That must
+    // never reach the coalescing batcher (it would consume a debounce window
+    // and a breaker "slot" for something that must never be deleted) or
+    // trigger indexing — internal plumbing is never a user document.
+    const deletePath = vi.fn().mockResolvedValue(undefined);
+    const deleteBatcher = createDeleteBurstBatcher(deletePath, { windowMs: 250 });
+    const internalPath = `/ws/${MCP_SESSION_SCOPE_REL_PATH}`;
+
+    handleWorkspaceFileChangedEvent(
+      { kind: 'delete', path: internalPath },
+      { deleteBatcher, workspaceService: null },
+    );
+    handleWorkspaceFileChangedEvent(
+      { kind: 'modify', path: internalPath },
+      { deleteBatcher, workspaceService: null },
+    );
+
+    await vi.advanceTimersByTimeAsync(250);
+
+    expect(deletePath).not.toHaveBeenCalled();
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    expect(vi.mocked(MemoryService.indexFile)).not.toHaveBeenCalled();
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    expect(vi.mocked(MemoryService.indexPdfFile)).not.toHaveBeenCalled();
   });
 
   it('ignores an event with no path', () => {
