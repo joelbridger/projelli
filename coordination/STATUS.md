@@ -1,5 +1,12 @@
 # Lantern-Plus Coordination STATUS
 
+## UPDATE 2026-07-03 evening — SMOKE-2 VERDICT: Waves 0-1 VERIFIED on real Windows; Wave 2 still P0
+- Smoke-2 (docs/evidence/windows-smoke-2/RUN-LOG.md on lp/windows-smoke-evidence): Waves 0+1 PASS end-to-end incl. the Save-to-Drafts fix, calendar sync→assign→brief→.docx exports, light theme, clean console, Local-only egress. Wave 2 FAIL: Send-to-Wealthbox button ABSENT (new failure mode) — bench root-caused to resolveMatterIdForWorkspacePath failing for open editor tabs on Windows path shapes despite verified-correct folderPaths; also explains the draft-followup To-suggestion miss. Fix lane: cc-lantern-p5 (lp/matter-resolve-windows), brief w-p5b-matter-resolve-brief.md.
+- Product notes for Jameson (batched): Calendar vs Mail OAuth scopes don't share (first Draft-follow-up needs a Mail reconnect — product call); first-ever calendar sync never auto-matches (no client email on file — by design, worth awareness); "Not a client meeting" skip doesn't persist (P3).
+- Bench: free of the smoke; now on de-passkey (Sarah Morgan password+TOTP → demo-creds). Wealthbox live-probe queued to combine with the Wave-2 re-test in ONE bench pass after the fix merges. Azure lane building lantern-cloud-bench-1.
+- Wave 3 gate: Waves 0-1 ✅ verified; needs Wave-2 green re-test.
+- ⚠️ LANDMINE (hit today): the bench worker commits evidence by SWITCHING ~/lantern-plus to lp/windows-smoke-evidence and can leave it there — a coordination commit then lands on the wrong branch (happened with the p5b brief; cherry-picked back). ALWAYS `git branch --show-current` before committing in ~/lantern-plus, and tell bench workers to `git switch lantern-plus` when done.
+
 ## UPDATE 2026-07-03 late-afternoon — Wave-4-B/C + Task-19 MERGED; smoke-2 Phase 2 running
 - lantern-plus @8a67dbbe (pushed): smoke P0 fixes @4fb22264 + Wave 4 Tracks B/C @6148dd77 (Book view, estate/beneficiary mismatch, whole-practice Ask — isolation guard passed xhigh review) + Wave-1 Task 19 rescan @8a67dbbe (reachability-audit gap). Gates green at each step (final 5600 vitest, 0 fail; all three TS-only, cargo skipped with reason). w6+t19+p0 lanes closed clean.
 - Bench: Phase-1 verified all 3 smoke-1 setup artifacts fixed (rebind, re-index, OAuth w/ Jameson passkey — calendar connected+persisted). Phase 2 (full corrected smoke) RUNNING on tip 43cc7e57 (pre-Wave-4 by design — don't move the target mid-run). Test calendar seeded by bench via signed-in Outlook web.
