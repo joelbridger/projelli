@@ -115,6 +115,11 @@ pub fn run() {
             // Parakeet/whisper.cpp sidecar.
             commands::voice::voice_sidecar_available,
             commands::voice::transcribe_audio,
+            // Lantern-Plus Wave 3a — local meeting capture (mic + system-audio
+            // loopback, crash-durable chunked WAV, never a cloud path).
+            commands::capture::engine::capture_start,
+            commands::capture::engine::capture_stop,
+            commands::capture::engine::capture_status,
             // Stream B TTS (v2.0) — Piper sidecar speech synthesis.
             commands::tts::tts_sidecar_available,
             commands::tts::tts_speak,
