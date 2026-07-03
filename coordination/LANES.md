@@ -7,7 +7,6 @@ Last updated: 2026-07-03 ~23:05 (coordinator-5 — now SOLE coordinator; main li
 ## Active lanes
 | Worker session | What | State |
 |---|---|---|
-| cc-lantern-vsjump | Fix falsehoods on the LIVE vs-Jump page (fix/vs-jump-page, MAIN repo worktree ~/kp-vsjump) — inherited from main line; NO deploy, Jameson approves copy | building |
 | cc-lantern-w3 | Wave-3 meeting capture engine (lp/meeting-capture) — mid Task 5 crash recovery; Task 6 = Legion device verification (headset now available) | building |
 | cc-lantern-w4d | Wave-4 Track D retention/deletion engine (lp/retention) — deep self-review round 8; xhigh merge review due | converging |
 | cc-lantern-w4a | Wave-4 Track A diarization (lp/diarization) — all 7 build tasks done; self-review round 3 | converging |
@@ -15,6 +14,7 @@ Last updated: 2026-07-03 ~23:05 (coordinator-5 — now SOLE coordinator; main li
 | cc-lantern-harness | Scripted bench-smoke harness (lp/bench-smoke-harness) — offline-verified 66/66; LIVE validation on the Legion now | live-validating |
 
 ## Merged this session
+✅ fix/vs-jump-page @5207beac (MAIN repo) — false HIPAA claim + stale facts fixed on live comparison + press-kit pages; Jameson-approved; DEPLOYED + live-verified
 ✅ lp/crm-wire-fixes @b3bca9a0 — Wealthbox due-date validation + write-direction fix + readback verification (gate 5608 vitest + 1108 cargo)
 ✅ lp/jump-strategy @e0655318 — Jump battle plan (8 sections + sources; published to claudereports)
 ✅ bench-prep lane DONE @617d60ea — Legion pre-warmed to current tip, health-verified, quiet (BENCH-READY.md)
