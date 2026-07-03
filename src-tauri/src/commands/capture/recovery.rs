@@ -84,7 +84,26 @@ pub async fn capture_recover(
     // inside this workspace.
     let dir = super::guard_meeting_path(Path::new(&workspace), Path::new(&meeting_dir))
         .map_err(|e| e.to_string())?;
+    // Load the manifest BEFORE recover() finalizes it (finalize_session
+    // removes `.capture/session.json`) so the matter id is still available
+    // for the completion audit entry below. Best-effort: a manifest read
+    // failure must not block recovering the actual audio, which is the
+    // primary point of this command.
+    let matter_id = SessionManifest::load(&dir).ok().map(|m| m.matter_id);
     let audio = recover(&dir).map_err(|e| e.to_string())?;
+    // Same non-negotiable as the normal stop path (round 10 fix): a
+    // completed capture — recovered or not — gets a meeting_recorded audit
+    // row, or a crash-recovered meeting silently undercounts in the
+    // client's confidentiality report.
+    if let Some(matter_id) = matter_id {
+        super::engine::append_capture_audit_best_effort(
+            Path::new(&workspace).to_path_buf(),
+            matter_id,
+            "meeting_recorded",
+            format!("Meeting recording recovered after a crash and saved at {}", audio.display()),
+        )
+        .await;
+    }
     Ok(super::engine::CaptureStopResult {
         meeting_dir: dir.to_string_lossy().into_owned(),
         audio_path: audio.to_string_lossy().into_owned(),
@@ -128,6 +147,62 @@ mod tests {
         let audio = recover(&meeting).unwrap();
         assert!(audio.exists());
         assert!(find_orphans(ws.path()).unwrap().is_empty());
+    }
+
+    /// Regression for the codex-review round-11 finding: `capture_stop`
+    /// appends a `meeting_recorded` audit row (round 10 fix), but
+    /// `capture_recover` — the crash-recovery path — finalized the
+    /// recording and returned without doing the same, so a meeting
+    /// recovered after an app crash had `audio.wav` on disk but no
+    /// completion event in the client's audit/confidentiality report.
+    /// `capture_recover` now loads the manifest for its matter id BEFORE
+    /// `recover()` deletes it, then appends the same audit row the normal
+    /// stop path does.
+    ///
+    /// This sandbox's OS keychain collection is locked (no interactive
+    /// unlock in a headless test run), so asserting the audit row actually
+    /// landed in the encrypted DB isn't reliable here —
+    /// `append_capture_audit_best_effort`'s own `EncryptedAuditStore::open`
+    /// call is guaranteed to fail in this environment. That failure mode is
+    /// exactly what this test locks in instead: the best-effort audit call
+    /// must never take down the actual recovery it's piggybacking on, even
+    /// when its own dependency (the keychain) is unavailable. The audit
+    /// JSON shape itself is covered separately, with no keychain involved,
+    /// by `capture_audit_payload_carries_a_matter_scope` in engine.rs.
+    #[tokio::test]
+    async fn capture_recover_still_succeeds_even_if_the_audit_append_cannot_reach_the_keychain() {
+        let ws = tempdir().unwrap();
+        let meeting = ws.path().join("Clients/AuditRecover/Meetings/2026-07-01-maudit");
+        let cap = meeting.join(".capture");
+        let mut w = ChunkWriter::new(&cap, "mic").unwrap();
+        w.write(&vec![7i16; 16_000]).unwrap();
+        drop(w); // crash: no finish, no finalize
+        SessionManifest {
+            meeting_dir: meeting.clone(),
+            matter_id: "m-audit-recover".into(),
+            started_at: "2026-07-01T10:00:00Z".into(),
+            consent: ConsentRecord {
+                mode: "one-party".into(),
+                confirmed_by: "user".into(),
+                confirmed_at: "2026-07-01T09:59:00Z".into(),
+                note: String::new(),
+            },
+        }
+        .save()
+        .unwrap();
+
+        // Sanity: the manifest (and its matter id) really is readable before
+        // recover() runs — the round-11 fix relies on this, since recover()
+        // deletes .capture/session.json as part of finalizing.
+        assert_eq!(SessionManifest::load(&meeting).unwrap().matter_id, "m-audit-recover");
+
+        let result = capture_recover(
+            ws.path().to_string_lossy().into_owned(),
+            meeting.to_string_lossy().into_owned(),
+        )
+        .await
+        .unwrap();
+        assert!(std::path::Path::new(&result.audio_path).exists());
     }
 
     // Symlink creation on Windows requires elevated/dev-mode privileges and a

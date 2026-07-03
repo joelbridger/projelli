@@ -375,7 +375,7 @@ fn capture_audit_payload_json(
 /// precedent: a failure to WRITE the audit trail must not itself block the
 /// user from recording (or from getting their already-recorded audio back)
 /// — it's logged and swallowed, not propagated as a command error.
-async fn append_capture_audit_best_effort(
+pub(crate) async fn append_capture_audit_best_effort(
     workspace: PathBuf,
     matter_id: String,
     action: &'static str,
