@@ -31,8 +31,23 @@
  */
 
 import { sanitizeForPrompt } from '@/platform/utils/prompt-security';
+import { WORKSPACE_DATA_DIR, LEGACY_WORKSPACE_DATA_DIR } from '@/config/identity';
 
-export const FACTS_FILE_RELATIVE_PATH = '.keepance/memory.json';
+/**
+ * Facts file, under the internal data dir. Uses `WORKSPACE_DATA_DIR` (`.lantern`)
+ * so it stays on the same folder every other store uses and is moved by the
+ * `.keepance` → `.lantern` data-folder migration (an older hardcoded
+ * `.keepance/memory.json` here would orphan the user's facts after migration).
+ */
+export const FACTS_FILE_RELATIVE_PATH = `${WORKSPACE_DATA_DIR}/memory.json`;
+
+/**
+ * Legacy facts path under the pre-rename `.keepance` dir. Read/write resolution
+ * (see `resolveFactsPath`) falls back to this so facts don't fork in the rare
+ * migration fail-safe state (rename failed → `.keepance` is still the live dir),
+ * mirroring the Rust `data_dir::workspace_data_dir` resolver.
+ */
+export const LEGACY_FACTS_FILE_RELATIVE_PATH = `${LEGACY_WORKSPACE_DATA_DIR}/memory.json`;
 
 export const FACTS_SCHEMA_VERSION = 1 as const;
 
@@ -224,10 +239,21 @@ export function createFactsService(opts: FactsServiceOptions): FactsServiceApi {
   const generateId = opts.generateId ?? defaultGenerateId;
   const now = opts.now ?? (() => new Date());
 
-  const tmpPath = `${FACTS_FILE_RELATIVE_PATH}.tmp`;
+  // Resolve the live facts path, mirroring the Rust data-dir resolver: prefer
+  // the current `.lantern/memory.json`, but if only the legacy
+  // `.keepance/memory.json` exists (the rename fail-safe left the old dir live),
+  // read AND write there so facts never fork across the two folders.
+  async function resolveFactsPath(): Promise<string> {
+    if (await storage.exists(FACTS_FILE_RELATIVE_PATH)) return FACTS_FILE_RELATIVE_PATH;
+    if (await storage.exists(LEGACY_FACTS_FILE_RELATIVE_PATH)) {
+      return LEGACY_FACTS_FILE_RELATIVE_PATH;
+    }
+    return FACTS_FILE_RELATIVE_PATH;
+  }
 
   async function loadFacts(): Promise<MemoryFacts> {
-    const exists = await storage.exists(FACTS_FILE_RELATIVE_PATH);
+    const path = await resolveFactsPath();
+    const exists = await storage.exists(path);
     if (!exists) {
       const empty: MemoryFacts = {
         version: FACTS_SCHEMA_VERSION,
@@ -238,17 +264,21 @@ export function createFactsService(opts: FactsServiceOptions): FactsServiceApi {
       // is created on first `saveFacts` instead.
       return empty;
     }
-    const raw = await storage.read(FACTS_FILE_RELATIVE_PATH);
+    const raw = await storage.read(path);
     return parseMemoryFactsJson(raw);
   }
 
   async function saveFacts(facts: MemoryFacts): Promise<void> {
     const serialized = serializeMemoryFacts(facts);
+    // Write back to the SAME folder the facts were resolved from (so a fail-safe
+    // legacy file stays put instead of forking a new `.lantern` copy).
+    const path = await resolveFactsPath();
+    const tmpPath = `${path}.tmp`;
     // Atomic write: tmp first, then final, then best-effort tmp cleanup.
     // If the final write throws the tmp lives on — the next save will
     // overwrite it.
     await storage.write(tmpPath, serialized);
-    await storage.write(FACTS_FILE_RELATIVE_PATH, serialized);
+    await storage.write(path, serialized);
     try {
       await storage.remove?.(tmpPath);
     } catch {

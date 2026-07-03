@@ -376,7 +376,12 @@ pub struct VaultCreated {
 #[tauri::command]
 pub async fn vault_status(workspace: String) -> Result<VaultStatus, VaultCommandError> {
     let root = Path::new(&workspace);
-    let meta_path = root.join(METADATA_FILENAME);
+    // Resolve the LIVE metadata path (current `.lantern-vault.json`, or a legacy
+    // `.keepance-vault.json` still in place during the data-dir migration
+    // fail-safe). Checking only the current name here would report a still-vaulted
+    // workspace as unvaulted, and later saves would overwrite encrypted files as
+    // plaintext.
+    let meta_path = lantern_vault::metadata::metadata_path(root);
     let enabled = meta_path.exists();
 
     if !enabled {
@@ -425,7 +430,15 @@ pub async fn vault_create(
     // metadata and stores a fresh VMK; doing that over an existing vault would
     // overwrite the key and permanently orphan any files already encrypted under
     // the old one (a data-loss path). Callers must disable the existing vault first.
-    if root.join(METADATA_FILENAME).exists() {
+    // Also guard against a LEGACY (pre-rename) `.keepance-vault.json`: on a legacy
+    // vaulted workspace the data-folder migration renames it to the current name
+    // before any vault check, but if a migration-less interim build ever reaches
+    // here, creating a new vault would orphan the legacy-encrypted files.
+    if root.join(METADATA_FILENAME).exists()
+        || root
+            .join(crate::commands::data_dir::LEGACY_VAULT_META_FILE)
+            .exists()
+    {
         return Err(VaultCommandError::AlreadyEnabled(format!(
             "a vault already exists for this workspace ({workspace}); disable it before creating a new one"
         )));
@@ -774,8 +787,8 @@ pub async fn vault_disable(workspace: String) -> Result<(), VaultCommandError> {
     // If metadata is absent, the vault is already disabled — succeed idempotently.
     let vault_id_result = vault_id_for(&root);
 
-    // Delete the metadata file.
-    let meta_path = root.join(lantern_vault::metadata::METADATA_FILENAME);
+    // Delete the metadata file (the LIVE one — current or a legacy fail-safe copy).
+    let meta_path = lantern_vault::metadata::metadata_path(&root);
     if meta_path.exists() {
         std::fs::remove_file(&meta_path)
             .map_err(|e| VaultCommandError::Io(format!("failed to delete metadata: {e}")))?;
@@ -813,12 +826,15 @@ fn count_eligible_files(root: &Path) -> usize {
         for entry in rd.flatten() {
             let name = entry.file_name();
             let name_str = name.to_string_lossy();
-            if name_str == crate::identity::VAULT_META_FILE || name_str.starts_with(".kpv-tmp-") {
+            if name_str == crate::identity::VAULT_META_FILE
+                || name_str == crate::commands::data_dir::LEGACY_VAULT_META_FILE
+                || name_str.starts_with(".kpv-tmp-")
+            {
                 continue;
             }
             let Ok(ft) = entry.file_type() else { continue; };
             if ft.is_dir() {
-                if name_str != crate::identity::WORKSPACE_DATA_DIR {
+                if !crate::commands::data_dir::is_workspace_data_dir_name(&name_str) {
                     n += count_dir(&entry.path());
                 }
             } else if ft.is_file() {
@@ -841,12 +857,15 @@ fn find_any_encrypted_file(root: &Path) -> Result<Option<PathBuf>, VaultCommandE
         for entry in rd.flatten() {
             let name = entry.file_name();
             let name_str = name.to_string_lossy();
-            if name_str == crate::identity::VAULT_META_FILE || name_str.starts_with(".kpv-tmp-") {
+            if name_str == crate::identity::VAULT_META_FILE
+                || name_str == crate::commands::data_dir::LEGACY_VAULT_META_FILE
+                || name_str.starts_with(".kpv-tmp-")
+            {
                 continue;
             }
             let Ok(ft) = entry.file_type() else { continue; };
             if ft.is_dir() {
-                if name_str != crate::identity::WORKSPACE_DATA_DIR {
+                if !crate::commands::data_dir::is_workspace_data_dir_name(&name_str) {
                     if let Some(p) = scan_dir(&entry.path())? {
                         return Ok(Some(p));
                     }

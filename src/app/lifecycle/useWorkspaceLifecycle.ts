@@ -128,6 +128,9 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
     const newRootPath = service.getRootPath();
     if (newRootPath) {
       setRootPath(newRootPath);
+      // NOTE: the `.keepance` → `.lantern` data-folder migration runs earlier, in
+      // createFSBackend (the single desktop backend factory), so it happens
+      // BEFORE vault_status wraps the backend and before any store opens here.
       // Register EVERY workspace open in Recents at this shared lifecycle
       // boundary. This is the ONE point that reliably runs for BOTH the normal
       // Workspace Selector open AND the onboarding sample/own path (which

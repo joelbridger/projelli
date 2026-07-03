@@ -37,6 +37,29 @@ export async function detectLibreOffice(): Promise<string | null> {
   return result;
 }
 
+/** Outcome of the per-workspace data-folder migration (`.keepance` → `.lantern`). */
+export interface WorkspaceDataDirMigrationReport {
+  /** e.g. "fresh-install" | "already-migrated" | "migrated" | "promoted-over-stub" | "conflict-kept-new" | "leftover-old-kept" | "fail-safe" */
+  data_dir: string;
+  /** e.g. "fresh-install" | "already-migrated" | "migrated" | "conflict" | "fail-safe" */
+  vault_meta: string;
+}
+
+/**
+ * First-launch migration of a workspace's internal data folder from the legacy
+ * `.keepance` name to `.lantern` (plus the vault-metadata file). Idempotent and
+ * fail-safe on the Rust side. Browser/dev: no-op (returns null).
+ *
+ * MUST be awaited at workspace-open time BEFORE any store (audit/mail/rag/…) is
+ * opened, so the data folder is converged before consumers touch it.
+ */
+export async function migrateWorkspaceDataDir(
+  workspaceRoot: string,
+): Promise<WorkspaceDataDirMigrationReport | null> {
+  if (!isTauri()) return null;
+  return invoke<WorkspaceDataDirMigrationReport>('migrate_workspace_data_dir', { workspaceRoot });
+}
+
 /**
  * Convert a legacy `.doc` file to `.docx` using LibreOffice in headless mode.
  * The output `.docx` is written next to the input file.

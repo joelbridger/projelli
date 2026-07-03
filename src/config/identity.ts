@@ -159,6 +159,15 @@ export const EV_DEMO_MESSAGE_SENT                = `${APP_NS}:demo-message-sent`
 /** Hidden directory inside a workspace root where app-internal stores live. */
 export const WORKSPACE_DATA_DIR = `.${APP_NS}`;
 
+/**
+ * Legacy (pre-Lantern) name of the workspace data dir. Kept so UI filters can
+ * still hide a leftover/in-place `.keepance` folder during the data-dir rename
+ * migration (both-exist leftover, or the fail-safe case where the rename could
+ * not complete and the old folder is still the live one). Mirrors the Rust
+ * `data_dir::LEGACY_WORKSPACE_DATA_DIR`.
+ */
+export const LEGACY_WORKSPACE_DATA_DIR = '.keepance';
+
 /** Vault metadata filename hidden from file-tree listings. */
 export const VAULT_METADATA_FILENAME = `.${APP_NS}-vault.json`;
 

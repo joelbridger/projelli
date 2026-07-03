@@ -462,7 +462,7 @@ pub struct SqliteMailStore {
 impl SqliteMailStore {
     /// Canonical path for the mail DB inside a workspace.
     pub fn db_path(workspace_root: &Path) -> PathBuf {
-        workspace_root.join(crate::identity::WORKSPACE_DATA_DIR).join("mail.db")
+        crate::commands::data_dir::workspace_data_dir(workspace_root).join("mail.db")
     }
 
     /// Open (or create) the database at `<workspace_root>/.keepance/mail.db`.
@@ -724,7 +724,7 @@ pub(crate) fn encrypted_blob_relative_path(provider: &str, account: &str, id: &s
 impl EncryptedMailStore {
     /// Canonical path for the encrypted mail DB.
     pub fn db_path(workspace_root: &Path) -> PathBuf {
-        workspace_root.join(crate::identity::WORKSPACE_DATA_DIR).join("mail-enc.db")
+        crate::commands::data_dir::workspace_data_dir(workspace_root).join("mail-enc.db")
     }
 
     /// Open (or create) the SQLCipher database keyed with `key`.
@@ -797,7 +797,7 @@ impl EncryptedMailStore {
         key: &[u8; 32],
     ) -> Result<String> {
         let rel = encrypted_blob_relative_path("", "", id);
-        let abs = self.workspace_root.join(&rel);
+        let abs = crate::commands::data_dir::resolve_workspace_relative(&self.workspace_root, &rel);
         if let Some(parent) = abs.parent() {
             std::fs::create_dir_all(parent).context("create blobs dir")?;
         }
@@ -815,7 +815,7 @@ impl EncryptedMailStore {
         root: &Path,
         key: &[u8; 32],
     ) -> Result<Vec<u8>> {
-        let abs = root.join(rel);
+        let abs = crate::commands::data_dir::resolve_workspace_relative(root, rel);
         let encrypted = std::fs::read(&abs)
             .with_context(|| format!("read blob {}", abs.display()))?;
         decrypt_with_key(&encrypted, key)
@@ -933,7 +933,7 @@ impl MailStore for EncryptedMailStore {
             .ok();
         if let Some(ref rel) = path {
             // Delete the encrypted blob from disk before removing the DB row.
-            let abs = self.workspace_root.join(rel);
+            let abs = crate::commands::data_dir::resolve_workspace_relative(&self.workspace_root, rel);
             let _ = std::fs::remove_file(&abs); // best-effort; ignore if already gone
             c.execute("DELETE FROM messages WHERE id = ?1", [id])?;
         }

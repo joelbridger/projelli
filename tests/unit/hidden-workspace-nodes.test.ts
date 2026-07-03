@@ -17,6 +17,20 @@ describe('hidden workspace nodes', () => {
     expect(isHiddenNode({ name: '.lantern' })).toBe(true);
   });
 
+  it('also hides a leftover/in-place legacy .keepance folder (data-dir migration)', () => {
+    // During the `.keepance` → `.lantern` rename migration, a both-exist leftover
+    // or the fail-safe case can leave a live/leftover `.keepance` folder. It must
+    // stay hidden exactly like `.lantern`, never surfacing as a user file.
+    expect(isHiddenNode({ name: '.keepance' })).toBe(true);
+  });
+
+  it('hides current and legacy vault-metadata files (recovery copy must not be deletable)', () => {
+    // A preserved `.keepance-vault.json` recovery copy (both-metadata conflict)
+    // must never surface as a user file the user could delete.
+    expect(isHiddenNode({ name: '.lantern-vault.json' })).toBe(true);
+    expect(isHiddenNode({ name: '.keepance-vault.json' })).toBe(true);
+  });
+
   it('does NOT hide ordinary dotfiles — they keep their Show-Hidden behaviour', () => {
     // Regression guard (Codex review): hiding ALL dotfiles kept .gitignore etc.
     // hidden even with "Show Hidden Files" ON. Only .keepance is unconditional.

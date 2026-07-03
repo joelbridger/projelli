@@ -73,7 +73,7 @@ pub struct DocusignStore {
 
 impl DocusignStore {
     pub fn db_path(workspace_root: &Path) -> PathBuf {
-        workspace_root.join(crate::identity::WORKSPACE_DATA_DIR).join("docusign-enc.db")
+        crate::commands::data_dir::workspace_data_dir(workspace_root).join("docusign-enc.db")
     }
 
     pub fn open(workspace_root: &Path) -> Result<Self> {

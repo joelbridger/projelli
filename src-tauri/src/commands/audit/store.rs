@@ -412,7 +412,7 @@ pub struct EncryptedAuditStore {
 impl EncryptedAuditStore {
     /// Canonical path for the encrypted audit DB inside a workspace.
     pub fn db_path(workspace_root: &Path) -> PathBuf {
-        workspace_root.join(crate::identity::WORKSPACE_DATA_DIR).join("audit-enc.db")
+        crate::commands::data_dir::workspace_data_dir(workspace_root).join("audit-enc.db")
     }
 
     /// Open (or create) the SQLCipher database keyed with `key`.
