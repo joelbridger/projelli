@@ -1,5 +1,8 @@
 # Lantern-Plus Coordination STATUS
 
+## UPDATE 2026-07-03 evening — Azure cloud bench built (lantern-cloud-bench-1), verify DEFERRED
+- Full detail: `coordination/azure-bench/SETUP-LOG.md`. Windows 11 VM up on Tailscale (100.75.247.98, `ssh lpbench@100.75.247.98`), repo cloned + sidecars copied from Legion, git/node/rust installed. Gap: MSVC linker (`link.exe`) never actually installed despite VS Build Tools reporting success, so `tauri dev` can't compile yet (Vite-only frontend confirmed working). VM deallocated (costs nothing), clean snapshot taken (predates the linker fix — see log for the fix + re-snapshot follow-up).
+
 ## UPDATE 2026-07-03 evening — SMOKE-2 VERDICT: Waves 0-1 VERIFIED on real Windows; Wave 2 still P0
 - Smoke-2 (docs/evidence/windows-smoke-2/RUN-LOG.md on lp/windows-smoke-evidence): Waves 0+1 PASS end-to-end incl. the Save-to-Drafts fix, calendar sync→assign→brief→.docx exports, light theme, clean console, Local-only egress. Wave 2 FAIL: Send-to-Wealthbox button ABSENT (new failure mode) — bench root-caused to resolveMatterIdForWorkspacePath failing for open editor tabs on Windows path shapes despite verified-correct folderPaths; also explains the draft-followup To-suggestion miss. Fix lane: cc-lantern-p5 (lp/matter-resolve-windows), brief w-p5b-matter-resolve-brief.md.
 - Product notes for Jameson (batched): Calendar vs Mail OAuth scopes don't share (first Draft-follow-up needs a Mail reconnect — product call); first-ever calendar sync never auto-matches (no client email on file — by design, worth awareness); "Not a client meeting" skip doesn't persist (P3).
