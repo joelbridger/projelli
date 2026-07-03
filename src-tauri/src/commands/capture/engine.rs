@@ -13,7 +13,9 @@ pub struct StopResult {
 }
 
 pub struct CaptureEngine {
+    workspace: PathBuf,
     meeting_dir: PathBuf,
+    matter_id: String,
     mic: Box<dyn AudioSource>,
     sys: Box<dyn AudioSource>,
     started: Instant,
@@ -80,7 +82,9 @@ impl CaptureEngine {
                     .create()
                     .ok();
                 Ok(Self {
+                    workspace: workspace.to_path_buf(),
                     meeting_dir,
+                    matter_id: matter_id.to_string(),
                     mic,
                     sys,
                     started: Instant::now(),
@@ -333,6 +337,81 @@ pub struct CaptureStatus {
     pub write_error: Option<String>,
 }
 
+/// Build the `payload_json` for a capture audit entry as a full camelCase
+/// `AuditEntry` shape, matching the CRM backend's `crm_audit_payload_json`
+/// (`commands/crm/commands.rs`) so the frontend's `recordToEntry`/
+/// `getAuditEntryMatterScope` round-trip it the same way. Unlike CRM's
+/// workspace-wide `allMatters` scope, a capture always belongs to one
+/// client, so this carries a real `matter` scope — required for the entry
+/// to show up in that client's own confidentiality report, not just the
+/// all-matters Activity Log.
+fn capture_audit_payload_json(
+    id: &str,
+    timestamp: &str,
+    action: &str,
+    description: &str,
+    matter_id: &str,
+) -> String {
+    serde_json::json!({
+        "id": id,
+        "timestamp": timestamp,
+        "action": action,
+        "description": description,
+        "model": serde_json::Value::Null,
+        "inputs": {},
+        "outputs": {},
+        "userDecision": serde_json::Value::Null,
+        "metadata": {
+            "auditEventType": action,
+            "source": "capture-backend",
+            "scope": { "kind": "matter", "matterId": matter_id },
+        },
+    })
+    .to_string()
+}
+
+/// Append one capture audit entry (consent confirmed / meeting recorded).
+/// Best-effort and non-fatal, matching `append_crm_audit_best_effort`'s
+/// precedent: a failure to WRITE the audit trail must not itself block the
+/// user from recording (or from getting their already-recorded audio back)
+/// — it's logged and swallowed, not propagated as a command error.
+async fn append_capture_audit_best_effort(
+    workspace: PathBuf,
+    matter_id: String,
+    action: &'static str,
+    description: String,
+) {
+    use crate::commands::audit::store::{AuditEntryRecord, EncryptedAuditStore};
+    let result = tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
+        let store = EncryptedAuditStore::open(&workspace)?;
+        let timestamp = chrono::Utc::now().to_rfc3339();
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or_default();
+        let mut rng_bytes = [0u8; 4];
+        rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut rng_bytes);
+        let id = format!("audit_capture_{nanos}_{}", hex::encode(rng_bytes));
+        let payload_json =
+            capture_audit_payload_json(&id, &timestamp, action, &description, &matter_id);
+        let rec = AuditEntryRecord {
+            id,
+            timestamp,
+            action: action.to_string(),
+            description,
+            payload_json,
+        };
+        store.append(&rec)?;
+        Ok(())
+    })
+    .await;
+    match result {
+        Ok(Ok(())) => {}
+        Ok(Err(e)) => log::warn!("capture audit append failed (non-fatal): {e:#}"),
+        Err(e) => log::warn!("capture audit spawn failed (non-fatal): {e}"),
+    }
+}
+
 #[tauri::command]
 pub async fn capture_start(
     workspace: String,
@@ -342,7 +421,7 @@ pub async fn capture_start(
     consent_note: Option<String>,
 ) -> Result<CaptureStartResult, String> {
     let consent = ConsentRecord {
-        mode: consent_mode,
+        mode: consent_mode.clone(),
         confirmed_by: "user".into(),
         confirmed_at: chrono::Utc::now().to_rfc3339(),
         note: consent_note.unwrap_or_default(),
@@ -363,6 +442,17 @@ pub async fn capture_start(
         canon_matter_folder.to_str().ok_or("matter folder path is not valid UTF-8")?;
     let dir =
         try_begin_global(Path::new(&workspace), &matter_id, canon_matter_folder_str, consent)?;
+    // Non-negotiable per the Meeting Artifact Contract: recording consent is
+    // an audit fact, not just a manifest field — append it now that the
+    // engine has actually started (not before: a failed start never
+    // recorded anything, so it shouldn't claim consent was acted on).
+    append_capture_audit_best_effort(
+        PathBuf::from(&workspace),
+        matter_id.clone(),
+        "meeting_capture_consent",
+        format!("Recording consent confirmed ({consent_mode} mode) for meeting capture"),
+    )
+    .await;
     Ok(CaptureStartResult {
         meeting_dir: dir.to_string_lossy().into_owned(),
         started_at: chrono::Utc::now().to_rfc3339(),
@@ -389,7 +479,26 @@ pub async fn capture_stop() -> Result<CaptureStopResult, String> {
         }
     };
     let _stopping_guard = StoppingGuard;
+    // Captured before `.stop(self)` consumes `engine` — StopResult doesn't
+    // carry matter_id, and the audit entry needs it for the matter scope.
+    let workspace = engine.workspace.clone();
+    let matter_id = engine.matter_id.clone();
     let r = engine.stop().map_err(|e| e.to_string())?;
+    // Non-negotiable per the Meeting Artifact Contract: every completed
+    // capture gets a `meeting_recorded` audit row. Only reached on the
+    // success path — a write-error stop() already failed loudly above, so
+    // it never falsely claims a complete recording was saved.
+    append_capture_audit_best_effort(
+        workspace,
+        matter_id,
+        "meeting_recorded",
+        format!(
+            "Meeting recording saved ({} ms) at {}",
+            r.duration_ms,
+            r.audio_path.display()
+        ),
+    )
+    .await;
     Ok(CaptureStopResult {
         meeting_dir: r.meeting_dir.to_string_lossy().into_owned(),
         audio_path: r.audio_path.to_string_lossy().into_owned(),
@@ -423,6 +532,26 @@ mod tests {
     use super::*;
     use crate::commands::capture::sources::FakeSource;
     use tempfile::tempdir;
+
+    /// The frontend's `getAuditEntryMatterScope`/`recordToEntry` (see
+    /// `src/features/audit/audit-export.ts`) reads `metadata.scope.kind` /
+    /// `.matterId` to route an entry into a specific client's confidentiality
+    /// report instead of only the all-matters Activity Log — proves this
+    /// payload builder produces that exact shape (no I/O, no keychain).
+    #[test]
+    fn capture_audit_payload_carries_a_matter_scope() {
+        let json = capture_audit_payload_json(
+            "audit_capture_1",
+            "2026-07-03T00:00:00Z",
+            "meeting_recorded",
+            "Meeting recording saved (1234 ms) at /tmp/x/audio.wav",
+            "m-123",
+        );
+        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(v["action"], "meeting_recorded");
+        assert_eq!(v["metadata"]["scope"]["kind"], "matter");
+        assert_eq!(v["metadata"]["scope"]["matterId"], "m-123");
+    }
 
     #[tokio::test]
     async fn engine_records_both_channels_and_finalizes() {
