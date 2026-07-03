@@ -44,6 +44,21 @@ describe('imported-meeting-note detection', () => {
     expect(isImportedMeetingNoteSource(src('email', 'mail:1'))).toBe(false);
     expect(isImportedMeetingNoteSource(src('document', 'Clients/B/Statement.pdf'))).toBe(false);
   });
+  it('also recognizes Jump exports routed through CRM (Wealthbox) and OneDrive, not just local documents (codex-review P2)', () => {
+    // Per docs/features/keep-your-notetaker.md Recipe 1 (Wealthbox sync) and
+    // Recipe 2 (watched OneDrive/SharePoint folder), a Jump note can arrive
+    // tagged 'crm' or 'onedrive', not only 'document'.
+    expect(
+      isImportedMeetingNoteSource(src('crm', 'crm:note:Jump Meeting Recap 2026-06-24.txt')),
+    ).toBe(true);
+    expect(
+      isImportedMeetingNoteSource(src('onedrive', 'onedrive:drive1:Jump Meeting Recap 2026-06-24.txt')),
+    ).toBe(true);
+    expect(sourceChipLabel(src('crm', 'crm:note:Jump Meeting Recap 2026-06-24.txt'))).toBe(
+      'Jump meeting note',
+    );
+  });
+
   it('flags an item when any of its sources is an imported meeting note', () => {
     const item: ClientMapItem = {
       id: 'i1',

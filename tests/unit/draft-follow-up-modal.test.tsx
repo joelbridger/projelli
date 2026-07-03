@@ -257,4 +257,24 @@ describe('DraftFollowUpModal — AI proposes, user approves, hostile notes stay 
       expect((screen.getByTestId('followup-to') as HTMLInputElement).value).toBe(''),
     );
   });
+
+  it('never suggests a recipient for an unassigned note (codex-review P1: shared-bucket wrong-recipient risk)', async () => {
+    // An unassigned note's mail query would hit the SHARED unassigned bucket
+    // (every client's unmatched mail), so any suggestion here could belong to
+    // a completely unrelated client — leave To empty and let the advisor type it.
+    render(
+      <DraftFollowUpModal
+        open
+        onOpenChange={() => {}}
+        noteName="Meeting Notes 2026-06-24.docx"
+        noteContent={hostileNote}
+        matterId="unassigned"
+      />,
+    );
+    await waitFor(() =>
+      expect((screen.getByTestId('followup-body') as HTMLTextAreaElement).value).not.toBe(''),
+    );
+    expect(mailListMessagesByMatter).not.toHaveBeenCalled();
+    expect((screen.getByTestId('followup-to') as HTMLInputElement).value).toBe('');
+  });
 });

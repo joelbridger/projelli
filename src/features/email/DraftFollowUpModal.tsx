@@ -28,6 +28,7 @@ import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { resolveEgress } from '@/platform/privacy/egress';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { useMatters } from '@/platform/matter/matterStore';
+import { UNASSIGNED_MATTER_ID } from '@/platform/types/matter';
 import { buildMailMatterMap } from '@/platform/rag/matterResolver';
 
 export interface DraftFollowUpModalProps {
@@ -92,14 +93,20 @@ export function DraftFollowUpModal({
           return;
         }
         try {
-          const page = await mailListMessagesByMatter(matterId, buildMailMatterMap(matters), {
-            sortBy: 'date',
-            sortDesc: true,
-            limit: 50,
-            offset: 0,
-          });
-          const suggestion = suggestClientEmail(page.items);
-          if (suggestion) setTo(suggestion);
+          // Codex review catch (P1): an unassigned note's query would hit the
+          // SHARED unassigned-mail bucket (every client's unmatched mail), so
+          // any suggestion could belong to a completely unrelated client —
+          // skip the lookup and leave To empty rather than risk it.
+          if (matterId !== UNASSIGNED_MATTER_ID) {
+            const page = await mailListMessagesByMatter(matterId, buildMailMatterMap(matters), {
+              sortBy: 'date',
+              sortDesc: true,
+              limit: 50,
+              offset: 0,
+            });
+            const suggestion = suggestClientEmail(page.items);
+            if (suggestion) setTo(suggestion);
+          }
         } catch {
           // No mail for this client (or browser mode) — To stays empty, user types it.
         }
