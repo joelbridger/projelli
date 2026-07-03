@@ -264,6 +264,30 @@ export function buildCrmMatterMap(matters: Matter[]): CrmMatterMapEntry[] {
   return out;
 }
 
+/**
+ * Invert the matter store's `crmHouseholdKeys` into matterId -> householdIds.
+ * Used by the CRM write-back review card to resolve which household(s) a
+ * client's writes should target (the backend does not persist this map).
+ * Same skip rules as `buildCrmMatterMap`: unassigned sentinel and blank keys
+ * are skipped; a matter with no keys has no entry in the returned map.
+ */
+export function buildInverseCrmMap(matters: Matter[]): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  for (const m of matters) {
+    if (m.id === UNASSIGNED_MATTER_ID) continue;
+    for (const key of m.crmHouseholdKeys ?? []) {
+      if (!key) continue;
+      const existing = out.get(m.id);
+      if (existing) {
+        existing.push(key);
+      } else {
+        out.set(m.id, [key]);
+      }
+    }
+  }
+  return out;
+}
+
 export function filterCrmMatterMapForProvider(
   matterMap: CrmMatterMapEntry[],
   provider: 'wealthbox' | 'salesforce' | 'redtail'

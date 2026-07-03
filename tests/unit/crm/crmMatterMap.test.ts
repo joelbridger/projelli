@@ -14,6 +14,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   buildCrmMatterMap,
   buildEsignMatterMap,
+  buildInverseCrmMap,
   filterCrmMatterMapForProvider,
   buildMeetingMatterMap,
   buildOneDriveMatterMap,
@@ -124,6 +125,42 @@ describe('buildCrmMatterMap', () => {
     expect(filterCrmMatterMapForProvider(map, 'redtail')).toEqual([
       { householdId: 'redtail:rt-household', matterId: 'redtail-matter' },
     ]);
+  });
+});
+
+describe('buildInverseCrmMap', () => {
+  it('maps matterId to its household keys', () => {
+    const matters = [matter('m1', ['hh-001', 'hh-002']), matter('m2', ['hh-003'])];
+    const inv = buildInverseCrmMap(matters);
+    expect(inv.get('m1')).toEqual(['hh-001', 'hh-002']);
+    expect(inv.get('m2')).toEqual(['hh-003']);
+  });
+
+  it('skips a matter with no household keys', () => {
+    const inv = buildInverseCrmMap([matter('m1', [])]);
+    expect(inv.get('m1')).toBeUndefined();
+  });
+
+  it('skips blank household keys', () => {
+    const inv = buildInverseCrmMap([matter('m1', ['', 'hh-001', ''])]);
+    expect(inv.get('m1')).toEqual(['hh-001']);
+  });
+
+  it('skips the unassigned sentinel matter', () => {
+    const matters = [matter(UNASSIGNED_MATTER_ID, ['hh-x']), matter('m1', ['hh-001'])];
+    const inv = buildInverseCrmMap(matters);
+    expect(inv.get(UNASSIGNED_MATTER_ID)).toBeUndefined();
+    expect(inv.get('m1')).toEqual(['hh-001']);
+  });
+
+  it('handles a matter whose crmHouseholdKeys field is undefined (pre-v6 migration)', () => {
+    const preMigration = matter('m1', undefined as unknown as string[]);
+    const inv = buildInverseCrmMap([preMigration]);
+    expect(inv.get('m1')).toBeUndefined();
+  });
+
+  it('returns an empty map for an empty matters list', () => {
+    expect(buildInverseCrmMap([]).size).toBe(0);
   });
 });
 
