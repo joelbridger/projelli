@@ -351,11 +351,20 @@ fn crm_audit_payload_json_for_matter(
 
 /// Matter-scoped variant of [`append_crm_audit_best_effort`] — same
 /// best-effort contract (never propagates to the calling command).
+/// `write_dedup_key`: when `Some`, the audit entry's id is DETERMINISTIC
+/// (derived from the write's own dedup key) instead of randomly generated.
+/// `EncryptedAuditStore::append` is `INSERT OR IGNORE` on id — a deterministic
+/// id makes re-auditing the SAME logical write idempotent-safe: a genuine
+/// retry/dedup of an already-audited write silently no-ops (no duplicate
+/// "pushed" entry), while a write that landed but whose process crashed
+/// before this call ever ran gets audited for the first time on the very
+/// next retry that recovers it, instead of never being audited at all.
 async fn append_crm_audit_best_effort_for_matter(
     app: &AppHandle,
     action: &str,
     description: &str,
     matter_id: &str,
+    write_dedup_key: Option<&str>,
 ) {
     use crate::commands::audit::store::{AuditEntryRecord, EncryptedAuditStore};
 
@@ -375,18 +384,24 @@ async fn append_crm_audit_best_effort_for_matter(
     let action_s = action.to_string();
     let desc_s = description.to_string();
     let matter_id_s = matter_id.to_string();
+    let write_dedup_key = write_dedup_key.map(str::to_string);
 
     let result = tokio::task::spawn_blocking(move || -> anyhow::Result<AuditEntryRecord> {
         let store = EncryptedAuditStore::open(&ws)?;
 
         let timestamp = chrono::Utc::now().to_rfc3339();
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or_default();
-        let mut rng_bytes = [0u8; 4];
-        rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut rng_bytes);
-        let id = format!("audit_crm_{}_{}", nanos, hex::encode(rng_bytes));
+        let id = match &write_dedup_key {
+            Some(key) => format!("audit_crmwrite_{key}"),
+            None => {
+                let nanos = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_nanos())
+                    .unwrap_or_default();
+                let mut rng_bytes = [0u8; 4];
+                rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut rng_bytes);
+                format!("audit_crm_{}_{}", nanos, hex::encode(rng_bytes))
+            }
+        };
 
         let payload_json =
             crm_audit_payload_json_for_matter(&id, &timestamp, &action_s, &desc_s, &matter_id_s);
@@ -550,34 +565,53 @@ async fn crm_create_write(
         CrmWriteKind::Task => "create_task",
     });
 
+    let write_dedup_key = write::dedup_key(&req);
+
     match write::push_crm_write(&client, &store, &state.write_guard, &req).await {
         Ok(receipt) => {
-            // A deduped receipt means NO new CRM write happened on this call
-            // — the ledger only suppressed a duplicate of a write already
-            // audited when it actually landed. Auditing it again here would
-            // create a misleading "pushed" entry for every retry of an
-            // already-sent item.
-            if !receipt.deduped {
-                let description = format!(
-                    "{} pushed to {} household {household_key} (source: {source_ref})",
-                    kind.as_str(),
-                    provider.display_name(),
-                );
-                append_crm_audit_best_effort_for_matter(&app, &action, &description, &matter_id).await;
-            }
+            // The audit id is deterministic (see append_crm_audit_best_effort_for_matter)
+            // and INSERT-OR-IGNORE at the store layer, so this is always safe
+            // to call even on a deduped receipt: a genuine retry of an
+            // already-audited write silently no-ops (no duplicate "pushed"
+            // entry), but a write that landed and whose process crashed
+            // BEFORE this call ever ran on its first attempt gets audited
+            // for the first time right here, on the recovering retry —
+            // instead of never being audited at all.
+            let description = format!(
+                "{} pushed to {} household {household_key} (source: {source_ref})",
+                kind.as_str(),
+                provider.display_name(),
+            );
+            append_crm_audit_best_effort_for_matter(
+                &app,
+                &action,
+                &description,
+                &matter_id,
+                Some(&write_dedup_key),
+            )
+            .await;
             Ok(receipt)
         }
         // Wealthbox may already have accepted (even persisted) this write —
         // record that possibility now rather than leaving the audit trail
         // silent about a CRM change that may exist until a later retry
-        // resolves it.
+        // resolves it. Distinct id suffix from the confirmed case above, so
+        // an eventual confirmation still gets its OWN audit entry rather
+        // than being silently ignored as a duplicate of this ambiguous one.
         Err(CrmWriteError::VerifyPending) => {
             let description = format!(
                 "{} MAY have been pushed to {} household {household_key} (source: {source_ref}) — delivery unconfirmed, will verify on retry",
                 kind.as_str(),
                 provider.display_name(),
             );
-            append_crm_audit_best_effort_for_matter(&app, &action, &description, &matter_id).await;
+            append_crm_audit_best_effort_for_matter(
+                &app,
+                &action,
+                &description,
+                &matter_id,
+                Some(&format!("{write_dedup_key}_ambiguous")),
+            )
+            .await;
             Err(CrmWriteError::VerifyPending.to_string())
         }
         Err(e) => Err(e.to_string()),
