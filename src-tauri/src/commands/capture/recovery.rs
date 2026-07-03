@@ -15,6 +15,17 @@ pub fn find_orphans(workspace: &Path) -> Result<Vec<OrphanSession>> {
     // too, but it isn't crashed — it's live. Listing it as recoverable would
     // let the UI offer to finalize a recording that's still in progress.
     let active = super::engine::active_meeting_dir();
+    // `active_meeting_dir()` and `guard_meeting_path` (used by
+    // `capture_recover`) both work in canonical paths (round-8 fix). Walking
+    // from a non-canonical `workspace` (e.g. the raw string the frontend
+    // happens to pass, which needn't be canonical) would make every scanned
+    // path below fail to match either of those — the live-recording
+    // exclusion just below, and a later capture_recover call using the very
+    // path this function just returned. Canonicalize once, up front,
+    // falling back to the raw path only if canonicalization itself fails
+    // (e.g. workspace doesn't exist — the subsequent read_dir calls will
+    // then simply find nothing, same as today).
+    let canon_workspace = workspace.canonicalize().unwrap_or_else(|_| workspace.to_path_buf());
     let mut out = Vec::new();
     // Meetings dirs sit at <workspace>/<matter folder>/Meetings/<meeting>.
     // Matter folders are usually one or two levels deep, but firm/practice
@@ -40,9 +51,19 @@ pub fn find_orphans(workspace: &Path) -> Result<Vec<OrphanSession>> {
             }
             let p = e.path();
             if p.file_name().and_then(|n| n.to_str()) == Some(".capture") {
-                if let Ok(m) = SessionManifest::load(p.parent().unwrap_or(&p)) {
+                let scanned_meeting_dir = p.parent().unwrap_or(&p);
+                if let Ok(m) = SessionManifest::load(scanned_meeting_dir) {
+                    // Use the directory actually found on disk this scan,
+                    // NOT `m.meeting_dir` (the absolute path frozen into the
+                    // manifest when the meeting started). If the workspace
+                    // was moved or reopened at a different mount point
+                    // after a crash, the manifest's stale path no longer
+                    // resolves inside the CURRENT workspace root — a
+                    // capture_recover call built from it would get rejected
+                    // by guard_meeting_path's workspace-containment check
+                    // even though the chunks are sitting right here.
                     out.push(OrphanSession {
-                        meeting_dir: m.meeting_dir.to_string_lossy().into_owned(),
+                        meeting_dir: scanned_meeting_dir.to_string_lossy().into_owned(),
                         matter_id: m.matter_id,
                         started_at: m.started_at,
                     });
@@ -52,7 +73,7 @@ pub fn find_orphans(workspace: &Path) -> Result<Vec<OrphanSession>> {
             walk(&p, depth + 1, out);
         }
     }
-    walk(workspace, 0, &mut out);
+    walk(&canon_workspace, 0, &mut out);
     if let Some(active) = active {
         out.retain(|o| PathBuf::from(&o.meeting_dir) != active);
     }
@@ -147,6 +168,67 @@ mod tests {
         let audio = recover(&meeting).unwrap();
         assert!(audio.exists());
         assert!(find_orphans(ws.path()).unwrap().is_empty());
+    }
+
+    /// Regression for the codex-review round-14 finding: `find_orphans`
+    /// used to report `OrphanSession.meeting_dir` from the manifest's own
+    /// `meeting_dir` field — an absolute path frozen in at recording-start
+    /// time. If the workspace is later moved or reopened at a different
+    /// path (e.g. relocated Documents folder, different drive letter), that
+    /// stale path no longer resolves inside the CURRENT workspace root, so
+    /// a `capture_recover` call built from it would get wrongly rejected by
+    /// `guard_meeting_path`'s workspace-containment check even though the
+    /// chunks are sitting right there. This test deliberately saves a
+    /// manifest whose own `meeting_dir` field points somewhere else
+    /// entirely (simulating "workspace moved after the crash") and proves
+    /// `find_orphans` reports the directory it actually scanned instead.
+    #[test]
+    fn find_orphans_reports_the_scanned_path_not_a_stale_manifest_path() {
+        let ws = tempdir().unwrap();
+        let meeting = ws.path().join("Clients/Moved/Meetings/2026-07-01-mmoved");
+        let cap = meeting.join(".capture");
+        let mut w = ChunkWriter::new(&cap, "mic").unwrap();
+        w.write(&vec![7i16; 16_000]).unwrap();
+        drop(w); // crash: no finish, no finalize
+        // `SessionManifest::save()` derives its ON-DISK location from
+        // `self.meeting_dir`, so it can't be used here — that would try to
+        // (re)create the manifest under the stale path instead of at the
+        // REAL location on disk. Write the JSON directly to the real
+        // `.capture/session.json` path (matching what find_orphans will
+        // actually scan), with a stale `meeting_dir` field embedded inside
+        // it — exactly what a manifest written before a workspace move
+        // looks like: the file itself doesn't move with the workspace, but
+        // its own recorded absolute path does become stale.
+        let manifest = SessionManifest {
+            meeting_dir: std::path::PathBuf::from("/this/workspace/no/longer/exists/mmoved"),
+            matter_id: "m-moved".into(),
+            started_at: "2026-07-01T10:00:00Z".into(),
+            consent: ConsentRecord {
+                mode: "one-party".into(),
+                confirmed_by: "user".into(),
+                confirmed_at: "2026-07-01T09:59:00Z".into(),
+                note: String::new(),
+            },
+        };
+        std::fs::write(
+            SessionManifest::path_in(&meeting),
+            serde_json::to_vec_pretty(&manifest).unwrap(),
+        )
+        .unwrap();
+
+        let orphans = find_orphans(ws.path()).unwrap();
+        assert_eq!(orphans.len(), 1);
+        let reported = std::path::PathBuf::from(&orphans[0].meeting_dir);
+        assert!(
+            reported.starts_with(ws.path().canonicalize().unwrap()),
+            "expected the scanned path under the current workspace, got: {reported:?}"
+        );
+        assert_eq!(reported.file_name().unwrap(), "2026-07-01-mmoved");
+        // The scanned path must also be directly recoverable — proving
+        // this isn't just cosmetically "under the workspace" but the exact
+        // directory guard_meeting_path/recover() need.
+        let audio = recover(&reported).unwrap();
+        assert!(audio.exists());
     }
 
     /// Regression for the codex-review round-11 finding: `capture_stop`

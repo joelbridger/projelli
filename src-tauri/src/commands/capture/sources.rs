@@ -515,6 +515,43 @@ impl AudioSource for DelayedFakeSource {
     }
 }
 
+/// Like `DelayedFakeSource`, but delivers its script SYNCHRONOUSLY before
+/// `start()` returns (sleep, then call `on_samples` directly, then return) —
+/// deterministically reproduces the exact scenario codex-review round 14
+/// flagged: a source whose first real callback lands before its own
+/// `start()` call has returned, which used to write real audio straight to
+/// the sys writer ahead of the not-yet-computed gap padding. Because this
+/// delivers before returning, there is no scheduling race to get lucky or
+/// unlucky on — the gate in `start_sources_and_manifest` must buffer these
+/// samples correctly every single time this test runs, not just most of
+/// the time.
+#[cfg(test)]
+pub struct SyncDelayedFakeSource {
+    delay: std::time::Duration,
+    script: Vec<Vec<i16>>,
+}
+
+#[cfg(test)]
+impl SyncDelayedFakeSource {
+    pub fn new(delay: std::time::Duration, script: Vec<Vec<i16>>) -> Self {
+        Self { delay, script }
+    }
+}
+
+#[cfg(test)]
+impl AudioSource for SyncDelayedFakeSource {
+    fn start(&mut self, mut on_samples: Box<dyn FnMut(&[i16]) + Send>) -> Result<()> {
+        std::thread::sleep(self.delay);
+        for buf in self.script.drain(..) {
+            on_samples(&buf);
+        }
+        Ok(())
+    }
+    fn stop(&mut self) -> Result<()> {
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

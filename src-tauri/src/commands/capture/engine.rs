@@ -149,16 +149,41 @@ impl CaptureEngine {
         // timestamp, so without correction every recording would carry a
         // systematic mic/sys channel shift equal to however long sys took
         // to start.
+        //
+        // The sys callback can't write straight to `sys_writer` from the
+        // moment it's registered: cpal (and the mac sidecar's reader thread)
+        // can deliver a first callback before `sys.start()` itself returns,
+        // which — with a direct write — would land REAL audio on disk
+        // before the gap-padding silence computed below, backwards from
+        // the intended order. `SysStart` gates that: every callback that
+        // arrives before the gap is known just buffers in memory instead of
+        // touching the writer; once the gap is computed, the padding and
+        // any buffered real audio are written to `sys_writer` in the
+        // correct order in one locked step, and the gate flips open for
+        // every callback after that. No race window — this is correct
+        // regardless of how the two threads get scheduled.
+        enum SysStart {
+            Buffering(Vec<i16>),
+            Open,
+        }
+        let sys_start: Arc<Mutex<SysStart>> = Arc::new(Mutex::new(SysStart::Buffering(Vec::new())));
         let mic_ready_at = Instant::now();
         {
             let w = sys_writer.clone();
             let err = write_error.clone();
+            let gate = sys_start.clone();
             sys.start(Box::new(move |s| {
-                if let Ok(mut w) = w.lock() {
-                    if let Err(e) = w.write(s) {
-                        let mut err = err.lock().unwrap();
-                        if err.is_none() {
-                            *err = Some(format!("system audio channel: {e}"));
+                let mut g = gate.lock().unwrap();
+                match &mut *g {
+                    SysStart::Buffering(buf) => buf.extend_from_slice(s),
+                    SysStart::Open => {
+                        if let Ok(mut w) = w.lock() {
+                            if let Err(e) = w.write(s) {
+                                let mut err = err.lock().unwrap();
+                                if err.is_none() {
+                                    *err = Some(format!("system audio channel: {e}"));
+                                }
+                            }
                         }
                     }
                 }
@@ -168,18 +193,33 @@ impl CaptureEngine {
         // real audio at its front (mic has genuine content there; sys never
         // captured that window at all). Pad sys's leading edge with silence
         // for the measured gap so both channels represent the same
-        // wall-clock start instant. This can't be perfectly sample-accurate
-        // — it races the sys audio thread's own first callback for the
-        // writer lock — but that race window is microseconds against a gap
-        // measured in tens/hundreds of milliseconds, a large practical
-        // improvement even without a hard synchronization guarantee (which
-        // isn't achievable across independent OS audio devices anyway).
+        // wall-clock start instant — this can't be perfectly sample-
+        // accurate against real wall-clock time (OS audio APIs don't offer
+        // true cross-device sample sync), but it fixes the systematic
+        // whole-recording shift the naive direct-write version had.
         let gap_ms = Instant::now().saturating_duration_since(mic_ready_at).as_millis() as u64;
         let gap_samples = (gap_ms * super::chunks::SAMPLE_RATE as u64) / 1000;
-        if gap_samples > 0 {
-            if let Ok(mut w) = sys_writer.lock() {
-                let _ = w.write(&vec![0i16; gap_samples as usize]);
+        {
+            let mut g = sys_start.lock().unwrap();
+            if let SysStart::Buffering(buffered) = &mut *g {
+                let buffered = std::mem::take(buffered);
+                if let Ok(mut w) = sys_writer.lock() {
+                    let mut result = Ok(());
+                    if gap_samples > 0 {
+                        result = w.write(&vec![0i16; gap_samples as usize]);
+                    }
+                    if result.is_ok() && !buffered.is_empty() {
+                        result = w.write(&buffered);
+                    }
+                    if let Err(e) = result {
+                        let mut err = write_error.lock().unwrap();
+                        if err.is_none() {
+                            *err = Some(format!("system audio channel: {e}"));
+                        }
+                    }
+                }
             }
+            *g = SysStart::Open;
         }
         Ok(write_error)
     }
@@ -660,6 +700,51 @@ mod tests {
         assert!(
             leading_silence >= 1_000,
             "expected at least 1000 samples of leading silence on the sys channel, got {leading_silence}"
+        );
+    }
+
+    /// Regression for the codex-review round-14 finding: a sys source can
+    /// deliver its first real callback BEFORE its own `start()` call
+    /// returns (real cpal can do this after `stream.play()`, as can the mac
+    /// sidecar's reader thread) — the round-13 fix wrote gap padding right
+    /// after `sys.start()` returned, so a callback that already fired
+    /// during `start()` would have landed real audio on disk BEFORE the
+    /// padding, backwards. `SyncDelayedFakeSource` delivers synchronously
+    /// before returning — a deterministic reproduction of exactly that
+    /// scenario, not a scheduling race — proving the gate now buffers those
+    /// samples until the padding is written first, every time.
+    #[tokio::test]
+    async fn sys_callback_arriving_before_start_returns_is_still_buffered_behind_padding() {
+        use crate::commands::capture::sources::SyncDelayedFakeSource;
+        use std::time::Duration;
+
+        let ws = tempdir().unwrap();
+        let mic = Box::new(FakeSource::new(vec![vec![100i16; 4_000]]));
+        let sys = Box::new(SyncDelayedFakeSource::new(
+            Duration::from_millis(50),
+            vec![vec![-100i16; 4_000]],
+        ));
+        let engine = CaptureEngine::start_with_sources(
+            ws.path(),
+            "m-sync-align",
+            "Clients/SyncAlign Household",
+            consent("one-party"),
+            mic,
+            sys,
+        )
+        .unwrap();
+        let result = engine.stop().unwrap();
+        let r = hound::WavReader::open(&result.audio_path).unwrap();
+        let samples: Vec<i16> = r.into_samples::<i16>().map(|s| s.unwrap()).collect();
+        let right_channel: Vec<i16> = samples.iter().skip(1).step_by(2).copied().collect();
+        let leading_silence = right_channel.iter().take_while(|&&s| s == 0).count();
+        assert!(
+            leading_silence >= 300,
+            "expected real leading silence on the sys channel, got {leading_silence}"
+        );
+        assert_eq!(
+            right_channel[leading_silence], -100,
+            "real sys audio must come AFTER the padding, not before it"
         );
     }
 
