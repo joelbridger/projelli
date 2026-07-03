@@ -258,6 +258,21 @@ describe('MailGmailConnect — BUG-008 Reconnect button', () => {
     expect(mockGmailDisconnect).not.toHaveBeenCalled();
     expect(screen.getByText(/connected\./i)).toBeInTheDocument();
   });
+
+  // Codex review finding on the not-configured fix: a token saved by an
+  // earlier (properly configured) build can leave this panel showing
+  // "Connected" even though THIS build has no Google OAuth credentials —
+  // without this, clicking Reconnect would silently fail with zero feedback.
+  it('shows the "not set up" note and disables Reconnect when a token exists but this build has no Google client credentials', async () => {
+    mockGmailOauthConfigured.mockResolvedValue(false);
+
+    render(<MailGmailConnect />);
+    await waitFor(() => expect(mockGmailOauthConfigured).toHaveBeenCalled());
+
+    expect(screen.getByText(/connected\./i)).toBeInTheDocument();
+    expect(await screen.findByTestId('mail-gmail-not-configured')).toBeInTheDocument();
+    expect(screen.getByTestId('mail-gmail-reconnect')).toBeDisabled();
+  });
 });
 
 // BUG-008: sync-stall watchdog (uses fake timers)

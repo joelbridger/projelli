@@ -209,11 +209,22 @@ export function MailGmailConnect() {
             </p>
           )}
           {connectError && <p className="mt-1 text-red-700">Something went wrong: {connectError}</p>}
+          {!configured && (
+            /* A saved token from an earlier (properly configured) build can
+               leave this panel showing "Connected" even though THIS build has
+               no Google OAuth client credentials — Reconnect would otherwise
+               fail with zero visible feedback (Codex review finding). Same
+               calm tone as the disconnected-state note (UX-22). */
+            <div data-testid="mail-gmail-not-configured" className="mt-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+              {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string */}
+              <p>Gmail sign-in isn&apos;t set up on this build yet — Reconnect won&apos;t work until that&apos;s fixed.</p>
+            </div>
+          )}
           <div className="mt-2 flex items-center gap-2">
             <button
               type="button"
               data-testid="mail-gmail-reconnect"
-              disabled={connecting}
+              disabled={connecting || !configured}
               onClick={() => void reconnect()}
               className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
             >
