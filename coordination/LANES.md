@@ -12,14 +12,14 @@ Last updated: 2026-07-03 ~22:40 (coordinator-5)
 | cc-lantern-w4a | Wave-4 Track A diarization (lp/diarization) — all 7 build tasks done; self-review round 3 | converging |
 | cc-lantern-azfix | Azure cloud bench MSVC-linker fix — compiling the full app on the VM; 90-min cost cap | verifying |
 | cc-lantern-strategy | Jump battle-plan strategic package (lp/jump-strategy, FABLE 5 — Jameson's directive) | researching |
-| cc-lantern-harness | Scripted bench-smoke harness (lp/bench-smoke-harness) — automates the manual smoke checklist | building |
+| cc-lantern-harness | Scripted bench-smoke harness (lp/bench-smoke-harness) — offline-verified 66/66; LIVE validation on the Legion now | live-validating |
 
 ## Merged this session
 ✅ lp/crm-wire-fixes @b3bca9a0 — Wealthbox due-date validation + write-direction fix + readback verification (gate 5608 vitest + 1108 cargo)
 ✅ bench-prep lane DONE @617d60ea — Legion pre-warmed to current tip, health-verified, quiet (BENCH-READY.md)
 
 ## Legion sequence (one driver at a time)
-✅ bench-prep DONE → w3 Task 6 (Legion FREE + pre-warmed, headset ready) device verification → harness live validation
+✅ bench-prep DONE → harness live validation (NOW — owns Legion, yields to w3 on request) → w3 Task 6 device verification (headset ready)
 
 ## Serialization invariants
 One merge in flight · one cargo per lane cache (per-lane CARGO_TARGET_DIRs on /mnt/devcache) · one Legion driver · coordinator merges only.
