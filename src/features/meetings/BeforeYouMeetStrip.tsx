@@ -128,9 +128,15 @@ export function BeforeYouMeetStrip({ matterId }: { matterId: string }) {
     const events = await calendarListEvents(fromUtc, toUtc).catch(() => []);
     const event = events.find((e) => e.id === brief.eventId);
     if (event) {
-      useBriefStore
-        .getState()
-        .upsert({ ...brief, stale: true, status: 'pending' });
+      // COORDINATOR FINDING (P2): enqueueBriefs() skips any job whose
+      // EXISTING store status is already 'pending'/'generating' — setting
+      // status: 'pending' here BEFORE calling it made that skip-check trip
+      // on our own write, so the brief froze on "Preparing your briefing…"
+      // forever with nothing ever re-queued. Only mark it stale (status
+      // stays 'ready', so neither of enqueueBriefs' skip conditions fire);
+      // enqueueBriefs' own internal upsert transitions it through pending
+      // -> generating -> ready once the job actually runs.
+      useBriefStore.getState().upsert({ ...brief, stale: true });
       enqueueBriefs([{ matterId, event }]);
     }
   }
