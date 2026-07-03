@@ -41,13 +41,21 @@ export function buildBookFactsDigest(
   return { clients, totalFacts };
 }
 
+/** Neutralize the `<book-facts>` fence delimiter (and any other tag-like
+ *  syntax) inside untrusted fact text before it's embedded in the prompt, so
+ *  a document containing a literal `</book-facts>` can't close the data block
+ *  early and turn the remainder of the prompt into instructions. */
+function escapeForPromptFence(text: string): string {
+  return text.replace(/</g, '‹').replace(/>/g, '›');
+}
+
 export function buildBookAskPrompt(
   question: string,
   digest: BookFactsDigest,
 ): { systemPrompt: string; userMessage: string } {
   const blocks = digest.clients
     .map((c) => {
-      const lines = c.facts.map((f) => `- [${f.itemId}] ${f.text.replace(/\n/g, ' ')}`).join('\n');
+      const lines = c.facts.map((f) => `- [${f.itemId}] ${escapeForPromptFence(f.text.replace(/\n/g, ' '))}`).join('\n');
       return `### ${c.label} (matterId: ${c.matterId})\n${lines || '- (no facts recorded yet)'}`;
     })
     .join('\n\n');

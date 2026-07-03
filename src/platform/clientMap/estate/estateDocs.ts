@@ -78,34 +78,42 @@ export function extractBeneficiaryEvidence(map: ClientMap): {
   accountMentions: { account: string; source: SourceRef }[];
   lifeEvents: { event: string; dateIso: string | null }[];
 } {
-  const estate: EstateDocEvidence[] = [];
-  const accountMentions: { account: string; source: SourceRef }[] = [];
-  const lifeEvents: { event: string; dateIso: string | null }[] = [];
-  const seenRefs = new Set<string>();
   const items: ClientMapItem[] = map.sections.flatMap((s) => s.items);
+
+  // Pass 1: aggregate ALL text referencing the same source ref. The same
+  // document can be introduced by one Client Map item with just its title and
+  // date, while a LATER item's snippet of that same ref carries the actual
+  // beneficiary names — classifying/extracting from only the first occurrence
+  // would silently miss that evidence.
+  const byRef = new Map<string, { texts: string[]; source: SourceRef }>();
   for (const it of items) {
     for (const src of it.sources) {
       const text = `${it.text}\n${src.snippet}`;
-      if (!seenRefs.has(src.ref)) {
-        const cls = classifyEstateSource({ path: src.ref, text });
-        if (cls) {
-          seenRefs.add(src.ref);
-          const accountHint = ACCOUNT_RE.exec(text)?.[1] ?? null;
-          estate.push({
-            ...cls,
-            parties: partiesIn(text),
-            accountHint,
-            source: src,
-          });
-        }
-      }
-      const acct = ACCOUNT_RE.exec(text);
-      if (acct?.[1] !== undefined && !estate.some((e) => e.source.ref === src.ref)) {
-        accountMentions.push({ account: acct[1], source: src });
-      }
-      const ev = LIFE_EVENT_RE.exec(text);
-      if (ev?.[1] !== undefined) lifeEvents.push({ event: ev[1].toLowerCase().replace(/\s+/g, ' '), dateIso: parseLongDate(text) });
+      const existing = byRef.get(src.ref);
+      if (existing) existing.texts.push(text);
+      else byRef.set(src.ref, { texts: [text], source: src });
     }
+  }
+
+  const estate: EstateDocEvidence[] = [];
+  const accountMentions: { account: string; source: SourceRef }[] = [];
+  const lifeEvents: { event: string; dateIso: string | null }[] = [];
+  for (const { texts, source } of byRef.values()) {
+    const combined = texts.join('\n');
+    const cls = classifyEstateSource({ path: source.ref, text: combined });
+    if (cls) {
+      estate.push({
+        ...cls,
+        parties: partiesIn(combined),
+        accountHint: ACCOUNT_RE.exec(combined)?.[1] ?? null,
+        source,
+      });
+    } else {
+      const acct = ACCOUNT_RE.exec(combined);
+      if (acct?.[1] !== undefined) accountMentions.push({ account: acct[1], source });
+    }
+    const ev = LIFE_EVENT_RE.exec(combined);
+    if (ev?.[1] !== undefined) lifeEvents.push({ event: ev[1].toLowerCase().replace(/\s+/g, ' '), dateIso: parseLongDate(combined) });
   }
   return { estate, accountMentions, lifeEvents };
 }

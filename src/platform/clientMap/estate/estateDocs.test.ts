@@ -67,4 +67,18 @@ describe('extractBeneficiaryEvidence', () => {
     expect(ev.accountMentions.some((a) => /ira/i.test(a.account))).toBe(true);
     expect(ev.lifeEvents.some((l) => l.event === 'married' && l.dateIso === '2024-06-14')).toBe(true);
   });
+
+  it('aggregates snippets from the SAME source ref across multiple items before extracting parties', () => {
+    // The trust doc is introduced by one item with only its title/date, and a
+    // LATER item's snippet of that SAME ref is where the beneficiary name
+    // actually appears — extraction must see both, not just the first hit.
+    const map = emptyClientMap('m1');
+    at(map.sections, 0).items = [
+      item('Trust document on file', 'Clients/H/Family-Trust.pdf', 'REVOCABLE LIVING TRUST dated March 4, 2019.'),
+      item('Trust names Susan as beneficiary', 'Clients/H/Family-Trust.pdf', 'Primary beneficiary: Susan Henderson.'),
+    ];
+    const ev = extractBeneficiaryEvidence(map);
+    expect(ev.estate).toHaveLength(1);
+    expect(ev.estate[0]?.parties).toContain('Susan Henderson');
+  });
 });

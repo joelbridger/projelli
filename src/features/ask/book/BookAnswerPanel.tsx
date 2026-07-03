@@ -5,6 +5,7 @@
 import { useTranslation } from 'react-i18next';
 import { FolderOpen } from 'lucide-react';
 import { Chip, Callout } from '@/ui/kp';
+import type { SourceRef } from '@/platform/clientMap/types';
 import type { BookAskResult } from './bookFacts';
 
 export function BookAnswerPanel({ result, loading, error, onOpenClient, onOpenSource }: {
@@ -12,7 +13,9 @@ export function BookAnswerPanel({ result, loading, error, onOpenClient, onOpenSo
   loading: boolean;
   error: string | null;
   onOpenClient: (matterId: string) => void;
-  onOpenSource: (matterId: string, ref: string, snippet: string) => void;
+  /** The full SourceRef (not just ref+snippet) so the caller can dispatch by
+   *  its real `kind` — email/CRM/etc. sources open differently than documents. */
+  onOpenSource: (matterId: string, source: SourceRef) => void;
 }) {
   const { t } = useTranslation();
   if (loading) return <p data-testid="book-loading" style={{ fontSize: 13 }}>{t('ask.book.loading')}</p>;
@@ -36,7 +39,7 @@ export function BookAnswerPanel({ result, loading, error, onOpenClient, onOpenSo
                 </Chip>
                 {m.facts.map((f) => (
                   <button key={f.itemId} type="button" data-testid={`book-fact-${f.itemId}`}
-                    onClick={() => { if (f.source) onOpenSource(m.matterId, f.source.ref, f.source.snippet); else onOpenClient(m.matterId); }}
+                    onClick={() => { if (f.source) onOpenSource(m.matterId, f.source); else onOpenClient(m.matterId); }}
                     style={{ textAlign: 'left', fontSize: 12.5, background: 'var(--kp-surface-2, #f8fafc)', border: '1px solid var(--kp-divider, #e5e7eb)', borderRadius: 6, padding: '6px 10px', cursor: 'pointer', maxWidth: 420 }}>
                     {f.text}
                   </button>

@@ -7,7 +7,10 @@ const result = {
   answer: 'Alvarez and Bishop both mention 529 plans.',
   model: 'test-model',
   matches: [
-    { matterId: 'm1', label: 'Alvarez', facts: [{ itemId: 'i1', sectionKey: 'goals', text: '529 for grandkids', source: { kind: 'document' as const, ref: '/w/Alvarez/plan.pdf', snippet: '529 for grandkids' } }] },
+    { matterId: 'm1', label: 'Alvarez', facts: [
+      { itemId: 'i1', sectionKey: 'goals', text: '529 for grandkids', source: { kind: 'document' as const, ref: '/w/Alvarez/plan.pdf', snippet: '529 for grandkids' } },
+      { itemId: 'i3', sectionKey: 'goals', text: 'mentioned in an email', source: { kind: 'email' as const, ref: 'mail:42', snippet: 'mentioned in an email' } },
+    ] },
     { matterId: 'm2', label: 'Bishop', facts: [{ itemId: 'i2', sectionKey: 'goals', text: '529 for niece' }] },
   ],
 };
@@ -26,6 +29,12 @@ describe('BookAnswerPanel', () => {
     fireEvent.click(screen.getByTestId('book-client-chip-m1'));
     expect(openClient).toHaveBeenCalledWith('m1');
     fireEvent.click(screen.getByTestId('book-fact-i1'));
-    expect(openSource).toHaveBeenCalledWith('m1', '/w/Alvarez/plan.pdf', '529 for grandkids');
+    expect(openSource).toHaveBeenCalledWith('m1', { kind: 'document', ref: '/w/Alvarez/plan.pdf', snippet: '529 for grandkids' });
+  });
+  it('passes the full SourceRef through (including non-document kinds) so the caller can dispatch by kind', () => {
+    const openSource = vi.fn();
+    render(<BookAnswerPanel result={result} loading={false} error={null} onOpenClient={() => {}} onOpenSource={openSource} />);
+    fireEvent.click(screen.getByTestId('book-fact-i3'));
+    expect(openSource).toHaveBeenCalledWith('m1', { kind: 'email', ref: 'mail:42', snippet: 'mentioned in an email' });
   });
 });
