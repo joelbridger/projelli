@@ -15,8 +15,8 @@ Last updated: 2026-07-03 ~22:40 (coordinator-5)
 | cc-lantern-harness | Scripted bench-smoke harness (lp/bench-smoke-harness) — automates the manual smoke checklist | building |
 
 ## Merged this session
-✅ lp/crm-wire-fixes @b3bca9a0 (Wealthbox wire fixes)
-✅ bench-prep lane DONE @617d60ea — Legion pre-warmed to current tip, health-verified, quiet (BENCH-READY.md) (Wealthbox due-date validation + write-direction fix + readback verification; gate 5608 vitest + 1108 cargo)
+✅ lp/crm-wire-fixes @b3bca9a0 — Wealthbox due-date validation + write-direction fix + readback verification (gate 5608 vitest + 1108 cargo)
+✅ bench-prep lane DONE @617d60ea — Legion pre-warmed to current tip, health-verified, quiet (BENCH-READY.md)
 
 ## Legion sequence (one driver at a time)
 ✅ bench-prep DONE → w3 Task 6 (Legion FREE + pre-warmed, headset ready) device verification → harness live validation
