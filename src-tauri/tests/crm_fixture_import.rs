@@ -194,6 +194,7 @@ async fn crm_purge_e2e_removes_both_db_rows_and_rag_chunks() {
     use arrow_array::RecordBatchIterator;
     use lantern_lib::commands::crm::commands::{crm_disconnect_logic, CrmState};
     use lantern_lib::commands::crm::store::CrmStore;
+    use lantern_lib::commands::crm::write::WriteInFlightGuard;
     use lantern_lib::commands::rag::chunker::chunk_text;
     use lantern_lib::commands::rag::embedder::EMBEDDING_DIM;
     use lantern_lib::commands::rag::store::{self, build_batch_crm, PRIVILEGE_NONE};
@@ -217,6 +218,7 @@ async fn crm_purge_e2e_removes_both_db_rows_and_rag_chunks() {
         last_report: tokio::sync::Mutex::new(None),
         progress_households: Arc::new(std::sync::atomic::AtomicU32::new(0)),
         oauth_cancel: Arc::new(AtomicBool::new(false)),
+        write_guard: WriteInFlightGuard::new(),
     };
 
     // ── 2: Seed the CRM DB rows ───────────────────────────────────────────────
