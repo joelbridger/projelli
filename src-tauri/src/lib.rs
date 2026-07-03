@@ -168,6 +168,8 @@ pub fn run() {
             commands::mail::mail_imap_disconnect,
             // Gmail native provider (loopback PKCE OAuth).
             commands::mail::gmail_connect,
+            commands::mail::gmail_connect_cancel,
+            commands::mail::gmail_oauth_configured,
             commands::mail::gmail_is_connected,
             commands::mail::gmail_disconnect,
             // Outlook loopback auth-code + PKCE (replaces device-code for personal accounts).

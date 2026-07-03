@@ -18,6 +18,7 @@
 import { Lock, FileSearch } from 'lucide-react';
 import { Button } from '@/ui/button';
 import type { ChatProvider } from '@/features/ask/chat/providerModelResolution';
+import { isLocalProviderId } from '@/platform/providers/providerFactory';
 import {
   fileToolsAllowed,
   type ConsentScope,
@@ -41,8 +42,6 @@ interface FileAccessConsentBannerProps {
   className?: string;
 }
 
-const CLOUD_PROVIDERS = new Set<string>(['anthropic', 'openai', 'google']);
-
 export function FileAccessConsentBanner({
   effectiveProvider,
   consent,
@@ -52,8 +51,17 @@ export function FileAccessConsentBanner({
   className,
 }: FileAccessConsentBannerProps) {
   // Consent only governs cloud sends — local engines don't register tools and
-  // "nothing leaves the device", so there's nothing to consent to.
-  if (!effectiveProvider || !CLOUD_PROVIDERS.has(effectiveProvider)) return null;
+  // "nothing leaves the device", so there's nothing to consent to. "Cloud"
+  // here is the SAME predicate the send path gates on (isLocalProviderId,
+  // negated) — not a second hardcoded provider list. The old local `Set` of
+  // the three known cloud ids drifted from the gate's fail-closed "anything
+  // not local is cloud" rule: any provider id the Set didn't name (a future
+  // provider, or a test double) would be BLOCKED by the gate with no "Allow"
+  // affordance ever rendering, a silent dead end. Sharing one predicate keeps
+  // the gate and its only escape hatch permanently in sync.
+  if (!effectiveProvider || effectiveProvider === 'none' || isLocalProviderId(effectiveProvider)) {
+    return null;
+  }
 
   const allowed = fileToolsAllowed(consent, consentScope);
   const grant = () => { onChange({ state: 'granted', grantedScope: consentScope }); };

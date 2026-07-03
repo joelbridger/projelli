@@ -20,6 +20,7 @@
 import { useEffect } from 'react';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { workspacePath } from '@/platform/fs/appPath';
+import { WORKSPACE_DATA_DIR } from '@/config/identity';
 import {
   isOcrScannedPdfsEnabled,
   isPdfIndexingEnabled,
@@ -145,6 +146,25 @@ function isAbsoluteWorkspacePath(path: string): boolean {
 
 function toForwardSlashPath(path: string): string {
   return path.replace(/\\/g, '/').replace(/\/+$/, '');
+}
+
+/**
+ * fix/ask-list-hang — true when a path lives inside the app's own internal
+ * workspace data directory (`.lantern/`). These files (e.g. the MCP
+ * session-scope file, the RAG manifest, the vector store) are Advisor Prep
+ * Hero's private plumbing, NOT user documents, and must never be fed to the RAG
+ * indexer. The full-workspace walk already skips `.lantern` via
+ * `is_skipped_dir_name`; the single-file watcher path did not, so the MCP
+ * session-scope heartbeat's repeated `.lantern/mcp-session-scope.json` rewrites
+ * were re-indexed on every change — keeping LanceDB perpetually busy and
+ * starving the on-demand Ask retrieval into an indefinite hang. Matches a
+ * `.lantern` path SEGMENT (not a substring) across both separators, so a real
+ * user file whose name merely contains ".lantern" is unaffected.
+ */
+export function isInternalWorkspacePath(path: string): boolean {
+  return toForwardSlashPath(path)
+    .split('/')
+    .includes(WORKSPACE_DATA_DIR);
 }
 
 /** Convert a workspace-relative path into the same absolute forward-slash path shape the RAG store uses. */
@@ -686,6 +706,11 @@ export function useMemoryWiring(
           (event) => {
             const payload = event.payload;
             if (!payload?.path) return;
+            // fix/ask-list-hang — NEVER react to churn in the app's own internal
+            // `.lantern/` directory (the MCP session-scope heartbeat rewrites a
+            // file there constantly). Indexing that churn kept LanceDB busy
+            // forever and hung Ask retrieval. Internal files are never user docs.
+            if (isInternalWorkspacePath(payload.path)) return;
             // Best-effort: don't await, don't surface errors.
             const isPdf = payload.path.toLowerCase().endsWith('.pdf');
             if (payload.kind === 'delete') {

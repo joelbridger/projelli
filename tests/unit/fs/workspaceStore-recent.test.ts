@@ -30,6 +30,7 @@ beforeEach(() => {
     selectedPaths: new Set(),
     lastSelectedPath: null,
     recentWorkspaces: [],
+    recentWorkspacesLoaded: false,
   });
 });
 
@@ -127,5 +128,40 @@ describe('recent workspace path cleanup', () => {
 
     const persisted = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]') as Array<{ name: string }>;
     expect(persisted.map((w) => w.name)).toEqual(['Alive']);
+  });
+});
+
+describe('recentWorkspacesLoaded', () => {
+  // Regression: callers that decide boot behavior off recentWorkspaces (e.g.
+  // auto-resuming the last workspace) can't tell "not loaded yet" apart from
+  // "genuinely no recent workspaces" from recentWorkspaces.length alone,
+  // because the array starts empty and is only populated once
+  // loadRecentWorkspaces() runs. This flag must end up true either way.
+  it('starts false and becomes true after loadRecentWorkspaces(), even with nothing stored', () => {
+    expect(useWorkspaceStore.getState().recentWorkspacesLoaded).toBe(false);
+
+    useWorkspaceStore.getState().loadRecentWorkspaces();
+
+    expect(useWorkspaceStore.getState().recentWorkspacesLoaded).toBe(true);
+    expect(useWorkspaceStore.getState().recentWorkspaces).toEqual([]);
+  });
+
+  it('becomes true after loadRecentWorkspaces() when there is stored data', () => {
+    localStorage.setItem(RECENT_KEY, JSON.stringify([
+      { path: 'C:/Alive', name: 'Alive', lastOpened: '2026-06-24T10:00:00Z' },
+    ]));
+
+    useWorkspaceStore.getState().loadRecentWorkspaces();
+
+    expect(useWorkspaceStore.getState().recentWorkspacesLoaded).toBe(true);
+    expect(useWorkspaceStore.getState().recentWorkspaces).toHaveLength(1);
+  });
+
+  it('becomes true even when the stored blob is corrupt JSON', () => {
+    localStorage.setItem(RECENT_KEY, '{not valid json');
+
+    useWorkspaceStore.getState().loadRecentWorkspaces();
+
+    expect(useWorkspaceStore.getState().recentWorkspacesLoaded).toBe(true);
   });
 });
