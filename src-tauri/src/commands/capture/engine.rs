@@ -140,6 +140,16 @@ impl CaptureEngine {
                 }
             }))?;
         }
+        // `AudioSource::start` doesn't return until its stream is confirmed
+        // playing (see CpalSource::start's `ready_rx.recv()`), so this is
+        // reached strictly AFTER mic is already recording — on macOS,
+        // `MacTapSource::start`'s own 300ms permission-check grace period
+        // makes that gap large enough to matter. `finalize_session` pairs
+        // the two chunk files sample-index-for-sample-index with no
+        // timestamp, so without correction every recording would carry a
+        // systematic mic/sys channel shift equal to however long sys took
+        // to start.
+        let mic_ready_at = Instant::now();
         {
             let w = sys_writer.clone();
             let err = write_error.clone();
@@ -153,6 +163,23 @@ impl CaptureEngine {
                     }
                 }
             }))?;
+        }
+        // sys started `gap` after mic did, so sys is MISSING `gap` worth of
+        // real audio at its front (mic has genuine content there; sys never
+        // captured that window at all). Pad sys's leading edge with silence
+        // for the measured gap so both channels represent the same
+        // wall-clock start instant. This can't be perfectly sample-accurate
+        // — it races the sys audio thread's own first callback for the
+        // writer lock — but that race window is microseconds against a gap
+        // measured in tens/hundreds of milliseconds, a large practical
+        // improvement even without a hard synchronization guarantee (which
+        // isn't achievable across independent OS audio devices anyway).
+        let gap_ms = Instant::now().saturating_duration_since(mic_ready_at).as_millis() as u64;
+        let gap_samples = (gap_ms * super::chunks::SAMPLE_RATE as u64) / 1000;
+        if gap_samples > 0 {
+            if let Ok(mut w) = sys_writer.lock() {
+                let _ = w.write(&vec![0i16; gap_samples as usize]);
+            }
         }
         Ok(write_error)
     }
@@ -571,10 +598,69 @@ mod tests {
         assert!(result.audio_path.exists());
         let r = hound::WavReader::open(&result.audio_path).unwrap();
         assert_eq!(r.spec().channels, 2);
-        assert_eq!(r.len(), 32_000 * 2); // padded to the longer channel
+        // Padded to the longer channel (32_000 interleaved frames = 64_000
+        // total samples). Not an exact equality: the round-13 start-gap
+        // alignment fix pads the sys channel's front with silence for
+        // whatever gap elapsed between mic.start() and sys.start()
+        // returning, and even two back-to-back FakeSource calls (no
+        // simulated device delay at all) take a small nonzero, environment-
+        // dependent amount of wall-clock time — so a few extra samples of
+        // real, correctly-computed padding here is expected, not a bug.
+        let len = r.len();
+        assert!(
+            (32_000 * 2..32_000 * 2 + 4_000).contains(&len),
+            "expected ~64_000 samples (+ a small natural start-gap padding), got {len}"
+        );
         assert!(result.meeting_dir.join(".capture").exists() == false);
         // Manifest breadcrumb must NOT survive finalize.
         assert!(!SessionManifest::path_in(&result.meeting_dir).exists());
+    }
+
+    /// Regression for the codex-review round-13 finding: `sys.start()`
+    /// doesn't return until its stream is confirmed playing, so a
+    /// slow-to-start system-audio source (macOS's 300ms permission grace
+    /// period, or any slow loopback device) used to leave sys's real audio
+    /// shifted earlier relative to mic once `finalize_session` pairs the two
+    /// channels sample-index-for-sample-index. `DelayedFakeSource` (real
+    /// `std::thread::sleep`, no hardware needed) simulates that slow start;
+    /// this proves the merged stereo file now has silence padding on the
+    /// sys (right) channel's front instead of a systematic shift.
+    #[tokio::test]
+    async fn slow_starting_sys_source_gets_leading_silence_padding_not_a_channel_shift() {
+        use crate::commands::capture::sources::DelayedFakeSource;
+        use std::time::Duration;
+
+        let ws = tempdir().unwrap();
+        let mic = Box::new(FakeSource::new(vec![vec![100i16; 4_000]]));
+        let sys =
+            Box::new(DelayedFakeSource::new(Duration::from_millis(150), vec![vec![-100i16; 4_000]]));
+        let engine = CaptureEngine::start_with_sources(
+            ws.path(),
+            "m-align",
+            "Clients/Align Household",
+            consent("one-party"),
+            mic,
+            sys,
+        )
+        .unwrap();
+        let result = engine.stop().unwrap();
+        let r = hound::WavReader::open(&result.audio_path).unwrap();
+        let samples: Vec<i16> = r.into_samples::<i16>().map(|s| s.unwrap()).collect();
+        // Interleaved stereo: [L0, R0, L1, R1, ...]. Mic (L) has no gap to
+        // pad — its real audio starts immediately at sample 0.
+        assert_eq!(samples[0], 100, "mic channel must not be padded/shifted");
+        // sys (R) should have real leading silence padding: at 16kHz a
+        // 150ms gap is ~2400 samples; assert at least 1000 (62.5ms) of
+        // leading silence to leave generous slack for scheduling jitter on
+        // a loaded CI/dev box, while still proving padding — not just
+        // "R happens to be 0 at index 1" — actually occurred.
+        let right_channel: Vec<i16> = samples.iter().skip(1).step_by(2).copied().collect();
+        let leading_silence =
+            right_channel.iter().take_while(|&&s| s == 0).count();
+        assert!(
+            leading_silence >= 1_000,
+            "expected at least 1000 samples of leading silence on the sys channel, got {leading_silence}"
+        );
     }
 
     /// Regression for the codex-review round-9 finding: the mic/sys

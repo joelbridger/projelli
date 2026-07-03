@@ -465,6 +465,56 @@ impl AudioSource for FakeSource {
     }
 }
 
+/// Like `FakeSource`, but `start()` sleeps for `delay` (simulating a source
+/// that's slow to become ready — real cpal devices, and especially
+/// `MacTapSource`'s 300ms permission-check grace period) and then delivers
+/// its script from a SPAWNED thread rather than synchronously before
+/// returning. That distinction matters for testing the mic/sys channel
+/// start-gap alignment padding in
+/// `CaptureEngine::start_sources_and_manifest`: real `AudioSource::start`
+/// impls return once the stream is confirmed playing and deliver audio via
+/// callbacks that fire later, asynchronously, from a separate thread — a
+/// fake that delivered its script synchronously before `start()` returns
+/// would land ALL its "real" samples before the caller's post-start()
+/// padding code ever runs, backwards from what production actually races.
+#[cfg(test)]
+pub struct DelayedFakeSource {
+    delay: std::time::Duration,
+    script: Vec<Vec<i16>>,
+    join: Option<std::thread::JoinHandle<()>>,
+}
+
+#[cfg(test)]
+impl DelayedFakeSource {
+    pub fn new(delay: std::time::Duration, script: Vec<Vec<i16>>) -> Self {
+        Self { delay, script, join: None }
+    }
+}
+
+#[cfg(test)]
+impl AudioSource for DelayedFakeSource {
+    fn start(&mut self, mut on_samples: Box<dyn FnMut(&[i16]) + Send>) -> Result<()> {
+        std::thread::sleep(self.delay);
+        let script = std::mem::take(&mut self.script);
+        self.join = Some(std::thread::spawn(move || {
+            for buf in script {
+                on_samples(&buf);
+            }
+        }));
+        Ok(())
+    }
+    fn stop(&mut self) -> Result<()> {
+        // Join before returning, same as CpalSource/MacTapSource — the
+        // caller (CaptureEngine::stop) runs finalize_session right after
+        // both sources stop, and it must never race the spawned delivery
+        // thread for the tail of this fake's script.
+        if let Some(j) = self.join.take() {
+            let _ = j.join();
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
