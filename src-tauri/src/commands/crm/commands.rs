@@ -408,18 +408,48 @@ async fn downgrade_stale_sent_rows_for_workspace_best_effort(
     caller: &'static str,
 ) {
     let provider_id = provider.id();
-    let result = tokio::task::spawn_blocking(move || -> anyhow::Result<usize> {
-        let store = CrmStore::open(&ws)?;
-        Ok(store.mark_sent_rows_pending_verify_for_provider(provider_id)?)
-    })
-    .await;
-    match result {
-        Ok(Ok(n)) if n > 0 => {
-            log::info!("{caller}: downgraded {n} stale '{provider_id}' sent row(s) to pending_verify");
+    // Retry a few times against a TRANSIENT failure (the most realistic real
+    // cause — e.g. another operation briefly holding the SQLite file lock)
+    // before giving up. A workspace-open connect leaving stale 'sent' rows
+    // un-downgraded is not merely "nothing to protect" (the no-workspace
+    // case) — it's a failed safety-critical write, so it's worth a few
+    // retries rather than a single best-effort attempt.
+    //
+    // Residual (not fully closed): if the failure is NOT transient (e.g. the
+    // CRM database file itself is corrupt), all retries exhaust and this
+    // still logs + proceeds without downgrading — closing that fully would
+    // need the connect to fail and roll back the just-stored token, which
+    // the Redtail and plain-token connect paths don't currently have
+    // plumbing for (unlike the OAuth path's rollback_token). Flagged for a
+    // follow-up rather than restructuring all three connect paths now.
+    const ATTEMPTS: u32 = 3;
+    let mut last_err: Option<anyhow::Error> = None;
+    for attempt in 0..ATTEMPTS {
+        if attempt > 0 {
+            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         }
-        Ok(Ok(_)) => {}
-        Ok(Err(e)) => log::warn!("{caller}: marking stale sent rows failed (non-fatal): {e:#}"),
-        Err(e) => log::warn!("{caller}: marking stale sent rows spawn failed (non-fatal): {e}"),
+        let ws = ws.clone();
+        let result = tokio::task::spawn_blocking(move || -> anyhow::Result<usize> {
+            let store = CrmStore::open(&ws)?;
+            Ok(store.mark_sent_rows_pending_verify_for_provider(provider_id)?)
+        })
+        .await;
+        match result {
+            Ok(Ok(n)) => {
+                if n > 0 {
+                    log::info!("{caller}: downgraded {n} stale '{provider_id}' sent row(s) to pending_verify");
+                }
+                return;
+            }
+            Ok(Err(e)) => last_err = Some(e),
+            Err(e) => last_err = Some(anyhow::anyhow!("spawn failed: {e}")),
+        }
+    }
+    if let Some(e) = last_err {
+        log::warn!(
+            "{caller}: marking stale sent rows failed after {ATTEMPTS} attempts (non-fatal, \
+             but any 'sent' rows for '{provider_id}' remain un-downgraded): {e:#}"
+        );
     }
 }
 
@@ -800,9 +830,12 @@ pub async fn crm_connect(
 
         // Block NEW writes for the whole token-swap + downgrade transition
         // (not just the drain wait) — see ConnectInProgressGuard's doc
-        // comment for why a drain wait alone isn't a safe handoff.
-        state.connect_in_progress.store(true, Ordering::SeqCst);
-        let _connect_guard = ConnectInProgressGuard(state.connect_in_progress.clone());
+        // comment for why a drain wait alone isn't a safe handoff. Also
+        // refuses a SECOND overlapping connect attempt outright (see
+        // claim_connect_in_progress) rather than letting both proceed.
+        let Some(_connect_guard) = claim_connect_in_progress(&state) else {
+            return Err("A connect is already in progress — try again in a moment.".to_string());
+        };
         if !wait_for_writes_to_drain(&state).await {
             return Err(
                 "A CRM write is still in progress — wait a moment and try connecting again."
@@ -845,9 +878,12 @@ pub async fn crm_connect(
     })?;
 
     // Block NEW writes for the whole token-swap + downgrade transition (not
-    // just the drain wait) — see ConnectInProgressGuard's doc comment.
-    state.connect_in_progress.store(true, Ordering::SeqCst);
-    let _connect_guard = ConnectInProgressGuard(state.connect_in_progress.clone());
+    // just the drain wait) — see ConnectInProgressGuard's doc comment. Also
+    // refuses a SECOND overlapping connect attempt outright (see
+    // claim_connect_in_progress) rather than letting both proceed.
+    let Some(_connect_guard) = claim_connect_in_progress(&state) else {
+        return Err("A connect is already in progress — try again in a moment.".to_string());
+    };
     if !wait_for_writes_to_drain(&state).await {
         return Err(
             "A CRM write is still in progress — wait a moment and try connecting again."
@@ -949,9 +985,12 @@ pub async fn crm_oauth_connect(
     // the downgrade below (the guard is dropped — and connect_in_progress
     // reset — whenever this function returns, on every exit path including
     // the cancel-rollback branches) — see ConnectInProgressGuard's doc
-    // comment for why a drain wait alone isn't a safe handoff.
-    state.connect_in_progress.store(true, Ordering::SeqCst);
-    let _connect_guard = ConnectInProgressGuard(state.connect_in_progress.clone());
+    // comment for why a drain wait alone isn't a safe handoff. Also refuses
+    // a SECOND overlapping connect attempt outright (see
+    // claim_connect_in_progress) rather than letting both proceed.
+    let Some(_connect_guard) = claim_connect_in_progress(&state) else {
+        return Err("A connect is already in progress — try again in a moment.".to_string());
+    };
     if !wait_for_writes_to_drain(&state).await {
         // Nothing has been stored yet at this point (we're still before
         // store_or_rollback_on_cancel) — a plain Err is enough, no rollback
@@ -1099,6 +1138,26 @@ impl Drop for ConnectInProgressGuard {
     fn drop(&mut self) {
         self.0.store(false, Ordering::SeqCst);
     }
+}
+
+/// Single-flight claim on `connect_in_progress` via `compare_exchange` (the
+/// same idiom `crm_disconnect_logic_for_provider` already uses for
+/// `is_syncing`) — returns `None` if another connect is already mid-transition.
+///
+/// A plain `store(true)` per caller is NOT safe here: if two
+/// `crm_connect`/`crm_oauth_connect` calls overlap, each would create its
+/// OWN guard, and whichever finishes FIRST would drop its guard and reset
+/// the flag to `false` while the SECOND is still between its drain wait,
+/// token swap, and ledger downgrade — reopening the exact race this flag
+/// exists to close (a write could start in that gap, read whichever token
+/// exists at that instant, and complete after the second connect's
+/// downgrade already ran).
+fn claim_connect_in_progress(state: &CrmState) -> Option<ConnectInProgressGuard> {
+    state
+        .connect_in_progress
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .ok()
+        .map(|_| ConnectInProgressGuard(state.connect_in_progress.clone()))
 }
 
 async fn crm_disconnect_logic_for_provider(
@@ -1828,6 +1887,27 @@ mod tests {
             assert!(flag.load(Ordering::SeqCst), "flag must be set while the guard is held");
         }
         assert!(!flag.load(Ordering::SeqCst), "flag must reset once the guard drops");
+    }
+
+    /// P2 (self-converge codex-review round 8): a plain `store(true)` per
+    /// caller is unsafe for OVERLAPPING connect attempts — whichever
+    /// finishes first would reset the flag while the second is still
+    /// mid-transition. claim_connect_in_progress must refuse the second
+    /// attempt outright instead.
+    #[test]
+    fn claim_connect_in_progress_refuses_a_second_overlapping_claim() {
+        let state = test_state(false);
+        let first = claim_connect_in_progress(&state);
+        assert!(first.is_some(), "first claim must succeed");
+        assert!(
+            claim_connect_in_progress(&state).is_none(),
+            "a second overlapping claim must be refused while the first is still held"
+        );
+        drop(first);
+        assert!(
+            claim_connect_in_progress(&state).is_some(),
+            "a new claim must succeed once the first is released"
+        );
     }
 
     #[test]
