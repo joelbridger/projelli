@@ -2,11 +2,12 @@
 
 **Purpose:** the O(1) answer to "what is every Lantern-Plus lane doing right now?" Updated on every spawn/merge/close (mirror of main line's `~/keepance-coordination/LANES.md` convention; the fleet dashboard reads both).
 
-Last updated: 2026-07-03 ~22:40 (coordinator-5)
+Last updated: 2026-07-03 ~23:05 (coordinator-5 — now SOLE coordinator; main line stood down per Jameson, its open items absorbed: see COORDINATOR-HANDOFF.md in keepance-coordination + my task list)
 
 ## Active lanes
 | Worker session | What | State |
 |---|---|---|
+| cc-lantern-vsjump | Fix falsehoods on the LIVE vs-Jump page (fix/vs-jump-page, MAIN repo worktree ~/kp-vsjump) — inherited from main line; NO deploy, Jameson approves copy | building |
 | cc-lantern-w3 | Wave-3 meeting capture engine (lp/meeting-capture) — mid Task 5 crash recovery; Task 6 = Legion device verification (headset now available) | building |
 | cc-lantern-w4d | Wave-4 Track D retention/deletion engine (lp/retention) — deep self-review round 8; xhigh merge review due | converging |
 | cc-lantern-w4a | Wave-4 Track A diarization (lp/diarization) — all 7 build tasks done; self-review round 3 | converging |
