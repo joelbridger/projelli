@@ -274,14 +274,29 @@ pub fn write_client_for(
     }
 }
 
-/// Wealthbox note timestamps look like `"2026-03-10 09:15 AM -0500"`
+/// How long after a write's own first-attempt time a recovered CRM record
+/// can still count as proof THAT attempt landed. Generous enough to cover
+/// Wealthbox's worst-case 429 retry/backoff window (`MAX_429_RETRIES` = 6,
+/// each capped at `MAX_RETRY_AFTER_SECS` = 120s — well under 15 minutes
+/// total) plus normal network latency, but short enough that a LATER,
+/// separate approval of identical content (an intentional repeat — see
+/// `CrmWriteRequest::requested_at`) can't be mistaken for proof THIS
+/// approval landed. Without a ceiling, approval A going ambiguous, followed
+/// by approval B (same text, a genuinely later intentional repeat) actually
+/// succeeding, would let a later retry of A match B's note and mark A
+/// "sent" too — silently believing two deliveries happened when only one
+/// physical CRM record exists.
+const RECOVERY_WINDOW_MINUTES: i64 = 30;
+
+/// Wealthbox note/task timestamps look like `"2026-03-10 09:15 AM -0500"`
 /// (confirmed by the read-side render tests in `render.rs`, which already
-/// depend on this exact shape for display). Accepts a note as "not older
-/// than `floor`" using whichever of created_at/updated_at parses (preferring
-/// created_at). If NEITHER parses, fails CLOSED (returns `false`, i.e. not a
-/// match) rather than open — a spurious resend (a visible, correctable
-/// duplicate) is a far safer outcome than silently treating an unrelated old
-/// note as proof this write landed (an invisible, uncorrectable data loss).
+/// depend on this exact shape for display). Accepts a record as "within
+/// [floor, floor + RECOVERY_WINDOW_MINUTES]" using whichever of
+/// created_at/updated_at parses (preferring created_at). If NEITHER parses,
+/// fails CLOSED (returns `false`, i.e. not a match) rather than open — a
+/// spurious resend (a visible, correctable duplicate) is a far safer outcome
+/// than silently treating an unrelated record as proof this write landed
+/// (an invisible, uncorrectable data loss).
 fn wealthbox_time_at_or_after(
     created_at: &str,
     updated_at: &str,
@@ -289,10 +304,12 @@ fn wealthbox_time_at_or_after(
 ) -> bool {
     const FMT: &str = "%Y-%m-%d %I:%M %p %z";
     // Small margin for clock skew between this machine and Wealthbox's server.
-    let floor = floor - chrono::Duration::minutes(5);
+    let lower = floor - chrono::Duration::minutes(5);
+    let upper = floor + chrono::Duration::minutes(RECOVERY_WINDOW_MINUTES);
     for candidate in [created_at, updated_at] {
         if let Ok(t) = chrono::DateTime::parse_from_str(candidate.trim(), FMT) {
-            return t.with_timezone(&chrono::Utc) >= floor;
+            let t = t.with_timezone(&chrono::Utc);
+            return t >= lower && t <= upper;
         }
     }
     false
@@ -447,13 +464,24 @@ pub async fn push_crm_write(
             let not_before = chrono::DateTime::parse_from_rfc3339(&row.created_at)
                 .map(|t| t.with_timezone(&chrono::Utc))
                 .unwrap_or_else(|_| chrono::DateTime::<chrono::Utc>::from_timestamp(0, 0).unwrap());
-            match source.find_recent_matching(req, not_before).await? {
-                Some(remote_id) => {
+            match source.find_recent_matching(req, not_before).await {
+                Ok(Some(remote_id)) => {
                     upsert_ledger(store, &key, source, req, "sent", Some(&remote_id));
                     return Ok(WriteReceipt { remote_id, deduped: true });
                 }
-                None => {
+                Ok(None) => {
                     // Provably didn't land — fall through to (re)send below.
+                }
+                Err(e) => {
+                    // The recovery check ITSELF was ambiguous (e.g. a
+                    // transient transport failure listing notes/tasks) —
+                    // explicitly re-affirm `pending_verify` rather than
+                    // silently returning without touching the ledger, so the
+                    // row's state is never left implicit. The caller (every
+                    // crm_create_write call site) audits every `Err` outcome
+                    // unconditionally, so this still produces its audit entry.
+                    upsert_ledger(store, &key, source, req, "pending_verify", None);
+                    return Err(e);
                 }
             }
         }
@@ -770,6 +798,57 @@ mod tests {
         assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
     }
 
+    /// ADDED SCOPE #2.2: when the recovery check ITSELF is ambiguous (the
+    /// `find_recent_matching` call fails, e.g. a transient transport error
+    /// listing notes), push_crm_write must not silently return without
+    /// touching the ledger — the row's `pending_verify` state is explicitly
+    /// re-affirmed (never a re-send attempt in this path: create_calls stays
+    /// 0) and the resulting Err(VerifyPending) is exactly what every
+    /// crm_create_write call site audits unconditionally.
+    #[tokio::test]
+    async fn recovery_check_failure_itself_re_affirms_ledger_state_before_propagating() {
+        struct FlakyFindSource {
+            create_calls: std::sync::atomic::AtomicUsize,
+        }
+        #[async_trait::async_trait]
+        impl CrmWriteSource for FlakyFindSource {
+            fn provider_id(&self) -> &'static str {
+                "wealthbox"
+            }
+            async fn create_note(&self, _r: &CrmWriteRequest) -> Result<String, CrmWriteError> {
+                self.create_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                Ok("should-not-be-called".into())
+            }
+            async fn create_task(&self, r: &CrmWriteRequest) -> Result<String, CrmWriteError> {
+                self.create_note(r).await
+            }
+            async fn find_recent_matching(
+                &self,
+                _r: &CrmWriteRequest,
+                _not_before: chrono::DateTime<chrono::Utc>,
+            ) -> Result<Option<String>, CrmWriteError> {
+                Err(CrmWriteError::VerifyPending)
+            }
+        }
+
+        let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
+        let req = note_req();
+        store
+            .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "pending_verify", None, true)
+            .unwrap();
+        let source = FlakyFindSource { create_calls: std::sync::atomic::AtomicUsize::new(0) };
+
+        let result = push_crm_write(&source, &store, &guard, &req).await;
+        assert!(matches!(result, Err(CrmWriteError::VerifyPending)));
+        assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 0, "must never attempt a send while the recovery check itself is ambiguous");
+        assert_eq!(
+            store.outbound_get(&dedup_key(&req)).unwrap().unwrap().status,
+            "pending_verify",
+            "the row's state must be explicitly re-affirmed, not left implicit"
+        );
+    }
+
     /// End-to-end account-switch scenario (ADDED-SCOPE P1): a note was sent
     /// under account A, then the advisor reconnects (same or a different
     /// Wealthbox account) — `mark_sent_rows_pending_verify_for_provider` is
@@ -1075,6 +1154,14 @@ mod tests {
         assert_eq!(found, None, "a task that predates this write attempt is not this write");
     }
 
+    /// A fixed floor for the recovery-window tests below — avoids coupling
+    /// test fixtures to the real wall clock (`chrono::Utc::now()`).
+    fn test_not_before() -> chrono::DateTime<chrono::Utc> {
+        chrono::DateTime::parse_from_rfc3339("2026-07-02T14:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc)
+    }
+
     #[tokio::test]
     async fn find_recent_matching_accepts_a_task_created_at_or_after_this_write_attempt() {
         use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
@@ -1087,16 +1174,47 @@ mod tests {
                     "name": "Q3 review follow-up",
                     "description": "Discussed 529 rollover.",
                     "due_date": "2026-07-15",
-                    "created_at": "2099-01-01 09:00 AM -0500",
-                    "updated_at": "2099-01-01 09:00 AM -0500",
+                    // 5 minutes after test_not_before() — inside the recovery window.
+                    "created_at": "2026-07-02 09:05 AM -0500",
+                    "updated_at": "2026-07-02 09:05 AM -0500",
                     "linked_to": [{"id": 12345, "type": "Contact", "name": "Henderson"}],
                 }]
             })))
             .mount(&server)
             .await;
         let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
-        let found = client.find_recent_matching(&task_req(), chrono::Utc::now()).await.unwrap();
+        let found = client.find_recent_matching(&task_req(), test_not_before()).await.unwrap();
         assert_eq!(found, Some("44".to_string()));
+    }
+
+    #[tokio::test]
+    async fn find_recent_matching_rejects_a_task_created_well_after_the_recovery_window() {
+        // ADDED SCOPE #2 (codex): a task created HOURS after this write's own
+        // attempt cannot be proof THIS attempt landed — it's far more likely
+        // to be a separate, later, intentionally-repeated approval of
+        // identical content. Without an upper bound, this would incorrectly
+        // dedupe as "already delivered" and silently swallow this approval.
+        use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(matchers::method("GET"))
+            .and(matchers::path("/tasks"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "tasks": [{
+                    "id": 45,
+                    "name": "Q3 review follow-up",
+                    "description": "Discussed 529 rollover.",
+                    "due_date": "2026-07-15",
+                    // 3 hours after test_not_before() — well outside the window.
+                    "created_at": "2026-07-02 12:00 PM -0500",
+                    "updated_at": "2026-07-02 12:00 PM -0500",
+                    "linked_to": [{"id": 12345, "type": "Contact", "name": "Henderson"}],
+                }]
+            })))
+            .mount(&server)
+            .await;
+        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let found = client.find_recent_matching(&task_req(), test_not_before()).await.unwrap();
+        assert_eq!(found, None, "a task created hours later is a separate approval, not proof this one landed");
     }
 
     #[tokio::test]
@@ -1133,17 +1251,46 @@ mod tests {
                 "status_updates": [{
                     "id": 222,
                     "content": "Q3 review follow-up\n\nDiscussed 529 rollover.",
-                    "created_at": "2099-01-01 09:00 AM -0500",
-                    "updated_at": "2099-01-01 09:00 AM -0500",
+                    // 5 minutes after test_not_before() — inside the recovery window.
+                    "created_at": "2026-07-02 09:05 AM -0500",
+                    "updated_at": "2026-07-02 09:05 AM -0500",
                     "linked_to": [{"id": 12345, "type": "Contact", "name": "Henderson"}],
                 }]
             })))
             .mount(&server)
             .await;
         let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
-        let not_before = chrono::Utc::now();
-        let found = client.find_recent_matching(&note_req(), not_before).await.unwrap();
+        let found = client.find_recent_matching(&note_req(), test_not_before()).await.unwrap();
         assert_eq!(found, Some("222".to_string()));
+    }
+
+    #[tokio::test]
+    async fn find_recent_matching_rejects_a_note_created_well_after_the_recovery_window() {
+        // ADDED SCOPE #2 (codex): without an upper bound on the recovery
+        // window, this exact scenario would silently confuse two SEPARATE,
+        // intentional approvals of identical content: approval A goes
+        // ambiguous, approval B (a genuinely later repeat) succeeds and
+        // creates this note — a retry of A must NOT match B's note and
+        // falsely conclude A was also delivered.
+        use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(matchers::method("GET"))
+            .and(matchers::path("/notes"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "status_updates": [{
+                    "id": 223,
+                    "content": "Q3 review follow-up\n\nDiscussed 529 rollover.",
+                    // 3 hours after test_not_before() — well outside the window.
+                    "created_at": "2026-07-02 12:00 PM -0500",
+                    "updated_at": "2026-07-02 12:00 PM -0500",
+                    "linked_to": [{"id": 12345, "type": "Contact", "name": "Henderson"}],
+                }]
+            })))
+            .mount(&server)
+            .await;
+        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let found = client.find_recent_matching(&note_req(), test_not_before()).await.unwrap();
+        assert_eq!(found, None, "a note created hours later is a separate approval, not proof this one landed");
     }
 
     #[tokio::test]
