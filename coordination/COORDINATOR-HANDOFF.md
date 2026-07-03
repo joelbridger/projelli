@@ -36,16 +36,38 @@ at each UI merge — his veto = P0 follow-up, not a merge block). Phase 2 =
   - `cc-lantern-w1` in worktree `~/lp-w1` (branch `lp/wave-1`): scoped to Wave 1 Task 1
     (Google OAuth submission PACK doc — the filing itself is Jameson's) + Tasks 2–7 ONLY
     (Rust calendar module). Do NOT let it start TS/UI tasks 8+ yet.
-- **Monitors:** re-arm at YOUR start (the old session's monitors die with it). FOUR now:
-  (1) fleet watcher, (2) RAM watchdog (+ disk-pressure alarm <25G — added after the
-  2026-07-02 disk-full emergency), (3) bulletin watcher: `tail -n 0 -F
-  ~/keepance-coordination/PARALLEL-EFFORTS.md | grep -v <your-own-signature>` so main-fleet
-  news (Legion release, release tags, rebrand heads-up) pings you live, (4) below: the
-  cc-lantern-* fleet watcher (inline script — see the Monitor the previous coordinator
-  armed; recreate: poll tmux panes of `cc-lantern-*` every 30s, emit DONE on fresh
-  `WORKER-DONE:` in last 25 lines after WORKING→IDLE, ACK_IDLE otherwise, STALL on frozen
-  WORKING pane ~4min) + the memory watchdog from PLAYBOOK §3. Then do a BASELINE manual
-  sweep immediately (watchers only see the future).
+- **Monitors — SEVEN, and ⚠️ THE LIST IS A CHECKLIST, NOT A MENU** (this session skipped
+  two at startup; both misses cost real time: a 37-min undetected hang, and a startable
+  Wave-2-UI lane that sat idle for hours until Jameson prompted). Re-arm ALL at YOUR start
+  (the old session's monitors die with it), then do a BASELINE manual sweep immediately
+  (watchers only see the future):
+  (1) fleet watcher: `coordination/tools/lantern-finish-watch.sh` (DONE on fresh
+  `WORKER-DONE:` in last 45 pane lines after WORKING→IDLE — tell workers to print the
+  sentinel LAST; ACK_IDLE otherwise; STALL on frozen WORKING pane ~4min);
+  (2) RAM watchdog + disk-pressure alarm <25G (after the 2026-07-02 disk-full emergency);
+  (3) bulletin watcher: `tail -n 0 -F ~/keepance-coordination/PARALLEL-EFFORTS.md | grep -v
+  <your-own-signature>` — main-fleet news (Legion release, tags, rebrand) pings you live;
+  (4) STALE-IDLE backstop: any worker pane idle+unchanged >5min → one ping (caught the
+  37-min hung test the transition watcher structurally cannot see);
+  (5) BUILD-OVERTIME: cargo/rustc >35min or a test binary from our target dirs >15min →
+  ping (match on comm= fields + /proc/pid/exe, NOT parsed args); workers also wrap every
+  cargo test in `timeout 1200 …`;
+  (6) PARALLEL-CHECK heartbeat: 15-min tick forcing the ritual "anything unblocked not
+  running? did a lane just commit something another lane can build on?";
+  (7) gate-cargo completion monitors are per-merge (grep the GATE-CARGO-EXIT line).
+  Run long gate cargo in the `lp-gate-build` tmux session, NEVER via a backgrounded Bash
+  call (the tool's 10-min ceiling kills it).
+- ⚠️ COMMIT COORDINATION-DOC EDITS IMMEDIATELY. They live on the same tree as merges — a
+  merge rollback (`git reset --hard <backup-tag>`) DISCARDS uncommitted handoff/STATUS
+  edits silently (happened 2026-07-03: monitor notes + a landmine section were lost and
+  had to be reconstructed). Edit → commit, every time.
+- ⚠️ PHANTOM/STALE QUEUED TEXTS in worker input boxes (all night 2026-07-03): unsubmitted
+  bubbles that read like coordinator go-aheads (often Jameson's own typing — see playbook
+  queued-bubble rules). One falsely claimed a half-copied cargo cache was ready. Protocol:
+  C-u (after Escape) before every send-keys; glance at input lines after events; gate
+  irreversible go-aheads behind a token phrase in a DELIVERED message (RESUME-TOKEN-LP1
+  pattern); long messages STICK as [Pasted text] and can silently vanish — write detail to
+  a file in the worker's worktree and send a one-line pointer instead.
 - **Merge queue:** empty. Merge order: Wave 0 first, then Wave 1 in batches. One merge in
   flight ever. Merge ritual per playbook §4 + master plan: backup tag → codex-review →
   merge --no-ff → npm run gate FOREGROUND (export the CARGO_TARGET_DIR!) → red = rollback
