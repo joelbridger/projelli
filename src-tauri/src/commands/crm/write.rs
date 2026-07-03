@@ -590,6 +590,20 @@ pub fn validate_write_inputs(title: &str, body: &str) -> Result<(), CrmWriteErro
     Ok(())
 }
 
+/// Reject an empty or non-RFC3339 `requested_at` before it ever reaches
+/// `dedup_key`'s hash — this field is now part of the idempotency
+/// guarantee (see `CrmWriteRequest::requested_at`'s doc comment), so a
+/// malformed or empty value from a buggy caller must fail loudly at the IPC
+/// boundary rather than silently collapsing separate approvals into one key.
+pub fn validate_requested_at(requested_at: &str) -> Result<(), CrmWriteError> {
+    if requested_at.trim().is_empty() {
+        return Err(CrmWriteError::InvalidInput("requested_at must not be empty"));
+    }
+    chrono::DateTime::parse_from_rfc3339(requested_at.trim())
+        .map(|_| ())
+        .map_err(|_| CrmWriteError::InvalidInput("requested_at must be an RFC3339 timestamp"))
+}
+
 fn remote_id_from(resp: &serde_json::Value) -> Result<String, CrmWriteError> {
     // VERIFY-LIVE: create responses echo the created object with top-level id.
     // A 2xx response means Wealthbox already accepted (very likely created)
@@ -1391,6 +1405,20 @@ mod tests {
         assert!(matches!(validate_write_inputs("", "b"), Err(CrmWriteError::InvalidInput(_))));
         assert!(matches!(validate_write_inputs(&"x".repeat(501), "b"), Err(CrmWriteError::InvalidInput(_))));
         assert!(matches!(validate_write_inputs("t", &"x".repeat(20_001)), Err(CrmWriteError::InvalidInput(_))));
+    }
+
+    /// ADDED SCOPE #2 (codex round 6): requested_at is now part of the
+    /// idempotency guarantee (dedup_key), so the IPC boundary must reject an
+    /// empty or malformed value before it ever reaches dedup_key's hash —
+    /// otherwise a UI bug (empty string, or accidentally reusing one value
+    /// for every approval) would silently collapse separate approvals back
+    /// into the same ledger key, exactly the bug requested_at exists to fix.
+    #[test]
+    fn requested_at_must_be_a_real_rfc3339_timestamp() {
+        assert!(validate_requested_at("2026-07-02T14:41:00Z").is_ok());
+        assert!(matches!(validate_requested_at(""), Err(CrmWriteError::InvalidInput(_))));
+        assert!(matches!(validate_requested_at("   "), Err(CrmWriteError::InvalidInput(_))));
+        assert!(matches!(validate_requested_at("not-a-timestamp"), Err(CrmWriteError::InvalidInput(_))));
     }
 
     #[tokio::test]

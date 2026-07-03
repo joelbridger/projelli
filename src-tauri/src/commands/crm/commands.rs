@@ -62,6 +62,13 @@ pub struct CrmState {
     /// NEW write checks this and refuses to start rather than racing a
     /// disconnect that's already underway.
     pub disconnect_requested: Arc<AtomicBool>,
+    /// Set by every crm_connect/crm_oauth_connect success path from the
+    /// moment it starts waiting for in-flight writes to drain until the
+    /// token swap AND the stale-sent-row downgrade have both completed; a
+    /// NEW write checks this and refuses to start rather than possibly
+    /// reading the OLD token (or racing the downgrade) during a reconnect
+    /// that's already underway. See `ConnectInProgressGuard`.
+    pub connect_in_progress: Arc<AtomicBool>,
 }
 
 pub fn manage_state(app: &tauri::App) {
@@ -75,6 +82,7 @@ pub fn manage_state(app: &tauri::App) {
         write_guard: write::WriteInFlightGuard::new(),
         write_in_flight: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
         disconnect_requested: Arc::new(AtomicBool::new(false)),
+        connect_in_progress: Arc::new(AtomicBool::new(false)),
     });
 }
 
@@ -319,24 +327,23 @@ async fn append_crm_audit_best_effort(app: &AppHandle, action: &str, description
     }
 }
 
-/// Wait (bounded, best-effort) for any write already in flight to finish
+/// Wait (bounded, best-effort) for any write ALREADY in flight to finish
 /// BEFORE a connect path overwrites the token and downgrades the ledger.
 ///
-/// Without this, a write that read the OLD token just before a reconnect
-/// could still complete (successfully, against the OLD account) AFTER the
-/// downgrade already ran — recording a fresh `sent` row with a NEW
-/// `created_at` that the downgrade never touched, so a later retry would
-/// wrongly trust it as proof of delivery to the NEWLY connected account,
-/// when it was actually delivered to the old one. Mirrors
-/// `crm_disconnect_logic_for_provider`'s wait for `is_syncing`/
-/// `write_in_flight` (same 10s budget, same 50ms poll), but does not set
-/// `disconnect_requested` — new writes are still allowed to start during
-/// this wait (unlike disconnect, a reconnect has no "stop everything" signal
-/// to raise), so this narrows the race window rather than eliminating a
-/// theoretical continuous-write-stream case entirely. If writes are still
-/// in flight after the budget, logs a warning and proceeds anyway — refusing
-/// to complete a login because of an unrelated background write would be a
-/// worse UX regression than this already-narrow residual race.
+/// This only handles writes that started before the connect did — new ones
+/// are blocked separately by `connect_in_progress`/`ConnectInProgressGuard`
+/// (set by the caller before this runs). Without BOTH halves, a write that
+/// read the OLD token just before (or during) a reconnect could still
+/// complete (successfully, against the OLD account) AFTER the downgrade
+/// already ran — recording a fresh `sent` row with a NEW `created_at` that
+/// the downgrade never touched, so a later retry would wrongly trust it as
+/// proof of delivery to the NEWLY connected account, when it was actually
+/// delivered to the old one. Mirrors `crm_disconnect_logic_for_provider`'s
+/// wait for `is_syncing`/`write_in_flight` (same 10s budget, same 50ms
+/// poll). If writes are still in flight after the budget, logs a warning
+/// and proceeds anyway — refusing to complete a login because of an
+/// unrelated background write would be a worse UX regression than this
+/// already narrow (new writes are already blocked by this point) residual.
 async fn wait_for_writes_to_drain_best_effort(state: &CrmState, provider: CrmProvider) {
     let mut waited_ms: u64 = 0;
     while state.write_in_flight.load(Ordering::SeqCst) > 0 {
@@ -627,8 +634,15 @@ async fn crm_create_write(
             provider.display_name()
         ));
     }
+    if state.connect_in_progress.load(Ordering::SeqCst) {
+        return Err(format!(
+            "{} is reconnecting — try again in a moment",
+            provider.display_name()
+        ));
+    }
 
     write::validate_write_inputs(&title, &body).map_err(|e| e.to_string())?;
+    write::validate_requested_at(&requested_at).map_err(|e| e.to_string())?;
 
     let token = read_token(provider).ok_or_else(|| {
         format!(
@@ -781,9 +795,11 @@ pub async fn crm_connect(
                 "Could not connect to Redtail: invalid login or network error".to_string()
             })?;
 
-        // Wait for any write already in flight (reading the OLD token) to
-        // finish BEFORE overwriting the token and downgrading the ledger —
-        // see wait_for_writes_to_drain_best_effort's doc comment for why.
+        // Block NEW writes for the whole token-swap + downgrade transition
+        // (not just the drain wait) — see ConnectInProgressGuard's doc
+        // comment for why a drain wait alone isn't a safe handoff.
+        state.connect_in_progress.store(true, Ordering::SeqCst);
+        let _connect_guard = ConnectInProgressGuard(state.connect_in_progress.clone());
         wait_for_writes_to_drain_best_effort(&state, provider).await;
         // Store only the exchanged Redtail UserKey. The advisor password is
         // used for this request and is never persisted.
@@ -820,8 +836,10 @@ pub async fn crm_connect(
         )
     })?;
 
-    // Wait for any write already in flight (reading the OLD token) to
-    // finish BEFORE overwriting the token and downgrading the ledger.
+    // Block NEW writes for the whole token-swap + downgrade transition (not
+    // just the drain wait) — see ConnectInProgressGuard's doc comment.
+    state.connect_in_progress.store(true, Ordering::SeqCst);
+    let _connect_guard = ConnectInProgressGuard(state.connect_in_progress.clone());
     wait_for_writes_to_drain_best_effort(&state, provider).await;
     // Store the token only after a confirmed successful validation.
     store_token(provider, token)?;
@@ -914,8 +932,13 @@ pub async fn crm_oauth_connect(
         None => { let _ = delete_token(provider); }
     };
 
-    // Wait for any write already in flight (reading the OLD token, if this
-    // is a reconnect) to finish BEFORE overwriting the token.
+    // Block NEW writes from the start of this transition all the way through
+    // the downgrade below (the guard is dropped — and connect_in_progress
+    // reset — whenever this function returns, on every exit path including
+    // the cancel-rollback branches) — see ConnectInProgressGuard's doc
+    // comment for why a drain wait alone isn't a safe handoff.
+    state.connect_in_progress.store(true, Ordering::SeqCst);
+    let _connect_guard = ConnectInProgressGuard(state.connect_in_progress.clone());
     wait_for_writes_to_drain_best_effort(&state, provider).await;
 
     crate::commands::mail::gmail::oauth::store_or_rollback_on_cancel(
@@ -1042,6 +1065,16 @@ pub async fn crm_disconnect_logic(state: &CrmState) -> CrmDisconnectResult {
 /// writes permanently blocked.
 struct DisconnectRequestedGuard(Arc<AtomicBool>);
 impl Drop for DisconnectRequestedGuard {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::SeqCst);
+    }
+}
+
+/// RAII guard: resets `connect_in_progress` to false when dropped, covering
+/// every exit path (normal return, `?`, or panic) — so a failed connect
+/// attempt never leaves new writes permanently blocked.
+struct ConnectInProgressGuard(Arc<AtomicBool>);
+impl Drop for ConnectInProgressGuard {
     fn drop(&mut self) {
         self.0.store(false, Ordering::SeqCst);
     }
@@ -1618,6 +1651,7 @@ mod tests {
             write_guard: write::WriteInFlightGuard::new(),
             write_in_flight: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
             disconnect_requested: Arc::new(AtomicBool::new(false)),
+            connect_in_progress: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -1756,6 +1790,22 @@ mod tests {
             "must actually wait for the in-flight write, not return immediately"
         );
         assert_eq!(state.write_in_flight.load(Ordering::SeqCst), 0);
+    }
+
+    /// P2 (self-converge codex-review round 6): connect_in_progress must
+    /// block a NEW write for the ENTIRE token-swap + downgrade transition,
+    /// and must always reset — even on an early return via `?` inside that
+    /// transition — so a failed connect attempt never leaves writes
+    /// permanently blocked.
+    #[test]
+    fn connect_in_progress_guard_sets_and_always_resets_on_drop() {
+        let flag = Arc::new(AtomicBool::new(false));
+        flag.store(true, Ordering::SeqCst);
+        {
+            let _guard = ConnectInProgressGuard(flag.clone());
+            assert!(flag.load(Ordering::SeqCst), "flag must be set while the guard is held");
+        }
+        assert!(!flag.load(Ordering::SeqCst), "flag must reset once the guard drops");
     }
 
     #[test]
