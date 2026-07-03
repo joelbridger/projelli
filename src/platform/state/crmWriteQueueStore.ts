@@ -12,6 +12,8 @@
 import { create } from 'zustand';
 
 import { crmCreateNote, crmCreateTask, crmUpdateField } from '@/platform/utils/wealthbox-commands';
+import { composeFieldBlend } from '@/platform/state/fieldBlend';
+import type { Provider } from '@/platform/providers/Provider';
 
 export type CrmWriteStatus = 'proposed' | 'sending' | 'sent' | 'failed' | 'verify_pending' | 'stale';
 
@@ -57,6 +59,27 @@ interface CrmWriteQueueState {
   enqueue: (item: Omit<ProposedCrmWrite, 'id' | 'status'>) => void;
   approve: (ids: string[], householdKey: string) => Promise<void>;
   dismiss: (id: string) => void;
+  /** Task 9c: the advisor editing a field item's Blended column. `kind:
+   *  'field'` items only — a no-op on any other item. */
+  updateFinalValue: (id: string, finalValue: string) => void;
+  /**
+   * Task 9c: the ONLY way to enqueue a field-level blended update — computes
+   * `finalValue` via `composeFieldBlend` (scalar replace / narrative merge /
+   * deterministic fallback) before the item ever reaches the queue, so a
+   * caller can never enqueue a field proposal with a blank blend. Calling
+   * `enqueue()` directly with `kind: 'field'` and no `finalValue` is a bug —
+   * this is the real entry point for that item shape.
+   */
+  enqueueFieldUpdate: (args: {
+    matterId: string;
+    title: string;
+    field: string;
+    existingValue: string;
+    newValue: string;
+    sourceRef: string;
+    provider?: Provider;
+    onBeforeProviderCall?: (prompt: string) => void;
+  }) => Promise<void>;
 }
 
 function newId(): string {
@@ -184,5 +207,30 @@ export const useCrmWriteQueueStore = create<CrmWriteQueueState>((set, get) => ({
 
   dismiss: (id) => {
     set((state) => ({ items: state.items.filter((i) => i.id !== id) }));
+  },
+
+  updateFinalValue: (id, finalValue) => {
+    setItem(id, { finalValue });
+  },
+
+  enqueueFieldUpdate: async (args) => {
+    const finalValue = await composeFieldBlend({
+      field: args.field,
+      existingValue: args.existingValue,
+      newValue: args.newValue,
+      ...(args.provider ? { provider: args.provider } : {}),
+      ...(args.onBeforeProviderCall ? { onBeforeProviderCall: args.onBeforeProviderCall } : {}),
+    });
+    get().enqueue({
+      kind: 'field',
+      matterId: args.matterId,
+      title: args.title,
+      body: '',
+      field: args.field,
+      existingValue: args.existingValue,
+      newValue: args.newValue,
+      finalValue,
+      sourceRef: args.sourceRef,
+    });
   },
 }));

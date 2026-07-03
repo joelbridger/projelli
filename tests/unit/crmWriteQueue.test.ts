@@ -23,6 +23,7 @@ vi.mock('@/platform/utils/wealthbox-commands', () => ({
 
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
 import { crmCreateNote, crmCreateTask, crmUpdateField } from '@/platform/utils/wealthbox-commands';
+import type { Provider } from '@/platform/providers/Provider';
 
 function resetStore() {
   useCrmWriteQueueStore.setState({ items: [] });
@@ -379,5 +380,75 @@ describe('field updates (Task 9c)', () => {
     await s.approve([id], '12345');
     expect(crmUpdateField).not.toHaveBeenCalled();
     expect(useCrmWriteQueueStore.getState().items[0]!.status).not.toBe('sent');
+  });
+});
+
+// Codex adversarial review catch (P2): composeFieldBlend existed but was
+// never called from any production path — a caller enqueuing a field
+// proposal with only existingValue/newValue (no precomputed finalValue, per
+// the plan's own "the queue store should create that blend") would get a
+// permanently-blank finalValue and the item could never send. This is the
+// actual fix: the ONLY supported way to enqueue a field item.
+describe('enqueueFieldUpdate (Task 9c)', () => {
+  it('computes finalValue via the scalar-replace path and lands a sendable item', async () => {
+    const s = useCrmWriteQueueStore.getState();
+    await s.enqueueFieldUpdate({
+      matterId: 'm1',
+      title: 'Risk tolerance',
+      field: 'risk_tolerance',
+      existingValue: 'Moderate',
+      newValue: 'Aggressive',
+      sourceRef: 'meeting:2026-06-30',
+    });
+    const item = useCrmWriteQueueStore.getState().items[0]!;
+    expect(item.kind).toBe('field');
+    expect(item.finalValue).toBe('Aggressive');
+    expect(item.status).toBe('proposed');
+  });
+
+  it('computes finalValue via the narrative-merge path with a provider', async () => {
+    const sendMessage = vi.fn().mockResolvedValue({ content: 'Merged text.' });
+    const provider = { sendMessage } as unknown as Provider;
+    const s = useCrmWriteQueueStore.getState();
+    await s.enqueueFieldUpdate({
+      matterId: 'm1',
+      title: 'Background information',
+      field: 'background_information',
+      existingValue: 'A',
+      newValue: 'B',
+      sourceRef: 'meeting:2026-06-30',
+      provider,
+    });
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(useCrmWriteQueueStore.getState().items[0]!.finalValue).toBe('Merged text.');
+  });
+
+  it('falls back to the deterministic concatenation when no provider is configured', async () => {
+    const s = useCrmWriteQueueStore.getState();
+    await s.enqueueFieldUpdate({
+      matterId: 'm1',
+      title: 'Background information',
+      field: 'background_information',
+      existingValue: 'A',
+      newValue: 'B',
+      sourceRef: 'meeting:2026-06-30',
+    });
+    expect(useCrmWriteQueueStore.getState().items[0]!.finalValue).toBe('A\n\nB');
+  });
+
+  it('the enqueued item is immediately approvable end-to-end (no manual finalValue fill-in needed)', async () => {
+    const s = useCrmWriteQueueStore.getState();
+    await s.enqueueFieldUpdate({
+      matterId: 'm1',
+      title: 'Risk tolerance',
+      field: 'risk_tolerance',
+      existingValue: 'Moderate',
+      newValue: 'Aggressive',
+      sourceRef: 'meeting:2026-06-30',
+    });
+    const id = useCrmWriteQueueStore.getState().items[0]!.id;
+    await s.approve([id], '12345');
+    expect(crmUpdateField).toHaveBeenCalledWith(expect.objectContaining({ finalValue: 'Aggressive' }));
+    expect(useCrmWriteQueueStore.getState().items[0]!.status).toBe('sent');
   });
 });
