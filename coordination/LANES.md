@@ -10,9 +10,9 @@ Last updated: 2026-07-03 ~23:05 (coordinator-5 — now SOLE coordinator; main li
 | cc-lantern-harness2 | Harness round 2 (lp/harness-round2) — nav helper, flaky fix, Wave-4 B/C checks from merged code | building |
 | cc-lantern-w3 | Wave-3 meeting capture engine (lp/meeting-capture) — mid Task 5 crash recovery; Task 6 = Legion device verification (headset now available) | building |
 | cc-lantern-w4d | Wave-4 Track D retention/deletion engine (lp/retention) — deep self-review round 8; xhigh merge review due | converging |
-| cc-lantern-w4a | Wave-4 Track A diarization (lp/diarization) — all 7 build tasks done; self-review round 3 | converging |
 
 ## Merged this session
+✅ lp/diarization @b302312c — Wave-4 Track A: diarize sidecar + encrypted voiceprints + naming UI (6 self-review rounds + coordinator xhigh + codex; gate 5634 vitest + 1133 cargo)
 ✅ lp/clientmap-errors @2cfe2224 — Client Map error classification (index vs provider vs unknown; 24 tests; gate 5632 vitest)
 ✅ lp/bench-smoke-harness — scripted bench smoke (17 checks, live-validated 6/8 on the Legion, safe-by-default; gate 5608 vitest, codex finding fixed w/ red-green proof)
 ✅ lp/azure-bench-fix @44b2faf8 — cloud VM now compiles+launches the full app (MSVC root-caused: cmd.exe %ERRORLEVEL% parse bug + corrupt VS Installer); fresh snapshot -clean-2; VM deallocated; CDP follow-up queued
