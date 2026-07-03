@@ -48,6 +48,7 @@ export const SK_PROFILE                      = `${APP_NS}:profile`;
 export const SK_MATTERS                      = `${APP_NS}:matters`;
 export const SK_MATTER_UI_SNAPSHOTS          = `${APP_NS}:matter-ui-snapshots`;
 export const SK_MATTER_AT_A_GLANCE           = `${APP_NS}:matter-at-a-glance`;
+export const SK_MEETING_BRIEFS               = `${APP_NS}:meeting-briefs`;
 export const SK_CLIENT_MAPS                  = `${APP_NS}:client-maps`;
 export const SK_CLIENT_MAP_TEMPLATES         = `${APP_NS}:client-map-templates`;
 export const SK_WORKFLOW_CHAINS              = `${APP_NS}:workflowChains`;
