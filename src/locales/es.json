@@ -1188,7 +1188,9 @@
       "status-catching-up": "Sincronizando",
       "status-offline": "Sin conexión",
       "status-error": "Error de sincronización",
-      "status-idle": "Sin sincronizar"
+      "status-idle": "Sin sincronizar",
+      "send-to-wealthbox": "Enviar a Wealthbox",
+      "sent-to-wealthbox": "Añadido a la tarjeta de revisión de Wealthbox en el mapa de este cliente"
     },
     "home": {
       "archive": "Archive",

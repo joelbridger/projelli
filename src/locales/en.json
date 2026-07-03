@@ -1018,7 +1018,9 @@
       "status-catching-up": "Catching up",
       "status-offline": "Offline",
       "status-error": "Sync error",
-      "status-idle": "Not synced"
+      "status-idle": "Not synced",
+      "send-to-wealthbox": "Send to Wealthbox",
+      "sent-to-wealthbox": "Added to the Wealthbox review card on this client's map"
     },
     "home": {
       "archive": "Archive",

@@ -669,6 +669,7 @@
   "src/platform/rag/factsExtraction.ts|@typescript-eslint/no-unnecessary-condition|Unnecessary conditional, value is always falsy.": 2,
   "src/platform/rag/FactsService.ts|@typescript-eslint/no-non-null-assertion|Forbidden non-null assertion.": 1,
   "src/platform/rag/FactsService.ts|@typescript-eslint/no-unnecessary-condition|Unnecessary conditional, value is always falsy.": 1,
+  "src/platform/rag/matterResolver.ts|@typescript-eslint/no-unnecessary-condition|Unnecessary conditional, expected left-hand side of `??` operator to be possibly null or undefined.": 3,
   "src/platform/rag/ui/ModelDownloadCard.tsx|@typescript-eslint/restrict-template-expressions|Invalid type \"number\" of template literal expression.": 2,
   "src/platform/rag/ui/RagProgressBanner.tsx|@typescript-eslint/restrict-template-expressions|Invalid type \"number\" of template literal expression.": 1,
   "src/platform/rag/ui/RagStatusBadge.tsx|@typescript-eslint/restrict-template-expressions|Invalid type \"number\" of template literal expression.": 2,

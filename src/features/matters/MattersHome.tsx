@@ -17,6 +17,7 @@ import { Briefcase, Lock, Plus, FolderOpen, CheckCircle2, Circle, MessageSquare,
 import { useMatters, useActiveMatters, useArchivedMatters, useActiveMatterId, useMatterStore } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { MatterHub } from '@/features/matters/MatterHub';
+import { TodaysMeetingsStrip } from '@/features/meetings/TodaysMeetingsStrip';
 import { useApiKeys } from '@/platform/hooks/useApiKeys';
 import { mailIsConnected, gmailIsConnected, mailImapIsConnected } from '@/platform/utils/mail-commands';
 import type { Matter } from '@/platform/types/matter';
@@ -742,6 +743,10 @@ export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEma
               : `${String(openCount)} ${entityLabel.other}${totalFolders > 0 ? `, ${String(totalFolders)} ${totalFolders === 1 ? 'folder' : 'folders'} indexed` : ''}. Click a row to focus AI on that client.`
           }
         />
+      </div>
+
+      <div style={{ margin: 'var(--kp-surface-gap) var(--kp-gutter) 0' }}>
+        <TodaysMeetingsStrip onOpenClient={openHub} />
       </div>
 
       {/* Toolbar */}

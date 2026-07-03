@@ -14,7 +14,13 @@ import { useEditorStore } from '@/platform/state/editorStore';
 import { useAIChatStore } from '@/platform/state/aiChatStore';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { useWorkflowStore } from '@/features/workflows/workflowStore';
+import { useMatterStore } from '@/platform/matter/matterStore';
+import { useBriefStore } from '@/features/meetings/briefStore';
 import { SK_ONBOARDING_COMPLETE } from '@/config/identity';
+import {
+  CALENDAR_EVENTS_SEED_KEY,
+  type CalendarEventDto,
+} from '@/platform/utils/calendar-commands';
 
 export interface SeedPayload {
   workspace?: Partial<ReturnType<typeof useWorkspaceStore.getState>>;
@@ -22,6 +28,21 @@ export interface SeedPayload {
   aiChat?: Partial<ReturnType<typeof useAIChatStore.getState>>;
   settings?: Partial<ReturnType<typeof useSettingsStore.getState>>;
   workflow?: Partial<ReturnType<typeof useWorkflowStore.getState>>;
+  matter?: Partial<ReturnType<typeof useMatterStore.getState>>;
+  /** Wave-1c evidence capture: BeforeYouMeetStrip reads directly from
+   *  useBriefStore (no Tauri gate), so seeding it here is enough to render
+   *  the ready/stale states for a screenshot. */
+  briefs?: Partial<ReturnType<typeof useBriefStore.getState>>;
+  /** Wave-1c evidence capture: calendarListEvents() is Tauri-gated and
+   *  always returns [] in a browser session, so TodaysMeetingsStrip has no
+   *  other way to render its matched/unmatched states for a screenshot.
+   *  calendar-commands.ts checks localStorage (written here, under
+   *  CALENDAR_EVENTS_SEED_KEY) before falling back to the real Tauri call,
+   *  gated by the same VITE_MARKETING_CAPTURE flag so it's tree-shaken from
+   *  production. localStorage (not a plain window global) so the seed
+   *  survives a reload — TodaysMeetingsStrip fetches once on mount, so a
+   *  global set after that first fetch would never be picked up. */
+  calendarEvents?: CalendarEventDto[];
   /** Bypass first-run wizard and any onboarding gates. */
   skipOnboarding?: boolean;
 }
@@ -41,6 +62,14 @@ export function mountMarketingCaptureBridge(): void {
     if (payload.aiChat) useAIChatStore.setState(payload.aiChat);
     if (payload.settings) useSettingsStore.setState(payload.settings);
     if (payload.workflow) useWorkflowStore.setState(payload.workflow);
+    if (payload.matter) useMatterStore.setState(payload.matter);
+    if (payload.briefs) useBriefStore.setState(payload.briefs);
+    if (payload.calendarEvents) {
+      localStorage.setItem(
+        CALENDAR_EVENTS_SEED_KEY,
+        JSON.stringify(payload.calendarEvents)
+      );
+    }
     if (payload.skipOnboarding) {
       // Key matches onboardingState.ts's SK_ONBOARDING_COMPLETE (src/config/identity.ts)
       localStorage.setItem(SK_ONBOARDING_COMPLETE, 'true');

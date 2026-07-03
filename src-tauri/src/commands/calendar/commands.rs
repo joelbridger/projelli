@@ -133,23 +133,36 @@ pub async fn calendar_connect_outlook_cancel(
 }
 
 /// Google loopback+PKCE sign-in with calendar.readonly. Mirrors
-/// `gmail_connect` (mail/connect.rs) with the calendar auth URL.
+/// `gmail_connect` (mail/connect.rs) with the calendar auth URL, and — like
+/// `calendar_connect_outlook` above — the cancel-rollback semantics from
+/// `onedrive_connect` (onedrive/commands.rs:147-203), so closing the sign-in
+/// tab actually aborts the wait instead of leaving the card stuck until the
+/// 300s timeout (wave-1c review finding, P2).
 #[tauri::command]
-pub async fn calendar_connect_google() -> Result<(), String> {
+pub async fn calendar_connect_google(state: State<'_, CalendarState>) -> Result<(), String> {
     use crate::commands::mail::gmail::oauth::{
-        await_redirect_code, bind_loopback, gen_pkce, gen_state, open_browser, GoogleOAuth,
+        await_redirect_code_or_cancel, bind_loopback, gen_pkce, gen_state, open_browser,
+        store_or_rollback_on_cancel, GoogleOAuth,
     };
     use crate::commands::mail::{gmail_client_id, gmail_client_secret};
     use super::oauth::build_google_auth_url;
 
+    state.oauth_cancel.store(false, Ordering::SeqCst);
+    let cancel = state.oauth_cancel.clone();
+
     let (verifier, challenge) = gen_pkce();
-    let state = gen_state();
+    let state_token = gen_state();
     let (listener, redirect_uri) = bind_loopback().await.map_err(|e| e.to_string())?;
-    let url = build_google_auth_url(&gmail_client_id(), &redirect_uri, &challenge, &state);
+    let url = build_google_auth_url(&gmail_client_id(), &redirect_uri, &challenge, &state_token);
     open_browser(&url);
-    let code = await_redirect_code(listener, &state, std::time::Duration::from_secs(300))
-        .await
-        .map_err(|e| e.to_string())?;
+    let code = await_redirect_code_or_cancel(
+        listener,
+        &state_token,
+        std::time::Duration::from_secs(300),
+        cancel.clone(),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
     let oauth = GoogleOAuth::new(gmail_client_id(), gmail_client_secret());
     let tokens = oauth
         .exchange_code(&code, &verifier, &redirect_uri)
@@ -158,10 +171,28 @@ pub async fn calendar_connect_google() -> Result<(), String> {
     let refresh = tokens
         .refresh
         .ok_or("Google did not return a refresh token; try again")?;
-    keyring::Entry::new(&provider_service("google")?, KEYCHAIN_REFRESH_KEY)
-        .map_err(|e| e.to_string())?
-        .set_password(&refresh)
+    let entry = keyring::Entry::new(&provider_service("google")?, KEYCHAIN_REFRESH_KEY)
         .map_err(|e| e.to_string())?;
+    let previous = entry.get_password().ok();
+    store_or_rollback_on_cancel(
+        &cancel,
+        || entry.set_password(&refresh).map_err(|e| e.to_string()),
+        || match &previous {
+            Some(prev) => {
+                let _ = entry.set_password(prev);
+            }
+            None => {
+                let _ = entry.delete_credential();
+            }
+        },
+    )
+}
+
+#[tauri::command]
+pub async fn calendar_connect_google_cancel(
+    state: State<'_, CalendarState>,
+) -> Result<(), String> {
+    state.oauth_cancel.store(true, Ordering::SeqCst);
     Ok(())
 }
 

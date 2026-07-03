@@ -77,6 +77,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Docs** - "Keep your notetaker" user recipes (`docs/features/keep-your-notetaker.md`)
   and the vendor-credential applications checklist
   (`docs/plans/lantern-plus/vendor-applications-checklist.md`).
+- **CRM write-back review card (Wave 2, Tasks 8-9)** - the approval-gated UI
+  for pushing notes/tasks to Wealthbox: a collapsed "Update Wealthbox" stamp
+  on the Client Map that expands into tracked-changes-green rows, a
+  household picker when a client links to two Wealthbox households, one
+  Approve button, and per-row Retry for failed/unconfirmed writes. A
+  "Send to Wealthbox" action on the shared matter notes editor enqueues the
+  first line as the note title and the rest as the body.
+  - Files: `src/platform/state/crmWriteQueueStore.ts`,
+    `src/features/matters/CrmWriteReviewCard.tsx`,
+    `src/platform/rag/matterResolver.ts` (`buildInverseCrmMap`),
+    `src/platform/utils/wealthbox-commands.ts` (`crmCreateNote`/`crmCreateTask`),
+    `src/features/matters/MatterHub.tsx`, `src/features/matters/MatterNotesEditor.tsx`
+- **Optional compliance summary to the CRM (Wave 2, Task 9b)** - off-by-default
+  toggle on the write-back review card ("Also file a compliance note"); on
+  approve, an approval-gated summary of the just-sent items (with their
+  Wealthbox receipts) is enqueued back onto the same card, never sent
+  directly. Rides the existing write path (Jump coverage-audit item D3).
+  - Files: `src/features/matters/complianceNote.ts`, `src/features/matters/CrmWriteReviewCard.tsx`
 
 ### Changed
 - Mail OAuth scopes now include `Mail.ReadWrite` (Microsoft) and `gmail.compose`
@@ -84,6 +102,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reconnect the first time they save a draft.
 
 ### Fixed
+- **Connector Local-only guards: Box, Addepar, DocuSign, Jotform, and Zocks could silently contact their cloud APIs despite a persisted Local-only privacy choice (privacy, HIGH).** Root cause: all five connectors gated `connect()`/`syncNow()` with `isLocalOnlyMode()`, which reads the in-memory Zustand settings store — during the store's hydration window at app start (or any window where a persisted choice hadn't loaded yet), that store reports the schema default (cloud-allowed), so a click in that split-second window (or any mid-operation privacy-mode flip) could fire a real network call to the connector while the user's genuine Local-only choice was ignored. DocuSign's `syncNow()` additionally had **no guard at all** — a permanent gap, not just a race, unaffected by hydration timing.
+  - Swapped every guard call-site (`connect()` and `syncNow()`) in all five connectors to `isPersistedLocalOnly()` (already shipped for OneDrive/ShareFile), which reads the persisted confidentiality mode straight from `localStorage`, bypassing the in-memory store, so the check is correct even before hydration completes.
+  - Added the missing guard to DocuSign's `syncNow()`.
+  - **Re-checked the guard immediately before every chained follow-up cloud call**, not just once at entry: Box's `autoLinkBoxFolders()` → `boxSync()`, Addepar's `addeparListEntities()` → `addeparSync()`, and Jotform's `jotformSync()` → `jotformListForms()` → `jotformListUnassigned()`, plus DocuSign's and Zocks's post-sync `...ListUnassigned()` calls — each intermediate `await` is itself a network call, so a Local-only flip mid-operation could otherwise slip past an earlier check and still fire a later one.
+  - Added one hydration/race/mid-flip regression test suite per connector under `tests/unit/connectors/*-connect-sync-button.test.tsx` (Box, Addepar, DocuSign, Jotform, Zocks), plus fixed two pre-existing test files (`box-connect-audit.test.tsx`, `addepar-connect-audit.test.tsx`, `connectors/AddeparConnect-timeouts.test.tsx`) whose `localOnlyGuard` mocks needed `isPersistedLocalOnly` added alongside `isLocalOnlyMode`.
+  - Files: `src/platform/connectors/{box,addepar,docusign,jotform,zocks}/*Connect.tsx`.
 - **Boot-reconcile delete-flood: whole workspace looked "deleted", every purge failed, starving the engine (HIGH).** On a real ~2,500-file Windows workspace the boot reconcile computed ~2,292 "deleted" keys (nearly the entire workspace) and issued a failing `delete_by_token` per key for minutes, flooding the shared LanceDB table + async runtime and circumstantially starving unrelated work (Wealthbox/OneDrive/mail/audit writes). Root cause: commit `74e24612` added Windows path normalization *inside* `path_token` but did **not** bump `MANIFEST_VERSION` — a manifest written before normalization keys entries by tokens over raw backslash paths, so after normalization the disk walk's forward-slash tokens mismatch every entry and the whole workspace looks deleted; `has_stale_key_format` only caught the v1→v2 change, so no rebuild was forced. Fixes:
   - **Root cause — manifest key-format version bumped 2→3** and `has_stale_key_format` now flags *any* older format (`1 ≤ version < MANIFEST_VERSION`, not just v1), so a pre-normalization manifest triggers the existing drop-table + full-rebuild path (re-derives every token under the normalizer) instead of a mass-purge. One-time reindex for existing installs; the only correct migration since a normalized-v2 and non-normalized-v2 manifest are indistinguishable on disk.
   - **Stale signal made durable at workspace-open.** Because bumping the version makes `manifest::load` read a stale manifest as empty and `manifest::save` writes it forward, a pre-reconcile incremental write (PDF-record or watcher index) could upgrade the file to the current version and erase the `has_stale_key_format` signal before reconcile checked it — skipping the rebuild and leaving deleted-while-closed rows searchable. `rag_set_workspace` (the earliest per-open hook — every manifest writer requires the workspace set first) now plants the durable `rebuild_required` sentinel the moment a stale manifest is observed, so the migration survives any later write.

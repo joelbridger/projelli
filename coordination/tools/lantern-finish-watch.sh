@@ -11,7 +11,7 @@ declare -A state hash hash_since acked
 while true; do
   for s in $(tmux ls -F '#{session_name}' 2>/dev/null | grep '^cc-lantern-' | grep -v coordinator); do
     pane=$(tmux capture-pane -t "$s" -p 2>/dev/null) || continue
-    if grep -q 'esc to interrupt' <<<"$pane"; then cur=WORKING; else cur=IDLE; fi
+    if grep -qE 'esc to interrupt' <<<"$pane" || grep -qE '^\s*◯ .+ · ' <<<"$pane"; then cur=WORKING; else cur=IDLE; fi
     h=$(md5sum <<<"$pane" | cut -d' ' -f1)
     now=$(date +%s)
     prev="${state[$s]:-IDLE}"
@@ -31,8 +31,8 @@ while true; do
     else
       hash[$s]="$h"; hash_since[$s]=$now
       if [ "$prev" = WORKING ]; then
-        if tmux capture-pane -t "$s" -p 2>/dev/null | tail -45 | grep -q 'WORKER-DONE:'; then
-          echo "DONE $s — $(tmux capture-pane -t "$s" -p | tail -45 | grep 'WORKER-DONE:' | tail -1)"
+        if tmux capture-pane -t "$s" -p 2>/dev/null | tail -45 | grep -vE 'LAST line|sentinel|print' | grep -qE '^\s*WORKER-DONE:'; then
+          echo "DONE $s — $(tmux capture-pane -t "$s" -p | tail -45 | grep -vE 'LAST line|sentinel|print' | grep -E '^\s*WORKER-DONE:' | tail -1)"
           acked[$s]=DONE
         else
           echo "ACK_IDLE $s — went idle without sentinel; last line: $(grep -v '^\s*$' <<<"$pane" | tail -1 | cut -c1-120)"

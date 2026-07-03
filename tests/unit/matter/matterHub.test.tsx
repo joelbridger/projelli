@@ -89,6 +89,7 @@ vi.mock('@/platform/state/aiChatStore', () => ({
 // ── Import components after mocks ──────────────────────────────────────────────
 import { MattersHome } from '@/features/matters/MattersHome';
 import { MatterHub } from '@/features/matters/MatterHub';
+import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
 
 function resetStore() {
   useMatterStore.setState({ matters: [], activeMatterId: null, clientMapHubId: null, clientMapHubTab: null });
@@ -352,6 +353,40 @@ describe('MatterHub — sub-tab workspace', () => {
     });
     const after = useClientMapStore.getState().getMap(matter.id);
     expect(after?.sections[0]?.items[0]?.text).toBe('Original fact');
+  });
+
+  // Codex adversarial review catch: CrmWriteReviewCard was originally nested
+  // inside the `clientMap.status === 'ready'` gate alongside ClientMapUpdatesTray.
+  // A queued Wealthbox write from the (always-available) shared notes editor
+  // must stay reachable for approval/dismiss even when the Client Map itself
+  // hasn't finished building yet (or errored, or is empty) — otherwise the
+  // queued item becomes invisible with no way to approve or dismiss it.
+  it('shows the CRM write review card even when the Client Map is not ready', async () => {
+    useMatterStore.getState().createMatter({ name: 'Not Ready Co', client: 'Not Ready Co' });
+    const matter = useMatterStore.getState().matters[0]!;
+    useCrmWriteQueueStore.setState({ items: [] });
+    useCrmWriteQueueStore.getState().enqueue({
+      kind: 'note',
+      matterId: matter.id,
+      title: 'Note title',
+      body: 'Note body',
+      sourceRef: 'note:' + matter.id,
+    });
+
+    render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
+
+    // No Client Map was seeded, so status never reaches 'ready' in this test.
+    expect(screen.queryByTestId('hub-clientmap-empty')).toBeNull();
+    expect(useClientMapStore.getState().getMap(matter.id)).toBeUndefined();
+
+    // The card still mounted and ran its connection check (this test's global
+    // isTauri() mock returns false, so it renders the disconnected hint —
+    // proof the card exists in the tree at all is what matters here).
+    await waitFor(() => {
+      expect(screen.getByText(/connect wealthbox to send/i)).toBeInTheDocument();
+    });
+
+    useCrmWriteQueueStore.setState({ items: [] });
   });
 
   it('opens directly on a requested sub-tab from the client-list quick-action signal', async () => {

@@ -1,5 +1,11 @@
 # Lantern-Plus Coordination STATUS
 
+## UPDATE 2026-07-03 ~05:30 — WAVES 0+1 DONE; WAVE 2 NEARLY DONE
+- lantern-plus @5f64aea0+ (pushed): Wave 0 ✅ · Wave 1 ✅ (all 20 tasks + evidence) · Wave 2: backend ✅ + approval UI ✅ merged; remainder Rust batch (w2) on final verification; 9b compliance toggle (lp/crm-ui2 @4c5dab7d) under review; 9c HELD (needs an unowned Rust contact-update command — routes to w2 next).
+- Lanes: w2 = crm remainder (task 10 + 3 cross-lane P1/P2 fixes + checklist/changelog); w3 = review-fix reserve (9b under review); w4 = polish lane (citation popovers, per-bullet citations, calendar purge-failure fix, Outlook self-filter). w0+w1 retired clean (caches deleted).
+- Wave 1 milestone report + screenshots sent to Jameson. Two Jameson items open: Google OAuth filing, interview campaign.
+- Next gates: interim real-Windows smoke of Waves 0-2 (when Legion frees — main line still holds it), then Wave 3 (brief staged, ALSO Legion-gated). Rename freeze window: main executes ~/keepance→~/lantern earliest 07-04 06:00 (bulletin EXECUTING/DONE lines; downstream merges frozen during).
+
 ## UPDATE 2026-07-03 ~03:00 — WAVES 0 + 1-BACKEND MERGED 🎉
 - lantern-plus @d64f7d58 (pushed): Wave 0 (13 tasks) + Wave 1 backend (tasks 1-11, lp/wave-1b) + downstream merge #3 (22 main-line commits incl. their calendly denylist fix). Gates: typecheck ✅, vitest 5281 ✅ (consent contract test = known load-flake, passes isolated), cargo keychain tests 16/16 ✅. Backup tags: backup-pre-wave0-merge / -wave1b-merge / -downstream3-20260703.
 - Milestone report published (claudereports: 2026-07-02-lantern-plus-waves-0-1-backend-merged) + notify-jameson sent with UI screenshots (docs/evidence/wave-0/ on lp/wave-0).

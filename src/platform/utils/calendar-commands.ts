@@ -64,23 +64,32 @@ export async function calendarConnectGoogle(): Promise<void> {
   return invoke('calendar_connect_google');
 }
 
+export async function calendarConnectGoogleCancel(): Promise<void> {
+  if (!isTauri()) return;
+  return invoke('calendar_connect_google_cancel');
+}
+
 export async function calendarConnectIcs(url: string): Promise<void> {
   if (!isTauri()) throw new Error(DESKTOP_ONLY);
   return invoke('calendar_connect_ics', { url });
 }
 
-export async function calendarIsConnected(provider: CalendarProviderId): Promise<boolean> {
+export async function calendarIsConnected(
+  provider: CalendarProviderId
+): Promise<boolean> {
   if (!isTauri()) return false;
   return invoke<boolean>('calendar_is_connected', { provider });
 }
 
-export async function calendarDisconnect(provider: CalendarProviderId): Promise<void> {
+export async function calendarDisconnect(
+  provider: CalendarProviderId
+): Promise<void> {
   if (!isTauri()) throw new Error(DESKTOP_ONLY);
   return invoke('calendar_disconnect', { provider });
 }
 
 export async function calendarSyncAll(
-  matterMap: CalendarMatterMapEntry[],
+  matterMap: CalendarMatterMapEntry[]
 ): Promise<CalendarSyncReport> {
   if (!isTauri()) throw new Error(DESKTOP_ONLY);
   return invoke<CalendarSyncReport>('calendar_sync_all', { matterMap });
@@ -96,10 +105,27 @@ export async function calendarCancelSync(): Promise<void> {
   return invoke('calendar_cancel_sync');
 }
 
+/** Evidence/marketing-capture only: localStorage (not a plain window global)
+ *  so a seeded fixture survives a page reload/navigation the same way the
+ *  seeded matter/workspace state already does via Zustand's persist
+ *  middleware — TodaysMeetingsStrip fetches once on mount, so a global set
+ *  AFTER that first fetch would otherwise never be picked up without a
+ *  forced remount. */
+export const CALENDAR_EVENTS_SEED_KEY =
+  'lantern:__marketing_capture_calendar_events';
+
 export async function calendarListEvents(
   fromUtc: string,
-  toUtc: string,
+  toUtc: string
 ): Promise<CalendarEventDto[]> {
+  if (import.meta.env['VITE_MARKETING_CAPTURE'] === '1') {
+    try {
+      const raw = localStorage.getItem(CALENDAR_EVENTS_SEED_KEY);
+      if (raw) return JSON.parse(raw) as CalendarEventDto[];
+    } catch {
+      /* fall through to the real Tauri call */
+    }
+  }
   if (!isTauri()) return [];
   return invoke<CalendarEventDto[]>('calendar_list_events', { fromUtc, toUtc });
 }

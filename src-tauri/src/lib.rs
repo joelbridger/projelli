@@ -275,6 +275,7 @@ pub fn run() {
             commands::calendar::commands::calendar_connect_outlook,
             commands::calendar::commands::calendar_connect_outlook_cancel,
             commands::calendar::commands::calendar_connect_google,
+            commands::calendar::commands::calendar_connect_google_cancel,
             commands::calendar::commands::calendar_connect_ics,
             commands::calendar::commands::calendar_is_connected,
             commands::calendar::commands::calendar_disconnect,
