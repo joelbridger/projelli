@@ -4,6 +4,7 @@ import {
   bindAnswerCitations,
   buildRecentAskSessions,
   sessionBelongsToWorkspace,
+  filterHitsByScope,
 } from './askHelpers';
 
 function hit(overrides: Partial<RagHit> = {}): RagHit {
@@ -16,6 +17,13 @@ function hit(overrides: Partial<RagHit> = {}): RagHit {
     ...overrides,
   };
 }
+
+describe('filterHitsByScope', () => {
+  it('whole-practice scope passes hits through unchanged (scope never reaches retrieval anyway)', () => {
+    const hits = [hit()];
+    expect(filterHitsByScope(hits, 'whole-practice')).toEqual(hits);
+  });
+});
 
 describe('bindAnswerCitations', () => {
   it('attaches a GROUNDED-but-UNVERIFIED citation when the model emits no marker but a retrieved hit supports the answer (B1)', () => {

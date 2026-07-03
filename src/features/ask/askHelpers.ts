@@ -56,12 +56,15 @@ import {
 
 /**
  * Which slice of the user's data to search.
- * - 'this-matter'  search only within the active matter (same as today's default)
- * - 'all-matters'  cross-matter (same as today's no-active-matter default)
- * - 'email'        restrict to mail: sourceId / sourceType === 'mail' chunks
- * - 'documents'    restrict to non-mail chunks (files, PDFs, transcripts, etc.)
+ * - 'this-matter'    search only within the active matter (same as today's default)
+ * - 'all-matters'    cross-matter (same as today's no-active-matter default)
+ * - 'email'          restrict to mail: sourceId / sourceType === 'mail' chunks
+ * - 'documents'      restrict to non-mail chunks (files, PDFs, transcripts, etc.)
+ * - 'whole-practice' book-level questions answered from per-client Client Map
+ *   summaries only (Wave 4 Track C); never reaches retrieval — matter
+ *   isolation stays intact because raw cross-matter chunks are never read.
  */
-export type AskScope = 'this-matter' | 'all-matters' | 'email' | 'documents';
+export type AskScope = 'this-matter' | 'all-matters' | 'email' | 'documents' | 'whole-practice';
 
 /**
  * F2.5 — the file-access consent scope for an Ask turn. It MUST mirror the
