@@ -46,7 +46,7 @@ vi.mock('@/platform/matter/matterStore', () => ({
 }));
 
 vi.mock('@/platform/privacy/localOnlyGuard', () => ({
-  isLocalOnlyMode: vi.fn().mockReturnValue(false),
+  isPersistedLocalOnly: vi.fn().mockReturnValue(false),
 }));
 
 import {

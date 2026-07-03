@@ -35,10 +35,21 @@ export function useMeetingAutoprep(
   events: CalendarEventDto[],
   matters: Matter[]
 ): void {
+  // matters identity churns on unrelated store writes; key on ids+events
+  // +taught-keys. codex-review (wave-1c self-review, P2): meetingKeys must
+  // be in this signal too — teaching a new key (assigning an unmatched
+  // meeting) changes NEITHER the matter id list NOR the event id list, so
+  // without it this effect never re-fires and the freshly-matched meeting
+  // never gets the brief the UI just promised it.
+  const eventIdsKey = events.map((e) => e.id).join(',');
+  const matterIdsKey = matters.map((m) => m.id).join(',');
+  const meetingKeysKey = matters
+    .map((m) => (m.meetingKeys ?? []).join('+'))
+    .join('|');
+
   useEffect(() => {
     if (events.length === 0) return;
     enqueueBriefs(jobsForEvents(events, matters));
-    // matters identity churns on unrelated store writes; key on ids+events.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [events.map((e) => e.id).join(','), matters.map((m) => m.id).join(',')]);
+  }, [eventIdsKey, matterIdsKey, meetingKeysKey]);
 }

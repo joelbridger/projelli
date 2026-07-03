@@ -246,8 +246,24 @@ export function TodaysMeetingsStrip({
                         type="button"
                         data-testid={`meeting-assign-option-${m.id}`}
                         onClick={() => {
-                          const key = event.attendees[0]?.email || event.title;
-                          addMeetingKey(m.id, key);
+                          // codex-review (wave-1c self-review): when the
+                          // CLIENT sends the invite (common with Google/
+                          // Graph), attendees[0] is often the ADVISOR and
+                          // the client's address lands in organizerEmail
+                          // instead (same asymmetry resolveMattersForCalendarEvent
+                          // already handles for matching). Teaching only
+                          // attendees[0] would misfile every future meeting
+                          // where the roles are swapped — teach every
+                          // plausible client-identifying address instead.
+                          const keys = [
+                            event.organizerEmail,
+                            event.attendees[0]?.email,
+                          ].filter((k): k is string => Boolean(k));
+                          for (const key of keys.length
+                            ? keys
+                            : [event.title]) {
+                            addMeetingKey(m.id, key);
+                          }
                           setConfirmed((c) => ({
                             ...c,
                             [event.id]: matterLabel(m),

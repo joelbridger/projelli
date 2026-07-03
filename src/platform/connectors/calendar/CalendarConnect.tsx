@@ -25,7 +25,7 @@ import {
 } from '@/platform/utils/calendar-commands';
 import { buildCalendarMatterMap } from '@/platform/rag/matterResolver';
 import { beginOAuth, endOAuth } from '@/platform/connectors/oauthPending';
-import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
+import { isPersistedLocalOnly } from '@/platform/privacy/localOnlyGuard';
 import { getMatters } from '@/platform/matter/matterStore';
 import { AuditService } from '@/platform/audit/AuditService';
 import { sanitizeSyncError } from '@/platform/connectors/syncAuditError';
@@ -91,7 +91,7 @@ export function CalendarConnect() {
     setError(null);
     beginOAuth();
     try {
-      if (isLocalOnlyMode()) {
+      if (isPersistedLocalOnly()) {
         throw new Error(
           'Local-only mode is on. Turn it off before connecting a calendar, because sign-in contacts the provider.'
         );
@@ -127,7 +127,7 @@ export function CalendarConnect() {
     }
     // The backend fetches this URL immediately to validate it, so this is a
     // network call — the same local-only guard connectOAuth uses.
-    if (isLocalOnlyMode()) {
+    if (isPersistedLocalOnly()) {
       setError(
         'Local-only mode is on. Turn it off before connecting a calendar, because sign-in contacts the provider.'
       );
@@ -149,7 +149,7 @@ export function CalendarConnect() {
 
   async function runSync() {
     setError(null);
-    if (isLocalOnlyMode()) {
+    if (isPersistedLocalOnly()) {
       setError(
         'Local-only mode is on. Turn it off before syncing your calendar, because it contacts the provider.'
       );

@@ -13,10 +13,40 @@ import { buildWorkspaceContextBlock } from '@/platform/rag/workspaceCommand';
 import { buildProviderForGlance } from '@/platform/matter/matterAtAGlance';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useMatterStore } from '@/platform/matter/matterStore';
+import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
+import { AuditService } from '@/platform/audit/AuditService';
 import type { Provider } from '@/platform/providers/Provider';
 import type { RagHit, RetrievalScope } from '@/platform/utils/tauri-commands';
 import type { CalendarEventDto } from '@/platform/utils/calendar-commands';
+import type { AuditEntry } from '@/platform/types/audit';
 import { fenceEventData } from './sanitizeEventText';
+
+// codex-review (wave-1c self-review, P1): the headless engine run below can
+// send client content to a cloud AI provider in the background (no user
+// click triggers it), but createWorkflowEngine's audit hooks are OFF unless
+// wired explicitly — unlike the interactive Workflows tab (useWorkflowRunner
+// .ts), which always passes one. Without this, a background brief's egress/
+// model-call would never appear in the Activity Log or a confidentiality
+// report, silently breaking the "every AI action is audited" guarantee. The
+// engine's onAuditLog callback receives Omit<AuditEntry,'id'|'timestamp'>;
+// AuditService.log's (action, description, options) shape differs, so this
+// adapts one to the other.
+const workflowAudit = new AuditService('workflows');
+function onAuditLog(entry: Omit<AuditEntry, 'id' | 'timestamp'>): void {
+  // exactOptionalPropertyTypes: AuditEntry stores these as `T | undefined`
+  // (always present, possibly undefined), but AuditLogOptions' fields are
+  // optional (may be OMITTED, never explicitly undefined) — only include a
+  // key when its value is defined.
+  workflowAudit.log(entry.action, entry.description, {
+    ...(entry.model !== undefined && { model: entry.model }),
+    inputs: entry.inputs,
+    outputs: entry.outputs,
+    ...(entry.userDecision !== undefined && {
+      userDecision: entry.userDecision,
+    }),
+    metadata: entry.metadata,
+  });
+}
 
 export interface GeneratedBrief {
   markdown: string;
@@ -141,7 +171,16 @@ export async function generateMeetingBrief(
       },
       readFile: () => Promise.resolve(''),
     },
-    () => Promise.resolve(answers)
+    () => Promise.resolve(answers),
+    undefined,
+    {
+      audit: {
+        onAuditLog,
+        providerId: provider.getMetadata().providerId ?? 'unknown',
+        model: provider.getMetadata().model,
+        getConfidentialityMode,
+      },
+    }
   );
   const record = await engine.execute(MeetingPrepAndSuitabilityNotes, {});
   throwIfAborted(options?.signal);
