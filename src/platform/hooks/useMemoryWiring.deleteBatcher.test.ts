@@ -133,7 +133,7 @@ describe('createDeleteBurstBatcher', () => {
     );
   });
 
-  it('P1 regression: opens the breaker after a sustained run of failures, but every queued path is still attempted (and requeued) this round — none skipped', async () => {
+  it('P1 regression: opens the breaker after N consecutive failures — bounded to N doomed calls, never hammers through the whole burst', async () => {
     const deletePath = vi.fn().mockRejectedValue(new Error('lancedb writer race'));
     const onLog = vi.fn();
     const batcher = createDeleteBurstBatcher(deletePath, {
@@ -148,15 +148,17 @@ describe('createDeleteBurstBatcher', () => {
     }
     await vi.advanceTimersByTimeAsync(250);
 
-    // The breaker exceeds its 3-consecutive-failure threshold, but this round
-    // never bails out early: every one of the 10 queued paths gets a real
-    // attempt (never silently skipped), and — since all 10 failed — all 10
-    // are still queued for the scheduled retry after cooldown (a deleted
-    // client file must never silently stay searchable). The breaker only
-    // paces the NEXT round via the cooldown.
-    expect(deletePath).toHaveBeenCalledTimes(10);
-    expect(onLog).toHaveBeenCalledWith(expect.stringContaining('10 of 10 delete event(s) failed'));
-    expect(onLog).toHaveBeenCalledWith(expect.stringContaining('10 consecutive delete failures'));
+    // Breaker trips after exactly 3 consecutive failures — only those 3 are
+    // actually attempted (bounded exposure; a 2,000-file storm against a
+    // fully-down backend must cost at most `breakerThreshold` doomed calls
+    // per cooldown cycle, not hammer through the whole burst). The other 7
+    // are NOT attempted right now, but critically they are also NOT dropped:
+    // every one of the 10 originally-queued paths is still queued for the
+    // scheduled retry after cooldown (a deleted client file must never
+    // silently stay searchable).
+    expect(deletePath).toHaveBeenCalledTimes(3);
+    expect(onLog).toHaveBeenCalledTimes(1);
+    expect(onLog).toHaveBeenCalledWith(expect.stringContaining('3 consecutive delete failures'));
     expect(onLog).toHaveBeenCalledWith(
       expect.stringContaining('retrying 10 pending delete event(s) after cooldown'),
     );
@@ -230,14 +232,17 @@ describe('createDeleteBurstBatcher', () => {
     expect(deletePath).toHaveBeenCalledWith('/ws/good2.docx');
   });
 
-  it('P1 escalation regression: threshold-or-more chronically-bad paths ahead of a good one still let the good one run in the SAME round', async () => {
+  it('P1 escalation regression: threshold-or-more chronically-bad paths ahead of a good one defer it, but never starve it — bounded this round, prioritized next round', async () => {
     // Resetting the failure counter per cooldown (the prior fix) isn't
     // enough when breakerThreshold-or-more permanently-broken paths sit
-    // ahead of a good one: the round used to bail out of the for-loop the
-    // instant the threshold was hit, so the good path — sitting right behind
-    // the bad run — was requeued as "not yet attempted" and never actually
-    // tried, round after round, forever. The fix never breaks the for-loop
-    // early; every distinct path always gets one real attempt per round.
+    // ahead of a good one: the round used to re-trip on the SAME leading bad
+    // run every cooldown cycle, so the good path behind it was requeued as
+    // "not yet attempted" and never actually tried, forever. The fix keeps
+    // the round BOUNDED (stops at exactly `breakerThreshold` doomed calls —
+    // no hammering a dead backend) but rotates whatever didn't get attempted
+    // to the FRONT of the next round, ahead of the failing run, so it gets
+    // first crack at the very next cooldown wake-up instead of being stuck
+    // behind the same bad paths indefinitely.
     const deletePath = vi.fn().mockImplementation(async (path: string) => {
       if (path.startsWith('/ws/bad')) throw new Error('permanently broken row');
     });
@@ -258,16 +263,24 @@ describe('createDeleteBurstBatcher', () => {
 
     await vi.advanceTimersByTimeAsync(100);
 
-    // All 4 attempted this round (bad-1..3 fail and trip the breaker, but
-    // `good` — queued behind them — still gets its real attempt and
-    // succeeds, in the SAME round the breaker trips).
-    expect(deletePath).toHaveBeenCalledTimes(4);
-    expect(deletePath).toHaveBeenCalledWith('/ws/good.docx');
+    // Bounded: only the 3 bad ones are attempted this round — the breaker
+    // stops as soon as it trips, it does NOT hammer through to `good` even
+    // though `good` is right behind.
+    expect(deletePath).toHaveBeenCalledTimes(3);
+    expect(deletePath).not.toHaveBeenCalledWith('/ws/good.docx');
     expect(onLog).toHaveBeenCalledWith(expect.stringContaining('3 consecutive delete failures'));
-    // Only the 3 bad ones remain queued for retry — `good` already succeeded.
     expect(onLog).toHaveBeenCalledWith(
-      expect.stringContaining('retrying 3 pending delete event(s) after cooldown'),
+      expect.stringContaining('retrying 4 pending delete event(s) after cooldown'),
     );
+
+    deletePath.mockClear();
+
+    // Cooldown elapses — `good` was rotated to the FRONT of the retry queue,
+    // so it's attempted (and succeeds) before the still-broken paths can
+    // trip the breaker again and block it.
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(deletePath.mock.calls[0]?.[0]).toBe('/ws/good.docx');
   });
 
   it('P1 regression: every originally-queued path is eventually retried and succeeds once the backend recovers — none lost across the breaker/cooldown cycle', async () => {

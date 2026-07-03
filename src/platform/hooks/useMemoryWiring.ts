@@ -297,12 +297,16 @@ function resolveMatterIdWithWorkspaceForms(path: string): string {
  *      becomes one bounded, SEQUENTIAL sweep instead of N concurrent calls;
  *   2. never rejects — every call is wrapped, failures are logged once per
  *      batch, not once per file;
- *   3. opens a breaker after N consecutive failures and PAUSES (never drops)
- *      — a failed or not-yet-attempted path is put back on the queue and
- *      retried once the cooldown elapses. A delete is a privacy operation
- *      (a deleted client file must stop being searchable); losing one
- *      silently would leave stale content indexed indefinitely, so this
- *      batcher only ever paces retries, never abandons a path;
+ *   3. opens a breaker after N consecutive failures, bounding a doomed burst
+ *      to at most N backend calls per cooldown cycle (never hammers a fully
+ *      down backend). Every path is PAUSED, never dropped — a failed or
+ *      not-yet-attempted path is put back on the queue, with not-yet-
+ *      attempted paths rotated to the FRONT so the same leading run of
+ *      chronic failures can't perpetually block what's behind it. A delete
+ *      is a privacy operation (a deleted client file must stop being
+ *      searchable); losing one silently would leave stale content indexed
+ *      indefinitely, so this batcher only ever paces and reorders retries,
+ *      never abandons a path;
  *   4. exposes `cancel(path)` so the caller can drop a queued delete when a
  *      create/modify for the SAME path arrives first — otherwise a
  *      delete-then-recreate within the buffer window (an atomic save/replace
@@ -396,7 +400,7 @@ export function createDeleteBurstBatcher(
         const paths = Array.from(pending);
         pending = new Set();
         let failed = 0;
-        let peakConsecutiveFailures = 0;
+        let breakerTripped = false;
         for (const path of paths) {
           if (disposed) return;
           try {
@@ -407,30 +411,37 @@ export function createDeleteBurstBatcher(
           } catch {
             failed += 1;
             consecutiveFailures += 1;
-            peakConsecutiveFailures = Math.max(peakConsecutiveFailures, consecutiveFailures);
             // Never lose this path: a failed delete is retried, not abandoned.
             pending.add(path);
+            if (consecutiveFailures >= breakerThreshold) {
+              // Stop attempting NOW — bounded exposure. A 2,000-file delete
+              // storm against a fully-down backend must cost at most
+              // `breakerThreshold` doomed calls per cooldown cycle, not
+              // hammer through the whole burst before backing off.
+              breakerOpenUntil = Date.now() + cooldownMs;
+              // Fairness: paths this round never even got to attempt go to
+              // the FRONT of the next round, AHEAD of the run that just
+              // tripped the breaker. Without this, the same leading
+              // chronically-bad paths would occupy the front of `pending`
+              // again next round (Set insertion order) and re-trip before
+              // ever reaching what's behind them — starving good deletes
+              // forever. Rotating guarantees every path gets priority for a
+              // real attempt within one cooldown cycle of being blocked.
+              const notYetAttempted = paths.slice(paths.indexOf(path) + 1);
+              pending = new Set([...notYetAttempted, ...pending]);
+              log(
+                `[memory] ${consecutiveFailures} consecutive delete failures; backing off for ${cooldownMs}ms, ` +
+                  `retrying ${pending.size} pending delete event(s) after cooldown`,
+              );
+              scheduleCooldownRetry(cooldownMs);
+              breakerTripped = true;
+              break;
+            }
           }
-          // Deliberately NEVER break out of this loop early on a run of
-          // failures. `breakerThreshold` or more chronically-broken paths
-          // sitting ahead of a perfectly good one in `pending` (Set
-          // insertion order) would otherwise starve that good delete
-          // forever — every round would re-trip on the same leading bad
-          // paths before ever reaching it. Every distinct queued path
-          // always gets a real attempt THIS round; the breaker only decides
-          // whether to pace the NEXT round via a cooldown.
         }
+        if (breakerTripped) break;
         if (failed > 0) {
           log(`[memory] ${failed} of ${paths.length} delete event(s) failed; retrying`);
-        }
-        if (peakConsecutiveFailures >= breakerThreshold) {
-          breakerOpenUntil = Date.now() + cooldownMs;
-          log(
-            `[memory] ${peakConsecutiveFailures} consecutive delete failures; backing off for ${cooldownMs}ms, ` +
-              `retrying ${pending.size} pending delete event(s) after cooldown`,
-          );
-          scheduleCooldownRetry(cooldownMs);
-          break;
         }
       }
     } finally {
