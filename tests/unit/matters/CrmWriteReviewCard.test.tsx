@@ -1,6 +1,6 @@
 // tests/unit/matters/CrmWriteReviewCard.test.tsx
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 
 vi.mock('@/platform/utils/wealthbox-commands', async () => {
   const actual = await vi.importActual<typeof import('@/platform/utils/wealthbox-commands')>(
@@ -140,6 +140,74 @@ describe('CrmWriteReviewCard', () => {
 
     fireEvent.click(screen.getByTestId('crm-household-111'));
     expect(approveBtn).not.toBeDisabled();
+  });
+
+  // Codex adversarial review catch: a client mixed into another CRM's
+  // household map (sfdc:/redtail:-prefixed keys) must not offer that
+  // provider's id as a Wealthbox write target — this card is Wealthbox-only.
+  it('filters out non-Wealthbox household keys (sfdc:/redtail: prefixes)', async () => {
+    const m = useMatterStore.getState().createMatter({
+      name: 'Henderson',
+      client: 'Henderson',
+      crmHouseholdKeys: ['12345', 'sfdc:001XYZ', 'redtail:rt-1'],
+    });
+    useCrmWriteQueueStore.getState().enqueue({
+      kind: 'note',
+      matterId: m.id,
+      title: 'Note title',
+      body: 'Note body',
+      sourceRef: 'doc:notes.docx',
+    });
+
+    render(<CrmWriteReviewCard matterId={m.id} />);
+    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
+    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+
+    // Exactly one (Wealthbox) household remains, so it auto-selects and no
+    // picker/empty-state renders.
+    expect(screen.queryByText(/link this client to a wealthbox household first/i)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('crm-household-sfdc:001XYZ')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('crm-household-redtail:rt-1')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /approve 1 change/i }));
+    await waitFor(() => { expect(crmCreateNote).toHaveBeenCalledTimes(1); });
+    expect(crmCreateNote).toHaveBeenCalledWith(expect.objectContaining({ householdKey: '12345' }));
+  });
+
+  // Codex adversarial review catch: a card that queued a write before
+  // Wealthbox was connected must eventually notice the connection instead of
+  // being stuck on the "Connect" hint until the page reloads.
+  it('re-checks the connection while disconnected and recovers once connected', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(crmIsConnected).mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+      const m = useMatterStore.getState().createMatter({
+        name: 'Henderson',
+        client: 'Henderson',
+        crmHouseholdKeys: ['12345'],
+      });
+      useCrmWriteQueueStore.getState().enqueue({
+        kind: 'note',
+        matterId: m.id,
+        title: 'Note title',
+        body: 'Note body',
+        sourceRef: 'doc:notes.docx',
+      });
+
+      render(<CrmWriteReviewCard matterId={m.id} />);
+      // Flush the initial crmIsConnected() microtask + its state update.
+      await act(async () => { await Promise.resolve(); });
+      expect(crmIsConnected).toHaveBeenCalledTimes(1);
+      expect(screen.getByText(/connect wealthbox to send/i)).toBeInTheDocument();
+
+      // Fire the poll's setTimeout (scheduled under these same fake timers).
+      await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+
+      expect(crmIsConnected).toHaveBeenCalledTimes(2);
+      expect(screen.queryByText(/connect wealthbox to send/i)).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('shows a connect-first hint and no card body when Wealthbox is not connected', async () => {

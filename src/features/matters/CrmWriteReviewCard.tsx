@@ -28,8 +28,22 @@ export interface CrmWriteReviewCardProps {
 
 const RETRYABLE_STATUSES: ProposedCrmWrite['status'][] = ['proposed', 'failed', 'verify_pending'];
 
+/** How often to re-check the Wealthbox connection while disconnected and a
+ *  write is queued, so connecting elsewhere unsticks this card without a
+ *  reload. */
+const CONNECTION_RECHECK_MS = 5000;
+
 function pluralize(n: number, word: string): string {
   return `${String(n)} ${word}${n === 1 ? '' : 's'}`;
+}
+
+/** Mirrors the Rust `crm_key_belongs_to_provider("wealthbox", ...)` rule and
+ *  the TS `filterCrmMatterMapForProvider` sibling: Wealthbox keys are bare
+ *  ids, other providers prefix theirs (`sfdc:...`, `redtail:...`). This card
+ *  only ever writes to Wealthbox, so a client mixed into another CRM's
+ *  household map must not offer that other provider's id as a target. */
+function isWealthboxHouseholdKey(key: string): boolean {
+  return !key.startsWith('sfdc:') && !key.startsWith('redtail:');
 }
 
 function summaryLabel(items: ProposedCrmWrite[]): string {
@@ -53,17 +67,34 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
   const [household, setHousehold] = useState<string | null>(null);
   const [connected, setConnected] = useState<boolean | null>(null);
 
-  const householdKeys = useMemo(() => buildInverseCrmMap(matters).get(matterId) ?? [], [matters, matterId]);
+  const householdKeys = useMemo(
+    () => (buildInverseCrmMap(matters).get(matterId) ?? []).filter(isWealthboxHouseholdKey),
+    [matters, matterId],
+  );
   const effectiveHousehold = householdKeys.length === 1 ? (householdKeys[0] ?? null) : household;
 
   useEffect(() => {
     if (items.length === 0) return;
     let cancelled = false;
-    void crmIsConnected('wealthbox').then((isConnected) => {
-      if (!cancelled) setConnected(isConnected);
-    });
+    let recheckTimer: ReturnType<typeof setTimeout> | null = null;
+
+    function check() {
+      void crmIsConnected('wealthbox').then((isConnected) => {
+        if (cancelled) return;
+        setConnected(isConnected);
+        // Codex review catch: a card that queued a write before Wealthbox
+        // was connected must not stay stuck on the "Connect" hint forever —
+        // keep polling until connected, the queue empties, or we unmount.
+        if (!isConnected) {
+          recheckTimer = setTimeout(check, CONNECTION_RECHECK_MS);
+        }
+      });
+    }
+    check();
+
     return () => {
       cancelled = true;
+      if (recheckTimer) clearTimeout(recheckTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items.length > 0, matterId]);
