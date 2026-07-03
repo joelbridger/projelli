@@ -155,10 +155,23 @@ export function splitBodyWithCitations(
   body: string,
   citations: DraftCitation[],
 ): DraftBodySegment[] {
+  const lowerBody = body.toLowerCase();
+  // codex-review round 3 (P3): the schema doesn't require citations to be
+  // returned in body order. Sorting by each citation's first occurrence
+  // before the sequential scan below means an out-of-order, earlier-in-body
+  // citation is no longer skipped just because the cursor already passed it
+  // while consuming a later-listed one.
+  const ordered = citations
+    .map((citation) => ({
+      citation,
+      firstIndex: lowerBody.indexOf(citation.matchText.toLowerCase()),
+    }))
+    .filter((c) => c.firstIndex !== -1)
+    .sort((a, b) => a.firstIndex - b.firstIndex);
+
   const segments: DraftBodySegment[] = [];
   let cursor = 0;
-  const lowerBody = body.toLowerCase();
-  for (const citation of citations) {
+  for (const { citation } of ordered) {
     const idx = lowerBody.indexOf(citation.matchText.toLowerCase(), cursor);
     if (idx === -1) continue;
     if (idx > cursor) segments.push({ type: 'text', value: body.slice(cursor, idx) });

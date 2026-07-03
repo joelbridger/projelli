@@ -118,11 +118,14 @@ function buildBulletPrompt(event: CalendarEventDto, clientLabel: string, hits: R
   // pattern: an instruction naming the fence, then the fence itself, with
   // any literal occurrence of the fence marker stripped from the content so
   // a hostile chunk can't forge an early close.
+  // codex-review round 3 (P2): h.path (a filename/connector label) can be
+  // externally controlled the same way chunkText is — a synced file or
+  // connector item can be named anything — so it needs the same fence-marker
+  // stripping, or a poisoned NAME could forge an early fence close even with
+  // sanitized chunk text.
+  const stripFence = (s: string) => s.replace(/RETRIEVED_SOURCES/g, '');
   const sourceList = hits
-    .map(
-      (h, i) =>
-        `${String(i + 1)}. [${h.path}] ${sanitizeForPrompt(h.chunkText).replace(/RETRIEVED_SOURCES/g, '')}`,
-    )
+    .map((h, i) => `${String(i + 1)}. [${stripFence(h.path)}] ${stripFence(sanitizeForPrompt(h.chunkText))}`)
     .join('\n');
   // The event title comes from an external calendar and is UNTRUSTED (same
   // guard as the main brief's eventBlock below) — fenced as data, never

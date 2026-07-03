@@ -84,6 +84,21 @@ describe('splitBodyWithCitations — builds an ordered text/citation run', () =>
     expect(citationSegments).toHaveLength(1);
   });
 
+  it('keeps an earlier-in-body citation even when the model lists it AFTER a later one (codex-review round 3 P3)', () => {
+    const body = 'First the retirement age of 64, later the gift tax election.';
+    // Listed out of body order: "gift tax election" appears second in the
+    // body but is listed FIRST in the citations array.
+    const citations = [
+      { id: 'later', matchText: 'gift tax election', quote: 'q1', label: undefined },
+      { id: 'earlier', matchText: 'retirement age of 64', quote: 'q2', label: undefined },
+    ];
+    const segments = splitBodyWithCitations(body, citations);
+    const citationIds = segments
+      .filter((s): s is Extract<typeof segments[number], { type: 'citation' }> => s.type === 'citation')
+      .map((s) => s.citation.id);
+    expect(citationIds).toEqual(['earlier', 'later']);
+  });
+
   it('returns a single text segment when there are no citations', () => {
     expect(splitBodyWithCitations('Plain body.', [])).toEqual([{ type: 'text', value: 'Plain body.' }]);
   });
