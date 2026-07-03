@@ -1,5 +1,10 @@
 # Lantern-Plus Coordination STATUS
 
+## UPDATE 2026-07-03 late-afternoon — Wave-4-B/C + Task-19 MERGED; smoke-2 Phase 2 running
+- lantern-plus @8a67dbbe (pushed): smoke P0 fixes @4fb22264 + Wave 4 Tracks B/C @6148dd77 (Book view, estate/beneficiary mismatch, whole-practice Ask — isolation guard passed xhigh review) + Wave-1 Task 19 rescan @8a67dbbe (reachability-audit gap). Gates green at each step (final 5600 vitest, 0 fail; all three TS-only, cargo skipped with reason). w6+t19+p0 lanes closed clean.
+- Bench: Phase-1 verified all 3 smoke-1 setup artifacts fixed (rebind, re-index, OAuth w/ Jameson passkey — calendar connected+persisted). Phase 2 (full corrected smoke) RUNNING on tip 43cc7e57 (pre-Wave-4 by design — don't move the target mid-run). Test calendar seeded by bench via signed-in Outlook web.
+- Follow-ups queued: Book-view UI screenshots for Jameson after smoke-2 frees the bench; field-update producer wiring = Wave 3 note; rescan end-to-end (list vs sync semantics) = watch in a later smoke.
+
 ## UPDATE 2026-07-03 afternoon — relay #3 seated; P0-fix lane running
 - Coordinator-3 (Fable) seated per handoff. All 6 monitors re-armed (fleet, RAM+disk, bulletin+selftest, stale-idle, build-overtime, parallel-check) — stale-idle + build-overtime now DURABLE scripts in coordination/tools/. Baseline sweep done.
 - Lanes: cc-lantern-p0 (~/lp-p0, lp/smoke-p0-fixes, TS-only) building the 2 real smoke bugs (Save-to-Drafts IMAP default; Send-to-Wealthbox on normal notes) — brief w-p0-smoke-fixes-brief.md. cc-lantern-w6 (lp/wave-4-bc) in codex self-converge round 2 — review (xhigh isolation guard) + merge when DONE.
