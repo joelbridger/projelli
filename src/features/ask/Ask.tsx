@@ -53,6 +53,8 @@ import { ScopeStatusPill } from './ScopeToggle';
 import { BookAnswerPanel } from './book/BookAnswerPanel';
 import { runWholePracticeAsk } from './book/wholePracticeAsk';
 import type { BookAskResult } from './book/bookFacts';
+import { settleBookSubmission } from './book/bookSubmission';
+import { composerIsBusy } from './askHelpers';
 
 /* -------------------------------------------------------------------------- */
 /* Main component                                                               */
@@ -152,10 +154,13 @@ export function Ask(props: UseAskProps) {
       const requestId = ++bookRequestIdRef.current;
       const isStale = () => bookRequestIdRef.current !== requestId;
       const opts = { signal: controller.signal, ...(props.onAuditLog ? { onAuditLog: props.onAuditLog } : {}) };
-      void runWholePracticeAsk(asked, chatId, opts)
-        .then((r) => { if (!isStale()) setBookResult(r); })
-        .catch((e: unknown) => { if (!isStale()) setBookError(e instanceof Error ? e.message : String(e)); })
-        .finally(() => { if (!isStale()) setBookLoading(false); });
+      void settleBookSubmission(runWholePracticeAsk(asked, chatId, opts), asked, {
+        onResult: setBookResult,
+        onError: setBookError,
+        onSettle: () => { setBookLoading(false); },
+        restoreQuestion: setQuestion,
+        isStale,
+      });
       return;
     }
     void handleAsk(q);
@@ -242,8 +247,12 @@ export function Ask(props: UseAskProps) {
     // A whole-practice send has its own loading state (bookLoading) outside
     // useAsk's turn-based status — combine both so the input/submit button
     // disable during EITHER kind of in-flight request (otherwise a double
-    // Enter/click could fire a second book-wide summary send).
-    isBusy: isBusy || bookLoading,
+    // Enter/click could fire a second book-wide summary send). Gated to the
+    // whole-practice scope: a book-wide send running in the background must
+    // never disable the composer after the advisor has switched to a
+    // different scope (the book request is independently abortable via
+    // bookAbortRef, so switching scopes doesn't leave it uncancellable).
+    isBusy: composerIsBusy(isBusy, bookLoading, askScope),
     status,
     submitLabel: askVerb,
     egressProvider: displayedProvider,

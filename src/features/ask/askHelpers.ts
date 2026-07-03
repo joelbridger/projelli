@@ -90,6 +90,17 @@ export function askConsentScope(
     : { kind: 'allMatters' };
 }
 
+/**
+ * Whether the composer's input/submit button should show busy. `bookLoading`
+ * (a whole-practice send in flight) must only disable the composer WHILE that
+ * scope is active — otherwise switching away to This client/Email/Documents
+ * while a book-wide send is still running in the background would leave the
+ * visible (and unrelated) composer stuck disabled (Coordinator review round 1).
+ */
+export function composerIsBusy(isBusy: boolean, bookLoading: boolean, askScope: AskScope): boolean {
+  return isBusy || (askScope === 'whole-practice' && bookLoading);
+}
+
 export type AskFailureStage =
   | 'setup'
   | 'retrieval'
