@@ -273,8 +273,13 @@ pub async fn calendar_disconnect(
     result
 }
 
-async fn calendar_disconnect_inner(
-    state: &State<'_, CalendarState>,
+/// Takes `&CalendarState` directly (not `&State<'_, CalendarState>`) —
+/// matching the crm_disconnect_logic precedent — so tests can construct a
+/// plain `CalendarState` over a temp workspace and call this exact code path
+/// without standing up a Tauri app. `State<T>` derefs to `&T`, so the call
+/// site above needs no change beyond auto-deref.
+pub async fn calendar_disconnect_inner(
+    state: &CalendarState,
     provider: &str,
     service: &str,
 ) -> Result<(), String> {
@@ -305,24 +310,52 @@ async fn calendar_disconnect_inner(
     //    before step 2 forgets the credential — codex-review P2 (round 2):
     //    forgetting the credential while the purge silently failed would
     //    report "disconnected" while private calendar data is still on
-    //    disk, with the UI now showing nothing wrong. RAG chunk deletion
-    //    stays best-effort (matches the calendly precedent): a flaky
-    //    embedding-store delete on one stale chunk shouldn't block the
-    //    whole disconnect, and those chunks are already orphaned (their
-    //    source rows are gone) rather than silently resurfacing.
+    //    disk, with the UI now showing nothing wrong.
+    //
+    //    RAG chunk deletion is likewise now REQUIRED, not best-effort
+    //    (polish-1 item 3, 2026-07-03): a swallowed `let _ = ...` here used
+    //    to let a LanceDB outage or a master-key read failure silently
+    //    leave this provider's synced content sitting in the vector store
+    //    forever with no retry path, while the disconnect still reported
+    //    success and deleted the very credential that would let a future
+    //    reconnect re-identify and re-purge that content. Every step below
+    //    now aborts the WHOLE disconnect on failure, before the credential
+    //    or local rows are touched, so a retry re-attempts the identical
+    //    purge from an unchanged, consistent state — the same "keep state
+    //    consistent, let the user retry" answer the calendly/CRM connector
+    //    disconnects use (there via a `data_remains` result flag; here via
+    //    Err, since this command's signature is Result<(), String>).
     {
         let store = CalendarStore::open(ws).map_err(|e| {
             format!("Could not open the calendar store to remove this connection's data: {e}")
         })?;
-        if let Ok(source_ids) = store.list_indexed_rag_source_ids() {
-            let prefix = format!("calendar:{provider}:");
-            if let Ok(key) = crate::commands::rag::crypto::get_or_create_master_key() {
-                for sid in source_ids.iter().filter(|s| s.starts_with(&prefix)) {
-                    let _ = crate::commands::connector::delete_external_source_with_key_internal(
-                        ws, sid, &key,
+        let source_ids = store.list_indexed_rag_source_ids().map_err(|e| {
+            format!(
+                "Could not check the search index for this connection's data: {e}. \
+                 Nothing was changed; try disconnecting again."
+            )
+        })?;
+        let prefix = format!("calendar:{provider}:");
+        let matching: Vec<&String> =
+            source_ids.iter().filter(|s| s.starts_with(&prefix)).collect();
+        if !matching.is_empty() {
+            let key = crate::commands::rag::crypto::get_or_create_master_key().map_err(|e| {
+                format!(
+                    "Could not access the local search index to remove this connection's \
+                     data: {e}. Nothing was changed; try disconnecting again."
+                )
+            })?;
+            for sid in &matching {
+                crate::commands::connector::delete_external_source_with_key_internal(
+                    ws, sid, &key,
+                )
+                .await
+                .map_err(|e| {
+                    format!(
+                        "Could not remove this connection's content from the search index: \
+                         {e}. Nothing else was changed; try disconnecting again."
                     )
-                    .await;
-                }
+                })?;
             }
         }
         store.delete_provider_rows(provider).map_err(|e| {
