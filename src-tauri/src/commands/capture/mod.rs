@@ -125,9 +125,26 @@ mod path_guard_tests {
 
 #[cfg(target_os = "macos")]
 pub fn mac_sidecar_path() -> Option<std::path::PathBuf> {
-    // Same dev-dir fallbacks as commands::voice::resolve_sidecar_path, with
-    // the app handle path checked by the caller at command level.
+    let names = ["capture-mac"];
+    // 1. Packaged .app bundle: the running executable sits at
+    //    Contents/MacOS/<exe>; staged binaries live in Contents/Resources/
+    //    (the same location Tauri's own `resource_dir()` resolves to for a
+    //    macOS app bundle). Using `current_exe()` gets us there without
+    //    needing an `AppHandle` threaded through the whole capture call
+    //    chain (mic/loopback source construction happens deep inside
+    //    `CaptureEngine::start_with_sources`, which is OS-agnostic and has
+    //    no Tauri context on Windows/Linux).
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(macos_dir) = exe.parent() {
+            let resources_bin = macos_dir.join("..").join("Resources").join("binaries");
+            if let Some(p) = crate::commands::voice::find_sidecar_in(&resources_bin, &names) {
+                return Some(p);
+            }
+        }
+    }
+    // 2. Dev fallback — same dev-dir pattern as
+    //    commands::voice::resolve_sidecar_path's fallback.
     let cwd = std::env::current_dir().ok()?;
-    crate::commands::voice::find_sidecar_in(&cwd.join("src-tauri").join("binaries"), &["capture-mac"])
-        .or_else(|| crate::commands::voice::find_sidecar_in(&cwd.join("binaries"), &["capture-mac"]))
+    crate::commands::voice::find_sidecar_in(&cwd.join("src-tauri").join("binaries"), &names)
+        .or_else(|| crate::commands::voice::find_sidecar_in(&cwd.join("binaries"), &names))
 }
