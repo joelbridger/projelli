@@ -11,13 +11,13 @@
 
 import { create } from 'zustand';
 
-import { crmCreateNote, crmCreateTask } from '@/platform/utils/wealthbox-commands';
+import { crmCreateNote, crmCreateTask, crmUpdateField } from '@/platform/utils/wealthbox-commands';
 
-export type CrmWriteStatus = 'proposed' | 'sending' | 'sent' | 'failed' | 'verify_pending';
+export type CrmWriteStatus = 'proposed' | 'sending' | 'sent' | 'failed' | 'verify_pending' | 'stale';
 
 export interface ProposedCrmWrite {
   id: string;
-  kind: 'note' | 'task';
+  kind: 'note' | 'task' | 'field';
   matterId: string;
   title: string;
   body: string;
@@ -37,6 +37,19 @@ export interface ProposedCrmWrite {
    * `crm_create_note`'s doc comment in `src-tauri/src/commands/crm/commands.rs`.
    */
   requestedAt?: string;
+  /**
+   * Task 9c — field-level blended update (`kind: 'field'` only). `field` is
+   * the provider field path (e.g. `background_information`); `existingValue`
+   * /`newValue` are the 3-column review's reference columns; `finalValue` is
+   * the user-editable blend that actually gets written. `existingValue` is
+   * REPLACED with the fresh live value if the backend's stale-guard rejects
+   * the write because the field drifted since the proposal was drafted (see
+   * the 'stale' status below).
+   */
+  field?: string;
+  existingValue?: string;
+  newValue?: string;
+  finalValue?: string;
 }
 
 interface CrmWriteQueueState {
@@ -83,7 +96,18 @@ function setItemClearingError(id: string, patch: Partial<Omit<ProposedCrmWrite, 
   }));
 }
 
+// Matches the Rust CrmWriteError::StaleFieldValue Display impl exactly:
+// "this field changed in the CRM since the proposal — current value: {0}".
+// The captured group can legitimately contain newlines (it's the live field
+// content), hence the /s flag.
+const STALE_FIELD_VALUE_RE = /this field changed in the CRM since the proposal — current value: (.*)$/s;
+
 async function sendOne(item: ProposedCrmWrite, householdKey: string): Promise<void> {
+  // Defense-in-depth: the card is expected to disable Approve while a field
+  // item's finalValue is blank, but the store must never fire a network call
+  // for one even if that guard is somehow bypassed.
+  if (item.kind === 'field' && (item.finalValue ?? '').trim() === '') return;
+
   // Set once, on this item's FIRST send attempt, then reused verbatim on
   // every retry (approve() re-fetches the item fresh from the store each
   // time it's called, so a manual Retry sees the value persisted below).
@@ -102,18 +126,38 @@ async function sendOne(item: ProposedCrmWrite, householdKey: string): Promise<vo
             householdKey,
             requestedAt,
           })
-        : await crmCreateTask({
-            matterId: item.matterId,
-            title: item.title,
-            description: item.body,
-            ...(item.dueDate !== undefined ? { dueDate: item.dueDate } : {}),
-            sourceRef: item.sourceRef,
-            householdKey,
-            requestedAt,
-          });
+        : item.kind === 'task'
+          ? await crmCreateTask({
+              matterId: item.matterId,
+              title: item.title,
+              description: item.body,
+              ...(item.dueDate !== undefined ? { dueDate: item.dueDate } : {}),
+              sourceRef: item.sourceRef,
+              householdKey,
+              requestedAt,
+            })
+          : await crmUpdateField({
+              matterId: item.matterId,
+              householdKey,
+              field: item.field ?? '',
+              existingValue: item.existingValue ?? '',
+              newValue: item.newValue ?? '',
+              finalValue: item.finalValue ?? '',
+              sourceRef: item.sourceRef,
+              requestedAt,
+            });
     setItemClearingError(item.id, { status: 'sent', remoteId: receipt.remoteId });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    const staleMatch = STALE_FIELD_VALUE_RE.exec(message);
+    if (staleMatch) {
+      // Never blind-overwrite: re-render the 3 columns with the fresh live
+      // value instead of the stale one the proposal was drafted against.
+      // finalValue is left as-is (still the user's edit, still editable) —
+      // theirs to keep, adjust, or replace once they see what changed.
+      setItem(item.id, { status: 'stale', error: message, existingValue: staleMatch[1] ?? '' });
+      return;
+    }
     const status: CrmWriteStatus = message.includes('verification pending') ? 'verify_pending' : 'failed';
     setItem(item.id, { status, error: message });
   }

@@ -344,6 +344,31 @@ describe('field updates (Task 9c)', () => {
     expect(useCrmWriteQueueStore.getState().items[0]!.status).toBe('verify_pending');
   });
 
+  // The real stale-guard: the backend re-fetches the live field at approve
+  // time and rejects with CrmWriteError::StaleFieldValue(current) — never
+  // blind-overwrites — if it drifted since the proposal was drafted. Exact
+  // message shape from src-tauri/src/commands/crm/write.rs's Display impl.
+  it('parses a real StaleFieldValue rejection into status "stale" and refreshes existingValue', async () => {
+    vi.mocked(crmUpdateField).mockRejectedValueOnce(
+      new Error(
+        'this field changed in the CRM since the proposal — current value: Robert owns a rental property and a lake house.',
+      ),
+    );
+    const s = useCrmWriteQueueStore.getState();
+    s.enqueue(fieldItem());
+    const id = useCrmWriteQueueStore.getState().items[0]!.id;
+    await s.approve([id], '12345');
+
+    const item = useCrmWriteQueueStore.getState().items[0]!;
+    expect(item.status).toBe('stale');
+    // Re-rendered with the FRESH live value, not the stale one the proposal
+    // was drafted against.
+    expect(item.existingValue).toBe('Robert owns a rental property and a lake house.');
+    // The user's edited blend is left alone — theirs to keep, adjust, or
+    // replace once they see what changed, never silently discarded.
+    expect(item.finalValue).toBe('Robert owns a rental property. Retiring spring 2027.');
+  });
+
   // Defense-in-depth: the card is expected to disable Approve while
   // finalValue is blank, but the store must never fire a network call for a
   // field item with nothing to write even if that guard is somehow bypassed.
