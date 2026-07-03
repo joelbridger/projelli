@@ -26,6 +26,7 @@
  *   - Documents    (only non-mail: chunks)
  */
 
+import { useState } from 'react';
 import {
   Sparkles, AlertTriangle,
 } from 'lucide-react';
@@ -46,7 +47,11 @@ import { useAsk, type UseAskProps } from './useAsk';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { IS_DEMO } from '@/web-demo/demoModeFlag';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
-import { EV_OPEN_SETTINGS } from '@/config/identity';
+import { EV_OPEN_SETTINGS, EV_MATTER_LAUNCH } from '@/config/identity';
+import { ScopeStatusPill } from './ScopeToggle';
+import { BookAnswerPanel } from './book/BookAnswerPanel';
+import { runWholePracticeAsk } from './book/wholePracticeAsk';
+import type { BookAskResult } from './book/bookFacts';
 
 /* -------------------------------------------------------------------------- */
 /* Main component                                                               */
@@ -96,6 +101,39 @@ export function Ask(props: UseAskProps) {
   } = useAsk(props);
 
   const isSampleMatter = activeMatter?.id === SAMPLE_MATTER_ID;
+
+  // Whole-practice Ask (Wave 4 Track C): a separate answer path over per-client
+  // Client Map summaries only — never the turn-based retrieval flow above.
+  const [bookResult, setBookResult] = useState<(BookAskResult & { model: string }) | null>(null);
+  const [bookLoading, setBookLoading] = useState(false);
+  const [bookError, setBookError] = useState<string | null>(null);
+
+  const submitQuestion = (q?: string) => {
+    if (askScope === 'whole-practice') {
+      const asked = (q ?? question).trim();
+      if (!asked) return;
+      setQuestion('');
+      setBookLoading(true);
+      setBookError(null);
+      const auditOpts = props.onAuditLog ? { onAuditLog: props.onAuditLog } : undefined;
+      void runWholePracticeAsk(asked, auditOpts)
+        .then(setBookResult)
+        .catch((e: unknown) => { setBookError(e instanceof Error ? e.message : String(e)); })
+        .finally(() => { setBookLoading(false); });
+      return;
+    }
+    void handleAsk(q);
+  };
+  const composerKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (askScope === 'whole-practice') {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        submitQuestion();
+      }
+      return;
+    }
+    handleKeyDown(e);
+  };
 
   const composerPlaceholder =
     askScope === 'email'
@@ -161,8 +199,8 @@ export function Ask(props: UseAskProps) {
     inputRef: composerInputRef,
     question,
     onQuestionChange: (v: string) => { setQuestion(v); },
-    onKeyDown: handleKeyDown,
-    onSubmit: () => void handleAsk(),
+    onKeyDown: composerKeyDown,
+    onSubmit: () => { submitQuestion(); },
     placeholder: composerPlaceholder,
     ariaLabel: composerAriaLabel,
     isBusy,
@@ -372,47 +410,73 @@ export function Ask(props: UseAskProps) {
               </div>
             )}
 
-            {/* Conversation lives in an aria-live region so screen readers
-                announce completed answers. */}
-            <div aria-live="polite" aria-atomic="false">
-              {turns.map((turn, idx) => (
-                <TurnBlock
-                  key={idx}
-                  turn={turn}
-                  turnIdx={idx}
-                  selectedTurnIdx={selectedTurnIdx}
-                  selected={selected}
-                  onCitationSelect={handleCitationSelect}
-                  onSaveToDocument={onSaveToDocument ? handleSaveToDocument : undefined}
-                  isSaving={savingIdx === idx}
-                  isPersisted={false}
-                  {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
-                />
-              ))}
-
-              {streamingTurn && (
-                <TurnBlock
-                  key="streaming"
-                  turn={streamingTurn}
-                  turnIdx={turns.length}
-                  selectedTurnIdx={selectedTurnIdx}
-                  selected={selected}
-                  onCitationSelect={handleCitationSelect}
-                  onSaveToDocument={undefined}
-                  isSaving={false}
-                  isPersisted={false}
-                  isStreaming
-                  {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
-                />
-              )}
+            {/* The scope pill: Ask always displays its current scope, one click
+                (on the composer's ScopeToggle) to switch. */}
+            <div style={{ padding: '0 var(--kp-space-md)' }}>
+              <ScopeStatusPill scope={askScope} />
             </div>
 
-            {/* B2: bridge callout below demo answers (sample matter w/ turns). */}
-            {isSampleMatter && turns.length > 0 && !streamingTurn && (
-              <SampleBridgeCallout />
-            )}
+            {askScope === 'whole-practice' ? (
+              <BookAnswerPanel
+                result={bookResult}
+                loading={bookLoading}
+                error={bookError}
+                onOpenClient={(id) => {
+                  window.dispatchEvent(new CustomEvent(EV_MATTER_LAUNCH, { detail: { matterId: id } }));
+                }}
+                onOpenSource={(matterId, ref, snippet) => {
+                  window.dispatchEvent(
+                    new CustomEvent(EV_MATTER_LAUNCH, {
+                      detail: { matterId, surface: 'files', source: { kind: 'document', ref, snippet } },
+                    }),
+                  );
+                }}
+              />
+            ) : (
+              <>
+                {/* Conversation lives in an aria-live region so screen readers
+                    announce completed answers. */}
+                <div aria-live="polite" aria-atomic="false">
+                  {turns.map((turn, idx) => (
+                    <TurnBlock
+                      key={idx}
+                      turn={turn}
+                      turnIdx={idx}
+                      selectedTurnIdx={selectedTurnIdx}
+                      selected={selected}
+                      onCitationSelect={handleCitationSelect}
+                      onSaveToDocument={onSaveToDocument ? handleSaveToDocument : undefined}
+                      isSaving={savingIdx === idx}
+                      isPersisted={false}
+                      {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
+                    />
+                  ))}
 
-            {errorBanner}
+                  {streamingTurn && (
+                    <TurnBlock
+                      key="streaming"
+                      turn={streamingTurn}
+                      turnIdx={turns.length}
+                      selectedTurnIdx={selectedTurnIdx}
+                      selected={selected}
+                      onCitationSelect={handleCitationSelect}
+                      onSaveToDocument={undefined}
+                      isSaving={false}
+                      isPersisted={false}
+                      isStreaming
+                      {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
+                    />
+                  )}
+                </div>
+
+                {/* B2: bridge callout below demo answers (sample matter w/ turns). */}
+                {isSampleMatter && turns.length > 0 && !streamingTurn && (
+                  <SampleBridgeCallout />
+                )}
+
+                {errorBanner}
+              </>
+            )}
 
             <div ref={bottomRef} />
           </div>

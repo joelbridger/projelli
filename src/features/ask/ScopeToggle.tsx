@@ -1,4 +1,5 @@
-import { FileText, FolderOpen, Mail } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { FileText, FolderOpen, Mail, Users } from 'lucide-react';
 import { Chip } from '@/ui/kp';
 import type { IconType } from '@/ui/kp';
 import type { AskScope } from './askHelpers';
@@ -25,6 +26,7 @@ export function ScopeToggle({
   hasMatter: boolean;
   isSample: boolean;
 }) {
+  const { t } = useTranslation();
   const entityLabel = useEntityLabel();
   // Build the available options based on context.
   // Email/Documents hidden on the sample matter so demo chips stay prominent.
@@ -35,6 +37,7 @@ export function ScopeToggle({
       { value: 'email' as AskScope, label: 'Email', Icon: Mail },
       { value: 'documents' as AskScope, label: 'Documents', Icon: FileText },
     ] : []),
+    { value: 'whole-practice' as AskScope, label: t('ask.book.option-label'), Icon: Users },
   ];
 
   return (
@@ -67,5 +70,17 @@ export function ScopeToggle({
         );
       })}
     </div>
+  );
+}
+
+/** The always-visible "Asking: ..." pill (spec: Ask always displays its
+ *  current scope, one click to switch — the click target is the ScopeToggle
+ *  above; this pill is a read-only status label). */
+export function ScopeStatusPill({ scope }: { scope: AskScope }) {
+  const { t } = useTranslation();
+  return (
+    <Chip size="sm" active data-testid="ask-scope-pill" style={{ pointerEvents: 'none' }}>
+      {t(`ask.scope-pill.${scope}`)}
+    </Chip>
   );
 }

@@ -1665,6 +1665,24 @@
       "description__sourceHash": "56d8e688d4d66c3398e32e089f17f37d934a8c0c8d179a83becd173733e3972a"
     }
   },
+  "ask": {
+    "scope-pill": {
+      "this-matter": "This client",
+      "all-matters": "All clients",
+      "email": "Email",
+      "documents": "Documents",
+      "whole-practice": "Whole practice (summaries only)"
+    },
+    "book": {
+      "option-label": "Whole practice",
+      "loading": "Reading your client summaries...",
+      "no-facts": "No client summaries are built yet. Open a client and build their Client Map first.",
+      "no-matches": "No clients in your book match that question.",
+      "matches-heading": "Matching clients",
+      "open-client": "Open client",
+      "summaries-note": "Answered from each client's saved summary. Documents were not searched across clients."
+    }
+  },
   "privacy": {
     "egress": {
       "local": {
