@@ -7,6 +7,7 @@ Last updated: 2026-07-03 ~23:05 (coordinator-5 — now SOLE coordinator; main li
 ## Active lanes
 | Worker session | What | State |
 |---|---|---|
+| cc-lantern-harness2 | Harness round 2 (lp/harness-round2) — nav helper, flaky fix, Wave-4 B/C checks from merged code | building |
 | cc-lantern-cmfix | Client Map error-classification fix (lp/clientmap-errors) — index vs provider errors surfaced distinctly (inherited ticket) | building |
 | cc-lantern-w3 | Wave-3 meeting capture engine (lp/meeting-capture) — mid Task 5 crash recovery; Task 6 = Legion device verification (headset now available) | building |
 | cc-lantern-w4d | Wave-4 Track D retention/deletion engine (lp/retention) — deep self-review round 8; xhigh merge review due | converging |
