@@ -108,6 +108,20 @@ fn norm(s: &str) -> String {
     s.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+/// Normalizes line endings (CRLF/CR → LF) and trims trailing whitespace
+/// before comparing a post-write readback against the value we sent. Some
+/// CRMs plausibly normalize stored text on their end (line-ending
+/// conversion, trailing-whitespace trim) even when a write genuinely
+/// applied — without this, that normalization would read back as a
+/// permanent, visible `WriteNotApplied` for a write that actually
+/// succeeded, and an advisor would retry forever against a success.
+/// Deliberately does NOT collapse internal whitespace like `norm()` does —
+/// that would mask a REAL silent no-op (Finding 2) as a false match. Used
+/// only for readback comparison, never for dedup/audit content identity.
+fn normalize_for_readback_compare(s: &str) -> String {
+    s.replace("\r\n", "\n").replace('\r', "\n").trim_end().to_string()
+}
+
 /// Stable content-addressed key scoped to ONE approval event: identical
 /// (provider-visible) writes from the SAME approval collide (protecting a
 /// retry from double-posting), but the same content approved again later —
@@ -955,7 +969,10 @@ pub async fn push_crm_field_update(
             // "200-but-ignored" bug class for ANY writable field, on this
             // provider or a future one, not just the one bug this probe found.
             match source.get_contact_field(&req.household_key, &req.field).await {
-                Ok(applied) if applied == req.final_value => {
+                Ok(applied)
+                    if normalize_for_readback_compare(&applied)
+                        == normalize_for_readback_compare(&req.final_value) =>
+                {
                     upsert_ledger_field(store, &key, source, req, "sent", Some(&remote_id));
                     Ok(WriteReceipt { remote_id, deduped: false })
                 }
@@ -2555,6 +2572,11 @@ mod tests {
         /// readback, not the pre-write stale-guard check) fails — simulates
         /// a transient GET failure right after a successful PUT.
         fail_readback_get: bool,
+        /// When true, the readback GET echoes `remote_value` with LF line
+        /// endings converted to CRLF plus a trailing newline appended —
+        /// simulates a CRM that normalizes stored text even on a write that
+        /// genuinely applied.
+        readback_normalizes_line_endings: bool,
     }
     #[async_trait::async_trait]
     impl CrmWriteSource for FakeFieldSource {
@@ -2590,7 +2612,11 @@ mod tests {
             if self.fail_readback_get && call_number == 2 {
                 return Err(CrmWriteError::ReadFailed);
             }
-            Ok(self.remote_value.lock().unwrap().clone())
+            let value = self.remote_value.lock().unwrap().clone();
+            if self.readback_normalizes_line_endings && call_number == 2 {
+                return Ok(format!("{}\n", value.replace('\n', "\r\n")));
+            }
+            Ok(value)
         }
     }
 
@@ -2602,6 +2628,7 @@ mod tests {
             get_calls: std::sync::atomic::AtomicUsize::new(0),
             silently_ignores_write: false,
             fail_readback_get: false,
+            readback_normalizes_line_endings: false,
         }
     }
 
@@ -2613,6 +2640,7 @@ mod tests {
             get_calls: std::sync::atomic::AtomicUsize::new(0),
             silently_ignores_write: true,
             fail_readback_get: false,
+            readback_normalizes_line_endings: false,
         }
     }
 
@@ -2624,6 +2652,19 @@ mod tests {
             get_calls: std::sync::atomic::AtomicUsize::new(0),
             silently_ignores_write: false,
             fail_readback_get: true,
+            readback_normalizes_line_endings: false,
+        }
+    }
+
+    fn fake_field_source_with_crlf_normalizing_readback(remote_value: &str, update_result: Result<String, CrmWriteError>) -> FakeFieldSource {
+        FakeFieldSource {
+            remote_value: std::sync::Mutex::new(remote_value.into()),
+            update_results: std::sync::Mutex::new(vec![update_result]),
+            update_calls: std::sync::atomic::AtomicUsize::new(0),
+            get_calls: std::sync::atomic::AtomicUsize::new(0),
+            silently_ignores_write: false,
+            fail_readback_get: false,
+            readback_normalizes_line_endings: true,
         }
     }
 
@@ -2649,6 +2690,43 @@ mod tests {
         assert_eq!(source.update_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
         let row = store.outbound_get(&dedup_key_field(&req)).unwrap().unwrap();
         assert_ne!(row.status, "sent", "a write that didn't actually apply must never be recorded as sent");
+    }
+
+    /// Manual-review catch (post codex-review): the readback comparison must
+    /// tolerate line-ending normalization a CRM plausibly applies to stored
+    /// text (CRLF/CR → LF, trailing whitespace) even when the write
+    /// genuinely applied — an EXACT string comparison would misreport this
+    /// as `WriteNotApplied` forever, and an advisor would retry against a
+    /// write that already succeeded. Genuinely different content (the
+    /// sibling test above) must still fail.
+    #[tokio::test]
+    async fn field_update_readback_tolerates_crm_line_ending_normalization() {
+        let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
+        let source = fake_field_source_with_crlf_normalizing_readback("Existing background.", Ok("12345".into()));
+        let req = base_field_req();
+
+        let receipt = push_crm_field_update(&source, &store, &guard, &req).await.unwrap();
+        assert_eq!(receipt.remote_id, "12345");
+        assert!(!receipt.deduped);
+
+        let row = store.outbound_get(&dedup_key_field(&req)).unwrap().unwrap();
+        assert_eq!(row.status, "sent", "CRLF + trailing-newline normalization must not be mistaken for a silent no-op");
+    }
+
+    #[test]
+    fn normalize_for_readback_compare_ignores_line_endings_and_trailing_whitespace_but_not_internal_content() {
+        assert_eq!(
+            normalize_for_readback_compare("a\r\nb\n\nc"),
+            normalize_for_readback_compare("a\nb\n\nc\n")
+        );
+        // Internal differences (not just line-ending/trailing-whitespace
+        // shape) must still be distinguished — this is what catches a real
+        // silent no-op (Finding 2).
+        assert_ne!(
+            normalize_for_readback_compare("Existing background."),
+            normalize_for_readback_compare("Existing background.\n\nRetiring spring 2027.")
+        );
     }
 
     /// codex-review round 1 catch: when the PUT succeeds but the CONFIRMATION

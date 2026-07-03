@@ -52,8 +52,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `push_crm_field_update`: after any successful field-update PUT, it re-fetches the field and
   only marks the ledger `sent` if the live value now matches; a mismatch surfaces as a new typed
   `CrmWriteError::WriteNotApplied` instead of a false success — this catches the whole
-  "200-but-ignored" bug class for any provider/field, not just this one. This write path is
-  code-complete but not yet wired to any UI button, so it hasn't shipped to a real user.
+  "200-but-ignored" bug class for any provider/field, not just this one. The readback comparison
+  normalizes line endings (CRLF/CR → LF) and trailing whitespace before comparing (but never
+  collapses internal whitespace) so a CRM that reformats stored text on a write that genuinely
+  applied doesn't get permanently misreported as a silent no-op. This write path is code-complete
+  but not yet wired to any UI button, so it hasn't shipped to a real user.
   Files: `src-tauri/src/commands/crm/write.rs`
 - **Client-of-an-open-document resolution failed on Windows path shapes** (Windows smoke-2 P0) —
   two silently-diverged resolver implementations are now ONE (`resolveMatterIdForWorkspacePath`),
