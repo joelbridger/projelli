@@ -24,7 +24,16 @@ evidence + click-counts in merge notes; send UI screenshots to Jameson via notif
 at each UI merge — his veto = P0 follow-up, not a merge block). Phase 2 =
 `docs/plans/lantern-plus/phase-2/` briefs ONLY — never build from them (see its README).
 
-## Current state (as of 2026-07-03 ~03:45, coordinator-2)
+## Current state (as of 2026-07-03 ~late-morning, coordinator-2) — ALL SOFTWARE WAVES DONE
+Waves 0/1/2 + polish: MERGED, gates 5512 vitest + 1100 cargo lib zero-fail, tip @307bcbde pushed.
+Fleet: ZERO workers (all retired; worktrees/caches cleaned; keep lp-gate cache + lp-gate-build tmux runner).
+Waiting on: Legion release (→ interim Windows smoke of 0-2, then Wave 3 via coordination/briefs/w-wave3-brief.md);
+the rename window (freeze downstream merges between bulletin EXECUTING and DONE lines); Jameson's three items
+(Google OAuth filing, interview campaign, Wealthbox probe token) + two product questions (background-AI consent
+scope; bullet-vs-quote verification). Wave 4 after Wave 3. STATUS.md has the full picture.
+
+## Stale detail below (pre-completion snapshot, kept for context)
+### (superseded) Current state as of 03:45
 - **Repo:** `~/lantern-plus`, branch `lantern-plus` @ `5bcb3a3a`+ (pull first), pushed.
   MERGED: Wave 0 (all 13 tasks) + Wave 1 backend (lp/wave-1b, tasks 1-11) + three
   downstream merges (last @566d9849). Gates green at each step (5281 vitest; cargo clean;
