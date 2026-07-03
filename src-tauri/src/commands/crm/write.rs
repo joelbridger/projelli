@@ -274,6 +274,20 @@ fn upsert_ledger(
     }
 }
 
+/// Reject empty titles and oversize content before any network call.
+pub fn validate_write_inputs(title: &str, body: &str) -> Result<(), CrmWriteError> {
+    if title.trim().is_empty() {
+        return Err(CrmWriteError::InvalidInput("title must not be empty"));
+    }
+    if title.len() > 500 {
+        return Err(CrmWriteError::InvalidInput("title is too long (max 500 characters)"));
+    }
+    if body.len() > 20_000 {
+        return Err(CrmWriteError::InvalidInput("body is too long (max 20,000 characters)"));
+    }
+    Ok(())
+}
+
 fn remote_id_from(resp: &serde_json::Value) -> Result<String, CrmWriteError> {
     // VERIFY-LIVE: create responses echo the created object with top-level id.
     resp.get("id")
@@ -468,5 +482,13 @@ mod tests {
     fn write_error_display_never_embeds_body() {
         let e = CrmWriteError::Http(500);
         assert_eq!(e.to_string(), "CRM write failed (HTTP 500)");
+    }
+
+    #[test]
+    fn write_input_validation() {
+        assert!(validate_write_inputs("t", "b").is_ok());
+        assert!(matches!(validate_write_inputs("", "b"), Err(CrmWriteError::InvalidInput(_))));
+        assert!(matches!(validate_write_inputs(&"x".repeat(501), "b"), Err(CrmWriteError::InvalidInput(_))));
+        assert!(matches!(validate_write_inputs("t", &"x".repeat(20_001)), Err(CrmWriteError::InvalidInput(_))));
     }
 }

@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::commands::audit::AuditState;
+use crate::commands::crm::client::WealthboxClient;
 use crate::commands::crm::engine;
 use crate::commands::crm::model::crm_key_belongs_to_provider;
 use crate::commands::crm::provider::{
@@ -25,6 +26,9 @@ use crate::commands::crm::salesforce::{
     exchange_salesforce_code, salesforce_client_id,
 };
 use crate::commands::crm::store::CrmStore;
+use crate::commands::crm::write::{
+    self, CrmWriteError, CrmWriteKind, CrmWriteRequest, WriteReceipt,
+};
 
 // ---------------------------------------------------------------------------
 // CrmState + manage_state + RAII guard
@@ -286,6 +290,234 @@ async fn append_crm_audit_best_effort(app: &AppHandle, action: &str, description
         Ok(Err(e)) => log::warn!("crm audit append failed (non-fatal): {e:#}"),
         Err(e) => log::warn!("crm audit spawn failed (non-fatal): {e}"),
     }
+}
+
+/// Matter-scoped variant of [`crm_audit_payload_json`] for writes that
+/// originate from (and only affect) one client — the approval-gated CRM
+/// write path (`crm_create_note` / `crm_create_task`), unlike connect/sync/
+/// disconnect which are workspace-wide (`allMatters`).
+fn crm_audit_payload_json_for_matter(
+    id: &str,
+    timestamp: &str,
+    action: &str,
+    description: &str,
+    matter_id: &str,
+) -> String {
+    serde_json::json!({
+        "id": id,
+        "timestamp": timestamp,
+        "action": action,
+        "description": description,
+        "model": serde_json::Value::Null,
+        "inputs": {},
+        "outputs": {},
+        "userDecision": serde_json::Value::Null,
+        "metadata": {
+            "auditEventType": action,
+            "source": "crm-backend",
+            "scope": { "kind": "matter", "matterId": matter_id },
+        },
+    })
+    .to_string()
+}
+
+/// Matter-scoped variant of [`append_crm_audit_best_effort`] — same
+/// best-effort contract (never propagates to the calling command).
+async fn append_crm_audit_best_effort_for_matter(
+    app: &AppHandle,
+    action: &str,
+    description: &str,
+    matter_id: &str,
+) {
+    use crate::commands::audit::store::{AuditEntryRecord, EncryptedAuditStore};
+
+    let ws_opt: Option<std::path::PathBuf> = {
+        let audit_ws = app.state::<AuditState>().workspace.lock().await.clone();
+        if audit_ws.is_some() {
+            audit_ws
+        } else {
+            app.state::<CrmState>().workspace.lock().await.clone()
+        }
+    };
+    let Some(ws) = ws_opt else {
+        log::warn!("crm audit append skipped (non-fatal): no workspace path available");
+        return;
+    };
+
+    let action_s = action.to_string();
+    let desc_s = description.to_string();
+    let matter_id_s = matter_id.to_string();
+
+    let result = tokio::task::spawn_blocking(move || -> anyhow::Result<AuditEntryRecord> {
+        let store = EncryptedAuditStore::open(&ws)?;
+
+        let timestamp = chrono::Utc::now().to_rfc3339();
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or_default();
+        let mut rng_bytes = [0u8; 4];
+        rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut rng_bytes);
+        let id = format!("audit_crm_{}_{}", nanos, hex::encode(rng_bytes));
+
+        let payload_json =
+            crm_audit_payload_json_for_matter(&id, &timestamp, &action_s, &desc_s, &matter_id_s);
+
+        let rec = AuditEntryRecord {
+            id,
+            timestamp,
+            action: action_s,
+            description: desc_s,
+            payload_json,
+        };
+        store.append(&rec)?;
+        Ok(rec)
+    })
+    .await;
+
+    match result {
+        Ok(Ok(rec)) => {
+            let _ = app.emit(CRM_AUDIT_APPENDED_EVENT, &rec);
+        }
+        Ok(Err(e)) => log::warn!("crm audit append failed (non-fatal): {e:#}"),
+        Err(e) => log::warn!("crm audit spawn failed (non-fatal): {e}"),
+    }
+}
+
+/// Resolve the write-back client for `provider`. Wealthbox is the only
+/// implementation today; other providers return `NotSupported` until their
+/// vendor credentials land (the same `CrmWriteSource` trait is ready for them).
+fn write_client_for(
+    provider: CrmProvider,
+    token: String,
+) -> Result<WealthboxClient, CrmWriteError> {
+    match provider {
+        CrmProvider::Wealthbox => Ok(WealthboxClient::new(token)),
+        other => Err(CrmWriteError::NotSupported(other.display_name())),
+    }
+}
+
+/// Push one approval-gated note to the connected CRM and record an audit entry.
+///
+/// The write only happens because the frontend's review card called this
+/// command after an explicit user Approve click — there is no other call
+/// site. `household_key` is resolved by the frontend from the matter's
+/// `crmHouseholdKeys` (the backend does not persist the matter map).
+#[tauri::command]
+pub async fn crm_create_note(
+    app: AppHandle,
+    state: State<'_, CrmState>,
+    matter_id: String,
+    title: String,
+    body: String,
+    source_ref: String,
+    household_key: String,
+    provider: Option<String>,
+) -> Result<WriteReceipt, String> {
+    crm_create_write(
+        app,
+        state,
+        CrmWriteKind::Note,
+        matter_id,
+        title,
+        body,
+        None,
+        source_ref,
+        household_key,
+        provider,
+    )
+    .await
+}
+
+/// Push one approval-gated task to the connected CRM and record an audit entry.
+/// See [`crm_create_note`] for the shared write-then-audit contract.
+#[tauri::command]
+pub async fn crm_create_task(
+    app: AppHandle,
+    state: State<'_, CrmState>,
+    matter_id: String,
+    title: String,
+    description: String,
+    due_date: Option<String>,
+    source_ref: String,
+    household_key: String,
+    provider: Option<String>,
+) -> Result<WriteReceipt, String> {
+    crm_create_write(
+        app,
+        state,
+        CrmWriteKind::Task,
+        matter_id,
+        title,
+        description,
+        due_date,
+        source_ref,
+        household_key,
+        provider,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn crm_create_write(
+    app: AppHandle,
+    state: State<'_, CrmState>,
+    kind: CrmWriteKind,
+    matter_id: String,
+    title: String,
+    body: String,
+    due_date: Option<String>,
+    source_ref: String,
+    household_key: String,
+    provider: Option<String>,
+) -> Result<WriteReceipt, String> {
+    let provider = CrmProvider::from_optional(provider.as_deref())?;
+
+    write::validate_write_inputs(&title, &body).map_err(|e| e.to_string())?;
+
+    let token = read_token(provider).ok_or_else(|| {
+        format!(
+            "{} not connected — connect it in Account → Connections first",
+            provider.display_name()
+        )
+    })?;
+
+    let workspace = state
+        .workspace
+        .lock()
+        .await
+        .clone()
+        .ok_or("workspace not set — call crm_set_workspace first")?;
+
+    let store = CrmStore::open(&workspace).map_err(|e| e.to_string())?;
+    let client = write_client_for(provider, token).map_err(|e| e.to_string())?;
+
+    let req = CrmWriteRequest {
+        kind,
+        matter_id: matter_id.clone(),
+        household_key: household_key.clone(),
+        title,
+        body,
+        due_date,
+        source_ref: source_ref.clone(),
+    };
+
+    let receipt = write::push_crm_write(&client, &store, &req)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let action = provider.audit_action(match kind {
+        CrmWriteKind::Note => "create_note",
+        CrmWriteKind::Task => "create_task",
+    });
+    let description = format!(
+        "{} pushed to {} household {household_key} (source: {source_ref})",
+        kind.as_str(),
+        provider.display_name(),
+    );
+    append_crm_audit_best_effort_for_matter(&app, &action, &description, &matter_id).await;
+
+    Ok(receipt)
 }
 
 // ---------------------------------------------------------------------------
