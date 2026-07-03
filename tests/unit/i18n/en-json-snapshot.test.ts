@@ -65,7 +65,7 @@ describe('en.json structure snapshot', () => {
         "model-download": 9,
         "onboarding": 65,
         "plugins": 4,
-        "privacy": 15,
+        "privacy": 31,
         "quick-open": 1,
         "research": 11,
         "search": 6,
@@ -99,7 +99,8 @@ describe('en.json structure snapshot', () => {
     //      Send to Wealthbox action on normal docx notes, disabled-with-explanation state).
     // +18 = matter.book.* (14) + matter.beneficiary.* (2) (Wave 4 Track B: Book view + estate/beneficiary gap chips).
     // +12 = ask.scope-pill.* (5) + ask.book.* (7) (Wave 4 Track C: whole-practice Ask).
-    expect(flat.length).toBe(975);
+    // +16 = privacy.retention.* (Wave 4 Track D: retention policy settings + Data Map row + attestation export).
+    expect(flat.length).toBe(991);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {
