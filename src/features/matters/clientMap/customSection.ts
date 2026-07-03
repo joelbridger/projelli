@@ -76,9 +76,9 @@ export async function buildCustomSection(
     outputs: { contentLength: res.content.length },
     userDecision: 'auto',
     metadata: { feature: 'client_map', step: 'custom_section', sectionId },
-    tokensIn: res.usage?.inputTokens ?? 0,
-    tokensOut: res.usage?.outputTokens ?? 0,
-    costUsd: res.cost ?? 0,
+    tokensIn: res.usage.inputTokens,
+    tokensOut: res.usage.outputTokens,
+    costUsd: res.cost,
     provider: resolved.providerId,
   });
   return { ...base, items: itemsFromRaw(parseItems(res.content), hits) };

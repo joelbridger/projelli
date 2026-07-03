@@ -56,7 +56,11 @@ describe('buildCustomSection', () => {
 
   it('logs a model_call audit entry after a successful send', async () => {
     retrieveMock.mockResolvedValue([{ path: '/policy.pdf', sourceId: '/policy.pdf', chunkText: 'limit 1M', score: 1, paragraphIndex: 0, id: 'c1' } as RagHit]);
-    sendMock.mockResolvedValue({ content: JSON.stringify({ items: [] }) });
+    sendMock.mockResolvedValue({
+      content: JSON.stringify({ items: [] }),
+      usage: { inputTokens: 10, outputTokens: 5 },
+      cost: 0.001,
+    });
     const onAuditLog = vi.fn();
     await buildCustomSection('m1', 'sec-uuid', 'Insurance coverage', 'track insurance', { onAuditLog });
     const modelCallEntries = onAuditLog.mock.calls
