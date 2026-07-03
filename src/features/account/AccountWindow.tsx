@@ -29,6 +29,7 @@ import { JotformConnect } from '@/platform/connectors/jotform/JotformConnect';
 import { ZocksConnect } from '@/platform/connectors/zocks/ZocksConnect';
 import { AddeparConnect } from '@/platform/connectors/addepar/AddeparConnect';
 import { CalendlyConnect } from '@/platform/connectors/calendly/CalendlyConnect';
+import { CalendarConnect } from '@/platform/connectors/calendar/CalendarConnect';
 import { SalesforceConnect } from '@/platform/connectors/crm/SalesforceConnect';
 import { RedtailConnect } from '@/platform/connectors/crm/RedtailConnect';
 import { McpSettingsSection } from '@/features/settings/McpSettingsSection';
@@ -320,6 +321,7 @@ export function AccountWindow({ open, onOpenChange, auditEntries, initialTab }: 
                 <JotformConnect />
                 <ZocksConnect />
                 <CalendlyConnect />
+                <CalendarConnect />
                 <SalesforceConnect />
                 <RedtailConnect />
                 <OllamaSettingsSection />
