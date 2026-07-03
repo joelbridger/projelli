@@ -19,8 +19,9 @@ import { ChevronRight, ChevronUp, Check, AlertTriangle, CalendarDays } from 'luc
 import { Card, Button } from '@/ui/kp';
 import { useCrmWriteQueueStore, type ProposedCrmWrite } from '@/platform/state/crmWriteQueueStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
-import { buildInverseCrmMap } from '@/platform/rag/matterResolver';
+import { buildInverseCrmMap, matterLabel } from '@/platform/rag/matterResolver';
 import { crmIsConnected } from '@/platform/utils/wealthbox-commands';
+import { composeComplianceNote } from '@/features/matters/complianceNote';
 
 export interface CrmWriteReviewCardProps {
   matterId: string;
@@ -60,12 +61,15 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
   const items = useMemo(() => allItems.filter((i) => i.matterId === matterId), [allItems, matterId]);
   const approve = useCrmWriteQueueStore((s) => s.approve);
   const dismiss = useCrmWriteQueueStore((s) => s.dismiss);
+  const enqueue = useCrmWriteQueueStore((s) => s.enqueue);
   const matters = useMatterStore((s) => s.matters);
 
   const [expanded, setExpanded] = useState(false);
   const [uncheckedIds, setUncheckedIds] = useState<Set<string>>(new Set());
   const [household, setHousehold] = useState<string | null>(null);
   const [connected, setConnected] = useState<boolean | null>(null);
+  // Task 9b: off by default, one inline toggle — never a settings page.
+  const [fileComplianceNote, setFileComplianceNote] = useState(false);
 
   // Codex review catch (P1): if this component instance is reused for a
   // DIFFERENT client (e.g. no `key={matterId}` upstream), the previously
@@ -80,6 +84,7 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
     setHousehold(null);
     setUncheckedIds(new Set());
     setExpanded(false);
+    setFileComplianceNote(false);
   }
 
   const householdKeys = useMemo(
@@ -150,7 +155,33 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
 
   function handleApprove() {
     if (effectiveHousehold === null || selectedIds.length === 0) return;
-    void approve(selectedIds, effectiveHousehold);
+    const household_ = effectiveHousehold;
+    const approvedIds = selectedIds;
+    const shouldFileCompliance = fileComplianceNote;
+    // Codex review catch (P2): reset immediately, not after the note is
+    // filed — a still-checked toggle would otherwise summarize its OWN
+    // compliance note on the next approval, recursing indefinitely. The
+    // toggle must be re-checked deliberately for each new summary.
+    if (shouldFileCompliance) setFileComplianceNote(false);
+    void approve(approvedIds, household_).then(() => {
+      if (!shouldFileCompliance) return;
+      // Read fresh state after approve() settles — the sent items just
+      // landed in the store, and this must never fire for rows that failed
+      // or are still pending. The compliance note is only ever ENQUEUED
+      // here, exactly like every other item — it goes through the same
+      // Approve button on this card's next render, never a direct send.
+      const sentJustNow = useCrmWriteQueueStore
+        .getState()
+        .items.filter((i) => i.matterId === matterId && approvedIds.includes(i.id) && i.status === 'sent');
+      if (sentJustNow.length === 0) return;
+      const matter = matters.find((m) => m.id === matterId);
+      const clientLabel = matter ? matterLabel(matter) : matterId;
+      const { title, body } = composeComplianceNote(sentJustNow, {
+        clientLabel,
+        whenIso: new Date().toISOString(),
+      });
+      enqueue({ kind: 'note', matterId, title, body, sourceRef: `compliance:${new Date().toISOString()}` });
+    });
   }
 
   function handleRetry(id: string) {
@@ -292,7 +323,30 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
           )}
 
           {householdKeys.length > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: 'var(--kp-space-xs) var(--kp-card-pad) var(--kp-card-pad)' }}>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '0 var(--kp-card-pad) var(--kp-space-xs)',
+                fontSize: 'var(--kp-font-2xs)',
+                color: 'var(--color-muted-foreground)',
+                cursor: 'pointer',
+              }}
+            >
+              <input
+                type="checkbox"
+                data-testid="file-compliance-note"
+                checked={fileComplianceNote}
+                onChange={(e) => { setFileComplianceNote(e.target.checked); }}
+                style={{ width: 14, height: 14, cursor: 'pointer' }}
+              />
+              Also file a compliance note
+            </label>
+          )}
+
+          {householdKeys.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '0 var(--kp-card-pad) var(--kp-card-pad)' }}>
               <Button variant="primary" size="md" disabled={approveDisabled} onClick={handleApprove}>
                 Approve {pluralize(selectedIds.length, 'change')}
               </Button>

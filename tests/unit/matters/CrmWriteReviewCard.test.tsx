@@ -99,6 +99,115 @@ describe('CrmWriteReviewCard', () => {
     );
   });
 
+  // Task 9b: optional compliance summary, off by default, riding the same card.
+  it('files a compliance note when the toggle is checked at approve time', async () => {
+    const m = useMatterStore.getState().createMatter({
+      name: 'Henderson',
+      client: 'Henderson',
+      crmHouseholdKeys: ['12345'],
+    });
+    useCrmWriteQueueStore.getState().enqueue({
+      kind: 'note',
+      matterId: m.id,
+      title: 'Note title',
+      body: 'Note body',
+      sourceRef: 'doc:notes.docx',
+    });
+
+    render(<CrmWriteReviewCard matterId={m.id} />);
+    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
+    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+
+    fireEvent.click(screen.getByTestId('file-compliance-note'));
+    fireEvent.click(screen.getByRole('button', { name: /approve 1 change/i }));
+
+    await waitFor(() => {
+      expect(crmCreateNote).toHaveBeenCalledTimes(1);
+    });
+
+    // The compliance note lands back in the queue as a new PROPOSED item —
+    // it is never sent directly, only enqueued like everything else.
+    await waitFor(() => {
+      const items = useCrmWriteQueueStore.getState().items.filter((i) => i.matterId === m.id);
+      const complianceItem = items.find((i) => i.title.includes('Compliance summary'));
+      expect(complianceItem).toBeDefined();
+      expect(complianceItem?.status).toBe('proposed');
+    });
+    // Only the original note was ever sent to Wealthbox — the compliance note
+    // itself must NOT have been pushed as part of this same approval.
+    expect(crmCreateNote).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not file a compliance note when the toggle is left unchecked', async () => {
+    const m = useMatterStore.getState().createMatter({
+      name: 'Henderson',
+      client: 'Henderson',
+      crmHouseholdKeys: ['12345'],
+    });
+    useCrmWriteQueueStore.getState().enqueue({
+      kind: 'note',
+      matterId: m.id,
+      title: 'Note title',
+      body: 'Note body',
+      sourceRef: 'doc:notes.docx',
+    });
+
+    render(<CrmWriteReviewCard matterId={m.id} />);
+    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
+    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+
+    expect(screen.getByTestId('file-compliance-note')).not.toBeChecked();
+    fireEvent.click(screen.getByRole('button', { name: /approve 1 change/i }));
+
+    await waitFor(() => { expect(crmCreateNote).toHaveBeenCalledTimes(1); });
+
+    const items = useCrmWriteQueueStore.getState().items.filter((i) => i.matterId === m.id);
+    expect(items.some((i) => i.title.includes('Compliance summary'))).toBe(false);
+  });
+
+  // Codex adversarial review catch (P2): a still-checked toggle must not
+  // summarize its OWN compliance note on the next approval — that would
+  // recurse indefinitely (a compliance note about a compliance note, forever).
+  it('resets the compliance toggle after filing, so approving the filed note does not recurse', async () => {
+    const m = useMatterStore.getState().createMatter({
+      name: 'Henderson',
+      client: 'Henderson',
+      crmHouseholdKeys: ['12345'],
+    });
+    useCrmWriteQueueStore.getState().enqueue({
+      kind: 'note',
+      matterId: m.id,
+      title: 'Note title',
+      body: 'Note body',
+      sourceRef: 'doc:notes.docx',
+    });
+
+    render(<CrmWriteReviewCard matterId={m.id} />);
+    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
+    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+
+    fireEvent.click(screen.getByTestId('file-compliance-note'));
+    fireEvent.click(screen.getByRole('button', { name: /approve 1 change/i }));
+
+    await waitFor(() => {
+      const items = useCrmWriteQueueStore.getState().items.filter((i) => i.matterId === m.id);
+      expect(items.some((i) => i.title.includes('Compliance summary'))).toBe(true);
+    });
+
+    // The toggle must be OFF again — checked automatically right when the
+    // enqueue is scheduled, well before the compliance note even lands.
+    expect(screen.getByTestId('file-compliance-note')).not.toBeChecked();
+
+    // Approving the newly-filed compliance note (toggle now off) must NOT
+    // produce a second compliance note about the first one.
+    fireEvent.click(screen.getByRole('button', { name: /approve 1 change/i }));
+    await waitFor(() => { expect(crmCreateNote).toHaveBeenCalledTimes(2); });
+
+    const finalItems = useCrmWriteQueueStore.getState().items.filter((i) => i.matterId === m.id);
+    const complianceItems = finalItems.filter((i) => i.title.includes('Compliance summary'));
+    expect(complianceItems).toHaveLength(1);
+  });
+
   it('shows the link-first empty state and no Approve button when the matter has zero households', async () => {
     const m = useMatterStore.getState().createMatter({ name: 'Ortiz', client: 'Ortiz' });
     useCrmWriteQueueStore.getState().enqueue({
