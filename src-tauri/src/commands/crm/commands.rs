@@ -908,10 +908,18 @@ pub async fn crm_oauth_connect(
     )
     .await;
 
-    // The Cancel button stays live until this command settles, and the audit
-    // append above is itself an awaited disk write — check one more time
-    // before declaring success so a cancel during that write still rolls
-    // back the credential instead of returning Ok with it still stored.
+    // Downgrade stale sent rows BEFORE the final cancel check below, not
+    // after — it's itself an awaited operation, so putting it after that
+    // check would reopen exactly the race the check exists to close (a
+    // cancel landing during this await would otherwise be missed entirely
+    // and this command would return Ok with the new credential still
+    // stored).
+    mark_stale_sent_rows_pending_verify_best_effort(&app, provider).await;
+
+    // The Cancel button stays live until this command settles, and the work
+    // above is itself awaited disk I/O — check one more time before
+    // declaring success so a cancel during that write still rolls back the
+    // credential instead of returning Ok with it still stored.
     //
     // The append-only audit log can never retract the "Connected" entry
     // written above, so a cancel landing here would otherwise leave the log
@@ -939,8 +947,6 @@ pub async fn crm_oauth_connect(
         .await;
         return Err("cancelled".to_string());
     }
-
-    mark_stale_sent_rows_pending_verify_best_effort(&app, provider).await;
 
     Ok(CrmConnectInfo {
         name: info.name,
