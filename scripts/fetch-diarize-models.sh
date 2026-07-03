@@ -20,12 +20,21 @@ fetch () { # url dest sha256
   local url="$1" dest="$2" want="$3"
   if [[ -f "$dest" ]]; then echo "have $dest"; else curl -fL --retry 3 -o "$dest" "$url"; fi
   local got
-  got=$(sha256sum "$dest" | cut -d' ' -f1)
+  # sha256sum is not installed by default on macOS; shasum -a 256 is the
+  # portable fallback (same pattern as scripts/fetch-piper-sidecar.sh).
+  if command -v sha256sum &>/dev/null; then
+    got=$(sha256sum "$dest" | cut -d' ' -f1)
+  else
+    got=$(shasum -a 256 "$dest" | cut -d' ' -f1)
+  fi
   [[ "$got" == "$want" ]] || { echo "SHA256 mismatch for $dest: got $got want $want" >&2; exit 1; }
 }
 
 fetch "$SEG_URL" "$DEST/segmentation.tar.bz2" "$SEG_SHA256"
-tar -xjf "$DEST/segmentation.tar.bz2" -C "$DEST" --strip-components=1 --wildcards "*/model.onnx"
+# Exact path (not a glob), so no --wildcards flag needed — that flag is
+# GNU-tar-only and macOS's default bsdtar rejects it outright.
+tar -xjf "$DEST/segmentation.tar.bz2" -C "$DEST" --strip-components=1 \
+  sherpa-onnx-pyannote-segmentation-3-0/model.onnx
 mv "$DEST/model.onnx" "$DEST/segmentation.onnx"
 rm -f "$DEST/segmentation.tar.bz2"
 fetch "$EMB_URL" "$DEST/embedding.onnx" "$EMB_SHA256"

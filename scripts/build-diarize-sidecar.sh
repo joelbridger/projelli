@@ -10,13 +10,27 @@
 # .cargo/config.toml sets an $ORIGIN/@loader_path rpath (Linux/macOS) so the
 # binary finds them next to itself regardless of caller cwd; Windows resolves
 # DLLs beside the .exe by default and needs no equivalent.
+# Optional TARGET_TRIPLE (same env var convention as fetch-piper-sidecar.sh /
+# fetch-llama-sidecar.sh) cross-builds for a specific target — needed on the
+# macOS release matrix, where one job builds --target aarch64-apple-darwin
+# and another --target x86_64-apple-darwin on the same (Apple Silicon)
+# runner; a plain host build would stage the wrong arch into the x86_64 app.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 pushd src-tauri/sidecar-src/lantern-diarize >/dev/null
-cargo build --release
+if [[ -n "${TARGET_TRIPLE:-}" ]]; then
+  rustup target add "$TARGET_TRIPLE" >/dev/null 2>&1 || true
+  cargo build --release --target "$TARGET_TRIPLE"
+else
+  cargo build --release
+fi
 popd >/dev/null
 mkdir -p src-tauri/binaries
-RELEASE_DIR="${CARGO_TARGET_DIR:-src-tauri/sidecar-src/lantern-diarize/target}/release"
+if [[ -n "${TARGET_TRIPLE:-}" ]]; then
+  RELEASE_DIR="${CARGO_TARGET_DIR:-src-tauri/sidecar-src/lantern-diarize/target}/$TARGET_TRIPLE/release"
+else
+  RELEASE_DIR="${CARGO_TARGET_DIR:-src-tauri/sidecar-src/lantern-diarize/target}/release"
+fi
 BIN="$RELEASE_DIR/lantern-diarize"
 DST=src-tauri/binaries/lantern-diarize
 if [[ "${OS:-}" == "Windows_NT" ]]; then BIN="$BIN.exe"; DST="$DST.exe"; fi
