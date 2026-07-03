@@ -53,14 +53,17 @@ describe('isNarrativeField', () => {
 describe('composeFieldBlend — scalar fields', () => {
   it('replaces outright with the new value, never calling a provider', async () => {
     const { provider, sendMessage } = fakeProvider('should not be used');
+    const onBeforeProviderCall = vi.fn();
     const finalValue = await composeFieldBlend({
       field: 'risk_tolerance',
       existingValue: 'Moderate',
       newValue: 'Aggressive',
       provider,
+      onBeforeProviderCall,
     });
     expect(finalValue).toBe('Aggressive');
     expect(sendMessage).not.toHaveBeenCalled();
+    expect(onBeforeProviderCall).not.toHaveBeenCalled();
   });
 
   it('replaces outright even when no provider is configured', async () => {
@@ -81,6 +84,7 @@ describe('composeFieldBlend — narrative fields, provider configured', () => {
       existingValue: 'Robert owns a rental property.',
       newValue: 'Retiring spring 2027.',
       provider,
+      onBeforeProviderCall: vi.fn(),
     });
     expect(finalValue).toBe('Robert owns a rental property. Retiring spring 2027.');
     expect(sendMessage).toHaveBeenCalledTimes(1);
@@ -141,5 +145,20 @@ describe('composeFieldBlend — narrative fields, no provider configured', () =>
       newValue: 'Retiring spring 2027.',
     });
     expect(finalValue).toBe('Retiring spring 2027.');
+  });
+});
+
+// Codex review catch (P2): the type requires onBeforeProviderCall whenever a
+// provider is passed, but Tauri invoke args (and any other JS boundary) are
+// NOT type-checked at runtime — the seam that stops an unlogged AI action
+// from sending confidential CRM text must fail closed, not just rely on TS.
+describe('composeFieldBlend — fails closed if the audit hook is bypassed at runtime', () => {
+  it('throws rather than call the provider when onBeforeProviderCall is missing at runtime', async () => {
+    const { provider, sendMessage } = fakeProvider('should never be sent');
+    const bypassed = { field: 'background_information', existingValue: 'A', newValue: 'B', provider };
+    await expect(composeFieldBlend(bypassed as unknown as Parameters<typeof composeFieldBlend>[0])).rejects.toThrow(
+      /onBeforeProviderCall is required/,
+    );
+    expect(sendMessage).not.toHaveBeenCalled();
   });
 });

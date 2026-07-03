@@ -70,16 +70,23 @@ interface CrmWriteQueueState {
    * `enqueue()` directly with `kind: 'field'` and no `finalValue` is a bug —
    * this is the real entry point for that item shape.
    */
-  enqueueFieldUpdate: (args: {
-    matterId: string;
-    title: string;
-    field: string;
-    existingValue: string;
-    newValue: string;
-    sourceRef: string;
-    provider?: Provider;
-    onBeforeProviderCall?: (prompt: string) => void;
-  }) => Promise<void>;
+  enqueueFieldUpdate: (
+    args: {
+      matterId: string;
+      title: string;
+      field: string;
+      existingValue: string;
+      newValue: string;
+      sourceRef: string;
+    } & (
+      | { provider?: undefined; onBeforeProviderCall?: undefined }
+      // Codex review catch (P2): onBeforeProviderCall is REQUIRED whenever a
+      // provider is passed — mirrors composeFieldBlend's own constraint, so
+      // the required egress-audit hook can't be silently dropped at this
+      // (the real) entry point either. See fieldBlend.ts's doc comment.
+      | { provider: Provider; onBeforeProviderCall: (prompt: string) => void }
+    ),
+  ) => Promise<void>;
 }
 
 function newId(): string {
@@ -240,13 +247,19 @@ export const useCrmWriteQueueStore = create<CrmWriteQueueState>((set, get) => ({
     if (!isWritableField(args.field)) {
       throw new Error(`"${args.field}" is not a writable Wealthbox field yet.`);
     }
-    const finalValue = await composeFieldBlend({
-      field: args.field,
-      existingValue: args.existingValue,
-      newValue: args.newValue,
-      ...(args.provider ? { provider: args.provider } : {}),
-      ...(args.onBeforeProviderCall ? { onBeforeProviderCall: args.onBeforeProviderCall } : {}),
-    });
+    const finalValue = args.provider
+      ? await composeFieldBlend({
+          field: args.field,
+          existingValue: args.existingValue,
+          newValue: args.newValue,
+          provider: args.provider,
+          onBeforeProviderCall: args.onBeforeProviderCall,
+        })
+      : await composeFieldBlend({
+          field: args.field,
+          existingValue: args.existingValue,
+          newValue: args.newValue,
+        });
     get().enqueue({
       kind: 'field',
       matterId: args.matterId,

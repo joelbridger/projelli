@@ -60,16 +60,30 @@ function mergePrompt(existingValue: string, newValue: string): string {
   ].join('\n');
 }
 
-export async function composeFieldBlend(args: {
-  field: string;
-  existingValue: string;
-  newValue: string;
-  provider?: Provider;
-  /** Called immediately before `provider.sendMessage`, so the caller can log
-   *  the required egress-audit entry first. Never fires for a scalar field
-   *  (no provider call happens). */
-  onBeforeProviderCall?: (prompt: string) => void;
-}): Promise<string> {
+type ComposeFieldBlendArgs =
+  | {
+      field: string;
+      existingValue: string;
+      newValue: string;
+      provider?: undefined;
+      onBeforeProviderCall?: undefined;
+    }
+  | {
+      field: string;
+      existingValue: string;
+      newValue: string;
+      provider: Provider;
+      /** Called immediately before `provider.sendMessage`, so the caller can
+       *  log the required egress-audit entry first. Codex review catch (P2):
+       *  REQUIRED whenever `provider` is passed — this sends confidential
+       *  client CRM text to an AI provider, and the type previously let a
+       *  caller supply `provider` alone, silently skipping the audit record
+       *  security requirement #3 demands for every AI action. Enforced again
+       *  at runtime below (JS/Tauri call sites aren't type-checked). */
+      onBeforeProviderCall: (prompt: string) => void;
+    };
+
+export async function composeFieldBlend(args: ComposeFieldBlendArgs): Promise<string> {
   const { field, existingValue, newValue, provider, onBeforeProviderCall } = args;
 
   if (!isNarrativeField(field)) {
@@ -80,8 +94,18 @@ export async function composeFieldBlend(args: {
     return existingValue.trim() === '' ? newValue : `${existingValue}\n\n${newValue}`;
   }
 
+  // TS guarantees this can't happen through the typed API above, but a JS or
+  // Tauri-invoke call site can bypass that guarantee entirely (this project
+  // has a whole class of bugs from exactly that — untyped invoke args) — this
+  // is a real runtime fail-closed check for a compliance-critical audit hook,
+  // not dead code.
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  if (!onBeforeProviderCall) {
+    throw new Error('composeFieldBlend: onBeforeProviderCall is required whenever a provider is supplied.');
+  }
+
   const prompt = mergePrompt(existingValue, newValue);
-  onBeforeProviderCall?.(prompt);
+  onBeforeProviderCall(prompt);
   const response = await provider.sendMessage(prompt);
   return response.content;
 }
