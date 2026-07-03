@@ -29,7 +29,7 @@ import { WorkspaceSelector } from '@/features/documents/workspace/WorkspaceSelec
 
 import { AppShellNav } from '@/app/shell/layout/AppShellNav';
 import { SettingsGearButton } from '@/app/shell/layout/SettingsGearButton';
-import { TrustBar } from '@/app/shell/layout/TrustBar';
+import { TrustBarScope, TrustBarActions } from '@/app/shell/layout/TrustBar';
 import { StatusBar } from '@/app/shell/layout/StatusBar';
 import { AppDialogs } from '@/app/shell/AppDialogs';
 import { AppSurfaceRouter } from '@/app/shell/AppSurfaceRouter';
@@ -1368,17 +1368,24 @@ function App() {
       >
         Skip to main content
       </a>
-      {/* Header bar with project switcher */}
+      {/* Header bar — Wave B / S4: the workspace switcher, the client/matter
+          scope (formerly its own full-width "Trust Bar" stacked directly
+          underneath), and the settings/command-palette actions now share ONE
+          contextual bar instead of two near-identical rows. */}
       <header className="flex items-center justify-between h-10 px-2 border-b bg-muted/30 shrink-0" data-testid="app-header">
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-3">
           <ProjectManager
             currentProjectName={currentProjectName}
             onSwitchProject={() => setShowWorkspaceSelector(true)}
             onOpenRecentProject={handleOpenRecentProject}
             recentProjects={recentWorkspaces}
           />
+          <div aria-hidden="true" className="h-4 w-px shrink-0 bg-border" />
+          <TrustBarScope />
         </div>
         <div className="flex items-center gap-2">
+          <TrustBarActions />
+          <div aria-hidden="true" className="h-4 w-px shrink-0 bg-border" />
           {/*
             UX-25: 3-state theme toggle. Cycles system → light → dark → system.
             Icon reflects the *preference* (not the effective theme), so a user
@@ -1457,9 +1464,6 @@ function App() {
           the free trial (or once expired) and when no license is active.
           Otherwise null and zero layout. */}
       <TrialBanner onActivate={() => openSettings('license')} />
-
-      {/* The hero Trust Bar (elevated egress + matter scope). */}
-      <TrustBar />
 
       {/* Main content area — a real <main> landmark and a focus target so the
           "Skip to main content" link moves keyboard focus here, not just scrolls

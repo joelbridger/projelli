@@ -1,18 +1,22 @@
 /**
- * TrustBar — the hero trust element.
+ * TrustBarScope / TrustBarActions — the trust elements, folded into the
+ * single merged app header (Wave B / S4: "no permanent second header").
  *
  * Research finding (Streams A + C converge): the egress indicator was the
  * single most emotionally powerful moment in the persona study, yet today it
- * is buried among nine items in a 24px status strip. Here it is elevated to a
- * prominent, always-visible bar: which matter you are in (scope) on the left,
- * and exactly where an AI request would go (egress) on the right. Composes the
- * already-wired EgressIndicator + matter scope + Data Map, so the trust state
- * is real, not a mock. Rendered only in the reimagined shell.
+ * is buried among nine items in a 24px status strip. These two pieces
+ * compose the already-wired EgressIndicator + matter scope + Data Map, so the
+ * trust state is real, not a mock — previously rendered as their own
+ * full-width bar directly under the app header (workspace switcher / gear /
+ * Ctrl+K); now they render AS PART of that same bar so a screen never shows
+ * two near-identical, empty-feeling header rows stacked on top of each other.
  *
- * Compact redesign: single tight line — matter scope on the left, egress pill
- * on the right — with a small info icon that reveals the full data-routing
- * explanation on demand (tooltip). The always-visible two-line paragraph is
- * removed; the meaning (three confidentiality states, color-coded) stays.
+ * `TrustBarScope` — which matter you're in (the "client crumb"/"scope
+ * chip"), rendered on the left, next to the workspace switcher.
+ * `TrustBarActions` — the info tooltip + Data Map + Privacy Center shortcuts,
+ * rendered on the right, next to the theme toggle / settings gear / Ctrl+K.
+ * (The actual AI-status/egress PILL lives once, per tab, top-right on each
+ * surface header — unchanged by this split.)
  */
 /* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useState } from 'react';
@@ -30,7 +34,34 @@ import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { IconButton } from '@/ui/kp';
 import { EV_OPEN_PRIVACY_CENTER } from '@/config/identity';
 
-export function TrustBar() {
+/** The matter-scope label — icon + "This client" / "All clients" name. */
+export function TrustBarScope() {
+  const activeMatter = useActiveMatter();
+  const entityLabel = useEntityLabel();
+
+  return (
+    <div
+      data-testid="trust-bar-scope"
+      aria-label="Current client scope"
+      style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}
+    >
+      {activeMatter
+        ? <Briefcase size={14} strokeWidth={1.75} style={{ color: 'var(--kp-navy)', flex: 'none' }} />
+        : <Globe size={14} strokeWidth={1.75} style={{ color: 'var(--kp-navy)', flex: 'none' }} />}
+      <span
+        style={{
+          fontSize: 'var(--kp-font-xs)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)',
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 280,
+        }}
+      >
+        {activeMatter ? matterLabel(activeMatter) : `All ${entityLabel.other}`}
+      </span>
+    </div>
+  );
+}
+
+/** Info / Data Map / Privacy Center shortcuts — the right-hand trust cluster. */
+export function TrustBarActions() {
   const activeMatter = useActiveMatter();
   const confidentialityMode = useConfidentialityMode();
   const [dataMapOpen, setDataMapOpen] = useState(false);
@@ -55,33 +86,8 @@ export function TrustBar() {
     <div
       data-testid="trust-bar"
       aria-label="Trust and confidentiality status"
-      style={{
-        display: 'flex', alignItems: 'center', gap: 10, height: 36,
-        padding: '0 14px 0 16px', flex: 'none',
-        background: 'var(--color-background)', borderBottom: '1px solid var(--color-border)',
-      }}
+      style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 'none' }}
     >
-      {/* Matter scope — icon + label only, tight */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
-        {activeMatter
-          ? <Briefcase size={14} strokeWidth={1.75} style={{ color: 'var(--kp-navy)', flex: 'none' }} />
-          : <Globe size={14} strokeWidth={1.75} style={{ color: 'var(--kp-navy)', flex: 'none' }} />}
-        <span
-          style={{
-            fontSize: 'var(--kp-font-xs)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)',
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 280,
-          }}
-        >
-          {activeMatter ? matterLabel(activeMatter) : `All ${entityLabel.other}`}
-        </span>
-      </div>
-
-      <div style={{ flex: 1 }} />
-
-      {/* The AI-status pill is NOT shown here anymore — it lives once, per tab,
-          top-right on each surface header (Ask / Client Map / Workflows). The
-          top bar keeps only the info + Data Map + lock affordances. */}
-
       {/* Info affordance: reveals the full data-routing explanation on hover.
           A7: title added as a standard browser tooltip alongside the Radix tooltip. */}
       <Tooltip>
