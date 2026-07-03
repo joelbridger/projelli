@@ -5,7 +5,11 @@ import type { ClientMap, ClientMapSection, ClientMapItem, ClientQuestion, Dismis
 import { CORE_SECTION_ORDER, CORE_SECTION_TITLE } from './types';
 import { proposalSignature } from './updater';
 import { deriveCompleteness } from './completeness';
+import { extractBeneficiaryEvidence } from './estate/estateDocs';
+import { beneficiaryConsistency, beneficiaryGapQuestions } from './estate/beneficiaryConsistency';
 import { SK_CLIENT_MAPS } from '@/config/identity';
+import { getMatterAuditEmitter } from '@/platform/matter/matterStore';
+import { auditEventToEntry } from '@/platform/audit/AuditService';
 
 /** v2 -> v3: the 5 core section keys were renamed to 4 sharper buckets (and the
  *  dated-events "Coming up" bucket was folded into Follow-ups). Remap any legacy
@@ -75,7 +79,11 @@ function normalizeQuestion(text: string): string {
  *  after an edit, add, or remove. The gap-question list (`ask`) is untouched —
  *  it's produced by AI gap-detection, not derived from section contents. */
 function withSections(map: ClientMap, sections: ClientMapSection[]): ClientMap {
-  return { ...map, sections, completeness: deriveCompleteness(sections, map.completeness.ask) };
+  const findings = beneficiaryConsistency(extractBeneficiaryEvidence({ ...map, sections }));
+  const benefGaps = beneficiaryGapQuestions(findings);
+  const baseAsk = map.completeness.ask.filter((g) => !g.text.startsWith('Beneficiary check:'));
+  const ask = [...benefGaps, ...baseAsk];
+  return { ...map, sections, completeness: deriveCompleteness(sections, ask) };
 }
 
 /** Persisted (partialized) shape of this store. */
@@ -194,7 +202,11 @@ export const useClientMapStore = create<ClientMapState>()(
       // Every proposed change stays in pendingUpdates until the user approves it,
       // honoring the approve-first promise (AI proposes, user decides).
       setMap: (matterId, map) =>
-        set((s) => ({ maps: { ...s.maps, [matterId]: map } })),
+        // Route through withSections so beneficiary consistency gaps (Wave 4
+        // Track B) are merged on every store, not just the section-mutating
+        // actions — otherwise a freshly-built map's first store would surface
+        // no findings until the next edit/merge.
+        set((s) => ({ maps: { ...s.maps, [matterId]: withSections(map, map.sections) } })),
       editItem: (matterId, sectionKey, itemId, text) =>
         set((s) => {
           const map = s.maps[matterId];
@@ -395,6 +407,15 @@ export const useClientMapStore = create<ClientMapState>()(
           if (!norm) return {};
           const resolved = map.resolvedGaps ?? [];
           if (resolved.includes(norm)) return {};
+          if (gapText.startsWith('Beneficiary check:')) {
+            getMatterAuditEmitter()?.(
+              auditEventToEntry({
+                type: 'beneficiary_finding_dismissed',
+                timestamp: new Date().toISOString(),
+                payload: { matterId, finding: gapText },
+              }),
+            );
+          }
           return { maps: { ...s.maps, [matterId]: { ...map, resolvedGaps: [...resolved, norm] } } };
         }),
       invalidate: (matterId) =>

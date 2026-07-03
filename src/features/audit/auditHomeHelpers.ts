@@ -125,6 +125,7 @@ export const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   template_uninstalled: FileX,
   template_updated: PenLine,
   template_install_failed: XCircle,
+  beneficiary_finding_dismissed: ShieldCheck,
 };
 
 export const ACTION_LABELS: Record<AuditActionType, string> = {
@@ -181,6 +182,7 @@ export const ACTION_LABELS: Record<AuditActionType, string> = {
   template_uninstalled: 'Template Uninstalled',
   template_updated: 'Template Updated',
   template_install_failed: 'Template Install Failed',
+  beneficiary_finding_dismissed: 'Beneficiary Check Dismissed',
 };
 
 /** Semantic category per action, drives colour + grouping in filters. */
@@ -240,6 +242,7 @@ export const ACTION_CATEGORY: Record<AuditActionType, ActionCategory> = {
   template_uninstalled: 'system',
   template_updated: 'system',
   template_install_failed: 'system',
+  beneficiary_finding_dismissed: 'privilege',
 };
 
 export const CATEGORY_COLOR: Record<ActionCategory, string> = {

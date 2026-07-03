@@ -430,6 +430,12 @@ export function setMatterAuditEmitter(
   activeMatterAuditEmitter = emitter;
 }
 
+/** Non-reactive accessor so other platform modules (e.g. clientMapStore) can
+ *  emit to the live Activity Log without threading a callback prop through. */
+export function getMatterAuditEmitter(): MatterAuditEmitter | null {
+  return activeMatterAuditEmitter;
+}
+
 function auditMatterMcpAccess(matter: Matter, granted: boolean): void {
   activeMatterAuditEmitter?.(
     auditEventToEntry({

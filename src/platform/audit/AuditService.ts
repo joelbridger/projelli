@@ -659,6 +659,8 @@ function describeAuditEvent(event: AuditEvent): string {
         ? `Allowed storing and using exported reports from ${tools}`
         : `Declined storing exported reports from ${tools} for this answer`;
     }
+    case 'beneficiary_finding_dismissed':
+      return `Beneficiary check dismissed: ${event.payload.finding}`;
     default:
       return event.type;
   }

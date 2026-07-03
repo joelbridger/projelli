@@ -90,6 +90,17 @@ describe('buildBookRows', () => {
     const rows = buildBookRows([matter('m1')], { m1: map }, NOW, label);
     expect(at(rows, 0).lastTouchIso).toBe('2026-06-20T00:00:00.000Z');
   });
+  it('surfaces a beneficiary gap as the first topGap, stripped of its prefix and honest-limits line', () => {
+    const map = builtMap('m1', 3, 0, 0, '2026-07-01T00:00:00.000Z');
+    map.completeness.ask = [
+      { text: 'Risk questionnaire missing', sectionKey: 'money' },
+      { text: 'Beneficiary check: A rollover IRA is mentioned but no beneficiary designation is on file. Flagged for your review. Not legal advice.', sectionKey: 'household' },
+    ];
+    const rows = buildBookRows([matter('m1')], { m1: map }, NOW, label);
+    expect(at(rows, 0).topGaps[0]).toContain('beneficiary designation');
+    expect(at(rows, 0).topGaps[0]).not.toContain('Beneficiary check:');
+    expect(at(rows, 0).topGaps[0]).not.toContain('Flagged for your review');
+  });
 });
 
 describe('sortBookRows', () => {

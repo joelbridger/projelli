@@ -30,4 +30,21 @@ describe('BookView', () => {
     fireEvent.click(screen.getByTestId('book-row-m-a'));
     expect(open).toHaveBeenCalledWith('m-a');
   });
+  it('renders a gap chip for a beneficiary finding', () => {
+    const built = useClientMapStore.getState().maps['m-a'];
+    if (!built) throw new Error('expected seeded map');
+    useClientMapStore.setState({
+      maps: {
+        'm-a': {
+          ...built,
+          completeness: {
+            ...built.completeness,
+            ask: [{ text: 'Beneficiary check: A rollover IRA is mentioned but no beneficiary designation is on file. Flagged for your review. Not legal advice.', sectionKey: 'household' }],
+          },
+        },
+      },
+    });
+    render(<BookView onOpenClient={() => {}} />);
+    expect(screen.getByTestId('book-gap-chip').textContent).toContain('beneficiary designation');
+  });
 });
