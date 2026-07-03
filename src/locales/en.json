@@ -905,6 +905,24 @@
       "description": "Please answer the following questions to continue the workflow."
     }
   },
+  "ask": {
+    "scope-pill": {
+      "this-matter": "This client",
+      "all-matters": "All clients",
+      "email": "Email",
+      "documents": "Documents",
+      "whole-practice": "Whole practice (summaries only)"
+    },
+    "book": {
+      "option-label": "Whole practice",
+      "loading": "Reading your client summaries...",
+      "no-facts": "No client summaries are built yet. Open a client and build their Client Map first.",
+      "no-matches": "No clients in your book match that question.",
+      "matches-heading": "Matching clients",
+      "open-client": "Open client",
+      "summaries-note": "Answered from each client's saved summary. Documents were not searched across clients."
+    }
+  },
   "matter": {
     "scope": {
       "all-matters": "All clients",
@@ -1027,6 +1045,28 @@
       "archive": "Archive",
       "restore": "Restore",
       "archived-section-label": "Archived clients"
+    },
+    "book": {
+      "view-toggle": "Client Map view",
+      "view-clients": "Clients",
+      "view-book": "Whole book",
+      "col-client": "Client",
+      "col-completeness": "Client Map",
+      "col-facts": "Sourced facts",
+      "col-gaps": "Open gaps",
+      "col-last-touch": "Last touch",
+      "level-thin": "Thin",
+      "level-getting-there": "Getting there",
+      "level-solid": "Solid",
+      "level-not-built": "Not built yet",
+      "stale-days": "{{count}} days ago",
+      "stale-today": "Today",
+      "empty": "No clients yet. Add a client to see your whole book here.",
+      "subtitle": "Every client, ranked by who needs attention: how complete their Client Map is and how long since it was touched."
+    },
+    "beneficiary": {
+      "chip-title": "Beneficiary check",
+      "review-note": "Flagged for your review. Not legal advice."
     }
   },
   "firm": {

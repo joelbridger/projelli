@@ -62,8 +62,8 @@ const ACCOUNT_CATEGORIES = new Set<SettingCategory>([
   'integrations',
 ]);
 
-const ALLOWED_SURFACES = new Set(['search', 'files', 'email', 'workflows', 'audit', 'privacy'] as const);
-type AllowedSurface = 'search' | 'files' | 'email' | 'workflows' | 'audit' | 'privacy';
+const ALLOWED_SURFACES = new Set(['search', 'files', 'email', 'workflows', 'audit', 'privacy', 'matters'] as const);
+type AllowedSurface = 'search' | 'files' | 'email' | 'workflows' | 'audit' | 'privacy' | 'matters';
 
 export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
   // Keep the latest handlers in a ref so the listeners below register once.
@@ -138,6 +138,11 @@ export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
           surface === 'files' ? 'documents'
           : surface === 'email' ? 'email'
           : surface === 'audit' ? 'activity'
+          // Explicit request to open the hub itself (its default sub-tab,
+          // the Client Map overview) rather than restore a remembered
+          // surface — e.g. whole-practice Ask's "open this client" chip,
+          // which always means the Client Map, not wherever they were last.
+          : surface === 'matters' ? 'overview'
           : null;
         if (hubTab) {
           // setActiveMatter ran just above; set the hub id AFTER it (setActiveMatter

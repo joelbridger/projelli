@@ -124,6 +124,7 @@ const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   template_uninstalled: FileX,
   template_updated: PenLine,
   template_install_failed: XCircle,
+  beneficiary_finding_dismissed: ShieldCheck,
 };
 
 const ACTION_LABELS: Record<AuditActionType, string> = {
@@ -182,6 +183,7 @@ const ACTION_LABELS: Record<AuditActionType, string> = {
   template_uninstalled: 'Template Uninstalled',
   template_updated: 'Template Updated',
   template_install_failed: 'Template Install Failed',
+  beneficiary_finding_dismissed: 'Beneficiary Check Dismissed',
 };
 
 const ACTION_COLORS: Record<AuditActionType, string> = {
@@ -240,6 +242,7 @@ const ACTION_COLORS: Record<AuditActionType, string> = {
   template_uninstalled: 'text-red-600 dark:text-red-400',
   template_updated: 'text-blue-600 dark:text-blue-400',
   template_install_failed: 'text-red-600 dark:text-red-400',
+  beneficiary_finding_dismissed: 'text-indigo-600 dark:text-indigo-400',
 };
 
 export function AuditLog({

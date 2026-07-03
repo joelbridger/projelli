@@ -85,7 +85,10 @@ export type AuditActionType =
   | 'template_installed_from_marketplace'
   | 'template_uninstalled'
   | 'template_updated'
-  | 'template_install_failed';
+  | 'template_install_failed'
+  // Wave 4 Track B: the advisor dismissed/resolved a beneficiary consistency
+  // finding (MISMATCH/STALE/MISSING) surfaced on their Client Map's gaps.
+  | 'beneficiary_finding_dismissed';
 
 /**
  * The verdict from citation verification (mirrors `CitationVerdict.verdict`
@@ -393,6 +396,17 @@ export type AuditEvent =
          */
         fileToolsEnabled?: boolean;
       };
+    }
+  /**
+   * The advisor dismissed/resolved a beneficiary consistency finding
+   * (Wave 4 Track B, estate/beneficiary mismatch detection). `finding` is the
+   * gap question text (prefixed `Beneficiary check:`) so the audit log keeps
+   * a durable record of exactly what was flagged and cleared.
+   */
+  | {
+      type: 'beneficiary_finding_dismissed';
+      timestamp: string;
+      payload: { matterId: string; finding: string };
     };
 
 /**

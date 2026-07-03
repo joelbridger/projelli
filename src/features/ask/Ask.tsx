@@ -26,6 +26,7 @@
  *   - Documents    (only non-mail: chunks)
  */
 
+import { useState, useRef, useEffect } from 'react';
 import {
   Sparkles, AlertTriangle,
 } from 'lucide-react';
@@ -46,7 +47,14 @@ import { useAsk, type UseAskProps } from './useAsk';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { IS_DEMO } from '@/web-demo/demoModeFlag';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
-import { EV_OPEN_SETTINGS } from '@/config/identity';
+import { EV_OPEN_SETTINGS, EV_MATTER_LAUNCH } from '@/config/identity';
+import { dispatchOpenSource } from '@/features/matters/clientMap/openSource';
+import { ScopeStatusPill } from './ScopeToggle';
+import { BookAnswerPanel } from './book/BookAnswerPanel';
+import { runWholePracticeAsk } from './book/wholePracticeAsk';
+import type { BookAskResult } from './book/bookFacts';
+import { settleBookSubmission } from './book/bookSubmission';
+import { composerIsBusy } from './askHelpers';
 
 /* -------------------------------------------------------------------------- */
 /* Main component                                                               */
@@ -96,6 +104,77 @@ export function Ask(props: UseAskProps) {
   } = useAsk(props);
 
   const isSampleMatter = activeMatter?.id === SAMPLE_MATTER_ID;
+
+  // Whole-practice Ask (Wave 4 Track C): a separate answer path over per-client
+  // Client Map summaries only — never the turn-based retrieval flow above.
+  const [bookResult, setBookResult] = useState<(BookAskResult & { model: string }) | null>(null);
+  const [bookLoading, setBookLoading] = useState(false);
+  const [bookError, setBookError] = useState<string | null>(null);
+
+  // Stale-response guard: a workspace/client switch (chatId changes) or a
+  // second whole-practice question submitted while one is in flight must never
+  // let the OLDER response commit over the newer state. One monotonic counter
+  // covers both: every submit bumps it (in the event handler below), and every
+  // chatId change bumps it too (in the ref-only effect below — no setState
+  // there, so this doesn't trip the no-setState-in-effect rule).
+  const bookRequestIdRef = useRef(0);
+  // The abort side of the same guard: ignoring a stale response in the UI
+  // isn't enough — a workspace switch mid-flight must also cancel the
+  // in-flight send so the OLD workspace's client summaries never actually
+  // reach the provider after the user has moved on (Codex P1).
+  const bookAbortRef = useRef<AbortController | null>(null);
+  useEffect(() => {
+    bookRequestIdRef.current += 1;
+    bookAbortRef.current?.abort();
+  }, [chatId]);
+
+  // A workspace/client switch changes chatId — clear any lingering result so a
+  // stale client's facts never show under the new conversation, even when no
+  // new whole-practice question is asked. React's "adjusting state when a prop
+  // changes" render-time pattern (setState only, no refs, so this stays clear
+  // of the no-refs-during-render rule).
+  const [bookResultChatId, setBookResultChatId] = useState(chatId);
+  if (chatId !== bookResultChatId) {
+    setBookResultChatId(chatId);
+    setBookResult(null);
+    setBookLoading(false);
+    setBookError(null);
+  }
+
+  const submitQuestion = (q?: string) => {
+    if (askScope === 'whole-practice') {
+      const asked = (q ?? question).trim();
+      if (!asked) return;
+      setQuestion('');
+      setBookLoading(true);
+      setBookError(null);
+      bookAbortRef.current?.abort(); // cancel any still-in-flight prior send
+      const controller = new AbortController();
+      bookAbortRef.current = controller;
+      const requestId = ++bookRequestIdRef.current;
+      const isStale = () => bookRequestIdRef.current !== requestId;
+      const opts = { signal: controller.signal, ...(props.onAuditLog ? { onAuditLog: props.onAuditLog } : {}) };
+      void settleBookSubmission(runWholePracticeAsk(asked, chatId, opts), asked, {
+        onResult: setBookResult,
+        onError: setBookError,
+        onSettle: () => { setBookLoading(false); },
+        restoreQuestion: setQuestion,
+        isStale,
+      });
+      return;
+    }
+    void handleAsk(q);
+  };
+  const composerKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (askScope === 'whole-practice') {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        submitQuestion();
+      }
+      return;
+    }
+    handleKeyDown(e);
+  };
 
   const composerPlaceholder =
     askScope === 'email'
@@ -161,11 +240,19 @@ export function Ask(props: UseAskProps) {
     inputRef: composerInputRef,
     question,
     onQuestionChange: (v: string) => { setQuestion(v); },
-    onKeyDown: handleKeyDown,
-    onSubmit: () => void handleAsk(),
+    onKeyDown: composerKeyDown,
+    onSubmit: () => { submitQuestion(); },
     placeholder: composerPlaceholder,
     ariaLabel: composerAriaLabel,
-    isBusy,
+    // A whole-practice send has its own loading state (bookLoading) outside
+    // useAsk's turn-based status — combine both so the input/submit button
+    // disable during EITHER kind of in-flight request (otherwise a double
+    // Enter/click could fire a second book-wide summary send). Gated to the
+    // whole-practice scope: a book-wide send running in the background must
+    // never disable the composer after the advisor has switched to a
+    // different scope (the book request is independently abortable via
+    // bookAbortRef, so switching scopes doesn't leave it uncancellable).
+    isBusy: composerIsBusy(isBusy, bookLoading, askScope),
     status,
     submitLabel: askVerb,
     egressProvider: displayedProvider,
@@ -190,7 +277,11 @@ export function Ask(props: UseAskProps) {
       : streamingTurn && streamingTurn.citations.length > 0
         ? streamingTurn
         : null;
-  const sourceCitations = sourceTurn?.citations ?? [];
+  // Whole-practice answers cite sources inline per client chip (BookAnswerPanel),
+  // never through this turn-based panel — otherwise a PRIOR cited answer's
+  // sources would linger next to the new book-wide answer, looking like its
+  // citations when they aren't.
+  const sourceCitations = askScope === 'whole-practice' ? [] : (sourceTurn?.citations ?? []);
 
   const errorBanner = status === 'error' && errorMsg ? (
     <div
@@ -372,47 +463,70 @@ export function Ask(props: UseAskProps) {
               </div>
             )}
 
-            {/* Conversation lives in an aria-live region so screen readers
-                announce completed answers. */}
-            <div aria-live="polite" aria-atomic="false">
-              {turns.map((turn, idx) => (
-                <TurnBlock
-                  key={idx}
-                  turn={turn}
-                  turnIdx={idx}
-                  selectedTurnIdx={selectedTurnIdx}
-                  selected={selected}
-                  onCitationSelect={handleCitationSelect}
-                  onSaveToDocument={onSaveToDocument ? handleSaveToDocument : undefined}
-                  isSaving={savingIdx === idx}
-                  isPersisted={false}
-                  {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
-                />
-              ))}
-
-              {streamingTurn && (
-                <TurnBlock
-                  key="streaming"
-                  turn={streamingTurn}
-                  turnIdx={turns.length}
-                  selectedTurnIdx={selectedTurnIdx}
-                  selected={selected}
-                  onCitationSelect={handleCitationSelect}
-                  onSaveToDocument={undefined}
-                  isSaving={false}
-                  isPersisted={false}
-                  isStreaming
-                  {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
-                />
-              )}
+            {/* The scope pill: Ask always displays its current scope, one click
+                (on the composer's ScopeToggle) to switch. */}
+            <div style={{ padding: '0 var(--kp-space-md)' }}>
+              <ScopeStatusPill scope={askScope} />
             </div>
 
-            {/* B2: bridge callout below demo answers (sample matter w/ turns). */}
-            {isSampleMatter && turns.length > 0 && !streamingTurn && (
-              <SampleBridgeCallout />
-            )}
+            {askScope === 'whole-practice' ? (
+              <BookAnswerPanel
+                result={bookResult}
+                loading={bookLoading}
+                error={bookError}
+                onOpenClient={(id) => {
+                  // Explicit 'matters' surface: always open THIS client's
+                  // Client Map, never a restored snapshot of wherever they
+                  // last were (that's the point of the chip).
+                  window.dispatchEvent(new CustomEvent(EV_MATTER_LAUNCH, { detail: { matterId: id, surface: 'matters' } }));
+                }}
+                onOpenSource={(matterId, source) => { dispatchOpenSource(matterId, source); }}
+              />
+            ) : (
+              <>
+                {/* Conversation lives in an aria-live region so screen readers
+                    announce completed answers. */}
+                <div aria-live="polite" aria-atomic="false">
+                  {turns.map((turn, idx) => (
+                    <TurnBlock
+                      key={idx}
+                      turn={turn}
+                      turnIdx={idx}
+                      selectedTurnIdx={selectedTurnIdx}
+                      selected={selected}
+                      onCitationSelect={handleCitationSelect}
+                      onSaveToDocument={onSaveToDocument ? handleSaveToDocument : undefined}
+                      isSaving={savingIdx === idx}
+                      isPersisted={false}
+                      {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
+                    />
+                  ))}
 
-            {errorBanner}
+                  {streamingTurn && (
+                    <TurnBlock
+                      key="streaming"
+                      turn={streamingTurn}
+                      turnIdx={turns.length}
+                      selectedTurnIdx={selectedTurnIdx}
+                      selected={selected}
+                      onCitationSelect={handleCitationSelect}
+                      onSaveToDocument={undefined}
+                      isSaving={false}
+                      isPersisted={false}
+                      isStreaming
+                      {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
+                    />
+                  )}
+                </div>
+
+                {/* B2: bridge callout below demo answers (sample matter w/ turns). */}
+                {isSampleMatter && turns.length > 0 && !streamingTurn && (
+                  <SampleBridgeCallout />
+                )}
+
+                {errorBanner}
+              </>
+            )}
 
             <div ref={bottomRef} />
           </div>

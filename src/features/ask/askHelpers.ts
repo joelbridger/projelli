@@ -56,12 +56,15 @@ import {
 
 /**
  * Which slice of the user's data to search.
- * - 'this-matter'  search only within the active matter (same as today's default)
- * - 'all-matters'  cross-matter (same as today's no-active-matter default)
- * - 'email'        restrict to mail: sourceId / sourceType === 'mail' chunks
- * - 'documents'    restrict to non-mail chunks (files, PDFs, transcripts, etc.)
+ * - 'this-matter'    search only within the active matter (same as today's default)
+ * - 'all-matters'    cross-matter (same as today's no-active-matter default)
+ * - 'email'          restrict to mail: sourceId / sourceType === 'mail' chunks
+ * - 'documents'      restrict to non-mail chunks (files, PDFs, transcripts, etc.)
+ * - 'whole-practice' book-level questions answered from per-client Client Map
+ *   summaries only (Wave 4 Track C); never reaches retrieval — matter
+ *   isolation stays intact because raw cross-matter chunks are never read.
  */
-export type AskScope = 'this-matter' | 'all-matters' | 'email' | 'documents';
+export type AskScope = 'this-matter' | 'all-matters' | 'email' | 'documents' | 'whole-practice';
 
 /**
  * F2.5 — the file-access consent scope for an Ask turn. It MUST mirror the
@@ -79,9 +82,23 @@ export function askConsentScope(
   activeMatterId: string | null | undefined,
   askScope: AskScope,
 ): ConsentScope {
-  return activeMatterId && askScope !== 'all-matters'
+  // whole-practice spans every client's summary, same as all-matters — an
+  // active single client must never narrow its consent scope (Codex review:
+  // a single-client grant must not silently cover a book-wide send).
+  return activeMatterId && askScope !== 'all-matters' && askScope !== 'whole-practice'
     ? { kind: 'matter', matterId: activeMatterId }
     : { kind: 'allMatters' };
+}
+
+/**
+ * Whether the composer's input/submit button should show busy. `bookLoading`
+ * (a whole-practice send in flight) must only disable the composer WHILE that
+ * scope is active — otherwise switching away to This client/Email/Documents
+ * while a book-wide send is still running in the background would leave the
+ * visible (and unrelated) composer stuck disabled (Coordinator review round 1).
+ */
+export function composerIsBusy(isBusy: boolean, bookLoading: boolean, askScope: AskScope): boolean {
+  return isBusy || (askScope === 'whole-practice' && bookLoading);
 }
 
 export type AskFailureStage =

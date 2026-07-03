@@ -24,7 +24,8 @@ import type { Matter } from '@/platform/types/matter';
 import type { AuditEntry } from '@/platform/types/audit';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
-import { Button, SearchField, Badge, Eyebrow, Card, EmptyState, Callout, SurfaceToolbar } from '@/ui/kp';
+import { Button, SearchField, Badge, Eyebrow, Card, EmptyState, Callout, SurfaceToolbar, ToolbarSpacer, SegmentedToggle } from '@/ui/kp';
+import { BookView } from './book/BookView';
 import { SK_SETUP_CARD_DISMISSED, EV_OPEN_SETTINGS, EV_OPEN_MATTER_MANAGER, EV_MATTER_LAUNCH } from '@/config/identity';
 
 /** localStorage key for dismissing the setup card. */
@@ -639,6 +640,7 @@ export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEma
   };
   const entityLabel = useEntityLabel();
   const [archivedExpanded, setArchivedExpanded] = useState(false);
+  const [homeView, setHomeView] = useState<'clients' | 'book'>('clients');
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -717,6 +719,65 @@ export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEma
     );
   }
 
+  const header = (
+    <div style={{ padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--color-border)' }}>
+      <SurfaceHeader
+        Icon={Briefcase}
+        title={entityLabel.Other}
+        description={
+          openCount === 0
+            ? `No ${entityLabel.other} open.`
+            : openCount === 1
+            ? `1 ${entityLabel.one}${totalFolders > 0 ? `, ${String(totalFolders)} ${totalFolders === 1 ? 'folder' : 'folders'} indexed` : ''}. Click a row to focus AI on that client.`
+            : `${String(openCount)} ${entityLabel.other}${totalFolders > 0 ? `, ${String(totalFolders)} ${totalFolders === 1 ? 'folder' : 'folders'} indexed` : ''}. Click a row to focus AI on that client.`
+        }
+      />
+    </div>
+  );
+
+  const viewToggle = (
+    <>
+      <ToolbarSpacer />
+      <span style={{ fontSize: 12, color: 'var(--color-muted-foreground)', fontWeight: 600, marginRight: 2 }}>
+        View
+      </span>
+      <SegmentedToggle
+        ariaLabel={t('matter.book.view-toggle')}
+        variant="filled"
+        size="sm"
+        options={[
+          { value: 'clients', label: t('matter.book.view-clients') },
+          { value: 'book', label: t('matter.book.view-book') },
+        ]}
+        value={homeView}
+        onChange={setHomeView}
+      />
+    </>
+  );
+
+  if (homeView === 'book') {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%',
+          flex: 1,
+          minWidth: 0,
+          background: 'var(--color-background)',
+          fontFamily: 'Satoshi, sans-serif',
+          overflowY: 'auto',
+        }}
+      >
+        {header}
+        <SurfaceToolbar>{viewToggle}</SurfaceToolbar>
+        <div style={{ margin: 'var(--kp-surface-gap) var(--kp-gutter) var(--kp-gutter)' }}>
+          <BookView onOpenClient={(id) => { openHub(id); }} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       style={{
@@ -731,19 +792,7 @@ export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEma
       }}
     >
       {/* Page header */}
-      <div style={{ padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--color-border)' }}>
-        <SurfaceHeader
-          Icon={Briefcase}
-          title={entityLabel.Other}
-          description={
-            openCount === 0
-              ? `No ${entityLabel.other} open.`
-              : openCount === 1
-              ? `1 ${entityLabel.one}${totalFolders > 0 ? `, ${String(totalFolders)} ${totalFolders === 1 ? 'folder' : 'folders'} indexed` : ''}. Click a row to focus AI on that client.`
-              : `${String(openCount)} ${entityLabel.other}${totalFolders > 0 ? `, ${String(totalFolders)} ${totalFolders === 1 ? 'folder' : 'folders'} indexed` : ''}. Click a row to focus AI on that client.`
-          }
-        />
-      </div>
+      {header}
 
       <div style={{ margin: 'var(--kp-surface-gap) var(--kp-gutter) 0' }}>
         <TodaysMeetingsStrip onOpenClient={openHub} />
@@ -773,6 +822,7 @@ export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEma
             style={{ flex: 1, minWidth: 240 }}
           />
         )}
+        {viewToggle}
       </SurfaceToolbar>
 
       {/* Table card — top gap below the header; surface gap keeps it off the divider line. */}
