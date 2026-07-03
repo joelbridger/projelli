@@ -159,6 +159,22 @@ fn ensure_within_workspace(workspace_root: &Path, dir: &Path) -> Result<(), Stri
     Ok(())
 }
 
+/// Refuse to proceed if `path` already exists as a symlink (checked with
+/// `symlink_metadata`, which — unlike `exists()`/`metadata()` — does NOT
+/// follow the link). A crafted workspace could otherwise pre-place a
+/// symlink at our temp-file path; writing through it would clobber a file
+/// outside the workspace even though `meeting_dir` itself passed the
+/// containment check. A path that doesn't exist at all is fine.
+fn reject_existing_symlink(path: &Path) -> Result<(), String> {
+    match std::fs::symlink_metadata(path) {
+        Ok(meta) if meta.file_type().is_symlink() => {
+            Err(format!("refusing to write through an existing symlink at {}", path.display()))
+        }
+        Ok(_) => Err(format!("refusing to overwrite an existing file at {}", path.display())),
+        Err(_) => Ok(()), // doesn't exist — the common case
+    }
+}
+
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SpeakerWire {
@@ -191,7 +207,13 @@ pub async fn diarize_meeting(
     ensure_within_workspace(Path::new(&workspace_root), &dir)?;
     let (bin, seg, emb) = resolve_diarize_assets(&app)?;
     // Extract the far-end channel next to the meeting (cleaned up after).
-    let sys_wav = dir.join(".diarize-sys.wav");
+    // Randomized (not the fixed `.diarize-sys.wav`) so a workspace can't
+    // pre-place a symlink at a name it knows we'll write to, and refused
+    // outright if something already exists there (extract_system_channel's
+    // hound::WavWriter::create follows symlinks — it must never get the
+    // chance to write through one out of the workspace).
+    let sys_wav = dir.join(format!(".diarize-sys-{}.wav", rand::random::<u64>()));
+    reject_existing_symlink(&sys_wav)?;
     let extract_audio = audio.clone();
     let extract_out = sys_wav.clone();
     tokio::task::spawn_blocking(move || extract_system_channel(&extract_audio, &extract_out))
@@ -345,5 +367,33 @@ mod tests {
         let ws = tempdir().unwrap();
         let missing = ws.path().join("does-not-exist");
         assert!(ensure_within_workspace(ws.path(), &missing).is_err());
+    }
+
+    #[test]
+    fn reject_existing_symlink_allows_missing_path() {
+        let dir = tempdir().unwrap();
+        assert!(reject_existing_symlink(&dir.path().join("nothing-here.wav")).is_ok());
+    }
+
+    #[test]
+    fn reject_existing_symlink_rejects_plain_file_too() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("already-here.wav");
+        std::fs::write(&path, b"x").unwrap();
+        assert!(reject_existing_symlink(&path).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn reject_existing_symlink_rejects_a_symlink() {
+        let dir = tempdir().unwrap();
+        let outside = tempdir().unwrap();
+        let target = outside.path().join("clobber-me");
+        std::fs::write(&target, b"do not touch").unwrap();
+        let link = dir.path().join("sneaky.wav");
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+        assert!(reject_existing_symlink(&link).is_err());
+        // the guard must not have followed the link and mutated the target
+        assert_eq!(std::fs::read(&target).unwrap(), b"do not touch");
     }
 }
