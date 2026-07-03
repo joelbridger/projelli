@@ -381,6 +381,32 @@ async fn wait_for_writes_to_drain(state: &CrmState) -> bool {
     true
 }
 
+/// Wait (bounded, 10s, same budget/poll as `wait_for_writes_to_drain`) for
+/// an in-progress connect/reconnect to finish. Used by `crm_set_workspace`
+/// when it can't claim `connect_in_progress` itself (self-converge, review
+/// findings on lp/crm-9c-rust) — a plain "can't claim it, just mark this
+/// provider unconfirmed and move on" was racy: if the concurrent connect's
+/// OWN downgrade check finished and cleared `downgrade_unconfirmed` for
+/// this provider BEFORE `crm_set_workspace`'s insert landed, the insert
+/// would silently override that fresh confirmation, leaving writes blocked
+/// with no path to recovery short of another workspace-open or connect.
+/// Waiting first means `crm_set_workspace` runs its OWN downgrade check
+/// strictly AFTER the other connect finishes — sequencing instead of
+/// racing, so whichever check's result lands last reflects the current
+/// truth rather than two concurrent inserts/removes interleaving
+/// unpredictably.
+async fn wait_for_connect_in_progress_to_clear(state: &CrmState) -> bool {
+    let mut waited_ms: u64 = 0;
+    while state.connect_in_progress.load(Ordering::SeqCst) {
+        if waited_ms >= 10_000 {
+            return false;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        waited_ms += 50;
+    }
+    true
+}
+
 /// Downgrade every `sent` outbound-write ledger row for `provider` to
 /// `pending_verify` (see `CrmStore::mark_sent_rows_pending_verify_for_provider`).
 /// Called from every successful connect path (`crm_connect`'s Redtail branch,
@@ -893,7 +919,14 @@ pub async fn crm_update_field(
     // indistinguishable from content alone: one wants the SAME audit entry
     // (no duplicate), the other wants its own. See CrmFieldUpdateRequest's
     // doc comment.
-    let write_dedup_key = format!("{}_{}", write::dedup_key_field(&req), requested_at);
+    //
+    // Trimmed here (self-converge, review findings on lp/crm-9c-rust):
+    // validate_requested_at accepts (and validates) the TRIMMED value, so a
+    // retry with incidental whitespace around an otherwise-identical
+    // requested_at must still compute the SAME audit id — hashing the raw
+    // string would let harmless whitespace defeat the INSERT OR IGNORE
+    // dedup this id exists for.
+    let write_dedup_key = format!("{}_{}", write::dedup_key_field(&req), requested_at.trim());
 
     match write::push_crm_field_update(client.as_ref(), &store, &state.write_guard, &req).await {
         Ok(receipt) => {
@@ -986,14 +1019,28 @@ pub async fn crm_set_workspace(
         // Only the DOWNGRADE CHECK itself needs the connect_in_progress
         // race protection (a concurrent connect could be mid-transition on
         // the SAME provider's ledger rows) — the workspace path above is
-        // never gated on it. If a connect is already running, we can't
-        // safely run the check ourselves right now; mark this provider
-        // unconfirmed (same "couldn't verify" signal a failed downgrade
-        // produces) rather than either racing it or silently skipping.
-        // Whichever connect is running will complete its OWN downgrade
-        // check regardless, resolving this naturally if it's the same
-        // provider.
-        match claim_connect_in_progress(&state) {
+        // never gated on it.
+        //
+        // Self-converge (review findings on lp/crm-9c-rust): a plain
+        // "can't claim it right now, just mark this provider unconfirmed"
+        // was itself racy — connect_in_progress is a single flag shared by
+        // ALL providers, so if the concurrent connect (for this SAME
+        // provider) finished and cleared downgrade_unconfirmed BEFORE this
+        // function's own insert landed, the insert would silently override
+        // that fresh confirmation, leaving writes blocked with no path to
+        // recovery short of another workspace-open or connect. So: if the
+        // claim fails, WAIT (bounded) for the other connect to finish
+        // first, then claim again — this makes our own check run strictly
+        // AFTER theirs (sequenced, not racing), so whichever result lands
+        // last is the current truth. Only if contention persists past the
+        // wait budget do we fall back to marking unconfirmed as a
+        // last-resort, self-healing signal.
+        let mut connect_guard = claim_connect_in_progress(&state);
+        if connect_guard.is_none() {
+            wait_for_connect_in_progress_to_clear(&state).await;
+            connect_guard = claim_connect_in_progress(&state);
+        }
+        match connect_guard {
             Some(_connect_guard) => {
                 let confirmed = downgrade_stale_sent_rows_for_workspace(ws, provider, "crm set_workspace").await;
                 let mut unconfirmed = state.downgrade_unconfirmed.lock().await;
@@ -2157,6 +2204,36 @@ mod tests {
         assert!(
             claim_connect_in_progress(&state).is_some(),
             "a new claim must succeed once the first is released"
+        );
+    }
+
+    /// Self-converge (review findings on lp/crm-9c-rust, P2): proves the
+    /// primitive crm_set_workspace's race fix relies on — it must actually
+    /// wait for a held claim to release, not return immediately, so a
+    /// caller that then re-claims runs its own check strictly AFTER the
+    /// original connect finishes (sequenced, not racing).
+    #[tokio::test]
+    async fn wait_for_connect_in_progress_to_clear_waits_for_the_flag_then_returns_true() {
+        let state = test_state(false);
+        let guard = claim_connect_in_progress(&state).expect("first claim must succeed");
+
+        let connect_in_progress = state.connect_in_progress.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(30)).await;
+            drop(guard);
+            let _ = connect_in_progress; // guard's Drop clears the flag; keep the clone alive until then
+        });
+
+        let started = std::time::Instant::now();
+        let cleared = wait_for_connect_in_progress_to_clear(&state).await;
+        assert!(cleared, "must report success once the claim is released");
+        assert!(
+            started.elapsed() >= std::time::Duration::from_millis(25),
+            "must actually wait for the held claim, not return immediately"
+        );
+        assert!(
+            claim_connect_in_progress(&state).is_some(),
+            "a fresh claim must succeed once wait_for_connect_in_progress_to_clear reports cleared"
         );
     }
 
