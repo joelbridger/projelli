@@ -142,11 +142,22 @@ impl CrmWriteSource for crate::commands::crm::client::WealthboxClient {
         &self,
         req: &CrmWriteRequest,
     ) -> Result<Option<String>, CrmWriteError> {
-        // Recovery path: list recent objects and match on normalized content
-        // AND target household. Matching content alone is not proof this write
-        // landed — a different household could hold an identical note/task, or
-        // one could have existed before this attempt ever ran. Full-list is
-        // acceptable at solo scale; the 1 rps gate bounds cost.
+        // Recovery path: list recent objects and match on normalized content,
+        // target household, and (for tasks) due_date. Full-list is acceptable
+        // at solo scale; the 1 rps gate bounds cost.
+        //
+        // Residual risk (not fixed here, see VERIFY-LIVE below): this still
+        // cannot distinguish "this write landed" from "an unrelated,
+        // byte-identical note/task already existed on this household before
+        // this attempt ever ran" — a pre-existing match would be wrongly
+        // treated as delivery, silently swallowing the user-approved write.
+        // A time-window check against the ledger row's created_at would
+        // close this, but note.created_at/updated_at's exact format is
+        // unverified (CrmTask doesn't even carry a timestamp field today),
+        // so guessing at parsing logic here risks its own bug. Add the
+        // time-window check as a follow-up once Task 11's live-token probe
+        // (scripts/crm/wealthbox-write-probe.md) confirms the timestamp
+        // format Wealthbox actually returns.
         let contact_id = wealthbox_contact_id(&req.household_key)?;
         match req.kind {
             CrmWriteKind::Note => {
@@ -167,6 +178,7 @@ impl CrmWriteSource for crate::commands::crm::client::WealthboxClient {
                     .find(|t| {
                         norm(&t.name) == norm(req.title.trim())
                             && norm(&t.description) == norm(req.body.trim())
+                            && t.due_date.as_deref().map(str::trim) == req.due_date.as_deref().map(str::trim)
                             && t.linked_to.iter().any(|l| l.id == contact_id)
                     })
                     .map(|t| t.id.to_string()))
@@ -222,10 +234,13 @@ impl Drop for InFlightClaim<'_> {
 ///    `pending` and both post, defeating the ledger's idempotency guarantee.
 /// 1. `key = dedup_key(req)`; look up the ledger.
 /// 2. `sent` → return the recorded receipt (never re-post).
-/// 3. `pending_verify` → call `find_recent_matching`; found → mark `sent`,
-///    return a deduped receipt; not found → the earlier attempt provably
-///    didn't land, proceed to send.
-/// 4. none / `pending` / `failed` → mark `pending`, call `create_note`/`create_task`.
+/// 3. `pending_verify` OR a stale `pending` (e.g. left over from a process
+///    that crashed after the POST fired but before the response was
+///    recorded — Wealthbox may already hold it) → call `find_recent_matching`;
+///    found → mark `sent`, return a deduped receipt; not found → the earlier
+///    attempt provably didn't land, proceed to send.
+/// 4. none / `failed` (or a `pending`/`pending_verify` that verification just
+///    cleared) → mark `pending`, call `create_note`/`create_task`.
 /// 5. success → mark `sent` + remote_id, return a fresh receipt.
 /// 6. `CrmWriteError::VerifyPending` from the source → mark `pending_verify`,
 ///    propagate (the UI shows "will verify on retry").
@@ -250,7 +265,11 @@ pub async fn push_crm_write(
                 return Ok(WriteReceipt { remote_id: remote_id.clone(), deduped: true });
             }
         }
-        if row.status == "pending_verify" {
+        // `pending` is just as ambiguous as `pending_verify`: it can be left
+        // over from a process that crashed after the POST fired but before
+        // the response was recorded, so Wealthbox may already hold it.
+        // Verify before ever resending rather than trusting the stale state.
+        if row.status == "pending_verify" || row.status == "pending" {
             match source.find_recent_matching(req).await? {
                 Some(remote_id) => {
                     upsert_ledger(store, &key, source, req, "sent", Some(&remote_id));
@@ -423,6 +442,47 @@ mod tests {
         assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 2);
     }
 
+    /// A `pending` ledger row can be left over from a process that crashed
+    /// (or was killed) after the HTTP POST fired but before the response was
+    /// recorded as `sent` — Wealthbox may or may not have received it. This
+    /// is the SAME ambiguity as a `pending_verify` row, so it must be
+    /// verified before resending, not blindly re-posted.
+    #[tokio::test]
+    async fn stale_pending_row_is_verified_before_resend_when_it_landed() {
+        let (_dir, store) = test_store();
+        let req = note_req();
+        store
+            .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "pending", None)
+            .unwrap();
+        let source = FakeWriteSource {
+            create_results: std::sync::Mutex::new(vec![]),
+            find_result: Some("555".into()),
+            create_calls: std::sync::atomic::AtomicUsize::new(0),
+        };
+        let receipt = push_crm_write(&source, &store, &req).await.unwrap();
+        assert_eq!(receipt.remote_id, "555");
+        assert!(receipt.deduped);
+        assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 0, "must never repost while verification can still find it");
+    }
+
+    #[tokio::test]
+    async fn stale_pending_row_resends_when_verification_finds_nothing() {
+        let (_dir, store) = test_store();
+        let req = note_req();
+        store
+            .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "pending", None)
+            .unwrap();
+        let source = FakeWriteSource {
+            create_results: std::sync::Mutex::new(vec![Ok("556".into())]),
+            find_result: None,
+            create_calls: std::sync::atomic::AtomicUsize::new(0),
+        };
+        let receipt = push_crm_write(&source, &store, &req).await.unwrap();
+        assert_eq!(receipt.remote_id, "556");
+        assert!(!receipt.deduped);
+        assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
     #[tokio::test]
     async fn concurrent_identical_pushes_second_is_rejected_as_in_progress() {
         let (_dir, store) = test_store();
@@ -569,6 +629,31 @@ mod tests {
         // belongs to a different household (99999) and must NOT count as a match.
         let found = client.find_recent_matching(&note_req()).await.unwrap();
         assert_eq!(found, None, "identical content on a different household is not this write");
+    }
+
+    #[tokio::test]
+    async fn find_recent_matching_ignores_same_task_with_a_different_due_date() {
+        use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(matchers::method("GET"))
+            .and(matchers::path("/tasks"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "tasks": [{
+                    "id": 42,
+                    "name": "Q3 review follow-up",
+                    "description": "Discussed 529 rollover.",
+                    "due_date": "2099-01-01",
+                    "linked_to": [{"id": 12345, "type": "Contact", "name": "Henderson"}],
+                }]
+            })))
+            .mount(&server)
+            .await;
+        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        // task_req() asks for due_date "2026-07-15" — a same-household,
+        // same-name/description task with a DIFFERENT due date is a different
+        // task, not proof this one was delivered.
+        let found = client.find_recent_matching(&task_req()).await.unwrap();
+        assert_eq!(found, None, "same content with a different due date is not this write");
     }
 
     #[test]
