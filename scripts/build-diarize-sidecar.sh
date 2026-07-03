@@ -17,20 +17,25 @@
 # runner; a plain host build would stage the wrong arch into the x86_64 app.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# `--target-dir` on the cargo invocation itself (not just reading
+# CARGO_TARGET_DIR afterward) — cargo's own precedence is CLI flag >
+# CARGO_TARGET_DIR env > `build.target-dir` in a *global* ~/.cargo/config.toml
+# > local target/. Without passing it explicitly, a global config override
+# (this box has one) silently sends the build somewhere this script never
+# looks, and the later `cp` fails with "No such file or directory".
+TARGET_DIR="$(cd "$(dirname "$0")/.." && pwd)/src-tauri/sidecar-src/lantern-diarize/target"
+TARGET_DIR="${CARGO_TARGET_DIR:-$TARGET_DIR}"
 pushd src-tauri/sidecar-src/lantern-diarize >/dev/null
 if [[ -n "${TARGET_TRIPLE:-}" ]]; then
   rustup target add "$TARGET_TRIPLE" >/dev/null 2>&1 || true
-  cargo build --release --target "$TARGET_TRIPLE"
+  cargo build --release --target "$TARGET_TRIPLE" --target-dir "$TARGET_DIR"
+  RELEASE_DIR="$TARGET_DIR/$TARGET_TRIPLE/release"
 else
-  cargo build --release
+  cargo build --release --target-dir "$TARGET_DIR"
+  RELEASE_DIR="$TARGET_DIR/release"
 fi
 popd >/dev/null
 mkdir -p src-tauri/binaries
-if [[ -n "${TARGET_TRIPLE:-}" ]]; then
-  RELEASE_DIR="${CARGO_TARGET_DIR:-src-tauri/sidecar-src/lantern-diarize/target}/$TARGET_TRIPLE/release"
-else
-  RELEASE_DIR="${CARGO_TARGET_DIR:-src-tauri/sidecar-src/lantern-diarize/target}/release"
-fi
 BIN="$RELEASE_DIR/lantern-diarize"
 DST=src-tauri/binaries/lantern-diarize
 if [[ "${OS:-}" == "Windows_NT" ]]; then BIN="$BIN.exe"; DST="$DST.exe"; fi

@@ -216,9 +216,18 @@ pub async fn diarize_meeting(
     reject_existing_symlink(&sys_wav)?;
     let extract_audio = audio.clone();
     let extract_out = sys_wav.clone();
-    tokio::task::spawn_blocking(move || extract_system_channel(&extract_audio, &extract_out))
+    let extraction = tokio::task::spawn_blocking(move || extract_system_channel(&extract_audio, &extract_out))
         .await
-        .map_err(|e| e.to_string())??;
+        .map_err(|e| e.to_string())
+        .and_then(|r| r);
+    if let Err(e) = extraction {
+        // A failed extraction (corrupt WAV, unsupported channel count, disk
+        // error) can still have created a partial file before erroring out;
+        // clean it up here too, not only on the success path below, so a
+        // hidden copy of meeting audio never survives a failure.
+        let _ = std::fs::remove_file(&sys_wav);
+        return Err(e);
+    }
 
     let sidecar = crate::sidecars::DiarizeSidecar::new(bin, seg, emb);
     let result = sidecar.diarize(&sys_wav, num_speakers).await;
