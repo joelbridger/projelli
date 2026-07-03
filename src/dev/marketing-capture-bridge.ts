@@ -17,7 +17,10 @@ import { useWorkflowStore } from '@/features/workflows/workflowStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useBriefStore } from '@/features/meetings/briefStore';
 import { SK_ONBOARDING_COMPLETE } from '@/config/identity';
-import type { CalendarEventDto } from '@/platform/utils/calendar-commands';
+import {
+  CALENDAR_EVENTS_SEED_KEY,
+  type CalendarEventDto,
+} from '@/platform/utils/calendar-commands';
 
 export interface SeedPayload {
   workspace?: Partial<ReturnType<typeof useWorkspaceStore.getState>>;
@@ -33,9 +36,12 @@ export interface SeedPayload {
   /** Wave-1c evidence capture: calendarListEvents() is Tauri-gated and
    *  always returns [] in a browser session, so TodaysMeetingsStrip has no
    *  other way to render its matched/unmatched states for a screenshot.
-   *  calendar-commands.ts checks window.__keepance_calendarEvents (set here)
-   *  before falling back to the real Tauri call, gated by the same
-   *  VITE_MARKETING_CAPTURE flag so it's tree-shaken from production. */
+   *  calendar-commands.ts checks localStorage (written here, under
+   *  CALENDAR_EVENTS_SEED_KEY) before falling back to the real Tauri call,
+   *  gated by the same VITE_MARKETING_CAPTURE flag so it's tree-shaken from
+   *  production. localStorage (not a plain window global) so the seed
+   *  survives a reload — TodaysMeetingsStrip fetches once on mount, so a
+   *  global set after that first fetch would never be picked up. */
   calendarEvents?: CalendarEventDto[];
   /** Bypass first-run wizard and any onboarding gates. */
   skipOnboarding?: boolean;
@@ -46,7 +52,6 @@ declare global {
     __keepance_seed?: (payload: SeedPayload) => void;
     __keepance_signal?: (name: string, data?: unknown) => void;
     __keepance_signals?: Array<{ name: string; data?: unknown; ts: number }>;
-    __keepance_calendarEvents?: CalendarEventDto[];
   }
 }
 
@@ -59,8 +64,12 @@ export function mountMarketingCaptureBridge(): void {
     if (payload.workflow) useWorkflowStore.setState(payload.workflow);
     if (payload.matter) useMatterStore.setState(payload.matter);
     if (payload.briefs) useBriefStore.setState(payload.briefs);
-    if (payload.calendarEvents)
-      window.__keepance_calendarEvents = payload.calendarEvents;
+    if (payload.calendarEvents) {
+      localStorage.setItem(
+        CALENDAR_EVENTS_SEED_KEY,
+        JSON.stringify(payload.calendarEvents)
+      );
+    }
     if (payload.skipOnboarding) {
       // Key matches onboardingState.ts's SK_ONBOARDING_COMPLETE (src/config/identity.ts)
       localStorage.setItem(SK_ONBOARDING_COMPLETE, 'true');

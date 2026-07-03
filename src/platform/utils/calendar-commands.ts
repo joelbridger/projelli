@@ -105,21 +105,26 @@ export async function calendarCancelSync(): Promise<void> {
   return invoke('calendar_cancel_sync');
 }
 
+/** Evidence/marketing-capture only: localStorage (not a plain window global)
+ *  so a seeded fixture survives a page reload/navigation the same way the
+ *  seeded matter/workspace state already does via Zustand's persist
+ *  middleware — TodaysMeetingsStrip fetches once on mount, so a global set
+ *  AFTER that first fetch would otherwise never be picked up without a
+ *  forced remount. */
+export const CALENDAR_EVENTS_SEED_KEY =
+  'lantern:__marketing_capture_calendar_events';
+
 export async function calendarListEvents(
   fromUtc: string,
   toUtc: string
 ): Promise<CalendarEventDto[]> {
-  // Evidence/marketing-capture only: calendarListEvents is Tauri-gated and
-  // always returns [] in a browser session, so TodaysMeetingsStrip has no
-  // other way to render its matched/unmatched states for a screenshot.
-  // Dead-code-eliminated from production (see main.tsx's identical
-  // VITE_MARKETING_CAPTURE gate on the bridge that sets this global).
-  if (
-    import.meta.env['VITE_MARKETING_CAPTURE'] === '1' &&
-    typeof window !== 'undefined' &&
-    window.__keepance_calendarEvents
-  ) {
-    return window.__keepance_calendarEvents;
+  if (import.meta.env['VITE_MARKETING_CAPTURE'] === '1') {
+    try {
+      const raw = localStorage.getItem(CALENDAR_EVENTS_SEED_KEY);
+      if (raw) return JSON.parse(raw) as CalendarEventDto[];
+    } catch {
+      /* fall through to the real Tauri call */
+    }
   }
   if (!isTauri()) return [];
   return invoke<CalendarEventDto[]>('calendar_list_events', { fromUtc, toUtc });
