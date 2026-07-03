@@ -143,29 +143,40 @@ impl CaptureEngine {
 
 // ---------- global singleton + Tauri commands ------------------------------
 
-static ENGINE: Mutex<Option<CaptureEngine>> = Mutex::new(None);
+/// All three states live behind ONE lock so every transition is atomic. Two
+/// separate `Mutex`es (one for "recording", one for "stopping") would leave
+/// a window between "take the engine out of the first" and "put the marker
+/// into the second" where neither reflects reality — during which a
+/// concurrent `capture_start` could begin a second recording against the
+/// same devices, or a concurrent `capture_recover` could treat the meeting
+/// as a crashed orphan. A single `Mutex<EngineState>` makes "not idle"
+/// checks and state transitions the same atomic operation.
+enum EngineState {
+    Idle,
+    Recording(CaptureEngine),
+    /// Sources stopped and chunks finalizing; not yet `Idle`. Distinct from
+    /// `Recording` so `begin_global_with_sources` can give a clearer error
+    /// than "already recording" for the (expected to be brief) window where
+    /// the previous meeting is still being written to disk.
+    Stopping(PathBuf),
+}
 
-/// The meeting currently mid-`stop()` (sources stopping + chunks finalizing),
-/// if any. `capture_stop` must remove the engine from `ENGINE` before it can
-/// call `.stop(self)` (it's a by-value method), which opens a window where
-/// `ENGINE` is `None` but the `.capture/session.json` + chunk files are still
-/// on disk and being written to `finalize_session`. Without this, a
-/// concurrent `capture_recover` on the same directory would race the stop
-/// path's own finalize, corrupting or deleting files mid-merge. Cleared by
-/// `StoppingGuard::drop`, so it's cleared on every exit from `capture_stop`
-/// (success, error, or panic), not just the happy path.
-static STOPPING: Mutex<Option<PathBuf>> = Mutex::new(None);
+static STATE: Mutex<EngineState> = Mutex::new(EngineState::Idle);
 
+/// Resets `STATE` back to `Idle` on drop — covers the success path, the
+/// `?`-propagated error path, AND an unexpected panic inside `engine.stop()`,
+/// so a `Stopping` marker can never get stuck forever and permanently block
+/// both new recordings and recovery of that meeting.
 struct StoppingGuard;
 
 impl Drop for StoppingGuard {
     fn drop(&mut self) {
-        *STOPPING.lock().unwrap() = None;
+        *STATE.lock().unwrap() = EngineState::Idle;
     }
 }
 
 /// `cargo test` runs test functions concurrently by default; any test that
-/// drives the global `ENGINE` (via `begin_global_with_sources`/
+/// drives the global `STATE` (via `begin_global_with_sources`/
 /// `begin_global_with_sources_for_tests`) must hold this for its whole
 /// body, or two such tests running in parallel can race each other's
 /// "already recording" guard and flake. Not `pub(crate)` — only test code
@@ -186,15 +197,19 @@ fn begin_global_with_sources(
     mic: Box<dyn AudioSource>,
     sys: Box<dyn AudioSource>,
 ) -> Result<PathBuf, String> {
-    let mut guard = ENGINE.lock().unwrap();
-    if guard.is_some() {
-        return Err("already recording".into());
+    let mut state = STATE.lock().unwrap();
+    match &*state {
+        EngineState::Recording(_) => return Err("already recording".into()),
+        EngineState::Stopping(_) => {
+            return Err("a previous recording is still finalizing".into())
+        }
+        EngineState::Idle => {}
     }
     let engine =
         CaptureEngine::start_with_sources(workspace, matter_id, matter_folder, consent, mic, sys)
             .map_err(|e| e.to_string())?;
     let dir = engine.meeting_dir.clone();
-    *guard = Some(engine);
+    *state = EngineState::Recording(engine);
     Ok(dir)
 }
 
@@ -211,7 +226,7 @@ pub fn try_begin_global(
 
 #[cfg(test)]
 pub fn end_global_for_tests() {
-    ENGINE.lock().unwrap().take();
+    *STATE.lock().unwrap() = EngineState::Idle;
 }
 
 /// Test-only cross-module hook: drives the same global-engine path as
@@ -230,15 +245,17 @@ pub fn begin_global_with_sources_for_tests(
     begin_global_with_sources(workspace, matter_id, matter_folder, consent, mic, sys)
 }
 
-/// The meeting directory currently being recorded, if any. Recovery
-/// (`recovery::find_orphans` / `capture_recover`) must never treat this
-/// directory as a crashed/orphaned session — it isn't crashed, it's live,
-/// and finalizing it mid-recording would truncate the rest of the meeting.
+/// The meeting directory currently being recorded OR still finalizing, if
+/// any. Recovery (`recovery::find_orphans` / `capture_recover`) must never
+/// treat this directory as a crashed/orphaned session — it isn't crashed,
+/// and finalizing it while it's live (or while the real stop path is
+/// already finalizing it) would corrupt or truncate the meeting.
 pub fn active_meeting_dir() -> Option<PathBuf> {
-    if let Some(dir) = STOPPING.lock().unwrap().clone() {
-        return Some(dir);
+    match &*STATE.lock().unwrap() {
+        EngineState::Recording(e) => Some(e.meeting_dir.clone()),
+        EngineState::Stopping(dir) => Some(dir.clone()),
+        EngineState::Idle => None,
     }
-    ENGINE.lock().unwrap().as_ref().map(|e| e.meeting_dir.clone())
 }
 
 #[derive(serde::Serialize)]
@@ -279,8 +296,21 @@ pub async fn capture_start(
         note: consent_note.unwrap_or_default(),
     };
     // Step 3 guard: refuse absolute / traversal / symlink-escape folders BEFORE any FS work.
-    super::guard_matter_folder(Path::new(&workspace), &matter_folder).map_err(|e| e.to_string())?;
-    let dir = try_begin_global(Path::new(&workspace), &matter_id, &matter_folder, consent)?;
+    // Use the CANONICALIZED result as the matter-folder root passed onward
+    // (not the raw `matter_folder` string) — `meeting_dir` is derived from
+    // whatever root we pass here, and it must land on the exact same bytes
+    // that `guard_meeting_path` (used by `capture_recover`) and
+    // `find_orphans`'s workspace walk will later compute for the same
+    // directory. A raw, non-canonical workspace/matter-folder pairing (e.g.
+    // one that resolves through a symlink) would otherwise make
+    // `active_meeting_dir()`'s stored path and a later canonicalized lookup
+    // disagree, letting `capture_recover` miss that the meeting is live.
+    let canon_matter_folder =
+        super::guard_matter_folder(Path::new(&workspace), &matter_folder).map_err(|e| e.to_string())?;
+    let canon_matter_folder_str =
+        canon_matter_folder.to_str().ok_or("matter folder path is not valid UTF-8")?;
+    let dir =
+        try_begin_global(Path::new(&workspace), &matter_id, canon_matter_folder_str, consent)?;
     Ok(CaptureStartResult {
         meeting_dir: dir.to_string_lossy().into_owned(),
         started_at: chrono::Utc::now().to_rfc3339(),
@@ -289,8 +319,23 @@ pub async fn capture_start(
 
 #[tauri::command]
 pub async fn capture_stop() -> Result<CaptureStopResult, String> {
-    let engine = ENGINE.lock().unwrap().take().ok_or("not recording")?;
-    *STOPPING.lock().unwrap() = Some(engine.meeting_dir.clone());
+    // Atomically take the engine out of `Recording` and mark `Stopping` in
+    // the SAME locked section — the whole point of the single-`Mutex`
+    // design above is that no other thread can observe a gap where neither
+    // state holds true.
+    let engine = {
+        let mut state = STATE.lock().unwrap();
+        match std::mem::replace(&mut *state, EngineState::Idle) {
+            EngineState::Recording(engine) => {
+                *state = EngineState::Stopping(engine.meeting_dir.clone());
+                engine
+            }
+            other => {
+                *state = other;
+                return Err("not recording".into());
+            }
+        }
+    };
     let _stopping_guard = StoppingGuard;
     let r = engine.stop().map_err(|e| e.to_string())?;
     Ok(CaptureStopResult {
@@ -302,14 +347,18 @@ pub async fn capture_stop() -> Result<CaptureStopResult, String> {
 
 #[tauri::command]
 pub async fn capture_status() -> Result<CaptureStatus, String> {
-    let guard = ENGINE.lock().unwrap();
-    Ok(match guard.as_ref() {
-        Some(e) => CaptureStatus {
+    Ok(match &*STATE.lock().unwrap() {
+        EngineState::Recording(e) => CaptureStatus {
             recording: true,
             meeting_dir: Some(e.meeting_dir.to_string_lossy().into_owned()),
             elapsed_ms: e.elapsed_ms(),
         },
-        None => CaptureStatus { recording: false, meeting_dir: None, elapsed_ms: 0 },
+        EngineState::Stopping(dir) => CaptureStatus {
+            recording: true,
+            meeting_dir: Some(dir.to_string_lossy().into_owned()),
+            elapsed_ms: 0,
+        },
+        EngineState::Idle => CaptureStatus { recording: false, meeting_dir: None, elapsed_ms: 0 },
     })
 }
 
@@ -456,21 +505,100 @@ mod tests {
     /// `STOPPING` closes that window; this proves the mechanism directly
     /// (deterministic, no timing dependency on a slow fake stop()).
     #[test]
-    fn active_meeting_dir_reports_stopping_session_after_engine_is_cleared() {
+    fn active_meeting_dir_reports_stopping_session_and_resets_on_guard_drop() {
         let _guard = ENGINE_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        assert_eq!(ENGINE.lock().unwrap().as_ref().map(|_| ()), None);
+        assert!(matches!(&*STATE.lock().unwrap(), EngineState::Idle));
         assert_eq!(active_meeting_dir(), None);
 
         let dir = PathBuf::from("/tmp/lp-w4-test-stopping-meeting");
-        *STOPPING.lock().unwrap() = Some(dir.clone());
+        *STATE.lock().unwrap() = EngineState::Stopping(dir.clone());
         let stopping_guard = StoppingGuard;
         assert_eq!(
             active_meeting_dir(),
             Some(dir),
-            "must report the stopping session even though ENGINE is empty"
+            "must report the stopping session even though it's no longer Recording"
         );
         drop(stopping_guard);
-        assert_eq!(active_meeting_dir(), None, "StoppingGuard::drop must clear STOPPING");
+        assert_eq!(active_meeting_dir(), None, "StoppingGuard::drop must reset STATE to Idle");
+    }
+
+    /// Regression for the codex-review round-8 finding: the old two-`Mutex`
+    /// design (`ENGINE` + a separate `STOPPING`) only blocked a NEW
+    /// `capture_start` by checking `ENGINE`, not `STOPPING` — so a start
+    /// issued while the previous meeting was still finalizing could begin a
+    /// second recording against the same audio devices. The single
+    /// `Mutex<EngineState>` design makes `Stopping` a real "not idle" state
+    /// that `begin_global_with_sources` refuses to start over.
+    #[test]
+    fn start_is_rejected_while_a_previous_recording_is_still_stopping() {
+        let _guard = ENGINE_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        *STATE.lock().unwrap() = EngineState::Stopping(PathBuf::from("/tmp/lp-w4-test-stopping"));
+
+        let ws = tempdir().unwrap();
+        let fake = || Box::new(FakeSource::new(vec![])) as Box<dyn AudioSource>;
+        let err = begin_global_with_sources(
+            ws.path(),
+            "m-new",
+            "Clients/New",
+            consent("one-party"),
+            fake(),
+            fake(),
+        );
+        assert!(
+            err.unwrap_err().contains("still finalizing"),
+            "a start while the previous meeting is Stopping must be rejected, not silently allowed"
+        );
+
+        end_global_for_tests();
+    }
+
+    /// Regression for the codex-review round-8 finding: `capture_recover`
+    /// canonicalizes the meeting path it's handed via `guard_meeting_path`,
+    /// but `active_meeting_dir()` used to return whatever raw
+    /// `workspace.join(matter_folder)` path `start_with_sources` was given
+    /// — if the workspace or matter folder resolved through a symlink,
+    /// those two paths could differ even though they name the same
+    /// directory, so `recover()`'s equality check would miss that the
+    /// meeting is live and finalize a still-recording session. `capture_start`
+    /// now passes `guard_matter_folder`'s CANONICAL result onward instead of
+    /// the raw string, so the stored `meeting_dir` already matches what a
+    /// later `guard_meeting_path` canonicalization produces.
+    #[cfg(unix)]
+    #[test]
+    fn active_meeting_dir_matches_a_canonicalized_recover_lookup_through_a_symlinked_workspace() {
+        let _guard = ENGINE_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let real_ws = tempdir().unwrap();
+        std::fs::create_dir_all(real_ws.path().join("Clients/Sym Household")).unwrap();
+        let link_root = tempdir().unwrap();
+        let ws_alias = link_root.path().join("workspace-link");
+        std::os::unix::fs::symlink(real_ws.path(), &ws_alias).unwrap();
+
+        // Mirrors capture_start: canonicalize the matter folder through the
+        // symlinked workspace alias before starting the engine with it.
+        let canon_matter_folder =
+            super::super::guard_matter_folder(&ws_alias, "Clients/Sym Household").unwrap();
+        let fake = || Box::new(FakeSource::new(vec![])) as Box<dyn AudioSource>;
+        let started_dir = begin_global_with_sources_for_tests(
+            &ws_alias,
+            "m-sym",
+            canon_matter_folder.to_str().unwrap(),
+            consent("one-party"),
+            fake(),
+            fake(),
+        )
+        .unwrap();
+
+        // Mirrors capture_recover: guard_meeting_path canonicalizes whatever
+        // meeting-dir string the frontend got back from capture_start.
+        let recover_lookup = super::super::guard_meeting_path(&ws_alias, &started_dir).unwrap();
+
+        assert_eq!(
+            active_meeting_dir(),
+            Some(recover_lookup),
+            "a canonicalized recover lookup must exactly match the stored active meeting dir"
+        );
+
+        end_global_for_tests();
     }
 
     fn consent(mode: &str) -> ConsentRecord {
