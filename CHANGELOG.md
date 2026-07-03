@@ -42,6 +42,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   date. This write path is code-complete but not yet wired to any UI button, so it hasn't shipped
   to a real user; Wave-3 wiring will light it up.
   Files: `src-tauri/src/commands/crm/write.rs`, `src-tauri/src/commands/crm/commands.rs`
+- **`background_information` field-update writes used the wrong wire key, silently doing
+  nothing** (live-probe Finding 2, `docs/evidence/windows-smoke-2/WEALTHBOX-PROBE.md`) —
+  `PUT /contacts/{id}` with `background_info` (the read-side wire name) returns HTTP 200 on the
+  real API but leaves the field unchanged; only the literal `background_information` key
+  actually applies the write. Split `wealthbox_wire_field_name` into `wealthbox_read_field_name`
+  (unchanged) and `wealthbox_write_field_name` (now the identity mapping) so the two directions
+  can never be conflated again. Also added generic post-write readback verification in
+  `push_crm_field_update`: after any successful field-update PUT, it re-fetches the field and
+  only marks the ledger `sent` if the live value now matches; a mismatch surfaces as a new typed
+  `CrmWriteError::WriteNotApplied` instead of a false success — this catches the whole
+  "200-but-ignored" bug class for any provider/field, not just this one. This write path is
+  code-complete but not yet wired to any UI button, so it hasn't shipped to a real user.
+  Files: `src-tauri/src/commands/crm/write.rs`
 - **Client-of-an-open-document resolution failed on Windows path shapes** (Windows smoke-2 P0) —
   two silently-diverged resolver implementations are now ONE (`resolveMatterIdForWorkspacePath`),
   considering raw/relative/root-joined shapes of the same path together, reusing the canonical
