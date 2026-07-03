@@ -90,6 +90,34 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
     setFileComplianceNote(false);
   }
 
+  // Coordinator review catch (P2): a stale item's finalValue gets rebuilt by
+  // the store (see crmWriteQueueStore.ts), but a stale item that was already
+  // checked stayed checked and re-selectable with one Approve click — the
+  // rebuilt blend still hadn't been REVIEWED by the advisor, so approving it
+  // sight-unseen is exactly the "one click overwrites the concurrent edit"
+  // failure this exists to prevent. Every newly-stale item is deselected the
+  // moment it's detected (compared during render, same pattern as the
+  // matterId reset above) — the advisor must look at the rebuilt Blended
+  // text and consciously re-check the box before it can send again.
+  const staleKey = items
+    .filter((i) => i.status === 'stale')
+    .map((i) => i.id)
+    .sort()
+    .join(',');
+  const [prevStaleKey, setPrevStaleKey] = useState('');
+  if (staleKey !== prevStaleKey) {
+    const prevStaleIds = new Set(prevStaleKey.split(',').filter(Boolean));
+    const newlyStaleIds = staleKey.split(',').filter((id) => id !== '' && !prevStaleIds.has(id));
+    if (newlyStaleIds.length > 0) {
+      setUncheckedIds((prev) => {
+        const next = new Set(prev);
+        newlyStaleIds.forEach((id) => { next.add(id); });
+        return next;
+      });
+    }
+    setPrevStaleKey(staleKey);
+  }
+
   const householdKeys = useMemo(
     () => (buildInverseCrmMap(matters).get(matterId) ?? []).filter(isWealthboxHouseholdKey),
     [matters, matterId],
@@ -563,6 +591,11 @@ function FieldColumn({ label, testId, value }: { label: string; testId: string; 
           border: '1px solid var(--color-border)',
           borderRadius: 'var(--radius-sm)',
           padding: '7px 9px',
+          // Coordinator review catch (P3): a plain <div> collapses newlines,
+          // so a multi-paragraph narrative value (e.g. background_information)
+          // rendered as one run-on line — the advisor wasn't seeing the true
+          // text they were approving against.
+          whiteSpace: 'pre-wrap',
         }}
       >
         {value}

@@ -349,7 +349,7 @@ describe('field updates (Task 9c)', () => {
   // time and rejects with CrmWriteError::StaleFieldValue(current) — never
   // blind-overwrites — if it drifted since the proposal was drafted. Exact
   // message shape from src-tauri/src/commands/crm/write.rs's Display impl.
-  it('parses a real StaleFieldValue rejection into status "stale" and refreshes existingValue', async () => {
+  it('parses a real StaleFieldValue rejection into status "stale", refreshes existingValue, and REBUILDS finalValue', async () => {
     vi.mocked(crmUpdateField).mockRejectedValueOnce(
       new Error(
         'this field changed in the CRM since the proposal — current value: Robert owns a rental property and a lake house.',
@@ -365,9 +365,17 @@ describe('field updates (Task 9c)', () => {
     // Re-rendered with the FRESH live value, not the stale one the proposal
     // was drafted against.
     expect(item.existingValue).toBe('Robert owns a rental property and a lake house.');
-    // The user's edited blend is left alone — theirs to keep, adjust, or
-    // replace once they see what changed, never silently discarded.
-    expect(item.finalValue).toBe('Robert owns a rental property. Retiring spring 2027.');
+    // Coordinator review catch (P2): the OLD blend was computed against the
+    // OLD existingValue and never mentions the concurrent edit. Silently
+    // keeping it and letting the advisor re-approve with one click would
+    // overwrite the concurrent CRM edit the very first time the retry's
+    // re-fetched existingValue happens to match the (now stale-again) live
+    // value. finalValue must be REBUILT from the fresh existingValue + the
+    // meeting's newValue, never left as the stale blend. No provider handle
+    // survives a stale rejection (none is persisted on the item), so this is
+    // always the deterministic concat, even for a narrative field that was
+    // originally AI-blended.
+    expect(item.finalValue).toBe('Robert owns a rental property and a lake house.\n\nRetiring spring 2027.');
   });
 
   // Defense-in-depth: the card is expected to disable Approve while

@@ -174,11 +174,31 @@ async function sendOne(item: ProposedCrmWrite, householdKey: string): Promise<vo
     const message = err instanceof Error ? err.message : String(err);
     const staleMatch = STALE_FIELD_VALUE_RE.exec(message);
     if (staleMatch) {
-      // Never blind-overwrite: re-render the 3 columns with the fresh live
-      // value instead of the stale one the proposal was drafted against.
-      // finalValue is left as-is (still the user's edit, still editable) —
-      // theirs to keep, adjust, or replace once they see what changed.
-      setItem(item.id, { status: 'stale', error: message, existingValue: staleMatch[1] ?? '' });
+      // Coordinator review catch (P2): never blind-overwrite. Re-render the 3
+      // columns with the fresh live value instead of the stale one the
+      // proposal was drafted against — AND rebuild finalValue from it. The
+      // OLD blend was computed against the OLD existingValue and never
+      // accounts for the concurrent edit; leaving it in place let a later
+      // retry (which resends this refreshed existingValue) pass the
+      // backend's stale-guard and silently overwrite the concurrent change
+      // the moment the live value stopped drifting further. No provider
+      // handle survives a stale rejection (nothing is persisted on the
+      // item), so this is always composeFieldBlend's deterministic
+      // concatenation, even for an originally AI-blended narrative field —
+      // correct-shape and never drops either side's content, which is what
+      // matters for a rebuild the advisor hasn't reviewed yet.
+      const freshExistingValue = staleMatch[1] ?? '';
+      const rebuiltFinalValue = await composeFieldBlend({
+        field: item.field ?? '',
+        existingValue: freshExistingValue,
+        newValue: item.newValue ?? '',
+      });
+      setItem(item.id, {
+        status: 'stale',
+        error: message,
+        existingValue: freshExistingValue,
+        finalValue: rebuiltFinalValue,
+      });
       return;
     }
     const status: CrmWriteStatus = message.includes('verification pending') ? 'verify_pending' : 'failed';

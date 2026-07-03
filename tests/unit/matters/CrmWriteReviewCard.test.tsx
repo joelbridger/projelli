@@ -577,4 +577,74 @@ describe('CrmWriteReviewCard — field updates (Task 9c)', () => {
     expect(screen.getByText(/review again/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
   });
+
+  // Coordinator review catch (P2): a stale item that stayed checked with its
+  // OLD (pre-drift) blend meant one Approve click could silently overwrite
+  // the concurrent CRM edit the moment a retry's re-fetched existingValue
+  // happened to match the (by-then-stable) live value — the advisor never
+  // got a chance to look at what changed. Drives the real approve() → reject
+  // → 'stale' transition (not a forced setState) so this exercises the same
+  // render-time detection the fix actually relies on.
+  it('a field item that goes stale mid-review is deselected and excluded from the next Approve', async () => {
+    const m = useMatterStore.getState().createMatter({
+      name: 'Henderson',
+      client: 'Henderson',
+      crmHouseholdKeys: ['12345'],
+    });
+    enqueueFieldItem(m.id);
+    enqueueFieldItem(m.id, { title: 'Unrelated note-ish field', sourceRef: 'meeting:2026-07-01' });
+    vi.mocked(crmUpdateField).mockRejectedValueOnce(
+      new Error(
+        'this field changed in the CRM since the proposal — current value: Robert owns a rental property and a beach condo too.',
+      ),
+    );
+
+    render(<CrmWriteReviewCard matterId={m.id} />);
+    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
+    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+
+    // Both items start selected (default-checked); approving both fires the
+    // rejection for the first.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /approve 2 changes/i }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/review again/i)).toBeInTheDocument();
+    });
+
+    // The stale item's checkbox is unchecked — it is no longer swept into
+    // the next bulk Approve without the advisor consciously re-selecting it.
+    const checkboxes = screen.getAllByRole('checkbox') as HTMLInputElement[];
+    expect(checkboxes.some((c) => !c.checked)).toBe(true);
+
+    // "Approve 2 changes" must not still be on offer — the stale one no
+    // longer counts as selected. (The second item sent successfully in the
+    // same batch, so it drops out of the selectable count too — 0 remain,
+    // and Approve is disabled until the advisor re-checks the stale row.)
+    expect(screen.queryByRole('button', { name: /approve 2 changes/i })).not.toBeInTheDocument();
+    const approveButton = screen.getByRole('button', { name: /approve 0 changes/i });
+    expect(approveButton).toBeDisabled();
+  });
+
+  it('renders multi-paragraph Existing/From-this-meeting reference text with line breaks preserved (pre-wrap)', async () => {
+    const m = useMatterStore.getState().createMatter({
+      name: 'Henderson',
+      client: 'Henderson',
+      crmHouseholdKeys: ['12345'],
+    });
+    enqueueFieldItem(m.id, {
+      existingValue: 'Robert owns a rental property.\n\nHe is planning to retire early.',
+    });
+
+    render(<CrmWriteReviewCard matterId={m.id} />);
+    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
+    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+
+    const id = useCrmWriteQueueStore.getState().items[0]!.id;
+    const existing = screen.getByTestId(`crm-field-existing-${id}`);
+    expect(existing).toHaveStyle({ whiteSpace: 'pre-wrap' });
+  });
 });
