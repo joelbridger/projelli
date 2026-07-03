@@ -644,6 +644,29 @@ pub async fn push_crm_write(
         let recovery = store
             .outbound_find_recovery_candidate(source.provider_id(), &content_shape_key(req))
             .map_err(|_| CrmWriteError::InvalidInput("ledger read failed"))?;
+        // Codex round 3 (self-converge): only trust a recovery candidate
+        // that's RECENT in real wall-clock time — bounded by the same
+        // RECOVERY_WINDOW_MINUTES used elsewhere for "how long after a
+        // write attempt can its CRM record legitimately appear". Without
+        // this bound, an old orphaned pending/pending_verify row (left
+        // behind by a PAST ambiguous send that was simply never resolved,
+        // not a recent crash) could match a much-later INTENTIONAL repeat
+        // of the same content (e.g. a weekly "left voicemail" note) — the
+        // exact scenario ADDED SCOPE #2.1's requested_at was added to
+        // protect. Outside the window, treat this as if no candidate
+        // existed at all, so the intentional repeat sends fresh. Anchored
+        // to real time (not req.requested_at, a caller-supplied value) —
+        // this is a "was this a recent crash" check, not a
+        // content/approval-identity check.
+        let recovery = recovery.filter(|row| {
+            chrono::DateTime::parse_from_rfc3339(&row.created_at)
+                .map(|t| {
+                    let age = chrono::Utc::now().signed_duration_since(t.with_timezone(&chrono::Utc));
+                    age >= chrono::Duration::zero()
+                        && age <= chrono::Duration::minutes(RECOVERY_WINDOW_MINUTES)
+                })
+                .unwrap_or(false)
+        });
         if let Some(row) = recovery {
             let not_before = chrono::DateTime::parse_from_rfc3339(&row.created_at)
                 .map(|t| t.with_timezone(&chrono::Utc))
@@ -662,7 +685,16 @@ pub async fn push_crm_write(
                     // exact-key recovery path above.
                 }
                 Err(e) => {
-                    upsert_ledger(store, &key, source, req, "pending_verify", None);
+                    // Codex round 3: re-affirm the ORIGINAL candidate row
+                    // (its own dedup_key), not a new row under `key` — a
+                    // fresh insert under `key` would get created_at = now,
+                    // losing the original attempt's floor. A future retry
+                    // (same requested_at) would then use `now` as the
+                    // not_before floor and could miss the actual CRM record
+                    // (created before `now`), causing a duplicate resend.
+                    // Re-affirming the existing row instead preserves its
+                    // original created_at (reset_created_at=false).
+                    upsert_ledger(store, &row.dedup_key, source, req, "pending_verify", None);
                     return Err(e);
                 }
             }
@@ -1300,6 +1332,52 @@ mod tests {
         );
     }
 
+    /// Codex round 3 (self-converge): a much-OLDER orphaned pending_verify
+    /// row (never resolved, NOT a recent crash) must not be treated as a
+    /// crash-recovery candidate for a later intentional repeat — this is
+    /// the pending/pending_verify counterpart to the `sent`-row guard above.
+    /// Without the recovery-window bound, this old row would silently
+    /// suppress the new (intentional) approval entirely.
+    #[tokio::test]
+    async fn a_much_older_orphaned_pending_row_does_not_swallow_a_later_intentional_repeat() {
+        let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
+
+        let mut old_req = note_req();
+        old_req.requested_at = "2026-07-01T00:00:00Z".into();
+        let old_key = dedup_key(&old_req);
+        store
+            .outbound_upsert(
+                &old_key, "wealthbox", "note", &old_req.household_key,
+                &old_req.matter_id, &old_req.source_ref, "pending_verify", None, true,
+                &content_shape_key(&old_req),
+            )
+            .unwrap();
+        // Backdate it well outside RECOVERY_WINDOW_MINUTES (30) — simulating
+        // a long-forgotten ambiguous send, not a just-happened crash.
+        let far_past = (chrono::Utc::now() - chrono::Duration::days(7)).to_rfc3339();
+        store.outbound_backdate_for_test(&old_key, &far_past).unwrap();
+
+        let mut new_req = note_req();
+        new_req.requested_at = "2026-07-08T00:00:00Z".into(); // a genuinely new approval, a week later
+
+        let source = FakeWriteSource {
+            create_results: std::sync::Mutex::new(vec![Ok("333".into())]),
+            // If the old row WERE (wrongly) treated as a recovery candidate,
+            // this would report it as already delivered — the test fails
+            // loudly (deduped=true, create_calls=0) if that guard is missing.
+            find_result: Some("999-should-not-be-used".into()),
+            create_calls: std::sync::atomic::AtomicUsize::new(0),
+        };
+        let receipt = push_crm_write(&source, &store, &guard, &new_req).await.unwrap();
+        assert_eq!(receipt.remote_id, "333");
+        assert!(!receipt.deduped);
+        assert_eq!(
+            source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 1,
+            "an old orphaned pending_verify row must not swallow a much-later intentional repeat"
+        );
+    }
+
     /// ADDED SCOPE #2.2: when the recovery check ITSELF is ambiguous (the
     /// `find_recent_matching` call fails, e.g. a transient transport error
     /// listing notes), push_crm_write must not silently return without
@@ -1354,6 +1432,84 @@ mod tests {
             store.outbound_get(&dedup_key(&req)).unwrap().unwrap().status,
             "pending_verify",
             "the row's state must be explicitly re-affirmed, not left implicit"
+        );
+    }
+
+    /// Codex round 3 finding #2 (self-converge): when the CONTENT-KEY
+    /// recovery check itself is ambiguous, the ORIGINAL candidate row's
+    /// created_at must be preserved (re-affirmed in place), not shadowed by
+    /// a fresh row under the new key stamped with "now" — a fresh "now"
+    /// floor would make the NEXT retry's find_recent_matching potentially
+    /// miss a CRM record actually created by the original interrupted
+    /// attempt (which predates "now"), risking a duplicate resend.
+    #[tokio::test]
+    async fn content_key_recovery_failure_preserves_the_original_rows_timestamp() {
+        struct FlakyFindSource {
+            create_calls: std::sync::atomic::AtomicUsize,
+        }
+        #[async_trait::async_trait]
+        impl CrmWriteSource for FlakyFindSource {
+            fn provider_id(&self) -> &'static str {
+                "wealthbox"
+            }
+            async fn create_note(&self, _r: &CrmWriteRequest) -> Result<String, CrmWriteError> {
+                self.create_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                Ok("should-not-be-called".into())
+            }
+            async fn create_task(&self, r: &CrmWriteRequest) -> Result<String, CrmWriteError> {
+                self.create_note(r).await
+            }
+            async fn find_recent_matching(
+                &self,
+                _r: &CrmWriteRequest,
+                _not_before: chrono::DateTime<chrono::Utc>,
+            ) -> Result<Option<String>, CrmWriteError> {
+                Err(CrmWriteError::VerifyPending)
+            }
+            async fn update_field(&self, _r: &CrmFieldUpdateRequest) -> Result<String, CrmWriteError> {
+                unimplemented!()
+            }
+            async fn get_contact_field(&self, _household_key: &str, _field: &str) -> Result<String, CrmWriteError> {
+                unimplemented!()
+            }
+        }
+
+        let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
+
+        let mut old_req = note_req();
+        old_req.requested_at = "2026-07-01T00:00:00Z".into();
+        let old_key = dedup_key(&old_req);
+        store
+            .outbound_upsert(
+                &old_key, "wealthbox", "note", &old_req.household_key,
+                &old_req.matter_id, &old_req.source_ref, "pending_verify", None, true,
+                &content_shape_key(&old_req),
+            )
+            .unwrap();
+        // A recent, VALID recovery candidate — 10 minutes ago, well inside
+        // RECOVERY_WINDOW_MINUTES (30).
+        let original_created_at = (chrono::Utc::now() - chrono::Duration::minutes(10)).to_rfc3339();
+        store.outbound_backdate_for_test(&old_key, &original_created_at).unwrap();
+
+        let mut new_req = note_req();
+        new_req.requested_at = "2026-07-01T00:05:00Z".into(); // e.g. a restart 5 minutes after the crash
+        let new_key = dedup_key(&new_req);
+
+        let source = FlakyFindSource { create_calls: std::sync::atomic::AtomicUsize::new(0) };
+        let result = push_crm_write(&source, &store, &guard, &new_req).await;
+        assert!(matches!(result, Err(CrmWriteError::VerifyPending)));
+        assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+
+        let old_row = store.outbound_get(&old_key).unwrap().unwrap();
+        assert_eq!(
+            old_row.created_at, original_created_at,
+            "the original candidate row's created_at must be preserved, not reset to 'now'"
+        );
+        assert_eq!(old_row.status, "pending_verify");
+        assert!(
+            store.outbound_get(&new_key).unwrap().is_none(),
+            "no NEW row should be created under the new key — the original row is re-affirmed in place instead"
         );
     }
 

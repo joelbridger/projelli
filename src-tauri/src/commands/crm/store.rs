@@ -742,6 +742,21 @@ impl CrmStore {
         Ok(row)
     }
 
+    /// TEST ONLY: force-set a ledger row's `created_at` to an arbitrary
+    /// (possibly backdated) timestamp — `outbound_upsert`'s public surface
+    /// deliberately always stamps `created_at` with the real time on
+    /// insert, so tests that need to simulate an OLD orphaned row (e.g. for
+    /// `push_crm_write`'s recovery-window bound) need this escape hatch.
+    #[cfg(test)]
+    pub fn outbound_backdate_for_test(&self, dedup_key: &str, created_at: &str) -> Result<()> {
+        let c = self.conn.lock().unwrap();
+        c.execute(
+            "UPDATE crm_outbound_writes SET created_at = ?2 WHERE dedup_key = ?1",
+            rusqlite::params![dedup_key, created_at],
+        )?;
+        Ok(())
+    }
+
     /// Delete every outbound-write ledger row for `provider` (e.g. "wealthbox").
     /// Called on disconnect so a later reconnect — same or different account —
     /// can't reuse a stale `sent`/`pending` row to skip a write that was
