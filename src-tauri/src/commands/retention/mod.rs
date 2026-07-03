@@ -7,18 +7,22 @@ use sweep::{sweep_matter_folder, SweepOutcome};
 
 const RETENTION_MODES: [&str; 3] = ["keep-everything", "delete-audio-after-days", "summary-only"];
 
-/// Where RAG-cleanup ids land the INSTANT a transcript deletion happens —
-/// durably, synchronously, inside the same blocking Rust call that did the
-/// delete, before `retention_sweep` even returns to the renderer. This
-/// closes a real crash window: the renderer's OWN persistence
-/// (`retentionRunner.ts`'s `setPendingRagCleanup`) only runs after the full
-/// Tauri IPC round-trip completes, so a process crash between the Rust-side
-/// delete and that JS line executing would otherwise lose these ids forever
-/// (once transcript.json is gone, they can never be recomputed). The
-/// renderer reads + clears this file once at workspace-open time
-/// (`retention_take_pending_rag_cleanup`) and merges it into its own
-/// pending-cleanup state, so even a full process kill in that narrow window
-/// is recovered on the next launch.
+/// Where RAG-cleanup ids land the INSTANT a transcript deletion or
+/// redaction happens — durably, synchronously, inside the same blocking
+/// Rust call that did the delete/redact, before the command even returns to
+/// the renderer. This closes a real crash window: the renderer's OWN
+/// persistence (`retentionRunner.ts`'s `setPendingRagCleanup`) only runs
+/// after the full Tauri IPC round-trip completes, so a process crash
+/// between the Rust-side write and that JS line executing would otherwise
+/// lose these ids forever (once the source text is gone, they can never be
+/// recomputed). This file is the PRIMARY durable record, not just a
+/// one-shot recovery backstop: an id is removed from it only once
+/// `retention_clear_pending_rag_cleanup_id` confirms it was actually
+/// flushed (`rag_delete_path` succeeded) — `retention_read_pending_rag_cleanup`
+/// is a plain, non-destructive read, so there is no window where a crash
+/// between "Rust returns the ids" and "the renderer finishes acting on
+/// them" can lose anything: the file still has them until they're
+/// individually cleared.
 const PENDING_RAG_CLEANUP_FILE: &str = ".lantern/pending-rag-cleanup.json";
 
 pub(crate) fn new_audit_id() -> String {
@@ -29,6 +33,38 @@ pub(crate) fn new_audit_id() -> String {
     )
 }
 
+/// Write-to-temp-then-rename, symlink-safe. Two separate hazards this
+/// avoids:
+///   - A disk-full or interrupted write can only ever leave the TEMP file
+///     truncated/corrupt — `rename` itself either replaces the real file
+///     atomically or doesn't happen at all, so the real file is never left
+///     half-written.
+///   - The temp path is DETERMINISTIC (`<name>.retention-tmp`), so a stale
+///     leftover from a prior crashed attempt — or a symlink an attacker
+///     planted at that exact path pointing outside the workspace — must
+///     never be silently written through. `create_new` (`O_EXCL`) refuses
+///     to open if ANYTHING already exists at that path, including a
+///     symlink (even a dangling one), so this can't be tricked into
+///     following one out of the workspace. A best-effort `remove_file`
+///     first (itself symlink-safe: unlinking a symlink never touches its
+///     target) clears a stale tmp file from an earlier crash before the
+///     `create_new`; a TOCTOU recreation between the two is still caught by
+///     `create_new`'s own atomicity.
+pub(crate) fn write_atomically(path: &std::path::Path, bytes: &[u8]) -> Result<(), String> {
+    use std::io::Write;
+    let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("artifact");
+    let tmp = path.with_file_name(format!("{file_name}.retention-tmp"));
+    let _ = std::fs::remove_file(&tmp);
+    let mut f = std::fs::File::options()
+        .write(true)
+        .create_new(true)
+        .open(&tmp)
+        .map_err(|e| format!("create {}: {e}", tmp.display()))?;
+    f.write_all(bytes).map_err(|e| format!("write {}: {e}", tmp.display()))?;
+    drop(f);
+    std::fs::rename(&tmp, path).map_err(|e| format!("rename {} -> {}: {e}", tmp.display(), path.display()))
+}
+
 fn read_pending_rag_cleanup_ids(path: &std::path::Path) -> Vec<String> {
     std::fs::read(path)
         .ok()
@@ -36,6 +72,18 @@ fn read_pending_rag_cleanup_ids(path: &std::path::Path) -> Vec<String> {
         .and_then(|v| v.get("ids").and_then(|i| i.as_array().cloned()))
         .map(|arr| arr.into_iter().filter_map(|x| x.as_str().map(str::to_string)).collect())
         .unwrap_or_default()
+}
+
+fn write_pending_rag_cleanup_ids(path: &std::path::Path, ids: &[String]) -> Result<(), String> {
+    if ids.is_empty() {
+        let _ = std::fs::remove_file(path);
+        return Ok(());
+    }
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| format!("create .lantern dir: {e}"))?;
+    }
+    let payload = serde_json::json!({ "ids": ids });
+    write_atomically(path, &serde_json::to_vec(&payload).map_err(|e| e.to_string())?)
 }
 
 /// Read-modify-write union (never drops ids already pending). Best effort: a
@@ -54,30 +102,35 @@ pub(crate) fn append_pending_rag_cleanup(ws: &std::path::Path, ids: &[String]) -
             existing.push(id.clone());
         }
     }
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| format!("create .lantern dir: {e}"))?;
-    }
-    let payload = serde_json::json!({ "ids": existing });
-    std::fs::write(&path, serde_json::to_vec(&payload).map_err(|e| e.to_string())?)
-        .map_err(|e| format!("write pending-rag-cleanup.json: {e}"))
+    write_pending_rag_cleanup_ids(&path, &existing)
 }
 
-/// Read + clear the durable pending-RAG-cleanup file. Called once at
-/// workspace-open time (`runRetentionSweep` in retentionRunner.ts) so ids
+/// Non-destructive read of the durable pending-RAG-cleanup file. Called once
+/// at workspace-open time (`runRetentionSweep` in retentionRunner.ts) so ids
 /// that survived a crash are merged into the renderer's own pending-cleanup
-/// state instead of being lost. Clearing is best-effort: if the ids are
-/// non-empty, the caller is now responsible for them (via the returned
-/// list), so a failed clear just risks re-delivering the same ids next time
-/// — which the renderer's own dedup (a Set union) already handles safely.
+/// state. Deliberately does NOT clear the file — an id is only removed once
+/// `retention_clear_pending_rag_cleanup_id` confirms it was actually
+/// flushed, so there's no window between "Rust hands back the ids" and "the
+/// renderer finishes acting on them" where a crash could lose anything.
 #[tauri::command]
-pub async fn retention_take_pending_rag_cleanup(workspace: String) -> Result<Vec<String>, String> {
+pub async fn retention_read_pending_rag_cleanup(workspace: String) -> Result<Vec<String>, String> {
     tokio::task::spawn_blocking(move || {
         let path = std::path::Path::new(&workspace).join(PENDING_RAG_CLEANUP_FILE);
-        let ids = read_pending_rag_cleanup_ids(&path);
-        if !ids.is_empty() {
-            let _ = std::fs::remove_file(&path);
-        }
-        Ok(ids)
+        Ok(read_pending_rag_cleanup_ids(&path))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Remove exactly one id from the durable pending-RAG-cleanup file, once the
+/// caller has confirmed it's genuinely been cleaned up (`rag_delete_path`
+/// succeeded) — the counterpart to `retention_read_pending_rag_cleanup`.
+#[tauri::command]
+pub async fn retention_clear_pending_rag_cleanup_id(workspace: String, id: String) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let path = std::path::Path::new(&workspace).join(PENDING_RAG_CLEANUP_FILE);
+        let remaining: Vec<String> = read_pending_rag_cleanup_ids(&path).into_iter().filter(|x| x != &id).collect();
+        write_pending_rag_cleanup_ids(&path, &remaining)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -257,7 +310,7 @@ mod tests {
     }
 
     #[test]
-    fn pending_rag_cleanup_persists_across_appends_and_is_cleared_on_read() {
+    fn pending_rag_cleanup_persists_across_appends_and_survives_a_plain_read() {
         let ws = tempfile::tempdir().unwrap();
         append_pending_rag_cleanup(ws.path(), &["meeting:/a#0".to_string()]).unwrap();
         append_pending_rag_cleanup(ws.path(), &["meeting:/a#1".to_string(), "meeting:/a#0".to_string()]).unwrap();
@@ -269,10 +322,52 @@ mod tests {
         // The file survives an empty append (no-op) untouched...
         append_pending_rag_cleanup(ws.path(), &[]).unwrap();
         assert_eq!(read_pending_rag_cleanup_ids(&path).len(), 2);
-        // ...and a real read-and-clear (what retention_take_pending_rag_cleanup
-        // does) removes it, so a second read comes back empty.
-        std::fs::remove_file(&path).unwrap();
+        // ...and a plain read (what retention_read_pending_rag_cleanup does)
+        // is non-destructive: reading twice returns the same ids both times,
+        // so a crash between "Rust hands back the ids" and "the renderer
+        // finishes acting on them" can't lose anything — only a confirmed
+        // per-id clear (see the next test) removes an id.
+        assert_eq!(read_pending_rag_cleanup_ids(&path).len(), 2);
+    }
+
+    #[test]
+    fn pending_rag_cleanup_clear_removes_only_the_confirmed_id() {
+        let ws = tempfile::tempdir().unwrap();
+        append_pending_rag_cleanup(ws.path(), &["meeting:/a#0".to_string(), "meeting:/a#1".to_string()]).unwrap();
+        let path = ws.path().join(PENDING_RAG_CLEANUP_FILE);
+
+        let remaining: Vec<String> =
+            read_pending_rag_cleanup_ids(&path).into_iter().filter(|x| x != "meeting:/a#0").collect();
+        write_pending_rag_cleanup_ids(&path, &remaining).unwrap();
+        assert_eq!(read_pending_rag_cleanup_ids(&path), vec!["meeting:/a#1".to_string()]);
+
+        // Clearing the LAST remaining id removes the file entirely (an empty
+        // ids list is just noise to keep around).
+        write_pending_rag_cleanup_ids(&path, &[]).unwrap();
+        assert!(!path.exists());
         assert!(read_pending_rag_cleanup_ids(&path).is_empty());
+    }
+
+    /// If the deterministic temp path (`<name>.retention-tmp`) is already a
+    /// symlink pointing outside the workspace — a stale leftover, or a
+    /// planted attack — `write_atomically` must refuse to follow it, not
+    /// silently write attacker-chosen content to the external target.
+    #[test]
+    #[cfg(unix)]
+    fn write_atomically_refuses_to_follow_a_symlinked_temp_path() {
+        let ws = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let victim = outside.path().join("victim.json");
+        std::fs::write(&victim, b"untouched").unwrap();
+
+        let target = ws.path().join("real.json");
+        let tmp = ws.path().join("real.json.retention-tmp");
+        std::os::unix::fs::symlink(&victim, &tmp).unwrap();
+
+        write_atomically(&target, b"new content").unwrap();
+
+        assert_eq!(std::fs::read(&victim).unwrap(), b"untouched", "the symlink target must never be written through");
+        assert_eq!(std::fs::read(&target).unwrap(), b"new content", "the real write must still succeed (tmp is replaced, not followed)");
     }
 
     #[tokio::test]

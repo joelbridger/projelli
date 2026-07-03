@@ -913,15 +913,26 @@ export async function retentionSweep(
   });
 }
 
-/** Read + clear the durable side-file Rust writes the INSTANT a
- *  transcript.json delete produces RAG-cleanup ids — before retention_sweep
- *  even returns. Call once at workspace-open time and merge the result into
- *  the renderer's own pending-cleanup state, so a crash between a native
- *  delete and the renderer's own persistence step is recovered instead of
- *  leaving those ids stuck in a deleted transcript forever. */
-export async function retentionTakePendingRagCleanup(workspaceRoot: string): Promise<string[]> {
+/** Non-destructive read of the durable side-file Rust writes the INSTANT a
+ *  transcript delete or redaction produces RAG-cleanup ids — before the
+ *  native call even returns. This file is the PRIMARY durable record, not
+ *  just a one-shot recovery backstop: it is NOT cleared by reading it, so
+ *  there is no window between "Rust hands back the ids" and "the renderer
+ *  finishes acting on them" where a crash could lose anything — only
+ *  `retentionClearPendingRagCleanupId` (called once a specific id is
+ *  confirmed flushed) removes an id. Call once at workspace-open time and
+ *  merge the result into the renderer's own pending-cleanup state. */
+export async function retentionReadPendingRagCleanup(workspaceRoot: string): Promise<string[]> {
   if (!isTauri()) return [];
-  return invoke<string[]>('retention_take_pending_rag_cleanup', { workspace: workspaceRoot });
+  return invoke<string[]>('retention_read_pending_rag_cleanup', { workspace: workspaceRoot });
+}
+
+/** Remove exactly one id from the durable pending-RAG-cleanup file, once the
+ *  caller has confirmed it's genuinely been cleaned up (rag_delete_path
+ *  succeeded) — the counterpart to retentionReadPendingRagCleanup. */
+export async function retentionClearPendingRagCleanupId(workspaceRoot: string, id: string): Promise<void> {
+  if (!isTauri()) return;
+  await invoke('retention_clear_pending_rag_cleanup_id', { workspace: workspaceRoot, id });
 }
 
 // ── Local redaction of meeting artifacts (Wave 4 Track D, Task 17b) ────────

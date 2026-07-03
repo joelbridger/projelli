@@ -20,6 +20,9 @@ use std::path::{Path, PathBuf};
 
 use super::new_audit_id;
 use super::sweep::{canonicalize_workspace_relative, contained, transcript_rag_source_ids};
+// write_atomically lives in mod.rs (shared with append_pending_rag_cleanup,
+// which had the exact same truncate-in-place and temp-path-symlink risks).
+use super::write_atomically;
 
 fn redaction_marker(now_ms: u64) -> String {
     let date = chrono::DateTime::from_timestamp_millis(now_ms as i64)
@@ -124,23 +127,6 @@ fn contains_bytes(haystack: &[u8], needle: &[u8]) -> bool {
     !needle.is_empty() && haystack.windows(needle.len()).any(|w| w == needle)
 }
 
-/// Write-to-temp-then-rename: a disk-full or interrupted write can only ever
-/// leave the TEMP file truncated/corrupt — `rename` itself either replaces
-/// the real file atomically or doesn't happen at all, so the real file is
-/// never left half-written. Doesn't make the two-file (transcript.json +
-/// notes.docx) update a single transaction — if the second file's write
-/// fails after the first already succeeded, the two are briefly
-/// inconsistent — but both redact_segments_inner's "already redacted ==
-/// no-op" checks (`text == marker` for a segment, `replace_in_document`
-/// finding nothing left to replace) make retrying the SAME call safe: a
-/// retry only finishes whichever half didn't land, it never re-applies or
-/// corrupts the half that already did.
-fn write_atomically(path: &Path, bytes: &[u8]) -> Result<(), String> {
-    let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("artifact");
-    let tmp = path.with_file_name(format!("{file_name}.redact-tmp"));
-    std::fs::write(&tmp, bytes).map_err(|e| format!("write {}: {e}", tmp.display()))?;
-    std::fs::rename(&tmp, path).map_err(|e| format!("rename {} -> {}: {e}", tmp.display(), path.display()))
-}
 
 /// `.docx` is a ZIP archive — its parts are DEFLATE-compressed, so scanning
 /// the raw serialized `.docx` bytes for a plain-text needle is close to
@@ -152,16 +138,56 @@ fn write_atomically(path: &Path, bytes: &[u8]) -> Result<(), String> {
 /// only the modeled paragraph text. If the bytes don't even parse as a
 /// package, fail closed (treat as "still present") rather than silently
 /// reporting success on something we can no longer verify.
+/// Reverse the handful of XML entity escapes that can appear inside `<w:t>`
+/// text content (`&`, `<`, `>` — quotes aren't escaped in element text, only
+/// in attributes) so a literal needle comparison doesn't miss an occurrence
+/// just because it contains one of those characters.
+fn xml_unescape(s: &str) -> String {
+    s.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+}
+
+/// Two independent checks, because they catch different survival modes:
+///
+///  1. PACKAGE scan — decompresses every part (document.xml, comments.xml,
+///     customXml, footnotes/headers/footers, anything else the package
+///     carries) and checks its raw text, XML-entity-unescaped, for the
+///     needle. Catches content `replace_in_document` never reaches at all
+///     (unmodeled parts, comments) and needles that survive with an escaped
+///     character (`R&amp;D`).
+///  2. MODELED PARAGRAPH TEXT scan — re-parses the DOM and joins each
+///     paragraph's full text via `extract_paragraph_texts`, which
+///     concatenates ACROSS run boundaries. Word can and does split what
+///     looks like one phrase across adjacent `<w:r>` elements (spell-check
+///     boundaries, formatting changes, revision splits); a needle split that
+///     way is invisible to a scan of any SINGLE run's text (which is all
+///     `replace_in_document` and a naive byte-scan can see) but shows up
+///     once the paragraph's text is joined.
+///
+/// Fails closed (treats as "still present") if the bytes don't even parse.
 fn needle_survives_in_docx_package(docx_bytes: &[u8], needle: &str) -> bool {
     let Ok(pkg) = lantern_docx::Package::read_from_bytes(docx_bytes) else {
         return true;
     };
     let needle_bytes = needle.as_bytes();
     let part_names: Vec<&String> = pkg.part_names().collect();
-    let found = part_names
-        .into_iter()
-        .any(|name| pkg.get(name).is_some_and(|raw| contains_bytes(raw, needle_bytes)));
-    found
+    let package_hit = part_names.into_iter().any(|name| {
+        pkg.get(name).is_some_and(|raw| {
+            if contains_bytes(raw, needle_bytes) {
+                return true;
+            }
+            match std::str::from_utf8(raw) {
+                Ok(text) => xml_unescape(text).contains(needle),
+                Err(_) => false, // a binary part (media, etc.) — nothing to redact there
+            }
+        })
+    });
+    if package_hit {
+        return true;
+    }
+    match lantern_docx::parse_docx_bytes(docx_bytes) {
+        Ok(doc) => lantern_docx::extract_paragraph_texts(&doc).iter().any(|t| t.contains(needle)),
+        Err(_) => true,
+    }
 }
 
 /// Pure(ish) core: redact `segment_indices` from `meeting_dir`'s
@@ -570,6 +596,46 @@ mod tests {
         };
         let clean_bytes = lantern_docx::serialize_docx_bytes(&clean).unwrap();
         assert!(!needle_survives_in_docx_package(&clean_bytes, needle));
+    }
+
+    /// Word can split what reads as one phrase across adjacent runs (spell
+    /// check boundaries, formatting changes) — no single run's text contains
+    /// the whole needle, so `replace_in_document` can't touch it and a
+    /// per-part byte-scan wouldn't find it as a contiguous substring either.
+    /// The survival check must still catch it via the paragraph's JOINED
+    /// text (extract_paragraph_texts concatenates across runs).
+    #[test]
+    fn needle_survives_check_catches_a_needle_split_across_adjacent_runs() {
+        let needle = "client admitted wrongdoing";
+        let doc = Document {
+            format_version: lantern_docx::DOM_FORMAT_VERSION,
+            body: vec![BlockContent::Paragraph(Paragraph::from_inlines(vec![
+                Inline::Run(Run::new("client ad")),
+                Inline::Run(Run::new("mitted wrong")),
+                Inline::Run(Run::new("doing")),
+            ]))],
+            comments: Default::default(),
+        };
+        let bytes = lantern_docx::serialize_docx_bytes(&doc).unwrap();
+        assert!(
+            needle_survives_in_docx_package(&bytes, needle),
+            "a needle split across run boundaries must still be detected via joined paragraph text"
+        );
+    }
+
+    /// A needle containing a character XML escapes in text content (`&`)
+    /// must still be found even though the raw `<w:t>` bytes spell it
+    /// `&amp;` rather than `&`.
+    #[test]
+    fn needle_survives_check_catches_an_xml_escaped_needle() {
+        let needle = "Smith & Associates";
+        let doc = Document {
+            format_version: lantern_docx::DOM_FORMAT_VERSION,
+            body: vec![BlockContent::Paragraph(Paragraph::from_inlines(vec![Inline::Run(Run::new(needle))]))],
+            comments: Default::default(),
+        };
+        let bytes = lantern_docx::serialize_docx_bytes(&doc).unwrap();
+        assert!(needle_survives_in_docx_package(&bytes, needle));
     }
 
     /// Redacting an already-redacted segment (or the same call twice) is a

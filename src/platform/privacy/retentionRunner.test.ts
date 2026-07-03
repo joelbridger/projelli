@@ -21,7 +21,7 @@ beforeEach(() => {
     if (cmd === 'retention_sweep') {
       return Promise.resolve({ deleted: [{ path: '/x/audio.wav', kind: 'audio' }], keptMeetings: 1, skippedInFlight: 0, errors: [], ragCleanupSourceIds: ['meeting:/x#0', 'meeting:/x#400000'] });
     }
-    if (cmd === 'retention_take_pending_rag_cleanup') return Promise.resolve([]);
+    if (cmd === 'retention_read_pending_rag_cleanup') return Promise.resolve([]);
     return Promise.resolve(undefined);
   });
 });
@@ -36,6 +36,10 @@ describe('runRetentionSweep', () => {
     const ragCalls = invokeMock.mock.calls.filter(([c]) => c === 'rag_delete_path');
     expect(ragCalls.map(([, args]) => (args as { path: string }).path)).toEqual(['meeting:/x#0', 'meeting:/x#400000']);
     expect(useRetentionPolicyStore.getState().lastSweep['/ws']?.deletedCount).toBe(1);
+    // Each successfully-flushed id is also cleared from the Rust-side
+    // durable file (the primary record), not just the Zustand store.
+    const clearCalls = invokeMock.mock.calls.filter(([c]) => c === 'retention_clear_pending_rag_cleanup_id');
+    expect(clearCalls.map(([, args]) => (args as { id: string }).id)).toEqual(['meeting:/x#0', 'meeting:/x#400000']);
   });
   it('debounces: skips when a sweep ran within 24h, unless forced', async () => {
     useRetentionPolicyStore.getState().recordSweep('/ws', { sweptAt: new Date().toISOString(), deletedCount: 0, errors: [] });
@@ -60,7 +64,7 @@ describe('runRetentionSweep', () => {
         return Promise.resolve({ deleted: [], keptMeetings: 0, skippedInFlight: 0, errors: [], ragCleanupSourceIds: ['meeting:/x#0', 'meeting:/x#1'] });
       }
       if (cmd === 'rag_delete_path' && args?.['path'] === 'meeting:/x#1') return Promise.reject(new Error('lancedb unavailable'));
-      if (cmd === 'retention_take_pending_rag_cleanup') return Promise.resolve([]);
+      if (cmd === 'retention_read_pending_rag_cleanup') return Promise.resolve([]);
       return Promise.resolve(undefined);
     });
     const rec = await runRetentionSweep('/ws', { force: true });
@@ -75,7 +79,7 @@ describe('runRetentionSweep', () => {
     // JS-side setPendingRagCleanup ever ran, so Zustand's pendingRagCleanup
     // for '/ws' is empty on this fresh launch.
     invokeMock.mockImplementation((cmd: string) => {
-      if (cmd === 'retention_take_pending_rag_cleanup') return Promise.resolve(['meeting:/z#0']);
+      if (cmd === 'retention_read_pending_rag_cleanup') return Promise.resolve(['meeting:/z#0']);
       return Promise.resolve(undefined);
     });
     useRetentionPolicyStore.getState().recordSweep('/ws', { sweptAt: new Date().toISOString(), deletedCount: 0, errors: [] });

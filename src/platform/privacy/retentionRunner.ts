@@ -2,7 +2,12 @@
 // runner supplies the policy + matter folders, then removes the RAG docs of
 // any deleted transcript and records the sweep for the Data Map.
 import { isTauri } from '@tauri-apps/api/core';
-import { retentionSweep, ragDeletePath, retentionTakePendingRagCleanup } from '@/platform/utils/tauri-commands';
+import {
+  retentionSweep,
+  ragDeletePath,
+  retentionReadPendingRagCleanup,
+  retentionClearPendingRagCleanupId,
+} from '@/platform/utils/tauri-commands';
 import { getMatters } from '@/platform/matter/matterStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { toWorkspaceRelativeFolder } from '@/platform/rag/matterResolver';
@@ -25,6 +30,12 @@ async function flushPendingRagCleanup(workspaceRoot: string): Promise<string[]> 
     try {
       await ragDeletePath(sourceId);
       useRetentionPolicyStore.getState().clearPendingRagCleanupId(workspaceRoot, sourceId);
+      // ALSO clear it from the Rust-side durable file (the PRIMARY record —
+      // see retention/mod.rs's PENDING_RAG_CLEANUP_FILE) now that cleanup is
+      // confirmed. Only after this succeeds is the id truly gone from every
+      // durable record; a failure here just means it's re-read (harmlessly —
+      // ragDeletePath above is itself idempotent) on the next sweep.
+      await retentionClearPendingRagCleanupId(workspaceRoot, sourceId).catch(() => {});
     } catch (e: unknown) {
       errors.push(`rag cleanup ${sourceId}: ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -37,15 +48,13 @@ export async function runRetentionSweep(
   opts?: { force?: boolean },
 ): Promise<RetentionSweepRecord | null> {
   if (!isTauri() || !workspaceRoot) return null;
-  // Reclaim any ids Rust already wrote DURABLY to disk the instant a
-  // transcript delete happened, before the native call even returned last
-  // time (see PENDING_RAG_CLEANUP_FILE in retention/mod.rs). This closes the
-  // narrow crash window between the native retentionSweep() call resolving
-  // and the setPendingRagCleanup call below running: even a full process
-  // kill in that window is recovered here on the next launch, since Rust's
-  // durable write happened independent of whether this renderer code ever
-  // got to run.
-  const recoveredIds = await retentionTakePendingRagCleanup(workspaceRoot).catch(() => []);
+  // Reclaim any ids Rust already wrote DURABLY to disk — the instant a
+  // transcript delete or redaction happened, whether or not this renderer
+  // ever got to react to it (see PENDING_RAG_CLEANUP_FILE in
+  // retention/mod.rs). This is a plain, non-destructive read: the file
+  // isn't cleared until flushPendingRagCleanup below confirms an id is
+  // truly done, so there's no window here where a crash could lose anything.
+  const recoveredIds = await retentionReadPendingRagCleanup(workspaceRoot).catch(() => []);
   if (recoveredIds.length > 0) {
     const current = useRetentionPolicyStore.getState().pendingRagCleanup[workspaceRoot] ?? [];
     useRetentionPolicyStore.getState().setPendingRagCleanup(
