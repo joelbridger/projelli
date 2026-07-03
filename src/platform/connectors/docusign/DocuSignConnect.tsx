@@ -18,7 +18,7 @@ import {
 } from '@/platform/utils/docusign-commands';
 import { getMatters } from '@/platform/matter/matterStore';
 import { buildEsignMatterMap } from '@/platform/rag/matterResolver';
-import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
+import { isPersistedLocalOnly } from '@/platform/privacy/localOnlyGuard';
 import { Button } from '@/ui/kp';
 
 export function DocuSignConnect() {
@@ -52,7 +52,7 @@ export function DocuSignConnect() {
 
   async function connect() {
     setError(null);
-    if (isLocalOnlyMode()) {
+    if (isPersistedLocalOnly()) {
       setError('Local-only mode is on. Turn it off before connecting DocuSign, because sign-in contacts DocuSign.');
       return;
     }
@@ -70,11 +70,20 @@ export function DocuSignConnect() {
 
   async function syncNow() {
     setError(null);
+    if (isPersistedLocalOnly()) {
+      setError('Local-only mode is on. Turn it off before syncing DocuSign, because it contacts DocuSign.');
+      return;
+    }
     setSyncing(true);
     try {
       const result = await docusignSync(buildEsignMatterMap(getMatters()));
       setReport(result);
-      setUnassigned(await docusignListUnassigned());
+      // Re-check: docusignSync() itself just awaited a DocuSign call, so a
+      // Local-only switch mid-flight could otherwise slip past the guard
+      // above and still fire this follow-up DocuSign call.
+      if (!isPersistedLocalOnly()) {
+        setUnassigned(await docusignListUnassigned());
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
