@@ -74,6 +74,7 @@ export function ChatSourcesAccordion({
                     s.extraction,
                     s.extractionConfidence,
                     s.locator,
+                    s.path,
                   )}
                 </button>
               </li>

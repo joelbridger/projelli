@@ -1,6 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { chatToMarkdown } from '@/features/ask/renderingHelpers';
+import { chatToMarkdown, citationDisplayLabel } from '@/features/ask/renderingHelpers';
 import type { AIChatFile } from '@/platform/types/ai';
+
+describe('citationDisplayLabel', () => {
+  it('distinguishes calendar vs calendly via path', () => {
+    expect(
+      citationDisplayLabel('evt-1', 0, 'meeting', undefined, undefined, undefined, undefined, 'calendar:evt-1:m-1'),
+    ).toMatch(/^Calendar - /);
+    expect(
+      citationDisplayLabel('abc', 0, 'meeting', undefined, undefined, undefined, undefined, 'calendly:event:abc'),
+    ).toMatch(/^Calendly - /);
+  });
+
+  it('defaults to Calendly when no path is available (pre-existing behavior preserved)', () => {
+    expect(citationDisplayLabel('abc', 0, 'meeting')).toMatch(/^Calendly - /);
+  });
+});
 
 function makeChat(messages: AIChatFile['messages']): AIChatFile {
   return {

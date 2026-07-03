@@ -17,4 +17,10 @@ describe('sourceLocator', () => {
       'Email - DAF grant request spring board meeting.pdf p. 1',
     );
   });
+
+  it('labels calendar meeting sources "Calendar", calendly ones "Calendly"', () => {
+    const base = { chunkText: '', score: 1, paragraphIndex: 0, sourceType: 'meeting' as const };
+    expect(sourceLocator({ ...base, path: 'calendar:evt-1:m-1' })).toMatch(/^Calendar - /);
+    expect(sourceLocator({ ...base, path: 'calendly:event:abc' })).toMatch(/^Calendly - /);
+  });
 });

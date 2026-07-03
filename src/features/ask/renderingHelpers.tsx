@@ -147,6 +147,7 @@ export function citationDisplayLabel(
   extraction?: string,
   extractionConfidence?: number,
   locator?: string,
+  path?: string,
 ): string {
   const suffix = ocrLabelSuffix(extraction, extractionConfidence);
   if (sourceType === 'transcript' && locator) {
@@ -159,7 +160,10 @@ export function citationDisplayLabel(
   }
   if (sourceType === 'onedrive') return `OneDrive - ${basename}${suffix}`;
   if (sourceType === 'esign') return `DocuSign - ${basename}${suffix}`;
-  if (sourceType === 'meeting') return `Calendly - ${basename}${suffix}`;
+  if (sourceType === 'meeting') {
+    const label = path?.startsWith('calendar:') ? 'Calendar' : 'Calendly';
+    return `${label} - ${basename}${suffix}`;
+  }
   if (sourceType === 'box') return `Box - ${basename}${suffix}`;
   if (sourceType === 'jotform') return `Jotform - ${basename}${suffix}`;
   if (sourceType === 'sharefile') return `ShareFile - ${basename}${suffix}`;
@@ -234,6 +238,7 @@ export function renderMessageWithCitations(
       matchedSource?.extraction,
       matchedSource?.extractionConfidence,
       matchedSource?.locator,
+      matchedSource?.path ?? resolved ?? undefined,
     );
     // BUG-065: STRICT trust display. Green "source found" ONLY when we proved the
     // exact retrieved source (resolved) AND it verified. Anything else — an
@@ -433,6 +438,7 @@ function markdownRowsFromWorkspaceSources(msg: ChatMessage): MarkdownCitationVer
           source.extraction,
           source.extractionConfidence,
           source.locator,
+          source.path,
         )
       : `${citation.basename} §${String(citation.paragraphIndex)}`;
     return {

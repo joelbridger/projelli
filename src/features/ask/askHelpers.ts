@@ -269,7 +269,10 @@ export function sourceLocator(s: WorkspaceSource): string {
   }
   if (s.sourceType === 'onedrive') return `OneDrive - ${citationBasename(s.path)}`;
   if (s.sourceType === 'esign') return `DocuSign - ${citationBasename(s.path)}`;
-  if (s.sourceType === 'meeting') return `Calendly - ${citationBasename(s.path)}`;
+  if (s.sourceType === 'meeting') {
+    const label = s.path.startsWith('calendar:') ? 'Calendar' : 'Calendly';
+    return `${label} - ${citationBasename(s.path)}`;
+  }
   if (s.sourceType === 'box') return `Box - ${citationBasename(s.path)}`;
   if (s.sourceType === 'jotform') return `Jotform - ${citationBasename(s.path)}`;
   if (s.sourceType === 'sharefile') return `ShareFile - ${citationBasename(s.path)}`;

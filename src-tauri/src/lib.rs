@@ -265,6 +265,18 @@ pub fn run() {
             commands::calendly::commands::calendly_sync_all,
             commands::calendly::commands::calendly_sync_status,
             commands::calendly::commands::calendly_cancel_sync,
+            // Calendar connector — read-only Outlook/Google/ICS events.
+            commands::calendar::commands::calendar_set_workspace,
+            commands::calendar::commands::calendar_connect_outlook,
+            commands::calendar::commands::calendar_connect_outlook_cancel,
+            commands::calendar::commands::calendar_connect_google,
+            commands::calendar::commands::calendar_connect_ics,
+            commands::calendar::commands::calendar_is_connected,
+            commands::calendar::commands::calendar_disconnect,
+            commands::calendar::commands::calendar_sync_all,
+            commands::calendar::commands::calendar_sync_status,
+            commands::calendar::commands::calendar_cancel_sync,
+            commands::calendar::commands::calendar_list_events,
             // Wave 3a SSO — firm-tier OIDC desktop dance (loopback + browser).
             commands::firm::sso::firm_sso_authenticate,
             commands::firm::sso::firm_sso_cancel,
@@ -322,6 +334,8 @@ pub fn run() {
             commands::addepar::commands::manage_state(app);
             // Calendly connector — manage workspace, single-flight sync, and progress.
             commands::calendly::commands::manage_state(app);
+            // Calendar connector — workspace, single-flight sync, progress.
+            commands::calendar::commands::manage_state(app);
             // Wave 3a SSO — manage the pending-sign-in cancel flag.
             commands::firm::sso::manage_state(app);
             // Advisor Prep Hero 3.0 — manage encrypted audit-store state (active workspace).
