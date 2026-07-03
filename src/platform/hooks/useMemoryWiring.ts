@@ -286,6 +286,120 @@ function resolveMatterIdWithWorkspaceForms(path: string): string {
 }
 
 /**
+ * Delete-flood guard (frontend half — the backend LanceDB writer-race is a
+ * separate lane). A mass delete (e.g. dragging a folder with thousands of
+ * files to trash) fires one `workspace-file-changed` event PER FILE. Firing
+ * `MemoryService.deletePath` per event with no error handling meant a
+ * 2,000+ file storm issued that many concurrent backend calls AND surfaced
+ * every failure as an unhandled-rejection pageerror (2,292 of them observed
+ * in a 4-minute bench). This batcher:
+ *   1. buffers paths over a short window and dedupes repeats, so a storm
+ *      becomes one bounded, SEQUENTIAL sweep instead of N concurrent calls;
+ *   2. never rejects — every call is wrapped, failures are logged once per
+ *      batch, not once per file;
+ *   3. opens a breaker after N consecutive failures and drops the rest of
+ *      the burst rather than continuing to hammer a failing backend.
+ */
+export type DeleteBurstBatcherOptions = {
+  /** How long to buffer incoming paths before issuing the batch. */
+  windowMs?: number;
+  /** Consecutive per-path failures before the breaker opens. */
+  breakerThreshold?: number;
+  /** How long the breaker stays open (drops incoming bursts) once tripped. */
+  cooldownMs?: number;
+  /** Injectable for tests; defaults to console.warn. */
+  onLog?: (message: string) => void;
+};
+
+export type DeleteBurstBatcher = {
+  /** Queue a path for deletion; the batch flushes after `windowMs` of quiet. */
+  enqueue: (path: string) => void;
+  /** Cancel any pending flush and drop queued paths (call on teardown). */
+  dispose: () => void;
+};
+
+const DEFAULT_DELETE_BATCH_WINDOW_MS = 250;
+const DEFAULT_DELETE_BREAKER_THRESHOLD = 5;
+const DEFAULT_DELETE_BREAKER_COOLDOWN_MS = 15_000;
+
+export function createDeleteBurstBatcher(
+  deletePath: (path: string) => Promise<void>,
+  options: DeleteBurstBatcherOptions = {},
+): DeleteBurstBatcher {
+  const windowMs = options.windowMs ?? DEFAULT_DELETE_BATCH_WINDOW_MS;
+  const breakerThreshold = options.breakerThreshold ?? DEFAULT_DELETE_BREAKER_THRESHOLD;
+  const cooldownMs = options.cooldownMs ?? DEFAULT_DELETE_BREAKER_COOLDOWN_MS;
+  const log = options.onLog ?? ((message: string) => console.warn(message));
+
+  let pending = new Set<string>();
+  let flushTimer: ReturnType<typeof setTimeout> | null = null;
+  let consecutiveFailures = 0;
+  let breakerOpenUntil = 0;
+  let disposed = false;
+
+  const flush = async (): Promise<void> => {
+    flushTimer = null;
+    const paths = Array.from(pending);
+    pending = new Set();
+    if (disposed || paths.length === 0) return;
+
+    if (Date.now() < breakerOpenUntil) {
+      log(
+        `[memory] delete backend failing repeatedly; dropping ${paths.length} delete event(s) during cooldown`,
+      );
+      return;
+    }
+
+    let failed = 0;
+    for (const path of paths) {
+      if (disposed) return;
+      try {
+        // eslint-disable-next-line no-await-in-loop -- deliberate: sequential,
+        // bounded processing is the fix (never N concurrent backend calls).
+        await deletePath(path);
+        consecutiveFailures = 0;
+      } catch {
+        failed += 1;
+        consecutiveFailures += 1;
+        if (consecutiveFailures >= breakerThreshold) {
+          breakerOpenUntil = Date.now() + cooldownMs;
+          const processed = paths.indexOf(path) + 1;
+          const remaining = paths.length - processed;
+          log(
+            `[memory] ${consecutiveFailures} consecutive delete failures; backing off for ${cooldownMs}ms` +
+              (remaining > 0 ? `, dropping ${remaining} pending delete event(s)` : ''),
+          );
+          return;
+        }
+      }
+    }
+    if (failed > 0) {
+      log(`[memory] ${failed} of ${paths.length} delete event(s) failed`);
+    }
+  };
+
+  return {
+    enqueue(path: string) {
+      if (disposed) return;
+      pending.add(path);
+      if (!flushTimer) {
+        flushTimer = setTimeout(() => {
+          void flush();
+        }, windowMs);
+      }
+    },
+    dispose() {
+      disposed = true;
+      if (flushTimer) {
+        clearTimeout(flushTimer);
+        flushTimer = null;
+      }
+      pending = new Set();
+    },
+  };
+}
+
+/**
  * WS-B/C — diff two matter lists and return the set of folder paths whose
  * matter assignment changed (added, removed, or moved between matters). When a
  * mapping changes we re-index every file under the affected folders so their
@@ -612,6 +726,9 @@ export function useMemoryWiring(
     let unlisten: (() => void) | null = null;
     const stopModelListeners: Array<() => void> = [];
     let cancelled = false;
+    const deleteBatcher = createDeleteBurstBatcher((path) =>
+      MemoryService.deletePath(path),
+    );
 
     void (async () => {
       try {
@@ -682,7 +799,8 @@ export function useMemoryWiring(
             // Best-effort: don't await, don't surface errors.
             const isPdf = payload.path.toLowerCase().endsWith('.pdf');
             if (payload.kind === 'delete') {
-              void MemoryService.deletePath(payload.path);
+              // Buffered/bounded/backoff-guarded — see createDeleteBurstBatcher.
+              deleteBatcher.enqueue(payload.path);
             } else if (isPdf && workspaceService) {
               // Only re-index PDF on change if the toggle is on.
               if (isPdfIndexingEnabled() && workspaceService.readFileBinary) {
@@ -752,6 +870,7 @@ export function useMemoryWiring(
       stopModelListeners.forEach((s) => {
         s();
       });
+      deleteBatcher.dispose();
     };
     // Depend on workspaceService too. On open the service is created/set AFTER
     // rootPath (the recent-open path sets rootPath, then App creates the service
