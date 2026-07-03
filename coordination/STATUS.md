@@ -1,5 +1,10 @@
 # Lantern-Plus Coordination STATUS
 
+## UPDATE 2026-07-03 late-night — CRM wire-fixes MERGED @b3bca9a0
+- lp/crm-wire-fixes merged+pushed: Wealthbox due-date 422 validation (typed error, command boundary + defense-in-depth) + read/write field-name split (writes send literal background_information) + GENERIC post-write readback verification (200-but-ignored class killed; normalized comparison per my review catch; ambiguous confirm-read → VerifyPending). Gate: tsc clean, 5608 vitest, 1108 cargo lib, clippy clean. Codex independent pass clean; 2 worker self-converge clean rounds + 1 coordinator round. crmfix lane closed (session/worktree/cache removed).
+- The dormant-path guard is in place: field-update/task producer UI (Wave-3 wiring) can now ship on top of a correct wire contract.
+- NOTE: lp-gate-build tmux session was found DEAD at merge time (unknown cause, post-reboot) — recreated; watch for recurrence.
+
 ## UPDATE 2026-07-03 night — relay #4 seated post-reboot; 2TB NVMe live; FOUR lanes building
 - Reboot clean; @reboot auto-resume worked (this coordinator = cc-lantern-coordinator-5). All 6 monitors re-armed; baseline sweep done.
 - **2TB NVMe (nvme0n1) wiped→ext4→/mnt/devcache** (fstab UUID, noatime, nofail). LP cargo caches (lp-w4 104G, lp-w4d 46G, lp-gate 63G) migrated + home paths symlinked. ALSO migrating main-line's caches (shared 205G + kpcoord 101G) per their handoff (Jameson's directive — we own the drive setup); bulletin heads-up posted. ~/.cache deferred (12G only, held open by live processes — not worth the risk). Root frees ~520G total when swaps complete. build-overtime watcher patched for /mnt/devcache-resolved exe paths.
