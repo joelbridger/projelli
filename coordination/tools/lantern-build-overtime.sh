@@ -20,7 +20,7 @@ while true; do
     [ -n "${pinged[$pid]:-}" ] && continue
     exe=$(readlink "/proc/$pid/exe" 2>/dev/null) || continue
     case "$exe" in
-      "$HOME"/.cargo-target-lp-*/debug/deps/*)
+      "$HOME"/.cargo-target-lp-*/debug/deps/*|/mnt/devcache/cargo-target-lp-*/debug/deps/*)
         st=$(stat -c %Y "/proc/$pid" 2>/dev/null) || continue
         age=$((now - st))
         if [ "$age" -ge "$TEST_MAX" ]; then
