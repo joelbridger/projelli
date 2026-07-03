@@ -319,6 +319,41 @@ async fn append_crm_audit_best_effort(app: &AppHandle, action: &str, description
     }
 }
 
+/// Wait (bounded, best-effort) for any write already in flight to finish
+/// BEFORE a connect path overwrites the token and downgrades the ledger.
+///
+/// Without this, a write that read the OLD token just before a reconnect
+/// could still complete (successfully, against the OLD account) AFTER the
+/// downgrade already ran — recording a fresh `sent` row with a NEW
+/// `created_at` that the downgrade never touched, so a later retry would
+/// wrongly trust it as proof of delivery to the NEWLY connected account,
+/// when it was actually delivered to the old one. Mirrors
+/// `crm_disconnect_logic_for_provider`'s wait for `is_syncing`/
+/// `write_in_flight` (same 10s budget, same 50ms poll), but does not set
+/// `disconnect_requested` — new writes are still allowed to start during
+/// this wait (unlike disconnect, a reconnect has no "stop everything" signal
+/// to raise), so this narrows the race window rather than eliminating a
+/// theoretical continuous-write-stream case entirely. If writes are still
+/// in flight after the budget, logs a warning and proceeds anyway — refusing
+/// to complete a login because of an unrelated background write would be a
+/// worse UX regression than this already-narrow residual race.
+async fn wait_for_writes_to_drain_best_effort(state: &CrmState, provider: CrmProvider) {
+    let mut waited_ms: u64 = 0;
+    while state.write_in_flight.load(Ordering::SeqCst) > 0 {
+        if waited_ms >= 10_000 {
+            log::warn!(
+                "crm connect ({}): a write was still in flight after 10s — proceeding with the \
+                 reconnect anyway; that write may record a 'sent' row attributable to the \
+                 previous connection",
+                provider.display_name()
+            );
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        waited_ms += 50;
+    }
+}
+
 /// Downgrade every `sent` outbound-write ledger row for `provider` to
 /// `pending_verify` (see `CrmStore::mark_sent_rows_pending_verify_for_provider`).
 /// Called from every successful connect path (`crm_connect`'s Redtail branch,
@@ -722,6 +757,7 @@ pub async fn crm_set_workspace(
 #[tauri::command]
 pub async fn crm_connect(
     app: AppHandle,
+    state: State<'_, CrmState>,
     token: Option<String>,
     username: Option<String>,
     password: Option<String>,
@@ -745,6 +781,10 @@ pub async fn crm_connect(
                 "Could not connect to Redtail: invalid login or network error".to_string()
             })?;
 
+        // Wait for any write already in flight (reading the OLD token) to
+        // finish BEFORE overwriting the token and downgrading the ledger —
+        // see wait_for_writes_to_drain_best_effort's doc comment for why.
+        wait_for_writes_to_drain_best_effort(&state, provider).await;
         // Store only the exchanged Redtail UserKey. The advisor password is
         // used for this request and is never persisted.
         store_token(provider, &info.user_key)?;
@@ -780,6 +820,9 @@ pub async fn crm_connect(
         )
     })?;
 
+    // Wait for any write already in flight (reading the OLD token) to
+    // finish BEFORE overwriting the token and downgrading the ledger.
+    wait_for_writes_to_drain_best_effort(&state, provider).await;
     // Store the token only after a confirmed successful validation.
     store_token(provider, token)?;
     mark_stale_sent_rows_pending_verify_best_effort(&app, provider).await;
@@ -870,6 +913,10 @@ pub async fn crm_oauth_connect(
         Some(prev) => { let _ = store_token(provider, prev); }
         None => { let _ = delete_token(provider); }
     };
+
+    // Wait for any write already in flight (reading the OLD token, if this
+    // is a reconnect) to finish BEFORE overwriting the token.
+    wait_for_writes_to_drain_best_effort(&state, provider).await;
 
     crate::commands::mail::gmail::oauth::store_or_rollback_on_cancel(
         &cancel,
@@ -1684,6 +1731,31 @@ mod tests {
             !state.disconnect_requested.load(Ordering::SeqCst),
             "disconnect_requested must be reset so a later write isn't stuck blocked"
         );
+    }
+
+    /// P1 (self-converge codex-review): a reconnect must not overwrite the
+    /// token (and downgrade the ledger) while a write using the OLD token is
+    /// still in flight — otherwise that write could complete afterward and
+    /// record a fresh 'sent' row the downgrade never touched, which a later
+    /// retry would wrongly trust as delivered under the NEW connection.
+    #[tokio::test]
+    async fn wait_for_writes_to_drain_best_effort_waits_for_in_flight_write() {
+        let state = test_state(false);
+        state.write_in_flight.store(1, Ordering::SeqCst); // a write is "in flight"
+
+        let write_in_flight = state.write_in_flight.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(30)).await;
+            write_in_flight.store(0, Ordering::SeqCst);
+        });
+
+        let started = std::time::Instant::now();
+        wait_for_writes_to_drain_best_effort(&state, CrmProvider::Wealthbox).await;
+        assert!(
+            started.elapsed() >= std::time::Duration::from_millis(25),
+            "must actually wait for the in-flight write, not return immediately"
+        );
+        assert_eq!(state.write_in_flight.load(Ordering::SeqCst), 0);
     }
 
     #[test]
