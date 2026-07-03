@@ -194,3 +194,66 @@ export async function crmCancelSync(provider?: CrmProvider): Promise<void> {
     await invoke('crm_cancel_sync');
   }
 }
+
+// ── Write path (approval-gated) ──────────────────────────────────────────────
+
+/** Receipt for a completed (or deduplicated) CRM write. Mirrors the Rust
+ *  `WriteReceipt` (camelCase over the wire). */
+export interface CrmWriteReceipt {
+  remoteId: string;
+  deduped: boolean;
+}
+
+/**
+ * Push one approval-gated note to the connected CRM. `householdKey` is the
+ * provider-side household/contact id, resolved on the TS side via
+ * `buildInverseCrmMap` — the backend does not persist the matter map.
+ *
+ * The ONLY legitimate call site is the review card's Approve handler — never
+ * call this from a background effect or on enqueue.
+ */
+export async function crmCreateNote(args: {
+  matterId: string;
+  title: string;
+  body: string;
+  sourceRef: string;
+  householdKey: string;
+  provider?: CrmProvider;
+}): Promise<CrmWriteReceipt> {
+  if (!isTauri()) throw new Error('CRM write is only available in the desktop app.');
+  const { matterId, title, body, sourceRef, householdKey, provider } = args;
+  return invoke<CrmWriteReceipt>('crm_create_note', {
+    matterId,
+    title,
+    body,
+    sourceRef,
+    householdKey,
+    ...(provider ? { provider } : {}),
+  });
+}
+
+/**
+ * Push one approval-gated task to the connected CRM. See {@link crmCreateNote}
+ * for the shared approval-gating contract.
+ */
+export async function crmCreateTask(args: {
+  matterId: string;
+  title: string;
+  description: string;
+  dueDate?: string;
+  sourceRef: string;
+  householdKey: string;
+  provider?: CrmProvider;
+}): Promise<CrmWriteReceipt> {
+  if (!isTauri()) throw new Error('CRM write is only available in the desktop app.');
+  const { matterId, title, description, dueDate, sourceRef, householdKey, provider } = args;
+  return invoke<CrmWriteReceipt>('crm_create_task', {
+    matterId,
+    title,
+    description,
+    dueDate: dueDate ?? null,
+    sourceRef,
+    householdKey,
+    ...(provider ? { provider } : {}),
+  });
+}
