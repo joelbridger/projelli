@@ -78,6 +78,21 @@ pub fn is_indexable(path: &Path) -> bool {
     classify(path).is_some()
 }
 
+/// fix/ask-list-hang — true when ANY component of `path` is a skipped dir
+/// (`.lantern`, `.git`, `node_modules`, …). The full-workspace walk skips these
+/// directories up front, but the single-file (watcher-triggered) index path only
+/// checked the extension — so churn in the internal `.lantern/` dir (the MCP
+/// session-scope heartbeat rewriting `mcp-session-scope.json`, a `.json` we do
+/// index) was re-indexed on every change, keeping LanceDB perpetually busy and
+/// hanging Ask retrieval. This makes "never index our own plumbing" hold at the
+/// store boundary, for every caller, regardless of how the path arrives.
+pub fn is_in_skipped_dir(path: &Path) -> bool {
+    path.components().any(|c| {
+        matches!(c, std::path::Component::Normal(name)
+            if name.to_str().is_some_and(is_skipped_dir_name))
+    })
+}
+
 /// Returns true if the path lives inside a directory we always skip
 /// (`node_modules`, `.git`, the internal data dir, etc). Keeps the workspace walker
 /// O(useful files) rather than O(every file on disk).
@@ -233,5 +248,25 @@ mod tests {
         assert!(is_skipped_dir_name("target"));
         assert!(!is_skipped_dir_name("docs"));
         assert!(!is_skipped_dir_name("src"));
+    }
+
+    #[test]
+    fn in_skipped_dir_flags_internal_lantern_files() {
+        let data_dir = crate::identity::WORKSPACE_DATA_DIR;
+        // fix/ask-list-hang: the exact file whose churn hung Ask retrieval.
+        assert!(is_in_skipped_dir(&PathBuf::from(format!(
+            "/ws/{data_dir}/mcp-session-scope.json"
+        ))));
+        // Its atomic-write temp files churn the fastest.
+        assert!(is_in_skipped_dir(&PathBuf::from(format!(
+            "/ws/{data_dir}/mcp-session-scope.json.tmp-123-abc"
+        ))));
+        // Other skipped dirs are covered too.
+        assert!(is_in_skipped_dir(&PathBuf::from("/ws/node_modules/pkg/index.js")));
+        // Real user documents are NOT skipped.
+        assert!(!is_in_skipped_dir(&PathBuf::from(
+            "/ws/Clients/Webb/Agreements/plan.docx"
+        )));
+        assert!(!is_in_skipped_dir(&PathBuf::from("/ws/Clients/statement.pdf")));
     }
 }

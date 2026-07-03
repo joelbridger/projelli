@@ -111,6 +111,14 @@ pub async fn rag_index_file(
     let privilege = resolve_privilege(privilege.as_deref())?;
     let workspace = require_workspace(&state).await?;
     let file_path = PathBuf::from(&path);
+    // fix/ask-list-hang — NEVER index our own internal plumbing. The full walk
+    // skips `.lantern/` up front, but this single-file (watcher-triggered) path
+    // did not, so the MCP session-scope heartbeat's constant
+    // `.lantern/mcp-session-scope.json` rewrites were re-indexed on every change,
+    // keeping LanceDB perpetually busy and starving Ask retrieval into a hang.
+    if extractor::is_in_skipped_dir(&file_path) {
+        return Ok(());
+    }
     if !extractor::is_indexable(&file_path) {
         // Silently succeed — the watcher fires for everything and we don't
         // want unsupported files to noisy-error.
