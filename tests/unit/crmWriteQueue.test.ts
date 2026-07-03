@@ -390,20 +390,23 @@ describe('field updates (Task 9c)', () => {
 // permanently-blank finalValue and the item could never send. This is the
 // actual fix: the ONLY supported way to enqueue a field item.
 describe('enqueueFieldUpdate (Task 9c)', () => {
-  it('computes finalValue via the scalar-replace path and lands a sendable item', async () => {
+  // Codex round-3 catch (P2): the backend's validate_field_is_writable
+  // rejects everything except background_information — enqueueing an
+  // unsupported field must be rejected up front, not shown to the advisor
+  // as an approval-ready change that's guaranteed to fail every time.
+  it('rejects a field the backend does not accept, before enqueueing anything', async () => {
     const s = useCrmWriteQueueStore.getState();
-    await s.enqueueFieldUpdate({
-      matterId: 'm1',
-      title: 'Risk tolerance',
-      field: 'risk_tolerance',
-      existingValue: 'Moderate',
-      newValue: 'Aggressive',
-      sourceRef: 'meeting:2026-06-30',
-    });
-    const item = useCrmWriteQueueStore.getState().items[0]!;
-    expect(item.kind).toBe('field');
-    expect(item.finalValue).toBe('Aggressive');
-    expect(item.status).toBe('proposed');
+    await expect(
+      s.enqueueFieldUpdate({
+        matterId: 'm1',
+        title: 'Risk tolerance',
+        field: 'risk_tolerance',
+        existingValue: 'Moderate',
+        newValue: 'Aggressive',
+        sourceRef: 'meeting:2026-06-30',
+      }),
+    ).rejects.toThrow(/risk_tolerance/);
+    expect(useCrmWriteQueueStore.getState().items).toHaveLength(0);
   });
 
   it('computes finalValue via the narrative-merge path with a provider', async () => {
@@ -440,15 +443,17 @@ describe('enqueueFieldUpdate (Task 9c)', () => {
     const s = useCrmWriteQueueStore.getState();
     await s.enqueueFieldUpdate({
       matterId: 'm1',
-      title: 'Risk tolerance',
-      field: 'risk_tolerance',
-      existingValue: 'Moderate',
-      newValue: 'Aggressive',
+      title: 'Background information',
+      field: 'background_information',
+      existingValue: 'Robert owns a rental property.',
+      newValue: 'Retiring spring 2027.',
       sourceRef: 'meeting:2026-06-30',
     });
     const id = useCrmWriteQueueStore.getState().items[0]!.id;
     await s.approve([id], '12345');
-    expect(crmUpdateField).toHaveBeenCalledWith(expect.objectContaining({ finalValue: 'Aggressive' }));
+    expect(crmUpdateField).toHaveBeenCalledWith(
+      expect.objectContaining({ finalValue: 'Robert owns a rental property.\n\nRetiring spring 2027.' }),
+    );
     expect(useCrmWriteQueueStore.getState().items[0]!.status).toBe('sent');
   });
 });

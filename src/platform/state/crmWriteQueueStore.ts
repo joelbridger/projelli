@@ -12,7 +12,7 @@
 import { create } from 'zustand';
 
 import { crmCreateNote, crmCreateTask, crmUpdateField } from '@/platform/utils/wealthbox-commands';
-import { composeFieldBlend } from '@/platform/state/fieldBlend';
+import { composeFieldBlend, isWritableField } from '@/platform/state/fieldBlend';
 import type { Provider } from '@/platform/providers/Provider';
 
 export type CrmWriteStatus = 'proposed' | 'sending' | 'sent' | 'failed' | 'verify_pending' | 'stale';
@@ -214,6 +214,12 @@ export const useCrmWriteQueueStore = create<CrmWriteQueueState>((set, get) => ({
   },
 
   enqueueFieldUpdate: async (args) => {
+    // Codex review catch (P2): mirrors the backend's validate_field_is_writable
+    // — enqueueing a field the desktop app doesn't accept would show the
+    // advisor an approval-ready change that's guaranteed to fail every time.
+    if (!isWritableField(args.field)) {
+      throw new Error(`"${args.field}" is not a writable Wealthbox field yet.`);
+    }
     const finalValue = await composeFieldBlend({
       field: args.field,
       existingValue: args.existingValue,

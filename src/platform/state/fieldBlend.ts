@@ -21,6 +21,21 @@
 
 import type { Provider } from '@/platform/providers/Provider';
 
+/**
+ * Codex review catch (P2): this MUST mirror `WRITABLE_FIELDS` in
+ * `src-tauri/src/commands/crm/write.rs` exactly (`validate_field_is_writable`
+ * rejects anything else). Kept as a SEPARATE list from the narrative
+ * classification below on purpose — every writable field happens to be
+ * narrative today, but "can this be written at all" and "does this need an
+ * AI blend" are different questions, and a future scalar writable field
+ * would be wrongly rejected if this reused the narrative list.
+ */
+export const WEALTHBOX_WRITABLE_FIELDS = ['background_information'] as const;
+
+export function isWritableField(field: string): boolean {
+  return (WEALTHBOX_WRITABLE_FIELDS as readonly string[]).includes(field);
+}
+
 /** Wealthbox's writable-field allowlist that also happens to need an AI
  *  blend (free text). Mirrors `WRITABLE_FIELDS` in
  *  `src-tauri/src/commands/crm/write.rs` — the backend currently accepts
