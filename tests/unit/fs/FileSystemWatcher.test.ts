@@ -172,11 +172,53 @@ describe('FileSystemWatcher — Tauri (event-driven)', () => {
     expect(onFileTreeChange).toHaveBeenCalledTimes(1);
   });
 
+  it('does a catch-up refresh right after activation, so a change in the gap before the watcher started is not missed', async () => {
+    const onFileTreeChange = vi.fn();
+    const { FileSystemWatcher } = await importWatcher();
+    const watcher = new FileSystemWatcher({ onFileTreeChange, debounceMs: 200 });
+
+    // No `emit()` at all — this simulates a file changing on disk in the
+    // window between the last tree load and the native watcher actually
+    // becoming active (e.g. during workspace open). The Rust watcher wasn't
+    // watching yet, so that change never generated a `workspace-file-changed`
+    // event, and event mode has no periodic poll to eventually self-correct
+    // it — activation itself must trigger one refresh so the change isn't
+    // stale forever.
+    await watcher.start('/ws', async () => '');
+    await vi.advanceTimersByTimeAsync(200);
+
+    expect(onFileTreeChange).toHaveBeenCalledTimes(1);
+  });
+
+  it('the catch-up refresh also fires after a workspace switch (a new watcher instance re-subscribing)', async () => {
+    const { FileSystemWatcher } = await importWatcher();
+
+    const onFileTreeChangeA = vi.fn();
+    const watcherA = new FileSystemWatcher({ onFileTreeChange: onFileTreeChangeA, debounceMs: 200 });
+    await watcherA.start('/ws/A', async () => '');
+    await vi.advanceTimersByTimeAsync(200);
+    expect(onFileTreeChangeA).toHaveBeenCalledTimes(1);
+    watcherA.stop();
+
+    // Simulates switching to a different workspace: a fresh watcher instance
+    // re-subscribes and re-activates the native watcher for the new root.
+    const onFileTreeChangeB = vi.fn();
+    const watcherB = new FileSystemWatcher({ onFileTreeChange: onFileTreeChangeB, debounceMs: 200 });
+    await watcherB.start('/ws/B', async () => '');
+    await vi.advanceTimersByTimeAsync(200);
+    expect(onFileTreeChangeB).toHaveBeenCalledTimes(1);
+  });
+
   it('never fires for internal workspace-data-dir churn (e.g. the MCP heartbeat file)', async () => {
     const onFileTreeChange = vi.fn();
     const { FileSystemWatcher } = await importWatcher();
     const watcher = new FileSystemWatcher({ onFileTreeChange, debounceMs: 200 });
     await watcher.start('/ws', async () => '');
+
+    // Let the post-activation catch-up refresh settle first so it isn't
+    // mistaken for a refresh triggered by the internal-path event below.
+    await vi.advanceTimersByTimeAsync(200);
+    onFileTreeChange.mockClear();
 
     emit({ path: `/ws/${WORKSPACE_DATA_DIR}/mcp-session-scope.json`, kind: 'modify' });
     await vi.advanceTimersByTimeAsync(1000);

@@ -162,6 +162,18 @@ export class FileSystemWatcher {
       this.unlisten = unlisten;
       this.mode = 'events';
       console.log('FileSystemWatcher: subscribed to workspace-file-changed events');
+
+      // Catch-up refresh: a change could have landed on disk in the gap
+      // between the last tree load and the native watcher actually becoming
+      // active (e.g. during workspace open, or between an old workspace's
+      // watcher being torn down and this one taking over) — the Rust watcher
+      // wasn't watching yet, so no event was ever emitted for it. Event mode
+      // has no periodic rescan to eventually self-correct that (unlike the
+      // old poll+diff path), so schedule one same as a real event would: it
+      // goes through the normal debounce/coalescing/overlap-guard path, so it
+      // merges for free with any real event arriving in the same window
+      // instead of firing a redundant extra scan.
+      this.scheduleDebouncedRefresh();
     } catch (error) {
       console.error(
         'FileSystemWatcher: failed to start the native watcher, falling back to polling:',
