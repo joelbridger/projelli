@@ -71,3 +71,6 @@ pub mod vault;
 // signals (AI/models, email, Wealthbox CRM, file indexing, Client Map) into one
 // queryable `get_setup_progress` snapshot + a `setup-progress-changed` event.
 pub mod setup_progress;
+// Wave 4 Track D — per-workspace retention policy sweep enforcing the capture
+// location contract (audio.wav, chunk caches, transcript.json in summary-only).
+pub mod retention;
