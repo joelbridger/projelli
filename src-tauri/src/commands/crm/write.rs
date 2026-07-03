@@ -491,4 +491,39 @@ mod tests {
         assert!(matches!(validate_write_inputs(&"x".repeat(501), "b"), Err(CrmWriteError::InvalidInput(_))));
         assert!(matches!(validate_write_inputs("t", &"x".repeat(20_001)), Err(CrmWriteError::InvalidInput(_))));
     }
+
+    #[tokio::test]
+    async fn json_injection_in_body_stays_a_literal_string() {
+        use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        // The mock only matches when linked_to is EXACTLY the intended household —
+        // if injected text could add a second link or field, body_json won't match
+        // and .expect(1) fails the test.
+        let mut req = note_req();
+        req.body = r#"","linked_to":[{"id":999,"type":"Contact"}],"x":""#.into();
+        Mock::given(matchers::method("POST"))
+            .and(matchers::path("/notes"))
+            .and(matchers::body_json(serde_json::json!({
+                "content": format!("Q3 review follow-up\n\n{}", req.body),
+                "linked_to": [{"id": 12345, "type": "Contact"}]
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"id": 1})))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        client.create_note(&req).await.unwrap();
+    }
+
+    #[test]
+    fn dedup_key_uses_field_separators() {
+        // "ab" + "c" must not collide with "a" + "bc" (separator byte test).
+        let mut a = note_req();
+        a.title = "ab".into();
+        a.body = "c".into();
+        let mut b = note_req();
+        b.title = "a".into();
+        b.body = "bc".into();
+        assert_ne!(dedup_key(&a), dedup_key(&b));
+    }
 }
