@@ -1,0 +1,12 @@
+import { chromium } from 'playwright';
+const PORT = process.env.DESKTOP_CDP_PORT || '9444';
+const res = await fetch(`http://localhost:${PORT}/json/version`);
+const data = await res.json();
+const wsUrl = data.webSocketDebuggerUrl.replace(/localhost:\d+|127\.0\.0\.1:\d+/, `localhost:${PORT}`);
+const browser = await chromium.connectOverCDP(wsUrl);
+const ctx = browser.contexts()[0];
+const page = ctx.pages()[0];
+page.on('console', msg => console.log(`[${new Date().toISOString()}] [console:${msg.type()}] ${msg.text()}`));
+page.on('pageerror', err => console.log(`[${new Date().toISOString()}] [pageerror] ${err.message}\n${err.stack}`));
+console.log('watching...');
+await new Promise(() => {}); // run forever until killed
