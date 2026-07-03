@@ -15,10 +15,14 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 vi.mock('@/platform/utils/wealthbox-commands', () => ({
   crmCreateNote: vi.fn().mockResolvedValue({ remoteId: '555', deduped: false }),
   crmCreateTask: vi.fn().mockResolvedValue({ remoteId: '556', deduped: false }),
+  // Task 9c: field-level blended updates. Not implemented yet — this mock
+  // exists so the RED-phase tests below fail for the right reason (the
+  // store doesn't route kind:'field' to it), not a module-resolution error.
+  crmUpdateField: vi.fn().mockResolvedValue({ remoteId: '557', deduped: false }),
 }));
 
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
-import { crmCreateNote, crmCreateTask } from '@/platform/utils/wealthbox-commands';
+import { crmCreateNote, crmCreateTask, crmUpdateField } from '@/platform/utils/wealthbox-commands';
 
 function resetStore() {
   useCrmWriteQueueStore.setState({ items: [] });
@@ -28,8 +32,10 @@ beforeEach(() => {
   resetStore();
   vi.mocked(crmCreateNote).mockClear();
   vi.mocked(crmCreateTask).mockClear();
+  vi.mocked(crmUpdateField).mockClear();
   vi.mocked(crmCreateNote).mockResolvedValue({ remoteId: '555', deduped: false });
   vi.mocked(crmCreateTask).mockResolvedValue({ remoteId: '556', deduped: false });
+  vi.mocked(crmUpdateField).mockResolvedValue({ remoteId: '557', deduped: false });
 });
 
 describe('enqueue', () => {
@@ -242,5 +248,111 @@ describe('dismiss', () => {
     s.dismiss(id);
     expect(useCrmWriteQueueStore.getState().items).toHaveLength(0);
     expect(crmCreateNote).not.toHaveBeenCalled();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Task 9c: field-level blended updates (RED phase — no implementation yet).
+// The Rust `crm_update_field` command doesn't exist on this branch; these
+// tests assert the TS contract the store MUST satisfy once it does. They
+// fail today because the store has no `kind: 'field'` branch and
+// `crmUpdateField` isn't a real export — both true failures, not
+// module-resolution noise (the mock above supplies a fake export so vitest
+// can at least import the module and hit the real assertion).
+// ─────────────────────────────────────────────────────────────────────────
+
+function fieldItem(overrides: Partial<Parameters<typeof useCrmWriteQueueStore.prototype.enqueue>[0]> = {}) {
+  return {
+    kind: 'field' as const,
+    matterId: 'm1',
+    title: 'Background information',
+    body: '',
+    field: 'background_information',
+    existingValue: 'Robert owns a rental property.',
+    newValue: 'Retiring spring 2027.',
+    finalValue: 'Robert owns a rental property. Retiring spring 2027.',
+    sourceRef: 'meeting:2026-06-30',
+    ...overrides,
+  };
+}
+
+describe('field updates (Task 9c)', () => {
+  it('enqueue stores field/existingValue/newValue/finalValue on the item', () => {
+    useCrmWriteQueueStore.getState().enqueue(fieldItem());
+    const item = useCrmWriteQueueStore.getState().items[0]!;
+    expect(item.kind).toBe('field');
+    expect(item.field).toBe('background_information');
+    expect(item.existingValue).toBe('Robert owns a rental property.');
+    expect(item.newValue).toBe('Retiring spring 2027.');
+    expect(item.finalValue).toBe('Robert owns a rental property. Retiring spring 2027.');
+  });
+
+  it('approve() on a field item calls crmUpdateField (never crmCreateNote/crmCreateTask)', async () => {
+    const s = useCrmWriteQueueStore.getState();
+    s.enqueue(fieldItem());
+    const id = useCrmWriteQueueStore.getState().items[0]!.id;
+    await s.approve([id], '12345');
+
+    expect(crmUpdateField).toHaveBeenCalledTimes(1);
+    expect(crmCreateNote).not.toHaveBeenCalled();
+    expect(crmCreateTask).not.toHaveBeenCalled();
+    expect(crmUpdateField).toHaveBeenCalledWith(
+      expect.objectContaining({
+        matterId: 'm1',
+        householdKey: '12345',
+        field: 'background_information',
+        existingValue: 'Robert owns a rental property.',
+        newValue: 'Retiring spring 2027.',
+        finalValue: 'Robert owns a rental property. Retiring spring 2027.',
+        sourceRef: 'meeting:2026-06-30',
+        requestedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/),
+      }),
+    );
+    expect(useCrmWriteQueueStore.getState().items[0]!.status).toBe('sent');
+    expect(useCrmWriteQueueStore.getState().items[0]!.remoteId).toBe('557');
+  });
+
+  it('a retry of a failed field item reuses the same requestedAt (same idempotency contract as note/task)', async () => {
+    vi.mocked(crmUpdateField).mockRejectedValueOnce(new Error('CRM write failed (HTTP 500)'));
+    const s = useCrmWriteQueueStore.getState();
+    s.enqueue(fieldItem());
+    const id = useCrmWriteQueueStore.getState().items[0]!.id;
+
+    await s.approve([id], '12345');
+    expect(useCrmWriteQueueStore.getState().items[0]!.status).toBe('failed');
+    const firstRequestedAt = useCrmWriteQueueStore.getState().items[0]!.requestedAt;
+
+    await s.approve([id], '12345');
+    expect(useCrmWriteQueueStore.getState().items[0]!.status).toBe('sent');
+    expect(useCrmWriteQueueStore.getState().items[0]!.requestedAt).toBe(firstRequestedAt);
+    expect(crmUpdateField).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(crmUpdateField).mock.calls[1]![0].requestedAt).toBe(firstRequestedAt);
+  });
+
+  // The stale-guard: the backend re-fetches the field at approve time and
+  // flips to verify_pending (never blind-overwrites) if it drifted since the
+  // proposal was drafted. Reuses the SAME verify_pending machinery already
+  // built for note/task — sendOne's error-string routing is kind-agnostic.
+  it('maps a VerifyPending error on a field item to status "verify_pending"', async () => {
+    vi.mocked(crmUpdateField).mockRejectedValueOnce(
+      new Error('a previous identical write may have been delivered — verification pending, retry shortly'),
+    );
+    const s = useCrmWriteQueueStore.getState();
+    s.enqueue(fieldItem());
+    const id = useCrmWriteQueueStore.getState().items[0]!.id;
+    await s.approve([id], '12345');
+    expect(useCrmWriteQueueStore.getState().items[0]!.status).toBe('verify_pending');
+  });
+
+  // Defense-in-depth: the card is expected to disable Approve while
+  // finalValue is blank, but the store must never fire a network call for a
+  // field item with nothing to write even if that guard is somehow bypassed.
+  it('never calls crmUpdateField for a field item whose finalValue is blank', async () => {
+    const s = useCrmWriteQueueStore.getState();
+    s.enqueue(fieldItem({ finalValue: '   ' }));
+    const id = useCrmWriteQueueStore.getState().items[0]!.id;
+    await s.approve([id], '12345');
+    expect(crmUpdateField).not.toHaveBeenCalled();
+    expect(useCrmWriteQueueStore.getState().items[0]!.status).not.toBe('sent');
   });
 });

@@ -11,13 +11,15 @@ vi.mock('@/platform/utils/wealthbox-commands', async () => {
     crmIsConnected: vi.fn().mockResolvedValue(true),
     crmCreateNote: vi.fn().mockResolvedValue({ remoteId: '555', deduped: false }),
     crmCreateTask: vi.fn().mockResolvedValue({ remoteId: '556', deduped: false }),
+    // Task 9c: not a real export yet — see crmWriteQueue.test.ts's RED-phase note.
+    crmUpdateField: vi.fn().mockResolvedValue({ remoteId: '557', deduped: false }),
   };
 });
 
 import { CrmWriteReviewCard } from '@/features/matters/CrmWriteReviewCard';
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
-import { crmIsConnected, crmCreateNote } from '@/platform/utils/wealthbox-commands';
+import { crmIsConnected, crmCreateNote, crmUpdateField } from '@/platform/utils/wealthbox-commands';
 
 function resetStores() {
   useCrmWriteQueueStore.setState({ items: [] });
@@ -30,6 +32,8 @@ beforeEach(() => {
   vi.mocked(crmIsConnected).mockResolvedValue(true);
   vi.mocked(crmCreateNote).mockClear();
   vi.mocked(crmCreateNote).mockResolvedValue({ remoteId: '555', deduped: false });
+  vi.mocked(crmUpdateField).mockClear();
+  vi.mocked(crmUpdateField).mockResolvedValue({ remoteId: '557', deduped: false });
 });
 
 describe('CrmWriteReviewCard', () => {
@@ -386,5 +390,169 @@ describe('CrmWriteReviewCard', () => {
       expect(screen.getByText(/connect wealthbox to send/i)).toBeInTheDocument();
     });
     expect(screen.queryByText('Note title')).not.toBeInTheDocument();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Task 9c: field-level blended updates, 3-column review (RED phase — no
+// implementation yet). These fail today because CrmWriteRow has no `field`
+// kind branch at all; the card renders the note/task two-column layout for
+// every item regardless of `kind`. Same-card reuse per the design
+// constitution: no new surface, no new card — the existing rows widen for
+// this one kind.
+// ─────────────────────────────────────────────────────────────────────────
+
+function enqueueFieldItem(matterId: string, overrides: Record<string, unknown> = {}) {
+  useCrmWriteQueueStore.getState().enqueue({
+    kind: 'field',
+    matterId,
+    title: 'Background information',
+    body: '',
+    field: 'background_information',
+    existingValue: 'Robert owns a rental property.',
+    newValue: 'Retiring spring 2027.',
+    finalValue: 'Robert owns a rental property. Retiring spring 2027.',
+    sourceRef: 'meeting:2026-06-30',
+    ...overrides,
+  } as never);
+}
+
+describe('CrmWriteReviewCard — field updates (Task 9c)', () => {
+  it('renders three labeled columns for a field item: Existing / From this meeting / Blended', async () => {
+    const m = useMatterStore.getState().createMatter({
+      name: 'Henderson',
+      client: 'Henderson',
+      crmHouseholdKeys: ['12345'],
+    });
+    enqueueFieldItem(m.id);
+
+    render(<CrmWriteReviewCard matterId={m.id} />);
+    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
+    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+
+    const item = useCrmWriteQueueStore.getState().items[0]!;
+    expect(screen.getByText(/existing/i)).toBeInTheDocument();
+    expect(screen.getByText(/from this meeting/i)).toBeInTheDocument();
+    expect(screen.getByText(/blended/i)).toBeInTheDocument();
+    expect(screen.getByTestId(`crm-field-existing-${item.id}`)).toHaveTextContent('Robert owns a rental property.');
+    expect(screen.getByTestId(`crm-field-new-${item.id}`)).toHaveTextContent('Retiring spring 2027.');
+  });
+
+  it('only the Blended column is editable; Existing/New are read-only reference', async () => {
+    const m = useMatterStore.getState().createMatter({
+      name: 'Henderson',
+      client: 'Henderson',
+      crmHouseholdKeys: ['12345'],
+    });
+    enqueueFieldItem(m.id);
+
+    render(<CrmWriteReviewCard matterId={m.id} />);
+    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
+    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+
+    const item = useCrmWriteQueueStore.getState().items[0]!;
+    const blended = screen.getByTestId(`crm-field-blended-${item.id}`);
+    expect(blended.tagName).toMatch(/TEXTAREA|INPUT/);
+    expect(blended).not.toHaveAttribute('readonly');
+    expect(blended).not.toHaveAttribute('disabled');
+
+    const existing = screen.getByTestId(`crm-field-existing-${item.id}`);
+    const fresh = screen.getByTestId(`crm-field-new-${item.id}`);
+    // Reference columns are plain text, not form controls at all.
+    expect(existing.tagName).not.toMatch(/TEXTAREA|INPUT/);
+    expect(fresh.tagName).not.toMatch(/TEXTAREA|INPUT/);
+  });
+
+  it('editing the Blended column updates the store\'s finalValue for that item', async () => {
+    const m = useMatterStore.getState().createMatter({
+      name: 'Henderson',
+      client: 'Henderson',
+      crmHouseholdKeys: ['12345'],
+    });
+    enqueueFieldItem(m.id);
+
+    render(<CrmWriteReviewCard matterId={m.id} />);
+    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
+    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+
+    const item = useCrmWriteQueueStore.getState().items[0]!;
+    const blended = screen.getByTestId(`crm-field-blended-${item.id}`);
+    fireEvent.change(blended, { target: { value: 'Edited by the advisor.' } });
+
+    expect(useCrmWriteQueueStore.getState().items[0]!.finalValue).toBe('Edited by the advisor.');
+  });
+
+  it('Approve is disabled while a selected field item\'s finalValue is blank', async () => {
+    const m = useMatterStore.getState().createMatter({
+      name: 'Henderson',
+      client: 'Henderson',
+      crmHouseholdKeys: ['12345'],
+    });
+    enqueueFieldItem(m.id, { finalValue: '' });
+
+    render(<CrmWriteReviewCard matterId={m.id} />);
+    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
+    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+
+    expect(screen.getByRole('button', { name: /approve 1 change/i })).toBeDisabled();
+  });
+
+  it('Approve enables once the Blended column is filled in and sends via crmUpdateField', async () => {
+    const m = useMatterStore.getState().createMatter({
+      name: 'Henderson',
+      client: 'Henderson',
+      crmHouseholdKeys: ['12345'],
+    });
+    enqueueFieldItem(m.id, { finalValue: '' });
+
+    render(<CrmWriteReviewCard matterId={m.id} />);
+    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
+    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+
+    const item = useCrmWriteQueueStore.getState().items[0]!;
+    fireEvent.change(screen.getByTestId(`crm-field-blended-${item.id}`), {
+      target: { value: 'Robert owns a rental property. Retiring spring 2027.' },
+    });
+
+    const approveBtn = screen.getByRole('button', { name: /approve 1 change/i });
+    expect(approveBtn).not.toBeDisabled();
+    fireEvent.click(approveBtn);
+
+    await waitFor(() => { expect(crmUpdateField).toHaveBeenCalledTimes(1); });
+    expect(crmUpdateField).toHaveBeenCalledWith(
+      expect.objectContaining({
+        matterId: m.id,
+        householdKey: '12345',
+        field: 'background_information',
+        finalValue: 'Robert owns a rental property. Retiring spring 2027.',
+      }),
+    );
+  });
+
+  it('a verify_pending field item shows the re-review message with a Retry button', async () => {
+    const m = useMatterStore.getState().createMatter({
+      name: 'Henderson',
+      client: 'Henderson',
+      crmHouseholdKeys: ['12345'],
+    });
+    enqueueFieldItem(m.id);
+    const id = useCrmWriteQueueStore.getState().items[0]!.id;
+    // enqueue() always starts an item at 'proposed' (status isn't a caller
+    // input) — force the stale-guard state directly, same as the store's own
+    // tests reach 'failed'/'verify_pending' via a rejected wrapper call.
+    useCrmWriteQueueStore.setState((s) => ({
+      items: s.items.map((i) =>
+        i.id === id
+          ? { ...i, status: 'verify_pending', error: 'This field changed in Wealthbox since the proposal — review again' }
+          : i,
+      ),
+    }));
+
+    render(<CrmWriteReviewCard matterId={m.id} />);
+    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
+    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+
+    expect(screen.getByText(/review again/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
   });
 });
