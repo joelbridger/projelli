@@ -7,6 +7,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { SK_MEETING_BRIEFS } from '@/config/identity';
+import type { MeetingBriefBullet } from './generateBrief';
 
 export type BriefStatus = 'pending' | 'generating' | 'ready' | 'failed';
 
@@ -18,6 +19,8 @@ export interface MeetingBrief {
   status: BriefStatus;
   markdown: string;
   citations: { path: string; score: number }[];
+  /** Optional: absent on briefs persisted before this field existed. */
+  bullets?: MeetingBriefBullet[];
   generatedAt: string;
   stale: boolean;
   error?: string;

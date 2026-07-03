@@ -77,6 +77,16 @@ pub enum CrmWriteError {
     InvalidInput(&'static str),
     #[error("could not record this write before sending it — try again")]
     LedgerUnavailable,
+    // Codex round 6 (self-converge): the current value IS included here
+    // (unlike other error variants that deliberately never embed raw
+    // response bodies) — it's the SAME field the advisor is already
+    // reviewing in this exact flow, not unrelated data from a raw API
+    // response, and the review card needs it to re-render the 3 columns
+    // with the fresh value rather than just showing a generic "it changed".
+    #[error("this field changed in the CRM since the proposal — current value: {0}")]
+    StaleFieldValue(String),
+    #[error("could not read the current field value from the CRM — try again")]
+    ReadFailed,
 }
 
 fn norm(s: &str) -> String {
@@ -106,10 +116,77 @@ pub fn dedup_key(req: &CrmWriteRequest) -> String {
         &norm(&req.title),
         &norm(&req.body),
         req.due_date.as_deref().unwrap_or(""),
-        req.requested_at.as_str(),
+        // Codex round 6 (self-converge, P3): trim before hashing —
+        // validate_requested_at already validates the TRIMMED value parses
+        // as RFC3339, but hashing the raw string would let incidental
+        // whitespace (e.g. a caller-side copy/paste or serialization quirk)
+        // on a retry of the SAME approval produce a DIFFERENT key, missing
+        // its own pending/sent row and risking a duplicate send.
+        req.requested_at.trim(),
     ] {
         h.update(part.as_bytes());
         h.update([0u8]); // field separator so "a","bc" != "ab","c"
+    }
+    hex::encode(h.finalize())
+}
+
+/// One proposed field-level "blended update" (Task 9c) — a single
+/// allowlisted narrative field on a household/contact, set to a user-edited
+/// blend of the existing value and what a source (e.g. a meeting)
+/// contributed. `existing_value` is what the review card showed the user;
+/// the stale-guard (`push_crm_field_update`) re-fetches the live value at
+/// approve time and refuses to write blind if it no longer matches.
+///
+/// `dedup_key_field` (the WRITE-SAFETY ledger key) deliberately does NOT
+/// include `requested_at`: unlike a note/task (each approval should create
+/// a SEPARATE record, so retry-vs-repeat needs the approval event to tell
+/// them apart), a field update is a PUT, idempotent by HTTP semantics —
+/// re-approving the identical (household_key, field, final_value) is
+/// correctly a no-op (the field is already at the desired value), not a
+/// lost write.
+///
+/// `requested_at` DOES matter for the AUDIT id, though (codex round 10,
+/// self-converge): without an approval-event identifier there, a genuine
+/// retry (the command's response was lost, `push_crm_field_update` now
+/// sees the live value already equals `final_value` and reports
+/// `deduped: true`) is indistinguishable from a LATER, separate approval
+/// that happens to restore the same value — one wants the SAME audit
+/// entry (no duplicate), the other wants its OWN. See `crm_update_field`'s
+/// audit-key computation.
+#[derive(Debug, Clone)]
+pub struct CrmFieldUpdateRequest {
+    pub matter_id: String,
+    pub household_key: String,
+    pub field: String,
+    pub existing_value: String,
+    pub new_value: String,
+    pub final_value: String,
+    pub source_ref: String,
+    pub requested_at: String,
+}
+
+/// Stable content-addressed key for a field update: identical (household_key,
+/// field, final_value) collide (a retry, or re-approving an unchanged blend,
+/// is a safe no-op); a different target or final value produces a fresh key.
+pub fn dedup_key_field(req: &CrmFieldUpdateRequest) -> String {
+    let mut h = Sha256::new();
+    for part in [
+        "field",
+        &req.household_key,
+        &norm(&req.field),
+        // Codex round 4 (self-converge): the EXACT final_value, not
+        // norm()'d — push_crm_field_update compares live values exactly
+        // (formatting/paragraph-breaks are part of what the user
+        // approved), so the ledger/audit key must distinguish two
+        // approvals that differ only in formatting too. Colliding them
+        // would let the second (formatting-only) approval's audit entry be
+        // silently suppressed as a "duplicate" of the first (both compute
+        // the same deterministic audit id), and could wrongly reject a
+        // concurrent one as "in progress".
+        req.final_value.as_str(),
+    ] {
+        h.update(part.as_bytes());
+        h.update([0u8]);
     }
     hex::encode(h.finalize())
 }
@@ -135,6 +212,19 @@ pub trait CrmWriteSource: Send + Sync {
         req: &CrmWriteRequest,
         not_before: chrono::DateTime<chrono::Utc>,
     ) -> Result<Option<String>, CrmWriteError>;
+    /// Updates one allowlisted field on `req.household_key` to `req.final_value`.
+    /// Returns the provider-side id of the updated record. A PUT — safe to
+    /// retry with identical input (see `CrmFieldUpdateRequest`'s doc comment).
+    async fn update_field(&self, req: &CrmFieldUpdateRequest) -> Result<String, CrmWriteError>;
+    /// Fetches the CURRENT value of `field` on `household_key` — used by
+    /// `push_crm_field_update`'s stale-guard, which must re-check a blended
+    /// proposal against the live CRM value before ever writing it, since
+    /// someone else could have changed the field since the proposal was shown.
+    async fn get_contact_field(
+        &self,
+        household_key: &str,
+        field: &str,
+    ) -> Result<String, CrmWriteError>;
 }
 
 #[async_trait::async_trait]
@@ -227,6 +317,48 @@ impl CrmWriteSource for crate::commands::crm::client::WealthboxClient {
             }
         }
     }
+
+    async fn update_field(&self, req: &CrmFieldUpdateRequest) -> Result<String, CrmWriteError> {
+        validate_field_is_writable(&req.field)?;
+        let contact_id = wealthbox_contact_id(&req.household_key)?;
+        // VERIFY-LIVE: assumed PUT /contacts/{id} with a flat body
+        // (`{"<field>": "<value>"}`), mirroring the plan's own assumption
+        // for this endpoint. Confirm the exact envelope shape in the Task 11
+        // live probe (scripts/crm/wealthbox-write-probe.md) before relying
+        // on this against a real account.
+        let mut fields = serde_json::Map::new();
+        fields.insert(
+            wealthbox_wire_field_name(&req.field).to_string(),
+            serde_json::Value::String(req.final_value.clone()),
+        );
+        let body = serde_json::Value::Object(fields);
+        let resp = self
+            .put_json(&format!("/contacts/{contact_id}"), &body)
+            .await
+            .map_err(map_http_err)?;
+        remote_id_from(&resp)
+    }
+
+    async fn get_contact_field(
+        &self,
+        household_key: &str,
+        field: &str,
+    ) -> Result<String, CrmWriteError> {
+        let contact_id = wealthbox_contact_id(household_key)?;
+        // VERIFY-LIVE: assumed GET /contacts/{id} returns the same flat
+        // field name at the top level that PUT accepts (i.e. the contact
+        // record's JSON has a `<field>` key directly, not nested). Confirm
+        // in the Task 11 live probe.
+        let resp = self
+            .get_json(&format!("/contacts/{contact_id}"), &[])
+            .await
+            .map_err(map_http_err_for_read)?;
+        Ok(resp
+            .get(wealthbox_wire_field_name(field))
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string())
+    }
 }
 
 #[async_trait::async_trait]
@@ -247,6 +379,12 @@ impl CrmWriteSource for crate::commands::crm::redtail::RedtailClient {
     ) -> Result<Option<String>, CrmWriteError> {
         Err(CrmWriteError::NotSupported("Redtail"))
     }
+    async fn update_field(&self, _req: &CrmFieldUpdateRequest) -> Result<String, CrmWriteError> {
+        Err(CrmWriteError::NotSupported("Redtail"))
+    }
+    async fn get_contact_field(&self, _household_key: &str, _field: &str) -> Result<String, CrmWriteError> {
+        Err(CrmWriteError::NotSupported("Redtail"))
+    }
 }
 
 #[async_trait::async_trait]
@@ -265,6 +403,12 @@ impl CrmWriteSource for crate::commands::crm::salesforce::SalesforceClient {
         _req: &CrmWriteRequest,
         _not_before: chrono::DateTime<chrono::Utc>,
     ) -> Result<Option<String>, CrmWriteError> {
+        Err(CrmWriteError::NotSupported("Salesforce"))
+    }
+    async fn update_field(&self, _req: &CrmFieldUpdateRequest) -> Result<String, CrmWriteError> {
+        Err(CrmWriteError::NotSupported("Salesforce"))
+    }
+    async fn get_contact_field(&self, _household_key: &str, _field: &str) -> Result<String, CrmWriteError> {
         Err(CrmWriteError::NotSupported("Salesforce"))
     }
 }
@@ -373,6 +517,28 @@ fn map_http_err(e: anyhow::Error) -> CrmWriteError {
     // Transport-level failure (send error / body read error): the request MAY
     // have been delivered. Callers must go through the pending_verify path.
     CrmWriteError::VerifyPending
+}
+
+/// Maps a GET (read) failure — unlike `map_http_err` (for POST/PUT), a read
+/// has no "might have already applied" ambiguity, so even a 5xx or a
+/// transport-level failure maps to a definite `Http`/`Throttled` error
+/// rather than `VerifyPending`. Using `map_http_err` for reads would let a
+/// transient failure during the field-update stale-guard's preflight GET
+/// propagate as `VerifyPending` — and `crm_update_field` would then
+/// (wrongly) audit that as "may have been applied", even though no write
+/// was ever attempted.
+fn map_http_err_for_read(e: anyhow::Error) -> CrmWriteError {
+    let msg = e.to_string();
+    if msg.contains("throttled past retry budget") {
+        return CrmWriteError::Throttled;
+    }
+    if let Some(rest) = msg.strip_prefix("Wealthbox request failed (HTTP ") {
+        let digits: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+        if let Ok(code) = digits.parse::<u16>() {
+            return CrmWriteError::Http(code);
+        }
+    }
+    CrmWriteError::ReadFailed
 }
 
 /// Guards against duplicate concurrent sends of the identical write across
@@ -495,6 +661,87 @@ pub async fn push_crm_write(
                 }
             }
         }
+    } else {
+        // REVIEW FINDING 3 (self-converge): no row under the requested_at-
+        // scoped key, but a crash before the response was recorded,
+        // followed by a restart, can leave an orphaned pending/
+        // pending_verify row under a DIFFERENT key for the SAME logical
+        // write — the write queue is session-only, so a re-approval after
+        // restart mints a brand new `requested_at`. Without this recovery
+        // step, `dedup_key` alone could never find that orphaned row, and
+        // this would fall straight through to a blind resend — exactly the
+        // double-post risk the pending/pending_verify verification exists
+        // to close, just reopened by the new requested_at breaking the
+        // exact-key lookup. Deliberately does NOT match `sent` rows (see
+        // `outbound_find_recovery_candidate`'s doc comment): an intentional
+        // repeat of already-delivered content must still send under its
+        // own new key, not be silently matched against a past delivery.
+        let recovery = store
+            .outbound_find_recovery_candidate(source.provider_id(), &content_shape_key(req))
+            .map_err(|_| CrmWriteError::InvalidInput("ledger read failed"))?;
+        // Codex round 3 (self-converge): only trust a recovery candidate
+        // that's RECENT in real wall-clock time — bounded by the same
+        // RECOVERY_WINDOW_MINUTES used elsewhere for "how long after a
+        // write attempt can its CRM record legitimately appear". Without
+        // this bound, an old orphaned pending/pending_verify row (left
+        // behind by a PAST ambiguous send that was simply never resolved,
+        // not a recent crash) could match a much-later INTENTIONAL repeat
+        // of the same content (e.g. a weekly "left voicemail" note) — the
+        // exact scenario ADDED SCOPE #2.1's requested_at was added to
+        // protect. Outside the window, treat this as if no candidate
+        // existed at all, so the intentional repeat sends fresh. Anchored
+        // to real time (not req.requested_at, a caller-supplied value) —
+        // this is a "was this a recent crash" check, not a
+        // content/approval-identity check.
+        let recovery = recovery.filter(|row| {
+            chrono::DateTime::parse_from_rfc3339(&row.created_at)
+                .map(|t| {
+                    let age = chrono::Utc::now().signed_duration_since(t.with_timezone(&chrono::Utc));
+                    age >= chrono::Duration::zero()
+                        && age <= chrono::Duration::minutes(RECOVERY_WINDOW_MINUTES)
+                })
+                .unwrap_or(false)
+        });
+        if let Some(row) = recovery {
+            let not_before = chrono::DateTime::parse_from_rfc3339(&row.created_at)
+                .map(|t| t.with_timezone(&chrono::Utc))
+                .unwrap_or_else(|_| chrono::DateTime::<chrono::Utc>::from_timestamp(0, 0).unwrap());
+            match source.find_recent_matching(req, not_before).await {
+                Ok(Some(remote_id)) => {
+                    // Landed under the interrupted attempt — record it under
+                    // THIS (new) key too, so a future retry under the same
+                    // requested_at hits the ordinary sent-row fast path.
+                    upsert_ledger(store, &key, source, req, "sent", Some(&remote_id));
+                    return Ok(WriteReceipt { remote_id, deduped: true });
+                }
+                Ok(None) => {
+                    // Provably didn't land under the interrupted attempt —
+                    // retire the OLD candidate row (mark it `failed`, a
+                    // terminal state excluded from future content-key
+                    // lookups) before falling through to a fresh send.
+                    // Codex round 4 (self-converge): without this, the row
+                    // stays `pending`/`pending_verify` and, if a LATER
+                    // intentional repeat lands within the recovery window,
+                    // it could match the record THIS send is about to
+                    // create — incorrectly deduping the later repeat
+                    // against a delivery it had nothing to do with.
+                    upsert_ledger(store, &row.dedup_key, source, req, "failed", None);
+                }
+                Err(e) => {
+                    // Codex round 3: re-affirm the ORIGINAL candidate row
+                    // (its own dedup_key), not a new row under `key` — a
+                    // fresh insert under `key` would get created_at = now,
+                    // losing the original attempt's floor. A future retry
+                    // (same requested_at) would then use `now` as the
+                    // not_before floor and could miss the actual CRM record
+                    // (created before `now`), causing a duplicate resend.
+                    // Re-affirming the existing row instead preserves its
+                    // original created_at (reset_created_at=false).
+                    upsert_ledger(store, &row.dedup_key, source, req, "pending_verify", None);
+                    return Err(e);
+                }
+            }
+        }
     }
 
     upsert_ledger_before_send(store, &key, source, req)?;
@@ -520,6 +767,31 @@ pub async fn push_crm_write(
     }
 }
 
+/// Stable, `requested_at`-INDEPENDENT identity for a write's CONTENT (not
+/// the approval event) — used ONLY for crash-recovery lookups (see
+/// `push_crm_write`'s content-key recovery step). Unlike `dedup_key`, which
+/// purposely changes with each new `requested_at` (so an intentional
+/// repeat isn't silently suppressed), this stays constant across a
+/// crash-and-re-approve of the SAME logical write. The write queue is
+/// session-only, so after a restart a re-approval mints a brand new
+/// `requested_at` — `dedup_key` alone can then no longer find the
+/// interrupted attempt's `pending`/`pending_verify` row, which would
+/// otherwise mean a blind resend with no idempotency protection at all.
+fn content_shape_key(req: &CrmWriteRequest) -> String {
+    let mut h = Sha256::new();
+    for part in [
+        req.kind.as_str(),
+        &req.household_key,
+        &norm(&req.title),
+        &norm(&req.body),
+        req.due_date.as_deref().unwrap_or(""),
+    ] {
+        h.update(part.as_bytes());
+        h.update([0u8]);
+    }
+    hex::encode(h.finalize())
+}
+
 /// Record a ledger transition AFTER the network attempt already happened
 /// (sent / pending_verify / failed). Best-effort: the POST is done and can't
 /// be undone, so a local DB hiccup here is logged, not propagated — there is
@@ -542,6 +814,7 @@ fn upsert_ledger(
         status,
         remote_id,
         false, // preserve the floor upsert_ledger_before_send just set for THIS attempt
+        &content_shape_key(req),
     ) {
         log::warn!("crm outbound ledger write failed (non-fatal): {e:#}");
     }
@@ -569,11 +842,180 @@ fn upsert_ledger_before_send(
             "pending",
             None,
             true, // fresh send attempt starting now — always reset the recovery floor
+            &content_shape_key(req),
         )
         .map_err(|e| {
             log::warn!("crm outbound ledger pre-send write failed: {e:#}");
             CrmWriteError::LedgerUnavailable
         })
+}
+
+/// Idempotent orchestration around a `CrmFieldUpdateRequest` (Task 9c) —
+/// mirrors `push_crm_write`'s ledger/in-flight-guard/audit-path reuse (same
+/// `crm_outbound_writes` table, same `WriteInFlightGuard`), but its
+/// idempotency story is different because the underlying HTTP verb is
+/// different: a note/task CREATE is a POST (a duplicate call makes a SECOND
+/// object, so `push_crm_write` must verify-before-resend against an
+/// ambiguous prior attempt); a field update is a PUT (idempotent by HTTP
+/// semantics — repeating an identical PUT has the same end effect), so a
+/// blind retry is safe and no verify-before-resend dance is needed.
+///
+/// What DOES need protecting for a field update: the blended proposal going
+/// stale between when the user reviewed it and when they approved it
+/// (someone else changed the field in the CRM in the meantime). That's the
+/// stale-guard below — it runs on EVERY attempt (not just retries), re-fetches
+/// the live value, and refuses to write if it no longer matches
+/// `req.existing_value`, flipping the ledger row to `pending_verify` instead
+/// so the review card can re-render with the fresh value rather than
+/// blindly overwriting it.
+pub async fn push_crm_field_update(
+    source: &dyn CrmWriteSource,
+    store: &crate::commands::crm::store::CrmStore,
+    guard: &WriteInFlightGuard,
+    req: &CrmFieldUpdateRequest,
+) -> Result<WriteReceipt, CrmWriteError> {
+    validate_field_is_writable(&req.field)?;
+
+    let key = dedup_key_field(req);
+    if !guard.claim(&key) {
+        return Err(CrmWriteError::InProgress);
+    }
+    let _claim = InFlightClaim { guard, key: key.clone() };
+
+    // Codex round 1 (self-converge): a field update is a PUT — cheap and
+    // idempotent to check/repeat — so EVERY attempt (fresh, retry, or a
+    // re-approval of an unchanged blend) re-checks the LIVE value first,
+    // rather than trusting a local ledger `sent` row blind. Without this, a
+    // `sent` row whose value was later changed OUTSIDE the app (or by
+    // someone else) would make a re-approval of the identical final_value
+    // report success while leaving the CRM unchanged.
+    // Codex round 2 (self-converge): EXACT comparison here, not `norm()` —
+    // `norm()` collapses whitespace/paragraph breaks, which is right for
+    // dedup/search matching but wrong for a narrative field's actual
+    // content. Formatting (blank lines between paragraphs, etc.) is part of
+    // what the user approved; `norm()`-equal-but-not-identical would either
+    // silently skip sending the user's approved formatting (the success
+    // check) or fail to notice a genuine drift (the stale-guard).
+    let current_value = source.get_contact_field(&req.household_key, &req.field).await?;
+    if current_value == req.final_value {
+        // Already applied — whether this exact write already landed (a
+        // prior attempt whose response was ambiguous, or a genuine retry),
+        // or nothing needs to change. Confirm success rather than
+        // re-issuing the PUT or (wrongly) rejecting this as stale just
+        // because it no longer matches existing_value.
+        upsert_ledger_field(store, &key, source, req, "sent", Some(&req.household_key));
+        return Ok(WriteReceipt { remote_id: req.household_key.clone(), deduped: true });
+    }
+    if current_value != req.existing_value {
+        upsert_ledger_field(store, &key, source, req, "pending_verify", None);
+        return Err(CrmWriteError::StaleFieldValue(current_value));
+    }
+
+    upsert_ledger_field_before_send(store, &key, source, req)?;
+
+    match source.update_field(req).await {
+        Ok(remote_id) => {
+            upsert_ledger_field(store, &key, source, req, "sent", Some(&remote_id));
+            Ok(WriteReceipt { remote_id, deduped: false })
+        }
+        Err(CrmWriteError::VerifyPending) => {
+            upsert_ledger_field(store, &key, source, req, "pending_verify", None);
+            Err(CrmWriteError::VerifyPending)
+        }
+        Err(e) => {
+            upsert_ledger_field(store, &key, source, req, "failed", None);
+            Err(e)
+        }
+    }
+}
+
+/// Ledger transition for a field update AFTER the network attempt (or the
+/// stale-guard's rejection) already happened — mirrors `upsert_ledger`.
+fn upsert_ledger_field(
+    store: &crate::commands::crm::store::CrmStore,
+    key: &str,
+    source: &dyn CrmWriteSource,
+    req: &CrmFieldUpdateRequest,
+    status: &str,
+    remote_id: Option<&str>,
+) {
+    if let Err(e) = store.outbound_upsert(
+        key,
+        source.provider_id(),
+        "field",
+        &req.household_key,
+        &req.matter_id,
+        &req.source_ref,
+        status,
+        remote_id,
+        false,
+        // A field update's dedup_key IS its content shape (no requested_at
+        // in the formula — see CrmFieldUpdateRequest's doc comment), so
+        // there's no separate crash-recovery identity needed here.
+        key,
+    ) {
+        log::warn!("crm outbound ledger write failed (non-fatal): {e:#}");
+    }
+}
+
+/// Record `pending` BEFORE the network attempt — mirrors `upsert_ledger_before_send`.
+fn upsert_ledger_field_before_send(
+    store: &crate::commands::crm::store::CrmStore,
+    key: &str,
+    source: &dyn CrmWriteSource,
+    req: &CrmFieldUpdateRequest,
+) -> Result<(), CrmWriteError> {
+    store
+        .outbound_upsert(
+            key,
+            source.provider_id(),
+            "field",
+            &req.household_key,
+            &req.matter_id,
+            &req.source_ref,
+            "pending",
+            None,
+            true,
+            key,
+        )
+        .map_err(|e| {
+            log::warn!("crm outbound ledger pre-send write failed: {e:#}");
+            CrmWriteError::LedgerUnavailable
+        })
+}
+
+/// Wealthbox contact fields this app is allowed to write via the field-update
+/// "blend" path. Deliberately narrow and additive-only: a wrong or
+/// unconfirmed field name could silently overwrite something the advisor
+/// never reviewed. Start with just the one narrative field the plan names;
+/// extending this list is a product decision, not something to guess at.
+const WRITABLE_FIELDS: &[&str] = &["background_information"];
+
+/// Reject any field update whose target isn't on `WRITABLE_FIELDS`.
+pub fn validate_field_is_writable(field: &str) -> Result<(), CrmWriteError> {
+    if WRITABLE_FIELDS.contains(&field) {
+        Ok(())
+    } else {
+        Err(CrmWriteError::InvalidInput("field is not writable"))
+    }
+}
+
+/// Maps the app-facing field name (the allowlist/review-UI name) to the
+/// WIRE field name Wealthbox's REST API actually uses on the contact
+/// record. Codex round 6 (self-converge): the live API returns
+/// `background_information` as `background_info` — already confirmed and
+/// handled on the READ side via `CrmContact`'s serde alias (see
+/// `model.rs`'s `background_info_alias_populates_background_information`
+/// test) — but `get_contact_field`/`update_field` talk to the raw JSON
+/// directly (no serde struct), so without this mapping the stale-guard's
+/// GET would read an empty string for every real contact (the key
+/// literally isn't present under the app-facing name) and the PUT would
+/// write to a field name Wealthbox doesn't recognize.
+fn wealthbox_wire_field_name(app_field: &str) -> &str {
+    match app_field {
+        "background_information" => "background_info",
+        other => other,
+    }
 }
 
 /// Reject empty titles and oversize content before any network call.
@@ -675,32 +1117,30 @@ mod tests {
     #[test]
     fn write_client_for_routes_by_provider() {
         use crate::commands::crm::provider::CrmProvider;
-        // Force the "not configured" precondition regardless of the host
-        // environment (e.g. a machine set up for the live-probe checklist
-        // would otherwise have these exported, making this test's expected
-        // failure silently not happen — a host-dependent test). Safe to
-        // clear unconditionally: grep confirms no other test in this crate
-        // reads either variable.
-        std::env::remove_var("KEEPANCE_REDTAIL_API_KEY");
-        std::env::remove_var("KEEPANCE_SALESFORCE_CLIENT_ID");
 
         let wb = write_client_for(CrmProvider::Wealthbox, "tok".into()).unwrap();
         assert_eq!(wb.provider_id(), "wealthbox");
+
         // Redtail/Salesforce's real constructors need KEEPANCE_REDTAIL_API_KEY /
-        // KEEPANCE_SALESFORCE_CLIENT_ID configured, which aren't set in tests —
-        // assert each fails with ITS OWN provider-specific config error (not a
-        // generic/wrong-provider error), proving the registry actually routes
-        // to that provider's constructor rather than silently no-oping.
-        let rt_err = match write_client_for(CrmProvider::Redtail, "tok".into()) {
-            Err(e) => e.to_string(),
-            Ok(_) => panic!("expected Redtail construction to fail without KEEPANCE_REDTAIL_API_KEY"),
-        };
-        assert!(rt_err.contains("REDTAIL"), "got: {rt_err}");
-        let sf_err = match write_client_for(CrmProvider::Salesforce, "tok".into()) {
-            Err(e) => e.to_string(),
-            Ok(_) => panic!("expected Salesforce construction to fail without KEEPANCE_SALESFORCE_CLIENT_ID"),
-        };
-        assert!(sf_err.contains("SALESFORCE"), "got: {sf_err}");
+        // KEEPANCE_SALESFORCE_CLIENT_ID configured. Whether they ARE configured
+        // on this machine is genuinely out of this test's control: both
+        // `redtail_api_key()` and `salesforce_client_id()` also fall back to
+        // `option_env!`, a COMPILE-TIME value baked into the binary — a
+        // runtime `std::env::remove_var` can't undo that if the var was set
+        // when this test binary was built (e.g. a machine set up for the
+        // live-probe checklist). So don't assert which OUTCOME happens;
+        // assert that whichever outcome happens is the CORRECT one for that
+        // provider — proving the registry actually routes to that provider's
+        // constructor (not a generic/wrong-provider error, and not silently
+        // constructing the wrong client) regardless of this host's config.
+        match write_client_for(CrmProvider::Redtail, "tok".into()) {
+            Ok(client) => assert_eq!(client.provider_id(), "redtail"),
+            Err(e) => assert!(e.to_string().contains("REDTAIL"), "got: {e}"),
+        }
+        match write_client_for(CrmProvider::Salesforce, "tok".into()) {
+            Ok(client) => assert_eq!(client.provider_id(), "salesforce"),
+            Err(e) => assert!(e.to_string().contains("SALESFORCE"), "got: {e}"),
+        }
     }
 
     struct FakeWriteSource {
@@ -727,6 +1167,12 @@ mod tests {
             _not_before: chrono::DateTime<chrono::Utc>,
         ) -> Result<Option<String>, CrmWriteError> {
             Ok(self.find_result.clone())
+        }
+        async fn update_field(&self, _r: &CrmFieldUpdateRequest) -> Result<String, CrmWriteError> {
+            unimplemented!("FakeWriteSource does not exercise field updates")
+        }
+        async fn get_contact_field(&self, _household_key: &str, _field: &str) -> Result<String, CrmWriteError> {
+            unimplemented!("FakeWriteSource does not exercise field updates")
         }
     }
 
@@ -799,7 +1245,7 @@ mod tests {
         let guard = WriteInFlightGuard::new();
         let req = note_req();
         store
-            .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "pending", None, true)
+            .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "pending", None, true, &content_shape_key(&req))
             .unwrap();
         let source = FakeWriteSource {
             create_results: std::sync::Mutex::new(vec![]),
@@ -818,7 +1264,7 @@ mod tests {
         let guard = WriteInFlightGuard::new();
         let req = note_req();
         store
-            .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "pending", None, true)
+            .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "pending", None, true, &content_shape_key(&req))
             .unwrap();
         let source = FakeWriteSource {
             create_results: std::sync::Mutex::new(vec![Ok("556".into())]),
@@ -829,6 +1275,178 @@ mod tests {
         assert_eq!(receipt.remote_id, "556");
         assert!(!receipt.deduped);
         assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    /// REVIEW FINDING 3 (self-converge, from the integration branch review):
+    /// requested_at joining the dedup key (ADDED SCOPE #2.1) broke CRASH
+    /// idempotency — the write queue is session-only, so after a crash a
+    /// re-approval mints a NEW requested_at, and the OLD pending row (from
+    /// the interrupted attempt) becomes unreachable by dedup_key alone. The
+    /// content-key recovery lookup must find it anyway and verify against
+    /// the CRM before ever blind-resending.
+    #[tokio::test]
+    async fn crash_then_retry_with_new_requested_at_recovers_via_content_key_when_it_landed() {
+        let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
+
+        let mut old_req = note_req();
+        old_req.requested_at = "2026-07-01T00:00:00Z".into();
+        store
+            .outbound_upsert(
+                &dedup_key(&old_req), "wealthbox", "note", &old_req.household_key,
+                &old_req.matter_id, &old_req.source_ref, "pending", None, true,
+                &content_shape_key(&old_req),
+            )
+            .unwrap();
+
+        let mut new_req = note_req();
+        new_req.requested_at = "2026-07-02T00:00:00Z".into();
+        assert_ne!(
+            dedup_key(&old_req), dedup_key(&new_req),
+            "a different requested_at must produce a different exact key (this is the scenario the recovery lookup exists for)"
+        );
+
+        let source = FakeWriteSource {
+            create_results: std::sync::Mutex::new(vec![]),
+            find_result: Some("999".into()), // the interrupted attempt actually landed
+            create_calls: std::sync::atomic::AtomicUsize::new(0),
+        };
+        let receipt = push_crm_write(&source, &store, &guard, &new_req).await.unwrap();
+        assert_eq!(receipt.remote_id, "999");
+        assert!(receipt.deduped);
+        assert_eq!(
+            source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 0,
+            "must never blind-resend when the interrupted attempt actually landed"
+        );
+
+        let row = store.outbound_get(&dedup_key(&new_req)).unwrap().unwrap();
+        assert_eq!(row.status, "sent", "the NEW key must also be recorded as sent, so a future retry under the SAME new requested_at hits the ordinary fast path");
+        assert_eq!(row.remote_id.as_deref(), Some("999"));
+    }
+
+    #[tokio::test]
+    async fn crash_then_retry_sends_fresh_when_the_interrupted_attempt_never_landed() {
+        let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
+
+        let mut old_req = note_req();
+        old_req.requested_at = "2026-07-01T00:00:00Z".into();
+        store
+            .outbound_upsert(
+                &dedup_key(&old_req), "wealthbox", "note", &old_req.household_key,
+                &old_req.matter_id, &old_req.source_ref, "pending", None, true,
+                &content_shape_key(&old_req),
+            )
+            .unwrap();
+
+        let mut new_req = note_req();
+        new_req.requested_at = "2026-07-02T00:00:00Z".into();
+
+        let source = FakeWriteSource {
+            create_results: std::sync::Mutex::new(vec![Ok("1000".into())]),
+            find_result: None, // provably didn't land under the interrupted attempt
+            create_calls: std::sync::atomic::AtomicUsize::new(0),
+        };
+        let receipt = push_crm_write(&source, &store, &guard, &new_req).await.unwrap();
+        assert_eq!(receipt.remote_id, "1000");
+        assert!(!receipt.deduped);
+        assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+
+        let row = store.outbound_get(&dedup_key(&new_req)).unwrap().unwrap();
+        assert_eq!(row.status, "sent");
+
+        // Codex round 4 finding #2 (self-converge): the OLD candidate row
+        // must be retired (marked failed), not left pending/pending_verify
+        // — otherwise a LATER intentional repeat within the recovery
+        // window could match the record THIS send just created.
+        let old_row = store.outbound_get(&dedup_key(&old_req)).unwrap().unwrap();
+        assert_eq!(
+            old_row.status, "failed",
+            "a verified miss must retire the old candidate row so it can't satisfy a future unrelated approval"
+        );
+    }
+
+    /// Regression guard for ADDED SCOPE #2.1: an intentional repeat (a
+    /// genuinely NEW approval of identical content, e.g. a recurring "left
+    /// voicemail" note) must still send under its own new key — the
+    /// content-key recovery lookup must NOT match a `sent` row from a past
+    /// approval, only `pending`/`pending_verify` ones.
+    #[tokio::test]
+    async fn intentional_repeat_of_already_sent_content_still_sends_under_its_own_new_key() {
+        let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
+
+        let mut old_req = note_req();
+        old_req.requested_at = "2026-07-01T00:00:00Z".into();
+        store
+            .outbound_upsert(
+                &dedup_key(&old_req), "wealthbox", "note", &old_req.household_key,
+                &old_req.matter_id, &old_req.source_ref, "sent", Some("111"), true,
+                &content_shape_key(&old_req),
+            )
+            .unwrap();
+
+        let mut new_req = note_req();
+        new_req.requested_at = "2026-07-02T00:00:00Z".into(); // a genuinely new approval
+
+        let source = FakeWriteSource {
+            create_results: std::sync::Mutex::new(vec![Ok("222".into())]),
+            find_result: None,
+            create_calls: std::sync::atomic::AtomicUsize::new(0),
+        };
+        let receipt = push_crm_write(&source, &store, &guard, &new_req).await.unwrap();
+        assert_eq!(receipt.remote_id, "222");
+        assert!(!receipt.deduped);
+        assert_eq!(
+            source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 1,
+            "an intentional repeat must still send under its own new key, not be silently matched against a past SENT row"
+        );
+    }
+
+    /// Codex round 3 (self-converge): a much-OLDER orphaned pending_verify
+    /// row (never resolved, NOT a recent crash) must not be treated as a
+    /// crash-recovery candidate for a later intentional repeat — this is
+    /// the pending/pending_verify counterpart to the `sent`-row guard above.
+    /// Without the recovery-window bound, this old row would silently
+    /// suppress the new (intentional) approval entirely.
+    #[tokio::test]
+    async fn a_much_older_orphaned_pending_row_does_not_swallow_a_later_intentional_repeat() {
+        let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
+
+        let mut old_req = note_req();
+        old_req.requested_at = "2026-07-01T00:00:00Z".into();
+        let old_key = dedup_key(&old_req);
+        store
+            .outbound_upsert(
+                &old_key, "wealthbox", "note", &old_req.household_key,
+                &old_req.matter_id, &old_req.source_ref, "pending_verify", None, true,
+                &content_shape_key(&old_req),
+            )
+            .unwrap();
+        // Backdate it well outside RECOVERY_WINDOW_MINUTES (30) — simulating
+        // a long-forgotten ambiguous send, not a just-happened crash.
+        let far_past = (chrono::Utc::now() - chrono::Duration::days(7)).to_rfc3339();
+        store.outbound_backdate_for_test(&old_key, &far_past).unwrap();
+
+        let mut new_req = note_req();
+        new_req.requested_at = "2026-07-08T00:00:00Z".into(); // a genuinely new approval, a week later
+
+        let source = FakeWriteSource {
+            create_results: std::sync::Mutex::new(vec![Ok("333".into())]),
+            // If the old row WERE (wrongly) treated as a recovery candidate,
+            // this would report it as already delivered — the test fails
+            // loudly (deduped=true, create_calls=0) if that guard is missing.
+            find_result: Some("999-should-not-be-used".into()),
+            create_calls: std::sync::atomic::AtomicUsize::new(0),
+        };
+        let receipt = push_crm_write(&source, &store, &guard, &new_req).await.unwrap();
+        assert_eq!(receipt.remote_id, "333");
+        assert!(!receipt.deduped);
+        assert_eq!(
+            source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 1,
+            "an old orphaned pending_verify row must not swallow a much-later intentional repeat"
+        );
     }
 
     /// ADDED SCOPE #2.2: when the recovery check ITSELF is ambiguous (the
@@ -862,13 +1480,19 @@ mod tests {
             ) -> Result<Option<String>, CrmWriteError> {
                 Err(CrmWriteError::VerifyPending)
             }
+            async fn update_field(&self, _r: &CrmFieldUpdateRequest) -> Result<String, CrmWriteError> {
+                unimplemented!("FlakyFindSource does not exercise field updates")
+            }
+            async fn get_contact_field(&self, _household_key: &str, _field: &str) -> Result<String, CrmWriteError> {
+                unimplemented!("FlakyFindSource does not exercise field updates")
+            }
         }
 
         let (_dir, store) = test_store();
         let guard = WriteInFlightGuard::new();
         let req = note_req();
         store
-            .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "pending_verify", None, true)
+            .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "pending_verify", None, true, &content_shape_key(&req))
             .unwrap();
         let source = FlakyFindSource { create_calls: std::sync::atomic::AtomicUsize::new(0) };
 
@@ -879,6 +1503,84 @@ mod tests {
             store.outbound_get(&dedup_key(&req)).unwrap().unwrap().status,
             "pending_verify",
             "the row's state must be explicitly re-affirmed, not left implicit"
+        );
+    }
+
+    /// Codex round 3 finding #2 (self-converge): when the CONTENT-KEY
+    /// recovery check itself is ambiguous, the ORIGINAL candidate row's
+    /// created_at must be preserved (re-affirmed in place), not shadowed by
+    /// a fresh row under the new key stamped with "now" — a fresh "now"
+    /// floor would make the NEXT retry's find_recent_matching potentially
+    /// miss a CRM record actually created by the original interrupted
+    /// attempt (which predates "now"), risking a duplicate resend.
+    #[tokio::test]
+    async fn content_key_recovery_failure_preserves_the_original_rows_timestamp() {
+        struct FlakyFindSource {
+            create_calls: std::sync::atomic::AtomicUsize,
+        }
+        #[async_trait::async_trait]
+        impl CrmWriteSource for FlakyFindSource {
+            fn provider_id(&self) -> &'static str {
+                "wealthbox"
+            }
+            async fn create_note(&self, _r: &CrmWriteRequest) -> Result<String, CrmWriteError> {
+                self.create_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                Ok("should-not-be-called".into())
+            }
+            async fn create_task(&self, r: &CrmWriteRequest) -> Result<String, CrmWriteError> {
+                self.create_note(r).await
+            }
+            async fn find_recent_matching(
+                &self,
+                _r: &CrmWriteRequest,
+                _not_before: chrono::DateTime<chrono::Utc>,
+            ) -> Result<Option<String>, CrmWriteError> {
+                Err(CrmWriteError::VerifyPending)
+            }
+            async fn update_field(&self, _r: &CrmFieldUpdateRequest) -> Result<String, CrmWriteError> {
+                unimplemented!()
+            }
+            async fn get_contact_field(&self, _household_key: &str, _field: &str) -> Result<String, CrmWriteError> {
+                unimplemented!()
+            }
+        }
+
+        let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
+
+        let mut old_req = note_req();
+        old_req.requested_at = "2026-07-01T00:00:00Z".into();
+        let old_key = dedup_key(&old_req);
+        store
+            .outbound_upsert(
+                &old_key, "wealthbox", "note", &old_req.household_key,
+                &old_req.matter_id, &old_req.source_ref, "pending_verify", None, true,
+                &content_shape_key(&old_req),
+            )
+            .unwrap();
+        // A recent, VALID recovery candidate — 10 minutes ago, well inside
+        // RECOVERY_WINDOW_MINUTES (30).
+        let original_created_at = (chrono::Utc::now() - chrono::Duration::minutes(10)).to_rfc3339();
+        store.outbound_backdate_for_test(&old_key, &original_created_at).unwrap();
+
+        let mut new_req = note_req();
+        new_req.requested_at = "2026-07-01T00:05:00Z".into(); // e.g. a restart 5 minutes after the crash
+        let new_key = dedup_key(&new_req);
+
+        let source = FlakyFindSource { create_calls: std::sync::atomic::AtomicUsize::new(0) };
+        let result = push_crm_write(&source, &store, &guard, &new_req).await;
+        assert!(matches!(result, Err(CrmWriteError::VerifyPending)));
+        assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+
+        let old_row = store.outbound_get(&old_key).unwrap().unwrap();
+        assert_eq!(
+            old_row.created_at, original_created_at,
+            "the original candidate row's created_at must be preserved, not reset to 'now'"
+        );
+        assert_eq!(old_row.status, "pending_verify");
+        assert!(
+            store.outbound_get(&new_key).unwrap().is_none(),
+            "no NEW row should be created under the new key — the original row is re-affirmed in place instead"
         );
     }
 
@@ -900,7 +1602,7 @@ mod tests {
             let (_dir, store) = test_store();
             let guard = WriteInFlightGuard::new();
             store
-                .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "sent", Some("old-id"), true)
+                .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "sent", Some("old-id"), true, &content_shape_key(&req))
                 .unwrap();
             store.mark_sent_rows_pending_verify_for_provider("wealthbox").unwrap();
             let source = FakeWriteSource {
@@ -920,7 +1622,7 @@ mod tests {
             let (_dir, store) = test_store();
             let guard = WriteInFlightGuard::new();
             store
-                .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "sent", Some("old-id"), true)
+                .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "sent", Some("old-id"), true, &content_shape_key(&req))
                 .unwrap();
             store.mark_sent_rows_pending_verify_for_provider("wealthbox").unwrap();
             let source = FakeWriteSource {
@@ -964,6 +1666,12 @@ mod tests {
                 _not_before: chrono::DateTime<chrono::Utc>,
             ) -> Result<Option<String>, CrmWriteError> {
                 Ok(None)
+            }
+            async fn update_field(&self, _r: &CrmFieldUpdateRequest) -> Result<String, CrmWriteError> {
+                unimplemented!("SlowSource does not exercise field updates")
+            }
+            async fn get_contact_field(&self, _household_key: &str, _field: &str) -> Result<String, CrmWriteError> {
+                unimplemented!("SlowSource does not exercise field updates")
             }
         }
 
@@ -1013,6 +1721,97 @@ mod tests {
             due_date: Some("2026-07-15".into()),
             ..note_req()
         }
+    }
+
+    fn base_field_req() -> CrmFieldUpdateRequest {
+        CrmFieldUpdateRequest {
+            matter_id: "matter-1".into(),
+            household_key: "12345".into(),
+            field: "background_information".into(),
+            existing_value: "Existing background.".into(),
+            new_value: "Retiring spring 2027; stress-test earlier exit.".into(),
+            final_value: "Existing background.\n\nRetiring spring 2027; stress-test earlier exit.".into(),
+            source_ref: "meeting:Clients/Hendersons/Meetings/2026-06-30#0".into(),
+            requested_at: "2026-07-02T14:41:00Z".into(),
+        }
+    }
+
+    #[test]
+    fn field_dedup_key_targets_field_and_value() {
+        let a = base_field_req();
+        let mut b = base_field_req();
+        b.final_value = "different".into();
+        assert_ne!(dedup_key_field(&a), dedup_key_field(&b));
+        let mut c = base_field_req();
+        c.field = "other_field".into();
+        assert_ne!(dedup_key_field(&a), dedup_key_field(&c));
+    }
+
+    /// Codex round 4 finding #3 (self-converge): push_crm_field_update
+    /// compares live values EXACTLY (formatting is part of what the user
+    /// approved), so the dedup key must distinguish formatting-only
+    /// differences too — otherwise a formatting-only re-approval collides
+    /// into the SAME ledger row/audit id as an earlier one, silently
+    /// losing its own audit entry.
+    #[test]
+    fn field_dedup_key_distinguishes_formatting_only_differences() {
+        let a = base_field_req();
+        let mut b = base_field_req();
+        b.final_value = format!("{}\n", a.final_value); // trailing newline only
+        assert_ne!(
+            dedup_key_field(&a), dedup_key_field(&b),
+            "formatting-only differences (e.g. a trailing newline) must produce distinct keys"
+        );
+    }
+
+    #[test]
+    fn wealthbox_wire_field_name_maps_the_only_writable_field() {
+        assert_eq!(wealthbox_wire_field_name("background_information"), "background_info");
+        assert_eq!(wealthbox_wire_field_name("something_else"), "something_else");
+    }
+
+    #[tokio::test]
+    async fn wealthbox_update_field_puts_exact_shape() {
+        use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        // VERIFY-LIVE: Wealthbox contact update endpoint + field envelope
+        // (assumed PUT /contacts/{id} with a flat field body; confirm in the
+        // Task 11 live probe, scripts/crm/wealthbox-write-probe.md). The key
+        // is the WIRE name (background_info), not the app-facing name — see
+        // wealthbox_wire_field_name's doc comment.
+        Mock::given(matchers::method("PUT"))
+            .and(matchers::path("/contacts/12345"))
+            .and(matchers::body_json(serde_json::json!({
+                "background_info": "Existing background.\n\nRetiring spring 2027; stress-test earlier exit."
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"id": 12345})))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let id = client.update_field(&base_field_req()).await.unwrap();
+        assert_eq!(id, "12345");
+    }
+
+    /// Codex round 6 (self-converge): get_contact_field must read the WIRE
+    /// name (background_info), matching CrmContact's own confirmed serde
+    /// alias for this exact field (model.rs) — reading the app-facing name
+    /// directly off the raw JSON would return empty for every real contact.
+    #[tokio::test]
+    async fn wealthbox_get_contact_field_reads_the_wire_name() {
+        use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(matchers::method("GET"))
+            .and(matchers::path("/contacts/12345"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": 12345,
+                "background_info": "Existing background."
+            })))
+            .mount(&server)
+            .await;
+        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let value = client.get_contact_field("12345", "background_information").await.unwrap();
+        assert_eq!(value, "Existing background.");
     }
 
     #[tokio::test]
@@ -1363,6 +2162,19 @@ mod tests {
         assert_ne!(a, dedup_key(&other_house), "target change → new key");
     }
 
+    /// Codex round 6 finding #3 (self-converge): incidental whitespace
+    /// around requested_at (harmless per validate_requested_at, which
+    /// trims before parsing) must not produce a different dedup key — a
+    /// retry of the SAME approval with a whitespace-padded requested_at
+    /// would otherwise miss its own pending/sent row.
+    #[test]
+    fn dedup_key_trims_requested_at_before_hashing() {
+        let a = note_req();
+        let mut b = note_req();
+        b.requested_at = format!("  {}  ", a.requested_at);
+        assert_eq!(dedup_key(&a), dedup_key(&b));
+    }
+
     /// ADDED SCOPE #2.1: identical content approved on two SEPARATE occasions
     /// (e.g. a recurring "Left voicemail" note) must NOT collide into one
     /// dedup key forever — the ledger's job is protecting a single approval
@@ -1397,6 +2209,18 @@ mod tests {
     fn write_error_display_never_embeds_body() {
         let e = CrmWriteError::Http(500);
         assert_eq!(e.to_string(), "CRM write failed (HTTP 500)");
+    }
+
+    /// Codex round 6 (self-converge): unlike other errors, StaleFieldValue
+    /// DELIBERATELY embeds the current value — the review card needs it to
+    /// re-render the 3 columns with the fresh CRM value. This is the
+    /// advisor's own field they're already reviewing, not unrelated raw
+    /// response-body data, so the PII discipline that keeps bodies out of
+    /// other errors doesn't apply here.
+    #[test]
+    fn stale_field_value_display_includes_the_current_value() {
+        let e = CrmWriteError::StaleFieldValue("Someone else's edit.".into());
+        assert!(e.to_string().contains("Someone else's edit."));
     }
 
     #[test]
@@ -1454,5 +2278,188 @@ mod tests {
         b.title = "a".into();
         b.body = "bc".into();
         assert_ne!(dedup_key(&a), dedup_key(&b));
+    }
+
+    // -------------------------------------------------------------------
+    // push_crm_field_update (Task 9c orchestrator)
+    // -------------------------------------------------------------------
+
+    struct FakeFieldSource {
+        /// What get_contact_field returns for the live remote value.
+        remote_value: std::sync::Mutex<String>,
+        update_results: std::sync::Mutex<Vec<Result<String, CrmWriteError>>>,
+        update_calls: std::sync::atomic::AtomicUsize,
+        get_calls: std::sync::atomic::AtomicUsize,
+    }
+    #[async_trait::async_trait]
+    impl CrmWriteSource for FakeFieldSource {
+        fn provider_id(&self) -> &'static str {
+            "wealthbox"
+        }
+        async fn create_note(&self, _r: &CrmWriteRequest) -> Result<String, CrmWriteError> {
+            unimplemented!("FakeFieldSource only exercises field updates")
+        }
+        async fn create_task(&self, _r: &CrmWriteRequest) -> Result<String, CrmWriteError> {
+            unimplemented!("FakeFieldSource only exercises field updates")
+        }
+        async fn find_recent_matching(
+            &self,
+            _r: &CrmWriteRequest,
+            _not_before: chrono::DateTime<chrono::Utc>,
+        ) -> Result<Option<String>, CrmWriteError> {
+            unimplemented!("FakeFieldSource only exercises field updates")
+        }
+        async fn update_field(&self, r: &CrmFieldUpdateRequest) -> Result<String, CrmWriteError> {
+            self.update_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            let result = self.update_results.lock().unwrap().remove(0);
+            if result.is_ok() {
+                // Mirror a real CRM: after a successful PUT, the field
+                // actually holds the new value — later get_contact_field
+                // calls in the same test must see it.
+                *self.remote_value.lock().unwrap() = r.final_value.clone();
+            }
+            result
+        }
+        async fn get_contact_field(&self, _household_key: &str, _field: &str) -> Result<String, CrmWriteError> {
+            self.get_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(self.remote_value.lock().unwrap().clone())
+        }
+    }
+
+    fn fake_field_source(remote_value: &str, update_result: Result<String, CrmWriteError>) -> FakeFieldSource {
+        FakeFieldSource {
+            remote_value: std::sync::Mutex::new(remote_value.into()),
+            update_results: std::sync::Mutex::new(vec![update_result]),
+            update_calls: std::sync::atomic::AtomicUsize::new(0),
+            get_calls: std::sync::atomic::AtomicUsize::new(0),
+        }
+    }
+
+    #[tokio::test]
+    async fn field_update_writes_through_when_remote_still_matches_existing_value() {
+        let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
+        let source = fake_field_source("Existing background.", Ok("12345".into()));
+        let req = base_field_req();
+
+        let receipt = push_crm_field_update(&source, &store, &guard, &req).await.unwrap();
+        assert_eq!(receipt.remote_id, "12345");
+        assert!(!receipt.deduped);
+        assert_eq!(source.get_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+        assert_eq!(source.update_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+
+        let row = store.outbound_get(&dedup_key_field(&req)).unwrap().unwrap();
+        assert_eq!(row.status, "sent");
+        assert_eq!(row.remote_id.as_deref(), Some("12345"));
+    }
+
+    #[tokio::test]
+    async fn field_update_refuses_to_write_when_remote_value_has_drifted() {
+        let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
+        // Someone else changed the field in Wealthbox since the proposal was shown.
+        let source = fake_field_source("Someone else already edited this.", Ok("should-not-be-used".into()));
+        let req = base_field_req();
+
+        let err = push_crm_field_update(&source, &store, &guard, &req).await.unwrap_err();
+        match err {
+            CrmWriteError::StaleFieldValue(current) => {
+                assert_eq!(current, "Someone else already edited this.");
+            }
+            other => panic!("expected StaleFieldValue, got {other:?}"),
+        }
+        assert_eq!(
+            source.update_calls.load(std::sync::atomic::Ordering::SeqCst),
+            0,
+            "must never write a blend proposed against a value that has since changed"
+        );
+
+        let row = store.outbound_get(&dedup_key_field(&req)).unwrap().unwrap();
+        assert_eq!(row.status, "pending_verify", "a stale detection must still produce a ledger entry (for the audit path)");
+    }
+
+    /// Codex round 1 finding #2 (self-converge): a PUT whose response was
+    /// ambiguous (VerifyPending) but that actually reached Wealthbox must
+    /// be recognized as SUCCESS on a retry — the live value now equals
+    /// final_value, not existing_value, so this must not be misreported as
+    /// StaleFieldValue just because it no longer matches existing_value.
+    #[tokio::test]
+    async fn field_update_retry_recognizes_an_ambiguous_attempt_that_actually_landed() {
+        let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
+        let req = base_field_req();
+
+        // The live value is ALREADY final_value — as if the first PUT
+        // landed server-side even though its response was lost/ambiguous.
+        let source = fake_field_source(&req.final_value, Ok("should-not-be-used".into()));
+
+        let receipt = push_crm_field_update(&source, &store, &guard, &req).await.unwrap();
+        assert_eq!(receipt.remote_id, req.household_key);
+        assert!(receipt.deduped);
+        assert_eq!(
+            source.update_calls.load(std::sync::atomic::Ordering::SeqCst), 0,
+            "must not re-PUT when the live value already equals final_value"
+        );
+
+        let row = store.outbound_get(&dedup_key_field(&req)).unwrap().unwrap();
+        assert_eq!(row.status, "sent", "an already-landed value must be confirmed sent, not left pending_verify");
+    }
+
+    #[tokio::test]
+    async fn field_update_second_identical_push_is_deduped_without_a_redundant_write() {
+        let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
+        let source = fake_field_source("Existing background.", Ok("12345".into()));
+        let req = base_field_req();
+
+        push_crm_field_update(&source, &store, &guard, &req).await.unwrap();
+        let second = push_crm_field_update(&source, &store, &guard, &req).await.unwrap();
+
+        assert_eq!(second.remote_id, req.household_key);
+        assert!(second.deduped);
+        // Codex round 1 (self-converge): the second push MUST still
+        // re-verify the live value (a cheap GET) before deduping — a `sent`
+        // row that's since drifted (e.g. edited outside the app) must not
+        // silently report success without actually writing. It must NOT
+        // repeat the actual PUT, since the field already holds final_value.
+        assert_eq!(source.get_calls.load(std::sync::atomic::Ordering::SeqCst), 2);
+        assert_eq!(source.update_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn field_update_rejects_a_non_writable_field() {
+        let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
+        let source = fake_field_source("x", Ok("1".into()));
+        let mut req = base_field_req();
+        req.field = "ssn".into();
+
+        let err = push_crm_field_update(&source, &store, &guard, &req).await.unwrap_err();
+        assert!(matches!(err, CrmWriteError::InvalidInput(_)));
+        assert_eq!(
+            source.get_calls.load(std::sync::atomic::Ordering::SeqCst),
+            0,
+            "a disallowed field must be rejected before ever touching the network"
+        );
+    }
+
+    #[tokio::test]
+    async fn concurrent_identical_field_pushes_second_is_rejected_as_in_progress() {
+        let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
+        let req = base_field_req();
+
+        let key = dedup_key_field(&req);
+        assert!(guard.claim(&key)); // simulate a first push already holding the slot
+
+        let err = push_crm_field_update(
+            &fake_field_source("Existing background.", Ok("x".into())),
+            &store,
+            &guard,
+            &req,
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(err, CrmWriteError::InProgress));
     }
 }

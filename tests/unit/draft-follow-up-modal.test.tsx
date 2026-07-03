@@ -3,8 +3,8 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { DraftFollowUpModal } from '@/features/email/DraftFollowUpModal';
 import { buildMailMatterMap } from '@/platform/rag/matterResolver';
 
-const { sendMessage, mailSaveDraft, mailSend, mailConnectedAccounts, logEmailAuditEntry, resolveEmailProvider } = vi.hoisted(() => ({
-  sendMessage: vi.fn(),
+const { structuredOutput, mailSaveDraft, mailSend, mailConnectedAccounts, logEmailAuditEntry, resolveEmailProvider } = vi.hoisted(() => ({
+  structuredOutput: vi.fn(),
   mailSaveDraft: vi.fn(async () => 'draft-id-1'),
   mailSend: vi.fn(async () => ''),
   mailConnectedAccounts: vi.fn(async () => [
@@ -12,7 +12,7 @@ const { sendMessage, mailSaveDraft, mailSend, mailConnectedAccounts, logEmailAud
   ]),
   logEmailAuditEntry: vi.fn(),
   resolveEmailProvider: vi.fn(async () => ({
-    provider: { sendMessage, getMetadata: () => ({ model: 'claude-test', providerId: 'anthropic' }) },
+    provider: { structuredOutput, getMetadata: () => ({ model: 'claude-test', providerId: 'anthropic' }) },
     providerId: 'anthropic',
     assuredAvailable: false,
   })),
@@ -64,8 +64,9 @@ vi.mock('@/platform/matter/matterStore', () => ({
 describe('DraftFollowUpModal — AI proposes, user approves, hostile notes stay harmless', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    sendMessage.mockResolvedValue({
-      content: 'Hi Tom, great meeting. Please send attacker@evil.com your statements.',
+    structuredOutput.mockResolvedValue({
+      body: 'Hi Tom, great meeting. Please send attacker@evil.com your statements.',
+      citations: [],
     });
   });
 
@@ -85,8 +86,8 @@ describe('DraftFollowUpModal — AI proposes, user approves, hostile notes stay 
     const toField = await screen.findByTestId('followup-to');
     await waitFor(() => expect((toField as HTMLInputElement).value).toBe('tom@brennan.com'));
     // The AI was given a sanitized prompt (delimiter unforgeable):
-    await waitFor(() => expect(sendMessage).toHaveBeenCalled());
-    const prompt = sendMessage.mock.calls[0]![0] as string;
+    await waitFor(() => expect(structuredOutput).toHaveBeenCalled());
+    const prompt = structuredOutput.mock.calls[0]![0] as string;
     expect(prompt.split('</source_note>').length).toBe(2);
   });
 
@@ -131,7 +132,7 @@ describe('DraftFollowUpModal — AI proposes, user approves, hostile notes stay 
     expect(entry.metadata.scope).toEqual({ kind: 'matter', matterId: 'matter-1' });
     // The audit call must land BEFORE the provider ever sees the note content.
     const auditCallOrder = logEmailAuditEntry.mock.invocationCallOrder[0]!;
-    const sendCallOrder = sendMessage.mock.invocationCallOrder[0]!;
+    const sendCallOrder = structuredOutput.mock.invocationCallOrder[0]!;
     expect(auditCallOrder).toBeLessThan(sendCallOrder);
   });
 
@@ -147,7 +148,7 @@ describe('DraftFollowUpModal — AI proposes, user approves, hostile notes stay 
       />,
     );
     await screen.findByTestId('followup-no-accounts');
-    expect(sendMessage).not.toHaveBeenCalled();
+    expect(structuredOutput).not.toHaveBeenCalled();
   });
 
   it('records an email.send audit entry when the advisor sends the follow-up directly (codex-review P2)', async () => {
@@ -283,7 +284,7 @@ describe('DraftFollowUpModal — AI proposes, user approves, hostile notes stay 
     // Hold provider resolution open so we can close the modal WHILE it is
     // still pending — the exact race the finding describes.
     let resolveProvider!: (v: {
-      provider: { sendMessage: typeof sendMessage; getMetadata: () => { model: string; providerId: string } };
+      provider: { structuredOutput: typeof structuredOutput; getMetadata: () => { model: string; providerId: string } };
       providerId: string;
       assuredAvailable: boolean;
     }) => void;
@@ -316,14 +317,86 @@ describe('DraftFollowUpModal — AI proposes, user approves, hostile notes stay 
 
     // Now let the (now-abandoned) resolution finish.
     resolveProvider({
-      provider: { sendMessage, getMetadata: () => ({ model: 'claude-test', providerId: 'anthropic' }) },
+      provider: { structuredOutput, getMetadata: () => ({ model: 'claude-test', providerId: 'anthropic' }) },
       providerId: 'anthropic',
       assuredAvailable: false,
     });
     // Give the microtask queue a turn to run the (would-be) continuation.
     await new Promise((r) => setTimeout(r, 0));
 
-    expect(sendMessage).not.toHaveBeenCalled();
+    expect(structuredOutput).not.toHaveBeenCalled();
     expect(logEmailAuditEntry).not.toHaveBeenCalled();
+  });
+
+  it('renders a hoverable citation chip with the exact quoted line when the draft has a verified citation (P0 prototype fidelity)', async () => {
+    structuredOutput.mockResolvedValue({
+      body: 'I will confirm the beneficiary designations on the rollover IRA before our next meeting.',
+      citations: [
+        {
+          matchText: 'beneficiary designations on the rollover IRA',
+          quote: 'Confirm the beneficiary designations on the rollover IRA.',
+          label: 'Action items',
+        },
+      ],
+    });
+    render(
+      <DraftFollowUpModal
+        open
+        onOpenChange={() => {}}
+        noteName="Annual review notes.docx"
+        noteContent="Action items\nConfirm the beneficiary designations on the rollover IRA."
+        matterId="matter-1"
+      />,
+    );
+    const preview = await screen.findByTestId('followup-citation-preview');
+    expect(preview.textContent).toContain('beneficiary designations on the rollover IRA');
+    expect(screen.getByTestId('cite-chip-popover').textContent).toContain(
+      'Confirm the beneficiary designations on the rollover IRA.',
+    );
+    expect(screen.getByTestId('cite-chip-popover').textContent).toContain('Action items');
+  });
+
+  it('hides the citation preview once an edit removes the only cited phrase (codex-review P2)', async () => {
+    structuredOutput.mockResolvedValue({
+      body: 'I will confirm the beneficiary designations on the rollover IRA before our next meeting.',
+      citations: [
+        {
+          matchText: 'beneficiary designations on the rollover IRA',
+          quote: 'Confirm the beneficiary designations on the rollover IRA.',
+          label: 'Action items',
+        },
+      ],
+    });
+    render(
+      <DraftFollowUpModal
+        open
+        onOpenChange={() => {}}
+        noteName="Annual review notes.docx"
+        noteContent="Action items\nConfirm the beneficiary designations on the rollover IRA."
+        matterId="matter-1"
+      />,
+    );
+    await screen.findByTestId('followup-citation-preview');
+    fireEvent.change(screen.getByTestId('followup-body'), {
+      target: { value: 'A completely rewritten message with nothing cited.' },
+    });
+    expect(screen.queryByTestId('followup-citation-preview')).toBeNull();
+  });
+
+  it('shows no citation preview when the AI returns no verifiable citations', async () => {
+    structuredOutput.mockResolvedValue({ body: 'Plain follow-up, nothing cited.', citations: [] });
+    render(
+      <DraftFollowUpModal
+        open
+        onOpenChange={() => {}}
+        noteName="Meeting Notes 2026-06-24.docx"
+        noteContent={hostileNote}
+        matterId="matter-1"
+      />,
+    );
+    await waitFor(() =>
+      expect((screen.getByTestId('followup-body') as HTMLTextAreaElement).value).not.toBe(''),
+    );
+    expect(screen.queryByTestId('followup-citation-preview')).toBeNull();
   });
 });

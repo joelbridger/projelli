@@ -95,6 +95,68 @@ describe('BeforeYouMeetStrip', () => {
     );
   });
 
+  it('renders per-bullet citation chips with a hover popover quoting the exact source line (P0 prototype fidelity)', () => {
+    const key = briefKey(localDay(), 'e1', 'm-1');
+    useBriefStore.setState({
+      briefs: {
+        [key]: {
+          key,
+          eventId: 'e1',
+          matterId: 'm-1',
+          day: localDay(),
+          status: 'ready',
+          stale: false,
+          generatedAt: 'now',
+          markdown: '# Briefing\n- Cash position discussed',
+          citations: [{ path: '/ws/Henderson/estate-plan.pdf', score: 0.9 }],
+          bullets: [
+            {
+              id: 'bullet-0',
+              text: 'Robert turns 73 in November, so his first RMD is due by April 1.',
+              sourcePath: '/ws/Henderson/2024-ira-statement.pdf',
+              quote: 'Owner date of birth: 11/1953.',
+            },
+          ],
+          eventTitle: 'Retirement plan review',
+        },
+      },
+    });
+    render(<BeforeYouMeetStrip matterId="m-1" />);
+    const bullets = screen.getByTestId('brief-bullets');
+    expect(bullets.textContent).toContain('Robert turns 73 in November');
+    expect(bullets.textContent).toContain('2024-ira-statement.pdf');
+    expect(screen.getByTestId('cite-chip-popover').textContent).toContain(
+      'Owner date of birth: 11/1953.'
+    );
+    // The per-bullet view replaces the old flat markdown-blob rendering.
+    expect(screen.queryByText('estate-plan.pdf')).toBeNull();
+  });
+
+  it('falls back to the flat markdown + citation row when bullets is empty (degraded generation, or a pre-existing persisted brief)', () => {
+    const key = briefKey(localDay(), 'e1', 'm-1');
+    useBriefStore.setState({
+      briefs: {
+        [key]: {
+          key,
+          eventId: 'e1',
+          matterId: 'm-1',
+          day: localDay(),
+          status: 'ready',
+          stale: false,
+          generatedAt: 'now',
+          markdown: '# Briefing\n- Cash position discussed',
+          citations: [{ path: '/ws/Henderson/estate-plan.pdf', score: 0.9 }],
+          bullets: [],
+          eventTitle: 'Retirement plan review',
+        },
+      },
+    });
+    render(<BeforeYouMeetStrip matterId="m-1" />);
+    expect(screen.queryByTestId('brief-bullets')).toBeNull();
+    expect(screen.getByTestId('before-you-meet').textContent).toContain('Cash position');
+    expect(screen.getByText('estate-plan.pdf')).toBeTruthy();
+  });
+
   it('shows the stale chip and collapses', () => {
     const key = briefKey(localDay(), 'e1', 'm-1');
     useBriefStore.setState({

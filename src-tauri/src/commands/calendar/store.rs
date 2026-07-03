@@ -24,6 +24,26 @@ pub struct CalendarEventRow {
 }
 
 fn calendar_master_key() -> Result<[u8; KEY_LEN]> {
+    // Headless-test override, matching rag/crypto.rs::get_or_create_master_key
+    // and crm/store.rs::crm_master_key exactly: without this, ANY test that
+    // opens a CalendarStore (e.g. via CalendarStore::open) hits a real OS
+    // keychain read in a sandbox with no Secret Service/D-Bus backend, which
+    // blocks indefinitely rather than failing fast — silently making this
+    // whole module untestable rather than erroring visibly.
+    if let Ok(hex) = std::env::var("KEEPANCE_HEADLESS_TEST_CALENDAR_MASTER_KEY_HEX") {
+        let bytes =
+            hex::decode(hex.trim()).context("decode headless test calendar master key hex")?;
+        if bytes.len() != KEY_LEN {
+            anyhow::bail!(
+                "headless test calendar master key has wrong length: {}",
+                bytes.len()
+            );
+        }
+        let mut k = [0u8; KEY_LEN];
+        k.copy_from_slice(&bytes);
+        return Ok(k);
+    }
+
     let entry = keyring::Entry::new(CALENDAR_DB_KEYCHAIN_SERVICE, CALENDAR_DB_KEYCHAIN_KEY)
         .context("calendar db keychain entry")?;
     match entry.get_password() {

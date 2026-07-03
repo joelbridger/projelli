@@ -17,7 +17,13 @@ import {
   applyDraftResponse,
   suggestClientEmail,
   draftBodyToHtml,
+  splitBodyWithCitations,
+  draftStructuredOutputOptions,
+  type DraftCitation,
+  type RawDraftResponse,
 } from '@/features/email/followUpDraft';
+import { CiteChip } from '@/ui/kp/CiteChip';
+import { FileText } from 'lucide-react';
 import { parseRecipients } from '@/features/email/emailWorkspaceHelpers';
 import {
   emailMatterScope,
@@ -59,6 +65,7 @@ export function DraftFollowUpModal({
   const [to, setTo] = useState('');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
+  const [citations, setCitations] = useState<DraftCitation[]>([]);
   const [status, setStatus] = useState<Status>('idle');
   const [error, setError] = useState<string | null>(null);
   // Codex review catch (P2): the To-suggestion query needs the real
@@ -82,6 +89,7 @@ export function DraftFollowUpModal({
     setStatus('generating');
     setError(null);
     setBody('');
+    setCitations([]);
     // Codex review catch (P2): this is a controlled modal (the `open` prop can
     // toggle without unmounting) — reset every prior client's guess before the
     // new client's lookup runs, or a stale To/Subject from the last open can
@@ -161,11 +169,15 @@ export function DraftFollowUpModal({
         // send, the one call that must never fire after the user dismissed
         // the modal.
         if (cancelled) return;
-        const response = await provider.sendMessage(prompt);
+        const response = await provider.structuredOutput<RawDraftResponse>(
+          prompt,
+          draftStructuredOutputOptions,
+        );
         if (cancelled) return;
-        const applied = applyDraftResponse(noteName, response.content);
+        const applied = applyDraftResponse(noteName, response, noteContent);
         setSubject(applied.subject);
         setBody(applied.body);
+        setCitations(applied.citations);
         setStatus('idle');
       } catch (e) {
         if (cancelled) return;
@@ -183,6 +195,10 @@ export function DraftFollowUpModal({
   const account = accounts[accountIdx];
   const canSaveDraft = account != null && account.provider !== 'imap';
   const toArr = parseRecipients(to);
+  // Recomputed from the CURRENT body on every render, not stored — an edit
+  // that removes a cited phrase drops its chip automatically.
+  const citationSegments = splitBodyWithCitations(body, citations);
+  const activeCitationCount = citationSegments.filter((s) => s.type === 'citation').length;
   const scopeHint = (msg: string) =>
     msg === 'scope_upgrade_required'
       ? 'Your email connection needs one more permission to save drafts. Open Settings and reconnect the account.'
@@ -401,6 +417,54 @@ export function DraftFollowUpModal({
                   style={inputStyle}
                 />
               </div>
+
+              {/* Citation preview — derived from the current body text, so an
+                  edit that changes a cited phrase quietly drops that chip
+                  rather than showing a citation for text that's no longer
+                  there. Hidden entirely when there's nothing to cite. */}
+              {citationSegments.some((seg) => seg.type === 'citation') && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <span style={labelStyle}>Cited</span>
+                  <div
+                    data-testid="followup-citation-preview"
+                    style={{
+                      border: '1px solid var(--color-input)',
+                      borderRadius: 'var(--radius-md)',
+                      background: '#fff',
+                      padding: '10px 12px',
+                      fontSize: 'var(--kp-font-sm)',
+                      lineHeight: 1.65,
+                      color: 'var(--color-foreground)',
+                    }}
+                  >
+                    {citationSegments.map((seg, i) =>
+                      seg.type === 'text' ? (
+                        <span key={i}>{seg.value}</span>
+                      ) : (
+                        <CiteChip
+                          key={seg.citation.id}
+                          docLabel={noteName}
+                          quote={seg.citation.quote}
+                          sourceLabel={seg.citation.label}
+                          icon={<FileText size={11} strokeWidth={1.75} />}
+                        >
+                          {seg.citation.matchText}
+                        </CiteChip>
+                      ),
+                    )}
+                  </div>
+                  <span style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--kp-text-faint, var(--color-muted-foreground))' }}>
+                    {/* codex-review P2: counts the segments actually still
+                        matched against the current (possibly edited) body,
+                        not the original citations array — an edit that
+                        removes a cited phrase drops its chip above, and the
+                        count here must drop with it. */}
+                    {activeCitationCount === 1
+                      ? 'One detail is cited from your notes. Hover it to see the exact line.'
+                      : `${String(activeCitationCount)} details are cited from your notes. Hover one to see the exact line.`}
+                  </span>
+                </div>
+              )}
 
               {/* Message */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
