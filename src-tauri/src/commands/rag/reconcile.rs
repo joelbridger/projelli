@@ -193,6 +193,16 @@ pub(crate) async fn run_workspace_index(
         return Ok(());
     }
 
+    // A DEFAULT walk just consumed the once-per-activation latch (set it false). If
+    // setup below bails with an error (e.g. a transient lock on the forced-rebuild
+    // drop_table) before `finalize_walk` runs, re-arm the latch so a later reconcile
+    // in this SAME activation retries — otherwise a fail-closed / rebuild-pending
+    // index couldn't recover until an app/workspace restart. Disarmed once setup
+    // succeeds, handing the latch decision to `finalize_walk`. (A SCOPED walk never
+    // consumed the latch, so it gets no guard.)
+    let mut relatch =
+        matter_id.is_none().then(|| RelatchGuard::new(state.full_index_pending.clone()));
+
     state.cancel_flag.store(false, Ordering::SeqCst);
     let cancel = state.cancel_flag.clone();
 
@@ -296,6 +306,13 @@ pub(crate) async fn run_workspace_index(
 
     // WS-VEC: the vector-store master key — chunk text is encrypted at rest.
     let key = crypto::get_or_create_master_key().map_err(|e| format!("vectors key: {e}"))?;
+
+    // Setup succeeded — every error path that could strand the latch is behind us
+    // (Phase 1/2 don't return Err; a mid-walk cancel returns Ok and intentionally
+    // leaves the latch consumed). Hand the latch decision to `finalize_walk`.
+    if let Some(g) = relatch.as_mut() {
+        g.disarm();
+    }
 
     // VG-6d: try to load the workspace vault master key once for the whole walk.
     // Returns None if the workspace is not vaulted or the vault is locked —
@@ -850,6 +867,54 @@ mod flood_proofing_tests {
         assert!(
             !needs_drop_and_rebuild(false, false, false),
             "a routine reconcile must not drop the table"
+        );
+    }
+
+    // ── Latch re-arm on an early setup bail (P2: in-session recovery) ───────
+    // A DEFAULT walk consumes the once-per-activation latch up front. If setup
+    // then bails (e.g. a transient lock on the forced-rebuild drop_table), the
+    // latch must be re-armed so the NEXT reconcile in the SAME activation retries
+    // — otherwise a fail-closed / rebuild-pending index can't recover until an
+    // app/workspace restart.
+    #[test]
+    fn early_setup_bail_rearms_the_latch_for_a_same_activation_retry() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+        let latch = Arc::new(AtomicBool::new(true));
+        // The default walk consumes the latch (true → false).
+        assert!(latch
+            .compare_exchange(true, false, Ordering::SeqCst, Ordering::SeqCst)
+            .is_ok());
+        {
+            let _g = RelatchGuard::new(latch.clone());
+            // ...then setup bails before disarm — the guard drops still armed.
+        }
+        assert!(
+            latch.load(Ordering::SeqCst),
+            "an early bail must re-arm the latch"
+        );
+        // The next reconcile in this activation therefore RUNS (its compare_exchange
+        // succeeds) instead of short-circuiting on a stuck-false latch.
+        assert!(
+            latch
+                .compare_exchange(true, false, Ordering::SeqCst, Ordering::SeqCst)
+                .is_ok(),
+            "the retry reconcile must be able to consume the re-armed latch"
+        );
+    }
+
+    #[test]
+    fn disarmed_guard_leaves_the_latch_to_finalize() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+        let latch = Arc::new(AtomicBool::new(false)); // consumed by the walk
+        {
+            let mut g = RelatchGuard::new(latch.clone());
+            g.disarm(); // setup succeeded — finalize_walk now owns the latch
+        }
+        assert!(
+            !latch.load(Ordering::SeqCst),
+            "a completed setup must not re-arm behind finalize_walk"
         );
     }
 }
