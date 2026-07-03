@@ -99,6 +99,16 @@ interface WorkspaceState {
 
   // Recent workspaces
   recentWorkspaces: RecentWorkspace[];
+  /**
+   * True once loadRecentWorkspaces() has run at least once this session
+   * (regardless of whether it found anything). recentWorkspaces starts as
+   * `[]` and is only populated by an async-relative-to-mount effect, so
+   * `recentWorkspaces.length === 0` alone can't distinguish "not loaded
+   * yet" from "genuinely no recent workspaces" — callers that need to make
+   * a boot-time decision (e.g. auto-resuming the last workspace) must wait
+   * for this flag before trusting recentWorkspaces.
+   */
+  recentWorkspacesLoaded: boolean;
 
   // Actions
   setRootPath: (path: string) => void;
@@ -134,6 +144,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   selectedPaths: new Set(),
   lastSelectedPath: null,
   recentWorkspaces: [],
+  recentWorkspacesLoaded: false,
 
   setRootPath: (path) => {
     // Bump the generation ONLY on a real change (F2.5b), so an in-flight Ask send
@@ -277,7 +288,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
           ...w,
           lastOpened: new Date(w.lastOpened),
         })));
-        set({ recentWorkspaces: restored });
+        set({ recentWorkspaces: restored, recentWorkspacesLoaded: true });
         try {
           persistRecentWorkspaces(restored);
         } catch (error) {
@@ -294,7 +305,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         });
       } catch (error) {
         console.error('Failed to load recent workspaces:', error);
+        set({ recentWorkspacesLoaded: true });
       }
+    } else {
+      set({ recentWorkspacesLoaded: true });
     }
   },
 

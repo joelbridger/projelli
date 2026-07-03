@@ -31,18 +31,15 @@ const E2E_BASE_URL = process.env['E2E_BASE_URL'] ?? 'http://localhost:5173';
 // docs/quality/e2e-flaky-quarantine.md — a quarantine with no deadline rots into a
 // graveyard. Adding a spec here REQUIRES adding a row there in the same change; by
 // its date a spec must be fixed (and removed here), deleted, or re-dated with a reason.
-// F3.7b (2026-07-02): 2 whole-file re-additions after the F3.7 burndown's
-// merge to keepance-3.0 turned out to still be red on real GitHub Actions CI
-// (branch pushes don't trigger CI, so this was only discoverable post-merge).
-// Both fail for CI-build-topology reasons the tests/e2e-only remediation lane
-// can't fix (see docs/quality/e2e-flaky-quarantine.md for the full cause and
-// the real fix each needs). wedge-proof.spec.ts's 4 CI-divergent tests are
-// NOT here — that file gets a per-test in-spec skip instead (its 5th test
-// passes clean and shouldn't lose CI coverage).
-const CI_QUARANTINE: string[] = [
-  'tests/e2e/web-demo.spec.ts',
-  'tests/e2e/templates-marketplace.spec.ts',
-];
+// F3.7b (2026-07-03): both whole-file entries FIXED and removed — see
+// docs/quality/e2e-flaky-quarantine.md for the root causes + fixes
+// (templates-marketplace.spec.ts: a real product-code test seam replaced the
+// dev-only Vite module-graph import; web-demo.spec.ts: the e2e CI job now
+// also builds + merges the web-demo bundle so /index.demo.html exists under
+// the production preview server). wedge-proof.spec.ts's remaining 1
+// CI-divergent (but deterministic, non-flaky) test keeps its per-test
+// in-spec skip — see the file itself.
+const CI_QUARANTINE: string[] = [];
 
 export default defineConfig({
   testDir: './tests/e2e',

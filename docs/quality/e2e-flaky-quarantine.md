@@ -22,13 +22,12 @@ same change.
 > `test.skip(!!process.env.E2E_CI_QUARANTINE, '…')` instead, so the file's other
 > passing tests aren't dropped from CI too. This file tracks ownership either way.
 
-## Update (2026-07-03, `fix/consent-mock-provider-refusal`)
+## Update (2026-07-03, `fix/consent-mock-provider-refusal`) — supersedes the re-quarantine below
 
-`wedge-proof.spec.ts`'s `ask-workspace ON ... REFUSES instead of fabricating`
-test was un-quarantined and root-caused — **not** the CI-only
-`ERR_CONNECTION_REFUSED` flake the F3.7b entry below suspected for all 4 of
-this file's in-spec-skipped tests. It failed **deterministically** (100% of
-runs, local and CI) for an unrelated reason: the F2.5 file-access consent gate
+The F3.7b entry below re-quarantined `wedge-proof.spec.ts`'s `ask-workspace ON
+... REFUSES instead of fabricating` test a SECOND time, for a NEW reason found
+while un-skipping it: it failed **deterministically** (100% of runs, local and
+CI, not a flake) because the F2.5 file-access consent gate
 (`src/platform/ai/fileAccessConsent.ts`) classifies any non-local provider id —
 including this test's fixture `provider: 'mock'` — as cloud
 (`isLocalProviderId` in `providerFactory.ts` only recognizes
@@ -37,7 +36,8 @@ paused pending consent before retrieval ever ran. `FileAccessConsentBanner.tsx`
 classified cloud providers with its OWN separate hardcoded
 `Set(['anthropic','openai','google'])`, which didn't include `'mock'` — so the
 banner never rendered the "Allow file access" affordance either, making the
-gate's block unreachable-to-fix from the UI. Two bugs, not one:
+gate's block unreachable-to-fix from the UI. This branch root-caused and fixed
+both halves:
 
 1. **The test never granted consent** — a real gap in the fixture/test, not a
    product bug on its own (real users only ever have provider ids
@@ -56,70 +56,117 @@ gate's block unreachable-to-fix from the UI. Two bugs, not one:
    the exact same `isLocalProviderId` predicate the gate uses, so "gated" and
    "has an Allow affordance" can never drift apart again.
 
-Un-quarantined only this one test (`test.skip(!!process.env['E2E_CI_QUARANTINE'], ...)`
-removed from it). The file's other 3 tests (`cited answer renders chips...`,
-the xlsx round-trip, and the pptx fallback) remain quarantined below for the
-separate, still-unresolved `ERR_CONNECTION_REFUSED` CI-only flake — if that
-flake turns out to also hit the now-unquarantined test on a future CI run,
-re-quarantine it under that same row rather than reopening the consent-gate
-investigation, since that root cause is fixed and verified.
+Un-quarantined again (the in-spec `test.skip` this branch's own fix added is
+now scoped to locale, not `E2E_CI_QUARANTINE` — see the code comment). History
+now reads: re-quarantined by F3.7b (below) → root-caused + fixed by this
+branch. If a future CI run somehow hits this test again, re-open a fresh
+investigation rather than assuming it's either of the two causes already
+closed out here.
 
-## Current state: 3 files re-quarantined post-merge (F3.7b, 2026-07-02)
+## Current state: F3.7b remainder resolved (2026-07-03)
 
 The F3.7 burndown below (merged into `keepance-3.0` at `c0380e2d`) was verified
 green with LOCAL runs only — branch pushes don't trigger CI, so the first real
 signal came from the post-merge CI run (28559901825), which was red: 3 of 6
-e2e shards, 11 tests. F3.7b (this entry, branch `fix/e2e-ci-remediation`)
-triaged each failure against the exact CI-equivalent env (`vite build --config
-vite.config.e2e.ts` + `vite preview`, `E2E_NO_LIVE=1`, `E2E_CI_QUARANTINE=1`):
+e2e shards, 11 tests. F3.7b (branch `fix/e2e-ci-remediation`) triaged each
+failure against the exact CI-equivalent env (`vite build --config
+vite.config.e2e.ts` + `vite preview`, `E2E_NO_LIVE=1`, `E2E_CI_QUARANTINE=1`)
+and fixed the visual-snapshot pair same-day; the 3 remaining files were
+re-quarantined with a 2026-07-09 fix-or-delete-by date. This entry (branch
+`fix/e2e-quarantine-f37`, 2026-07-03) burns down all 3:
 
-- **Visual snapshots (2 tests, FIXED)** — `app-layout.spec.ts` and
-  `status-bar.spec.ts`'s `*-chromium-linux.png` baselines. Root cause: the
-  F3.7 burndown's `d87c96a9` un-quarantine commit only regenerated the `en`
-  project's baselines (`status-bar-en-linux.png`,
-  `main-app-test-mode-en-linux.png`) — the default `chromium` project's
-  baselines (what the CI gate actually checks, `--project=chromium`) were
-  left stale. `status-bar-chromium-linux.png` in particular was stale from
-  well before the burndown (780px width, old fixture filename/trial-day
-  content) — not just a color-pixel diff. Regenerated both with
-  `--update-snapshots` against the CI-equivalent build; visually confirmed
-  both now show the current rebrand/light-theme/faint-text UI. Verified
-  green on 2 consecutive local runs.
-- **`templates-marketplace.spec.ts` (1 test, RE-QUARANTINED — whole file)** —
-  `exposeMarketplaceTestKit()` does `import('/src/features/workflows/
-  marketplace/svc/index.ts')` from the page context, relying on Vite's
-  dev-server module graph serving raw TS source over HTTP. That route
-  doesn't exist under a production `vite build` (CI's preview server serves
-  bundled/hashed `dist/assets/*.js`), so the dynamic import 404s. A real fix
-  needs a product-code test seam (e.g. an `App.tsx`-exposed
-  `window.__marketplaceTestKit` built at app-init time, like other specs'
-  `__templatesMarketplaceStore`) — out of the tests/e2e-only remediation
-  lane's scope.
-- **`web-demo.spec.ts` (4 tests, RE-QUARANTINED — whole file)** — all 4 tests
-  `goto('/index.demo.html')` and wait on `demo-mode-banner`, which is gated
-  behind the `IS_DEMO` flag (`src/web-demo/demoModeFlag.ts`,
-  `__KEEPANCE_DEMO__` global). That define is only set by the separate
-  `vite.config.web-demo.ts` build (`npm run build:web-demo`, its own
-  `index.demo.html` entry) — the e2e CI job builds only via
-  `vite.config.e2e.ts`, which never sets it, so demo mode never activates
-  under the preview server the gate tests against. A real fix needs a CI
-  workflow change (build+serve the web-demo bundle for this job, or a
-  request-time flag) — out of this lane's scope (no CI workflow edits).
-- **`wedge-proof.spec.ts` (4 tests, RE-QUARANTINED — per-test in-spec skip,
-  not whole-file — its 5th test passes clean)** — all 4 fail on real CI with
-  2x `net::ERR_CONNECTION_REFUSED` console errors tripping the specs'
-  zero-console-error assertions. Did not reproduce across 2 local runs
-  (isolated file run, and a full `--shard=6/6` replay matching the exact CI
-  shard) against the CI-equivalent preview build — genuinely CI-runner-
-  timing-sensitive, likely an async connectivity probe (firm-backend or
-  similar) racing page load. Root cause not pinned down within one bounded
-  investigation attempt per the remediation brief.
+- **Visual snapshots (2 tests, FIXED same-day, 2026-07-02)** —
+  `app-layout.spec.ts` and `status-bar.spec.ts`'s `*-chromium-linux.png`
+  baselines were stale (the F3.7 burndown's un-quarantine commit only
+  regenerated the `en` project's baselines, not the default `chromium`
+  project's). Regenerated with `--update-snapshots`; verified green on 2
+  consecutive local runs.
+- **`templates-marketplace.spec.ts` (1 test, FIXED, removed from
+  `CI_QUARANTINE`)** — the spec used to dynamic-`import()` the marketplace
+  barrel straight from Vite's dev-server module graph
+  (`/src/features/workflows/marketplace/svc/index.ts`), which 404s under a
+  production `vite build` (CI's preview server serves hashed
+  `dist/assets/*.js`, not raw source). Fix: a real product-code test seam,
+  `src/features/workflows/marketplace/marketplaceTestKit.ts`, statically
+  imports the real `MarketplaceService`/`TemplateMetadataReader` classes and
+  installs `window.__marketplaceTestKit` as a side effect of being imported
+  by `MarketplaceTab.tsx` (which self-registers the moment Settings →
+  Advanced → Marketplace mounts) — mirroring the existing
+  `window.__templatesMarketplaceStore` seam, but scoped inside the
+  marketplace feature folder instead of `App.tsx` (kept out of the
+  `src/app/**` lane another branch owned concurrently). The spec now seeds
+  the synthetic catalog right after `marketplace-tab` becomes visible
+  (TemplatesTab renders its `templates-tab-empty` state until a marketplace
+  service is set, so seeding must happen before the `templates-tab` check,
+  not before Settings opens). Verified green on 2 consecutive runs against
+  the CI-equivalent build.
+- **`web-demo.spec.ts` (4 tests, FIXED, removed from `CI_QUARANTINE`)** — the
+  real defect was one layer earlier than originally suspected: the base
+  `vite.config.ts` has no `rollupOptions.input` override, so a production
+  `vite build` (including via `vite.config.e2e.ts`, which only merges the
+  base config) only ever emits `dist/index.html` — `index.demo.html` was
+  never in the CI job's build output AT ALL, a 404, not merely a missing
+  `__KEEPANCE_DEMO__` define. Fix: the e2e CI job (`.github/workflows/ci.yml`)
+  now also runs `vite build --config vite.config.web-demo.ts` (the same
+  build the real keepance.com/try deploy uses, so `__KEEPANCE_DEMO__` is set
+  correctly too) and merges its output into the already-built `dist/`:
+  `dist-web-demo/index.demo.html` → `dist/index.demo.html`,
+  `dist-web-demo/assets/` → `dist/try/assets/` (matching the demo bundle's
+  `base: '/try/'`, so its asset URLs resolve unchanged). One preview server
+  then serves both entries side by side. Verified locally by replicating the
+  CI steps exactly (build, merge, `vite preview`) — 2 consecutive green runs.
+- **`wedge-proof.spec.ts` (FIXED: 3 of 4 tests; 1 re-quarantined for a NEW,
+  distinct reason)** — root cause pinned down (previously "not yet pinned
+  down"): `OllamaProvider.detectOllama()` fetches `http://127.0.0.1:11434/
+  api/tags` directly from the browser, unconditionally, from two places —
+  `ChatModelPicker`'s mount effect and `askHelpers.ts`'s
+  `resolveActiveAskProviderId`/`resolveAvailableLocalGenerationProvider`
+  egress-badge fallback (used whenever no cloud key resolves). Both wrap the
+  fetch in try/catch and degrade gracefully, but Chromium still logs the raw
+  network failure (`Failed to load resource: net::ERR_CONNECTION_REFUSED`)
+  to the DevTools console regardless, which Playwright surfaces as a
+  `console` event even though app code never sees it. It didn't reproduce on
+  this dev box because **this server runs a real local Ollama daemon on
+  :11434** (confirmed live, `llama3.1:8b` loaded) — every GitHub Actions
+  runner has no such daemon, so the exact same probe gets a genuine refusal
+  there. The "2x" and "intermittent" framing both check out: 2 independent
+  probe call-sites, and TCP-refusal timing inside the test's lifetime is
+  racy enough that it isn't caught every run. Fix: scoped the existing
+  `collectConsoleErrors` helper (`tests/campaign/helpers/campaign.ts`,
+  shared by many specs) with a NEW `BENIGN_RESOURCE_LOAD_FAILURES` list keyed
+  on the failing request's URL (via `ConsoleMessage.location().url`, not just
+  message text), matching the exact `127.0.0.1:11434`/`localhost:11434`
+  origin — so a real connection failure to any OTHER host still fails the
+  assertion. Verified empirically, not just by re-running: reproduced the
+  exact CI failure locally by `page.route()`-blocking port 11434
+  (`route.abort('connectionrefused')`) inside the existing "cited answer"
+  test, confirmed it fails on the console-errors assertion WITHOUT the
+  allowlist fix and passes WITH it — a true positive/negative control pair,
+  not just "tests are green now." 3 of the 4 previously-skipped tests are
+  un-skipped and verified green on 3 consecutive runs (this file's 5th test
+  was already unaffected). The 4th ("ask-workspace ON ... REFUSES instead of
+  fabricating") surfaced a SEPARATE, unrelated, deterministic (not flaky)
+  failure once un-skipped: the F2.5 file-access-consent gate
+  (`src/platform/ai/fileAccessConsent.ts`) now treats this fixture's
+  `provider: 'mock'` as a cloud provider (anything that isn't literally
+  `'ollama'`/`'keepance-local'` counts — see `isLocalProviderId` in
+  `src/platform/providers/providerFactory.ts`) and blocks ambient
+  Ask-my-workspace retrieval pending consent that's never granted, so the
+  send never reaches the retrieval-refusal path this test asserts —
+  reproduces 100% of the time, confirmed NOT CI-only. `FileAccessConsentBanner`
+  (`src/features/ask/chat/FileAccessConsentBanner.tsx`) doesn't recognize
+  `'mock'` as a cloud provider either, so there's no UI affordance to grant
+  consent for a mock-provider chat, and both files are under `src/features/
+  ask/**` — outside this tests/e2e-only lane (owned by `fix/ask-list-hang`
+  per the F3.7b lane walls). Re-quarantined (in-spec skip only, same test)
+  with the new reason and a fresh 2026-07-16 fix-or-delete-by date.
+  **Superseded 2026-07-03** — see the "Update" section at the top of this
+  file: `fix/consent-mock-provider-refusal` root-caused and fixed this exact
+  regression and re-un-quarantined the test.
 
 | Spec | Suspected cause | Owner | Fix-or-delete-by |
 |---|---|---|---|
-| `templates-marketplace.spec.ts` | Dev-only Vite module-graph import; needs a product-code test seam | `fix-plan-F3.7-followup` | 2026-07-09 |
-| `web-demo.spec.ts` | `__KEEPANCE_DEMO__` not set under the e2e job's build; needs a CI workflow change | `fix-plan-F3.7-followup` | 2026-07-09 |
-| `wedge-proof.spec.ts` (3 tests remaining, in-spec skip — see 2026-07-03 update above for the 4th) | Intermittent CI-only `ERR_CONNECTION_REFUSED`; cause not yet pinned down | `fix-plan-F3.7-followup` | 2026-07-09 |
+| _(none)_ | `templates-marketplace.spec.ts` and `web-demo.spec.ts` were fixed and removed from `CI_QUARANTINE` by F3.7b (above); `wedge-proof.spec.ts`'s 4th test was fixed and un-quarantined by `fix/consent-mock-provider-refusal` (2026-07-03 update above) — nothing is currently quarantined. | — | — |
 
 The F3.7 burndown history (still accurate for everything else it covered)
 follows unchanged.

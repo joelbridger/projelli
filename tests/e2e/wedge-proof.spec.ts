@@ -201,14 +201,13 @@ test.describe('VG-1 leg 2 — wedge UI wiring (browser, testMode)', () => {
   test('cited answer renders chips (verified + unverified), sources accordion, scope chip; chip click opens the cited file', async ({
     page,
   }, testInfo) => {
-    test.skip(
-      !!process.env['E2E_CI_QUARANTINE'],
-      'confirmed failing on real CI (F3.7b, 2026-07-02): 2x intermittent ' +
-        'net::ERR_CONNECTION_REFUSED console errors trip the zero-console-error ' +
-        'assertion; did not reproduce across 2 local runs (isolated + full ' +
-        'shard-6 replay) against the CI-equivalent preview build — see ' +
-        'docs/quality/e2e-flaky-quarantine.md'
-    );
+    // F3.7b (2026-07-03) root cause: `detectOllama()` (ChatModelPicker's
+    // mount effect + askHelpers.ts's egress-badge fallback) probes
+    // 127.0.0.1:11434 directly from the browser. CI runners never have
+    // Ollama installed, so the browser logs a genuine (but app-caught)
+    // net::ERR_CONNECTION_REFUSED — allowlisted by URL in
+    // tests/campaign/helpers/campaign.ts's BENIGN_RESOURCE_LOAD_FAILURES.
+    // See docs/quality/e2e-flaky-quarantine.md for the full writeup.
     const getErrors = collectConsoleErrors(page);
 
     const { verifiedChip, unverifiedChip } = await openCitedChat(page);
@@ -275,16 +274,31 @@ test.describe('VG-1 leg 2 — wedge UI wiring (browser, testMode)', () => {
   test('ask-workspace ON in a build without rag REFUSES instead of fabricating; privilege toggle appears', async ({
     page,
   }, testInfo) => {
-    // This assertion checks the LITERAL English refusal copy (not a testid —
-    // there's no stable per-message testid to key off, since a refusal has no
-    // sources/scope chip). Scoped to chromium/en (both render English; this
-    // file's own docstring already documents `--project=chromium` as its
-    // usage) — the `es`/`de` locale-matrix projects render translated copy
-    // this string wouldn't match. The CI gate only ever runs
-    // `--project=chromium` (ci.yml), so this doesn't narrow real coverage;
-    // it just keeps a manual `npx playwright test tests/e2e/wedge-proof.spec.ts`
-    // (no --project flag, so Playwright runs every configured project) from
-    // failing on an out-of-scope locale.
+    // F3.7b (2026-07-03) re-quarantined this test a SECOND time for a NEW,
+    // deterministic (not flaky) reason found while verifying the ERR_CONNECTION_
+    // REFUSED un-skip (fixed on the other 3 tests in this file via
+    // BENIGN_RESOURCE_LOAD_FAILURES in tests/campaign/helpers/campaign.ts): the
+    // F2.5 file-access-consent gate treated this fixture's `provider: 'mock'` as
+    // cloud (isLocalProviderId only recognizes 'ollama'/'keepance-local') and
+    // blocked ambient Ask-my-workspace retrieval pending consent that was never
+    // granted, so the send never reached the retrieval-refusal path this test
+    // asserts. fix/consent-mock-provider-refusal root-caused and fixed BOTH
+    // halves of that: the test now grants consent via the real
+    // `chat-file-access-allow` affordance below, and FileAccessConsentBanner.tsx
+    // shares the exact isLocalProviderId predicate the send-path gate uses (was
+    // its own separate hardcoded provider Set that didn't include 'mock', so the
+    // gate's block had no UI escape hatch) — see
+    // docs/quality/e2e-flaky-quarantine.md for the full writeup. Superseding the
+    // re-quarantine, this test is un-skipped again — except for the assertion
+    // below, which checks LITERAL English refusal copy (no stable per-message
+    // testid exists to key off, since a refusal has no sources/scope chip).
+    // Scoped to chromium/en (both render English; this file's own docstring
+    // already documents `--project=chromium` as its usage) — the `es`/`de`
+    // locale-matrix projects render translated copy this string wouldn't match.
+    // The CI gate only ever runs `--project=chromium` (ci.yml), so this doesn't
+    // narrow real coverage; it just keeps a manual `npx playwright test
+    // tests/e2e/wedge-proof.spec.ts` (no --project flag, so Playwright runs
+    // every configured project) from failing on an out-of-scope locale.
     test.skip(
       !['chromium', 'en'].includes(testInfo.project.name),
       'asserts hardcoded English refusal copy; out of scope for the es/de locale-matrix projects',
@@ -364,14 +378,13 @@ test.describe('VG-1 leg 2 — wedge UI wiring (browser, testMode)', () => {
     // tests/unit/spreadsheet-io.test.ts (F-506 describe block). This test is
     // the plan's original round-trip at full assertion strength — formerly
     // the expected-fail tripwire, now a normal test.
-    test.skip(
-      !!process.env['E2E_CI_QUARANTINE'],
-      'confirmed failing on real CI (F3.7b, 2026-07-02): 2x intermittent ' +
-        'net::ERR_CONNECTION_REFUSED console errors trip the zero-console-error ' +
-        'assertion; did not reproduce across 2 local runs (isolated + full ' +
-        'shard-6 replay) against the CI-equivalent preview build — see ' +
-        'docs/quality/e2e-flaky-quarantine.md'
-    );
+    // F3.7b (2026-07-03) root cause: `detectOllama()` (ChatModelPicker's
+    // mount effect + askHelpers.ts's egress-badge fallback) probes
+    // 127.0.0.1:11434 directly from the browser. CI runners never have
+    // Ollama installed, so the browser logs a genuine (but app-caught)
+    // net::ERR_CONNECTION_REFUSED — allowlisted by URL in
+    // tests/campaign/helpers/campaign.ts's BENIGN_RESOURCE_LOAD_FAILURES.
+    // See docs/quality/e2e-flaky-quarantine.md for the full writeup.
 
     const getErrors = collectConsoleErrors(page);
     const xlsxPath = '/test-workspace/matter-corpus/damages-model.xlsx';
@@ -440,14 +453,13 @@ test.describe('VG-1 leg 2 — wedge UI wiring (browser, testMode)', () => {
   test('pptx: exhibit-deck.pptx parses and renders its real slide text via the honest fallback outline', async ({
     page,
   }, testInfo) => {
-    test.skip(
-      !!process.env['E2E_CI_QUARANTINE'],
-      'confirmed failing on real CI (F3.7b, 2026-07-02): 2x intermittent ' +
-        'net::ERR_CONNECTION_REFUSED console errors trip the zero-console-error ' +
-        'assertion; did not reproduce across 2 local runs (isolated + full ' +
-        'shard-6 replay) against the CI-equivalent preview build — see ' +
-        'docs/quality/e2e-flaky-quarantine.md'
-    );
+    // F3.7b (2026-07-03) root cause: `detectOllama()` (ChatModelPicker's
+    // mount effect + askHelpers.ts's egress-badge fallback) probes
+    // 127.0.0.1:11434 directly from the browser. CI runners never have
+    // Ollama installed, so the browser logs a genuine (but app-caught)
+    // net::ERR_CONNECTION_REFUSED — allowlisted by URL in
+    // tests/campaign/helpers/campaign.ts's BENIGN_RESOURCE_LOAD_FAILURES.
+    // See docs/quality/e2e-flaky-quarantine.md for the full writeup.
     const getErrors = collectConsoleErrors(page);
 
     await openTestFile(page, {

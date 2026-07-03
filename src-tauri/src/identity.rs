@@ -140,6 +140,11 @@ pub const ZOCKS_SERVICE_PREFIX: &str = concat!(app_ns!(), "-zocks-");
 /// Addepar connector namespace prefix.
 pub const ADDEPAR_SERVICE_PREFIX: &str = concat!(app_ns!(), "-addepar-");
 
+/// Calendly connector namespace prefix. Covers the SQLCipher master key
+/// (`keepance-calendly-enc`) and any future Calendly-scoped secret. The bare
+/// API token slot (`keepance-calendly`) is the exact `CALENDLY_SERVICE` above.
+pub const CALENDLY_SERVICE_PREFIX: &str = concat!(app_ns!(), "-calendly-");
+
 // ── Per-workspace hidden data directory ──────────────────────────────────────
 
 /// Name of the hidden metadata directory inside each workspace root.
