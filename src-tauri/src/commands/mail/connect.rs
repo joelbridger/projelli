@@ -299,22 +299,95 @@ pub async fn mail_imap_disconnect() -> Result<(), String> {
 
 /// Run the Gmail loopback+PKCE sign-in: open the browser, catch the redirect,
 /// exchange the code, and store the refresh token in the OS keychain. Blocks
-/// until the user finishes in the browser (or a 5-minute timeout).
+/// until the user finishes, cancels (see `gmail_connect_cancel`), or a
+/// 5-minute timeout elapses.
+///
+/// Returns `Err("not_configured")` immediately, before ever opening a browser
+/// window, when this build has no Google OAuth client credentials baked in
+/// (see `gmail_oauth_is_configured`) — the frontend shows a calm "not set up"
+/// note instead of letting the user hit Google's raw "Error 400:
+/// invalid_request — Missing required parameter: client_id".
 #[tauri::command]
-pub async fn gmail_connect() -> Result<(), String> {
-    use crate::commands::mail::gmail::oauth::{bind_loopback, build_auth_url, gen_pkce, gen_state, open_browser, await_redirect_code, GoogleOAuth};
+pub async fn gmail_connect(state: State<'_, MailState>) -> Result<(), String> {
+    use crate::commands::mail::gmail::oauth::{
+        await_redirect_code_or_cancel, bind_loopback, build_auth_url, gen_pkce, gen_state,
+        open_browser, store_or_rollback_on_cancel, GoogleOAuth,
+    };
+
+    if !gmail_oauth_is_configured() {
+        return Err("not_configured".to_string());
+    }
+
+    // Reset from any prior cancelled/finished attempt before starting a new one.
+    state.gmail_oauth_cancel.store(false, Ordering::SeqCst);
+    let cancel = state.gmail_oauth_cancel.clone();
+
     let (verifier, challenge) = gen_pkce();
-    let state = gen_state();
+    let state_token = gen_state();
     let (listener, redirect_uri) = bind_loopback().await.map_err(|e| e.to_string())?;
-    let url = build_auth_url(&gmail_client_id(), &redirect_uri, &challenge, &state);
+    let url = build_auth_url(&gmail_client_id(), &redirect_uri, &challenge, &state_token);
     open_browser(&url);
-    let code = await_redirect_code(listener, &state, std::time::Duration::from_secs(300)).await.map_err(|e| e.to_string())?;
+    let code = await_redirect_code_or_cancel(
+        listener,
+        &state_token,
+        std::time::Duration::from_secs(300),
+        cancel.clone(),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
     let oauth = GoogleOAuth::new(gmail_client_id(), gmail_client_secret());
-    let tokens = oauth.exchange_code(&code, &verifier, &redirect_uri).await.map_err(|e| e.to_string())?;
-    let refresh = tokens.refresh.ok_or("Google did not return a refresh token; try again")?;
-    keyring::Entry::new(GMAIL_KEYCHAIN_SERVICE, GMAIL_REFRESH_KEY).map_err(|e| e.to_string())?
-        .set_password(&refresh).map_err(|e| e.to_string())?;
+    let tokens = oauth
+        .exchange_code(&code, &verifier, &redirect_uri)
+        .await
+        .map_err(|e| e.to_string())?;
+    let refresh = tokens
+        .refresh
+        .ok_or("Google did not return a refresh token; try again")?;
+
+    // Cancel can arrive while the token exchange (a network round trip) was in
+    // flight — check again before persisting so a canceled flow never leaves a
+    // stored credential behind, even though the redirect wait itself already
+    // resolved successfully.
+    let entry = keyring::Entry::new(GMAIL_KEYCHAIN_SERVICE, GMAIL_REFRESH_KEY)
+        .map_err(|e| e.to_string())?;
+    // Snapshot whatever was there before (if this is a reconnect over an
+    // existing connection) so a cancel-after-store rolls back to THAT, rather
+    // than always deleting — a canceled reconnect must not disconnect an
+    // already-working account.
+    let previous_token = entry.get_password().ok();
+    store_or_rollback_on_cancel(
+        &cancel,
+        || entry.set_password(&refresh).map_err(|e| e.to_string()),
+        || match &previous_token {
+            Some(prev) => {
+                let _ = entry.set_password(prev);
+            }
+            None => {
+                let _ = entry.delete_credential();
+            }
+        },
+    )
+}
+
+/// Abort a pending `gmail_connect` interactive sign-in immediately (e.g. the
+/// user clicked Cancel, or closed the browser tab and gave up) instead of
+/// leaving them stuck on the 5-minute server-side timeout. A no-op if no
+/// sign-in is in flight. Never touches an already-working connection.
+#[tauri::command]
+pub async fn gmail_connect_cancel(state: State<'_, MailState>) -> Result<(), String> {
+    state.gmail_oauth_cancel.store(true, Ordering::SeqCst);
     Ok(())
+}
+
+/// Whether this build's Gmail connector has real Google OAuth client
+/// credentials baked in. The frontend calls this before offering "Connect
+/// Gmail" so a build missing `KEEPANCE_GMAIL_CLIENT_ID`/`_SECRET` (e.g. a
+/// local dev build where the secret was never exported before `cargo build`
+/// ran) shows an honest "Gmail isn't set up on this build" note instead of
+/// a raw Google OAuth error.
+#[tauri::command]
+pub async fn gmail_oauth_configured() -> Result<bool, String> {
+    Ok(gmail_oauth_is_configured())
 }
 
 #[tauri::command]

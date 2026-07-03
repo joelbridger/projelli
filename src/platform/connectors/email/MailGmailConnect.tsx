@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { gmailConnect, gmailIsConnected, gmailDisconnect, mailSyncAll, mailCancelSync, isDesktopOnlyMailError } from '@/platform/utils/mail-commands';
+import { gmailConnect, gmailConnectCancel, gmailOauthConfigured, gmailIsConnected, gmailDisconnect, mailSyncAll, mailCancelSync, isDesktopOnlyMailError } from '@/platform/utils/mail-commands';
 import { useMailSync } from '@/platform/connectors/email/useMailSync';
 import { useMailStore } from '@/platform/connectors/email/mailStore';
 import { getMatters } from '@/platform/matter/matterStore';
@@ -15,9 +15,21 @@ export function MailGmailConnect() {
   const [connecting, setConnecting] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [syncStalled, setSyncStalled] = useState(false);
+  // Defaults to true (assume configured) until the build-config check
+  // resolves, so the button never flashes disabled on a normal build.
+  const [configured, setConfigured] = useState(true);
 
   useEffect(() => {
     gmailIsConnected().then(setConnected).catch(() => {});
+  }, []);
+
+  // A build with no Google OAuth client credentials baked in
+  // (KEEPANCE_GMAIL_CLIENT_ID/_SECRET missing at compile time) can never
+  // complete a Gmail sign-in — check up front so the panel shows an honest
+  // "not set up" note instead of letting the user hit Google's raw
+  // "Error 400: invalid_request" after a real browser window already opened.
+  useEffect(() => {
+    gmailOauthConfigured().then(setConfigured).catch(() => {});
   }, []);
 
   // Sync-stall watchdog: if progress is 'syncing' and written count hasn't changed
@@ -59,11 +71,32 @@ export function MailGmailConnect() {
         setConnectError(err instanceof Error ? err.message : typeof err === 'string' ? err : 'Mail sync could not start. Please try again.');
       });
     } catch (err) {
-      setConnectError(typeof err === 'string' ? err : err instanceof Error ? err.message : 'Could not connect. Please try again.');
+      const message = typeof err === 'string' ? err : err instanceof Error ? err.message : 'Could not connect. Please try again.';
+      // The user clicked Cancel — this is an intentional exit, not a failure,
+      // so don't show a red error for it (and any prior working connection
+      // was never touched).
+      if (message === 'cancelled') {
+        // no-op
+      } else if (message === 'not_configured') {
+        // Defense in depth: the upfront gmailOauthConfigured() check should
+        // already have hidden the Connect button, but if the config check
+        // itself failed to resolve, don't let the user hit a raw Google error.
+        setConfigured(false);
+      } else {
+        setConnectError(message);
+      }
     } finally {
       setConnecting(false);
       endOAuth();
     }
+  }
+
+  // Abort a pending sign-in immediately instead of leaving the user stuck on
+  // the "Waiting for Google sign-in…" spinner for the full 5-minute
+  // server-side OAuth timeout with no way out. The prior connection (if any)
+  // is left untouched.
+  function cancelConnect() {
+    gmailConnectCancel().catch(() => {});
   }
 
   async function disconnect() {
@@ -96,6 +129,17 @@ export function MailGmailConnect() {
           </p>
           {/* eslint-enable lantern-i18n/no-hardcoded-string */}
 
+          {!configured && (
+            /* This build has no Google OAuth client credentials baked in
+               (KEEPANCE_GMAIL_CLIENT_ID/_SECRET missing at compile time) — a
+               calm info note, not a red alarm, since this is a build/setup
+               gap rather than something the user did wrong (UX-22). */
+            <div data-testid="mail-gmail-not-configured" className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+              {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string */}
+              <p>Gmail sign-in isn&apos;t set up on this build yet.</p>
+            </div>
+          )}
+
           {connectError &&
             (isDesktopOnlyMailError(connectError) ? (
               /* Expected limitation in the web preview — a calm info note, not a
@@ -110,14 +154,26 @@ export function MailGmailConnect() {
               </div>
             ))}
 
-          <button
-            type="button"
-            disabled={connecting}
-            onClick={() => void connect()}
-            className="rounded-md bg-[var(--kp-navy)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
-          >
-            {connecting ? 'Waiting for Google sign-in in your browser…' : 'Connect Gmail'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={connecting || !configured}
+              onClick={() => void connect()}
+              className="rounded-md bg-[var(--kp-navy)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
+            >
+              {connecting ? 'Waiting for Google sign-in in your browser…' : 'Connect Gmail'}
+            </button>
+            {connecting && (
+              <button
+                type="button"
+                data-testid="mail-gmail-cancel-connect"
+                onClick={cancelConnect}
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -153,16 +209,37 @@ export function MailGmailConnect() {
             </p>
           )}
           {connectError && <p className="mt-1 text-red-700">Something went wrong: {connectError}</p>}
+          {!configured && (
+            /* A saved token from an earlier (properly configured) build can
+               leave this panel showing "Connected" even though THIS build has
+               no Google OAuth client credentials — Reconnect would otherwise
+               fail with zero visible feedback (Codex review finding). Same
+               calm tone as the disconnected-state note (UX-22). */
+            <div data-testid="mail-gmail-not-configured" className="mt-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+              {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string */}
+              <p>Gmail sign-in isn&apos;t set up on this build yet — Reconnect won&apos;t work until that&apos;s fixed.</p>
+            </div>
+          )}
           <div className="mt-2 flex items-center gap-2">
             <button
               type="button"
               data-testid="mail-gmail-reconnect"
-              disabled={connecting}
+              disabled={connecting || !configured}
               onClick={() => void reconnect()}
               className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
             >
               {connecting ? 'Reconnecting…' : 'Reconnect'}
             </button>
+            {connecting && (
+              <button
+                type="button"
+                data-testid="mail-gmail-cancel-connect"
+                onClick={cancelConnect}
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+            )}
             <button
               type="button"
               onClick={() => void disconnect()}
