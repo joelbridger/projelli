@@ -22,6 +22,48 @@ same change.
 > `test.skip(!!process.env.E2E_CI_QUARANTINE, '…')` instead, so the file's other
 > passing tests aren't dropped from CI too. This file tracks ownership either way.
 
+## Update (2026-07-03, `fix/consent-mock-provider-refusal`)
+
+`wedge-proof.spec.ts`'s `ask-workspace ON ... REFUSES instead of fabricating`
+test was un-quarantined and root-caused — **not** the CI-only
+`ERR_CONNECTION_REFUSED` flake the F3.7b entry below suspected for all 4 of
+this file's in-spec-skipped tests. It failed **deterministically** (100% of
+runs, local and CI) for an unrelated reason: the F2.5 file-access consent gate
+(`src/platform/ai/fileAccessConsent.ts`) classifies any non-local provider id —
+including this test's fixture `provider: 'mock'` — as cloud
+(`isLocalProviderId` in `providerFactory.ts` only recognizes
+`'ollama'`/`'keepance-local'`), so the ambient "Ask my workspace" toggle was
+paused pending consent before retrieval ever ran. `FileAccessConsentBanner.tsx`
+classified cloud providers with its OWN separate hardcoded
+`Set(['anthropic','openai','google'])`, which didn't include `'mock'` — so the
+banner never rendered the "Allow file access" affordance either, making the
+gate's block unreachable-to-fix from the UI. Two bugs, not one:
+
+1. **The test never granted consent** — a real gap in the fixture/test, not a
+   product bug on its own (real users only ever have provider ids
+   `anthropic`/`openai`/`google`/`ollama`/`keepance-local`, so `'mock'` never
+   reaches production). Fixed by clicking the real `chat-file-access-allow`
+   affordance in the test before sending, so the send reaches the actual
+   RAG-unavailable path this test is meant to prove.
+2. **A latent product bug (fixed regardless of the test):** the gate
+   (`fileAccessConsent.ts` / `useChatSending.ts`'s `providerIsCloud =
+   !isLocalProviderId(...)`) and the banner used two independent
+   classifications of "cloud." Any provider id neither explicitly local NOR in
+   the banner's small hardcoded list — a future provider added to
+   `ChatProviderId` without also updating the banner, for example — would be
+   gated OFF by the send path with **zero UI escape hatch**, a silent,
+   unrecoverable dead end. Fixed by making `FileAccessConsentBanner.tsx` share
+   the exact same `isLocalProviderId` predicate the gate uses, so "gated" and
+   "has an Allow affordance" can never drift apart again.
+
+Un-quarantined only this one test (`test.skip(!!process.env['E2E_CI_QUARANTINE'], ...)`
+removed from it). The file's other 3 tests (`cited answer renders chips...`,
+the xlsx round-trip, and the pptx fallback) remain quarantined below for the
+separate, still-unresolved `ERR_CONNECTION_REFUSED` CI-only flake — if that
+flake turns out to also hit the now-unquarantined test on a future CI run,
+re-quarantine it under that same row rather than reopening the consent-gate
+investigation, since that root cause is fixed and verified.
+
 ## Current state: 3 files re-quarantined post-merge (F3.7b, 2026-07-02)
 
 The F3.7 burndown below (merged into `keepance-3.0` at `c0380e2d`) was verified
@@ -77,7 +119,7 @@ vite.config.e2e.ts` + `vite preview`, `E2E_NO_LIVE=1`, `E2E_CI_QUARANTINE=1`):
 |---|---|---|---|
 | `templates-marketplace.spec.ts` | Dev-only Vite module-graph import; needs a product-code test seam | `fix-plan-F3.7-followup` | 2026-07-09 |
 | `web-demo.spec.ts` | `__KEEPANCE_DEMO__` not set under the e2e job's build; needs a CI workflow change | `fix-plan-F3.7-followup` | 2026-07-09 |
-| `wedge-proof.spec.ts` (4 tests, in-spec skip) | Intermittent CI-only `ERR_CONNECTION_REFUSED`; cause not yet pinned down | `fix-plan-F3.7-followup` | 2026-07-09 |
+| `wedge-proof.spec.ts` (3 tests remaining, in-spec skip — see 2026-07-03 update above for the 4th) | Intermittent CI-only `ERR_CONNECTION_REFUSED`; cause not yet pinned down | `fix-plan-F3.7-followup` | 2026-07-09 |
 
 The F3.7 burndown history (still accurate for everything else it covered)
 follows unchanged.

@@ -275,13 +275,19 @@ test.describe('VG-1 leg 2 — wedge UI wiring (browser, testMode)', () => {
   test('ask-workspace ON in a build without rag REFUSES instead of fabricating; privilege toggle appears', async ({
     page,
   }, testInfo) => {
+    // This assertion checks the LITERAL English refusal copy (not a testid —
+    // there's no stable per-message testid to key off, since a refusal has no
+    // sources/scope chip). Scoped to chromium/en (both render English; this
+    // file's own docstring already documents `--project=chromium` as its
+    // usage) — the `es`/`de` locale-matrix projects render translated copy
+    // this string wouldn't match. The CI gate only ever runs
+    // `--project=chromium` (ci.yml), so this doesn't narrow real coverage;
+    // it just keeps a manual `npx playwright test tests/e2e/wedge-proof.spec.ts`
+    // (no --project flag, so Playwright runs every configured project) from
+    // failing on an out-of-scope locale.
     test.skip(
-      !!process.env['E2E_CI_QUARANTINE'],
-      'confirmed failing on real CI (F3.7b, 2026-07-02): 2x intermittent ' +
-        'net::ERR_CONNECTION_REFUSED console errors trip the ' +
-        'unexpected-console-errors assertion; did not reproduce across 2 local ' +
-        'runs (isolated + full shard-6 replay) against the CI-equivalent ' +
-        'preview build — see docs/quality/e2e-flaky-quarantine.md'
+      !['chromium', 'en'].includes(testInfo.project.name),
+      'asserts hardcoded English refusal copy; out of scope for the es/de locale-matrix projects',
     );
     const getErrors = collectConsoleErrors(page);
 
@@ -299,6 +305,16 @@ test.describe('VG-1 leg 2 — wedge UI wiring (browser, testMode)', () => {
     // Turn on "Ask my workspace" — the include-privileged toggle is glued to it.
     await hardClick(page.getByTestId('ask-workspace-toggle'));
     await expect(page.getByTestId('include-privileged-toggle')).toBeVisible();
+
+    // The F2.5 file-access consent gate treats ANY non-local provider id —
+    // including this fixture's 'mock' — as cloud (isLocalProviderId only
+    // recognizes 'ollama'/'keepance-local'), so the ambient Ask-my-workspace
+    // toggle is paused until file access is granted for this chat. That gate
+    // is a separate concern from what THIS test proves (the F-116 honest
+    // refusal when retrieval itself fails); grant it here via the real
+    // consent-banner affordance so the send reaches the actual RAG-unavailable
+    // path instead of stopping earlier on the consent-paused hint.
+    await hardClick(page.getByTestId('chat-file-access-allow'));
 
     const input = page.getByTestId('chat-input');
     await expect(input).toBeVisible();
