@@ -238,6 +238,12 @@ impl CaptureEngine {
     pub fn stop(mut self) -> Result<StopResult> {
         self.mic.stop()?;
         self.sys.stop()?;
+        // Captured right after the sources actually stop producing audio,
+        // not after finalize_session below — merging chunks into audio.wav
+        // can take real time for a long meeting, and measuring elapsed_ms()
+        // after that would make the reported (and audited) duration include
+        // stop/finalization time instead of just the captured recording.
+        let duration_ms = self.elapsed_ms();
         // ChunkWriters finalize on drop (Task 1); finalize merges them.
         let audio_path = finalize_session(&self.meeting_dir)?;
         // A chunk write failure during recording means part of the meeting
@@ -255,7 +261,7 @@ impl CaptureEngine {
         Ok(StopResult {
             meeting_dir: self.meeting_dir.clone(),
             audio_path,
-            duration_ms: self.elapsed_ms(),
+            duration_ms,
         })
     }
 }

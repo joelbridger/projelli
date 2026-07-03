@@ -15,6 +15,13 @@ pub struct ChunkWriter {
     index: u32,
     written_in_chunk: u64,
     writer: Option<hound::WavWriter<std::io::BufWriter<std::fs::File>>>,
+    /// A second fd on the same underlying file as `writer`'s `BufWriter`,
+    /// kept ONLY to fsync it. `hound::WavWriter` doesn't expose the file it
+    /// wraps, but `File::sync_all` just forces whatever has already been
+    /// `write()`n to the kernel — through EITHER fd — out to stable
+    /// storage, so this doesn't need to be the same fd hound writes
+    /// through, only the same underlying file.
+    sync_handle: Option<std::fs::File>,
     finished: Vec<PathBuf>,
 }
 
@@ -27,6 +34,7 @@ impl ChunkWriter {
             index: 0,
             written_in_chunk: 0,
             writer: None,
+            sync_handle: None,
             finished: Vec::new(),
         };
         w.rotate()?;
@@ -49,11 +57,20 @@ impl ChunkWriter {
     fn rotate(&mut self) -> Result<()> {
         if let Some(w) = self.writer.take() {
             w.finalize()?; // writes the header length + flushes
+            // flush() only pushes bytes out of Rust's BufWriter into the
+            // OS's page cache — a power loss (not just this process dying)
+            // can still lose them if they were never forced to stable
+            // storage. sync_all() is the actual fsync this module's own doc
+            // comment has always promised.
+            if let Some(h) = self.sync_handle.take() {
+                h.sync_all()?;
+            }
             self.finished.push(self.current_path());
         }
         self.index += 1;
         self.written_in_chunk = 0;
         let file = std::fs::File::create(self.current_path())?;
+        let sync_handle = file.try_clone()?;
         let mut writer = hound::WavWriter::new(std::io::BufWriter::new(file), Self::spec())?;
         // `WavWriter::new` only buffers the header in the `BufWriter`, it
         // does not push it to the OS. If the process is hard-killed any time
@@ -64,11 +81,14 @@ impl ChunkWriter {
         // `hound::WavReader::open`, which requires a parseable header, so
         // one such file would fail to open and abort recovery of the ENTIRE
         // meeting, not just this chunk's tail — directly contradicting this
-        // module's crash-durability guarantee. Flushing right away pushes a
-        // valid (empty) header to the OS immediately, so a crash before any
-        // samples land here leaves a parseable zero-sample chunk instead.
+        // module's crash-durability guarantee. Flushing (and syncing) right
+        // away pushes a valid (empty) header to stable storage immediately,
+        // so a crash before any samples land here leaves a parseable
+        // zero-sample chunk instead.
         writer.flush()?;
+        sync_handle.sync_all()?;
         self.writer = Some(writer);
+        self.sync_handle = Some(sync_handle);
         Ok(())
     }
 
@@ -81,8 +101,14 @@ impl ChunkWriter {
         if self.written_in_chunk >= SAMPLES_PER_CHUNK {
             self.rotate()?;
         } else {
-            // Durability: flush samples so a crash loses only unflushed tail.
+            // Durability: flush AND sync so a crash — process death or a
+            // genuine power loss — loses only whatever arrives after this
+            // call, not this call's own samples sitting unsynced in the OS
+            // page cache.
             self.writer.as_mut().unwrap().flush()?;
+            if let Some(h) = self.sync_handle.as_ref() {
+                h.sync_all()?;
+            }
         }
         Ok(())
     }
@@ -91,6 +117,9 @@ impl ChunkWriter {
         if let Some(w) = self.writer.take() {
             if self.written_in_chunk > 0 {
                 w.finalize()?;
+                if let Some(h) = self.sync_handle.take() {
+                    h.sync_all()?;
+                }
                 self.finished.push(self.current_path());
             } else {
                 w.finalize()?;
@@ -103,9 +132,15 @@ impl ChunkWriter {
 
 impl Drop for ChunkWriter {
     fn drop(&mut self) {
-        // Crash-path: finalize whatever is open so the chunk header is valid.
+        // Crash-path: finalize whatever is open so the chunk header is
+        // valid, and sync it so that header (and whatever samples are
+        // already in the OS page cache) survives a subsequent power loss,
+        // not just this process's own death.
         if let Some(w) = self.writer.take() {
             let _ = w.finalize();
+        }
+        if let Some(h) = self.sync_handle.take() {
+            let _ = h.sync_all();
         }
     }
 }
