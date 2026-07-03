@@ -331,6 +331,35 @@ describe('createDeleteBurstBatcher', () => {
     expect(deletePath).not.toHaveBeenCalled();
   });
 
+  it('cancel() reaches a path already pulled out of `pending` for the in-flight round but not yet attempted', async () => {
+    // A round snapshots the whole `pending` set up front (for a bounded,
+    // sequential sweep). A path sitting later in that snapshot is briefly
+    // "in flight" — no longer in `pending`, but not yet its turn — so
+    // cancel() touching only `pending` would miss a create/modify that
+    // arrives in that exact window, letting the stale delete still run and
+    // remove content that was just (re)indexed.
+    const calls: string[] = [];
+    let batcher: ReturnType<typeof createDeleteBurstBatcher>;
+    const deletePath = vi.fn().mockImplementation(async (path: string) => {
+      calls.push(path);
+      if (path === '/ws/a.docx') {
+        // Simulate a create/modify for 'target' landing right now — while
+        // it's already out of `pending` for this round, but before its turn.
+        batcher.cancel('/ws/target.docx');
+      }
+    });
+    batcher = createDeleteBurstBatcher(deletePath, { windowMs: 250 });
+
+    batcher.enqueue('/ws/a.docx');
+    batcher.enqueue('/ws/target.docx');
+    batcher.enqueue('/ws/b.docx');
+
+    await vi.advanceTimersByTimeAsync(250);
+
+    expect(calls).toEqual(['/ws/a.docx', '/ws/b.docx']);
+    expect(deletePath).not.toHaveBeenCalledWith('/ws/target.docx');
+  });
+
   it('handles a single normal delete promptly after the debounce window', async () => {
     const deletePath = vi.fn().mockResolvedValue(undefined);
     const batcher = createDeleteBurstBatcher(deletePath, { windowMs: 250 });

@@ -358,6 +358,16 @@ export function createDeleteBurstBatcher(
   let consecutiveFailures = 0;
   let breakerOpenUntil = 0;
   let disposed = false;
+  // The current round's snapshot (see `flush`) and which of its paths have
+  // been cancelled since being pulled out of `pending`. A path is briefly
+  // "in flight" — no longer in `pending`, but not yet attempted — between
+  // the moment a round snapshots it and the moment its turn comes up in the
+  // for-loop below. `cancel()` alone can't reach it there (it only touches
+  // `pending`), so a create/modify arriving in that window would otherwise
+  // still let the stale delete run and remove the fresh content moments
+  // after indexing it. These two let `cancel()` reach an in-flight path too.
+  let inFlightPaths: Set<string> | null = null;
+  let cancelledInFlight = new Set<string>();
 
   // Wakes the batcher up once a breaker's cooldown elapses, even if no new
   // path is ever enqueued in the meantime — otherwise paths queued at trip
@@ -399,10 +409,19 @@ export function createDeleteBurstBatcher(
       while (pending.size > 0 && !disposed) {
         const paths = Array.from(pending);
         pending = new Set();
+        inFlightPaths = new Set(paths);
+        cancelledInFlight = new Set();
         let failed = 0;
         let breakerTripped = false;
         for (const path of paths) {
           if (disposed) return;
+          inFlightPaths.delete(path);
+          if (cancelledInFlight.delete(path)) {
+            // Cancelled after this round snapshotted it but before we
+            // reached it — a create/modify beat us to it. Skip the stale
+            // delete; the fresh content stays indexed.
+            continue;
+          }
           try {
             // eslint-disable-next-line no-await-in-loop -- deliberate: sequential,
             // bounded processing is the fix (never N concurrent backend calls).
@@ -446,6 +465,11 @@ export function createDeleteBurstBatcher(
       }
     } finally {
       isFlushing = false;
+      // Nothing is "in flight" once we're outside the for-loop (this round's
+      // leftovers, if any, are back in `pending`, reachable by `cancel()`
+      // the normal way) — clear so a `cancel()` between now and the next
+      // round's snapshot can't match a stale reference.
+      inFlightPaths = null;
     }
   };
 
@@ -462,7 +486,15 @@ export function createDeleteBurstBatcher(
       }
     },
     cancel(path: string): boolean {
-      return pending.delete(path);
+      if (pending.delete(path)) return true;
+      // Not in `pending` — it may have already been snapshotted into the
+      // current round but not yet attempted. Mark it so the in-flight round
+      // skips it when it gets there.
+      if (inFlightPaths?.has(path)) {
+        cancelledInFlight.add(path);
+        return true;
+      }
+      return false;
     },
     dispose() {
       disposed = true;
