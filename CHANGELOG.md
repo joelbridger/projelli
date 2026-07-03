@@ -61,6 +61,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `src/platform/rag/matterResolver.ts` (`buildInverseCrmMap`),
     `src/platform/utils/wealthbox-commands.ts` (`crmCreateNote`/`crmCreateTask`),
     `src/features/matters/MatterHub.tsx`, `src/features/matters/MatterNotesEditor.tsx`
+- **Optional compliance summary to the CRM (Wave 2, Task 9b)** - off-by-default
+  toggle on the write-back review card ("Also file a compliance note"); on
+  approve, an approval-gated summary of the just-sent items (with their
+  Wealthbox receipts) is enqueued back onto the same card, never sent
+  directly. Rides the existing write path (Jump coverage-audit item D3).
+  - Files: `src/features/matters/complianceNote.ts`, `src/features/matters/CrmWriteReviewCard.tsx`
 
 ### Changed
 - Mail OAuth scopes now include `Mail.ReadWrite` (Microsoft) and `gmail.compose`
