@@ -32,6 +32,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Client-of-an-open-document resolution failed on Windows path shapes** (Windows smoke-2 P0) —
+  two silently-diverged resolver implementations are now ONE (`resolveMatterIdForWorkspacePath`),
+  considering raw/relative/root-joined shapes of the same path together, reusing the canonical
+  `joinWorkspacePath`, and failing CLOSED (with a dev-console diagnostic) on any cross-matter
+  ambiguity. Fixes the missing Send-to-Wealthbox button and the Draft-follow-up "To" suggestion
+  on real Windows; 3 latent ambiguity bugs found and regression-tested along the way.
+  Files: `useMemoryWiring.ts`, `matterResolver.ts`, `matterStore.ts`, `useMemoryWiring.matterResolveWindows.test.ts`
 - **Save-to-Drafts stuck disabled with an IMAP-first mailbox** (Windows smoke P0 #1) — the
   Draft follow-up modal now defaults to the first draft-capable account instead of index 0,
   and explains the disabled state in plain language when only IMAP is connected.
