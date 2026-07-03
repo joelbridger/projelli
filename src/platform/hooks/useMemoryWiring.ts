@@ -67,6 +67,7 @@ import { oneDriveSetWorkspace } from '@/platform/utils/onedrive-commands';
 import { boxSetWorkspace } from '@/platform/utils/box-commands';
 import { sharefileSetWorkspace } from '@/platform/utils/sharefile-commands';
 import { calendlySetWorkspace } from '@/platform/utils/calendly-commands';
+import { calendarSetWorkspace } from '@/platform/utils/calendar-commands';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import type { FileNode } from '@/platform/types/workspace';
 import { usePdfIndexProgressStore } from '@/platform/rag/pdfIndexProgressStore';
@@ -670,6 +671,11 @@ export function useMemoryWiring(
           await calendlySetWorkspace(rootPath);
         } catch (err) {
           console.warn('calendlySetWorkspace failed; continuing workspace setup:', err);
+        }
+        try {
+          await calendarSetWorkspace(rootPath);
+        } catch (err) {
+          console.warn('calendarSetWorkspace failed; continuing workspace setup:', err);
         }
         await watchWorkspace(rootPath);
 

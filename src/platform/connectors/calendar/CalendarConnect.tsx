@@ -97,6 +97,12 @@ export function CalendarConnect() {
       setError('Paste the calendar’s ICS address first.');
       return;
     }
+    // The backend fetches this URL immediately to validate it, so this is a
+    // network call — the same local-only guard connectOAuth uses.
+    if (isLocalOnlyMode()) {
+      setError('Local-only mode is on. Turn it off before connecting a calendar, because sign-in contacts the provider.');
+      return;
+    }
     setBusy('ics');
     setError(null);
     try {
@@ -113,6 +119,10 @@ export function CalendarConnect() {
 
   async function runSync() {
     setError(null);
+    if (isLocalOnlyMode()) {
+      setError('Local-only mode is on. Turn it off before syncing your calendar, because it contacts the provider.');
+      return;
+    }
     setSyncing(true);
     try {
       const report = await calendarSyncAll(buildCalendarMatterMap(getMatters()));
