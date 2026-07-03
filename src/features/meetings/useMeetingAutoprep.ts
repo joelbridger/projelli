@@ -35,13 +35,27 @@ export function useMeetingAutoprep(
   events: CalendarEventDto[],
   matters: Matter[]
 ): void {
-  // matters identity churns on unrelated store writes; key on ids+events
-  // +taught-keys. codex-review (wave-1c self-review, P2): meetingKeys must
-  // be in this signal too — teaching a new key (assigning an unmatched
-  // meeting) changes NEITHER the matter id list NOR the event id list, so
-  // without it this effect never re-fires and the freshly-matched meeting
-  // never gets the brief the UI just promised it.
-  const eventIdsKey = events.map((e) => e.id).join(',');
+  // matters identity churns on unrelated store writes; key on event
+  // CONTENT+matters+taught-keys. codex-review (wave-1c self-review, P2):
+  // meetingKeys must be in this signal too — teaching a new key (assigning
+  // an unmatched meeting) changes NEITHER the matter id list NOR the event
+  // id list, so without it this effect never re-fires and the
+  // freshly-matched meeting never gets the brief the UI just promised it.
+  //
+  // COORDINATOR FINDING (P2): an ID-only signal also misses a re-synced
+  // event that KEEPS its id but changes the fields matching actually reads
+  // (attendees, organizerEmail, title, time) — e.g. a corrected attendee
+  // list or a reschedule. Sign on that content, not just presence, so a
+  // same-id event that newly matches (or needs a fresh brief for its new
+  // time) re-triggers this effect too.
+  const eventsSignature = events
+    .map(
+      (e) =>
+        `${e.id}:${e.title}:${e.startUtc}:${e.organizerEmail}:${e.attendees
+          .map((a) => a.email)
+          .join('+')}`
+    )
+    .join('|');
   const matterIdsKey = matters.map((m) => m.id).join(',');
   const meetingKeysKey = matters
     .map((m) => (m.meetingKeys ?? []).join('+'))
@@ -51,5 +65,5 @@ export function useMeetingAutoprep(
     if (events.length === 0) return;
     enqueueBriefs(jobsForEvents(events, matters));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventIdsKey, matterIdsKey, meetingKeysKey]);
+  }, [eventsSignature, matterIdsKey, meetingKeysKey]);
 }
