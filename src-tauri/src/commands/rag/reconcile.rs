@@ -29,6 +29,71 @@ pub async fn rag_reconcile_workspace(
     run_workspace_index(app, state, matter_id, IndexMode::Reconcile).await
 }
 
+/// Below this many purgeable manifest entries the mass-deletion sanity breaker
+/// stays disarmed: on a tiny workspace a high deleted ratio is normal (deleting
+/// 2 of 3 test files), so only a non-trivially-sized manifest can trip it.
+pub(crate) const PURGE_BREAKER_FLOOR: usize = 16;
+
+/// N consecutive `delete_by_token` failures in the purge loop before it ABORTS.
+/// Every failing delete still scans the whole LanceDB table, so a broken delete
+/// path that keeps failing is a self-perpetuating flood that grinds for minutes
+/// and starves the shared table / async runtime (the observed pass-2 systemic
+/// failure). A single success resets the counter, so a few genuinely-unpurgeable
+/// files among many good ones never trip it.
+pub(crate) const MAX_CONSECUTIVE_DELETE_FAILURES: u32 = 8;
+
+/// Mass-deletion sanity breaker. Returns true when the deleted-source purge set
+/// looks catastrophic — more than half of a non-trivially-sized purgeable
+/// manifest — and must therefore be SKIPPED rather than executed.
+///
+/// A workspace does not lose half its indexed files between two boots without
+/// deliberate human action. A signal that says so is far more likely a
+/// token-format / path-form mismatch making the whole manifest look deleted (the
+/// boot-reconcile delete-flood this change hardens against) than a real
+/// deletion. Purging on that false signal both floods the store AND could wrongly
+/// drop real content, so we refuse and mark the reconcile degraded instead. Pure
+/// + unit-tested.
+pub(crate) fn purge_looks_catastrophic(deleted: usize, purgeable_total: usize) -> bool {
+    purgeable_total >= PURGE_BREAKER_FLOOR && deleted * 2 > purgeable_total
+}
+
+/// Consecutive-failure backoff for the deleted-source purge loop. `on_failure`
+/// returns true once [`MAX_CONSECUTIVE_DELETE_FAILURES`] back-to-back failures
+/// are reached (the loop should then abort); any success resets the run.
+#[derive(Default)]
+pub(crate) struct DeleteBackoff {
+    consecutive: u32,
+}
+
+impl DeleteBackoff {
+    fn on_success(&mut self) {
+        self.consecutive = 0;
+    }
+    /// Record a failure; returns true when the abort threshold has been reached.
+    fn on_failure(&mut self) -> bool {
+        self.consecutive += 1;
+        self.consecutive >= MAX_CONSECUTIVE_DELETE_FAILURES
+    }
+}
+
+/// Compute the deleted-source purge set: manifest entries whose file is no longer
+/// present on disk this walk. A key qualifies iff it is a NON-PDF source (PDF
+/// lifecycle is frontend-owned; `mail:`/connector rows are never in the manifest)
+/// AND its token is absent from `disk_keys` (the path tokens of the files the walk
+/// actually found). Pure, so the cross-slash-form Windows regression — a manifest
+/// keyed under one path form vs. a disk walk computing tokens under another — is
+/// unit-testable without a live store.
+pub(crate) fn compute_deleted_keys(
+    manifest_sources: &std::collections::BTreeMap<String, manifest::SourceSignature>,
+    disk_keys: &std::collections::HashSet<String>,
+) -> Vec<String> {
+    manifest_sources
+        .iter()
+        .filter(|(k, sig)| sig.pdf.is_none() && !disk_keys.contains(*k))
+        .map(|(k, _)| k.clone())
+        .collect()
+}
+
 /// P1.1 — shared engine behind `rag_index_workspace` (Full) and
 /// `rag_reconcile_workspace` (Reconcile). See `IndexMode`.
 pub(crate) async fn run_workspace_index(
@@ -316,41 +381,93 @@ pub(crate) async fn run_workspace_index(
     // PDF entries are preserved (the Rust walk doesn't see PDFs; the frontend owns
     // their lifecycle). `mail:` / connector rows are never in the manifest, so are
     // never touched here.
-    let deleted_keys: Vec<String> = manifest
-        .sources
-        .iter()
-        .filter(|(k, sig)| sig.pdf.is_none() && !disk_keys.contains(*k))
-        .map(|(k, _)| k.clone())
-        .collect();
+    let deleted_keys: Vec<String> = compute_deleted_keys(&manifest.sources, &disk_keys);
     // Declared before the deleted-purge loop so a fail-closed tombstone on a
     // failed purge (below) is recorded in the same tally the walk finalizes with.
     let mut tally = IndexTally::default();
     let mut deleted: u32 = 0;
-    for gone in &deleted_keys {
-        // `gone` is the source's HMAC path token — delete/tombstone BY TOKEN, since
-        // the plaintext path is gone from disk and the token is what the rows and
-        // the tombstone set are keyed under.
-        match store::delete_by_token(&table, gone).await {
-            Ok(()) => {
-                clear_tombstone_token(&state, &workspace, gone).await;
-                deleted += 1;
-            }
-            Err(e) => {
-                // FAIL CLOSED: the file is gone from disk but its rows could not be
-                // purged. A deleted file's content must never remain citable, so
-                // durably tombstone the token (retrieval + verification exclude it)
-                // until a later boot successfully purges it. If the durable persist
-                // ALSO fails, mark the walk so it does not stamp completion (next
-                // launch re-runs). Keep the manifest entry so the purge is retried.
-                log::error!(
-                    "rag reconcile: failed to purge rows for a deleted source; \
-                     tombstoning so its content cannot resurface in search: {e:#}"
-                );
-                if tombstone_token(&state, &workspace, gone.clone()).await.is_err() {
-                    tally.durable_tombstone_failed = true;
+
+    // ── Flood-proofing (defense in depth, independent of the root cause) ────
+    // The purgeable manifest = the entries this purge could ever touch (non-PDF
+    // sources). If the "deleted" set is more than half of that, treat it as a
+    // suspected mass-deletion FALSE ALARM (a token/path-form mismatch making the
+    // whole workspace look deleted), NOT a real deletion — a workspace does not
+    // shed half its files between boots without human action.
+    let purgeable_total = manifest
+        .sources
+        .values()
+        .filter(|sig| sig.pdf.is_none())
+        .count();
+    if purge_looks_catastrophic(deleted_keys.len(), purgeable_total) {
+        // Do NOT purge. Log loudly, mark the reconcile degraded, and set the
+        // durable integrity-unknown sentinel so (a) retrieval/verify fail closed
+        // until recovery and (b) the NEXT boot escalates to a clean full rebuild
+        // (the version-bump migration already forces this for the known cause;
+        // this covers any other cause). `purge_degraded` also stops this walk from
+        // stamping completion, so the recovery actually runs next launch.
+        log::error!(
+            "rag reconcile: SANITY BREAKER — {} of {} indexed files look deleted \
+             (> 50%). Refusing to mass-purge (almost certainly a token/path-form \
+             mismatch, not a real deletion); marking the index degraded for a \
+             clean rebuild on next launch.",
+            deleted_keys.len(),
+            purgeable_total,
+        );
+        store::mark_integrity_unknown(&workspace);
+        state.index_integrity_unknown.store(true, Ordering::SeqCst);
+        tally.purge_degraded = true;
+    } else {
+        // Consecutive-failure backoff: if the delete path is broken, every failing
+        // delete still scans the whole table — a self-perpetuating flood. Abort the
+        // loop after N back-to-back failures so it can't grind for minutes and
+        // starve the shared LanceDB table / async runtime.
+        let mut backoff = DeleteBackoff::default();
+        for gone in &deleted_keys {
+            // `gone` is the source's HMAC path token — delete/tombstone BY TOKEN,
+            // since the plaintext path is gone from disk and the token is what the
+            // rows and the tombstone set are keyed under.
+            match store::delete_by_token(&table, gone).await {
+                Ok(()) => {
+                    backoff.on_success();
+                    clear_tombstone_token(&state, &workspace, gone).await;
+                    deleted += 1;
                 }
-                if let Some(sig) = manifest.get(gone) {
-                    next_sources.insert(gone.clone(), sig.clone());
+                Err(e) => {
+                    // FAIL CLOSED: the file is gone from disk but its rows could not
+                    // be purged. A deleted file's content must never remain citable,
+                    // so durably tombstone the token (retrieval + verification
+                    // exclude it) until a later boot successfully purges it. If the
+                    // durable persist ALSO fails, mark the walk so it does not stamp
+                    // completion (next launch re-runs). Keep the manifest entry so
+                    // the purge is retried.
+                    log::error!(
+                        "rag reconcile: failed to purge rows for a deleted source; \
+                         tombstoning so its content cannot resurface in search: {e:#}"
+                    );
+                    if tombstone_token(&state, &workspace, gone.clone()).await.is_err() {
+                        tally.durable_tombstone_failed = true;
+                    }
+                    if let Some(sig) = manifest.get(gone) {
+                        next_sources.insert(gone.clone(), sig.clone());
+                    }
+                    if backoff.on_failure() {
+                        // Too many back-to-back failures — the delete path is broken.
+                        // Stop the flood. Mark the index degraded + integrity-unknown
+                        // so retrieval fails closed and next boot does a clean rebuild
+                        // rather than replaying this loop. Remaining deleted_keys keep
+                        // their manifest entries (never purged, so retried next boot).
+                        log::error!(
+                            "rag reconcile: DELETE BACKOFF — {} consecutive delete \
+                             failures; aborting the purge loop to avoid a runaway \
+                             flood. Marking the index degraded for recovery on next \
+                             launch.",
+                            MAX_CONSECUTIVE_DELETE_FAILURES,
+                        );
+                        store::mark_integrity_unknown(&workspace);
+                        state.index_integrity_unknown.store(true, Ordering::SeqCst);
+                        tally.purge_degraded = true;
+                        break;
+                    }
                 }
             }
         }
@@ -461,7 +578,17 @@ pub(crate) async fn run_workspace_index(
     // untouched. (No frontend path issues a scoped whole-workspace walk today; this
     // guard keeps it correct if one is ever added.)
     if matter_id.is_none() {
-        let deleted_set: std::collections::HashSet<&String> = deleted_keys.iter().collect();
+        // Normally we drop the purged keys from the manifest. But when the purge was
+        // DEGRADED (breaker skipped it, or backoff aborted mid-loop), the keys we did
+        // NOT purge must be PRESERVED so a later boot retries the purge — dropping
+        // them would orphan their rows AND lose the retry marker. Preserving an
+        // already-purged key is harmless (next boot's delete is a no-op), so on a
+        // degraded walk we drop nothing on account of deletion.
+        let deleted_set: std::collections::HashSet<&String> = if tally.purge_degraded {
+            std::collections::HashSet::new()
+        } else {
+            deleted_keys.iter().collect()
+        };
         let _mg = state.manifest_lock.lock().await;
         let mut on_disk = manifest::load(&workspace, store::INDEX_VERSION);
         on_disk.index_version = store::INDEX_VERSION;
@@ -512,3 +639,140 @@ pub(crate) async fn run_workspace_index(
     Ok(())
 }
 
+
+#[cfg(test)]
+mod flood_proofing_tests {
+    use super::*;
+    use crate::commands::rag::crypto::path_token;
+    use crate::commands::rag::manifest::{PdfSignature, SourceSignature};
+    use std::collections::{BTreeMap, HashSet};
+
+    const KEY: [u8; 32] = [0x33u8; 32];
+
+    fn text_sig() -> SourceSignature {
+        SourceSignature {
+            size: 100,
+            mtime_ns: 42,
+            hash: None,
+            extractor_version: 0,
+            chunker_version: 0,
+            embedder_version: String::new(),
+            pdf: None,
+            matter_id: "unassigned".into(),
+            privilege: "none".into(),
+            row_count: 3,
+            indexed_at: 0,
+        }
+    }
+
+    fn pdf_sig() -> SourceSignature {
+        SourceSignature {
+            pdf: Some(PdfSignature {
+                pdf_extractor_version: 1,
+                ocr_enabled: false,
+                ocr_version: 1,
+                page_count: 2,
+            }),
+            ..text_sig()
+        }
+    }
+
+    // ── Root-cause regression: the cross-slash-form Windows token bug ───────
+    // A manifest written on a prior boot from the NATIVE backslash path (what
+    // WalkDir yields on Windows) must NOT make the file look deleted when THIS
+    // boot's disk walk sees the same file via the forward-slash form. Before the
+    // `path_token` normalizer, the two forms tokenized differently, so the disk
+    // token missed the manifest key and EVERY file looked deleted — the reconcile
+    // delete-flood. This goes red if normalization is ever removed.
+    #[test]
+    fn cross_slash_form_present_file_is_not_seen_as_deleted() {
+        let manifest_key = path_token(&KEY, r"C:\WS\Clients\Acme\a.docx");
+        let mut sources = BTreeMap::new();
+        sources.insert(manifest_key, text_sig());
+        let disk_keys: HashSet<String> = [path_token(&KEY, "C:/WS/Clients/Acme/a.docx")]
+            .into_iter()
+            .collect();
+        assert!(
+            compute_deleted_keys(&sources, &disk_keys).is_empty(),
+            "a present file seen via a different slash form must not look deleted"
+        );
+    }
+
+    #[test]
+    fn genuinely_absent_file_is_purged_present_is_kept() {
+        let gone = path_token(&KEY, "/ws/gone.docx");
+        let present = path_token(&KEY, "/ws/present.docx");
+        let mut sources = BTreeMap::new();
+        sources.insert(gone.clone(), text_sig());
+        sources.insert(present.clone(), text_sig());
+        let disk_keys: HashSet<String> = [present].into_iter().collect();
+        assert_eq!(
+            compute_deleted_keys(&sources, &disk_keys),
+            vec![gone],
+            "a real deletion must still be purged"
+        );
+    }
+
+    #[test]
+    fn pdf_entries_are_never_in_the_deleted_set() {
+        let pdf = path_token(&KEY, "/ws/report.pdf");
+        let mut sources = BTreeMap::new();
+        sources.insert(pdf, pdf_sig());
+        assert!(
+            compute_deleted_keys(&sources, &HashSet::new()).is_empty(),
+            "PDF lifecycle is frontend-owned; PDF entries are never purged here"
+        );
+    }
+
+    // ── Defense in depth: the mass-deletion sanity breaker ─────────────────
+    #[test]
+    fn breaker_trips_strictly_above_half_on_a_nontrivial_manifest() {
+        assert!(purge_looks_catastrophic(51, 100), "> 50% must trip");
+        assert!(!purge_looks_catastrophic(50, 100), "exactly 50% must not trip");
+        assert!(!purge_looks_catastrophic(10, 100), "well under half must not trip");
+    }
+
+    #[test]
+    fn breaker_is_disarmed_below_the_floor() {
+        // A tiny workspace deleting all its files is normal — never trip below floor.
+        assert!(!purge_looks_catastrophic(
+            PURGE_BREAKER_FLOOR - 1,
+            PURGE_BREAKER_FLOOR - 1
+        ));
+        // At the floor with a > 50% ratio it arms.
+        assert!(purge_looks_catastrophic(PURGE_BREAKER_FLOOR, PURGE_BREAKER_FLOOR));
+    }
+
+    #[test]
+    fn breaker_catches_the_observed_bench_flood_shape() {
+        // The bench observed ~2,292 of ~2,524 indexed files looking deleted.
+        assert!(purge_looks_catastrophic(2292, 2524));
+    }
+
+    // ── Defense in depth: the consecutive-failure backoff ──────────────────
+    #[test]
+    fn backoff_aborts_on_the_nth_consecutive_failure() {
+        let mut b = DeleteBackoff::default();
+        for _ in 0..(MAX_CONSECUTIVE_DELETE_FAILURES - 1) {
+            assert!(!b.on_failure(), "should not abort before the threshold");
+        }
+        assert!(
+            b.on_failure(),
+            "the Nth consecutive failure aborts the purge loop"
+        );
+    }
+
+    #[test]
+    fn backoff_resets_the_run_on_any_success() {
+        let mut b = DeleteBackoff::default();
+        for _ in 0..(MAX_CONSECUTIVE_DELETE_FAILURES - 1) {
+            assert!(!b.on_failure());
+        }
+        b.on_success();
+        // A success restarts the run: one more failure must not abort.
+        assert!(
+            !b.on_failure(),
+            "a sprinkling of failures among successes must never trip the backoff"
+        );
+    }
+}
