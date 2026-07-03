@@ -52,6 +52,17 @@ pub struct CrmState {
     /// life of the running app — see `write::WriteInFlightGuard` for why this
     /// can't live on the per-call `CrmStore` instead.
     pub write_guard: write::WriteInFlightGuard,
+    /// Count of `crm_create_note`/`crm_create_task` calls currently in
+    /// flight (POST sent, ledger not yet settled). Disconnect waits for this
+    /// to drain to zero before purging, mirroring how it already waits on
+    /// `is_syncing` — otherwise a write started just before disconnect could
+    /// still POST to Wealthbox (with the about-to-be-revoked token) while
+    /// local state is mid-purge. See `WriteInFlightSlot`.
+    pub write_in_flight: Arc<std::sync::atomic::AtomicUsize>,
+    /// Set by disconnect before it waits for `write_in_flight` to drain; a
+    /// NEW write checks this and refuses to start rather than racing a
+    /// disconnect that's already underway.
+    pub disconnect_requested: Arc<AtomicBool>,
 }
 
 pub fn manage_state(app: &tauri::App) {
@@ -63,7 +74,19 @@ pub fn manage_state(app: &tauri::App) {
         progress_households: Arc::new(std::sync::atomic::AtomicU32::new(0)),
         oauth_cancel: Arc::new(AtomicBool::new(false)),
         write_guard: write::WriteInFlightGuard::new(),
+        write_in_flight: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+        disconnect_requested: Arc::new(AtomicBool::new(false)),
     });
+}
+
+/// RAII guard: decrements `write_in_flight` when dropped, covering all exit
+/// paths (normal return, early return via `?`, and panic) — pairs with the
+/// increment in `crm_create_write`.
+struct WriteInFlightSlot(Arc<std::sync::atomic::AtomicUsize>);
+impl Drop for WriteInFlightSlot {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::SeqCst);
+    }
 }
 
 /// RAII guard: sets `is_syncing` to false when dropped, covering all exit paths
@@ -478,6 +501,21 @@ async fn crm_create_write(
 ) -> Result<WriteReceipt, String> {
     let provider = CrmProvider::from_optional(provider.as_deref())?;
 
+    // Register as in-flight BEFORE reading the token, so a disconnect that's
+    // already waiting on `write_in_flight` (see crm_disconnect_logic) sees us
+    // and doesn't purge underneath this call. If disconnect got there first
+    // (flag already set), bail immediately — better to reject the write than
+    // POST with a token that's about to be revoked. The guard decrements on
+    // every exit path (normal return, `?`, or panic).
+    state.write_in_flight.fetch_add(1, Ordering::SeqCst);
+    let _write_slot = WriteInFlightSlot(state.write_in_flight.clone());
+    if state.disconnect_requested.load(Ordering::SeqCst) {
+        return Err(format!(
+            "{} is disconnecting — try again once reconnected",
+            provider.display_name()
+        ));
+    }
+
     write::validate_write_inputs(&title, &body).map_err(|e| e.to_string())?;
 
     let token = read_token(provider).ok_or_else(|| {
@@ -836,24 +874,46 @@ pub async fn crm_disconnect_logic(state: &CrmState) -> CrmDisconnectResult {
     crm_disconnect_logic_for_provider(state, CrmProvider::default()).await
 }
 
+/// RAII guard: resets `disconnect_requested` to false when dropped, covering
+/// every exit path — so an aborted/deferred disconnect never leaves new
+/// writes permanently blocked.
+struct DisconnectRequestedGuard(Arc<AtomicBool>);
+impl Drop for DisconnectRequestedGuard {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::SeqCst);
+    }
+}
+
 async fn crm_disconnect_logic_for_provider(
     state: &CrmState,
     provider: CrmProvider,
 ) -> CrmDisconnectResult {
     let mut result = CrmDisconnectResult::default();
 
-    // P3 — stop any in-flight sync and CLAIM the single-flight slot BEFORE purging, so
-    // nothing re-inserts CRM chunks after the purge and the DB file isn't locked. Signal
-    // cancel, then spin until we win the slot (the running sync releases it when it sees
-    // cancel between matters) or a short timeout elapses.
+    // Stop NEW writes from starting immediately; the wait loop below drains
+    // any already-in-flight ones before we touch the token or local data —
+    // otherwise a write started just before disconnect could still POST
+    // with the about-to-be-revoked token while the purge runs underneath it.
+    state.disconnect_requested.store(true, Ordering::SeqCst);
+    let _disconnect_requested_guard = DisconnectRequestedGuard(state.disconnect_requested.clone());
+
+    // P3 — stop any in-flight sync, drain in-flight writes, and CLAIM the
+    // single-flight slot BEFORE purging, so nothing re-inserts CRM chunks or
+    // posts a stray write after the purge starts and the DB file isn't
+    // locked. Signal cancel, then spin until we win the slot AND no write is
+    // in flight (a running sync releases the slot when it sees cancel
+    // between matters; a running write releases its count on completion) or
+    // a short timeout elapses.
     state.cancel.store(true, Ordering::SeqCst);
     let mut claimed = false;
     let mut waited_ms: u64 = 0;
     loop {
-        if state
-            .is_syncing
-            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
-            .is_ok()
+        let no_writes_in_flight = state.write_in_flight.load(Ordering::SeqCst) == 0;
+        if no_writes_in_flight
+            && state
+                .is_syncing
+                .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+                .is_ok()
         {
             claimed = true;
             break;
@@ -947,6 +1007,31 @@ async fn crm_disconnect_logic_for_provider(
                     "The CRM database encryption key could not be removed from the keychain: {e}"
                 ));
             }
+            // `CrmStore::purge` above already deleted the whole shared DB
+            // file (nothing else has CRM data left), which took the
+            // outbound-write ledger with it — nothing further to do here.
+        } else {
+            // The shared DB file survives (another CRM provider still has
+            // data), so purge only THIS provider's outbound-write ledger
+            // rows directly. Only reached once disconnect has actually
+            // committed (this whole block is gated on rag_purged &&
+            // crm_db_purged) — never before, so a failed disconnect can't
+            // strand a connected account with its duplicate-protection
+            // ledger already erased.
+            match CrmStore::open(&ws) {
+                Ok(store) => {
+                    if let Err(e) = store.purge_outbound_writes_for_provider(provider.id()) {
+                        log::warn!("crm_disconnect: outbound ledger purge failed (non-fatal): {e:#}");
+                        result.warnings.push(format!(
+                            "{} write history could not be fully cleared: {e}",
+                            provider.display_name()
+                        ));
+                    }
+                }
+                Err(e) => {
+                    log::warn!("crm_disconnect: could not open crm store to purge outbound ledger (non-fatal): {e:#}");
+                }
+            }
         }
     } else {
         result.data_remains = true;
@@ -1024,12 +1109,6 @@ async fn purge_crm_data_for_provider(
         CrmProvider::Salesforce => CrmProviderDataScope::ProviderMarker("sfdc:"),
         CrmProvider::Redtail => CrmProviderDataScope::ProviderMarker("redtail:"),
     };
-    // Outbound-write ledger rows are keyed by a direct `provider` column
-    // (not the crm_key marker scheme above), so purge them independently —
-    // otherwise a disconnect leaves stale sent/pending rows behind, and a
-    // later reconnect (same or different account) could reuse a stale
-    // `sent` row to skip a write that was never actually sent to it.
-    store.purge_outbound_writes_for_provider(provider.id())?;
     purge_provider_crm_data_with_store_and_key(ws, &store, scope, &key).await
 }
 
@@ -1374,6 +1453,8 @@ mod tests {
             progress_households: Arc::new(std::sync::atomic::AtomicU32::new(0)),
             oauth_cancel: Arc::new(AtomicBool::new(false)),
             write_guard: write::WriteInFlightGuard::new(),
+            write_in_flight: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+            disconnect_requested: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -1446,6 +1527,46 @@ mod tests {
         assert!(
             !state.is_syncing.load(Ordering::SeqCst),
             "the claimed slot must be released"
+        );
+    }
+
+    /// A disconnect must not purge/revoke while a write is still POSTing —
+    /// it signals `disconnect_requested` (so no NEW write starts) and waits
+    /// for `write_in_flight` to drain, mirroring how it already waits for a
+    /// running sync. Here the "in-flight write" finishes shortly after
+    /// disconnect starts waiting; disconnect must claim the slot and proceed
+    /// (not defer), and must reset `disconnect_requested` afterward so a
+    /// later write isn't stuck permanently blocked.
+    #[tokio::test]
+    async fn disconnect_waits_for_in_flight_write_to_drain_then_proceeds() {
+        let state = test_state(false);
+        state.write_in_flight.store(1, Ordering::SeqCst); // a write is "in flight"
+
+        let write_in_flight = state.write_in_flight.clone();
+        let disconnect_requested = state.disconnect_requested.clone();
+        tokio::spawn(async move {
+            while !disconnect_requested.load(Ordering::SeqCst) {
+                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            write_in_flight.store(0, Ordering::SeqCst);
+        });
+
+        let result = crm_disconnect_logic(&state).await;
+
+        assert!(
+            result.warnings.iter().any(|w| w.contains("No workspace")),
+            "expected the no-workspace path (claimed after waiting); got {:?}",
+            result.warnings
+        );
+        assert!(
+            !result.warnings.iter().any(|w| w.contains("still running")),
+            "must NOT be the deferred path; got {:?}",
+            result.warnings
+        );
+        assert!(
+            !state.disconnect_requested.load(Ordering::SeqCst),
+            "disconnect_requested must be reset so a later write isn't stuck blocked"
         );
     }
 

@@ -219,6 +219,8 @@ async fn crm_purge_e2e_removes_both_db_rows_and_rag_chunks() {
         progress_households: Arc::new(std::sync::atomic::AtomicU32::new(0)),
         oauth_cancel: Arc::new(AtomicBool::new(false)),
         write_guard: WriteInFlightGuard::new(),
+        write_in_flight: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+        disconnect_requested: Arc::new(AtomicBool::new(false)),
     };
 
     // ── 2: Seed the CRM DB rows ───────────────────────────────────────────────
