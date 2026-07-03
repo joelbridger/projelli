@@ -31,8 +31,8 @@ while true; do
     else
       hash[$s]="$h"; hash_since[$s]=$now
       if [ "$prev" = WORKING ]; then
-        if tmux capture-pane -t "$s" -p 2>/dev/null | tail -45 | grep -q 'WORKER-DONE:'; then
-          echo "DONE $s — $(tmux capture-pane -t "$s" -p | tail -45 | grep 'WORKER-DONE:' | tail -1)"
+        if tmux capture-pane -t "$s" -p 2>/dev/null | tail -45 | grep -vE 'LAST line|sentinel|print' | grep -qE '^\s*WORKER-DONE:'; then
+          echo "DONE $s — $(tmux capture-pane -t "$s" -p | tail -45 | grep -vE 'LAST line|sentinel|print' | grep -E '^\s*WORKER-DONE:' | tail -1)"
           acked[$s]=DONE
         else
           echo "ACK_IDLE $s — went idle without sentinel; last line: $(grep -v '^\s*$' <<<"$pane" | tail -1 | cut -c1-120)"
