@@ -877,12 +877,14 @@ export async function voiceprintMatch(workspaceRoot: string, matterId: string, e
 /** Confirm an auto-suggested voice profile match, merging the new embedding in. */
 export async function voiceprintConfirm(workspaceRoot: string, matterId: string, voiceprintId: string, embedding: number[]): Promise<void> {
   if (!isTauri()) return;
-  return invoke<void>('voiceprint_confirm', { workspaceRoot, matterId, voiceprintId, embedding });
+  // `await` (not `return invoke<void>`) so we don't use `void` as a generic
+  // type arg (@typescript-eslint/no-invalid-void-type); result is discarded.
+  await invoke('voiceprint_confirm', { workspaceRoot, matterId, voiceprintId, embedding });
 }
 /** Delete a stored voice profile (biometric data) for a client. */
 export async function voiceprintDelete(workspaceRoot: string, matterId: string, voiceprintId: string): Promise<void> {
   if (!isTauri()) throw new Error('Voice profiles are only available in the desktop app.');
-  return invoke<void>('voiceprint_delete', { workspaceRoot, matterId, voiceprintId });
+  await invoke('voiceprint_delete', { workspaceRoot, matterId, voiceprintId });
 }
 
 // ---------------------------------------------------------------------------
