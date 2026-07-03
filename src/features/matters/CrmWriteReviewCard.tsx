@@ -67,11 +67,34 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
   const [household, setHousehold] = useState<string | null>(null);
   const [connected, setConnected] = useState<boolean | null>(null);
 
+  // Codex review catch (P1): if this component instance is reused for a
+  // DIFFERENT client (e.g. no `key={matterId}` upstream), the previously
+  // selected household would otherwise survive the switch — Approve could
+  // then send the new client's write to the OLD client's Wealthbox
+  // household. React's "adjust state during render" pattern resets the
+  // per-client selection the moment matterId changes, before anything can
+  // render or be approved with the stale value.
+  const [prevMatterId, setPrevMatterId] = useState(matterId);
+  if (matterId !== prevMatterId) {
+    setPrevMatterId(matterId);
+    setHousehold(null);
+    setUncheckedIds(new Set());
+    setExpanded(false);
+  }
+
   const householdKeys = useMemo(
     () => (buildInverseCrmMap(matters).get(matterId) ?? []).filter(isWealthboxHouseholdKey),
     [matters, matterId],
   );
-  const effectiveHousehold = householdKeys.length === 1 ? (householdKeys[0] ?? null) : household;
+  // Defense-in-depth alongside the matterId reset above: a selected household
+  // that is no longer in this matter's key list (e.g. unlinked while the card
+  // was open) is never treated as valid, even if `household` state lags.
+  const effectiveHousehold =
+    householdKeys.length === 1
+      ? (householdKeys[0] ?? null)
+      : household !== null && householdKeys.includes(household)
+        ? household
+        : null;
 
   useEffect(() => {
     if (items.length === 0) return;

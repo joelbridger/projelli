@@ -210,6 +210,48 @@ describe('CrmWriteReviewCard', () => {
     }
   });
 
+  // Codex adversarial review catch (P1): reusing the same component instance
+  // for a different client (no remount) must not carry over a selected
+  // household from the PREVIOUS client — Approve could otherwise send the
+  // new client's write into the old client's Wealthbox household.
+  it('resets the selected household when matterId switches to a different client', async () => {
+    const matterA = useMatterStore.getState().createMatter({
+      name: 'Henderson',
+      client: 'Henderson',
+      crmHouseholdKeys: ['111', '222'],
+    });
+    const matterB = useMatterStore.getState().createMatter({
+      name: 'Ortiz',
+      client: 'Ortiz',
+      crmHouseholdKeys: ['333', '444'],
+    });
+    useCrmWriteQueueStore.getState().enqueue({
+      kind: 'note', matterId: matterA.id, title: 'A note', body: 'B', sourceRef: 'doc:a',
+    });
+    useCrmWriteQueueStore.getState().enqueue({
+      kind: 'note', matterId: matterB.id, title: 'B note', body: 'B', sourceRef: 'doc:b',
+    });
+
+    const { rerender } = render(<CrmWriteReviewCard matterId={matterA.id} />);
+    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
+    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+    fireEvent.click(screen.getByTestId('crm-household-111'));
+    expect(screen.getByRole('button', { name: /approve 1 change/i })).not.toBeDisabled();
+
+    // Same instance, switched to a different client with unrelated households.
+    rerender(<CrmWriteReviewCard matterId={matterB.id} />);
+    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+
+    // Approve must be disabled again — no household carried over from A.
+    expect(screen.getByRole('button', { name: /approve 1 change/i })).toBeDisabled();
+
+    fireEvent.click(screen.getByTestId('crm-household-333'));
+    fireEvent.click(screen.getByRole('button', { name: /approve 1 change/i }));
+    await waitFor(() => { expect(crmCreateNote).toHaveBeenCalledTimes(1); });
+    // The write that actually fired must target B's household, never A's.
+    expect(crmCreateNote).toHaveBeenCalledWith(expect.objectContaining({ householdKey: '333', matterId: matterB.id }));
+  });
+
   it('shows a connect-first hint and no card body when Wealthbox is not connected', async () => {
     vi.mocked(crmIsConnected).mockResolvedValue(false);
     const m = useMatterStore.getState().createMatter({
