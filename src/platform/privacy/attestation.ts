@@ -107,8 +107,7 @@ export async function exportAttestationDocx(workspaceRoot: string): Promise<stri
     }
   }
 
-  const { useRetentionPolicyStore, sanitizePolicy } = await import('./retentionPolicyStore');
-  const { retentionPolicyLabel } = await import('@/features/settings/RetentionSettings');
+  const { useRetentionPolicyStore, sanitizePolicy, retentionPolicyLabel } = await import('./retentionPolicyStore');
   const i18n = (await import('@/i18n')).default;
   const policyLabel = retentionPolicyLabel(
     sanitizePolicy(useRetentionPolicyStore.getState().policies[workspaceRoot]),

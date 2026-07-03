@@ -3,6 +3,7 @@
 // a corrupt setting must never delete a recording.
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import type { TFunction } from 'i18next';
 import { SK_RETENTION_POLICIES } from '@/config/identity';
 
 export type RetentionMode = 'keep-everything' | 'delete-audio-after-days' | 'summary-only';
@@ -31,6 +32,15 @@ export function sanitizePolicy(input: unknown): RetentionPolicy {
     ? Math.min(3650, Math.max(1, Math.round(rawDays)))
     : DEFAULT_RETENTION_POLICY.audioRetentionDays;
   return { mode: mode as RetentionMode, audioRetentionDays: days };
+}
+
+/** Human-readable summary of a policy, shared by the settings picker and the
+ *  Data Map's live status row (which is why this lives in platform/, not
+ *  features/settings/ — platform code must not import from features/). */
+export function retentionPolicyLabel(policy: RetentionPolicy, t: TFunction): string {
+  if (policy.mode === 'delete-audio-after-days') return t('privacy.retention.mode-days', { count: policy.audioRetentionDays });
+  if (policy.mode === 'summary-only') return t('privacy.retention.mode-summary');
+  return t('privacy.retention.mode-keep');
 }
 
 interface RetentionPolicyState {

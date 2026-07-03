@@ -26,8 +26,7 @@ import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IS_DEMO } from '@/web-demo/demoModeFlag';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
-import { useRetentionPolicyStore, sanitizePolicy } from '@/platform/privacy/retentionPolicyStore';
-import { retentionPolicyLabel } from '@/features/settings/RetentionSettings';
+import { useRetentionPolicyStore, sanitizePolicy, retentionPolicyLabel } from '@/platform/privacy/retentionPolicyStore';
 import {
   Dialog,
   DialogContent,

@@ -1,17 +1,9 @@
 import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
-import type { TFunction } from 'i18next';
 import { Button } from '@/ui/kp';
 import {
-  useRetentionPolicyStore, sanitizePolicy, type RetentionMode, type RetentionPolicy,
+  useRetentionPolicyStore, sanitizePolicy, type RetentionMode,
 } from '@/platform/privacy/retentionPolicyStore';
-
-// eslint-disable-next-line react-refresh/only-export-components -- exported pure helper, shared with the Data Map row
-export function retentionPolicyLabel(policy: RetentionPolicy, t: TFunction): string {
-  if (policy.mode === 'delete-audio-after-days') return t('privacy.retention.mode-days', { count: policy.audioRetentionDays });
-  if (policy.mode === 'summary-only') return t('privacy.retention.mode-summary');
-  return t('privacy.retention.mode-keep');
-}
 
 const MODES: Array<{ mode: RetentionMode; labelKey: string; hintKey: string }> = [
   { mode: 'keep-everything', labelKey: 'privacy.retention.mode-keep', hintKey: 'privacy.retention.mode-keep-hint' },
