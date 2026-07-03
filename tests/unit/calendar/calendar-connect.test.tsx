@@ -8,6 +8,7 @@ vi.mock('@/platform/utils/calendar-commands', () => ({
   calendarConnectOutlook: vi.fn(async () => {}),
   calendarConnectOutlookCancel: vi.fn(async () => {}),
   calendarConnectGoogle: vi.fn(async () => {}),
+  calendarConnectGoogleCancel: vi.fn(async () => {}),
   calendarConnectIcs: vi.fn(async () => {}),
   calendarDisconnect: vi.fn(async () => {}),
   calendarSyncAll: vi.fn(async () => ({
@@ -49,6 +50,8 @@ vi.mock('@/platform/privacy/localOnlyGuard', () => ({
 }));
 
 import {
+  calendarConnectGoogle,
+  calendarConnectGoogleCancel,
   calendarConnectIcs,
   calendarConnectOutlook,
   calendarConnectOutlookCancel,
@@ -129,6 +132,20 @@ describe('CalendarConnect', () => {
     fireEvent.click(cancelButton);
     await waitFor(() =>
       expect(calendarConnectOutlookCancel).toHaveBeenCalledTimes(1)
+    );
+  });
+
+  it('offers a live cancel while a Google sign-in is pending', async () => {
+    vi.mocked(calendarConnectGoogle).mockImplementation(
+      () => new Promise(() => {})
+    );
+    render(<CalendarConnect />);
+    fireEvent.click(await screen.findByTestId('calendar-connect-google'));
+
+    const cancelButton = await screen.findByTestId('calendar-cancel-google');
+    fireEvent.click(cancelButton);
+    await waitFor(() =>
+      expect(calendarConnectGoogleCancel).toHaveBeenCalledTimes(1)
     );
   });
 });

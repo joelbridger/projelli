@@ -13,6 +13,7 @@ import { CheckCircle2, Lock, RefreshCw } from 'lucide-react';
 import {
   calendarCancelSync,
   calendarConnectGoogle,
+  calendarConnectGoogleCancel,
   calendarConnectIcs,
   calendarConnectOutlook,
   calendarConnectOutlookCancel,
@@ -41,6 +42,16 @@ const PROVIDER_LABEL: Record<CalendarProviderId, string> = {
   outlook: 'Outlook',
   google: 'Google',
   ics: 'Calendar (.ics)',
+};
+
+// A pending OAuth sign-in can be aborted mid-flight (browser tab closed,
+// user backs out). Outlook and Google each have their own command, but both
+// set the same CalendarState.oauth_cancel flag on the Rust side — fine
+// because `busy` below only ever lets one OAuth flow be in flight at a time
+// from this card, and each connect attempt resets the flag to false first.
+const OAUTH_CANCEL: Record<'outlook' | 'google', () => Promise<void>> = {
+  outlook: calendarConnectOutlookCancel,
+  google: calendarConnectGoogleCancel,
 };
 
 export function CalendarConnect() {
@@ -93,19 +104,19 @@ export function CalendarConnect() {
       const message = err instanceof Error ? err.message : String(err);
       // The user clicked Cancel — an intentional exit, not a failure.
       if (message !== 'cancelled') setError(message);
-      if (provider === 'outlook') void calendarConnectOutlookCancel();
+      void OAUTH_CANCEL[provider]().catch(() => {});
     } finally {
       setBusy(null);
       endOAuth();
     }
   }
 
-  // Live cancel while the Outlook sign-in browser tab is still open — the
-  // catch-block call in connectOAuth only fires after calendarConnectOutlook
-  // has already rejected, so it can't abort a pending wait (matches the
-  // OneDriveConnect cancelConnect pattern).
-  function cancelOutlookSignIn() {
-    calendarConnectOutlookCancel().catch(() => {});
+  // Live cancel while the sign-in browser tab is still open — the
+  // catch-block call in connectOAuth only fires after calendarConnectOutlook/
+  // Google has already rejected, so it can't abort a pending wait (matches
+  // the OneDriveConnect cancelConnect pattern).
+  function cancelSignIn(provider: 'outlook' | 'google') {
+    OAUTH_CANCEL[provider]().catch(() => {});
   }
 
   async function connectIcs() {
@@ -264,7 +275,9 @@ export function CalendarConnect() {
                   size="sm"
                   variant="secondary"
                   data-testid="calendar-cancel-outlook"
-                  onClick={cancelOutlookSignIn}
+                  onClick={() => {
+                    cancelSignIn('outlook');
+                  }}
                 >
                   Cancel
                 </Button>
@@ -279,6 +292,18 @@ export function CalendarConnect() {
               >
                 {busy === 'google' ? 'Waiting for sign-in…' : 'Connect Google'}
               </Button>
+              {busy === 'google' && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  data-testid="calendar-cancel-google"
+                  onClick={() => {
+                    cancelSignIn('google');
+                  }}
+                >
+                  Cancel
+                </Button>
+              )}
             </div>
 
             <div
