@@ -9,6 +9,18 @@
  * unrelated first-run-onboarding check does) sees stale data. This hook takes
  * `settingsHydrated` / `recentWorkspacesLoaded` as explicit inputs and waits
  * for both before deciding, so it never acts on a not-yet-loaded snapshot.
+ *
+ * Two escape-hatch requirements a boot-time silent action must never violate
+ * (a post-merge review round caught both were missing from the first cut):
+ * - It must never be able to hang forever: `openWorkspace`'s own native setup
+ *   is timeout-bounded (see `handleOpenRecentProject` in
+ *   `useWorkspaceLifecycle.ts`), so a hung native call (e.g. an unreachable
+ *   network share) resolves within a bounded window instead of leaving the
+ *   picker suppressed with no way out.
+ * - It must never silently attempt to read an encrypted workspace it can't
+ *   decrypt: `isWorkspaceVaultLocked` preflights the target, and a locked
+ *   vault falls back to the picker (whose own vault-unlock flow then runs
+ *   normally) instead of auto-opening straight into failing file reads.
  */
 import { useEffect, useRef, useState } from 'react';
 
@@ -28,6 +40,16 @@ export interface UseAutoResumeWorkspaceOptions {
   recentWorkspacesLoaded: boolean;
   startupBehavior: string;
   recentWorkspaces: AutoResumeRecentWorkspace[];
+  /**
+   * Preflight check: does the target workspace have a locked encrypted vault?
+   * A locked vault needs the picker's VaultLockedPrompt UI to unlock — silently
+   * auto-opening it would boot straight into failing file reads with no way to
+   * unlock. Should fail OPEN (resolve `false`) on its own errors/timeouts, same
+   * as WorkspaceSelector's equivalent check — this is a UX preflight only, not
+   * the security boundary (the vault's own encryption is what actually protects
+   * the data either way).
+   */
+  isWorkspaceVaultLocked: (path: string) => Promise<boolean>;
   openWorkspace: (path: string) => Promise<void>;
 }
 
@@ -45,6 +67,7 @@ export function useAutoResumeWorkspace(options: UseAutoResumeWorkspaceOptions): 
     recentWorkspacesLoaded,
     startupBehavior,
     recentWorkspaces,
+    isWorkspaceVaultLocked,
     openWorkspace,
   } = options;
 
@@ -82,6 +105,21 @@ export function useAutoResumeWorkspace(options: UseAutoResumeWorkspaceOptions): 
         setIsResuming(false);
         return;
       }
+
+      let vaultLocked = false;
+      try {
+        vaultLocked = await isWorkspaceVaultLocked(target);
+      } catch {
+        vaultLocked = false; // fail open — preflight-only, not the security boundary
+      }
+      if (vaultLocked) {
+        // Fall back to the picker instead of auto-opening: clicking this same
+        // recent workspace there runs the vault-aware open path and shows the
+        // unlock prompt normally.
+        setIsResuming(false);
+        return;
+      }
+
       try {
         await openWorkspace(target);
       } finally {
@@ -94,6 +132,7 @@ export function useAutoResumeWorkspace(options: UseAutoResumeWorkspaceOptions): 
     recentWorkspacesLoaded,
     startupBehavior,
     recentWorkspaces,
+    isWorkspaceVaultLocked,
     openWorkspace,
   ]);
 

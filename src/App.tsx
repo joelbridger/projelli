@@ -100,6 +100,8 @@ import { useSourceCards } from '@/app/hooks/useSourceCards';
 import { useAIChatFiles } from '@/platform/hooks/useAIChatFiles';
 import { useApiKeys } from '@/platform/hooks/useApiKeys';
 import { useSettingsStore, useSettingsHydrated } from '@/platform/settings/settingsStore';
+import { vaultStatus } from '@/platform/firm/vault/vaultClient';
+import { withTimeout } from '@/lib/withTimeout';
 import { useOpenFileAIContext } from '@/platform/hooks/useOpenFileAIContext';
 import { useTemplatesMarketplaceStore } from '@/features/workflows/templatesMarketplaceStore';
 import { useModelList } from '@/platform/hooks/useModelList';
@@ -796,15 +798,32 @@ function App() {
   // on, instead of always showing the picker (only Tauri can do this without
   // a fresh user gesture — browser directory handles need a picker click).
   // See useAutoResumeWorkspace for why this waits on explicit hydration
-  // flags rather than reading the stores synchronously at mount.
+  // flags rather than reading the stores synchronously at mount, and for the
+  // hang- and vault-safety guarantees below.
   const settingsHydrated = useSettingsHydrated();
   const startupBehavior = useSettingsStore((s) => s.getSetting<string>('startupBehavior'));
+  // A locked vault needs WorkspaceSelector's own VaultLockedPrompt UI to
+  // unlock, so auto-resume must never silently open one — it preflights with
+  // the SAME vaultStatus() check WorkspaceSelector's manual open path uses,
+  // bounded by a short timeout (this is a UX preflight, not the security
+  // boundary, so it fails OPEN — i.e. "not locked" — on its own error/timeout,
+  // same as WorkspaceSelector's non-fatal catch for this call).
+  const isWorkspaceVaultLocked = useCallback(async (path: string): Promise<boolean> => {
+    if (!isTauriEnvironment()) return false;
+    try {
+      const status = await withTimeout(vaultStatus(path), 5_000, 'Checking vault status');
+      return status.enabled && status.locked;
+    } catch {
+      return false;
+    }
+  }, []);
   const isAutoResumingWorkspace = useAutoResumeWorkspace({
     isEligibleEnvironment: !IS_TEST_MODE && !IS_DEMO_MODE && isTauriEnvironment(),
     settingsHydrated,
     recentWorkspacesLoaded,
     startupBehavior,
     recentWorkspaces,
+    isWorkspaceVaultLocked,
     openWorkspace: handleOpenRecentProject,
   });
 
