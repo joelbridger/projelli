@@ -64,7 +64,12 @@ export function AskScopeControl({
   onFilesOnlyChange,
 }: AskScopeControlProps) {
   const entityLabel = useEntityLabel();
-  const showMore = !isSample;
+  // "More" itself must stay reachable even on the sample matter — Files-only
+  // mode lives inside it and is a persisted, app-wide setting (not scoped to
+  // the sample), so hiding the whole popover there would strand a user who
+  // turned it on elsewhere with no way to see or turn it back off. Only the
+  // Email/Documents scope options (meaningless on canned demo content) are
+  // sample-gated.
   const moreActive = scope === 'email' || scope === 'documents';
 
   return (
@@ -94,54 +99,56 @@ export function AskScopeControl({
       >
         {`All ${entityLabel.other}`}
       </Chip>
-      {showMore && (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Chip
-              size="md"
-              active={moreActive}
-              data-testid="scope-option-more"
-              style={chipStyle(moreActive)}
-            >
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                More
-                <ChevronDown style={{ width: 14, height: 14 }} aria-hidden />
-              </span>
-            </Chip>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
-            <DropdownMenuLabel className="text-xs">Sources</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              data-testid="scope-option-email"
-              onClick={() => { onChange('email'); }}
-              className="flex items-center gap-2 text-xs"
-            >
-              <Mail className="h-3.5 w-3.5 shrink-0" />
-              <span className="flex-1">Email only</span>
-              {scope === 'email' && <Check className="h-3.5 w-3.5 shrink-0" />}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              data-testid="scope-option-documents"
-              onClick={() => { onChange('documents'); }}
-              className="flex items-center gap-2 text-xs"
-            >
-              <FileText className="h-3.5 w-3.5 shrink-0" />
-              <span className="flex-1">Documents only</span>
-              {scope === 'documents' && <Check className="h-3.5 w-3.5 shrink-0" />}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuCheckboxItem
-              data-testid="ask-files-only-toggle"
-              checked={filesOnly}
-              onCheckedChange={onFilesOnlyChange}
-              className="text-xs"
-            >
-              {FILES_ONLY_LABEL}
-            </DropdownMenuCheckboxItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Chip
+            size="md"
+            active={moreActive}
+            data-testid="scope-option-more"
+            style={chipStyle(moreActive)}
+          >
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              More
+              <ChevronDown style={{ width: 14, height: 14 }} aria-hidden />
+            </span>
+          </Chip>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-56">
+          {!isSample && (
+            <>
+              <DropdownMenuLabel className="text-xs">Sources</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                data-testid="scope-option-email"
+                onClick={() => { onChange('email'); }}
+                className="flex items-center gap-2 text-xs"
+              >
+                <Mail className="h-3.5 w-3.5 shrink-0" />
+                <span className="flex-1">Email only</span>
+                {scope === 'email' && <Check className="h-3.5 w-3.5 shrink-0" />}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                data-testid="scope-option-documents"
+                onClick={() => { onChange('documents'); }}
+                className="flex items-center gap-2 text-xs"
+              >
+                <FileText className="h-3.5 w-3.5 shrink-0" />
+                <span className="flex-1">Documents only</span>
+                {scope === 'documents' && <Check className="h-3.5 w-3.5 shrink-0" />}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
+          <DropdownMenuCheckboxItem
+            data-testid="ask-files-only-toggle"
+            checked={filesOnly}
+            onCheckedChange={onFilesOnlyChange}
+            className="text-xs"
+          >
+            {FILES_ONLY_LABEL}
+          </DropdownMenuCheckboxItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }

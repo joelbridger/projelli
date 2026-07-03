@@ -916,31 +916,8 @@ export function SettingsContent({
     setMountedSections((prev) => (prev.has(activeSection) ? prev : new Set(prev).add(activeSection)));
   }
 
-  // Scrolling near a not-yet-mounted section also mounts it (not just a nav
-  // click) — a placeholder that never loads on its own would be a dead end.
-  useEffect(() => {
-    if (typeof IntersectionObserver === 'undefined') return undefined;
-    const ids: SectionCategory[] = ['workspace', 'ai-privacy', 'voice', 'advanced', 'help'];
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
-          const id = entry.target.id.replace('settings-anchor-', '') as SectionCategory;
-          setMountedSections((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
-        }
-      },
-      // Queried directly (not via a ref) to keep this effect from touching
-      // `contentScrollRef`, which the scroll-reset effect below mutates
-      // `.scrollTop` on — the linter flags a ref read in one effect's setup
-      // and mutated in another as a cross-effect immutability conflict.
-      { root: document.querySelector('[data-testid="settings-content-scroll"]'), rootMargin: '200px 0px' },
-    );
-    for (const id of ids) {
-      const el = document.getElementById(`settings-anchor-${id}`);
-      if (el) observer.observe(el);
-    }
-    return () => { observer.disconnect(); };
-  }, []);
+  // The scroll-to-load IntersectionObserver lives further down, right after
+  // `visibleSections` is computed (it depends on that value).
 
   // In-app confirm dialog (native window.confirm is dead in the Tauri WebView2
   // build, so the "reset settings" confirmation renders in the DOM instead).
@@ -1067,6 +1044,38 @@ export function SettingsContent({
     });
     return sections;
   }, [sectionScores, searchQuery]);
+
+  // Scrolling near a not-yet-mounted section also mounts it (not just a nav
+  // click) — a placeholder that never loads on its own would be a dead end.
+  // Re-created whenever `visibleSections` changes (not mount-once): typing a
+  // search that filters out a section unmounts its anchor div entirely (see
+  // the render below), and clearing the search remounts a FRESH DOM node —
+  // an observer created once would keep watching the old, now-detached node
+  // and never notice the new one, silently breaking scroll-to-load for any
+  // section that lived through a search cycle.
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') return undefined;
+    const ids: SectionCategory[] = ['workspace', 'ai-privacy', 'voice', 'advanced', 'help'];
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const id = entry.target.id.replace('settings-anchor-', '') as SectionCategory;
+          setMountedSections((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
+        }
+      },
+      // Queried directly (not via a ref) to keep this effect from touching
+      // `contentScrollRef`, which the scroll-reset effect below mutates
+      // `.scrollTop` on — the linter flags a ref read in one effect's setup
+      // and mutated in another as a cross-effect immutability conflict.
+      { root: document.querySelector('[data-testid="settings-content-scroll"]'), rootMargin: '200px 0px' },
+    );
+    for (const id of ids) {
+      const el = document.getElementById(`settings-anchor-${id}`);
+      if (el) observer.observe(el);
+    }
+    return () => { observer.disconnect(); };
+  }, [visibleSections]);
 
   // While searching, jump to the strongest-matching section, but stay put if the
   // current section is already a top match (so typing doesn't yank you around).

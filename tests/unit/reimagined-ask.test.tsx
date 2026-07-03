@@ -497,13 +497,21 @@ describe('Ask', () => {
     expect(screen.getByTestId('scope-option-documents')).toBeDefined();
   });
 
-  it('hides the "More" popover (Email/Documents) on the sample matter', () => {
+  it('hides Email/Documents (but keeps "More" itself, and Files-only, reachable) on the sample matter', () => {
+    // codex-review regression: "More" used to be hidden entirely on the
+    // sample matter, which also hid Files-only mode — a persisted, app-wide
+    // setting, not scoped to the sample. A user who turned it on elsewhere
+    // would have had no way to see or turn it off once viewing the sample.
     mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
     render(<Ask />);
-    expect(screen.queryByTestId('scope-option-more')).toBeNull();
-    // This matter and All matters still shown
     expect(screen.getByTestId('scope-option-this-matter')).toBeDefined();
     expect(screen.getByTestId('scope-option-all-matters')).toBeDefined();
+    expect(screen.getByTestId('scope-option-more')).toBeDefined();
+
+    fireEvent.keyDown(screen.getByTestId('scope-option-more'), { key: 'Enter' });
+    expect(screen.getByTestId('ask-files-only-toggle')).toBeDefined();
+    expect(screen.queryByTestId('scope-option-email')).toBeNull();
+    expect(screen.queryByTestId('scope-option-documents')).toBeNull();
   });
 
   it('defaults to "this-matter" scope when a matter is active (aria-pressed=true)', () => {

@@ -320,6 +320,40 @@ describe('SettingsContent — nav scrolls to the section anchor (Wave B / S4 fla
 
     expect(screen.getByTestId('section-advanced')).toBeInTheDocument();
   });
+
+  it('re-observes anchors that a search cycle unmounted and remounted (codex-review regression)', () => {
+    // jsdom has no IntersectionObserver by default; stub one so the
+    // scroll-to-load effect actually runs instead of early-returning.
+    const observedNodes: Element[] = [];
+    class FakeIntersectionObserver {
+      observe(el: Element) { observedNodes.push(el); }
+      unobserve() {}
+      disconnect() {}
+      takeRecords() { return []; }
+    }
+    const original = (globalThis as { IntersectionObserver?: unknown }).IntersectionObserver;
+    (globalThis as { IntersectionObserver?: unknown }).IntersectionObserver = FakeIntersectionObserver;
+
+    try {
+      render(<SettingsContent variant="page" initialCategory={'general' as never} />);
+      const helpObservedBefore = observedNodes.filter((n) => n.id === 'settings-anchor-help').length;
+      expect(helpObservedBefore).toBeGreaterThan(0);
+
+      // A search that "help" doesn't match unmounts its anchor div entirely.
+      fireEvent.change(screen.getByTestId('settings-search'), { target: { value: 'marketplace' } });
+      expect(screen.queryByTestId('settings-anchor-help')).not.toBeInTheDocument();
+
+      // Clearing the search remounts a FRESH anchor node for "help" — the
+      // observer must have been re-created (not left watching the detached
+      // one) to pick it up.
+      observedNodes.length = 0;
+      fireEvent.change(screen.getByTestId('settings-search'), { target: { value: '' } });
+      const helpObservedAfter = observedNodes.filter((n) => n.id === 'settings-anchor-help').length;
+      expect(helpObservedAfter).toBeGreaterThan(0);
+    } finally {
+      (globalThis as { IntersectionObserver?: unknown }).IntersectionObserver = original;
+    }
+  });
 });
 
 describe('SettingsContent — a11y: section nav landmark label', () => {
