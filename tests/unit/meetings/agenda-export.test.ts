@@ -14,6 +14,7 @@ const brief = {
 
 function fakeProvider(reply: string): Provider {
   return {
+    getMetadata: () => ({ providerId: 'test', model: 'test-model' }),
     sendMessage: vi.fn(async () => ({ content: reply })),
   } as unknown as Provider;
 }
@@ -30,6 +31,12 @@ describe('agendaMarkdownFromBrief', () => {
     expect(md).toContain('## Topics to cover');
     expect(md).toContain('## Documents to bring');
     expect(md).toContain('## Since we last met');
+    // Distinguishes the real provider rewrite from the fallback: the reply's
+    // OWN wording ("Roth conversion options") only appears if the provider
+    // path actually ran, not the fallback (which would say "came up last
+    // quarter" instead — the brief's own bullet text).
+    expect(md).toContain('Roth conversion options');
+    expect(md).not.toContain('Roth conversion came up last quarter');
   });
 
   it('rejects a provider reply missing the required sections and falls back', async () => {
@@ -45,6 +52,7 @@ describe('agendaMarkdownFromBrief', () => {
 
   it('falls back deterministically when the provider throws', async () => {
     const boom = {
+      getMetadata: () => ({ providerId: 'test', model: 'test-model' }),
       sendMessage: vi.fn(async () => {
         throw new Error('offline');
       }),
