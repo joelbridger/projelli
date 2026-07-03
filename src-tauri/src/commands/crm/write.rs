@@ -137,12 +137,22 @@ pub fn dedup_key(req: &CrmWriteRequest) -> String {
 /// the stale-guard (`push_crm_field_update`) re-fetches the live value at
 /// approve time and refuses to write blind if it no longer matches.
 ///
-/// Deliberately has NO `requested_at`: unlike a note/task (each approval
-/// should create a SEPARATE record, so retry-vs-repeat needs the approval
-/// event to tell them apart), a field update is a PUT, idempotent by HTTP
-/// semantics — re-approving the identical (household_key, field,
-/// final_value) is correctly a no-op (the field is already at the desired
-/// value), not a lost write.
+/// `dedup_key_field` (the WRITE-SAFETY ledger key) deliberately does NOT
+/// include `requested_at`: unlike a note/task (each approval should create
+/// a SEPARATE record, so retry-vs-repeat needs the approval event to tell
+/// them apart), a field update is a PUT, idempotent by HTTP semantics —
+/// re-approving the identical (household_key, field, final_value) is
+/// correctly a no-op (the field is already at the desired value), not a
+/// lost write.
+///
+/// `requested_at` DOES matter for the AUDIT id, though (codex round 10,
+/// self-converge): without an approval-event identifier there, a genuine
+/// retry (the command's response was lost, `push_crm_field_update` now
+/// sees the live value already equals `final_value` and reports
+/// `deduped: true`) is indistinguishable from a LATER, separate approval
+/// that happens to restore the same value — one wants the SAME audit
+/// entry (no duplicate), the other wants its OWN. See `crm_update_field`'s
+/// audit-key computation.
 #[derive(Debug, Clone)]
 pub struct CrmFieldUpdateRequest {
     pub matter_id: String,
@@ -152,6 +162,7 @@ pub struct CrmFieldUpdateRequest {
     pub new_value: String,
     pub final_value: String,
     pub source_ref: String,
+    pub requested_at: String,
 }
 
 /// Stable content-addressed key for a field update: identical (household_key,
@@ -1721,6 +1732,7 @@ mod tests {
             new_value: "Retiring spring 2027; stress-test earlier exit.".into(),
             final_value: "Existing background.\n\nRetiring spring 2027; stress-test earlier exit.".into(),
             source_ref: "meeting:Clients/Hendersons/Meetings/2026-06-30#0".into(),
+            requested_at: "2026-07-02T14:41:00Z".into(),
         }
     }
 

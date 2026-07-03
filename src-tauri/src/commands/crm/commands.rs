@@ -826,6 +826,7 @@ pub async fn crm_update_field(
     new_value: String,
     final_value: String,
     source_ref: String,
+    requested_at: String,
     provider: Option<String>,
 ) -> Result<WriteReceipt, String> {
     let provider = CrmProvider::from_optional(provider.as_deref())?;
@@ -853,6 +854,8 @@ pub async fn crm_update_field(
         );
     }
 
+    write::validate_requested_at(&requested_at).map_err(|e| e.to_string())?;
+
     let token = read_token(provider).ok_or_else(|| {
         format!(
             "{} not connected — connect it in Account → Connections first",
@@ -878,10 +881,19 @@ pub async fn crm_update_field(
         new_value,
         final_value,
         source_ref: source_ref.clone(),
+        requested_at: requested_at.clone(),
     };
 
     let action = provider.audit_action("field_updated");
-    let write_dedup_key = write::dedup_key_field(&req);
+    // Codex round 10 (self-converge): the audit id incorporates
+    // requested_at (unlike dedup_key_field, the WRITE-safety key, which
+    // deliberately doesn't) — without it, a genuine retry (this exact
+    // command re-invoked after its response was lost) and a LATER, separate
+    // approval that happens to restore the same final_value are
+    // indistinguishable from content alone: one wants the SAME audit entry
+    // (no duplicate), the other wants its own. See CrmFieldUpdateRequest's
+    // doc comment.
+    let write_dedup_key = format!("{}_{}", write::dedup_key_field(&req), requested_at);
 
     match write::push_crm_field_update(client.as_ref(), &store, &state.write_guard, &req).await {
         Ok(receipt) => {
@@ -889,19 +901,13 @@ pub async fn crm_update_field(
                 "field '{field}' updated on {} household {household_key} (source: {source_ref})",
                 provider.display_name(),
             );
-            // Codex round 5 (self-converge): dedup_key_field is content-
-            // addressed (household+field+final_value), not approval-event-
-            // addressed — by design, so a genuine retry of the SAME
-            // approval doesn't re-PUT. But that means a LATER approval of
-            // the identical final_value (e.g. restoring it after it
-            // drifted) computes the SAME id, and the audit store's
-            // insert-or-ignore would silently drop this second REAL write's
-            // audit entry. `receipt.deduped` tells us which happened: only
-            // a true cache hit (no network write at all) is safe to
-            // dedupe by that deterministic id; an actual write
-            // (`deduped: false`) always gets its own unique entry.
-            let audit_key = if receipt.deduped { Some(write_dedup_key.as_str()) } else { None };
-            append_crm_audit_best_effort_for_matter(&app, &action, &description, &matter_id, audit_key).await;
+            // write_dedup_key now includes requested_at (see above), so
+            // this single deterministic id correctly handles all three
+            // cases: a genuine retry (same requested_at) of either a real
+            // write or a cache hit collides with its own prior entry (no
+            // duplicate); a LATER, separate approval (new requested_at) of
+            // the same content always gets its own entry.
+            append_crm_audit_best_effort_for_matter(&app, &action, &description, &matter_id, Some(&write_dedup_key)).await;
             Ok(receipt)
         }
         Err(CrmWriteError::StaleFieldValue(current)) => {
