@@ -134,7 +134,7 @@ pub struct CrmStore {
 impl CrmStore {
     /// Canonical path for the encrypted CRM DB inside a workspace.
     pub fn db_path(workspace_root: &Path) -> PathBuf {
-        workspace_root.join(crate::identity::WORKSPACE_DATA_DIR).join("crm-enc.db")
+        crate::commands::data_dir::workspace_data_dir(workspace_root).join("crm-enc.db")
     }
 
     /// Open (or create) the SQLCipher database keyed with `key`.

@@ -20,7 +20,7 @@
 import { useEffect } from 'react';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { workspacePath } from '@/platform/fs/appPath';
-import { WORKSPACE_DATA_DIR } from '@/config/identity';
+import { WORKSPACE_DATA_DIR, LEGACY_WORKSPACE_DATA_DIR } from '@/config/identity';
 import {
   isOcrScannedPdfsEnabled,
   isPdfIndexingEnabled,
@@ -54,6 +54,7 @@ import {
   MODEL_DOWNLOAD_EVENT,
   modelStatus,
   ragManifestPdfFresh,
+  resolveWorkspaceDataDirName,
   watchWorkspace,
   type ModelDownloadProgress,
   type WorkspaceChangeEvent,
@@ -159,12 +160,16 @@ function toForwardSlashPath(path: string): string {
  * were re-indexed on every change — keeping LanceDB perpetually busy and
  * starving the on-demand Ask retrieval into an indefinite hang. Matches a
  * `.lantern` path SEGMENT (not a substring) across both separators, so a real
- * user file whose name merely contains ".lantern" is unaffected.
+ * user file whose name merely contains ".lantern" is unaffected. Also matches the
+ * legacy `.keepance` segment, so the internal dir is skipped in the data-dir
+ * migration fail-safe state (where `.keepance` is still the live data dir).
  */
 export function isInternalWorkspacePath(path: string): boolean {
-  return toForwardSlashPath(path)
-    .split('/')
-    .includes(WORKSPACE_DATA_DIR);
+  const segments = toForwardSlashPath(path).split('/');
+  return (
+    segments.includes(WORKSPACE_DATA_DIR) ||
+    segments.includes(LEGACY_WORKSPACE_DATA_DIR)
+  );
 }
 
 /** Convert a workspace-relative path into the same absolute forward-slash path shape the RAG store uses. */
@@ -994,9 +999,29 @@ export function useMemoryWiring(
       setFactsService(null);
       return;
     }
+    // Object holder (not a bare `let`) so TS doesn't narrow the flag to a
+    // constant across the async closure below.
+    const guard = { cancelled: false };
     const storage = buildFactsStorage(workspaceService, rootPath);
-    setFactsService(createFactsService({ storage }));
+    // Resolve the LIVE data-dir name (`.lantern`, or the legacy `.keepance` in the
+    // migration fail-safe) so facts read/write the same folder the Rust stores
+    // use. Without this, a first-ever facts write in the fail-safe state would
+    // seed the stub `.lantern` and strand the workspace on the next launch.
+    // Falls back to the default (`.lantern`) in the browser / on any error.
+    void (async () => {
+      let dataDirName: string | undefined;
+      try {
+        dataDirName = (await resolveWorkspaceDataDirName(rootPath)) ?? undefined;
+      } catch {
+        dataDirName = undefined;
+      }
+      if (guard.cancelled) return;
+      setFactsService(
+        createFactsService(dataDirName ? { storage, dataDirName } : { storage }),
+      );
+    })();
     return () => {
+      guard.cancelled = true;
       setFactsService(null);
     };
   }, [rootPath, workspaceService]);

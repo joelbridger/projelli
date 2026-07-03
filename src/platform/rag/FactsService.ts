@@ -31,8 +31,23 @@
  */
 
 import { sanitizeForPrompt } from '@/platform/utils/prompt-security';
+import { WORKSPACE_DATA_DIR, LEGACY_WORKSPACE_DATA_DIR } from '@/config/identity';
 
-export const FACTS_FILE_RELATIVE_PATH = '.keepance/memory.json';
+/**
+ * Facts file, under the internal data dir. Uses `WORKSPACE_DATA_DIR` (`.lantern`)
+ * so it stays on the same folder every other store uses and is moved by the
+ * `.keepance` → `.lantern` data-folder migration (an older hardcoded
+ * `.keepance/memory.json` here would orphan the user's facts after migration).
+ */
+export const FACTS_FILE_RELATIVE_PATH = `${WORKSPACE_DATA_DIR}/memory.json`;
+
+/**
+ * Legacy facts path under the pre-rename `.keepance` dir. Read/write resolution
+ * (see `resolveFactsPath`) falls back to this so facts don't fork in the rare
+ * migration fail-safe state (rename failed → `.keepance` is still the live dir),
+ * mirroring the Rust `data_dir::workspace_data_dir` resolver.
+ */
+export const LEGACY_FACTS_FILE_RELATIVE_PATH = `${LEGACY_WORKSPACE_DATA_DIR}/memory.json`;
 
 export const FACTS_SCHEMA_VERSION = 1 as const;
 
@@ -90,6 +105,16 @@ export interface FactsStorage {
 /** Options accepted by `createFactsService`. */
 export interface FactsServiceOptions {
   storage: FactsStorage;
+  /**
+   * The LIVE internal data-dir name for this workspace (`.lantern`, or the legacy
+   * `.keepance` in the migration fail-safe state), as resolved by the Rust
+   * `resolve_workspace_data_dir_name` command. The facts file is read from and
+   * written to `<dataDirName>/memory.json`, so a FIRST-ever write in the fail-safe
+   * state lands in the live legacy folder — never seeding the stub `.lantern`,
+   * which would make the next migration adopt the stub and strand the workspace.
+   * Defaults to `WORKSPACE_DATA_DIR` (`.lantern`) when omitted (fresh / browser).
+   */
+  dataDirName?: string;
   /** Override the id generator (e.g. for deterministic tests). */
   generateId?: () => string;
   /** Override the clock (e.g. for deterministic tests). */
@@ -224,10 +249,20 @@ export function createFactsService(opts: FactsServiceOptions): FactsServiceApi {
   const generateId = opts.generateId ?? defaultGenerateId;
   const now = opts.now ?? (() => new Date());
 
-  const tmpPath = `${FACTS_FILE_RELATIVE_PATH}.tmp`;
+  // The facts file lives under the LIVE data dir (`.lantern`, or the legacy
+  // `.keepance` in the migration fail-safe) as decided by the Rust resolver and
+  // passed in as `dataDirName`. Keying on the live DIRECTORY — not merely on
+  // "does a legacy facts file exist" — means a first-ever write in the fail-safe
+  // state lands in `.keepance` (the live folder) instead of seeding the stub
+  // `.lantern`, which would strand the user's mail/RAG/audit on the next launch.
+  const factsPath =
+    opts.dataDirName && opts.dataDirName.length > 0
+      ? `${opts.dataDirName}/memory.json`
+      : FACTS_FILE_RELATIVE_PATH;
 
   async function loadFacts(): Promise<MemoryFacts> {
-    const exists = await storage.exists(FACTS_FILE_RELATIVE_PATH);
+    const path = factsPath;
+    const exists = await storage.exists(path);
     if (!exists) {
       const empty: MemoryFacts = {
         version: FACTS_SCHEMA_VERSION,
@@ -238,17 +273,22 @@ export function createFactsService(opts: FactsServiceOptions): FactsServiceApi {
       // is created on first `saveFacts` instead.
       return empty;
     }
-    const raw = await storage.read(FACTS_FILE_RELATIVE_PATH);
+    const raw = await storage.read(path);
     return parseMemoryFactsJson(raw);
   }
 
   async function saveFacts(facts: MemoryFacts): Promise<void> {
     const serialized = serializeMemoryFacts(facts);
+    // Write into the live data dir (`factsPath`). In the fail-safe state this is
+    // `.keepance/memory.json` (the live folder), so a first-ever write never
+    // seeds the stub `.lantern` and strands the workspace.
+    const path = factsPath;
+    const tmpPath = `${path}.tmp`;
     // Atomic write: tmp first, then final, then best-effort tmp cleanup.
     // If the final write throws the tmp lives on — the next save will
     // overwrite it.
     await storage.write(tmpPath, serialized);
-    await storage.write(FACTS_FILE_RELATIVE_PATH, serialized);
+    await storage.write(path, serialized);
     try {
       await storage.remove?.(tmpPath);
     } catch {

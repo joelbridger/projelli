@@ -56,7 +56,7 @@ pub struct CalendlyStore {
 
 impl CalendlyStore {
     pub fn db_path(workspace_root: &Path) -> PathBuf {
-        workspace_root.join(crate::identity::WORKSPACE_DATA_DIR).join("calendly-enc.db")
+        crate::commands::data_dir::workspace_data_dir(workspace_root).join("calendly-enc.db")
     }
 
     pub fn open(workspace_root: &Path) -> Result<Self> {

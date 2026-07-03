@@ -36,10 +36,19 @@ import { invoke } from '@tauri-apps/api/core';
 import type { FSBackend, FileStat, SetRootPathOptions } from './types';
 import type { FileNode } from '@/platform/types/workspace';
 
-import { VAULT_METADATA_FILENAME } from '@/config/identity';
+import { VAULT_METADATA_FILENAME, LEGACY_WORKSPACE_DATA_DIR } from '@/config/identity';
 
 /** Vault metadata filename — never surfaced to callers via list(). */
 const VAULT_METADATA = VAULT_METADATA_FILENAME;
+
+/**
+ * Legacy (pre-rename) vault metadata filename. In the rare both-metadata
+ * conflict state of the `.keepance` → `.lantern` migration, this file is
+ * PRESERVED on disk as the manual recovery copy — so it must also be hidden from
+ * the file tree, or the user could delete the only recovery path for files
+ * encrypted under the old vault key.
+ */
+const LEGACY_VAULT_METADATA = `${LEGACY_WORKSPACE_DATA_DIR}-vault.json`;
 
 /** Prefix for atomic-write temporary files — also hidden from list(). */
 const KPV_TMP_PREFIX = '.kpv-tmp-';
@@ -137,6 +146,7 @@ export class VaultFSBackend implements FSBackend {
     return nodes.filter(
       (n) =>
         n.name !== VAULT_METADATA &&
+        n.name !== LEGACY_VAULT_METADATA &&
         !n.name.startsWith(KPV_TMP_PREFIX),
     );
   }

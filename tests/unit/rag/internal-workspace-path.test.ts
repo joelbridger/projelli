@@ -31,4 +31,13 @@ describe('isInternalWorkspacePath', () => {
     // it (e.g. "my.lantern.notes.txt") is a real doc and stays indexable.
     expect(isInternalWorkspacePath('/ws/Clients/my.lantern.notes.txt')).toBe(false);
   });
+
+  it('also flags the legacy .keepance internal dir (data-dir migration fail-safe)', () => {
+    // In the fail-safe state the live data dir is still `.keepance`; its internal
+    // churn (MCP heartbeat, vectors) must not be indexed either.
+    expect(isInternalWorkspacePath('/ws/.keepance/mcp-session-scope.json')).toBe(true);
+    expect(isInternalWorkspacePath('C:\\ws\\.keepance\\vectors\\data.lance')).toBe(true);
+    // A lookalike filename is still a real doc.
+    expect(isInternalWorkspacePath('/ws/Clients/my.keepance.notes.txt')).toBe(false);
+  });
 });

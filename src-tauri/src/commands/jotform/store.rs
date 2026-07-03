@@ -64,7 +64,7 @@ pub struct JotformStore {
 
 impl JotformStore {
     pub fn db_path(workspace_root: &Path) -> PathBuf {
-        workspace_root.join(crate::identity::WORKSPACE_DATA_DIR).join("jotform-enc.db")
+        crate::commands::data_dir::workspace_data_dir(workspace_root).join("jotform-enc.db")
     }
 
     pub fn open(workspace_root: &Path) -> Result<Self> {

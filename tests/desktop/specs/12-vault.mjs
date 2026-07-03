@@ -72,14 +72,14 @@ function assertEncryptedOnDisk(workspace) {
 }
 
 function assertVaultMetadataExists(workspace) {
-  if (!fs.existsSync(path.join(workspace, '.keepance-vault.json'))) {
-    throw new Error('vault metadata .keepance-vault.json was not created');
+  if (!fs.existsSync(path.join(workspace, '.lantern-vault.json'))) {
+    throw new Error('vault metadata .lantern-vault.json was not created');
   }
 }
 
 function assertVaultMetadataRemoved(workspace) {
-  if (fs.existsSync(path.join(workspace, '.keepance-vault.json'))) {
-    throw new Error('vault metadata .keepance-vault.json still exists after disable');
+  if (fs.existsSync(path.join(workspace, '.lantern-vault.json'))) {
+    throw new Error('vault metadata .lantern-vault.json still exists after disable');
   }
 }
 

@@ -330,7 +330,7 @@ pub fn validate_matter_id(matter_id: &str) -> Result<&str> {
 
 /// Compute the path of the LanceDB dataset for a given workspace root.
 pub fn dataset_path(workspace_root: &Path) -> PathBuf {
-    workspace_root.join(crate::identity::WORKSPACE_DATA_DIR).join("vectors")
+    crate::commands::data_dir::workspace_data_dir(workspace_root).join("vectors")
 }
 
 /// Stable id for `(path, paragraph_index)`. Hex-encoded SHA-256.

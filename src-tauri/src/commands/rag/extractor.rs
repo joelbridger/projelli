@@ -113,7 +113,9 @@ pub fn is_in_skipped_dir_under(workspace_root: &Path, path: &Path) -> bool {
 /// (`node_modules`, `.git`, the internal data dir, etc). Keeps the workspace walker
 /// O(useful files) rather than O(every file on disk).
 pub fn is_skipped_dir_name(name: &str) -> bool {
-    if name == crate::identity::WORKSPACE_DATA_DIR {
+    // Skip BOTH the current (`.lantern`) and legacy (`.keepance`) data-dir names
+    // so a leftover legacy folder is never walked/indexed.
+    if crate::commands::data_dir::is_workspace_data_dir_name(name) {
         return true;
     }
     matches!(
