@@ -1,0 +1,131 @@
+// scripts/bench-smoke/driver.mjs — high-level bench actions used by checks.
+// Thin orchestration over remote.mjs (SSH exec) + parse.mjs (stdout parsing)
+// + console-watch.mjs (console-error capture via the existing `eval` command).
+// No CDP/Playwright code lives here or anywhere in this harness — every
+// action is a subprocess call to the real, unmodified scripts/desktop-drive.mjs
+// running on the bench.
+import path from 'node:path';
+import { runDesktopDrive, downloadFile, probeReachable } from './remote.mjs';
+import { parseSnapshot, parsePages, parseEvalResult } from './parse.mjs';
+import { installScript, readAndClearScript, interpretConsoleErrors } from './console-watch.mjs';
+import { clickByTextScript } from './click-by-text.mjs';
+import { dismissOverlayScript } from './overlay-dismiss.mjs';
+
+export class DriverError extends Error {}
+
+export class Driver {
+  constructor(target, { evidenceDir } = {}) {
+    this.target = target;
+    this.evidenceDir = evidenceDir ?? null;
+    this._shotCounter = 0;
+  }
+
+  async isReachable() {
+    return probeReachable(this.target);
+  }
+
+  async snapshot() {
+    const { code, stdout, stderr } = await runDesktopDrive(this.target, ['snapshot']);
+    if (code !== 0) throw new DriverError(`snapshot failed (exit ${code}): ${stderr || stdout}`);
+    return parseSnapshot(stdout);
+  }
+
+  async pages() {
+    const { code, stdout, stderr } = await runDesktopDrive(this.target, ['pages']);
+    if (code !== 0) throw new DriverError(`pages failed (exit ${code}): ${stderr || stdout}`);
+    return parsePages(stdout);
+  }
+
+  async click(testid) {
+    const { code, stdout, stderr } = await runDesktopDrive(this.target, ['click', testid]);
+    if (code !== 0) throw new DriverError(`click(${testid}) failed (exit ${code}): ${stderr || stdout}`);
+    return stdout.trim();
+  }
+
+  /** Click an element that was matched by visible text (no data-testid),
+   * via the existing `eval` command rather than desktop-drive.mjs's `click`
+   * (which only accepts a data-testid). Throws DriverError if nothing
+   * matched — never silently no-ops. */
+  async clickByText(needle) {
+    const result = await this.evalJs(clickByTextScript(needle));
+    if (result !== 'clicked') {
+      throw new DriverError(`clickByText("${needle}") found no matching element to click`);
+    }
+    return result;
+  }
+
+  /** Same as clickByText, but dispatches a dblclick — needed for file-tree
+   * rows, which (confirmed live) open on double-click, not a single click. */
+  async doubleClickByText(needle) {
+    const result = await this.evalJs(clickByTextScript(needle, { double: true }));
+    if (result !== 'clicked') {
+      throw new DriverError(`doubleClickByText("${needle}") found no matching element to click`);
+    }
+    return result;
+  }
+
+  async type(testid, text, { submit = false } = {}) {
+    const args = ['type', testid, text];
+    if (submit) args.push('--submit');
+    const { code, stdout, stderr } = await runDesktopDrive(this.target, args);
+    if (code !== 0) throw new DriverError(`type(${testid}) failed (exit ${code}): ${stderr || stdout}`);
+    return stdout.trim();
+  }
+
+  async evalJs(js) {
+    const { code, stdout, stderr } = await runDesktopDrive(this.target, ['eval', js]);
+    if (code !== 0) throw new DriverError(`eval failed (exit ${code}): ${stderr || stdout}`);
+    return parseEvalResult(stdout);
+  }
+
+  /** Explicit-wait helper — NEVER sleep-and-hope; desktop-drive.mjs's waitfor
+   * polls Playwright's own auto-waiting getByText(...).waitFor(). Resolves
+   * {found:true} or {found:false, error} rather than throwing, since "the
+   * text never appeared" is a normal, checkable outcome for a smoke check. */
+  async waitFor(text, seconds = 15) {
+    const { code, stdout, stderr } = await runDesktopDrive(this.target, ['waitfor', text, String(seconds)]);
+    if (code !== 0) return { found: false, error: stderr || stdout };
+    return { found: true, detail: stdout.trim() };
+  }
+
+  /** Best-effort: close any modal/overlay left open from a prior session
+   * before checks start (a stale dialog's backdrop otherwise intercepts every
+   * click meant for the app underneath it). Never throws — a failed dismiss
+   * just means "nothing to dismiss" or "eval briefly unavailable," neither of
+   * which should abort the whole run. */
+  async dismissBlockingOverlay() {
+    try {
+      return await this.evalJs(dismissOverlayScript());
+    } catch {
+      return { before: 0, after: 0 };
+    }
+  }
+
+  async installConsoleWatch() {
+    await this.evalJs(installScript());
+  }
+
+  async readConsoleErrors() {
+    const raw = await this.evalJs(readAndClearScript());
+    return interpretConsoleErrors(raw);
+  }
+
+  /** Screenshot on the bench (native path under repoDir\bench-smoke-tmp), then
+   * scp it down into the local evidence dir. Returns the local path (relative
+   * to evidenceDir) on success, or throws DriverError. */
+  async captureScreenshot(name) {
+    if (!this.evidenceDir) throw new DriverError('captureScreenshot requires evidenceDir to be set');
+    this._shotCounter += 1;
+    const fileName = `${String(this._shotCounter).padStart(2, '0')}-${name}.jpeg`;
+    const remotePath = `${this.target.repoDir}\\bench-smoke-tmp\\${fileName}`;
+    const localPath = path.join(this.evidenceDir, fileName);
+
+    const shot = await runDesktopDrive(this.target, ['screenshot', remotePath]);
+    if (shot.code !== 0) throw new DriverError(`screenshot failed (exit ${shot.code}): ${shot.stderr || shot.stdout}`);
+
+    const dl = await downloadFile(this.target, remotePath, localPath);
+    if (dl.code !== 0) throw new DriverError(`scp of screenshot failed (exit ${dl.code}): ${dl.stderr || dl.stdout}`);
+
+    return fileName;
+  }
+}
