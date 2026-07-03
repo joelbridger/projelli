@@ -11,9 +11,12 @@
  * persist the tarball. Faking enough of Tauri to drive the real Rust
  * extractor in browser is wildly out of proportion for a UI smoke test.
  *
- * Instead, the spec uses the test seam exposed by App.tsx
- * (`window.__templatesMarketplaceStore`) to seed a `MarketplaceService` that
- * is wired to an in-browser FSBackend stub. The spec pre-loads:
+ * Instead, the spec uses the test seam exposed by
+ * `window.__templatesMarketplaceStore` (useTestModeWorkspace.ts) plus
+ * `window.__marketplaceTestKit` (src/features/workflows/marketplace/
+ * marketplaceTestKit.ts, installed as a side effect of importing
+ * MarketplaceTab) to seed a `MarketplaceService` that is wired to an
+ * in-browser FSBackend stub. The spec pre-loads:
  *   - one catalog entry (browse view)
  *   - the `installed.json` index (after click [Install])
  *   - the manifest.json + workflow.json on the fake FS so the
@@ -240,116 +243,12 @@ async function seedMarketplaceForTest(page: Page) {
   );
 }
 
-/**
- * Inject a small bootstrap that re-exports the marketplace classes onto
- * `window.__marketplaceTestKit`. We do this from inside the running app via
- * an `addInitScript` that runs before the React mount and reads the modules
- * once App has imported them. This avoids forcing the spec to know module
- * paths.
- *
- * The simplest path that still works in Vite dev: piggy-back on the test seam
- * App.tsx exposes (`window.__templatesMarketplaceStore`) and dynamically
- * import the marketplace barrel from the running module graph. We can't
- * `import()` arbitrary paths in the page context without Vite's module
- * resolver, so instead the spec relies on the marketplace store's existence
- * and constructs services via plain JS by reaching into the real module
- * cache that the app already loaded.
- */
-async function exposeMarketplaceTestKit(page: Page) {
-  await page.evaluate(async () => {
-    // Vite serves source modules over HTTP; we can use Vite's module graph
-    // to fetch the marketplace barrel in dev. The dev URL pattern matches
-    // the Vite default for src/ modules. The specifier is built as a
-    // non-literal string (rather than inlined) so tsc treats this as an
-    // opaque dynamic import instead of trying to resolve it as a module on
-    // disk — this path only ever resolves at runtime, via the browser's
-    // Vite dev-server module graph.
-    const marketplaceBarrelPath = '/src/features/workflows/marketplace/svc/index.ts';
-    const m = (await import(/* @vite-ignore */ marketplaceBarrelPath)) as {
-      MarketplaceService: new (opts: {
-        repoUrl: string;
-        catalogPath: string;
-        cachePath: string;
-        installRoot: string;
-        fs: unknown;
-        provenance?: string;
-      }) => unknown;
-      TemplateMetadataReader: new (opts: { fs: unknown }) => unknown;
-    };
-
-    (
-      window as unknown as {
-        __marketplaceTestKit: {
-          buildService: (opts: {
-            fs: unknown;
-            catalog: unknown[];
-            installRoot: string;
-          }) => unknown;
-          buildReader: (opts: { fs: unknown }) => unknown;
-          seedInstalledIndex: (
-            fs: unknown,
-            installRoot: string,
-            entries: unknown[],
-          ) => Promise<void>;
-          installedEntryFor: (entry: unknown, installedPath: string) => unknown;
-        };
-      }
-    ).__marketplaceTestKit = {
-      buildService: ({ fs, catalog, installRoot }) => {
-        const svc = new m.MarketplaceService({
-          repoUrl: 'https://example.test',
-          catalogPath: 'catalog.json',
-          cachePath: '/test-workspace/.keepance/cache/templates.json',
-          installRoot,
-          fs,
-          provenance: 'community',
-        });
-        // Pre-seed in-memory cache so list() resolves without a network
-        // round-trip. Mark cache as fresh so checkForUpdates short-circuits.
-        const internal = svc as unknown as {
-          cache: unknown[];
-          lastFetchedAt: string;
-          lastFetchFailed: boolean;
-        };
-        internal.cache = catalog;
-        internal.lastFetchedAt = new Date().toISOString();
-        internal.lastFetchFailed = false;
-        return svc;
-      },
-      buildReader: ({ fs }) => new m.TemplateMetadataReader({ fs }),
-      seedInstalledIndex: async (fsAny, installRoot, entries) => {
-        const fs = fsAny as { write: (p: string, c: string) => Promise<void> };
-        await fs.write(
-          `${installRoot}/.installed.json`,
-          JSON.stringify({ entries }, null, 2),
-        );
-      },
-      installedEntryFor: (entryAny, installedPath) => {
-        const entry = entryAny as Record<string, unknown>;
-        return {
-          ...entry,
-          installedAt: new Date().toISOString(),
-          installedPath,
-          provenance: 'community',
-          manifestVersion: '1.0',
-        };
-      },
-    };
-  });
-}
-
 test.describe('Templates Marketplace E2E', () => {
   test('browse → install → installed list', async ({
     page,
   }) => {
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
-
-    // Wire the in-browser test kit (imports the real marketplace classes via
-    // Vite's dev-served module graph) and seed a synthetic catalog +
-    // installed FS state.
-    await exposeMarketplaceTestKit(page);
-    await seedMarketplaceForTest(page);
 
     // ---- Step 1: open Settings → Advanced → Extensions/Templates ----
     // Jameson's 2026-06-27 decision (SettingsGearButton.tsx) made the gear
@@ -359,6 +258,16 @@ test.describe('Templates Marketplace E2E', () => {
     await expect(page.getByTestId('settings-page')).toBeVisible();
     await hardClick(page.getByTestId('settings-category-advanced'));
     await expect(page.getByTestId('marketplace-tab')).toBeVisible();
+
+    // `window.__marketplaceTestKit` is a real product-code seam
+    // (src/features/workflows/marketplace/marketplaceTestKit.ts) installed
+    // as a side effect of importing MarketplaceTab — which just mounted
+    // above (marketplace-tab is now visible), so the seam is guaranteed to
+    // exist by now. Seed a synthetic catalog + installed FS state through it
+    // BEFORE checking templates-tab: TemplatesTab renders its
+    // `templates-tab-empty` ("open a workspace") state instead of
+    // `templates-tab` until a marketplace service has been set.
+    await seedMarketplaceForTest(page);
 
     // Templates are the only remaining marketplace surface in 3.0.
     await expect(page.getByTestId('marketplace-subtab-content-templates')).toBeVisible();
