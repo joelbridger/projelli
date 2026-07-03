@@ -459,4 +459,32 @@ mod tests {
         assert_eq!(out.len(), 16_000);
         assert!(out.iter().all(|&s| s > 15_000)); // 0.5 → ~16383
     }
+
+    #[test]
+    fn resampler_carries_phase_across_callbacks_without_drift() {
+        // 44 100 -> 16 000 Hz is a non-integer ratio, which is exactly what
+        // exposes phase-reset drift: resetting to phase 0 every callback
+        // loses ~0.33 samples/callback at 48k->16k, and a similar fraction
+        // here, compounding over many small buffers the way cpal actually
+        // delivers audio (real callbacks are ~1024 frames, not one giant
+        // buffer per `downmix_resample` call).
+        let mut resampler = Resampler::new();
+        let callbacks = 500usize;
+        let frames_per_callback = 1000usize;
+        let mut total_out = 0usize;
+        for i in 0..callbacks {
+            let input: Vec<f32> = (0..frames_per_callback)
+                .map(|f| ((i * frames_per_callback + f) as f32 * 0.01).sin() * 0.5)
+                .collect();
+            let out = resampler.push(&input, 1, 44_100);
+            total_out += out.len();
+        }
+        let total_frames = (callbacks * frames_per_callback) as f64;
+        let ideal = total_frames * 16_000.0 / 44_100.0;
+        let drift = (total_out as f64 - ideal).abs();
+        assert!(
+            drift <= 2.0,
+            "resampler drifted {drift} samples over {callbacks} callbacks (total_out={total_out}, ideal={ideal})"
+        );
+    }
 }
