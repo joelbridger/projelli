@@ -827,6 +827,16 @@ export function useAsk({
       // "AUTHORITATIVE consent gate" block after flushSync).
       let answerText = '';
       let resolvedProvider = await buildResolvedAskProvider();
+      // QA-25 (P2, Codex review) — the user can navigate away (switch client,
+      // start a new question, load another thread) while this await is in
+      // flight. Without this check, a navigation-triggered abort persists the
+      // "cancelled" record (see the chatId-switch effect) and this call keeps
+      // going anyway, potentially persisting a SECOND, "successful" answer
+      // after it — worse on providers with no streaming signal, which never
+      // see the abort at all downstream. Bail the same way every other
+      // post-await checkpoint in this function does.
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- abort.signal flips via an external AbortController across the await (ESLint can't see it; same async pattern baselined elsewhere in this file).
+      if (abort.signal.aborted) return;
 
       // FINAL SYNCHRONOUS LOCAL-ONLY SEND GUARD (Codex re-review #4 — the
       // important one). This is a real privacy enforcement, not a display fix:
@@ -841,6 +851,11 @@ export function useAsk({
       // does next).
       if (isLocalOnlyMode() && !isLocalProvider(resolvedProvider.providerId)) {
         resolvedProvider = await resolveLocalAskProvider();
+        // QA-25 (P2, Codex review) — same re-check as above: this branch adds
+        // its OWN await, so a navigation-triggered abort during THIS one must
+        // be caught here too, not just after the first resolution.
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- abort.signal flips via an external AbortController across the await (ESLint can't see it; same async pattern baselined elsewhere in this file).
+        if (abort.signal.aborted) return;
       }
       // Airtight backstop: there is NO await between this assertion and the send
       // below (only synchronous setup + flushSync), so the mode cannot change in
