@@ -177,7 +177,7 @@ impl CaptureEngine {
         {
             let tx = sys_writer.sender();
             let gate = sys_start.clone();
-            sys.start(Box::new(move |s| {
+            if let Err(e) = sys.start(Box::new(move |s| {
                 let mut g = gate.lock().unwrap();
                 match &mut *g {
                     SysStart::Buffering(buf) => buf.extend_from_slice(s),
@@ -185,7 +185,21 @@ impl CaptureEngine {
                         let _ = tx.send(s.to_vec());
                     }
                 }
-            }))?;
+            })) {
+                // mic already started successfully above and is actively
+                // recording via a live callback that holds its own Sender
+                // clone into mic_writer's channel. Simply propagating `e`
+                // via `?` would drop mic_writer (and sys_writer) right
+                // here, and AsyncChunkWriter::drop joins its writer
+                // thread — which can never happen while mic's audio thread
+                // (and that Sender clone) is still alive, since the channel
+                // never closes. That would hang capture_start forever
+                // instead of returning this startup error. Stop mic FIRST
+                // so its thread — and the Sender clone it holds — is
+                // actually gone before mic_writer/sys_writer drop below.
+                let _ = mic.stop();
+                return Err(e);
+            }
         }
         // sys started `gap` after mic did, so sys is MISSING `gap` worth of
         // real audio at its front (mic has genuine content there; sys never
@@ -827,6 +841,92 @@ mod tests {
             .map(|d| d.filter_map(|e| e.ok()).collect())
             .unwrap_or_default();
         assert!(remaining.is_empty(), "expected no leftover meeting dirs, got: {remaining:?}");
+    }
+
+    /// A source that, unlike `FakeSource`, actually keeps its callback alive
+    /// on a dedicated thread until `stop()` is called — the same lifecycle
+    /// `CpalSource`/`MacTapSource` really have (the closure lives inside a
+    /// live stream/reader thread, holding whatever it captured, until
+    /// explicitly stopped). `FakeSource`'s callback runs synchronously
+    /// inside `start()` and is dropped the moment `start()` returns, so it
+    /// can never reproduce the round-17 deadlock below — this fake can.
+    struct PersistentFakeSource {
+        stop_tx: Option<std::sync::mpsc::Sender<()>>,
+        join: Option<std::thread::JoinHandle<()>>,
+    }
+    impl PersistentFakeSource {
+        fn new() -> Self {
+            Self { stop_tx: None, join: None }
+        }
+    }
+    impl AudioSource for PersistentFakeSource {
+        fn start(&mut self, on_samples: Box<dyn FnMut(&[i16]) + Send>) -> anyhow::Result<()> {
+            let (stop_tx, stop_rx) = std::sync::mpsc::channel::<()>();
+            let join = std::thread::spawn(move || {
+                // Keep `on_samples` (and whatever Sender it captured) alive
+                // until told to stop — never actually calls it, since this
+                // test only cares about the callback's LIFETIME, not
+                // delivering audio.
+                let _on_samples = on_samples;
+                let _ = stop_rx.recv();
+            });
+            self.stop_tx = Some(stop_tx);
+            self.join = Some(join);
+            Ok(())
+        }
+        fn stop(&mut self) -> anyhow::Result<()> {
+            if let Some(tx) = self.stop_tx.take() {
+                let _ = tx.send(());
+            }
+            if let Some(j) = self.join.take() {
+                let _ = j.join();
+            }
+            Ok(())
+        }
+    }
+
+    /// Regression for the codex-review round-17 finding: if mic starts
+    /// successfully but sys then fails to start (no Linux monitor device,
+    /// missing macOS sidecar, etc.), the old code just propagated sys's
+    /// error via `?` — dropping `mic_writer`/`sys_writer` right there.
+    /// `AsyncChunkWriter::drop` joins its writer thread, but mic's audio
+    /// thread (and the Sender clone its live callback holds) was still
+    /// running, so the channel could never close and `join()` — and
+    /// therefore `capture_start` itself — would hang forever instead of
+    /// returning the startup error. Runs `start_with_sources` on its own
+    /// thread with a bounded `recv_timeout` specifically so a real
+    /// regression fails this test (and the whole suite) fast instead of
+    /// hanging it — `FakeSource` can't reproduce this (see
+    /// `PersistentFakeSource`'s doc), so this needs a source with a real
+    /// persistent background thread.
+    #[test]
+    fn failed_sys_start_after_successful_mic_start_does_not_deadlock() {
+        let ws = tempdir().unwrap();
+        let ws_path = ws.path().to_path_buf();
+        let (done_tx, done_rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let mic = Box::new(PersistentFakeSource::new()) as Box<dyn AudioSource>;
+            let sys = Box::new(FailingSource) as Box<dyn AudioSource>;
+            let result = CaptureEngine::start_with_sources(
+                &ws_path,
+                "m-deadlock",
+                "Clients/Deadlock Household",
+                consent("one-party"),
+                mic,
+                sys,
+            );
+            let _ = done_tx.send(result.err().map(|e| e.to_string()));
+        });
+        match done_rx.recv_timeout(std::time::Duration::from_secs(5)) {
+            Ok(Some(msg)) => assert!(msg.contains("simulated device failure"), "got: {msg}"),
+            Ok(None) => panic!("expected start_with_sources to return an error"),
+            Err(_) => panic!(
+                "start_with_sources did not return within 5s — regression of the round-17 \
+                 deadlock: mic succeeded and kept running, sys failed to start, and \
+                 AsyncChunkWriter::drop hung joining the writer thread because mic's Sender \
+                 clone was still alive"
+            ),
+        }
     }
 
     #[test]
