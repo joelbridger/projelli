@@ -87,7 +87,7 @@ The button sat alone top-right (a full empty row above the content) as a hand-ro
 `02-meetings-empty.jpg` — the empty state used a **video camera** icon (recording is audio; every other affordance uses a mic) and offered no action, leaving a first-run advisor to hunt top-right. **Fix:** mic icon + "Record a meeting" as the empty state's action button (the `EmptyState` primitive already supports `actions`).
 
 ### S7 — "Needs review · 1 items"
-`en.json` had a single plural form. **Fix:** proper i18next `_one`/`_other` forms in en/de/es.
+The queue-box heading had a single plural form ("· 1 items"). **Resolved by S3:** the box and its count heading were removed entirely; the per-row badge has no count to pluralize.
 
 ### S8 — Meeting type edit leaked the raw slug and had no cancel
 `09-type-edit.jpg` — clicking "change" put `annual-review` (the internal id) in a free-text input; Escape did nothing. **Fix:** input shows the human label, Escape cancels, Enter saves (mapped back to the built-in type id when it matches one; otherwise saved as typed).
