@@ -1,0 +1,74 @@
+
+> advisor-prep-hero@3.3.5 tauri:dev
+> tauri dev
+
+     Running BeforeDevCommand (`npm run dev`)
+
+> advisor-prep-hero@3.3.5 predev
+> node scripts/copy-build-assets.mjs
+
+copied node_modules/pdfjs-dist/build/pdf.worker.min.mjs -> public/pdf.worker.min.mjs
+copied node_modules/tesseract-wasm/dist/tesseract-worker.js -> public/ocr/tesseract-worker.js
+copied node_modules/tesseract-wasm/dist/tesseract-core.wasm -> public/ocr/tesseract-core.wasm
+copied node_modules/tesseract-wasm/dist/tesseract-core-fallback.wasm -> public/ocr/tesseract-core-fallback.wasm
+skipped public/ocr/eng.traineddata (present, checksum OK)
+
+> advisor-prep-hero@3.3.5 dev
+> vite
+
+
+  [32m[1mVITE[22m v6.4.2[39m  [2mready in [0m[1m313[22m[2m[0m ms[22m
+
+  [32m�zo[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5173[22m/[39m
+[2m  [32m�zo[39m  [1mNetwork[22m[2m: use [22m[1m--host[22m[2m to expose[22m
+     Running DevCommand (`cargo  run --no-default-features --color always --`)
+        Info Watching C:\lantern-plus\src-tauri for changes...
+        Info Watching C:\lantern-plus\src-tauri\crates\lantern-docx for changes...
+        Info Watching C:\lantern-plus\src-tauri\crates\lantern-vault for changes...
+[1m[93mwarning[0m[1m[97m: unused import: `std::os::windows::process::CommandExt`[0m
+  [1m[96m--> [0msrc\util\proc.rs:21:13
+   [1m[96m|[0m
+[1m[96m21[0m [1m[96m|[0m         use std::os::windows::process::CommandExt;
+   [1m[96m|[0m             [1m[93m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+   [1m[96m|[0m
+   [1m[96m= [0m[1m[97mnote[0m: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+[1m[93mwarning[0m: `lantern` (lib) generated 1 warning
+[1m[92m    Finished[0m `dev` profile [unoptimized + debuginfo] target(s) in 1.80s
+[1m[92m     Running[0m `target\debug\lantern.exe`
+[2026-07-04][03:32:11][lantern_lib::commands::data_dir][WARN] [data-dir-migration] both C:\Users\james\AppData\Roaming\keepance and the migrated C:\Users\james\AppData\Roaming\lantern exist; keeping the migrated one and leaving the legacy folder untouched (not merged, not deleted).
+[2026-07-04][03:32:11][lantern_lib][INFO] [data-dir-migration] OS data dir: LeftoverOldKept
+[2026-07-04][03:32:18][lantern_lib::commands::rag::reconcile][INFO] rag reconcile: DONE work=0 reused=80 reindexed=0 deleted=0 in 37 ms (skipped=0, failed=0, timed_out=0, cleanup_failed=0)
+[2026-07-04][03:32:25][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-07-04][03:32:26][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-07-04][03:32:26][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-07-04][03:32:26][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-07-04][03:32:26][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-07-04][03:32:26][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-07-04][03:32:26][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-07-04][03:32:26][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-07-04][03:32:26][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-07-04][03:32:27][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-07-04][03:32:27][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-07-04][03:32:27][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-07-04][03:32:27][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-07-04][03:32:27][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-07-04][03:32:27][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-07-04][03:32:27][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-07-04][03:32:27][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-07-04][03:32:28][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-07-04][03:32:28][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-07-04][03:32:29][lance::io::commit][INFO] Auto cleanup triggered: RemovalStats { bytes_removed: 0, old_versions: 0 }
+[2026-07-04][03:32:29][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-07-04][03:32:29][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-07-04][03:32:29][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-07-04][03:32:30][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-07-04][03:32:30][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-07-04][03:32:30][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-07-04][03:32:30][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-07-04][03:33:36][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-07-04][03:33:36][lance_index::scalar::expression][INFO] visit_node: depth=1
+[2026-07-04][03:33:36][lance_index::scalar::expression][INFO] visit_node: depth=1
+[2026-07-04][03:33:36][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-07-04][03:33:36][lance_index::scalar::expression][INFO] visit_node: depth=1
+[2026-07-04][03:33:36][lance_index::scalar::expression][INFO] visit_node: depth=1

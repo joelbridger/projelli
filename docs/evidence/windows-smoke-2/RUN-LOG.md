@@ -241,3 +241,139 @@ same tip pull:
    allocation?"). Got a cited answer identifying the Hollings Family ($50.2M, below target
    equity) with a clickable "Hollings Family" client-chip result and per-fact citations.
    Screenshot: `wave4-02-ask-whole-practice.png`.
+
+---
+
+## Full scripted bench pass (2026-07-04) — Waves 0-4, `scripts/bench-smoke.mjs`
+
+**Mission:** run the complete scripted smoke of Waves 0-4 on the Legion at the current merged tip
+and bring it to a clean pass or a precise FAIL report per check, per
+`coordination/briefs/w-bench-full-brief.md`. Full evidence: `docs/evidence/bench-smoke/legion-20260704-033315/`
+(the final, trustworthy run — three earlier runs same session are superseded, see "Harness fixes" below).
+
+### Bench bring-up
+
+- Legion was on stale tip `e4050327` (from the prior bench-prep pass) — **144 commits behind**
+  the actual merged tip. Re-pulled `C:\lantern-plus` to **`1eb10dba`** (`git fetch` + `git pull
+  --ff-only`), which is `origin/lantern-plus` HEAD at run time (one coordination-doc commit ahead
+  of `fc82c2a2`, no code diff). Pull brought in Wave 3 capture, symlink hardening/pathguard, the
+  CDP env-var fix (`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` forwarded through wry — changes how the
+  main window is created, see `src-tauri/src/lib.rs` `.setup()`), and harness round-2
+  (`scripts/bench-smoke.mjs` + `scripts/bench-smoke/`). `npm install`: no lockfile change, no-op.
+- **Full rebuild, not skipped:** `cargo` did a real recompile (new deps this pull: `cpal`,
+  `keepawake`, `hound` for Wave 3/4 capture+diarization) — `Finished 'dev' profile
+  [unoptimized + debuginfo] target(s) in 1m 39s`. App booted clean, CDP responded.
+- **Freshness canary — PASS.** Grepped `target\debug\lantern.exe` for two string literals that
+  only exist in this pull's new code: `"WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"` (the CDP env-var
+  fix, `lib.rs:362`) and `"a previous recording is still finalizing"` (Wave 3 capture engine,
+  `commands/capture/engine.rs`) — both found. Binary `LastWriteTime` matched the build-completion
+  timestamp.
+- **Bench-infra fix:** the harness's target registry (`scripts/bench-smoke/targets.mjs`) hardcodes
+  the Legion's app log at `C:\tauri-dev.log`, but the actual dev-launcher batch
+  (`C:\run-dev-lantern.bat`, bench-local, not in git) was redirecting to `C:\lantern-plus-dev.log`
+  — a stale, silently-wrong log path mismatch that would have made any FAIL's captured
+  `*-tauri-dev-tail.txt` forensics show garbage from a week-old run instead of the real one. Fixed
+  the `.bat` to redirect to `C:\tauri-dev.log` (matching the other registered target's convention)
+  and restarted the app once to pick it up.
+
+### Harness fixes (in `scripts/bench-smoke/`, unit-tested, committed on this branch)
+
+Three real, root-caused bugs in the smoke harness itself were found and fixed live this pass —
+each one was previously masking real product signal behind a false `SETUP-BLOCKED`:
+
+1. **`checks/setup.mjs` (`per-client-files-visible`)** — was asserting file rows via
+   `findByText(snapshot(), /\.docx|\.pdf/i)`, but `snapshot()` only captures *interactive*
+   elements ([data-testid]/button/a/role=button/input/textarea); file rows in the Documents Tree
+   view are plain text spans, so this always false-negatived even when real files were plainly
+   visible on screen. Switched to `textPresent()` (real page-text search via Playwright's
+   `getByText`), matching the pattern `index-health` already used for the same reason.
+2. **`click-by-text.mjs` (`clickByTextScript`)** — the "controls" tier matched any
+   `[data-testid]`-bearing element whose full `textContent` merely *contained* the needle. Since
+   `textContent` cascades up through every ancestor, the outermost `app-container` div (the first
+   `[data-testid]` element in document order) trivially "contains" almost any needle that appears
+   anywhere on the page — so `.find()` returned it and issued a no-op single click on the giant
+   wrapper, silently breaking `clickByText`/`doubleClickByText` for nearly any real needle. Fixed
+   by excluding candidates that have their own nested `[data-testid]` descendants (structural
+   wrappers have many; a real button/card/leaf has none). Added a regression test
+   (`click-by-text.test.mjs`) that fails against the pre-fix version.
+3. **`checks/wave0.mjs` / `checks/wave2.mjs`** — both wrapped `openSmokeClientDocuments` +
+   `openSmokeClientNote` in a *single* try/catch, so whenever a prior check (e.g. `index-health`)
+   had already left a client hub open on a different sub-tab, the first click's expected failure
+   (`matter-launch-documents-<id>` only exists in the table view) aborted the whole block and
+   `openSmokeClientNote` never even ran — the exact "single try/catch" ordering bug `setup.mjs`'s
+   `primeClientView` had already been fixed for, just not applied here. Split into independent
+   try/catches (matching `primeClientView`'s pattern) in both files. Also fixed
+   `openSmokeClientNote` itself (`checks/_util.mjs`) to switch to "Tree" view and wait for the
+   filename before searching — Grid view only shows the current folder, so a smoke note living in
+   a subfolder was invisible to a whole-page text search if a prior session had left Grid active.
+
+All three were verified against the live bench (not just unit tests) before being trusted — see
+"Debugging notes" below. Full suite: **124/124 unit tests pass** (was 122 before this pass;
++1 new regression test for the container-match bug, +1 for the Tree-view-switch fallback).
+
+### Debugging notes (things that looked like product bugs and weren't)
+
+- **A stray native "Open" file dialog** (Windows file picker, filtered to image files, rooted at
+  Jameson's real personal `C:\Users\...\Jameson Daines` folder) was found sitting open and
+  focused on top of the app window mid-run — almost certainly triggered by an earlier manual
+  click on the Account/Connections modal's "Upload photo" button during interactive debugging.
+  While it sat open, CDP-based DOM queries returned stale/incomplete results (the docx editor was
+  actually open and fully rendered underneath it) — closing the dialog (`Escape` via
+  `scripts/legion_agent.py`, no files touched/selected) immediately restored correct CDP
+  visibility. Verified via a real full-desktop screenshot (`legion_agent.py` `/shot`, not CDP) —
+  worth remembering for future runs: if CDP-driven checks report "nothing happened" right after
+  a manual desktop interaction, screenshot the real desktop before trusting the DOM query.
+- **A "stuck" smoke-test file** — after ~10 repeated manual open/close cycles on the exact same
+  note (`Meeting Notes 2024-05-20 - Caldwell, Jennifer.docx`) during interactive debugging, that
+  *specific* file stopped opening on click/double-click (row highlighted/selected, no editor tab
+  appeared) while a *different*, never-before-touched file in the same folder opened instantly on
+  the first click. Root-caused as test-session contamination from the debugging itself, not a
+  product bug — confirmed by a full app restart (which clears in-memory editor/session state)
+  making the original file open normally again on the very next click.
+
+### Results — FAIL (2 real product findings)
+
+| Check | Status | Finding |
+|---|---|---|
+| `wave1-calendar-brief-export` | **FAIL** | Calendar connector shows `scope_upgrade_required` under Account → Connections (raw error code surfaced as user-facing text, not a friendly message) and "Sync now" never completes (`Synced ...` confirmation never appears, 20s timeout). Clicking Sync now while in this state appears to trigger an OAuth re-auth redirect: a genuine Microsoft "Enter your password" sign-in tab opened in a **separate system browser window** (not the app's own WebView) and was still sitting open, untouched, at the end of this run. **Per playbook policy, this was NOT interacted with** (MS anti-automation risk + credential-handling rule) — COORDINATOR: this needs a human (Jameson) to either complete or dismiss that sign-in tab on the Legion, and the Calendar connector re-authorized, before Wave 1 can be re-verified. |
+| `wave4-estate-beneficiary-gap` | **FAIL** | The Whole-book Client Map view flags an estate/beneficiary gap chip on `book-row-matter_nc_caldwell_jennifer`, but navigating into Caldwell's own Client Map sub-tab shows no corresponding resolvable gap row (no `clientmap-ask-flag` control) — the book-level gap chip and the per-client detail view are out of sync. Screenshots: `08-failure-wave4-estate-beneficiary-gap.jpeg` (Caldwell's Client Map, no gap control), `07-wave4-estate-beneficiary-gap-chip.jpeg` (the book-view chip). This is a real, reproducible Wave-4 bug — COORDINATOR: needs a fix lane. |
+
+### Results — PASS (9)
+
+`workspace-binding`, `per-client-files-visible`, `wave0-draft-followup` (Draft follow-up modal +
+cited draft), `wave2-wealthbox-queue-review` (Send to Wealthbox button renders, review card
+queues — stopped there by read-only design, no Approve/send), `wave4-whole-book-view` (40 ranked
+clients, row click opens hub), `wave4-whole-practice-ask` (scope pill + consent gate),
+`cross-cutting-light-theme`, `cross-cutting-console-errors` (zero errors the whole run),
+`cross-cutting-egress-indicator` (Local-only mode flips correctly, reverts to Cloud AI).
+
+### Results — SETUP-BLOCKED (3, not product verdicts)
+
+- `index-health` — Client Map rendered with no error, but the specific word "cited" wasn't found
+  within the check's timeout window on this run. Not chased further this pass; likely a
+  timing-margin issue in the check itself (Client Map fact-citation rendering can take a moment)
+  rather than a real index problem — Caldwell's Client Map was directly observed showing real
+  cited facts (screenshot `08-failure-wave4-estate-beneficiary-gap.jpeg`'s "Before you meet"
+  section) moments after this check ran.
+- `wave2-wealthbox-approve-live` — the review card queued by `wave2-wealthbox-queue-review`
+  (immediately prior in the same run) was gone by the time this check ran a few seconds later; no
+  `Approve` control to click. Not chased further — flagging as a harness sequencing gap worth a
+  look in a future harness round, not a product regression (queue-review itself PASSed cleanly).
+- `wave4-estate-beneficiary-gap-dismiss-live` — downstream of the real `wave4-estate-beneficiary-gap`
+  FAIL above; there was no resolvable gap control to dismiss.
+
+### Not exercised (STUB checks, expected)
+
+`wave3-capture-start-stop`, `wave3-capture-crash-recovery`, `wave3-capture-session-manifest`,
+`wave4-diarization`, `wave4-retention-attestation` — all report `TODO`, not wired to bench-drivable
+UI yet per the harness's own checklist (see `docs/qa/BENCH-SMOKE-HARNESS.md`). Not a gap in this
+pass; these are intentionally out of scope until their respective UI lands.
+
+### Bench state left behind
+
+- App stopped, `LanternPlusDev` scheduled task returned to **Disabled** (its found state), SSH
+  tunnel closed. `C:\bench-backups\` and `C:\KeepanceWorkspaces\` untouched.
+- **NOT resolved, left for a human:** the Microsoft "Enter your password" browser tab from the
+  Calendar OAuth re-auth attempt (see FAIL above) is still open on the Legion's desktop, untouched.
+- Wealthbox sandbox: one review card was queued (Caldwell's smoke note) but never approved
+  (`wave2-wealthbox-queue-review` stopped there by design) — no live CRM write occurred this pass.

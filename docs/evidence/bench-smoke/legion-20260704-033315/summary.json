@@ -1,0 +1,227 @@
+{
+  "overall": "FAIL",
+  "counts": {
+    "PASS": 9,
+    "FAIL": 2,
+    "SETUP-BLOCKED": 3,
+    "SKIPPED": 0,
+    "TODO": 5
+  },
+  "generatedAt": "2026-07-04T03:37:51.456Z",
+  "target": "legion",
+  "live": true,
+  "results": [
+    {
+      "id": "workspace-binding",
+      "section": "Phase 1 — setup",
+      "status": "PASS",
+      "detail": "Clients management entry point is present, implying the workspace is bound and its client list rendered.",
+      "screenshots": [
+        "01-workspace-binding-clients-entry.jpeg"
+      ],
+      "forensics": null,
+      "durationMs": 4148
+    },
+    {
+      "id": "per-client-files-visible",
+      "section": "Phase 1 — setup",
+      "status": "PASS",
+      "detail": "Documents tab shows real files for the selected client (found \".docx\" text).",
+      "screenshots": [
+        "02-per-client-files-visible-docs-tab.jpeg"
+      ],
+      "forensics": null,
+      "durationMs": 11012
+    },
+    {
+      "id": "index-health",
+      "section": "Phase 1 — setup",
+      "status": "SETUP-BLOCKED",
+      "detail": "Client Map rendered with no error, but no cited-fact text was found either — inconclusive without a known client selected.",
+      "screenshots": [],
+      "forensics": null,
+      "durationMs": 32652
+    },
+    {
+      "id": "wave0-draft-followup",
+      "section": "Wave 0 — Draft follow-up, Client Map review tray",
+      "status": "PASS",
+      "detail": "Draft follow-up modal generated a cited draft. Review-tray text was not visible in this snapshot (may be behind the modal) — not treated as a failure since the modal itself is the primary assertion.",
+      "screenshots": [
+        "03-wave0-draft-followup-modal.jpeg"
+      ],
+      "forensics": null,
+      "durationMs": 33117
+    },
+    {
+      "id": "wave1-calendar-brief-export",
+      "section": "Wave 1 — Calendar sync, meeting matching, briefs, exports",
+      "status": "FAIL",
+      "detail": "Clicked Sync now but no \"Synced ...\" confirmation appeared within 20s: node:internal/modules/run_main:107\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nlocator.waitFor: Timeout 20000ms exceeded.\r\nCall log:\r\n\u001b[2m  - waiting for getByText('Synced').first() to be visible\u001b[22m\r\n\r\n    at C:\\lantern-plus\\scripts\\desktop-drive.mjs:118:47 {\r\n  name: 'TimeoutError'\r\n}\r\n\r\nNode.js v24.17.0\r\n",
+      "screenshots": [
+        "04-failure-wave1-calendar-brief-export.jpeg"
+      ],
+      "forensics": {
+        "files": [
+          "04-failure-wave1-calendar-brief-export.jpeg",
+          "failure-wave1-calendar-brief-export-tauri-dev-tail.txt"
+        ],
+        "console": {
+          "clean": true,
+          "errors": [],
+          "note": null
+        },
+        "errors": []
+      },
+      "durationMs": 28037
+    },
+    {
+      "id": "wave2-wealthbox-queue-review",
+      "section": "Wave 2 — Send to Wealthbox (queue/review only)",
+      "status": "PASS",
+      "detail": "Send to Wealthbox button renders and clicking it queues a review card. Stopped here by design (read-only default) — no Approve/send.",
+      "screenshots": [
+        "05-wave2-send-to-wealthbox-review-card.jpeg"
+      ],
+      "forensics": null,
+      "durationMs": 23423
+    },
+    {
+      "id": "wave2-wealthbox-approve-live",
+      "section": "Wave 2 — Send to Wealthbox (queue/review only)",
+      "status": "SETUP-BLOCKED",
+      "detail": "No Approve control found — run wave2-wealthbox-queue-review first to reach the review card.",
+      "screenshots": [],
+      "forensics": null,
+      "durationMs": 1681
+    },
+    {
+      "id": "wave4-whole-book-view",
+      "section": "Wave 4 — Depth (Track B: whole-book Client Map)",
+      "status": "PASS",
+      "detail": "Whole book view renders 40 ranked client row(s), and clicking the first row opens that client's hub.",
+      "screenshots": [
+        "06-wave4-whole-book-view.jpeg"
+      ],
+      "forensics": null,
+      "durationMs": 12310
+    },
+    {
+      "id": "wave4-estate-beneficiary-gap",
+      "section": "Wave 4 — Depth (Track B: estate/beneficiary gap detection)",
+      "status": "FAIL",
+      "detail": "Book view flagged a gap on book-row-matter_nc_caldwell_jennifer, but its Client Map sub-tab shows no resolvable gap row (no clientmap-ask-flag button) — gap chip and per-client detail are out of sync.",
+      "screenshots": [
+        "07-wave4-estate-beneficiary-gap-chip.jpeg",
+        "08-failure-wave4-estate-beneficiary-gap.jpeg"
+      ],
+      "forensics": {
+        "files": [
+          "08-failure-wave4-estate-beneficiary-gap.jpeg",
+          "failure-wave4-estate-beneficiary-gap-tauri-dev-tail.txt"
+        ],
+        "console": {
+          "clean": true,
+          "errors": [],
+          "note": null
+        },
+        "errors": []
+      },
+      "durationMs": 13971
+    },
+    {
+      "id": "wave4-estate-beneficiary-gap-dismiss-live",
+      "section": "Wave 4 — Depth (Track B: estate/beneficiary gap detection)",
+      "status": "SETUP-BLOCKED",
+      "detail": "No clientmap-ask-flag control found — run wave4-estate-beneficiary-gap first to reach a client with a flagged gap.",
+      "screenshots": [],
+      "forensics": null,
+      "durationMs": 1656
+    },
+    {
+      "id": "wave4-whole-practice-ask",
+      "section": "Wave 4 — Depth (Track C: whole-practice Ask + consent gate)",
+      "status": "PASS",
+      "detail": "Whole practice scope pill renders. No consent gate was present this run — likely already granted in a prior session (not treated as a failure; this check does not assert the gate always appears, only that it appears correctly when required).",
+      "screenshots": [
+        "09-wave4-whole-practice-ask-scope-pill.jpeg"
+      ],
+      "forensics": null,
+      "durationMs": 10830
+    },
+    {
+      "id": "cross-cutting-light-theme",
+      "section": "Cross-cutting",
+      "status": "PASS",
+      "detail": "Document root has no dark-theme class/attribute.",
+      "screenshots": [],
+      "forensics": null,
+      "durationMs": 1678
+    },
+    {
+      "id": "cross-cutting-console-errors",
+      "section": "Cross-cutting",
+      "status": "PASS",
+      "detail": "No console errors, window.onerror, or unhandledrejection events captured during navigation.",
+      "screenshots": [],
+      "forensics": null,
+      "durationMs": 6791
+    },
+    {
+      "id": "cross-cutting-egress-indicator",
+      "section": "Cross-cutting",
+      "status": "PASS",
+      "detail": "Local-only mode correctly flips the egress indicator; reverted to Cloud AI (recommended default) afterward.",
+      "screenshots": [
+        "10-cross-cutting-egress-local-only.jpeg"
+      ],
+      "forensics": null,
+      "durationMs": 13900
+    },
+    {
+      "id": "wave3-capture-start-stop",
+      "section": "Wave 3 — Local meeting capture (STUB)",
+      "status": "TODO",
+      "detail": "Not wired up yet — see docs/plans/lantern-plus/2026-07-02-wave-3-meeting-capture.md (Task 1, Task 4). Acceptance to check once this wave has bench-drivable UI: A \"Start recording\" control begins a dual-channel (mic + WASAPI loopback) capture and shows a visible recording indicator; \"Stop\" finalizes the session without dropping audio.",
+      "screenshots": [],
+      "forensics": null,
+      "durationMs": null
+    },
+    {
+      "id": "wave3-capture-crash-recovery",
+      "section": "Wave 3 — Local meeting capture (STUB)",
+      "status": "TODO",
+      "detail": "Not wired up yet — see docs/plans/lantern-plus/2026-07-02-wave-3-meeting-capture.md (Task 5). Acceptance to check once this wave has bench-drivable UI: Killing the app mid-recording, then relaunching, surfaces the orphaned session (chunks already on disk) instead of silently losing it.",
+      "screenshots": [],
+      "forensics": null,
+      "durationMs": null
+    },
+    {
+      "id": "wave3-capture-session-manifest",
+      "section": "Wave 3 — Local meeting capture (STUB)",
+      "status": "TODO",
+      "detail": "Not wired up yet — see docs/plans/lantern-plus/2026-07-02-wave-3-meeting-capture.md (Task 2). Acceptance to check once this wave has bench-drivable UI: After Stop, the session finalizes chunks into a single stereo audio.wav plus a manifest the rest of the app (transcript, brief) can reference.",
+      "screenshots": [],
+      "forensics": null,
+      "durationMs": null
+    },
+    {
+      "id": "wave4-diarization",
+      "section": "Wave 4 — Depth (STUB)",
+      "status": "TODO",
+      "detail": "Not wired up yet — see docs/plans/lantern-plus/2026-07-02-wave-4-depth.md (Track A, Task 6+). Acceptance to check once this wave has bench-drivable UI: A recorded meeting transcript shows separate, named (or nameable) speakers rather than one undifferentiated stream. Depends on Wave 3 capture existing first.",
+      "screenshots": [],
+      "forensics": null,
+      "durationMs": null
+    },
+    {
+      "id": "wave4-retention-attestation",
+      "section": "Wave 4 — Depth (STUB)",
+      "status": "TODO",
+      "detail": "Not wired up yet — see docs/plans/lantern-plus/2026-07-02-wave-4-depth.md (Track D, Task 16-17). Acceptance to check once this wave has bench-drivable UI: Settings > Privacy shows a \"Meeting recordings\" retention policy control (keep/delete-after choices) whose current state also appears on the Data Map dialog; an \"Export attestation report\" action produces a .docx summarizing consent, recordings, and deletions.",
+      "screenshots": [],
+      "forensics": null,
+      "durationMs": null
+    }
+  ]
+}
