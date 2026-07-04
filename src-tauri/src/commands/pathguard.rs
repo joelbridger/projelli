@@ -210,6 +210,15 @@ pub fn resolve_creatable(
 /// containment while writing into (and, on a failed start,
 /// `remove_dir_all`-ing) a DIFFERENT client's real folder.
 pub fn canonicalize_symlink_safe_absolute(path: &Path) -> Result<PathBuf, String> {
+    // This resolver is contractually for an ALREADY-ABSOLUTE path (see the
+    // doc above). Enforce it: a relative/drive-relative input (`""`, `.`,
+    // `C:foo`, `foo/bar`) would otherwise walk to an empty or
+    // caller-directory-relative `existing` and canonicalize something the
+    // caller never named — reject it up front so the "never canonicalize an
+    // empty/ambiguous base" guarantee holds by construction, not by luck.
+    if !path.is_absolute() {
+        return Err(format!("path must be absolute: {}", path.display()));
+    }
     let mut existing = PathBuf::new();
     let mut tail = PathBuf::new();
     let mut still_existing = true;
@@ -243,7 +252,35 @@ pub fn canonicalize_symlink_safe_absolute(path: &Path) -> Result<PathBuf, String
             // won't carry a leading `CurDir` anyway, but be explicit so it is
             // never stat'd or pushed into `tail`).
             Component::CurDir => {}
-            Component::Normal(_) => {
+            Component::Normal(seg) => {
+                // Defense-in-depth against a CRAFTED verbatim input. In a
+                // verbatim path (`\\?\…`) Rust's `components()` does NOT treat
+                // `/` as a separator and does NOT normalize `..`, so a single
+                // `Normal` component can secretly carry embedded separators or
+                // dot-segments (e.g. `Clients/../Other`). The outer `..` arm
+                // never sees them — but the `existing.join(seg)` below RE-parses
+                // the `OsStr` with the platform's normal path rules, which DO
+                // split on `/` (and `\` on Windows) and re-materialize that
+                // hidden `..`, defeating both the no-`..` and the check-every-
+                // real-component-before-trusting-it (no-follow) guarantees.
+                // Require each `Normal` segment to re-parse to exactly itself —
+                // one clean `Normal` with no separator or dot-segment. A real
+                // single filename never contains a path separator on any OS, so
+                // this rejects only crafted inputs. (Found by independent review,
+                // 2026-07-04.)
+                {
+                    let mut parts = Path::new(seg).components();
+                    match (parts.next(), parts.next()) {
+                        (Some(Component::Normal(only)), None) if only == seg => {}
+                        _ => {
+                            return Err(format!(
+                                "path component contains a separator or dot-segment: {} (in {})",
+                                Path::new(seg).display(),
+                                path.display()
+                            ));
+                        }
+                    }
+                }
                 if still_existing {
                     let candidate = existing.join(component.as_os_str());
                     match candidate.symlink_metadata() {
@@ -462,6 +499,45 @@ mod tests {
     fn absolute_walk_rejects_dotdot() {
         let err = canonicalize_symlink_safe_absolute(Path::new("/a/../b")).unwrap_err();
         assert!(err.contains(".."), "got: {err}");
+    }
+
+    /// A relative / drive-relative input is rejected up front — the resolver
+    /// is contractually for already-absolute paths, and accepting a relative
+    /// one would walk against an empty or caller-relative base and canonicalize
+    /// something the caller never named.
+    #[test]
+    fn absolute_walk_rejects_relative_input() {
+        for rel in ["", ".", "relative/x", "Clients/A"] {
+            let err = canonicalize_symlink_safe_absolute(Path::new(rel)).unwrap_err();
+            assert!(err.contains("must be absolute"), "for {rel:?} got: {err}");
+        }
+    }
+
+    /// Defense-in-depth (independent-review finding, 2026-07-04): a CRAFTED
+    /// verbatim path can hide a separator / `..` inside a single `Normal`
+    /// component (verbatim `components()` doesn't split on `/` or normalize
+    /// `..`), which `join` would later re-materialize. Such a component must be
+    /// refused outright. Windows-only because only a verbatim path can carry a
+    /// `/` inside a `Normal` component — on Unix `/` always splits, so the
+    /// outer `..`/component walk already sees it.
+    #[cfg(windows)]
+    #[test]
+    fn absolute_walk_rejects_verbatim_component_hiding_a_separator_or_dotdot() {
+        // `Clients/../Other` is ONE Normal component under the `\\?\` prefix.
+        let hidden_dotdot = Path::new(r"\\?\C:\ws\Clients/../Other\meeting");
+        let err = canonicalize_symlink_safe_absolute(hidden_dotdot).unwrap_err();
+        assert!(
+            err.contains("separator or dot-segment"),
+            "hidden '..' must be refused, got: {err}"
+        );
+        // A plain embedded separator (no `..`) is refused too — it would let
+        // `join` re-parse a multi-segment path past the per-component checks.
+        let hidden_sep = Path::new(r"\\?\C:\ws\a/b\meeting");
+        let err2 = canonicalize_symlink_safe_absolute(hidden_sep).unwrap_err();
+        assert!(
+            err2.contains("separator or dot-segment"),
+            "hidden separator must be refused, got: {err2}"
+        );
     }
 
     /// A symlink anywhere along an absolute path is refused the moment it is

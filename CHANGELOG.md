@@ -59,6 +59,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (they seed from a real caller-supplied base, never stat a bare prefix). Files:
   `src-tauri/src/commands/pathguard.rs`. Windows verbatim regression test + platform-neutral
   root-seeding guards added; proven on a real Windows machine.
+- **Hardening: `canonicalize_symlink_safe_absolute` now rejects crafted verbatim inputs that hide
+  a separator or `..` inside one path component** (independent-review follow-up). A verbatim path
+  (`\\?\…`) does not split on `/` or normalize `..`, so a single `Normal` component could secretly
+  carry `Clients/../Other`; the later `join` re-parsed and re-materialized that `..`, defeating both
+  the no-`..` and no-follow-symlink guarantees. Each `Normal` segment must now re-parse to exactly
+  itself. Also enforces the resolver's already-absolute contract up front (`is_absolute()`), so a
+  degenerate relative/empty input can never walk against an empty or caller-relative base.
 
 ### Security
 - **Symlink-safe path containment everywhere a caller-supplied path meets a workspace root.**
