@@ -24,9 +24,17 @@ describe('CHECKLIST', () => {
     expect([...sections].some((s) => /cross-cutting/i.test(s))).toBe(true);
   });
 
-  it('marks exactly the Wealthbox Approve step as liveOnly', () => {
+  it('marks exactly the state-mutating steps as liveOnly (Wealthbox Approve, gap dismissal)', () => {
     const liveOnly = CHECKLIST.filter((c) => c.liveOnly).map((c) => c.id);
-    expect(liveOnly).toEqual(['wave2-wealthbox-approve-live']);
+    expect(liveOnly).toEqual(['wave2-wealthbox-approve-live', 'wave4-estate-beneficiary-gap-dismiss-live']);
+  });
+
+  it('includes the promoted Wave 4 Track B/C checks (no longer stubs)', () => {
+    const ids = CHECKLIST.map((c) => c.id);
+    expect(ids).toContain('wave4-whole-book-view');
+    expect(ids).toContain('wave4-estate-beneficiary-gap');
+    expect(ids).toContain('wave4-estate-beneficiary-gap-dismiss-live');
+    expect(ids).toContain('wave4-whole-practice-ask');
   });
 });
 
@@ -49,6 +57,15 @@ describe('STUBS', () => {
     expect(new Set(stubIds).size).toBe(stubIds.length);
     const liveIds = new Set(CHECKLIST.map((c) => c.id));
     for (const id of stubIds) expect(liveIds.has(id)).toBe(false);
+  });
+
+  it('keeps only the not-yet-merged Wave 4 tracks (A, D) as stubs', () => {
+    const stubIds = STUBS.map((s) => s.id);
+    expect(stubIds).toContain('wave4-diarization');
+    expect(stubIds).toContain('wave4-retention-attestation');
+    expect(stubIds).not.toContain('wave4-whole-book-view');
+    expect(stubIds).not.toContain('wave4-estate-beneficiary-gap');
+    expect(stubIds).not.toContain('wave4-whole-practice-ask');
   });
 });
 

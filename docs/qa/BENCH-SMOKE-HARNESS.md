@@ -5,17 +5,100 @@ Scripted, repeatable automation of the manual Windows/Azure bench smoke test
 Wave 4, final integration re-verify) is a command + a human skim of
 screenshots + `summary.json`, not hours of manual driving.
 
-**Status:** built, unit-tested, and **live-validated against the Legion bench**
-(2026-07-03, read-only/queue-only, no `--live`). 6 of 8 non-stub checks PASS
-against the real app: workspace binding, per-client Documents, Wave 0 (Draft
-follow-up — 3 real citations, confirmed against a screenshot), Wave 2 (Send to
-Wealthbox renders and queues a review card — confirms the smoke-2 P0 #5 fix is
-still working), light theme, console errors. Live testing surfaced and fixed
-four real bugs in the harness itself (see "Bugs found live" below); the two
-remaining `SETUP-BLOCKED` checks (Wave 1 calendar sync, egress indicator) need
-a Settings/Connections navigation helper this pass didn't build — tracked as a
-follow-up below, not a defect in what exists. Not self-merged into
-`lantern-plus`.
+**Status:** built and unit-tested (105 tests); **live-validated against the
+Legion bench once** (2026-07-03, read-only/queue-only, no `--live`), with a
+second, not-yet-live-validated round of fixes/additions on top (2026-07-03,
+`lp/harness-round2`, see "Round 2" below). 6 of 8 non-stub checks PASSed
+against the real app in round 1: workspace binding, per-client Documents,
+Wave 0 (Draft follow-up — 3 real citations, confirmed against a screenshot),
+Wave 2 (Send to Wealthbox renders and queues a review card — confirms the
+smoke-2 P0 #5 fix is still working), light theme, console errors. Round 1
+live testing surfaced and fixed four real bugs in the harness itself (see
+"Bugs found live" below). Not self-merged into `lantern-plus`.
+
+### Round 2 (2026-07-03, `lp/harness-round2`) — built + unit-tested, awaiting live validation
+
+- **Settings/Connections navigation, built.** `checks/_util.mjs` gained
+  `openSettingsAiPrivacy()` (spine `settings-gear` → rail
+  `settings-category-ai-privacy`) and `openAccountConnectionsTab()` (spine
+  `account-identity` → `account-tab-connections`), each primed (best-effort,
+  same pattern as every other nav helper here) ahead of the existing
+  `wave1-calendar-brief-export` and `cross-cutting-egress-indicator`
+  assertions — this un-blocks both checks that round 1 left `SETUP-BLOCKED`
+  for lack of this navigation.
+- **`index-health` flakiness, root-caused and fixed.** The real cause (found
+  by reading `MatterHub.tsx`/`MattersHome.tsx`): once ANY client hub is open,
+  there is no UI control wired back to the client table
+  (`closeHub()` is never bound to a visible button) — so
+  `matter-launch-documents-<matterId>` can legitimately disappear the instant
+  a prior check (Wave 0/Wave 2, which open a docx note) leaves a hub open on a
+  different sub-tab. `setup.mjs`'s `primeClientView()` used to wrap BOTH
+  navigation steps in one try/catch, so whenever step 1 failed for this
+  reason, step 2 (switching to the desired sub-tab via the hub's own,
+  always-present `hub-subtab-overview`/`hub-subtab-documents` sub-tab bar)
+  never even ran. Fixed by trying each step independently.
+- **3 new Wave 4 Track B/C checks** (promoted out of `wave-stubs.mjs`, now
+  merged UI): `wave4-whole-book-view` (the "Whole book" toggle renders ranked
+  `book-row-<matterId>` rows; clicking one opens that client's hub),
+  `wave4-estate-beneficiary-gap` (a `book-gap-chip` on a flagged row; opening
+  that client's Client Map sub-tab and clicking its
+  `clientmap-ask-know`/`clientmap-ask-flag` resolve control clears the gap —
+  via a clean-state check or a dropped resolvable-row count), and
+  `wave4-whole-practice-ask` (the Ask surface's `scope-option-whole-practice`
+  pill selects and renders; the cross-client consent gate
+  (`chat-file-access-consent`) is asserted present when shown, never
+  granted/denied — read-only by design). All selectors were confirmed by
+  reading the actual merged source (`BookView.tsx`, `ClientMapPanel.tsx`,
+  `ScopeToggle.tsx`, `FileAccessConsentBanner.tsx`), not guessed.
+- **Track D stub added** (`wave4-retention-attestation`) — retention policy +
+  attestation `.docx` export (Task 16-17) hasn't merged; confirmed absent from
+  source before stubbing.
+- **Not yet live-validated.** Round 2 is offline-verified only (unit tests,
+  ESLint, `--plan`, and an unreachable-host end-to-end run) — the actual
+  Windows-bench pass against the Legion is a follow-up, coordinated separately
+  so it doesn't collide with the Wave-3 lane's device verification.
+- **Independent Codex review caught 2 real logic bugs before merge**, both
+  fixed (with regression tests): the estate/beneficiary dismissal was clicking
+  whichever of `clientmap-ask-know`/`clientmap-ask-flag` matched first —
+  `clientmap-ask-know` ("I know this") actually opens an answer-entry prompt
+  (`onAnswerQuestion`), not an immediate resolve, so an automated click on it
+  would hang or leave a stray dialog open; only `clientmap-ask-flag` ("Ask the
+  client") resolves synchronously (`flagForClient` → `markGapResolved`, no
+  modal) and is now the only one clicked. Separately, the whole-practice-ask
+  scope-pill assertion used to `textPresent(driver, 'Whole practice')`, a
+  substring already visible on the *pre-click* scope-option button's own
+  label — it could pass even if the click did nothing; it now waits for the
+  pill's distinguishing full copy ("Whole practice (summaries only)") and
+  additionally asserts `findByTestId(elements, 'ask-scope-pill')`. A third
+  flagged concern (a client hub possibly still open when `openWholeBookView`
+  clicks the "matters" spine tab) was investigated and refuted by reading
+  `src/App.tsx`'s `AppShellNav onTabChange` handler, which unconditionally
+  nulls the hub state on that click (single render site, no guard) — a
+  defensive check-and-retry was still added since it's cheap insurance.
+- **Merged `origin/lantern-plus` twice more into this branch** (2026-07-04):
+  the Client Map error-classification fix (`lp/clientmap-errors`) and the
+  Wave 4 Track A diarization merge (`lp/diarization`). Both merged cleanly
+  (no conflicts), but the error-classification merge changed the REAL
+  broken-index copy the app renders — `index-health`'s detection strings
+  (`memory integrity uncertain` / `ai-connection error` / `indexing failed`)
+  never matched real UI text and are now further stale; updated to the
+  actual classified messages from `src/features/matters/clientMap/
+  errorClassification.ts` (`needs to rebuild`, `Could not build client map`,
+  `Could not check for client map updates`). Wave 4 Track A (diarization) is
+  now merged but this round did NOT add a check for it — the existing
+  `wave4-diarization` stub is unchanged; promoting it is a natural next
+  ticket, out of this round's explicit scope.
+- **A second Codex-review pass on the post-merge diff caught one more real
+  bug**: `wave4-estate-beneficiary-gap` was still clicking `clientmap-ask-flag`
+  on every normal (non-`--live`) run, synchronously resolving the gap
+  (`markGapResolved`, audit-logged) — a real fixture mutation on a
+  supposedly read-only check, and it would make the gap silently vanish for
+  the next run. Split into two checks, same pattern as Wave 2's Wealthbox
+  Approve: `wave4-estate-beneficiary-gap` now only asserts the chip and its
+  resolve control are present (no click); the actual dismiss-and-verify
+  moved to a new `--live`-gated `wave4-estate-beneficiary-gap-dismiss-live`
+  (`SKIPPED` without `--live`). 111 unit tests (up from 108), full-project
+  `tsc --noEmit` and the full pre-push test suite (5608 tests) both clean.
 
 ---
 
@@ -140,7 +223,7 @@ advisor's Wealthbox — only the smoke sandbox account used in
 ## Testing without a bench
 
 ```bash
-npm run bench-smoke:test        # vitest — 77 tests, pure logic, no SSH/bench required
+npm run bench-smoke:test        # vitest — 105 tests, pure logic, no SSH/bench required
 node --check scripts/bench-smoke.mjs && for f in scripts/bench-smoke/*.mjs scripts/bench-smoke/checks/*.mjs; do node --check "$f"; done
 node scripts/bench-smoke.mjs --plan   # dry run, prints the checklist
 node scripts/bench-smoke.mjs --host 127.0.0.1 --user nobody --evidence-dir /tmp/bs-test   # exercises the real CLI end to end against a deliberately-unreachable host; every check reports SETUP-BLOCKED, exit code 3
@@ -160,7 +243,13 @@ still match the live app. That's exactly what a live validation run confirms.
 
 ---
 
-## Live validation (2026-07-03, Legion bench)
+## Live validation (2026-07-03, Legion bench) — round 1
+
+Round 1's live-validation table below is kept as historical record. The three
+follow-ups it left open (Settings/Connections navigation for Wave 1 and
+egress-indicator, and `index-health` flakiness) were fixed in round 2 above,
+but round 2 itself has **not yet** been re-run live against the Legion — that
+re-validation is a follow-up, not evidence claimed here.
 
 Run read-only (no `--live`) against the Legion, bench state per
 `docs/evidence/windows-smoke-2/BENCH-READY.md`. Final result after fixing what
@@ -213,18 +302,13 @@ leaf-DOM-node fallback for elements like Documents file-tree rows that have no
 testid/button/role at all) and `driver.doubleClickByText()` (file-tree rows
 open on double-click, not single-click — confirmed live).
 
-### Known follow-ups (not fixed this pass)
+### Known follow-ups (round 1) — resolved in round 2
 
-- **Wave 1 / egress-indicator need a Settings→Connections navigation helper.**
-  Both checks currently assume the app is already on that view; this pass only
-  built navigation for the Documents/Client-Map views (`checks/_util.mjs`'s
-  `openSmokeClient*` helpers). Same shape of fix, just a different
-  destination — a natural next ticket.
-- **`index-health` is flaky** — passed once, `SETUP-BLOCKED` once, likely an
-  ordering/timing interaction with the checks that ran immediately before it
-  (each check re-primes navigation independently; Wave 0/Wave 2 leave the app
-  on a docx editor tab, not the Client Map). Worth revisiting if it's still
-  flaky once the Settings-navigation follow-up above is done.
+- ~~Wave 1 / egress-indicator need a Settings→Connections navigation
+  helper.~~ Fixed — see "Round 2" above (`openSettingsAiPrivacy()` /
+  `openAccountConnectionsTab()`). Not yet re-confirmed live.
+- ~~`index-health` is flaky.~~ Root-caused and fixed — see "Round 2" above.
+  Not yet re-confirmed live.
 - The `SMOKE_CLIENT_MATTER_ID` / `SMOKE_NOTE_FILENAME` constants in
   `checks/smoke-workspace.mjs` are specific to the Northcrest Wealth Partners
   demo workspace used in every RUN-LOG pass — update them there if a future

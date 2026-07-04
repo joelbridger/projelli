@@ -98,6 +98,49 @@ export async function openSmokeClientOverview(driver) {
   await driver.click('hub-subtab-overview');
 }
 
+/** From inside a client's hub, switch to the "Documents" sub-tab
+ * (`hub-subtab-documents`) — sibling control to hub-subtab-overview.
+ * Confirmed in source (MatterHub.tsx): once any hub is open, its sub-tab bar
+ * (hub-subtab-overview / hub-subtab-documents / ...) is always present and
+ * switchable regardless of which sub-tab is currently showing — there is no
+ * "back to the client table" control once a hub is open, so this is the
+ * reliable way to force a specific sub-tab without depending on how the hub
+ * got opened. */
+export async function openSmokeClientDocumentsSubtab(driver) {
+  await driver.click('hub-subtab-documents');
+}
+
+/**
+ * Navigate to the Client Map surface, then switch its "Clients | Whole book"
+ * segmented toggle (src/features/matters/MattersHome.tsx, src/ui/kp/
+ * SegmentedToggle.tsx) to "Whole book" — that toggle has no per-option
+ * data-testid (only visible text), so this goes through clickByText rather
+ * than a testid click.
+ *
+ * If a client hub is already open (from an earlier check — e.g. Wave 0/Wave 2
+ * open a docx note), clicking the "matters" spine tab still lands on the
+ * table/book view, not the hub: confirmed in source, src/App.tsx's
+ * `<AppShellNav onTabChange>` handler unconditionally nulls the store's
+ * `clientMapHubId` whenever `tab === 'matters'`, before switching tabs — the
+ * same effect as the hub's own (otherwise unwired, see MatterHub.tsx)
+ * "<- Clients" back action. One extra defensive click covers the case where
+ * the first click's re-render hadn't settled yet.
+ */
+export async function openWholeBookView(driver) {
+  await driver.click('spine-nav-matters');
+  const stillInHub = await driver.evalJs('!!document.querySelector(\'[data-testid="hub-subtab-bar"]\')');
+  if (stillInHub === true) {
+    await driver.click('spine-nav-matters');
+  }
+  await driver.clickByText('Whole book');
+}
+
+/** Navigate to the Ask surface (spine's internal id for it is kept as
+ * "search" — see src/app/shell/layout/Spine.tsx's comment on SpineTab ids). */
+export async function openAskSurface(driver) {
+  await driver.click('spine-nav-search');
+}
+
 /** Double-click a file-tree row by its visible filename to open it as a docx
  * editor tab — confirmed live that file rows have no data-testid/button/role
  * and open on double-click, not a single click (see click-by-text.mjs). */
@@ -107,4 +150,32 @@ export async function openSmokeClientNote(driver, { fileName, waitForText = 'Dra
   if (!wait.found) {
     throw new DriverError(`double-clicked "${fileName}" but the docx editor toolbar never appeared: ${wait.error}`);
   }
+}
+
+/**
+ * Navigate into Settings > AI & Privacy (`settings-gear` spine button ->
+ * `settings-category-ai-privacy` rail entry — src/app/shell/layout/
+ * SettingsGearButton.tsx, src/features/settings/.../SettingsContent.tsx).
+ * That view's first sub-tab is the confidentiality-mode picker by default, no
+ * extra click needed. Like openSmokeClientDocuments's siblings, each click
+ * uses desktop-drive.mjs's own click-command timeout/failure as the gate — no
+ * extra waitFor here; callers treat a thrown DriverError as "couldn't get
+ * there this run," same pattern as every other nav helper in this file.
+ */
+export async function openSettingsAiPrivacy(driver) {
+  await driver.click('settings-gear');
+  await driver.click('settings-category-ai-privacy');
+}
+
+/**
+ * Navigate into Account > Connections (`account-identity` spine button opens
+ * the Account window, then its `account-tab-connections` tab renders the
+ * Calendar/Wealthbox connector cards — src/app/shell/layout/AccountIdentity.tsx,
+ * src/platform/connectors/calendar/CalendarConnect.tsx). A DIFFERENT window
+ * from Settings, not a sub-view of it — do not conflate with
+ * openSettingsAiPrivacy above.
+ */
+export async function openAccountConnectionsTab(driver) {
+  await driver.click('account-identity');
+  await driver.click('account-tab-connections');
 }
