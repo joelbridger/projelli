@@ -206,6 +206,40 @@ describe('WebLocksTabGuard', () => {
     expect(a.shouldRehydrateOnThisAcquisition()).toBe(true);
   });
 
+  it('regression (codex-review round 3, P1): reacquiring after releasing a HELD lock (e.g. bfcache freeze) is ALWAYS reload-worthy, even if the probe on restart finds the lock free again', async () => {
+    // The dangerous case round 2's test above doesn't cover: another tab (b)
+    // acquires the lock, saves, and closes again -- ALL before `a` restarts.
+    // `a`'s fresh probe on restart then finds the lock genuinely free
+    // (nobody currently holds it), which would look identical to "nobody
+    // ever touched it." But releasing at all means `a` can no longer prove
+    // nothing happened while it was gone -- skipping the reload here would
+    // let `a` write its stale in-memory state over whatever `b` saved.
+    const a = makeGuard();
+    a.start();
+    await flush();
+    expect(a.status).toBe('owner');
+    expect(a.shouldRehydrateOnThisAcquisition()).toBe(false);
+
+    a.stop(); // releases a HELD lock -- simulates releaseOnFreeze() on bfcache freeze
+    await flush();
+
+    // b comes and goes entirely while a is away -- by the time a restarts,
+    // there is NO other guard left to be found contended against.
+    const b = makeGuard();
+    b.start();
+    await flush();
+    b.stop();
+    await flush();
+
+    a.start(); // simulates restoring from bfcache
+    await flush();
+    expect(a.status).toBe('owner'); // uncontended probe -- the lock is genuinely free
+    // Despite the probe finding it free, this MUST still be reload-worthy --
+    // a real other tab genuinely held it in between, even though it's gone
+    // again by the time we checked.
+    expect(a.shouldRehydrateOnThisAcquisition()).toBe(true);
+  });
+
   it('an acquisition that genuinely had to wait behind another guard reports shouldRehydrateOnThisAcquisition() === true', async () => {
     const a = makeGuard();
     const b = makeGuard();

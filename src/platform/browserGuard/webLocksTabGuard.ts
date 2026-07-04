@@ -355,13 +355,30 @@ export class WebLocksTabGuard {
    *  stale to its own `finally` once the release resolves, so it declines
    *  to touch guard state at all — without this, `_status` would stay
    *  stuck reporting 'owner' forever after a real stop() while holding the
-   *  lock, even though the Web Lock itself has genuinely been released. */
+   *  lock, even though the Web Lock itself has genuinely been released.
+   *
+   *  Marks contentionEverConfirmed true whenever releasing a HELD lock
+   *  (codex-review, round 3 P1 finding): releasing at all — even briefly,
+   *  even if this tab is later granted it back with an uncontended probe —
+   *  means there was a real window where a DIFFERENT tab could have
+   *  acquired it, saved, and closed again before this one restarts (e.g. a
+   *  bfcache freeze that outlasts the other tab's own session). The probe
+   *  can only see who holds the lock RIGHT NOW; it can't see who held it
+   *  and already left. Once we've genuinely let go, we can never again
+   *  prove nothing happened in between, so any later reacquisition must be
+   *  treated as reload-worthy. This never fires for React 18 StrictMode's
+   *  dev-only mount→cleanup→remount double-invoke: that cleanup always
+   *  lands before the probe has resolved (no `await` separates start()
+   *  from stop() there), so releaseHeldLock is always still null at that
+   *  point — this branch is only reached once the lock has actually been
+   *  granted, which takes at least one real microtask. */
   stop(): void {
     this.stopped = true;
     this.generation += 1;
     if (this.releaseHeldLock) {
       const release = this.releaseHeldLock;
       this.releaseHeldLock = null;
+      this.contentionEverConfirmed = true;
       this.setStatus('blocked');
       release();
     } else {

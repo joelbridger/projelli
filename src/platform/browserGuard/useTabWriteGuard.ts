@@ -214,11 +214,19 @@ export function useTabWriteGuard(enabled: boolean, options: UseTabWriteGuardOpti
     // what lets the Web Locks substrate's waiting requester actually get
     // granted — that substrate has no "force" primitive, so without this
     // call a takeover would just wait forever for this tab to let go on its
-    // own (see webLocksTabGuard.ts's module doc).
+    // own (see webLocksTabGuard.ts's module doc). This is why the responder
+    // is wired whenever there's a channel at all, NOT only when
+    // onFlushRequested is also supplied (codex-review, round 3 P2 finding):
+    // onFlushRequested is optional in this hook's contract, and skipping the
+    // whole responder without it would silently strand a Web Locks-enabled
+    // caller — "Take over" would hang until the owner tab closes for real,
+    // whereas the heartbeat substrate degrades gracefully (its forced
+    // takeover never depended on this responder in the first place). Flush
+    // is best-effort when provided; yielding is not optional.
     const flushChannel = getSharedFlushChannel();
-    const unsubscribeFlushResponder = flushChannel && onFlushRequested
+    const unsubscribeFlushResponder = flushChannel
       ? wireFlushResponder(flushChannel, () => guard.status === 'owner', async () => {
-          await onFlushRequested();
+          if (onFlushRequested) await onFlushRequested();
           guard.yieldIfOwner();
         })
       : undefined;
