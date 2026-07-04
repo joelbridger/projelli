@@ -382,7 +382,7 @@ describe('F-503 — embedded local model preferred in private mode', () => {
       // The reported scenario: embedded model present, Ollama NOT running.
       ollamaReachable: false, installedOllamaModels: [],
     }));
-    expect(r).toEqual({ kind: 'keepance-local', model: undefined });
+    expect(r).toEqual({ kind: 'lantern-local', model: undefined });
   });
 
   it('local-only + embedded ready takes priority over a reachable Ollama (one consistent on-device default)', () => {
@@ -392,7 +392,7 @@ describe('F-503 — embedded local model preferred in private mode', () => {
       localModelReady: true,
       ollamaReachable: true, installedOllamaModels: ['qwen2.5:7b'],
     }));
-    expect(r.kind).toBe('keepance-local');
+    expect(r.kind).toBe('lantern-local');
   });
 
   it('local-only + embedded NOT ready falls back to a reachable Ollama (unchanged behaviour)', () => {
