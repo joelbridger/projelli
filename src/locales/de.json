@@ -99,6 +99,14 @@
       "empty-confirm_other__sourceHash": "aee61d68f115ab14be7922d247ac0d5def4ee1c93018de8622f726f6402cd51a"
     }
   },
+  "file-import": {
+    "picker-unresponsive": "Die Dateiauswahl hat nicht reagiert. Gib stattdessen den Pfad einer Datei ein, die hinzugefügt werden soll.",
+    "picker-unresponsive__sourceHash": "009885d718518472c1da6a3f0b0d8fa1972a2fe71e69b56d84ee8a673917e11d",
+    "manual-path-title": "Dateipfad eingeben",
+    "manual-path-title__sourceHash": "905236c8bfe3b93653c6d8da1954b344047e07636bc80ff4b49e4eb2f51dd2d6",
+    "manual-path-placeholder": "z. B. C:\\Users\\du\\Dokumente\\vertrag.docx",
+    "manual-path-placeholder__sourceHash": "f4a2246ba1e71af1c48b5be0454303afcbedef2ce80b57779fe25a03191d9727"
+  },
   "layout": {
     "sidebar": {
       "workspace-label": "Arbeitsbereich",
@@ -518,7 +526,9 @@
       "get-key-link": "API-Schlüssel erhalten",
       "get-key-link__sourceHash": "02d7af705ed7378f98b8ab085626a18c4be25ec42f281c388dc7293d17321315",
       "add-key": "API-Schlüssel hinzufügen",
-      "add-key__sourceHash": "0d8253e382ac639b379c74e01b171ed7e24a9c8db894af6b65194af8938a152b"
+      "add-key__sourceHash": "0d8253e382ac639b379c74e01b171ed7e24a9c8db894af6b65194af8938a152b",
+      "credential-service-unavailable": "Der Windows-Dienst für die Anmeldeinformationsverwaltung läuft nicht, daher kann Advisor Prep Hero deine gespeicherten KI-Schlüssel gerade nicht erreichen. Deine Dokumente sind davon nicht betroffen. Starte den Dienst \"Anmeldeinformationsverwaltung\" (services.msc) neu, oder versuche es gleich noch einmal.",
+      "credential-service-unavailable__sourceHash": "d9f092dd6d68f0191101c49514b579f1337079fb35733b18ac6f0b11d35200a7"
     },
     "plugins": {
       "title": "Plugins",
@@ -571,6 +581,7 @@
         "audio-file": "Audiodatei (.webm)",
         "audio-file__sourceHash": "724cc77ab42394e4c9da1eb63a4f92c91a0679ded582ae766da404f9ae08a3f0"
       },
+      "reserved-name-error": "Dieser Name ist unter Windows nicht erlaubt. Wähle einen anderen Namen (vermeide Namen wie CON, PRN, NUL sowie Punkte oder Leerzeichen am Ende).",
       "drop-to-root": "Hier ablegen, um in den Stammordner zu verschieben",
       "drop-to-root__sourceHash": "f3d86678284b6ca98d9483eefbe45d8794632efdc2eec5ed59d25202e2e9ce62",
       "open-on-desktop": "Auf dem Desktop öffnen",
@@ -582,7 +593,15 @@
       "tagline": "Dein KI-Arbeitsbereich. Deine Dateien. Dein Gerät.",
       "tagline__sourceHash": "d24d33330f41d3ba4668de95545a78c6cc1e04218e90cebffdc193a9ac829f31",
       "open-existing-hint": "Arbeitsbereichsordner auswählen",
-      "open-existing-hint__sourceHash": "3ce59e33acf91b2bad580aee467b251aa9927f822a43fce5bdf9fb08fe23f814"
+      "open-existing-hint__sourceHash": "3ce59e33acf91b2bad580aee467b251aa9927f822a43fce5bdf9fb08fe23f814",
+      "picker-unresponsive-open": "Die Ordnerauswahl hat nicht reagiert. Gib stattdessen den Ordnerpfad ein.",
+      "picker-unresponsive-open__sourceHash": "310f4ee3213ac4591cf5b608c7f3887540a12c2cd56adb13435b2e8228c052fe",
+      "picker-unresponsive-create": "Die Ordnerauswahl hat nicht reagiert. Gib den Ordnerpfad ein, in dem dein neuer Arbeitsbereich erstellt werden soll.",
+      "picker-unresponsive-create__sourceHash": "30bd44e1c5b6c8c1c5276bd818fccbbe76ccea7f5720311631b534c54de939e1",
+      "manual-path-title": "Ordnerpfad eingeben",
+      "manual-path-title__sourceHash": "5b3b7eab746968927f02818b9077ab9a8e381376c803cb207a7fde69112c6ea6",
+      "manual-path-placeholder": "z. B. C:\\Users\\du\\Dokumente\\MeineKanzlei",
+      "manual-path-placeholder__sourceHash": "afb471127a03ebecc1ebf8c25b1b232bd1a4d12bd086ee459ccac194e1cb5bbf"
     },
     "grid": {
       "empty-folder-hint": "Dieser Ordner enthält keine Dateien oder Unterordner",
@@ -593,6 +612,14 @@
       "reselect-hint__sourceHash": "8c2e8d4ddf4ca9a40ae6323b4e574d39147c00b946251ade0c1752c0285f048f",
       "rename-description": "Gib einen neuen Namen für dein Projekt ein. Dadurch wird der Arbeitsbereichsordner umbenannt.",
       "rename-description__sourceHash": "c053c3b074e001ad8246479c564991ac85ecd2a1527944696db9d514e2bfeef6"
+    },
+    "open-error": {
+      "credential-service-unavailable": "Der Windows-Dienst für die Anmeldeinformationsverwaltung läuft nicht, daher konnte Advisor Prep Hero diesen Arbeitsbereich nicht vollständig öffnen. Deine Dateien sind sicher. Versuche es erneut, oder starte den Dienst \"Anmeldeinformationsverwaltung\" (services.msc) neu, falls dies weiterhin auftritt.",
+      "credential-service-unavailable__sourceHash": "3a0ad4347d7ad692781cc2b89e0ae886063358c8d86a79995edc8e679380d492",
+      "generic": "Dieser Arbeitsbereich konnte nicht geöffnet werden. Bitte versuche es erneut.",
+      "generic__sourceHash": "8927cfef2d83f553f4e35ed2d47214a5e6cd97dc9c8c9f335056192c756aed90",
+      "dismiss": "Verwerfen",
+      "dismiss__sourceHash": "48845bff334a50a59aaecf499f28a7a24c3b4b891b8b18a9f1169ad8e8a6b261"
     }
   },
   "editor": {
@@ -932,6 +959,12 @@
     }
   },
   "onboarding": {
+    "workspace-picker": {
+      "picker-unresponsive-own-data": "Die Ordnerauswahl hat nicht reagiert. Gib den Ordnerpfad ein, in dem deine Kanzleidateien liegen sollen.",
+      "picker-unresponsive-own-data__sourceHash": "41465de8a1e093b4aa8e6bb148e892626899f5ed2ad5cb6272e0e5a93556d8d0",
+      "picker-unresponsive-sample": "Die Ordnerauswahl hat nicht reagiert. Gib den Ordnerpfad ein, in dem deine Beispielkanzlei erstellt werden soll.",
+      "picker-unresponsive-sample__sourceHash": "2f5e9abfbc7358fe16b1c8d4968cec220b28c17b01ed1e14a484998d9707af03"
+    },
     "first-run": {
       "skip-for-now": "Vorerst überspringen",
       "skip-for-now__sourceHash": "b58eb52c8810b97857e264ea9de45f7bd7edb754bb0edad30ffab78ff027c45e",
@@ -1683,6 +1716,13 @@
       "export-saved-clean": "Bereinigte Kopie ohne versteckte Metadaten gespeichert.",
       "export-saved-clean-final": "Bereinigte endgültige Kopie gespeichert: Änderungen angenommen, Kommentare und versteckte Metadaten entfernt.",
       "export-dismiss": "Schließen",
+      "save-blocked-title": "Dieses Dokument kann gerade nicht gespeichert werden",
+      "save-blocked-body": "Ein anderes Programm (oft Antivirus, Backup oder Cloud-Synchronisierung) blockiert möglicherweise die Datei. Ihre Änderungen sind hier sicher, und ich versuche es automatisch weiter. Falls es nicht behoben wird, speichern Sie eine Kopie an einem anderen Ort, damit nichts verloren geht.",
+      "save-retry-now": "Jetzt erneut versuchen",
+      "save-copy-elsewhere": "Kopie woanders speichern…",
+      "save-copy-saving": "Kopie wird gespeichert…",
+      "save-copy-success": "Rettungskopie gespeichert unter {{path}}.",
+      "save-copy-failed": "Kopie konnte nicht gespeichert werden: {{message}}",
       "pdf-needs-libreoffice-title": "Der PDF-Export benötigt LibreOffice",
       "pdf-needs-libreoffice-body": "Advisor Prep Hero wandelt Word lokal mit LibreOffice in PDF um, einem kostenlosen Programm. Nichts verlässt Ihren Computer. Installieren Sie es und führen Sie den Export danach erneut aus.",
       "pdf-libreoffice-copy": "Link kopieren",
@@ -2064,7 +2104,9 @@
       "recording-label": "Aufnahme",
       "local": "Lokal",
       "local-tooltip": "Nichts hat diesen Rechner verlassen. Die Aufnahme wird direkt auf Ihre Festplatte geschrieben.",
-      "processing": "Ihre Gesprächsnotizen werden geschrieben… Sie können weiterarbeiten"
+      "processing": "Ihre Gesprächsnotizen werden geschrieben… Sie können weiterarbeiten",
+      "write-error": "Aufnahme kann nicht fortgesetzt werden. Die Festplatte ist voll.",
+      "write-error-dismiss": "Schließen"
     },
     "tab": {
       "record-button": "Besprechung aufnehmen",
@@ -2073,6 +2115,7 @@
       "empty-body": "Aufnahmen mit diesem Mandanten landen genau hier: Notizen, Transkript und Audio zusammen.",
       "notes-pending": "Notizen ausstehend",
       "notes-failed": "Notizen konnten nicht erstellt werden",
+      "recording-incomplete": "Aufnahme wurde nicht vollständig gespeichert",
       "activity-hint": "Jede Besprechung erscheint außerdem als Eintrag im Aktivitätsverlauf dieses Mandanten.",
       "record-note": "Auf diesem Computer aufgenommen. Nichts wird hochgeladen.",
       "loading": "Gespräche werden geladen…",
@@ -2090,9 +2133,10 @@
       "consent-one-party": "einseitig",
       "consent-two-party": "beidseitig",
       "notes-pending": "Die Notizen werden gerade aus dem Transkript erstellt. Schau gleich noch einmal vorbei.",
+      "recording-incomplete": "Diese Aufnahme wurde nicht vollständig gespeichert, daher gibt es kein Audio zum Transkribieren oder für Notizen. Das kann passieren, wenn während der Aufnahme der Speicherplatz auf dem Computer ausgegangen ist.",
       "notes-failed-timeout": "Die Notizen konnten nicht erstellt werden. Der KI-Anbieter hat nicht rechtzeitig geantwortet. Ihre Aufnahme und das Transkript sind sicher.",
       "notes-failed-error": "Die Notizen konnten nicht erstellt werden. Der KI-Anbieter hat einen Fehler zurückgegeben. Ihre Aufnahme und das Transkript sind sicher.",
-      "notes-failed-blocked": "Für die Notizen wird Ihr KI-Anbieter benötigt, aber der Nur-lokal-Modus blockiert ihn. Deaktivieren Sie den Nur-lokal-Modus unter Einstellungen → Datenschutz, oder verbinden Sie ein lokales Modell, um die Notizen zu diesem Gespräch zu erstellen.",
+      "notes-failed-blocked": "Für die Notizen wird Ihr KI-Anbieter benötigt, aber der Nur-lokal-Modus blockiert ihn. Verbinden Sie ein lokales Modell, um die Notizen zu diesem Gespräch zu erstellen, oder deaktivieren Sie stattdessen den Nur-lokal-Modus unter Einstellungen → Datenschutz.",
       "retrying-notes": "Wird erneut versucht…",
       "transcript-pending": "Die Transkription ist in der Warteschlange. Sie erscheint hier, sobald sie fertig ist.",
       "transcript-failed-not-installed": "Die Transkription konnte nicht ausgeführt werden. Die Sprach-Engine ist auf diesem Computer noch nicht installiert. Ihre Aufnahme ist sicher.",
@@ -2125,7 +2169,8 @@
       "mac-permission-body": "So kann die App aufnehmen, was auf diesem Mac abgespielt wird. Es wird nur auf deiner Festplatte gespeichert, sonst nirgendwo.",
       "mac-permission-button": "Systemeinstellungen öffnen",
       "two-party-note-unknown": "Falls Ihr Bundesstaat die Zustimmung aller verlangt, fragen Sie vor der Aufnahme. Vorschlag: „Ich würde das Gespräch gern für meine Notizen aufnehmen. Ist das für alle in Ordnung?“",
-      "start-failed": "Aufnahme konnte nicht starten: {{message}}"
+      "start-failed": "Aufnahme konnte nicht starten: {{message}}",
+      "low-disk-warning": "Wenig Speicherplatz. Lange Aufnahmen passen möglicherweise nicht."
     },
     "dictation": {
       "file-as-meeting-note": "Als Besprechungsnotiz ablegen…",

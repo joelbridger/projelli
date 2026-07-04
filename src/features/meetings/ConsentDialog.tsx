@@ -46,6 +46,11 @@ export interface ConsentDialogProps {
    *  shown inline so the dialog never closes on silence — the advisor must
    *  never believe a failed recording is running. */
   errorMessage?: string | null;
+  /** QA-35 — set when a cheap disk-space preflight (checkLowDiskSpaceWarning
+   *  in meetingStore.ts) finds free space below the warning threshold.
+   *  Advisory only — never blocks starting the recording, just sets
+   *  expectations before a long meeting runs the disk out mid-recording. */
+  lowDiskSpace?: boolean;
   /** Recording Notice Kit — the exact spoken-notice script to say out loud
    *  (firm-customizable; the caller resolves custom-or-default). Shown as a
    *  first-class "say this" step so the notice actually gets spoken. */
@@ -62,7 +67,7 @@ function formatDate(iso: string): string {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString();
 }
 
-export function ConsentDialog({ open, onOpenChange, consentMode, stateKnown = true, standingConsent, macPermissionError, errorMessage, noticeScript, noticeCard, onConfirm }: ConsentDialogProps) {
+export function ConsentDialog({ open, onOpenChange, consentMode, stateKnown = true, standingConsent, macPermissionError, errorMessage, lowDiskSpace, noticeScript, noticeCard, onConfirm }: ConsentDialogProps) {
   const { t } = useTranslation();
   const [checked, setChecked] = useState(standingConsent !== null);
 
@@ -120,6 +125,14 @@ export function ConsentDialog({ open, onOpenChange, consentMode, stateKnown = tr
         <p style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-navy)' }}>
           {t('meetings.consent.body-local')}
         </p>
+        {lowDiskSpace && (
+          <p data-testid="consent-low-disk-warning" style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-warning, #b45309)', margin: 0 }}>
+            {t('meetings.consent.low-disk-warning')}
+          </p>
+        )}
+        {/* Trust review E2 / Legion bug: the "say this out loud" step ALWAYS
+            renders when starting a recording (falls back to the built-in wording
+            via `sayThis`), never gated on a possibly-empty prop. */}
         <div
           data-testid="consent-notice-script"
           style={{

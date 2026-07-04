@@ -121,6 +121,7 @@ pub fn run() {
             commands::capture::engine::capture_start,
             commands::capture::engine::capture_stop,
             commands::capture::engine::capture_status,
+            commands::capture::engine::capture_free_disk_bytes,
             commands::capture::recovery::capture_find_orphans,
             commands::capture::recovery::capture_recover,
             // Wave 3b — local long-form transcription over the existing

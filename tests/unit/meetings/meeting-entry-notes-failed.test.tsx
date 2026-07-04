@@ -13,6 +13,17 @@ vi.mock('@/features/meetings/meetingStore', async (importOriginal) => {
   return { ...actual, retryMeetingNotes: retryMeetingNotesMock };
 });
 
+// MeetingEntry mounts DocxEditor via a real dynamic import(), unrelated to
+// this test's actual subject (the pending/failed/notesError copy logic — no
+// assertion here touches the rendered editor). Under full-suite parallelism
+// that real import's transform competes with hundreds of other worker
+// processes and can resolve slower than this test's waitFor window, which
+// flips the assertion below flaky (`meeting-entry-notes-pending` still
+// showing because `DocxEditorComp` hadn't loaded yet even though `hasNotes`
+// had gone true). Mocking it makes the import resolve synchronously so the
+// test only exercises the logic it's actually about.
+vi.mock('@/features/documents/media/DocxEditor', () => ({ DocxEditor: () => null }));
+
 import { MeetingEntry } from '@/features/meetings/MeetingEntry';
 
 function makeWorkspace(meetingJson: Record<string, unknown>) {
@@ -85,7 +96,18 @@ describe('MeetingEntry — honest notes-failed state (QA-31)', () => {
     render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
 
     await waitFor(() => expect(screen.getByTestId('meeting-entry-notes-failed')).toBeTruthy());
-    expect(screen.getByTestId('meeting-entry-notes-failed').textContent).toMatch(/local-only/i);
+    const text = screen.getByTestId('meeting-entry-notes-failed').textContent ?? '';
+    expect(text).toMatch(/local-only/i);
+
+    // R3 (trust review): this message must not coach a confidentiality-anxious
+    // advisor to downgrade their own privacy as the FIRST suggested fix. The
+    // privacy-preserving option (connect a local model) must be offered before
+    // "turn off Local-only mode".
+    const localModelIdx = text.search(/connect a local model/i);
+    const turnOffIdx = text.search(/turn off local-only mode/i);
+    expect(localModelIdx).toBeGreaterThanOrEqual(0);
+    expect(turnOffIdx).toBeGreaterThanOrEqual(0);
+    expect(localModelIdx).toBeLessThan(turnOffIdx);
   });
 
   // Coordinator P2 (independent pass): a real notes.docx is BINARY. Reading it

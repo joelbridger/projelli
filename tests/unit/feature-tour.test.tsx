@@ -167,4 +167,17 @@ describe('Feature tour content integrity', () => {
     expect(outro?.targetSelector).toBeNull();
     expect(outro?.placement).toBe('center');
   });
+
+  // E5-headline (trust review): the outro's privacy line must be scoped to
+  // documents/prompts, not an unqualified "nothing leaves" — the app still
+  // contacts its own servers automatically for a periodic license check
+  // (and optionally for telemetry/bug reports) regardless of AI/connector
+  // choice, per the Data Map's own "What Advisor Prep Hero's own servers
+  // see" row. Caught by Codex self-review of this same fix.
+  it('outro privacy line is scoped to documents/prompts, not an absolute "nothing leaves"', () => {
+    const outro = FEATURE_TOUR_STEPS.find((s) => s.id === 'outro');
+    const body = (outro?.body ?? '').toLowerCase();
+    expect(body).not.toMatch(/^nothing leaves|[^t]\bnothing leaves\b/);
+    expect(body).toMatch(/documents and prompts/);
+  });
 });

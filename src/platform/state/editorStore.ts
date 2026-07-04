@@ -14,6 +14,22 @@ export function setBeforeTabClose(fn: ((path: string) => void) | null): void {
 }
 
 /**
+ * QA-34: interceptor for closing a `.docx` tab. A `.docx`'s edits live only in
+ * its still-mounted editor, so it must be SAVED before the tab is removed —
+ * `closeTab` can't do that itself (it's synchronous). When set, `closeTab`
+ * offers every non-`discard` close (Ctrl+W, the command palette, right-click
+ * Close/Close-others, the tab X on either strip) to this hook first; if it
+ * returns `true` it has taken over (it saves, then re-invokes `closeTab` with
+ * `{ discard: true }` to actually remove the tab, or keeps it open on failure),
+ * and `closeTab` does NOT remove the tab now. Returns `false` for non-`.docx`
+ * paths, which close normally. No-op until registered.
+ */
+let beforeDocxCloseHook: ((path: string) => boolean) | null = null;
+export function setBeforeDocxClose(fn: ((path: string) => boolean) | null): void {
+  beforeDocxCloseHook = fn;
+}
+
+/**
  * BUG-047: true when `path` is open in the editor with UNSAVED edits. The chat
  * file tools use this to refuse writing/moving/deleting a file the user is
  * actively editing, so the AI can't clobber their unsaved work (and vice-versa).
@@ -311,6 +327,14 @@ export const useEditorStore = create<EditorState>()(
     // Saving" the caller passes { discard: true } so we DON'T flush — otherwise
     // the discard would silently write the very edits the user rejected.
     if (!opts?.discard) {
+      // QA-34: a .docx must save (from its still-mounted editor) BEFORE removal.
+      // If the interceptor takes over, it will re-call closeTab with { discard }
+      // once saved (or keep the tab open on failure), so don't remove it now.
+      try {
+        if (beforeDocxCloseHook?.(path)) return;
+      } catch {
+        /* an interceptor error must never wedge closing a tab */
+      }
       try {
         beforeTabCloseHook?.(path);
       } catch {

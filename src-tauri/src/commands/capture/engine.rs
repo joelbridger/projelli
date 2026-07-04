@@ -619,6 +619,21 @@ pub async fn capture_stop() -> Result<CaptureStopResult, String> {
     })
 }
 
+/// QA-35 — a cheap, best-effort check the frontend calls right before
+/// `capture_start` so it can warn ("Low disk space — long recordings may not
+/// fit") BEFORE a chunk write ever has a chance to actually fail, rather than
+/// only reacting after the fact. Reuses the same `fs2::available_space` this
+/// codebase already uses for the local-AI model download's own disk-space
+/// preflight (`commands/local_llm/model_download.rs::ensure_disk_space`).
+/// Takes a path rather than deriving one internally so the frontend can pass
+/// the real workspace root it already has — `available_space` only needs
+/// SOME existing path on the target volume, not the exact meeting folder
+/// (which may not exist yet).
+#[tauri::command]
+pub fn capture_free_disk_bytes(path: String) -> Result<u64, String> {
+    fs2::available_space(Path::new(&path)).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub async fn capture_status() -> Result<CaptureStatus, String> {
     Ok(match &*STATE.lock().unwrap() {
@@ -645,6 +660,17 @@ mod tests {
     use super::*;
     use crate::commands::capture::sources::FakeSource;
     use tempfile::tempdir;
+
+    /// QA-35 — the low-disk-space preflight must return a real, plausible
+    /// free-space figure for an existing path rather than erroring or
+    /// silently returning 0/garbage — that's the one thing the frontend's
+    /// warning threshold check actually depends on.
+    #[test]
+    fn capture_free_disk_bytes_returns_a_plausible_value_for_an_existing_path() {
+        let dir = tempdir().unwrap();
+        let bytes = capture_free_disk_bytes(dir.path().to_str().unwrap().to_string()).unwrap();
+        assert!(bytes > 0, "expected nonzero free space on a real filesystem, got {bytes}");
+    }
 
     /// The frontend's `getAuditEntryMatterScope`/`recordToEntry` (see
     /// `src/features/audit/audit-export.ts`) reads `metadata.scope.kind` /

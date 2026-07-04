@@ -83,6 +83,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `RecordingNoticeSettings.tsx`, `NoticeCardConsentSection.tsx`.
   - i18n: 24 new `meetings.notice-card.*` keys (en/de/es).
 
+### Fixed
+- **QA-34 (P0 silent data loss): a failed `.docx` autosave no longer wedges
+  persistence while the UI says "Saved".** A `.docx` is edited by `DocxEditor`,
+  which saves directly to disk and never marks its editor-store tab dirty — so a
+  failing save (e.g. antivirus/backup briefly holding an exclusive OS lock) used
+  to be invisible to every save-integrity guard: the tab dot, the toolbar, the
+  close-tab / workspace-switch / quit guards all saw the doc as clean, and there
+  was no retry, so once a save failed it never wrote again for the session even
+  after the lock cleared. Now: failed saves surface truthfully (never "Saved")
+  and self-heal via automatic exponential-backoff retry of the latest content;
+  sustained failure raises a persistent, non-timeout-dismissable warning with a
+  **"Save a copy elsewhere"** rescue that writes the in-memory doc to a chosen
+  path; a new `docxSaveRegistry` bridges the editor's real save state to the tab
+  dirty-dot, status-bar "modified" badge, close-tab confirm, workspace-switch
+  guard, and quit flush (which now also flushes open `.docx` files and fires a
+  native "unsaved changes" prompt when a save is actively failing). Retries stop
+  cleanly on unmount. Rust `atomic_write` now cleans up its temp sibling on a
+  failed replace (no orphan `.kpv-tmp-*` on every failed save).
+  Files: `src/features/documents/media/DocxEditor.tsx`,
+  `src/platform/fs/docxSaveRegistry.ts`, `src/app/fileOps/flushDirtyTabs.ts`,
+  `src/app/lifecycle/useFlushOnExit.ts`, `src/app/lifecycle/useWorkspaceLifecycle.ts`,
+  `src/features/documents/editor/TabBar.tsx`, `src/app/shell/layout/StatusBar.tsx`,
+  `src-tauri/crates/lantern-vault/src/atomic.rs`.
+- **QA-36 (P2): Windows reserved device names can no longer be created.**
+  `CON.docx`, `PRN`, `NUL`, `COM1`–`9`, `LPT1`–`9`, and trailing-dot/space names
+  (which Windows silently strips, making the on-disk file un-renamable /
+  un-deletable by Explorer, Word, and backup tools) are now rejected at the
+  create layer, not just on rename: `WorkspaceService` validates every new path
+  segment (`writeFile`/`writeFileBinary`/`mkdir`), the create dialogs show a
+  localized inline error (en/de/es), and the Rust `resolve_creatable` guard
+  rejects reserved names at any path level as defense-in-depth.
+  Files: `src/platform/fs/WorkspaceService.ts`, `src/app/fileOps/reservedNameError.ts`,
+  create dialogs in `src/app/fileOps/`, `src-tauri/src/commands/pathguard.rs`, locales.
+- **Test-infra: fixed the intermittent "chunk load failed" test flake under
+  full-suite parallelism** (tripped 3 lanes' pre-push hooks). Root cause:
+  `MeetingEntry` fires a real, un-awaited `import('@/features/documents/media/DocxEditor')`
+  on mount with no `.catch()` and no bound on how long it can take. Under
+  normal load it resolves fast enough that nothing notices; under full-suite
+  parallel-transform contention (hundreds of forked worker processes competing
+  for CPU) it can resolve slower than a test's `waitFor` window, so a test that
+  had already flipped `hasNotes` to true would still render the
+  `notes-pending` fallback because `DocxEditorComp` hadn't loaded yet —
+  reproduced twice in a row with a `--maxWorkers=40` oversubscribed stress run
+  (confirmed against the exact `meeting-entry-notes-failed` assertion the
+  brief named). Since it's never `.catch()`-ed, a genuine rejection would also
+  surface as an unhandled rejection blamed on whatever test happens to be
+  running at the time — explaining reports of "a different file each run".
+  Fix (test-infra only, no product code touched): the 3 test files that mount
+  `<MeetingEntry>` now `vi.mock` `@/features/documents/media/DocxEditor` so
+  the import resolves synchronously and deterministically — none of these
+  tests assert on the real editor's rendered output. Verified with 5/5 clean
+  runs under the same oversubscribed stress condition that reproduced the
+  flake, plus 3 consecutive clean default full-suite runs.
+  Files: `tests/unit/meetings/meeting-entry-notes-failed.test.tsx`,
+  `tests/unit/meetings/meeting-entry-transcript-failed.test.tsx`,
+  `tests/unit/meetings/meeting-entry-notice-stale.test.tsx`.
+
 ### Changed
 - **Meetings tab UX polish (2026-07-04 senior-UX review — all blockers + should-fixes).**
   Full findings doc with before/after screenshots:

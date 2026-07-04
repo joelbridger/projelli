@@ -136,6 +136,31 @@ describe('DATA_MAP_ROWS — design-partner diagnostics row', () => {
 });
 
 // ---------------------------------------------------------------------------
+// E1 (trust review) — Wealthbox row must not claim "read-only, never writes
+// back" — the app ships an approval-gated write path (CrmWriteReviewCard).
+// ---------------------------------------------------------------------------
+
+describe('DATA_MAP_ROWS — Wealthbox row does not overclaim read-only', () => {
+  function wealthboxRow() {
+    return DATA_MAP_ROWS.find((r) => r.title.toLowerCase().includes('wealthbox'));
+  }
+
+  it('does not claim the connection is read-only or never writes back', () => {
+    const row = wealthboxRow();
+    const combined = ((row?.body ?? '') + ' ' + (row?.caveat ?? '')).toLowerCase();
+    expect(combined).not.toContain('read-only');
+    expect(combined).not.toContain('never writes anything back');
+  });
+
+  it('honestly discloses the approval-gated write path', () => {
+    const row = wealthboxRow();
+    const combined = ((row?.body ?? '') + ' ' + (row?.caveat ?? '')).toLowerCase();
+    expect(combined).toContain('write');
+    expect(combined).toContain('approve');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Voice rules — no em dashes in new copy
 // ---------------------------------------------------------------------------
 

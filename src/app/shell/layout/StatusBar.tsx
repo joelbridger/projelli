@@ -1,10 +1,11 @@
 // Status Bar Component
 // Shows workspace info and status indicators
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useEditorStore } from '@/platform/state/editorStore';
+import { isDocxUnsaved, subscribeDocxSaveRegistry, getDocxSaveVersion } from '@/platform/fs/docxSaveRegistry';
 import { cn } from '@/lib/utils';
 import { FolderOpen, File, Edit, ChevronRight, Bug, ShieldOff } from 'lucide-react';
 import {
@@ -173,6 +174,12 @@ export function StatusBar({ onOpenSettings, showFileContext = true }: StatusBarP
     const id = setTimeout(() => { setPulseVisible(false); }, 2500);
     return () => { clearTimeout(id); };
   }, [egressActiveCount, lastEgressAt, pulseVisible]);
+
+  // QA-34: re-render when the active .docx's save state changes so the "modified"
+  // badge is truthful for a .docx whose save is pending/failing (never a store dirty tab).
+  // Declared here (below the egress effect) purely to keep unrelated lines stable.
+  useSyncExternalStore(subscribeDocxSaveRegistry, getDocxSaveVersion, getDocxSaveVersion);
+  const activeTabModified = !!activeTab && (activeTab.isDirty || isDocxUnsaved(activeTab.path));
 
   const projectName = getProjectName(rootPath, t('layout.status-bar.no-workspace'));
 
@@ -352,7 +359,7 @@ export function StatusBar({ onOpenSettings, showFileContext = true }: StatusBarP
               <span className="truncate max-w-[200px]">{activeTab.name}</span>
             </div>
 
-            {activeTab.isDirty && (
+            {activeTabModified && (
               <div
                 data-testid="status-bar-modified"
                 className="flex items-center gap-1 text-amber-700"

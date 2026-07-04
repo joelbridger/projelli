@@ -64,6 +64,11 @@
       "empty-confirm_other": "This will permanently delete all {{count}} items in the trash. This action cannot be undone."
     }
   },
+  "file-import": {
+    "picker-unresponsive": "The file picker didn't respond. Type the path of one file to add instead.",
+    "manual-path-title": "Type a file path",
+    "manual-path-placeholder": "e.g. C:\\Users\\you\\Documents\\contract.docx"
+  },
   "layout": {
     "sidebar": {
       "workspace-label": "Workspace",
@@ -316,7 +321,8 @@
       "title": "AI Account Keys",
       "description": "Configure account keys for AI model providers. Keys are stored securely and never logged.",
       "get-key-link": "Get account key",
-      "add-key": "Add account key"
+      "add-key": "Add account key",
+      "credential-service-unavailable": "Windows' credential storage service isn't running, so Advisor Prep Hero can't reach your saved AI keys right now. This does not affect your documents. Restart the \"Credential Manager\" service (services.msc), or try again shortly."
     },
     "plugins": {
       "title": "Plugins",
@@ -351,13 +357,18 @@
         "word-document": "Word Document (.docx)",
         "audio-file": "Audio File (.webm)"
       },
+      "reserved-name-error": "That name isn't allowed on Windows. Try a different name (avoid names like CON, PRN, NUL and trailing dots or spaces).",
       "drop-to-root": "Drop here to move to root",
       "open-on-desktop": "Open on Desktop"
     },
     "selector": {
       "browser-reselect-note": "Recent workspaces require re-selecting the folder due to browser security.",
       "tagline": "Your practice folder. Your files. Your machine.",
-      "open-existing-hint": "Select a workspace folder"
+      "open-existing-hint": "Select a workspace folder",
+      "picker-unresponsive-open": "The folder picker didn't respond. Type the folder path instead.",
+      "picker-unresponsive-create": "The folder picker didn't respond. Type the folder path where your new workspace should be created.",
+      "manual-path-title": "Type the folder path",
+      "manual-path-placeholder": "e.g. C:\\Users\\you\\Documents\\MyPractice"
     },
     "grid": {
       "empty-folder-hint": "This folder contains no files or subfolders"
@@ -365,6 +376,11 @@
     "project-manager": {
       "reselect-hint": "Re-select folder to reopen",
       "rename-description": "Enter a new name for your project. This will rename the workspace folder."
+    },
+    "open-error": {
+      "credential-service-unavailable": "Windows' credential storage service isn't running, so Advisor Prep Hero couldn't finish opening this workspace. Your files are safe. Try again, or restart the \"Credential Manager\" service (services.msc) if this keeps happening.",
+      "generic": "Could not open this workspace. Please try again.",
+      "dismiss": "Dismiss"
     }
   },
   "editor": {
@@ -598,6 +614,10 @@
     }
   },
   "onboarding": {
+    "workspace-picker": {
+      "picker-unresponsive-own-data": "The folder picker didn't respond. Type the folder path where your practice files should live.",
+      "picker-unresponsive-sample": "The folder picker didn't respond. Type the folder path where your sample practice should be created."
+    },
     "first-run": {
       "skip-for-now": "Skip for now",
       "back": "Back",
@@ -778,6 +798,13 @@
       "export-saved-clean": "Saved a clean copy with hidden metadata removed.",
       "export-saved-clean-final": "Saved a clean final copy: changes accepted, comments and hidden metadata removed.",
       "export-dismiss": "Dismiss",
+      "save-blocked-title": "This document can't be saved right now",
+      "save-blocked-body": "Another program (often antivirus, backup, or cloud sync) may be blocking the file. Your changes are safe here and I'll keep trying automatically. If it doesn't clear, save a copy somewhere else so nothing is lost.",
+      "save-retry-now": "Try again now",
+      "save-copy-elsewhere": "Save a copy elsewhere…",
+      "save-copy-saving": "Saving copy…",
+      "save-copy-success": "Saved a rescue copy to {{path}}.",
+      "save-copy-failed": "Couldn't save the copy: {{message}}",
       "pdf-needs-libreoffice-title": "PDF export needs LibreOffice",
       "pdf-needs-libreoffice-body": "Advisor Prep Hero converts Word to PDF locally using LibreOffice, a free program. Nothing leaves your machine. Install it, then run the export again.",
       "pdf-libreoffice-copy": "Copy link",
@@ -1493,7 +1520,9 @@
       "recording-label": "Recording",
       "local": "Local",
       "local-tooltip": "Nothing has left this machine. The audio is written straight to your disk.",
-      "processing": "Writing your meeting notes… you can keep working"
+      "processing": "Writing your meeting notes… you can keep working",
+      "write-error": "Recording can't continue. Disk is full.",
+      "write-error-dismiss": "Dismiss"
     },
     "tab": {
       "record-button": "Record a meeting",
@@ -1502,6 +1531,7 @@
       "empty-body": "Recordings you make with this client stay right here: notes, transcript, and audio together.",
       "notes-pending": "notes pending",
       "notes-failed": "notes couldn't be written",
+      "recording-incomplete": "recording didn't finish saving",
       "activity-hint": "Each meeting also shows up as an entry on this client's Activity timeline.",
       "record-note": "Recorded on this computer. Nothing is uploaded.",
       "loading": "Loading meetings…",
@@ -1519,9 +1549,10 @@
       "consent-one-party": "one-party",
       "consent-two-party": "two-party",
       "notes-pending": "Notes are being written from the transcript. Check back in a moment.",
+      "recording-incomplete": "This recording didn't finish saving, so there's no audio to transcribe or write notes from. This can happen if the computer ran out of disk space while recording.",
       "notes-failed-timeout": "Notes couldn't be written. The AI provider didn't respond in time. Your recording and transcript are safe.",
       "notes-failed-error": "Notes couldn't be written. The AI provider returned an error. Your recording and transcript are safe.",
-      "notes-failed-blocked": "Notes need your AI provider, but Local-only mode is blocking it. Turn off Local-only mode in Settings → Privacy, or connect a local model, to write this meeting's notes.",
+      "notes-failed-blocked": "Notes need your AI provider, but Local-only mode is blocking it. Connect a local model to write this meeting's notes, or, if you'd rather, turn off Local-only mode in Settings → Privacy.",
       "retrying-notes": "Retrying…",
       "transcript-pending": "Transcription is queued. It'll appear here once it's ready.",
       "transcript-failed-not-installed": "Transcription couldn't run. The voice engine isn't installed on this computer yet. Your recording is safe.",
@@ -1554,7 +1585,8 @@
       "mac-permission-body": "This lets the app record what plays on this Mac. It is saved to your disk and nowhere else.",
       "mac-permission-button": "Open System Settings",
       "two-party-note-unknown": "If your state requires everyone’s consent, ask before you record. Suggested ask: \"I’d like to record this for my notes. Is that alright with everyone?\"",
-      "start-failed": "Recording couldn’t start: {{message}}"
+      "start-failed": "Recording couldn’t start: {{message}}",
+      "low-disk-warning": "Low disk space. Long recordings may not fit."
     },
     "dictation": {
       "file-as-meeting-note": "File as meeting note…",

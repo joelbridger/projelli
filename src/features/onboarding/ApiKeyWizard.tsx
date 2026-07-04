@@ -320,7 +320,7 @@ export function ApiKeyWizard({
           <DialogDescription>
             {tutorialOnly
               ? 'Step-by-step guide to get an API key from each provider. Revisit any time.'
-              : 'A 3-step walk-through. Your key never leaves your computer.'}
+              : 'A 3-step walk-through. Your key is stored on this computer and sent only to the AI provider you choose, never through our servers.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -403,7 +403,7 @@ export function ApiKeyWizard({
         )}
 
         {!tutorialOnly && step === 3 && provider !== 'ollama' && (
-          <StepShell testid="api-key-wizard-step-3" title="Step 3. Paste your key" description="Your key is stored securely on this computer and never leaves your machine.">
+          <StepShell testid="api-key-wizard-step-3" title="Step 3. Paste your key" description="Your key is stored securely on this computer, never on our servers. It's sent directly to the provider you chose each time you use it.">
             <div className="space-y-3">
               <div className="relative">
                 <Input

@@ -84,7 +84,8 @@ describe('flushDirtyTabs (BUG-046)', () => {
     useEditorStore.getState().openFile('/ws/a.md', 'a.md', 'a0');
     useEditorStore.getState().updateContent('/ws/a.md', 'a1');
 
-    await expect(flushAllDirtyTabs(svc)).resolves.toBeUndefined();
+    // Never throws; returns the failed-.docx list (empty here — no .docx open).
+    await expect(flushAllDirtyTabs(svc)).resolves.toEqual([]);
     expect(tab('/ws/a.md')?.isDirty).toBe(true); // stayed dirty so autosave retries
   });
 

@@ -7,11 +7,13 @@
  * changed (they now come from the options object instead of App's local scope).
  */
 import React, { useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useEditorStore } from '@/platform/state/editorStore';
 import { workspacePath } from '@/platform/fs/appPath';
 import { findUniqueDefaultName } from './uniqueDefaultName';
+import { reservedNameError } from './reservedNameError';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { FileNode } from '@/platform/types/workspace';
 import type { PromptOptions } from '@/platform/hooks/usePromptDialog';
@@ -30,6 +32,7 @@ export interface UseDocumentCreationOptions {
 }
 
 export function useDocumentCreation(options: UseDocumentCreationOptions) {
+  const { t } = useTranslation();
   const {
     workspaceServiceRef,
     rootPath,
@@ -68,7 +71,7 @@ export function useDocumentCreation(options: UseDocumentCreationOptions) {
       placeholder: 'my-notes',
       destinationPath: `${destDir}/`,
       previewExtension: '.txt',
-      validate: (v) => (v.trim() ? undefined : 'Enter a file name.'),
+      validate: (v) => (v.trim() ? reservedNameError(v, t) : 'Enter a file name.'),
     });
     if (!name) return;
 
@@ -82,7 +85,7 @@ export function useDocumentCreation(options: UseDocumentCreationOptions) {
     } catch (error) {
       console.error('Failed to create text file:', error);
     }
-  }, [rootPath, setFileTree, handleFileOpen, prompt, workspaceServiceRef]);
+  }, [rootPath, setFileTree, handleFileOpen, prompt, t, workspaceServiceRef]);
 
   // VG-4c — pick a Word file as the firm letterhead template. Stores its path
   // in the `letterheadTemplatePath` setting; new documents and workflow
@@ -131,7 +134,7 @@ export function useDocumentCreation(options: UseDocumentCreationOptions) {
       placeholder: 'my-document',
       destinationPath: `${destDir}/`,
       previewExtension: '.docx',
-      validate: (v) => (v.trim() ? undefined : 'Enter a file name.'),
+      validate: (v) => (v.trim() ? reservedNameError(v, t) : 'Enter a file name.'),
     });
     if (!name) return;
 
@@ -172,7 +175,7 @@ export function useDocumentCreation(options: UseDocumentCreationOptions) {
     } catch (error) {
       console.error('Failed to create Word document:', error);
     }
-  }, [rootPath, setFileTree, openFile, prompt, workspaceServiceRef]);
+  }, [rootPath, setFileTree, openFile, prompt, t, workspaceServiceRef]);
 
   // Advisor Prep Hero 3.0 (WS-A / A5): the "New Document" primary action. Word (.docx)
   // is the canonical document format, so unless the user has changed the
@@ -210,7 +213,7 @@ export function useDocumentCreation(options: UseDocumentCreationOptions) {
     const name = await prompt('Enter folder name:', defaultName, {
       title: 'Create Folder',
       placeholder: 'my-folder',
-      validate: (v) => (v.trim() ? undefined : 'Enter a folder name.'),
+      validate: (v) => (v.trim() ? reservedNameError(v, t) : 'Enter a folder name.'),
     });
     if (!name) return;
 
@@ -228,7 +231,7 @@ export function useDocumentCreation(options: UseDocumentCreationOptions) {
     } catch (error) {
       console.error('Failed to create folder:', error);
     }
-  }, [rootPath, setFileTree, prompt, workspaceServiceRef]);
+  }, [rootPath, setFileTree, prompt, t, workspaceServiceRef]);
 
   return {
     handleCreateTextFileAtRoot,

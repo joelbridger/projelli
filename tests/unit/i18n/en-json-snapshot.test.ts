@@ -54,6 +54,7 @@ describe('en.json structure snapshot', () => {
         "common": 49,
         "editor": 14,
         "entity-label": 50,
+        "file-import": 3,
         "firm": 143,
         "layout": 40,
         "local-ai-download": 9,
@@ -61,17 +62,17 @@ describe('en.json structure snapshot', () => {
         "mail": 6,
         "marketplace": 14,
         "matter": 206,
-        "media": 81,
-        "meetings": 137,
+        "media": 88,
+        "meetings": 142,
         "memory": 6,
         "model-download": 9,
-        "onboarding": 65,
+        "onboarding": 67,
         "plugins": 4,
         "privacy": 31,
         "quick-open": 1,
         "research": 11,
         "search": 6,
-        "settings": 167,
+        "settings": 168,
         "shortcuts-overlay": 2,
         "spine": 5,
         "tab-guard": 3,
@@ -82,7 +83,7 @@ describe('en.json structure snapshot', () => {
         "whats-new": 4,
         "whiteboard": 1,
         "workflow": 29,
-        "workspace": 12,
+        "workspace": 20,
       }
     `);
   });
@@ -178,18 +179,50 @@ describe('en.json structure snapshot', () => {
     // +35 = meetings.notice.* (Recording Notice Kit: the verified-verbal-notice
     //       consent script step, the meeting-page notice trail + resolutions,
     //       invite/chat copy blocks, and the firm Standard/Strict policy dial).
-    // +24 = meetings.notice-card.* (the Notice Card: the local notice
-    //       participant that joins the meeting — consent-dialog offer/toggle +
-    //       platform labels + Meet/manual fallbacks + Zoom native-record
-    //       self-attest, the record-pill status line, the visual card copy
-    //       (title/lines/footer/timer label), and the "save recording
-    //       background image" settings action).
-    // +7 = Notice Card review follow-ups (Codex R5): meetings.notice-card
-    //      unsupported-fallback (generic non-Meet fallback copy) + the 6
-    //      settings-* keys wiring the Notice Card settings (enabled toggle,
-    //      name template, evidence-rule either/both) into the Privacy pane so
-    //      they're actually changeable from the UI.
-    expect(flat.length).toBe(1285);
+    // +1 = QA-36 client-side create-name guard: workspace.file-tree.reserved-name-error
+    //      is the localized inline warning for Windows-reserved/trailing-dot names.
+    // +7 = QA-34 .docx save-resilience UI: media.docx-editor.{save-blocked-title,
+    //      save-blocked-body,save-retry-now,save-copy-elsewhere,save-copy-saving,
+    //      save-copy-success,save-copy-failed} — the sustained-save-failure warning
+    //      + "Save a copy elsewhere" escape hatch (P0 silent-data-loss fix).
+    // +4 = QA-33 fix (2026-07-04): a stopped Windows credential-storage
+    //      service (VaultSvc) used to leave "open this workspace" silently
+    //      hung for 30s then fail with only a console.error — no message at
+    //      all. New: workspace.open-error.{credential-service-unavailable,
+    //      generic,dismiss} (3) surface an honest, dismissible banner instead;
+    //      settings.api-keys.credential-service-unavailable (1) does the same
+    //      for the (already-gracefully-degrading) AI-key read path.
+    // +9 = QA-32 fix (2026-07-04): the native folder/file picker can silently
+    //      never respond (root-caused to the modern Windows Common Item
+    //      Dialog COM component depending on shell infra a stripped VM may
+    //      lack — see dialogWatchdog.ts) — a bounded watchdog now falls back
+    //      to a manual path-entry prompt instead of leaving the screen stuck
+    //      forever. New: workspace.selector.{picker-unresponsive-open,
+    //      picker-unresponsive-create,manual-path-title,manual-path-
+    //      placeholder} (4), onboarding.workspace-picker.{picker-
+    //      unresponsive-own-data,picker-unresponsive-sample} (2),
+    //      file-import.{picker-unresponsive,manual-path-title,manual-path-
+    //      placeholder} (3).
+    // +3 = QA-35 fix (2026-07-04): the recording pill's "Recording… M:SS"
+    //      timer never polled the real backend, so a disk-full chunk-write
+    //      failure was invisible to the UI. New: meetings.pill.{write-error,
+    //      write-error-dismiss} (2) — the honest "recording can't continue"
+    //      pill shown after an auto-stop — and meetings.consent.
+    //      low-disk-warning (1), a preflight warning shown in the consent
+    //      dialog when free disk space is low.
+    // +2 = QA-35 review round 2 (2026-07-04): a disk-full capture_stop that
+    //      salvaged NO audio at all left the meeting's notes/transcript
+    //      panes stuck at "pending" forever (nothing was ever asked to
+    //      generate them) instead of an honest dead end. New: meetings.tab.
+    //      recording-incomplete (1, the meetings-list row subtitle) and
+    //      meetings.entry.recording-incomplete (1, the meeting page's
+    //      no-retry explanation).
+    // +31 = meetings.notice-card.* (the Notice Card lane: the local notice
+    //      participant — consent-dialog offer/toggle + platform labels + Meet/
+    //      generic/manual fallbacks + Zoom native-record self-attest, the
+    //      record-pill status line, the visual card copy, the 3 Notice Card
+    //      settings controls, and the "save recording background image" action).
+    expect(flat.length).toBe(1311);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

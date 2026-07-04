@@ -174,6 +174,22 @@ impl AsyncChunkWriter {
         let (tx, rx) = std::sync::mpsc::channel::<Vec<i16>>();
         let join = std::thread::spawn(move || {
             for samples in rx {
+                // QA-35: once a write has already failed once (disk full,
+                // permissions, ...), every subsequent buffer would fail the
+                // exact same way — the audio callback keeps sending on a
+                // non-blocking channel regardless (see `send`'s doc), so a
+                // long recording left running after the failure can queue a
+                // large backlog here. Retrying a doomed write for every one
+                // of those buffers would make `AsyncChunkWriter::drop`'s
+                // `join()` — which `CaptureEngine::stop` blocks on — take
+                // arbitrarily long to drain, however long the disk stayed
+                // full before Stop was called. Skipping straight to the next
+                // buffer once the first failure is recorded bounds that
+                // drain to the cost of an empty loop, not a real disk I/O
+                // attempt, per buffer.
+                if write_error.lock().unwrap().is_some() {
+                    continue;
+                }
                 if let Err(e) = writer.write(&samples) {
                     let mut err = write_error.lock().unwrap();
                     if err.is_none() {

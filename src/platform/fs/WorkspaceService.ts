@@ -240,6 +240,7 @@ export class WorkspaceService {
   async writeFile(path: string, content: string): Promise<void> {
     this.ensureInitialized();
     const validatedPath = this.pathValidator!.validatePath(path);
+    this.validateFinalPathSegment(validatedPath);
     const backendPath = this.toBackendPath(validatedPath);
 
     // Ensure parent directory exists
@@ -269,6 +270,7 @@ export class WorkspaceService {
   async writeFileBinary(path: string, content: ArrayBuffer): Promise<void> {
     this.ensureInitialized();
     const validatedPath = this.pathValidator!.validatePath(path);
+    this.validateFinalPathSegment(validatedPath);
     const backendPath = this.toBackendPath(validatedPath);
 
     // Ensure parent directory exists
@@ -330,6 +332,9 @@ export class WorkspaceService {
     this.ensureInitialized();
     const validatedFrom = this.pathValidator!.validatePath(from);
     const validatedTo = this.pathValidator!.validatePath(to);
+    // QA-36: move creates the destination (and its parents) — reject a reserved
+    // Windows device name / trailing-dot segment at any level of the target.
+    this.validateFinalPathSegment(validatedTo);
 
     // Check symlink safety on source
     await this.checkSymlinkSafety(validatedFrom);
@@ -365,6 +370,9 @@ export class WorkspaceService {
     this.ensureInitialized();
     const validatedFrom = this.pathValidator!.validatePath(from);
     const validatedTo = this.pathValidator!.validatePath(to);
+    // QA-36: copy creates the destination (and its parents) — reject a reserved
+    // Windows device name / trailing-dot segment at any level of the target.
+    this.validateFinalPathSegment(validatedTo);
 
     // Check symlink safety on source
     await this.checkSymlinkSafety(validatedFrom);
@@ -421,6 +429,7 @@ export class WorkspaceService {
   async mkdir(path: string): Promise<void> {
     this.ensureInitialized();
     const validatedPath = this.pathValidator!.validatePath(path);
+    this.validateFinalPathSegment(validatedPath);
     const backendPath = this.toBackendPath(validatedPath);
 
     try {
@@ -582,6 +591,26 @@ export class WorkspaceService {
       throw new Error('Path validator not initialized');
     }
     return this.pathValidator.getRelativePath(validatedAbsolutePath);
+  }
+
+  /**
+   * Validate EVERY new path segment, not only the full path or the final name.
+   * validatePath() intentionally allows a reserved word inside a path string,
+   * but create operations (writeFile/writeFileBinary/mkdir) also create any
+   * missing PARENT folders — so `Clients/CON/brief.docx` would slip a reserved
+   * `CON` directory onto disk even though the leaf `brief.docx` is fine. Reject a
+   * reserved device name or a trailing dot/space at ANY level, mirroring the
+   * Rust `resolve_creatable` guard. Existing legitimate parents re-validate
+   * harmlessly (real folder names always pass validateName).
+   */
+  private validateFinalPathSegment(validatedAbsolutePath: string): void {
+    if (!this.pathValidator) {
+      throw new Error('Path validator not initialized');
+    }
+    const relative = this.pathValidator.getRelativePath(validatedAbsolutePath);
+    for (const segment of relative.split(/[/\\]/)) {
+      if (segment) this.pathValidator.validateName(segment);
+    }
   }
 
   /**
