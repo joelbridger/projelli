@@ -7,6 +7,7 @@ Last updated: 2026-07-04 ~05:45 (coordinator-6 — FEATURE-COMPLETE: final score
 ## Active lanes
 | Worker session | What | State |
 |---|---|---|
+| cc-lantern-qafix2 | QA fix batch 2 (lp/qa-fix-batch2): QA-7 AI-hang UX + QA-8/9 onboarding overlaps | building |
 | cc-lantern-qafix1 | QA fix batch 1 (lp/qa-fix-batch1; Opus): QA-5 new-client folders + QA-6 Ask input collapse (first-run P1s) | building |
 | cc-lantern-w3b | Wave-3 Phase 3b: local transcription pipeline (lp/wave3-transcription; Tasks 7-9) | building |
 | cc-lantern-w3c | Wave-3 Phases 3c+3d: meetings surface — record pill, Meetings tab, transcript viewer, notes, consent (lp/wave3-meetings-ui; Tasks 10-13) | building |
