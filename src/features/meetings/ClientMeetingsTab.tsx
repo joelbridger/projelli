@@ -19,6 +19,18 @@ import { consentModeFor } from './recordingConsentLaw';
 import { makeConsentLedger, type ConsentEntry } from './consentLedger';
 import { deriveNoticeState, meetingDirKey, type NoticeEntry, type NoticeState } from './noticeLedger';
 import { useNoticeSettings } from './noticeSettings';
+import { calendarListEvents } from '@/platform/utils/calendar-commands';
+import { useProfileStore } from '@/platform/profile/profileStore';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
+import { pickNoticeCardOffer, type NoticeCardOffer } from './noticeCard/pickOffer';
+import { buildDisplayName } from './noticeCard/meetingPlatform';
+import { canAutoJoin } from './noticeCard/noticeCardTypes';
+import {
+  resolveNoticeCardEnabled,
+  resolveNoticeCardNameTemplate,
+  resolveNoticeEvidenceRule,
+} from './noticeCard/noticeCardSettings';
+import { deriveNoticeCardEvidence, type NoticeCardEvidence } from './noticeCard/noticeCardEvidence';
 
 export interface MeetingSummary {
   dir: string;
@@ -161,8 +173,17 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
   // Recording Notice Kit — per-meeting notice state (keyed by meeting dir) so
   // each row can flag a missing/quarantined notice, plus the firm policy.
   const [noticeStates, setNoticeStates] = useState<Record<string, NoticeState>>({});
+  const [noticeCardEvidenceStates, setNoticeCardEvidence] = useState<Record<string, NoticeCardEvidence>>({});
   const { policy: noticePolicy, customScript: custom } = useNoticeSettings();
   const noticeScript = custom || t('meetings.notice.default-script');
+  // Notice Card — the offer for an online meeting happening now (from calendar
+  // sync), the toggle state (pre-checked per firm default), and the Zoom
+  // native-record self-attest. Absent for phone/in-person.
+  const soloName = useProfileStore((s) => s.soloName);
+  const getSetting = useSettingsStore((s) => s.getSetting);
+  const [noticeCardOffer, setNoticeCardOffer] = useState<NoticeCardOffer | null>(null);
+  const [noticeCardChecked, setNoticeCardChecked] = useState(false);
+  const [noticeCardZoomAttest, setNoticeCardZoomAttest] = useState(false);
   // No per-client state on file yet (see Matter type) — consentModeFor(null)
   // is the conservative two-party default, and stateKnown={false} below keeps
   // the dialog's wording conditional rather than asserting the law.
@@ -185,10 +206,16 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
       const byDir: Record<string, NoticeEntry[]> = {};
       for (const n of notices) (byDir[meetingDirKey(n.meetingDir)] ??= []).push(n);
       const states: Record<string, NoticeState> = {};
-      for (const [key, entries] of Object.entries(byDir)) states[key] = deriveNoticeState(entries);
+      const cardEvidence: Record<string, NoticeCardEvidence> = {};
+      for (const [key, entries] of Object.entries(byDir)) {
+        states[key] = deriveNoticeState(entries);
+        cardEvidence[key] = deriveNoticeCardEvidence(entries);
+      }
       setNoticeStates(states);
+      setNoticeCardEvidence(cardEvidence);
     } catch {
       setNoticeStates({});
+      setNoticeCardEvidence({});
     }
     setLoading(false);
   }, [matterFolder, workspaceService]);
@@ -211,19 +238,60 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
       }
       setMacPermissionError(false);
       setConsentError(null);
+      // Notice Card — is an online meeting happening now? Best-effort; a
+      // calendar miss simply means no card offer (never blocks recording).
+      let offer: NoticeCardOffer | null = null;
+      try {
+        const now = Date.now();
+        const grace = 5 * 60 * 1000;
+        const events = await calendarListEvents(
+          new Date(now - grace).toISOString(),
+          new Date(now + grace).toISOString(),
+        );
+        offer = pickNoticeCardOffer(events, now);
+      } catch {
+        offer = null;
+      }
+      setNoticeCardOffer(offer);
+      // Pre-check per firm default, but only for a platform we can actually
+      // drive (Teams/Zoom). Meet shows an honest fallback, never a checked box.
+      setNoticeCardChecked(!!offer && canAutoJoin(offer.platform) && resolveNoticeCardEnabled(getSetting));
+      setNoticeCardZoomAttest(false);
       setShowConsent(true);
     })();
-  }, [matterId, matterFolder, workspaceService]);
+  }, [matterId, matterFolder, workspaceService, getSetting]);
 
   const handleConsentConfirm = useCallback((opts: { note?: string }) => {
     void (async () => {
       try {
+        // Notice Card — only when the advisor kept the offer checked AND we can
+        // drive the platform. Build the guest name from the firm template.
+        const buildCard = () => {
+          if (!noticeCardOffer || !noticeCardChecked || !canAutoJoin(noticeCardOffer.platform)) return undefined;
+          const advisorName = (soloName.trim().split(/\s+/)[0] || '').trim();
+          return {
+            joinUrl: noticeCardOffer.joinUrl,
+            platform: noticeCardOffer.platform,
+            displayName: buildDisplayName(
+              resolveNoticeCardNameTemplate(getSetting),
+              advisorName,
+              noticeCardOffer.platform,
+            ),
+            meetingTitle: noticeCardOffer.meetingTitle,
+            advisorName,
+            ...(noticeCardOffer.platform === 'zoom' && noticeCardZoomAttest
+              ? { zoomNativeRecordAttested: true }
+              : {}),
+          };
+        };
+        const card = buildCard();
         await startRecording(matterId, {
           consentMode,
           ...(opts.note ? { consentNote: opts.note } : {}),
           // Capture the script/locale shown for this recording (codex-review R6).
           noticeCustomScript: custom,
           noticeLanguage: i18n.language,
+          ...(card ? { noticeCard: card } : {}),
         });
         setShowConsent(false);
       } catch (err) {
@@ -237,7 +305,18 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
         }
       }
     })();
-  }, [matterId, consentMode, startRecording, custom, i18n.language]);
+  }, [
+    matterId,
+    consentMode,
+    startRecording,
+    custom,
+    i18n.language,
+    noticeCardOffer,
+    noticeCardChecked,
+    noticeCardZoomAttest,
+    soloName,
+    getSetting,
+  ]);
 
   // Task 12b — per-client (never practice-wide) review flags, shown as a
   // badge on each row (the meeting page's "Mark reviewed" clears it).
@@ -321,11 +400,19 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-xs)' }}>
           {meetings.map((m) => {
             const noticeState = noticeStates[meetingDirKey(m.dir)];
+            const cardEvidence = noticeCardEvidenceStates[meetingDirKey(m.dir)];
             const reviewItems = needsReview(
               m,
               matterQueue,
               undefined,
-              noticeState ? { state: noticeState, policy: noticePolicy } : undefined,
+              noticeState
+                ? {
+                    state: noticeState,
+                    policy: noticePolicy,
+                    ...(cardEvidence ? { cardEvidence } : {}),
+                    evidenceRule: resolveNoticeEvidenceRule(getSetting),
+                  }
+                : undefined,
             );
             const quarantined = reviewItems.some((i) => i.kind === 'notice-quarantined');
             const duration = formatMeetingDuration(m.meta?.durationMs, t);
@@ -402,6 +489,18 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
         macPermissionError={macPermissionError}
         errorMessage={consentError}
         noticeScript={noticeScript}
+        {...(noticeCardOffer
+          ? {
+              noticeCard: {
+                offer: { platform: noticeCardOffer.platform, meetingTitle: noticeCardOffer.meetingTitle },
+                checked: noticeCardChecked,
+                onToggle: setNoticeCardChecked,
+                ...(noticeCardOffer.platform === 'zoom'
+                  ? { zoomNativeRecord: { checked: noticeCardZoomAttest, onToggle: setNoticeCardZoomAttest } }
+                  : {}),
+              },
+            }
+          : {})}
         onConfirm={handleConsentConfirm}
       />
     </div>

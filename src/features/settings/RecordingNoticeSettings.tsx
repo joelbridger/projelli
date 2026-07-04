@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { Check } from 'lucide-react';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { useNoticeSettings, type NoticePolicy } from '@/features/meetings/noticeSettings';
+import { saveRecordingBackgroundImage } from '@/features/meetings/noticeCard/recordingBackground';
 
 const CARD_VALUES: NoticePolicy[] = ['standard', 'strict'];
 
@@ -115,6 +116,36 @@ export function RecordingNoticeSettings() {
         <p style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)', margin: 0 }}>
           {t('meetings.notice.settings-script-default-label')} “{t('meetings.notice.default-script')}”
         </p>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <span style={{ fontSize: 'var(--kp-font-sm)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)' }}>
+          {t('meetings.notice-card.save-bg-heading')}
+        </span>
+        <p style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)', margin: 0 }}>
+          {t('meetings.notice-card.save-bg-help')}
+        </p>
+        <button
+          type="button"
+          data-testid="save-recording-background"
+          onClick={() => {
+            void saveRecordingBackgroundImage(t('meetings.notice-card.bg-label'));
+          }}
+          style={{
+            alignSelf: 'flex-start',
+            fontSize: 'var(--kp-font-xs)',
+            fontWeight: 'var(--kp-weight-medium)',
+            color: 'var(--kp-navy)',
+            background: 'transparent',
+            border: '1px solid var(--kp-divider)',
+            borderRadius: 999,
+            padding: '6px 12px',
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+          }}
+        >
+          {t('meetings.notice-card.save-bg-button')}
+        </button>
       </div>
     </div>
   );

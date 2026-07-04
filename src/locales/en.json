@@ -1598,6 +1598,32 @@
       "settings-script-placeholder": "Leave blank to use the built-in wording.",
       "settings-script-default-label": "Built-in wording:",
       "pill-copy-chat": "Copy chat notice"
+    },
+    "notice-card": {
+      "offer-label": "Add the Notice Card to this meeting?",
+      "offer-explain": "A participant on your computer shows everyone the meeting is being recorded. It records nothing and leaves when recording ends.",
+      "platform-teams": "Microsoft Teams",
+      "platform-zoom": "Zoom",
+      "platform-meet": "Google Meet",
+      "platform-other": "online meeting",
+      "meet-fallback": "Google Meet needs a signed-in account, so the notice card can't join. Say the recording notice aloud instead.",
+      "manual-label": "Recording an online meeting? Paste the link to add the Notice Card.",
+      "manual-placeholder": "Paste the Teams or Zoom link",
+      "zoom-native-label": "Also press Zoom's Record button so participants get Zoom's own recording notice.",
+      "pill-joining": "Notice card joining",
+      "pill-lobby": "Notice card waiting to be let in",
+      "pill-present": "Notice card in meeting",
+      "pill-failed": "Notice card couldn't join. Say the notice aloud.",
+      "card-title": "This meeting is being recorded by {{name}}",
+      "card-line-1": "The recording stays on this computer",
+      "card-line-2": "Nothing is uploaded",
+      "card-line-3": "Questions welcome",
+      "card-footer": "This card leaves when recording ends",
+      "card-recording-label": "Recording",
+      "save-bg-heading": "Recording background image",
+      "save-bg-help": "Save a virtual background image that says the meeting is being recorded. Upload it as your Teams or Zoom background for meetings where the notice card can't join.",
+      "save-bg-button": "Save recording background image…",
+      "bg-label": "RECORDING in progress"
     }
   },
   "spine": {

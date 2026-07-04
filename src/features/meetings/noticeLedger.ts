@@ -12,6 +12,7 @@
  * This is evidence/guidance, never a legal judgment.
  */
 import type { NoticeLocale } from './noticeMatcher';
+import type { NoticeCardPlatform, NoticeCardFailureReason } from './noticeCard/noticeCardTypes';
 
 /**
  * A stable key for a meeting folder, robust to absolute-vs-relative path forms.
@@ -57,7 +58,39 @@ export type NoticeEntry =
       resolution: NoticeResolution;
       /** Who resolved it (advisor name/id if known). */
       by?: string;
-    };
+    }
+  // ── Notice Card events (the local notice participant) ──────────────────────
+  // The card joined the meeting and is showing the recording notice to every
+  // participant. Records nothing, sends nothing — this is a notice signal, not
+  // a capture.
+  | {
+      kind: 'notice-card-joined';
+      meetingDir: string;
+      at: string;
+      platform: NoticeCardPlatform;
+      meetingTitle?: string | undefined;
+    }
+  // The card left the meeting (recording stopped, or a clean teardown). Its
+  // departure is itself the honest "recording has ended" signal.
+  | { kind: 'notice-card-left'; meetingDir: string; at: string }
+  // The card could not join (or was dropped and couldn't rejoin). Failure is
+  // informative, never disruptive: the verified-verbal-notice path carries the
+  // compliance load, and the reason is filed honestly.
+  | { kind: 'notice-card-failed'; meetingDir: string; at: string; reason: NoticeCardFailureReason }
+  // Derived at clean stop: the card was present in the meeting for the entire
+  // recording (joined at/before start, stayed through stop, any gap covered by
+  // the one permitted rejoin). This is the fact the policy engine consumes as
+  // full-duration card-presence evidence.
+  | {
+      kind: 'notice-card-present-for-entire-recording';
+      meetingDir: string;
+      at: string;
+      platform: NoticeCardPlatform;
+    }
+  // The advisor attested they will ALSO use Zoom's native Record (so every
+  // participant gets Zoom's own official recording notice). A self-attestation,
+  // filed as part of the notice trail.
+  | { kind: 'zoom-native-record-attested'; meetingDir: string; at: string };
 
 /** Compact, UI-facing notice status derived from a meeting's ledger entries.
  *  The ledger is the single source of truth; this is a read-only projection. */

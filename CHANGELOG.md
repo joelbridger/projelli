@@ -31,6 +31,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **The Notice Card — a local notice participant (v1 + v2).** When the advisor
+  records an online meeting, a second participant that runs entirely on the
+  advisor's own computer joins the call as "⏺ Recording Notice — <advisor>",
+  shows every participant a card saying the meeting is being recorded and that
+  the recording never leaves the advisor's machine, and leaves the moment
+  recording stops. It records nothing and sends nothing. Design:
+  `docs/strategy/2026-07-04-notice-participant-design.md`.
+  - **Calendar join-URL + platform detection.** Calendar sync now carries each
+    event's online-meeting join URL (Graph `onlineMeeting.joinUrl`; Google
+    `conferenceData` video entry point / `hangoutLink`), and the platform
+    (Teams/Zoom/Meet/other) is derived from it. Files: `commands/calendar/
+    model.rs` (`join_url`), `graph_source.rs`, `google_source.rs`, `commands.rs`,
+    `calendar-commands.ts` (`joinUrl`), `noticeCard/meetingPlatform.ts`.
+  - **Consent-dialog offer.** When an online meeting is happening now (from
+    calendar sync), the consent dialog offers the card, pre-checked per firm
+    default, tagged with the meeting title + platform. Manual link-paste and an
+    honest Google Meet "say it aloud" fallback are included. Never blocks
+    recording. Files: `noticeCard/NoticeCardConsentSection.tsx`, `ConsentDialog.tsx`,
+    `ClientMeetingsTab.tsx`, `noticeCard/pickOffer.ts`.
+  - **Guest-join adapters (Teams + Zoom).** Per-platform automation (fill name →
+    mute → join → detect admitted/lobby/denied) tested against recorded page
+    fixtures. Runs inside an isolated companion Tauri window (no IPC bridge to
+    app internals; status flows out one-way via `document.title`). Files:
+    `noticeCard/adapters/*`, `noticeCard/injectionScript.ts`,
+    `commands/notice_card/mod.rs`.
+  - **Lifecycle supervisor.** Joins on record-start, leaves on record-stop
+    (hard watchdog guarantee — a wedged window can never linger), one auto-rejoin
+    on disconnect; every transition ledgered (`notice-card-joined/left/failed` +
+    derived `notice-card-present-for-entire-recording`). Fully unit-tested with a
+    fake clock. Files: `noticeCard/supervisor.ts`, `noticeCard/tauriDriver.ts`,
+    `noticeCard/noticeCardLifecycle.ts`, `meetingStore.ts`.
+  - **Evidence-rule policy hook.** The Standard/Strict dial now accepts a
+    configurable rule: a verified spoken notice OR full-duration card presence
+    satisfies Strict (default either; firms can require both). Files:
+    `noticeCard/noticeCardEvidence.ts`, `meetingStore.ts` (`needsReview`),
+    `noticeCard/noticeCardSettings.ts`, `settings/schema.ts`.
+  - **Visual card (v2 canvas camera).** The companion webview intercepts
+    getUserMedia and supplies a locally-rendered canvas (calm light card, firm
+    branding slot, three localized lines, live "Recording · M:SS" timer, "leaves
+    when recording ends" line) — no OS-level virtual-camera driver needed. File:
+    `noticeCard/canvasCard.ts`.
+  - **Record-pill status + settings.** The pill shows "Notice card in meeting ✓"
+    / "couldn't join — say the notice aloud". New notice settings: offer default,
+    display-name template, evidence rule. Files: `RecordPill.tsx`,
+    `noticeCard/noticeCardPill.ts`, `settings/RecordingNoticeSettings.tsx`.
+  - **Quick wins.** An official "⏺ RECORDING in progress" virtual-background
+    image (Save action in notice settings) and a Zoom guided native-record
+    checklist with a ledger self-attest. Files: `noticeCard/recordingBackground.ts`,
+    `RecordingNoticeSettings.tsx`, `NoticeCardConsentSection.tsx`.
+  - i18n: 24 new `meetings.notice-card.*` keys (en/de/es).
+
 ### Changed
 - **Meetings tab UX polish (2026-07-04 senior-UX review — all blockers + should-fixes).**
   Full findings doc with before/after screenshots:

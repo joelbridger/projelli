@@ -2169,6 +2169,32 @@
       "settings-script-placeholder": "Leer lassen, um die integrierte Formulierung zu verwenden.",
       "settings-script-default-label": "Integrierte Formulierung:",
       "pill-copy-chat": "Chat-Hinweis kopieren"
+    },
+    "notice-card": {
+      "offer-label": "Die Hinweiskarte zu diesem Meeting hinzufügen?",
+      "offer-explain": "Ein Teilnehmer auf Ihrem Computer zeigt allen, dass das Meeting aufgezeichnet wird. Er zeichnet nichts auf und verlässt das Meeting, sobald die Aufzeichnung endet.",
+      "platform-teams": "Microsoft Teams",
+      "platform-zoom": "Zoom",
+      "platform-meet": "Google Meet",
+      "platform-other": "Online-Meeting",
+      "meet-fallback": "Google Meet erfordert ein angemeldetes Konto, daher kann die Hinweiskarte nicht beitreten. Sagen Sie den Aufzeichnungshinweis stattdessen laut an.",
+      "manual-label": "Nehmen Sie ein Online-Meeting auf? Fügen Sie den Link ein, um die Hinweiskarte hinzuzufügen.",
+      "manual-placeholder": "Teams- oder Zoom-Link einfügen",
+      "zoom-native-label": "Drücken Sie außerdem die Aufnahmetaste von Zoom, damit die Teilnehmer den offiziellen Aufzeichnungshinweis von Zoom erhalten.",
+      "pill-joining": "Hinweiskarte tritt bei",
+      "pill-lobby": "Hinweiskarte wartet auf Einlass",
+      "pill-present": "Hinweiskarte im Meeting",
+      "pill-failed": "Hinweiskarte konnte nicht beitreten. Sagen Sie den Hinweis laut an.",
+      "card-title": "Dieses Meeting wird von {{name}} aufgezeichnet",
+      "card-line-1": "Die Aufzeichnung bleibt auf diesem Computer",
+      "card-line-2": "Nichts wird hochgeladen",
+      "card-line-3": "Fragen sind willkommen",
+      "card-footer": "Diese Karte verschwindet, wenn die Aufzeichnung endet",
+      "card-recording-label": "Aufzeichnung",
+      "save-bg-heading": "Hintergrundbild für Aufzeichnung",
+      "save-bg-help": "Speichern Sie ein virtuelles Hintergrundbild, das anzeigt, dass das Meeting aufgezeichnet wird. Laden Sie es als Teams- oder Zoom-Hintergrund für Meetings hoch, denen die Hinweiskarte nicht beitreten kann.",
+      "save-bg-button": "Hintergrundbild für Aufzeichnung speichern…",
+      "bg-label": "AUFZEICHNUNG läuft"
     }
   },
   "spine": {

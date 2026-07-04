@@ -62,7 +62,7 @@ describe('en.json structure snapshot', () => {
         "marketplace": 14,
         "matter": 206,
         "media": 81,
-        "meetings": 106,
+        "meetings": 130,
         "memory": 6,
         "model-download": 9,
         "onboarding": 65,
@@ -178,7 +178,13 @@ describe('en.json structure snapshot', () => {
     // +35 = meetings.notice.* (Recording Notice Kit: the verified-verbal-notice
     //       consent script step, the meeting-page notice trail + resolutions,
     //       invite/chat copy blocks, and the firm Standard/Strict policy dial).
-    expect(flat.length).toBe(1254);
+    // +24 = meetings.notice-card.* (the Notice Card: the local notice
+    //       participant that joins the meeting — consent-dialog offer/toggle +
+    //       platform labels + Meet/manual fallbacks + Zoom native-record
+    //       self-attest, the record-pill status line, the visual card copy
+    //       (title/lines/footer/timer label), and the "save recording
+    //       background image" settings action).
+    expect(flat.length).toBe(1278);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

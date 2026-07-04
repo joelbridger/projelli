@@ -185,7 +185,32 @@ fn map_google_event(item: &serde_json::Value) -> anyhow::Result<Option<CalendarE
             .to_string(),
         is_cancelled: item.get("status").and_then(|x| x.as_str()) == Some("cancelled"),
         self_declined,
+        join_url: extract_google_join_url(item),
     }))
+}
+
+/// The video join URL from a Google Calendar event, if any. Prefers the
+/// structured `conferenceData.entryPoints[]` entry whose `entryPointType` is
+/// `"video"` (works for Meet and third-party conferencing add-ons), and falls
+/// back to the legacy top-level `hangoutLink`. Blank strings are treated as
+/// absent. VERIFY-LIVE: confirm shapes against one real events.list response.
+fn extract_google_join_url(item: &serde_json::Value) -> Option<String> {
+    let clean = |s: &str| {
+        let t = s.trim();
+        if t.is_empty() { None } else { Some(t.to_string()) }
+    };
+    if let Some(points) = item.pointer("/conferenceData/entryPoints").and_then(|x| x.as_array()) {
+        if let Some(uri) = points
+            .iter()
+            .find(|p| p.get("entryPointType").and_then(|t| t.as_str()) == Some("video"))
+            .and_then(|p| p.get("uri"))
+            .and_then(|u| u.as_str())
+            .and_then(clean)
+        {
+            return Some(uri);
+        }
+    }
+    item.get("hangoutLink").and_then(|x| x.as_str()).and_then(clean)
 }
 
 #[cfg(test)]
@@ -194,6 +219,27 @@ mod tests {
     use crate::commands::calendar::graph_source::CalendarSource;
     use wiremock::matchers::{method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    #[test]
+    fn extracts_video_entry_point_then_hangout_link_then_none() {
+        // Prefers the "video" conferenceData entry point over other types.
+        let structured = serde_json::json!({
+            "conferenceData": { "entryPoints": [
+                { "entryPointType": "phone", "uri": "tel:+1-555-0100" },
+                { "entryPointType": "video", "uri": "https://meet.google.com/abc-defg-hij" }
+            ]},
+            "hangoutLink": "https://meet.google.com/legacy-should-be-ignored"
+        });
+        assert_eq!(
+            extract_google_join_url(&structured).as_deref(),
+            Some("https://meet.google.com/abc-defg-hij")
+        );
+        // Falls back to hangoutLink when there is no video entry point.
+        let legacy = serde_json::json!({ "hangoutLink": "https://meet.google.com/xyz-1234" });
+        assert_eq!(extract_google_join_url(&legacy).as_deref(), Some("https://meet.google.com/xyz-1234"));
+        // No conferencing => None.
+        assert_eq!(extract_google_join_url(&serde_json::json!({ "summary": "in person" })), None);
+    }
 
     /// VERIFY-LIVE: field names (`items[].id/summary/description`,
     /// `start.dateTime` / `start.date` (all-day), `attendees[].email/

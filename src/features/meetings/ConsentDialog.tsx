@@ -17,6 +17,7 @@ import { useTranslation } from 'react-i18next';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/ui/dialog';
 import { Button } from '@/ui/button';
 import type { ConsentEntry } from './consentLedger';
+import { NoticeCardConsentSection, type NoticeCardConsentSectionProps } from './noticeCard/NoticeCardConsentSection';
 
 /** Substring match against the Rust sidecar's stderr-derived error message
  *  for a macOS permission denial (exit code 3). Lane w3b's exact error
@@ -49,6 +50,10 @@ export interface ConsentDialogProps {
    *  (firm-customizable; the caller resolves custom-or-default). Shown as a
    *  first-class "say this" step so the notice actually gets spoken. */
   noticeScript?: string;
+  /** Notice Card (additive) — the offer/toggle for adding the local notice
+   *  participant to an online meeting. Absent when there is nothing to offer;
+   *  never blocks recording. */
+  noticeCard?: NoticeCardConsentSectionProps;
   onConfirm: (opts: { note?: string }) => void;
 }
 
@@ -57,7 +62,7 @@ function formatDate(iso: string): string {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString();
 }
 
-export function ConsentDialog({ open, onOpenChange, consentMode, stateKnown = true, standingConsent, macPermissionError, errorMessage, noticeScript, onConfirm }: ConsentDialogProps) {
+export function ConsentDialog({ open, onOpenChange, consentMode, stateKnown = true, standingConsent, macPermissionError, errorMessage, noticeScript, noticeCard, onConfirm }: ConsentDialogProps) {
   const { t } = useTranslation();
   const [checked, setChecked] = useState(standingConsent !== null);
 
@@ -132,6 +137,7 @@ export function ConsentDialog({ open, onOpenChange, consentMode, stateKnown = tr
             </span>
           </div>
         )}
+        {noticeCard && <NoticeCardConsentSection {...noticeCard} />}
         {consentMode === 'two-party' && (
           <p
             data-testid={stateKnown ? 'consent-two-party-note' : 'consent-two-party-note-unknown'}

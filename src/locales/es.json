@@ -2169,6 +2169,32 @@
       "settings-script-placeholder": "Déjelo en blanco para usar el texto integrado.",
       "settings-script-default-label": "Texto integrado:",
       "pill-copy-chat": "Copiar aviso para el chat"
+    },
+    "notice-card": {
+      "offer-label": "¿Añadir la Tarjeta de Aviso a esta reunión?",
+      "offer-explain": "Un participante en tu ordenador muestra a todos que la reunión se está grabando. No graba nada y se va cuando termina la grabación.",
+      "platform-teams": "Microsoft Teams",
+      "platform-zoom": "Zoom",
+      "platform-meet": "Google Meet",
+      "platform-other": "reunión en línea",
+      "meet-fallback": "Google Meet requiere una cuenta con sesión iniciada, por lo que la tarjeta de aviso no puede unirse. Di el aviso de grabación en voz alta en su lugar.",
+      "manual-label": "¿Estás grabando una reunión en línea? Pega el enlace para añadir la Tarjeta de Aviso.",
+      "manual-placeholder": "Pega el enlace de Teams o Zoom",
+      "zoom-native-label": "Pulsa también el botón de Grabar de Zoom para que los participantes reciban el aviso de grabación oficial de Zoom.",
+      "pill-joining": "La tarjeta de aviso se está uniendo",
+      "pill-lobby": "La tarjeta de aviso espera a que la admitan",
+      "pill-present": "Tarjeta de aviso en la reunión",
+      "pill-failed": "La tarjeta de aviso no pudo unirse. Di el aviso en voz alta.",
+      "card-title": "Esta reunión está siendo grabada por {{name}}",
+      "card-line-1": "La grabación permanece en este ordenador",
+      "card-line-2": "No se sube nada",
+      "card-line-3": "Las preguntas son bienvenidas",
+      "card-footer": "Esta tarjeta desaparece cuando termina la grabación",
+      "card-recording-label": "Grabando",
+      "save-bg-heading": "Imagen de fondo de grabación",
+      "save-bg-help": "Guarda una imagen de fondo virtual que indica que la reunión se está grabando. Súbela como tu fondo de Teams o Zoom para las reuniones a las que la tarjeta de aviso no pueda unirse.",
+      "save-bg-button": "Guardar imagen de fondo de grabación…",
+      "bg-label": "GRABACIÓN en curso"
     }
   },
   "spine": {
