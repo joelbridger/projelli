@@ -79,6 +79,9 @@ pub mod vault;
 // signals (AI/models, email, Wealthbox CRM, file indexing, Client Map) into one
 // queryable `get_setup_progress` snapshot + a `setup-progress-changed` event.
 pub mod setup_progress;
+// Lantern-Plus Wave 3a — local meeting capture (mic + system-audio loopback,
+// crash-durable chunked WAV, never a cloud path).
+pub mod capture;
 // Wave 4 Track A — within-channel speaker diarization: system-channel
 // extraction + sherpa-onnx turn assignment onto Wave 3 transcripts.
 pub mod diarize;

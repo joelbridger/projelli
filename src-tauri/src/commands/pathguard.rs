@@ -171,6 +171,48 @@ pub fn resolve_creatable(
     Ok(canon_existing.join(suffix))
 }
 
+/// Same no-follow, missing-tail-tolerant guarantee as [`resolve_creatable`],
+/// but for a caller that already has an ALREADY-ABSOLUTE, fully-formed path
+/// instead of a `(base, relative)` pair — e.g. Wave 3a's meeting-capture
+/// guards, which accept a `matter_folder`/`meeting_dir` that may be absolute
+/// (`Matter.folderPaths` entries are absolute, workspace-prefixed strings)
+/// and may not exist in full yet (a `meeting_dir` being created for the
+/// first time). A plain `.canonicalize()` on the deepest existing ancestor —
+/// what those guards used to do before this module existed — silently
+/// follows a symlinked matter folder alias (`Clients/Alias ->
+/// Clients/RealClient`, both inside the workspace), which passes workspace
+/// containment while writing into (and, on a failed start,
+/// `remove_dir_all`-ing) a DIFFERENT client's real folder.
+pub fn canonicalize_symlink_safe_absolute(path: &Path) -> Result<PathBuf, String> {
+    let mut existing = PathBuf::new();
+    let mut tail = PathBuf::new();
+    let mut still_existing = true;
+    for component in path.components() {
+        if matches!(component, Component::ParentDir) {
+            return Err(format!("path must not contain '..': {}", path.display()));
+        }
+        if still_existing {
+            let candidate = existing.join(component.as_os_str());
+            match candidate.symlink_metadata() {
+                Ok(meta) if meta.file_type().is_symlink() => {
+                    return Err(format!("path component is a symlink: {}", candidate.display()));
+                }
+                Ok(_) => existing = candidate,
+                Err(_) => {
+                    still_existing = false;
+                    tail.push(component.as_os_str());
+                }
+            }
+        } else {
+            tail.push(component.as_os_str());
+        }
+    }
+    let canon = existing
+        .canonicalize()
+        .map_err(|e| format!("cannot canonicalize {}: {e}", existing.display()))?;
+    Ok(canon.join(&tail))
+}
+
 /// Last-line-of-defense containment check for a path that was already
 /// assembled by directory enumeration (not a caller-supplied relative
 /// string) under `canon_ws` — e.g. the retention sweep re-verifying just
