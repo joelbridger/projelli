@@ -1,0 +1,59 @@
+{
+  "overall": "PASS",
+  "counts": {
+    "PASS": 2,
+    "FAIL": 0,
+    "SETUP-BLOCKED": 0,
+    "SKIPPED": 0,
+    "TODO": 0
+  },
+  "generatedAt": "2026-07-04T03:04:53.429Z",
+  "target": "sharded",
+  "live": false,
+  "results": [
+    {
+      "id": "index-health",
+      "section": "Phase 1 — setup",
+      "status": "PASS",
+      "detail": "Client Map shows cited facts with no index-health error text present.",
+      "screenshots": [
+        "01-index-health-client-map.jpeg"
+      ],
+      "forensics": null,
+      "durationMs": 46945
+    },
+    {
+      "id": "cross-cutting-light-theme",
+      "section": "Cross-cutting",
+      "status": "PASS",
+      "detail": "Document root has no dark-theme class/attribute.",
+      "screenshots": [],
+      "forensics": null,
+      "durationMs": 2585
+    }
+  ],
+  "shards": [
+    {
+      "target": "azure-cloud-bench-1",
+      "overall": "PASS",
+      "counts": {
+        "PASS": 1,
+        "FAIL": 0,
+        "SETUP-BLOCKED": 0,
+        "SKIPPED": 0,
+        "TODO": 0
+      }
+    },
+    {
+      "target": "azure-cloud-bench-2",
+      "overall": "PASS",
+      "counts": {
+        "PASS": 1,
+        "FAIL": 0,
+        "SETUP-BLOCKED": 0,
+        "SKIPPED": 0,
+        "TODO": 0
+      }
+    }
+  ]
+}

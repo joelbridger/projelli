@@ -1,0 +1,44 @@
+{
+  "overall": "SETUP-BLOCKED",
+  "counts": {
+    "PASS": 2,
+    "FAIL": 0,
+    "SETUP-BLOCKED": 1,
+    "SKIPPED": 0,
+    "TODO": 0
+  },
+  "generatedAt": "2026-07-04T02:46:27.435Z",
+  "target": "azure-cloud-bench-1",
+  "live": false,
+  "results": [
+    {
+      "id": "index-health",
+      "section": "Phase 1 — setup",
+      "status": "PASS",
+      "detail": "Client Map shows cited facts with no index-health error text present.",
+      "screenshots": [
+        "01-index-health-client-map.jpeg"
+      ],
+      "forensics": null,
+      "durationMs": 46005
+    },
+    {
+      "id": "wave4-whole-book-view",
+      "section": "Wave 4 — Depth (Track B: whole-book Client Map)",
+      "status": "SETUP-BLOCKED",
+      "detail": "No [data-testid=\"book-view\"] container found — not on the Client Map surface, or the \"Whole book\" toggle click did not switch views.",
+      "screenshots": [],
+      "forensics": null,
+      "durationMs": 12806
+    },
+    {
+      "id": "cross-cutting-light-theme",
+      "section": "Cross-cutting",
+      "status": "PASS",
+      "detail": "Document root has no dark-theme class/attribute.",
+      "screenshots": [],
+      "forensics": null,
+      "durationMs": 2520
+    }
+  ]
+}

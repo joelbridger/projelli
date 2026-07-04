@@ -468,3 +468,132 @@ here (`lp/azure-cdp-fix`) and locally on the VM's own repo.
 
 **Session VM uptime**: started `az vm start` at 01:09 UTC, deallocated at 01:42 UTC — **~33 minutes**,
 well inside the 90-minute guardrail.
+
+---
+
+## 2026-07-04 update — merged-tip re-verify, bench-ready golden snapshot, and clone lantern-cloud-bench-2
+
+**Bottom line for Jameson:** we brought the cloud test computer up to date with the very latest code
+(everything that's been merged in since last time), proved it still works with no problems, then made
+a save-point ("snapshot") of it in the fully-ready state so a brand new copy can be spun up in minutes
+instead of rebuilding everything from scratch. We then actually made one such copy
+(`lantern-cloud-bench-2`) and confirmed it works — this is our second real cloud test computer now,
+ready to use alongside the first one and the Legion laptop. A second copy (`lantern-cloud-bench-3`) hit
+an account limit (a "how many computers can run at once" cap) and was not completed tonight — a request
+to raise that limit was filed and is pending; a follow-up session can finish the third copy once it's
+approved (no cost while it waits, nothing is running).
+
+### Phase A — merged-tip re-verify (P0 check)
+
+1. Started `lantern-cloud-bench-1`, re-joined Tailscale (logs itself out on every restart — known,
+   documented above), pulled the repo to `origin/lantern-plus` tip (`f6614b43`, well past the required
+   `fc82c2a2`). The VM's repo had 1 local-only commit (the CDP fix, committed but never pushed last
+   session) — confirmed via diff that it's the exact same fix already merged upstream via
+   `lp/azure-cdp-fix`, so it was safe to `git reset --hard origin/lantern-plus` rather than rebase.
+2. **The rebuild took far longer than the "cached, ~3 min" assumption**: the gap between the VM's old
+   pinned commit and the new tip was large (37 Rust files changed, ~10,650 lines added — a new
+   diarization/speaker-ID feature pulling in heavy new crates), so this was a genuine fresh compile of
+   several large dependencies, not a relink. Total real build time was a real cold-ish rebuild (verified
+   throughout via CPU time / memory / disk-I/O trending — never stalled, just legitimately big). Lesson
+   for next time: check `git log <vm-pinned-commit>..origin/lantern-plus -- src-tauri/` before assuming
+   a rebuild will be cheap; a big native-dependency diff means budget for a much longer rebuild.
+3. **CDP port 9223 confirmed working** — `lantern.exe` launched, real WebView2 CDP banner returned from
+   `http://127.0.0.1:9223/json/version`. **No regression**: the merged tip's CDP fix (the one committed
+   via `lp/azure-cdp-fix` last session) still works correctly after landing through the real PR/merge
+   path, not just in the original one-off session that built it.
+4. Ran `bench-smoke.mjs --only index-health,wave4-whole-book-view,cross-cutting-light-theme`: 2/3
+   PASS (`index-health`, `cross-cutting-light-theme`); `wave4-whole-book-view` came back
+   `SETUP-BLOCKED` (harness couldn't find the "Whole book" toggle/container on this workspace — a test
+   navigation/setup issue, not an app crash or CDP failure). **Verdict: no P0.** The one blocked check
+   is worth a look in a future harness-focused session but does not indicate the merged tip broke
+   anything.
+
+### Phase B — bench-ready golden snapshot (program #2)
+
+5. Cleaned scratch files, deallocated the VM, and snapshotted its OS disk as
+   `lantern-cloud-bench-ready-1` (256GB, succeeded). This is now the **"skip setup" golden image**:
+   anyone can clone a VM from this snapshot and get a machine that already has the full toolchain, the
+   repo at a known-good commit, and — critically — the CDP fix and PowerShell-default-shell fix already
+   applied, so a fresh clone should be usable within a couple minutes of boot (no rebuild needed at all;
+   confirmed below).
+
+### Phase C — clones (program #1)
+
+6. Created `lantern-cloud-bench-2` from the golden snapshot (new OS disk `lantern-cloud-bench-2-osdisk`,
+   same size `Standard_D4s_v4`, same guardrails — no public IP, default `DenyAllInBound` NSG). Booted it
+   and **confirmed the entire point of the golden snapshot**: CDP port 9223 came up immediately with zero
+   rebuild, because the `LanternDevBench` scheduled task (interactive auto-logon + `AtLogOn` trigger) just
+   self-launched the already-compiled app from the cloned disk.
+
+7. **New landmine found and fixed — cloning a VM disk clones its Tailscale identity too.** When
+   `lantern-cloud-bench-2` first joined Tailscale (`tailscale up --hostname=lantern-cloud-bench-2`), it
+   showed up on the tailnet at the **exact same IP as `lantern-cloud-bench-1`** (`100.75.247.98`) — because
+   the OS disk clone carried over Tailscale's on-disk machine identity (its state lives under
+   `C:\ProgramData\Tailscale\profile-data\`, not the `tailscaled.state` file the older docs/scripts
+   assume — that file doesn't exist on this Tailscale version). Both VMs were silently fighting over one
+   shared tailnet identity/IP, each kicking the other offline whenever it reconnected. **Fix**: on the
+   clone, stop the `Tailscale` service, delete `C:\ProgramData\Tailscale\profile-data\` (and
+   `server-state.conf`), restart the service, then `tailscale up --authkey=... --hostname=...` fresh —
+   this mints a genuinely new machine key and a new IP. **This is now a required step for every future
+   clone from this (or any) golden snapshot** — do it immediately after first boot, before assuming the
+   clone is reachable at a distinct address. (Tailscale then auto-suffixed the hostname to
+   `lantern-cloud-bench-2-1` since the stale duplicate device record was still squatting on the plain
+   name — harmless, but there's now an orphaned offline device named `lantern-cloud-bench-2` at
+   `100.75.247.98` in the tailnet admin console that should be removed by hand next time someone's in
+   the Tailscale admin UI; it does not affect billing or function, just tailnet-list tidiness.)
+
+8. **`lantern-cloud-bench-3` blocked on a regional vCPU quota wall.** This subscription's DSv4-family /
+   total-regional-cores quota is 10; each D4s_v4 VM needs 4. bench-1 + bench-2 running together (8
+   cores) is fine, but a 3rd VM needs 12. Deallocating bench-1 to free room did **not** immediately help
+   — Azure's quota accounting lagged the real VM state by 25+ minutes in this subscription (confirmed via
+   `az vm list-usage` staying at "8 used" long after `az vm list -d` showed only 4 cores' worth actually
+   running). Per a coordinator decision, filed a quota increase request instead of waiting further:
+   `az quota update --scope /subscriptions/544364ac-8639-4f86-8387-eb6697b11909/providers/Microsoft.Compute/locations/eastus2
+   --resource-name standardDSv4Family --limit-object value=16 limit-type=Independent --no-wait`
+   → request id `a8a59e7e-84bd-4eb6-a229-eaa48eb7ff91`, status `InProgress` as of this session. **Next
+   session**: check `az quota request status list --scope <same scope>` for that id; once approved
+   (limit shows 16), clone `lantern-cloud-bench-3` from `lantern-cloud-bench-ready-1` the same way
+   bench-2 was created (see step 6 above), and remember the Tailscale-identity-reset step in #7. The
+   orphaned `lantern-cloud-bench-3-osdisk` (created before the VM-create failed) was deleted to avoid
+   paying for an unattached disk in the meantime.
+
+9. **2-way sharded smoke test — first live validation of the shard runner.** With both bench-1
+   (`100.75.247.98`) and bench-2 (`100.88.113.105`, registered as `lantern-cloud-bench-2-1`) reachable
+   and CDP-live simultaneously, ran:
+   ```
+   node scripts/bench-smoke-shard.mjs --target azure-cloud-bench-1 \
+     --target-host 100.88.113.105 --target-user lpbench --target-id azure-cloud-bench-2 \
+     --only index-health,cross-cutting-light-theme
+   ```
+   → **PASS** on both shards, combined summary at
+   `docs/evidence/bench-smoke/sharded-20260704-030352/summary.md`. This is the first time the sharded
+   runner has been proven against two real, independent cloud targets running concurrently (previously
+   only exercised against a single target or in dry-run/plan mode).
+
+### Ad hoc targets (for `bench-smoke.mjs --target-host/--target-user`, not added to `targets.mjs` per lane rules)
+
+| Target | Host (Tailscale IP) | User | Repo dir | Notes |
+|---|---|---|---|---|
+| `lantern-cloud-bench-1` | `100.75.247.98` | `lpbench` | `C:\lantern-plus` | Original; already a named target (`azure-cloud-bench-1`) in `targets.mjs` |
+| `lantern-cloud-bench-2` | `100.88.113.105` (tailnet name `lantern-cloud-bench-2-1`) | `lpbench` | `C:\lantern-plus` | New clone from `lantern-cloud-bench-ready-1`; Tailscale identity reset done (see #7) |
+| `lantern-cloud-bench-3` | — not created — | — | — | Blocked on quota; disk deleted; retry once quota request `a8a59e7e-...` is approved |
+
+### Cost accounting for this session
+
+- **Compute**: bench-1 ran ~02:29–02:51 UTC and again ~02:55–03:06 UTC (~33 min total); bench-2 ran
+  ~02:50–03:06 UTC (~16 min). **Combined ≈ 49 minutes of `Standard_D4s_v4` compute** — at list pricing
+  (~$0.19/hr for this size in `eastus2`) that's **well under $0.20 total** for this session's compute.
+  All VMs confirmed `deallocated` at session end (`az vm list -d`).
+- **Storage (ongoing, monthly)**: the resource group now holds 2 attached OS disks (bench-1's original,
+  256GB; bench-2's clone, 256GB, `StandardSSD_LRS`) plus **4 snapshots** (`lantern-cloud-bench-1-clean`,
+  `-clean-2`, `-clean-3`, and the new `lantern-cloud-bench-ready-1`, each sourced from a 256GB disk).
+  Snapshot billing is usage-based (only changed/used blocks, not the full provisioned size), so actual
+  cost is likely well below a naive "256GB × 4" estimate, but at full-size list pricing as an upper
+  bound: 2 disks × ~$19.66/mo + 4 snapshots × up to ~$12-19/mo each ≈ **roughly $90-130/mo worst case if
+  all four snapshots were fully-utilized**, more realistically well under half that given snapshot
+  deduplication. **Recommendation**: the two oldest snapshots (`-clean`, `-clean-2`) predate the CDP fix
+  and the PowerShell-default-shell fix — they're now strictly worse starting points than
+  `lantern-cloud-bench-ready-1`. Worth deleting them in a future session to cut ongoing storage cost,
+  unless there's a reason to keep pre-fix rollback points around.
+
+**WORKER-DONE: azclone**
