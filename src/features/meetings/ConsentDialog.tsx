@@ -105,7 +105,10 @@ export function ConsentDialog({ open, onOpenChange, consentMode, stateKnown = tr
           {t('meetings.consent.body-local')}
         </p>
         {consentMode === 'two-party' && (
-          <p style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-navy)' }}>
+          <p
+            data-testid={stateKnown ? 'consent-two-party-note' : 'consent-two-party-note-unknown'}
+            style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-navy)' }}
+          >
             {stateKnown ? t('meetings.consent.two-party-note') : t('meetings.consent.two-party-note-unknown')}
           </p>
         )}
@@ -132,7 +135,7 @@ export function ConsentDialog({ open, onOpenChange, consentMode, stateKnown = tr
           </p>
         )}
         <DialogFooter>
-          <Button variant="secondary" onClick={() => { onOpenChange(false); }}>
+          <Button variant="secondary" data-testid="consent-cancel-button" onClick={() => { onOpenChange(false); }}>
             {t('meetings.dictation.cancel')}
           </Button>
           <Button

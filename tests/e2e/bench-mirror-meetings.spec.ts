@@ -45,7 +45,7 @@ test.describe('Bench mirror: Wave 3c — Meetings tab', () => {
 
     // 2026-07-04 UX review S2: with no state on file, the two-party guidance
     // reads conditionally instead of asserting the advisor's state law.
-    await expect(dialog.getByText(/if your state requires/i)).toBeVisible();
+    await expect(page.getByTestId('consent-two-party-note-unknown')).toBeVisible();
 
     const startButton = page.getByTestId('consent-start-button');
     await expect(startButton).toBeDisabled();
@@ -53,7 +53,9 @@ test.describe('Bench mirror: Wave 3c — Meetings tab', () => {
     await hardClick(page.getByTestId('consent-checkbox'));
     await expect(startButton).toBeEnabled();
 
-    await hardClick(page.getByRole('button', { name: /cancel/i }));
+    // testid, not /cancel/i — the [de] project renders "Abbrechen" (this
+    // locator was locale-blind and failing on de since the spec landed).
+    await hardClick(page.getByTestId('consent-cancel-button'));
     await expect(dialog).not.toBeVisible();
   });
 
