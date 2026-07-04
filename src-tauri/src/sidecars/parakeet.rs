@@ -152,8 +152,20 @@ impl ParakeetSidecar {
     /// Spawn a fresh subprocess against the real file-based contract: write
     /// the WAV bytes to a temp file (the engine has no stdin mode), pass its
     /// path via `-f`, and collect the transcription from stdout. The temp
-    /// file is removed when `tmp` drops at the end of this function — both
-    /// on success and on any early `?` return.
+    /// file is removed when `tmp_path` drops at the end of this function —
+    /// both on success and on any early `?` return.
+    ///
+    /// QA-40 (2026-07-04): the write handle MUST be closed via
+    /// `into_temp_path()` before the child ever opens the same path. Keeping
+    /// `NamedTempFile`'s write handle open for the child's entire run (the
+    /// original shape of this function — `tmp.path()` while `tmp` stayed
+    /// alive) let Windows' file-sharing model silently starve the child's
+    /// read: whisper-cli.exe (via miniaudio) opened the file, decoded zero
+    /// bytes, and exited 0 with empty stdout — no error, no crash, just a
+    /// silently empty transcription. Reproduced live on the Legion: the
+    /// exact same bytes, saved via a plain `std::fs::write` (closed before
+    /// any reader touches it) instead of through `ParakeetSidecar`,
+    /// transcribed perfectly via the identical binary/model/args.
     pub async fn transcribe(&self, wav_bytes: Vec<u8>, model: Option<&str>) -> Result<TranscribeOutput> {
         use crate::util::proc::hide_console_tokio;
         use tokio::process::Command;
@@ -175,8 +187,12 @@ impl ParakeetSidecar {
             .context("failed to create a temp file for voice input")?;
         tmp.write_all(&wav_bytes).context("failed to write WAV bytes to temp file")?;
         tmp.flush().context("failed to flush WAV temp file")?;
+        // Closes the write handle (still deleted on drop via TempPath) —
+        // see the doc comment above for why this is load-bearing, not
+        // cosmetic.
+        let tmp_path = tmp.into_temp_path();
 
-        let args = Self::build_args(tmp.path(), Some(&model_path));
+        let args = Self::build_args(&tmp_path, Some(&model_path));
         let started = Instant::now();
 
         let mut cmd = Command::new(&self.binary);
