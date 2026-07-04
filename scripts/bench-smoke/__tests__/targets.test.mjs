@@ -19,6 +19,21 @@ describe('resolveTarget', () => {
     expect(t.sshHost).toBe('100.75.247.98');
   });
 
+  it('gives each registered target its own scheduled-task name', () => {
+    expect(resolveTarget('legion').taskName).toBe('LanternPlusDev');
+    expect(resolveTarget('azure-cloud-bench-1').taskName).toBe('LanternDevBench');
+  });
+
+  it('falls back to the default task name for an ad hoc target', () => {
+    const t = resolveTarget('scratch-vm', { host: '10.0.0.9', user: 'bob' });
+    expect(t.taskName).toBe('LanternPlusDev');
+  });
+
+  it('allows a taskName override', () => {
+    const t = resolveTarget('legion', { taskName: 'CustomTask' });
+    expect(t.taskName).toBe('CustomTask');
+  });
+
   it('applies host/user/repoDir overrides onto a known target', () => {
     const t = resolveTarget('legion', { host: '10.0.0.5', user: 'someone', repoDir: 'C:\\other' });
     expect(t.sshHost).toBe('10.0.0.5');
