@@ -220,6 +220,146 @@ pub fn transcribe_meeting_audio(
     Ok(())
 }
 
+/// Wraps the bundled per-request Parakeet/whisper sidecar as a
+/// `WindowTranscriber`. The ONLY production impl — there is no remote impl,
+/// and none may ever be added (NO cloud transcription, ever).
+pub struct SidecarTranscriber {
+    binary: std::path::PathBuf,
+    model: Option<String>,
+}
+
+impl WindowTranscriber for SidecarTranscriber {
+    fn transcribe_window(&self, wav_bytes: Vec<u8>) -> Result<String> {
+        let sidecar = crate::sidecars::ParakeetSidecar::new(self.binary.clone());
+        let handle = tokio::runtime::Handle::current();
+        let out = handle.block_on(sidecar.transcribe(wav_bytes, self.model.as_deref()))?;
+        Ok(out.text)
+    }
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TranscribeMeetingResult {
+    pub transcript_path: String,
+    pub segment_count: u32,
+}
+
+/// Loads meeting metadata for a finalized meeting dir. Prefers
+/// `<meeting_dir>/meeting.json` (written by the meeting store once that
+/// lands — matterId/startedAt/consent survive past `finalize_session`
+/// removing `.capture/`). Falls back to reconstructing from the folder name
+/// when that file doesn't exist yet.
+pub fn load_meta_for(dir: &Path) -> Result<TranscriptMeta> {
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct MeetingJson {
+        matter_id: String,
+        started_at: String,
+        consent: super::session::ConsentRecord,
+    }
+    if let Ok(bytes) = std::fs::read(dir.join("meeting.json")) {
+        let m: MeetingJson = serde_json::from_slice(&bytes)?;
+        return Ok(TranscriptMeta {
+            started_at: m.started_at,
+            matter_id: m.matter_id,
+            consent: m.consent,
+        });
+    }
+    // Fallback: the Meeting Artifact Contract's folder name is
+    // `<YYYY-MM-DD>-<slugified-matter-id>[-<n>]` (engine.rs's `slugify` only
+    // ever REMOVES characters, never adds any, so for an ordinary
+    // alphanumeric+hyphen matter_id the slug IS the matter_id verbatim).
+    // Strip the fixed-width 11-char date prefix rather than splitting on the
+    // first '-' — matter_id itself commonly contains hyphens (e.g.
+    // "m-abc123"), so a first-hyphen split would truncate it.
+    let name = dir.file_name().and_then(|n| n.to_str()).unwrap_or("");
+    let mut matter_id = name
+        .get(11..)
+        .filter(|s| !s.is_empty())
+        .unwrap_or("unknown")
+        .to_string();
+    // engine.rs only ever appends a numeric "-<n>" disambiguator (starting
+    // at 2) when a second same-day meeting collides with an ALREADY-EXISTING
+    // un-suffixed sibling folder — so that un-suffixed sibling is guaranteed
+    // to exist whenever the suffix is a real collision marker. Confirm the
+    // sibling is actually there before stripping the suffix, so a matter_id
+    // that genuinely ends in "-<digits>" is never mistaken for one.
+    if let Some(pos) = matter_id.rfind('-') {
+        let (base, suffix) = matter_id.split_at(pos);
+        let digits = &suffix[1..];
+        if !digits.is_empty() && digits.chars().all(|c| c.is_ascii_digit()) {
+            let sibling = format!("{}{}", &name[..name.len().min(11)], base);
+            if dir.parent().is_some_and(|p| p.join(&sibling).is_dir()) {
+                matter_id = base.to_string();
+            }
+        }
+    }
+    // The date prefix has no time-of-day component, and this fallback only
+    // runs before meeting.json exists (Task 12) — the best available proxy
+    // for when the meeting actually happened is the meeting folder's own
+    // mtime, NOT the current instant (which would date an old
+    // imported/reconstructed meeting as happening right now). Prefer mtime
+    // over birth time: birth time isn't exposed on every filesystem this
+    // app targets (falls straight through to mtime there anyway), and if
+    // the workspace was ever copied/restored from a backup, mtime survives
+    // that more reliably than a filesystem-reported creation time can.
+    let reconstructed_at = std::fs::metadata(dir)
+        .and_then(|m| m.modified().or_else(|_| m.created()))
+        .map(|t| chrono::DateTime::<chrono::Utc>::from(t).to_rfc3339())
+        .unwrap_or_else(|_| chrono::Utc::now().to_rfc3339());
+    Ok(TranscriptMeta {
+        started_at: reconstructed_at.clone(),
+        matter_id,
+        consent: super::session::ConsentRecord {
+            mode: "one-party".into(),
+            confirmed_by: "user".into(),
+            confirmed_at: reconstructed_at,
+            note: "meta reconstructed".into(),
+        },
+    })
+}
+
+/// Tauri command: local, resumable transcription of a finalized meeting's
+/// `audio.wav` into `transcript.json`. `meeting_dir` is guarded against
+/// path traversal / symlink escape the same way every other dir-input
+/// capture command is (`super::guard_meeting_path`) — this is NOT optional,
+/// per the crate-wide rule in `capture::mod`'s doc comment.
+#[tauri::command]
+pub async fn transcribe_meeting(
+    app: tauri::AppHandle,
+    workspace: String,
+    meeting_dir: String,
+    model: Option<String>,
+) -> Result<TranscribeMeetingResult, String> {
+    // Guard BEFORE any other filesystem-dependent work (including sidecar
+    // resolution) — every dir-input capture command must reject a
+    // traversal/symlink-escape meeting_dir before touching disk, not just
+    // before touching the workspace itself.
+    let dir = super::guard_meeting_path(Path::new(&workspace), Path::new(&meeting_dir))
+        .map_err(|e| e.to_string())?;
+    let binary = crate::commands::voice::resolve_sidecar_path(&app)
+        .ok_or_else(|| "Voice sidecar binary not bundled for this platform".to_string())?;
+    let audio = dir.join("audio.wav");
+    let out = dir.join("transcript.json");
+    let meta = load_meta_for(&dir).map_err(|e| e.to_string())?;
+    let t = SidecarTranscriber { binary, model };
+    tokio::task::spawn_blocking(move || transcribe_meeting_audio(&audio, &out, meta, &t).map(|_| out))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())
+        .map(|out| {
+            let count = std::fs::read(&out)
+                .ok()
+                .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
+                .and_then(|v| v["segments"].as_array().map(|a| a.len() as u32))
+                .unwrap_or(0);
+            TranscribeMeetingResult {
+                transcript_path: out.to_string_lossy().into_owned(),
+                segment_count: count,
+            }
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -339,6 +479,64 @@ mod tests {
             .collect();
         assert_eq!(texts, vec!["hello thanks", "thanks for joining"],
             "the third window's leading \"thanks\" must survive — it must not be trimmed as an overlap-duplicate of the first window's tail across the silent middle window");
+    }
+
+    #[test]
+    fn load_meta_for_prefers_meeting_json_when_present() {
+        let dir = tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("meeting.json"),
+            r#"{"matterId":"m-real","startedAt":"2026-07-02T17:03:00Z","consent":{"mode":"two-party","confirmedBy":"user","confirmedAt":"2026-07-02T17:02:58Z","note":"recorded live"}}"#,
+        ).unwrap();
+        let meta = load_meta_for(dir.path()).unwrap();
+        assert_eq!(meta.matter_id, "m-real");
+        assert_eq!(meta.started_at, "2026-07-02T17:03:00Z");
+        assert_eq!(meta.consent.mode, "two-party");
+        assert_eq!(meta.consent.note, "recorded live");
+    }
+
+    #[test]
+    fn load_meta_for_reconstructs_matter_id_from_folder_name_without_meeting_json() {
+        let root = tempdir().unwrap();
+        // Meeting Artifact Contract folder name: <YYYY-MM-DD>-<slugified matter_id>.
+        let dir = root.path().join("2026-07-02-m-abc123");
+        std::fs::create_dir_all(&dir).unwrap();
+        let meta = load_meta_for(&dir).unwrap();
+        assert_eq!(meta.matter_id, "m-abc123");
+        assert_eq!(meta.consent.note, "meta reconstructed");
+    }
+
+    #[test]
+    fn load_meta_for_strips_collision_suffix_when_the_unsuffixed_sibling_exists() {
+        let root = tempdir().unwrap();
+        // engine.rs only appends "-2" when "2026-07-02-m-abc123" (no
+        // suffix) already exists — that sibling is what proves "-2" is a
+        // collision marker, not part of the matter_id.
+        std::fs::create_dir_all(root.path().join("2026-07-02-m-abc123")).unwrap();
+        let dir = root.path().join("2026-07-02-m-abc123-2");
+        std::fs::create_dir_all(&dir).unwrap();
+        let meta = load_meta_for(&dir).unwrap();
+        assert_eq!(meta.matter_id, "m-abc123");
+    }
+
+    #[test]
+    fn load_meta_for_keeps_trailing_digits_when_no_unsuffixed_sibling_exists() {
+        let root = tempdir().unwrap();
+        // No sibling "2026-07-02-m-team-2" minus its trailing "-2" exists,
+        // so a matter_id that genuinely ends in "-2" must be kept intact.
+        let dir = root.path().join("2026-07-02-m-team-2");
+        std::fs::create_dir_all(&dir).unwrap();
+        let meta = load_meta_for(&dir).unwrap();
+        assert_eq!(meta.matter_id, "m-team-2");
+    }
+
+    #[test]
+    fn load_meta_for_falls_back_to_unknown_when_folder_name_has_no_slug() {
+        let root = tempdir().unwrap();
+        let dir = root.path().join("short");
+        std::fs::create_dir_all(&dir).unwrap();
+        let meta = load_meta_for(&dir).unwrap();
+        assert_eq!(meta.matter_id, "unknown");
     }
 
     pub(super) fn test_meta(m: &str) -> TranscriptMeta {
