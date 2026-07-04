@@ -27,6 +27,12 @@ import {
   meetingNoteFromTranscript,
   formatCitationsForDisplay,
 } from '@/features/meetings/meetingNoteTemplate';
+import { withMeetingNotesTimeout, isMeetingNotesTimeoutError } from '@/features/meetings/meetingNotesTimeout';
+import {
+  LocalOnlyEgressError,
+  LocalOnlyExternalError,
+  ConfidentialityChoiceRequiredError,
+} from '@/platform/privacy/localOnlyGuard';
 import { AuditService } from '@/platform/audit/AuditService';
 import { detectMeetingType, makeMeetingTypesStore } from './meetingTypes';
 import { dictationToMeeting } from './dictationToMeeting';
@@ -63,6 +69,21 @@ export interface MeetingMeta {
    *  Task 12c's learned-correction map corrects against (see meetingTypes.ts). */
   calendarTitle?: string;
   dictation?: boolean;
+  /** QA-31 — set when the notes-generation step (tryGenerateNotes) fails or
+   *  times out, so the UI can show an honest "couldn't write notes" state
+   *  with a retry instead of an eternal spinner or silent nothing. Cleared
+   *  (omitted) the moment notes.docx is written successfully. */
+  notesError?: MeetingNotesError;
+}
+
+export interface MeetingNotesError {
+  /** 'gate-blocked': a confidentiality-mode guard refused the send (the
+   *  advisor needs to change a Privacy setting, not just retry blindly).
+   *  'timeout': the provider call never returned within
+   *  MEETING_NOTES_TIMEOUT_MS. 'error': any other provider/docx failure.
+   *  Retry is offered for all three — this only changes the copy shown. */
+  kind: 'gate-blocked' | 'timeout' | 'error';
+  at: string;
 }
 
 interface MeetingState {
@@ -128,12 +149,68 @@ export async function writeMeetingJson(
   );
 }
 
+/** QA-31 — classifies a notes-generation failure so the UI can tell the
+ *  advisor something actionable instead of a generic "failed": a
+ *  confidentiality-gate refusal means "change a setting," a timeout means
+ *  "the provider never answered," anything else is a plain provider/docx
+ *  error. All three still offer retry. */
+function classifyNotesError(err: unknown): MeetingNotesError['kind'] {
+  if (
+    err instanceof LocalOnlyEgressError ||
+    err instanceof LocalOnlyExternalError ||
+    err instanceof ConfidentialityChoiceRequiredError
+  ) {
+    return 'gate-blocked';
+  }
+  if (isMeetingNotesTimeoutError(err)) return 'timeout';
+  return 'error';
+}
+
+/** Best-effort merge-write of `notesError` into the meeting's existing
+ *  meeting.json (re-read fresh so this never stomps fields written
+ *  concurrently, e.g. reviewedAt/typeId). A meeting.json that can't be read
+ *  is left alone — the meeting stays usable via its transcript regardless. */
+async function recordNotesError(meetingDir: string, err: unknown): Promise<void> {
+  const ws = activeWorkspaceService;
+  if (!ws) return;
+  try {
+    const base = JSON.parse(await ws.readFile(`${meetingDir}/meeting.json`)) as MeetingMeta;
+    await writeMeetingJson(meetingDir, {
+      ...base,
+      notesError: { kind: classifyNotesError(err), at: new Date().toISOString() },
+    });
+  } catch {
+    // best-effort — see doc comment above.
+  }
+}
+
+/** Clears a previously-recorded `notesError` once notes.docx writes
+ *  successfully (a retry, or a slow-but-eventually-successful first attempt). */
+async function clearNotesError(meetingDir: string): Promise<void> {
+  const ws = activeWorkspaceService;
+  if (!ws) return;
+  try {
+    const base = JSON.parse(await ws.readFile(`${meetingDir}/meeting.json`)) as MeetingMeta;
+    if (!base.notesError) return;
+    const { notesError: _clearedNotesError, ...rest } = base;
+    await writeMeetingJson(meetingDir, rest);
+  } catch {
+    // best-effort — see recordNotesError.
+  }
+}
+
 /**
- * Best-effort: read the transcript, generate notes.docx via the Task 10
- * template, and write it into the meeting folder. Never throws — a failure
- * here (no transcript yet, no provider configured, provider error) leaves
- * the meeting recorded with transcription/notes queued, never blocks or
- * corrupts the capture itself.
+ * Reads the transcript, generates notes.docx via the Task 10 template, and
+ * writes it into the meeting folder. Never throws (capture/transcription
+ * never depend on this), but unlike a bare try/catch it distinguishes two
+ * cases:
+ *   - transcript.json isn't there yet (transcription still queued): silently
+ *     wait for a future call — this is not a notes failure.
+ *   - the transcript IS there but generation fails or hangs (QA-31): record
+ *     an honest, classified `notesError` on meeting.json instead of silently
+ *     discarding the failure, and bound the provider call with
+ *     withMeetingNotesTimeout so a stalled call can never hang this (and
+ *     therefore stopRecording's processingCount-clearing `finally`) forever.
  */
 async function tryGenerateNotes(
   meetingDir: string,
@@ -142,19 +219,22 @@ async function tryGenerateNotes(
 ): Promise<void> {
   const ws = activeWorkspaceService;
   if (!ws) return;
+  let transcript: TranscriptFile;
   try {
     const raw = await ws.readFile(`${meetingDir}/transcript.json`);
-    const transcript = JSON.parse(raw) as TranscriptFile;
+    transcript = JSON.parse(raw) as TranscriptFile;
+  } catch {
+    return; // transcription still queued — not a notes failure.
+  }
+  try {
     const matter = useMatterStore
       .getState()
       .matters.find((m) => m.id === matterId);
     const clientName = matter ? matterLabel(matter) : matterId;
     const { provider } = await resolveProvider();
-    const markdown = await meetingNoteFromTranscript.run({
-      transcript,
-      clientName,
-      provider,
-    });
+    const markdown = await withMeetingNotesTimeout((signal) =>
+      meetingNoteFromTranscript.run({ transcript, clientName, provider, signal })
+    );
     const { markdownToDocxBytes, applyLetterheadIfConfigured } =
       await import('@/platform/utils/docx-io');
     // The advisor reads this file — machine `[t:ms]` tokens become "(at m:ss)"
@@ -166,8 +246,53 @@ async function tryGenerateNotes(
     );
     const finalBytes = await applyLetterheadIfConfigured(bytes);
     await ws.writeFileBinary(`${meetingDir}/notes.docx`, finalBytes);
-  } catch {
-    // Queued for later — capture and transcription never depend on this.
+    await clearNotesError(meetingDir);
+  } catch (err) {
+    await recordNotesError(meetingDir, err);
+  }
+}
+
+/**
+ * codex-review (P2): the natural post-stop pipeline and a manual "Retry" can
+ * otherwise overlap for the SAME meetingDir — e.g. a fast retry succeeds
+ * (writes notes.docx, clears notesError) while a slower, independently-
+ * started run for the same meeting later fails and writes notesError back,
+ * leaving a stale failure recorded even though the notes file exists. Keying
+ * an in-flight promise per meetingDir means a second caller joins the same
+ * run instead of starting an independent, racing one.
+ */
+const inFlightNotesGenerations = new Map<string, Promise<void>>();
+
+function generateNotesSerialized(
+  meetingDir: string,
+  matterId: string,
+  resolveProvider: () => ReturnType<typeof buildResolvedProviderForGlance>
+): Promise<void> {
+  const existing = inFlightNotesGenerations.get(meetingDir);
+  if (existing) return existing;
+  const run = tryGenerateNotes(meetingDir, matterId, resolveProvider).finally(() => {
+    inFlightNotesGenerations.delete(meetingDir);
+  });
+  inFlightNotesGenerations.set(meetingDir, run);
+  return run;
+}
+
+/**
+ * QA-31 — the "Retry" action in the Meetings UI once notesError is set.
+ * Mirrors stopRecording's own processingCount bump/decrement so the same
+ * "writing your notes" indicator (RecordPill / ClientMeetingsTab) lights up
+ * during a manual retry too, rather than looking like nothing is happening.
+ */
+export async function retryMeetingNotes(
+  meetingDir: string,
+  matterId: string,
+  resolveProvider: () => ReturnType<typeof buildResolvedProviderForGlance> = buildResolvedProviderForGlance
+): Promise<void> {
+  useMeetingStore.setState((s) => ({ processingCount: s.processingCount + 1 }));
+  try {
+    await generateNotesSerialized(meetingDir, matterId, resolveProvider);
+  } finally {
+    useMeetingStore.setState((s) => ({ processingCount: Math.max(0, s.processingCount - 1) }));
   }
 }
 
@@ -405,7 +530,7 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
       }
 
       if (meetingDir && matterId) {
-        await tryGenerateNotes(
+        await generateNotesSerialized(
           meetingDir,
           matterId,
           opts?.resolveProvider ?? buildResolvedProviderForGlance

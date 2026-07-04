@@ -333,7 +333,8 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
                   <span style={{ display: 'block', fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)', marginTop: 2 }}>
                     {formatMeetingDate(m.meta?.startedAt)}
                     {duration && ` · ${duration}`}
-                    {!m.hasNotes && ` · ${t('meetings.tab.notes-pending')}`}
+                    {!m.hasNotes &&
+                      ` · ${m.meta?.notesError ? t('meetings.tab.notes-failed') : t('meetings.tab.notes-pending')}`}
                   </span>
                 </span>
                 <span style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>

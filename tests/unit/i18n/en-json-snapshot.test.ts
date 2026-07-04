@@ -62,7 +62,7 @@ describe('en.json structure snapshot', () => {
         "marketplace": 14,
         "matter": 206,
         "media": 81,
-        "meetings": 62,
+        "meetings": 67,
         "memory": 6,
         "model-download": 9,
         "onboarding": 65,
@@ -142,6 +142,12 @@ describe('en.json structure snapshot', () => {
     //      distinct error state instead of masquerading as "No meetings yet".
     // +3 = tab-guard.* (title, description, take-over) — QA-15 browser-build
     //      single-writer tab gate ("this workspace is open in another tab").
+    // +5 = QA-31 P1 fix: meetings.tab.notes-failed + meetings.entry.{notes-
+    //      failed-timeout,notes-failed-error,notes-failed-blocked,retrying-
+    //      notes} — an honest failure/retry state for the notes-generation
+    //      step, which used to hang forever or fail silently (codex-review
+    //      round 2 split the original single generic-failure copy into
+    //      distinct timeout vs. error messages).
     // +50 = entity-label.* (cleanup batch 2, 2026-07-04): useEntityLabel()
     //      returned hardcoded English words for the profession-pack noun
     //      (matter/client/engagement/household) regardless of locale. New:
@@ -164,7 +170,7 @@ describe('en.json structure snapshot', () => {
     //      the delete-client confirm dialog's title/body were localized above
     //      but its own confirm/cancel BUTTONS stayed hardcoded "Remove"/
     //      "Cancel" — same mixed-language bug, one level down).
-    expect(flat.length).toBe(1210);
+    expect(flat.length).toBe(1215);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {
