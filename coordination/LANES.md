@@ -11,6 +11,8 @@ Last updated: 2026-07-04 ~09:25 (coordinator-7 seated — w3ux+qafix2 in flight;
 | cc-lantern-qafix2 | QA fix batch 2 (lp/qa-fix-batch2; ~/lp-qafix2): QA-7 AI-hang UX + QA-8/9 onboarding overlaps. Routed back on the QA-8 spec; chose option A (measure the real lottie svg), stress-testing 6 cold runs. Merge ONLY on a bare-exit-0 fresh-server run | re-verifying |
 | cc-lantern-qa2 | QA campaign persona B "daily driver" explorer on Azure bench-1 (own worktree ~/lp-qa2, branch lp/qa-persona-b; brief w-qa2-brief.md). Rebuilds VM to current tip incl. Meetings tab | exploring |
 | cc-lantern-zoomacct | Ops: Zoom free test account (demo identity) + Google Meet identity check/create (brief w-zoomacct-brief.md; QUESTIONS #1 default). No product code | working |
+| cc-lantern-qa3 | QA persona D "edge-case hunter" on the SERVER BROWSER dev build (own worktree ~/lp-qa3, lp/qa-persona-d; brief w-qa3-brief.md). No VM/bench | exploring |
+| codex divergence job | Detached Codex read-mostly analysis: fork↔main divergence report → coordination/integration/DIVERGENCE-REPORT.md (pre-stages Q#6 fork→main integration). Job 20260704-091258-fbr6xxxx, 15-min liveness watch armed | running |
 
 ## Merged this session
 ✅ lp/wave3-meetings-ui — 🎬 Wave-3 MEETINGS SURFACE: record pill, per-client Meetings tab (between Email & Activity), MeetingEntry (notes+transcript+audio-seek), needs-review queue, consent dialog+ledger, dictation filing. Own codex found+fixed 3 bugs; rebase caught a 4th (stopRecording overwriting Rust's authoritative meeting metadata). Gate 5755 vitest + tsc + playwright meetings 2/2
