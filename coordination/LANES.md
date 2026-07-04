@@ -7,6 +7,7 @@ Last updated: 2026-07-04 ~12:15 (coordinator-7 — 6 merges landed; meetpersist+
 ## Active lanes
 | Worker session | What | State |
 |---|---|---|
+| cc-lantern-cleanup2 | Cleanup batch 2 (lp/cleanup-batch2; ~/lp-cleanup2): typecheck:tests 7 errors → 0 + useEntityLabel profession nouns through i18n (brief w-cleanup2-brief.md) | building |
 | cc-lantern-meetpersist | 🔧 QA-30 P1 fix (lp/meetings-persist; ~/lp-meetpersist): meetings must be rediscovered from disk on launch — the tab shows "No meetings yet" after restart while files are intact (brief w-meetpersist-brief.md; no-shortcuts; lane boundary vs qafix3 stated) | building |
 | cc-lantern-webguard | Browser-build honesty (lp/browser-tab-guard; ~/lp-webguard): QA-15 P1 two-tab silent data loss guard + QA-13 honest no-desktop message (brief w-webguard-brief.md) | building |
 | cc-lantern-qafix4 | QA fix batch 4 (lp/qa-fix-batch4; ~/lp-qafix4): QA-24 P1 duplicate-client isolation breach (2-layer fix) + QA-25 silent Ask discard + QA-26 new-doc consistency (brief w-qafix4-brief.md) | building |
