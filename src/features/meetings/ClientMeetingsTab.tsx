@@ -8,8 +8,8 @@
  */
 import { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Info, Mic } from 'lucide-react';
-import { Badge, Button, EmptyState } from '@/ui/kp';
+import { Info, Mic, AlertTriangle } from 'lucide-react';
+import { Badge, Button, Callout, EmptyState } from '@/ui/kp';
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
 import { useMeetingStore, needsReview } from './meetingStore';
 import type { MeetingMeta } from './meetingStore';
@@ -31,19 +31,71 @@ interface ListableWorkspace {
   list(path: string): Promise<{ name: string; path: string; type: 'file' | 'folder' }[]>;
   readFile(path: string): Promise<string>;
   writeFile(path: string, content: string): Promise<void>;
+  /** Optional — test doubles may omit it. When present, `listClientMeetings`
+   *  uses it to tell a genuinely-absent `Meetings/` folder (a real "no
+   *  meetings yet" client) apart from a `list()` failure on a folder that IS
+   *  there, so a transient scan error can never masquerade as emptiness. */
+  exists?(path: string): Promise<boolean>;
+}
+
+export interface MeetingsScanResult {
+  meetings: MeetingSummary[];
+  /** True when the Meetings folder exists but scanning it kept failing after
+   *  retries (a permissions hiccup, a timing race right after the workspace
+   *  reopened, or any other backend error) — distinct from a genuinely empty
+   *  client, so the caller never claims "no meetings recorded" when the
+   *  honest answer is "couldn't check." */
+  scanFailed: boolean;
+}
+
+/** A P1 fix (2026-07): meetings recorded in a PRIOR session were reported to
+ *  vanish from the tab after an app restart, though the files were intact on
+ *  disk (docs/evidence/meetings-verify-20260704/RUN-LOG.md, finding #6). The
+ *  disk-scan/path-resolution pipeline itself was verified correct under a
+ *  simulated restart (tests/unit/meetings/meetings-restart-scan.test.ts), but
+ *  `listClientMeetings` previously turned ANY `list()` failure — including a
+ *  transient one — into the exact same result as a genuinely empty client, so
+ *  a real (if rare) backend hiccup right after reopening a workspace read as
+ *  "your recordings are gone." Retrying + reporting `scanFailed` closes that
+ *  gap regardless of the failure's exact cause. */
+const SCAN_RETRY_ATTEMPTS = 3;
+const SCAN_RETRY_DELAY_MS = 200;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /** Scans `<matterFolder>/Meetings/` for meeting folders, reading each one's
  *  `meeting.json` + checking for notes/audio/transcript presence. Returns
- *  newest-first. An unreadable/absent Meetings folder yields an empty list
- *  (no meetings recorded yet), never a throw. */
-export async function listClientMeetings(matterFolder: string, ws: ListableWorkspace): Promise<MeetingSummary[]> {
-  let entries: { name: string; path: string; type: 'file' | 'folder' }[];
-  try {
-    entries = await ws.list(`${matterFolder}/Meetings`);
-  } catch {
-    return [];
+ *  newest-first. A genuinely absent Meetings folder yields an empty,
+ *  non-failed result (no meetings recorded yet); a folder that exists but
+ *  can't be listed is retried before being reported as `scanFailed`. */
+export async function listClientMeetings(
+  matterFolder: string,
+  ws: ListableWorkspace,
+  opts?: { retryDelayMs?: number },
+): Promise<MeetingsScanResult> {
+  const meetingsPath = `${matterFolder}/Meetings`;
+
+  // Fast path: a brand-new client with no Meetings folder yet is the COMMON
+  // case, and must resolve instantly — never pay the retry delay below for it.
+  if (ws.exists) {
+    const meetingsFolderExists = await ws.exists(meetingsPath).catch(() => true);
+    if (!meetingsFolderExists) return { meetings: [], scanFailed: false };
   }
+
+  const retryDelayMs = opts?.retryDelayMs ?? SCAN_RETRY_DELAY_MS;
+  let entries: { name: string; path: string; type: 'file' | 'folder' }[] | null = null;
+  for (let attempt = 0; attempt < SCAN_RETRY_ATTEMPTS; attempt++) {
+    try {
+      entries = await ws.list(meetingsPath);
+      break;
+    } catch {
+      if (attempt < SCAN_RETRY_ATTEMPTS - 1) await delay(retryDelayMs);
+    }
+  }
+  if (entries === null) return { meetings: [], scanFailed: true };
+
   const folders = entries.filter((e) => e.type === 'folder');
   const summaries = await Promise.all(
     folders.map(async (f): Promise<MeetingSummary> => {
@@ -65,7 +117,10 @@ export async function listClientMeetings(matterFolder: string, ws: ListableWorks
       };
     }),
   );
-  return summaries.sort((a, b) => (b.meta?.startedAt ?? b.folderName).localeCompare(a.meta?.startedAt ?? a.folderName));
+  return {
+    meetings: summaries.sort((a, b) => (b.meta?.startedAt ?? b.folderName).localeCompare(a.meta?.startedAt ?? a.folderName)),
+    scanFailed: false,
+  };
 }
 
 export interface ClientMeetingsTabProps {
@@ -82,6 +137,7 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
   const { t } = useTranslation();
   const [meetings, setMeetings] = useState<MeetingSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [scanFailed, setScanFailed] = useState(false);
   const recording = useMeetingStore((s) => s.status.recording);
   const processing = useMeetingStore((s) => s.processingCount > 0);
   const startRecording = useMeetingStore((s) => s.startRecording);
@@ -97,10 +153,11 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
 
   const refresh = useCallback(async () => {
     const ws = workspaceService;
-    if (!ws) { setMeetings([]); setLoading(false); return; }
+    if (!ws) { setMeetings([]); setScanFailed(false); setLoading(false); return; }
     setLoading(true);
-    const list = await listClientMeetings(matterFolder, ws);
+    const { meetings: list, scanFailed: failed } = await listClientMeetings(matterFolder, ws);
     setMeetings(list);
+    setScanFailed(failed);
     setLoading(false);
   }, [matterFolder, workspaceService]);
 
@@ -150,8 +207,11 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
 
   // Never claim "No meetings yet" while a recording is running or its notes
   // are still being written (codex-review P2: the first-ever recording would
-  // otherwise stop straight into a false empty state).
-  const showEmpty = !loading && !busy && meetings.length === 0;
+  // otherwise stop straight into a false empty state) — and never claim it
+  // when the scan itself failed (P1 fix, 2026-07): a transient disk-scan
+  // error must read as "couldn't check," never as "your recordings are gone."
+  const showScanError = !loading && !busy && scanFailed;
+  const showEmpty = !loading && !busy && !scanFailed && meetings.length === 0;
 
   return (
     <div data-testid="client-meetings-tab" style={{ padding: 'var(--kp-gutter)', display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-lg)' }}>
@@ -183,6 +243,24 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
       {!loading && processing && meetings.length === 0 && (
         <div data-testid="client-meetings-processing" style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--color-muted-foreground)' }}>
           {t('meetings.pill.processing')}
+        </div>
+      )}
+
+      {showScanError && (
+        <div data-testid="client-meetings-scan-error">
+          <Callout variant="error" icon={AlertTriangle}>
+            <div style={{ fontWeight: 'var(--kp-weight-semibold)' }}>{t('meetings.tab.scan-error-title')}</div>
+            <div style={{ marginTop: 2 }}>{t('meetings.tab.scan-error-body')}</div>
+            <Button
+              data-testid="client-meetings-retry-button"
+              size="sm"
+              variant="secondary"
+              onClick={() => { void refresh(); }}
+              style={{ marginTop: 'var(--kp-space-sm)' }}
+            >
+              {t('meetings.tab.retry-button')}
+            </Button>
+          </Callout>
         </div>
       )}
 

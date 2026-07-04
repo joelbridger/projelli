@@ -61,7 +61,7 @@ describe('en.json structure snapshot', () => {
         "marketplace": 14,
         "matter": 185,
         "media": 81,
-        "meetings": 59,
+        "meetings": 62,
         "memory": 6,
         "model-download": 9,
         "onboarding": 65,
@@ -135,7 +135,10 @@ describe('en.json structure snapshot', () => {
     //      onboarding-card keys), ask.scope-toggle.* (3, ScopeToggle's own
     //      "This X" / "All X" pills sat right next to ask.scope-pill.* with
     //      the same disease).
-    expect(flat.length).toBe(1125);
+    // +3 = meetpersist P1 fix (2026-07-04): meetings.tab gained scan-error-title/
+    //      scan-error-body/retry-button — a failed disk scan now renders a
+    //      distinct error state instead of masquerading as "No meetings yet".
+    expect(flat.length).toBe(1128);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {
