@@ -157,17 +157,28 @@ export function buildCameraScript(
         var cardStream = canvas.captureStream ? canvas.captureStream(FPS) : null;
         var md = navigator.mediaDevices;
         if (md && md.getUserMedia && cardStream) {
-          var real = md.getUserMedia.bind(md);
+          // NEVER call the real getUserMedia — the companion window must never
+          // touch the advisor's real camera or microphone ("records nothing,
+          // sends nothing"). Video requests get the canvas card; audio requests
+          // get a locally-generated SILENT track (we join muted; v3 adds TTS
+          // through this same point). On any error we deny with an empty stream,
+          // never the real devices.
           md.getUserMedia = function (constraints) {
+            var s = new MediaStream();
             try {
               if (constraints && constraints.video) {
-                var s = new MediaStream();
                 cardStream.getVideoTracks().forEach(function (t) { s.addTrack(t); });
-                // We joined muted; hand back only the card video, no live mic.
-                return Promise.resolve(s);
+              }
+              if (constraints && constraints.audio) {
+                try {
+                  var AC = window.AudioContext || window.webkitAudioContext;
+                  var ctx = new AC();
+                  var dst = ctx.createMediaStreamDestination();
+                  dst.stream.getAudioTracks().forEach(function (t) { s.addTrack(t); });
+                } catch (e) {}
               }
             } catch (e) {}
-            return real(constraints);
+            return Promise.resolve(s);
           };
         }
       } catch (e) {}

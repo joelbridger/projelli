@@ -79,4 +79,14 @@ describe('buildCameraScript', () => {
     expect(src).toContain('drawNoticeCard');
     expect(src).toContain('formatRecordingTimer');
   });
+
+  it('never passes through to the real camera/microphone (records nothing, sends nothing)', () => {
+    // Codex R4 P1: an audio-only getUserMedia must NOT reach the real device.
+    const src = buildCameraScript(VISUAL, { startEpochMs: 1_000_000 });
+    // No captured reference to the original getUserMedia, and no passthrough.
+    expect(src).not.toContain('.bind(md)');
+    expect(src).not.toContain('return real(');
+    // Audio requests are answered with a locally-generated silent track.
+    expect(src).toContain('createMediaStreamDestination');
+  });
 });
