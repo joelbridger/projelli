@@ -2,16 +2,15 @@
 
 **Purpose:** the O(1) answer to "what is every Lantern-Plus lane doing right now?" Updated on every spawn/merge/close (mirror of main line's `~/keepance-coordination/LANES.md` convention; the fleet dashboard reads both).
 
-Last updated: 2026-07-04 ~05:45 (coordinator-6 — FEATURE-COMPLETE: final scorecard 11/0/3/5; 12 merges tonight; fleet idle except evidence wrap-up)
+Last updated: 2026-07-04 ~09:25 (coordinator-7 seated — w3ux+qafix2 in flight; qa2 persona-B + zoomacct opened)
 
 ## Active lanes
 | Worker session | What | State |
 |---|---|---|
-| cc-lantern-w3ux | 🎨 SENIOR-UX gate on the assembled Meetings tab (Fable; lp/wave3-meetings-ux) — experience it first-hand, ranked findings doc, implement blocker+should-fix polish; then live Legion verify → re-declare done | reviewing |
-| cc-lantern-qafix2 | QA fix batch 2 (lp/qa-fix-batch2): QA-7 AI-hang UX + QA-8/9 onboarding overlaps | building |
-| cc-lantern-qafix1 | QA fix batch 1 (lp/qa-fix-batch1; Opus): QA-5 new-client folders + QA-6 Ask input collapse (first-run P1s) | building |
-| cc-lantern-w3b | Wave-3 Phase 3b: local transcription pipeline (lp/wave3-transcription; Tasks 7-9) | building |
-| cc-lantern-cleanup1 | Cleanup batch 1 + docs currency (lp/cleanup-batch1): 5 scoped items | building |
+| cc-lantern-w3ux | 🎨 SENIOR-UX gate on the assembled Meetings tab (Fable; lp/wave3-meetings-ux; ~/lp-w3ux) — experience it first-hand, ranked findings doc, implement blocker+should-fix polish; then live Legion verify → re-declare done. Legion RESERVED for it | implementing polish |
+| cc-lantern-qafix2 | QA fix batch 2 (lp/qa-fix-batch2; ~/lp-qafix2): QA-7 AI-hang UX + QA-8/9 onboarding overlaps. Routed back on the QA-8 spec; chose option A (measure the real lottie svg), stress-testing 6 cold runs. Merge ONLY on a bare-exit-0 fresh-server run | re-verifying |
+| cc-lantern-qa2 | QA campaign persona B "daily driver" explorer on Azure bench-1 (own worktree ~/lp-qa2, branch lp/qa-persona-b; brief w-qa2-brief.md). Rebuilds VM to current tip incl. Meetings tab | exploring |
+| cc-lantern-zoomacct | Ops: Zoom free test account (demo identity) + Google Meet identity check/create (brief w-zoomacct-brief.md; QUESTIONS #1 default). No product code | working |
 
 ## Merged this session
 ✅ lp/wave3-meetings-ui — 🎬 Wave-3 MEETINGS SURFACE: record pill, per-client Meetings tab (between Email & Activity), MeetingEntry (notes+transcript+audio-seek), needs-review queue, consent dialog+ledger, dictation filing. Own codex found+fixed 3 bugs; rebase caught a 4th (stopRecording overwriting Rust's authoritative meeting metadata). Gate 5755 vitest + tsc + playwright meetings 2/2
