@@ -197,9 +197,12 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
       activeMatterId: matterId,
       activeConsent: opts,
     });
-    void audit.logDurable('meeting_capture_started', 'Meeting recording started', {
-      metadata: { matterId, consentMode: opts.consentMode, meetingDir: r.meetingDir },
-    });
+    // No TS-side audit.logDurable('meeting_capture_started', ...) here: the
+    // Rust capture_start command already appends this exact audit action
+    // (append_capture_audit_best_effort in src-tauri/src/commands/capture/
+    // engine.rs, from the already-merged lp/meeting-capture lane) directly
+    // to the encrypted store. Logging it again here would double every
+    // recording's audit trail (found via codex-review of this branch).
     if (activeWorkspaceService) {
       const ws = activeWorkspaceService;
       void makeConsentLedger(ws, () => matterFolder)
@@ -248,9 +251,9 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
         ...(typeId ? { typeId } : {}),
         ...(activeConsent.calendarTitle ? { calendarTitle: activeConsent.calendarTitle } : {}),
       }).catch(() => {});
-      void audit.logDurable('meeting_recorded', 'Meeting recorded', {
-        metadata: { matterId, meetingDir, durationMs: r.durationMs },
-      });
+      // No TS-side audit.logDurable('meeting_recorded', ...) here either —
+      // capture_stop's Rust side already appends it (same reasoning as
+      // startRecording above).
     }
 
     try {

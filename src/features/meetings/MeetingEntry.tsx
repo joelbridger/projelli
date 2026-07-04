@@ -106,11 +106,17 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     audioRef.current?.seek(ms);
   }, []);
 
+  // codex-review (P2): AudioPlayer only mounts once the async audio.wav read
+  // resolves (hasAudio flips true), so seeking on component-mount alone hit
+  // audioRef.current === null most of the time. Fire once hasAudio becomes
+  // true instead, guarded so it only runs the one time (not on every
+  // subsequent hasAudio-true render).
+  const didInitialSeek = useRef(false);
   useEffect(() => {
-    if (initialSeekMs !== undefined) audioRef.current?.seek(initialSeekMs);
-    // Only on first mount — later seeks come from handleSeek.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (initialSeekMs === undefined || didInitialSeek.current || !hasAudio) return;
+    didInitialSeek.current = true;
+    audioRef.current?.seek(initialSeekMs);
+  }, [initialSeekMs, hasAudio]);
 
   const handleDeleteAudio = useCallback(async () => {
     const ws = workspaceService;

@@ -40,6 +40,21 @@ describe('meeting store', () => {
     expect(useMeetingStore.getState().status.recording).toBe(false);
   });
 
+  it('does not double-log meeting_capture_started/meeting_recorded — Rust\'s capture_start/capture_stop already append them (append_capture_audit_best_effort)', async () => {
+    invokeMock
+      .mockResolvedValueOnce({ meetingDir: '/ws/C/Meetings/x', startedAt: 't0' })
+      .mockResolvedValueOnce({ meetingDir: '/ws/C/Meetings/x', audioPath: '/ws/C/Meetings/x/audio.wav', durationMs: 60000 })
+      .mockResolvedValueOnce({ transcriptPath: '/ws/C/Meetings/x/transcript.json', segmentCount: 4 });
+    localStorage.removeItem('audit_log_meetings');
+    const s = useMeetingStore.getState();
+    await s.startRecording('m-1', { consentMode: 'one-party' });
+    await useMeetingStore.getState().stopRecording();
+    const raw = localStorage.getItem('audit_log_meetings');
+    const entries = raw ? (JSON.parse(raw) as { action: string }[]) : [];
+    expect(entries.some((e) => e.action === 'meeting_capture_started')).toBe(false);
+    expect(entries.some((e) => e.action === 'meeting_recorded')).toBe(false);
+  });
+
   it('refuses to start when already recording', async () => {
     invokeMock.mockResolvedValueOnce({ meetingDir: '/x', startedAt: 't0' });
     const s = useMeetingStore.getState();

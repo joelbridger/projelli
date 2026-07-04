@@ -12,7 +12,7 @@
  * wave — so this uses the plan's own specified copy directly rather than
  * sourcing it from that doc.
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/ui/dialog';
 import { Button } from '@/ui/button';
@@ -48,6 +48,15 @@ function formatDate(iso: string): string {
 export function ConsentDialog({ open, onOpenChange, consentMode, standingConsent, macPermissionError, onConfirm }: ConsentDialogProps) {
   const { t } = useTranslation();
   const [checked, setChecked] = useState(standingConsent !== null);
+
+  // codex-review (P2): the dialog stays mounted across opens (the parent
+  // renders it unconditionally, toggling `open`), so state from a PRIOR
+  // confirmation would otherwise leak into the next one — re-derive the
+  // checkbox from standingConsent every time the dialog opens (or once
+  // standingConsent resolves after an already-open dialog's async load).
+  useEffect(() => {
+    if (open) setChecked(standingConsent !== null);
+  }, [open, standingConsent]);
 
   if (macPermissionError) {
     return (
