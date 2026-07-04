@@ -118,6 +118,10 @@ The one line that teaches the tab's mental model ("each meeting also lands on th
 | P9 | Focus-visible rings on rows/chips via `--kp-focus-ring` | Global adopt-as-touched policy per the design-system doc |
 | P10 | Record button **keyboard shortcut** + `aria-live` announcement when recording starts/stops | A11y follow-up |
 
+## Independent review
+
+The polish diff went through an adversarial Codex (gpt-5.5) review. One finding, fixed: with the refresh now deferred until post-stop processing finishes, a first-ever recording would stop straight into a false "No meetings yet" empty state — the empty state is now gated on the busy flag and a "Writing your meeting notes…" line renders in its place.
+
 ## What already meets the bar (unchanged)
 
 - **Tab placement and order** exactly per the locked decision (Client Map · Documents · Email · **Meetings** · Activity); active-pill styling matches the hub's tab idiom.

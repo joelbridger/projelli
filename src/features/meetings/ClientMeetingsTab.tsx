@@ -148,7 +148,10 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
   // badge on each row (the meeting page's "Mark reviewed" clears it).
   const matterQueue = crmQueueItems.filter((q) => q.matterId === matterId);
 
-  const showEmpty = !loading && meetings.length === 0;
+  // Never claim "No meetings yet" while a recording is running or its notes
+  // are still being written (codex-review P2: the first-ever recording would
+  // otherwise stop straight into a false empty state).
+  const showEmpty = !loading && !busy && meetings.length === 0;
 
   return (
     <div data-testid="client-meetings-tab" style={{ padding: 'var(--kp-gutter)', display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-lg)' }}>
@@ -177,6 +180,12 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
         </div>
       )}
 
+      {!loading && processing && meetings.length === 0 && (
+        <div data-testid="client-meetings-processing" style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--color-muted-foreground)' }}>
+          {t('meetings.pill.processing')}
+        </div>
+      )}
+
       {showEmpty && (
         <EmptyState
           icon={Mic}
@@ -184,13 +193,9 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
           body={t('meetings.tab.empty-body')}
           data-testid="client-meetings-empty"
           actions={
-            <Button
-              data-testid="record-meeting-button"
-              onClick={handleRecordClick}
-              disabled={recording}
-              iconLeft={Mic}
-            >
-              {recording ? t('meetings.tab.recording') : t('meetings.tab.record-button')}
+            // showEmpty implies not recording/processing — no disabled state needed
+            <Button data-testid="record-meeting-button" onClick={handleRecordClick} iconLeft={Mic}>
+              {t('meetings.tab.record-button')}
             </Button>
           }
         />
