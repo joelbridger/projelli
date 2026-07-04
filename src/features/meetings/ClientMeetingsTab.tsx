@@ -376,7 +376,13 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
                     {formatMeetingDate(m.meta?.startedAt)}
                     {duration && ` · ${duration}`}
                     {!m.hasNotes &&
-                      ` · ${m.meta?.notesError ? t('meetings.tab.notes-failed') : t('meetings.tab.notes-pending')}`}
+                      ` · ${
+                        m.meta?.notesError
+                          ? t('meetings.tab.notes-failed')
+                          : m.meta?.recordingError && !m.hasAudio
+                            ? t('meetings.tab.recording-incomplete')
+                            : t('meetings.tab.notes-pending')
+                      }`}
                   </span>
                 </span>
                 <span style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>

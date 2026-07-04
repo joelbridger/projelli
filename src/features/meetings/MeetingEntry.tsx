@@ -397,6 +397,17 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
                 {retryingNotes ? t('meetings.entry.retrying-notes') : t('meetings.tab.retry-button')}
               </button>
             </div>
+          ) : meta?.recordingError && !hasAudio ? (
+            // QA-35 review round 2: no audio ever got salvaged (most commonly
+            // the disk was still full when finalize_session tried to write
+            // it) — there's nothing here that will ever transcribe/generate
+            // notes on its own. Showing "pending" would be an eternal,
+            // no-recourse wait indistinguishable from a genuine hang; this is
+            // a dead end with no retry (re-recording the meeting is the only
+            // way forward), so it says so honestly instead.
+            <div data-testid="meeting-entry-recording-incomplete" style={{ padding: 'var(--kp-gutter)', color: 'var(--kp-navy)', fontSize: 'var(--kp-font-sm)' }}>
+              {t('meetings.entry.recording-incomplete')}
+            </div>
           ) : (
             <div data-testid="meeting-entry-notes-pending" style={{ padding: 'var(--kp-gutter)', color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-sm)' }}>
               {t('meetings.entry.notes-pending')}
@@ -425,6 +436,13 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
               >
                 {retryingTranscript ? t('meetings.entry.retrying-transcript') : t('meetings.tab.retry-button')}
               </button>
+            </div>
+          ) : meta?.recordingError && !hasAudio ? (
+            // See the mirrored notes-pane check above for why this isn't
+            // "pending" — no audio was ever salvaged, so no transcript will
+            // ever generate here on its own.
+            <div data-testid="meeting-entry-recording-incomplete-transcript" style={{ color: 'var(--kp-navy)', fontSize: 'var(--kp-font-sm)' }}>
+              {t('meetings.entry.recording-incomplete')}
             </div>
           ) : (
             <div data-testid="meeting-entry-transcript-pending" style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-sm)' }}>

@@ -63,7 +63,7 @@ describe('en.json structure snapshot', () => {
         "marketplace": 14,
         "matter": 206,
         "media": 88,
-        "meetings": 109,
+        "meetings": 111,
         "memory": 6,
         "model-download": 9,
         "onboarding": 67,
@@ -210,7 +210,14 @@ describe('en.json structure snapshot', () => {
     //      pill shown after an auto-stop — and meetings.consent.
     //      low-disk-warning (1), a preflight warning shown in the consent
     //      dialog when free disk space is low.
-    expect(flat.length).toBe(1278);
+    // +2 = QA-35 review round 2 (2026-07-04): a disk-full capture_stop that
+    //      salvaged NO audio at all left the meeting's notes/transcript
+    //      panes stuck at "pending" forever (nothing was ever asked to
+    //      generate them) instead of an honest dead end. New: meetings.tab.
+    //      recording-incomplete (1, the meetings-list row subtitle) and
+    //      meetings.entry.recording-incomplete (1, the meeting page's
+    //      no-retry explanation).
+    expect(flat.length).toBe(1280);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

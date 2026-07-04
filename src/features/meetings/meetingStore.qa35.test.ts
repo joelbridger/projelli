@@ -21,7 +21,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock, isTauri: () => false }));
 
-import { useMeetingStore } from './meetingStore';
+import { useMeetingStore, needsReview } from './meetingStore';
+import type { MeetingSummary } from './ClientMeetingsTab';
 
 const RECORDING_STATUS = {
   status: { recording: true, meetingDir: '/ws/Clients/Acme/Meetings/m1', elapsedMs: 5000, writeError: null },
@@ -148,7 +149,47 @@ describe('useMeetingStore.stopRecording — QA-35 regression', () => {
     expect(state.lastWriteFailure).not.toBeNull();
   });
 
-  it('resets status.recording to false on ANY capture_stop failure, not just disk-full ones', async () => {
+  it('resets status.recording to false on ANY genuine capture_stop failure, not just disk-full ones', async () => {
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'capture_stop') return Promise.reject(new Error('some other unexpected stop failure'));
+      return Promise.resolve(null);
+    });
+
+    await useMeetingStore.getState().stopRecording();
+
+    expect(useMeetingStore.getState().status.recording).toBe(false);
+  });
+});
+
+describe('useMeetingStore.stopRecording — QA-35 review round 2', () => {
+  it('double-clicking Stop only calls capture_stop once, and clears any stale disk-full pill on a clean stop', async () => {
+    useMeetingStore.setState({
+      lastWriteFailure: { message: 'stale from a previous meeting', at: '2026-07-04T09:00:00Z' },
+    });
+    let captureStopCalls = 0;
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'capture_stop') {
+        captureStopCalls += 1;
+        return Promise.resolve({
+          meetingDir: '/ws/Clients/Acme/Meetings/m1',
+          audioPath: '/ws/Clients/Acme/Meetings/m1/audio.wav',
+          durationMs: 60_000,
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+    // Two calls fired back to back, exactly like a double-clicked Stop button.
+    const [p1, p2] = [useMeetingStore.getState().stopRecording(), useMeetingStore.getState().stopRecording()];
+    await Promise.all([p1, p2]);
+
+    expect(captureStopCalls).toBe(1);
+    const state = useMeetingStore.getState();
+    expect(state.status.recording).toBe(false);
+    expect(state.lastWriteFailure).toBeNull();
+  });
+
+  it('a benign "not recording" rejection (nothing left for this call to stop) never shows the disk-full pill', async () => {
     invokeMock.mockImplementation((cmd: string) => {
       if (cmd === 'capture_stop') return Promise.reject(new Error('not recording'));
       return Promise.resolve(null);
@@ -156,6 +197,88 @@ describe('useMeetingStore.stopRecording — QA-35 regression', () => {
 
     await useMeetingStore.getState().stopRecording();
 
-    expect(useMeetingStore.getState().status.recording).toBe(false);
+    const state = useMeetingStore.getState();
+    expect(state.status.recording).toBe(false);
+    expect(state.lastWriteFailure).toBeNull();
+  });
+
+  it('a disk-full stop failure still runs the post-stop pipeline on the salvaged partial audio instead of leaving it stuck at eternal pending', async () => {
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'capture_stop') {
+        return Promise.reject(
+          new Error(
+            'recording stopped, but part of the audio failed to save (mic channel: No space left ' +
+              'on device (os error 28)); partial audio at /ws/Clients/Acme/Meetings/m1/audio.wav'
+          )
+        );
+      }
+      return Promise.resolve(null);
+    });
+
+    await useMeetingStore.getState().stopRecording();
+
+    // transcribeMeetingSerialized -> runTranscribeMeeting really invokes this
+    // Tauri command regardless of workspace state — proves the pipeline ran
+    // rather than the old early `return` that skipped it entirely.
+    expect(invokeMock).toHaveBeenCalledWith(
+      'transcribe_meeting',
+      expect.objectContaining({ meetingDir: '/ws/Clients/Acme/Meetings/m1' })
+    );
+  });
+
+  it('a generic (non-disk-full) stop failure does NOT run the post-stop pipeline — there is no audio to transcribe', async () => {
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'capture_stop') return Promise.reject(new Error('No space left on device (os error 28)'));
+      return Promise.resolve(null);
+    });
+
+    await useMeetingStore.getState().stopRecording();
+
+    expect(invokeMock).not.toHaveBeenCalledWith('transcribe_meeting', expect.anything());
+  });
+});
+
+function meetingWithRecordingError(hasAudio: boolean): MeetingSummary {
+  return {
+    dir: '/ws/Clients/Acme/Meetings/m1',
+    folderName: 'm1',
+    meta: {
+      matterId: 'm1',
+      startedAt: '2026-07-04T10:00:00Z',
+      consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-07-04T10:00:00Z' },
+      recordingError: { kind: hasAudio ? 'disk-full' : 'error', at: '2026-07-04T10:05:00Z', message: 'x' },
+    },
+    hasNotes: false,
+    hasAudio,
+    hasTranscript: false,
+  };
+}
+
+describe('needsReview — QA-35 review round 2 (recording-incomplete)', () => {
+  it('flags recording-incomplete when a recordingError left no salvaged audio at all', () => {
+    const items = needsReview(meetingWithRecordingError(false), []);
+    expect(items.some((i) => i.kind === 'recording-incomplete')).toBe(true);
+  });
+
+  it('does NOT flag recording-incomplete when the disk-full failure salvaged real audio (handled by the normal pipeline instead)', () => {
+    const items = needsReview(meetingWithRecordingError(true), []);
+    expect(items.some((i) => i.kind === 'recording-incomplete')).toBe(false);
+  });
+
+  it('does NOT flag recording-incomplete for a meeting with no recordingError at all', () => {
+    const meeting: MeetingSummary = {
+      dir: '/ws/Clients/Acme/Meetings/m1',
+      folderName: 'm1',
+      meta: {
+        matterId: 'm1',
+        startedAt: '2026-07-04T10:00:00Z',
+        consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-07-04T10:00:00Z' },
+      },
+      hasNotes: false,
+      hasAudio: false,
+      hasTranscript: false,
+    };
+    const items = needsReview(meeting, []);
+    expect(items.some((i) => i.kind === 'recording-incomplete')).toBe(false);
   });
 });
