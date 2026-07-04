@@ -44,7 +44,7 @@ import {
 } from '@/platform/privacy/localOnlyGuard';
 import type { AnswerBlock, AnswerCitation, AskFailureStage, AskScope, AskTurn } from './askHelpers';
 import {
-  ASK_CANCELLED_BY_SWITCH_MESSAGE,
+  ASK_CANCELLED_BY_NAVIGATION_MESSAGE,
   NO_EVIDENCE_DECLINE,
   buildAskSystemPrompt,
   buildSmartAskSystemPrompt,
@@ -365,7 +365,7 @@ export function useAsk({
       addMessage(chatId, { role: 'user', content: askedQuestion, timestamp: cancelledAt });
       addMessage(chatId, {
         role: 'assistant',
-        content: ASK_CANCELLED_BY_SWITCH_MESSAGE,
+        content: ASK_CANCELLED_BY_NAVIGATION_MESSAGE,
         timestamp: cancelledAt,
         askGroundedFromFiles: false,
       });

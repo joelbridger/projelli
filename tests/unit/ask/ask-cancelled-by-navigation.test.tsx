@@ -13,14 +13,20 @@
  * complete in the background and rehydrate on return would require `turns`
  * to be reactively derived from the store instead of a once-per-mount
  * snapshot — real surgery on a consent-sensitive surface. The narrower,
- * honest fix (per the QA-25 brief): abort the in-flight request on switch and
- * leave an explicit, persisted "cancelled by switch" record in the ORIGINAL
- * client's own history — never silent loss.
+ * honest fix (per the QA-25 brief): abort the in-flight request on
+ * navigation and leave an explicit, persisted "cancelled" record in the
+ * ORIGINAL conversation's own history — never silent loss.
+ *
+ * The cleanup fires on ANY `chatId` change, not just a client switch — the
+ * "New question" button and loading a different saved thread change chatId
+ * the same way while staying on the same client (Codex review caught this),
+ * so the persisted message is worded around "this conversation" rather than
+ * naming a client switch specifically.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
-import { ASK_CANCELLED_BY_SWITCH_MESSAGE } from '@/features/ask/askPrompt';
+import { ASK_CANCELLED_BY_NAVIGATION_MESSAGE } from '@/features/ask/askPrompt';
 
 const h = vi.hoisted(() => ({
   addMessage: vi.fn(),
@@ -157,7 +163,34 @@ describe('QA-25 (P2): switching clients mid-Ask never silently discards the ques
     );
     expect(h.addMessage).toHaveBeenCalledWith(
       emilyChatId,
-      expect.objectContaining({ role: 'assistant', content: ASK_CANCELLED_BY_SWITCH_MESSAGE }),
+      expect.objectContaining({ role: 'assistant', content: ASK_CANCELLED_BY_NAVIGATION_MESSAGE }),
+    );
+  });
+
+  it('clicking "New question" mid-flight (same client, different thread) also leaves an honest record, worded neutrally rather than blaming a client switch', () => {
+    // Codex review: the chatId-switch cleanup fires for ANY chatId change,
+    // including staying on the SAME client but starting a fresh thread — the
+    // persisted copy must not claim "you switched to a different client"
+    // for this case, since that would be false.
+    render(<Ask />);
+
+    const input = screen.getByTestId('ask-composer-input') as HTMLInputElement;
+    act(() => {
+      fireEvent.change(input, { target: { value: 'Is the Roth conversion done for this year?' } });
+    });
+    act(() => {
+      fireEvent.click(screen.getByRole('button', { name: /^Ask$/i }));
+    });
+    expect(h.addMessage).not.toHaveBeenCalled();
+
+    act(() => {
+      fireEvent.click(screen.getByTestId('rail-new-question'));
+    });
+
+    const emilyChatId = 'ask-matter_emily::/ws';
+    expect(h.addMessage).toHaveBeenCalledWith(
+      emilyChatId,
+      expect.objectContaining({ role: 'assistant', content: ASK_CANCELLED_BY_NAVIGATION_MESSAGE }),
     );
   });
 
