@@ -75,6 +75,10 @@ export function formatCitationsForDisplay(
 
 export interface MeetingNoteRunInput extends MeetingNotePromptInput {
   provider: Provider;
+  /** QA-31 — forwarded to sendMessage so meetingStore's notes-timeout
+   *  watchdog (withMeetingNotesTimeout) can actually cancel a stalled call
+   *  instead of just orphaning it. */
+  signal?: AbortSignal;
 }
 
 /**
@@ -89,6 +93,7 @@ async function run(input: MeetingNoteRunInput): Promise<string> {
     systemPrompt:
       'You are a financial advisory practice management assistant drafting a meeting note from a transcript. ' +
       'You never invent facts not present in the transcript, and every bullet ends with its [t:<ms>] citation token.',
+    ...(input.signal ? { signal: input.signal } : {}),
   });
   return enforceCitations(response.content, input.transcript);
 }

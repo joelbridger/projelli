@@ -1,0 +1,102 @@
+/**
+ * QA-31 — once a notesError is recorded on meeting.json, MeetingEntry's notes
+ * pane must show an honest, classified message + a working retry instead of
+ * the generic "still generating" copy (which would otherwise read as an
+ * eternal wait even though the pipeline already gave up).
+ */
+import { render, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+
+const { retryMeetingNotesMock } = vi.hoisted(() => ({ retryMeetingNotesMock: vi.fn(async () => {}) }));
+vi.mock('@/features/meetings/meetingStore', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/features/meetings/meetingStore')>();
+  return { ...actual, retryMeetingNotes: retryMeetingNotesMock };
+});
+
+import { MeetingEntry } from '@/features/meetings/MeetingEntry';
+
+function makeWorkspace(meetingJson: Record<string, unknown>) {
+  return {
+    readFile: vi.fn(async (path: string) => {
+      if (path.endsWith('meeting.json')) return JSON.stringify(meetingJson);
+      throw new Error('not present');
+    }),
+    readFileBinary: vi.fn(async () => { throw new Error('no audio'); }),
+    writeFile: vi.fn(async () => {}),
+    delete: vi.fn(async () => {}),
+  };
+}
+
+const baseProps = {
+  matterId: 'm-1',
+  meetingDir: '/ws/C/Meetings/x',
+  folderName: 'x',
+  clientName: 'The Hendersons',
+  workspaceRoot: '/ws',
+  onBack: () => {},
+};
+
+describe('MeetingEntry — honest notes-failed state (QA-31)', () => {
+  it('shows a generic-error message (NOT the timeout copy) when notesError.kind is "error", and retry calls retryMeetingNotes', async () => {
+    retryMeetingNotesMock.mockClear();
+    const ws = makeWorkspace({
+      matterId: 'm-1',
+      startedAt: '2026-07-04T10:00:00Z',
+      consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-07-04T10:00:00Z' },
+      notesError: { kind: 'error', at: '2026-07-04T10:05:00Z' },
+    });
+
+    render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
+
+    await waitFor(() => expect(screen.getByTestId('meeting-entry-notes-failed')).toBeTruthy());
+    expect(screen.queryByTestId('meeting-entry-notes-pending')).toBeNull();
+    // codex-review P3: a plain provider/docx error must not claim "didn't
+    // respond in time" — that's specifically the timeout story.
+    expect(screen.getByTestId('meeting-entry-notes-failed').textContent).not.toMatch(/respond in time/i);
+    expect(screen.getByTestId('meeting-entry-notes-failed').textContent).toMatch(/returned an error/i);
+
+    screen.getByTestId('meeting-entry-retry-notes').click();
+    await waitFor(() => expect(retryMeetingNotesMock).toHaveBeenCalledWith('/ws/C/Meetings/x', 'm-1'));
+  });
+
+  it('shows the timeout-specific message (distinct from a generic error) when notesError.kind is "timeout"', async () => {
+    const ws = makeWorkspace({
+      matterId: 'm-1',
+      startedAt: '2026-07-04T10:00:00Z',
+      consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-07-04T10:00:00Z' },
+      notesError: { kind: 'timeout', at: '2026-07-04T10:05:00Z' },
+    });
+
+    render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
+
+    await waitFor(() => expect(screen.getByTestId('meeting-entry-notes-failed')).toBeTruthy());
+    expect(screen.getByTestId('meeting-entry-notes-failed').textContent).toMatch(/respond in time/i);
+  });
+
+  it('shows the confidentiality-gate-blocked copy (not a generic failure) when notesError.kind is "gate-blocked"', async () => {
+    const ws = makeWorkspace({
+      matterId: 'm-1',
+      startedAt: '2026-07-04T10:00:00Z',
+      consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-07-04T10:00:00Z' },
+      notesError: { kind: 'gate-blocked', at: '2026-07-04T10:05:00Z' },
+    });
+
+    render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
+
+    await waitFor(() => expect(screen.getByTestId('meeting-entry-notes-failed')).toBeTruthy());
+    expect(screen.getByTestId('meeting-entry-notes-failed').textContent).toMatch(/local-only/i);
+  });
+
+  it('still shows the plain "still generating" copy when there is no notesError yet', async () => {
+    const ws = makeWorkspace({
+      matterId: 'm-1',
+      startedAt: '2026-07-04T10:00:00Z',
+      consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-07-04T10:00:00Z' },
+    });
+
+    render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
+
+    await waitFor(() => expect(screen.getByTestId('meeting-entry-notes-pending')).toBeTruthy());
+    expect(screen.queryByTestId('meeting-entry-notes-failed')).toBeNull();
+  });
+});

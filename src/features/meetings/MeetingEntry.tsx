@@ -16,7 +16,7 @@ import { Button as DialogButton } from '@/ui/button';
 import { TranscriptViewer } from './TranscriptViewer';
 import { SpeakerNamesPanel } from './SpeakerNamesPanel';
 import { AuditService } from '@/platform/audit/AuditService';
-import { markMeetingReviewed, writeMeetingJson } from './meetingStore';
+import { markMeetingReviewed, writeMeetingJson, retryMeetingNotes } from './meetingStore';
 import type { MeetingMeta } from './meetingStore';
 import { meetingDisplayTitle, meetingTypeLabel, formatMeetingDate, formatMeetingDuration } from './meetingDisplay';
 import { makeMeetingTypesStore, BUILT_IN_TYPES } from './meetingTypes';
@@ -68,6 +68,7 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
   const [editingType, setEditingType] = useState(false);
   const [typeInput, setTypeInput] = useState('');
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [retryingNotes, setRetryingNotes] = useState(false);
   const audioRef = useRef<AudioPlayerHandle>(null);
 
   useEffect(() => {
@@ -139,6 +140,30 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     await markMeetingReviewed(meetingDir, meta);
     setMeta({ ...meta, reviewedAt: new Date().toISOString() });
   }, [meetingDir, meta]);
+
+  // QA-31 — "Retry" once notesError is set: re-runs generation, then
+  // re-reads meeting.json (for the cleared/updated notesError) and notes.docx
+  // (for the newly-written file) so the pane reflects the outcome without a
+  // manual reload.
+  const handleRetryNotes = useCallback(async () => {
+    const ws = workspaceService;
+    setRetryingNotes(true);
+    try {
+      await retryMeetingNotes(meetingDir, matterId);
+    } finally {
+      setRetryingNotes(false);
+    }
+    if (!ws) return;
+    try {
+      setMeta(JSON.parse(await ws.readFile(`${meetingDir}/meeting.json`)) as MeetingMeta);
+    } catch { /* unreadable */ }
+    try {
+      await ws.readFile(`${meetingDir}/notes.docx`);
+      setHasNotes(true);
+    } catch {
+      setHasNotes(false);
+    }
+  }, [meetingDir, matterId, workspaceService]);
 
   const handleSaveType = useCallback(async () => {
     const entered = typeInput.trim();
@@ -245,6 +270,26 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
         <div style={{ flex: 1, minWidth: 0, borderRight: '1px solid var(--kp-divider)', overflow: 'auto' }}>
           {hasNotes && DocxEditorComp ? (
             <DocxEditorComp filePath={`${meetingDir}/notes.docx`} fileName="notes.docx" />
+          ) : meta?.notesError ? (
+            <div
+              data-testid="meeting-entry-notes-failed"
+              style={{ padding: 'var(--kp-gutter)', display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-sm)' }}
+            >
+              <div style={{ color: 'var(--kp-navy)', fontSize: 'var(--kp-font-sm)' }}>
+                {meta.notesError.kind === 'gate-blocked' && t('meetings.entry.notes-failed-blocked')}
+                {meta.notesError.kind === 'timeout' && t('meetings.entry.notes-failed-timeout')}
+                {meta.notesError.kind === 'error' && t('meetings.entry.notes-failed-error')}
+              </div>
+              <button
+                type="button"
+                data-testid="meeting-entry-retry-notes"
+                onClick={() => { void handleRetryNotes(); }}
+                disabled={retryingNotes}
+                style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                {retryingNotes ? t('meetings.entry.retrying-notes') : t('meetings.tab.retry-button')}
+              </button>
+            </div>
           ) : (
             <div data-testid="meeting-entry-notes-pending" style={{ padding: 'var(--kp-gutter)', color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-sm)' }}>
               {t('meetings.entry.notes-pending')}

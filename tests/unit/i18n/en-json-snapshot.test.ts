@@ -61,7 +61,7 @@ describe('en.json structure snapshot', () => {
         "marketplace": 14,
         "matter": 185,
         "media": 81,
-        "meetings": 62,
+        "meetings": 67,
         "memory": 6,
         "model-download": 9,
         "onboarding": 65,
@@ -141,7 +141,13 @@ describe('en.json structure snapshot', () => {
     //      distinct error state instead of masquerading as "No meetings yet".
     // +3 = tab-guard.* (title, description, take-over) — QA-15 browser-build
     //      single-writer tab gate ("this workspace is open in another tab").
-    expect(flat.length).toBe(1131);
+    // +5 = QA-31 P1 fix: meetings.tab.notes-failed + meetings.entry.{notes-
+    //      failed-timeout,notes-failed-error,notes-failed-blocked,retrying-
+    //      notes} — an honest failure/retry state for the notes-generation
+    //      step, which used to hang forever or fail silently (codex-review
+    //      round 2 split the original single generic-failure copy into
+    //      distinct timeout vs. error messages).
+    expect(flat.length).toBe(1136);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {
