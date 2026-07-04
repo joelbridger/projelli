@@ -7,6 +7,8 @@ import {
   buildProbeInvocation,
   toScpRemotePath,
   buildScpDownloadInvocation,
+  buildFileTailCommand,
+  buildFileTailInvocation,
   execInvocation,
 } from '../remote.mjs';
 
@@ -87,6 +89,21 @@ describe('toScpRemotePath / buildScpDownloadInvocation', () => {
     expect(inv.file).toBe('scp');
     expect(inv.args).toContain('james@100.127.67.22:C:/lantern-plus/shot.jpeg');
     expect(inv.args).toContain('/tmp/out/shot.jpeg');
+  });
+});
+
+describe('buildFileTailCommand / buildFileTailInvocation', () => {
+  it('builds a PowerShell tail command for the app log', () => {
+    const cmd = buildFileTailCommand('C:\\tauri-dev.log', 200);
+    expect(cmd).toContain("Test-Path 'C:\\tauri-dev.log'");
+    expect(cmd).toContain("Get-Content 'C:\\tauri-dev.log' -Tail 200");
+  });
+
+  it('builds an ssh invocation for reading a remote file tail', () => {
+    const inv = buildFileTailInvocation(TARGET, 'C:\\tauri-dev.log', 50);
+    expect(inv.file).toBe('ssh');
+    expect(inv.args).toContain('james@100.127.67.22');
+    expect(inv.args.at(-1)).toContain("-Tail 50");
   });
 });
 

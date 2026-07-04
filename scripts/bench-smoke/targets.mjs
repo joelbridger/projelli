@@ -19,6 +19,7 @@ export const TARGETS = {
     sshUser: 'james',
     sshHost: '100.127.67.22',
     repoDir: 'C:\\lantern-plus',
+    appLogPath: 'C:\\tauri-dev.log',
   },
   'azure-cloud-bench-1': {
     id: 'azure-cloud-bench-1',
@@ -27,6 +28,7 @@ export const TARGETS = {
     sshUser: 'lpbench',
     sshHost: '100.75.247.98',
     repoDir: 'C:\\lantern-plus',
+    appLogPath: 'C:\\tauri-dev.log',
   },
 };
 
@@ -51,6 +53,7 @@ export function resolveTarget(idOrUndefined, overrides = {}) {
         sshUser: overrides.user,
         sshHost: overrides.host,
         repoDir: overrides.repoDir || 'C:\\lantern-plus',
+        appLogPath: overrides.appLogPath || 'C:\\tauri-dev.log',
       };
     }
     throw new Error(
@@ -64,6 +67,7 @@ export function resolveTarget(idOrUndefined, overrides = {}) {
     sshUser: overrides.user || base.sshUser,
     sshHost: overrides.host || base.sshHost,
     repoDir: overrides.repoDir || base.repoDir,
+    appLogPath: overrides.appLogPath || base.appLogPath || 'C:\\tauri-dev.log',
   };
 }
 

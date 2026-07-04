@@ -22,12 +22,12 @@ export const CHECKLIST = [
 
   { id: 'wave1-calendar-brief-export', section: 'Wave 1 — Calendar sync, meeting matching, briefs, exports', title: 'Sync now → meeting appears → assign client → before-you-meet brief renders with citations', liveOnly: false, run: wave1Checks.checkCalendarBriefExport },
 
-  { id: 'wave2-wealthbox-queue-review', section: 'Wave 2 — Send to Wealthbox (queue/review only)', title: 'Send to Wealthbox button renders on a resolvable note and queues a review card', liveOnly: false, run: wave2Checks.checkWealthboxQueueAndReview },
-  { id: 'wave2-wealthbox-approve-live', section: 'Wave 2 — Send to Wealthbox (queue/review only)', title: '[--live only, sandbox CRM] Approve the queued card and confirm it posts', liveOnly: true, run: wave2Checks.checkWealthboxApproveLive },
+  { id: 'wave2-wealthbox-queue-review', section: 'Wave 2 — Send to Wealthbox (queue/review only)', title: 'Send to Wealthbox button renders on a resolvable note and queues a review card', liveOnly: false, sameTargetGroup: 'wave2-wealthbox', run: wave2Checks.checkWealthboxQueueAndReview },
+  { id: 'wave2-wealthbox-approve-live', section: 'Wave 2 — Send to Wealthbox (queue/review only)', title: '[--live only, sandbox CRM] Approve the queued card and confirm it posts', liveOnly: true, sameTargetGroup: 'wave2-wealthbox', run: wave2Checks.checkWealthboxApproveLive },
 
   { id: 'wave4-whole-book-view', section: 'Wave 4 — Depth (Track B: whole-book Client Map)', title: 'Client Map "Whole book" view ranks all clients; a book row opens the client hub', liveOnly: false, run: wave4Checks.checkWholeBookView },
-  { id: 'wave4-estate-beneficiary-gap', section: 'Wave 4 — Depth (Track B: estate/beneficiary gap detection)', title: 'Estate/beneficiary gap chip renders in the book view with a resolvable Client Map row', liveOnly: false, run: wave4Checks.checkEstateBeneficiaryGap },
-  { id: 'wave4-estate-beneficiary-gap-dismiss-live', section: 'Wave 4 — Depth (Track B: estate/beneficiary gap detection)', title: '[--live only] Dismissing the gap via its Client Map resolve control clears it', liveOnly: true, run: wave4Checks.checkEstateBeneficiaryGapDismissLive },
+  { id: 'wave4-estate-beneficiary-gap', section: 'Wave 4 — Depth (Track B: estate/beneficiary gap detection)', title: 'Estate/beneficiary gap chip renders in the book view with a resolvable Client Map row', liveOnly: false, sameTargetGroup: 'wave4-estate-beneficiary-gap', run: wave4Checks.checkEstateBeneficiaryGap },
+  { id: 'wave4-estate-beneficiary-gap-dismiss-live', section: 'Wave 4 — Depth (Track B: estate/beneficiary gap detection)', title: '[--live only] Dismissing the gap via its Client Map resolve control clears it', liveOnly: true, sameTargetGroup: 'wave4-estate-beneficiary-gap', run: wave4Checks.checkEstateBeneficiaryGapDismissLive },
   { id: 'wave4-whole-practice-ask', section: 'Wave 4 — Depth (Track C: whole-practice Ask + consent gate)', title: 'Ask "Whole practice" scope pill renders; cross-client consent gate appears when required', liveOnly: false, run: wave4Checks.checkWholePracticeAsk },
 
   { id: 'cross-cutting-light-theme', section: 'Cross-cutting', title: 'App theme is Light everywhere visited', liveOnly: false, run: crossCuttingChecks.checkLightTheme },
