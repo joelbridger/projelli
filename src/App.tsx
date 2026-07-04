@@ -159,22 +159,27 @@ const IS_DEMO_MODE =
  * See src/platform/browserGuard/ for the guard itself and its rationale.
  */
 function App() {
+  // onFlushRequested (round 5 codex-review P1) is the ONLY flush trigger on
+  // this side of a handoff — deliberately NOT "flush whenever this tab
+  // becomes blocked". Those are different situations: `onFlushRequested`
+  // only ever fires while this tab is STILL 'owner', in direct response to
+  // another tab's coordinated flush-request BEFORE it claims the lock, so
+  // this tab's buffer is still the authoritative latest state at the moment
+  // it flushes. An earlier version of this also flushed unconditionally
+  // whenever status became 'blocked' — that additionally covers the
+  // AUTOMATIC/involuntary demotion path (this tab was frozen/throttled, its
+  // heartbeat went stale, and another tab reclaimed the lock on its own
+  // without asking). By the time a stale-reclaimed tab wakes up and notices
+  // it's blocked, the new owner may have already read and saved newer state
+  // — flushing this tab's now-stale buffer at that point would silently
+  // overwrite the new owner's real changes, reintroducing exactly the
+  // last-write-wins clobber this whole guard exists to prevent (coordinator
+  // P1, round 6). Losing this tab's own unsaved edits when it was the one
+  // that went stale is an honest, bounded loss; clobbering someone else's
+  // newer save is not.
   const tabWriteGuard = useTabWriteGuard(!IS_TEST_MODE && !isTauriEnvironment(), {
     onFlushRequested: flushAllDirtyTabs,
   });
-  useEffect(() => {
-    if (tabWriteGuard.status !== 'blocked') return;
-    // Another tab just took over and this render is about to unmount
-    // AppShell. Unlike a real page close, that unmount fires no
-    // `pagehide`/`beforeunload` — useFlushOnExit's listeners never run — so
-    // any edit still sitting inside the 2s autosave window would be
-    // silently dropped, with tab B reloading from the older saved state
-    // (codex-review P1, round 4). flushAllDirtyTabs() reads straight from
-    // the module-level editor store / active workspace service (not from
-    // AppShell's own component state), so it works correctly even if
-    // AppShell has already unmounted by the time this effect runs.
-    void flushAllDirtyTabs();
-  }, [tabWriteGuard.status]);
   if (tabWriteGuard.status === 'blocked') {
     return <TabGateOverlay onTakeOver={tabWriteGuard.requestTakeover} />;
   }

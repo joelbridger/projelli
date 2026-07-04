@@ -82,15 +82,26 @@ describe('App tab-write-guard wiring', () => {
     expect(screen.queryByTestId('tab-write-guard-overlay')).not.toBeInTheDocument();
   });
 
-  it('regression (codex-review P1, round 4): flushes dirty edits before gating a tab that just lost ownership', async () => {
+  it('regression (coordinator P1, round 6): a stale-reclaimed ex-owner does NOT flush on waking up demoted', async () => {
+    // This is the involuntary/uncoordinated demotion path: from this tab's
+    // point of view, a foreign lock simply appears fresh (indistinguishable
+    // here from a coordinated takeover — see the doc comment on App() for
+    // why that ambiguity is exactly the point). No flush-request was ever
+    // sent to this tab, so — unlike the coordinated flush-and-ack path,
+    // covered separately in flushHandoff.test.ts and useTabWriteGuard's own
+    // tests — nothing here should trigger a flush of this tab's buffer.
+    //
+    // Why this matters: an earlier version flushed unconditionally whenever
+    // this tab's status became 'blocked'. If this tab had been frozen
+    // (backgrounded, throttled) while another tab automatically reclaimed
+    // the (by-then-stale) lock, made its own edits, and saved them, this
+    // tab waking up and flushing its OWN now-stale buffer would silently
+    // overwrite that other tab's newer save — reintroducing exactly the
+    // last-write-wins clobber this whole guard exists to prevent.
     render(<App />);
     expect(await screen.findByTestId('open-existing-workspace')).toBeInTheDocument();
     expect(flushAllDirtyTabsSpy).not.toHaveBeenCalled();
 
-    // Simulate another tab taking over: a fresh foreign lock appears, and the
-    // `storage` event (which fires in every OTHER same-origin tab, not the
-    // one that wrote — we dispatch it manually here to simulate that) is
-    // this tab's signal to re-check and step down.
     act(() => {
       localStorage.setItem(
         SK_TAB_LOCK,
@@ -100,9 +111,6 @@ describe('App tab-write-guard wiring', () => {
     });
 
     expect(await screen.findByTestId('tab-write-guard-overlay')).toBeInTheDocument();
-    // AppShell just unmounted with no real page unload — the flush must have
-    // been triggered explicitly, or a dirty edit inside the 2s autosave
-    // window would be silently dropped.
-    expect(flushAllDirtyTabsSpy).toHaveBeenCalled();
+    expect(flushAllDirtyTabsSpy).not.toHaveBeenCalled();
   });
 });
