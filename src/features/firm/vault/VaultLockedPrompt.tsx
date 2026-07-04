@@ -25,13 +25,13 @@ interface VaultLockedPromptProps {
 }
 
 /**
- * Returns a user-friendly i18n key for a typed Tauri vault error string.
- * The Rust backend returns snake_case error codes; we translate them here.
+ * Returns a user-friendly translated message for a typed Tauri vault error
+ * string, or null to fall back to the raw error. The Rust backend returns
+ * snake_case error codes; we translate the known ones here.
  */
-function errorKey(err: string | null): string | null {
-  if (!err) return null;
-  if (err === 'invalid_phrase') return 'vault.locked.error-invalid-phrase';
-  if (err === 'recovery_failed') return 'vault.locked.error-recovery-failed';
+function errorMessage(err: string | null, t: (key: string) => string): string | null {
+  if (err === 'invalid_phrase') return t('vault.locked.error-invalid-phrase');
+  if (err === 'recovery_failed') return t('vault.locked.error-recovery-failed');
   return null;
 }
 
@@ -121,7 +121,7 @@ export function VaultLockedPrompt({
           className="text-sm text-red-600"
           role="alert"
         >
-          {(() => { const k = errorKey(error); return k ? t(k) : error; })()}
+          {errorMessage(error, t) ?? error}
         </p>
       )}
 

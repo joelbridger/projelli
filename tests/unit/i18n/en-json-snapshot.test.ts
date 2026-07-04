@@ -47,7 +47,7 @@ describe('en.json structure snapshot', () => {
         "ai": 48,
         "analysis": 10,
         "app": 2,
-        "ask": 12,
+        "ask": 15,
         "audio": 1,
         "chat": 12,
         "citation": 3,
@@ -59,7 +59,7 @@ describe('en.json structure snapshot', () => {
         "local-ai-settings": 8,
         "mail": 6,
         "marketplace": 14,
-        "matter": 138,
+        "matter": 185,
         "media": 81,
         "meetings": 59,
         "memory": 6,
@@ -72,6 +72,7 @@ describe('en.json structure snapshot', () => {
         "search": 6,
         "settings": 167,
         "shortcuts-overlay": 2,
+        "spine": 5,
         "tts": 1,
         "updater": 2,
         "vault": 53,
@@ -126,7 +127,15 @@ describe('en.json structure snapshot', () => {
     //      rows now), meetings.entry +5 (generic-title, dictated-title,
     //      delete-audio-confirm-*), meetings.consent +2
     //      (two-party-note-unknown, start-failed).
-    expect(flat.length).toBe(1070);
+    // +55 = QA-14 i18n fix (2026-07-04): Spine's primary nav, MatterHub's hub
+    //      tabs, and MattersHome's row/toolbar actions used literal strings
+    //      instead of t(), so switching locale never touched them. New:
+    //      spine.* (5), matter.hub.* (17), matter.home.* (23, including the
+    //      folder-count and folder-suffix plural pairs and the get-started
+    //      onboarding-card keys), ask.scope-toggle.* (3, ScopeToggle's own
+    //      "This X" / "All X" pills sat right next to ask.scope-pill.* with
+    //      the same disease).
+    expect(flat.length).toBe(1125);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

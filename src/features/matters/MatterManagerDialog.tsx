@@ -79,6 +79,20 @@ export interface MatterManagerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
+
+/** Label for a firm matter-share role badge (literal keys per branch — the
+ *  i18n extractor can't trace a template-literal key built from `m.role`). */
+function firmRoleBadgeLabel(role: 'owner' | 'editor' | 'viewer', t: (key: string) => string): string {
+  switch (role) {
+    case 'owner':
+      return t('matter.manager.firm-owner-badge');
+    case 'editor':
+      return t('matter.manager.firm-editor-badge');
+    case 'viewer':
+      return t('matter.manager.firm-viewer-badge');
+  }
+}
+
 /**
  * QA-5 — create a new client's scoped folder on disk (best-effort) and refresh
  * the workspace tree so it's visible immediately. A no-op when the workspace
@@ -754,7 +768,7 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                               data-testid="matter-firm-shared-badge"
                               className="ml-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary"
                             >
-                              {m.role ? t(`matter.manager.firm-${m.role}-badge`) : t('matter.manager.firm-shared-badge')}
+                              {m.role ? firmRoleBadgeLabel(m.role, t) : t('matter.manager.firm-shared-badge')}
                             </span>
                           </span>
                           <div className="flex items-center gap-1">

@@ -71,6 +71,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     (unit + bench-mirror e2e extended).
 
 ### Fixed
+- **i18n gate + QA-14 fix: switching to Deutsch/Español now actually translates
+  the surfaces advisors live in (2026-07-04).** `npm run i18n:check` was red
+  (18 "key is not a string literal" warnings) — every call site built its
+  translation key from a variable, template literal, or ternary instead of a
+  literal string, so the i18next static extractor couldn't see it; fixed by
+  converting each to a literal-keyed switch/ternary
+  (`useChatSending.ts`, `renderingHelpers.tsx`, `ScopeToggle.tsx`,
+  `DocxRedlineControls.tsx`, `EmailViewer.tsx`, `VaultLockedPrompt.tsx`,
+  `BookView.tsx`, `MatterManagerDialog.tsx`, `MatterNotesEditor.tsx`,
+  `meetingDisplay.ts`, `RetentionSettings.tsx`, `WorkflowExecutionTab.tsx`,
+  `WorkflowPanel.tsx`) — the gate is honestly zero now, no suppressions.
+  Root cause of QA-14 (P1): `Spine.tsx`'s primary nav ("Client Map" / "Ask" /
+  "Workflows"), `MatterHub.tsx`'s hub tab bar, and `MattersHome.tsx`'s row and
+  toolbar actions (Ask/Documents/Email, folder counts, header description,
+  the "Get started" onboarding card, sortable column headers) were plain
+  hardcoded English strings, never routed through `t()` — the language
+  switch never touched them. Wired all of it through `t()` with new locale
+  keys (`spine.*`, `matter.hub.*`, `matter.home.*`, `ask.scope-toggle.*`) in
+  en/de/es.json, and while in the neighborhood also translated ~36
+  pre-existing keys under `ask.*` and `matter.*` that were English-value
+  placeholders in de.json/es.json despite already being wired through `t()`
+  (so the key resolved but rendered English regardless of locale). Known,
+  deliberate scope limit: `useEntityLabel()` (the "client"/"matter"/
+  "household" noun) is not locale-aware — it varies by profession, not by
+  language — so that one word stays English in every locale; flagged as a
+  follow-up, not silently fixed here. Verified with a real German run:
+  screenshots in `coordination/qa-campaign/evidence/i18nfix-20260704/`.
 - **CRM review-card visibility + persistence (QA findings).** (1) Queued Wealthbox
   proposals no longer vanish on app restart — `crmWriteQueueStore` now persists via
   zustand + localStorage, with honest rehydrate reconciliation: an item stuck mid-send

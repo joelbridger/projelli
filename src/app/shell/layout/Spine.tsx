@@ -6,6 +6,7 @@
  * just not rail tabs. The binder spine of the case file.
  */
 import { useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Sparkles, ListChecks,
   Map as MapIcon, Plus, ChevronLeft, ChevronRight, type LucideIcon,
@@ -58,11 +59,12 @@ export function Spine({
   auditContent, mattersContent, emailContent, settingsContent, privacyContent,
   activeTab = 'matters', onTabChange, collapsed = false, onCollapsedChange,
 }: SpineProps) {
+  const { t } = useTranslation();
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const matters = useMatters();
   const activeMatterId = useActiveMatterId();
   const entityLabel = useEntityLabel();
-  const newClientLabel = `+ New ${entityLabel.one}`;
+  const newClientLabel = t('spine.new-client', { entity: entityLabel.one });
 
   // The 3-tab IA. The internal ids are KEPT (matters/search/workflows) so the
   // surface router + testids are unchanged; only the labels and placement move.
@@ -70,9 +72,9 @@ export function Spine({
   // gear menu, Ask source filter, and Client Map quick actions — they stay
   // routable content ids (see `content` below), just not rail tabs.
   const nav: { id: SpineTab; label: string; Icon: LucideIcon }[] = [
-    { id: 'matters', label: 'Client Map', Icon: MapIcon },
-    { id: 'search', label: 'Ask', Icon: Sparkles },
-    { id: 'workflows', label: 'Workflows', Icon: ListChecks },
+    { id: 'matters', label: t('spine.nav.client-map'), Icon: MapIcon },
+    { id: 'search', label: t('spine.nav.ask'), Icon: Sparkles },
+    { id: 'workflows', label: t('spine.nav.workflows'), Icon: ListChecks },
   ];
 
   const content: Record<SpineTab, React.ReactNode> = {
@@ -91,13 +93,13 @@ export function Spine({
   if (collapsed) {
     return (
       <nav
-        aria-label="Primary"
+        aria-label={t('spine.aria.primary-nav')}
         style={{ width: 56, background: 'var(--kp-side-bg)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, paddingTop: 'var(--kp-space-xs)', position: 'relative' }}
       >
         <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 2, background: 'var(--kp-side-edge)', opacity: 1 }} />
         <IconButton
           icon={ChevronRight}
-          label="Expand"
+          label={t('layout.sidebar.expand-aria')}
           variant="ghost"
           size="sm"
           onClick={() => onCollapsedChange?.(false)}
@@ -121,7 +123,7 @@ export function Spine({
   return (
     <div data-testid="sidebar" style={{ display: 'flex', height: '100%', minHeight: 0 }}>
       {/* Navy spine */}
-      <nav aria-label="Primary" data-testid="spine-nav"
+      <nav aria-label={t('spine.aria.primary-nav')} data-testid="spine-nav"
         style={{ width: 212, background: 'var(--kp-side-bg)', color: 'var(--kp-side-fg)', display: 'flex', flexDirection: 'column', minHeight: 0, position: 'relative', flex: 'none' }}>
         <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 2, background: 'var(--kp-side-edge)', opacity: 1 }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-xs)', padding: 'var(--kp-space-md) var(--kp-space-md) var(--kp-space-2xs)' }}>
@@ -193,7 +195,7 @@ export function Spine({
         )}
         <div style={{ display: 'flex', alignItems: 'stretch', borderTop: '1px solid var(--kp-side-border)', flex: 'none' }}>
           <AccountIdentity onOpen={() => { window.dispatchEvent(new CustomEvent(EV_OPEN_ACCOUNT)); }} />
-          <button type="button" onClick={() => onCollapsedChange?.(true)} title="Collapse sidebar" aria-label="Collapse sidebar"
+          <button type="button" onClick={() => onCollapsedChange?.(true)} title={t('layout.sidebar.collapse-aria')} aria-label={t('layout.sidebar.collapse-aria')}
             style={{ border: 0, borderLeft: '1px solid var(--kp-side-border)', background: 'transparent', color: 'var(--kp-side-fg-faint)', cursor: 'pointer', padding: '0 var(--kp-space-sm)', display: 'flex', alignItems: 'center', flex: 'none' }}>
             <ChevronLeft size={16} />
           </button>

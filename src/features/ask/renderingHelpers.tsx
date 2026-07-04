@@ -122,10 +122,9 @@ export function isLowConfidenceScan(extraction?: string, extractionConfidence?: 
  */
 export function ocrLabelSuffix(extraction?: string, extractionConfidence?: number): string {
   if (extraction !== 'ocr') return '';
-  const key = isLowConfidenceScan(extraction, extractionConfidence)
-    ? 'citation.scanned-low'
-    : 'citation.scanned';
-  return ` (${i18n.t(key)})`;
+  return isLowConfidenceScan(extraction, extractionConfidence)
+    ? ` (${i18n.t('citation.scanned-low')})`
+    : ` (${i18n.t('citation.scanned')})`;
 }
 
 /**
