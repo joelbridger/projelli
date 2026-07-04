@@ -44,6 +44,7 @@ import {
 } from '@/platform/privacy/localOnlyGuard';
 import type { AnswerBlock, AnswerCitation, AskFailureStage, AskScope, AskTurn } from './askHelpers';
 import {
+  ASK_CANCELLED_BY_NAVIGATION_MESSAGE,
   NO_EVIDENCE_DECLINE,
   buildAskSystemPrompt,
   buildSmartAskSystemPrompt,
@@ -237,6 +238,20 @@ export function useAsk({
   const abortRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const composerInputRef = useRef<HTMLInputElement>(null);
+  // QA-25 (P2) — mirror of `status` for the chatId-switch effect's cleanup
+  // below. A cleanup closure only sees the values captured when its effect
+  // last (re)ran (i.e. at the LAST chatId change), not whatever happened
+  // afterward — a ref updated on every render gives the cleanup the LATEST
+  // status at the moment the user actually switches away.
+  const statusRef = useRef(status);
+  useEffect(() => { statusRef.current = status; }, [status]);
+  // The question text of the CURRENTLY in-flight ask, if any. Not derived
+  // from the `question` composer state — `handleAsk` clears that optimistically
+  // the instant it starts (so the composer looks ready for the next question),
+  // so by the time a switch happens there's nothing left to read from it. Set
+  // when a send starts, cleared when it reaches a terminal state (done/error)
+  // or gets consumed by a cancellation.
+  const pendingQuestionRef = useRef<string | null>(null);
   // Fix #8 / B-PRIV-1: the provider the egress banner names, TAGGED with the
   // confidentiality mode it was resolved UNDER. `null` means "destination not
   // yet known". We tag the mode so the displayed value (derived synchronously in
@@ -328,6 +343,33 @@ export function useAsk({
     setErrorMsg(null);
     setStatus('idle');
     setAnswerStalled(false);
+
+    // QA-25 (P2) — this effect's cleanup runs right before `chatId` changes
+    // again, i.e. the instant the user switches to a different client/
+    // conversation. `chatId` here is the OUTGOING one (closed over from this
+    // render); `statusRef`/`questionRef` give the LATEST status/question
+    // (see their declaration above for why refs, not the closed-over state,
+    // are needed). If a question was still retrieving/answering for THIS
+    // chat, abort it (every downstream `abort.signal.aborted` check then
+    // makes the original handleAsk call return without ever persisting a
+    // stale success) and leave an honest, persisted record in THIS chat's
+    // own history — never silent loss, and never a leak into whatever chat
+    // becomes current next.
+    return () => {
+      if (statusRef.current !== 'retrieving' && statusRef.current !== 'answering') return;
+      const askedQuestion = pendingQuestionRef.current;
+      if (!askedQuestion) return;
+      abortRef.current?.abort();
+      pendingQuestionRef.current = null;
+      const cancelledAt = new Date().toISOString();
+      addMessage(chatId, { role: 'user', content: askedQuestion, timestamp: cancelledAt });
+      addMessage(chatId, {
+        role: 'assistant',
+        content: ASK_CANCELLED_BY_NAVIGATION_MESSAGE,
+        timestamp: cancelledAt,
+        askGroundedFromFiles: false,
+      });
+    };
   }, [chatId, rootPath]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-scroll to bottom when turns change or streaming turn updates
@@ -469,6 +511,10 @@ export function useAsk({
     abortRef.current?.abort();
     const abort = new AbortController();
     abortRef.current = abort;
+    // QA-25 (P2) — record the in-flight question so a client switch before
+    // this resolves can leave an honest "cancelled" record (see the
+    // chatId-switch effect's cleanup above) instead of silently losing it.
+    pendingQuestionRef.current = q;
 
     // F2.5b (Codex round 11) — capture the workspace GENERATION at send start.
     // Re-checked just before dispatch so any workspace switch during the send's
@@ -551,6 +597,7 @@ export function useAsk({
             setTurns((prev) => [...prev, completedTurn]);
             setStreamingTurn(null);
             setStatus('done');
+            pendingQuestionRef.current = null;
             return;
           }
           // A4: sample matter + no cloud key + question not in demo set.
@@ -574,6 +621,7 @@ export function useAsk({
           setTurns((prev) => [...prev, bridgeTurn]);
           setStreamingTurn(null);
           setStatus('done');
+          pendingQuestionRef.current = null;
           return;
         }
       }
@@ -711,6 +759,7 @@ export function useAsk({
         setTurns((prev) => [...prev, declineTurn]);
         setStreamingTurn(null);
         setStatus('done');
+        pendingQuestionRef.current = null;
       };
 
       // Ask-smart (Decision 3): only files-only mode dead-ends on no evidence;
@@ -778,6 +827,16 @@ export function useAsk({
       // "AUTHORITATIVE consent gate" block after flushSync).
       let answerText = '';
       let resolvedProvider = await buildResolvedAskProvider();
+      // QA-25 (P2, Codex review) — the user can navigate away (switch client,
+      // start a new question, load another thread) while this await is in
+      // flight. Without this check, a navigation-triggered abort persists the
+      // "cancelled" record (see the chatId-switch effect) and this call keeps
+      // going anyway, potentially persisting a SECOND, "successful" answer
+      // after it — worse on providers with no streaming signal, which never
+      // see the abort at all downstream. Bail the same way every other
+      // post-await checkpoint in this function does.
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- abort.signal flips via an external AbortController across the await (ESLint can't see it; same async pattern baselined elsewhere in this file).
+      if (abort.signal.aborted) return;
 
       // FINAL SYNCHRONOUS LOCAL-ONLY SEND GUARD (Codex re-review #4 — the
       // important one). This is a real privacy enforcement, not a display fix:
@@ -792,6 +851,11 @@ export function useAsk({
       // does next).
       if (isLocalOnlyMode() && !isLocalProvider(resolvedProvider.providerId)) {
         resolvedProvider = await resolveLocalAskProvider();
+        // QA-25 (P2, Codex review) — same re-check as above: this branch adds
+        // its OWN await, so a navigation-triggered abort during THIS one must
+        // be caught here too, not just after the first resolution.
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- abort.signal flips via an external AbortController across the await (ESLint can't see it; same async pattern baselined elsewhere in this file).
+        if (abort.signal.aborted) return;
       }
       // Airtight backstop: there is NO await between this assertion and the send
       // below (only synchronous setup + flushSync), so the mode cannot change in
@@ -1134,6 +1198,7 @@ export function useAsk({
       setTurns((prev) => [...prev, completedTurn]);
       setStreamingTurn(null);
       setStatus('done');
+      pendingQuestionRef.current = null;
     } catch (err) {
       if (abort.signal.aborted) return;
       console.error('Ask failed', err);
@@ -1198,6 +1263,7 @@ export function useAsk({
       setAnswerStalled(false);
       setStreamingTurn(null);
       setStatus('error');
+      pendingQuestionRef.current = null;
       // BUG-002: restore the typed question so the user can retry without
       // re-typing. The input was cleared optimistically before the try block;
       // on error we put it back.
