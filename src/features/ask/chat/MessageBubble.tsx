@@ -153,7 +153,7 @@ function MessageBubbleImpl({
                 )}
                 title={
                   msg.scope.kind === 'allMatters'
-                    ? t('ask.message-scope.all-title', { entity: entityLabel.one })
+                    ? t('ask.message-scope.all-title', { entity: entityLabel.other })
                     : t('ask.message-scope.matter-title', { entity: entityLabel.one })
                 }
               >

@@ -1915,7 +1915,7 @@
     },
     "message-scope": {
       "all-title": "Esta respuesta buscó en todos los {{entity}}.",
-      "all-title__sourceHash": "fab747ad3355c6fa6d804aaea049ac74bda097bda66e78bd15c6107ed896901f",
+      "all-title__sourceHash": "69650b906ff4b52446ad36b82a3abd4d16b640ab8c7e1319dc6fbe407533fe38",
       "matter-title": "Esta respuesta se limitó al {{entity}} activo. No se buscó en los datos de otros clientes.",
       "matter-title__sourceHash": "af8a6558fdb1a7da30da97b8762a86aca22595b6d44ef4f4f162015b13166afd",
       "this-entity-fallback": "este {{entity}}",

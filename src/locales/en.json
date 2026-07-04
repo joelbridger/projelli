@@ -948,7 +948,7 @@
       "all-entity-scope": "all your {{entity}}"
     },
     "message-scope": {
-      "all-title": "This answer searched across every {{entity}}.",
+      "all-title": "This answer searched across all {{entity}}.",
       "matter-title": "This answer was confined to the active {{entity}}. Other clients' data was not searched.",
       "this-entity-fallback": "this {{entity}}"
     },
