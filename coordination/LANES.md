@@ -9,6 +9,7 @@ Last updated: 2026-07-04 ~01:05 (coordinator-6 seated — sole coordinator; moni
 |---|---|---|
 | cc-lantern-benchfull | 🏁 FINISH-LINE full Wave 0-4 scripted bench pass on the Legion (tip fc82c2a2; brief w-bench-full-brief.md; freshness canary mandatory — window-creation path changed) | bench-running |
 | cc-lantern-winvm | Local Windows VM spike Phase 1 (testing-speed program #6) — KVM VM on /mnt/devcache, SSH + clean snapshot; infra only, no product code | building |
+| cc-lantern-vaudio | Virtual-audio spike on clone bench-2 (program #5, the LAST queued program item) — prove capture tests without physical hardware; snapshot-reset safety net | building |
 | cc-lantern-auditfix | Audit-chain fail-closed fix (lp/audit-chain-failclosed; inherited #14; Opus 4.8 xhigh — tamper-evidence is the trust story) — builds during the bench pass, merges after the verdict | building |
 
 ## Merged this session
