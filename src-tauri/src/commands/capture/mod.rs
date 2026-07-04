@@ -5,6 +5,7 @@ pub mod engine;
 pub mod recovery;
 pub mod session;
 pub mod sources;
+pub mod transcribe;
 
 /// Resolve a matter folder under the workspace, refusing `..` traversal and
 /// symlink escapes. Accepts BOTH a workspace-relative path ("Clients/A")
