@@ -345,7 +345,19 @@ pub fn resolve_workspace_path(workspace: &Path, relative: &str) -> Result<PathBu
     let canon_ws = workspace
         .canonicalize()
         .map_err(|_| "workspace root cannot be canonicalised".to_string())?;
+    // Validate the walk against the CANONICAL root (so a symlink component
+    // anywhere below it is still caught) but return the path rooted at the
+    // CALLER's original `workspace` spelling, not the canonical one.
+    // `McpAccessState`'s matter `folder_paths` are lexical strings built
+    // from that same original workspace-root spelling (see access.rs /
+    // matterStore.ts) — if `workspace` itself was opened through a symlink,
+    // returning a canonical-rooted path here would make every legitimate
+    // grant compare as "outside the granted matter" and silently break
+    // read/write access for such a workspace. Since `relative` is now
+    // proven symlink-free, `workspace.join(relative)` and the canonical
+    // path name the exact same file — only the root's spelling differs.
     lantern_lib::commands::pathguard::resolve_creatable(&canon_ws, relative, &canon_ws)
+        .map(|_| workspace.join(relative))
         .map_err(|e| format!("path escapes workspace root: {relative} ({e})"))
 }
 
@@ -510,6 +522,40 @@ mod tests {
 
         let err = resolve_workspace_path(ws.path(), "escape/secret.txt").unwrap_err();
         assert!(err.contains("symlink"), "got: {err}");
+    }
+
+    /// When the WORKSPACE ROOT itself is opened through a symlink (a
+    /// legitimate, unrelated-to-the-alias-attack setup — e.g. the app's
+    /// workspace path lives on a symlinked mount), the resolved path must
+    /// stay rooted at the caller's ORIGINAL workspace spelling, not silently
+    /// switch to the canonical target. `McpAccessState::decide_path` compares
+    /// the resolved path against matter `folder_paths` built from that same
+    /// original spelling; returning a canonical-rooted path here would make
+    /// every legitimate grant compare as "outside the granted matter" and
+    /// break access for such a workspace — for both an existing file and a
+    /// brand-new one.
+    #[cfg(unix)]
+    #[test]
+    fn returns_path_rooted_at_original_workspace_spelling_when_root_itself_is_a_symlink() {
+        let real = tempfile::tempdir().unwrap();
+        std::fs::write(real.path().join("existing.md"), b"hi").unwrap();
+        let parent = tempfile::tempdir().unwrap();
+        let symlinked_root = parent.path().join("workspace-link");
+        std::os::unix::fs::symlink(real.path(), &symlinked_root).unwrap();
+
+        let p = resolve_workspace_path(&symlinked_root, "existing.md")
+            .expect("existing file through a symlinked workspace root must resolve");
+        assert!(
+            p.starts_with(&symlinked_root),
+            "resolved path must stay rooted at the caller's original workspace spelling, got: {p:?}"
+        );
+
+        let p2 = resolve_workspace_path(&symlinked_root, "new-file.md")
+            .expect("new file through a symlinked workspace root must resolve");
+        assert!(
+            p2.starts_with(&symlinked_root),
+            "new-file path must also stay rooted at the original workspace spelling, got: {p2:?}"
+        );
     }
 
     /// A normal nested path with no symlinks anywhere must still resolve —
