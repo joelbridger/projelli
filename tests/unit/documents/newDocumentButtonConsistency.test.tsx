@@ -1,0 +1,113 @@
+/**
+ * QA-26 (P3) — "New document" affordances must behave consistently.
+ *
+ * Persona-C's klutz exploration reported that the toolbar's "New document"
+ * button (shown once a client has files) created a file INSTANTLY with a
+ * generic name (`my-document.docx`) and no naming prompt, while the
+ * empty-state "+ New Word document" button (shown when a client has zero
+ * files) opened the "Create Word Document" naming dialog first — an
+ * inconsistent, confusing affordance (see BUG-DB QA-26).
+ *
+ * Investigation for this fix found BOTH buttons already route through the
+ * exact same `onCreateDefaultDocument` prop in this codebase — the toolbar's
+ * `handleCreateDocument` (DocumentsHome.tsx) and the empty-state's wiring
+ * (DocumentGridView.tsx's `WorkspaceEmptyState`) both call
+ * `onCreateDefaultDocument(parentPath)` first, with the identical
+ * `onCreateDocxAtRoot`/`onCreateFile` fallback chain — and
+ * `onCreateDefaultDocument` (`useDocumentCreation.ts`'s
+ * `handleCreateDefaultDocument`) always resolves to a prompting handler
+ * (`handleCreateDocxAtRoot` or `handleCreateTextFileAtRoot`), never an
+ * instant, dialog-free create. The literal "toolbar creates instantly, no
+ * dialog" behavior does not reproduce against this branch's code — evidence
+ * screenshots from the SAME exploration session (06-after-newdoc.jpeg,
+ * 11-garcia-newdoc-dialog.jpeg) also show the toolbar button opening the
+ * naming dialog. This is a regression guard locking in that consistency —
+ * both buttons must always resolve to the SAME creation entry point — so a
+ * future change can't silently reintroduce the split.
+ */
+
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { DocumentsHome, type DocumentsHomeProps } from '@/features/documents/DocumentsHome';
+import type { TrashStats } from '@/platform/history/TrashService';
+
+// An entirely empty workspace so the grid's zero-files empty state renders
+// (see DocumentGridView.tsx: `fileTree.length === 0` shows WorkspaceEmptyState)
+// alongside the toolbar, which renders regardless of file count — reproducing
+// the exact "both buttons visible at once" scenario from the bug report.
+vi.mock('@/platform/fs/workspaceStore', () => ({
+  useWorkspaceStore: (selector: (s: object) => unknown) =>
+    selector({ fileTree: [], rootPath: '/workspace' }),
+}));
+
+vi.mock('@/platform/state/editorStore', () => ({
+  useEditorStore: (selector: (s: object) => unknown) =>
+    selector({ activeTabPath: null, openTabs: [], setActiveTab: vi.fn(), closeTab: vi.fn() }),
+}));
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
+
+const EMPTY_TRASH_STATS: TrashStats = { itemCount: 0, totalSize: 0, oldestItem: undefined };
+
+function buildProps(overrides: Partial<DocumentsHomeProps> = {}): DocumentsHomeProps {
+  return {
+    mainPanelContent: <div data-testid="main-panel">Editor</div>,
+    trashItems: [],
+    trashStats: EMPTY_TRASH_STATS,
+    onRestore: vi.fn().mockResolvedValue(undefined),
+    onPermanentDelete: vi.fn().mockResolvedValue(undefined),
+    onEmptyTrash: vi.fn().mockResolvedValue(undefined),
+    onFileOpen: vi.fn().mockResolvedValue(undefined),
+    onCreateFile: vi.fn(),
+    onCreateFolder: vi.fn(),
+    onRename: vi.fn(),
+    onDelete: vi.fn(),
+    onMove: vi.fn().mockResolvedValue(undefined),
+    onDownload: vi.fn(),
+    ...overrides,
+  };
+}
+
+describe('QA-26 (P3): toolbar "New document" and empty-state "New Word document" stay consistent', () => {
+  it('both buttons are visible at once on a zero-file client, and BOTH call the same onCreateDefaultDocument entry point', () => {
+    const onCreateDefaultDocument = vi.fn();
+    const onCreateFile = vi.fn();
+    const onCreateDocxAtRoot = vi.fn();
+    render(
+      <DocumentsHome
+        {...buildProps({ onCreateDefaultDocument, onCreateFile, onCreateDocxAtRoot })}
+      />,
+    );
+
+    expect(screen.getByTestId('grid-empty-state')).toBeTruthy();
+
+    const toolbarButton = screen.getByRole('button', { name: 'New document' });
+    const emptyStateButton = screen.getByRole('button', { name: 'New Word document' });
+    expect(toolbarButton).toBeTruthy();
+    expect(emptyStateButton).toBeTruthy();
+
+    fireEvent.click(toolbarButton);
+    fireEvent.click(emptyStateButton);
+
+    expect(onCreateDefaultDocument).toHaveBeenCalledTimes(2);
+    // The bug's exact symptom would be the toolbar reaching a DIFFERENT,
+    // dialog-free handler — neither fallback may ever fire while
+    // onCreateDefaultDocument is provided.
+    expect(onCreateFile).not.toHaveBeenCalled();
+    expect(onCreateDocxAtRoot).not.toHaveBeenCalled();
+  });
+
+  it('with no onCreateDefaultDocument wired, both buttons fall back to the SAME onCreateDocxAtRoot (still consistent with each other)', () => {
+    const onCreateFile = vi.fn();
+    const onCreateDocxAtRoot = vi.fn();
+    render(<DocumentsHome {...buildProps({ onCreateFile, onCreateDocxAtRoot })} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'New document' }));
+    fireEvent.click(screen.getByRole('button', { name: 'New Word document' }));
+
+    expect(onCreateDocxAtRoot).toHaveBeenCalledTimes(2);
+    expect(onCreateFile).not.toHaveBeenCalled();
+  });
+});
