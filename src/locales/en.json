@@ -1464,7 +1464,10 @@
       "loading": "Loading meetings…",
       "needs-review-badge": "Needs review",
       "reviewed-badge": "Reviewed",
-      "duration": "{{minutes}} min"
+      "duration": "{{minutes}} min",
+      "scan-error-title": "Couldn't load meetings",
+      "scan-error-body": "Something interrupted the check just now. Your recordings are safe on this computer.",
+      "retry-button": "Try again"
     },
     "entry": {
       "breadcrumb-meetings": "Meetings",

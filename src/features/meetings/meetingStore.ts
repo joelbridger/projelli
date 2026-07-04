@@ -171,7 +171,7 @@ async function tryGenerateNotes(
   }
 }
 
-export type ReviewItemKind = 'unreviewed-note' | 'crm-waiting' | 'no-followup';
+export type ReviewItemKind = 'unreviewed-note' | 'crm-waiting' | 'no-followup' | 'unreadable-meta';
 export interface ReviewItem {
   kind: ReviewItemKind;
 }
@@ -192,6 +192,10 @@ export function needsReview(
   now: number = Date.now()
 ): ReviewItem[] {
   const items: ReviewItem[] = [];
+  // A meeting folder with a missing/corrupt meeting.json is an orphaned or
+  // incomplete recording — it must be surfaced honestly here, never silently
+  // hidden or rendered as if it were a normal, fully-formed meeting.
+  if (meeting.meta === null) items.push({ kind: 'unreadable-meta' });
   if (meeting.hasNotes && !meeting.meta?.reviewedAt)
     items.push({ kind: 'unreviewed-note' });
   const waiting = crmQueue.some(
