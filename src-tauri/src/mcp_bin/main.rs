@@ -329,20 +329,24 @@ pub fn resolve_workspace_path(workspace: &Path, relative: &str) -> Result<PathBu
             return Err(format!("path escapes workspace root: {relative}"));
         }
     }
-    let joined = workspace.join(relative);
-    // If the file exists we can canonicalize both sides and verify. When it
-    // doesn't (e.g. new-file writes) we fall back to the lexical join — the
-    // explicit `..` scan above already blocks the obvious attack.
-    match (joined.canonicalize(), workspace.canonicalize()) {
-        (Ok(j), Ok(w)) => {
-            if !j.starts_with(&w) {
-                return Err(format!("path escapes workspace root: {relative}"));
-            }
-            Ok(j)
-        }
-        (Err(_), Ok(_)) => access::canonicalized_workspace_child(workspace, &joined),
-        _ => Err("workspace root cannot be canonicalised".into()),
-    }
+    // Walk `relative` component-by-component from the canonical workspace
+    // root, refusing outright the moment any component — intermediate
+    // directory or final target — is a symlink (checked via
+    // `symlink_metadata`, which never follows). The prior implementation
+    // canonicalized the full joined path and, when that failed (a new-file
+    // write), fell back to canonicalizing the nearest EXISTING ancestor —
+    // both FOLLOW symlinks, so an in-workspace alias directory
+    // (`Clients/Alias` -> `Clients/RealClient`) would pass the
+    // `starts_with` check and let `read_workspace_file`/`write_workspace_file`
+    // touch a different client's files. See `crate::commands::pathguard`
+    // (shared with the vault and diarize command sites) for the no-follow
+    // walk, and `resolve_creatable` specifically for its "missing tail is
+    // fine, symlinked component is not" semantics that new-file writes need.
+    let canon_ws = workspace
+        .canonicalize()
+        .map_err(|_| "workspace root cannot be canonicalised".to_string())?;
+    lantern_lib::commands::pathguard::resolve_creatable(&canon_ws, relative, &canon_ws)
+        .map_err(|e| format!("path escapes workspace root: {relative} ({e})"))
 }
 
 // Keep the embedder / store / extractor references alive so the compiler
@@ -456,5 +460,68 @@ mod tests {
             err.contains("escapes") || err.contains("absolute"),
             "got: {err}"
         );
+    }
+
+    /// An IN-WORKSPACE alias (`Clients/Alias` -> `Clients/RealClient`, both
+    /// inside the workspace) must be rejected for a READ through it — the
+    /// old canonicalize+starts_with fallback would FOLLOW the alias and
+    /// accept it since RealClient is also inside the workspace.
+    #[cfg(unix)]
+    #[test]
+    fn rejects_read_through_in_workspace_alias_symlink() {
+        let ws = tempfile::tempdir().unwrap();
+        let real = ws.path().join("Clients/RealClient");
+        std::fs::create_dir_all(&real).unwrap();
+        std::fs::write(real.join("secret.docx"), b"real client secret").unwrap();
+        let alias = ws.path().join("Clients/Alias");
+        std::os::unix::fs::symlink(&real, &alias).unwrap();
+
+        let err = resolve_workspace_path(ws.path(), "Clients/Alias/secret.docx").unwrap_err();
+        assert!(err.contains("symlink"), "got: {err}");
+    }
+
+    /// Same alias attack for a WRITE of a NEW file (doesn't exist yet) —
+    /// exercises the "missing tail is fine, symlinked component is not"
+    /// path specifically, since new-file writes are exactly the case that
+    /// falls through to the "doesn't exist" branch.
+    #[cfg(unix)]
+    #[test]
+    fn rejects_write_through_in_workspace_alias_symlink() {
+        let ws = tempfile::tempdir().unwrap();
+        let real = ws.path().join("Clients/RealClient");
+        std::fs::create_dir_all(&real).unwrap();
+        let alias = ws.path().join("Clients/Alias");
+        std::os::unix::fs::symlink(&real, &alias).unwrap();
+
+        let err = resolve_workspace_path(ws.path(), "Clients/Alias/new-file.docx").unwrap_err();
+        assert!(err.contains("symlink"), "got: {err}");
+    }
+
+    /// An out-of-workspace symlink must still be rejected (regression guard
+    /// for the previous behavior, now caught earlier — at the symlink
+    /// component itself rather than only after following it).
+    #[cfg(unix)]
+    #[test]
+    fn rejects_out_of_workspace_symlink() {
+        let ws = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::write(outside.path().join("secret.txt"), b"secret").unwrap();
+        std::os::unix::fs::symlink(outside.path(), ws.path().join("escape")).unwrap();
+
+        let err = resolve_workspace_path(ws.path(), "escape/secret.txt").unwrap_err();
+        assert!(err.contains("symlink"), "got: {err}");
+    }
+
+    /// A normal nested path with no symlinks anywhere must still resolve —
+    /// regression guard alongside `accepts_nested_subdir_path` (which
+    /// covers the fully-missing case) for the fully-EXISTING case.
+    #[test]
+    fn accepts_existing_nested_path_with_no_symlinks() {
+        let ws = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(ws.path().join("Clients/RealClient")).unwrap();
+        std::fs::write(ws.path().join("Clients/RealClient/notes.md"), b"hi").unwrap();
+        let p = resolve_workspace_path(ws.path(), "Clients/RealClient/notes.md")
+            .expect("legitimate nested path must resolve");
+        assert!(p.ends_with("Clients/RealClient/notes.md"));
     }
 }

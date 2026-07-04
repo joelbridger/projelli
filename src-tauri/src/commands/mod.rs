@@ -8,6 +8,14 @@
 pub mod fs;
 pub mod http;
 pub mod keychain;
+// Symlink-safe workspace-path containment (2026-07-04 hardening pass).
+// Every command that resolves a caller-supplied path against a workspace or
+// matter root goes through here instead of duplicating its own
+// canonicalize+starts_with check, which follows symlinks and can be tricked
+// by an in-workspace alias directory into touching a different client's
+// files. `pub` (not `pub(crate)`) so the `lantern-mcp` sidecar binary can
+// reuse it too — see the module doc comment.
+pub mod pathguard;
 // Single seam for resolving + migrating the per-workspace internal data folder
 // (`.keepance` → `.lantern`), the vault-metadata file, and the OS-level data
 // subdir. See data_dir.rs for the marker-based, fail-safe migration.
