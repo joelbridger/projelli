@@ -172,7 +172,6 @@ bugs are fixed.
 
 ---
 
-<<<<<<< HEAD
 ## Lane qa3 detail — persona D, "the edge-case hunter" (browser dev build, 2026-07-04)
 
 **Seat/setup:** server's browser dev build only (`npm run dev` in `~/lp-qa3`, port 5177,
@@ -236,7 +235,6 @@ that can sometimes trick a website into running code) and none of it worked — 
 the ugly text as plain text every time, never ran it. Weird file names (emoji, foreign characters,
 super long names, empty files, huge files) all displayed correctly. And even with 500 fake clients
 loaded in, everything stayed fast. Nothing I did caused a crash.
-=======
 > NOTE: this lane filed its findings as QA-13..17 before qa3's rows merged first; the table above renumbers them to QA-19..23 (evidence files keep the lane-internal numbers).
 
 ## Lane qa2 detail — persona B, "the daily driver, a week compressed" (Azure bench-1, 2026-07-04)
@@ -382,4 +380,3 @@ The Word editor auto-saves and even quietly keeps a backup copy before big edits
 screen is genuinely thoughtful, not just a legal cover-your-back popup. And the fixes from the very
 first testing round (new clients getting their own folder, the Ask box being visible on a normal-size
 window) are both holding up correctly under real use.
->>>>>>> origin/lp/qa-persona-b
