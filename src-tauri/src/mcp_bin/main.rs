@@ -294,12 +294,38 @@ pub fn text_content(text: &str) -> Value {
 // Path safety — shared between the tool fns and the unit tests.
 // ---------------------------------------------------------------------------
 
+/// The result of validating a caller-supplied workspace-relative path,
+/// split into the two forms different callers need:
+///
+/// - `io_path`: the fully canonical, symlink-free, proven-contained path.
+///   Use this for every ACTUAL disk operation (metadata/read/write/
+///   create_dir_all). It's captured as an already-resolved absolute path
+///   (not `workspace.join(relative)` re-derived lazily), so if `workspace`
+///   itself is a symlink that later gets re-pointed to a different target,
+///   disk I/O still lands on the location that was actually validated
+///   rather than wherever the symlink now happens to point.
+/// - `lexical_path`: the same target rooted at the caller's ORIGINAL
+///   `workspace` spelling. `McpAccessState`'s matter `folder_paths` (and
+///   audit/display paths) are lexical strings built from that same original
+///   spelling — grant comparisons must use this form, not `io_path`, or a
+///   workspace opened through a symlinked root would have every legitimate
+///   grant compare as "outside the granted matter".
+///
+/// A caller with a long wait between validating and actually touching disk
+/// (e.g. `write_workspace_file`'s human approval step) should call
+/// `resolve_workspace_path` AGAIN immediately before the real filesystem
+/// call rather than reusing an old `io_path` — that shrinks the window in
+/// which a path component could be swapped for a symlink to the smallest
+/// practical gap.
+#[derive(Debug)]
+pub struct ResolvedWorkspacePath {
+    pub io_path: PathBuf,
+    pub lexical_path: PathBuf,
+}
+
 /// Resolve a workspace-relative path, rejecting traversal attempts, absolute
 /// paths, and symlinks escaping the workspace root.
-///
-/// Returns the canonicalised absolute path inside the workspace (when the
-/// file exists) or the lexical join (when it doesn't — for new-file writes).
-pub fn resolve_workspace_path(workspace: &Path, relative: &str) -> Result<PathBuf, String> {
+pub fn resolve_workspace_path(workspace: &Path, relative: &str) -> Result<ResolvedWorkspacePath, String> {
     if relative.is_empty() {
         return Err("path is empty".into());
     }
@@ -346,19 +372,14 @@ pub fn resolve_workspace_path(workspace: &Path, relative: &str) -> Result<PathBu
         .canonicalize()
         .map_err(|_| "workspace root cannot be canonicalised".to_string())?;
     // Validate the walk against the CANONICAL root (so a symlink component
-    // anywhere below it is still caught) but return the path rooted at the
-    // CALLER's original `workspace` spelling, not the canonical one.
-    // `McpAccessState`'s matter `folder_paths` are lexical strings built
-    // from that same original workspace-root spelling (see access.rs /
-    // matterStore.ts) — if `workspace` itself was opened through a symlink,
-    // returning a canonical-rooted path here would make every legitimate
-    // grant compare as "outside the granted matter" and silently break
-    // read/write access for such a workspace. Since `relative` is now
-    // proven symlink-free, `workspace.join(relative)` and the canonical
-    // path name the exact same file — only the root's spelling differs.
-    lantern_lib::commands::pathguard::resolve_creatable(&canon_ws, relative, &canon_ws)
-        .map(|_| workspace.join(relative))
-        .map_err(|e| format!("path escapes workspace root: {relative} ({e})"))
+    // anywhere below it is still caught), and hand back BOTH forms — see
+    // `ResolvedWorkspacePath`'s doc comment for why callers need each one.
+    let io_path = lantern_lib::commands::pathguard::resolve_creatable(&canon_ws, relative, &canon_ws)
+        .map_err(|e| format!("path escapes workspace root: {relative} ({e})"))?;
+    Ok(ResolvedWorkspacePath {
+        io_path,
+        lexical_path: workspace.join(relative),
+    })
 }
 
 // Keep the embedder / store / extractor references alive so the compiler
@@ -410,7 +431,8 @@ mod tests {
     fn accepts_simple_relative_path() {
         let ws = std::env::temp_dir();
         let p = resolve_workspace_path(&ws, "notes.md").expect("should resolve");
-        assert!(p.ends_with("notes.md"));
+        assert!(p.lexical_path.ends_with("notes.md"));
+        assert!(p.io_path.ends_with("notes.md"));
     }
 
     #[test]
@@ -456,7 +478,8 @@ mod tests {
     fn accepts_nested_subdir_path() {
         let ws = std::env::temp_dir();
         let p = resolve_workspace_path(&ws, "sub/dir/file.md").expect("nested should resolve");
-        assert!(p.ends_with("file.md"));
+        assert!(p.lexical_path.ends_with("file.md"));
+        assert!(p.io_path.ends_with("file.md"));
     }
 
     #[test]
@@ -546,15 +569,23 @@ mod tests {
         let p = resolve_workspace_path(&symlinked_root, "existing.md")
             .expect("existing file through a symlinked workspace root must resolve");
         assert!(
-            p.starts_with(&symlinked_root),
-            "resolved path must stay rooted at the caller's original workspace spelling, got: {p:?}"
+            p.lexical_path.starts_with(&symlinked_root),
+            "lexical_path must stay rooted at the caller's original workspace spelling, got: {:?}", p.lexical_path
+        );
+        assert!(
+            p.io_path.starts_with(real.path()),
+            "io_path must be rooted at the resolved canonical target so a later re-pointed root symlink can't redirect a disk operation, got: {:?}", p.io_path
         );
 
         let p2 = resolve_workspace_path(&symlinked_root, "new-file.md")
             .expect("new file through a symlinked workspace root must resolve");
         assert!(
-            p2.starts_with(&symlinked_root),
-            "new-file path must also stay rooted at the original workspace spelling, got: {p2:?}"
+            p2.lexical_path.starts_with(&symlinked_root),
+            "new-file lexical_path must also stay rooted at the original workspace spelling, got: {:?}", p2.lexical_path
+        );
+        assert!(
+            p2.io_path.starts_with(real.path()),
+            "new-file io_path must also be rooted at the canonical target, got: {:?}", p2.io_path
         );
     }
 
@@ -568,6 +599,7 @@ mod tests {
         std::fs::write(ws.path().join("Clients/RealClient/notes.md"), b"hi").unwrap();
         let p = resolve_workspace_path(ws.path(), "Clients/RealClient/notes.md")
             .expect("legitimate nested path must resolve");
-        assert!(p.ends_with("Clients/RealClient/notes.md"));
+        assert!(p.lexical_path.ends_with("Clients/RealClient/notes.md"));
+        assert!(p.io_path.ends_with("Clients/RealClient/notes.md"));
     }
 }
