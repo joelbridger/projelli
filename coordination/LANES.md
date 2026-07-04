@@ -7,6 +7,7 @@ Last updated: 2026-07-04 ~12:15 (coordinator-7 — 6 merges landed; meetpersist+
 ## Active lanes
 | Worker session | What | State |
 |---|---|---|
+| cc-lantern-flakefix | Test-infra: chunk-load dynamic-import flake under full-suite parallelism (lp/test-flake-fix; ~/lp-flakefix) — root-cause + fix + 3× consecutive green proof (brief w-flakefix-brief.md) | building |
 | cc-lantern-qa35fix | QA-35 fix (lp/qa-fix-batch7; ~/lp-qa35fix): ENOSPC mid-recording — isolate real chunk-writer behavior, honest error + clean stop + preserve partial (brief w-qa35fix-brief.md) | building |
 | cc-lantern-noticecard | 🎯 THE NOTICE CARD v1+v2 (lp/notice-card; ~/lp-noticecard; OPUS 4.8): local notice participant — calendar join-URL, Teams+Zoom adapters in isolated companion webview, lifecycle supervisor, canvas-camera visual card, policy hook + 2 quick wins (brief w-noticecard-brief.md; design docs/strategy/2026-07-04-notice-participant-design.md) | building |
 
