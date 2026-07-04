@@ -353,7 +353,13 @@ pub(crate) fn redact_segments_inner(
 
     let notes_path = meeting_dir.join("notes.docx");
     refuse_symlink(&notes_path)?;
-    if !contained(&notes_path, canon_ws) {
+    // notes.docx is OPTIONAL (a meeting can have only a transcript) —
+    // `contained()` now requires the no-follow walk to fully resolve the
+    // path (see `crate::commands::pathguard::contained`), which returns
+    // false for anything that doesn't exist. Only enforce containment when
+    // notes.docx is actually there; a missing one is the normal,
+    // transcript-only case, not a refusal.
+    if notes_path.exists() && !contained(&notes_path, canon_ws) {
         return Err(format!("refused (outside workspace): {}", notes_path.display()));
     }
     let mut docx_flattened = false;
@@ -659,6 +665,35 @@ mod tests {
         // not every tracked-change shape.
         assert!(!contains_bytes_test_helper(&docx_bytes, needle.as_bytes()));
         assert!(!receipt.docx_flattened, "the comprehensive first-pass replace should have been enough here");
+    }
+
+    /// `notes.docx` is OPTIONAL — a meeting can legitimately have only a
+    /// transcript and no docx notes yet. Redacting such a meeting must
+    /// succeed (transcript-only), not fail with a containment refusal just
+    /// because notes.docx doesn't exist.
+    #[test]
+    fn redacts_transcript_only_meeting_with_no_notes_docx() {
+        let needle = "client admitted undisclosed offshore account";
+        let ws = tempdir().unwrap();
+        let dir = ws.path().join("Clients/H/Meetings/2026-05-01-review");
+        std::fs::create_dir_all(&dir).unwrap();
+        let transcript = serde_json::json!({
+            "segments": [
+                { "startMs": 0, "endMs": 4000, "channel": "sys", "speaker": "Them", "text": needle },
+            ],
+            "meta": { "startedAt": "2026-05-01T10:00:00Z", "durationMs": 4000, "matterId": "m-1" },
+        });
+        std::fs::write(dir.join("transcript.json"), serde_json::to_vec(&transcript).unwrap()).unwrap();
+        assert!(!dir.join("notes.docx").exists());
+
+        let canon_ws = ws.path().canonicalize().unwrap();
+        let receipt = redact_segments_inner(&canon_ws, &dir, &[0], 1_777_000_000_000)
+            .expect("redacting a transcript-only meeting (no notes.docx) must succeed");
+        assert_eq!(receipt.redacted_count, 1);
+
+        let tj_str = String::from_utf8(std::fs::read(dir.join("transcript.json")).unwrap()).unwrap();
+        assert!(!tj_str.contains(needle));
+        assert!(!dir.join("notes.docx").exists(), "must not create notes.docx that never existed");
     }
 
     #[test]
