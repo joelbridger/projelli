@@ -1,20 +1,42 @@
 # Local Windows VM — Phase 1 setup log (testing-capacity spike)
 
-**Status as of this writing:** all plumbing built and working (virtualization
-tooling, ISO acquisition, VM creation, the boot-prompt race fixed). The VM is
-currently mid-install and has been left running. Over ~35 minutes of observation
-it has shown real, continuous CPU activity (confirmed via `virsh dominfo`'s
-climbing CPU-time counter) but has not yet reached a screen state I could
-positively identify as either the graphical Setup UI or a crash/reboot loop —
-the qxl display cycles between a few distinct frames (OVMF splash with a
-spinner, and blank frames at two different resolutions) whose meaning I
-couldn't fully pin down. One earlier attempt with an identical config *did*
-briefly show the `winpeshl.exe` WinPE console window, confirming this path
-can reach WinPE — so the plumbing is sound; this is a "how long does an
-unattended Win11 install take on this specific emulated hardware" open
-question, not a proven dead end. See "Known issues" for the detail and the
-concrete next diagnostic steps for whoever continues this. **Success bar
-(SSH + clean snapshot) not yet met.**
+**Status: BLOCKED WITH FINDINGS (Phase 1 not completed — reported per the
+brief's explicit "impractical is a valid outcome" clause, on coordinator
+direction after a bounded time budget).** All plumbing up to and including
+the hardest technical obstacle (the ISO's boot-prompt race) is built and
+verified working. The unattended Windows install itself never visibly
+progressed past the initial WinPE-loading stage in ~50 minutes of combined
+observation across two independent attempts:
+
+- **Attempt 1** (qxl display, default virt-install Hyper-V enlightenments):
+  ran ~44 minutes. Continuous, real CPU activity the entire time (confirmed
+  via climbing `virsh dominfo` CPU-time counter — not a hang/freeze), but
+  the qcow2 disk never grew past its initial ~330KB (partitioning never
+  started) and the display cycled between the same handful of frames (OVMF
+  splash+spinner, blank at two different resolutions) without ever reaching
+  a screen identifiable as Setup's GUI. One *earlier*, separate attempt with
+  this same config did briefly show the WinPE `winpeshl.exe` console window
+  — proving this exact path *can* reach WinPE — but that milestone did not
+  reproduce in the 44-minute attempt.
+- **Attempt 2** (same, but with Hyper-V enlightenments — `hv-relaxed`,
+  `hv-vapic`, `hv-spinlocks`, `hypervclock` — removed from the domain XML,
+  as the one alternative config tried per coordinator direction): ran ~6
+  minutes before the decision to stop; produced **identical** behavior —
+  same cycling frames, same zero disk growth, same steady CPU burn. This
+  rules out Hyper-V enlightenments as the cause.
+
+**Conclusion:** the plumbing (tooling, image, VM, boot-race fix) is sound and
+reusable, but something about this unattended Win11 25H2 install is either
+(a) far slower on this shared host than a normal install (swtpm + Secure
+Boot measured-boot overhead, or host contention from other concurrent
+fleet workers), or (b) stalling for a reason not yet isolated — and
+distinguishing those two needs more time than was budgeted for this spike.
+See "Known issues" item 7 for the next diagnostic steps (tight BSOD-catching
+poll, or a from-scratch attempt on a quiet host) for whoever picks this back
+up. **Success bar (SSH + clean snapshot) not met.** The VM has been left
+running (not destroyed) in case it eventually completes unattended; host
+RAM headroom is fine (39GB available, well above the pause threshold) so
+leaving it running costs nothing.
 
 ## What this is
 
