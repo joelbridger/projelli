@@ -38,6 +38,12 @@ import { AskComposer } from './AskComposer';
 import { FileAccessConsentBanner } from './chat/FileAccessConsentBanner';
 import type { ChatProvider } from './chat/providerModelResolution';
 import { ConversationsRail, type RailGroup } from './ConversationsRail';
+import {
+  askLayoutForWidth,
+  SOURCES_WIDTH,
+  COMPOSER_MIN_WIDTH,
+  type AskLayout,
+} from './askResponsive';
 import { SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { isMemoryEnabled } from '@/platform/rag/MemoryService';
@@ -104,6 +110,30 @@ export function Ask(props: UseAskProps) {
   } = useAsk(props);
 
   const isSampleMatter = activeMatter?.id === SAMPLE_MATTER_ID;
+
+  // QA-6: responsive 3-column layout. Measure the BODY row (excludes the app
+  // spine) and degrade gracefully as it narrows — collapse the rail first, then
+  // hide the sources column — so the composer's thread column never gets
+  // squeezed until the input collapses to 0px. Plain ResizeObserver (not a CSS
+  // container query) for Tauri-WebView reliability, mirroring MainPanel.
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const [autoLayout, setAutoLayout] = useState<AskLayout>({ collapseRail: false, showSources: true });
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const update = () => {
+      const w = el.getBoundingClientRect().width;
+      // width 0 during unmount/hidden — don't thrash the layout to its narrowest.
+      if (w <= 0) return;
+      setAutoLayout(askLayoutForWidth(w));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => { ro.disconnect(); };
+  }, []);
+  // The rail collapses when the USER collapsed it OR the layout is too narrow.
+  const railEffectivelyCollapsed = railCollapsed || autoLayout.collapseRail;
 
   // Whole-practice Ask (Wave 4 Track C): a separate answer path over per-client
   // Client Map summaries only — never the turn-based retrieval flow above.
@@ -348,13 +378,13 @@ export function Ask(props: UseAskProps) {
       </div>
 
       {/* Body: conversations rail (left) + conversation/composer column (right) */}
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
+      <div ref={bodyRef} style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
         <ConversationsRail
           groups={railGroups}
           activeChatId={chatId}
           onSelect={handleLoadSession}
           onNewQuestion={handleNewAsk}
-          collapsed={railCollapsed}
+          collapsed={railEffectivelyCollapsed}
           onToggleCollapsed={toggleRailCollapsed}
         />
 
@@ -364,7 +394,10 @@ export function Ask(props: UseAskProps) {
         <div
           style={{
             flex: 1,
-            minWidth: 0,
+            // QA-6: a hard floor so the composer's column (and thus the input)
+            // can never be squeezed to 0. The responsive collapse above frees
+            // the room; this guarantees the primary input stays usable.
+            minWidth: COMPOSER_MIN_WIDTH,
             minHeight: 0,
             display: 'flex',
             flexDirection: 'column',
@@ -536,12 +569,14 @@ export function Ask(props: UseAskProps) {
           <AskComposer variant="bottom" {...composerCommon} />
         </div>
 
-        {/* SOURCES column — ALWAYS visible, full height. Shows the SOURCES header
-            over an empty soft panel until an answer has citations, then fills
-            with numbered citation cards. */}
+        {/* SOURCES column — full height, shown when there's room (QA-6: hidden at
+            narrow widths so the composer keeps a usable width instead of the
+            row clipping). Shows the SOURCES header over an empty soft panel
+            until an answer has citations, then fills with numbered cards. */}
+        {autoLayout.showSources && (
         <div
           style={{
-            width: 326,
+            width: SOURCES_WIDTH,
             flex: 'none',
             borderLeft: '1px solid var(--kp-divider)',
             background: 'var(--kp-bg-soft)',
@@ -565,6 +600,7 @@ export function Ask(props: UseAskProps) {
                 })}
           />
         </div>
+        )}
       </div>
 
       {/* Connector-access: one-time firm-consent prompt shown before an exported
