@@ -9,9 +9,9 @@ Last updated: 2026-07-04 ~01:05 (coordinator-6 seated — sole coordinator; moni
 |---|---|---|
 | cc-lantern-pathfix | Windows verbatim-path bug in pathguard absolute walk (lp/pathguard-windows-verbatim; Opus high) — vaudio-flagged capture_start blocker class; Windows proof on bench-2 | building |
 | cc-lantern-benchfull | 🏁 Finish-line pass ROUND 1 DONE: 9 PASS / 2 real FAIL / 3 harness-caused blocks (fixed+merged) / 5 expected stubs. NOW: completing the MS OAuth (authorized, demo acct) + re-running failed/blocked checks | bench-reverifying |
-| cc-lantern-auditfix | Audit-chain fail-closed fix — worker DONE, coordinator independent review found 1 P2 (repair affordance unreachable) — routed back for the minimal repair UI | fixing-P2 |
 
 ## Merged this session
+✅ lp/audit-chain-failclosed @5af15e5e — fail-closed tamper evidence (seal-missing vs altered vs full-wipe via high-water mark) + acknowledged repair UI (inherited #14; Opus xhigh; 4 codex rounds + coordinator independent review; gate 1227 cargo + 5681 vitest)
 ✅ lp/wave4-gap-sync @85c4a633 — unresolved gap wins the Client Map initial tab (bench FAIL #2 fixed; red-first tests + first mirror-caught regression spec; 5673 vitest + 16/16 mirror)
 ✅ vaudio spike DONE @841f4ab0 — virtual audio VIABLE on cloud benches (VB-CABLE, tone proven at engine level); flagged a possible Windows-only capture_start pathguard bug → pathfix lane
 ✅ lp/bench-harness-round2-fixes @00558e1d — 3 live-root-caused harness bugs (wrapper-click, Grid-view state, snapshot false-negative); 124 harness tests
