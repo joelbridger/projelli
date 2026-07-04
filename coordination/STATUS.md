@@ -1,5 +1,12 @@
 # Lantern-Plus Coordination STATUS
 
+## UPDATE 2026-07-04 ~06:00 — 🏁 FEATURE-COMPLETE AGAINST JUMP (relay #6, one night)
+- **Final Windows verification scorecard: 11 PASS · 0 product FAIL · 3 SETUP-BLOCKED (harness-sequencing; each behavior passed elsewhere on real Windows) · 5 expected stubs.** Evidence: docs/evidence on lp/windows-smoke-evidence @f0488ff8 (3 rounds, freshness canaries each round).
+- **12 merges tonight, all through layered independent review:** symlink-hardening (pathguard module), Wave-3 meeting capture (device-verified pre-merge), audit-chain fail-closed + repair (inherited #14 CLOSED), Windows verbatim pathguard fix + 2 caller bugs (one recording-safety), wave4 gap-sync fix, azure CDP app-bug fix, e2e smoke mirror, harness v3 + typing fix + 3 rounds of harness fixes.
+- **Testing-speed program (Jameson-approved) COMPLETE:** 2-way cloud sharding live, bench-ready golden snapshot, failure forensics, auto-smoke staged (dry-run), browser mirror (11 checks/15s, first regression catch same night), virtual-audio proven viable; local Windows VM honestly blocked-with-findings (VM killed after 2.5h stall; pickup doc @coordination/winvm/SETUP-LOG.md).
+- Fleet: ALL LANES CLOSED. lp-gate-build kept. ~/lp-bench kept (permanent evidence worktree). Follow-up backlog consolidated in the harness task list (#7: cold-boot confirm, wave2-approve-live sequencing mystery, bench-browser isolation, snapshot pruning, etc.).
+- Jameson notified (Telegram + email). Next mission per the journey log: go-to-market — the Jump battle plan's 9 board decisions await him.
+
 ## UPDATE 2026-07-04 ~01:05 — relay #6 seated (sole coordinator)
 - Coordinator-6 (Fable) seated per COORDINATOR-HANDOFF.md. All 6 monitors re-armed (fleet finish-watch, RAM+disk watchdog, bulletin diff, stale-idle, build-overtime, strategic-check). Baseline sweep done: both lanes WORKING and healthy.
 - symfix: codex round-1 returned; worker running full test suite + review rounds on the promoted pathguard module. w3: pulled moved tip, built the queued P1 capture-guard symlink fix + regression tests (31 capture tests pass), full gate running.
