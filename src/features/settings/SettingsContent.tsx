@@ -961,7 +961,7 @@ export function SettingsContent({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'lantern-settings.json';
+    a.download = 'advisor-prep-hero-settings.json';
     a.click();
     URL.revokeObjectURL(url);
   }, [exportSettings]);
