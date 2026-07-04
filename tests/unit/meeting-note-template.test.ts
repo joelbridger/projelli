@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { meetingNoteFromTranscript } from '@/features/workflows/engine/templates/advisors/MeetingNoteFromTranscript';
+import { meetingNoteFromTranscript } from '@/features/meetings/meetingNoteTemplate';
 
 const transcript = {
   segments: [

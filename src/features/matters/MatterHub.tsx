@@ -2,18 +2,22 @@
  * MatterHub — per-matter command-center hub.
  *
  * Full-page workspace for a single client: a header with back navigation, a row
- * of sub-tabs (Overview · Documents · Email · Activity), and the matching panel
- * below. Overview leads with the Client Map (the hero) and a compact Ask box;
- * Documents / Email / Activity render THIS client's scoped surfaces in place,
- * so opening a file or reading mail never leaves the client (no orphaned global
- * destinations). The scoped surfaces are passed in as render props from the
- * shell, which owns their handler wiring.
+ * of sub-tabs (Overview · Documents · Email · Meetings · Activity), and the
+ * matching panel below. Overview leads with the Client Map (the hero) and a
+ * compact Ask box; Documents / Email / Activity render THIS client's scoped
+ * surfaces in place, so opening a file or reading mail never leaves the client
+ * (no orphaned global destinations) — those are passed in as render props from
+ * the shell, which owns their handler wiring. Meetings (Wave 3c) is
+ * self-contained (ClientMeetingsTab/MeetingEntry read the workspace/matter
+ * stores directly), so it's rendered inline rather than via a render prop.
  *
  * Light theme only. Inline styles + CSS vars.
  */
 
 import { useState, useEffect, useCallback, type ReactNode } from 'react';
-import { Lock, FileText, Mail, Clock, Loader2, Map, Users } from 'lucide-react';
+import { Lock, FileText, Mail, Clock, Loader2, Map, Users, Mic } from 'lucide-react';
+import { ClientMeetingsTab } from '@/features/meetings/ClientMeetingsTab';
+import { MeetingEntry } from '@/features/meetings/MeetingEntry';
 import { isTauri } from '@tauri-apps/api/core';
 import { useMatters, useActiveMatterPrivileged, useMatterStore, SAMPLE_MATTER_ID, type ClientMapHubTab } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
@@ -41,6 +45,7 @@ import { dispatchOpenSource } from '@/features/matters/clientMap/openSource';
 import type { SourceRef } from '@/platform/clientMap/types';
 import type { AuditEntry } from '@/platform/types/audit';
 import type { Matter } from '@/platform/types/matter';
+import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -63,6 +68,14 @@ export interface MatterHubProps {
   renderDocuments?: (matter: Matter | null) => ReactNode;
   renderEmail?: () => ReactNode;
   renderActivity?: () => ReactNode;
+  /**
+   * The active WorkspaceService (or null before a workspace is open), passed
+   * down from the shell for the self-contained Meetings sub-tab
+   * (ClientMeetingsTab/MeetingEntry) — features must not reach for the
+   * app-layer singleton themselves, per ARCHITECTURE.md's DAG, so this is
+   * threaded as a plain prop rather than imported.
+   */
+  workspaceService?: WorkspaceService | null;
 }
 
 // ── Sub-tabs ───────────────────────────────────────────────────────────────
@@ -73,6 +86,7 @@ const HUB_TABS: { id: HubTab; label: string; Icon: typeof FileText }[] = [
   { id: 'overview', label: 'Client Map', Icon: Map },
   { id: 'documents', label: 'Documents', Icon: FileText },
   { id: 'email', label: 'Email', Icon: Mail },
+  { id: 'meetings', label: 'Meetings', Icon: Mic },
   { id: 'activity', label: 'Activity', Icon: Clock },
 ];
 
@@ -82,7 +96,7 @@ const LABEL_YOUR_ANSWER_PROMPT = 'Your answer to:';
 
 // ── MatterHub ──────────────────────────────────────────────────────────────
 
-export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, renderEmail, renderActivity }: MatterHubProps) {
+export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, renderEmail, renderActivity, workspaceService }: MatterHubProps) {
   // ── Client Map wiring ────────────────────────────────────────────────────
   // Declare client map hook at component top — must not be inside a condition.
   // autoBuild: a client's Client Map builds automatically the first time the
@@ -131,6 +145,30 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
       });
     }
   }, [pendingHubTab, setPendingHubTab]);
+
+  // The currently open meeting on the Meetings sub-tab (list view when null).
+  // Reset happens naturally on client switch (MatterHub remounts per matter).
+  const [selectedMeeting, setSelectedMeeting] = useState<{ dir: string; folderName: string; startMs?: number } | null>(null);
+
+  // Honor a `meeting:<dir>#<ms>` Client Map source click or Activity entry
+  // click (Task 11's ref-resolution): land on the Meetings sub-tab with that
+  // exact meeting open and seeked, same one-shot pattern as pendingHubTab.
+  const pendingMeetingOpen = useMatterStore((s) => s.pendingMeetingOpen);
+  const setPendingMeetingOpen = useMatterStore((s) => s.setPendingMeetingOpen);
+  useEffect(() => {
+    if (pendingMeetingOpen) {
+      const req = pendingMeetingOpen;
+      queueMicrotask(() => {
+        setSubTab('meetings');
+        setSelectedMeeting({
+          dir: req.meetingDir,
+          folderName: req.meetingDir.split('/').pop() ?? req.meetingDir,
+          startMs: req.startMs,
+        });
+        setPendingMeetingOpen(null);
+      });
+    }
+  }, [pendingMeetingOpen, setPendingMeetingOpen]);
 
   // Once a map exists, re-check for new source material. Covers BOTH a populated
   // map ('ready') AND one that was built empty ('empty') — the latter recovers a
@@ -501,6 +539,30 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
         {subTab === 'email' && (
           <div data-testid="hub-subtab-panel-email" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
             {renderEmail ? renderEmail() : <SubTabUnavailable label="Email" />}
+          </div>
+        )}
+
+        {subTab === 'meetings' && (
+          <div data-testid="hub-subtab-panel-meetings" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            {selectedMeeting ? (
+              <MeetingEntry
+                matterId={matterId}
+                meetingDir={selectedMeeting.dir}
+                folderName={selectedMeeting.folderName}
+                clientName={headerTitle}
+                workspaceRoot={workspaceRoot ?? ''}
+                workspaceService={workspaceService ?? null}
+                onBack={() => { setSelectedMeeting(null); }}
+                {...(selectedMeeting.startMs !== undefined ? { initialSeekMs: selectedMeeting.startMs } : {})}
+              />
+            ) : (
+              <ClientMeetingsTab
+                matterId={matterId}
+                matterFolder={matter.folderPaths[0] ?? ''}
+                onOpenMeeting={(m) => { setSelectedMeeting({ dir: m.dir, folderName: m.folderName }); }}
+                workspaceService={workspaceService ?? null}
+              />
+            )}
           </div>
         )}
 

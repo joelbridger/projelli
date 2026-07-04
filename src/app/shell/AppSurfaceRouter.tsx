@@ -390,6 +390,7 @@ export function AppSurfaceRouter({
           renderClientActivity={() =>
             buildActivity(activeMatter ? { scopeMatterId: activeMatter.id } : {})
           }
+          workspaceService={workspaceServiceRef.current}
         />
       ) : sidebarActiveTab ==='search' ? (
         <Ask

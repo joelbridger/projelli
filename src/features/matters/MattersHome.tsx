@@ -21,6 +21,7 @@ import { TodaysMeetingsStrip } from '@/features/meetings/TodaysMeetingsStrip';
 import { useApiKeys } from '@/platform/hooks/useApiKeys';
 import { mailIsConnected, gmailIsConnected, mailImapIsConnected } from '@/platform/utils/mail-commands';
 import type { Matter } from '@/platform/types/matter';
+import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { AuditEntry } from '@/platform/types/audit';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
@@ -49,6 +50,8 @@ export interface MattersHomeProps {
   renderClientDocuments?: (matter: Matter | null) => ReactNode;
   renderClientEmail?: () => ReactNode;
   renderClientActivity?: () => ReactNode;
+  /** Forwarded verbatim to MatterHub's Meetings sub-tab (see MatterHubProps). */
+  workspaceService?: WorkspaceService | null;
 }
 
 // ── Sort state ─────────────────────────────────────────────────────────────
@@ -614,7 +617,7 @@ function TableHeader({ entityOneLabel, confidentialityColumnLabel, showConfident
 
 // ── Main export ────────────────────────────────────────────────────────────
 
-export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEmail, renderClientActivity }: MattersHomeProps = {}) {
+export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEmail, renderClientActivity, workspaceService }: MattersHomeProps = {}) {
   const { t } = useTranslation();
   const activeMatters = useActiveMatters();
   const archivedMatters = useArchivedMatters();
@@ -715,6 +718,7 @@ export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEma
         {...(renderClientDocuments ? { renderDocuments: renderClientDocuments } : {})}
         {...(renderClientEmail ? { renderEmail: renderClientEmail } : {})}
         {...(renderClientActivity ? { renderActivity: renderClientActivity } : {})}
+        workspaceService={workspaceService ?? null}
       />
     );
   }

@@ -2,12 +2,15 @@
  * Meeting-note template: turns a meeting transcript into notes.docx with
  * fixed sections and enforced [t:<startMs>] timestamp citations.
  *
- * Unlike the interview+generate templates in this pack, this template's
- * prompt is built from a live transcript object, not free-text interview
- * answers — so it is not registered in ADVISOR_TEMPLATES/index.ts (the
- * standard WorkflowEngine only interpolates a static promptTemplate against
- * interview inputs). meetingStore.ts (Task 12) calls buildPrompt/run
- * directly as part of the automatic stopRecording pipeline.
+ * Lives in the meetings feature (not templates/advisors/, where the plan
+ * originally placed it as a "sibling" of MeetingPrepAndSuitabilityNotes.ts)
+ * because it isn't a registered WorkflowTemplate: its prompt is built from a
+ * live transcript object, not free-text interview answers, so it doesn't fit
+ * the standard interview+generate WorkflowEngine flow (which only
+ * interpolates a static promptTemplate against interview inputs). Keeping it
+ * out of templates/advisors/ also keeps that pack's on-disk template count
+ * (surfaced on the marketing homepage) accurate. meetingStore.ts calls
+ * buildPrompt/run directly as part of the automatic stopRecording pipeline.
  */
 import { sanitizeForPrompt } from '@/platform/utils/prompt-security';
 import type { Provider } from '@/platform/providers/Provider';
@@ -24,7 +27,7 @@ export interface MeetingNotePromptInput {
 
 function buildPrompt(input: MeetingNotePromptInput): string {
   const lines = input.transcript.segments
-    .map((s) => `[t:${s.startMs}] ${s.speaker}: ${sanitizeForPrompt(s.text)}`)
+    .map((s) => `[t:${String(s.startMs)}] ${s.speaker}: ${sanitizeForPrompt(s.text)}`)
     .join('\n');
   return [
     `You are drafting a meeting note for the client "${sanitizeForPrompt(input.clientName)}".`,
@@ -36,7 +39,7 @@ function buildPrompt(input: MeetingNotePromptInput): string {
 }
 
 function enforceCitations(raw: string, transcript: TranscriptFile): string {
-  const valid = new Set(transcript.segments.map((s) => `[t:${s.startMs}]`));
+  const valid = new Set(transcript.segments.map((s) => `[t:${String(s.startMs)}]`));
   return raw
     .split('\n')
     .filter((line) => {

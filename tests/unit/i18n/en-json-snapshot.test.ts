@@ -61,7 +61,7 @@ describe('en.json structure snapshot', () => {
         "marketplace": 14,
         "matter": 134,
         "media": 81,
-        "meetings": 9,
+        "meetings": 43,
         "memory": 6,
         "model-download": 9,
         "onboarding": 65,
@@ -108,7 +108,12 @@ describe('en.json structure snapshot', () => {
     // +4 = common.audit-log.repair-{action,confirm-title,confirm-body,confirm-cta}
     //      (explicit acknowledged repair affordance on the seal-missing badge).
     // +1 = common.audit-log.repair-failed (surface a failed repair honestly).
-    expect(flat.length).toBe(1016);
+    // +34 = meetings.pill.* (1) + meetings.tab.* (10) + meetings.entry.* (9) +
+    //       meetings.types.* (3) + meetings.consent.* (11) (Wave 3c: the
+    //       user-facing Meetings tab surface — record pill, per-client
+    //       meetings list + needs-review, meeting page, meeting-type chip,
+    //       consent dialog).
+    expect(flat.length).toBe(1050);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

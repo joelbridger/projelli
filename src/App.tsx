@@ -33,6 +33,7 @@ import { TrustBar } from '@/app/shell/layout/TrustBar';
 import { StatusBar } from '@/app/shell/layout/StatusBar';
 import { AppDialogs } from '@/app/shell/AppDialogs';
 import { AppSurfaceRouter } from '@/app/shell/AppSurfaceRouter';
+import { RecordPill } from '@/features/meetings/RecordPill';
 import { LazyBoundary } from '@/ui/LazyBoundary';
 
 import { ProjectManager } from '@/features/documents/workspace/ProjectManager';
@@ -1519,6 +1520,12 @@ function App() {
           activeMatter={activeMatter}
         />
       </main>
+
+      {/* Wave 3c: the whole recording UI (position: fixed, floats over every
+          surface) — mounted here at the app root, not inside MainPanel, so it
+          stays visible while the advisor switches tabs mid-meeting (Documents,
+          Email, Ask, etc.), not just while on the Documents/editor surface. */}
+      <RecordPill />
 
       {/* Status bar. showFileContext=true only on the Documents/editor surface
           (files tab) so the breadcrumb never shows stale editor context when
