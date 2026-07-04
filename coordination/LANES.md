@@ -10,6 +10,7 @@ Last updated: 2026-07-04 ~05:45 (coordinator-6 — FEATURE-COMPLETE: final score
 | cc-lantern-qafix2 | QA fix batch 2 (lp/qa-fix-batch2): QA-7 AI-hang UX + QA-8/9 onboarding overlaps | building |
 | cc-lantern-qafix1 | QA fix batch 1 (lp/qa-fix-batch1; Opus): QA-5 new-client folders + QA-6 Ask input collapse (first-run P1s) | building |
 | cc-lantern-w3b | Wave-3 Phase 3b: local transcription pipeline (lp/wave3-transcription; Tasks 7-9) | building |
+| cc-lantern-w3c-DONE | Wave-3 Meetings SURFACE done+pushed (lp/wave3-meetings-ui): record pill, per-client Meetings tab, MeetingEntry (notes+transcript+seek), needs-review queue, consent dialog+ledger, dictation filing. Own codex found+fixed 3 bugs. Deviations: RecordPill in App.tsx (MainPanel not always rendered), workspaceService prop-threaded (DAG), template relocated. MERGES AFTER w3b (engine-first) | merge-queued |
 | cc-lantern-w3c | Wave-3 Phases 3c+3d: meetings surface — record pill, Meetings tab, transcript viewer, notes, consent (lp/wave3-meetings-ui; Tasks 10-13) | building |
 | cc-lantern-cleanup1 | Cleanup batch 1 + docs currency (lp/cleanup-batch1): 5 scoped items | building |
 
