@@ -15,6 +15,11 @@ vi.mock('@/features/meetings/meetingStore', async (importOriginal) => {
   return { ...actual, retryMeetingTranscript: retryMeetingTranscriptMock };
 });
 
+// See meeting-entry-notes-failed.test.tsx: MeetingEntry's DocxEditor dynamic
+// import is unrelated to this test's subject and flakes under full-suite
+// parallel-transform contention. Mock it so the import resolves synchronously.
+vi.mock('@/features/documents/media/DocxEditor', () => ({ DocxEditor: () => null }));
+
 import { MeetingEntry } from '@/features/meetings/MeetingEntry';
 
 function makeWorkspace(meetingJson: Record<string, unknown>) {
