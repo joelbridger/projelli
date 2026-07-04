@@ -140,16 +140,34 @@ const IS_DEMO_MODE =
   ((typeof __KEEPANCE_DEMO__ !== 'undefined' && __KEEPANCE_DEMO__) ||
     (window as unknown as { __lanternDemo?: boolean }).__lanternDemo === true);
 
+/**
+ * QA-15: the browser build has no per-workspace localStorage namespacing —
+ * two tabs on the same origin silently clobber each other's saved state
+ * (zustand/persist, last-write-wins, no cross-tab awareness). Desktop
+ * already has an OS-level single-instance guard, and IS_TEST_MODE never
+ * simulates two same-origin tabs, so the gate is disabled for both.
+ *
+ * This check MUST live in a component separate from AppShell, not as an
+ * early return inside it — AppShell calls dozens of hooks, several with
+ * effects that write shared state independent of user interaction (e.g. the
+ * demo-mode auto-open effect below calls handleWorkspaceSelected on mount).
+ * An early return inside AppShell would still run every hook/effect declared
+ * above it (React runs a component's hooks unconditionally regardless of
+ * what it returns), so a blocked tab could still write. Only NOT MOUNTING
+ * AppShell at all guarantees none of its effects ever run in a blocked tab.
+ * See src/platform/browserGuard/ for the guard itself and its rationale.
+ */
 function App() {
+  const tabWriteGuard = useTabWriteGuard(!IS_TEST_MODE && !isTauriEnvironment());
+  if (tabWriteGuard.status === 'blocked') {
+    return <TabGateOverlay onTakeOver={tabWriteGuard.requestTakeover} />;
+  }
+  return <AppShell />;
+}
+
+function AppShell() {
   const [showWorkspaceSelector, setShowWorkspaceSelector] = useState(!IS_TEST_MODE && !IS_DEMO_MODE);
   const [demoOpenFailed, setDemoOpenFailed] = useState(false);
-  // QA-15: the browser build has no per-workspace localStorage namespacing —
-  // two tabs on the same origin silently clobber each other's saved state
-  // (zustand/persist, last-write-wins, no cross-tab awareness). Desktop
-  // already has an OS-level single-instance guard, and IS_TEST_MODE never
-  // simulates two same-origin tabs, so the gate is disabled for both. See
-  // src/platform/browserGuard/ for the guard itself and its rationale.
-  const tabWriteGuard = useTabWriteGuard(!IS_TEST_MODE && !isTauriEnvironment());
   const {
     showCommandPalette, setShowCommandPalette,
     showShortcutsOverlay, setShowShortcutsOverlay,
@@ -1288,13 +1306,6 @@ function App() {
   // the picker off-screen entirely — otherwise it flashes before the resumed
   // workspace takes over (or, if boot data is read too early, never gets
   // dismissed at all — the bug this hook fixes).
-  // QA-15: a blocked tab never mounts the interactive shell below — no store
-  // action in this tab can run, so it can't clobber the owning tab's saved
-  // state. Checked first, ahead of every other branch.
-  if (tabWriteGuard.status === 'blocked') {
-    return <TabGateOverlay onTakeOver={tabWriteGuard.requestTakeover} />;
-  }
-
   if (!IS_TEST_MODE && isAutoResumingWorkspace) {
     return (
       <div

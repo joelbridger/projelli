@@ -74,15 +74,31 @@ export function useTabWriteGuard(enabled: boolean): TabWriteGuardState {
 
     // Release the lock the instant this tab actually closes/navigates away,
     // so a blocked tab can take over immediately instead of waiting for the
-    // lock to go stale.
-    const handlePageHide = () => {
-      guard.stop();
+    // lock to go stale. `pagehide` ALSO fires when the browser freezes this
+    // page into the back/forward cache (bfcache) rather than destroying it —
+    // `event.persisted` distinguishes the two. A bfcache-frozen tab doesn't
+    // run its heartbeat timer (JS is suspended), so releasing here would be
+    // correct too, but doing nothing is simpler and self-correcting: the
+    // frozen tab's lock just goes stale on its own if another tab needs it.
+    const handlePageHide = (event: PageTransitionEvent) => {
+      if (!event.persisted) guard.stop();
     };
     window.addEventListener('pagehide', handlePageHide);
+
+    // On restore from bfcache, this component remounts nothing (React never
+    // saw the unmount) and the heartbeat timer was frozen the whole time —
+    // re-evaluate immediately so a restored tab can't keep showing itself as
+    // 'owner' on a lock it stopped maintaining, and picks up a takeover that
+    // happened while it was frozen.
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) guard.checkNow();
+    };
+    window.addEventListener('pageshow', handlePageShow);
 
     return () => {
       window.removeEventListener('storage', handleStorageEvent);
       window.removeEventListener('pagehide', handlePageHide);
+      window.removeEventListener('pageshow', handlePageShow);
       guard.stop();
     };
   }, [enabled]);
