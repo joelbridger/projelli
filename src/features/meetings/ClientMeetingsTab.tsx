@@ -75,6 +75,16 @@ export async function listClientMeetings(
   ws: ListableWorkspace,
   opts?: { retryDelayMs?: number },
 ): Promise<MeetingsScanResult> {
+  // A client with no linked folder (CRM/email-only, or a pre-QA-5 matter
+  // created before every client got a scoped folder) legitimately has no
+  // `matterFolder` — `${matterFolder}/Meetings` would then resolve to the
+  // workspace-root-relative `/Meetings`, which PathValidator correctly
+  // rejects as outside the workspace. That rejection must read as "there is
+  // nowhere to look" (a real empty state), never as a scan failure — a
+  // missing folder is a precondition that isn't met, not a backend error to
+  // retry (codex-review P2, 2026-07-04).
+  if (!matterFolder.trim()) return { meetings: [], scanFailed: false };
+
   const meetingsPath = `${matterFolder}/Meetings`;
 
   // Fast path: a brand-new client with no Meetings folder yet is the COMMON

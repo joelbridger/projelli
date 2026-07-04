@@ -217,6 +217,23 @@ describe('meetings survive a restart (fresh WorkspaceService/backend/PathValidat
 });
 
 describe('listClientMeetings — scan-failure vs genuine-empty distinction', () => {
+  // codex-review P2 (2026-07-04): a client with no linked folder at all
+  // (CRM/email-only, or a pre-QA-5 matter from before every client got a
+  // scoped folder) passes matterFolder='' — `${matterFolder}/Meetings`
+  // resolves to the workspace-root-relative '/Meetings', which
+  // PathValidator correctly rejects as outside the workspace. That rejection
+  // must read as the old, honest "no meetings" empty state, never as a
+  // scanFailed error — an empty matterFolder is a precondition that isn't
+  // met, not a backend hiccup to retry.
+  it('reports scanFailed=false for a client with no linked folder (empty matterFolder), never a false scan error', async () => {
+    const rootRaw = 'C:\\Northcrest Wealth Partners';
+    fakeFs.mkdir(rootRaw);
+
+    const svc = await openWorkspace(rootRaw);
+    const result = await listClientMeetings('', svc);
+    expect(result).toEqual({ meetings: [], scanFailed: false });
+  });
+
   it('reports scanFailed=false (fast, no retry) when the Meetings folder genuinely does not exist yet', async () => {
     const rootRaw = 'C:\\Northcrest Wealth Partners';
     fakeFs.mkdir(rootRaw);
