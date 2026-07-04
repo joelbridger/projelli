@@ -336,6 +336,32 @@ pub fn run() {
                         .build(),
                 )?;
             }
+            // The main window is created here (not via `tauri.conf.json`'s
+            // automatic `create: true` path — see `"create": false` there)
+            // so we can pass WebView2 additional browser arguments through
+            // wry's builder API. wry always calls
+            // `CoreWebView2EnvironmentOptions::set_additional_browser_arguments`
+            // with its own default string, which per the WebView2 API takes
+            // precedence over (and silently defeats) the
+            // `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` environment variable —
+            // so that env var alone can never open the CDP remote-debugging
+            // port. Reading it here and forwarding it through the builder is
+            // the only way it reaches the browser process. No-op on
+            // macOS/Linux. Default string mirrors wry's own default exactly,
+            // so behavior is unchanged when the env var is unset.
+            if let Some(window_config) = app.config().app.windows.first() {
+                let mut browser_args =
+                    String::from("--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection");
+                if let Ok(extra) = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS") {
+                    if !extra.is_empty() {
+                        browser_args.push(' ');
+                        browser_args.push_str(&extra);
+                    }
+                }
+                tauri::WebviewWindowBuilder::from_config(app.handle(), window_config)?
+                    .additional_browser_args(&browser_args)
+                    .build()?;
+            }
             // Migrate the OS-level data subdir (`<data_dir>/keepance` →
             // `<data_dir>/lantern`, holding downloaded models + logs) once at
             // startup, before anything resolves a model/log path. Best-effort:

@@ -336,3 +336,135 @@ stalled. Worth noting for future cost planning: a from-scratch cold Rust build o
 crates) plus fixing two more missing native build tools took meaningfully longer than a single
 90-minute window — a from-cache rebuild (like step 6's second run) is much faster (~3 min), so future
 bench sessions that don't touch the toolchain should be cheap.
+
+---
+
+## 2026-07-04 update — WebView2 CDP port FIXED; cloud bench now a working 2nd smoke target
+
+**Bottom line for Jameson:** the cloud computer can now be driven by our automated test tool, the
+same way the Legion laptop already is. That was the last missing piece — everything else about this
+VM was already working. We proved it by running one of the real test checks against the cloud VM and
+watching it pass, with a screenshot of the app's actual screen to show for it.
+
+**What was actually wrong (this is the interesting part):** the leftover mystery from last session
+was "the app starts fine, but the debug port (9223) that our screenshot tool talks to never opens."
+The working theory going in was that it was a *login-type* problem — the app was being started over a
+plain remote command-line connection (SSH), which Windows treats as a background/non-interactive
+session, and some Windows security features quietly misbehave for on-screen apps started that way. That
+theory was reasonable and partly right (it's still good practice to run the real app in a real
+logged-in session, which this session set up properly, see below) — **but it turned out NOT to be the
+actual cause of the missing debug port.** The real cause was smaller and stranger: the way we were
+telling the app to open a debug port (setting an "environment variable," `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`,
+which is like a sticky note the operating system hands to a program when it starts) was being **silently
+ignored** — because the underlying Windows browser component our app is built on (`WebView2`, part of
+Microsoft Edge) always explicitly tells itself what settings to use in code, and once it does that, it
+stops reading the sticky note entirely. It's not a bug in this specific app being broken — it's how this
+version of the underlying toolkit (`wry`, the library Tauri apps use to embed a browser) always behaves;
+the sticky note was never going to work, on the Legion or anywhere else, once you look closely at the
+code. Whoever wrote the original scripts documenting the env-var approach a few weeks back had reasonable
+grounds to believe it worked, but nobody had actually confirmed a real CDP screenshot from either bench
+until today.
+
+**The fix (real code change, not a workaround):** instead of relying on that ignored sticky note, this
+session changed the actual application source code (`src-tauri/src/lib.rs` + `src-tauri/tauri.conf.json`,
+committed on `lp/azure-cdp-fix`) so the app *itself* reads that same environment variable at startup and
+hands it directly to the browser-embedding library's own proper setting for this — the one code path
+that's actually honored. When the variable isn't set (the normal case for every real user), the app
+behaves 100% identically to before — this only changes anything when a bench script explicitly sets that
+variable to open a debug port. This is a genuine, durable fix to the shared codebase, not an Azure-only
+patch — it should also fix the same "screenshot tool can't connect" gap on the Legion bench, if that gap
+was ever actually hit there (worth a quick sanity check next time the Legion is in active use, since
+this session did not touch the Legion, per its lane boundaries).
+
+### Second, smaller gap found and fixed: wrong remote shell
+
+After the CDP port itself was confirmed open (`netstat`/`Invoke-WebRequest` both showed it listening),
+running the *actual test harness* (`scripts/bench-smoke.mjs --target azure-cloud-bench-1`) still failed
+with a generic Windows path error. Root cause: this VM's remote-command connection (SSH) was set up to
+run old-style `cmd.exe` by default, but the test harness's connection code (`scripts/bench-smoke/remote.mjs`)
+assumes the newer PowerShell is the default (matching whatever the Legion is configured with) — so its
+commands were being fed to the wrong interpreter entirely. Fixed by pointing this VM's SSH connection at
+PowerShell by default (`HKLM:\SOFTWARE\OpenSSH\DefaultShell` registry value + an sshd service restart) —
+a standard, supported, one-line Windows OpenSSH setting, and a durable one-time fix (survives reboots).
+
+### What actually happened, technically (for the next session)
+
+1. **VM boot + Tailscale re-auth (expected, per the known landmine above).** `az vm start` at 01:09 UTC;
+   Tailscale had logged itself out again exactly as documented — re-authenticated with the existing
+   reusable key at `~/lp-azure/creds/tailscale_authkey.txt`. **Correction to this doc**: that file
+   existed, but `~/lp-azure/creds/admin_password.txt` (referenced above as already present) had gone
+   missing from this server (empty `creds/` dir apart from the Tailscale key) — reset the VM admin
+   password via `az vm user update --username lpbench --password <new>` (the standard Azure VMAccess
+   extension path, doesn't need the old password) and re-saved it properly at that path, `chmod 600`.
+
+2. **Set up a real interactive logon (needed regardless of the CDP root cause, and still correct
+   practice)**: enabled Windows auto-logon for `lpbench` (`HKLM:\...\Winlogon\AutoAdminLogon` +
+   `DefaultUserName`/`DefaultPassword`/`DefaultDomainName`, password written via a temp file transferred
+   over `scp` and deleted immediately after, never echoed to any log), then rebuilt the `LanternDevBench`
+   scheduled task with `LogonType Interactive` + an `AtLogOn` trigger for `lpbench` (previously it was
+   `LogonType S4U`, time-triggered — a non-interactive logon type that likely explains why last
+   session's headless-SSH launch attempt never got a real interactive session either way). Rebooted the
+   VM once; confirmed via `query user` that `lpbench` came up **Active** on the console session
+   immediately post-boot with no manual RDP step, and the scheduled task fired at logon as configured
+   (`cargo`/`node`/`lantern.exe`/`msedgewebview2.exe` all landed in `SessionId 1`, the real interactive
+   session — confirmed via `Get-CimInstance Win32_Process`).
+
+3. **Diagnosed the "env var silently ignored" root cause** by: (a) confirming via a temporary `set >
+   file` diagnostic in `run-dev.bat` that the cmd.exe process launching `npm run tauri:dev` genuinely
+   had `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` set correctly in its own environment (ruling out an
+   env-propagation issue); (b) dumping the full command lines of every `msedgewebview2.exe` child process
+   via `Get-CimInstance Win32_Process` and finding **zero** occurrences of `--remote-debugging-port`
+   anywhere, even on the main browser-process instance, while a *different* wry-default flag
+   (`--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection`) **was** present — proving the app's
+   browser-launch arguments were coming from somewhere other than the env var; (c) reading the actual
+   `wry 0.55.1` source on the VM's own cargo registry cache
+   (`wry-0.55.1/src/webview2/mod.rs:294`) and finding it unconditionally calls
+   `options.set_additional_browser_arguments(...)` with a default string it builds itself whenever the
+   app doesn't supply its own — and per the WebView2 API, an explicitly-set `AdditionalBrowserArguments`
+   option (even a non-custom default) takes precedence over and fully suppresses the
+   `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` environment variable. Confirmed the fix's exact shape (a
+   `"create": false` window-config flag + building the window manually in `.setup()` with
+   `.additional_browser_args(...)`) is Tauri's own documented pattern for this
+   (`tauri-utils-2.9.3/src/config.rs:1928-1934` doc-comment shows the identical snippet).
+
+4. **Applied the fix, rebuilt, verified.** Patched `src-tauri/tauri.conf.json` (added `"create": false`
+   to the one window entry) and `src-tauri/src/lib.rs` (added ~20 lines in `.setup()` building the main
+   window explicitly, reading `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` and forwarding it through
+   `.additional_browser_args(...)`, defaulting to wry's own default string when unset so production
+   behavior is unchanged). **Landmine for next time**: the VM's checkout (`C:\lantern-plus`, branch
+   `lantern-plus` @ `3651d99e`) is *behind* this worktree's branch (`lp/azure-cdp-fix`, based on a much
+   later `lantern-plus` commit) — an initial attempt that `scp`'d over the *entire* modified `lib.rs`
+   file broke the VM's build (`could not find \`retention\` in \`commands\`` — that module doesn't exist
+   yet at the VM's pinned commit). Recovered cleanly via `git checkout -- <path>` on the VM (repo was
+   otherwise clean) and re-applied *only* the actual diff by locating the matching context lines and
+   inserting around them — never blind-overwrite a file on a VM pinned to an older commit than your
+   local worktree; diff/patch it instead. Rebuild after the correct patch: **5m 11s** (touching the
+   crate root requires relinking the final binary even on a warm dependency cache, slower than a
+   leaf-file change but nowhere near a cold 1066-crate build). Confirmed via `netstat` and
+   `Invoke-WebRequest http://127.0.0.1:9223/json/version` that the CDP port came up and answered with a
+   real WebView2 version banner. Committed the fix locally on the VM's own repo too (`git commit`, not
+   pushed — the VM's checkout is pinned to an older commit than the branch this fix lives on here) so
+   the VM's working tree stays clean for the next session.
+
+5. **Ran the real harness end-to-end**: `node scripts/bench-smoke.mjs --target azure-cloud-bench-1
+   --only index-health` → **PASS** (`Client Map shows cited facts with no index-health error text
+   present`), with a real screenshot saved to
+   `docs/evidence/bench-smoke/azure-cloud-bench-1-20260704-014042/01-index-health-client-map.jpeg`.
+   This is the first time either the CDP port or the harness's Azure-target path has been verified
+   working end-to-end.
+
+6. **Cleanup + snapshot + shutdown.** Deleted the leftover clutter files from the previous session
+   (`C:\*.ps1`, `C:\protoc.zip`, `C:\strawberry-perl.zip`, ~500MB). Took a fresh snapshot
+   `lantern-cloud-bench-1-clean-3` (2026-07-04T01:43:39Z) from the VM's OS disk after `az vm deallocate`
+   (both prior snapshots, `-clean` and `-clean-2`, are kept). VM confirmed `PowerState/deallocated`
+   before and after the snapshot.
+
+**Durable state now on the VM (survives reboot/redeploy from this snapshot):** Windows auto-logon for
+`lpbench`; `LanternDevBench` scheduled task with `LogonType Interactive` + `AtLogOn` trigger (so the app
+always comes up in a real interactive session, CDP-capable, with no manual step); SSH `DefaultShell` set
+to PowerShell (so `bench-smoke.mjs` and any other PowerShell-based remote tooling work out of the box);
+the CDP fix itself is in the app's source (`src-tauri/src/lib.rs` + `tauri.conf.json`), committed both
+here (`lp/azure-cdp-fix`) and locally on the VM's own repo.
+
+**Session VM uptime**: started `az vm start` at 01:09 UTC, deallocated at 01:42 UTC — **~33 minutes**,
+well inside the 90-minute guardrail.

@@ -1,0 +1,25 @@
+{
+  "overall": "PASS",
+  "counts": {
+    "PASS": 1,
+    "FAIL": 0,
+    "SETUP-BLOCKED": 0,
+    "SKIPPED": 0,
+    "TODO": 0
+  },
+  "generatedAt": "2026-07-04T01:41:36.338Z",
+  "target": "azure-cloud-bench-1",
+  "live": false,
+  "results": [
+    {
+      "id": "index-health",
+      "section": "Phase 1 — setup",
+      "status": "PASS",
+      "detail": "Client Map shows cited facts with no index-health error text present.",
+      "screenshots": [
+        "01-index-health-client-map.jpeg"
+      ],
+      "durationMs": 46007
+    }
+  ]
+}
