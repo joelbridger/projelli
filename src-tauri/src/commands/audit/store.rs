@@ -197,6 +197,38 @@ fn upsert_chain_head(c: &Connection, head: &ChainHeadRecord) -> Result<()> {
     Ok(())
 }
 
+/// Highest `seq` ever assigned to an `entries` row — the AUTOINCREMENT
+/// high-water mark SQLite keeps in `sqlite_sequence`. Crucially, it SURVIVES row
+/// deletion (that is the whole point of AUTOINCREMENT vs a plain rowid). It lets
+/// us tell a genuinely-fresh empty store (`0`, no row ever inserted) apart from
+/// one whose rows were ALL deleted (`> 0`) — the all-rows form of the silent
+/// truncation this module guards against. Returns `0` when nothing was ever
+/// inserted (or the sequence table does not exist yet). A determined attacker
+/// with raw DB write access could also reset this counter, so it is
+/// defense-in-depth against the naive-delete / buggy-truncation threat class,
+/// not a cryptographic guarantee.
+fn max_ever_seq(c: &Connection) -> Result<i64> {
+    let has_seq_table: bool = c
+        .query_row(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='sqlite_sequence'",
+            [],
+            |_| Ok(true),
+        )
+        .optional()?
+        .unwrap_or(false);
+    if !has_seq_table {
+        return Ok(0);
+    }
+    let seq: Option<i64> = c
+        .query_row(
+            "SELECT seq FROM sqlite_sequence WHERE name = 'entries'",
+            [],
+            |r| r.get(0),
+        )
+        .optional()?;
+    Ok(seq.unwrap_or(0))
+}
+
 fn table_columns(c: &Connection, table: &str) -> Result<std::collections::HashSet<String>> {
     let mut stmt = c.prepare(&format!("PRAGMA table_info({table})"))?;
     let cols = stmt
@@ -323,10 +355,12 @@ fn ensure_chain_head_matches_current_rows(c: &Connection) -> Result<()> {
     let stored = match read_chain_head(c)? {
         Some(head) => head,
         None => {
-            // No head recorded. For a genuinely empty store this is benign (a
-            // genesis append can proceed); for a store with surviving rows it is
-            // the seal-missing state — refuse the append fail-closed.
-            if rows.is_empty() {
+            // No head recorded. Only a genuinely fresh store (no row ever
+            // inserted) may proceed with a genesis append. If rows survive
+            // (partial truncation) OR every row was deleted after entries once
+            // existed (full wipe: high-water > 0), this is the seal-missing
+            // state — refuse the append fail-closed.
+            if rows.is_empty() && max_ever_seq(c)? == 0 {
                 return Ok(());
             }
             bail!(SEAL_MISSING_APPEND_MSG);
@@ -368,14 +402,22 @@ fn ensure_hash_chain_schema(c: &mut Connection) -> Result<()> {
 
     let row_count: i64 = c.query_row("SELECT COUNT(*) FROM entries", [], |r| r.get(0))?;
     if row_count == 0 {
-        upsert_chain_head(
-            c,
-            &ChainHeadRecord {
-                entry_count: 0,
-                last_seq: 0,
-                last_hash: hex::encode(GENESIS_PREV_HASH),
-            },
-        )?;
+        if max_ever_seq(c)? == 0 {
+            // Genuinely fresh store (no row was ever inserted): seed the zero
+            // head so a first append has a valid genesis to build on.
+            upsert_chain_head(
+                c,
+                &ChainHeadRecord {
+                    entry_count: 0,
+                    last_seq: 0,
+                    last_hash: hex::encode(GENESIS_PREV_HASH),
+                },
+            )?;
+        }
+        // Otherwise every row was deleted after entries once existed (a full
+        // wipe). Do NOT paper it over with a benign zero head — leave the seal
+        // absent so the store opens in the fail-closed SealMissing state
+        // (surviving_rows = 0), exactly like a partial truncation.
         return Ok(());
     }
 
@@ -614,15 +656,32 @@ impl EncryptedAuditStore {
         };
         let stored = match read_chain_head(&c) {
             Ok(Some(head)) => head,
-            // Head absent or undecodable. The surviving rows already verified as
-            // a valid per-row chain above (`actual` is Ok), so this is the
-            // seal-missing state: we can prove the surviving prefix is internally
-            // consistent but NOT that it is complete. Refuse to call it Verified.
-            Ok(None) | Err(_) => {
-                if rows.is_empty() {
-                    // No rows and no seal: a genuinely fresh/empty store.
+            // The seal metadata is present but undecodable — the seal itself is
+            // corrupt. That is tampering WITH the seal, not a clean missing
+            // seal, and it is not recoverable by re-sealing the survivors, so
+            // report it as Altered (loud), NOT the repairable SealMissing state.
+            Err(_) => {
+                return Ok(AuditChainVerification::Altered {
+                    seq: 0,
+                    id: "__chain_head__".into(),
+                    reason: "chain head seal is corrupt".into(),
+                    checked: actual.entry_count,
+                });
+            }
+            // The seal is genuinely absent. The surviving rows (if any) already
+            // verified as a valid per-row chain above, so we can prove internal
+            // consistency but NOT completeness. Distinguish a fresh store from a
+            // truncated one via the AUTOINCREMENT high-water mark, which
+            // survives row deletion.
+            Ok(None) => {
+                if rows.is_empty() && max_ever_seq(&c)? == 0 {
+                    // No row was ever inserted and there is no seal: a genuinely
+                    // fresh/empty store.
                     return Ok(AuditChainVerification::Verified { checked: 0 });
                 }
+                // Rows survive (partial truncation) OR every row was deleted
+                // after entries existed (full wipe: high-water > 0). Either way
+                // the seal is gone over a log that once held entries.
                 return Ok(AuditChainVerification::SealMissing {
                     surviving_rows: actual.entry_count,
                     last_timestamp: rows.last().map(|row| row.rec.timestamp.clone()),
@@ -663,22 +722,32 @@ impl EncryptedAuditStore {
             bail!("audit store is not in a seal-missing state (chain head present) — nothing to repair");
         }
         let rows = read_chain_rows(&tx)?;
-        if rows.is_empty() {
-            bail!("audit store has no surviving rows to repair");
+        if rows.is_empty() && max_ever_seq(&tx)? == 0 {
+            bail!("audit store is empty and untampered — nothing to repair");
         }
-        let prefix_head = match verify_rows_and_build_head(&rows) {
-            Ok(head) => head,
-            Err(altered) => bail!(
-                "surviving audit rows are not a valid chain, refusing to repair: {altered:?}"
-            ),
+
+        // Determine what the anomaly record chains onto. For a partial
+        // truncation the surviving rows must themselves be a valid chain (we
+        // re-seal over them). For a full wipe (no surviving rows, but the
+        // high-water mark proves rows once existed) there is no prefix, so the
+        // anomaly chains onto genesis and the re-sealed log records the loss.
+        let (prev_hash_hex, surviving_rows, last_verifiable_timestamp) = if rows.is_empty() {
+            (hex::encode(GENESIS_PREV_HASH), 0i64, None)
+        } else {
+            let prefix_head = match verify_rows_and_build_head(&rows) {
+                Ok(head) => head,
+                Err(altered) => bail!(
+                    "surviving audit rows are not a valid chain, refusing to repair: {altered:?}"
+                ),
+            };
+            let ts = rows.last().map(|row| row.rec.timestamp.clone());
+            (prefix_head.last_hash, prefix_head.entry_count, ts)
         };
 
-        let surviving_rows = prefix_head.entry_count;
-        let last_verifiable_timestamp = rows.last().map(|row| row.rec.timestamp.clone());
-
-        // 1) Mint + insert the anomaly record, chained onto the surviving prefix.
+        // 1) Mint + insert the anomaly record, chained onto the surviving prefix
+        //    (or onto genesis for a full wipe).
         let prev_hash =
-            hex::decode(&prefix_head.last_hash).context("decode surviving prefix head hash")?;
+            hex::decode(&prev_hash_hex).context("decode surviving prefix head hash")?;
         if !is_hash32(&prev_hash) {
             bail!("surviving prefix head hash is not a 32-byte digest");
         }
@@ -1259,6 +1328,96 @@ mod tests {
             s.verify_chain().unwrap(),
             AuditChainVerification::Verified { checked: 1 }
         );
+    }
+
+    #[test]
+    fn full_wipe_all_rows_and_seal_deleted_is_seal_missing_and_repairable() {
+        // The all-rows form of silent truncation: delete EVERY entry plus the
+        // seal. A brand-new store would verify clean, so the fix must tell them
+        // apart via the AUTOINCREMENT high-water mark (which survives deletion).
+        let dir = TempDir::new().unwrap();
+        let key = [0x88u8; 32];
+        {
+            let s = EncryptedAuditStore::open_with_key(dir.path(), &key).unwrap();
+            s.append(&rec("w1", "model_call")).unwrap();
+            s.append(&rec("w2", "egress")).unwrap();
+            s.append(&rec("w3", "file_update")).unwrap();
+        }
+        {
+            let conn = Connection::open(EncryptedAuditStore::db_path(dir.path())).unwrap();
+            conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", hex::encode(key)))
+                .unwrap();
+            conn.execute("DELETE FROM entries", []).unwrap();
+            conn.execute("DELETE FROM audit_metadata", []).unwrap();
+        }
+        let s = EncryptedAuditStore::open_with_key(dir.path(), &key).unwrap();
+        assert_eq!(
+            s.verify_chain().unwrap(),
+            AuditChainVerification::SealMissing {
+                surviving_rows: 0,
+                last_timestamp: None,
+            },
+            "a wiped store must NOT be indistinguishable from a fresh one"
+        );
+        assert!(s
+            .append(&rec("post-wipe", "model_call"))
+            .unwrap_err()
+            .to_string()
+            .contains("integrity seal is missing"));
+
+        // Repair chains the anomaly onto genesis and restores appends.
+        let report = s.repair().unwrap();
+        assert_eq!(report.surviving_rows, 0);
+        assert_eq!(report.total_entries, 1);
+        assert_eq!(
+            s.verify_chain().unwrap(),
+            AuditChainVerification::Verified { checked: 1 }
+        );
+        let entries = s.list(None, None).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].action, "audit_integrity_reseal");
+        assert!(s.append(&rec("after-repair", "egress")).unwrap());
+        assert_eq!(
+            s.verify_chain().unwrap(),
+            AuditChainVerification::Verified { checked: 2 }
+        );
+    }
+
+    #[test]
+    fn corrupt_chain_head_seal_reports_altered_not_seal_missing() {
+        // A seal that is PRESENT but undecodable is tampering with the seal
+        // itself, not a clean missing seal. It must be reported Altered (loud),
+        // NOT the repairable SealMissing state — otherwise verify would call it
+        // repairable while repair() cannot handle it.
+        let dir = TempDir::new().unwrap();
+        let key = [0xC0u8; 32];
+        {
+            let s = EncryptedAuditStore::open_with_key(dir.path(), &key).unwrap();
+            s.append(&rec("c1", "model_call")).unwrap();
+            s.append(&rec("c2", "egress")).unwrap();
+        }
+        {
+            let conn = Connection::open(EncryptedAuditStore::db_path(dir.path())).unwrap();
+            conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", hex::encode(key)))
+                .unwrap();
+            conn.execute(
+                "UPDATE audit_metadata SET value_json = ?1 WHERE key = ?2",
+                rusqlite::params!["not-a-valid-chain-head", CHAIN_HEAD_METADATA_KEY],
+            )
+            .unwrap();
+        }
+        let s = EncryptedAuditStore::open_with_key(dir.path(), &key).unwrap();
+        assert_eq!(
+            s.verify_chain().unwrap(),
+            AuditChainVerification::Altered {
+                seq: 0,
+                id: "__chain_head__".into(),
+                reason: "chain head seal is corrupt".into(),
+                checked: 2,
+            }
+        );
+        // A corrupt seal is not the repairable SealMissing state.
+        assert!(s.repair().is_err());
     }
 
     #[test]
