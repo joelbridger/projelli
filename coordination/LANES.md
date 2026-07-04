@@ -7,11 +7,13 @@ Last updated: 2026-07-04 ~01:05 (coordinator-6 seated — sole coordinator; moni
 ## Active lanes
 | Worker session | What | State |
 |---|---|---|
-| cc-lantern-benchfull | 🏁 FINISH-LINE full Wave 0-4 scripted bench pass on the Legion (tip fc82c2a2; brief w-bench-full-brief.md; freshness canary mandatory — window-creation path changed) | bench-running |
+| cc-lantern-benchfull | 🏁 Finish-line pass ROUND 1 DONE: 9 PASS / 2 real FAIL / 3 harness-caused blocks (fixed+merged) / 5 expected stubs. NOW: completing the MS OAuth (authorized, demo acct) + re-running failed/blocked checks | bench-reverifying |
+| cc-lantern-gapsync | Wave-4 fix lane (lp/wave4-gap-sync): book-view gap chip vs client-detail control out of sync (bench FAIL #2) | building |
 | cc-lantern-vaudio | Virtual-audio spike on clone bench-2 (program #5, the LAST queued program item) — prove capture tests without physical hardware; snapshot-reset safety net | building |
-| cc-lantern-auditfix | Audit-chain fail-closed fix (lp/audit-chain-failclosed; inherited #14; Opus 4.8 xhigh — tamper-evidence is the trust story) — builds during the bench pass, merges after the verdict | building |
+| cc-lantern-auditfix | Audit-chain fail-closed fix — worker DONE, coordinator independent review found 1 P2 (repair affordance unreachable) — routed back for the minimal repair UI | fixing-P2 |
 
 ## Merged this session
+✅ lp/bench-harness-round2-fixes @00558e1d — 3 live-root-caused harness bugs (wrapper-click, Grid-view state, snapshot false-negative); 124 harness tests
 ✅ azclone lane DONE @0bab65b7 — merged-tip verified on cloud VM (CDP fix live); bench-ready golden snapshot; clone bench-2 zero-rebuild; FIRST live 2-way sharded smoke PASS (~$0.20)
 ✅ lp/e2e-smoke-mirror @fc82c2a2 — Playwright mirror: 11/19 bench checks in ~15s on Linux (44 specs green post-merge)
 ✅ lp/azure-cdp-fix @395923fd — wry CDP env-var fix (root-caused real app bug; cloud bench is now a working 2nd smoke target)
