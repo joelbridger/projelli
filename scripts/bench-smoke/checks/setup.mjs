@@ -128,16 +128,24 @@ export const checkIndexHealth = withGuard(
       });
     }
 
+    // Text pulled directly from src/features/matters/clientMap/
+    // errorClassification.ts (merged into lantern-plus after this check was
+    // first written — the classifier now distinguishes an index/retrieval
+    // failure from a provider failure instead of always blaming "your AI
+    // connection"). "needs to rebuild" is the index-specific build/update
+    // message; "Could not build client map" / "Could not check for client
+    // map updates" cover the provider/unknown buckets, which still indicate
+    // a real Client Map failure even though they're not index-specific.
     const brokenIndex =
-      (await textPresent(driver, 'memory integrity uncertain', 3)) ||
-      (await textPresent(driver, 'ai-connection error', 3)) ||
-      (await textPresent(driver, 'indexing failed', 3));
+      (await textPresent(driver, 'needs to rebuild', 3)) ||
+      (await textPresent(driver, 'Could not build client map', 3)) ||
+      (await textPresent(driver, 'Could not check for client map updates', 3));
     if (brokenIndex) {
       return makeResult({
         id: 'index-health',
         section: 'Phase 1 — setup',
         status: STATUS.FAIL,
-        detail: 'Client Map is showing an index-health error (memory integrity uncertain / AI-connection error / indexing failed).',
+        detail: 'Client Map is showing a build/update error ("needs to rebuild" / "Could not build client map" / "Could not check for client map updates").',
       });
     }
 
