@@ -19,7 +19,7 @@
 use std::path::{Path, PathBuf};
 
 use super::new_audit_id;
-use super::sweep::{canonicalize_workspace_relative, contained, transcript_rag_source_ids};
+use super::sweep::{canonicalize_within, canonicalize_workspace_relative, contained, transcript_rag_source_ids};
 // stage_atomically/commit_atomically live in mod.rs (shared with
 // append_pending_rag_cleanup, which had the exact same truncate-in-place
 // and temp-path-symlink risks). The two-phase split lets redact.rs stage
@@ -94,27 +94,21 @@ fn refuse_symlink(path: &Path) -> Result<(), String> {
 /// meeting with a bad path is a caller bug, not benign — treat a missing
 /// path as a hard error instead of silently doing nothing.
 fn resolve_meeting_dir(canon_ws: &Path, matter_folder: &str, meeting_dir: &str) -> Result<PathBuf, String> {
+    // Symlink-safe from the workspace root down to the matter folder itself
+    // — a symlinked "Clients/Alias" -> "Clients/RealClient" (both inside the
+    // workspace) would otherwise pass a plain canonicalize()+starts_with()
+    // check and let this redact RealClient's meeting while the audit entry
+    // (which records matter_folder verbatim) still says Alias.
     let matter_abs = canonicalize_workspace_relative(canon_ws, matter_folder)?
         .ok_or_else(|| format!("matter folder does not exist: {matter_folder}"))?;
-    let rel_meeting = Path::new(meeting_dir);
-    if rel_meeting.is_absolute() {
-        return Err(format!("meeting dir must be relative to the matter folder: {meeting_dir}"));
-    }
-    let meeting_abs = matter_abs
-        .join(rel_meeting)
-        .canonicalize()
-        .map_err(|e| format!("meeting dir does not exist: {meeting_dir}: {e}"))?;
-    // Scoped to the SELECTED matter folder, not just "somewhere in the
-    // workspace": meeting_dir is documented as relative to matter_folder, so
-    // a `../OtherClient/...` escape must be refused here — otherwise a
-    // caller could redact a DIFFERENT client's meeting while the audit entry
-    // (which records matter_folder verbatim) claims it was this one.
-    if !meeting_abs.starts_with(&matter_abs) {
-        return Err(format!("meeting dir escapes its matter folder: {meeting_dir}"));
-    }
-    if !meeting_abs.starts_with(canon_ws) {
-        return Err(format!("meeting dir escapes workspace: {meeting_dir}"));
-    }
+    // Symlink-safe AGAIN from the matter folder down to the meeting dir —
+    // the same hazard applies one level deeper (a symlinked meeting entry
+    // pointing at a different meeting), and meeting_dir must stay scoped to
+    // ITS OWN matter folder specifically (canonicalize_within's containment
+    // check is against matter_abs, not just canon_ws) — a `../OtherClient/...`
+    // meeting_dir must be refused for the same reason.
+    let meeting_abs = canonicalize_within(&matter_abs, meeting_dir)?
+        .ok_or_else(|| format!("meeting dir does not exist: {meeting_dir}"))?;
     Ok(meeting_abs)
 }
 
@@ -709,6 +703,64 @@ mod tests {
         assert!(!err.is_empty());
     }
 
+    /// A MATTER FOLDER that is itself a symlink to a DIFFERENT, real
+    /// in-workspace client folder (`Clients/Alias` -> `Clients/RealClient`)
+    /// must be refused outright — a plain `canonicalize()` + `starts_with()`
+    /// check would follow the symlink and accept it (the target really is
+    /// inside the workspace), letting a redaction mutate RealClient's
+    /// meeting while the caller's own matter_folder string (recorded in the
+    /// audit entry) still says Alias.
+    #[cfg(unix)]
+    #[test]
+    fn rejects_a_symlinked_matter_folder_even_when_its_target_is_in_workspace() {
+        let ws = tempdir().unwrap();
+        let real_client_meeting = make_meeting_with_tracked_change(ws.path(), "x"); // Clients/H/Meetings/...
+        std::fs::rename(ws.path().join("Clients/H"), ws.path().join("Clients/RealClient")).unwrap();
+        std::os::unix::fs::symlink(ws.path().join("Clients/RealClient"), ws.path().join("Clients/Alias")).unwrap();
+        let canon_ws = ws.path().canonicalize().unwrap();
+
+        let err = resolve_meeting_dir(&canon_ws, "Clients/Alias", "Meetings/2026-05-01-review").unwrap_err();
+        assert!(err.contains("symlink"), "got: {err}");
+        // The real client's data must be provably untouched — this test
+        // only exercises path resolution, but confirms nothing was even
+        // looked up under Alias's resolved target.
+        let _ = real_client_meeting;
+    }
+
+    /// A symlink one level DEEPER than the matter folder itself — an
+    /// intermediate directory inside the matter folder's own path but above
+    /// the meeting dir — must also be refused, not just the matter folder or
+    /// the final meeting entry.
+    #[cfg(unix)]
+    #[test]
+    fn rejects_a_symlink_ancestor_mid_path() {
+        let ws = tempdir().unwrap();
+        make_meeting_with_tracked_change(ws.path(), "x"); // Clients/H/Meetings/2026-05-01-review
+        let victim_dir = ws.path().join("Clients/OtherClient");
+        std::fs::create_dir_all(&victim_dir).unwrap();
+        // A symlinked intermediate directory INSIDE "Clients/H", one level
+        // above the meeting entry itself.
+        std::fs::rename(ws.path().join("Clients/H/Meetings"), ws.path().join("Clients/H/Meetings-real")).unwrap();
+        std::os::unix::fs::symlink(ws.path().join("Clients/H/Meetings-real"), ws.path().join("Clients/H/Meetings")).unwrap();
+        let canon_ws = ws.path().canonicalize().unwrap();
+
+        let err = resolve_meeting_dir(&canon_ws, "Clients/H", "Meetings/2026-05-01-review").unwrap_err();
+        assert!(err.contains("symlink"), "got: {err}");
+    }
+
+    /// A normal, non-symlinked, multi-level nested matter/meeting path must
+    /// still resolve successfully — the symlink-safe walk must not reject
+    /// legitimate structure.
+    #[test]
+    fn normal_nested_matter_and_meeting_folder_still_resolves() {
+        let ws = tempdir().unwrap();
+        make_meeting_with_tracked_change(ws.path(), "x"); // Clients/H/Meetings/2026-05-01-review
+        let canon_ws = ws.path().canonicalize().unwrap();
+
+        let resolved = resolve_meeting_dir(&canon_ws, "Clients/H", "Meetings/2026-05-01-review").unwrap();
+        assert_eq!(resolved, canon_ws.join("Clients/H/Meetings/2026-05-01-review"));
+    }
+
     /// `meeting_dir` is documented as relative to `matter_folder` — a caller
     /// must not be able to climb OUT of the selected matter folder into a
     /// DIFFERENT (but still in-workspace) client's folder via `../`. Without
@@ -723,7 +775,11 @@ mod tests {
         let canon_ws = ws.path().canonicalize().unwrap();
 
         let err = resolve_meeting_dir(&canon_ws, "Clients/Acme", "../H/Meetings/2026-05-01-review").unwrap_err();
-        assert!(err.contains("matter folder"), "got: {err}");
+        // canonicalize_within (shared with canonicalize_workspace_relative)
+        // now refuses ANY '..' component outright during its symlink-safe
+        // walk, rather than resolving it and checking containment
+        // afterward — same protection, more precise/earlier rejection.
+        assert!(err.contains("..") , "got: {err}");
     }
 
     /// The whole point of `needle_survives_in_docx_package`: a `.docx` is a

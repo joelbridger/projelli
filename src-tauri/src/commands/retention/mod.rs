@@ -589,6 +589,34 @@ mod tests {
         assert!(err.contains("workspace-relative"), "got: {err}");
     }
 
+    /// A matter folder that is itself a symlink to a DIFFERENT, real
+    /// in-workspace client folder must be refused outright — a plain
+    /// canonicalize()+starts_with() check would follow the symlink (the
+    /// target really is inside the workspace) and let the sweep
+    /// mutate/delete a DIFFERENT client's files while the caller's own
+    /// matter-folder string still names the alias.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn retention_sweep_rejects_a_symlinked_matter_folder() {
+        let ws = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(ws.path().join("Clients/RealClient/Meetings")).unwrap();
+        std::os::unix::fs::symlink(
+            ws.path().join("Clients/RealClient"),
+            ws.path().join("Clients/Alias"),
+        )
+        .unwrap();
+
+        let err = retention_sweep(
+            ws.path().to_string_lossy().into_owned(),
+            vec!["Clients/Alias".into()],
+            "keep-everything".into(),
+            30,
+        )
+        .await
+        .unwrap_err();
+        assert!(err.contains("symlink"), "got: {err}");
+    }
+
     #[tokio::test]
     async fn retention_sweep_rejects_unknown_mode_before_touching_disk() {
         let ws = tempfile::tempdir().unwrap();

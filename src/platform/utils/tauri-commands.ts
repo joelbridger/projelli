@@ -943,6 +943,15 @@ export interface RedactionReceiptWire {
   docxFlattened: boolean;
   ragCleanupSourceIds: string[];
   auditError?: string;
+  /** Set ONLY when notes.docx's commit succeeded but transcript.json's then
+   *  failed (e.g. a locked file on Windows) — the one gap the Rust side's
+   *  two-phase stage/commit write can't fully close. When present,
+   *  redactedCount is 0 (transcript.json — the source of truth this
+   *  design's retry-safety depends on — was NOT actually updated) but
+   *  notes.docx WAS mutated; the caller should surface this distinctly
+   *  (not as plain success) and prompt a retry — safe, since redacting an
+   *  already-redacted notes.docx run is a no-op. */
+  partialCommitError?: string;
 }
 
 /** Redact whole transcript segments from one meeting: rewrites

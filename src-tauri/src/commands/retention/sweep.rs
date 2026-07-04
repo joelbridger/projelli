@@ -57,22 +57,89 @@ pub(crate) fn contained(path: &Path, canon_ws: &Path) -> bool {
 /// caller-chosen path (like Task 17b's redaction) should treat "doesn't
 /// exist" as a hard error instead. `pub(crate)` so both call sites share the
 /// same security-critical validation rather than duplicating it.
-pub(crate) fn canonicalize_workspace_relative(
-    canon_ws: &Path,
+/// Symlink-safe canonicalize: walk `relative` component-by-component starting
+/// at `base`, refusing outright the MOMENT any component — the target itself
+/// or any INTERMEDIATE directory along the way — is a symlink (checked via
+/// `symlink_metadata`, which never follows). A plain `base.join(relative).canonicalize()`
+/// would silently FOLLOW every symlink in the path and accept the result as
+/// long as the final resolved target happens to sit inside
+/// `root_for_containment` — that's exactly how a symlinked matter folder
+/// (`Clients/Alias` -> `Clients/RealClient`, both inside the workspace) could
+/// pass validation and let the sweep or a redaction mutate/delete a
+/// DIFFERENT client's files, while the audit trail (which records the
+/// caller's own relative string) still names "Alias": cross-client data loss
+/// with a wrong audit trail.
+///
+/// Returns `Ok(None)` when the path doesn't exist yet (benign — e.g. a
+/// matter folder enumerated, then removed, before the sweep ran; callers
+/// decide what that means for them). Returns `Err` for a caller bug: an
+/// absolute path, a `..` component (never allowed — this is always meant to
+/// stay under `base`), or a symlink anywhere along the walk. Returns
+/// `Ok(Some(path))` only for a genuinely resolved, symlink-free path
+/// confirmed inside `root_for_containment`.
+fn canonicalize_symlink_safe(
+    base: &Path,
     relative: &str,
+    root_for_containment: &Path,
 ) -> Result<Option<PathBuf>, String> {
     let p = Path::new(relative);
     if p.is_absolute() {
         return Err(format!("path must be workspace-relative: {relative}"));
     }
-    let abs = match canon_ws.join(p).canonicalize() {
+    let mut current = base.to_path_buf();
+    for component in p.components() {
+        match component {
+            std::path::Component::Normal(seg) => {
+                current.push(seg);
+                match current.symlink_metadata() {
+                    Ok(meta) if meta.file_type().is_symlink() => {
+                        return Err(format!(
+                            "path component is a symlink: {} (in {relative})",
+                            current.display()
+                        ));
+                    }
+                    Ok(_) => {} // a real (non-symlink) component so far — keep walking
+                    Err(_) => return Ok(None), // vanished/doesn't exist — benign
+                }
+            }
+            std::path::Component::CurDir => {} // "." — harmless, doesn't change the path
+            std::path::Component::ParentDir => {
+                return Err(format!("path must not contain '..': {relative}"));
+            }
+            std::path::Component::RootDir | std::path::Component::Prefix(_) => {
+                return Err(format!("path must be workspace-relative: {relative}"));
+            }
+        }
+    }
+    // Every component walked above was confirmed NOT a symlink, so this
+    // canonicalize can't silently jump anywhere unexpected — it only
+    // resolves things like a trailing `.` this loop already treated as
+    // harmless. A failure here means the fully-walked path doesn't actually
+    // exist (same "vanished" semantics as above).
+    let abs = match current.canonicalize() {
         Ok(c) => c,
         Err(_) => return Ok(None),
     };
-    if !abs.starts_with(canon_ws) {
+    if !abs.starts_with(root_for_containment) {
         return Err(format!("path escapes workspace: {relative}"));
     }
     Ok(Some(abs))
+}
+
+pub(crate) fn canonicalize_workspace_relative(
+    canon_ws: &Path,
+    relative: &str,
+) -> Result<Option<PathBuf>, String> {
+    canonicalize_symlink_safe(canon_ws, relative, canon_ws)
+}
+
+/// Same symlink-safe walk as [`canonicalize_workspace_relative`], but rooted
+/// at (and contained within) an already-resolved MATTER folder rather than
+/// the workspace root — used to resolve a `meeting_dir` that must stay
+/// inside its own matter folder specifically (Task 17b's redaction), not
+/// merely somewhere in the workspace.
+pub(crate) fn canonicalize_within(base: &Path, relative: &str) -> Result<Option<PathBuf>, String> {
+    canonicalize_symlink_safe(base, relative, base)
 }
 
 /// Called immediately after EVERY confirmed unlink/rmdir, before the sweep
