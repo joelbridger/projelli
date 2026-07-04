@@ -236,6 +236,17 @@ fn write_transcript(meeting_dir: &Path, transcript: &serde_json::Value) -> Resul
 /// Locate the bundled sidecar + models. Mirrors resolve_sidecar_path
 /// (commands/voice.rs) and resolve_voice_model (commands/tts.rs):
 /// resource_dir first, dev-tree fallback.
+///
+/// The binary lives in `binaries/diarize/`, not flat `binaries/` like the
+/// other sidecars — see the note in scripts/build-diarize-sidecar.sh.
+/// piper_phonemize (a sibling sidecar) links a pinned, versioned
+/// `libonnxruntime.so.1.14.1`; sherpa-onnx links the bare `libonnxruntime.so`
+/// name. Both resolving into the same flat directory means one silently
+/// overwrites the other's onnxruntime file. Isolating lantern-diarize's
+/// binary with its own private copies of its runtime libs in their own
+/// subdirectory avoids the collision on every platform (Windows' DLL search
+/// checks the loading exe's own directory first; Linux/macOS use
+/// $ORIGIN/@loader_path, which still finds co-located siblings).
 fn resolve_diarize_assets(app: &tauri::AppHandle) -> Result<(std::path::PathBuf, std::path::PathBuf, std::path::PathBuf), String> {
     use tauri::Manager;
     let bin_name = if cfg!(windows) { "lantern-diarize.exe" } else { "lantern-diarize" };
@@ -248,7 +259,7 @@ fn resolve_diarize_assets(app: &tauri::AppHandle) -> Result<(std::path::PathBuf,
         roots.push(cwd); // when cwd is already src-tauri in dev
     }
     for root in &roots {
-        let bin = root.join("binaries").join(bin_name);
+        let bin = root.join("binaries").join("diarize").join(bin_name);
         let seg = root.join("resources").join("diarize").join("segmentation.onnx");
         let emb = root.join("resources").join("diarize").join("embedding.onnx");
         if bin.exists() && seg.exists() && emb.exists() {
