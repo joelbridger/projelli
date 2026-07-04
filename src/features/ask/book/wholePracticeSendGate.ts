@@ -35,6 +35,37 @@ export function decideWholePracticeSend(opts: {
   return { needsConfirm, clientCount, providerName };
 }
 
+/**
+ * Resolve the ACTUAL send provider (async), then route to either the confirm
+ * dialog or a direct send — but ONLY if this request is still the current one.
+ *
+ * The provider resolution is async, so between submitting a whole-practice
+ * question and the resolution settling the advisor can switch chat/workspace or
+ * submit again. `isCurrent()` (a monotonic request/chat token check) gates the
+ * completion: a stale resolution is DROPPED, so a superseded question can never
+ * fire the confirm — nor, on Continue, send the old question against the
+ * current (different) client set. This is the exact wrong-data-leaves failure
+ * the whole-practice guard exists to prevent (coordinator review).
+ */
+export async function resolveWholePracticeConfirm(opts: {
+  clientCount: number;
+  remembered: boolean;
+  resolveProviderId: () => Promise<string | null>;
+  isCurrent: () => boolean;
+  onConfirm: (decision: WholePracticeSendDecision) => void;
+  onSendNow: () => void;
+}): Promise<void> {
+  const providerId = await opts.resolveProviderId();
+  if (!opts.isCurrent()) return; // superseded by a chat/workspace switch or newer submit — drop
+  const decision = decideWholePracticeSend({
+    provider: providerId,
+    clientCount: opts.clientCount,
+    remembered: opts.remembered,
+  });
+  if (decision.needsConfirm) opts.onConfirm(decision);
+  else opts.onSendNow();
+}
+
 /** localStorage key for the advisor's remembered whole-practice send choice. */
 export const REMEMBERED_WHOLE_PRACTICE_KEY = 'kp-whole-practice-send-remembered';
 

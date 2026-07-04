@@ -206,6 +206,29 @@ describe('DraftFollowUpModal — AI proposes, user approves, hostile notes stay 
     expect(entry.metadata.scope).toEqual({ kind: 'matter', matterId: 'matter-1' });
   });
 
+  // Coordinator review (P2): after a successful send the button must stay
+  // disabled — a second click must not fire a DUPLICATE real email.
+  it('disables Send after a successful send, so a second click cannot duplicate the email', async () => {
+    render(
+      <DraftFollowUpModal
+        open
+        onOpenChange={() => {}}
+        noteName="Meeting Notes 2026-06-24.docx"
+        noteContent={hostileNote}
+        matterId="matter-1"
+      />,
+    );
+    await generate();
+    const send = screen.getByTestId('followup-send') as HTMLButtonElement;
+    fireEvent.click(send);
+    await waitFor(() => expect(mailSend).toHaveBeenCalledTimes(1));
+    // Terminal state: the button is now disabled and a second click is a no-op.
+    await waitFor(() => expect(send.disabled).toBe(true));
+    fireEvent.click(send);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(mailSend).toHaveBeenCalledTimes(1);
+  });
+
   it('passes the real folder→matter map when suggesting a To address, not an empty one (codex-review P2)', async () => {
     render(
       <DraftFollowUpModal

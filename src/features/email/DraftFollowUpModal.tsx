@@ -255,6 +255,13 @@ export function DraftFollowUpModal({
   const canSaveDraft = account != null && account.provider !== 'imap';
   const toArr = parseRecipients(to);
   const generated = body.trim() !== '' || status === 'idle' || status === 'saved' || status === 'sent';
+  // Save/Send are actionable only in an editable state (idle, or after a
+  // recoverable error) with a recipient + body — NEVER while in flight
+  // ('saving'/'sending') and NEVER after a terminal action ('sent'/'saved'),
+  // so a second click can't fire a DUPLICATE real email or draft (coordinator
+  // review — this restores the terminal-state guard the original `!== 'idle'`
+  // check provided before the R4a rewrite).
+  const canAct = (status === 'idle' || status === 'error') && toArr.length > 0 && body.trim() !== '';
   // Recomputed from the CURRENT body on every render, not stored — an edit
   // that removes a cited phrase drops its chip automatically.
   const citationSegments = splitBodyWithCitations(body, citations);
@@ -655,7 +662,7 @@ export function DraftFollowUpModal({
                 <button
                   type="button"
                   data-testid="followup-send"
-                  disabled={status === 'saving' || status === 'sending' || toArr.length === 0 || body.trim() === ''}
+                  disabled={!canAct}
                   onClick={handleSend}
                   style={{
                     display: 'inline-flex',
@@ -668,8 +675,8 @@ export function DraftFollowUpModal({
                     background: '#fff',
                     color: 'var(--kp-navy)',
                     border: '1px solid var(--color-border)',
-                    cursor: status === 'saving' || status === 'sending' || toArr.length === 0 || body.trim() === '' ? 'default' : 'pointer',
-                    opacity: status === 'saving' || status === 'sending' || toArr.length === 0 || body.trim() === '' ? 0.6 : 1,
+                    cursor: !canAct ? 'default' : 'pointer',
+                    opacity: !canAct ? 0.6 : 1,
                     fontFamily: 'var(--font-sans)',
                   }}
                 >
@@ -683,7 +690,7 @@ export function DraftFollowUpModal({
                 <button
                   type="button"
                   data-testid="followup-save-drafts"
-                  disabled={!canSaveDraft || status === 'saving' || status === 'sending' || toArr.length === 0 || body.trim() === ''}
+                  disabled={!canSaveDraft || !canAct}
                   onClick={handleSaveToDrafts}
                   style={{
                     display: 'inline-flex',
@@ -696,14 +703,8 @@ export function DraftFollowUpModal({
                     background: 'var(--kp-action-bg)',
                     color: 'var(--kp-action-fg)',
                     border: 'none',
-                    cursor:
-                      !canSaveDraft || status === 'saving' || status === 'sending' || toArr.length === 0 || body.trim() === ''
-                        ? 'default'
-                        : 'pointer',
-                    opacity:
-                      !canSaveDraft || status === 'saving' || status === 'sending' || toArr.length === 0 || body.trim() === ''
-                        ? 0.6
-                        : 1,
+                    cursor: !canSaveDraft || !canAct ? 'default' : 'pointer',
+                    opacity: !canSaveDraft || !canAct ? 0.6 : 1,
                     fontFamily: 'var(--font-sans)',
                   }}
                 >

@@ -64,7 +64,7 @@ import { getMatters } from '@/platform/matter/matterStore';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { buildResolvedProviderForGlance } from '@/platform/matter/matterAtAGlance';
 import {
-  decideWholePracticeSend,
+  resolveWholePracticeConfirm,
   getRememberedWholePracticeConsent,
   setRememberedWholePracticeConsent,
 } from './book/wholePracticeSendGate';
@@ -229,26 +229,29 @@ export function Ask(props: UseAskProps) {
       // Resolve the ACTUAL provider the send will use (respects Local-only and
       // the no-cloud-key local fallback), NOT the cached UI value — otherwise a
       // stale "local" display could skip the confirm while the real send goes
-      // to the cloud (Codex review). If resolution fails we can't prove it's
-      // local, so we confirm (the safe direction).
-      void (async () => {
-        let providerId: string | null = null;
-        try {
-          providerId = (await buildResolvedProviderForGlance()).providerId;
-        } catch {
-          providerId = null;
-        }
-        const decision = decideWholePracticeSend({
-          provider: providerId,
-          clientCount,
-          remembered: getRememberedWholePracticeConsent(),
-        });
-        if (decision.needsConfirm) {
+      // to the cloud. The resolution is async, so tie it to a request token:
+      // if the advisor switches chat/workspace or submits again before it
+      // settles, the stale completion is DROPPED — a superseded question must
+      // never open a confirm (or, on Continue, send) against a different client
+      // set (coordinator + Codex review). The chatId-change effect and each new
+      // submit both bump bookRequestIdRef, so the token check covers both.
+      const myToken = ++bookRequestIdRef.current;
+      void resolveWholePracticeConfirm({
+        clientCount,
+        remembered: getRememberedWholePracticeConsent(),
+        resolveProviderId: async () => {
+          try {
+            return (await buildResolvedProviderForGlance()).providerId;
+          } catch {
+            return null;
+          }
+        },
+        isCurrent: () => bookRequestIdRef.current === myToken,
+        onConfirm: (decision) => {
           setBookConfirm({ asked, clientCount: decision.clientCount, providerName: decision.providerName });
-        } else {
-          startBookSend(asked);
-        }
-      })();
+        },
+        onSendNow: () => { startBookSend(asked); },
+      });
       return;
     }
     void handleAsk(q);

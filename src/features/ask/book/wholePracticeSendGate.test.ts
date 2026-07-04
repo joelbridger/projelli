@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   decideWholePracticeSend,
+  resolveWholePracticeConfirm,
   getRememberedWholePracticeConsent,
   setRememberedWholePracticeConsent,
   REMEMBERED_WHOLE_PRACTICE_KEY,
@@ -35,6 +36,56 @@ describe('decideWholePracticeSend (R6 — whole-practice pre-send truth)', () =>
     const d = decideWholePracticeSend({ provider: null, clientCount: 5, remembered: false });
     expect(d.needsConfirm).toBe(true);
     expect(d.providerName).toBeNull();
+  });
+});
+
+describe('resolveWholePracticeConfirm (R6 — stale resolutions are dropped)', () => {
+  it('DROPS a stale resolution: neither confirm nor send fires if superseded before resolve', async () => {
+    const onConfirm = vi.fn();
+    const onSendNow = vi.fn();
+    let current = true;
+    await resolveWholePracticeConfirm({
+      clientCount: 12,
+      remembered: false,
+      // Provider resolution "completes" after the context has moved on.
+      resolveProviderId: () => { current = false; return Promise.resolve('anthropic'); },
+      isCurrent: () => current,
+      onConfirm,
+      onSendNow,
+    });
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(onSendNow).not.toHaveBeenCalled();
+  });
+
+  it('opens the confirm for a current cloud resolution', async () => {
+    const onConfirm = vi.fn();
+    const onSendNow = vi.fn();
+    await resolveWholePracticeConfirm({
+      clientCount: 12,
+      remembered: false,
+      resolveProviderId: () => Promise.resolve('anthropic'),
+      isCurrent: () => true,
+      onConfirm,
+      onSendNow,
+    });
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(onConfirm.mock.calls[0]?.[0]).toMatchObject({ clientCount: 12, providerName: 'Anthropic' });
+    expect(onSendNow).not.toHaveBeenCalled();
+  });
+
+  it('sends directly (no confirm) for a current LOCAL resolution', async () => {
+    const onConfirm = vi.fn();
+    const onSendNow = vi.fn();
+    await resolveWholePracticeConfirm({
+      clientCount: 12,
+      remembered: false,
+      resolveProviderId: () => Promise.resolve('ollama'),
+      isCurrent: () => true,
+      onConfirm,
+      onSendNow,
+    });
+    expect(onSendNow).toHaveBeenCalledTimes(1);
+    expect(onConfirm).not.toHaveBeenCalled();
   });
 });
 
