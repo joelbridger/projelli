@@ -58,15 +58,16 @@ export function buildScpDownloadInvocation(target, remoteWinPath, localPath) {
 }
 
 /** Run a built invocation, always resolving (never rejects) with {code, stdout, stderr}. */
-export function execInvocation({ file, args }) {
+export function execInvocation({ file, args, stdinText }) {
   return new Promise((resolve) => {
     let child;
     try {
-      child = spawn(file, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+      child = spawn(file, args, { stdio: [stdinText == null ? 'ignore' : 'pipe', 'pipe', 'pipe'] });
     } catch (err) {
       resolve({ code: -1, stdout: '', stderr: String(err) });
       return;
     }
+    if (stdinText != null) child.stdin.end(stdinText);
     let stdout = '';
     let stderr = '';
     child.stdout.on('data', (d) => { stdout += d; });
@@ -81,8 +82,8 @@ export async function probeReachable(target) {
   return code === 0;
 }
 
-export async function runDesktopDrive(target, desktopDriveArgs) {
-  return execInvocation(buildDesktopDriveInvocation(target, desktopDriveArgs));
+export async function runDesktopDrive(target, desktopDriveArgs, { stdinText } = {}) {
+  return execInvocation({ ...buildDesktopDriveInvocation(target, desktopDriveArgs), stdinText });
 }
 
 export async function downloadFile(target, remoteWinPath, localPath) {

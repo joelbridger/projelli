@@ -65,9 +65,9 @@ export class Driver {
   }
 
   async type(testid, text, { submit = false } = {}) {
-    const args = ['type', testid, text];
+    const args = ['type-stdin', testid];
     if (submit) args.push('--submit');
-    const { code, stdout, stderr } = await runDesktopDrive(this.target, args);
+    const { code, stdout, stderr } = await runDesktopDrive(this.target, args, { stdinText: text });
     if (code !== 0) throw new DriverError(`type(${testid}) failed (exit ${code}): ${stderr || stdout}`);
     return stdout.trim();
   }
