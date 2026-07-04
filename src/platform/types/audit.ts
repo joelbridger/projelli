@@ -94,7 +94,21 @@ export type AuditActionType =
   // defensible record, even though the voiceprint itself never leaves the
   // machine.
   | 'voiceprint_enrolled'
-  | 'voiceprint_deleted';
+  | 'voiceprint_deleted'
+  // Wave 4 Track D: retention policy sweep — one row per artifact deleted,
+  // plus one run summary. Written Rust-side directly into the hash-chained
+  // store so the trail survives a renderer crash.
+  | 'retention_delete'
+  | 'retention_swept'
+  // Wave 4 Track D: local redaction of a meeting segment (transcript, notes.docx,
+  // and the RAG index all scrubbed; see redact.rs for the completeness guarantee).
+  | 'meeting_redaction'
+  // Wave 3 meeting-capture lifecycle events (declared here ahead of the Wave 3
+  // merge — DEPENDS-WAVE-3 — so Task 17's attestation report can classify them
+  // the moment Wave 3 starts writing them under these exact action strings).
+  | 'meeting_capture_started'
+  | 'meeting_recorded'
+  | 'meeting_audio_deleted';
 
 /**
  * The verdict from citation verification (mirrors `CitationVerdict.verdict`

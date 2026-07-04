@@ -23,7 +23,10 @@
  */
 /* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useCallback, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { IS_DEMO } from '@/web-demo/demoModeFlag';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import { useRetentionPolicyStore, sanitizePolicy, retentionPolicyLabel } from '@/platform/privacy/retentionPolicyStore';
 import {
   Dialog,
   DialogContent,
@@ -310,6 +313,13 @@ export function DataMapContent({
   // open by default; -1 means all collapsed. Bodies stay mounted (hidden) so the
   // print/PDF clone still captures every section.
   const [openRow, setOpenRow] = useState<number>(0);
+  const { t } = useTranslation();
+  const workspaceRoot = useWorkspaceStore((s) => s.rootPath);
+  const rawPolicy = useRetentionPolicyStore((s) => (workspaceRoot ? s.policies[workspaceRoot] : undefined));
+  const policy = sanitizePolicy(rawPolicy);
+  const lastSweep = useRetentionPolicyStore((s) => (workspaceRoot ? s.lastSweep[workspaceRoot] : undefined));
+  const [attestationPath, setAttestationPath] = useState<string | null>(null);
+  const [attestationError, setAttestationError] = useState<string | null>(null);
   return (
     <div id={printableId} data-testid="data-map-content">
       <h1 className="text-lg font-semibold mb-1">
@@ -410,6 +420,44 @@ export function DataMapContent({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Wave 4 Track D — live retention policy state + one-click attestation
+          export. Bespoke JSX (not part of the static DATA_MAP_ROWS array) since
+          it reads live store state; only shown in the expanded (Settings)
+          variant, never the onboarding accordion. Keeps the same `.row` / `h2`
+          / `p` structure as the static rows so handlePrint's CSS includes it. */}
+      {variant === 'expanded' && workspaceRoot && (
+        <div className="row" data-testid="data-map-retention">
+          <h2 className="text-sm font-semibold m-0">{t('privacy.retention.datamap-title')}</h2>
+          <p className="text-sm text-muted-foreground m-0">{retentionPolicyLabel(policy, t)}</p>
+          <p className="text-sm text-muted-foreground m-0">
+            {lastSweep
+              ? t('privacy.retention.last-sweep', { when: new Date(lastSweep.sweptAt).toLocaleString(), count: lastSweep.deletedCount })
+              : t('privacy.retention.never-swept')}
+            {lastSweep && lastSweep.errors.length > 0 && ` ${t('privacy.retention.sweep-errors', { count: lastSweep.errors.length })}`}
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            data-testid="attestation-export"
+            onClick={() => {
+              setAttestationError(null);
+              void import('@/platform/privacy/attestation')
+                .then(({ exportAttestationDocx }) => exportAttestationDocx(workspaceRoot))
+                .then((path) => { setAttestationPath(path); })
+                .catch((e: unknown) => { setAttestationError(e instanceof Error ? e.message : String(e)); });
+            }}
+          >
+            {t('privacy.retention.attestation-button')}
+          </Button>
+          {attestationPath && (
+            <p className="text-xs text-muted-foreground m-0">{t('privacy.retention.attestation-done', { path: attestationPath })}</p>
+          )}
+          {attestationError && (
+            <p className="text-xs text-destructive m-0">{attestationError}</p>
+          )}
         </div>
       )}
 

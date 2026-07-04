@@ -1267,6 +1267,24 @@
       "title-manual": "Network lockdown: network plugins and MCP servers are disabled.",
       "title-privileged-matter": "On because the active client has network lockdown. Network plugins and MCP servers are disabled.",
       "title-local-only": "On because On this computer only is selected. Network plugins and MCP servers are disabled."
+    },
+    "retention": {
+      "title": "Meeting recordings",
+      "subtitle": "Choose what happens to recordings on this computer. Deletions are recorded in your audit log.",
+      "mode-keep": "Keep everything",
+      "mode-keep-hint": "Audio, transcript, and notes stay until you delete them.",
+      "mode-days": "Delete audio after {{count}} days, keep the transcript",
+      "mode-days-hint": "The recording is removed on schedule. Transcript and notes stay.",
+      "mode-summary": "Summary only",
+      "mode-summary-hint": "Audio and transcript are removed once notes exist. Only the notes stay.",
+      "days-label": "Days to keep audio",
+      "run-now": "Run cleanup now",
+      "last-sweep": "Last cleanup: {{when}}, removed {{count}} items",
+      "never-swept": "Cleanup has not run yet.",
+      "datamap-title": "Meeting recording retention",
+      "sweep-errors": "{{count}} items could not be removed. See the audit log.",
+      "attestation-button": "Export attestation report (Word)",
+      "attestation-done": "Saved to {{path}}"
     }
   },
   "mail": {

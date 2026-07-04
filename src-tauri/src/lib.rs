@@ -322,6 +322,11 @@ pub fn run() {
             commands::voiceprint::voiceprint_match,
             commands::voiceprint::voiceprint_confirm,
             commands::voiceprint::voiceprint_delete,
+            // Wave 4 Track D — per-workspace retention policy sweep.
+            commands::retention::retention_sweep,
+            commands::retention::retention_read_pending_rag_cleanup,
+            commands::retention::retention_clear_pending_rag_cleanup_id,
+            commands::retention::redact::redact_meeting_segments,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

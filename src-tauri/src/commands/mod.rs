@@ -76,3 +76,6 @@ pub mod setup_progress;
 pub mod diarize;
 // Wave 4 Track A — encrypted per-matter voiceprint store + naming commands.
 pub mod voiceprint;
+// Wave 4 Track D — per-workspace retention policy sweep enforcing the capture
+// location contract (audio.wav, chunk caches, transcript.json in summary-only).
+pub mod retention;

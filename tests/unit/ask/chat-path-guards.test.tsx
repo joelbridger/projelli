@@ -206,9 +206,20 @@ describe('F2.8 useChatSending workspace-boundary guard — per tool, per platfor
         await expect(executor('move_file', { from: escape, to: 'notes.txt' })).rejects.toThrow(/outside workspace/);
       });
 
-      it('read_file: still REFUSES ".." traversal (matter guard)', async () => {
+      it('read_file: still REFUSES ".." traversal', async () => {
         const { executor } = await setup(root);
-        await expect(executor('read_file', { path: '../secret.txt' })).rejects.toThrow(/must not contain/);
+        // sameOrInside now resolves dot-segments before comparing (Wave 4
+        // Track D retention fix — a workspace-relative path with '..' used
+        // to string-prefix-match as "inside" even though it denoted a path
+        // outside root). That means the WORKSPACE-level guard
+        // (sameOrInside(rootPath, workspacePath(rootPath, rel)) in
+        // useChatSending.ts) now correctly rejects this escape itself,
+        // before the matter-specific guard (assertInActiveMatter's own
+        // explicit '..'-segment check, "must not contain '..'") ever gets a
+        // chance to fire. Either message is a correct rejection; this
+        // assertion checks the boundary is still refused, not which of the
+        // two layered guards catches it first.
+        await expect(executor('read_file', { path: '../secret.txt' })).rejects.toThrow(/outside workspace|must not contain/);
       });
     });
   }
