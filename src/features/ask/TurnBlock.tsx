@@ -124,30 +124,9 @@ export function TurnBlock({
         }}
       >
         {isStreaming && !turn.answer ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--kp-text-dim)', fontSize: '14.5px' }}>
-              <Loader2 size={14} strokeWidth={2} className="animate-spin" />
-              <span>Answering…</span>
-            </div>
-            {/* QA-7: after a while with no token, say so instead of an
-                indefinite silent spinner — a hard ceiling in useAsk turns a
-                genuine stall into a real error + retry if this drags on. */}
-            {answerStalled && (
-              <div data-testid="ask-answer-stalled-warning">
-                <Callout variant="warning" icon={AlertTriangle}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <span>{ASK_ANSWER_STALL_WARNING}</span>
-                    {onOpenAiStatus && (
-                      <Button variant="secondary" size="sm" onClick={onOpenAiStatus}>
-                        {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-                        View AI status
-                        {/* eslint-enable lantern-i18n/no-hardcoded-string */}
-                      </Button>
-                    )}
-                  </div>
-                </Callout>
-              </div>
-            )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--kp-text-dim)', fontSize: '14.5px' }}>
+            <Loader2 size={14} strokeWidth={2} className="animate-spin" />
+            <span>Answering…</span>
           </div>
         ) : usingBlocks ? (
           // Source-aware agent: labelled provenance blocks + per-answer tally.
@@ -173,6 +152,30 @@ export function TurnBlock({
             onSelect={(n) => { onCitationSelect(turnIdx, n); }}
             {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
           />
+        )}
+
+        {/* QA-7 (P2 follow-up): the watchdog re-arms on every streamed chunk,
+            so a stream that emits SOME text and then goes silent also sets
+            answerStalled — not just the pre-first-token case above. Without
+            this, the user would stare at frozen partial text with no
+            feedback until the 45s hard timeout. Rendered once, after
+            whichever answer view is showing (spinner or partial text), so
+            it covers both the empty and the partial-answer stall. */}
+        {isStreaming && answerStalled && (
+          <div data-testid="ask-answer-stalled-warning">
+            <Callout variant="warning" icon={AlertTriangle}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span>{ASK_ANSWER_STALL_WARNING}</span>
+                {onOpenAiStatus && (
+                  <Button variant="secondary" size="sm" onClick={onOpenAiStatus}>
+                    {/* eslint-disable lantern-i18n/no-hardcoded-string */}
+                    View AI status
+                    {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+                  </Button>
+                )}
+              </div>
+            </Callout>
+          </div>
         )}
 
         {/* Privacy attestation (completed cited turns only) — FLAT path only;
