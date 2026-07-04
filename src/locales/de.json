@@ -1883,6 +1883,12 @@
       "mac-permission-title": "macOS benötigt deine Erlaubnis, um Besprechungsaudio zu hören.",
       "mac-permission-body": "So kann die App aufnehmen, was auf diesem Mac abgespielt wird. Es wird nur auf deiner Festplatte gespeichert, sonst nirgendwo.",
       "mac-permission-button": "Systemeinstellungen öffnen"
+    },
+    "dictation": {
+      "file-as-meeting-note": "Als Besprechungsnotiz ablegen…",
+      "dialog-title": "Als Besprechungsnotiz ablegen",
+      "search-placeholder": "Mandanten durchsuchen",
+      "cancel": "Abbrechen"
     }
   }
 }

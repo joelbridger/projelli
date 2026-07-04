@@ -25,6 +25,7 @@ import { matterLabel } from '@/platform/rag/matterResolver';
 import { meetingNoteFromTranscript } from '@/features/meetings/meetingNoteTemplate';
 import { AuditService } from '@/platform/audit/AuditService';
 import { detectMeetingType, makeMeetingTypesStore } from './meetingTypes';
+import { dictationToMeeting } from './dictationToMeeting';
 import type { MeetingSummary } from './ClientMeetingsTab';
 
 export interface StartOpts {
@@ -155,6 +156,23 @@ export function needsReview(meeting: MeetingSummary, crmQueue: CrmQueueItemLike[
 /** Task 12b — set `meeting.json.reviewedAt`, marking a meeting reviewed. */
 export async function markMeetingReviewed(meetingDir: string, meta: MeetingMeta): Promise<void> {
   await writeMeetingJson(meetingDir, { ...meta, reviewedAt: new Date().toISOString() });
+}
+
+/**
+ * Task 10b — the one entry point for "File as meeting note…": files an
+ * already-transcribed dictation voice note into `matterId`'s Meetings/ as a
+ * dictated meeting (no audio, no re-transcription), and logs it the same
+ * way a real recording's stop does.
+ */
+export async function fileDictationAsMeeting(noteText: string, matterId: string, recordedAt: string): Promise<{ meetingDir: string } | null> {
+  const ws = activeWorkspaceService;
+  if (!ws) return null;
+  const matterFolder = resolveMatterFolder(matterId);
+  const { meetingDir } = await dictationToMeeting(ws, noteText, matterId, matterFolder, recordedAt);
+  void audit.logDurable('meeting_recorded', 'Dictated note filed as a meeting note', {
+    metadata: { matterId, meetingDir, dictation: true },
+  });
+  return { meetingDir };
 }
 
 export const useMeetingStore = create<MeetingState>((set, get) => ({

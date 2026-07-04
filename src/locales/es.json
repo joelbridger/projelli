@@ -1883,6 +1883,12 @@
       "mac-permission-title": "macOS necesita tu permiso para escuchar el audio de la reunión.",
       "mac-permission-body": "Esto permite que la aplicación grabe lo que se reproduce en esta Mac. Se guarda solo en tu disco y en ningún otro lugar.",
       "mac-permission-button": "Abrir Preferencias del Sistema"
+    },
+    "dictation": {
+      "file-as-meeting-note": "Archivar como nota de reunión…",
+      "dialog-title": "Archivar como nota de reunión",
+      "search-placeholder": "Buscar clientes",
+      "cancel": "Cancelar"
     }
   }
 }

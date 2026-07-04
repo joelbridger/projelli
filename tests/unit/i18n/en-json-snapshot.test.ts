@@ -61,7 +61,7 @@ describe('en.json structure snapshot', () => {
         "marketplace": 14,
         "matter": 134,
         "media": 81,
-        "meetings": 43,
+        "meetings": 47,
         "memory": 6,
         "model-download": 9,
         "onboarding": 65,
@@ -113,7 +113,8 @@ describe('en.json structure snapshot', () => {
     //       user-facing Meetings tab surface — record pill, per-client
     //       meetings list + needs-review, meeting page, meeting-type chip,
     //       consent dialog).
-    expect(flat.length).toBe(1050);
+    // +4 = meetings.dictation.* (Task 10b: "File as meeting note…" client picker).
+    expect(flat.length).toBe(1054);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

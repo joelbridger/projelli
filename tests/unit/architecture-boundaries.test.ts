@@ -37,6 +37,8 @@ const ALLOWED_FEATURE_EDGES = new Set<string>([
   'account->settings',    // account window opens settings sections
   'ask->matters',         // Ask is matter-scoped (active matter context)
   'documents->firm',      // file navigator shows privilege/vault affordances
+  'documents->meetings',  // TabBar's dictation voice-note context menu (Task 10b) opens
+                          // FileAsMeetingDialog to file the note into a client's Meetings/
   'firm->matters',        // solo-to-firm bridge reuses the matters promote-to-shared routine
   'matters->ask',         // Client Map reuses Ask's Sources column (SourcePanel + AnswerCitation) so the cited-sources card design is identical across both surfaces
   'matters->meetings',    // MattersHome/MatterHub host the Today's-meetings and Before-you-meet strips (Lantern-Plus Wave 1) — per-client meeting context lives on the Client Map surfaces, not a standalone tab

@@ -1427,6 +1427,12 @@
       "mac-permission-title": "macOS needs your permission to hear meeting audio.",
       "mac-permission-body": "This lets the app record what plays on this Mac. It is saved to your disk and nowhere else.",
       "mac-permission-button": "Open System Settings"
+    },
+    "dictation": {
+      "file-as-meeting-note": "File as meeting note…",
+      "dialog-title": "File as a meeting note",
+      "search-placeholder": "Search clients",
+      "cancel": "Cancel"
     }
   }
 }
