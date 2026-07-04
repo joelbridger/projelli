@@ -13,6 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
+        "create": false,
         "title": "Advisor Prep Hero",
         "width": 1200,
         "height": 800,
