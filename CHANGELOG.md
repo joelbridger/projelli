@@ -82,6 +82,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cross-cutting,retention}.spec.ts`, `docs/qa/E2E-SMOKE-MIRROR.md`.
 
 ### Fixed
+- **Client Map: an unresolved estate/beneficiary gap now wins the initial tab.** The finish-line
+  Windows pass found the "Whole book" view flagging a gap chip while the client's own detail panel
+  landed on a different (or remembered) tab, silently burying the resolvable gap control it had
+  just promised. The unresolved-gap check now precedes the stored tab preference on initial
+  render. Red-first tests + a browser-mirror regression spec (the mirror's first product-bug
+  catch). Files: `ClientMapPanel.tsx`, `book-detail-gap-sync.test.tsx`, `bench-mirror-book-view.spec.ts`.
+
 - **Three bench-harness bugs root-caused live during the finish-line pass** (each was masking real
   signal as false SETUP-BLOCKED): click-by-text could pick a giant structural wrapper
   (app-container) whose page-wide text trivially contained the needle — now skips elements with
