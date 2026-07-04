@@ -1,27 +1,36 @@
 // src/platform/browserGuard/useTabWriteGuard.ts
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import { SK_TAB_LOCK } from '@/config/identity';
-import { TabWriteGuard, type TabGuardStatus } from './tabWriteGuard';
+import { useEditorStore } from '@/platform/state/editorStore';
+import { createTabGuard, type TabLockGuard, type TabGuardStatus } from './tabLockGuard';
 import { requestFlushAck, wireFlushResponder, type FlushAckChannel } from './flushHandoff';
 
 // One guard per browser tab (module-scoped singleton, not per-component) —
 // the lock protocol only makes sense as a single instance contending for one
-// localStorage key on behalf of this tab, no matter how many components
-// call the hook.
-let sharedGuard: TabWriteGuard | null = null;
+// lock key on behalf of this tab, no matter how many components call the
+// hook. createTabGuard() picks the substrate (Web Locks or the heartbeat
+// fallback) — see tabLockGuard.ts.
+let sharedGuard: TabLockGuard | null = null;
 
 /** ONE-SHOT handoff for the reload a blocked→owner transition triggers on
  *  itself (see reloadAsFreshOwner below) — NOT a general "stable tab id",
- *  on purpose.
+ *  on purpose. Only meaningful for the heartbeat substrate (tabWriteGuard.ts)
+ *  — the Web Locks substrate (webLocksTabGuard.ts) has no notion of "tab
+ *  identity" for lock ownership at all (a reload just releases and the fresh
+ *  document re-queues; the browser doesn't care whose document it is), so it
+ *  accepts a `tabId` option for interface parity but doesn't rely on it for
+ *  correctness. This handoff still runs unconditionally for both substrates
+ *  since it's harmless either way, and keeps this code substrate-agnostic.
  *
  *  A naive "persist the tabId in sessionStorage for the tab's whole
- *  lifetime" is unsafe: browsers COPY sessionStorage when a tab is
- *  duplicated (right-click "Duplicate Tab", or any opener-based new tab), so
- *  a long-lived persisted id would be silently shared by both copies —
- *  `TabWriteGuard` would treat `record.tabId === this._tabId` as "this is
- *  still my own lock" in BOTH tabs, and the single-writer guarantee this
- *  whole module exists for would be defeated by the single most common way
- *  users make a second tab (codex-review P1, round 3).
+ *  lifetime" is unsafe FOR THE HEARTBEAT SUBSTRATE: browsers COPY
+ *  sessionStorage when a tab is duplicated (right-click "Duplicate Tab", or
+ *  any opener-based new tab), so a long-lived persisted id would be silently
+ *  shared by both copies — `TabWriteGuard` would treat
+ *  `record.tabId === this._tabId` as "this is still my own lock" in BOTH
+ *  tabs, and the single-writer guarantee this whole module exists for would
+ *  be defeated by the single most common way users make a second tab
+ *  (codex-review P1, round 3).
  *
  *  Instead, every ordinary page load gets a fresh random tabId (via
  *  `TabWriteGuard`'s own default) — genuinely unique per real tab, so a
@@ -43,17 +52,22 @@ function consumeTakeoverHandoffTabId(): string | undefined {
   return handoff;
 }
 
-/** Constructing the guard also primes it (one synchronous checkNow()) so the
- *  very first render already reports the right status — otherwise a lone
- *  tab would flash the "blocked" gate for one frame until the mount effect
- *  below got a chance to run start(). checkNow() is idempotent, so this is
- *  safe to call from render (via getSnapshot) under React 18 Strict Mode's
- *  double-invoke. Only ever reached from an `enabled` branch, so desktop and
- *  test mode never touch localStorage at all. */
-function getSharedGuard(): TabWriteGuard {
+/** Constructing the guard also primes it with a checkNow() call. Under the
+ *  heartbeat substrate this is a synchronous re-evaluation, so the very
+ *  first render already reports the right status — otherwise a lone tab
+ *  would flash the "blocked" gate for one frame until the mount effect below
+ *  got a chance to run start(). Under the Web Locks substrate checkNow() is
+ *  a no-op (see webLocksTabGuard.ts) — that substrate's own start() is
+ *  always asynchronous by nature of the Web Locks API, so a lone tab
+ *  reports 'blocked' for one microtask regardless; this call is harmless
+ *  there, just not load-bearing. Either way it's idempotent and safe to call
+ *  from render (via getSnapshot) under React 18 Strict Mode's double-invoke.
+ *  Only ever reached from an `enabled` branch, so desktop and test mode
+ *  never touch localStorage (or navigator.locks) at all. */
+function getSharedGuard(): TabLockGuard {
   if (!sharedGuard) {
     const handoffTabId = consumeTakeoverHandoffTabId();
-    sharedGuard = new TabWriteGuard(SK_TAB_LOCK, handoffTabId ? { tabId: handoffTabId } : {});
+    sharedGuard = createTabGuard(SK_TAB_LOCK, handoffTabId ? { tabId: handoffTabId } : {});
     sharedGuard.checkNow();
   }
   return sharedGuard;
@@ -121,10 +135,38 @@ function noopUnsubscribe(): void {
  *  see the mount effect's `subscribe` listener below for why the automatic
  *  reclaim path (the old owner closed/went stale, nobody clicked anything)
  *  needs this exact same treatment (codex-review P1, round 5). */
-function reloadAsFreshOwner(guard: TabWriteGuard): void {
+function reloadAsFreshOwner(guard: TabLockGuard): void {
   takingOver = true;
   window.sessionStorage.setItem(TAB_TAKEOVER_HANDOFF_KEY, guard.tabId);
   window.location.reload();
+}
+
+/** Whether a `pagehide` with `event.persisted` (a bfcache freeze, not a real
+ *  close) should release the lock — extracted as a pure function so this
+ *  decision is unit-testable without driving a real WebLocksTabGuard.
+ *
+ *  False for the heartbeat substrate: it deliberately never releases on
+ *  freeze (requestTakeover() can force a takeover regardless of the current
+ *  holder's liveness — see releaseOnFreeze()'s doc).
+ *
+ *  For the Web Locks substrate (releaseOnFreeze() === true), releasing
+ *  keeps "Take over" working against a frozen-but-CLEAN tab — without it,
+ *  a frozen tab's fully-suspended JS could never respond to a takeover
+ *  request (codex-review, round 1 P2). But pagehide handlers cannot
+ *  reliably await async work — the browser can freeze/destroy this page
+ *  right after the handler returns, regardless of a pending promise (see
+ *  useFlushOnExit's own doc for the same constraint). So if this tab has
+ *  unsaved (dirty) editor content, this returns false too: another tab
+ *  acquiring the real Web Lock right now could read or write before this
+ *  tab's best-effort pagehide flush (useFlushOnExit, BUG-046) has actually
+ *  landed on disk — a real data-loss window (codex-review finding). While
+ *  dirty, the lock stays held exactly like the heartbeat substrate always
+ *  holds it; the browser's own auto-release-on-destroy (a true close or
+ *  bfcache eviction, not a mere freeze) resolves it safely instead, with no
+ *  window where a stale in-flight write can land after a fresher one. */
+export function shouldReleaseOnPersistedFreeze(guard: TabLockGuard): boolean {
+  if (!guard.releaseOnFreeze()) return false;
+  return !useEditorStore.getState().openTabs.some((tab) => tab.isDirty);
 }
 
 export interface UseTabWriteGuardOptions {
@@ -174,10 +216,18 @@ export function useTabWriteGuard(enabled: boolean, options: UseTabWriteGuardOpti
     // changes. Only the very first ownership determination (this tab was
     // 'owner' from its own initial load, never blocked) is exempt — its
     // hydration and its ownership were established at the same moment, so
-    // there's nothing stale to rehydrate.
+    // there's nothing stale to rehydrate. The extra
+    // shouldRehydrateOnThisAcquisition() guard exists for the Web Locks
+    // substrate specifically: its grant callback is never synchronous, even
+    // when uncontended, so a lone tab's very first acquisition ALSO looks
+    // like a blocked→owner transition by the time this effect's synchronous
+    // `guard.status` read happens — without that extra check, a solo tab
+    // would reload every time it loads, forever (see webLocksTabGuard.ts's
+    // attemptAcquire() doc). The heartbeat substrate's version of this
+    // method always returns true, so this is a no-op there.
     let previousStatus = guard.status;
     const unsubscribeAutoReload = guard.subscribe((next) => {
-      if (next === 'owner' && previousStatus === 'blocked') {
+      if (next === 'owner' && previousStatus === 'blocked' && guard.shouldRehydrateOnThisAcquisition()) {
         reloadAsFreshOwner(guard);
       }
       previousStatus = next;
@@ -187,10 +237,27 @@ export function useTabWriteGuard(enabled: boolean, options: UseTabWriteGuardOpti
     // the lock, respond to another tab's "I'm about to take over" request by
     // flushing dirty edits and acking — so the new owner's reload (gated on
     // requestFlushAck below) is far less likely to land before this tab's
-    // in-flight edit is saved.
+    // in-flight edit is saved. The trailing yieldIfOwner() is a no-op for the
+    // heartbeat substrate (whose requestTakeover() forces the takeover
+    // unilaterally, with or without this tab's cooperation) but is exactly
+    // what lets the Web Locks substrate's waiting requester actually get
+    // granted — that substrate has no "force" primitive, so without this
+    // call a takeover would just wait forever for this tab to let go on its
+    // own (see webLocksTabGuard.ts's module doc). This is why the responder
+    // is wired whenever there's a channel at all, NOT only when
+    // onFlushRequested is also supplied (codex-review, round 3 P2 finding):
+    // onFlushRequested is optional in this hook's contract, and skipping the
+    // whole responder without it would silently strand a Web Locks-enabled
+    // caller — "Take over" would hang until the owner tab closes for real,
+    // whereas the heartbeat substrate degrades gracefully (its forced
+    // takeover never depended on this responder in the first place). Flush
+    // is best-effort when provided; yielding is not optional.
     const flushChannel = getSharedFlushChannel();
-    const unsubscribeFlushResponder = flushChannel && onFlushRequested
-      ? wireFlushResponder(flushChannel, () => guard.status === 'owner', onFlushRequested)
+    const unsubscribeFlushResponder = flushChannel
+      ? wireFlushResponder(flushChannel, () => guard.status === 'owner', async () => {
+          if (onFlushRequested) await onFlushRequested();
+          guard.yieldIfOwner();
+        })
       : undefined;
 
     // `storage` fires in OTHER same-origin tabs (never the one that wrote),
@@ -205,12 +272,20 @@ export function useTabWriteGuard(enabled: boolean, options: UseTabWriteGuardOpti
     // so a blocked tab can take over immediately instead of waiting for the
     // lock to go stale. `pagehide` ALSO fires when the browser freezes this
     // page into the back/forward cache (bfcache) rather than destroying it —
-    // `event.persisted` distinguishes the two. A bfcache-frozen tab doesn't
-    // run its heartbeat timer (JS is suspended), so releasing here would be
-    // correct too, but doing nothing is simpler and self-correcting: the
-    // frozen tab's lock just goes stale on its own if another tab needs it.
+    // `event.persisted` distinguishes the two. Whether a frozen tab should
+    // release is substrate-dependent (see releaseOnFreeze()'s doc): the
+    // heartbeat substrate deliberately doesn't (requestTakeover() can force
+    // a takeover regardless), but the Web Locks substrate must (codex-review
+    // finding) — its frozen JS can never respond to a takeover request, so
+    // without this, "Take over" would hang against any tab that merely
+    // navigated away, not just a truly dead one.
     const handlePageHide = (event: PageTransitionEvent) => {
-      if (!event.persisted && !takingOver) guard.stop();
+      if (takingOver) return;
+      if (!event.persisted) {
+        guard.stop();
+        return;
+      }
+      if (shouldReleaseOnPersistedFreeze(guard)) guard.stop();
     };
     window.addEventListener('pagehide', handlePageHide);
 
@@ -218,9 +293,14 @@ export function useTabWriteGuard(enabled: boolean, options: UseTabWriteGuardOpti
     // saw the unmount) and the heartbeat timer was frozen the whole time —
     // re-evaluate immediately so a restored tab can't keep showing itself as
     // 'owner' on a lock it stopped maintaining, and picks up a takeover that
-    // happened while it was frozen.
+    // happened while it was frozen. A substrate that released on freeze
+    // (releaseOnFreeze() === true) also needs start() to re-queue —
+    // checkNow() alone has nothing to re-evaluate once the lock has
+    // actually been let go.
     const handlePageShow = (event: PageTransitionEvent) => {
-      if (event.persisted) guard.checkNow();
+      if (!event.persisted) return;
+      guard.checkNow();
+      if (guard.releaseOnFreeze()) guard.start();
     };
     window.addEventListener('pageshow', handlePageShow);
 
@@ -246,12 +326,21 @@ export function useTabWriteGuard(enabled: boolean, options: UseTabWriteGuardOpti
           // before actually claiming the lock, so its in-flight edit is far
           // more likely to be saved before this tab's reload reads the file
           // (round 5 P1). A dead/unresponsive owner can't wedge this
-          // forever — proceed anyway once the timeout elapses.
+          // forever — proceed anyway once the timeout elapses. Under the
+          // Web Locks substrate, the current owner's response to this same
+          // request is also what actually releases the lock (see the
+          // wireFlushResponder wiring above) — this await mostly just gives
+          // it a head start; the guard's own subscribe listener reacts
+          // whenever the browser grants the lock, whether that happens
+          // before or after this promise settles.
           await requestFlushAck({ channel: flushChannel });
         }
         // Claiming the lock flips status to 'owner', which the mount
         // effect's subscribe listener above turns into a reload —
-        // requestTakeover() doesn't need to reload itself.
+        // requestTakeover() doesn't need to reload itself. For the Web
+        // Locks substrate this is a no-op (this tab has been queued for the
+        // lock since start(); there is no force primitive to invoke — see
+        // webLocksTabGuard.ts's module doc).
         guard.requestTakeover();
       })();
     },

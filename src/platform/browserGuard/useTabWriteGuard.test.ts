@@ -2,7 +2,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { SK_TAB_LOCK } from '@/config/identity';
-import { useTabWriteGuard, __resetTabWriteGuardForTests, __forkTabWriteGuardForTests } from './useTabWriteGuard';
+import { useEditorStore } from '@/platform/state/editorStore';
+import {
+  useTabWriteGuard,
+  __resetTabWriteGuardForTests,
+  __forkTabWriteGuardForTests,
+  shouldReleaseOnPersistedFreeze,
+} from './useTabWriteGuard';
+import type { TabLockGuard } from './tabLockGuard';
 
 describe('useTabWriteGuard', () => {
   beforeEach(() => {
@@ -228,5 +235,63 @@ describe('useTabWriteGuard', () => {
     } finally {
       Object.defineProperty(window, 'location', { configurable: true, value: originalLocation });
     }
+  });
+});
+
+describe('shouldReleaseOnPersistedFreeze (coordinator finding: dirty-bfcache release)', () => {
+  function makeFakeGuard(releaseOnFreeze: boolean): TabLockGuard {
+    return {
+      tabId: 'fake-tab',
+      status: 'owner',
+      start: () => {},
+      stop: () => {},
+      requestTakeover: () => {},
+      yieldIfOwner: () => {},
+      shouldRehydrateOnThisAcquisition: () => true,
+      subscribe: () => () => {},
+      checkNow: () => {},
+      releaseOnFreeze: () => releaseOnFreeze,
+    };
+  }
+
+  beforeEach(() => {
+    useEditorStore.setState({ openTabs: [] });
+  });
+
+  it('is false for a substrate that never releases on freeze (heartbeat), regardless of dirty state', () => {
+    expect(shouldReleaseOnPersistedFreeze(makeFakeGuard(false))).toBe(false);
+
+    useEditorStore.setState({ openTabs: [{ path: '/a', name: 'a', content: 'x', isDirty: true }] });
+    expect(shouldReleaseOnPersistedFreeze(makeFakeGuard(false))).toBe(false);
+  });
+
+  it('is true for a Web-Locks-style substrate (releaseOnFreeze() === true) with no dirty editor content', () => {
+    expect(shouldReleaseOnPersistedFreeze(makeFakeGuard(true))).toBe(true);
+
+    useEditorStore.setState({ openTabs: [{ path: '/a', name: 'a', content: 'x', isDirty: false }] });
+    expect(shouldReleaseOnPersistedFreeze(makeFakeGuard(true))).toBe(true);
+  });
+
+  it('regression (coordinator finding): is false for a Web-Locks-style substrate with dirty editor content -- refuses the early release rather than risk another tab reading/writing before the pagehide flush lands', () => {
+    useEditorStore.setState({ openTabs: [{ path: '/a', name: 'a', content: 'unsaved edits', isDirty: true }] });
+    expect(shouldReleaseOnPersistedFreeze(makeFakeGuard(true))).toBe(false);
+  });
+
+  it('is true again once ALL dirty tabs are saved (isDirty flips false) -- a single clean tab does not block release, but one dirty tab among several does', () => {
+    useEditorStore.setState({
+      openTabs: [
+        { path: '/a', name: 'a', content: 'saved', isDirty: false },
+        { path: '/b', name: 'b', content: 'saved', isDirty: false },
+      ],
+    });
+    expect(shouldReleaseOnPersistedFreeze(makeFakeGuard(true))).toBe(true);
+
+    useEditorStore.setState({
+      openTabs: [
+        { path: '/a', name: 'a', content: 'saved', isDirty: false },
+        { path: '/b', name: 'b', content: 'unsaved', isDirty: true },
+      ],
+    });
+    expect(shouldReleaseOnPersistedFreeze(makeFakeGuard(true))).toBe(false);
   });
 });

@@ -7,6 +7,19 @@
 // second tab silently clobbers the first tab's saved state with no error, no
 // warning, no merge.
 //
+// TWO SUBSTRATES (see tabLockGuard.ts's createTabGuard() for selection):
+// this file is the ORIGINAL heartbeat + compare-and-set-over-localStorage
+// substrate, kept as the fallback for browsers without the Web Locks API
+// (navigator.locks — webLocksTabGuard.ts is the preferred substrate
+// everywhere it's available, since the browser arbitrates ownership itself:
+// no polling, no staleness heuristic, no reclaim races, and automatic
+// release on tab death including bfcache eviction). This heartbeat substrate
+// needed seven codex-review rounds to close real races (see the fix commits
+// on this file and flushHandoff.ts); it is proven and well-tested, but every
+// race it closes is a race that can't happen at all under Web Locks. Do not
+// delete this file — every browser that ships without navigator.locks still
+// needs it.
+//
 // TabWriteGuard is a single-writer lock over one localStorage key. Exactly
 // one tab at a time is the "owner"; every other tab on the same origin is
 // "blocked" until the owner releases (tab closed) or another tab forces a
@@ -29,6 +42,8 @@
 //   - checkNow() re-evaluates outside the timer tick; callers wire it to the
 //     `storage` event (fires in OTHER tabs, not the one that wrote) for fast
 //     handoff, and tests call it directly for deterministic control.
+
+import { randomId } from './randomId';
 
 export type TabGuardStatus = 'owner' | 'blocked';
 
@@ -54,13 +69,6 @@ export interface TabWriteGuardOptions {
   staleAfterMs?: number;
 }
 
-function randomTabId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return `tab_${Math.random().toString(36).slice(2)}_${Math.random().toString(36).slice(2)}`;
-}
-
 export class TabWriteGuard {
   private readonly key: string;
   private readonly storage: Storage;
@@ -78,7 +86,7 @@ export class TabWriteGuard {
     this.now = options.now ?? (() => Date.now());
     this.heartbeatIntervalMs = options.heartbeatIntervalMs ?? 1500;
     this.staleAfterMs = options.staleAfterMs ?? 5000;
-    this._tabId = options.tabId ?? randomTabId();
+    this._tabId = options.tabId ?? randomId('tab');
   }
 
   get tabId(): string {
@@ -121,6 +129,38 @@ export class TabWriteGuard {
   requestTakeover(): void {
     this.write();
     this.setStatus('owner');
+  }
+
+  /** No-op for this substrate (part of the shared TabLockGuard interface —
+   *  see tabLockGuard.ts). Heartbeat takeover is a unilateral overwrite
+   *  (requestTakeover above); the current owner doesn't need to cooperate,
+   *  so there is nothing for it to voluntarily release. Only the Web Locks
+   *  substrate (webLocksTabGuard.ts), which has no "force" primitive, needs
+   *  the current owner to actually act on this. */
+  yieldIfOwner(): void {
+    // Intentionally empty.
+  }
+
+  /** Always true for this substrate (part of the shared TabLockGuard
+   *  interface — see tabLockGuard.ts). checkNow()'s synchronous priming
+   *  (see useTabWriteGuard.ts's getSharedGuard()) already resolves this
+   *  guard's TRUE initial status before anyone ever reads it, so every
+   *  OBSERVED blocked→owner transition is a genuine recovery worth
+   *  rehydrating for — unlike the Web Locks substrate, whose grant callback
+   *  is never synchronous even when uncontended (see its own
+   *  shouldRehydrateOnThisAcquisition() for why it needs to say false
+   *  sometimes). */
+  shouldRehydrateOnThisAcquisition(): boolean {
+    return true;
+  }
+
+  /** Always false for this substrate (part of the shared TabLockGuard
+   *  interface — see tabLockGuard.ts's doc on this method). A frozen owner
+   *  keeps its stale-looking record on purpose: requestTakeover() can force
+   *  a takeover regardless of the current holder's liveness, so there's no
+   *  need to release just because this tab got frozen. */
+  releaseOnFreeze(): boolean {
+    return false;
   }
 
   /** Re-subscribe to status changes. Returns an unsubscribe function. */
