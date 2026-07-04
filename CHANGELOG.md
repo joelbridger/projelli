@@ -42,6 +42,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   survived. 17 review rounds + coordinator independent review (1 confirmed P2, fixed).
   macOS capture sidecar (`capture-mac`) is a documented follow-up. Files:
   `capture/{engine,chunks,recovery,session,sources,mod}.rs`, `pathguard.rs` (absolute variant).
+- **Wave 3b — local long-form transcription pipeline (Tasks 7-9).** Windows `audio.wav` into
+  25s overlapping chunks over the existing per-request Parakeet/whisper sidecar (hard 30s cap),
+  merges into `transcript.json` with channel-attributed speakers (mic="You", sys="Them"), skips
+  silent windows, and journals progress to `.transcribe-progress.json` for crash-safe resume.
+  New `transcribe_meeting` Tauri command wires `SidecarTranscriber` to the bundled binary
+  (guarded by `guard_meeting_path` before any other filesystem work — never a cloud path) and
+  the canonical `TranscriptFile`/`TranscriptSegment`/`TranscriptConsent`/`CaptureStatus` TS
+  schema lands at `src/platform/types/meeting.ts` (the one place the frontend meetings lane
+  builds against). Mono audio (imported recordings, `src/features/meetings/importMeetingAudio.ts`)
+  is accepted and attributed entirely to sys/"Them" — imports have no mic/sys separation. New
+  `meetings.transcribeMode` setting (`live` | `batch`) for battery-saver transcription. codex-review
+  (3 rounds) also fixed: overlap-trim state wasn't reset across silent windows (could drop real
+  words after a pause), the progress journal write wasn't crash-atomic, and `engine.rs`'s
+  `slugify()` was stripping the underscore out of real `matter_<uuid>` ids, making the
+  meeting-folder-name fallback (used until Task 12's `meeting.json` lands) scope reconstructed
+  transcripts to a garbled matter id. Files: `capture/transcribe.rs`, `capture/engine.rs`
+  (`slugify`), `lib.rs`, `platform/types/meeting.ts`, `features/meetings/importMeetingAudio.ts`,
+  `platform/settings/schema.ts`.
 
 ### Fixed
 - **Windows verbatim-path blocker in `capture_start` (empty-path canonicalize).**

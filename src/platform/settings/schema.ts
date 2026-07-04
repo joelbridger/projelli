@@ -581,6 +581,21 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     defaultValue: 'Ctrl+Shift+R',
   },
 
+  // ── Meeting capture (Wave 3) ─────────────────────────────────────────
+  {
+    key: 'meetings.transcribeMode',
+    category: 'voice',
+    label: 'Meeting transcription',
+    description:
+      "Live starts transcribing the moment a recording stops. Battery saver waits until you're on AC power or tap \"Transcribe now\" — useful for long meetings on battery.",
+    type: 'select',
+    defaultValue: 'live',
+    options: [
+      { value: 'live', label: 'Live (transcribe as soon as recording stops)' },
+      { value: 'batch', label: 'Battery saver (transcribe on AC power, or on demand)' },
+    ],
+  },
+
   // ── Advanced: Updates ─────────────────────────────────────────────────
   {
     key: 'autoUpdateCheck',

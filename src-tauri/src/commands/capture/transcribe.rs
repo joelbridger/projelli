@@ -127,13 +127,18 @@ pub fn transcribe_meeting_audio(
     let mut reader = hound::WavReader::open(audio)?;
     let spec = reader.spec();
     anyhow::ensure!(
-        spec.channels == 2 && spec.sample_rate == super::chunks::SAMPLE_RATE,
-        "expected 16 kHz stereo audio.wav"
+        (spec.channels == 1 || spec.channels == 2) && spec.sample_rate == super::chunks::SAMPLE_RATE,
+        "expected 16 kHz mono or stereo audio.wav"
     );
     let all: Vec<i16> = reader.samples::<i16>().collect::<Result<_, _>>()?;
-    let frames = all.len() / 2;
-    let mic: Vec<i16> = (0..frames).map(|i| all[i * 2]).collect();
-    let sys: Vec<i16> = (0..frames).map(|i| all[i * 2 + 1]).collect();
+    // Imported audio (single channel) has no mic/sys separation — every
+    // segment is attributed to "sys"/"Them" and the UI labels the meeting
+    // "imported — speakers not separated" rather than pretending it knows
+    // who's speaking.
+    let mono = spec.channels == 1;
+    let frames = if mono { all.len() } else { all.len() / 2 };
+    let mic: Vec<i16> = if mono { Vec::new() } else { (0..frames).map(|i| all[i * 2]).collect() };
+    let sys: Vec<i16> = if mono { all.clone() } else { (0..frames).map(|i| all[i * 2 + 1]).collect() };
     let duration_ms = (frames as u64) * 1000 / super::chunks::SAMPLE_RATE as u64;
 
     let progress_path = audio.parent().unwrap().join(".transcribe-progress.json");
@@ -147,7 +152,9 @@ pub fn transcribe_meeting_audio(
     let step = (WINDOW_SECONDS - OVERLAP_SECONDS) as u64 * sr;
     let win = WINDOW_SECONDS as u64 * sr;
 
-    for (channel, speaker, samples) in [("mic", "You", &mic), ("sys", "Them", &sys)] {
+    let channels: &[(&str, &str, &Vec<i16>)] =
+        if mono { &[("sys", "Them", &sys)] } else { &[("mic", "You", &mic), ("sys", "Them", &sys)] };
+    for &(channel, speaker, samples) in channels {
         let mut prev_text = String::new();
         let mut start = 0u64;
         while start < samples.len() as u64 {
@@ -327,15 +334,19 @@ pub fn load_meta_for(dir: &Path) -> Result<TranscriptMeta> {
 #[tauri::command]
 pub async fn transcribe_meeting(
     app: tauri::AppHandle,
-    workspace: String,
+    workspace_root: String,
     meeting_dir: String,
     model: Option<String>,
 ) -> Result<TranscribeMeetingResult, String> {
     // Guard BEFORE any other filesystem-dependent work (including sidecar
     // resolution) — every dir-input capture command must reject a
     // traversal/symlink-escape meeting_dir before touching disk, not just
-    // before touching the workspace itself.
-    let dir = super::guard_meeting_path(Path::new(&workspace), Path::new(&meeting_dir))
+    // before touching the workspace itself. Param named `workspace_root` to
+    // match the sibling `diarize_meeting`/voiceprint commands in this same
+    // meetings surface (`src-tauri/src/commands/diarize/mod.rs`), not
+    // `workspace` — the frontend's meetings lane threads one `workspaceRoot`
+    // through every meeting-related invoke call.
+    let dir = super::guard_meeting_path(Path::new(&workspace_root), Path::new(&meeting_dir))
         .map_err(|e| e.to_string())?;
     let binary = crate::commands::voice::resolve_sidecar_path(&app)
         .ok_or_else(|| "Voice sidecar binary not bundled for this platform".to_string())?;
@@ -410,6 +421,29 @@ mod tests {
         assert!(segs.len() < ((60 / 25) + 1) * 2 * 2);
         assert_eq!(t["meta"]["matterId"], "m-1");
         assert!(!dir.path().join(".transcribe-progress.json").exists());
+    }
+
+    #[test]
+    fn mono_import_is_transcribed_as_sys_channel() {
+        let dir = tempdir().unwrap();
+        let spec = hound::WavSpec {
+            channels: 1,
+            sample_rate: 16_000,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let p = dir.path().join("audio.wav");
+        let mut w = hound::WavWriter::create(&p, spec).unwrap();
+        for _ in 0..(30 * 16_000) {
+            w.write_sample(3000i16).unwrap();
+        }
+        w.finalize().unwrap();
+        let out = dir.path().join("transcript.json");
+        transcribe_meeting_audio(&p, &out, test_meta("m-i"), &FakeT).unwrap();
+        let t: serde_json::Value = serde_json::from_slice(&std::fs::read(&out).unwrap()).unwrap();
+        let segs = t["segments"].as_array().unwrap();
+        assert!(!segs.is_empty());
+        assert!(segs.iter().all(|s| s["channel"] == "sys" && s["speaker"] == "Them"));
     }
 
     #[test]
