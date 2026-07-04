@@ -5,7 +5,7 @@ Scripted, repeatable automation of the manual Windows/Azure bench smoke test
 Wave 4, final integration re-verify) is a command + a human skim of
 screenshots + `summary.json`, not hours of manual driving.
 
-**Status:** built and unit-tested (105 tests); **live-validated against the
+**Status:** built and unit-tested (122 tests); **live-validated against the
 Legion bench once** (2026-07-03, read-only/queue-only, no `--live`), with a
 second, not-yet-live-validated round of fixes/additions on top (2026-07-03,
 `lp/harness-round2`, see "Round 2" below). 6 of 8 non-stub checks PASSed
@@ -106,6 +106,8 @@ live testing surfaced and fixed four real bugs in the harness itself (see
 
 ```
 scripts/bench-smoke.mjs          # CLI entrypoint
+scripts/bench-smoke-shard.mjs    # concurrent multi-target shard orchestrator
+scripts/auto-smoke.sh            # dry-run-by-default pull/rebuild/smoke wrapper
 scripts/bench-smoke/
   targets.mjs                    # known bench connection facts (legion, azure-cloud-bench-1)
   remote.mjs                     # ssh/scp invocation builders + exec (subprocess only)
@@ -113,6 +115,7 @@ scripts/bench-smoke/
   parse.mjs                      # parses desktop-drive.mjs stdout
   console-watch.mjs              # console-error capture, built on the `eval` command
   result.mjs                     # STATUS enum, result/summary shape, exit-code policy
+  shard.mjs                      # pure shard split + summary merge helpers
   checklist.mjs                  # the ordered list of checks + stubs
   checks/*.mjs                   # one module per RUN-LOG section
   __tests__/*.test.mjs           # vitest — logic only, no bench required
@@ -173,6 +176,14 @@ array, then evaluates a second script after navigation to read and clear that
 array. Same reuse rule as everything else — no new CDP connection code
 anywhere in this harness.
 
+When a check returns `FAIL`, the runner best-effort bundles extra evidence into
+that run's evidence directory: console errors captured during the check, an
+extra failure-time screenshot, and the last 200 lines of the bench app log
+(`C:\tauri-dev.log`). These evidence helpers are non-fatal. If screenshot,
+console capture, or log fetch fails, the forensics error is recorded in
+`summary.json`, but the original check result is not changed and the run does
+not crash.
+
 ---
 
 ## Running it
@@ -204,6 +215,43 @@ with `--evidence-dir`).
 (bench/data wasn't ready — worth a look, but not proof of a break). `TODO` and
 `SKIPPED` never affect the exit code.
 
+### Sharding across benches
+
+```bash
+# Print the shard plan only — touches nothing.
+node scripts/bench-smoke-shard.mjs --plan
+
+# Split checks across known targets and run the child bench-smoke processes concurrently.
+node scripts/bench-smoke-shard.mjs --targets legion,azure-cloud-bench-1
+
+# Add ad hoc clone VMs without editing targets.mjs.
+node scripts/bench-smoke-shard.mjs \
+  --target-host 100.x.x.x --target-user lpbench --target-repo-dir 'C:\lantern-plus' \
+  --target-host 100.y.y.y --target-user lpbench --target-repo-dir 'C:\lantern-plus'
+```
+
+The sharder runs child `bench-smoke.mjs` processes with grouped `--only`
+check ids. It round-robins check groups across targets, but keeps
+same-target-dependent checks together and in order. Today that means the
+Wealthbox queue/approve pair and the estate-gap read/dismiss pair stay on one
+bench. The combined evidence directory gets one child folder per shard plus a
+top-level `summary.json` and `summary.md`; exit codes match the single-target
+runner (`0` pass, `1` any fail, `3` setup-blocked only).
+
+### Auto-smoke wrapper (dry-run by default)
+
+```bash
+# Safe default: prints what it would do and exits 0.
+scripts/auto-smoke.sh --target legion
+
+# Armed mode: pull bench checkout, restart/rebuild, freshness-check, run smoke,
+# append one verdict line to docs/evidence/bench-smoke/auto-smoke.log.
+AUTO_SMOKE_ARMED=1 scripts/auto-smoke.sh --target legion
+```
+
+`auto-smoke.sh` does not install a timer, hook, or cron. The coordinator owns
+that live wiring later.
+
 ### Safety default — read-only unless `--live`
 
 The Wealthbox check (`wave2-wealthbox-queue-review`) stops the instant the
@@ -223,9 +271,10 @@ advisor's Wealthbox — only the smoke sandbox account used in
 ## Testing without a bench
 
 ```bash
-npm run bench-smoke:test        # vitest — 105 tests, pure logic, no SSH/bench required
+npm run bench-smoke:test        # vitest — 122 tests, pure logic, no SSH/bench required
 node --check scripts/bench-smoke.mjs && for f in scripts/bench-smoke/*.mjs scripts/bench-smoke/checks/*.mjs; do node --check "$f"; done
 node scripts/bench-smoke.mjs --plan   # dry run, prints the checklist
+node scripts/bench-smoke-shard.mjs --plan   # dry run, prints the shard split
 node scripts/bench-smoke.mjs --host 127.0.0.1 --user nobody --evidence-dir /tmp/bs-test   # exercises the real CLI end to end against a deliberately-unreachable host; every check reports SETUP-BLOCKED, exit code 3
 ```
 
