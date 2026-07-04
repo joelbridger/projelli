@@ -920,9 +920,15 @@ export function ClientMapPanel({
   );
   const customSections = map.sections.filter((s) => s.kind === 'custom');
   const sectionList = [...coreSections, ...customSections];
+  const missingCount = unresolvedAskGaps(map).length;
 
-  // Initialise the selected tab from localStorage, falling back to the first
-  // section that actually has content (or the first section overall).
+  // Initialise the selected tab from localStorage, falling back to "What I'm
+  // missing" when the client has an unresolved gap, else the first section
+  // that actually has content (or the first section overall). The gap-first
+  // fallback keeps this in sync with the "Whole book" view (BookView.tsx),
+  // which surfaces the SAME unresolved gaps as a chip on the client's row —
+  // landing on a populated section tab instead used to silently bury the
+  // resolvable gap control the book view had just promised.
   const firstWithContent = sectionList.find((s) => s.items.length > 0)?.key;
   const [activeKey, setActiveKey] = useState<string>(() => {
     try {
@@ -938,6 +944,7 @@ export function ClientMapPanel({
     } catch {
       // localStorage unavailable (private browsing, embedded webview) — ignore.
     }
+    if (missingCount > 0) return MISSING_KEY;
     return firstWithContent ?? sectionList[0]?.key ?? MISSING_KEY;
   });
 
@@ -951,7 +958,6 @@ export function ClientMapPanel({
   };
 
   const activeSection = sectionList.find((s) => s.key === activeKey);
-  const missingCount = unresolvedAskGaps(map).length;
 
   // The Sources column reflects whatever the user is currently viewing: the
   // cited sources behind the active section's facts (or, on "What I'm missing",
