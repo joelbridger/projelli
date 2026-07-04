@@ -23,8 +23,8 @@ import { calendarListEvents } from '@/platform/utils/calendar-commands';
 import { useProfileStore } from '@/platform/profile/profileStore';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { pickNoticeCardOffer, type NoticeCardOffer } from './noticeCard/pickOffer';
-import { buildDisplayName } from './noticeCard/meetingPlatform';
-import { canAutoJoin } from './noticeCard/noticeCardTypes';
+import { buildDisplayName, detectPlatform } from './noticeCard/meetingPlatform';
+import { canAutoJoin, type NoticeCardPlatform } from './noticeCard/noticeCardTypes';
 import {
   resolveNoticeCardEnabled,
   resolveNoticeCardNameTemplate,
@@ -184,6 +184,9 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
   const [noticeCardOffer, setNoticeCardOffer] = useState<NoticeCardOffer | null>(null);
   const [noticeCardChecked, setNoticeCardChecked] = useState(false);
   const [noticeCardZoomAttest, setNoticeCardZoomAttest] = useState(false);
+  // Manual paste fallback when calendar sync found no online meeting: lets the
+  // advisor add the card to a non-calendar (or not-yet-synced) Teams/Zoom call.
+  const [noticeCardManualUrl, setNoticeCardManualUrl] = useState('');
   // No per-client state on file yet (see Matter type) — consentModeFor(null)
   // is the conservative two-party default, and stateKnown={false} below keeps
   // the dialog's wording conditional rather than asserting the law.
@@ -257,6 +260,7 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
       // drive (Teams/Zoom). Meet shows an honest fallback, never a checked box.
       setNoticeCardChecked(!!offer && canAutoJoin(offer.platform) && resolveNoticeCardEnabled(getSetting));
       setNoticeCardZoomAttest(false);
+      setNoticeCardManualUrl('');
       setShowConsent(true);
     })();
   }, [matterId, matterFolder, workspaceService, getSetting]);
@@ -264,24 +268,30 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
   const handleConsentConfirm = useCallback((opts: { note?: string }) => {
     void (async () => {
       try {
-        // Notice Card — only when the advisor kept the offer checked AND we can
-        // drive the platform. Build the guest name from the firm template.
+        // Notice Card — from the calendar offer (if kept checked) OR a manually
+        // pasted link when calendar sync found nothing. Only when we can drive
+        // the platform (Teams/Zoom). Build the guest name from the firm template.
         const buildCard = () => {
-          if (!noticeCardOffer || !noticeCardChecked || !canAutoJoin(noticeCardOffer.platform)) return undefined;
+          let joinUrl: string | undefined;
+          let platform: NoticeCardPlatform | undefined;
+          let meetingTitle: string | undefined;
+          if (noticeCardOffer && noticeCardChecked) {
+            joinUrl = noticeCardOffer.joinUrl;
+            platform = noticeCardOffer.platform;
+            meetingTitle = noticeCardOffer.meetingTitle;
+          } else if (!noticeCardOffer && noticeCardManualUrl.trim()) {
+            joinUrl = noticeCardManualUrl.trim();
+            platform = detectPlatform(joinUrl);
+          }
+          if (!joinUrl || !platform || !canAutoJoin(platform)) return undefined;
           const advisorName = (soloName.trim().split(/\s+/)[0] || '').trim();
           return {
-            joinUrl: noticeCardOffer.joinUrl,
-            platform: noticeCardOffer.platform,
-            displayName: buildDisplayName(
-              resolveNoticeCardNameTemplate(getSetting),
-              advisorName,
-              noticeCardOffer.platform,
-            ),
-            meetingTitle: noticeCardOffer.meetingTitle,
+            joinUrl,
+            platform,
+            displayName: buildDisplayName(resolveNoticeCardNameTemplate(getSetting), advisorName, platform),
+            ...(meetingTitle ? { meetingTitle } : {}),
             advisorName,
-            ...(noticeCardOffer.platform === 'zoom' && noticeCardZoomAttest
-              ? { zoomNativeRecordAttested: true }
-              : {}),
+            ...(platform === 'zoom' && noticeCardZoomAttest ? { zoomNativeRecordAttested: true } : {}),
           };
         };
         const card = buildCard();
@@ -314,6 +324,7 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
     noticeCardOffer,
     noticeCardChecked,
     noticeCardZoomAttest,
+    noticeCardManualUrl,
     soloName,
     getSetting,
   ]);
@@ -489,18 +500,25 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
         macPermissionError={macPermissionError}
         errorMessage={consentError}
         noticeScript={noticeScript}
-        {...(noticeCardOffer
-          ? {
-              noticeCard: {
+        noticeCard={
+          noticeCardOffer
+            ? {
                 offer: { platform: noticeCardOffer.platform, meetingTitle: noticeCardOffer.meetingTitle },
                 checked: noticeCardChecked,
                 onToggle: setNoticeCardChecked,
                 ...(noticeCardOffer.platform === 'zoom'
                   ? { zoomNativeRecord: { checked: noticeCardZoomAttest, onToggle: setNoticeCardZoomAttest } }
                   : {}),
-              },
-            }
-          : {})}
+              }
+            : {
+                // No calendar offer: the small manual paste-a-link affordance so
+                // a non-calendar Teams/Zoom call can still get the Notice Card.
+                checked: false,
+                onToggle: setNoticeCardChecked,
+                manualUrl: noticeCardManualUrl,
+                onManualUrlChange: setNoticeCardManualUrl,
+              }
+        }
         onConfirm={handleConsentConfirm}
       />
     </div>

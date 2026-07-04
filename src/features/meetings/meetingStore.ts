@@ -804,17 +804,17 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
   async stopRecording(opts) {
     const { activeMatterId, activeConsent, status } = get();
     const startedMeetingDir = status.meetingDir;
+    // Notice Card — leave the meeting the moment the advisor hits Stop. The hard
+    // guarantee: this runs BEFORE capture_stop (and independently of it) so the
+    // companion window can never linger in the call even if capture_stop itself
+    // rejects. supervisor.stop() always closes the window (with a watchdog). Its
+    // departure is the honest "recording has ended" signal.
+    void stopNoticeCard();
     const r = await invoke<{
       meetingDir: string;
       audioPath: string;
       durationMs: number;
     }>('capture_stop', {});
-    // Notice Card — leave the meeting the moment recording stops. The hard
-    // guarantee: this always closes the companion window (supervisor.stop()
-    // closes even from a failed state, with a watchdog), and it runs BEFORE the
-    // transcribe/notes pipeline so a pipeline failure can never strand the card
-    // in the meeting. Its departure is the honest "recording has ended" signal.
-    void stopNoticeCard();
     set({
       status: {
         recording: false,
