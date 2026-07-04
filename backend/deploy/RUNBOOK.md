@@ -102,7 +102,7 @@ sudo -u jameson mkdir -p /home/jameson/services/keepance-firm-backend/data
 ```bash
 # Install the prepared unit (it is a SYSTEM unit, modeled on license-validator.service).
 sudo install -o root -g root -m 644 \
-  /home/jameson/keepance/backend/deploy/keepance-backend.service \
+  /home/jameson/lantern/backend/deploy/keepance-backend.service \
   /etc/systemd/system/keepance-backend.service
 
 sudo systemctl daemon-reload
