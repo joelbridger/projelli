@@ -27,6 +27,7 @@ vi.mock('@/platform/rag/MemoryService', async (importOriginal) => {
 
 import {
   createDeleteBurstBatcher,
+  createIndexRetryScheduler,
   handleWorkspaceFileChangedEvent,
 } from './useMemoryWiring';
 import { MemoryService } from '@/platform/rag/MemoryService';
@@ -47,17 +48,18 @@ describe('handleWorkspaceFileChangedEvent — delete→recreate race guard (P2)'
     const deleteBatcher = createDeleteBurstBatcher(deletePath, {
       windowMs: 250,
     });
+    const indexRetryScheduler = createIndexRetryScheduler();
 
     // File is deleted...
     handleWorkspaceFileChangedEvent(
       { kind: 'delete', path: '/ws/report.docx' },
-      { deleteBatcher, workspaceService: null }
+      { deleteBatcher, workspaceService: null, indexRetryScheduler }
     );
     // ...then recreated (atomic save/replace, or a sync restore) before the
     // 250ms debounce window has a chance to flush the queued delete.
     handleWorkspaceFileChangedEvent(
       { kind: 'modify', path: '/ws/report.docx' },
-      { deleteBatcher, workspaceService: null }
+      { deleteBatcher, workspaceService: null, indexRetryScheduler }
     );
 
     await vi.advanceTimersByTimeAsync(250);
@@ -76,10 +78,11 @@ describe('handleWorkspaceFileChangedEvent — delete→recreate race guard (P2)'
     const deleteBatcher = createDeleteBurstBatcher(deletePath, {
       windowMs: 250,
     });
+    const indexRetryScheduler = createIndexRetryScheduler();
 
     handleWorkspaceFileChangedEvent(
       { kind: 'delete', path: '/ws/gone.docx' },
-      { deleteBatcher, workspaceService: null }
+      { deleteBatcher, workspaceService: null, indexRetryScheduler }
     );
 
     await vi.advanceTimersByTimeAsync(250);
@@ -92,14 +95,15 @@ describe('handleWorkspaceFileChangedEvent — delete→recreate race guard (P2)'
     const deleteBatcher = createDeleteBurstBatcher(deletePath, {
       windowMs: 250,
     });
+    const indexRetryScheduler = createIndexRetryScheduler();
 
     handleWorkspaceFileChangedEvent(
       { kind: 'delete', path: '/ws/a.docx' },
-      { deleteBatcher, workspaceService: null }
+      { deleteBatcher, workspaceService: null, indexRetryScheduler }
     );
     handleWorkspaceFileChangedEvent(
       { kind: 'modify', path: '/ws/b.docx' },
-      { deleteBatcher, workspaceService: null }
+      { deleteBatcher, workspaceService: null, indexRetryScheduler }
     );
 
     await vi.advanceTimersByTimeAsync(250);
@@ -121,15 +125,16 @@ describe('handleWorkspaceFileChangedEvent — delete→recreate race guard (P2)'
     const deleteBatcher = createDeleteBurstBatcher(deletePath, {
       windowMs: 250,
     });
+    const indexRetryScheduler = createIndexRetryScheduler();
     const internalPath = `/ws/${MCP_SESSION_SCOPE_REL_PATH}`;
 
     handleWorkspaceFileChangedEvent(
       { kind: 'delete', path: internalPath },
-      { deleteBatcher, workspaceService: null }
+      { deleteBatcher, workspaceService: null, indexRetryScheduler }
     );
     handleWorkspaceFileChangedEvent(
       { kind: 'modify', path: internalPath },
-      { deleteBatcher, workspaceService: null }
+      { deleteBatcher, workspaceService: null, indexRetryScheduler }
     );
 
     await vi.advanceTimersByTimeAsync(250);
@@ -146,18 +151,46 @@ describe('handleWorkspaceFileChangedEvent — delete→recreate race guard (P2)'
     const deleteBatcher = createDeleteBurstBatcher(deletePath, {
       windowMs: 250,
     });
+    const indexRetryScheduler = createIndexRetryScheduler();
 
     expect(() => {
       handleWorkspaceFileChangedEvent(null, {
         deleteBatcher,
         workspaceService: null,
+        indexRetryScheduler,
       });
     }).not.toThrow();
     expect(() => {
       handleWorkspaceFileChangedEvent(undefined, {
         deleteBatcher,
         workspaceService: null,
+        indexRetryScheduler,
       });
     }).not.toThrow();
+  });
+
+  it('a retry scheduled just before workspace close never fires after disposeAll (QA-19 codex-review follow-up)', async () => {
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    vi.mocked(MemoryService.indexFile).mockRejectedValue(new Error('locked'));
+    const deleteBatcher = createDeleteBurstBatcher(vi.fn(), { windowMs: 250 });
+    const indexRetryScheduler = createIndexRetryScheduler();
+
+    handleWorkspaceFileChangedEvent(
+      { kind: 'modify', path: '/ws/old-workspace-file.docx' },
+      { deleteBatcher, workspaceService: null, indexRetryScheduler }
+    );
+    // Let the first (failed) attempt settle and schedule its retry timer...
+    await vi.advanceTimersByTimeAsync(0);
+    // ...then the workspace closes/switches before the retry fires.
+    indexRetryScheduler.disposeAll();
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    vi.mocked(MemoryService.indexFile).mockClear();
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    // The cancelled retry must never fire — it would otherwise index a
+    // now-inactive workspace's file into whatever workspace is active later.
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    expect(MemoryService.indexFile).not.toHaveBeenCalled();
   });
 });

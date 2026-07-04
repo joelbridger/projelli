@@ -67,10 +67,14 @@ const tauriCmdMocks = vi.hoisted(() => ({
 
 vi.mock('@/platform/utils/tauri-commands', () => tauriCmdMocks);
 
-// @tauri-apps/api/event: listen() returns an unsubscribe function.
-vi.mock('@tauri-apps/api/event', () => ({
+// @tauri-apps/api/event: listen() returns an unsubscribe function. Hoisted +
+// exposed as `eventMocks.listen` so the cancellation-race test below can
+// override its resolved value per-call to track the unlisten function.
+const eventMocks = vi.hoisted(() => ({
   listen: vi.fn().mockResolvedValue(() => {}),
 }));
+
+vi.mock('@tauri-apps/api/event', () => eventMocks);
 
 // MemoryService: mock the backend calls so no real Tauri IPC is attempted.
 const memMocks = vi.hoisted(() => ({
@@ -209,5 +213,53 @@ describe('useMemoryWiring — connector workspace wiring', () => {
     await waitFor(() => {
       expect(tauriCmdMocks.watchWorkspace).toHaveBeenCalledWith(root);
     });
+  });
+
+  it('QA-19 P2 (codex-review follow-up): a workspace closed/switched WHILE essential wiring is still installing never runs connector setup with the stale rootPath', async () => {
+    // Root cause: `if (cancelled) { stop(); } else { unlisten = stop; }`
+    // fell through into the optional connector setup below regardless of
+    // `cancelled` — a workspace torn down mid-install would still fire
+    // mailSetWorkspace/crmSetWorkspace/etc. with THIS closure's stale
+    // rootPath, racing whatever workspace opens next and potentially leaving
+    // connector state on the Rust side pointing at an inactive workspace.
+    let resolveWatch: (() => void) | undefined;
+    tauriCmdMocks.watchWorkspace.mockImplementationOnce(
+      () => new Promise<void>((resolve) => { resolveWatch = resolve; }),
+    );
+    const unlistenSpy = vi.fn();
+    eventMocks.listen.mockResolvedValueOnce(unlistenSpy);
+
+    const root = '/home/user/Northcrest';
+    const { unmount } = render(<Harness root={root} />);
+
+    // Essential wiring has started and is now blocked on watchWorkspace.
+    await waitFor(() => {
+      expect(tauriCmdMocks.watchWorkspace).toHaveBeenCalledWith(root);
+    });
+
+    // The workspace closes/switches WHILE essential wiring is still in flight.
+    unmount();
+
+    // ...and only THEN does watchWorkspace (and the listener registration
+    // inside installEssentialWorkspaceWiring) finish.
+    resolveWatch?.();
+
+    // Wait for the now-cancelled effect to reach its `if (cancelled) { stop();
+    // return; }` branch and actually call stop() — proof the async chain
+    // drained past that check, so the negative assertions below are not just
+    // "hasn't happened yet".
+    await waitFor(() => {
+      expect(unlistenSpy).toHaveBeenCalledTimes(1);
+    });
+
+    expect(mailMocks.mailSetWorkspace).not.toHaveBeenCalled();
+    expect(crmMocks.crmSetWorkspace).not.toHaveBeenCalled();
+    expect(docusignMocks.docusignSetWorkspace).not.toHaveBeenCalled();
+    expect(addeparMocks.addeparSetWorkspace).not.toHaveBeenCalled();
+    expect(calendlyMocks.calendlySetWorkspace).not.toHaveBeenCalled();
+    // The MODEL_DOWNLOAD_EVENT listener is only registered AFTER the
+    // connector block — never reached either, so `listen` was called exactly
+    // once (for workspace-file-changed).
+    expect(eventMocks.listen).toHaveBeenCalledTimes(1);
   });
 });
