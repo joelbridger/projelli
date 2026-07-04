@@ -6,13 +6,14 @@
  * new recording; the interim direct `startRecording` call here is replaced
  * by the real consent dialog in Task 13.
  */
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Mic, Video } from 'lucide-react';
-import { Badge, EmptyState } from '@/ui/kp';
+import { Info, Mic } from 'lucide-react';
+import { Badge, Button, EmptyState } from '@/ui/kp';
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
-import { useMeetingStore, needsReview, type ReviewItem } from './meetingStore';
+import { useMeetingStore, needsReview } from './meetingStore';
 import type { MeetingMeta } from './meetingStore';
+import { meetingDisplayTitle, formatMeetingDate, formatMeetingDuration } from './meetingDisplay';
 import { ConsentDialog, isMacPermissionError } from './ConsentDialog';
 import { consentModeFor } from './recordingConsentLaw';
 import { makeConsentLedger, type ConsentEntry } from './consentLedger';
@@ -67,13 +68,6 @@ export async function listClientMeetings(matterFolder: string, ws: ListableWorks
   return summaries.sort((a, b) => (b.meta?.startedAt ?? b.folderName).localeCompare(a.meta?.startedAt ?? a.folderName));
 }
 
-function formatMeetingDate(iso: string | undefined): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
 export interface ClientMeetingsTabProps {
   matterId: string;
   matterFolder: string;
@@ -89,12 +83,17 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
   const [meetings, setMeetings] = useState<MeetingSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const recording = useMeetingStore((s) => s.status.recording);
+  const processing = useMeetingStore((s) => s.processing);
   const startRecording = useMeetingStore((s) => s.startRecording);
   const crmQueueItems = useCrmWriteQueueStore((s) => s.items);
   const [showConsent, setShowConsent] = useState(false);
   const [macPermissionError, setMacPermissionError] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
   const [standingConsent, setStandingConsent] = useState<ConsentEntry | null>(null);
-  const consentMode = consentModeFor(null); // no per-client state on file yet (see Matter type)
+  // No per-client state on file yet (see Matter type) — consentModeFor(null)
+  // is the conservative two-party default, and stateKnown={false} below keeps
+  // the dialog's wording conditional rather than asserting the law.
+  const consentMode = consentModeFor(null);
 
   const refresh = useCallback(async () => {
     const ws = workspaceService;
@@ -106,12 +105,14 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
   }, [matterFolder, workspaceService]);
 
   useEffect(() => { void refresh(); }, [refresh]);
-  // Refresh once a recording for this client finishes, so the new meeting
-  // appears without requiring the advisor to leave and reopen the tab.
+  // Refresh once a recording for this client finishes AND its post-stop
+  // pipeline (transcription + notes) is done, so the new meeting appears —
+  // with its notes — without the advisor leaving and reopening the tab.
+  const busy = recording || processing;
   useEffect(() => {
-    if (!recording) void refresh();
+    if (!busy) void refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recording]);
+  }, [busy]);
 
   const handleRecordClick = useCallback(() => {
     void (async () => {
@@ -120,6 +121,7 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
         setStandingConsent(sc);
       }
       setMacPermissionError(false);
+      setConsentError(null);
       setShowConsent(true);
     })();
   }, [matterId, matterFolder, workspaceService]);
@@ -134,130 +136,139 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
         if (isMacPermissionError(message)) {
           setMacPermissionError(true);
         } else {
-          setShowConsent(false);
+          // Never close on silence — the advisor must see that no recording
+          // is running (2026-07-04 UX review, finding B6).
+          setConsentError(message);
         }
       }
     })();
   }, [matterId, consentMode, startRecording]);
 
-  // Task 12b — per-client (never practice-wide) review queue: which of THIS
-  // client's meetings still need a look, and why.
-  const reviewRows = useMemo(() => {
-    const matterQueue = crmQueueItems.filter((q) => q.matterId === matterId);
-    return meetings
-      .map((m) => ({ meeting: m, items: needsReview(m, matterQueue) }))
-      .filter((r) => r.items.length > 0);
-  }, [meetings, crmQueueItems, matterId]);
-  const reviewCount = reviewRows.reduce((sum, r) => sum + r.items.length, 0);
+  // Task 12b — per-client (never practice-wide) review flags, shown as a
+  // badge on each row (the meeting page's "Mark reviewed" clears it).
+  const matterQueue = crmQueueItems.filter((q) => q.matterId === matterId);
 
-  const reviewItemLabel = useCallback((item: ReviewItem): string => {
-    if (item.kind === 'unreviewed-note') return t('meetings.tab.review-unreviewed-note');
-    if (item.kind === 'crm-waiting') return t('meetings.tab.review-crm-waiting');
-    return t('meetings.tab.review-no-followup');
-  }, [t]);
+  const showEmpty = !loading && meetings.length === 0;
 
   return (
     <div data-testid="client-meetings-tab" style={{ padding: 'var(--kp-gutter)', display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-lg)' }}>
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button
-          type="button"
-          data-testid="record-meeting-button"
-          onClick={handleRecordClick}
-          disabled={recording}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            border: '1px solid var(--kp-divider)',
-            background: recording ? 'var(--kp-accent-soft)' : 'var(--kp-navy)',
-            color: recording ? 'var(--kp-navy)' : 'white',
-            borderRadius: 'var(--radius-md)',
-            padding: '8px 14px',
-            fontSize: 'var(--kp-font-sm)',
-            fontWeight: 'var(--kp-weight-semibold)',
-            cursor: recording ? 'default' : 'pointer',
-            fontFamily: 'inherit',
-          }}
-        >
-          <Mic style={{ width: 14, height: 14 }} />
-          {recording ? t('meetings.tab.recording') : t('meetings.tab.record-button')}
-        </button>
-      </div>
-
-      {reviewCount > 0 && (
-        <div data-testid="meetings-needs-review" style={{ display: 'flex', flexDirection: 'column', gap: 6, border: '1px solid var(--kp-divider)', borderRadius: 'var(--radius-md)', padding: '10px 12px', background: 'var(--kp-accent-soft)' }}>
-          <div style={{ fontSize: 'var(--kp-font-xs)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)' }}>
-            {t('meetings.tab.needs-review-heading', { count: reviewCount })}
-          </div>
-          {reviewRows.map((r) => (
-            <button
-              key={r.meeting.dir}
-              type="button"
-              data-testid="needs-review-row"
-              onClick={() => { onOpenMeeting(r.meeting); }}
-              style={{ display: 'flex', alignItems: 'center', gap: 8, border: 'none', background: 'transparent', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}
-            >
-              <span style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--kp-navy)' }}>{r.meeting.folderName}</span>
-              {r.items.map((item) => (
-                <Badge key={item.kind} variant="warning" size="sm">{reviewItemLabel(item)}</Badge>
-              ))}
-            </button>
-          ))}
+      {/* The record affordance leads the surface (prototype: top-left, with
+          the local-capture reassurance beside it). On the empty tab the
+          EmptyState below carries the same button instead. */}
+      {!showEmpty && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-sm)', flexWrap: 'wrap' }}>
+          <Button
+            data-testid="record-meeting-button"
+            onClick={handleRecordClick}
+            disabled={recording}
+            iconLeft={Mic}
+          >
+            {recording ? t('meetings.tab.recording') : t('meetings.tab.record-button')}
+          </Button>
+          <span style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
+            {t('meetings.tab.record-note')}
+          </span>
         </div>
       )}
 
-      {!loading && meetings.length === 0 && (
+      {loading && (
+        <div data-testid="client-meetings-loading" style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--color-muted-foreground)' }}>
+          {t('meetings.tab.loading')}
+        </div>
+      )}
+
+      {showEmpty && (
         <EmptyState
-          icon={Video}
+          icon={Mic}
           title={t('meetings.tab.empty-title')}
           body={t('meetings.tab.empty-body')}
           data-testid="client-meetings-empty"
+          actions={
+            <Button
+              data-testid="record-meeting-button"
+              onClick={handleRecordClick}
+              disabled={recording}
+              iconLeft={Mic}
+            >
+              {recording ? t('meetings.tab.recording') : t('meetings.tab.record-button')}
+            </Button>
+          }
         />
       )}
 
       {meetings.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {meetings.map((m) => (
-            <button
-              key={m.dir}
-              type="button"
-              data-testid="meeting-row"
-              onClick={() => { onOpenMeeting(m); }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                textAlign: 'left',
-                border: '1px solid var(--kp-divider)',
-                borderRadius: 'var(--radius-md)',
-                padding: '12px 14px',
-                background: 'var(--kp-surface)',
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-              }}
-            >
-              <div>
-                <div style={{ fontSize: 'var(--kp-font-sm)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)' }}>
-                  {m.folderName}
-                </div>
-                <div style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
-                  {formatMeetingDate(m.meta?.startedAt)}
-                  {!m.hasNotes && ` · ${t('meetings.tab.notes-pending')}`}
-                </div>
-              </div>
-            </button>
-          ))}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-xs)' }}>
+          {meetings.map((m) => {
+            const reviewItems = needsReview(m, matterQueue);
+            const duration = formatMeetingDuration(m.meta?.durationMs, t);
+            return (
+              <button
+                key={m.dir}
+                type="button"
+                data-testid="meeting-row"
+                className="kp-card kp-card--interactive"
+                onClick={() => { onOpenMeeting(m); }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--kp-space-md)',
+                  textAlign: 'left',
+                  width: '100%',
+                  fontFamily: 'inherit',
+                }}
+              >
+                <span
+                  aria-hidden="true"
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 9,
+                    flex: 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'var(--kp-accent-soft)',
+                    color: 'var(--kp-navy)',
+                  }}
+                >
+                  <Mic style={{ width: 17, height: 17 }} />
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: 'block', fontSize: 'var(--kp-font-sm)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)' }}>
+                    {meetingDisplayTitle(m.meta, t)}
+                  </span>
+                  <span style={{ display: 'block', fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)', marginTop: 2 }}>
+                    {formatMeetingDate(m.meta?.startedAt)}
+                    {duration && ` · ${duration}`}
+                    {!m.hasNotes && ` · ${t('meetings.tab.notes-pending')}`}
+                  </span>
+                </span>
+                <span style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  {reviewItems.length > 0 && (
+                    <Badge variant="warning" size="sm">{t('meetings.tab.needs-review-badge')}</Badge>
+                  )}
+                  {reviewItems.length === 0 && m.meta?.reviewedAt && (
+                    <Badge variant="neutral" size="sm">{t('meetings.tab.reviewed-badge')}</Badge>
+                  )}
+                </span>
+              </button>
+            );
+          })}
         </div>
       )}
-      <div style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
+        <Info aria-hidden="true" style={{ width: 14, height: 14, flex: 'none' }} />
         {t('meetings.tab.activity-hint')}
       </div>
       <ConsentDialog
         open={showConsent}
         onOpenChange={setShowConsent}
         consentMode={consentMode}
+        stateKnown={false}
         standingConsent={standingConsent}
         macPermissionError={macPermissionError}
+        errorMessage={consentError}
         onConfirm={handleConsentConfirm}
       />
     </div>

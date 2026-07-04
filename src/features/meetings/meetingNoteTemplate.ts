@@ -50,6 +50,21 @@ function enforceCitations(raw: string, transcript: TranscriptFile): string {
     .join('\n');
 }
 
+/**
+ * Advisor-facing rendering of the citation tokens: `[t:135000]` -> `(at 2:15)`.
+ * `run()`'s return keeps the raw tokens (the machine contract for a future
+ * citation-chip notes pane); callers writing notes.docx for the advisor to
+ * READ apply this first — raw ms tokens must never reach the page.
+ */
+export function formatCitationsForDisplay(markdown: string): string {
+  return markdown.replace(/\s*\[t:(\d+)\]/g, (_m, ms: string) => {
+    const total = Math.floor(Number(ms) / 1000);
+    const min = Math.floor(total / 60);
+    const sec = String(total % 60).padStart(2, '0');
+    return ` (at ${String(min)}:${sec})`;
+  });
+}
+
 export interface MeetingNoteRunInput extends MeetingNotePromptInput {
   provider: Provider;
 }

@@ -1847,7 +1847,11 @@
       "privacy-note": "Sprachprofile werden nur auf diesem Computer gespeichert, verschlüsselt und ausschließlich für diesen Mandanten. Du kannst sie jederzeit auf der Mandantenseite löschen."
     },
     "pill": {
-      "stop": "Stopp"
+      "stop": "Stopp",
+      "recording-label": "Aufnahme",
+      "local": "Lokal",
+      "local-tooltip": "Nichts hat diesen Rechner verlassen. Die Aufnahme wird direkt auf Ihre Festplatte geschrieben.",
+      "processing": "Ihre Gesprächsnotizen werden geschrieben… Sie können weiterarbeiten"
     },
     "tab": {
       "record-button": "Besprechung aufnehmen",
@@ -1856,10 +1860,11 @@
       "empty-body": "Aufnahmen mit diesem Mandanten landen genau hier: Notizen, Transkript und Audio zusammen.",
       "notes-pending": "Notizen ausstehend",
       "activity-hint": "Jede Besprechung erscheint außerdem als Eintrag im Aktivitätsverlauf dieses Mandanten.",
-      "needs-review-heading": "Zu prüfen · {{count}} Einträge",
-      "review-unreviewed-note": "Ungeprüfte Notiz",
-      "review-crm-waiting": "CRM-Updates ausstehend",
-      "review-no-followup": "Kein Follow-up entworfen"
+      "record-note": "Auf diesem Computer aufgenommen. Nichts wird hochgeladen.",
+      "loading": "Gespräche werden geladen…",
+      "needs-review-badge": "Prüfung nötig",
+      "reviewed-badge": "Geprüft",
+      "duration": "{{minutes}} Min."
     },
     "entry": {
       "breadcrumb-meetings": "Besprechungen",
@@ -1871,7 +1876,12 @@
       "transcript-pending": "Die Transkription ist in der Warteschlange. Sie erscheint hier, sobald sie fertig ist.",
       "mark-reviewed": "Als geprüft markieren",
       "reviewed": "Geprüft",
-      "type-chip-change": "ändern"
+      "type-chip-change": "ändern",
+      "generic-title": "Gespräch",
+      "dictated-title": "Diktierte Notiz",
+      "delete-audio-confirm-title": "Audio dieses Gesprächs löschen?",
+      "delete-audio-confirm-body": "Die Audiodatei wird von diesem Computer gelöscht. Transkript und Notizen bleiben erhalten.",
+      "delete-audio-confirm-button": "Audio löschen"
     },
     "types": {
       "annual-review": "Jahresgespräch",
@@ -1888,7 +1898,9 @@
       "standing-note": "Dauerhafte Einwilligung liegt vor (vom {{date}})",
       "mac-permission-title": "macOS benötigt deine Erlaubnis, um Besprechungsaudio zu hören.",
       "mac-permission-body": "So kann die App aufnehmen, was auf diesem Mac abgespielt wird. Es wird nur auf deiner Festplatte gespeichert, sonst nirgendwo.",
-      "mac-permission-button": "Systemeinstellungen öffnen"
+      "mac-permission-button": "Systemeinstellungen öffnen",
+      "two-party-note-unknown": "Falls Ihr Bundesstaat die Zustimmung aller verlangt, fragen Sie vor der Aufnahme. Vorschlag: „Ich würde das Gespräch gern für meine Notizen aufnehmen. Ist das für alle in Ordnung?“",
+      "start-failed": "Aufnahme konnte nicht starten: {{message}}"
     },
     "dictation": {
       "file-as-meeting-note": "Als Besprechungsnotiz ablegen…",

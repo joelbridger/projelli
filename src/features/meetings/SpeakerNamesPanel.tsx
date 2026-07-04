@@ -82,7 +82,9 @@ export function SpeakerNamesPanel({ meetingDir, matterId, workspaceRoot, onAppli
         <Users size={13} aria-hidden /> {t('meetings.speakers.title')}
       </span>
       {rows === null ? (
-        <Button data-testid="diarize-run" disabled={busy} onClick={() => { void run(); }}>
+        // secondary + hugging width: a helper utility, never the loudest
+        // element on the meeting page (UX review S10)
+        <Button data-testid="diarize-run" variant="secondary" disabled={busy} onClick={() => { void run(); }} style={{ alignSelf: 'flex-start' }}>
           {busy ? t('meetings.speakers.running') : t('meetings.speakers.run')}
         </Button>
       ) : (
@@ -105,7 +107,7 @@ export function SpeakerNamesPanel({ meetingDir, matterId, workspaceRoot, onAppli
               )}
             </div>
           ))}
-          <Button data-testid="speakers-apply" disabled={busy} onClick={() => { void apply(); }}>
+          <Button data-testid="speakers-apply" disabled={busy} onClick={() => { void apply(); }} style={{ alignSelf: 'flex-start' }}>
             {t('meetings.speakers.apply')}
           </Button>
         </>

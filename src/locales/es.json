@@ -1847,7 +1847,11 @@
       "privacy-note": "Los perfiles de voz se guardan solo en este equipo, cifrados, y únicamente para este cliente. Puedes eliminarlos desde la página del cliente en cualquier momento."
     },
     "pill": {
-      "stop": "Detener"
+      "stop": "Detener",
+      "recording-label": "Grabando",
+      "local": "Local",
+      "local-tooltip": "Nada ha salido de este equipo. El audio se escribe directamente en su disco.",
+      "processing": "Escribiendo sus notas de la reunión… puede seguir trabajando"
     },
     "tab": {
       "record-button": "Grabar una reunión",
@@ -1856,10 +1860,11 @@
       "empty-body": "Las grabaciones que hagas con este cliente quedan aquí mismo: notas, transcripción y audio juntos.",
       "notes-pending": "notas pendientes",
       "activity-hint": "Cada reunión también aparece como una entrada en el historial de actividad de este cliente.",
-      "needs-review-heading": "Por revisar · {{count}} elementos",
-      "review-unreviewed-note": "Nota sin revisar",
-      "review-crm-waiting": "Actualizaciones de CRM pendientes",
-      "review-no-followup": "Sin seguimiento redactado"
+      "record-note": "Grabado en este equipo. No se sube nada.",
+      "loading": "Cargando reuniones…",
+      "needs-review-badge": "Requiere revisión",
+      "reviewed-badge": "Revisada",
+      "duration": "{{minutes}} min"
     },
     "entry": {
       "breadcrumb-meetings": "Reuniones",
@@ -1871,7 +1876,12 @@
       "transcript-pending": "La transcripción está en cola. Aparecerá aquí en cuanto esté lista.",
       "mark-reviewed": "Marcar como revisada",
       "reviewed": "Revisada",
-      "type-chip-change": "cambiar"
+      "type-chip-change": "cambiar",
+      "generic-title": "Reunión",
+      "dictated-title": "Nota dictada",
+      "delete-audio-confirm-title": "¿Eliminar el audio de esta reunión?",
+      "delete-audio-confirm-body": "El archivo de audio se elimina de este equipo. La transcripción y las notas se conservan.",
+      "delete-audio-confirm-button": "Eliminar audio"
     },
     "types": {
       "annual-review": "Revisión anual",
@@ -1888,7 +1898,9 @@
       "standing-note": "Consentimiento permanente registrado (con fecha {{date}})",
       "mac-permission-title": "macOS necesita tu permiso para escuchar el audio de la reunión.",
       "mac-permission-body": "Esto permite que la aplicación grabe lo que se reproduce en esta Mac. Se guarda solo en tu disco y en ningún otro lugar.",
-      "mac-permission-button": "Abrir Preferencias del Sistema"
+      "mac-permission-button": "Abrir Preferencias del Sistema",
+      "two-party-note-unknown": "Si su estado exige el consentimiento de todos, pregunte antes de grabar. Sugerencia: «Me gustaría grabar esto para mis notas. ¿Les parece bien a todos?»",
+      "start-failed": "La grabación no pudo iniciarse: {{message}}"
     },
     "dictation": {
       "file-as-meeting-note": "Archivar como nota de reunión…",

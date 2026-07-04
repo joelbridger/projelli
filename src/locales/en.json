@@ -1391,7 +1391,11 @@
       "privacy-note": "Voice profiles are stored only on this computer, encrypted, and only for this client. You can delete them from the client's page at any time."
     },
     "pill": {
-      "stop": "Stop"
+      "stop": "Stop",
+      "recording-label": "Recording",
+      "local": "Local",
+      "local-tooltip": "Nothing has left this machine. The audio is written straight to your disk.",
+      "processing": "Writing your meeting notes… you can keep working"
     },
     "tab": {
       "record-button": "Record a meeting",
@@ -1400,10 +1404,11 @@
       "empty-body": "Recordings you make with this client stay right here: notes, transcript, and audio together.",
       "notes-pending": "notes pending",
       "activity-hint": "Each meeting also shows up as an entry on this client's Activity timeline.",
-      "needs-review-heading": "Needs review · {{count}} items",
-      "review-unreviewed-note": "Unreviewed note",
-      "review-crm-waiting": "CRM updates waiting",
-      "review-no-followup": "No follow-up drafted"
+      "record-note": "Recorded on this computer. Nothing is uploaded.",
+      "loading": "Loading meetings…",
+      "needs-review-badge": "Needs review",
+      "reviewed-badge": "Reviewed",
+      "duration": "{{minutes}} min"
     },
     "entry": {
       "breadcrumb-meetings": "Meetings",
@@ -1415,7 +1420,12 @@
       "transcript-pending": "Transcription is queued. It'll appear here once it's ready.",
       "mark-reviewed": "Mark reviewed",
       "reviewed": "Reviewed",
-      "type-chip-change": "change"
+      "type-chip-change": "change",
+      "generic-title": "Meeting",
+      "dictated-title": "Dictated note",
+      "delete-audio-confirm-title": "Delete this meeting's audio?",
+      "delete-audio-confirm-body": "The audio file is deleted from this computer. The transcript and notes stay.",
+      "delete-audio-confirm-button": "Delete audio"
     },
     "types": {
       "annual-review": "Annual review",
@@ -1432,7 +1442,9 @@
       "standing-note": "Standing consent on file (dated {{date}})",
       "mac-permission-title": "macOS needs your permission to hear meeting audio.",
       "mac-permission-body": "This lets the app record what plays on this Mac. It is saved to your disk and nowhere else.",
-      "mac-permission-button": "Open System Settings"
+      "mac-permission-button": "Open System Settings",
+      "two-party-note-unknown": "If your state requires everyone’s consent, ask before you record. Suggested ask: \"I’d like to record this for my notes. Is that alright with everyone?\"",
+      "start-failed": "Recording couldn’t start: {{message}}"
     },
     "dictation": {
       "file-as-meeting-note": "File as meeting note…",

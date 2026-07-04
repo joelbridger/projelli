@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { meetingNoteFromTranscript } from '@/features/meetings/meetingNoteTemplate';
+import { meetingNoteFromTranscript, formatCitationsForDisplay } from '@/features/meetings/meetingNoteTemplate';
 
 const transcript = {
   segments: [
@@ -28,5 +28,15 @@ describe('meeting note template', () => {
     const cleaned = meetingNoteFromTranscript.enforceCitations(raw, transcript);
     expect(cleaned).toContain('[t:341000]');
     expect(cleaned).not.toContain('[t:999999]'); // token not in transcript → bullet dropped
+  });
+
+  // 2026-07-04 UX review B3: the advisor-facing notes.docx must never show
+  // raw machine tokens — they render as "(at m:ss)" at write time.
+  it('formats [t:ms] tokens as readable timestamps for the advisor-facing docx', () => {
+    const md = '- Wants to fund a 529 [t:341000]\n- Rebalance decided [t:135000]';
+    expect(formatCitationsForDisplay(md)).toBe(
+      '- Wants to fund a 529 (at 5:41)\n- Rebalance decided (at 2:15)',
+    );
+    expect(formatCitationsForDisplay(md)).not.toContain('[t:');
   });
 });
