@@ -50,7 +50,15 @@ import {
   scopeHintForMatter,
 } from './askPrompt';
 import { bindAnswerBlocks } from './answerBlockHelpers';
-import { withAskTimeout, ASK_RETRIEVAL_TIMEOUT_MS } from './askTimeout';
+import {
+  withAskTimeout,
+  ASK_RETRIEVAL_TIMEOUT_MS,
+  ASK_ANSWER_TIMEOUT_MS,
+  ASK_ANSWER_STALL_ERROR_MESSAGE,
+  AskTimeoutError,
+  createAnswerStallWatchdog,
+  isAskTimeoutError,
+} from './askTimeout';
 import {
   hasCloudKey,
   buildResolvedAskProvider,
@@ -220,6 +228,10 @@ export function useAsk({
   const [selectedTurnIdx, setSelectedTurnIdx] = useState<number | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [status, setStatus] = useState<'idle' | 'retrieving' | 'answering' | 'done' | 'error'>('idle');
+  // QA-7 — true once the answer stage has gone ASK_ANSWER_WARNING_MS with no
+  // token/progress, so the "Answering…" spinner can say so instead of sitting
+  // silent. Cleared the instant a token arrives, on completion, and on error.
+  const [answerStalled, setAnswerStalled] = useState(false);
   const [savingIdx, setSavingIdx] = useState<number | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
@@ -315,6 +327,7 @@ export function useAsk({
     setStreamingTurn(null);
     setErrorMsg(null);
     setStatus('idle');
+    setAnswerStalled(false);
   }, [chatId, rootPath]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-scroll to bottom when turns change or streaming turn updates
@@ -425,6 +438,7 @@ export function useAsk({
     setSelectedTurnIdx(null);
     setErrorMsg(null);
     setStatus('idle');
+    setAnswerStalled(false);
   }, [activeMatter, rootPath]);
 
   const handleLoadSession = useCallback((sid: string) => {
@@ -465,6 +479,7 @@ export function useAsk({
 
     setErrorMsg(null);
     setStatus('retrieving');
+    setAnswerStalled(false);
 
     // Add user message to stream placeholder
     const newStreamingTurn: AskTurn = {
@@ -948,28 +963,57 @@ export function useAsk({
         });
       };
 
-      if (typeof provider.sendMessageStreaming === 'function') {
-        failedStage = 'provider-send';
-        providerCallStarted = true;
-        const streamResp = await provider.sendMessageStreaming(q, {
-          systemPrompt,
-          onChunk: (chunk) => {
-            if (abort.signal.aborted) return;
-            answerText += chunk;
-            setStreamingTurn((prev) => prev ? { ...prev, answer: answerText } : prev);
-          },
-          signal: abort.signal,
-        });
-        answerText = streamResp.content;
-        emitSuccessfulEgress();
-        emitModelCall(answerText.length, streamResp.usage, streamResp.cost);
-      } else {
-        failedStage = 'provider-send';
-        providerCallStarted = true;
-        const resp = await provider.sendMessage(q, { systemPrompt });
-        answerText = resp.content;
-        emitSuccessfulEgress();
-        emitModelCall(answerText.length, resp.usage, resp.cost);
+      // QA-7 — the "Answering…" spinner had no ceiling: a stalled provider call
+      // (most often the embedded local model still mid-download/load) left it
+      // spinning forever with zero feedback. `watchdog` re-arms on every
+      // streamed chunk (a long-but-progressing answer is never killed), fires
+      // `onWarning` after ASK_ANSWER_WARNING_MS of silence (surfaces "taking
+      // longer than expected" in the spinner), and rejects `stallPromise` after
+      // ASK_ANSWER_TIMEOUT_MS so the race below turns true silence into an
+      // honest, retryable error instead of an infinite hang. We do NOT abort
+      // the shared AbortController here — same reasoning as the retrieval
+      // timeout: an aborted signal reads as "user moved on, drop silently",
+      // which would swallow the very error this exists to surface.
+      let rejectStall: ((err: Error) => void) | undefined;
+      const stallPromise = new Promise<never>((_resolve, reject) => {
+        rejectStall = reject;
+      });
+      const watchdog = createAnswerStallWatchdog({
+        onWarning: () => { setAnswerStalled(true); },
+        onTimeout: () => { rejectStall?.(new AskTimeoutError('answer', ASK_ANSWER_TIMEOUT_MS)); },
+      });
+      try {
+        if (typeof provider.sendMessageStreaming === 'function') {
+          failedStage = 'provider-send';
+          providerCallStarted = true;
+          const streamResp = await Promise.race([
+            provider.sendMessageStreaming(q, {
+              systemPrompt,
+              onChunk: (chunk) => {
+                if (abort.signal.aborted) return;
+                watchdog.markProgress();
+                setAnswerStalled(false);
+                answerText += chunk;
+                setStreamingTurn((prev) => prev ? { ...prev, answer: answerText } : prev);
+              },
+              signal: abort.signal,
+            }),
+            stallPromise,
+          ]);
+          answerText = streamResp.content;
+          emitSuccessfulEgress();
+          emitModelCall(answerText.length, streamResp.usage, streamResp.cost);
+        } else {
+          failedStage = 'provider-send';
+          providerCallStarted = true;
+          const resp = await Promise.race([provider.sendMessage(q, { systemPrompt }), stallPromise]);
+          answerText = resp.content;
+          emitSuccessfulEgress();
+          emitModelCall(answerText.length, resp.usage, resp.cost);
+        }
+      } finally {
+        watchdog.cancel();
+        setAnswerStalled(false);
       }
 
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
@@ -1137,15 +1181,21 @@ export function useAsk({
       // Fix #4 / UX-29: plain-language copy that is mode- and stage-aware.
       // `providerCallStarted === false` means the failure was in the file-search
       // stage (not the AI/key), so the message must not blame a key.
+      // QA-7: a stalled-answer timeout gets its own honest copy naming the most
+      // likely cause (local model still downloading/loading) instead of the
+      // generic "couldn't get an answer" fallback.
       setErrorMsg(
         isConfidentialityChoiceRequiredError(err)
           ? err.message
-          : friendlyErrorMessage(raw, {
-              mode: getConfidentialityMode(),
-              reachedProvider: providerCallStarted,
-              failedStage,
-            }),
+          : isAskTimeoutError(err) && err.stage === 'answer'
+            ? ASK_ANSWER_STALL_ERROR_MESSAGE
+            : friendlyErrorMessage(raw, {
+                mode: getConfidentialityMode(),
+                reachedProvider: providerCallStarted,
+                failedStage,
+              }),
       );
+      setAnswerStalled(false);
       setStreamingTurn(null);
       setStatus('error');
       // BUG-002: restore the typed question so the user can retry without
@@ -1192,6 +1242,7 @@ export function useAsk({
     selectedTurnIdx,
     errorMsg,
     status,
+    answerStalled,
     savingIdx,
     displayedProvider,
     confidentialityMode,

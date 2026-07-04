@@ -82,3 +82,91 @@ export async function withAskTimeout<T>(
     if (timer !== undefined) clearTimeout(timer);
   }
 }
+
+/**
+ * QA-7 — the answer/generation stage had NO equivalent of the retrieval
+ * watchdog above: once retrieval cleared, a stalled provider call (most often
+ * the embedded local model still mid-download/load) left the "Answering…"
+ * spinner spinning forever with no feedback and no way out. This is the
+ * generation-side counterpart: unlike retrieval (a single opaque promise),
+ * a streaming answer delivers incremental progress via `onChunk`, so a stall
+ * is "no chunk arrived recently", not "the whole call hasn't settled yet" — a
+ * legitimately long but progressing answer must never be killed just because
+ * its TOTAL duration crosses a threshold. `markProgress()` re-arms both timers
+ * on every chunk, so only genuine silence trips either one.
+ */
+
+/** No token/progress for this long → show "taking longer than expected". */
+export const ASK_ANSWER_WARNING_MS = 12_000;
+
+/** No token/progress for this long → give up honestly and offer a retry. */
+export const ASK_ANSWER_TIMEOUT_MS = 45_000;
+
+/**
+ * Warning copy shown in the "Answering…" spinner once ASK_ANSWER_WARNING_MS
+ * has passed with no token. Names the most common real cause (the embedded
+ * local model still downloading/loading) without asserting it — the message
+ * reads fine for a cloud stall too.
+ */
+export const ASK_ANSWER_STALL_WARNING =
+  'This is taking longer than expected — the local model may still be downloading or loading.';
+
+/** Honest failure copy after ASK_ANSWER_TIMEOUT_MS of total silence. */
+export const ASK_ANSWER_STALL_ERROR_MESSAGE =
+  "Advisor Prep Hero couldn't get an answer — it may still be downloading or loading the local model. Check its status, then try again.";
+
+export interface AnswerStallWatchdog {
+  /** Call on every chunk/progress signal — re-arms both timers from now. */
+  markProgress: () => void;
+  /** Stop the watchdog for good (call in a `finally` once the send settles). */
+  cancel: () => void;
+}
+
+/**
+ * Starts a two-stage silence watchdog: `onWarning` fires after `warningMs` of
+ * no progress, `onTimeout` after `timeoutMs`. Both re-arm on `markProgress()`.
+ * `onTimeout` fires at most once and cancels the watchdog itself afterward.
+ */
+export function createAnswerStallWatchdog(opts: {
+  onWarning: () => void;
+  onTimeout: () => void;
+  warningMs?: number;
+  timeoutMs?: number;
+}): AnswerStallWatchdog {
+  const warningMs = opts.warningMs ?? ASK_ANSWER_WARNING_MS;
+  const timeoutMs = opts.timeoutMs ?? ASK_ANSWER_TIMEOUT_MS;
+  let warningTimer: ReturnType<typeof setTimeout> | undefined;
+  let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
+  let stopped = false;
+
+  const clearTimers = (): void => {
+    if (warningTimer !== undefined) clearTimeout(warningTimer);
+    if (timeoutTimer !== undefined) clearTimeout(timeoutTimer);
+    warningTimer = undefined;
+    timeoutTimer = undefined;
+  };
+
+  const arm = (): void => {
+    clearTimers();
+    if (stopped) return;
+    warningTimer = setTimeout(() => {
+      if (!stopped) opts.onWarning();
+    }, warningMs);
+    timeoutTimer = setTimeout(() => {
+      if (stopped) return;
+      stopped = true;
+      clearTimers();
+      opts.onTimeout();
+    }, timeoutMs);
+  };
+
+  arm();
+
+  return {
+    markProgress: arm,
+    cancel: () => {
+      stopped = true;
+      clearTimers();
+    },
+  };
+}

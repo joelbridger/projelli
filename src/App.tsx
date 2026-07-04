@@ -1227,6 +1227,17 @@ function App() {
       onSaveKey={handleSaveOnboardingApiKey}
       onChooseStart={handleOnboardingChooseStart}
       hasWorkspace={Boolean(rootPath)}
+      // QA-9: rendered INSIDE the onboarding shell's own flow (reserves its
+      // own height, pushes the step header down) instead of as an
+      // independent fixed layer floating above it with no reserved space —
+      // that mismatch was the actual bug (the banner painted over "2.
+      // Securely connect your data" / "3. Setting up your firm").
+      topBanner={
+        <>
+          <ModelDownloadCard />
+          <LocalAiDownloadCard />
+        </>
+      }
       {...(workspaceServiceRef.current
         ? { workspace: workspaceServiceRef.current }
         : {})}
@@ -1289,11 +1300,19 @@ function App() {
             user's download starts during onboarding rather than after it,
             and returning to the selector mid-download keeps the progress
             visible. The selector is a fixed full-viewport page (z-50), so
-            the banner needs its own fixed top-of-screen layer above it. */}
-        <div className="fixed inset-x-0 top-0 z-[60]">
-          <ModelDownloadCard />
-          <LocalAiDownloadCard />
-        </div>
+            the banner needs its own fixed top-of-screen layer above it.
+            QA-9: only while the onboarding wizard is NOT showing — once it
+            is, `firstRunOverlay` renders this same banner as its own
+            `topBanner` (in normal flow, inside the shell). Keeping this
+            fixed copy up at the same time would float back on top of the
+            wizard's step header with no reserved space, reintroducing the
+            exact overlap this fix removes. */}
+        {!showFirstRun && (
+          <div className="fixed inset-x-0 top-0 z-[60]">
+            <ModelDownloadCard />
+            <LocalAiDownloadCard />
+          </div>
+        )}
         <WorkspaceSelector
           open={true}
           onWorkspaceSelected={handleWorkspaceSelected}

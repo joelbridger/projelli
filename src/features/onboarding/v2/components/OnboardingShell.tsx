@@ -33,6 +33,16 @@ export interface OnboardingShellProps {
   onDotClick?: (index: number) => void;
   /** Enables ArrowLeft/ArrowRight scene navigation. */
   onArrowNav?: (dir: -1 | 1) => void;
+  /**
+   * QA-9 — an optional banner (e.g. the model-download progress cards)
+   * rendered in NORMAL FLOW above the scrolling content, so it reserves its
+   * own height and pushes every scene's own header down instead of floating
+   * on top of it. A caller that instead renders this banner as an
+   * independent `fixed` layer above the shell (which is itself `fixed
+   * inset-0`) gets exactly the QA-9 bug: the banner paints over the step
+   * header text with no reserved space for it.
+   */
+  topBanner?: ReactNode;
 }
 
 function isTextEntry(el: EventTarget | null): boolean {
@@ -64,6 +74,7 @@ export function OnboardingShell({
   activeDot,
   onDotClick,
   onArrowNav,
+  topBanner,
 }: OnboardingShellProps) {
   useEffect(() => {
     if (!onArrowNav) return undefined;
@@ -142,6 +153,11 @@ export function OnboardingShell({
         }`}
         aria-hidden={!showLogo}
       />
+
+      {/* QA-9: rendered in NORMAL FLOW, ABOVE the scrolling content — it
+          reserves its own height and pushes every scene down, so it can
+          never overlap a scene's own header text. */}
+      {topBanner ? <div className="relative z-10 shrink-0">{topBanner}</div> : null}
 
       {/* Scrolling content area */}
       <div className="kp-onbv2-scroll relative z-10 flex-1 overflow-y-auto">
