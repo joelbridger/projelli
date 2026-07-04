@@ -7,6 +7,7 @@ Last updated: 2026-07-04 ~12:15 (coordinator-7 — 6 merges landed; meetpersist+
 ## Active lanes
 | Worker session | What | State |
 |---|---|---|
+| cc-lantern-cleanup3 | Cleanup batch 3 (lp/cleanup-batch3; ~/lp-cleanup3): audit_integrity_reseal type-union gap + union audit vs Rust actions + deterministic docx ZIP timestamps (brief w-cleanup3-brief.md) | building |
 | cc-lantern-weblocks | Web Locks migration (lp/web-locks-guard; ~/lp-weblocks): swap TabWriteGuard substrate to navigator.locks w/ heartbeat fallback, UX + handshake kept (brief w-weblocks-brief.md) | building |
 | cc-lantern-notesfix | 🔧 QA-31 P1 fix (lp/meeting-notes-hang; ~/lp-notesfix): meeting AI notes hang forever post-transcription on real Teams+Zoom — root-cause + QA-7-style watchdog/honest-failure/retry (brief w-notesfix-brief.md) | building |
 
