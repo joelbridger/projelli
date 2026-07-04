@@ -20,7 +20,15 @@ export interface CrmProvenanceInput {
 
 function formatDate(value: string | undefined, locale?: string): string {
   if (!value) return '';
-  const d = new Date(value);
+  // A bare 'YYYY-MM-DD' (the meeting-folder date) parses via `new Date()` as
+  // UTC midnight, so an advisor west of UTC would see the PRIOR calendar day in
+  // the provenance line — naming the wrong meeting date (coordinator review).
+  // Build it as a LOCAL calendar date instead. Full ISO timestamps (the
+  // approval time) are real instants and format correctly as-is.
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  const d = dateOnly
+    ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
+    : new Date(value);
   return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString(locale);
 }
 

@@ -242,11 +242,15 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
         );
       }
     }
-    // Codex review catch (P2): reset immediately, not after the note is
-    // filed — a still-checked toggle would otherwise summarize its OWN
-    // compliance note on the next approval, recursing indefinitely. The
-    // toggle must be re-checked deliberately for each new summary.
-    if (shouldFileCompliance) setFileComplianceNote(false);
+    // R5 (coordinator review): re-derive the toggle from the firm-tier /
+    // remembered-choice default after an approval rather than hard-resetting
+    // to false — otherwise a SECOND update in the same mounted card would
+    // default OFF and silently skip the supervisory note, even though the firm
+    // tier is meant to default ON (and solo remembers the advisor's choice).
+    // Recursion (a compliance note about a compliance note) is prevented
+    // structurally below by excluding compliance items from the summary, not
+    // by forcing the toggle off.
+    setFileComplianceNote(defaultComplianceNote);
     void approve(approvedIds, household_).then(() => {
       if (!shouldFileCompliance) return;
       // Read fresh state after approve() settles — the sent items just
@@ -254,9 +258,18 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
       // or are still pending. The compliance note is only ever ENQUEUED
       // here, exactly like every other item — it goes through the same
       // Approve button on this card's next render, never a direct send.
+      // Exclude prior compliance notes (sourceRef `compliance:…`): a compliance
+      // note must never be summarized into another one — that's the recursion
+      // guard, independent of the toggle state.
       const sentJustNow = useCrmWriteQueueStore
         .getState()
-        .items.filter((i) => i.matterId === matterId && approvedIds.includes(i.id) && i.status === 'sent');
+        .items.filter(
+          (i) =>
+            i.matterId === matterId &&
+            approvedIds.includes(i.id) &&
+            i.status === 'sent' &&
+            !i.sourceRef.startsWith('compliance:'),
+        );
       if (sentJustNow.length === 0) return;
       const matter = matters.find((m) => m.id === matterId);
       const clientLabel = matter ? matterLabel(matter) : matterId;

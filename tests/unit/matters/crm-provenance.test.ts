@@ -30,6 +30,20 @@ describe('composeCrmProvenance (E3 — AI-drafted CRM notes carry their origin)'
     expect(line.toLowerCase()).not.toContain('meeting');
   });
 
+  // Coordinator review: a bare 'YYYY-MM-DD' meeting date must render as that
+  // LOCAL calendar day, not shift a day earlier for advisors west of UTC (which
+  // `new Date('2026-07-02')` would cause by parsing as UTC midnight).
+  it('formats a date-only meeting date as the correct local calendar day', () => {
+    const line = composeCrmProvenance(
+      t,
+      { advisor: 'Dana Lee', sourceKind: 'meeting', sourceDate: '2026-07-02', approvedIso: '2026-07-04T12:00:00Z' },
+      'en-US',
+    );
+    // The meeting date must read July 2 regardless of the runner's timezone.
+    expect(line).toContain('7/2/2026');
+    expect(line).not.toContain('7/1/2026');
+  });
+
   it('falls back to a generic advisor when no name is set', () => {
     const line = composeCrmProvenance(
       t,

@@ -262,6 +262,11 @@ export function DraftFollowUpModal({
   // review — this restores the terminal-state guard the original `!== 'idle'`
   // check provided before the R4a rewrite).
   const canAct = (status === 'idle' || status === 'error') && toArr.length > 0 && body.trim() !== '';
+  // Generate is available once the destination is resolved ('ready') AND again
+  // after a recoverable failure ('error') — otherwise a transient Generate
+  // failure would leave the advisor stuck until they close and reopen the modal
+  // (coordinator review). It's blocked only while loading or generating.
+  const canGenerate = status === 'ready' || status === 'error';
   // Recomputed from the CURRENT body on every render, not stored — an edit
   // that removes a cited phrase drops its chip automatically.
   const citationSegments = splitBodyWithCitations(body, citations);
@@ -617,7 +622,7 @@ export function DraftFollowUpModal({
                 <button
                   type="button"
                   data-testid="followup-generate"
-                  disabled={status !== 'ready'}
+                  disabled={!canGenerate}
                   onClick={handleGenerate}
                   style={{
                     display: 'inline-flex',
@@ -630,8 +635,8 @@ export function DraftFollowUpModal({
                     background: 'var(--kp-action-bg)',
                     color: 'var(--kp-action-fg)',
                     border: 'none',
-                    cursor: status !== 'ready' ? 'default' : 'pointer',
-                    opacity: status !== 'ready' ? 0.6 : 1,
+                    cursor: !canGenerate ? 'default' : 'pointer',
+                    opacity: !canGenerate ? 0.6 : 1,
                     fontFamily: 'var(--font-sans)',
                   }}
                 >

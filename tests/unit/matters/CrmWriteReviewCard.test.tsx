@@ -241,7 +241,13 @@ describe('CrmWriteReviewCard', () => {
   // Codex adversarial review catch (P2): a still-checked toggle must not
   // summarize its OWN compliance note on the next approval — that would
   // recurse indefinitely (a compliance note about a compliance note, forever).
-  it('resets the compliance toggle after filing, so approving the filed note does not recurse', async () => {
+  // R5 (coordinator review): in FIRM tier the compliance toggle re-defaults ON
+  // after an approval (so a SECOND update in the same card still files the
+  // supervisory note), and approving the just-filed compliance note does NOT
+  // recurse into a second one — recursion is prevented by excluding
+  // compliance-sourced items from the summary, independent of the toggle.
+  it('keeps the compliance default ON for a second firm-tier update, without recursing', async () => {
+    licenseMock.tier = 'practice';
     const m = useMatterStore.getState().createMatter({
       name: 'Henderson',
       client: 'Henderson',
@@ -259,7 +265,8 @@ describe('CrmWriteReviewCard', () => {
     await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
     fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
 
-    fireEvent.click(screen.getByTestId('file-compliance-note'));
+    // Firm tier: the toggle is already ON by default.
+    expect(screen.getByTestId('file-compliance-note')).toBeChecked();
     fireEvent.click(screen.getByRole('button', { name: /approve 1 change/i }));
 
     await waitFor(() => {
@@ -267,11 +274,12 @@ describe('CrmWriteReviewCard', () => {
       expect(items.some((i) => i.title.includes('Compliance summary'))).toBe(true);
     });
 
-    // The toggle must be OFF again — checked automatically right when the
-    // enqueue is scheduled, well before the compliance note even lands.
-    expect(screen.getByTestId('file-compliance-note')).not.toBeChecked();
+    // Coordinator fix: the toggle stays ON (re-derived from the firm default),
+    // so a second real update still gets a supervisory note — it did NOT reset
+    // to unchecked.
+    expect(screen.getByTestId('file-compliance-note')).toBeChecked();
 
-    // Approving the newly-filed compliance note (toggle now off) must NOT
+    // Approving the newly-filed compliance note (toggle still ON) must NOT
     // produce a second compliance note about the first one.
     fireEvent.click(screen.getByRole('button', { name: /approve 1 change/i }));
     await waitFor(() => { expect(crmCreateNote).toHaveBeenCalledTimes(2); });

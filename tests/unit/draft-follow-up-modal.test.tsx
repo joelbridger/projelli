@@ -134,6 +134,33 @@ describe('DraftFollowUpModal — AI proposes, user approves, hostile notes stay 
     expect(auditCallOrder).toBeLessThan(sendCallOrder);
   });
 
+  // Coordinator review (P3): a failed Generate must stay retryable — the button
+  // re-enables in the recoverable 'error' state instead of stranding the advisor.
+  it('re-enables Generate after a failed generation so it can be retried', async () => {
+    structuredOutput.mockRejectedValueOnce(new Error('provider timeout'));
+    render(
+      <DraftFollowUpModal
+        open
+        onOpenChange={() => {}}
+        noteName="Meeting Notes 2026-06-24.docx"
+        noteContent={hostileNote}
+        matterId="matter-1"
+      />,
+    );
+    const gen = await screen.findByTestId('followup-generate');
+    await waitFor(() => expect((gen as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(gen);
+    // After the failure the button is enabled again (not stuck).
+    await waitFor(() => expect((screen.getByTestId('followup-generate') as HTMLButtonElement).disabled).toBe(false));
+    expect(screen.queryByTestId('followup-body')).toBeNull();
+    // Retry succeeds (default mock resolves) and the draft appears.
+    fireEvent.click(screen.getByTestId('followup-generate'));
+    await waitFor(() =>
+      expect((screen.getByTestId('followup-body') as HTMLTextAreaElement).value).not.toBe(''),
+    );
+    expect(structuredOutput).toHaveBeenCalledTimes(2);
+  });
+
   it('prefills To from the client mail suggestion, not from the note or the AI output', async () => {
     render(
       <DraftFollowUpModal
