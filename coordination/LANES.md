@@ -55,3 +55,6 @@ Last updated: 2026-07-04 ~09:25 (coordinator-7 seated — w3ux+qafix2 in flight;
 
 ## Serialization invariants
 One merge in flight · one cargo per lane cache (per-lane CARGO_TARGET_DIRs on /mnt/devcache) · one Legion driver · coordinator merges only.
+
+## Dev-server port rule (added 2026-07-04 after two false E2E verdicts)
+Playwright's `reuseExistingServer:!CI` grabs ANY vite on the expected port — a lane's Playwright run against another lane's stale server on :5173 produces false passes AND false failures (bit qafix2 twice tonight). Rule: **every lane's dev server uses its own unique port (`--port NNNNN --strictPort`), never bare :5173**, and E2E verification pins `E2E_BASE_URL` to a server you started yourself from the worktree under test. Put this in every brief that runs vite/Playwright.
