@@ -56,7 +56,7 @@
 // reload but not a hard guarantee under extreme load. Two other hazards
 // this module closes with certainty rather than heuristics: React 18
 // StrictMode's dev-only mount→cleanup→remount double-invoke (see
-// `generation` and hasProbedOnce's field docs) and the lone-tab false-
+// `generation` and probeInFlight's field docs) and the lone-tab false-
 // positive reload loop (see attemptAcquire()'s doc on the `ifAvailable`
 // probe).
 
@@ -112,11 +112,24 @@ export class WebLocksTabGuard {
    *  good — distinguishes a real shutdown (don't requeue) from a voluntary
    *  yield (requeue so a later reclaim needs no external action). */
   private stopped = true;
-  /** Consumed by the very first attemptAcquire() call this guard instance
-   *  EVER makes — never reset, including across a stop()/start() cycle (see
-   *  attemptAcquire()'s doc for why re-probing on every restart would be
-   *  actively harmful, not just redundant). */
-  private hasProbedOnce = false;
+  /** True while a probe (ifAvailable attempt) is outstanding; false once it
+   *  settles, REGARDLESS of generation staleness (the underlying browser
+   *  request has genuinely completed either way). Only consulted for a
+   *  genuine external start() call (see attemptAcquire()'s `allowProbe`
+   *  parameter doc — internal continuations never probe at all, regardless
+   *  of this flag): a probe has no AbortController (see below), so two
+   *  overlapping probes for the same guard would race each other's
+   *  settlement with no defined ordering. This is what lets React 18
+   *  StrictMode's dev-only mount→cleanup→remount double-invoke skip
+   *  probing on the remount (the orphaned first mount's probe is still
+   *  outstanding) while correctly allowing a FRESH probe after a genuine
+   *  gap — e.g. a bfcache freeze-then-restore cycle (releaseOnFreeze() in
+   *  tabLockGuard.ts), where real time elapses and another tab could
+   *  genuinely have taken the lock. Without re-probing there, a restored
+   *  tab could requeue believing itself uncontended and skip the
+   *  rehydrate-before-write reload after really losing the lock while
+   *  frozen — the exact two-tab overwrite this guard exists to prevent. */
+  private probeInFlight = false;
   /** Sticky: once true, stays true for this guard instance's entire
    *  lifetime. Sets true the moment we have SOLID evidence a real other tab
    *  was ever involved — either the one-shot probe found the lock genuinely
@@ -171,7 +184,10 @@ export class WebLocksTabGuard {
     if (!this.stopped) return;
     this.stopped = false;
     this.generation += 1;
-    this.attemptAcquire(this.generation);
+    // Only a genuine external start() call is ever eligible to probe (see
+    // attemptAcquire()'s `allowProbe` parameter doc) — every internal
+    // continuation it schedules explicitly opts out.
+    this.attemptAcquire(this.generation, true);
   }
 
   /** Requests the lock, probing with `ifAvailable` on the very first-ever
@@ -200,31 +216,37 @@ export class WebLocksTabGuard {
    *  is recorded either way — this one acquisition (and any later one, for
    *  as long as contentionEverConfirmed stays false) is genuinely
    *  uncontended, and shouldRehydrateOnThisAcquisition() (below) reports
-   *  false for it. Only the very first attempt this guard EVER makes probes
-   *  — every later acquisition (the contended-fallback above, or any
-   *  auto-reclaim after yielding) uses the normal queueing request, and its
-   *  reload-worthiness is decided purely by whether contentionEverConfirmed
-   *  has been set by then.
+   *  false for it.
    *
-   *  `generation` guards against a subtler hazard specific to the probe:
-   *  React 18 StrictMode (dev only) mounts an effect, cleans it up, then
-   *  mounts it again — calling stop() then start() on this SAME guard
-   *  singleton in quick succession. The probe has no AbortController (see
-   *  below), so a probe from the FIRST mount can still be in flight (and
-   *  still eventually grantable) when the SECOND mount's start() begins a
-   *  fresh attempt. Without this check, that orphaned first attempt could
-   *  fire its callback later and mutate state (or hold a lock) on behalf of
-   *  a generation that's no longer current. Every start()/stop() call bumps
+   *  `allowProbe` is true ONLY for the call start() makes directly — every
+   *  INTERNAL continuation this method schedules itself (the immediate
+   *  contended-probe fallback, or the delayed post-yield reQueue) passes
+   *  false explicitly. This is load-bearing, not cosmetic: a contended
+   *  probe's callback clears probeInFlight the moment it settles (see
+   *  probeInFlight's field doc), and its OWN immediate fallback runs right
+   *  after in the SAME `finally`. If that fallback were also eligible to
+   *  probe, it would immediately probe again, find the SAME still-held
+   *  lock, decline, and retry — forever, in a tight synchronous-ish loop
+   *  with no real delay between iterations. Restricting probing to genuine
+   *  start() calls means only a real external event (initial mount, or a
+   *  bfcache restore's fresh start()) can ever trigger one, and
+   *  probeInFlight only has to arbitrate BETWEEN two such genuine start()s
+   *  (e.g. React 18 StrictMode's dev-only mount→cleanup→remount
+   *  double-invoke), never against this method's own retries.
+   *
+   *  `generation` guards a related hazard: the StrictMode double-invoke
+   *  above calls stop() then start() on this SAME guard singleton in quick
+   *  succession. The probe has no AbortController (see below), so a probe
+   *  from the FIRST mount can still be in flight (and still eventually
+   *  grantable) when the SECOND mount's start() begins a fresh attempt.
+   *  Without this check, that orphaned first attempt could fire its
+   *  callback later and mutate state (or hold a lock) on behalf of a
+   *  generation that's no longer current. Every start()/stop() call bumps
    *  `generation`; an attempt compares the value it captured at call time
-   *  against the CURRENT value and declines entirely if they've diverged.
-   *  hasProbedOnce is deliberately NOT reset by that same stop()/start()
-   *  cycle (see its own field doc) — re-probing on the second mount would
-   *  race the orphaned first probe for the FakeLockManager/browser's
-   *  internal "is it held" bookkeeping and could observe its OWN still-
-   *  settling first attempt as if it were a foreign holder. */
-  private attemptAcquire(generation: number): void {
-    const useProbe = !this.hasProbedOnce;
-    this.hasProbedOnce = true;
+   *  against the CURRENT value and declines entirely if they've diverged. */
+  private attemptAcquire(generation: number, allowProbe: boolean): void {
+    const useProbe = allowProbe && !this.probeInFlight;
+    if (useProbe) this.probeInFlight = true;
     // `ifAvailable` and `signal` are mutually exclusive per the Web Locks
     // spec (a request that never queues has nothing to abort), so the probe
     // attempt gets no AbortController — it settles within a microtask
@@ -242,6 +264,12 @@ export class WebLocksTabGuard {
 
     void this.locks
       .request(this.key, options, (lock) => {
+        if (useProbe) {
+          // The underlying browser request has genuinely settled — clear
+          // this regardless of generation staleness below, so a LATER,
+          // current attempt is free to probe again.
+          this.probeInFlight = false;
+        }
         if (useProbe && lock === null) {
           // Solid evidence of a real other tab — true regardless of whether
           // THIS particular attempt is stale (see the generation check
@@ -290,10 +318,19 @@ export class WebLocksTabGuard {
         // reload, so it requeues immediately.
         if (wasOwner) {
           setTimeout(() => {
-            if (!this.stopped) this.attemptAcquire(this.generation);
+            // Re-check BOTH: `stopped` alone isn't enough (codex-review,
+            // round 2 finding) — a stop()/start() cycle during the delay
+            // (e.g. a bfcache freeze-then-restore landing in this exact
+            // window) flips `stopped` back to false and bumps `generation`,
+            // and that start()'s OWN attemptAcquire() already submitted a
+            // fresh request for the new generation. Without the generation
+            // check, this stale timeout would submit a SECOND, duplicate
+            // request alongside it.
+            if (this.stopped || generation !== this.generation) return;
+            this.attemptAcquire(this.generation, false);
           }, this.requeueDelayAfterYieldMs);
         } else {
-          this.attemptAcquire(this.generation);
+          this.attemptAcquire(this.generation, false);
         }
       });
   }
@@ -302,11 +339,15 @@ export class WebLocksTabGuard {
    *  immediately (equivalent to the tab closing). Does NOT re-queue.
    *
    *  Bumps `generation` (invalidating any in-flight attemptAcquire() call —
-   *  see its doc), but deliberately does NOT reset hasProbedOnce: a
-   *  subsequent start() should NOT re-probe, even though this looks like a
-   *  fresh start()-to-stop() lifetime. See hasProbedOnce's field doc and
-   *  attemptAcquire()'s doc for why re-probing on a React 18 StrictMode
-   *  remount would race the still-settling orphaned first probe.
+   *  see its doc). Deliberately does NOT touch probeInFlight: whether a
+   *  subsequent start() re-probes is governed purely by whether an earlier
+   *  probe has actually settled (see probeInFlight's field doc) — not by
+   *  this stop()/start() cycle itself, since the SAME cycle happens both
+   *  for React 18 StrictMode's harmless dev-only double-invoke (no real
+   *  time passes, re-probing would race the still-settling orphaned first
+   *  probe) and for a genuine bfcache freeze/restore (real time passes;
+   *  re-probing is exactly what's needed to notice a real other tab took
+   *  over while frozen).
    *
    *  Updates status/releaseHeldLock/abortController DIRECTLY here rather
    *  than leaving it to the held attempt's own `finally` (codex-review):

@@ -172,6 +172,40 @@ describe('WebLocksTabGuard', () => {
     expect(b.status).toBe('blocked'); // the lock is truly held once, not leaked/duplicated
   });
 
+  it('regression (codex-review round 2): after a real stop()/start() gap (e.g. a bfcache freeze-then-restore) with time to actually settle, a fresh probe correctly detects contention that arose while this guard was away', async () => {
+    // Unlike the StrictMode case above (no real time passes, so re-probing
+    // would race the orphaned first probe), a genuine stop()-then-start()
+    // separated by a settled gap must re-probe -- otherwise a tab that lost
+    // the lock while frozen and reclaims afterward would wrongly skip the
+    // rehydrate-before-write reload.
+    const a = makeGuard();
+    a.start();
+    await flush(); // a's first probe settles: uncontended, owner
+    expect(a.status).toBe('owner');
+    expect(a.shouldRehydrateOnThisAcquisition()).toBe(false);
+
+    a.stop(); // simulates releaseOnFreeze() releasing on bfcache freeze
+    await flush();
+
+    // Real time passes: a different guard (a different real tab) takes the
+    // now-free lock while `a` is away.
+    const b = makeGuard();
+    b.start();
+    await flush();
+    expect(b.status).toBe('owner');
+
+    a.start(); // simulates restoring from bfcache and re-queueing
+    await flush();
+    expect(a.status).toBe('blocked'); // b genuinely holds it
+
+    b.stop();
+    await flush();
+    expect(a.status).toBe('owner');
+    // The fresh probe on restart found b holding it -- this reclaim must be
+    // treated as a genuine recovery, not silently skipped.
+    expect(a.shouldRehydrateOnThisAcquisition()).toBe(true);
+  });
+
   it('an acquisition that genuinely had to wait behind another guard reports shouldRehydrateOnThisAcquisition() === true', async () => {
     const a = makeGuard();
     const b = makeGuard();
@@ -283,6 +317,41 @@ describe('WebLocksTabGuard', () => {
     // instantly.
     expect(a.status).toBe('blocked');
     expect(locks.pendingCount).toBe(1);
+  });
+
+  it('regression (codex-review round 2): a delayed post-yield requeue superseded by a real stop()/start() cycle during the wait does not submit a duplicate request', async () => {
+    // If a bfcache freeze-then-restore (a real stop()/start() cycle) lands
+    // inside the requeueDelayAfterYieldMs window, the delayed timeout must
+    // recognize itself as superseded (by generation) rather than blindly
+    // reusing whatever generation is current at fire time -- otherwise it
+    // would submit a SECOND, duplicate request alongside the one the
+    // restart's own start() already made.
+    const a = makeGuard({ requeueDelayAfterYieldMs: 20 });
+    const b = makeGuard();
+    a.start();
+    await flush();
+    b.start();
+    await flush();
+    expect(a.status).toBe('owner');
+
+    a.yieldIfOwner(); // schedules a's delayed requeue (20ms out)
+    await flush();
+    expect(b.status).toBe('owner');
+
+    // Before the delay elapses, simulate a real stop()/start() cycle on a
+    // (e.g. bfcache freeze-then-restore) -- this bumps generation, which
+    // must invalidate the still-pending delayed requeue from the yield.
+    a.stop();
+    a.start();
+    await flush();
+
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    await flush();
+
+    // Exactly one pending request for a, not two -- the stale timeout must
+    // have declined rather than submitting a duplicate.
+    expect(locks.pendingCount).toBe(1);
+    expect(a.status).toBe('blocked'); // b still holds it
   });
 
   it('yieldIfOwner() is a safe no-op when this guard is not currently the owner', async () => {
