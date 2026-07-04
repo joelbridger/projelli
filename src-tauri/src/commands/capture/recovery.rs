@@ -75,6 +75,17 @@ pub fn find_orphans(workspace: &Path) -> Result<Vec<OrphanSession>> {
     }
     walk(&canon_workspace, 0, &mut out);
     if let Some(active) = active {
+        // The scanned `meeting_dir`s are in `canon_workspace`'s canonical form
+        // (on Windows: verbatim `\\?\C:\…`). `active_meeting_dir()` may hold a
+        // DIFFERENT form for the very same directory — e.g. a non-verbatim
+        // `C:\…` path if the live session was started from a raw workspace
+        // string — and a plain `PathBuf` string compare would then FAIL to
+        // match, wrongly listing the live recording as a recoverable orphan
+        // (offering to finalize/truncate an in-progress meeting). Canonicalize
+        // `active` to the same form before comparing so the exclusion is
+        // reliable regardless of how the active path was stored. On Unix the
+        // two forms already coincide, so this is a no-op there.
+        let active = active.canonicalize().unwrap_or(active);
         out.retain(|o| PathBuf::from(&o.meeting_dir) != active);
     }
     Ok(out)

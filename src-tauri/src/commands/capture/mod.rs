@@ -36,6 +36,20 @@ pub(crate) fn guard_matter_folder(
 ) -> anyhow::Result<std::path::PathBuf> {
     use anyhow::{anyhow, bail, Context};
     let input = std::path::Path::new(matter_folder);
+    // Reject `..` in the RAW input before joining. On Windows `canon_ws.join`
+    // NORMALIZES a leading `..` away (popping a real ancestor) before
+    // `canonicalize_symlink_safe_absolute` ever sees a `ParentDir` component,
+    // so pathguard's own `..` refusal never fires there — the traversal would
+    // then be caught only by the final containment check (still secure, but
+    // one defense layer short and with a misleading "escapes workspace"
+    // message). Refusing it here makes the `..` guarantee fire identically on
+    // every OS. (A real matter folder never contains `..`.)
+    if input
+        .components()
+        .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
+        bail!("matter folder path must not contain '..': {matter_folder}");
+    }
     let canon_ws = workspace
         .canonicalize()
         .context("cannot canonicalize workspace")?;

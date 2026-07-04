@@ -43,6 +43,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   macOS capture sidecar (`capture-mac`) is a documented follow-up. Files:
   `capture/{engine,chunks,recovery,session,sources,mod}.rs`, `pathguard.rs` (absolute variant).
 
+### Fixed
+- **Windows verbatim-path blocker in `capture_start` (empty-path canonicalize).**
+  `pathguard::canonicalize_symlink_safe_absolute` walked components from an EMPTY `PathBuf`
+  and tried to `symlink_metadata()` the first component. On Windows the first component of a
+  verbatim path (`\\?\C:\…`, which `Path::canonicalize()` always returns, and which
+  `guard_matter_folder` produces by joining caller input onto a canonicalized root) is the
+  drive prefix `\\?\C:`, which is not statable on its own — so the walk collapsed to an empty
+  base and canonicalized `""`, producing `cannot canonicalize : The system cannot find the
+  path specified. (os error 3)` and blocking every `capture_start`. Fix: seed the walk from
+  the path's `Prefix`/`RootDir` anchors verbatim (they can never be a symlink, so no stat),
+  keep the no-follow guarantee for every `Normal` component and the missing-tail tolerance,
+  and put the actual path in the error. Audited the other three resolvers
+  (`canonicalize_symlink_safe`, `resolve_creatable`, `contained`) — safe by construction
+  (they seed from a real caller-supplied base, never stat a bare prefix). Files:
+  `src-tauri/src/commands/pathguard.rs`. Windows verbatim regression test + platform-neutral
+  root-seeding guards added; proven on a real Windows machine.
+- **Hardening: `canonicalize_symlink_safe_absolute` now rejects crafted verbatim inputs that hide
+  a separator or `..` inside one path component** (independent-review follow-up). A verbatim path
+  (`\\?\…`) does not split on `/` or normalize `..`, so a single `Normal` component could secretly
+  carry `Clients/../Other`; the later `join` re-parsed and re-materialized that `..`, defeating both
+  the no-`..` and no-follow-symlink guarantees. Each `Normal` segment must now re-parse to exactly
+  itself. Also enforces the resolver's already-absolute contract up front (`is_absolute()`), so a
+  degenerate relative/empty input can never walk against an empty or caller-relative base.
+- **Two pre-existing Windows-only path-form bugs in the capture guards' callers**, surfaced by running
+  the capture test module on real Windows for the first time (both failed before the verbatim fix too,
+  masked by the guards erroring on every verbatim path — neither is a regression):
+  - `guard_matter_folder` now rejects `..` in the raw matter-folder input up front. On Windows
+    `canon_ws.join("..")` normalizes the `..` away before pathguard's `ParentDir` refusal can fire, so
+    the traversal was caught only by the final containment check (secure, but one defense layer short and
+    with a misleading "escapes workspace" message). Now the `..` guarantee fires identically on every OS.
+  - `find_orphans` now canonicalizes the active-recording path before excluding it from the orphan list.
+    The scanned dirs are in `canon_workspace`'s verbatim form (`\\?\C:\…`) while `active_meeting_dir()`
+    could hold the same dir in non-verbatim `C:\…` form; the plain string compare then missed the match
+    and wrongly offered the LIVE recording as a recoverable orphan on Windows. Files:
+    `src-tauri/src/commands/capture/mod.rs`, `src-tauri/src/commands/capture/recovery.rs`.
+
 ### Security
 - **Audit chain: fail-closed on a missing integrity seal (silent-reseal gap closed).** An
   attacker (or bug) that deleted tail rows AND the `chain_head_v1` seal metadata could get
