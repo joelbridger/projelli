@@ -25,6 +25,9 @@
 | QA-21 | P2 (environment-dependent) | Local-AI Ask answers intermittently end in a generic "The local AI couldn't answer, and your data stayed on your machine... try again or search by keyword" error after 60–90s of real processing (confirmed via CPU/process activity, not a hang) — happened on 2 of 3 attempts in this session, including once right after the model had already found and started citing the correct file mid-stream. Graceful degradation itself is good (no crash, clear message, keyword-search fallback suggested); the failure rate is the concern. This VM's CPU-only 4-vCPU inference is a plausible confound — recommend re-checking on the Legion/a GPU machine before treating the failure *rate* as a real product bug, but the error-message UX is worth keeping either way. | lane qa2 | NEW |
 | QA-22 | P3 | "Send to Wealthbox" button's disabled-tooltip says "Connect Wealthbox in Settings → Connections" — but there is no "Connections" section anywhere under the Settings gear (confirmed via full settings nav, the settings search box, and the Ctrl+K command palette, all empty for "wealthbox"/"connections"). The real location is **Account (bottom-left "Your account") → Connections tab** — a completely different, non-obvious surface from what the tooltip tells you to look for. | lane qa2 | NEW |
 | QA-23 | P3 (inconclusive, needs live re-test) | Attempted to re-verify QA-1's persistence fix by directly seeding a well-formed `ProposedCrmWrite` into the `crm-write-queue-storage` localStorage key (matching the store's own persisted shape) and reloading. The item survived in localStorage across the reload (the underlying persistence QA-1 fixed does hold), but neither the Client-Map-overview review card nor the cross-tab "pending" banner ever rendered it — even though the card's own source only needs `items.length > 0` to mount. Could not tell whether this is a real regression or an artifact of hand-seeding the store outside its normal write path (no live Wealthbox token was available this session to test the real flow end-to-end). Flagging honestly as unresolved — the next lane with a real Wealthbox sandbox token should re-run QA-1's original repro rather than trust this synthetic test. | lane qa2 | NEW |
+| QA-24 | P1 (client-isolation breach) | **Double/triple-clicking "Create client" creates multiple duplicate client records that collide on the same on-disk folder name, and files created inside one duplicate can become permanently invisible in that same duplicate's own Documents view.** Triple-clicking the Create button on a single "Klutz Test Client" submission created 3 separate matter records (distinct `matter_*` IDs), all auto-linked to the identical physical folder `QA Workspace/Klutz Test Client/` (confirmed via each duplicate's own "Creating in:" path in the New-Document dialog). A file created inside duplicate #1 was written to disk correctly but its own Documents tab kept showing "No documents yet" even after re-navigating away and back — while a control test creating a file in a normal, non-duplicated client (Garcia Family Trust) showed the new file immediately, proving the bug is specific to the name-collision state, not a general file-list-refresh issue. No debounce/disable-while-submitting guard exists on the Create button. | lane qa4, persona C "the klutz" (Azure bench-1) | NEW |
+| QA-25 | P2 | **Submitting an Ask question and immediately switching to a different client silently discards the question** — no error, no partial/"Answering…" state, no history entry, nothing. Asked Emily Chen Household's Ask a real question, immediately clicked to Garcia Family Trust, then back to Emily (both immediately and again after an 8s wait): Emily's Ask thread was completely empty both times, as if the question had never been submitted — the composer still showed the typed text but the conversation area was blank. A real advisor doing this (ask a question, then get pulled into another client) would have no way to tell whether their question is still processing, was lost, or never went through. | lane qa4, persona C "the klutz" (Azure bench-1) | NEW |
+| QA-26 | P3 | **Two different "create a new document" affordances behave inconsistently.** The empty-state "+ New Word document" button (shown when a client has zero files) opens a "Create Word Document" naming dialog first. The toolbar's "New document" button (shown once a client has any files) instead creates a file immediately with a generic default name (`my-document.docx`) and no naming prompt at all. A klutz clicking the toolbar button expecting the same naming step as the empty-state button gets an unexpectedly-named file with zero confirmation. | lane qa4, persona C "the klutz" (Azure bench-1) | NEW |
 | QA-30 | P1 (trust-breaking) | **Recorded meetings vanish from the Meetings tab after an app restart** — files fully intact on disk (verified by direct filesystem check on the Legion), but the tab shows "No meetings yet" for ALL meetings incl. pre-existing ones. Looks exactly like data loss to an advisor. Found during the live Legion walkthrough (real Teams call recorded; consent + zero-egress PASSED). Evidence: docs/evidence/meetings-verify-20260704/ on lp/windows-smoke-evidence. (IDs QA-24..29 reserved for lane qa4.) | lane meetverify (Legion, real hardware) | FIX LANE: lp/meetings-persist |
 
 ---
@@ -381,3 +384,145 @@ The Word editor auto-saves and even quietly keeps a backup copy before big edits
 screen is genuinely thoughtful, not just a legal cover-your-back popup. And the fixes from the very
 first testing round (new clients getting their own folder, the Ask box being visible on a normal-size
 window) are both holding up correctly under real use.
+
+---
+
+## Lane qa4 detail — persona C, "the klutz" (Azure bench-1, 2026-07-04)
+
+**Seat/setup:** `lantern-cloud-bench-1`, reused from qa2's session (repo was only ~2h stale). Pulled
+to `origin/lantern-plus` tip (`de72ab1b`, includes the `aca9bb81` QA-fix-batch2 merge and the
+`582a32fe` Meetings-tab UX gate) and rebuilt — no Rust changes in the diff, so the rebuild was a fast
+8.97s relink, not a cold compile. Kept qa2's existing 4 clients (Emily Chen Household, Müller Family,
+Garcia Family Trust, Okafor Retirement Planning) rather than wiping, per the coordinator's assignment.
+Driven live over CDP (`scripts/desktop-drive.mjs`) via a dedicated SSH tunnel on local port 9451 (per
+the coordinator's port-collision note). Evidence: `coordination/qa-campaign/evidence/qa4-20260704/`
+(26 screenshots, numbered in chronological order).
+
+**Operational note, not a product bug:** mid-session, killing `lantern.exe` to test crash resilience
+left the dev harness (`npm run tauri:dev` via the `LanternDevBench` scheduled task) unable to cleanly
+restart for about 15 minutes — `Start-ScheduledTask`/`schtasks /run` kept returning `LastTaskResult 1`
+with the redirected log file silently un-writable, and manual `Start-Process`/`cmd /c` invocations over
+SSH never actually launched a process (very likely a Windows session/window-station restriction on
+processes started from a non-interactive SSH context, which is exactly why the original bench setup
+used an interactive `AtLogOn` scheduled task in the first place). A full `az vm restart` resolved it
+cleanly in ~3 minutes (the same auto-logon + `AtLogOn` task that worked right after the original
+`az vm start` fired again correctly). Also chased a red herring here: repeatedly seeing a dozen
+`msedgewebview2.exe` processes with fresh timestamps after each kill attempt looked at first like the
+app orphaning its WebView2 children on force-kill, but turned out to be unrelated Windows 11 shell
+components (Widgets/Search) that also use `msedgewebview2.exe` — confirmed by checking that
+`lantern.exe` itself and port 9223 were both genuinely down the whole time. Flagging so a future bench
+session doesn't lose the same ~15 minutes, and doesn't mistake OS shell noise for an app bug.
+
+### Repro detail + evidence per finding
+
+**QA-24** (duplicate clients collide on one folder, files go invisible): opened "+ New client",
+typed "Klutz Test Client", then fired 3 rapid clicks at "Create client" — a well-meaning klutz's
+classic "did that register?" re-click. Result: 3 separate matter records (`matter_59c12ad6…`,
+`matter_48da243d…`, `matter_86e8ade9…`), each showing "1 folder" in the Client Map, and — critically —
+each one's own "New Word Document" dialog showed the identical "Creating in:
+C:/Users/lpbench/Documents/QA Workspace/Klutz Test Client/" path, proving all 3 point at the same
+physical directory (confirmed on disk: only one `Klutz Test Client` folder exists at all).
+Created `MARKER-FROM-DUPLICATE-1.docx` inside duplicate #1 — the file landed on disk correctly
+(confirmed via `Get-ChildItem`) but duplicate #1's own Documents tab kept showing "No documents yet",
+even after navigating away to Client Map and back twice. To rule out a general "file list doesn't
+refresh" bug, ran the identical create-a-document flow on Garcia Family Trust (a normal,
+non-duplicated client): the new file appeared in its Files grid immediately, no delay, no re-nav
+needed — proving the invisibility is specific to the name-collision state the triple-click created,
+not a general regression. Evidence: `03-new-client-doubleclick.jpeg` (dialog opens once despite
+double-click) → `04-after-tripleclick-create.jpeg` (3 duplicate rows) → `05`/`08`/`09` (duplicate #1's
+Documents tab stuck on "No documents yet") → `10`–`13` (Garcia control test: file appears instantly).
+**Real, high confidence, reproduced with a clean control** — and a genuine breach of the client
+isolation promise, since a real advisor mis-clicking Create would end up with confidential documents
+silently split across indistinguishable "Klutz Test Client" rows in the sidebar, with some of that
+content becoming permanently invisible from the UI (though safely still on disk). Left the 3 duplicate
+clients + marker doc in place on the bench as live repro state for whoever picks up the fix.
+
+**QA-25** (Ask silently discarded on immediate client-switch): on Emily Chen Household's Ask tab,
+typed "What is this client doing about their Roth conversion?" and clicked Ask, then — the way an
+impatient real user would — immediately clicked away to Garcia Family Trust before it could possibly
+have answered. Switched back to Emily's Ask tab right away, and again 8 seconds later: both times the
+conversation area was completely blank — no "Answering…" indicator, no error, no history entry, just
+the composer still holding the typed text as if never submitted. Evidence: `23-ask-tab.jpeg` (question
+typed, about to submit) → `25-emily-ask-state-after-switch.jpeg` and `26-emily-ask-recheck.jpeg` (both
+show an empty conversation after switching away and back). Separately and not fully explained: Garcia's
+own Ask tab showed an already-completed exchange with similar leftover composer text
+(`24-switched-to-garcia-midask.jpeg`) — too fast to plausibly be a fresh local-AI computation
+(this VM's local Ask answers take 60–90s per QA-21), so most likely a pre-existing conversation from
+earlier in the session rather than genuine cross-client bleed of my question; flagging honestly as
+unconfirmed rather than asserting cross-contamination. The clear, reproduced part of this finding is
+that Emily's own question vanished with zero trace.
+
+**QA-26** (inconsistent New Document affordances): the empty-state "+ New Word document" button (seen
+when a client has zero files, e.g. `06-after-newdoc.jpeg` on a fresh Klutz Test Client) opens a naming
+dialog ("Enter file name (without extension)"). The toolbar's "New document" button, present once a
+client already has any files, instead creates `my-document.docx` immediately with zero prompt
+(`18-emily-docs-state.jpeg` shows the file already existing right after the click, with no dialog ever
+having appeared). Minor, but a real inconsistency between two entry points to the same feature that a
+distracted user could easily trip over.
+
+### Confirmed FIXED — re-verified live
+
+**QA-20 (silent no-mic recording failure) is fixed.** Checked "I have the consent I need" and
+double-clicked "Start recording" with no microphone present (this VM class has none, by design) — the
+dialog now shows a clear inline error, **"Recording couldn't start: no microphone device"**, in red
+text right in the dialog, which stays open so the user can Cancel or read the message (previously the
+dialog just silently closed with zero feedback). The double-click didn't cause a duplicate error or
+any glitch. Also checked disk afterward: **no orphan `Meetings/` folder was created this time**
+(previously QA-20 also noted an empty leftover folder) — that part of the gap looks fixed too.
+Evidence: `14-consent-dialog.jpeg` (before) → `16-after-start-recording-nomic.jpeg` (inline error) →
+`17-after-cancel.jpeg` (clean Cancel back to empty state).
+
+**Testing limitation, honestly flagged:** bench-1 has no virtual audio device (VB-CABLE lives only on
+bench-2 per the campaign doc), so I could not get the app into an actual in-progress recording state —
+meaning the brief's "sleep/resume mid-recording" and "start recording then switch clients" scenarios
+could not be tested on this seat. A future klutz pass on bench-2 would be needed to cover those
+specifically.
+
+### What's GOOD (so a designer can feel the klutz-proofing, not just the bugs)
+
+- **Rapid multi-click is safe almost everywhere except client creation.** Triple-clicking the
+  onboarding tour's "Next" button advanced exactly 3 steps (1→4), no double-fire, no skipped/garbled
+  state. Double-clicking "New client" to open the dialog only ever opened one dialog, never two
+  stacked. Double-clicking "Start recording" during the no-mic failure didn't duplicate the error or
+  glitch. The one place multi-click genuinely breaks something is the Create-client submit button
+  itself (QA-24).
+- **Escape and Cancel are reliable everywhere tried.** Escape correctly closed the onboarding tour,
+  the New Client dialog (mid-typing, before any client was created — confirmed zero client and zero
+  folder got created), and the recording consent dialog's Cancel button all left the app in a clean,
+  unconfused state with no orphaned partial data, no stuck spinners, no leftover error banners.
+- **Crash resilience held up again, even through a genuinely hard test.** Typed a full sentence into
+  a document and force-killed `lantern.exe` within roughly a second — well inside the documented 2-
+  second autosave window. After a full VM reboot and clean relaunch, the file itself was intact,
+  opened correctly, and showed a clean "Saved" state (just the last, never-autosaved sentence was
+  gone, which is the expected/correct behavior for a periodic-autosave design, not a bug) — no
+  corruption, no crash dialog, no confusion.
+- **The Ask composer responsive-layout fix (QA-6) still holds** at this session's window size, no
+  0-width collapse.
+
+### Plain-language summary (for Jameson)
+
+I spent this session pretending to be a well-meaning but clumsy user: double- and triple-clicking
+buttons, hitting Escape and Cancel on almost everything, killing the app at the worst possible moments,
+and switching between clients mid-task.
+
+**The biggest thing I found:** if you click "Create client" more than once in a row (the way anyone
+does when they're not sure the first click registered), the app creates **multiple separate clients
+with the same name that all secretly share one folder on disk.** Files you put into one of those
+duplicate clients can end up **invisible in that same client's own file list** — the file is safely on
+your hard drive, but the app itself can't find it anymore. Since this app's whole promise is "each
+client's data stays cleanly separated," a simple double-click turning into three tangled, partly-broken
+copies of the same client is a real problem, not just a cosmetic glitch.
+
+**Second thing:** if you ask the AI a question and then get pulled away to a different client before it
+answers (totally normal — a coworker interrupts you, a notification pops up), your question just
+**disappears with no trace** — no error, no "still working on it," nothing. You'd have no way to know
+if you need to ask again.
+
+**Good news on an earlier bug:** the "starting a recording with no working microphone fails completely
+silently" problem from an earlier testing round is now genuinely fixed — it shows a clear, honest error
+message instead of just quietly giving up.
+
+**What held up well:** I really tried to break things with rapid double- and triple-clicking, and
+almost everywhere else it was rock solid — the onboarding tour, opening dialogs, hitting Cancel or the
+Escape key, even killing the app while it was mid-save. The only real casualty of my clumsiness was the
+"Create client" button.
