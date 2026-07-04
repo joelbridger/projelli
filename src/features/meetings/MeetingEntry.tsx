@@ -85,9 +85,13 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
         if (!cancelled) setTranscript(JSON.parse(raw) as TranscriptFile);
       } catch { /* transcription still queued */ }
       try {
-        await ws.readFile(`${meetingDir}/notes.docx`);
-        if (!cancelled) setHasNotes(true);
-      } catch { /* notes still generating */ }
+        // codex-review (coordinator P2): notes.docx is binary — readFile is
+        // the TEXT reader (readTextFile on Tauri) and can throw decoding real
+        // docx bytes even though the file exists. exists() is the correct,
+        // decode-free presence check.
+        const notesExists = await ws.exists(`${meetingDir}/notes.docx`);
+        if (!cancelled) setHasNotes(notesExists);
+      } catch { /* couldn't check — treat as not-yet-generated */ }
       try {
         const buffer = await ws.readFileBinary(`${meetingDir}/audio.wav`);
         if (!cancelled) {
@@ -158,8 +162,11 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
       setMeta(JSON.parse(await ws.readFile(`${meetingDir}/meeting.json`)) as MeetingMeta);
     } catch { /* unreadable */ }
     try {
-      await ws.readFile(`${meetingDir}/notes.docx`);
-      setHasNotes(true);
+      // codex-review (coordinator P2): notes.docx is binary — reading it as
+      // text can throw on real docx bytes even though the write succeeded,
+      // which would have fallen back to the "still generating" state right
+      // after a SUCCESSFUL retry. exists() is a decode-free presence check.
+      setHasNotes(await ws.exists(`${meetingDir}/notes.docx`));
     } catch {
       setHasNotes(false);
     }
