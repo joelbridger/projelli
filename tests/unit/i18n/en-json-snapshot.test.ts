@@ -73,6 +73,7 @@ describe('en.json structure snapshot', () => {
         "settings": 167,
         "shortcuts-overlay": 2,
         "spine": 5,
+        "tab-guard": 3,
         "tts": 1,
         "updater": 2,
         "vault": 53,
@@ -138,7 +139,9 @@ describe('en.json structure snapshot', () => {
     // +3 = meetpersist P1 fix (2026-07-04): meetings.tab gained scan-error-title/
     //      scan-error-body/retry-button — a failed disk scan now renders a
     //      distinct error state instead of masquerading as "No meetings yet".
-    expect(flat.length).toBe(1128);
+    // +3 = tab-guard.* (title, description, take-over) — QA-15 browser-build
+    //      single-writer tab gate ("this workspace is open in another tab").
+    expect(flat.length).toBe(1131);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

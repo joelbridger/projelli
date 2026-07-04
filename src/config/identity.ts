@@ -41,6 +41,10 @@ export const KC_DEVICE_META_SERVICE = `${KC_DEVICE_PREFIX}meta`;
 // ── localStorage / Zustand persist names ─────────────────────────────────────
 
 export const SK_SETTINGS                     = `${APP_NS}:settings`;
+/** QA-15 browser-build single-writer tab lock (src/platform/browserGuard/). Not a
+ *  zustand persist key — a heartbeat record `{tabId, heartbeatAt}` written by
+ *  whichever tab currently owns write access to this origin's localStorage. */
+export const SK_TAB_LOCK                     = `${APP_NS}:tab-lock`;
 export const SK_TAB_OVERFLOW                 = `${APP_NS}:tabOverflow`;
 export const SK_FIRM_SESSION                 = `${APP_NS}:firm-session`;
 export const SK_PRIVILEGE                    = `${APP_NS}:privilege`;

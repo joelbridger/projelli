@@ -1817,6 +1817,11 @@
       "description__sourceHash": "56d8e688d4d66c3398e32e089f17f37d934a8c0c8d179a83becd173733e3972a"
     }
   },
+  "tab-guard": {
+    "title": "Este espacio de trabajo está abierto en otra pestaña",
+    "description": "Para proteger tus datos, solo una pestaña del navegador puede guardar cambios a la vez. Vuelve a tu otra pestaña para seguir trabajando allí, o usa esta pestaña en su lugar.",
+    "take-over": "Usar esta pestaña en su lugar"
+  },
   "ask": {
     "scope-pill": {
       "this-matter": "Este cliente",

@@ -19,9 +19,11 @@ describe('classifyClientMapError', () => {
     expect(classifyClientMapError('please re-index this workspace')).toBe('index');
   });
 
-  it('classifies the browser no-backend retrieval throw as an index error', () => {
+  it('classifies the browser no-backend retrieval throw as its own desktopOnly bucket, not index', () => {
+    // This is NOT a transient/retryable index problem (QA-13) — the browser
+    // build has no Rust/LanceDB engine at all, so "try again" can never help.
     expect(classifyClientMapError(new Error('RAG is only available in the desktop app.'))).toBe(
-      'index',
+      'desktopOnly',
     );
   });
 
@@ -126,6 +128,14 @@ describe('clientMapBuildErrorMessage', () => {
     expect(message).not.toMatch(/AI connection/i);
     expect(message).toBe('Could not build client map. Try again in a moment.');
   });
+
+  it('tells the truth about the browser build lacking a desktop backend, never "try again" (QA-13)', () => {
+    const error = new Error('RAG is only available in the desktop app.');
+    const message = clientMapBuildErrorMessage(error);
+    expect(message).toMatch(/desktop app/i);
+    expect(message).not.toMatch(/try again/i);
+    expect(message).not.toMatch(/AI connection/i);
+  });
 });
 
 describe('clientMapUpdateErrorMessage', () => {
@@ -146,5 +156,12 @@ describe('clientMapUpdateErrorMessage', () => {
     expect(clientMapUpdateErrorMessage(error)).toBe(
       'Could not check for client map updates. Try again in a moment.',
     );
+  });
+
+  it('tells the truth about the browser build lacking a desktop backend, never "try again" (QA-13)', () => {
+    const error = new Error('RAG is only available in the desktop app.');
+    const message = clientMapUpdateErrorMessage(error);
+    expect(message).toMatch(/desktop app/i);
+    expect(message).not.toMatch(/try again/i);
   });
 });
