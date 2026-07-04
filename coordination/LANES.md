@@ -2,17 +2,20 @@
 
 **Purpose:** the O(1) answer to "what is every Lantern-Plus lane doing right now?" Updated on every spawn/merge/close (mirror of main line's `~/keepance-coordination/LANES.md` convention; the fleet dashboard reads both).
 
-Last updated: 2026-07-04 ~09:25 (coordinator-7 seated — w3ux+qafix2 in flight; qa2 persona-B + zoomacct opened)
+Last updated: 2026-07-04 ~10:05 (coordinator-7 — w3ux + qafix2 MERGED; meetverify (Legion) + i18nfix + webguard opened; qa2 mid-explore)
 
 ## Active lanes
 | Worker session | What | State |
 |---|---|---|
-| cc-lantern-w3ux | 🎨 SENIOR-UX gate on the assembled Meetings tab (Fable; lp/wave3-meetings-ux; ~/lp-w3ux) — experience it first-hand, ranked findings doc, implement blocker+should-fix polish; then live Legion verify → re-declare done. Legion RESERVED for it | implementing polish |
-| cc-lantern-qafix2 | QA fix batch 2 (lp/qa-fix-batch2; ~/lp-qafix2): QA-7 AI-hang UX + QA-8/9 onboarding overlaps. Routed back on the QA-8 spec; chose option A (measure the real lottie svg), stress-testing 6 cold runs. Merge ONLY on a bare-exit-0 fresh-server run | re-verifying |
+| cc-lantern-meetverify | 🏁 Legion LIVE Meetings walkthrough (brief w-meetverify-brief.md; ~/lp-bench evidence worktree): real Teams call, record ≥3min, verify consent/transcript/notes/audio-seek on real hardware, screenshots for Jameson → gate for re-declaring Meetings DONE. OWNS the Legion | verifying |
+| cc-lantern-i18nfix | i18n fixes (lp/i18n-fixes; ~/lp-i18nfix): 19 i18n:check warnings → 0 + QA-14 P1 hardcoded nav/hub labels ignore language switch (brief w-i18nfix-brief.md) | building |
+| cc-lantern-webguard | Browser-build honesty (lp/browser-tab-guard; ~/lp-webguard): QA-15 P1 two-tab silent data loss guard + QA-13 honest no-desktop message (brief w-webguard-brief.md) | building |
 | cc-lantern-qa2 | QA campaign persona B "daily driver" explorer on Azure bench-1 (own worktree ~/lp-qa2, branch lp/qa-persona-b; brief w-qa2-brief.md). Rebuilds VM to current tip incl. Meetings tab | exploring |
 | codex divergence job | Detached Codex read-mostly analysis: fork↔main divergence report → coordination/integration/DIVERGENCE-REPORT.md (pre-stages Q#6 fork→main integration). Job 20260704-091258-fbr6xxxx, 15-min liveness watch armed | running |
 
 ## Merged this session
+✅ lp/wave3-meetings-ux @582a32fe — 🎨 Meetings-tab SENIOR-UX gate (Fable): 7 blockers + 11 should-fixes implemented (recording-pill truth + local-privacy reassurance, human meeting titles, [t:ms]→"(at m:ss)" on BOTH note paths via one shared helper, slim scrubber, inline start-failure errors, confirmed deletion, processingCount vs boolean race). Findings doc docs/design/2026-07-04-meetings-tab-ux-review.md + 15 before/after shots. Worker codex P2 + my independent codex 2 P2s all confirmed+fixed pre-merge. Gate: tsc + 5769 vitest bare-0 (TS-only, cargo skipped)
+✅ lp/qa-fix-batch2 @aca9bb81 — QA-7 Ask stall watchdog (12s warning + 45s honest timeout, re-arms per chunk, covers mid-answer stalls per my codex P2 routing) + QA-8/9 onboarding overlaps + hardened spec. Verified by ME twice with fresh-server bare-exit-0 (worker's early false-fails were the shared-:5173 stale-server trap — see port rule below). Gate: tsc + 5790 vitest bare-0 + spec 4/4 on merged state
 ✅ lp/qa-persona-d @18824822 — QA persona-D edge-case sweep (browser build): QA-13..18 filed incl 2 P1s (QA-14 language switch skips core nav — root-caused to literal labels; QA-15 two-browser-tabs silent last-write-wins data loss). XSS held everywhere; QA-5 fix confirmed still live; 500 clients perform fine. Lane closed clean
 ✅ zoomacct lane DONE — Zoom free account created + login/host verified (Sarah Morgan; creds chmod-600 in demo-creds/zoom-account.md). Google Meet account BLOCKED at Google's QR/phone bot-check — correctly stopped per guardrail; one Jameson tap needed (Q#9). Session closed
 ✅ lp/wave3-meetings-ui — 🎬 Wave-3 MEETINGS SURFACE: record pill, per-client Meetings tab (between Email & Activity), MeetingEntry (notes+transcript+audio-seek), needs-review queue, consent dialog+ledger, dictation filing. Own codex found+fixed 3 bugs; rebase caught a 4th (stopRecording overwriting Rust's authoritative meeting metadata). Gate 5755 vitest + tsc + playwright meetings 2/2
