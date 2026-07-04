@@ -7,6 +7,8 @@ Last updated: 2026-07-04 ~12:15 (coordinator-7 — 6 merges landed; meetpersist+
 ## Active lanes
 | Worker session | What | State |
 |---|---|---|
+| cc-lantern-regression | 🔍 Consolidated Windows regression smoke on the Legion (evidence-only, parallel to all code lanes): reconfirm Meetings + LIVE-verify QA-34 P0 save & QA-35 disk-full (the unit-proven gaps) + Tier A honesty spot-check + broad smoke + optional Zoom (brief w-regression-brief.md). Owns Legion | verifying |
+| cc-lantern-cleanup4 | Cleanup 4 (lp/cleanup-batch4; ~/lp-cleanup4): docx keep-alive for dirty tabs (qafix5 residual race) + CrmWriteReviewCard test flake (brief w-cleanup4-brief.md) | building |
 | cc-lantern-tierB | TRUST TIER B "guard the outbound door" (lp/trust-tier-b; ~/lp-tierB; OPUS): unresolved notes unsendable + outbound provenance + no generate-on-open + citations travel + whole-practice pre-send confirm + R1 attestation + R9 biometric-consent interim (brief w-tierB-brief.md) | building |
 | cc-lantern-qa35fix | QA-35 fix (lp/qa-fix-batch7; ~/lp-qa35fix): ENOSPC mid-recording — isolate real chunk-writer behavior, honest error + clean stop + preserve partial (brief w-qa35fix-brief.md) | building |
 | cc-lantern-noticecard | 🎯 THE NOTICE CARD v1+v2 (lp/notice-card; ~/lp-noticecard; OPUS 4.8): local notice participant — calendar join-URL, Teams+Zoom adapters in isolated companion webview, lifecycle supervisor, canvas-camera visual card, policy hook + 2 quick wins (brief w-noticecard-brief.md; design docs/strategy/2026-07-04-notice-participant-design.md) | building |
