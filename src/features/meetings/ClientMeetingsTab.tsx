@@ -13,6 +13,9 @@ import { Badge, EmptyState } from '@/ui/kp';
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
 import { useMeetingStore, needsReview, type ReviewItem } from './meetingStore';
 import type { MeetingMeta } from './meetingStore';
+import { ConsentDialog, isMacPermissionError } from './ConsentDialog';
+import { consentModeFor } from './recordingConsentLaw';
+import { makeConsentLedger, type ConsentEntry } from './consentLedger';
 
 export interface MeetingSummary {
   dir: string;
@@ -26,6 +29,7 @@ export interface MeetingSummary {
 interface ListableWorkspace {
   list(path: string): Promise<{ name: string; path: string; type: 'file' | 'folder' }[]>;
   readFile(path: string): Promise<string>;
+  writeFile(path: string, content: string): Promise<void>;
 }
 
 /** Scans `<matterFolder>/Meetings/` for meeting folders, reading each one's
@@ -87,6 +91,10 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
   const recording = useMeetingStore((s) => s.status.recording);
   const startRecording = useMeetingStore((s) => s.startRecording);
   const crmQueueItems = useCrmWriteQueueStore((s) => s.items);
+  const [showConsent, setShowConsent] = useState(false);
+  const [macPermissionError, setMacPermissionError] = useState(false);
+  const [standingConsent, setStandingConsent] = useState<ConsentEntry | null>(null);
+  const consentMode = consentModeFor(null); // no per-client state on file yet (see Matter type)
 
   const refresh = useCallback(async () => {
     const ws = workspaceService;
@@ -106,9 +114,31 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
   }, [recording]);
 
   const handleRecordClick = useCallback(() => {
-    // Interim: Task 13 inserts the consent dialog ahead of this call.
-    void startRecording(matterId, { consentMode: 'two-party' });
-  }, [matterId, startRecording]);
+    void (async () => {
+      if (workspaceService) {
+        const sc = await makeConsentLedger(workspaceService, () => matterFolder).standingConsent(matterId);
+        setStandingConsent(sc);
+      }
+      setMacPermissionError(false);
+      setShowConsent(true);
+    })();
+  }, [matterId, matterFolder, workspaceService]);
+
+  const handleConsentConfirm = useCallback((opts: { note?: string }) => {
+    void (async () => {
+      try {
+        await startRecording(matterId, { consentMode, ...(opts.note ? { consentNote: opts.note } : {}) });
+        setShowConsent(false);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (isMacPermissionError(message)) {
+          setMacPermissionError(true);
+        } else {
+          setShowConsent(false);
+        }
+      }
+    })();
+  }, [matterId, consentMode, startRecording]);
 
   // Task 12b — per-client (never practice-wide) review queue: which of THIS
   // client's meetings still need a look, and why.
@@ -222,6 +252,14 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
       <div style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
         {t('meetings.tab.activity-hint')}
       </div>
+      <ConsentDialog
+        open={showConsent}
+        onOpenChange={setShowConsent}
+        consentMode={consentMode}
+        standingConsent={standingConsent}
+        macPermissionError={macPermissionError}
+        onConfirm={handleConsentConfirm}
+      />
     </div>
   );
 }

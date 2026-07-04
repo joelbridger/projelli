@@ -26,6 +26,7 @@ import { meetingNoteFromTranscript } from '@/features/meetings/meetingNoteTempla
 import { AuditService } from '@/platform/audit/AuditService';
 import { detectMeetingType, makeMeetingTypesStore } from './meetingTypes';
 import { dictationToMeeting } from './dictationToMeeting';
+import { makeConsentLedger } from './consentLedger';
 import type { MeetingSummary } from './ClientMeetingsTab';
 
 export interface StartOpts {
@@ -199,6 +200,18 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
     void audit.logDurable('meeting_capture_started', 'Meeting recording started', {
       metadata: { matterId, consentMode: opts.consentMode, meetingDir: r.meetingDir },
     });
+    if (activeWorkspaceService) {
+      const ws = activeWorkspaceService;
+      void makeConsentLedger(ws, () => matterFolder)
+        .recordConsent(matterId, {
+          mode: opts.consentMode,
+          scope: 'per-meeting',
+          confirmedAt: new Date().toISOString(),
+          meetingDir: r.meetingDir,
+          ...(opts.consentNote ? { note: opts.consentNote } : {}),
+        })
+        .catch(() => {});
+    }
   },
 
   async stopRecording(opts) {
