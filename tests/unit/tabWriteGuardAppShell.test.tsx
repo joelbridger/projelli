@@ -17,7 +17,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import { SK_TAB_LOCK } from '@/config/identity';
 
-const flushAllDirtyTabsSpy = vi.fn(async () => {});
+const flushAllDirtyTabsSpy = vi.fn(async (..._args: unknown[]) => {});
 vi.mock('@/app/fileOps/flushDirtyTabs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/app/fileOps/flushDirtyTabs')>();
   return { ...actual, flushAllDirtyTabs: (...args: unknown[]) => flushAllDirtyTabsSpy(...args) };

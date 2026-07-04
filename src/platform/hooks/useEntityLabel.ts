@@ -31,6 +31,7 @@
  * Internal Matter type, ids, store names, and SAMPLE_MATTER_ID are NEVER
  * changed by this hook; only the visible words adapt.
  */
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
 import { useProfessionStore, getProfession } from '@/platform/profile/professionStore';
@@ -141,11 +142,20 @@ function buildEntityLabel(profession: Profession, t: (key: string) => string): E
 /**
  * Reactive React hook. Re-renders the component whenever the profession or
  * the active locale changes (e.g. via settings or localStorage toggle).
+ *
+ * Memoized on (profession, language) so the returned object keeps its
+ * identity across unrelated re-renders — callers like AIChatViewer pass this
+ * down to memoized children (ChatMessageList/MessageBubble) that depend on
+ * referential stability to skip re-rendering the message history.
  */
 export function useEntityLabel(): EntityLabel {
   const profession = useProfessionStore((s) => s.profession);
   const { t } = useTranslation();
-  return buildEntityLabel(profession, t);
+  // Depend on the global i18n instance's language (not react-i18next's
+  // destructured `i18n`, which some tests mock without it) so this stays
+  // referentially stable across unrelated re-renders.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- t's behavior only changes with language, which is already a dep
+  return useMemo(() => buildEntityLabel(profession, t), [profession, i18n.language]);
 }
 
 /**
