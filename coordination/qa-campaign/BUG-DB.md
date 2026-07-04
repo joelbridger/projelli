@@ -14,6 +14,11 @@
 | QA-10 | P1 (tentative, needs human-eyes confirm) | Onboarding splash's primary "Go!" CTA renders with opacity:1 in the DOM but is invisible in every screenshot (a transparent footer div sits on top per elementFromPoint); still clickable via test-id. Could be a real stacking bug or a CDP/WebView2 screenshot-capture quirk — flagging honestly, not confirmed either way. | lane qa1 | NEW |
 | QA-11 | P3 | "Isolated client: outside connections are blocked..." status pill is visually truncated with no verified tooltip (full text present in DOM). | lane qa1 | NEW |
 | QA-12 | P3 (possibly intentional) | 11-step product tour restarts from Step 1 on every fresh launch even after being skipped mid-tour previously. May be by design — flagging for a product call. | lane qa1 | NEW |
+| QA-13 | P1 | **Newly created/imported documents are not searchable by Ask until the app is restarted.** A doc created and typed into via the app's own UI, and files dropped straight into a linked folder, both come back "Nothing found in your files" from Ask — even though the content is real and correctly scoped. Only a full app restart triggers a real RAG reindex (`reused` count jumps, `reindexed` count stays 0 the whole time in between). Breaks the core "create → ask about it" workflow an advisor would do constantly in a single sitting. | lane qa2, persona B (Azure bench-1) | NEW |
+| QA-14 | P1/P2 | **Starting a meeting recording with no usable microphone fails completely silently.** Consent dialog closes, "Record a meeting" button reverts to its idle label, zero error/toast — an advisor has no way to tell whether recording started, failed, or why. Backend does get far enough to create an empty `Meetings/` folder on disk before failing, which is then never cleaned up. No crash, no wedged state (app stays fully navigable) — but the complete silence is itself a real gap, distinct from a "clean no-device message." | lane qa2 | NEW |
+| QA-15 | P2 (environment-dependent) | Local-AI Ask answers intermittently end in a generic "The local AI couldn't answer, and your data stayed on your machine... try again or search by keyword" error after 60–90s of real processing (confirmed via CPU/process activity, not a hang) — happened on 2 of 3 attempts in this session, including once right after the model had already found and started citing the correct file mid-stream. Graceful degradation itself is good (no crash, clear message, keyword-search fallback suggested); the failure rate is the concern. This VM's CPU-only 4-vCPU inference is a plausible confound — recommend re-checking on the Legion/a GPU machine before treating the failure *rate* as a real product bug, but the error-message UX is worth keeping either way. | lane qa2 | NEW |
+| QA-16 | P3 | "Send to Wealthbox" button's disabled-tooltip says "Connect Wealthbox in Settings → Connections" — but there is no "Connections" section anywhere under the Settings gear (confirmed via full settings nav, the settings search box, and the Ctrl+K command palette, all empty for "wealthbox"/"connections"). The real location is **Account (bottom-left "Your account") → Connections tab** — a completely different, non-obvious surface from what the tooltip tells you to look for. | lane qa2 | NEW |
+| QA-17 | P3 (inconclusive, needs live re-test) | Attempted to re-verify QA-1's persistence fix by directly seeding a well-formed `ProposedCrmWrite` into the `crm-write-queue-storage` localStorage key (matching the store's own persisted shape) and reloading. The item survived in localStorage across the reload (the underlying persistence QA-1 fixed does hold), but neither the Client-Map-overview review card nor the cross-tab "pending" banner ever rendered it — even though the card's own source only needs `items.length > 0` to mount. Could not tell whether this is a real regression or an artifact of hand-seeding the store outside its normal write path (no live Wealthbox token was available this session to test the real flow end-to-end). Flagging honestly as unresolved — the next lane with a real Wealthbox sandbox token should re-run QA-1's original repro rather than trust this synthetic test. | lane qa2 | NEW |
 
 ---
 
@@ -158,3 +163,149 @@ perfectly. The privacy messaging ("nothing was uploaded," "this client is isolat
 AI choice) is clear and trustworthy, not just marketing talk. Running it twice at once was handled
 gracefully. The onboarding screens themselves are well-written and pleasant once the visual overlap
 bugs are fixed.
+
+---
+
+## Lane qa2 detail — persona B, "the daily driver, a week compressed" (Azure bench-1, 2026-07-04)
+
+**Seat/setup:** `lantern-cloud-bench-1`. Repo was ~12 commits behind the Meetings-tab merge at
+session start (`f6614b43`) — pulled to `origin/lantern-plus` tip (`a30d4d10`) and did a genuine
+cold-ish rebuild (37 Rust files / ~10,650 lines changed since the VM's last pin — mostly the
+diarization/Meetings feature — took ~14 min, not the "~3 min warm relink" the setup log assumed for
+small diffs). App data was NOT wiped — the VM's existing state was a thin 2-client leftover from
+lane qa1's own first-run testing (Emily Chen Household, Müller Family), both already correctly
+folder-linked (QA-5's fix holding for pre-existing clients too, likely because qa1 manually linked
+them during their own investigation). Kept those two and added Garcia Family Trust + Okafor
+Retirement Planning via "+ New client" to reach 4 total, each seeded with realistic advisor notes
+(Roth conversion, 529 plan, concentrated-stock diversification, Social Security claiming strategy)
+so Ask/citation-isolation testing had real distinguishing content per client. Local AI was already
+fully downloaded ("Installed and ready") from a prior session — QA-7's stalled-download state did
+not reproduce this time. Evidence: `coordination/qa-campaign/evidence/qa2-20260704/`.
+
+### Repro detail + evidence per finding
+
+**QA-13** (Ask can't find new content until restart): created "Roth Conversion Plan - Emily
+Chen.docx" via New Document + typed real content into it (autosave confirmed "Saved"), and
+separately dropped a `concentrated-position-plan.txt` straight into Garcia Family Trust's linked
+folder. Asked Garcia's own client-scoped Ask "What concentrated stock position does this client
+hold?" → **"Nothing found in your files"** (`24-ask-fullanswer.jpeg`), despite the file existing on
+disk and being correctly scoped. Checked the Rust log: `rag reconcile: DONE work=0 reused=3
+reindexed=0 deleted=0` had run exactly once, at app boot, and never again — no reindex event fired
+for either the app-created doc or the directly-dropped file for the rest of that session. Force-quit
+and relaunched the app (a real, if forced, restart): the SAME question this time correctly surfaced
+"[Garcia Family Trust — Advisor Working Notes paragraph 0]" mid-answer (`28-ask-final.jpeg` shows the
+citation forming) — the restart is what triggered the real reindex (`reused` jumped 3→11, confirming
+new content was finally picked up). **Real, high confidence**: reproduced identically for a
+UI-created doc AND an externally-dropped file; the fix (restart) is not something a real advisor
+would think to do mid-session, and the workflow this breaks (jot a note, immediately ask about it) is
+exactly the "week compressed" persona's bread and butter.
+
+**QA-14** (silent recording failure, no mic): `record-meeting-button` → consent checkbox → "Start
+recording" on Emily Chen Household (Azure bench-1 has no real audio hardware, as expected/instructed).
+Result: dialog just closes, button reverts to "Record a meeting" (not "Recording…"), Meetings tab
+still says "No meetings yet" (`48-after-start-recording.jpeg`, `49-immediate-after.jpeg` — the second
+one screenshotted immediately after the click to rule out a fast-fading toast; still nothing).
+Reproduced twice identically. Checked disk: an empty `docs/Meetings/` folder had been created (Rust's
+`capture_start` got far enough to set up a meeting directory before whatever failed), but the Rust
+log shows zero lines matching `capture|audio|device|mic` around the event — the failure happens
+somewhere that logs nothing. App itself stayed fully responsive after (navigated away cleanly, no
+wedge) — this is NOT a crash, which per the brief counts as a real gap rather than a good outcome
+(a clean, visible "no microphone found" message would have been the good outcome). Evidence:
+`47-consent-dialog.jpeg` (the good part — clear, state-aware consent UX) through `49-immediate-after.jpeg`.
+
+**QA-15** (local AI answer failures): confirmed via direct process monitoring that the local model
+(`llama-server-x86_64-pc-windows-msvc.exe`) was genuinely computing (CPU time climbing steadily, not
+stalled) during both long "Answering…" waits, ruling out a hang — but 2 of 3 completed Ask attempts
+this session ended in the app's own "The local AI couldn't answer" error message after 60–90s,
+including one case where the answer had already started forming with a correct citation
+(`29-ask-final2.jpeg`) before failing. The one attempt that fully succeeded (`28-ask-final.jpeg`) took
+a comparably long time. Flagging as environment-dependent (this VM is 4 vCPU / CPU-only inference,
+no GPU) rather than asserting a universal reliability bug — but the failure *message* itself is good,
+honest UX worth keeping regardless of root cause.
+
+**QA-16** (Wealthbox tooltip points to the wrong Settings location): the disabled "Send to Wealthbox"
+button's tooltip reads "Connect Wealthbox in Settings → Connections." Checked every Settings category
+(Workspace/AI & Privacy/Voice/Advanced/Help), the Settings search box, and the Ctrl+K command palette
+— none surface a "Connections" section for "wealthbox" or "connections." The real Wealthbox connector
+(API-key paste field, `65-wealthbox-found.jpeg`) lives under the account-avatar menu (bottom-left
+"Your account") → **Connections** tab, a completely different, much less discoverable surface than
+what the tooltip describes.
+
+**QA-17** (CRM review-card restart test, inconclusive): see bug-table entry above — a synthetic
+localStorage seed of `crm-write-queue-storage` survived a reload (persistence layer itself works) but
+never rendered a review card or cross-tab banner, and no live Wealthbox token was available this
+session to run QA-1's original repro for real. Not confident enough to call this a regression;
+flagging for a lane with real Wealthbox sandbox access to re-verify properly.
+
+**Not filed as a bug — a testing lesson worth recording:** the "+ New client" quick-create form has
+TWO name-like fields whose internal variable names are swapped from what a naive tester expects: the
+visually-labeled "Client name" field is `matter-new-name` (bound to the actual name), while the
+testid `matter-new-client` is actually the "Company / Organization (optional)" field. Typing a
+client's name into `matter-new-client` by testid (an easy mistake for anyone driving this via
+data-testid rather than visible labels) silently creates a client with an empty name and the typed
+text sitting in Company instead — the UI happens to gracefully fall back to displaying the company
+value as if it were the name, which is what makes the mistake easy to miss. Caught this on my own
+Garcia/Okafor clients, verified via direct DOM inspection that it was my own driving error (not a
+product bug — a real user typing into the correctly-labeled visible field never hits this), deleted
+and recreated them correctly. Flagging only so a future explorer using testid-based automation
+doesn't lose time on the same false lead.
+
+### What's GOOD (so a designer can feel the week, not just the bugs)
+
+- **Data survived everything I threw at it.** Across this session I force-killed the app mid-session
+  more than half a dozen times (some intentional restart tests, several from my own bench-tooling
+  troubleshooting) — every single time, all 4 clients, every document (including ones mid-autosave),
+  and a 60-file bulk-import folder came back completely intact, `76-post-rapid-restart.jpeg` shows the
+  Client Map fully recovered immediately after one such forced kill mid-view of the bulk-import
+  folder. Never lost a byte, never saw a corrupted file.
+- **The Word editor + autosave is solid.** Typed real multi-paragraph content into two different
+  client documents; both autosaved cleanly ("Saved" indicator), and the app **automatically created a
+  timestamped `.backup-*.docx` snapshot** of the pre-edit version before applying my typed content as
+  a tracked change — a real safety net a financial advisor would want, working correctly without me
+  asking for it.
+- **The consent-to-record dialog is genuinely well done**, not just legally defensive: plain-language
+  state-law framing, a suggested verbal script, and an honest "this is general guidance, not legal
+  advice" disclaimer (`47-consent-dialog.jpeg`).
+- **The new-client folder auto-linking fix (QA-5) holds** for freshly created clients — verified via
+  direct DOM inspection that Garcia Family Trust and Okafor Retirement Planning's own folders were
+  auto-checked the moment they were created, no manual linking needed.
+- **The Ask composer responsive-layout fix (QA-6) holds** — the Ask input box was fully visible and
+  usable at this session's ~1028×749 window the whole time, no 0-width collapse.
+- **Bulk import handled 60 files without any strain** — dropped 60 plain-text files straight into a
+  linked folder via the filesystem (simulating a large external import); the Documents grid rendered
+  all of them instantly and scrolled smoothly, no lag, no pagination confusion, no missing files.
+- **Client-scoped Ask never bled across clients** in any test I ran — when it did find content, it
+  only ever cited the active client's own files, never another client's.
+
+### Plain-language summary (for Jameson)
+
+I spent the day pretending to be a busy financial advisor: I hopped between four made-up clients,
+wrote real notes about their retirement plans and stock positions, tried recording a client meeting,
+and asked the AI questions about what I'd just written — all on the cloud test computer.
+
+**The biggest thing that needs fixing:** if you write a note or drop in a file and then *immediately*
+ask the AI a question about it, the AI says "I found nothing" — even though the file is right there.
+The only way to make it show up is to fully quit and reopen the app. For a real advisor jotting notes
+during a busy day and asking follow-up questions right after, this would look exactly like the app
+"forgetting" what you just told it, when really it's just a bookkeeping delay that a restart happens
+to fix. This is the same "Ask" feature that was already flagged as needing fixes from the first-run
+testing — it's core to the product's promise and needs to reliably see fresh work.
+
+**Second thing:** I tried recording a fake client meeting on this test computer (which has no real
+microphone, on purpose, since it's a cloud machine). The app didn't crash — good — but it also didn't
+tell me anything went wrong. The "record" button just quietly went back to normal, like nothing had
+happened. A real advisor with a genuinely broken microphone would have no idea why their meeting
+never got recorded.
+
+**Smaller stuff:** the button to connect the CRM system (Wealthbox) tells you to look in the wrong
+settings menu for where to connect it; the AI sometimes takes a long time to answer and then gives up
+with an honest "I couldn't answer" message instead of the answer (might just be this slow test
+computer, worth checking on a real laptop).
+
+**What's genuinely good, and worth feeling good about:** I could not break the data no matter how
+hard I tried — I killed the app mid-work more than half a dozen times, once right in the middle of
+viewing 60 freshly-imported files, and every single time everything came back exactly as I left it.
+The Word editor auto-saves and even quietly keeps a backup copy before big edits. The meeting-consent
+screen is genuinely thoughtful, not just a legal cover-your-back popup. And the fixes from the very
+first testing round (new clients getting their own folder, the Ask box being visible on a normal-size
+window) are both holding up correctly under real use.
