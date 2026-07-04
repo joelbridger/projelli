@@ -308,13 +308,31 @@ function transcribeMeetingSerialized(
  * writes it into the meeting folder. Never throws (capture/transcription
  * never depend on this), but unlike a bare try/catch it distinguishes two
  * cases:
- *   - transcript.json isn't there yet (transcription still queued): silently
- *     wait for a future call — this is not a notes failure.
- *   - the transcript IS there but generation fails or hangs (QA-31): record
+ *   - transcript.json genuinely isn't there yet (transcription still
+ *     queued, confirmed via `ws.exists()` — NOT just "the read threw"):
+ *     silently wait for a future call — this is not a notes failure.
+ *   - the transcript IS there (or `exists()` itself couldn't tell — an
+ *     access problem is a real failure, not "not ready yet") but reading,
+ *     parsing, generation, or writing fails or hangs (QA-31/QA-41): record
  *     an honest, classified `notesError` on meeting.json instead of silently
  *     discarding the failure, and bound the provider call with
  *     withMeetingNotesTimeout so a stalled call can never hang this (and
  *     therefore stopRecording's processingCount-clearing `finally`) forever.
+ *
+ * QA-41: the old version wrapped the read in a bare `try { ... } catch {
+ * return; }`, which treated ANY failure — not just "not created yet" — as
+ * "still queued." On real Windows hardware the read itself could fail even
+ * though transcript.json provably existed on disk (a `meetingDir` in the
+ * Windows extended-length `\\?\C:\...` form, from Rust's canonicalized
+ * meeting-capture commands, could throw a `SecurityError` from
+ * `PathValidator` before any real file I/O — see
+ * PathValidator.windows.test.ts), and that error vanished into the same
+ * catch as a genuinely-not-ready-yet read, leaving notes permanently
+ * "being written" with no error and no retry. Checking `exists()` FIRST
+ * (the same pattern already used by `TauriFSBackend.setRootPath`/`exists`)
+ * makes the two cases distinguishable: `exists()` resolving `false` is the
+ * only "not ready yet" signal; anything else — `exists()` throwing, or
+ * `exists()` true but the read/parse failing — is a real, classified error.
  */
 async function tryGenerateNotes(
   meetingDir: string,
@@ -325,10 +343,13 @@ async function tryGenerateNotes(
   if (!ws) return;
   let transcript: TranscriptFile;
   try {
+    const transcriptExists = await ws.exists(`${meetingDir}/transcript.json`);
+    if (!transcriptExists) return; // transcription genuinely still queued — not a notes failure.
     const raw = await ws.readFile(`${meetingDir}/transcript.json`);
     transcript = JSON.parse(raw) as TranscriptFile;
-  } catch {
-    return; // transcription still queued — not a notes failure.
+  } catch (err) {
+    await recordNotesError(meetingDir, err);
+    return;
   }
   try {
     const matter = useMatterStore

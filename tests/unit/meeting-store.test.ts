@@ -48,7 +48,11 @@ describe('meeting store', () => {
     invokeMock.mockReset();
     writeFileMock.mockReset();
     useMeetingStore.setState(useMeetingStore.getInitialState());
-    setMeetingsWorkspaceService({ writeFile: writeFileMock, readFile: vi.fn(async () => '') } as never);
+    setMeetingsWorkspaceService({
+      writeFile: writeFileMock,
+      readFile: vi.fn(async () => ''),
+      exists: vi.fn(async () => false), // no transcript.json in these tests — notes stay queued, not an error
+    } as never);
   });
 
   it('start → stop drives capture commands and post-processing in order', async () => {
@@ -222,9 +226,11 @@ describe('meeting store — notes generation never hangs and never fails silentl
     const writeFile = vi.fn(async (p: string, content: string) => {
       files.set(p, content);
     });
+    const exists = vi.fn(async (p: string) => files.has(p));
     setMeetingsWorkspaceService({
       readFile,
       writeFile,
+      exists,
       writeFileBinary: vi.fn(async () => {}),
     } as never);
     return { files };
@@ -342,6 +348,157 @@ describe('meeting store — notes generation never hangs and never fails silentl
   });
 });
 
+// QA-41 P1: notes generation never happened at all after a real transcript
+// landed. Root cause: tryGenerateNotes read `${meetingDir}/transcript.json`
+// wrapped in a bare `try { ... } catch { return; }` that treated ANY failure
+// — not just "the file genuinely isn't there yet" — as "transcription still
+// queued," silently discarding it forever (see
+// docs/evidence/meetings-verify4-20260704/RUN-LOG.md). On real Windows
+// hardware the read itself was failing even though the file provably existed
+// on disk: Rust's meeting-capture commands hand back a `meetingDir`
+// canonicalized to the Windows extended-length ("verbatim") `\\?\C:\...` form
+// (a deliberate round-8 fix for INTERNAL Rust-side path comparisons — see
+// src-tauri/src/commands/pathguard.rs), which the frontend's PathValidator
+// (before this fix — see PathValidator.windows.test.ts's "Windows verbatim"
+// tests) rejected as "outside the workspace" even though it's the exact same
+// folder as the plain-form workspace root. That SecurityError, thrown before
+// any real file I/O even happens, was exactly the kind of failure this bare
+// catch swallowed. These tests drive the READ/PARSE step (the QA-31 block
+// above already covers the provider-call step) into each failure shape and
+// assert the pipeline always reaches a terminal, honest state — success or a
+// classified, retryable notesError — never a silent, permanent "still
+// queued".
+describe('meeting store — a transcript.json that exists but cannot be read/parsed is never silently treated as "still queued" (QA-41)', () => {
+  const fakeResolveProvider = async () =>
+    ({ provider: {} as never, providerId: 'anthropic' as const, model: 'claude' });
+
+  function setupWorkspace(
+    opts: { transcriptReadError?: Error | undefined; transcriptContent?: string } = {}
+  ) {
+    const files = new Map<string, string>();
+    files.set(
+      '/ws/C/Meetings/x/meeting.json',
+      JSON.stringify({
+        matterId: 'm-1',
+        startedAt: 't0',
+        consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: 't0' },
+      }),
+    );
+    if (opts.transcriptContent !== undefined) {
+      files.set('/ws/C/Meetings/x/transcript.json', opts.transcriptContent);
+    }
+    // A real Windows read failure happens on a file that DOES exist (proven
+    // on disk via SSH in the bench trace) — exists() must say true even
+    // though readFile() below is about to throw, so the fix can't cheat by
+    // just trusting exists() to also fail.
+    const exists = vi.fn(
+      async (p: string) => files.has(p) || (p.endsWith('transcript.json') && !!opts.transcriptReadError)
+    );
+    const readFile = vi.fn(async (p: string) => {
+      if (p.endsWith('transcript.json') && opts.transcriptReadError) throw opts.transcriptReadError;
+      if (!files.has(p)) throw new Error('ENOENT');
+      return files.get(p) as string;
+    });
+    const writeFile = vi.fn(async (p: string, content: string) => {
+      files.set(p, content);
+    });
+    setMeetingsWorkspaceService({
+      exists,
+      readFile,
+      writeFile,
+      writeFileBinary: vi.fn(async () => {}),
+    } as never);
+    return { files };
+  }
+
+  beforeEach(() => {
+    invokeMock.mockReset();
+    useMeetingStore.setState(useMeetingStore.getInitialState());
+    vi.mocked(meetingNoteFromTranscript.run).mockReset();
+  });
+
+  it('transcript.json genuinely does not exist yet: silently returns, no notesError, no crash (transcription really is still queued)', async () => {
+    const { files } = setupWorkspace();
+    await retryMeetingNotes('/ws/C/Meetings/x', 'm-1', fakeResolveProvider);
+
+    expect(useMeetingStore.getState().processingCount).toBe(0);
+    const written = JSON.parse(files.get('/ws/C/Meetings/x/meeting.json') as string) as {
+      notesError?: unknown;
+    };
+    expect(written.notesError).toBeUndefined();
+  });
+
+  it('transcript.json EXISTS but the read itself fails (the real Windows bug shape): recorded as an honest, retryable notesError instead of being silently treated as still-queued', async () => {
+    const { files } = setupWorkspace({
+      transcriptReadError: new Error('Absolute path outside workspace not allowed: transcript.json'),
+    });
+    await retryMeetingNotes('/ws/C/Meetings/x', 'm-1', fakeResolveProvider);
+
+    expect(useMeetingStore.getState().processingCount).toBe(0);
+    const written = JSON.parse(files.get('/ws/C/Meetings/x/meeting.json') as string) as {
+      notesError?: { kind: string };
+    };
+    expect(written.notesError?.kind).toBe('error');
+    expect(meetingNoteFromTranscript.run).not.toHaveBeenCalled();
+  });
+
+  it('transcript.json exists but contains malformed JSON: recorded as an honest, retryable notesError, not silently treated as still-queued', async () => {
+    const { files } = setupWorkspace({ transcriptContent: '{not valid json' });
+    await retryMeetingNotes('/ws/C/Meetings/x', 'm-1', fakeResolveProvider);
+
+    expect(useMeetingStore.getState().processingCount).toBe(0);
+    const written = JSON.parse(files.get('/ws/C/Meetings/x/meeting.json') as string) as {
+      notesError?: { kind: string };
+    };
+    expect(written.notesError?.kind).toBe('error');
+    expect(meetingNoteFromTranscript.run).not.toHaveBeenCalled();
+  });
+
+  it('a retry after the read failure resolves succeeds and clears notesError once the transcript is genuinely readable (regression guard: transcription-complete always reaches a terminal state)', async () => {
+    const opts: { transcriptReadError?: Error | undefined } = {
+      transcriptReadError: new Error('Absolute path outside workspace not allowed: transcript.json'),
+    };
+    const { files } = setupWorkspace(opts);
+    await retryMeetingNotes('/ws/C/Meetings/x', 'm-1', fakeResolveProvider);
+    let written = JSON.parse(files.get('/ws/C/Meetings/x/meeting.json') as string) as {
+      notesError?: { kind: string };
+    };
+    expect(written.notesError?.kind).toBe('error');
+
+    // The underlying path bug is now fixed — a real retry sees a normally
+    // readable transcript.
+    opts.transcriptReadError = undefined;
+    files.set(
+      '/ws/C/Meetings/x/transcript.json',
+      JSON.stringify({ segments: [{ startMs: 0, endMs: 1000, channel: 'mic', speaker: 'You', text: 'hi' }] }),
+    );
+    vi.mocked(meetingNoteFromTranscript.run).mockResolvedValueOnce('- did a thing [t:0]');
+    await retryMeetingNotes('/ws/C/Meetings/x', 'm-1', fakeResolveProvider);
+
+    expect(useMeetingStore.getState().processingCount).toBe(0);
+    written = JSON.parse(files.get('/ws/C/Meetings/x/meeting.json') as string) as {
+      notesError?: { kind: string };
+    };
+    expect(written.notesError).toBeUndefined();
+  });
+
+  it('a valid, readable transcript still generates notes normally (no regression from the exists() check)', async () => {
+    const validTranscript = JSON.stringify({
+      segments: [{ startMs: 0, endMs: 1000, channel: 'mic', speaker: 'You', text: 'hi' }],
+    });
+    const { files } = setupWorkspace({ transcriptContent: validTranscript });
+    vi.mocked(meetingNoteFromTranscript.run).mockResolvedValueOnce('- did a thing [t:0]');
+    await retryMeetingNotes('/ws/C/Meetings/x', 'm-1', fakeResolveProvider);
+
+    expect(useMeetingStore.getState().processingCount).toBe(0);
+    const written = JSON.parse(files.get('/ws/C/Meetings/x/meeting.json') as string) as {
+      notesError?: unknown;
+    };
+    expect(written.notesError).toBeUndefined();
+    expect(meetingNoteFromTranscript.run).toHaveBeenCalledTimes(1);
+  });
+});
+
 // QA-40 P1: transcribe_meeting failures used to vanish into a bare catch{}
 // (see docs/evidence/meetings-verify3-20260704/RUN-LOG.md) — a fast,
 // already-completed failure (e.g. a missing voice model, confirmed by
@@ -371,7 +528,8 @@ describe('meeting store — transcription never fails silently (QA-40)', () => {
     const writeFile = vi.fn(async (p: string, content: string) => {
       files.set(p, content);
     });
-    setMeetingsWorkspaceService({ readFile, writeFile, writeFileBinary: vi.fn(async () => {}) } as never);
+    const exists = vi.fn(async (p: string) => files.has(p));
+    setMeetingsWorkspaceService({ readFile, writeFile, exists, writeFileBinary: vi.fn(async () => {}) } as never);
     return { files };
   }
 
