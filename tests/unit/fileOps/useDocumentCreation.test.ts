@@ -11,6 +11,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
+import i18n from '@/i18n';
 import { useDocumentCreation } from '@/app/fileOps/useDocumentCreation';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { PromptOptions } from '@/platform/hooks/usePromptDialog';
@@ -116,6 +117,26 @@ describe('useDocumentCreation — handleCreateDocxAtRoot', () => {
     // Sanity: a genuinely cancelled prompt (null) still no-ops without creating.
     expect(svc.writeFileBinary).toHaveBeenCalledTimes(1); // from the OK-on-default flow above
   });
+
+  it.each(['CON', 'brief.'])(
+    'shows the inline Windows-name error and does not create when the user enters "%s"',
+    async (badName) => {
+      await i18n.changeLanguage('en');
+      const { result, getLastCall, svc, setRespond } = setup();
+      setRespond(() => null);
+      await act(async () => {
+        await result.current.handleCreateDocxAtRoot();
+      });
+
+      const validate = getLastCall()?.options?.validate;
+      expect(validate).toBeTypeOf('function');
+      expect(validate?.(badName)).toBe(
+        "That name isn't allowed on Windows. Try a different name (avoid names like CON, PRN, NUL and trailing dots or spaces).",
+      );
+      expect(validate?.('brief')).toBeUndefined();
+      expect(svc.writeFileBinary).not.toHaveBeenCalled();
+    },
+  );
 
   it('a cancelled prompt (null) creates nothing', async () => {
     const { result, svc, setRespond } = setup();

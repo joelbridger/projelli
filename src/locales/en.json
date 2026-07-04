@@ -351,6 +351,7 @@
         "word-document": "Word Document (.docx)",
         "audio-file": "Audio File (.webm)"
       },
+      "reserved-name-error": "That name isn't allowed on Windows. Try a different name (avoid names like CON, PRN, NUL and trailing dots or spaces).",
       "drop-to-root": "Drop here to move to root",
       "open-on-desktop": "Open on Desktop"
     },
@@ -778,6 +779,13 @@
       "export-saved-clean": "Saved a clean copy with hidden metadata removed.",
       "export-saved-clean-final": "Saved a clean final copy: changes accepted, comments and hidden metadata removed.",
       "export-dismiss": "Dismiss",
+      "save-blocked-title": "This document can't be saved right now",
+      "save-blocked-body": "Another program (often antivirus, backup, or cloud sync) may be blocking the file. Your changes are safe here and I'll keep trying automatically. If it doesn't clear, save a copy somewhere else so nothing is lost.",
+      "save-retry-now": "Try again now",
+      "save-copy-elsewhere": "Save a copy elsewhere…",
+      "save-copy-saving": "Saving copy…",
+      "save-copy-success": "Saved a rescue copy to {{path}}.",
+      "save-copy-failed": "Couldn't save the copy: {{message}}",
       "pdf-needs-libreoffice-title": "PDF export needs LibreOffice",
       "pdf-needs-libreoffice-body": "Advisor Prep Hero converts Word to PDF locally using LibreOffice, a free program. Nothing leaves your machine. Install it, then run the export again.",
       "pdf-libreoffice-copy": "Copy link",

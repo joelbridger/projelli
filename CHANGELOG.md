@@ -31,6 +31,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **QA-34 (P0 silent data loss): a failed `.docx` autosave no longer wedges
+  persistence while the UI says "Saved".** A `.docx` is edited by `DocxEditor`,
+  which saves directly to disk and never marks its editor-store tab dirty — so a
+  failing save (e.g. antivirus/backup briefly holding an exclusive OS lock) used
+  to be invisible to every save-integrity guard: the tab dot, the toolbar, the
+  close-tab / workspace-switch / quit guards all saw the doc as clean, and there
+  was no retry, so once a save failed it never wrote again for the session even
+  after the lock cleared. Now: failed saves surface truthfully (never "Saved")
+  and self-heal via automatic exponential-backoff retry of the latest content;
+  sustained failure raises a persistent, non-timeout-dismissable warning with a
+  **"Save a copy elsewhere"** rescue that writes the in-memory doc to a chosen
+  path; a new `docxSaveRegistry` bridges the editor's real save state to the tab
+  dirty-dot, status-bar "modified" badge, close-tab confirm, workspace-switch
+  guard, and quit flush (which now also flushes open `.docx` files and fires a
+  native "unsaved changes" prompt when a save is actively failing). Retries stop
+  cleanly on unmount. Rust `atomic_write` now cleans up its temp sibling on a
+  failed replace (no orphan `.kpv-tmp-*` on every failed save).
+  Files: `src/features/documents/media/DocxEditor.tsx`,
+  `src/platform/fs/docxSaveRegistry.ts`, `src/app/fileOps/flushDirtyTabs.ts`,
+  `src/app/lifecycle/useFlushOnExit.ts`, `src/app/lifecycle/useWorkspaceLifecycle.ts`,
+  `src/features/documents/editor/TabBar.tsx`, `src/app/shell/layout/StatusBar.tsx`,
+  `src-tauri/crates/lantern-vault/src/atomic.rs`.
+- **QA-36 (P2): Windows reserved device names can no longer be created.**
+  `CON.docx`, `PRN`, `NUL`, `COM1`–`9`, `LPT1`–`9`, and trailing-dot/space names
+  (which Windows silently strips, making the on-disk file un-renamable /
+  un-deletable by Explorer, Word, and backup tools) are now rejected at the
+  create layer, not just on rename: `WorkspaceService` validates every new path
+  segment (`writeFile`/`writeFileBinary`/`mkdir`), the create dialogs show a
+  localized inline error (en/de/es), and the Rust `resolve_creatable` guard
+  rejects reserved names at any path level as defense-in-depth.
+  Files: `src/platform/fs/WorkspaceService.ts`, `src/app/fileOps/reservedNameError.ts`,
+  create dialogs in `src/app/fileOps/`, `src-tauri/src/commands/pathguard.rs`, locales.
+
 ### Changed
 - **Meetings tab UX polish (2026-07-04 senior-UX review — all blockers + should-fixes).**
   Full findings doc with before/after screenshots:

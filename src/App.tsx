@@ -57,7 +57,8 @@ import { RagProgressBanner } from '@/platform/rag/ui/RagProgressBanner';
 import { useMemoryWiring } from '@/platform/hooks/useMemoryWiring';
 import { useGlobalFileDrop } from '@/app/shell/common/GlobalDropOverlay';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
-import { useEditorStore, setBeforeTabClose } from '@/platform/state/editorStore';
+import { useEditorStore, setBeforeTabClose, setBeforeDocxClose } from '@/platform/state/editorStore';
+import { isDocxRegistered, closeDocxTabSafely } from '@/platform/fs/docxSaveRegistry';
 import { flushTabForClose } from '@/app/fileOps/flushDirtyTabs';
 import { useWorkflowStore } from '@/features/workflows/workflowStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -178,7 +179,9 @@ function App() {
   // that went stale is an honest, bounded loss; clobbering someone else's
   // newer save is not.
   const tabWriteGuard = useTabWriteGuard(!IS_TEST_MODE && !isTauriEnvironment(), {
-    onFlushRequested: flushAllDirtyTabs,
+    // flushAllDirtyTabs returns the failed-.docx paths (QA-34); this guard only
+    // needs the completion, so adapt to its Promise<void> signature.
+    onFlushRequested: async () => { await flushAllDirtyTabs(); },
   });
   if (tabWriteGuard.status === 'blocked') {
     return <TabGateOverlay onTakeOver={tabWriteGuard.requestTakeover} />;
@@ -1243,6 +1246,34 @@ function AppShell() {
     setBeforeTabClose((path) => { void flushTabForClose(path); });
     return () => { setBeforeTabClose(null); };
   }, []);
+  // QA-34: airtight .docx close for EVERY close path that calls closeTab directly
+  // (Ctrl+W, the command palette, right-click Close / Close-others, grouped-tab
+  // close). closeTab offers each non-discard close here first; for an open .docx
+  // we save it (from its still-mounted editor) before removal and only discard on
+  // an explicit user choice, so a locked file can't silently lose in-memory work.
+  // (The tab X on either strip already routes through closeDocxTabSafely itself
+  // and closes with { discard } — which skips this hook, so there's no double.)
+  useEffect(() => {
+    setBeforeDocxClose((path) => {
+      if (!isDocxRegistered(path)) return false;
+      void closeDocxTabSafely(path, {
+        closeTab: useEditorStore.getState().closeTab,
+        confirmDiscardOnFailure: () =>
+          confirm(
+            `I couldn't save this document — another program may be blocking the file. ` +
+              `Close anyway and lose your latest changes?`,
+            {
+              title: 'Unsaved changes',
+              variant: 'destructive',
+              confirmLabel: 'Close and lose changes',
+              cancelLabel: 'Keep open',
+            },
+          ),
+      });
+      return true;
+    });
+    return () => { setBeforeDocxClose(null); };
+  }, [confirm]);
 
 
   // Command-palette commands. See src/app/commands/useAppCommands.ts.

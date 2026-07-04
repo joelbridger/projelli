@@ -61,7 +61,7 @@ describe('en.json structure snapshot', () => {
         "mail": 6,
         "marketplace": 14,
         "matter": 206,
-        "media": 81,
+        "media": 88,
         "meetings": 106,
         "memory": 6,
         "model-download": 9,
@@ -82,7 +82,7 @@ describe('en.json structure snapshot', () => {
         "whats-new": 4,
         "whiteboard": 1,
         "workflow": 29,
-        "workspace": 12,
+        "workspace": 13,
       }
     `);
   });
@@ -178,7 +178,13 @@ describe('en.json structure snapshot', () => {
     // +35 = meetings.notice.* (Recording Notice Kit: the verified-verbal-notice
     //       consent script step, the meeting-page notice trail + resolutions,
     //       invite/chat copy blocks, and the firm Standard/Strict policy dial).
-    expect(flat.length).toBe(1254);
+    // +1 = QA-36 client-side create-name guard: workspace.file-tree.reserved-name-error
+    //      is the localized inline warning for Windows-reserved/trailing-dot names.
+    // +7 = QA-34 .docx save-resilience UI: media.docx-editor.{save-blocked-title,
+    //      save-blocked-body,save-retry-now,save-copy-elsewhere,save-copy-saving,
+    //      save-copy-success,save-copy-failed} — the sustained-save-failure warning
+    //      + "Save a copy elsewhere" escape hatch (P0 silent-data-loss fix).
+    expect(flat.length).toBe(1262);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

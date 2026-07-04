@@ -7,6 +7,7 @@
 // DOM and persists via docx_save.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { StrictMode } from 'react';
 import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
 
 // --- Tauri mock: a programmable invoke that dispatches by command name. ----
@@ -1416,4 +1417,232 @@ describe('DocxEditor — Export (A6)', () => {
       expect.anything(),
     );
   });
+});
+
+// ── QA-34 (P0): silent data loss when a .docx autosave write fails ──────────
+//
+// Repro (bench-2): an antivirus/backup process briefly holds an exclusive OS
+// lock on the file. The app's save write fails ONCE and then never retries and
+// never writes again for that document — while the UI keeps saying "Saved."
+// These tests pin the robust behaviour: a failed save is TRUTHFUL (error state,
+// never "Saved"), self-heals with automatic retry once the lock clears, and a
+// PERSISTENT failure escalates to a non-timeout-dismissable warning with a
+// "Save a copy elsewhere" escape hatch — the user's typing is never lost.
+describe('DocxEditor — QA-34 save resilience', () => {
+  beforeEach(() => {
+    invokeMock.mockReset();
+    saveDialogMock.mockReset();
+  });
+
+  // A doc with exactly one insertion revision (id 100). Accepting it schedules a
+  // save, which is the observable seam we drive these tests through.
+  function oneRevisionDoc(): DocumentJson {
+    return {
+      formatVersion: 1,
+      body: [
+        {
+          kind: 'paragraph',
+          inlines: [
+            { kind: 'run', text: 'The party ' },
+            {
+              kind: 'insertion',
+              meta: { id: '100', author: 'Alice', date: '2026-01-02T09:00:00Z' },
+              runs: [{ text: 'hereby ' }],
+            },
+            { kind: 'run', text: 'agrees.' },
+          ],
+        },
+      ],
+      comments: {},
+    };
+  }
+  const resolvedDoc: DocumentJson = {
+    formatVersion: 1,
+    body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'The party hereby agrees.' }] }],
+    comments: {},
+  };
+
+  async function triggerSaveViaAccept() {
+    const list = await screen.findByTestId('docx-revision-list');
+    const insRow = within(list)
+      .getAllByTestId('docx-revision-row')
+      .find((r) => r.getAttribute('data-revision-id') === '100')!;
+    fireEvent.click(within(insRow).getByTestId('docx-accept-one'));
+  }
+
+  it('a failed save is shown as an error (never "Saved") and self-heals via automatic retry', async () => {
+    let saveAttempts = 0;
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'docx_open') return Promise.resolve(oneRevisionDoc());
+      if (cmd === 'docx_resolve_revision') return Promise.resolve(resolvedDoc);
+      if (cmd === 'docx_save') {
+        saveAttempts += 1;
+        // Fail the FIRST write (lock held), then succeed (lock released).
+        return saveAttempts === 1
+          ? Promise.reject(new Error('The process cannot access the file (locked)'))
+          : Promise.resolve(undefined);
+      }
+      return Promise.resolve(undefined);
+    });
+
+    renderEditor();
+    await triggerSaveViaAccept();
+
+    // The failed write must surface as an error — NOT a false "Saved".
+    await waitFor(
+      () => expect(screen.getByTestId('auto-save-indicator')).toHaveAttribute('data-state', 'error'),
+      { timeout: 4000 },
+    );
+
+    // With NO further user action, the retry lands after the lock clears and the
+    // indicator returns to a truthful saved state — and the content is persisted.
+    await waitFor(
+      () => expect(screen.getByTestId('auto-save-indicator')).toHaveAttribute('data-state', 'saved-recent'),
+      { timeout: 8000 },
+    );
+    expect(saveAttempts).toBeGreaterThanOrEqual(2);
+  }, 15000);
+
+  it('a persistent save failure escalates to a non-dismissable warning and never shows "Saved"', async () => {
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'docx_open') return Promise.resolve(oneRevisionDoc());
+      if (cmd === 'docx_resolve_revision') return Promise.resolve(resolvedDoc);
+      if (cmd === 'docx_save') return Promise.reject(new Error('locked — persistent'));
+      return Promise.resolve(undefined);
+    });
+
+    renderEditor();
+    await triggerSaveViaAccept();
+
+    // After sustained failure, a visible warning appears with the escape hatch.
+    await waitFor(
+      () => expect(screen.getByTestId('docx-save-escalation')).toBeInTheDocument(),
+      { timeout: 12000 },
+    );
+    expect(screen.getByTestId('docx-save-copy-elsewhere')).toBeInTheDocument();
+    // The save indicator must still read as an error — never "Saved".
+    expect(screen.getByTestId('auto-save-indicator')).toHaveAttribute('data-state', 'error');
+  }, 20000);
+
+  it('"Save a copy elsewhere" writes the current document to a user-chosen path', async () => {
+    saveDialogMock.mockResolvedValue('/backup/agreement-rescued.docx');
+    invokeMock.mockImplementation((cmd: string, args?: Record<string, unknown>) => {
+      if (cmd === 'docx_open') return Promise.resolve(oneRevisionDoc());
+      if (cmd === 'docx_resolve_revision') return Promise.resolve(resolvedDoc);
+      if (cmd === 'docx_save') {
+        // The ORIGINAL path stays locked; the rescue copy goes elsewhere and works.
+        return args?.['path'] === '/ws/agreement.docx'
+          ? Promise.reject(new Error('locked'))
+          : Promise.resolve(undefined);
+      }
+      return Promise.resolve(undefined);
+    });
+
+    renderEditor();
+    await triggerSaveViaAccept();
+
+    const rescue = await screen.findByTestId('docx-save-copy-elsewhere', undefined, { timeout: 12000 });
+    fireEvent.click(rescue);
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith(
+        'docx_save',
+        expect.objectContaining({ path: '/backup/agreement-rescued.docx' }),
+      ),
+    );
+  }, 20000);
+
+  // Coordinator P2 #1: the mounted-tracking effect must set the ref true in
+  // SETUP, not only false in cleanup — else React 18 StrictMode's dev
+  // setup→cleanup→setup flips it to false on the first remount and never
+  // restores it, silently DISABLING all save retries in dev/QA. Under StrictMode,
+  // a fail-once save must still self-heal via retry.
+  it('retries still work under React 18 StrictMode (mountedRef restored on setup)', async () => {
+    let saveAttempts = 0;
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'docx_open') return Promise.resolve(oneRevisionDoc());
+      if (cmd === 'docx_resolve_revision') return Promise.resolve(resolvedDoc);
+      if (cmd === 'docx_save') {
+        saveAttempts += 1;
+        return saveAttempts === 1
+          ? Promise.reject(new Error('locked once'))
+          : Promise.resolve(undefined);
+      }
+      return Promise.resolve(undefined);
+    });
+
+    render(
+      <StrictMode>
+        <TooltipProvider>
+          <DocxEditor filePath="/ws/agreement.docx" fileName="agreement.docx" />
+        </TooltipProvider>
+      </StrictMode>,
+    );
+    await triggerSaveViaAccept();
+
+    // The retry must fire despite StrictMode's dev double-mount and recover.
+    await waitFor(
+      () => expect(screen.getByTestId('auto-save-indicator')).toHaveAttribute('data-state', 'saved-recent'),
+      { timeout: 8000 },
+    );
+    expect(saveAttempts).toBeGreaterThanOrEqual(2);
+  }, 15000);
+
+  // Coordinator P2 #2: the "Save a copy elsewhere" rescue must commit a focused,
+  // un-blurred edit (and drain the op queue) BEFORE reading the doc, exactly like
+  // the export path — the rescue copy is the one that must never omit the newest
+  // text. Without the fix, the rescue writes the pre-edit doc.
+  it('the rescue "Save a copy" commits an in-progress un-blurred edit before writing', async () => {
+    const oneRunDoc: DocumentJson = {
+      formatVersion: 1,
+      body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'original text' }] }],
+      comments: {},
+    };
+    saveDialogMock.mockReset();
+    saveDialogMock.mockResolvedValue('/backup/rescued.docx');
+    invokeMock.mockImplementation((cmd: string, args?: Record<string, unknown>) => {
+      if (cmd === 'docx_open') return Promise.resolve(oneRunDoc);
+      if (cmd === 'docx_save') {
+        // Original stays locked (drives escalation); the rescue copy elsewhere works.
+        return args?.['path'] === '/ws/agreement.docx'
+          ? Promise.reject(new Error('locked'))
+          : Promise.resolve(undefined);
+      }
+      return Promise.resolve(undefined);
+    });
+
+    renderEditor();
+    const run = await screen.findByTestId('docx-run');
+    fireEvent.click(screen.getByTestId('docx-reviewing-toggle'));
+
+    // First edit + blur → commits → schedules a save that FAILS repeatedly → escalation.
+    fireEvent.focus(run);
+    run.textContent = 'original text EDIT1';
+    fireEvent.blur(run);
+
+    const rescue = await screen.findByTestId('docx-save-copy-elsewhere', undefined, { timeout: 12000 });
+
+    // Second edit — focused, NOT blurred — must be folded in by the rescue's commit.
+    fireEvent.focus(run);
+    run.textContent = 'original text EDIT1 EDIT2';
+    fireEvent.click(rescue);
+
+    await waitFor(
+      () =>
+        expect(invokeMock).toHaveBeenCalledWith(
+          'docx_save',
+          expect.objectContaining({
+            path: '/backup/rescued.docx',
+            document: expect.objectContaining({
+              body: [
+                expect.objectContaining({
+                  inlines: [expect.objectContaining({ text: expect.stringContaining('EDIT2') })],
+                }),
+              ],
+            }),
+          }),
+        ),
+      { timeout: 5000 },
+    );
+  }, 25000);
 });

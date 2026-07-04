@@ -107,8 +107,23 @@ import { structuredCloneSafe, type RedlineSummary } from './docxEditorHelpers';
 import { DocumentBody, DocxEditorMessage } from './DocxDocumentView';
 import { ReviewPane } from './DocxReviewPane';
 import { ReviewingToggle, RedlineComposer, RedlineSummaryPanel } from './DocxRedlineControls';
+import {
+  registerDocxSaver,
+  updateDocxSaveState,
+} from '@/platform/fs/docxSaveRegistry';
 
 const SAVE_DEBOUNCE_MS = 1200;
+
+// QA-34 (P0 silent data loss): when a save write fails (e.g. antivirus/backup
+// briefly holds an exclusive OS lock on the file) the doc stays dirty and we
+// RETRY automatically with exponential backoff — most such locks clear within
+// seconds, so the save lands on its own and the indicator returns to a truthful
+// "Saved" with nothing lost. If the failure PERSISTS across several attempts we
+// escalate to a visible, non-timeout-dismissable warning with a "Save a copy
+// elsewhere" escape hatch, keeping the user's typing safe in memory throughout.
+const RETRY_BASE_MS = 750; // first retry delay; doubles each attempt
+const RETRY_MAX_MS = 15000; // cap the backoff so it keeps trying promptly
+const ESCALATE_AFTER_FAILURES = 3; // consecutive failed attempts before we warn the user
 
 interface DocxEditorProps {
   /**
@@ -225,6 +240,13 @@ export function DocxEditor({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<number | undefined>(undefined);
   const [isDirty, setIsDirty] = useState(false);
+  // QA-34: set true once a save has FAILED enough times to be treated as a
+  // sustained problem (a locked file, a full/read-only disk). Drives the visible
+  // non-dismissable "can't save" warning + the "Save a copy elsewhere" hatch.
+  // Cleared automatically the moment any save finally succeeds.
+  const [escalated, setEscalated] = useState(false);
+  // Set while the user's manual "Save a copy elsewhere" rescue write is running.
+  const [savingCopy, setSavingCopy] = useState(false);
   // The comment whose card is highlighted (clicked anchor <-> card linking).
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
 
@@ -276,6 +298,26 @@ export function DocxEditor({
   // debounce window can't silently drop the last edit. Cleared once the timer
   // fires normally so a later unmount never double-saves.
   const flushPendingSaveRef = useRef<(() => void) | null>(null);
+  // QA-34 retry machinery. `retryTimerRef` is the pending backoff timer;
+  // `retryDelayRef` the current backoff; `consecutiveFailuresRef` counts failures
+  // since the last success (drives escalation). All reset on any successful save.
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryDelayRef = useRef<number>(RETRY_BASE_MS);
+  const consecutiveFailuresRef = useRef(0);
+  // Mirrors of dirty/error for closures (registry flush, retry) that must read
+  // the LATEST value without being re-created on every change.
+  const saveErrorRef = useRef<string | null>(null);
+  // Stable indirection so `scheduleRetry` can call the latest `persist` without a
+  // declaration cycle (persist -> scheduleRetry -> persist).
+  const persistRef = useRef<((doc: DocumentJson) => Promise<void>) | null>(null);
+  // Latest `attemptSave`, so the registry's flush closure (registered ONCE per
+  // path) always calls the current save without re-registering on every render.
+  const attemptSaveRef = useRef<((doc: DocumentJson) => Promise<boolean>) | null>(null);
+  // False once this editor has unmounted — guards the retry loop so a save that
+  // was in flight at unmount can't schedule a NEW retry against a torn-down
+  // component (which would setState after unmount and could rewrite a file the
+  // user has navigated away from).
+  const mountedRef = useRef(true);
   // Monotonic save sequence for the write coordinator (#1) — serializes .docx
   // saves per path so a slow earlier save can't overwrite a newer one.
   const docxSaveSeqRef = useRef(0);
@@ -340,6 +382,22 @@ export function DocxEditor({
   useEffect(() => {
     isDirtyRef.current = isDirty;
   }, [isDirty]);
+  useEffect(() => {
+    saveErrorRef.current = saveError;
+  }, [saveError]);
+
+  // QA-34: mirror the live save state into the shared registry so the app's
+  // save-integrity guards (tab dirty-dot, close-tab confirm, workspace-switch
+  // guard, quit/flush-all) can SEE a .docx's unsaved/failing state — the editor
+  // store never does, because .docx content never flows through it.
+  useEffect(() => {
+    if (!filePath) return;
+    updateDocxSaveState(filePath, {
+      dirty: isDirty,
+      saving: isSaving,
+      error: saveError !== null,
+    });
+  }, [filePath, isDirty, isSaving, saveError]);
 
   // CLUSTER-C2: enqueue a document-mutating operation onto the strict FIFO
   // queue. `op` should read `currentDocRef.current` itself (not a closed-over
@@ -481,11 +539,38 @@ export function DocxEditor({
   }, [commitActiveRunEdit]);
 
   // ---- Persist (debounced) ----------------------------------------------
-  const persist = useCallback(
-    async (doc: DocumentJson) => {
-      if (!filePath) return;
+  const clearRetryTimer = useCallback(() => {
+    if (retryTimerRef.current) {
+      clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+    }
+  }, []);
+
+  // QA-34: schedule the next automatic retry with exponential backoff. Retries
+  // the LATEST document (the user may have kept typing while the file was locked),
+  // so when the lock clears everything typed since is persisted, not a stale copy.
+  const scheduleRetry = useCallback(() => {
+    clearRetryTimer();
+    // Don't keep retrying against an unmounted editor (closed tab / switched
+    // workspace) — the registry's final flush already gave it a last save chance.
+    if (!mountedRef.current) return;
+    const delay = retryDelayRef.current;
+    retryDelayRef.current = Math.min(delay * 2, RETRY_MAX_MS);
+    retryTimerRef.current = setTimeout(() => {
+      retryTimerRef.current = null;
+      if (!mountedRef.current) return;
+      const doc = currentDocRef.current;
+      if (doc) void persistRef.current?.(doc);
+    }, delay);
+  }, [clearRetryTimer]);
+
+  // ONE save attempt of `doc`. Updates the truthful save state (Saved / error)
+  // but does NOT schedule retries — the caller decides. Returns whether the
+  // document is now safely on disk. Never throws.
+  const attemptSave = useCallback(
+    async (doc: DocumentJson): Promise<boolean> => {
+      if (!filePath) return false;
       setIsSaving(true);
-      setSaveError(null);
       try {
         if (!firstEditFiredRef.current) {
           firstEditFiredRef.current = true;
@@ -504,8 +589,15 @@ export function DocxEditor({
         // order (FIFO), so the newest save always wins on disk.
         const saveRev = (docxSaveSeqRef.current += 1);
         await writeCoordinator.enqueue(filePath, saveRev, () => docxSave(filePath, doc));
+        // Success — the write landed. Reset all failure/escalation bookkeeping so
+        // the indicator returns to a truthful "Saved" and any warning clears.
         setLastSavedAt(Date.now());
         setIsDirty(false);
+        setSaveError(null);
+        setEscalated(false);
+        consecutiveFailuresRef.current = 0;
+        retryDelayRef.current = RETRY_BASE_MS;
+        clearRetryTimer();
         // WS-A / A5: take a binary-safe version snapshot of the just-written
         // `.docx` — but only when there were real changes, so re-saving a clean
         // doc (the flush before an export) doesn't add an empty version. Consume
@@ -519,16 +611,57 @@ export function DocxEditor({
             console.warn('[DocxEditor] onAfterSave (version snapshot) failed:', verr);
           }
         }
+        return true;
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
+        // The write FAILED: keep the doc dirty (it is NOT on disk) and surface the
+        // error truthfully. Never let a failed write read as "Saved".
         setSaveError(message);
+        setIsDirty(true);
         console.error('[DocxEditor] save failed:', err);
+        return false;
       } finally {
         setIsSaving(false);
       }
     },
-    [filePath, onFirstEdit],
+    [filePath, onFirstEdit, clearRetryTimer],
   );
+
+  // The debounced/normal save path: attempt once, and on failure keep the doc
+  // safe by retrying with backoff and — after sustained failure — escalating to a
+  // visible warning the user can act on. A fresh edit or retry supersedes any
+  // pending retry (clearRetryTimer at the top).
+  const persist = useCallback(
+    async (doc: DocumentJson) => {
+      if (!filePath) return;
+      clearRetryTimer();
+      const ok = await attemptSave(doc);
+      if (!ok) {
+        consecutiveFailuresRef.current += 1;
+        if (consecutiveFailuresRef.current >= ESCALATE_AFTER_FAILURES) {
+          setEscalated(true);
+        }
+        scheduleRetry();
+      }
+    },
+    [filePath, attemptSave, clearRetryTimer, scheduleRetry],
+  );
+  useEffect(() => {
+    persistRef.current = persist;
+  }, [persist]);
+  useEffect(() => {
+    attemptSaveRef.current = attemptSave;
+  }, [attemptSave]);
+  // Track mounted state so the retry loop stops after teardown (see
+  // scheduleRetry). MUST set true in SETUP, not only false in cleanup: React 18
+  // StrictMode runs setup→cleanup→setup in dev, so a cleanup-only effect would
+  // flip mountedRef to false on the first dev remount and never restore it —
+  // silently disabling all .docx save retries in dev/QA. Setting it true here on
+  // (re)mount keeps retries alive.
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const scheduleSave = useCallback(
     (doc: DocumentJson) => {
@@ -544,6 +677,46 @@ export function DocxEditor({
     },
     [persist],
   );
+
+  // QA-34: clear any pending retry timer on unmount so a backoff callback never
+  // fires against a torn-down editor.
+  useEffect(() => clearRetryTimer, [clearRetryTimer]);
+
+  // QA-34: register this editor with the shared save registry so the close/quit/
+  // switch guards can see its unsaved/failing state and force a final save. The
+  // registered flush attempts ONE immediate save of the latest doc and reports
+  // whether it is now safely on disk (true = safe to close/switch/quit).
+  useEffect(() => {
+    if (!filePath) return;
+    // Register ONCE per path (deps: [filePath] only). The flush calls the LATEST
+    // attemptSave through a ref, so a parent re-render that changes attemptSave's
+    // identity does NOT re-register — which would otherwise churn (and risk
+    // clearing) this path's live save state in the registry.
+    return registerDocxSaver(filePath, async () => {
+      // Fold any focused, un-blurred keystrokes into the model and drain queued
+      // ops FIRST (mirrors the export flush) — otherwise the newest typed text is
+      // still only in the contentEditable DOM and we'd decide "clean" / save a doc
+      // missing those characters. Must run while the editor is still mounted,
+      // which it is: closeDocxTabSafely awaits this flush BEFORE removing the tab.
+      await commitActiveRunEdit();
+      await docOpQueueRef.current;
+      const doc = currentDocRef.current;
+      if (!doc) return true;
+      // "Clean" for flush purposes means: not dirty, no error, AND no debounced
+      // save still pending. The last clause matters — a save can complete and
+      // clear `isDirty` while a NEWER edit's debounce is still queued
+      // (`flushPendingSaveRef` set); without it, a close/switch/quit in that
+      // window would skip persisting the newer edit and silently drop it.
+      if (
+        !isDirtyRef.current &&
+        saveErrorRef.current === null &&
+        flushPendingSaveRef.current === null
+      ) {
+        return true;
+      }
+      return (await attemptSaveRef.current?.(doc)) ?? false;
+    });
+  }, [filePath, commitActiveRunEdit]);
 
   /**
    * THE A4 SEAM + the resolve choke point. Swap the in-memory DOM, notify
@@ -650,6 +823,43 @@ export function DocxEditor({
     () => fileName.replace(/\.docx$/i, ''),
     [fileName],
   );
+
+  // QA-34 escape hatch: when the original file can't be saved (a stubborn lock,
+  // a read-only location), let the user rescue their work to a DIFFERENT path
+  // they choose. Writes the LATEST in-memory document to the picked location.
+  // The original stays dirty and keeps retrying — this is a safety copy, not a
+  // "save as" that abandons the original.
+  const handleSaveCopyElsewhere = useCallback(async () => {
+    if (savingCopy) return;
+    setSavingCopy(true);
+    setExportNotice(null);
+    try {
+      // Fold any focused, un-blurred keystrokes into the model and drain queued
+      // ops BEFORE reading the doc (mirrors flushSaveBeforeExport). The rescue
+      // copy is the one that must never omit the user's newest text, so read
+      // currentDocRef only AFTER the commit + drain land.
+      await commitActiveRunEdit();
+      await docOpQueueRef.current;
+      const doc = currentDocRef.current;
+      if (!doc) return;
+      const dest = await pickSavePath(`${exportStem} (rescued copy).docx`, 'docx');
+      if (!dest) return; // user cancelled
+      await docxSave(dest, doc);
+      setExportNotice({
+        kind: 'success',
+        message: t('media.docx-editor.save-copy-success', { path: dest }),
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setExportNotice({
+        kind: 'error',
+        message: t('media.docx-editor.save-copy-failed', { message }),
+      });
+      console.error('[DocxEditor] save-a-copy failed:', err);
+    } finally {
+      setSavingCopy(false);
+    }
+  }, [savingCopy, pickSavePath, exportStem, t, commitActiveRunEdit]);
 
   const runExport = useCallback(
     async (work: (srcPath: string) => Promise<string | null>) => {
@@ -1506,6 +1716,51 @@ export function DocxEditor({
       {/* A6: export result (success or a friendly error from the export
           itself; a missing LibreOffice gets the panel above instead).
           Light theme; dismissible. */}
+      {/* QA-34 (P0): sustained save failure. A prominent, NON-timeout-dismissable
+          warning — it stays until a save actually succeeds. The user's typing is
+          held safely in memory and auto-retried in the background; the escape
+          hatch writes a rescue copy to a location they pick. */}
+      {escalated && (
+        <div
+          data-testid="docx-save-escalation"
+          role="alert"
+          className="flex items-start gap-2 border-b border-red-200 bg-red-50 px-3 py-2 text-xs text-red-900"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+          <div className="mx-auto flex max-w-[816px] flex-1 flex-col gap-1.5">
+            <p className="font-medium">{t('media.docx-editor.save-blocked-title')}</p>
+            <p>{t('media.docx-editor.save-blocked-body')}</p>
+            <div className="mt-0.5 flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-6 border-red-300 bg-white px-2 text-[11px] text-red-800 hover:bg-red-100 hover:text-red-900"
+                data-testid="docx-save-retry-now"
+                onClick={() => {
+                  const doc = currentDocRef.current;
+                  if (doc) void persist(doc);
+                }}
+              >
+                {t('media.docx-editor.save-retry-now')}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="h-6 px-2 text-[11px]"
+                data-testid="docx-save-copy-elsewhere"
+                disabled={savingCopy}
+                onClick={() => void handleSaveCopyElsewhere()}
+              >
+                {savingCopy
+                  ? t('media.docx-editor.save-copy-saving')
+                  : t('media.docx-editor.save-copy-elsewhere')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {exportNotice && (
         <div
           data-testid="docx-export-notice"

@@ -16,7 +16,9 @@ import { useRef, type MutableRefObject } from 'react';
 // disk/permission-failure case the guard exists for). Keep setActiveWorkspaceService
 // a no-op so the real handler wiring is otherwise unchanged.
 vi.mock('@/app/fileOps/flushDirtyTabs', () => ({
-  flushAllDirtyTabs: vi.fn(async () => {}),
+  // Returns the failed-.docx paths (QA-34); none here — the dirty STORE tab is
+  // what this guard is testing.
+  flushAllDirtyTabs: vi.fn(async () => [] as string[]),
   setActiveWorkspaceService: vi.fn(),
 }));
 // Avoid any real FS write when closing the outgoing workspace scope.
