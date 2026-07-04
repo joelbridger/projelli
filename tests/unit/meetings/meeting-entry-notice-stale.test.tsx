@@ -8,6 +8,12 @@
  */
 import { render, screen, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
+
+// See meeting-entry-notes-failed.test.tsx: MeetingEntry's DocxEditor dynamic
+// import is unrelated to this test's subject and flakes under full-suite
+// parallel-transform contention. Mock it so the import resolves synchronously.
+vi.mock('@/features/documents/media/DocxEditor', () => ({ DocxEditor: () => null }));
+
 import { MeetingEntry } from '@/features/meetings/MeetingEntry';
 import type { NoticeEntry } from '@/features/meetings/noticeLedger';
 
