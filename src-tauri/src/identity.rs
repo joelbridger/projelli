@@ -115,6 +115,9 @@ pub const ONEDRIVE_ENC_SERVICE: &str = concat!(app_ns!(), "-onedrive-enc");
 /// CRM connector DB encryption key service.
 pub const CRM_ENC_SERVICE: &str = concat!(app_ns!(), "-crm-enc");
 
+/// Keychain service holding the voiceprint-store master key (Wave 4).
+pub const VOICEPRINT_ENC_SERVICE: &str = concat!(app_ns!(), "-voiceprint-enc");
+
 // ── Keychain service prefixes ─────────────────────────────────────────────────
 
 /// CRM connector namespace prefix. Covers per-provider token slots and the DB key.

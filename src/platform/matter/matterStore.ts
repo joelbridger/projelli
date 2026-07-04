@@ -45,9 +45,11 @@ import type { Matter, MatterScope } from '@/platform/types/matter';
 import type { AuditEntry } from '@/platform/types/audit';
 import {
   resolveMatterId,
+  resolveMatterMatchAcrossForms,
   findMatter,
   normalize as normalizeMatterPath,
   normalizeMeetingKey,
+  type MatterMatch,
 } from '@/platform/rag/matterResolver';
 import { isAbsolutePath, joinWorkspacePath } from '@/platform/fs/appPath';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
@@ -1357,6 +1359,25 @@ export function isActiveMatterPrivileged(): boolean {
  */
 export function resolveMatterIdForPath(path: string): string {
   return resolveMatterId(path, useMatterStore.getState().matters);
+}
+
+/**
+ * Resolve every equivalent SHAPE of the same underlying file (e.g. its
+ * workspace-relative form and its `rootPath`-joined absolute form) TOGETHER,
+ * reporting whether an unassigned result was a genuine identity conflict
+ * (two matters claim overlapping folders, in any shape) rather than a plain
+ * non-match. Callers that need to resolve a workspace path to its matter
+ * (e.g. `resolveMatterIdForWorkspacePath`) must use this rather than trying
+ * shapes one at a time, so a stale/legacy folder entry that matches ONE
+ * shape cleanly can never paper over a real ambiguity found via another
+ * shape of the identical file. Pass `rootPath` (when known) so each matter's
+ * folders are ALSO canonicalized to absolute before comparing — otherwise a
+ * legacy-relative folder claim and an absolute claim for the SAME physical
+ * folder tie at different raw string lengths and the absolute one silently
+ * "wins" instead of the genuine ambiguity failing closed.
+ */
+export function resolveMatterMatchForPaths(paths: string[], rootPath?: string | null): MatterMatch {
+  return resolveMatterMatchAcrossForms(paths, useMatterStore.getState().matters, rootPath);
 }
 
 /**

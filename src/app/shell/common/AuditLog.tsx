@@ -40,7 +40,9 @@ import {
   Users2,
   KeyRound as KeyIcon,
   UserX,
+  Timer,
   Save,
+  Fingerprint,
 } from 'lucide-react';
 import type { AuditEntry, AuditActionType } from '@/platform/types/audit';
 import { EmptyState } from '@/ui/EmptyState';
@@ -125,6 +127,14 @@ const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   template_updated: PenLine,
   template_install_failed: XCircle,
   beneficiary_finding_dismissed: ShieldCheck,
+  voiceprint_enrolled: Fingerprint,
+  voiceprint_deleted: Fingerprint,
+  retention_delete: Timer,
+  retention_swept: Timer,
+  meeting_redaction: Scissors,
+  meeting_capture_started: FilePlus,
+  meeting_recorded: FileText,
+  meeting_audio_deleted: FileX,
 };
 
 const ACTION_LABELS: Record<AuditActionType, string> = {
@@ -184,6 +194,14 @@ const ACTION_LABELS: Record<AuditActionType, string> = {
   template_updated: 'Template Updated',
   template_install_failed: 'Template Install Failed',
   beneficiary_finding_dismissed: 'Beneficiary Check Dismissed',
+  voiceprint_enrolled: 'Voice profile saved',
+  voiceprint_deleted: 'Voice profile deleted',
+  retention_delete: 'Retention Removed a File',
+  retention_swept: 'Retention Sweep Finished',
+  meeting_redaction: 'Meeting Content Redacted',
+  meeting_capture_started: 'Meeting Recording Started',
+  meeting_recorded: 'Meeting Recorded',
+  meeting_audio_deleted: 'Meeting Audio Deleted',
 };
 
 const ACTION_COLORS: Record<AuditActionType, string> = {
@@ -243,6 +261,14 @@ const ACTION_COLORS: Record<AuditActionType, string> = {
   template_updated: 'text-blue-600 dark:text-blue-400',
   template_install_failed: 'text-red-600 dark:text-red-400',
   beneficiary_finding_dismissed: 'text-indigo-600 dark:text-indigo-400',
+  voiceprint_enrolled: 'text-indigo-600 dark:text-indigo-400',
+  voiceprint_deleted: 'text-red-600 dark:text-red-400',
+  retention_delete: 'text-amber-600 dark:text-amber-400',
+  retention_swept: 'text-amber-600 dark:text-amber-400',
+  meeting_redaction: 'text-amber-600 dark:text-amber-400',
+  meeting_capture_started: 'text-sky-600 dark:text-sky-400',
+  meeting_recorded: 'text-sky-600 dark:text-sky-400',
+  meeting_audio_deleted: 'text-amber-600 dark:text-amber-400',
 };
 
 export function AuditLog({

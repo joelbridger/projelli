@@ -56,6 +56,75 @@ function collapseSlashes(s: string): string {
 }
 
 /**
+ * Resolve `.` and `..` segments so a traversal sequence like `/ws/../Other`
+ * cannot pass a later PREFIX-STRING containment check as if it were still
+ * inside `/ws` — a naive `startsWith('/ws/')` is textually true for
+ * `/ws/../Other` even though the path it denotes is `/Other`. Every
+ * comparison helper below (`pathsEqual`, `sameOrInside`, `relativeInside`)
+ * routes through `normalizeForComparison`, which calls this first, so this is
+ * the one place that decides what a path with dot-segments actually means.
+ *
+ * A rooted path (POSIX `/…`, a drive letter, or UNC) cannot climb above its
+ * own root: a leading `..` past the top is CLAMPED (dropped), matching how a
+ * real filesystem treats `/..` as `/`, never treated as "goes outside" or
+ * left dangling for a later string-prefix check to misread. Input must
+ * already be forward-slash, collapsed-separator form (see `collapseSlashes`).
+ */
+function resolveDotSegments(s: string): string {
+  let prefix = '';
+  let rest = s;
+  if (s.startsWith('//')) {
+    const m = /^(\/\/[^/]+\/[^/]*)(\/.*)?$/.exec(s);
+    if (m) {
+      // Trailing slash matters: without it, joining the UNC prefix straight
+      // onto the first resolved segment below concatenates them into one
+      // word (`//srv/share` + `ws` = `//srv/sharews`) instead of a path
+      // (`//srv/share/ws`). normalizeForComparison strips a bare root's
+      // trailing slash afterward, so a share with no segments below it still
+      // round-trips to `//srv/share` unchanged.
+      prefix = `${m[1] ?? ''}/`;
+      rest = m[2] ?? '';
+    }
+  } else if (/^[A-Za-z]:\//.test(s)) {
+    prefix = s.slice(0, 3);
+    rest = s.slice(3);
+  } else if (s.startsWith('/')) {
+    prefix = '/';
+    rest = s.slice(1);
+  }
+  const rooted = prefix !== '';
+  const stack: string[] = [];
+  for (const seg of rest.split('/')) {
+    if (seg === '' || seg === '.') continue;
+    if (seg === '..') {
+      if (stack.length > 0 && stack[stack.length - 1] !== '..') {
+        stack.pop();
+      } else if (!rooted) {
+        stack.push('..');
+      }
+      // rooted + nothing to pop: climbing above the root clamps, not escapes.
+      continue;
+    }
+    stack.push(seg);
+  }
+  return prefix + stack.join('/');
+}
+
+/**
+ * Resolve `.`/`..` segments the same way the comparison helpers below do,
+ * exposed for callers (like `toWorkspaceRelativeFolder`) that need to fail
+ * closed on a RELATIVE path's own escape attempt before it ever reaches a
+ * `root`-vs-`path` comparison — e.g. a caller-supplied relative folder of
+ * `../../etc` should never be handed back as "the workspace-relative path",
+ * since nothing has verified what it's relative TO. A path that still starts
+ * with `..` after resolution climbed past everything it was given — the
+ * caller should treat that as an escape attempt.
+ */
+export function collapseDotSegments(p: string): string {
+  return resolveDotSegments(collapseSlashes(toForwardSlashes(p)));
+}
+
+/**
  * True when `p` looks like a Windows path — a drive-letter path (`C:/…`,
  * `C:\…`) or a UNC path (`\\…` / `//…`). Used to decide case-insensitivity:
  * on POSIX you never see either shape.
@@ -73,7 +142,7 @@ export function isWindowsStylePath(p: string): boolean {
  * Case is NOT touched here — `fold()` applies that based on platform.
  */
 function normalizeForComparison(p: string): string {
-  let s = collapseSlashes(toForwardSlashes(p));
+  let s = resolveDotSegments(collapseSlashes(toForwardSlashes(p)));
   if (s.length > 1 && s.endsWith('/') && !/^[A-Za-z]:\/$/.test(s)) {
     s = s.replace(/\/+$/, '');
   }

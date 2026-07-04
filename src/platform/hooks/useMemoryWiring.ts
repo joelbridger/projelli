@@ -19,7 +19,7 @@
 
 import { useEffect } from 'react';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
-import { workspacePath } from '@/platform/fs/appPath';
+import { workspacePath, isAbsolutePath, joinWorkspacePath } from '@/platform/fs/appPath';
 import { WORKSPACE_DATA_DIR, LEGACY_WORKSPACE_DATA_DIR } from '@/config/identity';
 import {
   isOcrScannedPdfsEnabled,
@@ -31,7 +31,7 @@ import {
   setPdfIndexingEnabledReader,
   setPrivilegeResolver,
 } from '@/platform/rag/MemoryService';
-import { getMatters, resolveMatterIdForPath, useMatterStore } from '@/platform/matter/matterStore';
+import { getMatters, resolveMatterMatchForPaths, useMatterStore } from '@/platform/matter/matterStore';
 import {
   buildMailMatterMap,
   isPathInFolder,
@@ -138,14 +138,6 @@ function collectAllFilePaths(nodes: FileNode[]): string[] {
   return out;
 }
 
-function isAbsoluteWorkspacePath(path: string): boolean {
-  return (
-    path.startsWith('/') ||
-    /^[A-Za-z]:[\\/]/.test(path) ||
-    path.startsWith('\\\\')
-  );
-}
-
 function toForwardSlashPath(path: string): string {
   return path.replace(/\\/g, '/').replace(/\/+$/, '');
 }
@@ -173,12 +165,17 @@ export function isInternalWorkspacePath(path: string): boolean {
   );
 }
 
-/** Convert a workspace-relative path into the same absolute forward-slash path shape the RAG store uses. */
+/**
+ * Convert a workspace-relative path into the same absolute forward-slash path
+ * shape the RAG store uses. Joining itself is delegated to the canonical
+ * `joinWorkspacePath` (appPath.ts) — the same helper `matterStore.ts` uses to
+ * canonicalize `Matter.folderPaths` — instead of a second, hand-rolled join
+ * that normalized separators but never collapsed doubled ones the way
+ * `joinWorkspacePath` does.
+ */
 export function buildWorkspaceAbsolutePath(rootPath: string | null | undefined, path: string): string {
-  if (!rootPath || isAbsoluteWorkspacePath(path)) return toForwardSlashPath(path);
-  const root = toForwardSlashPath(rootPath);
-  const relative = path.replace(/^[\\/]+/, '').replace(/[\\/]+/g, '/');
-  return `${root}/${relative}`;
+  if (!rootPath || isAbsolutePath(path)) return toForwardSlashPath(path);
+  return joinWorkspacePath(rootPath, path);
 }
 
 function isPdfPath(path: string): boolean {
@@ -274,21 +271,6 @@ function pathInAnyFolder(path: string, folders: string[], rootPath: string | nul
   });
 }
 
-/**
- * Resolve a matter id for a file path that may be workspace-relative (as
- * MainPanel's open tabs store it) OR already absolute (as `Matter.folderPaths`
- * store it) — tries the raw path first, then the workspace-root-joined
- * absolute form. Exported (Wave 0) so any caller with a tab path + the
- * workspace root can resolve correctly, not just this hook's own indexing.
- */
-export function resolveMatterIdForWorkspacePath(path: string, rootPath: string | null | undefined): string {
-  const direct = resolveMatterIdForPath(path);
-  if (direct !== UNASSIGNED_MATTER_ID || !rootPath || isAbsoluteWorkspacePath(path)) {
-    return direct;
-  }
-  return resolveMatterIdForPath(buildWorkspaceAbsolutePath(rootPath, path));
-}
-
 function workspaceRelativePath(path: string, rootPath: string | null | undefined): string | null {
   if (!rootPath) return null;
   const normalizedPath = toForwardSlashPath(path);
@@ -299,23 +281,49 @@ function workspaceRelativePath(path: string, rootPath: string | null | undefined
   return normalizedPath.slice(prefix.length);
 }
 
-function resolveMatterIdWithWorkspaceForms(path: string): string {
-  const direct = resolveMatterIdForPath(path);
-  if (direct !== UNASSIGNED_MATTER_ID) return direct;
-
-  const { rootPath } = useWorkspaceStore.getState();
+/**
+ * Resolve a matter id for a file path that may be workspace-relative (as
+ * MainPanel's open tabs store it) OR already absolute (as `Matter.folderPaths`
+ * store it, or as the RAG indexer's file-watcher paths are). Exported (Wave 0)
+ * so any caller with a tab path + the workspace root can resolve correctly —
+ * this is now the ONE resolver every caller uses (indexer, docx toolbar
+ * button-gating, Draft-follow-up "To" suggestion): it used to be two
+ * independently-maintained implementations (this one, plus a
+ * `resolveMatterIdWithWorkspaceForms` registered only for the RAG indexer)
+ * that had silently diverged — the indexer's version additionally tried a
+ * workspace-relative-derived form that this one skipped. A caller resolving a
+ * workspace path to its matter is a matter-isolation-relevant check (it gates
+ * a CRM write and an auto-suggested recipient), so it must not depend on
+ * which entry point happened to reach it.
+ *
+ * Considers up to three SHAPES of the same logical path TOGETHER (not
+ * sequential candidates to fall through until one "succeeds" — see
+ * `resolveMatterMatchAcrossForms`'s doc comment for why that distinction
+ * matters: a stale/legacy-relative folder entry matching one shape must
+ * never paper over a real cross-matter ambiguity found via another shape of
+ * the identical file — Codex review, smoke-2 P0 #5 fix):
+ *   1. the raw path as-is (handles an already-absolute path, and the rare
+ *      legacy matter with a genuinely relative `folderPaths` entry — see
+ *      `matterStore.ts`'s `resolveAbsolute` doc comment);
+ *   2. if `path` is itself absolute and under `rootPath`, the path relative
+ *      to `rootPath` (handles that same legacy-relative-entry case when the
+ *      caller passes an absolute path instead of a relative one);
+ *   3. if `path` is workspace-relative, the `rootPath`-joined absolute form
+ *      (the common case — `Matter.folderPaths` are absolute).
+ */
+export function resolveMatterIdForWorkspacePath(path: string, rootPath: string | null | undefined): string {
+  const forms = [path];
   const relative = workspaceRelativePath(path, rootPath);
-  if (relative) {
-    const relativeMatch = resolveMatterIdForPath(relative);
-    if (relativeMatch !== UNASSIGNED_MATTER_ID) return relativeMatch;
-  }
+  if (relative) forms.push(relative);
+  if (rootPath && !isAbsolutePath(path)) forms.push(buildWorkspaceAbsolutePath(rootPath, path));
 
-  if (rootPath && !isAbsoluteWorkspacePath(path)) {
-    const absoluteMatch = resolveMatterIdForPath(buildWorkspaceAbsolutePath(rootPath, path));
-    if (absoluteMatch !== UNASSIGNED_MATTER_ID) return absoluteMatch;
-  }
+  return resolveMatterMatchForPaths(forms, rootPath).id;
+}
 
-  return UNASSIGNED_MATTER_ID;
+/** Thin wrapper matching the `MatterResolver` signature `MemoryService` expects
+ *  (no `rootPath` parameter — it reads the live workspace root itself). */
+function resolveMatterIdWithWorkspaceForms(path: string): string {
+  return resolveMatterIdForWorkspacePath(path, useWorkspaceStore.getState().rootPath);
 }
 
 /**

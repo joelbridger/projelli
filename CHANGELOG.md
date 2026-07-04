@@ -31,7 +31,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Within-channel speaker diarization + voiceprint naming (Wave 4 Track A).** A new standalone
+  `lantern-diarize` sidecar (sherpa-onnx segmentation/embedding/clustering behind a stable
+  CLI/JSON contract) splits the system-audio channel of a captured meeting into individual
+  speakers; extraction streams in bounded chunks with 16 kHz resampling. Advisors name speakers
+  ("Speaker 2 → Sarah Henderson"); centroids are stored per-matter, AES-256-GCM-encrypted via the
+  vault format with an OS-keychain master key. Voiceprints never leave the machine, are deletable
+  from the client page, and every enrollment/deletion writes a durable audit entry
+  (`voiceprint_enrolled`/`voiceprint_deleted`). Renderer-supplied meeting paths are
+  workspace-contained. Files: `src-tauri/sidecar-src/lantern-diarize/`,
+  `src-tauri/src/commands/{diarize,voiceprint}/`, `src/features/meetings/SpeakerNamesPanel.tsx`,
+  `src/features/matters/VoiceprintsCard.tsx` (panel mounts at Wave 3 merge).
+- **Retention policy engine + local redaction + attestation export (Wave 4 Track D).** A
+  per-workspace retention policy (TS store + Settings UI + Data Map row) enforced by a Rust sweep
+  engine over every capture location: per-deletion hash-chained audit entries written the instant
+  each artifact is unlinked (never batched), symlink-safe path resolution
+  (`canonicalize_symlink_safe`: component-wise no-follow walk refusing any symlinked component),
+  a durable pending-RAG-cleanup side-file that survives renderer crashes, whole-segment local
+  redaction (`redact_meeting_segments`) with two-phase stage/commit writes and
+  byte-scan-verify-or-fail completeness, and a one-click .docx attestation report exercised
+  end-to-end against the real OOXML engine. Files: `src-tauri/src/commands/retention/`,
+  `src/features/settings/`, `src/platform/utils/tauri-commands.ts`.
+- **Scripted bench-smoke harness (`scripts/bench-smoke.mjs`).** The manual Windows-bench smoke
+  checklist is now a repeatable script driven over CDP: 17+ checks (workspace binding, Wave 0/1/2
+  journeys, Wave 4 Book view/estate chips/whole-practice Ask, index health, console cleanliness),
+  safe-by-default (state-mutating steps require `--live`), per-check screenshots + JSON summary,
+  Legion and Azure bench targets. Live-validated on the Legion. Files: `scripts/bench-smoke/`,
+  `docs/qa/BENCH-SMOKE-HARNESS.md`.
+
 ### Fixed
+- **Wealthbox task creation allowed a missing due date, which the real API rejects** (live-probe
+  Finding 1, `docs/evidence/windows-smoke-2/WEALTHBOX-PROBE.md`) — `POST /tasks` with no
+  `due_date` returns HTTP 422 on the real Wealthbox API; the app previously let a date-less task
+  through and surfaced the raw 422 as an opaque ledger error. `validate_task_due_date` now
+  rejects before any network call, both at the command boundary (`crm_create_write`) and as a
+  defense-in-depth backstop inside the shared `push_crm_write` orchestrator, with a new typed
+  `CrmWriteError::TaskDueDateRequired` ("Wealthbox tasks need a due date"). Never invents a due
+  date. This write path is code-complete but not yet wired to any UI button, so it hasn't shipped
+  to a real user; Wave-3 wiring will light it up.
+  Files: `src-tauri/src/commands/crm/write.rs`, `src-tauri/src/commands/crm/commands.rs`
+- **`background_information` field-update writes used the wrong wire key, silently doing
+  nothing** (live-probe Finding 2, `docs/evidence/windows-smoke-2/WEALTHBOX-PROBE.md`) —
+  `PUT /contacts/{id}` with `background_info` (the read-side wire name) returns HTTP 200 on the
+  real API but leaves the field unchanged; only the literal `background_information` key
+  actually applies the write. Split `wealthbox_wire_field_name` into `wealthbox_read_field_name`
+  (unchanged) and `wealthbox_write_field_name` (now the identity mapping) so the two directions
+  can never be conflated again. Also added generic post-write readback verification in
+  `push_crm_field_update`: after any successful field-update PUT, it re-fetches the field and
+  only marks the ledger `sent` if the live value now matches; a mismatch surfaces as a new typed
+  `CrmWriteError::WriteNotApplied` instead of a false success — this catches the whole
+  "200-but-ignored" bug class for any provider/field, not just this one. The readback comparison
+  normalizes line endings (CRLF/CR → LF) and trailing whitespace before comparing (but never
+  collapses internal whitespace) so a CRM that reformats stored text on a write that genuinely
+  applied doesn't get permanently misreported as a silent no-op. This write path is code-complete
+  but not yet wired to any UI button, so it hasn't shipped to a real user.
+  Files: `src-tauri/src/commands/crm/write.rs`
+- **Client-of-an-open-document resolution failed on Windows path shapes** (Windows smoke-2 P0) —
+  two silently-diverged resolver implementations are now ONE (`resolveMatterIdForWorkspacePath`),
+  considering raw/relative/root-joined shapes of the same path together, reusing the canonical
+  `joinWorkspacePath`, and failing CLOSED (with a dev-console diagnostic) on any cross-matter
+  ambiguity. Fixes the missing Send-to-Wealthbox button and the Draft-follow-up "To" suggestion
+  on real Windows; 3 latent ambiguity bugs found and regression-tested along the way.
+  Files: `useMemoryWiring.ts`, `matterResolver.ts`, `matterStore.ts`, `useMemoryWiring.matterResolveWindows.test.ts`
 - **Save-to-Drafts stuck disabled with an IMAP-first mailbox** (Windows smoke P0 #1) — the
   Draft follow-up modal now defaults to the first draft-capable account instead of index 0,
   and explains the disabled state in plain language when only IMAP is connected.

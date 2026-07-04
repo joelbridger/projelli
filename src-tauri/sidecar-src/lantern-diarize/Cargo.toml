@@ -1,0 +1,34 @@
+[package]
+name = "lantern-diarize"
+version = "0.1.0"
+edition = "2021"
+
+# Standalone: detached from the src-tauri workspace so the app's
+# `cargo test --workspace` never compiles sherpa-onnx's C++.
+[workspace]
+
+[dependencies]
+# VERIFIED-LIVE 2026-07-03: sherpa-rs 0.6.8 is the current crates.io release
+# (pinned "0.6" resolves there). It exposes offline speaker diarization via
+# sherpa_rs::diarize::{Diarize, DiarizeConfig, Segment} (pyannote segmentation
+# + embedding-based clustering) and a standalone embedding extractor via
+# sherpa_rs::speaker_id::{EmbeddingExtractor, ExtractorConfig}. Confirmed
+# against crates/sherpa-rs/src/{diarize,speaker_id}.rs and examples/diarize.rs
+# in https://github.com/thewh1teagle/sherpa-rs (main branch, 2026-07-03).
+# VERIFY-LIVE 2026-07-03 finding: the "static" feature's prebuilt archive
+# (crates.io sherpa-rs-sys 0.6.8, download-binaries) does not include the
+# diarization/speaker-id C symbols this sidecar calls (link fails with
+# undefined SherpaOnnxOfflineSpeakerDiarization*/SherpaOnnxSpeakerEmbedding*
+# symbols) — only the default shared-lib download has them. So this crate
+# links dynamically and ships its shared libs next to the binary (rpath set
+# in .cargo/config.toml), the same way fastembed's onnxruntime is staged
+# elsewhere in this repo. `tts` (a default feature) is dropped: this sidecar
+# never synthesizes speech.
+sherpa-rs = { version = "0.6", default-features = false, features = ["download-binaries"] }
+hound = "3.5"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+
+[profile.release]
+strip = true

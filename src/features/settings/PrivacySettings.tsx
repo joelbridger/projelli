@@ -19,12 +19,15 @@ import { useTelemetryConsent } from '@/platform/hooks/useTelemetryConsent';
 import { useDesignPartnerConsent } from '@/platform/hooks/useDesignPartnerConsent';
 import { getInstallId } from '@/platform/utils/installId';
 import { DataMapDialog } from '@/platform/privacy/ui/DataMapDialog';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import { RetentionSettings } from '@/features/settings/RetentionSettings';
 
 export function PrivacySettings() {
   const { t } = useTranslation();
   const { consent, setConsent } = useTelemetryConsent();
   const { consent: dpConsent, setConsent: setDpConsent } = useDesignPartnerConsent();
   const [dataMapOpen, setDataMapOpen] = useState(false);
+  const workspaceRoot = useWorkspaceStore((s) => s.rootPath);
 
   return (
     <div className="space-y-6">
@@ -54,6 +57,13 @@ export function PrivacySettings() {
       </div>
 
       <DataMapDialog open={dataMapOpen} onOpenChange={setDataMapOpen} />
+
+      {/* Wave 4 Track D — per-workspace retention policy for meeting recordings. */}
+      {workspaceRoot && (
+        <div className="rounded-lg border border-border bg-card p-6">
+          <RetentionSettings workspaceRoot={workspaceRoot} />
+        </div>
+      )}
 
       {/* Telemetry opt-in */}
       <div className="rounded-lg border border-border bg-card p-6 space-y-4">

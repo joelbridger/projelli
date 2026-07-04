@@ -1,0 +1,15 @@
+# Rpath so the sidecar finds its shared sherpa-onnx libs next to itself
+# (staged there by scripts/build-diarize-sidecar.sh), regardless of the
+# caller's working directory. Windows resolves DLLs beside the .exe by
+# default and needs no equivalent flag.
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "link-args=-Wl,-rpath,$ORIGIN"]
+
+[target.aarch64-unknown-linux-gnu]
+rustflags = ["-C", "link-args=-Wl,-rpath,$ORIGIN"]
+
+[target.x86_64-apple-darwin]
+rustflags = ["-C", "link-args=-Wl,-rpath,@loader_path"]
+
+[target.aarch64-apple-darwin]
+rustflags = ["-C", "link-args=-Wl,-rpath,@loader_path"]

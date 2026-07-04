@@ -74,3 +74,11 @@ pub mod setup_progress;
 // Lantern-Plus Wave 3a — local meeting capture (mic + system-audio loopback,
 // crash-durable chunked WAV, never a cloud path).
 pub mod capture;
+// Wave 4 Track A — within-channel speaker diarization: system-channel
+// extraction + sherpa-onnx turn assignment onto Wave 3 transcripts.
+pub mod diarize;
+// Wave 4 Track A — encrypted per-matter voiceprint store + naming commands.
+pub mod voiceprint;
+// Wave 4 Track D — per-workspace retention policy sweep enforcing the capture
+// location contract (audio.wav, chunk caches, transcript.json in summary-only).
+pub mod retention;

@@ -31,8 +31,10 @@ import { BeforeYouMeetStrip } from '@/features/meetings/BeforeYouMeetStrip';
 import { GuidedInterview } from '@/features/matters/GuidedInterview';
 import { ClientMapUpdatesTray } from '@/features/matters/ClientMapUpdatesTray';
 import { CrmWriteReviewCard } from '@/features/matters/CrmWriteReviewCard';
+import { VoiceprintsCard } from '@/features/matters/VoiceprintsCard';
 import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useCrmStore } from '@/platform/connectors/crm/crmStore';
 import { answerQuestion, flagForClient } from '@/features/matters/clientMap/guidedInterview';
 import { dispatchOpenSource } from '@/features/matters/clientMap/openSource';
@@ -92,6 +94,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
     autoBuild: matterId !== SAMPLE_MATTER_ID,
   });
   const { checkForUpdates } = clientMap;
+  const workspaceRoot = useWorkspaceStore((s) => s.rootPath);
   const matters = useMatters();
   const matter = matters.find((m) => m.id === matterId) ?? null;
   const isPrivileged = useActiveMatterPrivileged();
@@ -478,6 +481,11 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                     onStartInterview={() => { setShowInterview((v) => !v); }}
                     {...(onAuditLog ? { onAuditLog } : {})}
                   />
+                )}
+                {workspaceRoot != null && workspaceRoot !== '' && (
+                  <div style={{ padding: '0 var(--kp-gutter)' }}>
+                    <VoiceprintsCard matterId={matterId} workspaceRoot={workspaceRoot} />
+                  </div>
                 )}
               </div>
             </div>

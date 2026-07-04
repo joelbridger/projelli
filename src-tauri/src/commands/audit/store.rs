@@ -568,6 +568,18 @@ impl EncryptedAuditStore {
             checked: actual.entry_count,
         })
     }
+
+    /// Test-only: directly overwrite one row's payload, bypassing every
+    /// append-time check, so callers OUTSIDE this module (e.g.
+    /// `retention::reject_if_chain_altered`'s own tests) can exercise the
+    /// "chain is genuinely altered" path without reaching into private
+    /// fields. Never compiled into a non-test build.
+    #[cfg(test)]
+    pub(crate) fn tamper_payload_for_test(&self, id: &str, payload_json: &str) {
+        let c = self.conn.lock().unwrap();
+        c.execute("UPDATE entries SET payload_json = ?1 WHERE id = ?2", rusqlite::params![payload_json, id])
+            .unwrap();
+    }
 }
 
 // ---------------------------------------------------------------------------

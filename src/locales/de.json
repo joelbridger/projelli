@@ -1221,6 +1221,16 @@
     "beneficiary": {
       "chip-title": "Beneficiary check",
       "review-note": "Flagged for your review. Not legal advice."
+    },
+    "voiceprints": {
+      "title": "Sprachprofile",
+      "subtitle": "Werden nur auf diesem Computer gespeichert. Damit wird erkannt, wer in den Besprechungsaufnahmen dieses Mandanten spricht.",
+      "empty": "Für diesen Mandanten sind noch keine Sprachprofile gespeichert. Benenne einen Sprecher in einem Besprechungstranskript, um eines hinzuzufügen.",
+      "samples": "{{count}} Besprechungen",
+      "delete": "Löschen",
+      "delete-title": "Dieses Sprachprofil löschen?",
+      "delete-body": "Das gespeicherte Sprachmuster für {{name}} wird von diesem Computer entfernt. Bereits beschriftete Besprechungen behalten ihre Namen. Diese Aktion wird in deinem Prüfprotokoll erfasst.",
+      "delete-confirm": "Sprachprofil löschen"
     }
   },
   "firm": {
@@ -1705,6 +1715,24 @@
       "title-manual": "Netzwerk-Plugins und MCP-Server sind deaktiviert.",
       "title-privileged-matter": "Aktiviert, weil der aktive Mandant privilegiert ist. Netzwerk-Plugins und MCP-Server sind deaktiviert.",
       "title-local-only": "Aktiviert, weil Nur lokal ausgewählt ist. Netzwerk-Plugins und MCP-Server sind deaktiviert."
+    },
+    "retention": {
+      "title": "Besprechungsaufnahmen",
+      "subtitle": "Wählen Sie, was mit Aufnahmen auf diesem Computer geschieht. Löschungen werden in Ihrem Prüfprotokoll erfasst.",
+      "mode-keep": "Alles behalten",
+      "mode-keep-hint": "Audio, Transkript und Notizen bleiben erhalten, bis Sie sie löschen.",
+      "mode-days": "Audio nach {{count}} Tagen löschen, Transkript behalten",
+      "mode-days-hint": "Die Aufnahme wird planmäßig entfernt. Transkript und Notizen bleiben erhalten.",
+      "mode-summary": "Nur Zusammenfassung",
+      "mode-summary-hint": "Audio und Transkript werden entfernt, sobald Notizen vorhanden sind. Nur die Notizen bleiben.",
+      "days-label": "Tage, die Audio aufbewahrt wird",
+      "run-now": "Bereinigung jetzt ausführen",
+      "last-sweep": "Letzte Bereinigung: {{when}}, {{count}} Elemente entfernt",
+      "never-swept": "Die Bereinigung wurde noch nicht ausgeführt.",
+      "datamap-title": "Aufbewahrung von Besprechungsaufnahmen",
+      "sweep-errors": "{{count}} Elemente konnten nicht entfernt werden. Siehe Prüfprotokoll.",
+      "attestation-button": "Bestätigungsbericht exportieren (Word)",
+      "attestation-done": "Gespeichert unter {{path}}"
     }
   },
   "mail": {
@@ -1782,6 +1810,19 @@
       "try-again": "Erneut versuchen",
       "working-button": "Wird verarbeitet...",
       "done-button": "Fertig"
+    }
+  },
+  "meetings": {
+    "speakers": {
+      "title": "Wer spricht hier?",
+      "run": "Sprecher trennen",
+      "running": "Verschiedene Stimmen werden erkannt...",
+      "suggested": "Sieht aus wie {{name}} ({{pct}}% Übereinstimmung)",
+      "name-placeholder": "Namen für diese Stimme eingeben",
+      "apply": "Namen übernehmen",
+      "applied": "Sprechernamen im Transkript aktualisiert.",
+      "stats": "{{turns}} Wortmeldungen, {{minutes}} Min. Redezeit",
+      "privacy-note": "Sprachprofile werden nur auf diesem Computer gespeichert, verschlüsselt und ausschließlich für diesen Mandanten. Du kannst sie jederzeit auf der Mandantenseite löschen."
     }
   }
 }

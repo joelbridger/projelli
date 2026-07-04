@@ -20,11 +20,26 @@
  */
 
 import { UNASSIGNED_MATTER_ID, type Matter } from '@/platform/types/matter';
-import { isAbsolutePath, sameOrInside } from '@/platform/fs/appPath';
+import { isAbsolutePath, sameOrInside, joinWorkspacePath, relativeInside, collapseDotSegments } from '@/platform/fs/appPath';
 
 /** Normalise a path for comparison: backslashes to slashes, strip trailing slashes. */
 export function normalize(p: string): string {
   return p.replace(/\\/g, '/').replace(/\/+$/, '');
+}
+
+/**
+ * Like `normalize`, but also collapses DUPLICATE internal separators
+ * (`Clients//Acme` -> `Clients/Acme`). Used only for the specificity length
+ * metric below: `isPathInFolder`/`sameOrInside` already collapse duplicate
+ * slashes when deciding whether two folder spellings denote the same real
+ * folder, so the length used to break a specificity tie must agree — using
+ * plain `normalize` here would let a redundantly-slashed spelling of the
+ * SAME folder measure as "longer" and silently win a tie instead of
+ * correctly failing closed as ambiguous (Codex review round 3, smoke-2 P0
+ * #5 fix).
+ */
+function specificityLength(p: string): number {
+  return normalize(p).replace(/\/{2,}/g, '/').length;
 }
 
 function normalizeClaimPath(path: string): string {
@@ -73,52 +88,157 @@ export function isPathInFolder(filePath: string, folder: string): boolean {
 }
 
 /**
+ * `resolveMatterMatch`'s result. `ambiguous` is what lets a caller trying
+ * several SHAPES of the same logical path (e.g. `resolveMatterIdForWorkspacePath`'s
+ * direct/relative/absolute fallback forms) tell "this exact form genuinely
+ * matches no folder, try another form" apart from "this form found a real
+ * identity conflict between two matters" — the latter must never be papered
+ * over by a different form of the SAME path happening to resolve cleanly
+ * (Codex review, smoke-2 P0 #5 fix). `resolveMatterId` collapses both cases
+ * to `UNASSIGNED_MATTER_ID` for callers that only need the id.
+ */
+export interface MatterMatch {
+  id: string;
+  ambiguous: boolean;
+}
+
+/**
+ * Resolve the matter id a path belongs to, along with whether the failure (if
+ * any) was a genuine identity conflict rather than a plain non-match. See
+ * `resolveMatterId` for the resolution rules.
+ */
+export function resolveMatterMatch(filePath: string, matters: Matter[]): MatterMatch {
+  return resolveMatterMatchAcrossForms([filePath], matters);
+}
+
+/**
+ * Canonicalize a matter folder to absolute (using the same join `matterStore.ts`'s
+ * `resolveAbsolute` uses when WRITING `folderPaths`) so a folder that's already
+ * absolute and a rare legacy RELATIVE entry for the SAME physical folder compare
+ * on equal footing. Without this, two matters claiming the same real folder in
+ * different shapes (`Clients/Acme` vs `C:/WS/Clients/Acme`) would tie at
+ * DIFFERENT raw string lengths — the absolute one always "longer" and so always
+ * "winning" the specificity tie-break — silently picking one matter instead of
+ * failing closed on the genuine ambiguity (Codex review, smoke-2 P0 #5 fix).
+ * A `null`/missing `rootPath` leaves the folder as-is (nothing to canonicalize
+ * against — matches today's behaviour for every caller that doesn't have one).
+ */
+function canonicalizeFolder(folder: string, rootPath: string | null | undefined): string {
+  if (!rootPath || isAbsolutePath(folder)) return folder;
+  return joinWorkspacePath(rootPath, folder);
+}
+
+/**
+ * Like `resolveMatterMatch`, but takes every equivalent SHAPE of the same
+ * logical file (e.g. its workspace-relative form and its `rootPath`-joined
+ * absolute form) and resolves them TOGETHER in one ambiguity-tracking pass,
+ * rather than trying one shape, stopping at its first clean match, and never
+ * even looking at the other shapes. When `rootPath` is supplied, every
+ * matter folder is ALSO canonicalized to absolute before comparing (see
+ * `canonicalizeFolder`) so mixed absolute/legacy-relative folder claims for
+ * the same physical folder are recognized as the same folder, not two
+ * differently-sized strings.
+ *
+ * This matters because `Matter.folderPaths` entries can themselves be a mix
+ * of shapes (normally absolute; occasionally a legacy relative entry — see
+ * `matterStore.ts`'s `resolveAbsolute` doc comment). A caller that tries
+ * shapes sequentially and returns on the first non-empty result can get a
+ * CLEAN match from a stale/legacy-relative folder entry while never
+ * discovering that the file's CANONICAL (absolute) form is actually claimed
+ * by two different matters — silently surfacing a matter-isolation-relevant
+ * decision (CRM writes, recipient auto-suggestion) from what should have
+ * failed closed (Codex review, smoke-2 P0 #5 fix). Evaluating every shape in
+ * one pass, in one coordinate system, makes the longest-match-wins /
+ * ambiguous-tie-fails-closed rule apply to the file's full identity, not to
+ * whichever shape (or whichever matter's folder happened to be longer as a
+ * raw string) was tried first.
+ */
+export function resolveMatterMatchAcrossForms(
+  filePaths: string[],
+  matters: Matter[],
+  rootPath?: string | null,
+): MatterMatch {
+  let bestId = UNASSIGNED_MATTER_ID;
+  let bestLen = -1;
+  // Fail-closed ambiguity guard (Codex P1, 2026-06-30; extended to multi-form
+  // resolution and cross-shape folder canonicalization, Codex P2 + P1,
+  // smoke-2 P0 #5). Because containment is case-insensitive for
+  // Windows-shaped paths, a file could match the folders of TWO DIFFERENT
+  // matters that differ ONLY by case (`C:\WS\Acme` vs `C:\WS\acme`) —
+  // possible if the workspace lives on a case-SENSITIVE Windows-shaped volume
+  // (NTFS per-directory case sensitivity, a WSL/network-backed share). On a
+  // normal case-insensitive Windows volume those two folders cannot coexist, so
+  // this never triggers there; but where it CAN, silently picking the first
+  // matter would surface one client's file under another's scope. So when the
+  // longest match (across every equivalent shape of this file, and every
+  // equivalent shape of each matter's folder) is claimed by more than one
+  // distinct matter, resolve to UNASSIGNED (fail closed — the file is locked
+  // out of both, never leaked).
+  let bestIsAmbiguous = false;
+  let ambiguousWith = '';
+  let ambiguousFolder = '';
+  let matchedFilePath = '';
+  for (const filePath of filePaths) {
+    // `mail:` sources don't live under a folder — leave email assignment to a
+    // later task. Never matches, for any shape.
+    if (!filePath || filePath.startsWith('mail:')) continue;
+    for (const matter of matters) {
+      if (matter.id === UNASSIGNED_MATTER_ID) continue;
+      for (const rawFolder of matter.folderPaths) {
+        if (!rawFolder) continue;
+        const folder = canonicalizeFolder(rawFolder, rootPath);
+        if (isPathInFolder(filePath, folder)) {
+          const len = specificityLength(folder);
+          if (len > bestLen) {
+            bestLen = len;
+            bestId = matter.id;
+            bestIsAmbiguous = false;
+            matchedFilePath = filePath;
+          } else if (len === bestLen && matter.id !== bestId) {
+            // A second, distinct matter ties at the longest match (whether via
+            // the same shape or a different one) — a case-only (or
+            // exact-duplicate) folder collision. Cannot safely attribute.
+            bestIsAmbiguous = true;
+            ambiguousWith = matter.id;
+            ambiguousFolder = folder;
+          }
+        }
+      }
+    }
+  }
+  if (bestIsAmbiguous && import.meta.env.DEV) {
+    // Silent fail-closed (correctly — see the guard above) is otherwise
+    // indistinguishable from "this file just isn't mapped to any matter",
+    // which made the Windows smoke-2 P0 #5 "Send to Wealthbox" investigation
+    // (docs/evidence/windows-smoke-2/RUN-LOG.md) unable to tell those two
+    // cases apart from the UI alone. Dev-only so it never reaches a shipped
+    // build or a user's console.
+    console.warn(
+      `[matterResolver] "${matchedFilePath}" matches folders claimed by two different matters ` +
+        `(${bestId} and ${ambiguousWith}, both via "${ambiguousFolder}"-length folders) — ` +
+        'resolving to unassigned rather than guessing. This usually means two matters were ' +
+        'independently given an overlapping folderPaths entry (e.g. a bulk/manual folder ' +
+        'remap wrote a duplicate claim); check both matters\' folderPaths.',
+    );
+  }
+  return bestIsAmbiguous
+    ? { id: UNASSIGNED_MATTER_ID, ambiguous: true }
+    : { id: bestId, ambiguous: false };
+}
+
+/**
  * Resolve the matter id a path belongs to. Returns `UNASSIGNED_MATTER_ID`
- * when the path is outside every matter's mapped folders (or when the path is
- * a `mail:` id, which is never under a workspace folder).
+ * when the path is outside every matter's mapped folders, OR when it matches
+ * more than one (a genuine identity conflict — fails closed rather than
+ * guessing). Use `resolveMatterMatch` when the caller needs to tell those two
+ * cases apart.
  *
  * When more than one matter folder contains the path, the longest (most
  * specific) folder wins, so a sub-matter mapped to a child folder takes
  * precedence over a parent matter mapped to its ancestor.
  */
 export function resolveMatterId(filePath: string, matters: Matter[]): string {
-  if (!filePath) return UNASSIGNED_MATTER_ID;
-  // `mail:` sources don't live under a folder — leave email assignment to a
-  // later task. Resolve to unassigned for now.
-  if (filePath.startsWith('mail:')) return UNASSIGNED_MATTER_ID;
-
-  let bestId = UNASSIGNED_MATTER_ID;
-  let bestLen = -1;
-  // Fail-closed ambiguity guard (Codex P1, 2026-06-30). Because containment is
-  // case-insensitive for Windows-shaped paths, a file could match the folders of
-  // TWO DIFFERENT matters that differ ONLY by case (`C:\WS\Acme` vs `C:\WS\acme`)
-  // — possible if the workspace lives on a case-SENSITIVE Windows-shaped volume
-  // (NTFS per-directory case sensitivity, a WSL/network-backed share). On a
-  // normal case-insensitive Windows volume those two folders cannot coexist, so
-  // this never triggers there; but where it CAN, silently picking the first
-  // matter would surface one client's file under another's scope. So when the
-  // longest match is claimed by more than one distinct matter, resolve to
-  // UNASSIGNED (fail closed — the file is locked out of both, never leaked).
-  let bestIsAmbiguous = false;
-  for (const matter of matters) {
-    if (matter.id === UNASSIGNED_MATTER_ID) continue;
-    for (const folder of matter.folderPaths) {
-      if (!folder) continue;
-      if (isPathInFolder(filePath, folder)) {
-        const len = normalize(folder).length;
-        if (len > bestLen) {
-          bestLen = len;
-          bestId = matter.id;
-          bestIsAmbiguous = false;
-        } else if (len === bestLen && matter.id !== bestId) {
-          // A second, distinct matter ties at the longest match — a case-only
-          // (or exact-duplicate) folder collision. Cannot safely attribute.
-          bestIsAmbiguous = true;
-        }
-      }
-    }
-  }
-  return bestIsAmbiguous ? UNASSIGNED_MATTER_ID : bestId;
+  return resolveMatterMatch(filePath, matters).id;
 }
 
 /**
@@ -434,20 +554,33 @@ export function oneDriveDestFolderForMatter(
 }
 
 /** Resolve a possibly-absolute matter folder to a workspace-relative path.
- *  Returns '' for an absolute path that is not under the workspace root. */
-function toWorkspaceRelativeFolder(
+ *  Returns '' for an absolute path that is not under the workspace root.
+ *  Containment uses `relativeInside` (case-sensitive per directory segment,
+ *  case-folded only for a Windows drive/UNC volume root) rather than a full
+ *  lowercase compare, so a path that merely SHARES a name with something
+ *  inside the workspace but differs by segment case is never mistaken for
+ *  being inside it — callers of this helper (retention sweep included) use
+ *  the result to decide what gets deleted. */
+export function toWorkspaceRelativeFolder(
   folderPath: string,
   workspaceRoot?: string | null,
 ): string {
   const p = normalize(folderPath);
-  if (!isAbsolutePath(p)) return p.replace(/^\/+/, '');
+  if (!isAbsolutePath(p)) {
+    // A relative input is assumed already-relative-to-the-workspace, so it
+    // should never need to climb above where it started. Resolve `.`/`..`
+    // the same way the containment checks below do; if anything is left
+    // climbing (a leading `..`), that's an escape attempt — refuse it
+    // instead of handing back a path outside the intended scope (this
+    // result feeds the retention sweep's delete boundary).
+    const resolved = collapseDotSegments(p.replace(/^\/+/, ''));
+    if (resolved === '..' || resolved.startsWith('../')) return '';
+    return resolved;
+  }
   if (!workspaceRoot) return '';
   const root = normalize(workspaceRoot);
-  const lp = p.toLowerCase();
-  const lr = root.toLowerCase();
-  if (lp === lr) return '';
-  if (lp.startsWith(`${lr}/`)) return p.slice(root.length).replace(/^\/+/, '');
-  return '';
+  const rel = relativeInside(root, p);
+  return rel ?? '';
 }
 
 export function buildOneDriveMatterMap(

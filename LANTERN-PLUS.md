@@ -43,3 +43,7 @@ Two efforts run in parallel and must not collide:
   (moved here from `~/keepance-jump-feasibility`, now the canonical copy).
   Published report: https://jameworld.com/claudereports/r/2026-07-02-keepance-vs-jump-feature-parity-feasibility-assessment.html
 - [`docs/plans/lantern-plus/`](docs/plans/lantern-plus/) — the implementation plans + the binding UI-INTEGRATION-SPEC + the NEXT-SESSION-BOOTSTRAP prompt (the deliverables of the Fable planning session).
+
+## Open items (cross-lane dependencies)
+
+- `TODO(wave-3-merge)`: Wave 4 Track A's `SpeakerNamesPanel` (`src/features/meetings/SpeakerNamesPanel.tsx`) is built, tested, and exported but not yet mounted anywhere — it needs Wave 3's `MeetingEntry.tsx` transcript viewer (a separate in-flight lane) to exist first. Once Wave 3 merges into `lantern-plus`, mount `<SpeakerNamesPanel meetingDir={...} matterId={...} workspaceRoot={...} onApplied={reindex} />` in the transcript viewer per Wave 4 Track A Task 12 Step 6 (`docs/plans/lantern-plus/2026-07-02-wave-4-depth.md`).
