@@ -183,14 +183,28 @@ interface MeetingState {
 /** QA-35 — a cheap, best-effort disk-space preflight the caller runs right
  *  before opening the consent dialog, so a genuinely low-disk advisor is
  *  warned ("Low disk space — long recordings may not fit") BEFORE a chunk
- *  write ever has a chance to actually fail. 300MB is roughly 1.3 hours of
- *  this app's raw mono 16kHz/16-bit chunk audio for BOTH channels combined
- *  (~64KB/s) plus the eventual merged stereo audio.wav on top — comfortably
- *  under "a typical meeting won't fit" while still leaving real headroom
- *  before the warning fires. Returns null (no warning) if the workspace root
- *  isn't resolvable or the check itself fails — this is advisory only, never
- *  a blocker, so a failed check must never prevent recording. */
-const LOW_DISK_WARNING_THRESHOLD_BYTES = 300 * 1024 * 1024;
+ *  write ever has a chance to actually fail.
+ *
+ *  QA-35 review round 3: this must be sized off PEAK usage, not the
+ *  steady-state chunk-write rate. While recording, the raw per-channel chunk
+ *  files under `.capture/` accumulate at ~64KB/s (mono 16kHz/16-bit PCM,
+ *  both channels combined). But `finalize_session` (session.rs) writes the
+ *  ENTIRE merged stereo `audio.wav` — another ~64KB/s worth of data — BEFORE
+ *  it deletes `.capture/`, so for that window both copies of the recording
+ *  exist on disk at once: effectively ~128KB/s of PEAK disk usage, double
+ *  the raw chunk-write rate alone. Basing this threshold on the lower,
+ *  steady-state rate (a prior version of this comment did exactly that)
+ *  under-warns: an advisor could sit at ~350-450MiB free with no warning at
+ *  all, then genuinely run out of space mid-finalize on a long meeting. 600MB
+ *  is roughly 1.3 hours of headroom at the correct ~128KB/s peak rate —
+ *  comfortably under "a typical meeting won't fit" while still leaving real
+ *  headroom before the warning fires. Returns null (no warning) if the
+ *  workspace root isn't resolvable or the check itself fails — this is
+ *  advisory only, never a blocker, so a failed check must never prevent
+ *  recording. (The honest failure-on-actual-write-error path — write_error/
+ *  capture_status/the auto-stop in tick() — is unaffected by this: it reacts
+ *  to a REAL failure regardless of this preflight's estimate.) */
+const LOW_DISK_WARNING_THRESHOLD_BYTES = 600 * 1024 * 1024;
 
 export async function checkLowDiskSpaceWarning(): Promise<boolean> {
   const workspace = resolveWorkspaceRoot();

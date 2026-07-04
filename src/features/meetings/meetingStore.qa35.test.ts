@@ -21,8 +21,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock, isTauri: () => false }));
 
-import { useMeetingStore, needsReview } from './meetingStore';
+import { useMeetingStore, needsReview, checkLowDiskSpaceWarning } from './meetingStore';
 import type { MeetingSummary } from './ClientMeetingsTab';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 
 const RECORDING_STATUS = {
   status: { recording: true, meetingDir: '/ws/Clients/Acme/Meetings/m1', elapsedMs: 5000, writeError: null },
@@ -280,5 +281,32 @@ describe('needsReview — QA-35 review round 2 (recording-incomplete)', () => {
     };
     const items = needsReview(meeting, []);
     expect(items.some((i) => i.kind === 'recording-incomplete')).toBe(false);
+  });
+});
+
+describe('checkLowDiskSpaceWarning — QA-35 review round 3 (peak, not steady-state, disk usage)', () => {
+  beforeEach(() => {
+    useWorkspaceStore.setState({ rootPath: '/ws' });
+  });
+
+  it('warns below 600MB free — sized off the ~128KB/s PEAK usage while finalize_session briefly holds both the raw .capture/ chunks AND the merged audio.wav on disk at once, not just the ~64KB/s steady-state chunk-write rate', async () => {
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'capture_free_disk_bytes') return Promise.resolve(400 * 1024 * 1024); // 400MiB
+      return Promise.resolve(null);
+    });
+
+    // A prior version of this threshold (300MB, sized off the steady-state
+    // 64KB/s chunk rate alone) would have shown NO warning at 400MB free —
+    // exactly the under-warn qa5/coordinator flagged.
+    await expect(checkLowDiskSpaceWarning()).resolves.toBe(true);
+  });
+
+  it('does not warn comfortably above 600MB free', async () => {
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'capture_free_disk_bytes') return Promise.resolve(2 * 1024 * 1024 * 1024); // 2GiB
+      return Promise.resolve(null);
+    });
+
+    await expect(checkLowDiskSpaceWarning()).resolves.toBe(false);
   });
 });
