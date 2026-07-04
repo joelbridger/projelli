@@ -137,6 +137,33 @@ describe('consent ledger — notice entries', () => {
   });
 });
 
+describe('noticeContext (codex-review R6)', () => {
+  it('stores and reads back the script/locale captured at recording start', async () => {
+    const store = memStorage();
+    const ledger = makeConsentLedger(store, () => MATTER);
+    const dir = `${MATTER}/Meetings/m1`;
+    await ledger.recordNotice({ kind: 'notice-context', meetingDir: dir, at: 't', customScript: 'Custom firm script.', locale: 'de' });
+    const ctx = await ledger.noticeContext(dir);
+    expect(ctx?.customScript).toBe('Custom firm script.');
+    expect(ctx?.locale).toBe('de');
+  });
+
+  it('returns null when no context was recorded (legacy/imported meeting)', async () => {
+    const store = memStorage();
+    expect(await makeConsentLedger(store, () => MATTER).noticeContext(`${MATTER}/Meetings/x`)).toBeNull();
+  });
+
+  it('matches context across path forms and returns the latest', async () => {
+    const store = memStorage();
+    const ledger = makeConsentLedger(store, () => MATTER);
+    await ledger.recordNotice({ kind: 'notice-context', meetingDir: `/abs${MATTER}/Meetings/m1`, at: 't1', customScript: 'first', locale: 'en' });
+    await ledger.recordNotice({ kind: 'notice-context', meetingDir: `${MATTER}/Meetings/m1`, at: 't2', customScript: 'second', locale: 'es' });
+    const ctx = await ledger.noticeContext(`other/Meetings/m1`);
+    expect(ctx?.customScript).toBe('second');
+    expect(ctx?.locale).toBe('es');
+  });
+});
+
 describe('meetingDirKey + cross-path-form matching (codex-review R2)', () => {
   it('matches an entry written with an absolute path against a relative lookup', async () => {
     const store = memStorage();

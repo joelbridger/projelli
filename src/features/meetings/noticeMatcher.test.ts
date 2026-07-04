@@ -53,6 +53,10 @@ describe('detectRecordingNotice — English semantic core', () => {
     'They were recording the webinar earlier.',
     'You are going to record this yourself, right?',
     'He said they record every session.',
+    // codex-review R6: bare "me"/"let" are not first-person subjects.
+    'Do you want me to record this?',
+    'Let John record this session for us.',
+    'Would you like me to record the call?',
   ];
   for (const text of fails) {
     it(`FAIL: ${text.slice(0, 40)}…`, () => {

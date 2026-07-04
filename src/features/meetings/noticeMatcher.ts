@@ -63,6 +63,12 @@ interface LangConfig {
    *  one of these is the CLOSEST subject before the recording verb, it isn't a
    *  first-person disclosure ("they record everything", "did you record"). */
   thirdPersonMarkers: ReadonlySet<string>;
+  /** Imperative-first-person bigram: an object pronoun that only proves first
+   *  person when directly preceded by a "let" verb ("let me record", "lass
+   *  mich aufnehmen"). Bare "me"/"let" alone must NOT count — "do you want me
+   *  to record", "let John record" are not disclosures (codex-review R6). */
+  imperativeLet?: ReadonlySet<string>;
+  imperativeObject?: ReadonlySet<string>;
   /** Tokens that negate the disclosure ("never", "not", "won't", …). */
   negations: ReadonlySet<string>;
   /** German separable-verb support: "nehme … auf" / "zeichne … auf" — when a
@@ -86,8 +92,10 @@ const LANGS: Record<NoticeLocale, LangConfig> = {
     // expanded to "we are"/"i am" in tokenize(), so the subject pronoun (we/i)
     // is what proves first person, never a nearby "were"/"going"/"want" that
     // could beat the real third-person subject ("they were recording").
-    firstPersonMarkers: new Set(['i', 'im', 'ive', 'ill', 'id', 'we', 'let', 'me']),
+    firstPersonMarkers: new Set(['i', 'im', 'ive', 'ill', 'id', 'we']),
     thirdPersonMarkers: new Set(['they', 'you', 'he', 'she', 'it', 'someone', 'somebody', 'people', 'everybody', 'nobody', 'who', 'court']),
+    imperativeLet: new Set(['let']),
+    imperativeObject: new Set(['me', 'us']),
     negations: new Set(['not', 'never', 'no', 'cannot', 'without', 'stop', 'stopped', 'asked']),
     purposeTokens: new Set(['note', 'notes', 'notetaking', 'notekeeping']),
     consentTokens: new Set(['everyone', 'alright', 'okay', 'ok', 'consent', 'agree', 'anyone', 'objection', 'all']),
@@ -100,8 +108,10 @@ const LANGS: Record<NoticeLocale, LangConfig> = {
     // "they/we will"), so they must not prove first person on their own; the
     // subject pronoun (ich/wir) does. German is verb-final, so SUBJECT_WINDOW
     // still reaches the pronoun ahead of the recording verb.
-    firstPersonMarkers: new Set(['ich', 'wir', 'lass', 'mich']),
+    firstPersonMarkers: new Set(['ich', 'wir']),
     thirdPersonMarkers: new Set(['sie', 'er', 'es', 'man', 'du', 'ihr', 'jemand', 'leute', 'wer']),
+    imperativeLet: new Set(['lass', 'lasst', 'lassen']),
+    imperativeObject: new Set(['mich', 'uns']),
     negations: new Set(['nicht', 'nie', 'niemals', 'kein', 'keine', 'ohne']),
     separableStems: new Set(['nehme', 'nimmt', 'nehmen', 'zeichne', 'zeichnen']),
     separableParticles: new Set(['auf']),
@@ -116,7 +126,10 @@ const LANGS: Record<NoticeLocale, LangConfig> = {
     // third person — so it's excluded here and must lean on a subject marker
     // ("estoy grabando").
     firstPersonTerms: new Set(['grabo', 'grabare', 'grabamos']),
-    firstPersonMarkers: new Set(['estoy', 'voy', 'vamos', 'quiero', 'me', 'yo']),
+    // No bare 'me' — Spanish "me" is an object pronoun ("¿me quieres grabar?"
+    // = "do you want to record me?"), not a subject (codex-review R6). "let me"
+    // is the single token "déjame"/"déjeme" (accents folded → dejame/dejeme).
+    firstPersonMarkers: new Set(['estoy', 'voy', 'vamos', 'quiero', 'yo', 'dejame', 'dejeme', 'dejenme']),
     // No 'esta' here — it collides with the demonstrative "esta" ("this"). A
     // subjectless "está grabando" already fails (no first-person subject
     // found), and explicit third-person subjects (usted/ellos) are covered.
@@ -211,6 +224,9 @@ function isFirstPersonDisclosure(tokens: string[], idx: number, cfg: LangConfig)
     const tk = tokens[j];
     if (tk === undefined) continue;
     if (cfg.firstPersonMarkers.has(tk)) return true; // nearest subject is first-person
+    // "let me" / "lass mich": an object pronoun counts as first-person ONLY
+    // when directly preceded by the "let" verb — never bare "me"/"let".
+    if (cfg.imperativeObject?.has(tk) && j > 0 && cfg.imperativeLet?.has(tokens[j - 1] ?? '')) return true;
     if (cfg.thirdPersonMarkers.has(tk)) return false; // nearest subject is someone else
   }
   return false; // no subject found at all — not a disclosure

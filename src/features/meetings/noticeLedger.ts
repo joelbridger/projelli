@@ -11,6 +11,7 @@
  *
  * This is evidence/guidance, never a legal judgment.
  */
+import type { NoticeLocale } from './noticeMatcher';
 
 /**
  * A stable key for a meeting folder, robust to absolute-vs-relative path forms.
@@ -44,6 +45,11 @@ export type NoticeEntry =
   | { kind: 'verbal-notice-not-detected'; meetingDir: string; at: string }
   | { kind: 'invite-disclosure-copied'; meetingDir: string; at: string; text: string }
   | { kind: 'chat-notice-copied'; meetingDir: string; at: string; text: string }
+  // Captured at recording start: the firm's custom spoken-notice script ('' =
+  // built-in wording) and the app locale THEN, so post-transcription
+  // verification checks against what was actually shown for this recording —
+  // not a script/locale the firm may have changed afterward (codex-review R6).
+  | { kind: 'notice-context'; meetingDir: string; at: string; customScript: string; locale: NoticeLocale }
   | {
       kind: 'notice-review-resolved';
       meetingDir: string;

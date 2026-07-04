@@ -105,6 +105,22 @@ export function makeConsentLedger(ws: ConsentLedgerStorage, matterFolder: () => 
       return file.notices;
     },
 
+    /** The notice context (custom script + locale) captured at recording start
+     *  for this meeting, or null if none was recorded (legacy/imported). Used so
+     *  verification checks against the script actually shown, not a later edit
+     *  (codex-review R6). */
+    async noticeContext(
+      meetingDir: string,
+    ): Promise<Extract<NoticeEntry, { kind: 'notice-context' }> | null> {
+      const file = await load();
+      const key = meetingDirKey(meetingDir);
+      const ctx = file.notices.filter(
+        (n): n is Extract<NoticeEntry, { kind: 'notice-context' }> =>
+          n.kind === 'notice-context' && meetingDirKey(n.meetingDir) === key,
+      );
+      return ctx.length > 0 ? (ctx[ctx.length - 1] ?? null) : null;
+    },
+
     /** Whether a verbal-notice check (verified OR not-detected) already exists
      *  for this meeting — a cheap fast-path so verification can skip re-running
      *  the matcher. The AUTHORITATIVE guard is recordVerbalNoticeIfAbsent below,

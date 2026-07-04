@@ -51,6 +51,12 @@ export interface StartOpts {
    *  (Wave 1's calendar match) — feeds Task 12c's type detection. Absent for
    *  ad-hoc recordings with no matched event. */
   calendarTitle?: string;
+  /** Recording Notice Kit — the firm's custom spoken-notice script ('' = the
+   *  built-in wording) and app language AT START, captured so verification
+   *  later checks against exactly what was shown for this recording, even if
+   *  the firm edits the setting afterward (codex-review R6). */
+  noticeCustomScript?: string;
+  noticeLanguage?: string;
 }
 
 /** The on-disk `meeting.json` shape this lane reads/writes. */
@@ -326,7 +332,14 @@ export async function ensureMeetingNoticeVerified(meetingDir: string, matterId: 
   } catch {
     return; // no folder on disk — nothing to verify against.
   }
-  const custom = customNoticeScript((k) => useSettingsStore.getState().getSetting(k));
+  const ledger = makeConsentLedger(ws, () => matterFolder);
+  // Prefer the script/locale captured at recording start; fall back to current
+  // settings only for meetings that predate this (or imported ones) — so a
+  // later settings edit can't change how a past recording is judged
+  // (codex-review R6).
+  const ctx = await ledger.noticeContext(meetingDir).catch(() => null);
+  const custom = ctx ? ctx.customScript : customNoticeScript((k) => useSettingsStore.getState().getSetting(k));
+  const locale = ctx ? ctx.locale : noticeLocaleFromLanguage(i18n.language);
   const deps: NoticeVerificationDeps = {
     async readTranscript() {
       try {
@@ -335,8 +348,8 @@ export async function ensureMeetingNoticeVerified(meetingDir: string, matterId: 
         return null; // transcription still queued.
       }
     },
-    ledger: makeConsentLedger(ws, () => matterFolder),
-    locale: noticeLocaleFromLanguage(i18n.language),
+    ledger,
+    locale,
     ...(custom ? { customPhrases: [custom] } : {}),
   };
   try {
@@ -526,13 +539,25 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
     // recording's audit trail (found via codex-review of this branch).
     if (activeWorkspaceService) {
       const ws = activeWorkspaceService;
-      void makeConsentLedger(ws, () => matterFolder)
+      const ledger = makeConsentLedger(ws, () => matterFolder);
+      void ledger
         .recordConsent(matterId, {
           mode: opts.consentMode,
           scope: 'per-meeting',
           confirmedAt: new Date().toISOString(),
           meetingDir: r.meetingDir,
           ...(opts.consentNote ? { note: opts.consentNote } : {}),
+        })
+        .catch(() => {});
+      // Recording Notice Kit — capture the script/locale shown for THIS
+      // recording so verification checks against it later (codex-review R6).
+      void ledger
+        .recordNotice({
+          kind: 'notice-context',
+          meetingDir: r.meetingDir,
+          at: new Date().toISOString(),
+          customScript: opts.noticeCustomScript ?? '',
+          locale: noticeLocaleFromLanguage(opts.noticeLanguage ?? i18n.language),
         })
         .catch(() => {});
     }

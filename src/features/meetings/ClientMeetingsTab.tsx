@@ -146,7 +146,7 @@ export interface ClientMeetingsTabProps {
 }
 
 export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, workspaceService }: ClientMeetingsTabProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [meetings, setMeetings] = useState<MeetingSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [scanFailed, setScanFailed] = useState(false);
@@ -218,7 +218,13 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
   const handleConsentConfirm = useCallback((opts: { note?: string }) => {
     void (async () => {
       try {
-        await startRecording(matterId, { consentMode, ...(opts.note ? { consentNote: opts.note } : {}) });
+        await startRecording(matterId, {
+          consentMode,
+          ...(opts.note ? { consentNote: opts.note } : {}),
+          // Capture the script/locale shown for this recording (codex-review R6).
+          noticeCustomScript: custom,
+          noticeLanguage: i18n.language,
+        });
         setShowConsent(false);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -231,7 +237,7 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
         }
       }
     })();
-  }, [matterId, consentMode, startRecording]);
+  }, [matterId, consentMode, startRecording, custom, i18n.language]);
 
   // Task 12b — per-client (never practice-wide) review flags, shown as a
   // badge on each row (the meeting page's "Mark reviewed" clears it).
