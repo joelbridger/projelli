@@ -8,7 +8,7 @@ Last updated: 2026-07-04 ~01:05 (coordinator-6 seated — sole coordinator; moni
 | Worker session | What | State |
 |---|---|---|
 | cc-lantern-symfix | Symlink-hardening (lp/symlink-hardening) — apply no-follow walk to vault/mcp/diarize containment checks (audit findings; xhigh) | building |
-| cc-lantern-w3 | Wave-3 meeting capture (lp/meeting-capture) — review-capped at r17; NOW: Task 6 Legion device verification (owns the Legion, headset) | bench-verifying |
+| cc-lantern-w3 | Wave-3 meeting capture (lp/meeting-capture @6ec69ad5) — WORKER DONE: Task 6 device verification PASSED on real headset (loopback+crash-recovery+device-switch); P1 symlink guard fixed w/ regression tests; gate green (1204 cargo + 5672 vitest). Legion RELEASED. Coordinator independent review running; merges after symfix | awaiting-merge |
 | cc-lantern-azcdp | Azure bench CDP fix (lp/azure-cdp-fix) — make WebView2 port 9223 listen on lantern-cloud-bench-1 so the cloud VM becomes a 2nd smoke target (task #13; ≤90min VM budget) | building |
 
 ## Merged this session
