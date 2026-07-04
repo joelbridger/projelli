@@ -31,6 +31,9 @@
  * Internal Matter type, ids, store names, and SAMPLE_MATTER_ID are NEVER
  * changed by this hook; only the visible words adapt.
  */
+import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
 import { useProfessionStore, getProfession } from '@/platform/profile/professionStore';
 import type { Profession } from '@/platform/profile/professionModel';
 
@@ -57,7 +60,129 @@ export interface EntityLabel {
   confidentialityBadge: string;
 }
 
-const LABELS: Record<Profession, EntityLabel> = {
+/**
+ * Every profession's words live under `entity-label.<profession>.<field>` in
+ * the locale files (en/es/de) — kebab-case keys, mapped here onto the
+ * PascalCase-friendly EntityLabel field names (`One`, `Household`, etc.) that
+ * dozens of call sites already depend on. Keys are looked up with literal
+ * strings (not a template built from `profession`) because the i18next-parser
+ * extractor can't trace a dynamic key — see `meetingTypeLabel` in
+ * meetingDisplay.ts for the same pattern.
+ */
+function buildEntityLabel(profession: Profession, t: (key: string) => string): EntityLabel {
+  switch (profession) {
+    case 'legal':
+      return {
+        one: t('entity-label.legal.one'),
+        other: t('entity-label.legal.other'),
+        One: t('entity-label.legal.one-cap'),
+        Other: t('entity-label.legal.other-cap'),
+        household: t('entity-label.legal.household'),
+        households: t('entity-label.legal.households'),
+        Household: t('entity-label.legal.household-cap'),
+        Households: t('entity-label.legal.households-cap'),
+        confidentialityColumn: t('entity-label.legal.confidentiality-column'),
+        confidentialityBadge: t('entity-label.legal.confidentiality-badge'),
+      };
+    case 'tax':
+      return {
+        one: t('entity-label.tax.one'),
+        other: t('entity-label.tax.other'),
+        One: t('entity-label.tax.one-cap'),
+        Other: t('entity-label.tax.other-cap'),
+        household: t('entity-label.tax.household'),
+        households: t('entity-label.tax.households'),
+        Household: t('entity-label.tax.household-cap'),
+        Households: t('entity-label.tax.households-cap'),
+        confidentialityColumn: t('entity-label.tax.confidentiality-column'),
+        confidentialityBadge: t('entity-label.tax.confidentiality-badge'),
+      };
+    case 'consulting':
+      return {
+        one: t('entity-label.consulting.one'),
+        other: t('entity-label.consulting.other'),
+        One: t('entity-label.consulting.one-cap'),
+        Other: t('entity-label.consulting.other-cap'),
+        household: t('entity-label.consulting.household'),
+        households: t('entity-label.consulting.households'),
+        Household: t('entity-label.consulting.household-cap'),
+        Households: t('entity-label.consulting.households-cap'),
+        confidentialityColumn: t('entity-label.consulting.confidentiality-column'),
+        confidentialityBadge: t('entity-label.consulting.confidentiality-badge'),
+      };
+    case 'advisor':
+      return {
+        one: t('entity-label.advisor.one'),
+        other: t('entity-label.advisor.other'),
+        One: t('entity-label.advisor.one-cap'),
+        Other: t('entity-label.advisor.other-cap'),
+        household: t('entity-label.advisor.household'),
+        households: t('entity-label.advisor.households'),
+        Household: t('entity-label.advisor.household-cap'),
+        Households: t('entity-label.advisor.households-cap'),
+        confidentialityColumn: t('entity-label.advisor.confidentiality-column'),
+        confidentialityBadge: t('entity-label.advisor.confidentiality-badge'),
+      };
+    case 'other':
+      return {
+        one: t('entity-label.other.one'),
+        other: t('entity-label.other.other'),
+        One: t('entity-label.other.one-cap'),
+        Other: t('entity-label.other.other-cap'),
+        household: t('entity-label.other.household'),
+        households: t('entity-label.other.households'),
+        Household: t('entity-label.other.household-cap'),
+        Households: t('entity-label.other.households-cap'),
+        confidentialityColumn: t('entity-label.other.confidentiality-column'),
+        confidentialityBadge: t('entity-label.other.confidentiality-badge'),
+      };
+  }
+}
+
+/**
+ * Reactive React hook. Re-renders the component whenever the profession or
+ * the active locale changes (e.g. via settings or localStorage toggle).
+ *
+ * Memoized on (profession, language) so the returned object keeps its
+ * identity across unrelated re-renders — callers like AIChatViewer pass this
+ * down to memoized children (ChatMessageList/MessageBubble) that depend on
+ * referential stability to skip re-rendering the message history.
+ */
+export function useEntityLabel(): EntityLabel {
+  const profession = useProfessionStore((s) => s.profession);
+  const { t } = useTranslation();
+  // Depend on the global i18n instance's language (not react-i18next's
+  // destructured `i18n`, which some tests mock without it) so this stays
+  // referentially stable across unrelated re-renders.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- t's behavior only changes with language, which is already a dep
+  return useMemo(() => buildEntityLabel(profession, t), [profession, i18n.language]);
+}
+
+/**
+ * Non-reactive read for code outside React (utilities, event handlers, etc.).
+ * Reads the current Zustand + i18next snapshot; does NOT subscribe to future
+ * changes.
+ */
+export function getEntityLabel(): EntityLabel {
+  return buildEntityLabel(getProfession(), i18n.t.bind(i18n));
+}
+
+/**
+ * Fixed-English escape hatch — NOT locale-aware on purpose.
+ *
+ * A number of call sites still build their surrounding sentence as a
+ * hardcoded English template literal (e.g. "No {other} yet. Create one...")
+ * instead of routing it through t(). Handing THOSE call sites the translated
+ * noun from useEntityLabel()/getEntityLabel() would ship a sentence that's
+ * part-English, part-translated — worse than the pre-i18n baseline. Until
+ * each of those call sites is migrated to a real t() key (see the cleanup2
+ * handoff for the exact list), they should use this accessor instead, so the
+ * whole sentence stays coherently English rather than mixed-language.
+ *
+ * Do NOT reach for this on a surface that's otherwise localized — it exists
+ * only to keep already-hardcoded-English strings internally consistent.
+ */
+const ENGLISH_LABELS: Record<Profession, EntityLabel> = {
   legal: {
     one: 'matter',
     other: 'matters',
@@ -120,19 +245,11 @@ const LABELS: Record<Profession, EntityLabel> = {
   },
 };
 
-/**
- * Reactive React hook. Re-renders the component whenever the profession
- * changes (e.g. via settings or localStorage toggle).
- */
-export function useEntityLabel(): EntityLabel {
+export function useEntityLabelEnglish(): EntityLabel {
   const profession = useProfessionStore((s) => s.profession);
-  return LABELS[profession];
+  return ENGLISH_LABELS[profession];
 }
 
-/**
- * Non-reactive read for code outside React (utilities, event handlers, etc.).
- * Reads the current Zustand snapshot; does NOT subscribe to future changes.
- */
-export function getEntityLabel(): EntityLabel {
-  return LABELS[getProfession()];
+export function getEntityLabelEnglish(): EntityLabel {
+  return ENGLISH_LABELS[getProfession()];
 }

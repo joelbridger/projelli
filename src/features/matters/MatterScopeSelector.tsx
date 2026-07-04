@@ -124,7 +124,7 @@ export function MatterScopeSelector({
   const active = matters.find((m) => m.id === activeMatterId) ?? null;
   const isAllMatters = active === null;
 
-  const allLabel = `All ${entityLabel.other}`;
+  const allLabel = t('ask.scope-toggle.all-entity', { entity: entityLabel.other });
   const triggerLabel = active
     ? matterLabel(active)
     : allLabel;
@@ -139,8 +139,8 @@ export function MatterScopeSelector({
           data-matter-id={active?.id ?? ''}
           title={
             isAllMatters
-              ? `Searching across all ${entityLabel.other}. Answers may include data from any ${entityLabel.one}.`
-              : `Active ${entityLabel.one}: ${triggerLabel}. Questions are scoped to this ${entityLabel.one} only.`
+              ? t('matter.scope.all-matters-title-entity', { entityOther: entityLabel.other, entityOne: entityLabel.one })
+              : t('matter.scope.active-title-entity', { entity: entityLabel.one, name: triggerLabel })
           }
           className={cn(
             'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium max-w-[260px]',
@@ -171,7 +171,7 @@ export function MatterScopeSelector({
             data-testid="matter-scope-empty"
             className="px-2 py-3 text-xs text-muted-foreground"
           >
-            {`No ${entityLabel.other} yet. Create one to scope your work to a single ${entityLabel.one}.`}
+            {t('matter.scope.no-matters-entity', { entityOther: entityLabel.other, entityOne: entityLabel.one })}
           </div>
         ) : (
           matters.map((m) => {
@@ -221,7 +221,7 @@ export function MatterScopeSelector({
               className="flex items-center gap-2 text-xs"
             >
               <Settings2 className="h-3.5 w-3.5 shrink-0" />
-              <span>{`Manage ${entityLabel.other}...`}</span>
+              <span>{t('matter.scope.manage-entity', { entity: entityLabel.other })}</span>
             </DropdownMenuItem>
           </>
         )}

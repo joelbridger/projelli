@@ -8,7 +8,7 @@ import {
   type MailListItem,
 } from '@/platform/utils/mail-commands';
 import { matterLabel } from '@/platform/rag/matterResolver';
-import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
+import { useEntityLabelEnglish } from '@/platform/hooks/useEntityLabel';
 
 // ── MatterPickerPopover ────────────────────────────────────────────────────
 
@@ -22,7 +22,10 @@ export interface MatterPickerProps {
 }
 
 export function MatterPickerPopover({ item, open, onOpenChange, onDone, mode = 'message' }: MatterPickerProps) {
-  const entityLabel = useEntityLabel();
+  // Fixed-English escape hatch: the search placeholder/aria-label and empty
+  // states below are still hardcoded English strings (see the cleanup2
+  // handoff), so the noun stays English too rather than mixing languages.
+  const entityLabel = useEntityLabelEnglish();
   const matters = useMatters();
   const [filing, setFiling] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);

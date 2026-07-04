@@ -34,7 +34,7 @@ const h = vi.hoisted(() => ({
   // The retrieval never settles for the duration of these tests — it models
   // a real in-flight question that hasn't come back yet when the user
   // switches clients.
-  retrieve: vi.fn(() => new Promise<unknown[]>(() => { /* never resolves */ })),
+  retrieve: vi.fn((..._args: unknown[]) => new Promise<unknown[]>(() => { /* never resolves */ })),
   // QA-25 (P1, Codex re-review) — controllable provider resolution, so a test
   // can trigger a navigation-cancel WHILE this specific await is pending (a
   // gap the fix at useAsk.ts's buildResolvedAskProvider() call closes).

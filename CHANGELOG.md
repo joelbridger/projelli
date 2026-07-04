@@ -71,6 +71,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     (unit + bench-mirror e2e extended).
 
 ### Fixed
+- **Voice transcription actually works now — real engine contract + real CI staging (2026-07-04).**
+  M6 (v1.5) shipped Rust code written against an assumed `--stdin` mode that
+  a real `whisper.cpp` build has never had, and CI's binary-fetch step was a
+  documented no-op gated on an unset `VOICE_SIDECAR_URL` — so voice shipped
+  disabled in every installer since 2026-04. Fixed both halves:
+  - **Contract** (`src-tauri/src/sidecars/parakeet.rs`, `src-tauri/src/commands/voice.rs`):
+    rewrote to the real, verified contract — write WAV bytes to a temp file,
+    invoke `-f <file> -np -nt -m <model-path>` (no stdin mode exists; model is
+    a real file path, not a bare tier name). Verified by building
+    `ggml-org/whisper.cpp` from source locally, reading its actual `--help`,
+    and running a real transcription end-to-end through the production code
+    path. `resolve_model_path` maps UI tiers (tiny/base/small) to bundled
+    ggml files with an honest fallback (prefers the next-more-accurate tier,
+    not just "first in a list" — a review-caught bug that would have quietly
+    downgraded every default `small` request to `tiny`). `transcribe_meeting`
+    (Meetings feature, `commands/capture/transcribe.rs`) reuses this same
+    fixed path — it was already calling `ParakeetSidecar` directly. 16 Rust
+    tests including a temp-file-lifecycle test against a stub engine, plus 1
+    opt-in test that runs the real whisper-cli binary (not part of the
+    automated gate; run manually, see its doc comment).
+  - **CI staging** (`.github/workflows/release.yml`,
+    `scripts/fetch-voice-models.sh`, `scripts/build-voice-sidecar.sh`):
+    replaced the `VOICE_SIDECAR_URL` no-op with a real build — whisper.cpp
+    compiled from source, statically linked (no sibling DLLs to stage,
+    unlike the diarize sidecar's onnxruntime), tiny/base ggml models fetched
+    with pinned SHA256. `small` (466 MB) isn't bundled — an install-size
+    trade-off, not an oversight.
 - **i18n gate + QA-14 fix: switching to Deutsch/Español now actually translates
   the surfaces advisors live in (2026-07-04).** `npm run i18n:check` was red
   (18 "key is not a string literal" warnings) — every call site built its

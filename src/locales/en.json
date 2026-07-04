@@ -939,6 +939,22 @@
       "this-entity": "This {{entity}}",
       "all-entity": "All {{entity}}",
       "aria-label": "Ask scope"
+    },
+    "composer": {
+      "placeholder-all-entity": "Ask across all {{entity}}…",
+      "aria-label": "Ask this {{entity}}"
+    },
+    "file-access": {
+      "all-entity-scope": "all your {{entity}}"
+    },
+    "message-scope": {
+      "all-title": "This answer searched across all {{entity}}.",
+      "matter-title": "This answer was confined to the active {{entity}}. Other clients' data was not searched.",
+      "this-entity-fallback": "this {{entity}}"
+    },
+    "sample-bridge": {
+      "body": "This is sample data. When you are ready, add your first real {{entity}} to search your own files.",
+      "add-button": "Add a {{entity}}"
     }
   },
   "matter": {
@@ -953,7 +969,11 @@
       "answer-all-matters": "Scoped to all clients",
       "this-matter": "this client",
       "answer-matter-title": "This answer was confined to the active client. Other clients' data was not searched.",
-      "answer-all-matters-title": "This answer searched across every client (cross-client mode)."
+      "answer-all-matters-title": "This answer searched across every client (cross-client mode).",
+      "all-matters-title-entity": "Searching across all {{entityOther}}. Answers may include data from any {{entityOne}}.",
+      "active-title-entity": "Active {{entity}}: {{name}}. Questions are scoped to this {{entity}} only.",
+      "no-matters-entity": "No {{entityOther}} yet. Create one to scope your work to a single {{entityOne}}.",
+      "manage-entity": "Manage {{entity}}..."
     },
     "citation": {
       "unverified-warning": "One or more citations could not be verified against the source. Open the source to confirm before relying on it."
@@ -1033,7 +1053,24 @@
       "isolated-off-hint": "Network lockdown turned off for this client.",
       "archive": "Archive client",
       "restore": "Restore",
-      "archived-section-label": "Archived"
+      "archived-section-label": "Archived",
+      "description-entity": "A {{entity}} groups one client's work under one or more workspace folders. Files in a {{entity}}'s folders are scoped to that {{entity}} so other clients' data never appears.",
+      "name-label-entity": "{{entity}} name",
+      "create-entity": "Create {{entity}}",
+      "empty-entity": "No {{entityOther}} yet. Create your first {{entityOne}} above.",
+      "sample-hint-entity": "This is the built-in training {{entity}}. Deleting it removes the demo questions.",
+      "archive-entity": "Archive {{entity}}",
+      "delete-sample-confirm-entity": "This removes the sample {{entity}}, and the demo questions will stop working. Continue?",
+      "delete-confirm-entity": "Remove the {{entity}} \"{{name}}\"? Your files stay on your computer, but this {{entity}}'s folder and email mappings, notes, and saved state are cleared. This can't be undone.",
+      "delete-confirm-title-entity": "Remove {{entity}}",
+      "delete-entity": "Delete {{entity}}",
+      "folders-label-entity": "Folders in this {{entity}}",
+      "no-folders-entity": "Open a workspace to map folders to this {{entity}}.",
+      "mail-label-entity": "Email accounts in this {{entity}}",
+      "no-mail-accounts-entity": "Connect an email account in Settings to map it to this {{entity}}.",
+      "mail-account-hint-entity": "Email from a mapped account is scoped to this {{entity}}.",
+      "remove-action": "Remove",
+      "cancel-action": "Cancel"
     },
     "sync": {
       "live-tooltip": "Synced with firm",
@@ -1532,5 +1569,67 @@
       "primary-nav": "Primary"
     },
     "new-client": "+ New {{entity}}"
+  },
+  "entity-label": {
+    "legal": {
+      "one": "matter",
+      "other": "matters",
+      "one-cap": "Matter",
+      "other-cap": "Matters",
+      "household": "matter",
+      "households": "matters",
+      "household-cap": "Matter",
+      "households-cap": "Matters",
+      "confidentiality-column": "Privilege",
+      "confidentiality-badge": "Privileged"
+    },
+    "tax": {
+      "one": "client",
+      "other": "clients",
+      "one-cap": "Client",
+      "other-cap": "Clients",
+      "household": "client",
+      "households": "clients",
+      "household-cap": "Client",
+      "households-cap": "Clients",
+      "confidentiality-column": "Confidential",
+      "confidentiality-badge": "Confidential"
+    },
+    "consulting": {
+      "one": "engagement",
+      "other": "engagements",
+      "one-cap": "Engagement",
+      "other-cap": "Engagements",
+      "household": "engagement",
+      "households": "engagements",
+      "household-cap": "Engagement",
+      "households-cap": "Engagements",
+      "confidentiality-column": "Confidential",
+      "confidentiality-badge": "Confidential"
+    },
+    "advisor": {
+      "one": "client",
+      "other": "clients",
+      "one-cap": "Client",
+      "other-cap": "Clients",
+      "household": "household",
+      "households": "households",
+      "household-cap": "Household",
+      "households-cap": "Households",
+      "confidentiality-column": "Sensitive",
+      "confidentiality-badge": "Sensitive"
+    },
+    "other": {
+      "one": "matter",
+      "other": "matters",
+      "one-cap": "Matter",
+      "other-cap": "Matters",
+      "household": "matter",
+      "households": "matters",
+      "household-cap": "Matter",
+      "households-cap": "Matters",
+      "confidentiality-column": "Sensitive",
+      "confidentiality-badge": "Sensitive"
+    }
   }
 }

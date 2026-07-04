@@ -18,7 +18,7 @@ import {
   DialogDescription,
 } from '@/ui/dialog';
 import { Button } from '@/ui/button';
-import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
+import { useEntityLabelEnglish } from '@/platform/hooks/useEntityLabel';
 
 export interface ConfidentialityReportDialogProps {
   open: boolean;
@@ -46,7 +46,10 @@ function modeLabel(mode: string): string {
 }
 
 export function ConfidentialityReportDialog({ open, onOpenChange, report }: ConfidentialityReportDialogProps) {
-  const entityLabel = useEntityLabel();
+  // Fixed-English escape hatch: the sentences using entityLabel below are
+  // still hardcoded English (see the cleanup2 handoff), so the noun stays
+  // English too rather than mixing languages.
+  const entityLabel = useEntityLabelEnglish();
   const handlePrint = useCallback(() => {
     const node = document.getElementById(PRINTABLE_ID);
     if (!node) {
