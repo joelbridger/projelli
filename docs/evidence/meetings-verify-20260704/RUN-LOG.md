@@ -107,3 +107,43 @@ Time-boxed out. The onboarding CTA visibility check is a good candidate for the 
 ## Screenshots
 
 All in `screenshots/`, numbered in narrative order (01–13). Filenames describe their content; `BUG` in the filename marks the two screenshots that directly evidence the #6 finding.
+
+---
+
+## SIDECAR STAGING addendum (2026-07-04, bench-infra follow-up, lane `cc-lantern-sidecar`)
+
+**Plain-language summary:** the "Sidecar missing" message from finding #7 above is fixed on the Legion. I built a real speech-to-text engine from scratch, taught it to speak the exact "language" the app expects, and installed it. Settings → Voice now says **"Voice ready"** (`14-voice-settings-sidecar-ready.jpeg`), and I fed it a real audio clip through the same code path the app uses and got real transcribed text back.
+
+**What was actually missing, and why it wasn't a quick copy-paste:** the app has never had a real speech-to-text program bundled with it — only the Rust code that knows how to *talk to* one, written and tested against an assumption that turned out to be slightly wrong in two ways once a real one was built and tried:
+1. The app assumes the program can read audio "piped in" via a `--stdin` flag. The real, current version of `whisper.cpp` (the well-known open-source speech-to-text engine this project always intended to use) has no such flag — it only reads from a named file.
+2. The app assumes it can hand the program a plain word like `small` for which "size" of model to use. The real program instead wants the actual file path to a model file on disk.
+
+Neither of those is a bug in the app's Rust code in the sense of something to patch — the code was written before a real engine existed to test against, and its own comments already say the exact fetch/build step was never wired up (`docs/features/V1_5_RELEASE.md` M6 row: "Done (binary TODO)"; CI's `Fetch voice sidecar binary` step is a documented no-op until a `VOICE_SIDECAR_URL` is pinned). Per this lane's landmines (no product-code changes), I did not touch `voice.rs` or `parakeet.rs`. Instead I built the real engine and put a small translator program in front of it that speaks the app's expected "language" and forwards to the real one underneath — the same shape of fix as a build/staging script, just compiled instead of a shell script, because the translation needs real logic (read all of stdin, write a temp file, decide which model file a bare tier name like "small" should map to).
+
+**What was built and staged, step by step:**
+1. Updated `C:\lantern-plus` from `52237a05` to `origin/lantern-plus` HEAD `3170d751` (14 commits, clean fast-forward; one pre-existing untracked `bench-smoke-tmp/` left alone).
+2. Read `scripts/build-diarize-sidecar.sh`, `.github/workflows/release.yml`, and `docs/features/V1_5_RELEASE.md` to confirm the intended contract: `resolve_sidecar_path` in `src-tauri/src/commands/voice.rs` looks for `src-tauri/binaries/whisper[.exe]` (dev fallback) or `binaries/whisper[.exe]` under the Tauri resource dir (packaged build), and `build_transcribe_args`/`parakeet.rs`'s `build_args` pass `--stdin --no-timestamps --model <tier>` when the binary's filename contains "whisper".
+3. Built real `whisper.cpp` (the `ggml-org/whisper.cpp` fork, which as of today also bundles NVIDIA Parakeet support) from source on the Legion using its own Visual Studio 2022 Build Tools + CMake (MSVC generator; the box's default MinGW/Strawberry-Perl GCC toolchain failed on a Windows-SDK header mismatch, so I switched generators rather than patch headers). Clean build, ~37s.
+4. Downloaded the real English base model (`ggml-base.en.bin`, 148 MB, from the project's own Hugging Face releases) — this is the one real model staged; the UI's three tiers (tiny/base/small) all currently resolve to this same file (see the shim below), which is an honest simplification, not a hidden gap — a future pass can fetch tiny/small too if per-tier fidelity ever matters for this bench.
+5. Wrote and compiled a ~50-line Rust console program (`whisper.exe`) that: reads whichever args the app passes, reads the WAV bytes off its own stdin, writes them to a temp file, calls the real `whisper-cli.exe` with `-f <tempfile> -np -nt -m <model path>` (verified via `--help` that `-np`/`--no-prints` + `-nt`/`--no-timestamps` produce clean, unadorned text on stdout, matching what the app expects to receive), forwards its stdout back out, and deletes the temp file. This is the "translator" — it is what the app finds and runs; it makes the real engine underneath, not the app's Rust code.
+6. Staged the final layout under `C:\lantern-plus\src-tauri\binaries\`:
+   - `whisper.exe` — the translator (this is the file `resolve_sidecar_path` finds)
+   - `whisper-engine\whisper-cli.exe` + its 5 sibling DLLs (`whisper.dll`, `ggml.dll`, `ggml-base.dll`, `ggml-cpu.dll`, `parakeet.dll`) — isolated in their own subfolder, not the flat `binaries/` directory, because that flat folder already holds a different, incompatible set of `ggml*.dll` files for the llama.cpp sidecar (the same collision problem the diarize-sidecar staging solved the same way in commit `7f46420b` — Windows checks a program's own folder for its DLLs first, so this avoids the two builds fighting over the same file names).
+   - `whisper-engine\models\ggml-base.en.bin` — the model file.
+
+**Verification (both layers, both real):**
+- Settings → Voice pill reads "Voice ready" — screenshot `14-voice-settings-sidecar-ready.jpeg`.
+- Beyond the pill, I called the app's actual `transcribe_audio` command (the same one Meetings will call) from inside the running app with a real synthesized audio tone and got back `{"text":"(dramatic music)","latencyMs":924}` — a real answer in under a second, proving the full chain works: app finds the translator → translator finds the real engine and model → real engine runs → text comes back through the same pipe Meetings uses. (The odd "(dramatic music)" text is the speech-recognition model's known habit of describing non-speech sound rather than transcribing silence — expected on a test tone, not a defect.)
+- Also directly ran the translator by itself against `whisper.cpp`'s own sample recording of a real person speaking (President Kennedy's inaugural line) before wiring it into the app, and got back the correct, accurate sentence — confirming the translator's file-bridging logic works on genuine speech, not just a synthetic tone.
+
+**bench-1:** not staged — this was explicitly optional/time-permitting per the brief, and the Legion (the priority) took the full session. bench-1 still shows the same "Sidecar missing" gap; flagging for a future pass, same recipe (this write-up) applies directly.
+
+**Bench state left behind:**
+- The app was closed (`LanternPlusDev` scheduled task stopped, then disabled again — its at-rest state).
+- No stray `lantern`/`cargo` processes or listeners on 9223/5173 remained after cleanup — verified directly.
+- A handful of orphaned `msedgewebview2.exe` processes found running at the start of this session turned out to belong to Windows' own Search UI (`SearchHost`), not this app — left alone/self-managed by Windows, unrelated to this work.
+- SSH tunnel used for verification (local port 9448, chosen to avoid the `9444` used by the meetings-verify session) closed.
+- The whisper.cpp source clone and its build tree (`C:\sidecar-build\`) were left in place on the Legion so a future session can rebuild or extend it (e.g. add tiny/small models) without repeating the ~40s build from scratch; nothing there is wired into the app except the files explicitly copied into `src-tauri\binaries\`.
+- No product code was changed — only new binary/model assets were added under `src-tauri/binaries/` (gitignored build output; not committed to source control, matching how the diarize and other sidecars are staged as CI/dev artifacts rather than checked-in files).
+
+**Screenshot:** `screenshots/14-voice-settings-sidecar-ready.jpeg`.
