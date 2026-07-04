@@ -51,6 +51,45 @@
 //!
 use std::path::{Component, Path, PathBuf};
 
+/// True if `seg` is (or, extension-stripped, resolves to) a Windows reserved
+/// device name — `CON`, `PRN`, `AUX`, `NUL`, `COM1`–`COM9`, `LPT1`–`LPT9`,
+/// case-insensitively. Windows intercepts these names in the normal Win32 API,
+/// so a file created with one via an extended-length (`\\?\`) path becomes
+/// un-renamable / un-deletable by Explorer, Word, backup tools, etc. (QA-36).
+fn is_reserved_windows_name(seg: &str) -> bool {
+    // The reserved word is matched against the portion before the FIRST dot:
+    // `CON`, `CON.docx`, and `CON.a.b` are all reserved. Trailing spaces on the
+    // base are stripped by Windows, so strip them here before matching.
+    let base = seg.split('.').next().unwrap_or(seg).trim_end_matches(' ');
+    let upper = base.to_ascii_uppercase();
+    match upper.as_str() {
+        "CON" | "PRN" | "AUX" | "NUL" => true,
+        // COM1-9 / LPT1-9 only (exactly one digit 1-9): "COM10" is NOT reserved.
+        _ => {
+            (upper.starts_with("COM") || upper.starts_with("LPT"))
+                && upper.len() == 4
+                && matches!(upper.as_bytes()[3], b'1'..=b'9')
+        }
+    }
+}
+
+/// Reject a single path segment that Windows can't faithfully store (QA-36
+/// defense-in-depth for the CREATE path — the client-side `validateName` is the
+/// primary guard; this catches AI/MCP create routes that bypass the UI dialogs).
+/// Refuses reserved device names and trailing dots/spaces (which Windows
+/// silently strips, so the on-disk name wouldn't match what was requested).
+pub fn reject_reserved_windows_name(seg: &str) -> Result<(), String> {
+    if seg.ends_with('.') || seg.ends_with(' ') {
+        return Err(format!(
+            "name has a trailing dot or space, which Windows strips: {seg:?}"
+        ));
+    }
+    if is_reserved_windows_name(seg) {
+        return Err(format!("name is a reserved Windows device name: {seg:?}"));
+    }
+    Ok(())
+}
+
 /// Resolve a workspace-relative path to its canonical form, refusing the
 /// walk the MOMENT any component — the target itself or any intermediate
 /// directory along the way — is a symlink.
@@ -159,6 +198,13 @@ pub fn resolve_creatable(
     for component in p.components() {
         match component {
             Component::Normal(seg) => {
+                // QA-36 defense-in-depth: refuse a reserved Windows device name
+                // (CON/PRN/…) or a trailing-dot/space segment at ANY level before
+                // it can be created — Windows reserves these at every path
+                // component, and such a file/dir becomes un-manageable outside
+                // this app. The client-side `validateName` is the primary guard;
+                // this covers create routes (AI/MCP) that don't hit the dialogs.
+                reject_reserved_windows_name(&seg.to_string_lossy())?;
                 current.push(seg);
                 if still_checking {
                     match current.symlink_metadata() {
@@ -387,6 +433,76 @@ mod tests {
         let canon = ws.path().canonicalize().unwrap();
         let err = resolve_creatable(&canon, "../escape.txt", &canon).unwrap_err();
         assert!(err.contains(".."), "got: {err}");
+    }
+
+    // ── QA-36: Windows reserved device names / trailing dot-or-space ──────────
+
+    #[test]
+    fn reserved_windows_name_table() {
+        // (name, is_reserved)
+        let cases = [
+            ("CON", true),
+            ("con", true),
+            ("CON.docx", true),
+            ("con.txt", true),
+            ("PRN", true),
+            ("AUX", true),
+            ("NUL", true),
+            ("nul.dat", true),
+            ("COM1", true),
+            ("COM9.docx", true),
+            ("LPT1", true),
+            ("lpt9", true),
+            // NOT reserved — ordinary names that merely contain the text.
+            ("CONTRACT.docx", false),
+            ("COM10.docx", false),
+            ("COM0", false),
+            ("LPT0", false),
+            ("console.txt", false),
+            ("brief.docx", false),
+            ("MyCON.docx", false),
+        ];
+        for (name, expected) in cases {
+            assert_eq!(
+                is_reserved_windows_name(name),
+                expected,
+                "is_reserved_windows_name({name:?}) should be {expected}"
+            );
+        }
+    }
+
+    #[test]
+    fn reject_reserved_windows_name_covers_reserved_and_trailing() {
+        for bad in ["CON", "con.docx", "NUL", "COM1", "LPT9", "brief.", "brief ", "CON.a.b"] {
+            assert!(
+                reject_reserved_windows_name(bad).is_err(),
+                "expected {bad:?} to be rejected"
+            );
+        }
+        for ok in ["brief.docx", "CONTRACT.docx", "COM10.docx", "notes", "my-folder"] {
+            assert!(
+                reject_reserved_windows_name(ok).is_ok(),
+                "expected {ok:?} to be accepted"
+            );
+        }
+    }
+
+    #[test]
+    fn resolve_creatable_rejects_reserved_name_at_any_level() {
+        let ws = tempdir().unwrap();
+        let canon = ws.path().canonicalize().unwrap();
+        // Final-segment reserved name.
+        let err = resolve_creatable(&canon, "Clients/CON.docx", &canon).unwrap_err();
+        assert!(err.contains("reserved"), "got: {err}");
+        // Intermediate reserved directory name is refused too.
+        let err2 = resolve_creatable(&canon, "CON/notes.docx", &canon).unwrap_err();
+        assert!(err2.contains("reserved"), "got: {err2}");
+        // Trailing dot/space on the created segment.
+        let err3 = resolve_creatable(&canon, "brief.", &canon).unwrap_err();
+        assert!(err3.contains("trailing"), "got: {err3}");
+        // An ordinary nested name still resolves fine.
+        let ok = resolve_creatable(&canon, "Clients/brief.docx", &canon).unwrap();
+        assert_eq!(ok, canon.join("Clients/brief.docx"));
     }
 
     #[cfg(unix)]

@@ -79,7 +79,10 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
     // silently drops the last edits.
     const outgoing = workspaceServiceRef.current;
     if (outgoing) {
-      await flushAllDirtyTabs(outgoing);
+      // QA-34: flushAllDirtyTabs returns the .docx paths whose final save just
+      // FAILED — the authoritative signal (more reliable than re-querying the
+      // registry, whose state can lag a just-failed save that hasn't re-rendered).
+      const failedDocxPaths = await flushAllDirtyTabs(outgoing);
       // Codex review #2: a flush can FAIL (disk/permission) and leave tabs dirty.
       // Clearing them anyway would silently lose that work, so confirm first
       // instead of dropping it without warning.
@@ -87,6 +90,12 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
         .getState()
         .openTabs.filter((t) => t.isDirty)
         .map((t) => t.name);
+      // A .docx whose save failed never appears as a dirty store tab, so add its
+      // file name here or the switch would silently discard it.
+      for (const p of failedDocxPaths) {
+        const name = p.split(/[\\/]/).pop() ?? p;
+        if (!unsaved.includes(name)) unsaved.push(name);
+      }
       if (unsaved.length > 0) {
         const proceed = await confirm(
           `Some open files could not be saved (${unsaved.join(', ')}). ` +

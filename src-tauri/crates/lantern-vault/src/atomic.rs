@@ -67,7 +67,17 @@ pub fn write_temp_only(path: &Path, bytes: &[u8]) -> std::io::Result<PathBuf> {
 /// is atomic — no reader ever sees a partial write.
 pub fn atomic_write(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     let tmp = write_temp_only(path, bytes)?;
-    replace_atomically(&tmp, path)?;
+    // QA-34: if the atomic replace fails (e.g. antivirus/backup is holding an
+    // exclusive lock on the target, or the destination is read-only), the temp
+    // sibling we just wrote would otherwise be left behind as an orphan
+    // `.kpv-tmp-*` file on every failed save. Clean it up before surfacing the
+    // error so a document that's failing to save doesn't also litter the folder.
+    // The error is still propagated so the caller (docx_save -> the editor's
+    // retry/escalation) knows the write did NOT land.
+    if let Err(e) = replace_atomically(&tmp, path) {
+        let _ = fs::remove_file(&tmp);
+        return Err(e);
+    }
     // Best-effort directory fsync: makes the rename durable across a power loss.
     // Failure here is not fatal — the file content is already correct on disk.
     if let Some(dir) = path.parent() {
@@ -142,6 +152,41 @@ mod tests {
 
         // Original is still intact after the sweep.
         assert_eq!(fs::read(&path).unwrap(), b"ORIGINAL");
+    }
+
+    #[test]
+    fn failed_replace_propagates_error_and_leaves_no_orphan_temp() {
+        // QA-34: when the atomic replace fails, atomic_write must (a) surface the
+        // error to the caller (so the editor treats the save as FAILED and keeps
+        // retrying / escalates), and (b) clean up the temp sibling so a failing
+        // save doesn't litter `.kpv-tmp-*` orphans on every attempt.
+        //
+        // Force the rename to fail cross-platform by making the destination an
+        // existing DIRECTORY: renaming a file onto a directory errors on both
+        // Unix and Windows.
+        let dir = tempdir().unwrap();
+        let dst = dir.path().join("target");
+        fs::create_dir(&dst).unwrap();
+
+        let err = atomic_write(&dst, b"NEWCONTENT");
+        assert!(err.is_err(), "atomic_write must surface the replace failure, not swallow it");
+
+        // No orphan temp left behind — only the pre-existing directory remains.
+        let leftover: Vec<_> = fs::read_dir(dir.path())
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| {
+                e.file_name()
+                    .to_str()
+                    .map(|n| n.starts_with(TEMP_PREFIX))
+                    .unwrap_or(false)
+            })
+            .collect();
+        assert!(
+            leftover.is_empty(),
+            "a failed atomic_write must not leave an orphan temp file, found: {:?}",
+            leftover.iter().map(|e| e.file_name()).collect::<Vec<_>>()
+        );
     }
 
     #[test]
