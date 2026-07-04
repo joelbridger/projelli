@@ -18,7 +18,7 @@ import {
   openSmokeClientDocumentsSubtab,
   openSmokeClientNote,
 } from './_util.mjs';
-import { SMOKE_CLIENT_MATTER_ID, SMOKE_NOTE_FILENAME } from './smoke-workspace.mjs';
+import { SMOKE_CLIENT_MATTER_ID, SMOKE_NOTE_FILENAME_SECONDARY } from './smoke-workspace.mjs';
 
 const ID = 'wave2-wealthbox-queue-review';
 const SECTION = 'Wave 2 — Send to Wealthbox (queue/review only)';
@@ -39,7 +39,7 @@ export const checkWealthboxQueueAndReview = withGuard(ID, SECTION, async ({ driv
     // Ignored — see comment above.
   }
   try {
-    await openSmokeClientNote(driver, { fileName: SMOKE_NOTE_FILENAME });
+    await openSmokeClientNote(driver, { fileName: SMOKE_NOTE_FILENAME_SECONDARY });
   } catch {
     // Ignored — see comment above.
   }

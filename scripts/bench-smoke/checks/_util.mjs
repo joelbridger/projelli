@@ -74,6 +74,38 @@ export async function clickElement(driver, element) {
 }
 
 /**
+ * Get back to the Client Map's "Clients" TABLE sub-view (as opposed to
+ * "Whole book" — src/features/matters/MattersHome.tsx's SegmentedToggle,
+ * src/ui/kp/SegmentedToggle.tsx) — same normalization pattern as
+ * openSmokeClientNote's Tree-view switch below: the Clients/Whole-book
+ * choice persists across navigation, so any check that needs
+ * `matter-launch-documents-<id>` (table-only) silently fails if a PRIOR
+ * check in the same run left the toggle on "Whole book" (e.g. any of the
+ * wave4 book-view checks). Root-caused live (2026-07-04): this is what was
+ * behind the recurring SETUP-BLOCKED on per-client-files-visible,
+ * wave0-draft-followup, and both wave2-wealthbox checks whenever a wave4
+ * check ran earlier in the same suite.
+ *
+ * Reuses openWholeBookView's "still in hub" defensive re-click (clicking
+ * spine-nav-matters while a hub is open lands back on the table/book view,
+ * not the hub — see that function's comment), then switches the toggle to
+ * "Clients" via clickByText. Confirmed live that clickByText('Clients') is
+ * unambiguous here: of the several plain-text elements on the page whose
+ * text is exactly "clients" (page title, sidebar section header, etc.),
+ * only the SegmentedToggle's own option is a real interactive control — the
+ * others carry no data-testid/button/role, so click-by-text.mjs's
+ * controls-tier selector never matches them.
+ */
+export async function ensureClientsTableTab(driver) {
+  await driver.click('spine-nav-matters');
+  const stillInHub = await driver.evalJs('!!document.querySelector(\'[data-testid="hub-subtab-bar"]\')');
+  if (stillInHub === true) {
+    await driver.click('spine-nav-matters');
+  }
+  await driver.clickByText('Clients');
+}
+
+/**
  * Navigate into the known smoke-test client's Documents view (confirmed live:
  * clicking the per-row `matter-launch-documents-<matterId>` quick action from
  * the Clients/Client-Map list enters that client's "hub" — Client Map /
@@ -84,6 +116,13 @@ export async function clickElement(driver, element) {
  * getting there this run), not a hard failure.
  */
 export async function openSmokeClientDocuments(driver, { matterId, waitForText = 'Documents' } = {}) {
+  try {
+    await ensureClientsTableTab(driver);
+  } catch {
+    // Ignored — the launch-documents click right below is the real, honest
+    // gate either way (e.g. it may still work if we were already on the
+    // Clients table and this normalization step wasn't even needed).
+  }
   await driver.click(`matter-launch-documents-${matterId}`);
   const wait = await driver.waitFor(waitForText, 10);
   if (!wait.found) {
