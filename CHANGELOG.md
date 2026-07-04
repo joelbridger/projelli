@@ -57,8 +57,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that prior completeness can no longer be verified — THEN re-seals over the survivors + that
   record. The frontend surfaces the state honestly in the existing audit integrity badge (amber
   "Integrity seal missing" with a verifiable-up-to boundary) and in the privacy attestation
-  export. Files: `commands/audit/store.rs` (SealMissing + `repair`), `commands/audit/mod.rs`
-  (`audit_repair_seal`), `commands/retention/mod.rs`, `platform/utils/tauri-commands.ts`,
+  export. The all-rows form (deleting EVERY row + the seal, which would otherwise look like a
+  fresh store) is caught via SQLite's AUTOINCREMENT high-water mark (`sqlite_sequence`, survives
+  deletion): a wiped log opens as SealMissing and repair chains the anomaly onto genesis. A seal
+  that is present but corrupt (undecodable) is reported as `Altered` (loud), keeping the invariant
+  that SealMissing always means repairable. Files: `commands/audit/store.rs` (SealMissing +
+  `repair` + high-water detection), `commands/audit/mod.rs` (`audit_repair_seal`),
+  `commands/retention/mod.rs`, `platform/utils/tauri-commands.ts`,
   `features/audit/{AuditHome.tsx,audit-export.ts}`, `platform/privacy/attestation.ts`,
   `locales/{en,de,es}.json`. Reproduced red-first; store/retention/frontend tests added.
 - **Symlink-safe path containment everywhere a caller-supplied path meets a workspace root.**
