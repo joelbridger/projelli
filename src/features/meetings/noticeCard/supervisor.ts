@@ -190,6 +190,9 @@ export class NoticeCardSupervisor {
         void this.driver.close();
       }
     } catch {
+      // A late open rejection AFTER we've already stopped/failed must not append
+      // a second failure or overwrite the final left/stopped state — no-op.
+      if (this.terminal) return;
       this.fail('internal');
     }
   }
@@ -272,16 +275,23 @@ export class NoticeCardSupervisor {
     if (wasPresent) {
       const meetingDir = this.meetingDir();
       this.record({ kind: 'notice-card-left', meetingDir, at: this.nowIso() });
-      // Only claim the card covered the WHOLE recording when it was admitted
-      // promptly after record-start AND was never dropped mid-meeting. A late
-      // admit (slow host / lobby) OR a rejoin gap means it missed part of the
-      // meeting, so it must NOT overstate the evidence — the honest `left` above
-      // still records that it was present at the end.
+      // Only claim the card covered the WHOLE recording when: it was admitted
+      // promptly after record-start (absolute cap), the missed opening is a
+      // small FRACTION of the recording (so a late admit on a SHORT call can't
+      // claim full coverage — e.g. joining at 0:25 of a 0:30 call is not
+      // "entire"), and it was never dropped mid-meeting. A late/partial presence
+      // must NOT overstate the evidence — the honest `left` above still records
+      // that the card was present at the end.
       const admitLatency =
         this.admittedAtMs !== null && this.startedAtMs !== null
           ? this.admittedAtMs - this.startedAtMs
           : Infinity;
-      if (admitLatency <= this.fullPresenceToleranceMs && !this.rejoinUsed) {
+      const recordingMs = this.startedAtMs !== null ? this.clock.now() - this.startedAtMs : 0;
+      const coveredWhole =
+        admitLatency <= this.fullPresenceToleranceMs &&
+        admitLatency <= recordingMs * 0.1 &&
+        !this.rejoinUsed;
+      if (coveredWhole) {
         this.record({
           kind: 'notice-card-present-for-entire-recording',
           meetingDir,

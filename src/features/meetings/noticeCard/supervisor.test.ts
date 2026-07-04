@@ -43,6 +43,7 @@ class FakeDriver implements NoticeCardDriver {
   private hangNextClose = false;
   private deferNext = false;
   private pendingOpenResolve: (() => void) | null = null;
+  private pendingOpenReject: ((e: unknown) => void) | null = null;
   private rejectNextClose = false;
   makeNextCloseHang() {
     this.hangNextClose = true;
@@ -50,21 +51,29 @@ class FakeDriver implements NoticeCardDriver {
   makeNextCloseReject() {
     this.rejectNextClose = true;
   }
-  /** The next open() stays pending until resolvePendingOpen() is called. */
+  /** The next open() stays pending until resolve/rejectPendingOpen() is called. */
   deferNextOpen() {
     this.deferNext = true;
   }
   resolvePendingOpen() {
     const r = this.pendingOpenResolve;
     this.pendingOpenResolve = null;
+    this.pendingOpenReject = null;
     r?.();
+  }
+  rejectPendingOpen() {
+    const r = this.pendingOpenReject;
+    this.pendingOpenResolve = null;
+    this.pendingOpenReject = null;
+    r?.(new Error('open failed'));
   }
   open(config: NoticeCardConfig): Promise<void> {
     this.opens.push(config);
     if (this.deferNext) {
       this.deferNext = false;
-      return new Promise<void>((res) => {
+      return new Promise<void>((res, rej) => {
         this.pendingOpenResolve = res;
+        this.pendingOpenReject = rej;
       });
     }
     return Promise.resolve();
@@ -293,6 +302,18 @@ describe('NoticeCardSupervisor — honest full-duration evidence', () => {
     expect(kinds(h.ledger)).toContain('notice-card-present-for-entire-recording');
   });
 
+  it('does NOT claim full-duration on a SHORT recording where admit was a large fraction of it', async () => {
+    // Joining at 0:25 of a ~0:30 call is within the 30s absolute tolerance but
+    // missed most of the meeting — must not claim it covered the whole thing.
+    const h = make();
+    h.sup.start(CONFIG);
+    h.clock.advance(25_000); // 25s of lobby on a very short call
+    h.sup.handleAdmitted();
+    h.clock.advance(5_000); // stop at ~30s total
+    await h.sup.stop();
+    expect(kinds(h.ledger)).not.toContain('notice-card-present-for-entire-recording');
+  });
+
   it('does NOT claim full-duration presence after a rejoin gap, even if present at stop', async () => {
     const h = make();
     h.sup.start(CONFIG);
@@ -316,5 +337,21 @@ describe('NoticeCardSupervisor — watchdog retries a FAILED close', () => {
     await Promise.resolve(); // let the rejection settle
     h.clock.advance(60_000); // watchdog fires
     expect(h.driver.closes).toBeGreaterThanOrEqual(2); // retried
+  });
+});
+
+describe('NoticeCardSupervisor — late open failure after stop', () => {
+  it('a late open() rejection after stop does not append a second failure or change state', async () => {
+    const h = make();
+    h.driver.deferNextOpen();
+    h.sup.start(CONFIG); // open is pending
+    await h.sup.stop(); // never admitted → terminal (failed join-timeout)
+    const ledgerLen = h.ledger.length;
+    const phase = h.sup.status.phase;
+    h.driver.rejectPendingOpen(); // the create promise rejects now
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(h.ledger.length).toBe(ledgerLen); // no second failure event
+    expect(h.sup.status.phase).toBe(phase); // final state untouched
   });
 });
