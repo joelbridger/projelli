@@ -491,7 +491,12 @@ mod tests {
         echo $$ > \"$m.pid\"\n\
         exec sleep 999999\n";
 
-    #[cfg(unix)]
+    // codex-review (2026-07-04): gated to Linux specifically, not the wider
+    // `#[cfg(unix)]` the rest of this file's fake-engine tests use — this one
+    // checks process liveness via `/proc/<pid>`, which doesn't exist on
+    // macOS, so `#[cfg(unix)]` alone would fail the assertion there even
+    // though the fake engine started and was killed correctly.
+    #[cfg(target_os = "linux")]
     #[tokio::test]
     async fn transcribe_kills_a_wedged_engine_and_returns_a_bounded_timeout_error() {
         use std::os::unix::fs::PermissionsExt;
