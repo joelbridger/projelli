@@ -51,6 +51,7 @@ import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import { useAsk, type UseAskProps } from './useAsk';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
+import { useTranslation } from 'react-i18next';
 import { IS_DEMO } from '@/web-demo/demoModeFlag';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { EV_OPEN_SETTINGS, EV_MATTER_LAUNCH } from '@/config/identity';
@@ -69,6 +70,7 @@ import { composerIsBusy } from './askHelpers';
 export function Ask(props: UseAskProps) {
   const { onSaveToDocument } = props;
   const entityLabel = useEntityLabel();
+  const { t } = useTranslation();
   // This surface is the 3-tab IA's "Ask" tab.
   const askVerb = 'Ask';
   const {
@@ -214,8 +216,8 @@ export function Ask(props: UseAskProps) {
         ? 'Ask across your documents…'
         : activeMatter
           ? `${askVerb} ${matterLabel(activeMatter)}…`
-          : `${askVerb} across all ${entityLabel.other}…`;
-  const composerAriaLabel = `${askVerb} this ${entityLabel.one}`;
+          : t('ask.composer.placeholder-all-entity', { entity: entityLabel.other });
+  const composerAriaLabel = t('ask.composer.aria-label', { entity: entityLabel.one });
 
   // Conversations-rail grouping. A session belongs to the active client when its
   // id is exactly "ask-<matterId>" or a timestamped variant "ask-<matterId>-…";
@@ -232,7 +234,7 @@ export function Ask(props: UseAskProps) {
     ? [
         {
           key: 'this-client',
-          title: `This ${entityLabel.one}`,
+          title: t('ask.scope-toggle.this-entity', { entity: entityLabel.one }),
           items: railSessions.filter((s) => belongsToActiveClient(s.chatId)),
         },
         {
@@ -251,7 +253,7 @@ export function Ask(props: UseAskProps) {
   const fileAccessScopeLabel =
     fileAccessConsentScope.kind === 'matter' && activeMatter
       ? (activeMatter.client || activeMatter.name)
-      : `all your ${entityLabel.other}`;
+      : t('ask.file-access.all-entity-scope', { entity: entityLabel.other });
   const consentBanner = (
     <FileAccessConsentBanner
       effectiveProvider={displayedProvider as ChatProvider | 'none' | null}

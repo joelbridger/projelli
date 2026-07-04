@@ -47,19 +47,20 @@ describe('en.json structure snapshot', () => {
         "ai": 48,
         "analysis": 10,
         "app": 2,
-        "ask": 15,
+        "ask": 23,
         "audio": 1,
         "chat": 12,
         "citation": 3,
         "common": 49,
         "editor": 14,
+        "entity-label": 50,
         "firm": 143,
         "layout": 40,
         "local-ai-download": 9,
         "local-ai-settings": 8,
         "mail": 6,
         "marketplace": 14,
-        "matter": 185,
+        "matter": 206,
         "media": 81,
         "meetings": 62,
         "memory": 6,
@@ -141,7 +142,29 @@ describe('en.json structure snapshot', () => {
     //      distinct error state instead of masquerading as "No meetings yet".
     // +3 = tab-guard.* (title, description, take-over) — QA-15 browser-build
     //      single-writer tab gate ("this workspace is open in another tab").
-    expect(flat.length).toBe(1131);
+    // +50 = entity-label.* (cleanup batch 2, 2026-07-04): useEntityLabel()
+    //      returned hardcoded English words for the profession-pack noun
+    //      (matter/client/engagement/household) regardless of locale. New:
+    //      entity-label.{legal,tax,consulting,advisor,other}.* (10 fields
+    //      each: one, other, one-cap, other-cap, household, households,
+    //      household-cap, households-cap, confidentiality-column,
+    //      confidentiality-badge).
+    // +27 = cleanup2 follow-up (2026-07-04): fixed mixed-language sentences on
+    //      the primary Ask + client-manager surfaces (the entity-label noun
+    //      is now translated, but the surrounding sentence stayed hardcoded
+    //      English at ~50 call sites — a real coherence regression flagged in
+    //      review). New: ask.composer.* (2), ask.file-access.* (1),
+    //      ask.message-scope.* (3), ask.sample-bridge.* (2) = 8;
+    //      matter.manager.*-entity (15) + matter.scope.*-entity (4) = 19.
+    //      The remaining ~23 hardcoded-English call sites (audit, email,
+    //      workflows, the privacy report, and TrustBar) were left as-is and
+    //      now read via useEntityLabelEnglish() instead, so no sentence ships
+    //      mixed-language; see the cleanup2 handoff for the exact file list.
+    // +2 = matter.manager.{remove-action,cancel-action} (codex-review finding:
+    //      the delete-client confirm dialog's title/body were localized above
+    //      but its own confirm/cancel BUTTONS stayed hardcoded "Remove"/
+    //      "Cancel" — same mixed-language bug, one level down).
+    expect(flat.length).toBe(1210);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

@@ -1,6 +1,6 @@
 import { Mail } from 'lucide-react';
 import { Button, EmptyState } from '@/ui/kp';
-import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
+import { useEntityLabelEnglish } from '@/platform/hooks/useEntityLabel';
 
 // ── No-accounts empty state ────────────────────────────────────────────────
 
@@ -9,7 +9,9 @@ export interface NoAccountsStateProps {
 }
 
 export function NoAccountsState({ onOpenSettings }: NoAccountsStateProps) {
-  const entityLabel = useEntityLabel();
+  // Fixed-English escape hatch: this whole block is exempted from i18n
+  // (see the eslint-disable below), so the noun stays English too.
+  const entityLabel = useEntityLabelEnglish();
   return (
     /* eslint-disable lantern-i18n/no-hardcoded-string */
     <div data-testid="no-accounts-state">

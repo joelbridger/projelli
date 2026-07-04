@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import type { AuditEntry, AuditActionType } from '@/platform/types/audit';
 import { asRecord, type AuditMatterScopeOption } from '@/features/audit/audit-export';
-import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
+import { useEntityLabelEnglish } from '@/platform/hooks/useEntityLabel';
 import { EV_MATTER_LAUNCH } from '@/config/identity';
 import {
   Button,
@@ -60,7 +60,10 @@ export interface DetailPanelProps {
 }
 
 export function DetailPanel({ entry, onClose }: DetailPanelProps) {
-  const entityLabel = useEntityLabel();
+  // Fixed-English escape hatch: the "Firm {{entity}}" / "Local {{entity}}"
+  // labels below are still hardcoded English strings (see the cleanup2
+  // handoff), so the noun stays English too rather than mixing languages.
+  const entityLabel = useEntityLabelEnglish();
   const category = lookupCategory(ACTION_CATEGORY, entry.action);
   const iconColor = CATEGORY_COLOR[category];
   const scopeLabel = getScopeLabel(entry);
@@ -515,7 +518,10 @@ export function AuditFilterPanel({
   activeFilterCount,
   onReset,
 }: AuditFilterPanelProps) {
-  const entityLabel = useEntityLabel();
+  // Fixed-English escape hatch: "Filter by {{entity}}" / "All {{entity}}"
+  // below are still hardcoded English strings (see the cleanup2 handoff), so
+  // the noun stays English too rather than mixing languages.
+  const entityLabel = useEntityLabelEnglish();
   const categories: CategoryFilter[] = ['all', 'file', 'ai', 'workflow', 'privilege', 'firm', 'system'];
 
   const inputStyle: React.CSSProperties = {

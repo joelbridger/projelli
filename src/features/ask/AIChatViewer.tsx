@@ -226,7 +226,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     : { kind: 'allMatters' };
   const fileAccessScopeLabel = activeMatter
     ? (activeMatter.client || activeMatter.name)
-    : `all your ${entityLabel.other}`;
+    : t('ask.file-access.all-entity-scope', { entity: entityLabel.other });
   // WS-PRIV — whether the next query may retrieve privileged sources. Default
   // false (privileged content excluded); flipped on only by the explicit,
   // visible "Include privileged sources" toggle below the input. Resets on reload.
