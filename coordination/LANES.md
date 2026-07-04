@@ -8,8 +8,8 @@ Last updated: 2026-07-03 ~23:05 (coordinator-5 — now SOLE coordinator; main li
 | Worker session | What | State |
 |---|---|---|
 | cc-lantern-harness2 | Harness round 2 (lp/harness-round2) — nav helper, flaky fix, Wave-4 B/C checks from merged code | building |
-| cc-lantern-w3 | Wave-3 meeting capture engine (lp/meeting-capture) — mid Task 5 crash recovery; Task 6 = Legion device verification (headset now available) | building |
-| cc-lantern-w4d | Wave-4 Track D retention/deletion engine (lp/retention) — deep self-review round 8; xhigh merge review due | converging |
+| cc-lantern-w3 | Wave-3 meeting capture (lp/meeting-capture) — review-capped at r17; NOW: Task 6 Legion device verification (owns the Legion, headset) | bench-verifying |
+| cc-lantern-w4d | Wave-4 Track D retention (lp/retention) — WORKER-DONE @f43419fa; coordinator full-branch codex review running; merge next | in-review |
 
 ## Merged this session
 ✅ lp/diarization @b302312c — Wave-4 Track A: diarize sidecar + encrypted voiceprints + naming UI (6 self-review rounds + coordinator xhigh + codex; gate 5634 vitest + 1133 cargo)
@@ -22,7 +22,7 @@ Last updated: 2026-07-03 ~23:05 (coordinator-5 — now SOLE coordinator; main li
 ✅ bench-prep lane DONE @617d60ea — Legion pre-warmed to current tip, health-verified, quiet (BENCH-READY.md)
 
 ## Legion sequence (one driver at a time)
-✅ bench-prep DONE → ✅ harness live-validated → w3 Task 6 device verification NEXT (Legion free, headset ready)
+✅ bench-prep → ✅ harness live-validation → 🔒 w3 Task 6 device verification (OWNS Legion now) → harness2 live validation → full Wave-3/4 scripted bench pass
 
 ## Serialization invariants
 One merge in flight · one cargo per lane cache (per-lane CARGO_TARGET_DIRs on /mnt/devcache) · one Legion driver · coordinator merges only.
