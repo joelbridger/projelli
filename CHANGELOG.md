@@ -31,6 +31,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- **Symlink-safe path containment everywhere a caller-supplied path meets a workspace root.**
+  A codebase audit found five containment checks that followed symlinks (an in-workspace alias
+  folder could read/write/delete a DIFFERENT client's files while the audit trail named the
+  alias). New shared `src-tauri/src/commands/pathguard.rs` module (no-follow component walk;
+  refuses rather than resolves; `resolve_creatable` variant for about-to-be-created paths) now
+  backs vault `resolve_and_guard`, MCP `resolve_workspace_path`/`canonicalized_workspace_child`,
+  diarize `ensure_within_workspace`, and retention `contained()`/redaction. Six adversarial
+  review rounds fixed real follow-ons (TOCTOU split of I/O vs grant paths, re-validation pinned
+  to the original canonical root, unaudited-delete gaps for refused/broken symlinks). 1187+51
+  Rust tests green. Files: `pathguard.rs`, `vault/mod.rs`, `mcp_bin/{main,access,tools}.rs`,
+  `diarize/mod.rs`, `retention/{sweep,redact}.rs`.
+
 ### Added
 - **Bench harness v3: sharded multi-target smoke runs + failure forensics + auto-smoke (dry-run).**
   `scripts/bench-smoke-shard.mjs` splits the checklist across several benches and runs them
