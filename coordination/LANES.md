@@ -7,6 +7,7 @@ Last updated: 2026-07-04 ~12:15 (coordinator-7 — 6 merges landed; meetpersist+
 ## Active lanes
 | Worker session | What | State |
 |---|---|---|
+| cc-lantern-weblocks | Web Locks migration (lp/web-locks-guard; ~/lp-weblocks): swap TabWriteGuard substrate to navigator.locks w/ heartbeat fallback, UX + handshake kept (brief w-weblocks-brief.md) | building |
 | cc-lantern-cleanup2 | Cleanup batch 2 (lp/cleanup-batch2; ~/lp-cleanup2): typecheck:tests 7 errors → 0 + useEntityLabel profession nouns through i18n (brief w-cleanup2-brief.md) | building |
 | cc-lantern-meetverify2 | 🏁 FINAL Meetings re-verify + Zoom call test on the Legion (brief w-meetverify2-brief.md; ~/lp-bench): full loop incl transcript+notes (sidecar staged) + QA-30 restart-persistence live check + Zoom capture. PASS ⇒ re-declare Meetings DONE. Owns the Legion | verifying |
 | cc-lantern-qafix4 | QA fix batch 4 (lp/qa-fix-batch4; ~/lp-qafix4): QA-24 P1 duplicate-client isolation breach (2-layer fix) + QA-25 silent Ask discard + QA-26 new-doc consistency (brief w-qafix4-brief.md) | building |
