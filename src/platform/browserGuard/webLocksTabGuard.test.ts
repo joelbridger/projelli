@@ -1,8 +1,35 @@
 // src/platform/browserGuard/webLocksTabGuard.test.ts
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { WebLocksTabGuard, type LockManagerLike, type LockGrantedCallback, type LockRequestOptions } from './webLocksTabGuard';
+import { TabWriteGuard } from './tabWriteGuard';
 
 const LOCK_KEY = 'test:tab-lock';
+
+/** Minimal in-memory Storage double for the rollout-compatibility bridge's
+ *  `legacyStorage` option, so these tests never touch real localStorage
+ *  (jsdom provides a real one, and WebLocksTabGuard defaults to it — this
+ *  double is injected everywhere in this file precisely to avoid that). */
+class FakeStorage implements Storage {
+  private store = new Map<string, string>();
+  get length(): number {
+    return this.store.size;
+  }
+  clear(): void {
+    this.store.clear();
+  }
+  getItem(key: string): string | null {
+    return this.store.get(key) ?? null;
+  }
+  key(index: number): string | null {
+    return Array.from(this.store.keys())[index] ?? null;
+  }
+  removeItem(key: string): void {
+    this.store.delete(key);
+  }
+  setItem(key: string, value: string): void {
+    this.store.set(key, value);
+  }
+}
 
 /** Faithful-enough stand-in for the real navigator.locks LockManager: FIFO
  *  queue, exclusive-only (we never request 'shared' mode), and honors an
@@ -104,26 +131,60 @@ async function flush(): Promise<void> {
 
 describe('WebLocksTabGuard', () => {
   let guards: WebLocksTabGuard[] = [];
+  let heartbeatGuards: TabWriteGuard[] = [];
   let locks: FakeLockManager;
+  let legacyStorage: FakeStorage;
 
   beforeEach(() => {
     locks = new FakeLockManager();
+    legacyStorage = new FakeStorage();
     guards = [];
+    heartbeatGuards = [];
   });
 
   afterEach(() => {
     guards.forEach((g) => {
       g.stop();
     });
+    heartbeatGuards.forEach((g) => {
+      g.stop();
+    });
   });
 
-  function makeGuard(overrides: { requeueDelayAfterYieldMs?: number } = {}): WebLocksTabGuard {
+  function makeGuard(
+    overrides: {
+      requeueDelayAfterYieldMs?: number;
+      legacyHeartbeatIntervalMs?: number;
+      legacyStaleAfterMs?: number;
+    } = {},
+  ): WebLocksTabGuard {
     // requeueDelayAfterYieldMs defaults to 0 here (production default is
     // 3000ms — see the field doc on webLocksTabGuard.ts) so these tests stay
     // fast and deterministic; the delay itself is exercised by its own test
-    // below.
-    const guard = new WebLocksTabGuard(LOCK_KEY, { locks, requeueDelayAfterYieldMs: 0, ...overrides });
+    // below. legacyStorage is ALWAYS an isolated fake — the class defaults
+    // to real window.localStorage, which these tests must never touch.
+    // legacyHeartbeatIntervalMs/legacyStaleAfterMs default to fast values
+    // (production defaults are 1500ms/5000ms) so the rollout-bridge tests
+    // don't need real multi-second waits.
+    const guard = new WebLocksTabGuard(LOCK_KEY, {
+      locks,
+      requeueDelayAfterYieldMs: 0,
+      legacyStorage,
+      legacyHeartbeatIntervalMs: 20,
+      legacyStaleAfterMs: 60,
+      ...overrides,
+    });
     guards.push(guard);
+    return guard;
+  }
+
+  /** A real heartbeat guard sharing the SAME fake legacy storage/key — used
+   *  to test the rollout-compatibility bridge from the "old tab" side (see
+   *  webLocksTabGuard.ts's module doc). Not a fake: this is the actual,
+   *  unmodified TabWriteGuard class old deployed bundles run. */
+  function makeHeartbeatGuard(tabId: string): TabWriteGuard {
+    const guard = new TabWriteGuard(LOCK_KEY, { storage: legacyStorage, tabId, heartbeatIntervalMs: 20, staleAfterMs: 60 });
+    heartbeatGuards.push(guard);
     return guard;
   }
 
@@ -544,5 +605,85 @@ describe('WebLocksTabGuard', () => {
     createMatter(a, 'Created in Guard A');
 
     expect(sharedMatters).toEqual(['Created in Guard A']);
+  });
+
+  describe('rollout-compatibility bridge (coordinator finding: old heartbeat tab + new Web Locks tab coexisting across a deploy)', () => {
+    it('a live foreign (old-code) heartbeat tab blocks a new Web Locks tab from reporting owner, even though it acquires the real Web Lock', async () => {
+      const oldTab = makeHeartbeatGuard('old-tab-1');
+      oldTab.start(); // heartbeat is synchronous: immediately owner, writes its record
+      expect(oldTab.status).toBe('owner');
+
+      const newTab = makeGuard();
+      newTab.start();
+      await flush(); // Web Lock probe resolves uncontended -- the old tab never touches navigator.locks
+
+      // The Web Lock itself was free, but the bridge's reconcile (run
+      // synchronously the moment the real lock is granted) sees the old
+      // tab's live heartbeat and refuses to report 'owner' -- otherwise
+      // BOTH tabs would believe they're the sole writer.
+      expect(newTab.status).toBe('blocked');
+      expect(newTab.shouldRehydrateOnThisAcquisition()).toBe(true);
+    });
+
+    it('once the foreign heartbeat goes stale (the old tab closes), the Web Locks tab commits to owner', async () => {
+      const oldTab = makeHeartbeatGuard('old-tab-1');
+      oldTab.start();
+
+      const newTab = makeGuard();
+      newTab.start();
+      await flush();
+      expect(newTab.status).toBe('blocked');
+
+      oldTab.stop(); // old tab closes -- heartbeat's own stop() clears its record
+
+      // Wait for newTab's bridge reconcile interval (20ms in these tests) to
+      // notice the record is gone.
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      expect(newTab.status).toBe('owner');
+    });
+
+    it('a heartbeat tab correctly defers to a Web Locks tab\'s sentinel record (the other bridge direction)', async () => {
+      const newTab = makeGuard();
+      newTab.start();
+      await flush(); // uncontended -- becomes owner, bridge writes its sentinel record
+      expect(newTab.status).toBe('owner');
+
+      const oldTab = makeHeartbeatGuard('old-tab-2');
+      oldTab.start(); // heartbeat's own checkNow(): sees a fresh foreign record -> stays blocked
+      expect(oldTab.status).toBe('blocked');
+    });
+
+    it('when the Web Locks tab releases, it clears its sentinel record immediately so a heartbeat tab can reclaim without waiting out staleness', async () => {
+      const newTab = makeGuard();
+      newTab.start();
+      await flush();
+      expect(newTab.status).toBe('owner');
+
+      newTab.stop();
+
+      const oldTab = makeHeartbeatGuard('old-tab-3');
+      oldTab.start();
+      expect(oldTab.status).toBe('owner'); // no stale record left behind to wait out
+    });
+
+    it('a Web Locks tab that is legacy-blocked the whole time still waits requeueDelayAfterYieldMs-style before its next reconcile, and marks contentionEverConfirmed permanently', async () => {
+      // Regression-shaped: confirms the legacy-bridge path is treated the
+      // same as a real "held the resource" acquisition for the delay/reload
+      // bookkeeping, even though status never reported 'owner'.
+      const oldTab = makeHeartbeatGuard('old-tab-1');
+      oldTab.start();
+
+      const newTab = makeGuard();
+      newTab.start();
+      await flush();
+      expect(newTab.status).toBe('blocked');
+      expect(newTab.shouldRehydrateOnThisAcquisition()).toBe(true);
+
+      oldTab.stop();
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      expect(newTab.status).toBe('owner');
+      // Still true -- a real other (legacy) tab was genuinely involved.
+      expect(newTab.shouldRehydrateOnThisAcquisition()).toBe(true);
+    });
   });
 });

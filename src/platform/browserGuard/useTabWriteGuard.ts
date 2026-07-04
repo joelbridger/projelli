@@ -1,6 +1,7 @@
 // src/platform/browserGuard/useTabWriteGuard.ts
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import { SK_TAB_LOCK } from '@/config/identity';
+import { useEditorStore } from '@/platform/state/editorStore';
 import { createTabGuard, type TabLockGuard, type TabGuardStatus } from './tabLockGuard';
 import { requestFlushAck, wireFlushResponder, type FlushAckChannel } from './flushHandoff';
 
@@ -140,6 +141,34 @@ function reloadAsFreshOwner(guard: TabLockGuard): void {
   window.location.reload();
 }
 
+/** Whether a `pagehide` with `event.persisted` (a bfcache freeze, not a real
+ *  close) should release the lock — extracted as a pure function so this
+ *  decision is unit-testable without driving a real WebLocksTabGuard.
+ *
+ *  False for the heartbeat substrate: it deliberately never releases on
+ *  freeze (requestTakeover() can force a takeover regardless of the current
+ *  holder's liveness — see releaseOnFreeze()'s doc).
+ *
+ *  For the Web Locks substrate (releaseOnFreeze() === true), releasing
+ *  keeps "Take over" working against a frozen-but-CLEAN tab — without it,
+ *  a frozen tab's fully-suspended JS could never respond to a takeover
+ *  request (codex-review, round 1 P2). But pagehide handlers cannot
+ *  reliably await async work — the browser can freeze/destroy this page
+ *  right after the handler returns, regardless of a pending promise (see
+ *  useFlushOnExit's own doc for the same constraint). So if this tab has
+ *  unsaved (dirty) editor content, this returns false too: another tab
+ *  acquiring the real Web Lock right now could read or write before this
+ *  tab's best-effort pagehide flush (useFlushOnExit, BUG-046) has actually
+ *  landed on disk — a real data-loss window (codex-review finding). While
+ *  dirty, the lock stays held exactly like the heartbeat substrate always
+ *  holds it; the browser's own auto-release-on-destroy (a true close or
+ *  bfcache eviction, not a mere freeze) resolves it safely instead, with no
+ *  window where a stale in-flight write can land after a fresher one. */
+export function shouldReleaseOnPersistedFreeze(guard: TabLockGuard): boolean {
+  if (!guard.releaseOnFreeze()) return false;
+  return !useEditorStore.getState().openTabs.some((tab) => tab.isDirty);
+}
+
 export interface UseTabWriteGuardOptions {
   /** Called (while this tab is the owner) when another tab asks it to flush
    *  before taking over — see the flush-and-ack handshake below. Passed in
@@ -252,7 +281,11 @@ export function useTabWriteGuard(enabled: boolean, options: UseTabWriteGuardOpti
     // navigated away, not just a truly dead one.
     const handlePageHide = (event: PageTransitionEvent) => {
       if (takingOver) return;
-      if (!event.persisted || guard.releaseOnFreeze()) guard.stop();
+      if (!event.persisted) {
+        guard.stop();
+        return;
+      }
+      if (shouldReleaseOnPersistedFreeze(guard)) guard.stop();
     };
     window.addEventListener('pagehide', handlePageHide);
 

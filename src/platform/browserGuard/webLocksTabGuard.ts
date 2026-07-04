@@ -59,9 +59,49 @@
 // `generation` and probeInFlight's field docs) and the lone-tab false-
 // positive reload loop (see attemptAcquire()'s doc on the `ifAvailable`
 // probe).
+//
+// ROLLOUT-COMPATIBILITY BRIDGE (bounded, temporary — see
+// LEGACY_BRIDGE_TAB_ID below, and remove once every deployed tab is past
+// this migration): the two substrates otherwise don't speak to each other.
+// An OLD (pre-migration, heartbeat-only) tab left open through a live
+// deploy has no idea navigator.locks exists; a NEW tab loading the
+// Web-Locks-based bundle has no idea the old tab's SK_TAB_LOCK localStorage
+// record means anything. Without a bridge, both could believe they're the
+// sole writer for as long as the old tab stays open — the exact clobber
+// this guard exists to prevent. reconcileLegacyBridge() (called on a
+// lightweight interval, ONLY while this guard actually holds the real Web
+// Lock) closes this: it reads the SAME legacy record tabWriteGuard.ts
+// writes, defers to a live foreign (real old-tab) heartbeat by holding the
+// Web Lock but NOT reporting 'owner' to the app, and — once no live old tab
+// is detected — writes/refreshes its own sentinel record so any old tab
+// that loads later correctly sees a new-style owner and steps down via its
+// OWN unmodified logic. This is the one piece of this module that
+// reintroduces polling, deliberately scoped to ONLY the "am I coexisting
+// with pre-migration code" question — the steady-state Web-Locks-vs-
+// Web-Locks path above stays entirely event-driven.
 
 import type { TabGuardStatus } from './tabWriteGuard';
 import { randomId } from './randomId';
+
+/** Sentinel tabId this guard writes into the shared legacy heartbeat record
+ *  while it holds the real Web Lock — see the module doc's "rollout-
+ *  compatibility bridge" section. Any OTHER tabId found in that record is,
+ *  by construction, a genuine pre-migration heartbeat tab (real tabIds are
+ *  random UUIDs — see randomId.ts — so a collision is not a realistic
+ *  concern). Never used for anything Web-Locks-vs-Web-Locks; that
+ *  coordination is entirely handled by the browser's own lock queue. */
+const LEGACY_BRIDGE_TAB_ID = 'weblocks-bridge';
+
+interface LegacyLockRecord {
+  tabId: string;
+  heartbeatAt: number;
+}
+
+function isLegacyLockRecord(value: unknown): value is LegacyLockRecord {
+  if (typeof value !== 'object' || value === null) return false;
+  const candidate = value as Record<string, unknown>;
+  return typeof candidate['tabId'] === 'string' && typeof candidate['heartbeatAt'] === 'number';
+}
 
 export interface LockRequestOptions {
   signal?: AbortSignal;
@@ -90,6 +130,13 @@ export interface WebLocksTabGuardOptions {
    *  tab that just voluntarily yielded waits before re-entering the queue.
    *  Defaults to 3000ms; tests override it to 0 for determinism. */
   requeueDelayAfterYieldMs?: number;
+  /** Rollout-compatibility bridge (see the module doc) — defaults to
+   *  window.localStorage / Date.now / the same intervals tabWriteGuard.ts
+   *  uses; tests inject a fake Storage and a controllable clock. */
+  legacyStorage?: Storage;
+  legacyNow?: () => number;
+  legacyHeartbeatIntervalMs?: number;
+  legacyStaleAfterMs?: number;
 }
 
 // Deliberately NOT `err instanceof Error`: jsdom's DOMException (used by the
@@ -157,12 +204,23 @@ export class WebLocksTabGuard {
    *  see attemptAcquire()'s doc for why this is needed even for the
    *  ifAvailable probe path, which has no AbortController to cancel it. */
   private generation = 0;
+  /** Rollout-compatibility bridge state (see the module doc). Only ever
+   *  running while this guard actually holds the real Web Lock. */
+  private readonly legacyStorage: Storage;
+  private readonly legacyNow: () => number;
+  private readonly legacyHeartbeatIntervalMs: number;
+  private readonly legacyStaleAfterMs: number;
+  private legacyBridgeTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(key: string, options: WebLocksTabGuardOptions = {}) {
     this.key = key;
     this.locks = options.locks ?? (navigator.locks as unknown as LockManagerLike);
     this._tabId = options.tabId ?? randomId('tab');
     this.requeueDelayAfterYieldMs = options.requeueDelayAfterYieldMs ?? 3000;
+    this.legacyStorage = options.legacyStorage ?? window.localStorage;
+    this.legacyNow = options.legacyNow ?? (() => Date.now());
+    this.legacyHeartbeatIntervalMs = options.legacyHeartbeatIntervalMs ?? 1500;
+    this.legacyStaleAfterMs = options.legacyStaleAfterMs ?? 5000;
   }
 
   get tabId(): string {
@@ -262,6 +320,15 @@ export class WebLocksTabGuard {
       options = { signal: controller.signal };
     }
 
+    // Whether THIS attempt actually acquired and is holding the real Web
+    // Lock — tracked separately from `.status`, because the legacy bridge
+    // (see startLegacyBridge()) can hold the real lock while deliberately
+    // NOT reporting 'owner' (a live foreign heartbeat tab is detected).
+    // `finally` below needs to know "did we hold the real resource", not
+    // "did we report ourselves as owner", to decide the delay/requeue
+    // behavior and to release the bridge.
+    let heldRealLock = false;
+
     void this.locks
       .request(this.key, options, (lock) => {
         if (useProbe) {
@@ -290,7 +357,11 @@ export class WebLocksTabGuard {
           // whose eventual grant is a genuine contention recovery.
           return undefined;
         }
-        this.setStatus('owner');
+        heldRealLock = true;
+        // Rollout-compatibility bridge (see the module doc): may report
+        // 'owner' right away (the common, post-migration case), or hold the
+        // real lock while staying 'blocked' until a live legacy tab clears.
+        this.startLegacyBridge();
         return new Promise<void>((resolve) => {
           this.releaseHeldLock = resolve;
         });
@@ -302,21 +373,22 @@ export class WebLocksTabGuard {
         if (generation !== this.generation) return;
         this.abortController = null;
         this.releaseHeldLock = null;
-        const wasOwner = this._status === 'owner';
-        if (wasOwner) {
+        if (heldRealLock) this.stopLegacyBridge();
+        if (this._status === 'owner') {
           this.setStatus('blocked');
         }
         if (this.stopped) return;
         // Re-queue unless this is a real shutdown — this is what lets a
         // demoted tab silently reclaim the lock later with no user action,
         // mirroring the heartbeat substrate's continuous polling. A tab
-        // that WAS just the owner (a cooperative yield, per yieldIfOwner)
-        // waits requeueDelayAfterYieldMs first — see that field's doc for
-        // the exact race this avoids with the new owner's reload. A tab
-        // that never became owner in the first place (the contended-probe
+        // that actually held the real lock (whether reported as 'owner', or
+        // held while legacy-bridge-blocked — see heldRealLock above) waits
+        // requeueDelayAfterYieldMs first — see that field's doc for the
+        // exact race this avoids with the new owner's reload. A tab that
+        // never held the real lock in the first place (the contended-probe
         // fallback, or an aborted/declined attempt) isn't racing anyone's
         // reload, so it requeues immediately.
-        if (wasOwner) {
+        if (heldRealLock) {
           setTimeout(() => {
             // Re-check BOTH: `stopped` alone isn't enough (codex-review,
             // round 2 finding) — a stop()/start() cycle during the delay
@@ -333,6 +405,67 @@ export class WebLocksTabGuard {
           this.attemptAcquire(this.generation, false);
         }
       });
+  }
+
+  /** Reads the shared legacy heartbeat record (the SAME key/format
+   *  tabWriteGuard.ts uses) — part of the rollout-compatibility bridge, see
+   *  the module doc. */
+  private readLegacyRecord(): LegacyLockRecord | null {
+    const raw = this.legacyStorage.getItem(this.key);
+    if (!raw) return null;
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      return isLegacyLockRecord(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** One reconciliation tick of the rollout-compatibility bridge (see the
+   *  module doc). Called immediately on acquiring the real Web Lock, then
+   *  on a lightweight interval for as long as this guard holds it (never
+   *  otherwise — this is NOT a general-purpose poll). If a live foreign
+   *  (genuinely pre-migration) heartbeat is found, holds the real lock
+   *  WITHOUT reporting 'owner' — solid proof of a real other tab, so this
+   *  also marks contentionEverConfirmed. Otherwise writes/refreshes our own
+   *  sentinel record (so any old tab that loads later sees a new-style
+   *  owner and steps down via its own unmodified logic) and reports
+   *  'owner' if not already. */
+  private reconcileLegacyBridge(): void {
+    const record = this.readLegacyRecord();
+    const now = this.legacyNow();
+    const foreignFresh =
+      record !== null && record.tabId !== LEGACY_BRIDGE_TAB_ID && now - record.heartbeatAt < this.legacyStaleAfterMs;
+    if (foreignFresh) {
+      this.contentionEverConfirmed = true;
+      if (this._status === 'owner') this.setStatus('blocked');
+      return;
+    }
+    this.legacyStorage.setItem(this.key, JSON.stringify({ tabId: LEGACY_BRIDGE_TAB_ID, heartbeatAt: now }));
+    if (this._status !== 'owner') this.setStatus('owner');
+  }
+
+  private startLegacyBridge(): void {
+    this.reconcileLegacyBridge();
+    if (this.legacyBridgeTimer === null) {
+      this.legacyBridgeTimer = setInterval(() => {
+        this.reconcileLegacyBridge();
+      }, this.legacyHeartbeatIntervalMs);
+    }
+  }
+
+  /** Stops the reconcile interval and, if the legacy record is still our
+   *  own sentinel, clears it immediately — so a real old tab can reclaim
+   *  right away instead of waiting out legacyStaleAfterMs. */
+  private stopLegacyBridge(): void {
+    if (this.legacyBridgeTimer !== null) {
+      clearInterval(this.legacyBridgeTimer);
+      this.legacyBridgeTimer = null;
+    }
+    const record = this.readLegacyRecord();
+    if (record !== null && record.tabId === LEGACY_BRIDGE_TAB_ID) {
+      this.legacyStorage.removeItem(this.key);
+    }
   }
 
   /** Stop contending and, if this tab currently holds the lock, release it
@@ -379,6 +512,7 @@ export class WebLocksTabGuard {
       const release = this.releaseHeldLock;
       this.releaseHeldLock = null;
       this.contentionEverConfirmed = true;
+      this.stopLegacyBridge();
       this.setStatus('blocked');
       release();
     } else {
