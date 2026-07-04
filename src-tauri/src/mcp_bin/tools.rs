@@ -726,8 +726,9 @@ pub async fn write_workspace_file(
     };
     // Grant comparison uses the LEXICAL path; `io_path` (re-validated again
     // below, right before the actual write) is what disk operations use —
-    // see `ResolvedWorkspacePath`'s doc comment in main.rs.
-    let mut abs = resolved.io_path;
+    // see `ResolvedWorkspacePath`'s doc comment in main.rs. Cloned (not
+    // moved) so `resolved` stays intact for the `revalidate` call below.
+    let mut abs = resolved.io_path.clone();
     let state = load_access_state(ctx, "mcp_write_requested", Some(path))?;
     let decision = state.decide_path(&resolved.lexical_path);
     append_audit_or_deny(
@@ -859,8 +860,15 @@ pub async fn write_workspace_file(
     // would let a path component swapped for a symlink DURING the wait
     // through undetected (the whole point of re-checking is to shrink that
     // window from "up to 60s" to the smallest practical gap right before
-    // the real filesystem call).
-    abs = match resolve_workspace_path(&ctx.workspace_root, path) {
+    // the real filesystem call). Uses `revalidate` (pinned to the SAME
+    // canonical root captured by the original `resolve_workspace_path`
+    // call above), NOT a fresh `resolve_workspace_path(&ctx.workspace_root, ...)`
+    // — if `ctx.workspace_root` itself is a symlink re-pointed during the
+    // wait, re-deriving the canonical root from scratch would silently
+    // redirect this write at wherever the root NOW points, a different
+    // location than the one the grant decision and user approval were
+    // actually made for.
+    abs = match resolved.revalidate(path) {
         Ok(resolved) => resolved.io_path,
         Err(e) => {
             append_audit_or_deny(

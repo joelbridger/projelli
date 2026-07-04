@@ -313,14 +313,69 @@ pub fn text_content(text: &str) -> Value {
 ///
 /// A caller with a long wait between validating and actually touching disk
 /// (e.g. `write_workspace_file`'s human approval step) should call
-/// `resolve_workspace_path` AGAIN immediately before the real filesystem
-/// call rather than reusing an old `io_path` — that shrinks the window in
-/// which a path component could be swapped for a symlink to the smallest
-/// practical gap.
+/// `revalidate` immediately before the real filesystem call rather than
+/// reusing an old `io_path` — that shrinks the window in which a path
+/// component could be swapped for a symlink to the smallest practical gap.
+/// Use `revalidate`, NOT a fresh `resolve_workspace_path(&ctx.workspace_root, ...)`
+/// call: the latter re-canonicalizes `workspace` from scratch, so if the
+/// WORKSPACE ROOT ITSELF is a symlink that gets re-pointed during the wait,
+/// it would silently re-target the whole re-check (and the write that
+/// follows) at wherever the root NOW points — a different location than
+/// the one the grant decision and user approval were actually made for.
+/// `revalidate` instead re-runs the no-follow walk against the SAME
+/// canonical root captured at the original resolution, so a root re-point
+/// can't redirect it; a symlink swapped in below that frozen root is still
+/// caught, and if the frozen root's target no longer exists at all, the
+/// walk simply fails closed.
 #[derive(Debug)]
 pub struct ResolvedWorkspacePath {
     pub io_path: PathBuf,
     pub lexical_path: PathBuf,
+    canon_ws: PathBuf,
+    lexical_root: PathBuf,
+}
+
+impl ResolvedWorkspacePath {
+    /// Re-run the no-follow safety walk for `relative` against the SAME
+    /// canonical root and original lexical root this was first resolved
+    /// with. See the struct doc comment for why this must be used instead
+    /// of calling `resolve_workspace_path` again when re-validating shortly
+    /// before a real disk write.
+    pub fn revalidate(&self, relative: &str) -> Result<ResolvedWorkspacePath, String> {
+        resolve_against_root(&self.canon_ws, &self.lexical_root, relative)
+    }
+}
+
+fn resolve_against_root(
+    canon_ws: &Path,
+    lexical_root: &Path,
+    relative: &str,
+) -> Result<ResolvedWorkspacePath, String> {
+    let io_path = lantern_lib::commands::pathguard::resolve_creatable(canon_ws, relative, canon_ws)
+        .map_err(|e| format!("path escapes workspace root: {relative} ({e})"))?;
+    // Build `lexical_path` from the same NORMALIZED components `io_path`'s
+    // walk used (skipping `.` segments), not a raw `lexical_root.join(relative)`
+    // — a relative string like `./Clients/A/notes.md` or
+    // `Clients/./A/notes.md` is valid and resolves fine, but joining it
+    // verbatim would leave a literal `.` component in `lexical_path` that
+    // `McpAccessState`'s grant comparison (a lexical string match against
+    // matter `folder_paths`, which never contain `.` segments) would then
+    // fail to match — denying access to an otherwise legitimately granted
+    // file. `relative` is already proven `..`-free and absolute-free by
+    // `resolve_workspace_path`'s scan before this is ever called, so only
+    // `Component::Normal` segments can remain here.
+    let mut lexical_path = lexical_root.to_path_buf();
+    for component in Path::new(relative).components() {
+        if let std::path::Component::Normal(seg) = component {
+            lexical_path.push(seg);
+        }
+    }
+    Ok(ResolvedWorkspacePath {
+        io_path,
+        lexical_path,
+        canon_ws: canon_ws.to_path_buf(),
+        lexical_root: lexical_root.to_path_buf(),
+    })
 }
 
 /// Resolve a workspace-relative path, rejecting traversal attempts, absolute
@@ -371,28 +426,7 @@ pub fn resolve_workspace_path(workspace: &Path, relative: &str) -> Result<Resolv
     let canon_ws = workspace
         .canonicalize()
         .map_err(|_| "workspace root cannot be canonicalised".to_string())?;
-    // Validate the walk against the CANONICAL root (so a symlink component
-    // anywhere below it is still caught), and hand back BOTH forms — see
-    // `ResolvedWorkspacePath`'s doc comment for why callers need each one.
-    let io_path = lantern_lib::commands::pathguard::resolve_creatable(&canon_ws, relative, &canon_ws)
-        .map_err(|e| format!("path escapes workspace root: {relative} ({e})"))?;
-    // Build `lexical_path` from the same NORMALIZED components `io_path`'s
-    // walk used (skipping `.` segments), not a raw `workspace.join(relative)`
-    // — a relative string like `./Clients/A/notes.md` or
-    // `Clients/./A/notes.md` is valid and resolves fine, but joining it
-    // verbatim would leave a literal `.` component in `lexical_path` that
-    // `McpAccessState`'s grant comparison (a lexical string match against
-    // matter `folder_paths`, which never contain `.` segments) would then
-    // fail to match — denying access to an otherwise legitimately granted
-    // file. `relative` is already proven `..`-free and absolute-free by the
-    // scan above, so only `Component::Normal` segments can remain here.
-    let mut lexical_path = workspace.to_path_buf();
-    for component in Path::new(relative).components() {
-        if let std::path::Component::Normal(seg) = component {
-            lexical_path.push(seg);
-        }
-    }
-    Ok(ResolvedWorkspacePath { io_path, lexical_path })
+    resolve_against_root(&canon_ws, workspace, relative)
 }
 
 // Keep the embedder / store / extractor references alive so the compiler
@@ -621,6 +655,56 @@ mod tests {
             p2.io_path.starts_with(real.path()),
             "new-file io_path must also be rooted at the canonical target, got: {:?}", p2.io_path
         );
+    }
+
+    /// If the WORKSPACE ROOT itself is a symlink and gets RE-POINTED to a
+    /// different target after the first resolution (e.g. during
+    /// `write_workspace_file`'s human approval wait), `revalidate` must
+    /// keep re-checking against the ORIGINALLY-resolved canonical root, not
+    /// silently follow the root to its new target. Calling
+    /// `resolve_workspace_path(&workspace, ...)` again instead of
+    /// `revalidate` would get this wrong — that's exactly the bug this
+    /// method exists to prevent.
+    #[cfg(unix)]
+    #[test]
+    fn revalidate_stays_pinned_to_the_original_root_even_if_the_root_symlink_is_repointed() {
+        let real_a = tempfile::tempdir().unwrap();
+        std::fs::write(real_a.path().join("file.md"), b"a").unwrap();
+        let real_b = tempfile::tempdir().unwrap();
+        std::fs::write(real_b.path().join("file.md"), b"b").unwrap();
+
+        let parent = tempfile::tempdir().unwrap();
+        let symlinked_root = parent.path().join("workspace-link");
+        std::os::unix::fs::symlink(real_a.path(), &symlinked_root).unwrap();
+
+        let first = resolve_workspace_path(&symlinked_root, "file.md")
+            .expect("initial resolution through the symlinked root must succeed");
+        assert!(first.io_path.starts_with(real_a.path()));
+
+        // Re-point the root symlink to a DIFFERENT real target, simulating
+        // an attacker (or unrelated process) acting during a long approval
+        // wait between the initial resolution and the actual write.
+        std::fs::remove_file(&symlinked_root).unwrap();
+        std::os::unix::fs::symlink(real_b.path(), &symlinked_root).unwrap();
+
+        let revalidated = first
+            .revalidate("file.md")
+            .expect("revalidate must still succeed against the frozen original root");
+        assert!(
+            revalidated.io_path.starts_with(real_a.path()),
+            "revalidate must stay pinned to the ORIGINALLY resolved root (real_a), not follow the repointed symlink to real_b, got: {:?}",
+            revalidated.io_path
+        );
+        assert!(
+            !revalidated.io_path.starts_with(real_b.path()),
+            "revalidate must NOT follow the root symlink to its new target"
+        );
+
+        // Sanity check: a FRESH resolve_workspace_path call (the wrong thing
+        // to do here) WOULD follow the repointed symlink — demonstrating
+        // why `revalidate` (not a fresh call) is required.
+        let fresh = resolve_workspace_path(&symlinked_root, "file.md").unwrap();
+        assert!(fresh.io_path.starts_with(real_b.path()));
     }
 
     /// A normal nested path with no symlinks anywhere must still resolve —
