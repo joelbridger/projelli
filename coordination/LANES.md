@@ -7,6 +7,7 @@ Last updated: 2026-07-04 ~12:15 (coordinator-7 — 6 merges landed; meetpersist+
 ## Active lanes
 | Worker session | What | State |
 |---|---|---|
+| cc-lantern-noticekit | 🎯 RECORDING NOTICE KIT (lp/recording-notice-kit; ~/lp-noticekit; OPUS 4.8 — compliance-evidence correctness): verified verbal notice (transcript-matched, ledgered) + invite disclosure + chat notice + Standard/Strict policy dial. Jameson-approved from docs/strategy/2026-07-04-recording-notice-brainstorm.md (brief w-noticekit-brief.md) | building |
 | cc-lantern-qa5 | QA persona D "desktop round" on Azure bench-2 (own worktree ~/lp-qa5, lp/qa-persona-d2; brief w-qa5-brief.md): real-FS reserved names, disk-full, sleep/resume mid-record (VB-CABLE), file locks, DPI, clock skew + QA-21 re-check. IDs from QA-32 | exploring |
 | cc-lantern-transfix | 🔧 QA-40 P1 (lp/transcript-hang; ~/lp-transfix): transcript hang on real recordings — restage Legion per new engine contract + close any product-side unbounded-engine-hang hole + live end-to-end verify (brief w-transfix-brief.md). Owns the Legion | fixing |
 
