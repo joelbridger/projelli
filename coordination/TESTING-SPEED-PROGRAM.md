@@ -11,9 +11,9 @@ program state.)
 | 2 | "Bench-ready" Azure snapshot | ✅ DONE | Snapshot lantern-cloud-bench-ready-1: merged tip built, workspace+index+connections baked. Proven: bench-2 booted from it with ZERO rebuild. Follow-ups: prune 2 pre-fix snapshots; 1 harness check returned SETUP-BLOCKED on the VM (test-navigation issue, not app). |
 | 3 | Auto-smoke on every merge (pull→rebuild→canary→smoke→report, automatic) | ✅ MERGED (dry-run gated) | Script landed (auto-smoke.sh). Arm AFTER the finish-line pass; fix hard-coded task name first (P3). |
 | 4 | Harness v3: shard-across-targets + failure forensics (console errors + screenshot + app-log tail on FAIL) | ✅ MERGED | Codex-built, coordinator-reviewed, 122 tests green. Sharding ready for the Azure clones. |
-| 5 | Virtual audio driver on VMs (recorded WAV fixtures ⇒ capture tests without physical hardware) | QUEUED | On the Azure VM after azcdp, or local winvm Phase 2. NEVER on the Legion before the finish-line pass (driver install could confound the golden audio checks). |
-| 6 | Local Windows VM on this server (KVM, snapshot-reset, $0) | BUILDING Phase 1 | cc-lantern-winvm. Phase 2 = toolchain+app+CDP. Cloning locally is trivial once Phase 1 proves out (qcow2 copy). |
-| 7 | Linux Playwright mirror of the Windows smoke checklist (catch ~80% of regressions in minutes, no Windows machine) | BUILDING | cc-lantern-e2emirror, branch lp/e2e-smoke-mirror. |
+| 5 | Virtual audio driver on VMs (capture tests without physical hardware) | RUNNING | cc-lantern-vaudio on clone bench-2 (snapshot-reset safety net). |
+| 6 | Local Windows VM on this server (KVM, snapshot-reset, $0) | ⛔ BLOCKED w/ findings | Installer never progressed past WinPE across 2 attempts (~50 min, CPU active, no disk writes). Boot-race solved (reusable). Full diagnostics: coordination/winvm/SETUP-LOG.md @7ce0c0d8. VM left running unattended; kill if not installed by morning. Azure sharding covers the capacity need. |
+| 7 | Linux Playwright mirror of the Windows smoke checklist | ✅ MERGED | 11/19 checks in ~15s on Linux (44 specs green post-merge); 8 honestly NOT-MIRRORABLE (Tauri-only). docs/qa/E2E-SMOKE-MIRROR.md. |
 
 ## Standing constraints (safety rails)
 - The finish line (symfix → w3 merges → full Wave 0-4 bench pass on the Legion) stays FIRST. No program item may touch the Legion or move the tip in ways that disturb it.
