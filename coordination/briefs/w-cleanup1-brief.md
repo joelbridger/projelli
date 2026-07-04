@@ -1,0 +1,12 @@
+# Worker brief — cleanup batch 1 + docs currency
+
+**Lane:** cc-lantern-cleanup1 · worktree `~/lp-cleanup1` · branch `lp/cleanup-batch1`. **Model:** Sonnet 5 · high.
+Scope is EXACTLY these five items — nothing else. Small commits, one per item.
+
+1. **Remove the empty `src-tauri/crates/keepance-docx/` dir** if genuinely empty/unreferenced (grep Cargo.toml workspace members first; if referenced anywhere, report instead of removing).
+2. **keepance-word cosmetic sweep:** find lingering "keepance" spellings in comments/strings/identifiers under `src/` + `src-tauri/` that are purely cosmetic and safe to update to lantern. HARD RULES: never touch `matter`/`Matter`/`matter_id` (locked identifiers, see ARCHITECTURE.md); never touch wire formats, storage keys, keychain service names, app IDs, migration markers, or anything read/written at runtime (e.g. `AppData\Roaming\keepance` legacy-dir references are FUNCTIONAL — leave them); when in doubt, leave it and list it in the report.
+3. **Legacy localStorage-key migration:** investigate what legacy `keepance*`-prefixed localStorage keys exist vs current code (grep for localStorage key literals). If old builds' keys are still read with fallbacks, document the state in a short section in `docs/reference/` and only ADD a migration if it's trivially safe (read-old-write-new-delete-old, with tests); otherwise report a recommendation.
+4. **auto-smoke.sh per-target scheduled-task name (P3):** replace the hard-coded `KeepanceDev` task name with a per-target field in `scripts/bench-smoke/targets.mjs` (Legion = `LanternPlusDev`, azure = `LanternDevBench`) threaded into auto-smoke.sh. Keep dry-run default. Update its unit tests if any; run the bench-smoke test config.
+5. **Docs currency pass:** read `LANTERN-PLUS.md`, `docs/qa/BENCH-SMOKE-HARNESS.md` header, and `docs/plans/lantern-plus/` index-level docs; fix statements that tonight made false (e.g. waves still "building", harness capabilities pre-v3, bench targets). Factual currency only — no rewrites.
+
+Gates: `npx tsc --noEmit`, `npx vitest run` (full), bench-smoke test config, `node scripts/eslint-gate.mjs`. Rust: only if item 1/2 touched Rust files — then `timeout 1200 cargo check --manifest-path src-tauri/Cargo.toml` with CARGO_TARGET_DIR=$HOME/.cargo-target-lp-cleanup1 (seeded). Codex self-review once at the end (--base origin/lantern-plus), cap 2 rounds. Push; do NOT merge. Evidence handoff, then last line exactly: `WORKER-DONE: lp/cleanup-batch1`
