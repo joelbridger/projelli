@@ -12,6 +12,7 @@ Last updated: 2026-07-04 ~10:05 (coordinator-7 — w3ux + qafix2 MERGED; meetver
 | cc-lantern-qa4 | QA persona C "the klutz" on Azure bench-1 (own worktree ~/lp-qa4, lp/qa-persona-c; brief w-qa4-brief.md + focus notes: IDs from QA-24, unique tunnel port, test the NEW inline-error recording path) | exploring |
 | cc-lantern-qa19fix | 🔧 QA-19 P1 fix (lp/live-index; ~/lp-qa19fix): new/imported docs must become Ask-able live, no restart (brief w-qa19fix-brief.md; no-shortcuts) | building |
 | cc-lantern-qafix3 | QA fix batch 3 (lp/qa-fix-batch3; ~/lp-qafix3): QA-20b failed-recording orphan-folder cleanup + no-mic error-path test + QA-22 tooltip location (brief w-qafix3-brief.md) | building |
+| cc-lantern-sidecar | Bench-infra: build+stage the speech sidecar on the Legion (brief w-sidecar-brief.md) — pulls the Meetings re-verify forward; owns the Legion | staging |
 | codex divergence job | Detached Codex read-mostly analysis: fork↔main divergence report → coordination/integration/DIVERGENCE-REPORT.md (pre-stages Q#6 fork→main integration). Job 20260704-091258-fbr6xxxx, 15-min liveness watch armed | running |
 
 ## Merged this session
