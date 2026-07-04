@@ -7,7 +7,7 @@
  */
 import type { TranscriptFile } from '@/platform/types/meeting';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
-import { meetingNoteFromTranscript } from './meetingNoteTemplate';
+import { meetingNoteFromTranscript, formatCitationsForDisplay } from './meetingNoteTemplate';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import type { Provider } from '@/platform/providers/Provider';
@@ -67,7 +67,11 @@ export async function dictationToMeeting(
     const { provider } = await resolveProvider();
     const markdown = await meetingNoteFromTranscript.run({ transcript, clientName, provider });
     const { markdownToDocxBytes, applyLetterheadIfConfigured } = await import('@/platform/utils/docx-io');
-    const bytes = await markdownToDocxBytes(markdown, 'notes.docx');
+    // Same advisor-facing invariant as meetingStore's recording path: raw
+    // [t:ms] tokens never reach notes.docx. 'omit' (not a timestamp) because
+    // the pseudo-transcript is one segment at 0ms — "(at 0:00)" on every
+    // bullet would be noise, not a citation.
+    const bytes = await markdownToDocxBytes(formatCitationsForDisplay(markdown, 'omit'), 'notes.docx');
     const finalBytes = await applyLetterheadIfConfigured(bytes);
     await ws.writeFileBinary(`${meetingDir}/notes.docx`, finalBytes);
   } catch {

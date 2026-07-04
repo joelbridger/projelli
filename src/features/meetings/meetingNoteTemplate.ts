@@ -53,10 +53,18 @@ function enforceCitations(raw: string, transcript: TranscriptFile): string {
 /**
  * Advisor-facing rendering of the citation tokens: `[t:135000]` -> `(at 2:15)`.
  * `run()`'s return keeps the raw tokens (the machine contract for a future
- * citation-chip notes pane); callers writing notes.docx for the advisor to
- * READ apply this first — raw ms tokens must never reach the page.
+ * citation-chip notes pane); EVERY caller writing notes.docx for the advisor
+ * to READ applies this first — raw ms tokens must never reach the page.
+ *
+ * `style: 'omit'` drops the marker entirely instead — for dictated notes,
+ * whose pseudo-transcript is a single segment at 0ms, so "(at 0:00)" on
+ * every bullet would be meaningless noise rather than a citation.
  */
-export function formatCitationsForDisplay(markdown: string): string {
+export function formatCitationsForDisplay(
+  markdown: string,
+  style: 'timestamp' | 'omit' = 'timestamp'
+): string {
+  if (style === 'omit') return markdown.replace(/\s*\[t:\d+\]/g, '');
   return markdown.replace(/\s*\[t:(\d+)\]/g, (_m, ms: string) => {
     const total = Math.floor(Number(ms) / 1000);
     const min = Math.floor(total / 60);

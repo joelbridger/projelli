@@ -39,4 +39,13 @@ describe('meeting note template', () => {
     );
     expect(formatCitationsForDisplay(md)).not.toContain('[t:');
   });
+
+  // Dictated notes cite a single 0ms pseudo-segment — the invariant holds by
+  // omitting the marker, not by printing a meaningless "(at 0:00)".
+  it("'omit' style drops the tokens entirely (dictated notes)", () => {
+    const md = '- Wants to fund a 529 [t:0]\n- Call Maria about brackets [t:0]';
+    expect(formatCitationsForDisplay(md, 'omit')).toBe(
+      '- Wants to fund a 529\n- Call Maria about brackets',
+    );
+  });
 });

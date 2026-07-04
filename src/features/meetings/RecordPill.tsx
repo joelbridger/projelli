@@ -47,7 +47,7 @@ const pillFrame: React.CSSProperties = {
 export function RecordPill() {
   const { t } = useTranslation();
   const recording = useMeetingStore((s) => s.status.recording);
-  const processing = useMeetingStore((s) => s.processing);
+  const processing = useMeetingStore((s) => s.processingCount > 0);
   const elapsedMs = useMeetingStore((s) => s.status.elapsedMs);
   const tick = useMeetingStore((s) => s.tick);
   const stopRecording = useMeetingStore((s) => s.stopRecording);

@@ -4,7 +4,13 @@ vi.mock('@/platform/utils/prompt-security', () => ({
   sanitizeForPrompt: vi.fn((s: string) => s),
 }));
 
-import { buildPseudoTranscript, dictationMeetingWriteSet } from '@/features/meetings/dictationToMeeting';
+const docxMarkdownSpy = vi.fn(async (md: string) => new TextEncoder().encode(md).buffer);
+vi.mock('@/platform/utils/docx-io', () => ({
+  markdownToDocxBytes: (md: string, name: string) => docxMarkdownSpy(md, name),
+  applyLetterheadIfConfigured: vi.fn(async (b: ArrayBuffer) => b),
+}));
+
+import { buildPseudoTranscript, dictationMeetingWriteSet, dictationToMeeting } from '@/features/meetings/dictationToMeeting';
 import { meetingNoteFromTranscript } from '@/features/meetings/meetingNoteTemplate';
 import { stripVoiceNoteFrontmatter } from '@/features/meetings/FileAsMeetingDialog';
 import { sanitizeForPrompt } from '@/platform/utils/prompt-security';
@@ -31,6 +37,40 @@ describe('dictationToMeeting', () => {
     const transcript = buildPseudoTranscript('some content', 'm-1', '2026-07-02T17:00:00Z');
     meetingNoteFromTranscript.buildPrompt({ transcript, clientName: 'The Hendersons' });
     expect(sanitizeForPrompt).toHaveBeenCalledWith('some content');
+  });
+
+  // 2026-07-04 UX review B3 (coordinator codex pass): the advisor-facing
+  // notes.docx invariant — no raw [t:ms] tokens — must hold on the dictation
+  // path too, and dictated bullets omit the marker (their only "timestamp"
+  // is the meaningless 0ms pseudo-segment).
+  it('files notes.docx without raw [t:ms] tokens (omitted, not rendered as 0:00)', async () => {
+    docxMarkdownSpy.mockClear();
+    const ws = {
+      writeFile: vi.fn(async () => {}),
+      writeFileBinary: vi.fn(async () => {}),
+    };
+    const provider = {
+      sendMessage: vi.fn(async () => ({
+        content: '## Action items\n- Send the 529 illustration [t:0]\n- Call Maria [t:0]',
+      })),
+    };
+    await dictationToMeeting(
+      ws as never,
+      'Send the 529 illustration. Call Maria.',
+      'm-1',
+      '/ws/Clients/Hendersons',
+      '2026-07-02T17:00:00Z',
+      async () => ({ provider: provider as never }),
+    );
+    expect(docxMarkdownSpy).toHaveBeenCalledTimes(1);
+    const written = docxMarkdownSpy.mock.calls[0]?.[0] as string;
+    expect(written).not.toContain('[t:');
+    expect(written).not.toContain('(at 0:00)');
+    expect(written).toContain('- Send the 529 illustration');
+    expect(ws.writeFileBinary).toHaveBeenCalledWith(
+      expect.stringContaining('notes.docx'),
+      expect.anything(),
+    );
   });
 });
 

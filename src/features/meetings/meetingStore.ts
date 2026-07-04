@@ -67,10 +67,13 @@ export interface MeetingMeta {
 
 interface MeetingState {
   status: CaptureStatus;
-  /** True between capture_stop resolving and the transcription + notes
-   *  pipeline finishing — the RecordPill shows a "writing your notes" state
-   *  so stopping never feels like the work silently vanished. */
-  processing: boolean;
+  /** Count of post-stop pipelines (transcription + notes) still running —
+   *  the RecordPill shows a "writing your notes" state while > 0, so
+   *  stopping never feels like the work silently vanished. A COUNT, not a
+   *  boolean: the advisor can legally start (and stop) meeting B while
+   *  meeting A's notes are still being written, and A's completion must not
+   *  hide the indicator while B is mid-write (codex-review P2). */
+  processingCount: number;
   /** Tracked alongside `status` (not part of the shared CaptureStatus shape,
    *  which mirrors the Rust struct) so stopRecording knows which matter/
    *  consent to write into meeting.json without a second lookup. */
@@ -259,7 +262,7 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
     elapsedMs: 0,
     writeError: null,
   },
-  processing: false,
+  processingCount: 0,
   activeMatterId: null,
   activeConsent: null,
 
@@ -322,10 +325,10 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
         elapsedMs: 0,
         writeError: null,
       },
-      processing: true,
       activeMatterId: null,
       activeConsent: null,
     });
+    set((s) => ({ processingCount: s.processingCount + 1 }));
     try {
       const meetingDir = r.meetingDir || startedMeetingDir || '';
       const matterId = activeMatterId ?? '';
@@ -405,7 +408,7 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
         );
       }
     } finally {
-      set({ processing: false });
+      set((s) => ({ processingCount: Math.max(0, s.processingCount - 1) }));
     }
   },
 

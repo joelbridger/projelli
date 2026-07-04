@@ -83,7 +83,7 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
   const [meetings, setMeetings] = useState<MeetingSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const recording = useMeetingStore((s) => s.status.recording);
-  const processing = useMeetingStore((s) => s.processing);
+  const processing = useMeetingStore((s) => s.processingCount > 0);
   const startRecording = useMeetingStore((s) => s.startRecording);
   const crmQueueItems = useCrmWriteQueueStore((s) => s.items);
   const [showConsent, setShowConsent] = useState(false);
