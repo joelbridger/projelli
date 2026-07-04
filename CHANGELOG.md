@@ -1279,6 +1279,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`auto-smoke.sh` restarted a hard-coded `KeepanceDev` Windows scheduled task regardless of target.** Each bench target now carries its own scheduled-task name (`legion` = `LanternPlusDev`, `azure-cloud-bench-1` = `LanternDevBench`, ad hoc default `LanternPlusDev`), threaded through the dry-run output and the real restart command.
   - Files modified: `scripts/bench-smoke/targets.mjs`, `scripts/auto-smoke.sh`, `scripts/bench-smoke/__tests__/targets.test.mjs`
 
+### Changed
+- **Cosmetic `keepance` → `lantern` sweep across `src/` and `src-tauri/`.** The internal plumbing rename (Cargo package name, keychain services, data-dir constants) was already done; this fixes stale comments left describing values that are already `lantern`, plus a handful of non-persisted internal constants, DOM print-target ids, and test-fixture strings still named `keepance`. Real legacy-migration code, wire-format values (the `'keepance-local'` provider id serialized in saved chat files), live network/CDN URLs, CI-wired env vars, and a crypto domain-separation literal were all identified and left untouched.
+  - 73 files changed, pure 1:1 text substitutions (170 insertions / 170 deletions, no lines added or removed).
+
 ### Documentation
 - **Documented the legacy `keepance_*` storage-key migration state.** `migrateLegacyLanternStorageKeys` and `migrateLocalStorageApiKeysToKeychain` are already complete, tested, and correctly ordered — no code change needed; a new SECURITY.md section records the current state and flags one pre-existing gap (`BeforeYouMeetStrip.tsx` reads a dead legacy key literal) as a follow-up.
   - Files modified: `docs/reference/SECURITY.md`
