@@ -922,15 +922,18 @@ export function ClientMapPanel({
   const sectionList = [...coreSections, ...customSections];
   const missingCount = unresolvedAskGaps(map).length;
 
-  // Initialise the selected tab from localStorage, falling back to "What I'm
-  // missing" when the client has an unresolved gap, else the first section
-  // that actually has content (or the first section overall). The gap-first
-  // fallback keeps this in sync with the "Whole book" view (BookView.tsx),
-  // which surfaces the SAME unresolved gaps as a chip on the client's row —
-  // landing on a populated section tab instead used to silently bury the
-  // resolvable gap control the book view had just promised.
+  // An unresolved gap always wins the initial tab, even over a remembered
+  // preference from localStorage: this keeps the panel in sync with the
+  // "Whole book" view (BookView.tsx), which surfaces the SAME unresolved
+  // gaps as a chip on the client's row. Landing on a stale remembered
+  // section tab instead used to silently bury the resolvable gap control the
+  // book view had just promised — including for a client visited before the
+  // gap appeared (or before this fix), whose stored tab would otherwise take
+  // precedence forever until the gap is resolved (Codex review finding).
+  // Once resolved, the remembered-tab / first-content fallback applies as before.
   const firstWithContent = sectionList.find((s) => s.items.length > 0)?.key;
   const [activeKey, setActiveKey] = useState<string>(() => {
+    if (missingCount > 0) return MISSING_KEY;
     try {
       const stored = localStorage.getItem(tabStorageKey(map.matterId));
       if (
@@ -944,7 +947,6 @@ export function ClientMapPanel({
     } catch {
       // localStorage unavailable (private browsing, embedded webview) — ignore.
     }
-    if (missingCount > 0) return MISSING_KEY;
     return firstWithContent ?? sectionList[0]?.key ?? MISSING_KEY;
   });
 

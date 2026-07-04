@@ -8,6 +8,7 @@ import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { emptyClientMap } from '@/platform/clientMap/types';
 import type { ClientMap } from '@/platform/clientMap/types';
 import type { Matter } from '@/platform/types/matter';
+import { skClientMapTab } from '@/config/identity';
 
 /**
  * Regression for the Wave-4 bench finding: the "Whole book" Client Map view
@@ -50,6 +51,7 @@ describe('Book view / client detail gap sync', () => {
   beforeEach(() => {
     useMatterStore.setState({ matters: [] });
     useClientMapStore.setState({ maps: {} });
+    localStorage.clear();
   });
 
   it('book view flags a gap chip for the client', () => {
@@ -64,6 +66,18 @@ describe('Book view / client detail gap sync', () => {
     render(<ClientMapPanel map={map} onOpenSource={vi.fn()} onEditItem={vi.fn()} />);
     // No click into "What I'm missing" — this must be visible on first render,
     // matching what the book view already promised via its gap chip.
+    expect(screen.queryByTestId('clientmap-ask-flag')).toBeTruthy();
+  });
+
+  it('still surfaces the gap even for a client with a remembered tab preference from a prior visit', () => {
+    // Codex review finding: the gap-first fallback only ran when there was no
+    // stored tab preference. A client visited before (e.g. an earlier session,
+    // or before this gap appeared) has a remembered tab in localStorage that
+    // used to take precedence forever, re-burying the gap control on every
+    // reopen until resolved.
+    const map = gapMap();
+    localStorage.setItem(skClientMapTab(map.matterId), 'household');
+    render(<ClientMapPanel map={map} onOpenSource={vi.fn()} onEditItem={vi.fn()} />);
     expect(screen.queryByTestId('clientmap-ask-flag')).toBeTruthy();
   });
 });
