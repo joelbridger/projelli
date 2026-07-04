@@ -154,6 +154,15 @@ export class TabWriteGuard {
     return true;
   }
 
+  /** Always false for this substrate (part of the shared TabLockGuard
+   *  interface — see tabLockGuard.ts's doc on this method). A frozen owner
+   *  keeps its stale-looking record on purpose: requestTakeover() can force
+   *  a takeover regardless of the current holder's liveness, so there's no
+   *  need to release just because this tab got frozen. */
+  releaseOnFreeze(): boolean {
+    return false;
+  }
+
   /** Re-subscribe to status changes. Returns an unsubscribe function. */
   subscribe(listener: (status: TabGuardStatus) => void): () => void {
     this.listeners.add(listener);

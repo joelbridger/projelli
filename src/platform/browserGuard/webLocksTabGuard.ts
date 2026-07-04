@@ -306,15 +306,27 @@ export class WebLocksTabGuard {
    *  subsequent start() should NOT re-probe, even though this looks like a
    *  fresh start()-to-stop() lifetime. See hasProbedOnce's field doc and
    *  attemptAcquire()'s doc for why re-probing on a React 18 StrictMode
-   *  remount would race the still-settling orphaned first probe. */
+   *  remount would race the still-settling orphaned first probe.
+   *
+   *  Updates status/releaseHeldLock/abortController DIRECTLY here rather
+   *  than leaving it to the held attempt's own `finally` (codex-review):
+   *  bumping `generation` on the line above makes that SAME attempt look
+   *  stale to its own `finally` once the release resolves, so it declines
+   *  to touch guard state at all — without this, `_status` would stay
+   *  stuck reporting 'owner' forever after a real stop() while holding the
+   *  lock, even though the Web Lock itself has genuinely been released. */
   stop(): void {
     this.stopped = true;
     this.generation += 1;
     if (this.releaseHeldLock) {
-      this.releaseHeldLock();
+      const release = this.releaseHeldLock;
+      this.releaseHeldLock = null;
+      this.setStatus('blocked');
+      release();
     } else {
       this.abortController?.abort();
     }
+    this.abortController = null;
   }
 
   /** No-op under this substrate — see the module doc's "one capability this
@@ -361,6 +373,19 @@ export class WebLocksTabGuard {
    *  rehydrate-before-write reload. */
   shouldRehydrateOnThisAcquisition(): boolean {
     return this.contentionEverConfirmed;
+  }
+
+  /** Always true for this substrate (codex-review finding): unlike the
+   *  heartbeat substrate, there is no forced-takeover primitive here (see
+   *  the module doc). A frozen (bfcache) owner's JS is fully suspended, so
+   *  it can never receive a takeover request's flush-request broadcast or
+   *  call its own yieldIfOwner() — without releasing on freeze, clicking
+   *  "Take over" against a tab that merely navigated away (a common,
+   *  everyday case, not just a dead one) would simply hang until that tab
+   *  is restored or evicted. useTabWriteGuard.ts calls stop() on freeze and
+   *  start() again on restore when this returns true. */
+  releaseOnFreeze(): boolean {
+    return true;
   }
 
   private setStatus(next: TabGuardStatus): void {

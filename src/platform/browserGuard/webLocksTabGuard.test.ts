@@ -321,6 +321,27 @@ describe('WebLocksTabGuard', () => {
     expect(a.status).toBe('owner');
   });
 
+  it('regression (codex-review): stop() while actually holding the lock immediately reflects blocked status, not leaving it stuck reporting owner', async () => {
+    // stop() bumps `generation`, which makes the held attempt's OWN async
+    // `finally` see itself as stale once the release resolves -- so status
+    // must be updated directly inside stop(), synchronously, not left to
+    // that (now-declining) `finally` to handle.
+    const a = makeGuard();
+    a.start();
+    await flush();
+    expect(a.status).toBe('owner');
+
+    a.stop();
+    expect(a.status).toBe('blocked');
+
+    // And the lock is genuinely released, not just cosmetically -- a
+    // waiting guard can actually acquire it.
+    const b = makeGuard();
+    b.start();
+    await flush();
+    expect(b.status).toBe('owner');
+  });
+
   it('stop() while still pending (never granted) cancels cleanly without becoming owner or leaking a queue slot', async () => {
     const a = makeGuard();
     const b = makeGuard();
@@ -369,6 +390,11 @@ describe('WebLocksTabGuard', () => {
       a.checkNow();
     }).not.toThrow();
     expect(a.status).toBe('owner');
+  });
+
+  it('releaseOnFreeze() is true: a frozen (bfcache) owner has no force-takeover fallback, so it must release rather than block "Take over" indefinitely (codex-review finding)', () => {
+    const a = makeGuard();
+    expect(a.releaseOnFreeze()).toBe(true);
   });
 
   it('notifies subscribers when status changes', async () => {

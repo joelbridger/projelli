@@ -235,12 +235,16 @@ export function useTabWriteGuard(enabled: boolean, options: UseTabWriteGuardOpti
     // so a blocked tab can take over immediately instead of waiting for the
     // lock to go stale. `pagehide` ALSO fires when the browser freezes this
     // page into the back/forward cache (bfcache) rather than destroying it —
-    // `event.persisted` distinguishes the two. A bfcache-frozen tab doesn't
-    // run its heartbeat timer (JS is suspended), so releasing here would be
-    // correct too, but doing nothing is simpler and self-correcting: the
-    // frozen tab's lock just goes stale on its own if another tab needs it.
+    // `event.persisted` distinguishes the two. Whether a frozen tab should
+    // release is substrate-dependent (see releaseOnFreeze()'s doc): the
+    // heartbeat substrate deliberately doesn't (requestTakeover() can force
+    // a takeover regardless), but the Web Locks substrate must (codex-review
+    // finding) — its frozen JS can never respond to a takeover request, so
+    // without this, "Take over" would hang against any tab that merely
+    // navigated away, not just a truly dead one.
     const handlePageHide = (event: PageTransitionEvent) => {
-      if (!event.persisted && !takingOver) guard.stop();
+      if (takingOver) return;
+      if (!event.persisted || guard.releaseOnFreeze()) guard.stop();
     };
     window.addEventListener('pagehide', handlePageHide);
 
@@ -248,9 +252,14 @@ export function useTabWriteGuard(enabled: boolean, options: UseTabWriteGuardOpti
     // saw the unmount) and the heartbeat timer was frozen the whole time —
     // re-evaluate immediately so a restored tab can't keep showing itself as
     // 'owner' on a lock it stopped maintaining, and picks up a takeover that
-    // happened while it was frozen.
+    // happened while it was frozen. A substrate that released on freeze
+    // (releaseOnFreeze() === true) also needs start() to re-queue —
+    // checkNow() alone has nothing to re-evaluate once the lock has
+    // actually been let go.
     const handlePageShow = (event: PageTransitionEvent) => {
-      if (event.persisted) guard.checkNow();
+      if (!event.persisted) return;
+      guard.checkNow();
+      if (guard.releaseOnFreeze()) guard.start();
     };
     window.addEventListener('pageshow', handlePageShow);
 

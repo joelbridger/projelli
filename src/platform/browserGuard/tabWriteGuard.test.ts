@@ -87,6 +87,11 @@ describe('TabWriteGuard', () => {
     expect(b.status).toBe('owner');
   });
 
+  it('releaseOnFreeze() is false: a frozen (bfcache) owner keeps its record, relying on requestTakeover()\'s force-write instead of releasing', () => {
+    const a = makeGuard('A');
+    expect(a.releaseOnFreeze()).toBe(false);
+  });
+
   it('notifies subscribers when status changes', () => {
     const a = makeGuard('A');
     const b = makeGuard('B');

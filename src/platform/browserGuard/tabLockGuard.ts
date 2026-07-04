@@ -43,6 +43,19 @@ export interface TabLockGuard {
    *  polling correction and to bfcache pageshow restores in
    *  useTabWriteGuard.ts either way, since it's harmless for both. */
   checkNow(): void;
+  /** Whether useTabWriteGuard.ts should call stop() when this tab is frozen
+   *  into the back/forward cache (bfcache pagehide with event.persisted),
+   *  and start() again on restore. False for the heartbeat substrate: it
+   *  keeps holding a stale-looking record while frozen on purpose, because
+   *  requestTakeover() can force a takeover regardless (see
+   *  tabWriteGuard.ts's pagehide-handling doc in useTabWriteGuard.ts).
+   *  True for the Web Locks substrate: it has NO forced-takeover primitive
+   *  (see webLocksTabGuard.ts's module doc), so a frozen owner's JS being
+   *  fully suspended means it can never receive a takeover request's
+   *  flush-request broadcast or call its own yieldIfOwner() — without
+   *  releasing on freeze, "Take over" would simply hang against a tab that
+   *  merely navigated away (a common case), not just a truly dead one. */
+  releaseOnFreeze(): boolean;
 }
 
 export interface CreateTabGuardOptions {
