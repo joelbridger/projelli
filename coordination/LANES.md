@@ -9,10 +9,10 @@ Last updated: 2026-07-04 ~01:05 (coordinator-6 seated — sole coordinator; moni
 |---|---|---|
 | cc-lantern-benchfull | 🏁 Finish-line pass ROUND 1 DONE: 9 PASS / 2 real FAIL / 3 harness-caused blocks (fixed+merged) / 5 expected stubs. NOW: completing the MS OAuth (authorized, demo acct) + re-running failed/blocked checks | bench-reverifying |
 | cc-lantern-gapsync | Wave-4 fix lane (lp/wave4-gap-sync): book-view gap chip vs client-detail control out of sync (bench FAIL #2) | building |
-| cc-lantern-vaudio | Virtual-audio spike on clone bench-2 (program #5, the LAST queued program item) — prove capture tests without physical hardware; snapshot-reset safety net | building |
 | cc-lantern-auditfix | Audit-chain fail-closed fix — worker DONE, coordinator independent review found 1 P2 (repair affordance unreachable) — routed back for the minimal repair UI | fixing-P2 |
 
 ## Merged this session
+✅ vaudio spike DONE @841f4ab0 — virtual audio VIABLE on cloud benches (VB-CABLE, tone proven at engine level); flagged a possible Windows-only capture_start pathguard bug → pathfix lane
 ✅ lp/bench-harness-round2-fixes @00558e1d — 3 live-root-caused harness bugs (wrapper-click, Grid-view state, snapshot false-negative); 124 harness tests
 ✅ azclone lane DONE @0bab65b7 — merged-tip verified on cloud VM (CDP fix live); bench-ready golden snapshot; clone bench-2 zero-rebuild; FIRST live 2-way sharded smoke PASS (~$0.20)
 ✅ lp/e2e-smoke-mirror @fc82c2a2 — Playwright mirror: 11/19 bench checks in ~15s on Linux (44 specs green post-merge)
