@@ -15,6 +15,7 @@
 //   node scripts/desktop-drive.mjs snapshot                   # interactive testids + text
 //   node scripts/desktop-drive.mjs click <testid>
 //   node scripts/desktop-drive.mjs type <testid> "<text>" [--submit]
+//   node scripts/desktop-drive.mjs type-stdin <testid> [--submit]
 //   node scripts/desktop-drive.mjs eval "<js expression>"     # runs in the app, prints result
 //   node scripts/desktop-drive.mjs screenshot <path.jpeg>     # via CDP (works even if window hidden)
 //   node scripts/desktop-drive.mjs waitfor "<text>" [seconds]
@@ -44,6 +45,12 @@ function pickPage(browser) {
     pages[0] ||
     null
   );
+}
+
+async function readStdinText() {
+  const chunks = [];
+  for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk));
+  return Buffer.concat(chunks).toString('utf8');
 }
 
 const [cmd, ...args] = process.argv.slice(2);
@@ -84,6 +91,18 @@ try {
         await page.fill(sel, args[1] ?? '');
         if (args.includes('--submit')) await page.press(sel, 'Enter');
         console.log('typed into ' + sel + (args.includes('--submit') ? ' + Enter' : ''));
+        break;
+      }
+      case 'type-stdin': {
+        const sel = `[data-testid="${args[0]}"]`;
+        const text = await readStdinText();
+        await page.fill(sel, text);
+        const actual = await page.locator(sel).inputValue();
+        if (actual !== text) {
+          throw new Error(`type-stdin mismatch for ${sel}: expected ${text.length} chars, got ${actual.length} chars`);
+        }
+        if (args.includes('--submit')) await page.press(sel, 'Enter');
+        console.log('typed ' + actual.length + ' chars into ' + sel + (args.includes('--submit') ? ' + Enter' : ''));
         break;
       }
       case 'eval': {
