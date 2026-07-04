@@ -1222,7 +1222,11 @@
       "no-mail-accounts-entity": "Conecta una cuenta de correo en Configuración para asignarla a este {{entity}}.",
       "no-mail-accounts-entity__sourceHash": "8b4d26f246b4916dee190f7d5c6debd8abeb0162827e40c1ab0fb70f389af1d0",
       "mail-account-hint-entity": "El correo de una cuenta asignada está limitado a este {{entity}}.",
-      "mail-account-hint-entity__sourceHash": "dcaa72f2161c4305981437631f7be3419a0c62b749d849b330712ccc438c0387"
+      "mail-account-hint-entity__sourceHash": "dcaa72f2161c4305981437631f7be3419a0c62b749d849b330712ccc438c0387",
+      "remove-action": "Eliminar",
+      "remove-action__sourceHash": "c3812fc4acb861d5182fc2b8155f327f736fbe5e5eb86a7bd7afcb6dc5497282",
+      "cancel-action": "Cancelar",
+      "cancel-action__sourceHash": "19766ed6ccb2f4a32778eed80d1928d2c87a18d7c275ccb163ec6709d3eb2e27"
     },
     "sync": {
       "live-tooltip": "Sincronizado con la firma",

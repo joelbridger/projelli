@@ -60,7 +60,7 @@ describe('en.json structure snapshot', () => {
         "local-ai-settings": 8,
         "mail": 6,
         "marketplace": 14,
-        "matter": 204,
+        "matter": 206,
         "media": 81,
         "meetings": 62,
         "memory": 6,
@@ -160,7 +160,11 @@ describe('en.json structure snapshot', () => {
     //      workflows, the privacy report, and TrustBar) were left as-is and
     //      now read via useEntityLabelEnglish() instead, so no sentence ships
     //      mixed-language; see the cleanup2 handoff for the exact file list.
-    expect(flat.length).toBe(1208);
+    // +2 = matter.manager.{remove-action,cancel-action} (codex-review finding:
+    //      the delete-client confirm dialog's title/body were localized above
+    //      but its own confirm/cancel BUTTONS stayed hardcoded "Remove"/
+    //      "Cancel" — same mixed-language bug, one level down).
+    expect(flat.length).toBe(1210);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

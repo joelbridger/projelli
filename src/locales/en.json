@@ -1068,7 +1068,9 @@
       "no-folders-entity": "Open a workspace to map folders to this {{entity}}.",
       "mail-label-entity": "Email accounts in this {{entity}}",
       "no-mail-accounts-entity": "Connect an email account in Settings to map it to this {{entity}}.",
-      "mail-account-hint-entity": "Email from a mapped account is scoped to this {{entity}}."
+      "mail-account-hint-entity": "Email from a mapped account is scoped to this {{entity}}.",
+      "remove-action": "Remove",
+      "cancel-action": "Cancel"
     },
     "sync": {
       "live-tooltip": "Synced with firm",

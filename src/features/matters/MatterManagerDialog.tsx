@@ -597,7 +597,8 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                         void (async () => {
                           const confirmed = await confirm(message, {
                             title: t('matter.manager.delete-confirm-title-entity', { entity: entityLabel.one }),
-                            confirmLabel: 'Remove',
+                            confirmLabel: t('matter.manager.remove-action'),
+                            cancelLabel: t('matter.manager.cancel-action'),
                             variant: 'destructive',
                           });
                           if (!confirmed) return;
