@@ -51,6 +51,45 @@
 //!
 use std::path::{Component, Path, PathBuf};
 
+/// True if `seg` is (or, extension-stripped, resolves to) a Windows reserved
+/// device name — `CON`, `PRN`, `AUX`, `NUL`, `COM1`–`COM9`, `LPT1`–`LPT9`,
+/// case-insensitively. Windows intercepts these names in the normal Win32 API,
+/// so a file created with one via an extended-length (`\\?\`) path becomes
+/// un-renamable / un-deletable by Explorer, Word, backup tools, etc. (QA-36).
+fn is_reserved_windows_name(seg: &str) -> bool {
+    // The reserved word is matched against the portion before the FIRST dot:
+    // `CON`, `CON.docx`, and `CON.a.b` are all reserved. Trailing spaces on the
+    // base are stripped by Windows, so strip them here before matching.
+    let base = seg.split('.').next().unwrap_or(seg).trim_end_matches(' ');
+    let upper = base.to_ascii_uppercase();
+    match upper.as_str() {
+        "CON" | "PRN" | "AUX" | "NUL" => true,
+        // COM1-9 / LPT1-9 only (exactly one digit 1-9): "COM10" is NOT reserved.
+        _ => {
+            (upper.starts_with("COM") || upper.starts_with("LPT"))
+                && upper.len() == 4
+                && matches!(upper.as_bytes()[3], b'1'..=b'9')
+        }
+    }
+}
+
+/// Reject a single path segment that Windows can't faithfully store (QA-36
+/// defense-in-depth for the CREATE path — the client-side `validateName` is the
+/// primary guard; this catches AI/MCP create routes that bypass the UI dialogs).
+/// Refuses reserved device names and trailing dots/spaces (which Windows
+/// silently strips, so the on-disk name wouldn't match what was requested).
+pub fn reject_reserved_windows_name(seg: &str) -> Result<(), String> {
+    if seg.ends_with('.') || seg.ends_with(' ') {
+        return Err(format!(
+            "name has a trailing dot or space, which Windows strips: {seg:?}"
+        ));
+    }
+    if is_reserved_windows_name(seg) {
+        return Err(format!("name is a reserved Windows device name: {seg:?}"));
+    }
+    Ok(())
+}
+
 /// Resolve a workspace-relative path to its canonical form, refusing the
 /// walk the MOMENT any component — the target itself or any intermediate
 /// directory along the way — is a symlink.
@@ -159,6 +198,13 @@ pub fn resolve_creatable(
     for component in p.components() {
         match component {
             Component::Normal(seg) => {
+                // QA-36 defense-in-depth: refuse a reserved Windows device name
+                // (CON/PRN/…) or a trailing-dot/space segment at ANY level before
+                // it can be created — Windows reserves these at every path
+                // component, and such a file/dir becomes un-manageable outside
+                // this app. The client-side `validateName` is the primary guard;
+                // this covers create routes (AI/MCP) that don't hit the dialogs.
+                reject_reserved_windows_name(&seg.to_string_lossy())?;
                 current.push(seg);
                 if still_checking {
                     match current.symlink_metadata() {
@@ -331,6 +377,47 @@ pub fn contained(path: &Path, canon_ws: &Path) -> bool {
     }
 }
 
+/// Strips Windows' extended-length ("verbatim") path prefix — `\\?\` or
+/// `\\?\UNC\` — from an already-canonicalized path before it crosses the
+/// Tauri IPC boundary into the frontend as a plain `String` field (e.g. a
+/// meeting-capture command's `meeting_dir`/`audio_path`/`transcript_path`).
+///
+/// `Path::canonicalize()` ALWAYS returns the verbatim form on Windows (see
+/// this module's header doc), and several meeting-capture commands
+/// deliberately canonicalize `meeting_dir` (via
+/// [`canonicalize_symlink_safe_absolute`], directly or through
+/// `guard_meeting_path`/`guard_matter_folder` in `commands/capture/mod.rs`)
+/// so every INTERNAL Rust-side comparison of the same directory agrees,
+/// regardless of which call site produced it (the round-8 fix documented in
+/// `commands/capture/recovery.rs`).
+///
+/// The frontend never asked for that guarantee, though: its `PathValidator`
+/// compares a `meetingDir` string byte-for-byte against a workspace root
+/// that came from a plain folder-picker dialog (never verbatim). Left
+/// un-stripped, a verbatim `meeting_dir` fails `PathValidator`'s
+/// `isWithinWorkspace` check even though it names the exact same on-disk
+/// location as the plain-form root — every `${meetingDir}/...` read/write
+/// the frontend makes then throws a `SecurityError` before touching a file,
+/// which `tryGenerateNotes`'s bare `catch { return; }` silently treated as
+/// "transcription still queued" forever (QA-41; see meetingStore.ts and
+/// PathValidator.windows.test.ts's "Windows verbatim" coverage).
+///
+/// Purely a display/IPC-string transform — the canonical `PathBuf` used for
+/// actual Rust-side filesystem calls (long-path safety included) is
+/// untouched; only the string handed to the frontend changes. A no-op on
+/// Unix (no verbatim prefix exists there) and on any path that isn't in this
+/// form already.
+pub fn display_path(path: &Path) -> String {
+    let s = path.to_string_lossy();
+    if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
+        format!(r"\\{rest}")
+    } else if let Some(rest) = s.strip_prefix(r"\\?\") {
+        rest.to_string()
+    } else {
+        s.into_owned()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -387,6 +474,76 @@ mod tests {
         let canon = ws.path().canonicalize().unwrap();
         let err = resolve_creatable(&canon, "../escape.txt", &canon).unwrap_err();
         assert!(err.contains(".."), "got: {err}");
+    }
+
+    // ── QA-36: Windows reserved device names / trailing dot-or-space ──────────
+
+    #[test]
+    fn reserved_windows_name_table() {
+        // (name, is_reserved)
+        let cases = [
+            ("CON", true),
+            ("con", true),
+            ("CON.docx", true),
+            ("con.txt", true),
+            ("PRN", true),
+            ("AUX", true),
+            ("NUL", true),
+            ("nul.dat", true),
+            ("COM1", true),
+            ("COM9.docx", true),
+            ("LPT1", true),
+            ("lpt9", true),
+            // NOT reserved — ordinary names that merely contain the text.
+            ("CONTRACT.docx", false),
+            ("COM10.docx", false),
+            ("COM0", false),
+            ("LPT0", false),
+            ("console.txt", false),
+            ("brief.docx", false),
+            ("MyCON.docx", false),
+        ];
+        for (name, expected) in cases {
+            assert_eq!(
+                is_reserved_windows_name(name),
+                expected,
+                "is_reserved_windows_name({name:?}) should be {expected}"
+            );
+        }
+    }
+
+    #[test]
+    fn reject_reserved_windows_name_covers_reserved_and_trailing() {
+        for bad in ["CON", "con.docx", "NUL", "COM1", "LPT9", "brief.", "brief ", "CON.a.b"] {
+            assert!(
+                reject_reserved_windows_name(bad).is_err(),
+                "expected {bad:?} to be rejected"
+            );
+        }
+        for ok in ["brief.docx", "CONTRACT.docx", "COM10.docx", "notes", "my-folder"] {
+            assert!(
+                reject_reserved_windows_name(ok).is_ok(),
+                "expected {ok:?} to be accepted"
+            );
+        }
+    }
+
+    #[test]
+    fn resolve_creatable_rejects_reserved_name_at_any_level() {
+        let ws = tempdir().unwrap();
+        let canon = ws.path().canonicalize().unwrap();
+        // Final-segment reserved name.
+        let err = resolve_creatable(&canon, "Clients/CON.docx", &canon).unwrap_err();
+        assert!(err.contains("reserved"), "got: {err}");
+        // Intermediate reserved directory name is refused too.
+        let err2 = resolve_creatable(&canon, "CON/notes.docx", &canon).unwrap_err();
+        assert!(err2.contains("reserved"), "got: {err2}");
+        // Trailing dot/space on the created segment.
+        let err3 = resolve_creatable(&canon, "brief.", &canon).unwrap_err();
+        assert!(err3.contains("trailing"), "got: {err3}");
+        // An ordinary nested name still resolves fine.
+        let ok = resolve_creatable(&canon, "Clients/brief.docx", &canon).unwrap();
+        assert_eq!(ok, canon.join("Clients/brief.docx"));
     }
 
     #[cfg(unix)]
@@ -553,5 +710,47 @@ mod tests {
         std::os::unix::fs::symlink(&real, canon.join("alias")).unwrap();
         let err = canonicalize_symlink_safe_absolute(&canon.join("alias").join("x")).unwrap_err();
         assert!(err.contains("symlink"), "got: {err}");
+    }
+
+    // display_path is pure string manipulation (no OS-specific canonicalize
+    // call), so — unlike the verbatim-prefix PRODUCTION shape, which only
+    // Windows itself actually generates — these are portable and run on any
+    // host, including this Linux CI/dev box, exercising exactly the strings
+    // `canonicalize_symlink_safe_absolute` is documented to produce on a real
+    // Windows machine.
+    mod display_path_tests {
+        use super::*;
+
+        #[test]
+        fn strips_the_plain_verbatim_prefix() {
+            assert_eq!(
+                display_path(Path::new(r"\\?\C:\Users\Jane\Keepance\Clients\Acme")),
+                r"C:\Users\Jane\Keepance\Clients\Acme"
+            );
+        }
+
+        #[test]
+        fn strips_the_unc_verbatim_prefix_and_restores_the_plain_unc_form() {
+            assert_eq!(
+                display_path(Path::new(r"\\?\UNC\server\share\Keepance\Clients\Acme")),
+                r"\\server\share\Keepance\Clients\Acme"
+            );
+        }
+
+        #[test]
+        fn is_a_no_op_for_an_already_plain_windows_path() {
+            assert_eq!(
+                display_path(Path::new(r"C:\Users\Jane\Keepance\Clients\Acme")),
+                r"C:\Users\Jane\Keepance\Clients\Acme"
+            );
+        }
+
+        #[test]
+        fn is_a_no_op_for_a_unix_path() {
+            assert_eq!(
+                display_path(Path::new("/home/jane/keepance/Clients/Acme")),
+                "/home/jane/keepance/Clients/Acme"
+            );
+        }
     }
 }

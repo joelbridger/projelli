@@ -62,8 +62,8 @@ describe('en.json structure snapshot', () => {
         "mail": 6,
         "marketplace": 14,
         "matter": 206,
-        "media": 81,
-        "meetings": 71,
+        "media": 88,
+        "meetings": 106,
         "memory": 6,
         "model-download": 9,
         "onboarding": 67,
@@ -83,7 +83,7 @@ describe('en.json structure snapshot', () => {
         "whats-new": 4,
         "whiteboard": 1,
         "workflow": 29,
-        "workspace": 19,
+        "workspace": 20,
       }
     `);
   });
@@ -176,6 +176,15 @@ describe('en.json structure snapshot', () => {
     //      failed transcription used to vanish into a bare catch{} — these
     //      back an honest, classified, retryable failed state, mirroring the
     //      existing notes-failed-* keys).
+    // +35 = meetings.notice.* (Recording Notice Kit: the verified-verbal-notice
+    //       consent script step, the meeting-page notice trail + resolutions,
+    //       invite/chat copy blocks, and the firm Standard/Strict policy dial).
+    // +1 = QA-36 client-side create-name guard: workspace.file-tree.reserved-name-error
+    //      is the localized inline warning for Windows-reserved/trailing-dot names.
+    // +7 = QA-34 .docx save-resilience UI: media.docx-editor.{save-blocked-title,
+    //      save-blocked-body,save-retry-now,save-copy-elsewhere,save-copy-saving,
+    //      save-copy-success,save-copy-failed} — the sustained-save-failure warning
+    //      + "Save a copy elsewhere" escape hatch (P0 silent-data-loss fix).
     // +4 = QA-33 fix (2026-07-04): a stopped Windows credential-storage
     //      service (VaultSvc) used to leave "open this workspace" silently
     //      hung for 30s then fail with only a console.error — no message at
@@ -194,7 +203,7 @@ describe('en.json structure snapshot', () => {
     //      unresponsive-own-data,picker-unresponsive-sample} (2),
     //      file-import.{picker-unresponsive,manual-path-title,manual-path-
     //      placeholder} (3).
-    expect(flat.length).toBe(1232);
+    expect(flat.length).toBe(1275);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

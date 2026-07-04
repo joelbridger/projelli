@@ -17,6 +17,8 @@ import { meetingDisplayTitle, formatMeetingDate, formatMeetingDuration } from '.
 import { ConsentDialog, isMacPermissionError } from './ConsentDialog';
 import { consentModeFor } from './recordingConsentLaw';
 import { makeConsentLedger, type ConsentEntry } from './consentLedger';
+import { deriveNoticeState, meetingDirKey, type NoticeEntry, type NoticeState } from './noticeLedger';
+import { useNoticeSettings } from './noticeSettings';
 
 export interface MeetingSummary {
   dir: string;
@@ -144,7 +146,7 @@ export interface ClientMeetingsTabProps {
 }
 
 export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, workspaceService }: ClientMeetingsTabProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [meetings, setMeetings] = useState<MeetingSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [scanFailed, setScanFailed] = useState(false);
@@ -156,6 +158,11 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
   const [macPermissionError, setMacPermissionError] = useState(false);
   const [consentError, setConsentError] = useState<string | null>(null);
   const [standingConsent, setStandingConsent] = useState<ConsentEntry | null>(null);
+  // Recording Notice Kit — per-meeting notice state (keyed by meeting dir) so
+  // each row can flag a missing/quarantined notice, plus the firm policy.
+  const [noticeStates, setNoticeStates] = useState<Record<string, NoticeState>>({});
+  const { policy: noticePolicy, customScript: custom } = useNoticeSettings();
+  const noticeScript = custom || t('meetings.notice.default-script');
   // No per-client state on file yet (see Matter type) — consentModeFor(null)
   // is the conservative two-party default, and stateKnown={false} below keeps
   // the dialog's wording conditional rather than asserting the law.
@@ -168,6 +175,21 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
     const { meetings: list, scanFailed: failed } = await listClientMeetings(matterFolder, ws);
     setMeetings(list);
     setScanFailed(failed);
+    // Recording Notice Kit — one ledger read, grouped by meeting dir, so each
+    // row can reflect its notice state (verified / needs-review / quarantined).
+    try {
+      const notices = await makeConsentLedger(ws, () => matterFolder).allNotices();
+      // Key by normalized folder name so entries written with Rust's canonical
+      // meetingDir line up with the (possibly differently-prefixed) row paths
+      // from the FS list (codex-review R2).
+      const byDir: Record<string, NoticeEntry[]> = {};
+      for (const n of notices) (byDir[meetingDirKey(n.meetingDir)] ??= []).push(n);
+      const states: Record<string, NoticeState> = {};
+      for (const [key, entries] of Object.entries(byDir)) states[key] = deriveNoticeState(entries);
+      setNoticeStates(states);
+    } catch {
+      setNoticeStates({});
+    }
     setLoading(false);
   }, [matterFolder, workspaceService]);
 
@@ -196,7 +218,13 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
   const handleConsentConfirm = useCallback((opts: { note?: string }) => {
     void (async () => {
       try {
-        await startRecording(matterId, { consentMode, ...(opts.note ? { consentNote: opts.note } : {}) });
+        await startRecording(matterId, {
+          consentMode,
+          ...(opts.note ? { consentNote: opts.note } : {}),
+          // Capture the script/locale shown for this recording (codex-review R6).
+          noticeCustomScript: custom,
+          noticeLanguage: i18n.language,
+        });
         setShowConsent(false);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -209,7 +237,7 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
         }
       }
     })();
-  }, [matterId, consentMode, startRecording]);
+  }, [matterId, consentMode, startRecording, custom, i18n.language]);
 
   // Task 12b — per-client (never practice-wide) review flags, shown as a
   // badge on each row (the meeting page's "Mark reviewed" clears it).
@@ -292,7 +320,14 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
       {meetings.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-xs)' }}>
           {meetings.map((m) => {
-            const reviewItems = needsReview(m, matterQueue);
+            const noticeState = noticeStates[meetingDirKey(m.dir)];
+            const reviewItems = needsReview(
+              m,
+              matterQueue,
+              undefined,
+              noticeState ? { state: noticeState, policy: noticePolicy } : undefined,
+            );
+            const quarantined = reviewItems.some((i) => i.kind === 'notice-quarantined');
             const duration = formatMeetingDuration(m.meta?.durationMs, t);
             return (
               <button
@@ -338,7 +373,10 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
                   </span>
                 </span>
                 <span style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  {reviewItems.length > 0 && (
+                  {quarantined && (
+                    <Badge variant="warning" size="sm" data-testid="meeting-quarantine-badge">{t('meetings.notice.quarantine-badge')}</Badge>
+                  )}
+                  {!quarantined && reviewItems.length > 0 && (
                     <Badge variant="warning" size="sm">{t('meetings.tab.needs-review-badge')}</Badge>
                   )}
                   {reviewItems.length === 0 && m.meta?.reviewedAt && (
@@ -363,6 +401,7 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
         standingConsent={standingConsent}
         macPermissionError={macPermissionError}
         errorMessage={consentError}
+        noticeScript={noticeScript}
         onConfirm={handleConsentConfirm}
       />
     </div>

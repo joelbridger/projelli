@@ -45,6 +45,10 @@ export interface ConsentDialogProps {
    *  shown inline so the dialog never closes on silence — the advisor must
    *  never believe a failed recording is running. */
   errorMessage?: string | null;
+  /** Recording Notice Kit — the exact spoken-notice script to say out loud
+   *  (firm-customizable; the caller resolves custom-or-default). Shown as a
+   *  first-class "say this" step so the notice actually gets spoken. */
+  noticeScript?: string;
   onConfirm: (opts: { note?: string }) => void;
 }
 
@@ -53,7 +57,7 @@ function formatDate(iso: string): string {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString();
 }
 
-export function ConsentDialog({ open, onOpenChange, consentMode, stateKnown = true, standingConsent, macPermissionError, errorMessage, onConfirm }: ConsentDialogProps) {
+export function ConsentDialog({ open, onOpenChange, consentMode, stateKnown = true, standingConsent, macPermissionError, errorMessage, noticeScript, onConfirm }: ConsentDialogProps) {
   const { t } = useTranslation();
   const [checked, setChecked] = useState(standingConsent !== null);
 
@@ -104,6 +108,30 @@ export function ConsentDialog({ open, onOpenChange, consentMode, stateKnown = tr
         <p style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-navy)' }}>
           {t('meetings.consent.body-local')}
         </p>
+        {noticeScript && (
+          <div
+            data-testid="consent-notice-script"
+            style={{
+              border: '1px solid var(--kp-accent-soft)',
+              background: 'var(--kp-accent-soft)',
+              borderRadius: 'var(--radius-md)',
+              padding: '10px 12px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 4,
+            }}
+          >
+            <span style={{ fontSize: 'var(--kp-font-xs)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)' }}>
+              {t('meetings.notice.consent-script-heading')}
+            </span>
+            <span data-testid="consent-notice-script-text" style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-navy)', fontStyle: 'italic' }}>
+              “{noticeScript}”
+            </span>
+            <span style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
+              {t('meetings.notice.consent-script-hint')}
+            </span>
+          </div>
+        )}
         {consentMode === 'two-party' && (
           <p
             data-testid={stateKnown ? 'consent-two-party-note' : 'consent-two-party-note-unknown'}

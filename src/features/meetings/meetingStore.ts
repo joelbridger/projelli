@@ -37,6 +37,11 @@ import { AuditService } from '@/platform/audit/AuditService';
 import { detectMeetingType, makeMeetingTypesStore } from './meetingTypes';
 import { dictationToMeeting } from './dictationToMeeting';
 import { makeConsentLedger } from './consentLedger';
+import type { NoticeState } from './noticeLedger';
+import { customNoticeScript, type NoticePolicy } from './noticeSettings';
+import { ensureNoticeVerified, type NoticeVerificationDeps } from './noticeVerification';
+import type { NoticeLocale } from './noticeMatcher';
+import i18n from '@/i18n';
 import type { MeetingSummary } from './ClientMeetingsTab';
 
 export interface StartOpts {
@@ -46,6 +51,12 @@ export interface StartOpts {
    *  (Wave 1's calendar match) — feeds Task 12c's type detection. Absent for
    *  ad-hoc recordings with no matched event. */
   calendarTitle?: string;
+  /** Recording Notice Kit — the firm's custom spoken-notice script ('' = the
+   *  built-in wording) and app language AT START, captured so verification
+   *  later checks against exactly what was shown for this recording, even if
+   *  the firm edits the setting afterward (codex-review R6). */
+  noticeCustomScript?: string;
+  noticeLanguage?: string;
 }
 
 /** The on-disk `meeting.json` shape this lane reads/writes. */
@@ -308,13 +319,31 @@ function transcribeMeetingSerialized(
  * writes it into the meeting folder. Never throws (capture/transcription
  * never depend on this), but unlike a bare try/catch it distinguishes two
  * cases:
- *   - transcript.json isn't there yet (transcription still queued): silently
- *     wait for a future call — this is not a notes failure.
- *   - the transcript IS there but generation fails or hangs (QA-31): record
+ *   - transcript.json genuinely isn't there yet (transcription still
+ *     queued, confirmed via `ws.exists()` — NOT just "the read threw"):
+ *     silently wait for a future call — this is not a notes failure.
+ *   - the transcript IS there (or `exists()` itself couldn't tell — an
+ *     access problem is a real failure, not "not ready yet") but reading,
+ *     parsing, generation, or writing fails or hangs (QA-31/QA-41): record
  *     an honest, classified `notesError` on meeting.json instead of silently
  *     discarding the failure, and bound the provider call with
  *     withMeetingNotesTimeout so a stalled call can never hang this (and
  *     therefore stopRecording's processingCount-clearing `finally`) forever.
+ *
+ * QA-41: the old version wrapped the read in a bare `try { ... } catch {
+ * return; }`, which treated ANY failure — not just "not created yet" — as
+ * "still queued." On real Windows hardware the read itself could fail even
+ * though transcript.json provably existed on disk (a `meetingDir` in the
+ * Windows extended-length `\\?\C:\...` form, from Rust's canonicalized
+ * meeting-capture commands, could throw a `SecurityError` from
+ * `PathValidator` before any real file I/O — see
+ * PathValidator.windows.test.ts), and that error vanished into the same
+ * catch as a genuinely-not-ready-yet read, leaving notes permanently
+ * "being written" with no error and no retry. Checking `exists()` FIRST
+ * (the same pattern already used by `TauriFSBackend.setRootPath`/`exists`)
+ * makes the two cases distinguishable: `exists()` resolving `false` is the
+ * only "not ready yet" signal; anything else — `exists()` throwing, or
+ * `exists()` true but the read/parse failing — is a real, classified error.
  */
 async function tryGenerateNotes(
   meetingDir: string,
@@ -325,10 +354,13 @@ async function tryGenerateNotes(
   if (!ws) return;
   let transcript: TranscriptFile;
   try {
+    const transcriptExists = await ws.exists(`${meetingDir}/transcript.json`);
+    if (!transcriptExists) return; // transcription genuinely still queued — not a notes failure.
     const raw = await ws.readFile(`${meetingDir}/transcript.json`);
     transcript = JSON.parse(raw) as TranscriptFile;
-  } catch {
-    return; // transcription still queued — not a notes failure.
+  } catch (err) {
+    await recordNotesError(meetingDir, err);
+    return;
   }
   try {
     const matter = useMatterStore
@@ -423,7 +455,101 @@ export async function retryMeetingTranscript(
   }
 }
 
-export type ReviewItemKind = 'unreviewed-note' | 'crm-waiting' | 'no-followup' | 'unreadable-meta' | 'transcript-failed';
+/** Maps the app's UI language to the matcher's supported locales (de/es ship;
+ *  everything else verifies against English). */
+function noticeLocaleFromLanguage(lang: string | undefined): NoticeLocale {
+  const base = (lang ?? 'en').toLowerCase().split('-')[0];
+  return base === 'de' || base === 'es' ? base : 'en';
+}
+
+/**
+ * Recording Notice Kit — verify (once) whether the spoken recording notice was
+ * given in this meeting, stamping the outcome into the notice ledger. Wires the
+ * pure `ensureNoticeVerified` to the real WorkspaceService, the per-client
+ * ledger, the firm custom script, and the app locale. Best-effort and
+ * idempotent: safe to call from the post-stop pipeline AND when a meeting page
+ * opens (batch-transcribed or pre-existing meetings get verified on view).
+ * Fully local — reads only the on-device transcript.
+ */
+export async function ensureMeetingNoticeVerified(meetingDir: string, matterId: string): Promise<void> {
+  const ws = activeWorkspaceService;
+  if (!ws || !meetingDir || !matterId) return;
+  let matterFolder: string;
+  try {
+    matterFolder = resolveMatterFolder(matterId);
+  } catch {
+    return; // no folder on disk — nothing to verify against.
+  }
+  const ledger = makeConsentLedger(ws, () => matterFolder);
+  // Prefer the script/locale captured at recording start; fall back to current
+  // settings only for meetings that predate this (or imported ones) — so a
+  // later settings edit can't change how a past recording is judged
+  // (codex-review R6).
+  const ctx = await ledger.noticeContext(meetingDir).catch(() => null);
+  const custom = ctx ? ctx.customScript : customNoticeScript((k) => useSettingsStore.getState().getSetting(k));
+  const locale = ctx ? ctx.locale : noticeLocaleFromLanguage(i18n.language);
+  const deps: NoticeVerificationDeps = {
+    async readTranscript() {
+      try {
+        return JSON.parse(await ws.readFile(`${meetingDir}/transcript.json`)) as TranscriptFile;
+      } catch {
+        return null; // transcription still queued.
+      }
+    },
+    ledger,
+    locale,
+    ...(custom ? { customPhrases: [custom] } : {}),
+  };
+  try {
+    await ensureNoticeVerified(meetingDir, deps);
+  } catch {
+    // best-effort — verification never blocks capture or notes.
+  }
+}
+
+/**
+ * Recording Notice Kit — record that the advisor copied the chat notice for the
+ * currently-recording meeting (offered on the RecordPill at recording start).
+ * Best-effort ledger append bound to the active meeting; the clipboard copy
+ * itself happens in the UI. No-ops if nothing is recording.
+ */
+export async function recordChatNoticeForActiveMeeting(text: string): Promise<void> {
+  const { activeMatterId, status } = useMeetingStore.getState();
+  const meetingDir = status.meetingDir;
+  const ws = activeWorkspaceService;
+  if (!ws || !activeMatterId || !meetingDir) return;
+  let matterFolder: string;
+  try {
+    matterFolder = resolveMatterFolder(activeMatterId);
+  } catch {
+    return;
+  }
+  try {
+    await makeConsentLedger(ws, () => matterFolder).recordNotice({
+      kind: 'chat-notice-copied',
+      meetingDir,
+      at: new Date().toISOString(),
+      text,
+    });
+  } catch {
+    // best-effort — copying to the clipboard still worked.
+  }
+}
+
+export type ReviewItemKind =
+  | 'unreviewed-note'
+  | 'crm-waiting'
+  | 'no-followup'
+  | 'unreadable-meta'
+  // Recording Notice Kit: no spoken recording notice was detected in the
+  // meeting's first minutes. 'notice-unverified' is the Standard-policy flag;
+  // 'notice-quarantined' is the stronger Strict-policy state (meeting stays
+  // in-review until a human resolves it — never auto-deleted or auto-stopped).
+  | 'notice-unverified'
+  | 'notice-quarantined'
+  // QA-40: transcribe_meeting failed (missing engine/model, wedged sidecar, or
+  // other error) — surfaced honestly with a retry rather than an eternal queue.
+  | 'transcript-failed';
 export interface ReviewItem {
   kind: ReviewItemKind;
 }
@@ -441,7 +567,10 @@ interface CrmQueueItemLike {
 export function needsReview(
   meeting: MeetingSummary,
   crmQueue: CrmQueueItemLike[],
-  now: number = Date.now()
+  now: number = Date.now(),
+  // Recording Notice Kit: the meeting's derived notice state + the firm policy.
+  // Optional so existing callers (meeting, crmQueue) keep working unchanged.
+  notice?: { state: NoticeState; policy: NoticePolicy }
 ): ReviewItem[] {
   const items: ReviewItem[] = [];
   // A meeting folder with a missing/corrupt meeting.json is an orphaned or
@@ -469,6 +598,13 @@ export function needsReview(
     ageMs > 24 * 3_600_000
   ) {
     items.push({ kind: 'no-followup' });
+  }
+  // Recording Notice Kit: only 'unverified' (a recorded not-detected with no
+  // resolution) needs attention. 'verified', 'resolved', and 'unchecked' (not
+  // yet transcribed) never flag. Strict escalates the same condition to a
+  // quarantine state instead of a plain review flag.
+  if (notice && notice.state.status === 'unverified') {
+    items.push({ kind: notice.policy === 'strict' ? 'notice-quarantined' : 'notice-unverified' });
   }
   return items;
 }
@@ -558,13 +694,25 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
     // recording's audit trail (found via codex-review of this branch).
     if (activeWorkspaceService) {
       const ws = activeWorkspaceService;
-      void makeConsentLedger(ws, () => matterFolder)
+      const ledger = makeConsentLedger(ws, () => matterFolder);
+      void ledger
         .recordConsent(matterId, {
           mode: opts.consentMode,
           scope: 'per-meeting',
           confirmedAt: new Date().toISOString(),
           meetingDir: r.meetingDir,
           ...(opts.consentNote ? { note: opts.consentNote } : {}),
+        })
+        .catch(() => {});
+      // Recording Notice Kit — capture the script/locale shown for THIS
+      // recording so verification checks against it later (codex-review R6).
+      void ledger
+        .recordNotice({
+          kind: 'notice-context',
+          meetingDir: r.meetingDir,
+          at: new Date().toISOString(),
+          customScript: opts.noticeCustomScript ?? '',
+          locale: noticeLocaleFromLanguage(opts.noticeLanguage ?? i18n.language),
         })
         .catch(() => {});
     }
@@ -654,6 +802,14 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
         // this succeeding, but a failure is now recorded as an honest,
         // retryable transcriptError instead of vanishing.
         await transcribeMeetingSerialized(meetingDir, resolveWorkspaceRoot());
+      }
+
+      // Recording Notice Kit: once the transcript exists, verify the spoken
+      // notice and stamp the result into the ledger. Best-effort and
+      // idempotent; if transcription was deferred (batch mode) the transcript
+      // isn't there yet and this no-ops — the meeting page verifies on open.
+      if (meetingDir && matterId) {
+        await ensureMeetingNoticeVerified(meetingDir, matterId);
       }
 
       if (meetingDir && matterId) {

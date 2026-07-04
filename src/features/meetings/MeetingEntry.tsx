@@ -16,8 +16,12 @@ import { Button as DialogButton } from '@/ui/button';
 import { TranscriptViewer } from './TranscriptViewer';
 import { SpeakerNamesPanel } from './SpeakerNamesPanel';
 import { AuditService } from '@/platform/audit/AuditService';
-import { markMeetingReviewed, writeMeetingJson, retryMeetingNotes, retryMeetingTranscript } from './meetingStore';
+import { markMeetingReviewed, writeMeetingJson, retryMeetingNotes, retryMeetingTranscript, ensureMeetingNoticeVerified, resolveMatterFolder } from './meetingStore';
 import type { MeetingMeta } from './meetingStore';
+import { NoticeTrail } from './NoticeTrail';
+import { makeConsentLedger } from './consentLedger';
+import type { NoticeEntry } from './noticeLedger';
+import { useNoticeSettings } from './noticeSettings';
 import { meetingDisplayTitle, meetingTypeLabel, formatMeetingDate, formatMeetingDuration } from './meetingDisplay';
 import { makeMeetingTypesStore, BUILT_IN_TYPES } from './meetingTypes';
 import type { TranscriptFile } from '@/platform/types/meeting';
@@ -70,7 +74,9 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [retryingNotes, setRetryingNotes] = useState(false);
   const [retryingTranscript, setRetryingTranscript] = useState(false);
+  const [notices, setNotices] = useState<NoticeEntry[]>([]);
   const audioRef = useRef<AudioPlayerHandle>(null);
+  const { policy: noticePolicy } = useNoticeSettings();
 
   useEffect(() => {
     let cancelled = false;
@@ -111,6 +117,59 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     });
     return () => { cancelled = true; };
   }, []);
+
+  // Recording Notice Kit — the per-client ledger for this meeting's notices.
+  // matterFolder is derived from matterId (falls back to stripping the meeting
+  // dir when the matter isn't loaded, e.g. in isolated tests).
+  const matterFolder = (() => {
+    try {
+      return resolveMatterFolder(matterId);
+    } catch {
+      return meetingDir.replace(/\/Meetings\/[^/]+$/, '');
+    }
+  })();
+
+  // A monotonically-increasing token, bumped whenever the displayed meeting
+  // changes. A notices read for a PRIOR meeting that finishes late must NOT set
+  // state for the meeting now on screen — showing a different meeting's
+  // verified/resolved/quarantined status is the one thing this compliance
+  // surface must never do (coordinator P2). The load is guarded by this token,
+  // and the trail is cleared on every meeting switch.
+  const noticeLoadToken = useRef(0);
+
+  const loadNotices = useCallback(async (token: number) => {
+    const ws = workspaceService;
+    if (!ws) return;
+    let loaded: NoticeEntry[];
+    try {
+      loaded = await makeConsentLedger(ws, () => matterFolder).noticesForMeeting(meetingDir);
+    } catch {
+      return; // failed read — leave the cleared state; never show a stale trail.
+    }
+    if (token === noticeLoadToken.current) setNotices(loaded);
+  }, [workspaceService, matterFolder, meetingDir]);
+
+  // Verify the spoken notice (idempotent; no-ops until the transcript exists)
+  // and load THIS meeting's notice trail. Clears the trail immediately on a
+  // meeting switch, then guards the async result by token so a slow read for
+  // the previous meeting is discarded rather than rendered under the new one.
+  useEffect(() => {
+    const token = ++noticeLoadToken.current;
+    setNotices([]);
+    void (async () => {
+      await ensureMeetingNoticeVerified(meetingDir, matterId);
+      await loadNotices(token);
+    })();
+  }, [meetingDir, matterId, transcript, loadNotices]);
+
+  const handleRecordNotice = useCallback(async (entry: NoticeEntry) => {
+    const ws = workspaceService;
+    if (!ws) return;
+    try {
+      await makeConsentLedger(ws, () => matterFolder).recordNotice(entry);
+      await loadNotices(noticeLoadToken.current);
+    } catch { /* best-effort */ }
+  }, [workspaceService, matterFolder, loadNotices]);
 
   const handleSeek = useCallback((ms: number) => {
     setSeekMs(ms);
@@ -290,6 +349,20 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
             </span>
           )}
         </div>
+      )}
+
+      {/* Recording Notice Kit — the notice trail (verified chip / needs-review
+          / quarantine + copy actions), bound to this meeting. Hidden for
+          dictated notes, which have no meeting audio or spoken notice. */}
+      {meta && !meta.dictation && (
+        <NoticeTrail
+          meetingDir={meetingDir}
+          notices={notices}
+          policy={noticePolicy}
+          inviteDisclosure={t('meetings.notice.invite-disclosure')}
+          chatNotice={t('meetings.notice.chat-notice')}
+          onRecordNotice={handleRecordNotice}
+        />
       )}
 
       {hasAudio && audioSrc && (
