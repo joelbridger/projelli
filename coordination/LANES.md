@@ -7,6 +7,7 @@ Last updated: 2026-07-04 ~12:15 (coordinator-7 — 6 merges landed; meetpersist+
 ## Active lanes
 | Worker session | What | State |
 |---|---|---|
+| cc-lantern-qafix6 | QA fix batch 6 (lp/qa-fix-batch6; ~/lp-qafix6): QA-33 keychain-service outage → fast honest failure + degraded open; QA-32 dialog-never-opens investigation + bounded watchdog + manual-path fallback (brief w-qafix6-brief.md) | building |
 | cc-lantern-noticekit | 🎯 RECORDING NOTICE KIT (lp/recording-notice-kit; ~/lp-noticekit; OPUS 4.8 — compliance-evidence correctness): verified verbal notice (transcript-matched, ledgered) + invite disclosure + chat notice + Standard/Strict policy dial. Jameson-approved from docs/strategy/2026-07-04-recording-notice-brainstorm.md (brief w-noticekit-brief.md) | building |
 | cc-lantern-qafix5 | 🚨 QA-34 P0 fix (lp/qa-fix-batch5; ~/lp-qafix5; OPUS 4.8): one failed autosave permanently kills persistence while UI lies "Saved" — truthful save state + resilient retry + escape hatch; + QA-36 reserved-name validation (brief w-qafix5-brief.md) | building |
 | cc-lantern-transfix | 🔧 QA-40 P1 (lp/transcript-hang; ~/lp-transfix): transcript hang on real recordings — restage Legion per new engine contract + close any product-side unbounded-engine-hang hole + live end-to-end verify (brief w-transfix-brief.md). Owns the Legion | fixing |
