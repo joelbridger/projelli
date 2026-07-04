@@ -1,5 +1,10 @@
 # Lantern-Plus Coordination STATUS
 
+## UPDATE 2026-07-04 ~01:05 — relay #6 seated (sole coordinator)
+- Coordinator-6 (Fable) seated per COORDINATOR-HANDOFF.md. All 6 monitors re-armed (fleet finish-watch, RAM+disk watchdog, bulletin diff, stale-idle, build-overtime, strategic-check). Baseline sweep done: both lanes WORKING and healthy.
+- symfix: codex round-1 returned; worker running full test suite + review rounds on the promoted pathguard module. w3: pulled moved tip, built the queued P1 capture-guard symlink fix + regression tests (31 capture tests pass), full gate running.
+- Inherited task queue (#8–#14) re-created in the harness task list with symfix→w3→bench-pass dependency chain. Merge order unchanged: symfix first, then w3, then the full scripted Windows bench pass (the finish line).
+
 ## UPDATE 2026-07-03 late-night #2 — SEVEN lanes; strategy + testing-speedup lanes opened
 - Jameson-directed: cc-lantern-strategy (FABLE 5 · high — his explicit exception to sonnet-workers rule) building the Jump battle plan → lp/jump-strategy:docs/strategy/2026-07-03-jump-battle-plan/ (brief w-jump-strategy-brief.md; internal only, cited-facts rule, board decisions framed as recommendations).
 - Testing-speedup pair (his "anything parallel / speed up testing?" ask): cc-lantern-bench = Legion pre-warm to current tip + health verify + headset presence check (worktree ~/lp-bench PERMANENTLY on lp/windows-smoke-evidence — branch-switch landmine closed); cc-lantern-harness = scripted smoke harness scripts/bench-smoke.mjs (lp/bench-smoke-harness; additive-only, queue-only default, Legion access only via coordinator ask).

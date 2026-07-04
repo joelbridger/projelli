@@ -2,7 +2,7 @@
 
 **Purpose:** the O(1) answer to "what is every Lantern-Plus lane doing right now?" Updated on every spawn/merge/close (mirror of main line's `~/keepance-coordination/LANES.md` convention; the fleet dashboard reads both).
 
-Last updated: 2026-07-04 ~23:05 (coordinator-5 — now SOLE coordinator; main line stood down per Jameson, its open items absorbed: see COORDINATOR-HANDOFF.md in keepance-coordination + my task list)
+Last updated: 2026-07-04 ~01:05 (coordinator-6 seated — sole coordinator; monitors re-armed, baseline sweep clean, both lanes WORKING)
 
 ## Active lanes
 | Worker session | What | State |
