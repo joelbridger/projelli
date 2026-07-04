@@ -2,7 +2,7 @@
 
 **Purpose:** the O(1) answer to "what is every Lantern-Plus lane doing right now?" Updated on every spawn/merge/close (mirror of main line's `~/keepance-coordination/LANES.md` convention; the fleet dashboard reads both).
 
-Last updated: 2026-07-04 ~10:05 (coordinator-7 — w3ux + qafix2 MERGED; meetverify (Legion) + i18nfix + webguard opened; qa2 mid-explore)
+Last updated: 2026-07-04 ~12:15 (coordinator-7 — 6 merges landed; meetpersist+webguard+qa19fix+qa4 active; Legion sidecar staged; divergence report landed)
 
 ## Active lanes
 | Worker session | What | State |
@@ -11,7 +11,6 @@ Last updated: 2026-07-04 ~10:05 (coordinator-7 — w3ux + qafix2 MERGED; meetver
 | cc-lantern-webguard | Browser-build honesty (lp/browser-tab-guard; ~/lp-webguard): QA-15 P1 two-tab silent data loss guard + QA-13 honest no-desktop message (brief w-webguard-brief.md) | building |
 | cc-lantern-qa4 | QA persona C "the klutz" on Azure bench-1 (own worktree ~/lp-qa4, lp/qa-persona-c; brief w-qa4-brief.md + focus notes: IDs from QA-24, unique tunnel port, test the NEW inline-error recording path) | exploring |
 | cc-lantern-qa19fix | 🔧 QA-19 P1 fix (lp/live-index; ~/lp-qa19fix): new/imported docs must become Ask-able live, no restart (brief w-qa19fix-brief.md; no-shortcuts) | building |
-| codex divergence job | Detached Codex read-mostly analysis: fork↔main divergence report → coordination/integration/DIVERGENCE-REPORT.md (pre-stages Q#6 fork→main integration). Job 20260704-091258-fbr6xxxx, 15-min liveness watch armed | running |
 
 ## Merged this session
 ✅ lp/qa-fix-batch3 @d272c836 — QA-20 CLOSED (orphan already fixed @e5f0207c + silent-half by UX polish; added the missing mic-specific Rust+frontend regression tests) + QA-22 tooltip location fix w/ de/es backfill. Gate tsc + 5791 vitest + 1530 cargo (workspace, warm lp-gate target) all bare-0; both codex passes clean
