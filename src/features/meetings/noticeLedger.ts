@@ -12,6 +12,19 @@
  * This is evidence/guidance, never a legal judgment.
  */
 
+/**
+ * A stable key for a meeting folder, robust to absolute-vs-relative path forms.
+ * The store writes notice entries with the canonical `meetingDir` Rust returns,
+ * while the meetings tab lists rows via the FS backend, which can yield a
+ * differently-prefixed path for the same folder. Matching on the trailing
+ * folder name (unique within a client's `Meetings/`, which is the scope of one
+ * ledger file) makes lookups agree regardless of prefix (codex-review R2).
+ */
+export function meetingDirKey(dir: string): string {
+  const parts = dir.split(/[/\\]/).filter(Boolean);
+  return parts[parts.length - 1] ?? dir;
+}
+
 /** How a human resolved a meeting whose spoken notice wasn't detected. */
 export type NoticeResolution =
   | 'disclosed-in-advance' // told them via invite/chat before the meeting

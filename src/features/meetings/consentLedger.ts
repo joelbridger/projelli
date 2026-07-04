@@ -7,7 +7,7 @@
  * array (the provable notice trail: verified spoken notice, invite/chat
  * disclosures, and human resolutions). See noticeLedger.ts for the types.
  */
-import type { NoticeEntry } from './noticeLedger';
+import { meetingDirKey, type NoticeEntry } from './noticeLedger';
 
 export interface ConsentEntry {
   mode: 'one-party' | 'two-party';
@@ -90,10 +90,12 @@ export function makeConsentLedger(ws: ConsentLedgerStorage, matterFolder: () => 
       });
     },
 
-    /** All notice entries for one meeting, in the order they were recorded. */
+    /** All notice entries for one meeting, in the order they were recorded.
+     *  Matches by normalized folder key so absolute/relative path forms agree. */
     async noticesForMeeting(meetingDir: string): Promise<NoticeEntry[]> {
       const file = await load();
-      return file.notices.filter((n) => n.meetingDir === meetingDir);
+      const key = meetingDirKey(meetingDir);
+      return file.notices.filter((n) => meetingDirKey(n.meetingDir) === key);
     },
 
     /** Every notice entry across this client's meetings (one file read) — the
@@ -108,9 +110,10 @@ export function makeConsentLedger(ws: ConsentLedgerStorage, matterFolder: () => 
      *  verification never double-appends. */
     async hasVerbalNoticeCheck(meetingDir: string): Promise<boolean> {
       const file = await load();
+      const key = meetingDirKey(meetingDir);
       return file.notices.some(
         (n) =>
-          n.meetingDir === meetingDir &&
+          meetingDirKey(n.meetingDir) === key &&
           (n.kind === 'verbal-notice-verified' || n.kind === 'verbal-notice-not-detected'),
       );
     },

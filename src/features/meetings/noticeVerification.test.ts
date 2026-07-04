@@ -99,6 +99,18 @@ describe('ensureNoticeVerified', () => {
     expect(recorded).toHaveLength(0);
   });
 
+  it('skips imported/mono transcripts (all sys, no mic) instead of false-flagging them (codex-review R2)', async () => {
+    // Imported audio marks every segment 'sys' — can't isolate the advisor, so
+    // never record not-detected (which would falsely quarantine).
+    const t = transcript([
+      { startMs: 0, text: 'Welcome everyone to the session.', channel: 'sys' },
+      { startMs: 5000, text: "I'm recording this for my notes.", channel: 'sys' },
+    ]);
+    const { deps, recorded } = makeDeps(t);
+    await ensureNoticeVerified(DIR, deps);
+    expect(recorded).toHaveLength(0);
+  });
+
   it('skips dictated notes (no spoken notice concept)', async () => {
     const t = transcript([{ startMs: 0, text: 'Client called about rollover.' }], { dictation: true });
     const { deps, recorded } = makeDeps(t);

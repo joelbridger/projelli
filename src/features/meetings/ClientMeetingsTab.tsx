@@ -17,7 +17,7 @@ import { meetingDisplayTitle, formatMeetingDate, formatMeetingDuration } from '.
 import { ConsentDialog, isMacPermissionError } from './ConsentDialog';
 import { consentModeFor } from './recordingConsentLaw';
 import { makeConsentLedger, type ConsentEntry } from './consentLedger';
-import { deriveNoticeState, type NoticeEntry, type NoticeState } from './noticeLedger';
+import { deriveNoticeState, meetingDirKey, type NoticeEntry, type NoticeState } from './noticeLedger';
 import { resolveNoticePolicy, customNoticeScript } from './noticeSettings';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 
@@ -182,10 +182,13 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
     // row can reflect its notice state (verified / needs-review / quarantined).
     try {
       const notices = await makeConsentLedger(ws, () => matterFolder).allNotices();
+      // Key by normalized folder name so entries written with Rust's canonical
+      // meetingDir line up with the (possibly differently-prefixed) row paths
+      // from the FS list (codex-review R2).
       const byDir: Record<string, NoticeEntry[]> = {};
-      for (const n of notices) (byDir[n.meetingDir] ??= []).push(n);
+      for (const n of notices) (byDir[meetingDirKey(n.meetingDir)] ??= []).push(n);
       const states: Record<string, NoticeState> = {};
-      for (const [dir, entries] of Object.entries(byDir)) states[dir] = deriveNoticeState(entries);
+      for (const [key, entries] of Object.entries(byDir)) states[key] = deriveNoticeState(entries);
       setNoticeStates(states);
     } catch {
       setNoticeStates({});
@@ -314,7 +317,7 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
       {meetings.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-xs)' }}>
           {meetings.map((m) => {
-            const noticeState = noticeStates[m.dir];
+            const noticeState = noticeStates[meetingDirKey(m.dir)];
             const reviewItems = needsReview(
               m,
               matterQueue,

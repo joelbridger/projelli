@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { makeConsentLedger, type ConsentLedgerStorage } from './consentLedger';
-import { deriveNoticeState, type NoticeEntry } from './noticeLedger';
+import { deriveNoticeState, meetingDirKey, type NoticeEntry } from './noticeLedger';
 
 /** In-memory storage double — one file path → content. */
 function memStorage(seed: Record<string, string> = {}): ConsentLedgerStorage & { files: Record<string, string> } {
@@ -116,6 +116,28 @@ describe('consent ledger — notice entries', () => {
     const notices = await again.noticesForMeeting(`${MATTER}/Meetings/m1`);
     expect(notices).toHaveLength(1);
     expect(notices[0]?.kind).toBe('invite-disclosure-copied');
+  });
+});
+
+describe('meetingDirKey + cross-path-form matching (codex-review R2)', () => {
+  it('matches an entry written with an absolute path against a relative lookup', async () => {
+    const store = memStorage();
+    const ledger = makeConsentLedger(store, () => MATTER);
+    // Written with a canonical absolute path (as the store does post-stop)…
+    await ledger.recordNotice({
+      kind: 'verbal-notice-verified', meetingDir: `/abs/root${MATTER}/Meetings/m1`,
+      at: 't', audioMs: 1000, snippet: 'x', confidence: 0.7,
+    });
+    // …looked up with the relative row path (as the tab/MeetingEntry does).
+    expect(await ledger.hasVerbalNoticeCheck(`${MATTER}/Meetings/m1`)).toBe(true);
+    const notices = await ledger.noticesForMeeting(`${MATTER}/Meetings/m1`);
+    expect(notices).toHaveLength(1);
+  });
+
+  it('meetingDirKey ignores prefix and slash style', () => {
+    expect(meetingDirKey('/abs/Clients/Acme/Meetings/2026-07-04_1000')).toBe('2026-07-04_1000');
+    expect(meetingDirKey('Clients/Acme/Meetings/2026-07-04_1000')).toBe('2026-07-04_1000');
+    expect(meetingDirKey('C:\\Clients\\Acme\\Meetings\\2026-07-04_1000')).toBe('2026-07-04_1000');
   });
 });
 
