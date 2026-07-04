@@ -588,3 +588,113 @@ investigation, separate from this round's navigation-gap ask.
 App stopped, `LanternPlusDev` returned to **Disabled**, SSH tunnel closed. No stray native
 dialogs this round (the overlay-dismiss fix held throughout). Calendar and Wealthbox connectors
 both confirmed connected and healthy at end of session.
+
+---
+
+## FINAL-CONFIRMATION — cold-boot run (2026-07-04) — closes the honesty notes
+
+Per `coordination/briefs/w-benchconfirm-brief.md`: one clean cold-boot full-suite run to convert
+the two remaining honesty notes (wave0-draft-followup's one-time flake, wave2-wealthbox-approve-live's
+sequencing mystery) into honest PASSes or precise findings. Full evidence:
+`docs/evidence/bench-smoke/legion-20260704-055222/` (the suite run) and
+`docs/evidence/bench-smoke/legion-20260704-wave2-timing-probe/` (the timing investigation).
+
+### Bench bring-up
+
+- **Real cold boot**, not just an app restart: `Restart-Computer -Force` over SSH. Confirmed via
+  `LastBootUpTime` reading ~2.5 minutes before the machine's own clock — this was a genuine
+  power-cycle, not a stopped/restarted process, so there was zero leftover app state, no
+  in-memory editor session, no leftover modal — the exact scenario the wave0 flake note asked to
+  be ruled out.
+- `LanternPlusDev` scheduled task was Disabled (its found/rest state) — enabled, cleared the old
+  `C:\tauri-dev.log`, started it.
+- Pulled `C:\lantern-plus` from `64df925e` (previous bench tip) to **`7bc31e16`**
+  (`origin/lantern-plus` HEAD), fast-forward, no conflicts. Real Rust changes in this range:
+  the pathguard verbatim-component hardening (`4f86dc98`) and the two Windows verbatim-path
+  bugs in the capture guard callers (`521a29ed`) — both defense-in-depth path-safety fixes, not
+  bench-harness code. `npm install` was skipped (no `package.json`/lockfile change in the diff,
+  confirmed by inspecting the pull's file list) — consistent with the project's own "no-op skip"
+  precedent from the last bench-prep pass.
+- **Full rebuild, not skipped:** the `LanternPlusDev` task's own `npm run tauri:dev` did a real
+  `cargo` recompile from source (`Compiling lantern v3.3.5`, `Building [...] 1086/1086`), finishing
+  in ~2 minutes and landing the app on CDP port 9223.
+- **Freshness canary — PASS.** Grepped the built `target\debug\lantern.exe` for two string
+  literals that exist only in this pull's new Rust code: `"path component contains a separator or
+  dot-segment"` (the pathguard hardening, `pathguard.rs`) and `"matter folder path must not
+  contain"` (the capture guard fix, `capture/mod.rs`) — both found in the binary. `LastWriteTime`
+  on the exe matched the build-completion timestamp.
+
+### Full suite result — `node scripts/bench-smoke.mjs --target legion --live`
+
+**12 PASS, 0 FAIL, 2 SETUP-BLOCKED, 5 TODO (stubs, expected).** This is an improvement over the
+prior definitive run's 11/0/3/5 — one more check now PASSes clean on a genuinely cold boot.
+
+| Check | Status | Note |
+|---|---|---|
+| workspace-binding | PASS | |
+| per-client-files-visible | PASS | |
+| index-health | SETUP-BLOCKED | Unchanged, pre-existing, separate from the navigation-gap class of bug — see below |
+| **wave0-draft-followup** | **PASS** | **Honesty note closed** — PASSed clean on a genuine cold boot with zero manual-test residue possible. Confirms the round-2 hypothesis: the prior SETUP-BLOCK was caused by leftover session state from interactive debugging in the same session, not a real defect, and not a true flake risk in a real cold-start scenario. |
+| wave1-calendar-brief-export | PASS | |
+| wave2-wealthbox-queue-review | PASS | |
+| **wave2-wealthbox-approve-live** | SETUP-BLOCKED | **Not resolved — see the dedicated timing investigation below for a precise repro record** (time-boxed per the brief, ~15 minutes spent) |
+| wave4-whole-book-view, estate-beneficiary-gap, estate-beneficiary-gap-dismiss-live, whole-practice-ask | PASS | Reproduced again on yet another client (Diaz, Michelle) — still not client-specific |
+| cross-cutting (light-theme, console-errors, egress-indicator) | PASS | |
+
+**`index-health` (unchanged, not chased):** Client Map rendered with no error, but the harness's
+own cited-fact text search came up empty within its window. This is the same pre-existing
+check-timing-margin issue flagged in every prior pass (not the Clients-table navigation gap,
+which is already fixed and holding — this check doesn't depend on that sub-view at all). Out of
+scope for this pass: the brief named `wave2-wealthbox-approve-live` as the one item to spend
+extra time on, not this one.
+
+### wave2-wealthbox-approve-live — precise repro record (timing investigation, ~15 min)
+
+Wrote a one-off diagnostic (not committed — a throwaway probe script run from the server repo,
+deleted after use) that replayed `wave2-wealthbox-queue-review`'s exact click sequence, then
+polled the app's DOM text every 1.5s for the review-card copy instead of taking one snapshot.
+Result — **a precise lifecycle window**: the review-card text (`"review card"` /
+`"Nothing sends until you approve"`) was **present at t+1.6s** after clicking Send to Wealthbox,
+and **gone by t+6.7s** — i.e., whatever renders that text is unmounted or hidden somewhere
+**between 1.6 and 6.7 seconds** after the click, well under the 15-25s the queue-review check
+itself tolerates (which is why queue-review PASSes: its own `waitFor` catches the text during
+its brief appearance window, before it's gone).
+
+One wrinkle worth flagging honestly: full-page screenshots taken at t+1.6s and t+12.8s (while
+still on the note's **Documents** tab) show no Wealthbox-specific card in either — only the
+docx editor's own, unrelated tracked-changes "REVIEW / Accept all / Reject all" panel (a
+same-named-but-different feature). `CrmWriteReviewCard` (`src/features/matters/MatterHub.tsx:459`)
+is mounted under the **Client Map** tab's layout, not the Documents tab, per its own source
+comment ("must stay reachable for approval/dismiss even while the map itself is empty"). So the
+harness's DOM-text search is finding the card's text somewhere off the visible Documents-tab
+screenshot (consistent with the app keeping multiple tab panels mounted for state continuity) —
+this is plausibly by design, not evidence of a rendering bug on its own. The genuine, confirmed
+finding is the **~5-second lifecycle window**, not the tab location.
+
+This matches and sharpens the round-2 follow-up's prior investigation (no auto-dismiss timer
+found in the component source, connector confirmed healthy throughout, reproducible via the
+harness's exact sequence but not via slower manual replay) — the new data point is the precise
+1.6s–6.7s window, which narrows "not yet isolated" to a concrete number a future investigation
+can target directly (e.g., binary-search polling at 0.5s intervals between 1.6s and 6.7s, and
+checking whether it correlates with the queue-review check's own screenshot-capture step, which
+takes several seconds and runs immediately before approve-live's snapshot). Time-boxed and
+stopped here per the brief; not a product regression, not chased further this pass.
+
+### Bench state left behind (this pass)
+
+App stopped, `LanternPlusDev` returned to **Disabled** (confirmed), no SSH tunnels were opened
+(all driving was direct SSH command invocation, nothing persistent to close), CDP confirmed down
+on port 9223. `C:\lantern-plus\bench-smoke-tmp\` (harness screenshot scratch dir) left in place,
+consistent with prior passes. No product-code changes made from this lane. The one-off timing
+probe script was deleted from the server repo after use — nothing left uncommitted there.
+
+### Scorecard verdict
+
+Both real product FAILs from the original finish-line pass are fixed and holding (Wave 1
+Calendar, Wave 4 estate/beneficiary gap). Both navigation-gap SETUP-BLOCKEDs are fixed and
+holding (per-client-files-visible, wave2-queue-review). The wave0 flake is now confirmed closed
+— a genuine cold boot PASSes clean. One item remains open with a precise, time-boxed repro
+record rather than a guess: `wave2-wealthbox-approve-live`'s review card has a ~5-second
+lifecycle, narrower than any check in this suite currently polls for — a concrete target for a
+future fix lane. `index-health` remains a known, separate, low-priority check-timing gap,
+unchanged from every prior pass.

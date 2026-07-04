@@ -1,0 +1,43 @@
+[2026-07-04T05:58:04.008Z] dismissing any blocking overlay
+[2026-07-04T05:58:31.346Z] openSmokeClientNote threw: double-clicked "Meeting Notes 2025-05-15 - Caldwell, Jennifer.docx" but the docx editor toolbar never appeared: node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+locator.waitFor: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByText('Draft follow-up').first() to be visible[22m
+
+    at C:\lantern-plus\scripts\desktop-drive.mjs:118:47 {
+  name: 'TimeoutError'
+}
+
+Node.js v24.17.0
+
+[2026-07-04T05:58:32.893Z] FATAL: no docx-send-to-wealthbox button found, aborting probe
+[2026-07-04T05:58:53.302Z] dismissing any blocking overlay
+[2026-07-04T05:59:11.864Z] clicking docx-send-to-wealthbox
+[2026-07-04T05:59:14.943Z] t+1.6s: cardTextPresent=true approveControlPresent=false elementCount=134
+[2026-07-04T05:59:17.055Z]   screenshot: 01-timing-t1_6s.jpeg
+[2026-07-04T05:59:20.088Z] t+6.7s: cardTextPresent=false approveControlPresent=false elementCount=133
+[2026-07-04T05:59:23.147Z] t+9.7s: cardTextPresent=false approveControlPresent=false elementCount=133
+[2026-07-04T05:59:26.178Z] t+12.8s: cardTextPresent=false approveControlPresent=false elementCount=133
+[2026-07-04T05:59:28.204Z]   screenshot: 02-timing-t12_8s.jpeg
+[2026-07-04T05:59:31.256Z] t+17.8s: cardTextPresent=false approveControlPresent=false elementCount=133
+[2026-07-04T05:59:34.316Z] t+20.9s: cardTextPresent=false approveControlPresent=false elementCount=133
+[2026-07-04T05:59:37.348Z] t+24.0s: cardTextPresent=false approveControlPresent=false elementCount=133
+[2026-07-04T05:59:40.390Z] t+27.0s: cardTextPresent=false approveControlPresent=false elementCount=133
+[2026-07-04T05:59:43.425Z] t+30.0s: cardTextPresent=false approveControlPresent=false elementCount=133
+[2026-07-04T05:59:46.485Z] t+33.1s: cardTextPresent=false approveControlPresent=false elementCount=133
+[2026-07-04T05:59:49.514Z] t+36.1s: cardTextPresent=false approveControlPresent=false elementCount=133
+[2026-07-04T05:59:51.587Z]   screenshot: 03-timing-t36_1s.jpeg
+[2026-07-04T05:59:54.639Z] t+41.2s: cardTextPresent=false approveControlPresent=false elementCount=133
+[2026-07-04T05:59:57.679Z] t+44.3s: cardTextPresent=false approveControlPresent=false elementCount=133
+[2026-07-04T06:00:00.703Z] t+47.3s: cardTextPresent=false approveControlPresent=false elementCount=133
+[2026-07-04T06:00:03.737Z] t+50.3s: cardTextPresent=false approveControlPresent=false elementCount=133
+[2026-07-04T06:00:06.808Z] t+53.4s: cardTextPresent=false approveControlPresent=false elementCount=133
+[2026-07-04T06:00:09.861Z] t+56.4s: cardTextPresent=false approveControlPresent=false elementCount=133
+[2026-07-04T06:00:12.912Z] t+59.5s: cardTextPresent=false approveControlPresent=false elementCount=133
+[2026-07-04T06:00:15.960Z] t+62.5s: cardTextPresent=false approveControlPresent=false elementCount=133
+[2026-07-04T06:00:19.001Z] t+65.6s: cardTextPresent=false approveControlPresent=false elementCount=133
+[2026-07-04T06:00:21.047Z]   screenshot: 04-timing-t65_6s.jpeg
+[2026-07-04T06:00:22.549Z] probe complete
