@@ -142,6 +142,58 @@ pub(crate) fn canonicalize_within(base: &Path, relative: &str) -> Result<Option<
     canonicalize_symlink_safe(base, relative, base)
 }
 
+/// Symlink-safe canonicalize for an ALREADY-ABSOLUTE, fully-formed path —
+/// unlike [`canonicalize_symlink_safe`]'s workspace-relative-string API,
+/// this one also tolerates a not-yet-existing tail. Walks `path` component
+/// by component from the root, refusing outright (never silently
+/// following) the moment an EXISTING component is a symlink — checked via
+/// `symlink_metadata`, which never follows — or a `..` (rejected the moment
+/// it appears, the same defense-in-depth stance as
+/// `canonicalize_symlink_safe`'s relative-string rejection: never rely
+/// solely on the final containment check to catch a `..`). Everything from
+/// the first not-yet-existing component onward is a verbatim tail — it
+/// isn't on disk, so it can't possibly be a symlink.
+///
+/// Shared with `capture::guard_matter_folder` / `capture::guard_meeting_path`
+/// (Wave 3a), which need this exact no-follow guarantee for a caller-
+/// supplied path that may be absolute (`Matter.folderPaths` entries are
+/// absolute) and may not exist in full yet (a `meeting_dir` being created
+/// for the first time): a plain `.canonicalize()` on the deepest existing
+/// ancestor — what those two guards used to do — silently follows a
+/// symlinked matter folder alias (`Clients/Alias -> Clients/RealClient`,
+/// both inside the workspace), which passes workspace containment while
+/// writing into (and, on a failed start, `remove_dir_all`-ing) a DIFFERENT
+/// client's real folder.
+pub(crate) fn canonicalize_symlink_safe_absolute(path: &Path) -> Result<PathBuf, String> {
+    let mut existing = PathBuf::new();
+    let mut tail = PathBuf::new();
+    let mut still_existing = true;
+    for component in path.components() {
+        if matches!(component, std::path::Component::ParentDir) {
+            return Err(format!("path must not contain '..': {}", path.display()));
+        }
+        if still_existing {
+            let candidate = existing.join(component.as_os_str());
+            match candidate.symlink_metadata() {
+                Ok(meta) if meta.file_type().is_symlink() => {
+                    return Err(format!("path component is a symlink: {}", candidate.display()));
+                }
+                Ok(_) => existing = candidate,
+                Err(_) => {
+                    still_existing = false;
+                    tail.push(component.as_os_str());
+                }
+            }
+        } else {
+            tail.push(component.as_os_str());
+        }
+    }
+    let canon = existing
+        .canonicalize()
+        .map_err(|e| format!("cannot canonicalize {}: {e}", existing.display()))?;
+    Ok(canon.join(&tail))
+}
+
 /// Called immediately after EVERY confirmed unlink/rmdir, before the sweep
 /// moves on to the next artifact — never batched per-meeting, per-folder, or
 /// per-run. A process crash anywhere in the sweep can then lose at most the

@@ -6,32 +6,6 @@ pub mod recovery;
 pub mod session;
 pub mod sources;
 
-/// Canonicalize `path`, allowing its tail to not yet exist on disk: walks up
-/// to the deepest existing ancestor (so any symlink in the existing chain
-/// resolves), canonicalizes that, then re-appends the not-yet-created tail
-/// components verbatim. Shared by both guards below so a not-yet-materialized
-/// path still gets a real escape check instead of a bare IO error.
-fn canonicalize_allowing_missing_tail(path: &std::path::Path) -> anyhow::Result<std::path::PathBuf> {
-    use anyhow::Context;
-    let mut existing = path.to_path_buf();
-    let mut tail = std::path::PathBuf::new();
-    while !existing.exists() {
-        let name = existing
-            .file_name()
-            .map(std::ffi::OsString::from)
-            .context("path has no file name while walking ancestors")?;
-        tail = std::path::Path::new(&name).join(&tail);
-        existing = existing
-            .parent()
-            .context("ran out of ancestors")?
-            .to_path_buf();
-    }
-    Ok(existing
-        .canonicalize()
-        .context("cannot canonicalize existing ancestor")?
-        .join(&tail))
-}
-
 /// Resolve a matter folder under the workspace, refusing `..` traversal and
 /// symlink escapes. Accepts BOTH a workspace-relative path ("Clients/A")
 /// and an absolute path that resolves inside the workspace — `Matter.
@@ -43,17 +17,29 @@ fn canonicalize_allowing_missing_tail(path: &std::path::Path) -> anyhow::Result<
 /// doesn't relax the security guarantee, only the accepted input shape.
 /// Every capture command that receives a folder/dir string MUST route
 /// through one of these two guards before any create/join/delete.
+///
+/// Built on `retention::sweep::canonicalize_symlink_safe_absolute` — the
+/// SAME no-follow-symlink walk `retention`'s own sweep/redaction guards use
+/// — not a second, independent implementation of "refuse a symlink
+/// component." An earlier version of this guard called plain
+/// `.canonicalize()` on the deepest existing ancestor, which FOLLOWS
+/// symlinks: a matter folder alias (`Clients/Alias -> Clients/RealClient`,
+/// both inside the workspace) would resolve to the real target and still
+/// pass workspace containment, letting a capture write chunks into (and, on
+/// a failed start, `remove_dir_all` a) DIFFERENT client's folder while the
+/// audit trail and UI still say "Alias".
 pub(crate) fn guard_matter_folder(
     workspace: &std::path::Path,
     matter_folder: &str,
 ) -> anyhow::Result<std::path::PathBuf> {
-    use anyhow::{bail, Context};
+    use anyhow::{anyhow, bail, Context};
     let input = std::path::Path::new(matter_folder);
     let canon_ws = workspace
         .canonicalize()
         .context("cannot canonicalize workspace")?;
     let joined = if input.is_absolute() { input.to_path_buf() } else { canon_ws.join(input) };
-    let canon = canonicalize_allowing_missing_tail(&joined)?;
+    let canon = super::retention::sweep::canonicalize_symlink_safe_absolute(&joined)
+        .map_err(|e| anyhow!(e))?;
     if !canon.starts_with(&canon_ws) {
         bail!("path '{}' escapes workspace '{}'", canon.display(), canon_ws.display());
     }
@@ -63,16 +49,19 @@ pub(crate) fn guard_matter_folder(
 /// Same contract for an already-materialized meeting dir passed back from the
 /// frontend (stop/recover/index/retention): canonicalize and require it to be
 /// a descendant of the workspace. Tolerates a not-yet-existing tail (e.g. a
-/// meeting dir path checked before it's created) via the same ancestor walk.
+/// meeting dir path checked before it's created) via the same symlink-safe
+/// walk as `guard_matter_folder` — see that function's doc for why a plain
+/// `.canonicalize()` isn't safe here either.
 pub(crate) fn guard_meeting_path(
     workspace: &std::path::Path,
     meeting_dir: &std::path::Path,
 ) -> anyhow::Result<std::path::PathBuf> {
-    use anyhow::{bail, Context};
+    use anyhow::{anyhow, bail, Context};
     let canon_ws = workspace
         .canonicalize()
         .context("cannot canonicalize workspace")?;
-    let canon = canonicalize_allowing_missing_tail(meeting_dir)?;
+    let canon = super::retention::sweep::canonicalize_symlink_safe_absolute(meeting_dir)
+        .map_err(|e| anyhow!(e))?;
     if !canon.starts_with(&canon_ws) {
         bail!("path '{}' escapes workspace '{}'", canon.display(), canon_ws.display());
     }
@@ -103,9 +92,14 @@ mod path_guard_tests {
 
     #[test]
     fn rejects_dotdot_traversal() {
+        // Rejected unconditionally by canonicalize_symlink_safe_absolute the
+        // moment a `..` component appears — a stricter, defense-in-depth
+        // guarantee than relying solely on the final containment check
+        // (which this input would ALSO fail, but that's no longer why it's
+        // rejected).
         let ws = tempfile::tempdir().unwrap();
         let err = guard_matter_folder(ws.path(), "../outside").unwrap_err();
-        assert!(err.to_string().contains("escapes workspace"), "got: {err}");
+        assert!(err.to_string().contains("must not contain '..'"), "got: {err}");
     }
 
     // Symlink creation on Windows requires elevated/dev-mode privileges and a
@@ -115,11 +109,55 @@ mod path_guard_tests {
     #[cfg(unix)]
     #[test]
     fn rejects_symlink_escape() {
+        // Rejected the moment the symlink component itself is walked — never
+        // silently followed and then caught (or missed) by a later
+        // containment check.
         let ws = tempfile::tempdir().unwrap();
         let outside = tempfile::tempdir().unwrap();
         std::os::unix::fs::symlink(outside.path(), ws.path().join("link")).unwrap();
         let err = guard_matter_folder(ws.path(), "link/Clients/A").unwrap_err();
-        assert!(err.to_string().contains("escapes workspace"), "got: {err}");
+        assert!(err.to_string().contains("is a symlink"), "got: {err}");
+    }
+
+    /// Regression for the codex-review / security-audit finding (2026-07-04):
+    /// the OLD guard's plain `.canonicalize()` on the deepest existing
+    /// ancestor FOLLOWED a symlink alias sitting fully INSIDE the workspace
+    /// (`Clients/Alias -> Clients/RealClient`) — the escaped-outside-the-
+    /// workspace check couldn't catch this because the resolved target was
+    /// never actually outside the workspace, just a DIFFERENT client's real
+    /// folder than the caller named. Proves the new guard refuses this
+    /// outright instead of silently resolving through it.
+    #[cfg(unix)]
+    #[test]
+    fn rejects_in_workspace_symlink_alias_to_a_different_client_folder() {
+        let ws = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(ws.path().join("Clients/RealClient")).unwrap();
+        std::os::unix::fs::symlink(
+            ws.path().join("Clients/RealClient"),
+            ws.path().join("Clients/Alias"),
+        )
+        .unwrap();
+        let err = guard_matter_folder(ws.path(), "Clients/Alias").unwrap_err();
+        assert!(err.to_string().contains("is a symlink"), "got: {err}");
+    }
+
+    /// Same alias-symlink attack, but exercised through `guard_meeting_path`
+    /// (the guard `capture_recover` uses) rather than `guard_matter_folder`
+    /// (`capture_start`'s) — both guards share the same underlying primitive,
+    /// but each has its own call site and its own regression coverage.
+    #[cfg(unix)]
+    #[test]
+    fn guard_meeting_path_rejects_symlink_ancestor() {
+        let ws = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(ws.path().join("Clients/RealClient/Meetings/2026-07-01-m")).unwrap();
+        std::os::unix::fs::symlink(
+            ws.path().join("Clients/RealClient"),
+            ws.path().join("Clients/Alias"),
+        )
+        .unwrap();
+        let meeting_dir = ws.path().join("Clients/Alias/Meetings/2026-07-01-m");
+        let err = guard_meeting_path(ws.path(), &meeting_dir).unwrap_err();
+        assert!(err.to_string().contains("is a symlink"), "got: {err}");
     }
 
     #[test]
