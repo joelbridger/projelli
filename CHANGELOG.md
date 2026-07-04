@@ -69,6 +69,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `auto-smoke.sh`, `docs/qa/BENCH-SMOKE-HARNESS.md`.
 
 ### Fixed
+- **WebView2 remote-debug port never opened via the documented env var.** wry (Tauri's WebView2
+  layer) always sets its own additional-browser-arguments, which per the WebView2 API silently
+  overrides `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` — so the CDP port the bench harness depends
+  on could never be enabled that way. The main window is now built explicitly in `.setup()`
+  (`tauri.conf.json` window `create: false`) forwarding the env var through wry's
+  `additional_browser_args()`, mirroring wry's default args exactly so behavior is unchanged when
+  the var is unset. Verified live end-to-end on the Azure cloud bench (harness check PASS over
+  CDP). Files: `src-tauri/src/lib.rs`, `src-tauri/tauri.conf.json`.
+
 - **Bench harness typing truncation.** Typed text used to travel inside the SSH command string to
   the Windows bench, silently truncating/mangling long or multi-line text; the driver also never
   verified what actually landed in the field. New `type-stdin` subcommand in
