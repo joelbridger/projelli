@@ -7,6 +7,7 @@ Last updated: 2026-07-04 ~01:05 (coordinator-6 seated — sole coordinator; moni
 ## Active lanes
 | Worker session | What | State |
 |---|---|---|
+| cc-lantern-pathfix | Windows verbatim-path bug in pathguard absolute walk (lp/pathguard-windows-verbatim; Opus high) — vaudio-flagged capture_start blocker class; Windows proof on bench-2 | building |
 | cc-lantern-benchfull | 🏁 Finish-line pass ROUND 1 DONE: 9 PASS / 2 real FAIL / 3 harness-caused blocks (fixed+merged) / 5 expected stubs. NOW: completing the MS OAuth (authorized, demo acct) + re-running failed/blocked checks | bench-reverifying |
 | cc-lantern-gapsync | Wave-4 fix lane (lp/wave4-gap-sync): book-view gap chip vs client-detail control out of sync (bench FAIL #2) | building |
 | cc-lantern-auditfix | Audit-chain fail-closed fix — worker DONE, coordinator independent review found 1 P2 (repair affordance unreachable) — routed back for the minimal repair UI | fixing-P2 |
