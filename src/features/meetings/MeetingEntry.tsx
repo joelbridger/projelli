@@ -129,33 +129,47 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     }
   })();
 
-  const reloadNotices = useCallback(async () => {
+  // A monotonically-increasing token, bumped whenever the displayed meeting
+  // changes. A notices read for a PRIOR meeting that finishes late must NOT set
+  // state for the meeting now on screen — showing a different meeting's
+  // verified/resolved/quarantined status is the one thing this compliance
+  // surface must never do (coordinator P2). The load is guarded by this token,
+  // and the trail is cleared on every meeting switch.
+  const noticeLoadToken = useRef(0);
+
+  const loadNotices = useCallback(async (token: number) => {
     const ws = workspaceService;
     if (!ws) return;
+    let loaded: NoticeEntry[];
     try {
-      setNotices(await makeConsentLedger(ws, () => matterFolder).noticesForMeeting(meetingDir));
-    } catch { /* ledger unreadable — leave notices as-is */ }
+      loaded = await makeConsentLedger(ws, () => matterFolder).noticesForMeeting(meetingDir);
+    } catch {
+      return; // failed read — leave the cleared state; never show a stale trail.
+    }
+    if (token === noticeLoadToken.current) setNotices(loaded);
   }, [workspaceService, matterFolder, meetingDir]);
 
   // Verify the spoken notice (idempotent; no-ops until the transcript exists)
-  // and load the notice trail whenever the meeting or its transcript changes.
-  // reloadNotices is keyed to meetingDir, so a dir change re-runs with the
-  // correct target; setNotices after unmount is a harmless no-op in React 18.
+  // and load THIS meeting's notice trail. Clears the trail immediately on a
+  // meeting switch, then guards the async result by token so a slow read for
+  // the previous meeting is discarded rather than rendered under the new one.
   useEffect(() => {
+    const token = ++noticeLoadToken.current;
+    setNotices([]);
     void (async () => {
       await ensureMeetingNoticeVerified(meetingDir, matterId);
-      await reloadNotices();
+      await loadNotices(token);
     })();
-  }, [meetingDir, matterId, transcript, reloadNotices]);
+  }, [meetingDir, matterId, transcript, loadNotices]);
 
   const handleRecordNotice = useCallback(async (entry: NoticeEntry) => {
     const ws = workspaceService;
     if (!ws) return;
     try {
       await makeConsentLedger(ws, () => matterFolder).recordNotice(entry);
-      await reloadNotices();
+      await loadNotices(noticeLoadToken.current);
     } catch { /* best-effort */ }
-  }, [workspaceService, matterFolder, reloadNotices]);
+  }, [workspaceService, matterFolder, loadNotices]);
 
   const handleSeek = useCallback((ms: number) => {
     setSeekMs(ms);
