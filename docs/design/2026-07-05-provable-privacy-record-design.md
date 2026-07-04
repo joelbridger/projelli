@@ -34,35 +34,55 @@ type AnswerProvenanceEvent = {
   timestamp: string;
   payload: {
     interactionId: string;          // uuid minted at send time — the join key
-    surface: 'ask' | 'meeting-notes' | 'redline' | 'client-map' | 'workflow'
-           | 'email-draft' | 'agenda' | 'brief';    // which feature produced it
+    surface: 'ask' | 'ask-chat' | 'meeting-notes' | 'redline' | 'client-map'
+           | 'workflow' | 'email-draft' | 'agenda' | 'brief';   // which feature produced it
     scope: AuditScope;              // same frozen send-time scope as the egress event
-    outcome: 'completed' | 'cancelled' | 'failed';
+    matterSeq?: number;             // per-scope monotonic counter (1, 2, 3 …) — the
+                                    //   disclosure-completeness anchor (see §3.2)
+    outcome: 'completed' | 'cancelled' | 'failed';   // EXACTLY ONE terminal event
+                                    //   per interactionId, whatever happens (§1.4)
 
     // What left (duplicated small, so each record is self-contained for export)
     provider: string; model?: string;
     mode: ConfidentialityMode; destination: EgressDestination; dataLeaves: boolean;
 
-    // What the AI read — the retrieved set actually placed in the model's context
+    // What the AI read — EVERYTHING placed in the model's context, not just retrieval
     sources: Array<{
+      via: 'retrieval' | 'tool-read' | 'attachment' | 'open-file' | 'facts';
+      matterId?: string;            // per-source scope — required for whole-practice
+                                    //   interactions to filter per-client at export
       sourceId?: string;            // '/path/file.pdf' | 'mail:<message-id>' | 'meeting:<dir>#<ms>'
       basename: string;             // human-readable name for the CCO
       chunkId?: string;             // content-addressed RAG chunk id (the citation key)
       sourceType?: string;          // 'pdf' | 'mail' | 'transcript' | …
       paragraphIndex?: number; pageNumber?: number;
       privilege?: string;           // carried through from RagHit
-      snippetSha256: string;        // hash of the exact chunkText sent — never the text
+      contentSha256: string;        // hash of the raw stored content (chunk text /
+                                    //   file bytes / fact text) — never the text itself
       cited?: 'verified' | 'notFound' | 'matterMismatch' | 'textMismatch';
     }>;
-    attachments?: Array<{ name: string; sha256: string }>;
 
-    // Binding hashes
-    querySha256: string;            // the user's question as sent
-    contextSha256: string;          // ordered concat of snippet texts + attachment hashes + query
+    // The rest of the request manifest — the non-source context the model also saw
+    context: {
+      querySha256: string;              // the user's question as sent
+      systemPromptSha256: string;       // the assembled system prompt (buildSystemPrompt output)
+      historySha256?: string;           // conversation history included, + message count
+      historyMessageCount?: number;
+      factsIncluded?: number;           // count; each fact is also a sources[] row (via:'facts')
+      assembledContextSha256: string;   // the exact post-sanitization context block handed
+                                        //   to the provider (see §1.2 — this is the
+                                        //   "bytes-adjacent" hash; raw hashes live per source)
+    };
+
     answerSha256?: string;          // final assistant text (absent when cancelled pre-first-token)
   };
 };
 ```
+
+Two things the adversarial pass (Appendix A) forced into this schema, worth naming because they're load-bearing:
+
+- **`sources` covers the whole context window, not just retrieval.** The model can also read tool-loop file reads (`useChatSending.ts:1149-1172`), attachments, open-file context, and injected durable facts (`snapshotFactsForInjection`, imported at `useChatSending.ts:105`). Each is a `sources[]` row with its `via` kind. A record that said "what the AI read" but silently meant "what retrieval returned" would be this feature committing the app's original sin — an overclaim a skeptic can catch.
+- **`matterSeq`** is a per-scope counter assigned at record time and hashed into the chain with everything else. It's what lets a per-client export *prove completeness*, not just integrity (§3.2): disclosed records for a client must read 1, 2, …, K with no gaps, and a gap is visible to the verifier.
 
 Three additive companions, no renames:
 - The `egress` payload gains optional `interactionId` (additive field; existing consumers unaffected).
@@ -79,6 +99,8 @@ Three additive companions, no renames:
 
 The cost, stated honestly: a hash alone can't show a CCO *what* was read — only prove that what they're shown is what was read. The export bundle (Part 3) closes this with an opt-in **excerpts** section drawn live from the workspace at export time, verified against the recorded hashes as it's assembled. Proof lives in the chain; content stays in the workspace and is fetched only when a human deliberately exports it.
 
+One subtlety the adversarial pass caught: the raw chunk text is **not** byte-identical to what the provider saw — chunks are sanitized and wrapped with headers during prompt assembly (`src/platform/rag/workspaceCommand.ts:161-171`). So the schema records both layers: per-source `contentSha256` over the raw stored content (verifiable against the RAG store via the existing citation machinery), and `assembledContextSha256` over the exact post-sanitization context block handed to the provider. The first proves *which* content; the second proves *what form of it* was sent. Neither alone is honest; together they are.
+
 ### 1.3 Where it lives — the same chain, and why the alternatives lose
 
 **Decision: extend the existing SQLCipher audit store. No new store, no per-client record files.**
@@ -89,9 +111,17 @@ The cost, stated honestly: a hash alone can't show a CCO *what* was read — onl
 - **The layer DAG stays clean.** Event types in `src/platform/types/audit.ts`; the payload builder and hashing in `src/platform/audit/` (hash util from `lib/`); emit sites in `features/ask` (features → platform, allowed); export assembly in `src/platform/privacy/` beside `confidentialityReport.ts`; UI in `features/privacy` and the matter surface. Nothing imports rightward.
 - **The E2EE-relay rule is untouched.** The record never syncs. On firm tier, each seat's record covers what *that machine* sent — which is the honest unit anyway (egress is a per-machine fact). Firm-wide aggregation, if ever wanted, composes per-seat export bundles; no plaintext (and in v1, no ciphertext either) ever goes through the relay.
 
-### 1.4 The write path — why Ask stays fast
+### 1.4 The write path — structural recording, and why Ask stays fast
 
-Where it hooks: retrieval completes and `retrievedSources` is fully known at `useChatSending.ts:539-588`; the answer completes (with per-citation verdicts) at `useChatSending.ts:1699-1714` (streaming) and `:1763-1785` (non-streaming); the cancel path is `:930-958`. One `answer_provenance` event is emitted at the completion/cancel site — after the final text is already on screen.
+**Recording must be structural, not cooperative.** The adversarial pass exposed the weakness of a purely hook-based design: audit emission today is an *optional* prop at the call sites (`onAuditLog?.(…)`, `useChatSending.ts:674`), and there are **two** Ask pipelines, not one — `useChatSending.ts` (the `.aichat` chat viewer) *and* `src/features/ask/useAsk.ts` (the Ask surface, with its own retrieval, egress, and save paths, e.g. `useAsk.ts:988-1010`). A surface that forgets to wire the hook — or a future eleventh-plus egress site — would silently produce unrecorded interactions, which is exactly the evidence gap this feature exists to close.
+
+The app already owns the right seam: **`assertCloudSendAllowed` in `src/platform/privacy/cloudSendGuard.ts` is the documented "CENTRAL CLOUD-SEND CHOKE POINT — fail-closed,"** called at the top of every cloud provider send method (`sendMessage` / `sendMessageStreaming` / `structuredOutput` on the Anthropic, OpenAI, and Google providers — `cloudSendGuard.ts:80-92`). The provenance design extends that same seam rather than trusting call sites:
+
+- **Pre-send:** the provider wrapper requires an active *interaction context* (`interactionId` + scope, registered by the surface before sending) and refuses a cloud send that has none — the same fail-closed posture the guard already applies to Local-only mode. The `egress` event (already critical, already durably awaited) is bound to that context.
+- **Terminal, exactly once:** every `interactionId` must end in exactly one `answer_provenance` event with `outcome: 'completed' | 'cancelled' | 'failed'`. The cancel and failure paths are first-class, not afterthoughts — today a non-streaming abort can return without any egress record and failures are logged as `user_action` rather than a critical event (`useAsk.ts:1203,1213-1243`); the wrapper closes both.
+- **Orphan detection:** interactions that opened but never terminated (a crash mid-answer) are detected at next launch and surfaced honestly in the Activity log — *"1 interaction has no completion record (the app closed mid-answer)"* — never silently absent. An examiner who finds a gap we labeled trusts the rest more, not less.
+
+Where the data comes from: retrieval completes and `retrievedSources` is fully known at `useChatSending.ts:539-588`; the answer completes (with per-citation verdicts) at `useChatSending.ts:1699-1714` (streaming) and `:1763-1785` (non-streaming); tool-loop reads accumulate at `:1149-1172`; `useAsk.ts` has the equivalent points in its own flow. The surfaces supply the manifest; the platform wrapper guarantees an event exists at all.
 
 Cost accounting, against what already happens per interaction:
 - The flow already emits 4+N audit events per Ask (`scope_active`, `privilege_evaluated`, `retrieval_executed`, `egress`, N × `citation_verified` — all in `useChatSending.ts:662-683,440-446,1731`), and `egress` is already durably awaited. We add **one** event, not per-source events.
@@ -118,7 +148,7 @@ Today's `summary-only` mode deletes `audio.wav` *and* `transcript.json` once `no
 |---|---|---|---|---|---|
 | **Keep everything** | audio + transcript + notes | temps only | **Default** (today: `retentionPolicyStore.ts:22`) | **Default** | "The complete record." |
 | **Delete audio after N days** | transcript + notes | audio, imports | Offered, promoted | Recommended disk-saver | "Audio is big; text is small. The accurate record stays." |
-| **Summary only** | notes only | audio + transcript | Offered **with a compliance warning** | **Requires an explicit firm-admin policy override** (enforcement rung rides the firm policy mechanism; until then, the strongest warning copy) | "This keeps the AI's summary and deletes the accurate transcript — the opposite of what compliance reviews usually want." |
+| **Summary only** | notes only | audio + transcript | Offered **with a compliance warning** | **Disabled on firm-connected workspaces** (a local check in the settings UI at rung P4 — not deferred to the full firm-policy mechanism; warning copy is not a control, a disabled option is) | "This keeps the AI's summary and deletes the accurate transcript — the opposite of what compliance reviews usually want." |
 
 **Summary-only survives — for solo, warned.** It's the advisor's data and some genuinely want minimal records; deleting the mode would be paternalism. What cannot survive is the *neutral framing*. The warning is in the product's honest voice, shown at selection time and echoed in the settings row: *"Most books-and-records guidance wants the transcript kept, not the summary. If your firm is subject to SEC or FINRA record rules, choose a mode that keeps the transcript."* On firm tier the mode is policy-gated off by default.
 
@@ -128,11 +158,13 @@ Retention stays per-workspace in mechanism (`SK_RETENTION_POLICIES`, `src/config
 
 Today, notes cite the recording with `[t:<ms>]` tokens rendered as seek chips (`TranscriptViewer.tsx:59-94`), and Client Map facts hold `meeting:<dir>#<ms>` refs (`meetingSources.ts:11-18`). After a sweep deletes the audio/transcript, those chips still render and **clicking them is a silent no-op** (`MeetingEntry.tsx:90-108,174-177`) — a "verifiable" note quietly becomes unverifiable. The rule this design sets:
 
-> **A citation whose source was deleted is annotated, never silently dangling — and the record retains the hashes, so "it existed and matched" stays provable after deletion.**
+> **A citation whose source was deleted is annotated, never silently dangling — and the record retains the fingerprint, so "this exact content existed and was what the note cited" stays checkable after deletion.**
+
+(Stated carefully: a retained hash proves *identity*, not *content* — it can confirm a surviving copy is authentic, and it proves the note's sourcing wasn't invented after the fact, but it cannot show an examiner what was said. That's why the transcript-keeping modes are the compliance path and Summary-only carries the warning; the fingerprint is the honest floor for advisors who delete anyway, not a substitute for keeping records.)
 
 Concretely:
 1. **Hash before unlink.** The sweep's per-unlink audit callback (`DeleteAudit`, `sweep.rs:56-66`) gains a content SHA-256 computed immediately before deletion, recorded in the chained `retention_delete` event: *"transcript.json (sha256 abc…) deleted under policy summary-only."* Rust-side, inside the same blocking call — crash-safe like the rest of the sweep.
-2. **Annotate on render.** When `MeetingEntry` finds the transcript/audio gone, `[t:ms]` chips render in a "source removed" state with plain-language hover copy: *"The recording this cites was deleted on <date> under your retention policy. Its fingerprint is kept in your privacy record, so this note's sourcing remains provable."* Client Map `meeting:` refs that fail to resolve get the same state — never a dead click.
+2. **Annotate on render.** When `MeetingEntry` finds the transcript/audio gone, `[t:ms]` chips render in a "source removed" state with plain-language hover copy: *"The recording this cites was deleted on <date> under your retention policy. Its fingerprint is kept in your privacy record, so this note's sourcing can still be checked against any surviving copy."* Client Map `meeting:` refs that fail to resolve get the same state — never a dead click.
 3. **Warn at the moment of choice.** Selecting a deleting mode in `RetentionSettings.tsx` states the consequence: *"Notes that cite deleted recordings will show 'source removed'."*
 4. **The synergy that already exists, kept:** the retention sweep is already fail-closed on a broken audit chain (`preflight_audit_store` + `reject_if_chain_altered`, `src-tauri/src/commands/retention/mod.rs:19-44`) — retention cannot destroy evidence while the evidence log itself is in doubt. The provenance record inherits this protection for free.
 
@@ -157,31 +189,36 @@ Privacy Record — Henderson — 2026-07-05/
 
 **`report.docx`** evolves the existing attestation export rather than adding a fourth surface (§3.3): client + period + generation time; the honest mode-mix attestation sentence (reusing `pickAttestation`, `confidentialityReport.ts:68-143`); per-interaction table (when · surface · destination/model · N sources read · N cited/verified · recorded ✓); the consent & notice trail (from the client's `.consent-ledger.json` — entries and notices, as `attestation.ts:95-110` already reads them); the retention policy + any deletion events affecting this client, with retained fingerprints; the chain-integrity verdict; and a **checkpoint line** — the chain-head hash and entry count at export time, with one sentence telling the CCO to keep it: *"Bundles exported later must agree with this line about everything before it."*
 
-**`record.json`** is the machine layer: full audit records for this client's disclosed events (`egress`, `answer_provenance`, `retrieval_executed`, `retention_delete`, consent-mirror events), plus the **chain spine** — `{seq, prevHash, entryHash}` for *every* entry in the store, disclosed or not — plus the seal (`ChainHeadRecord`) and the canonicalization spec.
+**`record.json`** is the machine layer: full audit records for this client's disclosed events (`egress`, `answer_provenance`, `retention_delete`, consent-mirror events), plus the **chain spine** — `{seq, prevHash, entryHash}` for *every* entry in the store, disclosed or not — plus the seal (`ChainHeadRecord`) and the canonicalization spec. Disclosed records carry their **`payloadJson` verbatim as stored** — never re-parsed and re-stringified — because the chain hashes the exact string (`store.rs:138-153`; written by `JSON.stringify` once at `AuditService.ts:88-95`) and any re-serialization could silently change bytes and break verification.
 
-**Whole-practice interactions** that touched this client's sources are included and flagged *"whole-practice question — sources from other clients not disclosed in this bundle."* Honest, and it keeps other clients' metadata out of this client's bundle.
+**Disclosure redaction rule (what stays out by default):** the existing `retrieval_executed` events store the user's question in *plaintext* (`src/platform/types/audit.ts:371-383`). Since disclosure granularity is whole-record (a redacted payload can't re-hash), those events are **undisclosed by default** — present in the spine as hashes only — and included only when the exporter checks *"include the questions asked."* The `answer_provenance` events disclose freely because they were designed for it: they carry `querySha256`, never the question text. CCOs who want the questions opt in deliberately; nothing leaks by default.
+
+**Whole-practice interactions** that touched this client's sources are included with only this client's `sources[]` rows (the per-source `matterId` makes the filter exact), flagged *"whole-practice question — sources from other clients not disclosed in this bundle."* Honest, and it keeps other clients' metadata out of this client's bundle.
+
+**The export event, without circularity:** `record_exported` is appended *before* the bundle is assembled, containing the export parameters and a digest of the disclosure set (a hash over the disclosed entries' chain hashes — computable without the bundle file existing). The bundle's cutoff is that very event: it is the last entry in its own spine. No self-referencing bundle-file hash, and every bundle carries the chained proof of its own creation.
 
 ### 3.2 Verification a non-engineer can run
 
-The spine is what makes per-client disclosure verifiable without disclosing the rest: hashes of undisclosed entries reveal nothing (SHA-256 preimage resistance), but they let the verifier walk the whole chain. `verify.html` is a single static file — no network access, no CDN, WebCrypto only — that checks four things and says so in words:
+The spine is what makes per-client disclosure verifiable without disclosing the rest: hashes of undisclosed entries reveal nothing (SHA-256 preimage resistance), but they let the verifier walk the whole chain. `verify.html` is a single static file — WebCrypto only, and **provably network-silent**: a strict `<meta http-equiv="Content-Security-Policy">` blocking all remote loads and connections, no `fetch`/`XMLHttpRequest`/`WebSocket`/`sendBeacon` anywhere in it, enforced by a build-time test that greps the artifact (a "no-network verifier" that could phone home would be the feature refuting itself). It checks five things and says so in words:
 
 1. **Linkage:** every `prevHash[n]` equals `entryHash[n-1]`, genesis (`[0u8;32]`, `store.rs:51`) to head.
-2. **Disclosure honesty:** every disclosed record re-hashes to its spine entry — the verifier re-implements `canonical_entry_bytes` (`store.rs:138-153`; length-prefixed big-endian framing, ~20 lines of JS) and computes `SHA-256(prevHash ‖ canonicalBytes)`.
+2. **Disclosure honesty:** every disclosed record re-hashes to its spine entry — the verifier re-implements `canonical_entry_bytes` (`store.rs:138-153`; length-prefixed big-endian framing, ~20 lines of JS) over the **verbatim `payloadJson` strings** and computes `SHA-256(prevHash ‖ canonicalBytes)`, fixture-tested against Rust-generated vectors.
 3. **Seal:** the spine's tail matches the embedded `chain_head_v1` (entry count, last seq, last hash).
-4. **Excerpts** (if present): each excerpt file re-hashes to the `snippetSha256` recorded in its interaction.
+4. **Completeness of disclosure:** the disclosed `answer_provenance` records for this client carry `matterSeq` 1, 2, …, K with **no gaps** — so an interaction can't be quietly withheld from the middle of a bundle. (The residual: a *tail* could be cut by exporting "as of" an earlier moment — which is why the checkpoint line pins the head, and why successive bundles must agree; see the boundaries.)
+5. **Excerpts** (if present): each excerpt file re-hashes to the `contentSha256` recorded in its interaction.
 
-Output is one sentence a CCO can quote: *"8,214 entries · chain intact · seal matches · 47 disclosed records verified · 12 excerpts match."* The in-app equivalent ("Verify a bundle" in the Privacy Center) re-checks the same bundle against the **live** store, which additionally proves the bundle wasn't fabricated wholesale on some other machine.
+Output is one sentence a CCO can quote: *"8,214 entries · chain intact · seal matches · 47 disclosed records verified, sequence complete · 12 excerpts match."* The in-app equivalent ("Verify a bundle" in the Privacy Center) re-checks the same bundle against the **live** store, which additionally proves the bundle wasn't fabricated wholesale on some other machine.
 
-Exporting is itself evidence: each export appends a `record_exported` event (client scope, bundle head-hash, excerpts yes/no) to the chain — the record records its own disclosures.
+Said plainly, because the distinction matters: the offline verifier proves the disclosed records are **authentic, unmodified, correctly sequenced, and consistent with one sealed history**. It does not, by itself, prove that history is the only one that ever existed on that machine — no purely local scheme can (boundary #3). Integrity is cryptographic; completeness is cryptographic up to the tail; the tail is anchored by checkpoints and, when it matters, the in-app live check.
 
 ### 3.3 Composing with the existing surfaces — three layers, not four overlaps
 
 The rule that keeps this from becoming a fourth overlapping trust surface: **the Data Map explains, the Confidentiality Report summarizes, the Privacy Record proves.**
 
-- **Data Map** (`DataMapDialog.tsx:75-161`): unchanged — the static plain-English architecture explainer. Gains one row pointing at the record ("Every AI interaction is recorded — ask for the Privacy Record").
-- **Confidentiality Report** (`ConfidentialityReportDialog.tsx:173-258`): stays the quick per-mode summary; its per-call table gains a "sources read: N" column fed by `answer_provenance` (same `buildConfidentialityReport` join, one new field), and its footer gains "Export the full Privacy Record" — replacing today's dead-end disclaimer with a path to the proof.
+- **Data Map** (`src/platform/privacy/ui/DataMapDialog.tsx:75-161`): unchanged — the static plain-English architecture explainer. Gains one row pointing at the record ("Every AI interaction is recorded — ask for the Privacy Record").
+- **Confidentiality Report** (`src/platform/privacy/ui/ConfidentialityReportDialog.tsx:173-258`): stays the quick per-mode summary; its per-call table gains a "sources read: N" column fed by `answer_provenance` (same `buildConfidentialityReport` join, one new field), and its footer gains "Export the full Privacy Record" — replacing today's dead-end disclaimer with a path to the proof.
 - **The Privacy Record bundle** absorbs and supersedes the current attestation `.docx` (`attestation.ts` already assembles audit + integrity + consent + retention — it becomes the cover-report builder rather than a separate artifact).
-- The **Privacy Center** (`src/features/privacy/PrivacyCenterHome.tsx`) is the mount point — it already composes the indicator, the map, and the report (`:118,129,133-139`) and already receives `auditEntries` + `activeMatter` (`App.tsx:1648,1725`).
+- The **Privacy Center** (`src/features/privacy/PrivacyCenterHome.tsx`) is the mount point — it already composes the indicator, the map, and the report (`:118,129,133-139`) and already receives `auditEntries` + `activeMatter` (`src/App.tsx:1648,1725`).
 
 ---
 
@@ -211,6 +248,7 @@ This section is part of the product, not just the doc — the export cover carri
 4. **Local-only mode proves the app's AI path sent nothing — not that the machine is silent.** The Data Map's existing honesty about OS-level reliance (disk encryption, other software) stands; the record doesn't extend to what other programs do.
 5. **The record starts when the feature ships.** Interactions before it have `egress` events but no source-level provenance, and we will not backfill what wasn't captured — the report renders a "records begin <date>" line, the same honesty the hash-chain migration applied (`store.rs:375-440` seals only from the upgrade moment forward).
 6. **On firm tier, each machine's record covers that machine.** A per-client bundle from one seat is that seat's evidence. Firm-wide proof is the composition of per-seat bundles, stated as such — never a silently merged view.
+7. **The bundle proves what's in it, and that nothing was hidden from the middle — the tail needs a witness.** The offline verifier proves disclosed records are authentic and gap-free (`matterSeq`), but a bundle exported "as of" an earlier moment would omit later interactions without a visible gap. The checkpoint line exists for exactly this: each bundle pins the head, and any two bundles must agree about their overlap. The cover says it in one line: *"Keep this page — future exports must agree with it."*
 
 What it *does* prove, for balance, in the voice of the cover page: *every AI interaction on this machine that touched this client — where it went, under which mode, what was read to produce it, what was cited and whether the citations checked out — recorded as it happened, chained so edits and deletions show, checkable by you, offline, without trusting the vendor.*
 
@@ -222,10 +260,10 @@ Each rung ships value alone; order is dependency-honest. Effort classes: S (≤1
 
 | Rung | Ships | Where | Effort | Tests | Notes |
 |---|---|---|---|---|---|
-| **P1 — Record the read-set (Ask)** | `answer_provenance` event type + payload builder + hashing; `interactionId` on egress + `.aichat` message; emit at streaming/non-streaming/cancel completion sites; `CRITICAL_ACTIONS` entry; Activity-log renderer line | TS only (`platform/types/audit.ts`, `platform/audit/`, `features/ask/hooks/useChatSending.ts`) | **M** | Unit: payload builder (hash determinism, snippet exclusion — assert no `chunkText` in payload); integration: emitted at both completion sites + cancel; existing `useChatSending` tests extended | No Rust change — `payload_json` is schema-free (`store.rs:30-44`). The one rung everything else builds on. |
+| **P1 — Record the read-set (both Ask paths, structurally)** | `answer_provenance` event type + manifest builder + hashing (`matterSeq`, per-source `matterId`/`via`, raw + assembled hashes, tool-loop reads, facts, open files); interaction-context registration enforced at the `cloudSendGuard` provider seam (no context → no cloud send); exactly-one-terminal rule incl. cancel/failure; orphan detection; `interactionId` on egress + saved messages; `CRITICAL_ACTIONS` entry; Activity-log renderer line | TS only (`platform/types/audit.ts`, `platform/audit/`, `platform/privacy/cloudSendGuard.ts` seam, `features/ask/hooks/useChatSending.ts` **and** `features/ask/useAsk.ts`) | **L** (was M before the adversarial pass — the second Ask path, the full manifest, and the structural seam are real work, and pretending otherwise would just move the cost into surprises) | Unit: manifest builder (hash determinism, content exclusion — assert no `chunkText` in payload; `matterSeq` monotonicity); integration: terminal event on complete/cancel/fail in **both** pipelines; seam test: cloud send without a registered context is refused | No Rust change — `payload_json` is schema-free (`store.rs:30-44`). The one rung everything else builds on. |
 | **P2 — Show it** | Per-answer "What produced this answer" line in the sources accordion (destination · model · recorded ✓/⚠); "sources read: N" column in the Confidentiality Report; the not-recorded warning state | TS (`features/ask/ChatSourcesAccordion.tsx`, `platform/privacy/confidentialityReport.ts`, dialog) | **S** | Component tests for both states; report-builder unit test | Makes the record visible day one — evidence users can *see* builds the habit of trusting it. |
-| **P3 — The bundle + offline verifier** | `audit_export_spine` Rust read command (seq/hashes/seal); bundle assembler (per-client filter, whole-practice flagging); `report.docx` cover (evolves `attestation.ts`); `verify.html`; opt-in excerpts with live hash-check; `record_exported` event; Privacy Center + client-surface entry points | Rust: one read-only command. TS: `platform/privacy/` assembler + UI | **L** | Rust: spine correctness vs `verify_chain`. TS security tests: tamper matrix — edited payload, dropped entry, truncated tail, forged seal, mismatched excerpt → verifier must fail each with the right message; path-containment on export writes | The flagship rung. The verifier's canonical-bytes JS must be fixture-tested against Rust-produced vectors. |
-| **P4 — Retention integrity (R10 + E5 copy)** | Pre-unlink content hashes in `retention_delete` events; "source removed" annotated states for `[t:ms]` chips + Client Map meeting refs; retention matrix copy + Summary-only compliance warning; deleting-mode consequence line | Rust (`sweep.rs` hash-before-unlink) + TS (viewer states, `RetentionSettings.tsx`, locales) | **M** | Rust: sweep emits hashes (fixture workspace); TS: chip states with/without transcript; copy keys in all three locales | Independent of P3; can run parallel to it after P1. |
+| **P3 — The bundle + offline verifier** | `audit_export_spine` Rust read command (seq/hashes/seal, verbatim `payloadJson` for disclosed rows); bundle assembler (per-client filter via per-source `matterId`, whole-practice flagging, `retrieval_executed` undisclosed by default with question-text opt-in); pre-assembly `record_exported` event (disclosure-set digest, no circularity); `report.docx` cover (evolves `attestation.ts`); `verify.html` with CSP + no-network build test; `matterSeq` completeness check; opt-in excerpts with live hash-check; Privacy Center + client-surface entry points | Rust: one read-only command. TS: `platform/privacy/` assembler + UI | **L** | Rust: spine correctness vs `verify_chain`. TS security tests: tamper matrix — edited payload, dropped entry, truncated tail, forged seal, hidden mid-sequence record (`matterSeq` gap), re-stringified payload, mismatched excerpt → verifier must fail each with the right message; artifact grep: no `fetch`/`XMLHttpRequest`/`WebSocket`/`sendBeacon`/remote refs; path-containment on export writes | The flagship rung. The verifier's canonical-bytes JS must be fixture-tested against Rust-produced vectors. |
+| **P4 — Retention integrity (R10 + E5 copy)** | Pre-unlink content hashes in `retention_delete` events; "source removed" annotated states for `[t:ms]` chips + Client Map meeting refs; retention matrix copy + Summary-only compliance warning; deleting-mode consequence line; **Summary-only disabled on firm-connected workspaces** (local check — a warning is not a control) | Rust (`sweep.rs` hash-before-unlink) + TS (viewer states, `RetentionSettings.tsx`, locales) | **M** | Rust: sweep emits hashes (fixture workspace); TS: chip states with/without transcript; firm-gate test; copy keys in all three locales | Independent of P3; can run parallel to it after P1. |
 | **P5 — Consent at client creation (R2)** | `Matter.clientState?` + creation/edit UI section; standing-consent **write** path (`scope:'standing'`); `ClientMeetingsTab` wiring (`consentModeFor(state)`, `stateKnown`); record-time copy reduction; R1 rule (no pre-check in all-party states) | TS only | **S–M** | Unit: `consentModeFor` wiring, standing-entry write shape; component: dialog copy per state × standing-consent matrix | Coordinate with the Notice Card lane — it extends the same `ConsentDialog`; land this first or rebase carefully. |
 | **P6 — Provenance everywhere + consent chain-mirror** | `answer_provenance` from the remaining egress surfaces (meeting notes, redline, Client Map, workflows, email drafts, agenda/brief); consent/notice ledger appends mirrored into the audit chain | TS only, mechanical | **M** (delegable, per-surface) | Per-surface: event emitted with correct `surface` + sources; mirror: ledger write ⇒ chained twin | Schema already fits (P1's `surface` field); pure fan-out. |
 | **Later** | Firm policy enforcement (retention matrix + Strict record-gating via the firm mechanism); wire-exact request hashing at the `instrumentEgressFetch` choke point (`egressActivity.ts`); opt-in external witness/anchoring; per-seat bundle composition UX for firms | — | — | — | Each is a real decision, not a default — especially anchoring (deliberate egress) and Strict gating (can block work). |
@@ -248,4 +286,30 @@ Jump and every cloud notetaker can show a dashboard that *says* what happened. N
 
 ---
 
-*Appendix A (adversarial review) follows after the independent Codex pass.*
+## Appendix A — independent adversarial review (Codex, gpt-5.5) and adjudication
+
+Per the lane brief, an independent Codex pass was prompted to attack the draft for integrity holes, egress leaks, examiner objections, grounding errors, and feasibility. It returned 14 findings and a verdict of "not sound to build as written." **Eleven findings were adopted and are folded into the body above; three were adopted in part with a stated rebuttal.** The verdict's three must-fix items (per-client completeness, the full request manifest, structural rather than cooperative recording) are all now core to the design. This is the pass working as intended — the draft's weakest claims died here instead of in front of a CCO.
+
+| # | Finding (condensed) | Sev. | Adjudication |
+|---|---|---|---|
+| 1 | The offline verifier can prove disclosed records are unedited but **not that a client's record was withheld** among the undisclosed hashes. | Blocker | **Adopted.** Added `matterSeq` (per-scope monotonic counter, hashed into each record) + a verifier completeness check (§1.1, §3.2 check 4) + boundary #7 for the residual tail-truncation case. The claim language throughout was downgraded to match what is actually proven. |
+| 2 | Whole-practice per-client export can't work — `sources[]` omitted `matterId`, which `RagHit`/`WorkspaceSource` already carry. | Blocker | **Adopted.** Per-source `matterId` added (§1.1); the whole-practice disclosure filter now has an exact key (§3.1). |
+| 3 | "What the AI read" missed real prompt inputs: injected facts, open-file context, conversation history, system prompt, tool-loop file reads. | Blocker | **Adopted.** `sources[]` now spans all context kinds via `via:`; a `context` manifest (system-prompt/history/assembled-context hashes) was added (§1.1). Wire-exact request hashing at the fetch choke point remains a Later rung, stated as such — the component manifest is the CCO-readable layer; byte-exactness is hardening, not the claim. |
+| 4 | Selective non-recording is possible — audit emission is an optional callback at call sites, and durable writes aren't awaited by callers. | Blocker | **Adopted, with the app's own seam.** Recording moves from cooperative hooks to the documented fail-closed cloud-send choke point (`cloudSendGuard.ts:80-92`): no registered interaction context → no cloud send (§1.4). |
+| 5 | Cancel/failure paths leave weak or missing records (aborts can return silently; failures logged as `user_action`, not critical). | Major | **Adopted.** Exactly-one-terminal-event rule per `interactionId` with `outcome` enum, first-class cancel/fail, and crash-orphan detection surfaced honestly (§1.4). |
+| 6 | Raw `chunkText` hashes aren't hashes of the bytes sent — chunks are sanitized/wrapped during prompt assembly (`workspaceCommand.ts:161-171`). | Major | **Adopted.** Dual-layer hashing: per-source `contentSha256` (raw, verifiable against the RAG store) + `assembledContextSha256` (exact post-sanitization block), with the distinction argued in §1.2. |
+| 7 | `record.json` would leak plaintext questions via disclosed `retrieval_executed` rows, contradicting the hashes-not-content posture. | Major | **Adopted.** Disclosure redaction rule: `retrieval_executed` is spine-only by default; question text is a deliberate export-time opt-in (§3.1). |
+| 8 | `record_exported` was circular (bundle can't contain a hash of itself). | Major | **Adopted.** Pre-assembly event carrying a disclosure-set digest; the export event is the bundle's own cutoff entry (§3.1). |
+| 9 | "Sourcing remains provable" after deletion overstates what a retained hash gives an examiner — identity, not content. | Major | **Adopted.** Wording corrected in §2.3 and the annotation copy; transcript-keeping modes stated as the compliance path, the fingerprint as the honest floor. |
+| 10 | Firm Summary-only gating deferred to a "later" policy rung is not a control a compliance reviewer accepts. | Major | **Adopted.** Summary-only is disabled on firm-connected workspaces at rung P4 via a local check; the full firm-policy mechanism remains Later but is no longer load-bearing (§2.2, P4). |
+| 11 | The design covered only `useChatSending` and missed the second Ask pipeline (`useAsk.ts`) with its own retrieval/egress/save paths. | Major | **Adopted.** P1 scope is both pipelines, and the structural seam of finding 4 is what makes an unknown third pipeline safe by construction (§1.4, P1). Effort re-classed M→L honestly. |
+| 12 | Wrong file citations (`src/app/App.tsx`; dialogs attributed to `features/privacy`). | Minor | **Adopted.** Paths corrected to `src/App.tsx` and `src/platform/privacy/ui/…` throughout. |
+| 13 | Re-parsing and re-stringifying JSON in the verifier can change bytes and break hash verification. | Minor | **Adopted.** Bundles carry `payloadJson` verbatim as stored; the verifier hashes the exact strings, fixture-tested against Rust vectors (§3.1, §3.2). |
+| 14 | "No network verifier" needs enforcement, not intention — a static HTML file can still phone home. | Minor | **Adopted.** Strict CSP meta + a build-time artifact test forbidding `fetch`/`XMLHttpRequest`/`WebSocket`/`sendBeacon`/remote references (§3.2, P3 tests). |
+
+**Where the review was pushed back, and why (partial rebuttals inside adopted findings):**
+- *(re #3)* The review's fix asks for "a manifest/hash of the final provider request." Full wire-byte hashing lands at the provider/fetch seam in a Later rung, not P1 — because the manifest a CCO reads is component-level (files, facts, question), and blocking the entire feature on byte-exact capture across four provider adapters would trade a shippable evidence layer for a purity property nobody can *read*. The boundary is stated in the doc rather than hidden.
+- *(re #1)* No purely local scheme can prove a negative about withheld *tails* to an offline verifier; `matterSeq` closes mid-sequence withholding, checkpoints close the tail across time. The review's alternative ("a real disclosure-proof/index design") collapses to the same primitives once the adversary controls the machine — so the design spends its complexity budget on the checkable parts and its honesty budget on the rest.
+- *(re the verdict)* "Not sound to build as written" was correct for the draft. With findings 1–11 folded in, the load-bearing claims and the mechanisms now match; the three must-fix items are the design's core rather than its gaps.
+
+*Review artifact: run 2026-07-05, `codex-task --read-only`, gpt-5.5 high reasoning; full log retained in the session workspace.*
