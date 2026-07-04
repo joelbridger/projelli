@@ -7,10 +7,10 @@ program state.)
 
 | # | Idea | Status | Owner / trigger |
 |---|------|--------|-----------------|
-| 1 | Cloud VM clones + sharded bench passes (split the smoke checklist across N Azure VMs) | QUEUED | Fires when azcdp lands its fixed snapshot (clean-3). Then clone 2–3 VMs + run sharded. Harness sharding support = item 4's lane. |
+| 1 | Cloud VM clones + sharded bench passes (split the smoke checklist across N Azure VMs) | TRIGGER MET (snapshot clean-3 exists; CDP verified end-to-end) | Clone 2–3 VMs AFTER lp/azure-cdp-fix merges (clones pull the app-side CDP fix + rebuild ~3 min). |
 | 2 | "Bench-ready" Azure snapshot (workspace bound + index built + connections live baked in) | QUEUED | After azcdp + one full setup pass on the cloud VM. Kills per-run setup time. |
-| 3 | Auto-smoke on every merge (pull→rebuild→canary→smoke→report, automatic) | BUILDING (dry-run mode) | Part of the harness-v3 lane (Codex). Goes LIVE only after the finish-line bench pass — never churns the Legion before it. |
-| 4 | Harness v3: shard-across-targets + failure forensics (console log + screenshot + screencast bundle on FAIL) | BUILDING | Codex worktree lane `harness-v3` (bounded, scripts-only; coordinator reviews + merges after w3). |
+| 3 | Auto-smoke on every merge (pull→rebuild→canary→smoke→report, automatic) | ✅ MERGED (dry-run gated) | Script landed (auto-smoke.sh). Arm AFTER the finish-line pass; fix hard-coded task name first (P3). |
+| 4 | Harness v3: shard-across-targets + failure forensics (console errors + screenshot + app-log tail on FAIL) | ✅ MERGED | Codex-built, coordinator-reviewed, 122 tests green. Sharding ready for the Azure clones. |
 | 5 | Virtual audio driver on VMs (recorded WAV fixtures ⇒ capture tests without physical hardware) | QUEUED | On the Azure VM after azcdp, or local winvm Phase 2. NEVER on the Legion before the finish-line pass (driver install could confound the golden audio checks). |
 | 6 | Local Windows VM on this server (KVM, snapshot-reset, $0) | BUILDING Phase 1 | cc-lantern-winvm. Phase 2 = toolchain+app+CDP. Cloning locally is trivial once Phase 1 proves out (qcow2 copy). |
 | 7 | Linux Playwright mirror of the Windows smoke checklist (catch ~80% of regressions in minutes, no Windows machine) | BUILDING | cc-lantern-e2emirror, branch lp/e2e-smoke-mirror. |

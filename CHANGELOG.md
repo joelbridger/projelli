@@ -31,6 +31,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Bench harness v3: sharded multi-target smoke runs + failure forensics + auto-smoke (dry-run).**
+  `scripts/bench-smoke-shard.mjs` splits the checklist across several benches and runs them
+  concurrently, merging summaries into one verdict (state-coupled checks stay together via
+  `sameTargetGroup`); on any FAIL the harness now auto-bundles console errors, a failure
+  screenshot, and the app-log tail into the evidence dir; `scripts/auto-smoke.sh` (gated behind
+  `AUTO_SMOKE_ARMED=1`, dry-run by default) automates pull→rebuild→canary→smoke per target.
+  `--only` now accepts repeats/comma lists. Built by Codex, coordinator-reviewed; 122 harness
+  tests green. Known P3 before arming auto-smoke: per-target scheduled-task name is hard-coded.
+  Files: `bench-smoke-shard.mjs`, `bench-smoke/{shard,checklist,driver,remote,result,targets}.mjs`,
+  `auto-smoke.sh`, `docs/qa/BENCH-SMOKE-HARNESS.md`.
+
 ### Fixed
 - **Bench harness typing truncation.** Typed text used to travel inside the SSH command string to
   the Windows bench, silently truncating/mangling long or multi-line text; the driver also never
