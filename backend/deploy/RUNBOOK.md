@@ -13,7 +13,7 @@ systemd-hardened.
 | Fact | Value |
 |---|---|
 | Service name | `keepance-backend.service` (system unit) |
-| Repo checkout | `/home/jameson/keepance/backend` |
+| Repo checkout | `/home/jameson/lantern/backend` |
 | Loopback port | **5194** (5190/5191/5193 were already occupied; 5194 verified free 2026-06-09) |
 | Env file (real secrets) | `/etc/keepance-firm-backend.env` (root:jameson, chmod 640) |
 | Persistent DB | `/home/jameson/services/keepance-firm-backend/data/keepance-firm.sqlite` |
@@ -38,11 +38,11 @@ The backend is pure TypeScript run directly by Bun (no compile/bundle step).
 "Build" = install deps and prove it typechecks + tests green on the deploy host.
 
 ```bash
-cd /home/jameson/keepance/backend
+cd /home/jameson/lantern/backend
 
 # Make sure the checkout is on the intended ref (the firm backend lives on keepance-3.0
 # until 3.0 merges to the default branch).
-git -C /home/jameson/keepance rev-parse --abbrev-ref HEAD    # expect: keepance-3.0
+git -C /home/jameson/lantern rev-parse --abbrev-ref HEAD    # expect: keepance-3.0
 
 # Deterministic install from the committed lockfile.
 /home/jameson/.bun/bin/bun install --frozen-lockfile
@@ -68,7 +68,7 @@ ownership/permissions as `/etc/license-validator.env` (`root:jameson`, `640`).
 ```bash
 # Copy the generated secrets file into place (it already has PORT=5194 + the right DB_PATH).
 sudo install -o root -g jameson -m 640 \
-  /home/jameson/keepance/backend/.env.production \
+  /home/jameson/lantern/backend/.env.production \
   /etc/keepance-firm-backend.env
 
 # Verify (should show -rw-r----- root jameson):
@@ -77,7 +77,7 @@ ls -la /etc/keepance-firm-backend.env
 
 > **If you'd rather generate the secrets fresh on the host instead of copying:**
 > ```bash
-> cd /home/jameson/keepance/backend
+> cd /home/jameson/lantern/backend
 > cp .env.production.example /tmp/firm.env
 > # AUTH_SECRET + MANAGED_KEY_SECRET:
 > echo "AUTH_SECRET=$(openssl rand -hex 48)"        # paste into /tmp/firm.env
@@ -102,7 +102,7 @@ sudo -u jameson mkdir -p /home/jameson/services/keepance-firm-backend/data
 ```bash
 # Install the prepared unit (it is a SYSTEM unit, modeled on license-validator.service).
 sudo install -o root -g root -m 644 \
-  /home/jameson/keepance/backend/deploy/keepance-backend.service \
+  /home/jameson/lantern/backend/deploy/keepance-backend.service \
   /etc/systemd/system/keepance-backend.service
 
 sudo systemctl daemon-reload

@@ -1,7 +1,7 @@
 # Advisor Prep Hero Repo Map — where the current code lives (CURRENT)
 
 > **Last updated: 2026-06-29** by the repo-hygiene cleanup.
-> **If you only read one line:** the live, current code is the **`keepance-3.0`** branch. To read/search current code, use **`/home/jameson/keepance`** (now pinned to the `keepance-3.0` tip). To do new work, make a fresh worktree off `keepance-3.0` (command below). **Never trust a random `kp-*` side folder to be current** — check what branch it's on first.
+> **If you only read one line:** the live, current code is the **`keepance-3.0`** branch. To read/search current code, use **`/home/jameson/lantern`** (now pinned to the `keepance-3.0` tip). To do new work, make a fresh worktree off `keepance-3.0` (command below). **Never trust a random `kp-*` side folder to be current** — check what branch it's on first.
 
 ---
 
@@ -22,12 +22,12 @@ Nothing unique was thrown away. Everything removed was either already saved in t
 
 | Folder | What it is | Use it for |
 |---|---|---|
-| **`/home/jameson/keepance`** | The **canonical / main repo**. Pinned to the `keepance-3.0` tip (currently commit `020d8b50`). Shown by git as "detached HEAD" — that's intentional (see note). | **Reading and searching current code.** Don't commit here directly. |
+| **`/home/jameson/lantern`** | The **canonical / main repo**. Pinned to the `keepance-3.0` tip (currently commit `020d8b50`). Shown by git as "detached HEAD" — that's intentional (see note). | **Reading and searching current code.** Don't commit here directly. |
 | **`/home/jameson/kp-coord`** | The **coordinator's merge worktree** — it holds the actual `keepance-3.0` branch. The coordinator merges finished work here. | Coordinator only. Don't disturb. |
 | **`/home/jameson/kp-<name>`** | A **worktree** = a separate folder checked out to one feature branch, so several agents can work at once without colliding. | Active feature work (each is on its own branch). |
 
-### Why `/home/jameson/keepance` shows "detached HEAD" (and why that's fine)
-Git won't let the **same branch** be checked out in two folders at once. The `keepance-3.0` branch currently lives in `kp-coord` (the coordinator uses it to merge). So the main folder can't *also* hold the `keepance-3.0` branch — instead it's **pinned to the exact same commit** as `keepance-3.0`. Result: the main folder always shows current code for reading/searching, without fighting the coordinator over the branch. **Don't commit directly in `/home/jameson/keepance`** — make a worktree instead (below).
+### Why `/home/jameson/lantern` shows "detached HEAD" (and why that's fine)
+Git won't let the **same branch** be checked out in two folders at once. The `keepance-3.0` branch currently lives in `kp-coord` (the coordinator uses it to merge). So the main folder can't *also* hold the `keepance-3.0` branch — instead it's **pinned to the exact same commit** as `keepance-3.0`. Result: the main folder always shows current code for reading/searching, without fighting the coordinator over the branch. **Don't commit directly in `/home/jameson/lantern`** — make a worktree instead (below).
 
 ---
 
@@ -60,7 +60,7 @@ These are the folders that are alive and on a real feature branch. Anything not 
 
 | Worktree | Branch | Notes |
 |---|---|---|
-| `/home/jameson/keepance` | *(pinned to keepance-3.0 tip)* | **Canonical — read/search here.** |
+| `/home/jameson/lantern` | *(pinned to keepance-3.0 tip)* | **Canonical — read/search here.** |
 | `/home/jameson/kp-coord` | `keepance-3.0` | **Coordinator merge worktree.** |
 | `/home/jameson/kp-clientmap-design` | `feat/clientmap-design` | Active design work. |
 | `/home/jameson/kp-conn-access` | `docs/connector-access` | Active connector-access docs. |
