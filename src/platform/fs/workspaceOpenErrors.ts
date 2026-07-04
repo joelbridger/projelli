@@ -28,9 +28,14 @@ function isStructuredCommandError(err: unknown): err is StructuredCommandError {
 
 export function describeWorkspaceOpenError(err: unknown): string {
   if (isStructuredCommandError(err) && typeof err.kind === 'string') {
-    // Rust's `keychain_get`/`_set`/`_delete` classify a stopped/unreachable
-    // OS credential service this way (see src-tauri/src/commands/keychain.rs).
-    // Name the real cause instead of a generic "something went wrong".
+    // Both Rust's `keychain_get`/`_set`/`_delete` (src-tauri/src/commands/
+    // keychain.rs) AND `vault_status` (src-tauri/src/commands/vault/mod.rs)
+    // classify a stopped/unreachable OS credential service with this exact
+    // tag — the flagship QA-33 repro (a stopped Windows `VaultSvc`) fails
+    // inside `vault_status`, so this must match BOTH sources (coordinator
+    // review, 2026-07-04: originally only matched keychain_get's shape,
+    // meaning the actual repro fell through to raw, non-localized Rust
+    // message text instead of this honest, translated one).
     if (err.kind === 'serviceUnavailable') {
       return i18n.t('workspace.open-error.credential-service-unavailable');
     }
@@ -61,10 +66,13 @@ export function describeWorkspaceOpenError(err: unknown): string {
 export function isTransientWorkspaceOpenFailure(err: unknown): boolean {
   if (err instanceof Error && err.name === 'TimeoutError') return true;
   if (isStructuredCommandError(err) && typeof err.kind === 'string') {
-    // 'serviceUnavailable' — a raw KeychainError (keychain_get/_set/_delete).
-    // 'keychain' — a VaultCommandError from vault_status (always tagged
-    // "keychain" regardless of the underlying cause, per
+    // 'serviceUnavailable' — a credential-service outage, from EITHER a raw
+    // KeychainError (keychain_get/_set/_delete) or a VaultCommandError from
+    // vault_status (both use the identical wire tag; see
     // src-tauri/src/commands/vault/mod.rs's keychain_error_to_vault_error).
+    // 'keychain' — any OTHER vault-related keychain error vault_status can
+    // still surface (e.g. a genuine keyring backend error, not specifically
+    // a timeout) — also not evidence the workspace path itself is bad.
     return err.kind === 'serviceUnavailable' || err.kind === 'keychain';
   }
   return false;

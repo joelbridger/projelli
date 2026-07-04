@@ -20,9 +20,10 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-const { setRootPathMock, vaultStatusMock } = vi.hoisted(() => ({
+const { setRootPathMock, vaultStatusMock, migrateWorkspaceDataDirMock } = vi.hoisted(() => ({
   setRootPathMock: vi.fn().mockResolvedValue(undefined),
   vaultStatusMock: vi.fn(),
+  migrateWorkspaceDataDirMock: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock('./TauriFSBackend', () => ({
@@ -38,7 +39,7 @@ vi.mock('./VaultFSBackend', () => ({
 }));
 
 vi.mock('@/platform/utils/tauri-commands', () => ({
-  migrateWorkspaceDataDir: vi.fn().mockResolvedValue(null),
+  migrateWorkspaceDataDir: migrateWorkspaceDataDirMock,
 }));
 
 vi.mock('@/platform/firm/vault/vaultClient', () => ({
@@ -53,6 +54,8 @@ describe('createFSBackend — QA-33 vault-status bound', () => {
     (window as unknown as { __TAURI__?: unknown }).__TAURI__ = {};
     vaultStatusMock.mockReset();
     setRootPathMock.mockClear();
+    migrateWorkspaceDataDirMock.mockReset();
+    migrateWorkspaceDataDirMock.mockResolvedValue(null);
     vi.mocked(VaultFSBackend).mockClear();
   });
 
@@ -98,5 +101,29 @@ describe('createFSBackend — QA-33 vault-status bound', () => {
 
     await expect(createFSBackend('/some/workspace')).rejects.toThrow('command not registered');
     expect(VaultFSBackend).not.toHaveBeenCalled();
+  });
+
+  it('a slow migration is fully awaited — vaultStatus (and therefore any store open) never starts early, and migration runs exactly once', async () => {
+    let resolveMigration: (value: null) => void = () => {};
+    migrateWorkspaceDataDirMock.mockReturnValue(
+      new Promise((resolve) => { resolveMigration = resolve; }),
+    );
+    vaultStatusMock.mockResolvedValue({ enabled: false, locked: false, hasEscrow: false, vaultId: null });
+
+    const pending = createFSBackend('/some/workspace');
+
+    // Let microtasks drain without ever advancing real time — if createFSBackend
+    // raced the migration against ANY timeout, vaultStatus would have been
+    // called by now regardless of the migration still being unresolved.
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(vaultStatusMock).not.toHaveBeenCalled();
+
+    resolveMigration(null);
+    await pending;
+
+    expect(vaultStatusMock).toHaveBeenCalledTimes(1);
+    expect(migrateWorkspaceDataDirMock).toHaveBeenCalledTimes(1);
   });
 });

@@ -12,6 +12,29 @@ describe('describeWorkspaceOpenError', () => {
     expect(message).toContain('Your files are safe');
   });
 
+  it('QA-33 flagship repro: shows the polished message for vault_status\'s exact wire shape (not raw backend text)', () => {
+    // src-tauri/src/commands/vault/mod.rs's VaultCommandError::ServiceUnavailable
+    // is #[serde(rename = "serviceUnavailable")]'d to match KeychainError's tag
+    // exactly (see service_unavailable_serializes_with_the_same_kind_tag_as_
+    // keychain_error in vault/mod.rs) — this is the actual shape a stopped
+    // VaultSvc produces during workspace-open, not keychain_get's shape.
+    const message = describeWorkspaceOpenError({
+      kind: 'serviceUnavailable',
+      message: 'the OS credential storage service did not respond in time — it may be stopped, disabled, or unreachable',
+    });
+    expect(message).toBe(
+      "Windows' credential storage service isn't running, so Advisor Prep Hero couldn't finish opening this workspace. Your files are safe. Try again, or restart the \"Credential Manager\" service (services.msc) if this keeps happening.",
+    );
+  });
+
+  it('does NOT show the polished message for a generic (non-ServiceUnavailable) vault keychain error', () => {
+    // A plain VaultCommandError::Keychain (some other keyring failure, not a
+    // timeout) — this one legitimately falls through to the raw message,
+    // since it isn't the credential-service-outage case.
+    const message = describeWorkspaceOpenError({ kind: 'keychain', message: 'no matching entry' });
+    expect(message).toBe('no matching entry');
+  });
+
   it('surfaces a TimeoutError message as-is', () => {
     const message = describeWorkspaceOpenError(new TimeoutError('Opening the workspace', 30_000));
     expect(message).toBe('Opening the workspace timed out after 30s');

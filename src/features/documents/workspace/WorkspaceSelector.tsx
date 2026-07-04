@@ -56,13 +56,6 @@ const WORKSPACE_OPEN_LABEL = 'Opening the workspace';
 // as the identical check in App.tsx's `isWorkspaceVaultLocked` and
 // BackendFactory's `createFSBackend`.
 const VAULT_LOCK_CHECK_TIMEOUT_MS = 5_000;
-// codex-review (2026-07-04, round 2): the data-dir migration below runs
-// BEFORE the vault-lock check above and was unbounded — a hang on a
-// disconnected/slow network share or OneDrive workspace would stop the user
-// from ever reaching either bound. It's a plain filesystem rename (no
-// keychain), already best-effort/idempotent on failure, so timing it out is
-// exactly as safe as any other failure here.
-const MIGRATION_TIMEOUT_MS = 5_000;
 
 export interface WorkspaceSelectorProps {
   open: boolean;
@@ -258,13 +251,18 @@ export function WorkspaceSelector({
     // the not-yet-renamed `.lantern-vault.json` (absent), report "not enabled",
     // and skip the graceful vault-locked prompt. Idempotent + fail-safe on the
     // Rust side (createFSBackend runs it again harmlessly); browser/dev no-op.
+    //
+    // Deliberately NOT time-bounded (coordinator review, 2026-07-04): this is
+    // a MUTATING rename on disk, not a read. Racing it against a timeout only
+    // stops the FRONTEND from waiting — the Rust rename keeps running either
+    // way — so abandoning the wait early could let this function move on to
+    // createFSBackend() (which migrates AGAIN) while the first rename is
+    // still in flight: two concurrent migration attempts against the same
+    // directory. Honest-slow beats fast-corrupt; always wait for the real
+    // rename to finish (or genuinely fail) before proceeding.
     if (isTauri) {
       try {
-        await withTimeout(
-          migrateWorkspaceDataDir(workspacePath),
-          MIGRATION_TIMEOUT_MS,
-          'Migrating workspace data folder',
-        );
+        await migrateWorkspaceDataDir(workspacePath);
       } catch {
         // Best-effort: never block opening on the migration.
       }

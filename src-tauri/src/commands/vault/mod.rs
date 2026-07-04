@@ -98,13 +98,20 @@ async fn get_vmk_b64_bounded(workspace_id: &str) -> Result<Option<String>, Vault
 }
 
 /// Maps a `KeychainError` (from the shared bounded-keyring-call primitive) to
-/// the `VaultCommandError` shape the rest of this module's commands use,
-/// preserving the distinguishable "service didn't respond" message on a
-/// timeout so it's not indistinguishable from a normal keychain error.
+/// the `VaultCommandError` shape the rest of this module's commands use.
+///
+/// coordinator review (2026-07-04): this used to collapse `ServiceUnavailable`
+/// into the generic `Keychain` variant, preserving only the message text. But
+/// the flagship QA-33 repro (a stopped Windows `VaultSvc`) fails HERE, inside
+/// `vault_status` — not in `keychain_get` — so collapsing the kind meant the
+/// frontend's classifier (which matches on `kind`, not by parsing message
+/// text) fell through to the raw, non-localized Rust message instead of the
+/// polished, translated "credential service isn't running" copy. Preserving
+/// the distinct `ServiceUnavailable` kind fixes that for the actual repro.
 fn keychain_error_to_vault_error(e: crate::commands::keychain::KeychainError) -> VaultCommandError {
     use crate::commands::keychain::KeychainError;
     match e {
-        KeychainError::ServiceUnavailable(m) => VaultCommandError::Keychain(m),
+        KeychainError::ServiceUnavailable(m) => VaultCommandError::ServiceUnavailable(m),
         other => VaultCommandError::Keychain(other.to_string()),
     }
 }
@@ -291,6 +298,18 @@ pub enum VaultCommandError {
     PathTraversal(String),
     /// OS keychain error.
     Keychain(String),
+    /// The OS credential service itself didn't respond in time (e.g. a
+    /// stopped Windows `VaultSvc`) — distinct from a generic `Keychain`
+    /// error so the frontend can show the honest, actionable
+    /// "credential service isn't running" message instead of raw backend
+    /// text (coordinator review, 2026-07-04: the flagship QA-33 repro fails
+    /// inside `vault_status`, not `keychain_get`, so it must carry the SAME
+    /// classification `keychain_get` uses). `#[serde(rename)]`'d to the exact
+    /// camelCase tag `KeychainError::ServiceUnavailable` uses (this enum's
+    /// other variants are snake_case) so both Rust error types produce the
+    /// identical wire string and the frontend's classifier needs only one check.
+    #[serde(rename = "serviceUnavailable")]
+    ServiceUnavailable(String),
     /// I/O error on the workspace.
     Io(String),
     /// Crypto / format error from the lantern-vault crate.
@@ -319,6 +338,7 @@ impl std::fmt::Display for VaultCommandError {
             VaultCommandError::Locked(m) => write!(f, "vault_locked: {m}"),
             VaultCommandError::PathTraversal(m) => write!(f, "path_traversal: {m}"),
             VaultCommandError::Keychain(m) => write!(f, "keychain: {m}"),
+            VaultCommandError::ServiceUnavailable(m) => write!(f, "service unavailable: {m}"),
             VaultCommandError::Io(m) => write!(f, "io: {m}"),
             VaultCommandError::Crypto(m) => write!(f, "crypto: {m}"),
             VaultCommandError::Internal(m) => write!(f, "internal: {m}"),
@@ -1059,11 +1079,28 @@ mod tests {
         );
         let mapped = keychain_error_to_vault_error(e);
         match mapped {
-            VaultCommandError::Keychain(m) => {
+            VaultCommandError::ServiceUnavailable(m) => {
                 assert_eq!(m, "the OS credential storage service did not respond in time");
             }
-            other => panic!("expected Keychain, got {other:?}"),
+            other => panic!("expected ServiceUnavailable, got {other:?}"),
         }
+    }
+
+    /// The flagship QA-33 repro (stopped Windows `VaultSvc`) fails inside
+    /// `vault_status`, so its wire shape must carry the SAME `kind` tag
+    /// `keychain_get` uses — not be silently downgraded to a generic
+    /// `Keychain` error the frontend classifier can't recognize.
+    #[test]
+    fn service_unavailable_serializes_with_the_same_kind_tag_as_keychain_error() {
+        let vault_err = VaultCommandError::ServiceUnavailable("stopped".to_string());
+        let vault_json = serde_json::to_string(&vault_err).expect("serialize");
+        assert!(vault_json.contains("\"kind\":\"serviceUnavailable\""));
+        assert!(vault_json.contains("\"message\":\"stopped\""));
+
+        let keychain_err =
+            crate::commands::keychain::KeychainError::ServiceUnavailable("stopped".to_string());
+        let keychain_json = serde_json::to_string(&keychain_err).expect("serialize");
+        assert_eq!(vault_json, keychain_json, "both error types must produce an identical wire shape");
     }
 
     #[test]

@@ -18,8 +18,12 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
   open: openDialogMock,
 }));
 
+const { migrateWorkspaceDataDirMock } = vi.hoisted(() => ({
+  migrateWorkspaceDataDirMock: vi.fn().mockResolvedValue(null),
+}));
+
 vi.mock('@/platform/utils/tauri-commands', () => ({
-  migrateWorkspaceDataDir: vi.fn().mockResolvedValue(null),
+  migrateWorkspaceDataDir: migrateWorkspaceDataDirMock,
 }));
 
 vi.mock('@/platform/firm/vault/vaultClient', () => ({
@@ -55,6 +59,8 @@ describe('WorkspaceSelector — native picker dialog watchdog (QA-32)', () => {
     openDialogMock.mockReset();
     createFSBackendMock.mockReset();
     createFSBackendMock.mockResolvedValue({});
+    migrateWorkspaceDataDirMock.mockReset();
+    migrateWorkspaceDataDirMock.mockResolvedValue(null);
     useWorkspaceStore.setState({ recentWorkspaces: [] } as never);
   });
 
@@ -142,6 +148,8 @@ describe('WorkspaceSelector — recent-workspace open failures (codex-review rou
     vi.useRealTimers();
     openDialogMock.mockReset();
     createFSBackendMock.mockReset();
+    migrateWorkspaceDataDirMock.mockReset();
+    migrateWorkspaceDataDirMock.mockResolvedValue(null);
     useWorkspaceStore.setState({
       recentWorkspaces: [{ path: '/recent/one', name: 'one', lastOpened: new Date() }],
     } as never);
@@ -177,5 +185,36 @@ describe('WorkspaceSelector — recent-workspace open failures (codex-review rou
     await openTheOneRecentRow();
 
     expect(useWorkspaceStore.getState().recentWorkspaces).toHaveLength(0);
+  });
+
+  it('a slow migration is fully awaited — createFSBackend (which would re-migrate) never starts early, so no second migration attempt races the first', async () => {
+    let resolveMigration: (value: null) => void = () => {};
+    migrateWorkspaceDataDirMock.mockReturnValue(
+      new Promise((resolve) => { resolveMigration = resolve; }),
+    );
+
+    render(<WorkspaceSelector open={true} onWorkspaceSelected={vi.fn()} />);
+    fireEvent.click(screen.getByTestId('recent-workspaces-toggle'));
+    fireEvent.click(screen.getByTestId('recent-workspace-row'));
+
+    // Let microtasks drain without resolving the migration — if this call
+    // raced the migration against ANY timeout, createFSBackend would have
+    // been invoked by now (starting a second, concurrent migration attempt
+    // inside it) regardless of the first migration still being unresolved.
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(createFSBackendMock).not.toHaveBeenCalled();
+    expect(migrateWorkspaceDataDirMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveMigration(null);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(createFSBackendMock).toHaveBeenCalledTimes(1);
   });
 });
