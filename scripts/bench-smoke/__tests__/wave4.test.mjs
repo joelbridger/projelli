@@ -3,6 +3,7 @@ import vm from 'node:vm';
 import {
   checkWholeBookView,
   checkEstateBeneficiaryGap,
+  checkEstateBeneficiaryGapDismissLive,
   checkWholePracticeAsk,
   findGapRowScript,
 } from '../checks/wave4.mjs';
@@ -133,12 +134,11 @@ describe('checkEstateBeneficiaryGap', () => {
     expect(result.detail).toMatch(/no resolvable gap row/);
   });
 
-  it('never clicks clientmap-ask-know ("I know this" opens an answer prompt, not an immediate resolve)', async () => {
-    // Regression guard for a Codex-review finding: clicking "I know this"
-    // calls onAnswerQuestion(q), which opens a modal — an automated
-    // read-only click on it would hang or leave a stray dialog open. Only
-    // "Ask the client" (clientmap-ask-flag) resolves synchronously
-    // (flagForClient -> markGapResolved, no modal).
+  it('PASSes without clicking anything when a resolvable gap row is present (read-only default)', async () => {
+    // Regression guard for a Codex-review finding: this check used to click
+    // clientmap-ask-flag on every normal run, mutating fixture state (a real
+    // gap-resolve) during a supposedly read-only pass. It must now only
+    // assert presence — dismissal moved to the --live-only sibling check.
     const driver = makeDriver({
       evalJs: vi.fn().mockResolvedValue('book-row-matter_a'),
       snapshot: vi.fn().mockResolvedValue({
@@ -148,9 +148,40 @@ describe('checkEstateBeneficiaryGap', () => {
           { testid: 'clientmap-ask-flag', tag: 'button' },
         ],
       }),
+    });
+    const result = await checkEstateBeneficiaryGap({ driver });
+    expect(result.status).toBe(STATUS.PASS);
+    expect(driver.click).not.toHaveBeenCalledWith('clientmap-ask-know');
+    expect(driver.click).not.toHaveBeenCalledWith('clientmap-ask-flag');
+    expect(result.detail).toMatch(/Not dismissed here/);
+  });
+});
+
+describe('checkEstateBeneficiaryGapDismissLive', () => {
+  it('is SKIPPED without --live', async () => {
+    const driver = makeDriver();
+    const result = await checkEstateBeneficiaryGapDismissLive({ driver, live: false });
+    expect(result.status).toBe(STATUS.SKIPPED);
+  });
+
+  it('is SETUP-BLOCKED under --live when no resolve control is present', async () => {
+    const driver = makeDriver({ snapshot: vi.fn().mockResolvedValue({ ok: true, elements: [] }) });
+    const result = await checkEstateBeneficiaryGapDismissLive({ driver, live: true });
+    expect(result.status).toBe(STATUS.SETUP_BLOCKED);
+  });
+
+  it('never clicks clientmap-ask-know ("I know this" opens an answer prompt, not an immediate resolve)', async () => {
+    const driver = makeDriver({
+      snapshot: vi.fn().mockResolvedValue({
+        ok: true,
+        elements: [
+          { testid: 'clientmap-ask-know', tag: 'button' },
+          { testid: 'clientmap-ask-flag', tag: 'button' },
+        ],
+      }),
       waitFor: vi.fn().mockResolvedValue({ found: true }),
     });
-    await checkEstateBeneficiaryGap({ driver });
+    await checkEstateBeneficiaryGapDismissLive({ driver, live: true });
     expect(driver.click).not.toHaveBeenCalledWith('clientmap-ask-know');
     expect(driver.click).toHaveBeenCalledWith('clientmap-ask-flag');
   });
@@ -162,33 +193,30 @@ describe('checkEstateBeneficiaryGap', () => {
     ];
     const snapshot = vi.fn().mockImplementation(() => Promise.resolve(snapshotSequence.shift()));
     const driver = makeDriver({
-      evalJs: vi.fn().mockResolvedValue('book-row-matter_a'),
       snapshot,
       waitFor: vi.fn().mockResolvedValue({ found: false }), // "Nothing outstanding" not shown
     });
-    const result = await checkEstateBeneficiaryGap({ driver });
+    const result = await checkEstateBeneficiaryGapDismissLive({ driver, live: true });
     expect(result.status).toBe(STATUS.PASS);
     expect(result.detail).toMatch(/dropped from 2 to 1/);
   });
 
   it('PASSes when dismissing reaches the "Nothing outstanding" clean state', async () => {
     const driver = makeDriver({
-      evalJs: vi.fn().mockResolvedValue('book-row-matter_a'),
       snapshot: vi.fn().mockResolvedValue({ ok: true, elements: [{ testid: 'clientmap-ask-flag', tag: 'button' }] }),
       waitFor: vi.fn().mockResolvedValue({ found: true }), // "Nothing outstanding" shown
     });
-    const result = await checkEstateBeneficiaryGap({ driver });
+    const result = await checkEstateBeneficiaryGapDismissLive({ driver, live: true });
     expect(result.status).toBe(STATUS.PASS);
     expect(result.detail).toMatch(/clean state shown/);
   });
 
   it('FAILs when the resolve control is clicked but the gap row is still present afterward', async () => {
     const driver = makeDriver({
-      evalJs: vi.fn().mockResolvedValue('book-row-matter_a'),
       snapshot: vi.fn().mockResolvedValue({ ok: true, elements: [{ testid: 'clientmap-ask-flag', tag: 'button' }] }),
       waitFor: vi.fn().mockResolvedValue({ found: false }),
     });
-    const result = await checkEstateBeneficiaryGap({ driver });
+    const result = await checkEstateBeneficiaryGapDismissLive({ driver, live: true });
     expect(result.status).toBe(STATUS.FAIL);
     expect(result.detail).toMatch(/still present afterward/);
   });

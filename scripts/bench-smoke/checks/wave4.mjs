@@ -96,6 +96,13 @@ export function findGapRowScript() {
   );
 }
 
+// Read-only by design (Codex-review finding): this check used to click
+// clientmap-ask-flag on every normal run, which synchronously resolves the
+// gap (flagForClient -> markGapResolved) — a real fixture mutation on a
+// supposedly read-only pass, and it would make the gap silently disappear
+// for the NEXT run. It now only asserts the chip and its resolve control
+// exist; the actual dismiss-and-verify is a separate, --live-gated check
+// below, same pattern as wave2.mjs's wave2-wealthbox-approve-live.
 export const checkEstateBeneficiaryGap = withGuard(GAP_ID, GAP_SECTION, async ({ driver }) => {
   try {
     await openWholeBookView(driver);
@@ -118,17 +125,15 @@ export const checkEstateBeneficiaryGap = withGuard(GAP_ID, GAP_SECTION, async ({
   await driver.click(gapRowTestid);
   await openSmokeClientOverview(driver);
 
-  const beforeElements = await requireSnapshot(driver);
+  const elements = await requireSnapshot(driver);
   // Deliberately "clientmap-ask-flag" ONLY, never "clientmap-ask-know":
   // confirmed in source (ClientMapPanel.tsx) that "I know this" calls
   // onAnswerQuestion(q), which opens an answer-entry prompt rather than
-  // resolving anything — an automated read-only click on it would either hang
-  // waiting for text input or leave a stray modal open blocking later checks
-  // (the exact class of bug round 1 fixed for the Draft-follow-up modal).
-  // "Ask the client" calls flagForClient(), which synchronously calls
-  // markGapResolved() with no modal — the only one of the two safe to click
-  // here.
-  const resolveButtons = beforeElements.filter((e) => e.testid === 'clientmap-ask-flag');
+  // resolving anything — clicking it (even under --live, see the dismiss
+  // check below) would hang or leave a stray modal open. "Ask the client"
+  // calls flagForClient(), which synchronously calls markGapResolved() with
+  // no modal — the only one of the two ever clicked by this harness.
+  const resolveButtons = elements.filter((e) => e.testid === 'clientmap-ask-flag');
   if (resolveButtons.length === 0) {
     return makeResult({
       id: GAP_ID,
@@ -136,6 +141,38 @@ export const checkEstateBeneficiaryGap = withGuard(GAP_ID, GAP_SECTION, async ({
       status: STATUS.FAIL,
       detail: `Book view flagged a gap on ${gapRowTestid}, but its Client Map sub-tab shows no resolvable gap row (no clientmap-ask-flag button) — gap chip and per-client detail are out of sync.`,
       screenshots: [gapShot],
+    });
+  }
+
+  return makeResult({
+    id: GAP_ID,
+    section: GAP_SECTION,
+    status: STATUS.PASS,
+    detail: `Estate/beneficiary gap chip rendered on ${gapRowTestid} in the whole book view, and its Client Map sub-tab shows a resolvable gap row (clientmap-ask-flag). Not dismissed here (read-only default) — see wave4-estate-beneficiary-gap-dismiss-live for the --live dismissal check.`,
+    screenshots: [gapShot],
+  });
+});
+
+const GAP_DISMISS_LIVE_ID = 'wave4-estate-beneficiary-gap-dismiss-live';
+
+export const checkEstateBeneficiaryGapDismissLive = withGuard(GAP_DISMISS_LIVE_ID, GAP_SECTION, async ({ driver, live }) => {
+  if (!live) {
+    return makeResult({
+      id: GAP_DISMISS_LIVE_ID,
+      section: GAP_SECTION,
+      status: STATUS.SKIPPED,
+      detail: 'Skipped: requires --live (this run did not pass it). Dismissing a gap here is a real fixture mutation (markGapResolved, audit-logged) — never run against a bench whose demo data other runs still depend on.',
+    });
+  }
+
+  const elements = await requireSnapshot(driver);
+  const resolveButtons = elements.filter((e) => e.testid === 'clientmap-ask-flag');
+  if (resolveButtons.length === 0) {
+    return makeResult({
+      id: GAP_DISMISS_LIVE_ID,
+      section: GAP_SECTION,
+      status: STATUS.SETUP_BLOCKED,
+      detail: 'No clientmap-ask-flag control found — run wave4-estate-beneficiary-gap first to reach a client with a flagged gap.',
     });
   }
 
@@ -152,22 +189,22 @@ export const checkEstateBeneficiaryGap = withGuard(GAP_ID, GAP_SECTION, async ({
 
   if (!dismissWorked) {
     return makeResult({
-      id: GAP_ID,
+      id: GAP_DISMISS_LIVE_ID,
       section: GAP_SECTION,
       status: STATUS.FAIL,
-      detail: 'Gap chip rendered and its resolve control was clicked, but the gap row is still present afterward (no "Nothing outstanding" clean state, and the resolvable-row count did not drop).',
-      screenshots: [gapShot, dismissShot],
+      detail: 'Clicked the resolve control, but the gap row is still present afterward (no "Nothing outstanding" clean state, and the resolvable-row count did not drop).',
+      screenshots: [dismissShot],
     });
   }
 
   return makeResult({
-    id: GAP_ID,
+    id: GAP_DISMISS_LIVE_ID,
     section: GAP_SECTION,
     status: STATUS.PASS,
-    detail: `Estate/beneficiary gap chip rendered on ${gapRowTestid} in the whole book view, and dismissing it via the Client Map resolve control cleared it (${
+    detail: `Dismissing the gap via the Client Map resolve control cleared it (${
       cleanState ? '"Nothing outstanding" clean state shown' : `resolvable rows dropped from ${resolveButtons.length} to ${remaining}`
-    }).`,
-    screenshots: [gapShot, dismissShot],
+    }). (--live)`,
+    screenshots: [dismissShot],
   });
 });
 

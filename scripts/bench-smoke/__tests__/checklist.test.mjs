@@ -24,15 +24,16 @@ describe('CHECKLIST', () => {
     expect([...sections].some((s) => /cross-cutting/i.test(s))).toBe(true);
   });
 
-  it('marks exactly the Wealthbox Approve step as liveOnly', () => {
+  it('marks exactly the state-mutating steps as liveOnly (Wealthbox Approve, gap dismissal)', () => {
     const liveOnly = CHECKLIST.filter((c) => c.liveOnly).map((c) => c.id);
-    expect(liveOnly).toEqual(['wave2-wealthbox-approve-live']);
+    expect(liveOnly).toEqual(['wave2-wealthbox-approve-live', 'wave4-estate-beneficiary-gap-dismiss-live']);
   });
 
   it('includes the promoted Wave 4 Track B/C checks (no longer stubs)', () => {
     const ids = CHECKLIST.map((c) => c.id);
     expect(ids).toContain('wave4-whole-book-view');
     expect(ids).toContain('wave4-estate-beneficiary-gap');
+    expect(ids).toContain('wave4-estate-beneficiary-gap-dismiss-live');
     expect(ids).toContain('wave4-whole-practice-ask');
   });
 });

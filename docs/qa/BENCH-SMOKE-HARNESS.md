@@ -75,6 +75,30 @@ live testing surfaced and fixed four real bugs in the harness itself (see
   `src/App.tsx`'s `AppShellNav onTabChange` handler, which unconditionally
   nulls the hub state on that click (single render site, no guard) — a
   defensive check-and-retry was still added since it's cheap insurance.
+- **Merged `origin/lantern-plus` twice more into this branch** (2026-07-04):
+  the Client Map error-classification fix (`lp/clientmap-errors`) and the
+  Wave 4 Track A diarization merge (`lp/diarization`). Both merged cleanly
+  (no conflicts), but the error-classification merge changed the REAL
+  broken-index copy the app renders — `index-health`'s detection strings
+  (`memory integrity uncertain` / `ai-connection error` / `indexing failed`)
+  never matched real UI text and are now further stale; updated to the
+  actual classified messages from `src/features/matters/clientMap/
+  errorClassification.ts` (`needs to rebuild`, `Could not build client map`,
+  `Could not check for client map updates`). Wave 4 Track A (diarization) is
+  now merged but this round did NOT add a check for it — the existing
+  `wave4-diarization` stub is unchanged; promoting it is a natural next
+  ticket, out of this round's explicit scope.
+- **A second Codex-review pass on the post-merge diff caught one more real
+  bug**: `wave4-estate-beneficiary-gap` was still clicking `clientmap-ask-flag`
+  on every normal (non-`--live`) run, synchronously resolving the gap
+  (`markGapResolved`, audit-logged) — a real fixture mutation on a
+  supposedly read-only check, and it would make the gap silently vanish for
+  the next run. Split into two checks, same pattern as Wave 2's Wealthbox
+  Approve: `wave4-estate-beneficiary-gap` now only asserts the chip and its
+  resolve control are present (no click); the actual dismiss-and-verify
+  moved to a new `--live`-gated `wave4-estate-beneficiary-gap-dismiss-live`
+  (`SKIPPED` without `--live`). 111 unit tests (up from 108), full-project
+  `tsc --noEmit` and the full pre-push test suite (5608 tests) both clean.
 
 ---
 
