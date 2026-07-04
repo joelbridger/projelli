@@ -66,6 +66,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the no-`..` and no-follow-symlink guarantees. Each `Normal` segment must now re-parse to exactly
   itself. Also enforces the resolver's already-absolute contract up front (`is_absolute()`), so a
   degenerate relative/empty input can never walk against an empty or caller-relative base.
+- **Two pre-existing Windows-only path-form bugs in the capture guards' callers**, surfaced by running
+  the capture test module on real Windows for the first time (both failed before the verbatim fix too,
+  masked by the guards erroring on every verbatim path — neither is a regression):
+  - `guard_matter_folder` now rejects `..` in the raw matter-folder input up front. On Windows
+    `canon_ws.join("..")` normalizes the `..` away before pathguard's `ParentDir` refusal can fire, so
+    the traversal was caught only by the final containment check (secure, but one defense layer short and
+    with a misleading "escapes workspace" message). Now the `..` guarantee fires identically on every OS.
+  - `find_orphans` now canonicalizes the active-recording path before excluding it from the orphan list.
+    The scanned dirs are in `canon_workspace`'s verbatim form (`\\?\C:\…`) while `active_meeting_dir()`
+    could hold the same dir in non-verbatim `C:\…` form; the plain string compare then missed the match
+    and wrongly offered the LIVE recording as a recoverable orphan on Windows. Files:
+    `src-tauri/src/commands/capture/mod.rs`, `src-tauri/src/commands/capture/recovery.rs`.
 
 ### Security
 - **Symlink-safe path containment everywhere a caller-supplied path meets a workspace root.**
