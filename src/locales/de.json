@@ -2004,7 +2004,10 @@
       "loading": "Gespräche werden geladen…",
       "needs-review-badge": "Prüfung nötig",
       "reviewed-badge": "Geprüft",
-      "duration": "{{minutes}} Min."
+      "duration": "{{minutes}} Min.",
+      "scan-error-title": "Besprechungen konnten nicht geladen werden",
+      "scan-error-body": "Der Abgleich wurde gerade unterbrochen. Ihre Aufnahmen sind sicher auf diesem Computer gespeichert.",
+      "retry-button": "Erneut versuchen"
     },
     "entry": {
       "breadcrumb-meetings": "Besprechungen",
