@@ -88,7 +88,13 @@ export type AuditActionType =
   | 'template_install_failed'
   // Wave 4 Track B: the advisor dismissed/resolved a beneficiary consistency
   // finding (MISMATCH/STALE/MISSING) surfaced on their Client Map's gaps.
-  | 'beneficiary_finding_dismissed';
+  | 'beneficiary_finding_dismissed'
+  // Wave 4 Track A: voiceprints are biometric data — every enrollment
+  // (naming/relabeling a diarized speaker) and every deletion is a durable,
+  // defensible record, even though the voiceprint itself never leaves the
+  // machine.
+  | 'voiceprint_enrolled'
+  | 'voiceprint_deleted';
 
 /**
  * The verdict from citation verification (mirrors `CitationVerdict.verdict`

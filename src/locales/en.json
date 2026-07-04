@@ -1067,6 +1067,16 @@
     "beneficiary": {
       "chip-title": "Beneficiary check",
       "review-note": "Flagged for your review. Not legal advice."
+    },
+    "voiceprints": {
+      "title": "Voice profiles",
+      "subtitle": "Stored only on this computer. Used to recognize who is speaking in this client's meeting recordings.",
+      "empty": "No voice profiles saved for this client yet. Name a speaker on a meeting transcript to add one.",
+      "samples": "{{count}} meetings",
+      "delete": "Delete",
+      "delete-title": "Delete this voice profile?",
+      "delete-body": "The saved voice pattern for {{name}} will be removed from this computer. Meetings already labeled keep their names. This action is recorded in your audit log.",
+      "delete-confirm": "Delete voice profile"
     }
   },
   "firm": {
@@ -1334,6 +1344,19 @@
       "try-again": "Try again",
       "working-button": "Working...",
       "done-button": "Done"
+    }
+  },
+  "meetings": {
+    "speakers": {
+      "title": "Who is speaking?",
+      "run": "Separate speakers",
+      "running": "Listening for different voices...",
+      "suggested": "Looks like {{name}} ({{pct}}% match)",
+      "name-placeholder": "Type a name for this voice",
+      "apply": "Apply names",
+      "applied": "Speaker names updated in the transcript.",
+      "stats": "{{turns}} turns, {{minutes}} min speaking",
+      "privacy-note": "Voice profiles are stored only on this computer, encrypted, and only for this client. You can delete them from the client's page at any time."
     }
   }
 }

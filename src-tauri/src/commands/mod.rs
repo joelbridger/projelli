@@ -71,3 +71,8 @@ pub mod vault;
 // signals (AI/models, email, Wealthbox CRM, file indexing, Client Map) into one
 // queryable `get_setup_progress` snapshot + a `setup-progress-changed` event.
 pub mod setup_progress;
+// Wave 4 Track A — within-channel speaker diarization: system-channel
+// extraction + sherpa-onnx turn assignment onto Wave 3 transcripts.
+pub mod diarize;
+// Wave 4 Track A — encrypted per-matter voiceprint store + naming commands.
+pub mod voiceprint;

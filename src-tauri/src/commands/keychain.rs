@@ -22,6 +22,9 @@ const INTERNAL_EXACT_SERVICES: &[&str] = &[
     identity::AUDIT_ENC_SERVICE,
     identity::MAIL_ENC_SERVICE,
     identity::VECTORS_ENC_SERVICE,
+    // Voiceprint store master key (Wave 4 Track A). Biometric data — the
+    // renderer's generic keychain bridge must never read, write, or delete it.
+    identity::VOICEPRINT_ENC_SERVICE,
     // Mail connector tokens/config are managed by Rust mail commands.
     identity::MAIL_MS_SERVICE,
     identity::MAIL_IMAP_SERVICE,

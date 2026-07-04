@@ -1221,6 +1221,16 @@
     "beneficiary": {
       "chip-title": "Beneficiary check",
       "review-note": "Flagged for your review. Not legal advice."
+    },
+    "voiceprints": {
+      "title": "Perfiles de voz",
+      "subtitle": "Se guardan solo en este equipo. Se usan para reconocer quién habla en las grabaciones de reuniones de este cliente.",
+      "empty": "Aún no hay perfiles de voz guardados para este cliente. Ponle nombre a un interlocutor en una transcripción para añadir uno.",
+      "samples": "{{count}} reuniones",
+      "delete": "Eliminar",
+      "delete-title": "¿Eliminar este perfil de voz?",
+      "delete-body": "El patrón de voz guardado de {{name}} se eliminará de este equipo. Las reuniones ya etiquetadas conservarán sus nombres. Esta acción queda registrada en tu registro de auditoría.",
+      "delete-confirm": "Eliminar perfil de voz"
     }
   },
   "firm": {
@@ -1782,6 +1792,19 @@
       "try-again": "Intentar de nuevo",
       "working-button": "Procesando...",
       "done-button": "Listo"
+    }
+  },
+  "meetings": {
+    "speakers": {
+      "title": "¿Quién está hablando?",
+      "run": "Separar interlocutores",
+      "running": "Escuchando distintas voces...",
+      "suggested": "Parece {{name}} (coincidencia del {{pct}}%)",
+      "name-placeholder": "Escribe un nombre para esta voz",
+      "apply": "Aplicar nombres",
+      "applied": "Los nombres de los interlocutores se actualizaron en la transcripción.",
+      "stats": "{{turns}} intervenciones, {{minutes}} min hablando",
+      "privacy-note": "Los perfiles de voz se guardan solo en este equipo, cifrados, y únicamente para este cliente. Puedes eliminarlos desde la página del cliente en cualquier momento."
     }
   }
 }
