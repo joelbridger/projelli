@@ -653,7 +653,81 @@ export function createDeleteBurstBatcher(
 export type WorkspaceFileChangedHandlerDeps = {
   deleteBatcher: Pick<DeleteBurstBatcher, 'enqueue' | 'cancel'>;
   workspaceService: MemoryWiringWorkspaceService | null | undefined;
+  /** See {@link createIndexRetryScheduler}. Owns the retry timers for THIS
+   *  workspace mount so a switch/close can cancel them before they fire. */
+  indexRetryScheduler: Pick<IndexRetryScheduler, 'schedule'>;
 };
+
+/**
+ * QA-19: a single watcher-triggered index attempt used to be fire-and-forget
+ * with no retry — a transient failure (e.g. a read racing the tail end of an
+ * autosave write, or a lock held a moment too long) permanently dropped that
+ * file from search until the next full boot reconcile. These are the delays
+ * between retries; two retries at a short, then a longer, interval is enough
+ * to ride out a write-in-flight race without turning a genuinely bad file
+ * into an infinite retry loop.
+ */
+export const INDEX_FILE_RETRY_DELAYS_MS = [300, 1000];
+
+export type IndexRetryScheduler = {
+  /** Index `path`, retrying with backoff on failure. */
+  schedule: (path: string) => void;
+  /**
+   * Cancel every pending retry timer WITHOUT running it. Must be called on
+   * workspace close/switch (see the per-workspace effect's cleanup) — a
+   * scheduled retry captures only a plain file path, not which workspace it
+   * belonged to, and `MemoryService.indexFile` always targets whatever
+   * workspace is CURRENTLY active on the Rust side. An uncancelled retry that
+   * fires after a switch would therefore index an OLD workspace's file
+   * straight into the NEW workspace's search index — a cross-client content
+   * leak. (Flagged by codex-review on the first cut of this fix, which left
+   * retries running forever with no cancellation handle.)
+   */
+  disposeAll: () => void;
+};
+
+/**
+ * Create a scheduler that (re)indexes a file, retrying with backoff on
+ * failure before giving up and logging loudly. One instance is owned per
+ * workspace mount so its retries can be cancelled wholesale on close/switch
+ * — see {@link IndexRetryScheduler.disposeAll}.
+ */
+export function createIndexRetryScheduler(): IndexRetryScheduler {
+  const timers = new Set<ReturnType<typeof setTimeout>>();
+  let disposed = false;
+
+  const attempt = (path: string, retryCount: number): void => {
+    MemoryService.indexFile(path).catch((err: unknown) => {
+      if (disposed) return;
+      if (retryCount < INDEX_FILE_RETRY_DELAYS_MS.length) {
+        const timer = setTimeout(() => {
+          timers.delete(timer);
+          attempt(path, retryCount + 1);
+        }, INDEX_FILE_RETRY_DELAYS_MS[retryCount]);
+        timers.add(timer);
+      } else {
+        console.error(
+          `[memory] failed to index ${path} after ${String(retryCount + 1)} attempts; ` +
+            'it will be picked up by the next reconcile instead',
+          err,
+        );
+      }
+    });
+  };
+
+  return {
+    schedule(path: string) {
+      attempt(path, 0);
+    },
+    disposeAll() {
+      disposed = true;
+      timers.forEach((timer) => {
+        clearTimeout(timer);
+      });
+      timers.clear();
+    },
+  };
+}
 
 /**
  * Route one `workspace-file-changed` event: buffer deletes through the burst
@@ -668,7 +742,7 @@ export function handleWorkspaceFileChangedEvent(
   deps: WorkspaceFileChangedHandlerDeps,
 ): void {
   if (!payload?.path) return;
-  const { deleteBatcher, workspaceService } = deps;
+  const { deleteBatcher, workspaceService, indexRetryScheduler } = deps;
   // fix/ask-list-hang — NEVER react to churn in the app's own internal
   // `.lantern/` directory (the MCP session-scope heartbeat rewrites a file
   // there constantly). This must run BEFORE the delete queue / PDF indexing
@@ -698,7 +772,7 @@ export function handleWorkspaceFileChangedEvent(
       void MemoryService.indexPdfFile(payload.path, binaryWs).catch(() => {});
     }
   } else {
-    void MemoryService.indexFile(payload.path);
+    indexRetryScheduler.schedule(payload.path);
   }
 }
 
@@ -968,6 +1042,100 @@ export async function startFullIndex(
   await indexAndRetag;
 }
 
+// ── QA-19: live-index wiring resilience ─────────────────────────────────────
+//
+// The per-workspace lifecycle effect below used to run `MemoryService
+// .setWorkspace` and `mailSetWorkspace` inside the SAME try/catch that also
+// covered `watchWorkspace` + the `workspace-file-changed` listener
+// registration. Any transient failure in either call — or in any of the
+// (best-effort) optional connector setup calls that used to run BEFORE the
+// watcher — silently aborted watcher installation for the rest of the
+// session: no log, no retry, and the effect's deps rarely change again after
+// mount. That is the root cause behind BUG-DB QA-19/QA-13: a newly created
+// doc AND a separately dropped external file both never got a reindex event
+// for the rest of that session, and only a full app restart (a fresh mount
+// of this effect) recovered.
+//
+// The fix below makes the ESSENTIAL wiring (point RAG at the workspace, start
+// the watcher, register the listener) a small, dependency-free unit that is
+// retried with backoff and always runs BEFORE any optional connector setup —
+// so a mail/CRM/OneDrive/etc. failure can never prevent live indexing again.
+
+/** Options for {@link retryAsync}. */
+export type RetryAsyncOptions = {
+  /** Delay (ms) before each retry. Length = number of retries after the first attempt. */
+  delaysMs: number[];
+  /** Called after each failed attempt, before the (possible) retry delay. */
+  onError?: (err: unknown, attempt: number) => void;
+  /** Checked before every attempt (including the first); when true, stops immediately. */
+  isCancelled?: () => boolean;
+};
+
+/**
+ * Call `fn`, retrying with the given backoff delays on failure. Throws the
+ * last error once all retries are exhausted (or the caller cancels via
+ * `isCancelled`). Generic + dependency-free so it is reusable wherever a
+ * transient startup failure shouldn't require a full app restart to recover
+ * from.
+ */
+export async function retryAsync<T>(
+  fn: () => Promise<T>,
+  options: RetryAsyncOptions,
+): Promise<T> {
+  const { delaysMs, onError, isCancelled } = options;
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= delaysMs.length; attempt++) {
+    if (isCancelled?.()) {
+      throw toError(lastErr, 'retryAsync: cancelled');
+    }
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      onError?.(err, attempt);
+      if (attempt < delaysMs.length) {
+        await new Promise((resolve) => setTimeout(resolve, delaysMs[attempt]));
+      }
+    }
+  }
+  throw toError(lastErr, 'retryAsync: exhausted all retries');
+}
+
+/** Normalize an unknown caught value into a real `Error` instance to throw. */
+function toError(err: unknown, fallbackMessage: string): Error {
+  return err instanceof Error ? err : new Error(fallbackMessage);
+}
+
+/** Backoff for {@link installEssentialWorkspaceWiring} via {@link retryAsync}. */
+export const ESSENTIAL_WIRING_RETRY_DELAYS_MS = [1000, 3000];
+
+/**
+ * Install the ESSENTIAL live-index wiring for a workspace: point the RAG
+ * engine at it (`MemoryService.setWorkspace`), start the `notify`-backed file
+ * watcher, and subscribe to `workspace-file-changed`. Deliberately imports
+ * nothing beyond MemoryService / the watcher / the tauri event listener, so
+ * it can never be broken by a failure in the optional connector setup
+ * (mail/CRM/OneDrive/Box/ShareFile/DocuSign/Jotform/Zocks/Addepar/Calendly/
+ * Calendar) that runs alongside it — see QA-19.
+ */
+export async function installEssentialWorkspaceWiring(
+  rootPath: string,
+  workspaceService: MemoryWiringWorkspaceService | null | undefined,
+  deleteBatcher: Pick<DeleteBurstBatcher, 'enqueue' | 'cancel'>,
+  indexRetryScheduler: Pick<IndexRetryScheduler, 'schedule'>,
+): Promise<() => void> {
+  await MemoryService.setWorkspace(rootPath);
+  await watchWorkspace(rootPath);
+  const { listen } = await import('@tauri-apps/api/event');
+  return listen<WorkspaceChangeEvent>('workspace-file-changed', (event) => {
+    handleWorkspaceFileChangedEvent(event.payload, {
+      deleteBatcher,
+      workspaceService,
+      indexRetryScheduler,
+    });
+  });
+}
+
 export function useMemoryWiring(
   rootPath: string | null,
   workspaceService?: MemoryWiringWorkspaceService | null,
@@ -1049,6 +1217,9 @@ export function useMemoryWiring(
     let unlisten: (() => void) | null = null;
     const stopModelListeners: Array<() => void> = [];
     let cancelled = false;
+    // QA-19 (codex-review follow-up): owned per mount so its retry timers can
+    // be cancelled wholesale on cleanup — see IndexRetryScheduler.disposeAll.
+    const indexRetryScheduler = createIndexRetryScheduler();
     const deleteBatcher = createDeleteBurstBatcher(
       (path) => MemoryService.deletePath(path),
       {
@@ -1060,7 +1231,7 @@ export function useMemoryWiring(
           // delete already settled — then (re)index) to restore it.
           handleWorkspaceFileChangedEvent(
             { kind: 'modify', path },
-            { deleteBatcher, workspaceService },
+            { deleteBatcher, workspaceService, indexRetryScheduler },
           );
         },
       },
@@ -1071,8 +1242,50 @@ export function useMemoryWiring(
         const core = await import('@tauri-apps/api/core');
         if (!core.isTauri()) return;
 
-        await MemoryService.setWorkspace(rootPath);
-        await mailSetWorkspace(rootPath);
+        // QA-19: install the ESSENTIAL wiring (point RAG at this workspace,
+        // start the watcher, subscribe to change events) FIRST, retried with
+        // backoff, and structurally before any of the optional connector
+        // setup below. Previously this shared one try/catch with mail setup
+        // and ran AFTER it — a transient mail/CRM/OneDrive/etc. failure (or a
+        // transient `setWorkspace`/`watchWorkspace` failure) silently aborted
+        // watcher installation for the rest of the session, with no retry and
+        // no log. That is the confirmed root cause of BUG-DB QA-19/QA-13
+        // ("only a restart fixes it" — a fresh mount is the only thing that
+        // ever retried this sequence).
+        const stop = await retryAsync(
+          () =>
+            installEssentialWorkspaceWiring(
+              rootPath,
+              workspaceService,
+              deleteBatcher,
+              indexRetryScheduler,
+            ),
+          {
+            delaysMs: ESSENTIAL_WIRING_RETRY_DELAYS_MS,
+            isCancelled: () => cancelled,
+            onError: (err, attempt) => {
+              console.error(
+                `[memory] workspace wiring attempt ${String(attempt + 1)} failed; ` +
+                  (attempt < ESSENTIAL_WIRING_RETRY_DELAYS_MS.length ? 'retrying' : 'giving up'),
+                err,
+              );
+            },
+          },
+        );
+        if (cancelled) {
+          stop();
+        } else {
+          unlisten = stop;
+        }
+
+        // Optional connectors — every one of these is best-effort and
+        // individually caught, so a failure here can never again take down
+        // the file watcher / live indexing installed above.
+        try {
+          await mailSetWorkspace(rootPath);
+        } catch (err) {
+          console.warn('mailSetWorkspace failed; continuing workspace setup:', err);
+        }
         // Best-effort: tell the CRM backend which workspace to use so
         // crm_sync_all and crm_disconnect know where to read/write. The CRM
         // connector is optional; a failure here must NOT break the rest of
@@ -1129,23 +1342,8 @@ export function useMemoryWiring(
         } catch (err) {
           console.warn('calendarSetWorkspace failed; continuing workspace setup:', err);
         }
-        await watchWorkspace(rootPath);
 
         const { listen } = await import('@tauri-apps/api/event');
-        const stop = await listen<WorkspaceChangeEvent>(
-          'workspace-file-changed',
-          (event) => {
-            handleWorkspaceFileChangedEvent(event.payload, {
-              deleteBatcher,
-              workspaceService,
-            });
-          },
-        );
-        if (cancelled) {
-          stop();
-        } else {
-          unlisten = stop;
-        }
 
         // Background full-workspace index. Resolves when complete; the
         // banner / badge UI follow progress events independently.
@@ -1185,8 +1383,17 @@ export function useMemoryWiring(
           stopModelListen();
           startFullIndexOnce();
         }
-      } catch {
-        // Tauri or watcher init failed — leave memory disabled gracefully.
+      } catch (err) {
+        // QA-19: this used to be a bare, silent catch — a permanently-failed
+        // setup left memory disabled for the rest of the session with no way
+        // to tell why short of a restart. Essential wiring above already
+        // retries transient failures with backoff; if it still ends up here,
+        // log loudly so a real regression is diagnosable instead of invisible.
+        console.error(
+          '[memory] workspace wiring setup failed for this session; ' +
+            'live indexing and workspace search may be unavailable until reopened',
+          err,
+        );
       }
     })();
 
@@ -1197,6 +1404,10 @@ export function useMemoryWiring(
         s();
       });
       deleteBatcher.dispose();
+      // QA-19 (codex-review follow-up): cancel any pending index retry so it
+      // can never fire after this workspace has closed/switched and index
+      // stale content into whatever workspace is active by then.
+      indexRetryScheduler.disposeAll();
     };
     // Depend on workspaceService too. On open the service is created/set AFTER
     // rootPath (the recent-open path sets rootPath, then App creates the service
