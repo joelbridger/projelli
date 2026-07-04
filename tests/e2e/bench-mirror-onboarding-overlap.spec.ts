@@ -61,19 +61,24 @@ test.describe('Bench mirror: Onboarding overlap (QA-8, QA-9)', () => {
         const heading = page.getByTestId(`intro-flow-heading-${String(i)}`);
         // The icon's own container is a fixed 130x130 box regardless of what
         // lottie-web renders inside it, so comparing IT against the heading
-        // would never catch the real bug: lottie-web sizes the injected
-        // <svg> to the JSON's native canvas (150/500/1920px), and an
-        // ancestor's `overflow: hidden` clips PAINT but does not shrink the
-        // svg element's own layout box / boundingBox() — so the <svg> itself
-        // is the element that must be measured to detect the bleed.
-        // .first(): the dev server runs with React StrictMode, whose
-        // intentional double-effect-invoke can leave two lottie-web svg
-        // instances mounted briefly — an artifact of dev-mode testing, not
-        // of the bug itself, so pin to one instance for a stable assertion.
+        // would never catch the real bug (see LottiePlayer.tsx's docblock):
+        // a StrictMode double-mount race could leave TWO lottie svg
+        // instances appended into one fixed-height container, the second
+        // overflowing onto the heading below — a bug the outer container's
+        // own (unaffected) box can never reveal. The <svg> itself is the
+        // element that must be measured to catch that.
+        // .first(): pins to one instance in case any such race ever
+        // recurs, so the assertion stays meaningful rather than failing on
+        // strict-mode-locator ambiguity.
+        // Generous explicit timeouts (not Playwright's 5s default): lottie-web
+        // is dynamically imported and fetches its JSON over the dev server,
+        // and this shared, variably-loaded box can make that first render
+        // slow — the same reasoning behind this repo's existing 30s dev-server
+        // cold-start allowances (see playwright.config.ts, waitForTestModeLoad).
         const iconSvg = icon.locator('svg').first();
-        await expect(iconSvg).toBeVisible();
-        await expect(heading).toBeVisible();
-        await expect(heading).toHaveText(ONB_COPY.intro.flow[i] ?? '');
+        await expect(iconSvg).toBeVisible({ timeout: 20_000 });
+        await expect(heading).toBeVisible({ timeout: 20_000 });
+        await expect(heading).toHaveText(ONB_COPY.intro.flow[i] ?? '', { timeout: 20_000 });
 
         const iconBox = await iconSvg.boundingBox();
         const headingBox = await heading.boundingBox();
