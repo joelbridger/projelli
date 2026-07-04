@@ -76,20 +76,39 @@ pub fn find_orphans(workspace: &Path) -> Result<Vec<OrphanSession>> {
     }
     walk(&canon_workspace, 0, &mut out);
     if let Some(active) = active {
-        // The scanned `meeting_dir`s are in `canon_workspace`'s canonical form
-        // (on Windows: verbatim `\\?\C:\…`). `active_meeting_dir()` may hold a
-        // DIFFERENT form for the very same directory — e.g. a non-verbatim
-        // `C:\…` path if the live session was started from a raw workspace
-        // string — and a plain `PathBuf` string compare would then FAIL to
-        // match, wrongly listing the live recording as a recoverable orphan
-        // (offering to finalize/truncate an in-progress meeting). Canonicalize
-        // `active` to the same form before comparing so the exclusion is
-        // reliable regardless of how the active path was stored. On Unix the
-        // two forms already coincide, so this is a no-op there.
-        let active = active.canonicalize().unwrap_or(active);
-        out.retain(|o| PathBuf::from(&o.meeting_dir) != active);
+        // The scanned `meeting_dir`s are stored on `OrphanSession` in DISPLAY
+        // form (QA-41's `display_path` — the Windows verbatim `\\?\C:\…`
+        // prefix stripped before it ever reaches the frontend).
+        // `active_meeting_dir()` may hold a DIFFERENT form for the very same
+        // directory — e.g. a non-verbatim `C:\…` path if the live session
+        // was started from a raw workspace string, or the verbatim form from
+        // its own canonicalization — and a plain `PathBuf` string compare
+        // would then FAIL to match, wrongly listing the live recording as a
+        // recoverable orphan (offering to finalize/truncate an in-progress
+        // meeting). `is_same_meeting_dir` canonicalizes `active` AND runs it
+        // through the SAME `display_path` strip the scanned entries already
+        // went through — comparing both sides in the identical (display)
+        // form — so the exclusion is reliable regardless of how the active
+        // path was stored. On Unix the forms already coincide and
+        // `display_path` is a no-op, so this stays a no-op there too.
+        out.retain(|o| !is_same_meeting_dir(&o.meeting_dir, &active));
     }
     Ok(out)
+}
+
+/// True when `orphan_meeting_dir` (an `OrphanSession.meeting_dir` string,
+/// always in QA-41 DISPLAY form) names the same directory as `active` (a
+/// `PathBuf` from `active_meeting_dir()` that may or may not be
+/// verbatim-prefixed, and may or may not already be canonical). Canonicalizes
+/// `active` and strips it to display form before comparing, so a
+/// verbatim-vs-display form mismatch can never make a live recording look
+/// like a distinct (recoverable) directory. A separate function so this
+/// exact comparison is unit-testable without a real Windows `canonicalize()`
+/// call (see the tests below, which construct a literal verbatim-style
+/// string).
+fn is_same_meeting_dir(orphan_meeting_dir: &str, active: &Path) -> bool {
+    let active = active.canonicalize().unwrap_or_else(|_| active.to_path_buf());
+    PathBuf::from(orphan_meeting_dir) == PathBuf::from(display_path(&active))
 }
 
 pub fn recover(meeting_dir: &Path) -> Result<PathBuf> {
@@ -150,6 +169,32 @@ mod tests {
     use crate::commands::capture::chunks::ChunkWriter;
     use crate::commands::capture::session::{ConsentRecord, SessionManifest};
     use tempfile::tempdir;
+
+    // Regression for a coordinator-review finding (2026-07-04): OrphanSession
+    // now stores `meeting_dir` in QA-41 DISPLAY form (the Windows verbatim
+    // `\\?\C:\…` prefix stripped before it reaches the frontend — see
+    // `pathguard::display_path`), but `active_meeting_dir()` can still return
+    // the verbatim form directly from the engine's own canonicalization. A
+    // literal string compare between the two forms never matches on Windows,
+    // so the live-recording exclusion below `find_orphans`'s scan would
+    // wrongly treat an actively-recording meeting as a distinct, recoverable
+    // orphan — reintroducing, in the opposite direction, exactly the bug the
+    // surrounding comment warns about. These construct a literal
+    // verbatim-style path (not a real Windows `canonicalize()` call) so they
+    // run portably on any host, including this Linux dev/CI box.
+    #[test]
+    fn is_same_meeting_dir_matches_display_form_against_a_verbatim_active_path() {
+        let active = Path::new(r"\\?\C:\ws\Clients\Live Household\Meetings\2026-07-01-mlive");
+        let orphan_meeting_dir = r"C:\ws\Clients\Live Household\Meetings\2026-07-01-mlive";
+        assert!(is_same_meeting_dir(orphan_meeting_dir, active));
+    }
+
+    #[test]
+    fn is_same_meeting_dir_is_false_for_a_genuinely_different_directory() {
+        let active = Path::new(r"\\?\C:\ws\Clients\Live Household\Meetings\2026-07-01-mlive");
+        let orphan_meeting_dir = r"C:\ws\Clients\Old\Meetings\2026-06-01-mold";
+        assert!(!is_same_meeting_dir(orphan_meeting_dir, active));
+    }
 
     #[test]
     fn orphan_is_found_and_recovered() {
