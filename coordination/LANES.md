@@ -10,7 +10,7 @@ Last updated: 2026-07-04 ~01:05 (coordinator-6 seated — sole coordinator; moni
 | cc-lantern-w3 | Wave-3 meeting capture (lp/meeting-capture @e487a730) — MERGE-READY: device verification PASSED; coordinator independent review done, 1 P2 (audit action string) confirmed+fixed+verified. Waits only for symfix to land first (re-point check on rebase) | merge-queued |
 | cc-lantern-azcdp | Azure bench CDP fix (lp/azure-cdp-fix @96a56628, pushed) — DONE: root cause was an app bug (wry silently overrides WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS); fixed via .additional_browser_args() (no-op when unset); harness check PASSED live on the cloud VM; snapshot clean-3; VM deallocated (33 min). Rust-touching ⇒ merges after w3 | merge-queued |
 | cc-lantern-winvm | Local Windows VM spike Phase 1 (testing-speed program #6) — KVM VM on /mnt/devcache, SSH + clean snapshot; infra only, no product code | building |
-| cc-lantern-e2emirror | Linux Playwright mirror of the smoke checklist (program #7, lp/e2e-smoke-mirror) — catch UI regressions in minutes without a Windows box | building |
+| cc-lantern-e2emirror | Playwright smoke mirror (lp/e2e-smoke-mirror @73790c6a, pushed) — DONE: 11/19 checks mirrored in ~15s; 8 honestly NOT-MIRRORABLE (Tauri-only); codex clean. Merges after azcdp | merge-queued |
 
 ## Merged this session
 ✅ lp/symlink-hardening — pathguard module + 5 containment sites hardened (6 worker codex rounds all-real-findings + coordinator manual xhigh + independent codex CLEAN; gate 1187+51 cargo, 5670 vitest, tsc)
