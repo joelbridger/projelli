@@ -21,8 +21,7 @@ import type { MeetingMeta } from './meetingStore';
 import { NoticeTrail } from './NoticeTrail';
 import { makeConsentLedger } from './consentLedger';
 import type { NoticeEntry } from './noticeLedger';
-import { resolveNoticePolicy } from './noticeSettings';
-import { useSettingsStore } from '@/platform/settings/settingsStore';
+import { useNoticeSettings } from './noticeSettings';
 import { meetingDisplayTitle, meetingTypeLabel, formatMeetingDate, formatMeetingDuration } from './meetingDisplay';
 import { makeMeetingTypesStore, BUILT_IN_TYPES } from './meetingTypes';
 import type { TranscriptFile } from '@/platform/types/meeting';
@@ -76,8 +75,7 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
   const [retryingNotes, setRetryingNotes] = useState(false);
   const [notices, setNotices] = useState<NoticeEntry[]>([]);
   const audioRef = useRef<AudioPlayerHandle>(null);
-  const getSetting = useSettingsStore((s) => s.getSetting);
-  const noticePolicy = resolveNoticePolicy(getSetting);
+  const { policy: noticePolicy } = useNoticeSettings();
 
   useEffect(() => {
     let cancelled = false;

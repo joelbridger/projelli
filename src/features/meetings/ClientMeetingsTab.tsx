@@ -18,8 +18,7 @@ import { ConsentDialog, isMacPermissionError } from './ConsentDialog';
 import { consentModeFor } from './recordingConsentLaw';
 import { makeConsentLedger, type ConsentEntry } from './consentLedger';
 import { deriveNoticeState, meetingDirKey, type NoticeEntry, type NoticeState } from './noticeLedger';
-import { resolveNoticePolicy, customNoticeScript } from './noticeSettings';
-import { useSettingsStore } from '@/platform/settings/settingsStore';
+import { useNoticeSettings } from './noticeSettings';
 
 export interface MeetingSummary {
   dir: string;
@@ -162,9 +161,7 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
   // Recording Notice Kit — per-meeting notice state (keyed by meeting dir) so
   // each row can flag a missing/quarantined notice, plus the firm policy.
   const [noticeStates, setNoticeStates] = useState<Record<string, NoticeState>>({});
-  const getSetting = useSettingsStore((s) => s.getSetting);
-  const noticePolicy = resolveNoticePolicy(getSetting);
-  const custom = customNoticeScript(getSetting);
+  const { policy: noticePolicy, customScript: custom } = useNoticeSettings();
   const noticeScript = custom || t('meetings.notice.default-script');
   // No per-client state on file yet (see Matter type) — consentModeFor(null)
   // is the conservative two-party default, and stateKnown={false} below keeps

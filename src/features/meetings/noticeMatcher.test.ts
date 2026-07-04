@@ -182,6 +182,24 @@ describe('detectRecordingNotice — custom firm phrases', () => {
     expect(match).not.toBeNull();
   });
 
+  it('rejects a NEGATED version of the custom phrase (codex-review R3)', () => {
+    const custom = "I'm recording this meeting for my notes.";
+    const match = detectRecordingNotice(
+      line("I'm not recording this meeting for my notes."),
+      { customPhrases: [custom] },
+    );
+    expect(match).toBeNull();
+  });
+
+  it('rejects a negated no-record-term custom phrase too', () => {
+    const custom = 'This session is being captured on my device for my notes.';
+    const match = detectRecordingNotice(
+      line('This session is not being captured on my device for my notes.'),
+      { customPhrases: [custom] },
+    );
+    expect(match).toBeNull();
+  });
+
   it('does not match unrelated speech just because a custom phrase exists', () => {
     const custom = 'For quality and my notes, this session is being captured on my device.';
     const match = detectRecordingNotice(

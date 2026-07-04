@@ -13,17 +13,16 @@
 import { useTranslation } from 'react-i18next';
 import { Check } from 'lucide-react';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
-import { resolveNoticePolicy, type NoticePolicy } from '@/features/meetings/noticeSettings';
+import { useNoticeSettings, type NoticePolicy } from '@/features/meetings/noticeSettings';
 
 const CARD_VALUES: NoticePolicy[] = ['standard', 'strict'];
 
 export function RecordingNoticeSettings() {
   const { t } = useTranslation();
-  const getSetting = useSettingsStore((s) => s.getSetting);
   const setSetting = useSettingsStore((s) => s.setSetting);
-  const policy = resolveNoticePolicy(getSetting);
-  const rawScript = getSetting<string>('meetings.noticeScript');
-  const script = typeof rawScript === 'string' ? rawScript : '';
+  // Subscribe to the actual values so the picker + textarea reflect changes
+  // immediately (codex-review R3).
+  const { policy, rawScript: script } = useNoticeSettings();
 
   // Literal t() keys (kept out of a lookup so the i18n extractor sees them).
   const cardTitle = (value: NoticePolicy) =>

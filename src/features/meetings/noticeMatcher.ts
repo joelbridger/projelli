@@ -289,9 +289,17 @@ export function detectRecordingNotice(
     }
 
     // (2) custom-phrase overlap — only a strong overlap counts, so unrelated
-    // small talk never trips it.
+    // small talk never trips it. Crucially, a transcript that NEGATES the
+    // expected phrase ("I'm not recording this…" vs a script of "I'm recording
+    // this…") must NOT verify: reject when the segment carries a negation the
+    // expected phrase does not (codex-review R3). Affirmative notices already
+    // match via the semantic core above, so this branch only runs when there's
+    // no affirmative first-person disclosure to begin with.
     if (!matched && customTokenSets.length > 0) {
+      const segHasNegation = tokens.some((tk) => cfg.negations.has(tk));
       for (const phrase of customTokenSets) {
+        const phraseHasNegation = phrase.some((tk) => cfg.negations.has(tk));
+        if (segHasNegation && !phraseHasNegation) continue; // transcript negated the script
         const overlap = contentOverlap(tokens, phrase, cfg);
         if (overlap >= CUSTOM_OVERLAP_THRESHOLD) {
           matched = true;
