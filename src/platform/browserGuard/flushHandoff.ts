@@ -17,6 +17,15 @@
 
 export interface FlushAckMessage {
   type: 'flush-request' | 'flush-ack';
+  // Per-request nonce (round 7 codex-review/coordinator finding): without
+  // this, acks are uncorrelated — a previous request's LATE ack (arriving
+  // after ITS requester already timed out and moved on) is indistinguishable
+  // from a fresh one, so a DIFFERENT, later requestFlushAck() call could
+  // resolve on that stale ack and take the lock before the CURRENT owner
+  // ever flushed for THIS request — reopening the overwrite race this whole
+  // handshake exists to close. The responder echoes back the exact
+  // requestId it received, and a waiter only resolves on a match.
+  requestId: string;
 }
 
 export interface FlushAckChannel {
@@ -25,13 +34,38 @@ export interface FlushAckChannel {
   removeEventListener(type: 'message', listener: (event: MessageEvent<unknown>) => void): void;
 }
 
-function isFlushAckMessage(data: unknown, type: FlushAckMessage['type']): boolean {
-  return typeof data === 'object' && data !== null && (data as { type?: unknown }).type === type;
+function parseFlushAckMessage(data: unknown, type: FlushAckMessage['type']): FlushAckMessage | null {
+  if (
+    typeof data !== 'object' ||
+    data === null ||
+    (data as { type?: unknown }).type !== type ||
+    typeof (data as { requestId?: unknown }).requestId !== 'string'
+  ) {
+    return null;
+  }
+  return data as FlushAckMessage;
+}
+
+function defaultGenerateRequestId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `flush_${Math.random().toString(36).slice(2)}_${Math.random().toString(36).slice(2)}`;
+}
+
+function defaultSetTimeout(callback: () => void, ms: number): unknown {
+  return setTimeout(callback, ms);
+}
+
+function defaultClearTimeout(handle: unknown): void {
+  clearTimeout(handle as Parameters<typeof clearTimeout>[0]);
 }
 
 export interface RequestFlushAckOptions {
   channel: FlushAckChannel;
   timeoutMs?: number;
+  /** Injectable for deterministic tests; defaults to a fresh random id per call. */
+  requestId?: string;
   // `unknown` handle type (not ReturnType<typeof setTimeout>) so this
   // doesn't get tangled in the ambient dom/node setTimeout overload split —
   // callers never need to inspect the handle themselves.
@@ -43,24 +77,20 @@ export interface RequestFlushAckOptions {
  *  ack — but only up to `timeoutMs`. Resolves `true` if acked in time,
  *  `false` on timeout (a dead/unresponsive owner can't wedge a takeover
  *  forever — the caller proceeds anyway on `false`, just without the extra
- *  confirmation). */
-function defaultSetTimeout(callback: () => void, ms: number): unknown {
-  return setTimeout(callback, ms);
-}
-
-function defaultClearTimeout(handle: unknown): void {
-  clearTimeout(handle as Parameters<typeof clearTimeout>[0]);
-}
-
+ *  confirmation). Only an ack whose requestId matches THIS call's own
+ *  request can resolve it — a stale ack for a different (e.g. previously
+ *  timed-out) request is ignored. */
 export function requestFlushAck(options: RequestFlushAckOptions): Promise<boolean> {
   const { channel, timeoutMs = 2500 } = options;
+  const requestId = options.requestId ?? defaultGenerateRequestId();
   const setTimeoutFn = options.setTimeoutFn ?? defaultSetTimeout;
   const clearTimeoutFn = options.clearTimeoutFn ?? defaultClearTimeout;
 
   return new Promise((resolve) => {
     let settled = false;
     const onMessage = (event: MessageEvent<unknown>) => {
-      if (settled || !isFlushAckMessage(event.data, 'flush-ack')) return;
+      const ack = parseFlushAckMessage(event.data, 'flush-ack');
+      if (settled || !ack || ack.requestId !== requestId) return;
       settled = true;
       clearTimeoutFn(timer);
       channel.removeEventListener('message', onMessage);
@@ -75,13 +105,15 @@ export function requestFlushAck(options: RequestFlushAckOptions): Promise<boolea
       resolve(false);
     }, timeoutMs);
 
-    channel.postMessage({ type: 'flush-request' });
+    channel.postMessage({ type: 'flush-request', requestId });
   });
 }
 
 /** Wire the OWNER side of the handshake: whenever a flush-request arrives
- *  and this tab is (still) the owner at that moment, flush and ack. Returns
- *  an unsubscribe function. `isOwner` is a thunk (not a snapshot) because
+ *  and this tab is (still) the owner at that moment, flush and ack —
+ *  echoing back the SAME requestId it received, never minting its own, so
+ *  the waiter can correlate the ack to its own request. Returns an
+ *  unsubscribe function. `isOwner` is a thunk (not a snapshot) because
  *  ownership can change between when this is wired and when a request
  *  arrives. */
 export function wireFlushResponder(
@@ -90,9 +122,10 @@ export function wireFlushResponder(
   flush: () => Promise<void>,
 ): () => void {
   const onMessage = (event: MessageEvent<unknown>) => {
-    if (!isFlushAckMessage(event.data, 'flush-request') || !isOwner()) return;
+    const request = parseFlushAckMessage(event.data, 'flush-request');
+    if (!request || !isOwner()) return;
     void flush().then(() => {
-      channel.postMessage({ type: 'flush-ack' });
+      channel.postMessage({ type: 'flush-ack', requestId: request.requestId });
     });
   };
   channel.addEventListener('message', onMessage);
