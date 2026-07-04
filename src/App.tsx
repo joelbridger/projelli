@@ -159,7 +159,9 @@ const IS_DEMO_MODE =
  * See src/platform/browserGuard/ for the guard itself and its rationale.
  */
 function App() {
-  const tabWriteGuard = useTabWriteGuard(!IS_TEST_MODE && !isTauriEnvironment());
+  const tabWriteGuard = useTabWriteGuard(!IS_TEST_MODE && !isTauriEnvironment(), {
+    onFlushRequested: flushAllDirtyTabs,
+  });
   useEffect(() => {
     if (tabWriteGuard.status !== 'blocked') return;
     // Another tab just took over and this render is about to unmount

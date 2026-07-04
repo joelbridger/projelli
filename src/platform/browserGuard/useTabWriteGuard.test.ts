@@ -33,7 +33,7 @@ describe('useTabWriteGuard', () => {
     expect(result.current.status).toBe('blocked');
   });
 
-  it('requestTakeover flips this tab to "owner" even over an existing fresh foreign lock', () => {
+  it('requestTakeover flips this tab to "owner" even over an existing fresh foreign lock', async () => {
     localStorage.setItem(
       SK_TAB_LOCK,
       JSON.stringify({ tabId: 'some-other-tab', heartbeatAt: Date.now() }),
@@ -41,8 +41,13 @@ describe('useTabWriteGuard', () => {
     const { result } = renderHook(() => useTabWriteGuard(true));
     expect(result.current.status).toBe('blocked');
 
-    act(() => {
+    // requestTakeover is async: it first waits (briefly) for a flush-ack
+    // from the current owner before actually claiming the lock (round 5
+    // P1) — nobody is listening in this test, so it runs out the clock.
+    vi.useFakeTimers();
+    await act(async () => {
       result.current.requestTakeover();
+      await vi.advanceTimersByTimeAsync(3000);
     });
 
     expect(result.current.status).toBe('owner');
@@ -91,7 +96,7 @@ describe('useTabWriteGuard', () => {
     expect(result.current.status).toBe('blocked');
   });
 
-  it('requestTakeover survives its own reload-triggered pagehide (regression: reload() fires a non-persisted pagehide on this tab BEFORE navigating away, which used to release the lock this call just claimed)', () => {
+  it('requestTakeover survives its own reload-triggered pagehide (regression: reload() fires a non-persisted pagehide on this tab BEFORE navigating away, which used to release the lock this call just claimed)', async () => {
     localStorage.setItem(
       SK_TAB_LOCK,
       JSON.stringify({ tabId: 'some-other-tab', heartbeatAt: Date.now() }),
@@ -99,8 +104,10 @@ describe('useTabWriteGuard', () => {
     const { result } = renderHook(() => useTabWriteGuard(true));
     expect(result.current.status).toBe('blocked');
 
-    act(() => {
+    vi.useFakeTimers();
+    await act(async () => {
       result.current.requestTakeover();
+      await vi.advanceTimersByTimeAsync(3000);
     });
     expect(result.current.status).toBe('owner');
 
@@ -121,14 +128,16 @@ describe('useTabWriteGuard', () => {
     expect(stored.tabId).not.toBe('some-other-tab');
   });
 
-  it('a real reload after requestTakeover reclaims the same lock via the one-shot handoff', () => {
+  it('a real reload after requestTakeover reclaims the same lock via the one-shot handoff', async () => {
     localStorage.setItem(
       SK_TAB_LOCK,
       JSON.stringify({ tabId: 'some-other-tab', heartbeatAt: Date.now() }),
     );
     const first = renderHook(() => useTabWriteGuard(true));
-    act(() => {
+    vi.useFakeTimers();
+    await act(async () => {
       first.result.current.requestTakeover();
+      await vi.advanceTimersByTimeAsync(3000);
     });
     const claimedTabId = (JSON.parse(localStorage.getItem(SK_TAB_LOCK) as string) as { tabId: string }).tabId;
     expect(sessionStorage.getItem('lantern:tab-takeover-handoff')).toBe(claimedTabId);
@@ -172,5 +181,52 @@ describe('useTabWriteGuard', () => {
     expect(tabB.result.current.status).toBe('blocked');
     const lockStillTabA = (JSON.parse(localStorage.getItem(SK_TAB_LOCK) as string) as { tabId: string }).tabId;
     expect(lockStillTabA).toBe(lockTabId);
+  });
+
+  it('regression (codex-review P1, round 5): an AUTOMATIC reclaim (owner closed/went stale, nobody clicked "take over") forces the same reload-before-write path as a manual takeover', () => {
+    // This tab starts blocked behind a foreign lock.
+    localStorage.setItem(
+      SK_TAB_LOCK,
+      JSON.stringify({ tabId: 'the-old-owner', heartbeatAt: Date.now() }),
+    );
+    const { result } = renderHook(() => useTabWriteGuard(true));
+    expect(result.current.status).toBe('blocked');
+
+    // jsdom's window.location.reload is non-configurable, so it can't be
+    // spied on directly — replace the whole `location` object (which IS
+    // configurable at the `window` level) with one whose `reload` is a spy.
+    const originalLocation = window.location;
+    const reloadSpy = vi.fn();
+    // Not a spread of `originalLocation` — it's a Location instance (native
+    // getters/prototype methods), and spreading it would silently drop
+    // those. This test only needs `reload` replaced; nothing here reads any
+    // other location property.
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { reload: reloadSpy },
+    });
+
+    try {
+      // The old owner closes (or goes stale) with no coordination at all —
+      // release its lock, then let this tab notice via a `storage` event,
+      // the same way a real blocked tab would.
+      act(() => {
+        localStorage.removeItem(SK_TAB_LOCK);
+        window.dispatchEvent(new StorageEvent('storage', { key: SK_TAB_LOCK }));
+      });
+
+      expect(result.current.status).toBe('owner');
+      // Without this fix, an automatic reclaim never reloaded — this tab
+      // would mount AppShell straight onto whatever stale zustand snapshot
+      // it hydrated back when it was still blocked. The forced reload is
+      // what guarantees a fresh rehydrate before any write can happen.
+      expect(reloadSpy).toHaveBeenCalled();
+      // And it went through the SAME handoff path a manual takeover uses,
+      // so the reloaded page recognizes this exact lock as its own.
+      const claimedTabId = (JSON.parse(localStorage.getItem(SK_TAB_LOCK) as string) as { tabId: string }).tabId;
+      expect(sessionStorage.getItem('lantern:tab-takeover-handoff')).toBe(claimedTabId);
+    } finally {
+      Object.defineProperty(window, 'location', { configurable: true, value: originalLocation });
+    }
   });
 });
