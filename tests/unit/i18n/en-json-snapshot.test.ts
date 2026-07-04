@@ -62,7 +62,7 @@ describe('en.json structure snapshot', () => {
         "marketplace": 14,
         "matter": 206,
         "media": 88,
-        "meetings": 67,
+        "meetings": 71,
         "memory": 6,
         "model-download": 9,
         "onboarding": 65,
@@ -170,13 +170,18 @@ describe('en.json structure snapshot', () => {
     //      the delete-client confirm dialog's title/body were localized above
     //      but its own confirm/cancel BUTTONS stayed hardcoded "Remove"/
     //      "Cancel" — same mixed-language bug, one level down).
+    // +4 = meetings.entry.{transcript-failed-not-installed,transcript-failed-
+    //      timeout,transcript-failed-error,retrying-transcript} (QA-40: a
+    //      failed transcription used to vanish into a bare catch{} — these
+    //      back an honest, classified, retryable failed state, mirroring the
+    //      existing notes-failed-* keys).
     // +1 = QA-36 client-side create-name guard: workspace.file-tree.reserved-name-error
     //      is the localized inline warning for Windows-reserved/trailing-dot names.
     // +7 = QA-34 .docx save-resilience UI: media.docx-editor.{save-blocked-title,
     //      save-blocked-body,save-retry-now,save-copy-elsewhere,save-copy-saving,
     //      save-copy-success,save-copy-failed} — the sustained-save-failure warning
     //      + "Save a copy elsewhere" escape hatch (P0 silent-data-loss fix).
-    expect(flat.length).toBe(1223);
+    expect(flat.length).toBe(1227);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

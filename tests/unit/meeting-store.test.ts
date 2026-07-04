@@ -33,7 +33,12 @@ vi.mock('@/platform/utils/docx-io', () => ({
   applyLetterheadIfConfigured: vi.fn(async (bytes: Uint8Array) => bytes),
 }));
 
-import { useMeetingStore, setMeetingsWorkspaceService, retryMeetingNotes } from '@/features/meetings/meetingStore';
+import {
+  useMeetingStore,
+  setMeetingsWorkspaceService,
+  retryMeetingNotes,
+  retryMeetingTranscript,
+} from '@/features/meetings/meetingStore';
 import { MEETING_NOTES_TIMEOUT_MS } from '@/features/meetings/meetingNotesTimeout';
 import { meetingNoteFromTranscript } from '@/features/meetings/meetingNoteTemplate';
 import { ConfidentialityChoiceRequiredError } from '@/platform/privacy/localOnlyGuard';
@@ -334,5 +339,128 @@ describe('meeting store — notes generation never hangs and never fails silentl
     };
     expect(written.notesError?.kind).toBe('gate-blocked');
     expect(meetingNoteFromTranscript.run).not.toHaveBeenCalled();
+  });
+});
+
+// QA-40 P1: transcribe_meeting failures used to vanish into a bare catch{}
+// (see docs/evidence/meetings-verify3-20260704/RUN-LOG.md) — a fast,
+// already-completed failure (e.g. a missing voice model, confirmed by
+// direct invoke() reproduction against the Legion to take ~125ms, not a
+// hang) looked identical to a permanent hang because nothing was ever
+// recorded and nothing ever retried. These tests drive transcribe_meeting
+// into each failure shape and assert an honest, classified, retryable
+// transcriptError lands on meeting.json instead.
+describe('meeting store — transcription never fails silently (QA-40)', () => {
+  const fakeResolveProvider = async () =>
+    ({ provider: {} as never, providerId: 'anthropic' as const, model: 'claude' });
+
+  function setupWorkspace() {
+    const files = new Map<string, string>();
+    files.set(
+      '/ws/C/Meetings/x/meeting.json',
+      JSON.stringify({
+        matterId: 'm-1',
+        startedAt: 't0',
+        consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: 't0' },
+      }),
+    );
+    const readFile = vi.fn(async (p: string) => {
+      if (!files.has(p)) throw new Error('ENOENT');
+      return files.get(p) as string;
+    });
+    const writeFile = vi.fn(async (p: string, content: string) => {
+      files.set(p, content);
+    });
+    setMeetingsWorkspaceService({ readFile, writeFile, writeFileBinary: vi.fn(async () => {}) } as never);
+    return { files };
+  }
+
+  beforeEach(() => {
+    invokeMock.mockReset();
+    useMeetingStore.setState(useMeetingStore.getInitialState());
+  });
+
+  it('a missing voice engine/model failure is classified not-installed, not silently swallowed', async () => {
+    const { files } = setupWorkspace();
+    invokeMock
+      .mockResolvedValueOnce({ meetingDir: '/ws/C/Meetings/x', startedAt: 't0' }) // capture_start
+      .mockResolvedValueOnce({ meetingDir: '/ws/C/Meetings/x', audioPath: 'a.wav', durationMs: 1000 }) // capture_stop
+      .mockRejectedValueOnce(
+        'no voice model bundled for this platform (expected a ggml model under resources/voice/models — see scripts/fetch-voice-models.sh)',
+      ); // transcribe_meeting
+
+    const s = useMeetingStore.getState();
+    await s.startRecording('m-1', { consentMode: 'one-party' });
+    await useMeetingStore.getState().stopRecording();
+
+    expect(useMeetingStore.getState().processingCount).toBe(0);
+    const written = JSON.parse(files.get('/ws/C/Meetings/x/meeting.json') as string) as {
+      transcriptError?: { kind: string };
+    };
+    expect(written.transcriptError?.kind).toBe('not-installed');
+  });
+
+  it('a wedged-engine timeout is classified timeout', async () => {
+    const { files } = setupWorkspace();
+    invokeMock
+      .mockResolvedValueOnce({ meetingDir: '/ws/C/Meetings/x', startedAt: 't0' })
+      .mockResolvedValueOnce({ meetingDir: '/ws/C/Meetings/x', audioPath: 'a.wav', durationMs: 1000 })
+      .mockRejectedValueOnce('voice sidecar timed out');
+
+    const s = useMeetingStore.getState();
+    await s.startRecording('m-1', { consentMode: 'one-party' });
+    await useMeetingStore.getState().stopRecording();
+
+    const written = JSON.parse(files.get('/ws/C/Meetings/x/meeting.json') as string) as {
+      transcriptError?: { kind: string };
+    };
+    expect(written.transcriptError?.kind).toBe('timeout');
+  });
+
+  it('any other engine failure is classified error, and a retry can succeed and clear it', async () => {
+    const { files } = setupWorkspace();
+    invokeMock
+      .mockResolvedValueOnce({ meetingDir: '/ws/C/Meetings/x', startedAt: 't0' })
+      .mockResolvedValueOnce({ meetingDir: '/ws/C/Meetings/x', audioPath: 'a.wav', durationMs: 1000 })
+      .mockRejectedValueOnce('voice sidecar exited 3: bad model file');
+
+    const s = useMeetingStore.getState();
+    await s.startRecording('m-1', { consentMode: 'one-party' });
+    await useMeetingStore.getState().stopRecording();
+
+    let written = JSON.parse(files.get('/ws/C/Meetings/x/meeting.json') as string) as {
+      transcriptError?: { kind: string };
+    };
+    expect(written.transcriptError?.kind).toBe('error');
+
+    invokeMock.mockResolvedValueOnce({ transcriptPath: 't.json', segmentCount: 1 }); // retry's transcribe_meeting
+    await retryMeetingTranscript('/ws/C/Meetings/x', '/ws', 'm-1', fakeResolveProvider);
+
+    expect(useMeetingStore.getState().processingCount).toBe(0);
+    written = JSON.parse(files.get('/ws/C/Meetings/x/meeting.json') as string) as {
+      transcriptError?: { kind: string };
+    };
+    expect(written.transcriptError).toBeUndefined();
+  });
+
+  // Mirrors the QA-31 notes serialization fix above: the natural post-stop
+  // transcription and a manual "Retry" must never race for the same
+  // meetingDir — a second caller while one is already in flight joins the
+  // same run instead of starting an independent, racing one.
+  it('serializes concurrent transcription calls for the same meeting instead of racing', async () => {
+    setupWorkspace();
+    let resolveFirst: (v: unknown) => void = () => {};
+    const firstCall = new Promise((resolve) => { resolveFirst = resolve; });
+    invokeMock.mockImplementation((cmd: unknown) => (cmd === 'transcribe_meeting' ? firstCall : Promise.resolve({})));
+
+    const p1 = retryMeetingTranscript('/ws/C/Meetings/x', '/ws', 'm-1', fakeResolveProvider);
+    const p2 = retryMeetingTranscript('/ws/C/Meetings/x', '/ws', 'm-1', fakeResolveProvider);
+
+    resolveFirst({ transcriptPath: 't.json', segmentCount: 1 });
+    await Promise.all([p1, p2]);
+
+    const transcribeCalls = invokeMock.mock.calls.filter((c) => c[0] === 'transcribe_meeting');
+    expect(transcribeCalls).toHaveLength(1);
+    expect(useMeetingStore.getState().processingCount).toBe(0);
   });
 });
