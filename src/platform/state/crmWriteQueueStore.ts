@@ -2,17 +2,31 @@
 //
 // Holds proposed CRM writes (notes/tasks) drafted from a client's note or
 // meeting until the advisor explicitly approves them via the review card.
-// No persistence: proposals are session-scoped by design — a restart clears
-// un-approved proposals, which is the safe default (nothing half-sent
-// survives a crash into a new session unexpectedly).
+//
+// Persisted (zustand + localStorage, same pattern as fileContextStore /
+// aiChatStore): "AI proposes, user approves" is the product's core promise —
+// a proposal silently vanishing on an app restart breaks it, so un-approved
+// proposals must survive. `reconcileRehydratedItems` (below) restores the
+// queue honestly instead of trusting it blindly: an item stuck mid-send when
+// the app closed had its in-flight call die with it, so it reopens as
+// 'proposed' rather than sitting forever disabled; an item whose matter was
+// deleted in a prior session is DROPPED rather than kept around forever —
+// its only possible display surface is that matter's own (now unreachable)
+// MatterHub, so there is nowhere it could ever be reviewed or dismissed; a
+// completed ('sent') item is also never persisted forward, since it has
+// nothing left to review and the card offers no way to dismiss a done row
+// (see `isPersistableStatus`); and structurally corrupt entries are dropped
+// rather than throwing later when the UI reads `item.kind` / `item.status`.
 //
 // The ONLY call sites of `approve()` are the review card's Approve button
 // and this file's own tests. Enqueuing never sends anything.
 
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 import { crmCreateNote, crmCreateTask, crmUpdateField } from '@/platform/utils/wealthbox-commands';
 import { composeFieldBlend, isWritableField } from '@/platform/state/fieldBlend';
+import { useMatterStore } from '@/platform/matter/matterStore';
 import type { Provider } from '@/platform/providers/Provider';
 
 export type CrmWriteStatus = 'proposed' | 'sending' | 'sent' | 'failed' | 'verify_pending' | 'stale';
@@ -213,7 +227,73 @@ async function sendOne(item: ProposedCrmWrite, householdKey: string): Promise<vo
   }
 }
 
-export const useCrmWriteQueueStore = create<CrmWriteQueueState>((set, get) => ({
+const VALID_STATUSES: readonly CrmWriteStatus[] = [
+  'proposed',
+  'sending',
+  'sent',
+  'failed',
+  'verify_pending',
+  'stale',
+];
+
+function isValidPersistedItem(raw: unknown): raw is ProposedCrmWrite {
+  if (typeof raw !== 'object' || raw === null) return false;
+  const r = raw as Record<string, unknown>;
+  return (
+    typeof r['id'] === 'string' &&
+    (r['kind'] === 'note' || r['kind'] === 'task' || r['kind'] === 'field') &&
+    typeof r['matterId'] === 'string' &&
+    typeof r['title'] === 'string' &&
+    typeof r['body'] === 'string' &&
+    typeof r['sourceRef'] === 'string' &&
+    typeof r['status'] === 'string' &&
+    (VALID_STATUSES as string[]).includes(r['status'])
+  );
+}
+
+/** A completed item has nothing left to review or approve — drop it from
+ * what gets persisted so it can't come back as a permanent, undismissable
+ * "done" card on a future restart (CrmWriteRow renders no Dismiss control
+ * for a sent item, since dismissing an in-session confirmation was never a
+ * user action worth offering). */
+function isPersistableStatus(status: CrmWriteStatus): boolean {
+  return status !== 'sent';
+}
+
+/**
+ * Reconciles a just-rehydrated queue against reality instead of trusting the
+ * localStorage snapshot blindly (see the module doc comment above for why).
+ * Reads `useMatterStore` directly (a live, already-hydrated read — the
+ * static import above guarantees matterStore's own module code, including
+ * its own persist rehydration, has already run by the time this executes).
+ */
+function reconcileRehydratedItems(rawItems: unknown): ProposedCrmWrite[] {
+  const items = Array.isArray(rawItems) ? rawItems : [];
+  const knownMatterIds = new Set(useMatterStore.getState().matters.map((m) => m.id));
+  return items
+    .filter(isValidPersistedItem)
+    .filter((item) => isPersistableStatus(item.status))
+    .filter((item) => {
+      // The matter this proposal targets is gone (deleted in a prior
+      // session). Its only possible display surface is that matter's own
+      // MatterHub, which a deleted matter can never open again — so there
+      // is nowhere left this could ever be reviewed or dismissed. Drop it
+      // rather than stranding a zombie entry in localStorage forever.
+      return knownMatterIds.has(item.matterId);
+    })
+    .map((item) =>
+      item.status === 'sending'
+        // The in-flight send died with the app — nothing is actually
+        // running, so re-open it for a fresh (deliberate) retry rather than
+        // leaving it stuck disabled forever.
+        ? { ...item, status: 'proposed' }
+        : item,
+    );
+}
+
+export const useCrmWriteQueueStore = create<CrmWriteQueueState>()(
+  persist(
+    (set, get) => ({
   items: [],
 
   enqueue: (item) => {
@@ -272,4 +352,19 @@ export const useCrmWriteQueueStore = create<CrmWriteQueueState>((set, get) => ({
       sourceRef: args.sourceRef,
     });
   },
-}));
+    }),
+    {
+      name: 'crm-write-queue-storage',
+      version: 1,
+      // Codex review catch: never persist a completed ('sent') item forward —
+      // it has nothing left to review/approve/dismiss, and would otherwise
+      // resurrect as a permanent, undismissable "done" card on Overview
+      // after every future restart.
+      partialize: (state) => ({ items: state.items.filter((i) => isPersistableStatus(i.status)) }),
+      merge: (persistedState, currentState) => ({
+        ...currentState,
+        items: reconcileRehydratedItems((persistedState as { items?: unknown } | undefined)?.items),
+      }),
+    },
+  ),
+);

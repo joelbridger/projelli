@@ -179,6 +179,14 @@ interface DocxEditorProps {
    * confirmation never claims success for a no-op enqueue (codex-review).
    */
   onSendToWealthbox?: ((plainText: string) => boolean) | undefined;
+  /**
+   * QA finding (P3): the "Review now" action next to the send confirmation —
+   * jumps to this document's client's Client Map, where the review card
+   * lives. DocxEditor doesn't own a matterId itself (the parent resolves it
+   * from the file path), so this mirrors onSendToWealthbox's shape: present
+   * only when a current matter exists.
+   */
+  onReviewWealthboxQueue?: (() => void) | undefined;
 }
 
 type LoadState =
@@ -203,6 +211,7 @@ export function DocxEditor({
   coedit,
   onDraftFollowUp,
   onSendToWealthbox,
+  onReviewWealthboxQueue,
 }: DocxEditorProps) {
   const { t } = useTranslation();
 
@@ -1278,11 +1287,20 @@ export function DocxEditor({
           {onSendToWealthbox && (
             <>
               {wealthboxQueued && (
-                <span
-                  data-testid="docx-send-to-wealthbox-confirmation"
-                  className="text-xs text-emerald-700"
-                >
-                  {t('matter.notes.sent-to-wealthbox')}
+                <span className="flex items-center gap-1.5 text-xs text-emerald-700">
+                  <span data-testid="docx-send-to-wealthbox-confirmation">
+                    {t('matter.notes.sent-to-wealthbox')}
+                  </span>
+                  {onReviewWealthboxQueue && (
+                    <button
+                      type="button"
+                      data-testid="docx-send-to-wealthbox-review-now"
+                      onClick={onReviewWealthboxQueue}
+                      className="font-medium underline underline-offset-2 hover:text-emerald-800"
+                    >
+                      {t('matter.notes.review-now')}
+                    </button>
+                  )}
                 </span>
               )}
               <Button

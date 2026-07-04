@@ -31,6 +31,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **CRM review-card visibility + persistence (QA findings).** (1) Queued Wealthbox
+  proposals no longer vanish on app restart — `crmWriteQueueStore` now persists via
+  zustand + localStorage, with honest rehydrate reconciliation: an item stuck mid-send
+  reopens as `proposed`, an item whose matter was deleted is dropped (its only display
+  surface, that matter's Hub, can never reopen), a completed (`sent`) item is never
+  persisted forward (no Dismiss control exists for a done row), and structurally corrupt
+  entries are dropped rather than crashing the UI. (2) `CrmWriteReviewCard` only ever
+  mounted on the Client Map's Overview sub-tab — a pending proposal was invisible from
+  Documents/Email/Activity. New `CrmWritePendingBanner` renders a slim presence banner
+  in the hub chrome on every other sub-tab, with a "Review now" jump back to Overview.
+  (3) The toolbar confirmation after "Send to Wealthbox" was vague and un-actionable
+  ("Added to the Wealthbox review card on this client's map") and disconnected while
+  Wealthbox was offline — now "Queued for Wealthbox review" plus a real "Review now"
+  action (dispatches `lantern:matter-launch`) in both `MatterNotesEditor` and
+  `DocxEditor`; the disconnected-Wealthbox card state also now offers Dismiss per item
+  instead of being a dead end. (4) `scripts/bench-smoke/checks/wave2.mjs`'s
+  Send-to-Wealthbox check could false-PASS on the toolbar's own confirmation text alone
+  — now asserts the real card (`[data-testid="crm-write-card-collapsed"]`) and expands
+  it to confirm Approve is reachable. Files: `src/platform/state/crmWriteQueueStore.ts`,
+  `src/features/matters/{CrmWriteReviewCard,CrmWritePendingBanner,MatterHub,
+  MatterNotesEditor}.tsx`, `src/features/documents/media/DocxEditor.tsx`,
+  `src/app/shell/layout/MainPanel.tsx`, `scripts/bench-smoke/checks/wave2.mjs`,
+  `src/locales/{en,de,es}.json`. 3 rounds of independent Codex review (2 confirmed P2s
+  fixed: undismissable sent/orphaned items surviving forever, disconnected-state
+  dead end).
+
 ### Added
 - **Wave 3 — local meeting capture (the last feature lane).** In-process recording engine
   (`src-tauri/src/commands/capture/`): dual-channel capture (mic + system loopback via
