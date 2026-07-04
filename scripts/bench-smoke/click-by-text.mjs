@@ -48,7 +48,21 @@ export function clickByTextScript(needle, { double = false } = {}) {
     "(() => {" +
     `const needle = '${escaped}'.toLowerCase();` +
     "const textOf = (e) => (e.textContent || e.getAttribute('aria-label') || e.getAttribute('placeholder') || '').trim().toLowerCase();" +
-    "const controls = [...document.querySelectorAll('[data-testid], button, a, [role=\"button\"], input, textarea')];" +
+    // Root-caused live during the 2026-07-04 bench-full pass: textOf() reads
+    // textContent, which cascades up through every ancestor — so a big
+    // structural wrapper like `app-container` (data-testid'd, and the FIRST
+    // such element in document order) trivially "contains" any needle that
+    // appears ANYWHERE on the page, and .find() returned it before ever
+    // reaching the real target. That single-click on a giant wrapper is a
+    // no-op, silently breaking clickByText/doubleClickByText for nearly any
+    // needle that matches real page content (which is most of them) — this
+    // is why file-open navigation (openSmokeClientNote and everything
+    // downstream of it) was failing. Excluding candidates that have their
+    // own nested data-testid descendants filters out structural containers
+    // while still matching genuine small controls (a button/link/badge whose
+    // own label IS the needle, e.g. Grid view's file-card buttons).
+    "const controls = [...document.querySelectorAll('[data-testid], button, a, [role=\"button\"], input, textarea')]" +
+    ".filter(e => e.querySelectorAll('[data-testid]').length === 0);" +
     "let match = controls.find(e => textOf(e).includes(needle));" +
     "let isControl = !!match;" +
     "if (!match) {" +

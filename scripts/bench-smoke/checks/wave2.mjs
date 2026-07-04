@@ -15,6 +15,7 @@ import {
   findByText,
   clickElement,
   openSmokeClientDocuments,
+  openSmokeClientDocumentsSubtab,
   openSmokeClientNote,
 } from './_util.mjs';
 import { SMOKE_CLIENT_MATTER_ID, SMOKE_NOTE_FILENAME } from './smoke-workspace.mjs';
@@ -23,11 +24,24 @@ const ID = 'wave2-wealthbox-queue-review';
 const SECTION = 'Wave 2 — Send to Wealthbox (queue/review only)';
 
 export const checkWealthboxQueueAndReview = withGuard(ID, SECTION, async ({ driver }) => {
+  // Each navigation step is tried INDEPENDENTLY — see wave0.mjs / setup.mjs
+  // for the same pattern and root cause (a single try/catch around all
+  // steps silently skips openSmokeClientNote whenever a prior check already
+  // left a client hub open on a different sub-tab).
   try {
     await openSmokeClientDocuments(driver, { matterId: SMOKE_CLIENT_MATTER_ID });
+  } catch {
+    // Ignored — see comment above.
+  }
+  try {
+    await openSmokeClientDocumentsSubtab(driver);
+  } catch {
+    // Ignored — see comment above.
+  }
+  try {
     await openSmokeClientNote(driver, { fileName: SMOKE_NOTE_FILENAME });
   } catch {
-    // Best-effort — see wave0.mjs for the same pattern and rationale.
+    // Ignored — see comment above.
   }
 
   const elements = await requireSnapshot(driver);
