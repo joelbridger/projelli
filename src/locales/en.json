@@ -1548,7 +1548,7 @@
       "notes-pending": "Notes are being written from the transcript. Check back in a moment.",
       "notes-failed-timeout": "Notes couldn't be written. The AI provider didn't respond in time. Your recording and transcript are safe.",
       "notes-failed-error": "Notes couldn't be written. The AI provider returned an error. Your recording and transcript are safe.",
-      "notes-failed-blocked": "Notes need your AI provider, but Local-only mode is blocking it. Turn off Local-only mode in Settings → Privacy, or connect a local model, to write this meeting's notes.",
+      "notes-failed-blocked": "Notes need your AI provider, but Local-only mode is blocking it. Connect a local model to write this meeting's notes, or, if you'd rather, turn off Local-only mode in Settings → Privacy.",
       "retrying-notes": "Retrying…",
       "transcript-pending": "Transcription is queued. It'll appear here once it's ready.",
       "transcript-failed-not-installed": "Transcription couldn't run. The voice engine isn't installed on this computer yet. Your recording is safe.",

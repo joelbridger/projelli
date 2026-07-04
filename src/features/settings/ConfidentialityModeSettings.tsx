@@ -50,8 +50,16 @@ interface ModeCard {
   /** Light-theme accent for the selected ring + icon. */
   accent: string;
   comingSoon?: boolean;
-  /** When true, renders a small "Recommended" badge next to the card title. */
-  recommended?: boolean;
+  /**
+   * A short, honest descriptor shown as a small badge next to the card title
+   * (e.g. "Most capable", "Most private"). Deliberately NOT a bare
+   * "Recommended" badge: this app's whole pitch is the privacy spectrum, so
+   * badging one option as THE recommendation (especially the less-private
+   * one) reads as steering users away from the option that best matches
+   * their own stated priority. Each card names its own actual strength
+   * instead, so the user picks based on what they value.
+   */
+  tag?: string;
 }
 
 /** The two cards shown to solo (non-firm) users. */
@@ -63,6 +71,7 @@ const SOLO_CARDS: ModeCard[] = [
     blurb:
       'AI runs on your machine: your documents and prompts are never sent to a cloud AI. Cloud AI providers are turned off and only on-device models are used — the built-in Advisor Prep Hero Local AI, or your own Ollama. Connectors you have set up still sync. Use this for your most sensitive client work.',
     accent: 'text-emerald-700 border-emerald-400 dark:text-emerald-300 dark:border-emerald-700',
+    tag: 'Most private',
   },
   {
     mode: 'direct',
@@ -71,7 +80,7 @@ const SOLO_CARDS: ModeCard[] = [
     blurb:
       'Your own API key talks directly to your chosen AI provider (Anthropic, OpenAI, or Google). Advisor Prep Hero is not in between. The provider sees your prompt, so control retention and training in your provider account.',
     accent: 'text-sky-700 border-sky-400 dark:text-sky-300 dark:border-sky-700',
-    recommended: true,
+    tag: 'Most capable',
   },
 ];
 
@@ -157,12 +166,12 @@ export function ConfidentialityModeSettings() {
                   {card.title}
                 </span>
                 <span className="flex items-center gap-1.5 shrink-0">
-                  {card.recommended && (
+                  {card.tag && (
                     <span
-                      data-testid={`confidentiality-mode-${card.mode}-recommended`}
+                      data-testid={`confidentiality-mode-${card.mode}-tag`}
                       className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary"
                     >
-                      Recommended
+                      {card.tag}
                     </span>
                   )}
                   {selected && !disabled && (

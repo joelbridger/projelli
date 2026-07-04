@@ -16,9 +16,9 @@ export const ONB_COPY = {
       'Ask anything, with sources',
     ],
     pills: [
-      'Advisor Prep Hero stores none of your data',
-      'Fully encrypted (AES-256)',
-      'AI provider is SOC 2 certified',
+      'Our servers never see your documents or prompts',
+      'Vault: optional AES-256 encryption',
+      'Cloud AI providers are SOC 2 certified',
     ],
     cta: 'Go!',
   },

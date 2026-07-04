@@ -123,21 +123,33 @@ describe('ConfidentialityModeSettings — Assured selectability', () => {
 });
 
 // ---------------------------------------------------------------------------
-// WS5 Task 2 — "Recommended" badge on the Direct card in Settings.
+// P6 (trust review) — a bare "Recommended" badge on the Direct (cloud) card
+// pointed a privacy-motivated advisor away from the app's own strongest
+// promise. Each card now names its own honest strength instead: "Most
+// capable" for cloud, "Most private" for local-only. Neither card gets an
+// unqualified "Recommended" badge.
 // ---------------------------------------------------------------------------
-describe('ConfidentialityModeSettings — WS5 Recommended badge on Direct', () => {
-  it('shows a "Recommended" badge on the Direct (BYOK) card', () => {
+describe('ConfidentialityModeSettings — honest per-card tags, not a bare Recommended badge (P6)', () => {
+  it('tags the Direct (cloud) card "Most capable", not "Recommended"', () => {
     useFirmStore.setState({ assuredProviders: [], session: null });
     render(<ConfidentialityModeSettings />);
     const directCard = screen.getByTestId('confidentiality-mode-direct');
-    expect(directCard.textContent).toMatch(/Recommended/i);
+    expect(directCard.textContent).toMatch(/Most capable/i);
+    expect(directCard.textContent).not.toMatch(/Recommended/i);
   });
 
-  it('does NOT show a "Recommended" badge on the Local-only card', () => {
+  it('tags the Local-only card "Most private"', () => {
     useFirmStore.setState({ assuredProviders: [], session: null });
     render(<ConfidentialityModeSettings />);
     const localCard = screen.getByTestId('confidentiality-mode-local-only');
+    expect(localCard.textContent).toMatch(/Most private/i);
     expect(localCard.textContent).not.toMatch(/Recommended/i);
+  });
+
+  it('no card anywhere shows a bare "Recommended" badge', () => {
+    useFirmStore.setState({ assuredProviders: [], session: null });
+    render(<ConfidentialityModeSettings />);
+    expect(screen.queryByText(/^Recommended$/i)).toBeNull();
   });
 });
 
