@@ -679,6 +679,35 @@ fn test_roundtrip_idempotent_on_commented_doc() {
     assert_eq!(round1, round2, "commented-doc round-trip not idempotent");
 }
 
+/// Deterministic regression test for the same guarantee as
+/// `test_roundtrip_idempotent_on_commented_doc`, but not dependent on the
+/// wall clock: that test only failed when two writes happened to land on
+/// opposite sides of a 2-second DOS-timestamp boundary, so it could pass or
+/// fail depending on scheduling luck. This asserts directly on the zip
+/// container's per-entry mtime — every entry must carry the fixed writer
+/// timestamp, not real time, regardless of when the test runs.
+#[test]
+fn test_zip_entry_timestamps_are_fixed_not_wall_clock() {
+    use std::io::Cursor;
+    use zip::ZipArchive;
+
+    let original = build_commented_package_with_distinctive_comments();
+    let round = roundtrip_bytes(&original).expect("roundtrip");
+
+    let mut archive = ZipArchive::new(Cursor::new(round)).expect("read written zip");
+    let expected = zip::DateTime::default(); // DOS epoch: 1980-01-01 00:00:00
+    assert!(archive.len() > 0, "written zip has no entries");
+    for i in 0..archive.len() {
+        let entry = archive.by_index(i).expect("read entry");
+        assert_eq!(
+            entry.last_modified(),
+            Some(expected),
+            "entry {:?} was stamped with a non-fixed mtime",
+            entry.name()
+        );
+    }
+}
+
 #[test]
 fn test_edited_comment_is_regenerated() {
     // When the comment set ACTUALLY changes, we regenerate (no stale preserve).

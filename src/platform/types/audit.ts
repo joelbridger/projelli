@@ -108,7 +108,32 @@ export type AuditActionType =
   // the moment Wave 3 starts writing them under these exact action strings).
   | 'meeting_capture_started'
   | 'meeting_recorded'
-  | 'meeting_audio_deleted';
+  | 'meeting_audio_deleted'
+  // Written directly by the Rust audit-store repair path (never through
+  // AuditService) when the encrypted store's hash-chain seal was missing on
+  // open and the surviving rows were re-sealed by an explicit, acknowledged
+  // repair. See `EncryptedAuditStore::repair` / `build_anomaly_record` in
+  // `src-tauri/src/commands/audit/store.rs`.
+  | 'audit_integrity_reseal'
+  // Redtail CRM connector lifecycle — cleanup3 audit found this provider's
+  // connect/sync/disconnect actions were never added to the union even
+  // though `crm_connect`/`crm_sync_all`/`crm_disconnect` are provider-generic
+  // and already write them (src-tauri/src/commands/crm/commands.rs).
+  | 'redtail.connect'
+  | 'redtail.sync'
+  | 'redtail.disconnect'
+  // Salesforce is the only CRM provider connected via OAuth
+  // (`crm_oauth_connect`), which can be cancelled mid-flow; the compensating
+  // "cancelled after credential was briefly stored" audit entry it writes
+  // was missing from the union.
+  | 'salesforce.connect_cancelled'
+  // Wealthbox is the only CRM provider whose write-back path
+  // (`CrmWriteSource` in src-tauri/src/commands/crm/write.rs) is actually
+  // implemented rather than `NotSupported` — Redtail/Salesforce always error
+  // before an audit entry is written for these, so only Wealthbox needs them.
+  | 'wealthbox.create_note'
+  | 'wealthbox.create_task'
+  | 'wealthbox.field_updated';
 
 /**
  * The verdict from citation verification (mirrors `CitationVerdict.verdict`

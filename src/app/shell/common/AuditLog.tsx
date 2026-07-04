@@ -33,6 +33,7 @@ import {
   Search as SearchIcon,
   ShieldCheck,
   ShieldOff,
+  ShieldAlert,
   Lock,
   Target,
   Send,
@@ -135,6 +136,14 @@ const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   meeting_capture_started: FilePlus,
   meeting_recorded: FileText,
   meeting_audio_deleted: FileX,
+  audit_integrity_reseal: ShieldAlert,
+  'redtail.connect': Users2,
+  'redtail.sync': Users2,
+  'redtail.disconnect': Users2,
+  'salesforce.connect_cancelled': XCircle,
+  'wealthbox.create_note': FilePlus,
+  'wealthbox.create_task': FilePlus,
+  'wealthbox.field_updated': PenLine,
 };
 
 const ACTION_LABELS: Record<AuditActionType, string> = {
@@ -202,6 +211,14 @@ const ACTION_LABELS: Record<AuditActionType, string> = {
   meeting_capture_started: 'Meeting Recording Started',
   meeting_recorded: 'Meeting Recorded',
   meeting_audio_deleted: 'Meeting Audio Deleted',
+  audit_integrity_reseal: 'Audit Log Integrity Gap Repaired',
+  'redtail.connect': 'Redtail Connected',
+  'redtail.sync': 'Redtail Synced',
+  'redtail.disconnect': 'Redtail Disconnected',
+  'salesforce.connect_cancelled': 'Salesforce Connect Cancelled',
+  'wealthbox.create_note': 'Wealthbox Note Created',
+  'wealthbox.create_task': 'Wealthbox Task Created',
+  'wealthbox.field_updated': 'Wealthbox Field Updated',
 };
 
 const ACTION_COLORS: Record<AuditActionType, string> = {
@@ -269,6 +286,14 @@ const ACTION_COLORS: Record<AuditActionType, string> = {
   meeting_capture_started: 'text-sky-600 dark:text-sky-400',
   meeting_recorded: 'text-sky-600 dark:text-sky-400',
   meeting_audio_deleted: 'text-amber-600 dark:text-amber-400',
+  audit_integrity_reseal: 'text-rose-600 dark:text-rose-400',
+  'redtail.connect': 'text-emerald-600 dark:text-emerald-400',
+  'redtail.sync': 'text-sky-600 dark:text-sky-400',
+  'redtail.disconnect': 'text-orange-600 dark:text-orange-400',
+  'salesforce.connect_cancelled': 'text-amber-600 dark:text-amber-400',
+  'wealthbox.create_note': 'text-green-600 dark:text-green-400',
+  'wealthbox.create_task': 'text-green-600 dark:text-green-400',
+  'wealthbox.field_updated': 'text-blue-600 dark:text-blue-400',
 };
 
 export function AuditLog({

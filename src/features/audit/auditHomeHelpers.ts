@@ -22,6 +22,7 @@ import {
   Search as SearchIcon,
   ShieldCheck,
   ShieldOff,
+  ShieldAlert,
   Lock,
   Fingerprint,
   Target,
@@ -136,6 +137,14 @@ export const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   meeting_capture_started: FilePlus,
   meeting_recorded: FileText,
   meeting_audio_deleted: FileX,
+  audit_integrity_reseal: ShieldAlert,
+  'redtail.connect': Users2,
+  'redtail.sync': Users2,
+  'redtail.disconnect': Users2,
+  'salesforce.connect_cancelled': XCircle,
+  'wealthbox.create_note': FilePlus,
+  'wealthbox.create_task': FilePlus,
+  'wealthbox.field_updated': PenLine,
 };
 
 export const ACTION_LABELS: Record<AuditActionType, string> = {
@@ -201,6 +210,14 @@ export const ACTION_LABELS: Record<AuditActionType, string> = {
   meeting_capture_started: 'Meeting Recording Started',
   meeting_recorded: 'Meeting Recorded',
   meeting_audio_deleted: 'Meeting Audio Deleted',
+  audit_integrity_reseal: 'Audit Log Integrity Gap Repaired',
+  'redtail.connect': 'Redtail Connected',
+  'redtail.sync': 'Redtail Synced',
+  'redtail.disconnect': 'Redtail Disconnected',
+  'salesforce.connect_cancelled': 'Salesforce Connect Cancelled',
+  'wealthbox.create_note': 'Wealthbox Note Created',
+  'wealthbox.create_task': 'Wealthbox Task Created',
+  'wealthbox.field_updated': 'Wealthbox Field Updated',
 };
 
 /** Semantic category per action, drives colour + grouping in filters. */
@@ -269,6 +286,14 @@ export const ACTION_CATEGORY: Record<AuditActionType, ActionCategory> = {
   meeting_capture_started: 'system',
   meeting_recorded: 'system',
   meeting_audio_deleted: 'file',
+  audit_integrity_reseal: 'privilege',
+  'redtail.connect': 'system',
+  'redtail.sync': 'system',
+  'redtail.disconnect': 'system',
+  'salesforce.connect_cancelled': 'system',
+  'wealthbox.create_note': 'system',
+  'wealthbox.create_task': 'system',
+  'wealthbox.field_updated': 'system',
 };
 
 export const CATEGORY_COLOR: Record<ActionCategory, string> = {
