@@ -12,10 +12,10 @@ Last updated: 2026-07-04 ~05:45 (coordinator-6 — FEATURE-COMPLETE: final score
 | cc-lantern-w3c | Wave-3 Phases 3c+3d: meetings surface — record pill, Meetings tab, transcript viewer, notes, consent (lp/wave3-meetings-ui; Tasks 10-13) | building |
 | cc-lantern-qa1 | QA campaign lane 1: persona-A first-run exploration on Azure bench-1 (report-only; bug DB) | exploring |
 | cc-lantern-cleanup1 | Cleanup batch 1 + docs currency (lp/cleanup-batch1): 5 scoped items | building |
-| cc-lantern-renameref | Rename reference migration (lp/rename-ref-migration): safe path/name hygiene post-Phase-2 (bridge active) | building |
 | cc-lantern-diarelease | Diarization sidecar+models → release pipeline (lp/diarize-release-staging; #12); dry local validation only, never a real release | building |
 
 ## Merged this session
+✅ lp/rename-ref-migration @e88aa715 (fork) + keepance-3.0 (main repo) — /home/jameson/keepance→/lantern path hygiene in 7 scripts/docs; frozen names left; report filed
 🏁 SCORECARD after cold-boot confirm: 12 PASS · 0 FAIL · 2 SETUP-BLOCKED · 5 stubs. ⚠️ CORRECTION (Jameson caught it): the 5 stubs = the UNBUILT Wave-3 UI (Meetings tab/record pill/transcription) — feature-complete was over-claimed; engine done, surface in build now (w3b+w3c lanes)
 ✅ lp/bench-harness-clients-tab-fix @02d153b5 — Clients-tab normalization + note-collision + wave1 modal-close (126+ harness tests)
 ✅ lp/bench-harness-followup-fixes @64df925e — overlay-dismiss prefers Close (native-dialog trap killed) + wave1 nav
