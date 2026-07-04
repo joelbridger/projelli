@@ -102,9 +102,13 @@ jobs:
         uses: swatinem/rust-cache@v2
         with: { workspaces: './src-tauri -> target' }
       - name: protoc + webkit deps
+        # libasound2-dev: cpal (Lantern-Plus Wave 3a meeting capture) links
+        # alsa-sys on Linux, which needs ALSA's pkg-config file (alsa.pc) to
+        # build — without it, compiling the capture crate fails before any
+        # test runs.
         run: |
           sudo apt-get update
-          sudo apt-get install -y protobuf-compiler libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev libfuse2
+          sudo apt-get install -y protobuf-compiler libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev libfuse2 libasound2-dev
       - name: Stage sidecar stubs (tauri externalBin existence check)
         # The gate runs cargo test before the build jobs stage the real
         # sidecars; tauri validates externalBin paths before compiling, so
@@ -184,9 +188,13 @@ jobs:
 
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
+        # libasound2-dev: cpal (Lantern-Plus Wave 3a meeting capture) links
+        # alsa-sys on Linux, which needs ALSA's pkg-config file (alsa.pc) to
+        # build — without it, compiling the capture crate fails before any
+        # release build runs.
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev libfuse2
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev libfuse2 libasound2-dev
 
       - name: Install frontend dependencies
         run: npm ci

@@ -145,6 +145,96 @@ impl Drop for ChunkWriter {
     }
 }
 
+/// Wraps a `ChunkWriter` so it can be fed from a real-time audio callback
+/// without that callback ever touching disk. `ChunkWriter::write` flushes
+/// AND fsyncs on every call (the crash-durability contract this module
+/// promises) — calling that directly from cpal's audio callback thread
+/// blocks on disk I/O every single buffer, and on a slow disk or under
+/// antivirus scanning that can exceed cpal's audio deadline, causing
+/// dropped/underrun samples in the very recording this feature exists to
+/// protect. `AsyncChunkWriter` moves the actual `ChunkWriter` onto its own
+/// dedicated thread; the audio callback only ever does a cheap,
+/// non-blocking channel send.
+pub struct AsyncChunkWriter {
+    tx: std::sync::mpsc::Sender<Vec<i16>>,
+    join: Option<std::thread::JoinHandle<()>>,
+}
+
+impl AsyncChunkWriter {
+    /// Constructs the underlying `ChunkWriter` synchronously on the CALLING
+    /// thread — so a construction failure (e.g. can't create the chunk
+    /// directory) surfaces immediately, before any audio ever starts
+    /// flowing — then hands it off to a dedicated writer thread.
+    pub fn spawn(
+        dir: &Path,
+        channel: &'static str,
+        write_error: std::sync::Arc<std::sync::Mutex<Option<String>>>,
+    ) -> Result<Self> {
+        let mut writer = ChunkWriter::new(dir, channel)?;
+        let (tx, rx) = std::sync::mpsc::channel::<Vec<i16>>();
+        let join = std::thread::spawn(move || {
+            for samples in rx {
+                if let Err(e) = writer.write(&samples) {
+                    let mut err = write_error.lock().unwrap();
+                    if err.is_none() {
+                        *err = Some(format!("{channel} channel: {e}"));
+                    }
+                }
+            }
+            // `writer` drops here — ChunkWriter::drop finalizes + syncs the
+            // last open chunk, same as it always has.
+        });
+        Ok(Self { tx, join: Some(join) })
+    }
+
+    /// A clonable sender for the real-time audio callback to capture. Kept
+    /// separate from `send()` (below) because the callback needs to own its
+    /// handle across calls, not merely borrow this `AsyncChunkWriter`, which
+    /// stays with `CaptureEngine` for lifecycle management (dropping it —
+    /// see this type's `Drop` impl).
+    pub fn sender(&self) -> std::sync::mpsc::Sender<Vec<i16>> {
+        self.tx.clone()
+    }
+
+    /// Non-blocking: hands `samples` to the writer thread. Safe to call
+    /// from a real-time audio callback (though most callers should prefer
+    /// capturing `sender()` directly — see `sender()`'s doc). Silently
+    /// drops samples if the writer thread has already exited (this writer
+    /// was already dropped) — there's no reasonable recovery from an audio
+    /// callback, and `write_error` already reflects any real failure.
+    pub fn send(&self, samples: Vec<i16>) {
+        let _ = self.tx.send(samples);
+    }
+}
+
+impl Drop for AsyncChunkWriter {
+    /// Closes this writer's channel and blocks until the writer thread has
+    /// drained every already-queued buffer, written it, and exited. The
+    /// caller (`CaptureEngine::stop`) drops each writer explicitly, in
+    /// order, only after the audio source feeding it has fully stopped (so
+    /// nothing can still be sending) and BEFORE reading the chunk files
+    /// back for `finalize_session` — otherwise a buffered-but-not-yet-
+    /// written sample could still be missing from disk. Implementing this
+    /// as `Drop` (rather than a `finish(self)` method) also means the
+    /// failure path in `CaptureEngine::start_with_sources` — where a
+    /// partially-constructed writer just falls out of scope via `?` — gets
+    /// the same safe, joined shutdown for free, with no separate cleanup
+    /// code to remember.
+    fn drop(&mut self) {
+        // `Drop::drop` only gets `&mut self`, so `self.tx` can't be moved
+        // out directly — swap in a throwaway `Sender` (whose `Receiver` is
+        // immediately dropped) so the REAL channel's last clone drops here,
+        // closing it, BEFORE `join()` blocks below. Joining first would
+        // deadlock: the writer thread's `for samples in rx` loop can't end
+        // while the real `tx` is still alive.
+        let (dummy_tx, _dummy_rx) = std::sync::mpsc::channel();
+        drop(std::mem::replace(&mut self.tx, dummy_tx));
+        if let Some(j) = self.join.take() {
+            let _ = j.join();
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

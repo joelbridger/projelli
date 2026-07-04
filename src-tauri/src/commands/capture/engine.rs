@@ -1,4 +1,4 @@
-use super::chunks::ChunkWriter;
+use super::chunks::AsyncChunkWriter;
 use super::session::{finalize_session, ConsentRecord, SessionManifest};
 use super::sources::AudioSource;
 use anyhow::{anyhow, Result};
@@ -18,12 +18,19 @@ pub struct CaptureEngine {
     matter_id: String,
     mic: Box<dyn AudioSource>,
     sys: Box<dyn AudioSource>,
+    /// Each channel's disk writer runs on its own dedicated thread — see
+    /// `AsyncChunkWriter`'s doc — so the real-time audio callback never
+    /// blocks on the flush+fsync `ChunkWriter::write` always does. Held here
+    /// (not just locally in `start_sources_and_manifest`) so `stop()` can
+    /// explicitly drain and join them, in order, before `finalize_session`
+    /// reads the chunk files back.
+    mic_writer: AsyncChunkWriter,
+    sys_writer: AsyncChunkWriter,
     started: Instant,
     _awake: Option<keepawake::KeepAwake>,
-    /// First `ChunkWriter::write` error from either channel's callback, if
-    /// any. The callbacks run on the source's own OS/audio thread and can't
-    /// propagate an `Err` back through `AudioSource::start`'s `Box<dyn
-    /// FnMut>` signature — silently dropping a write failure (disk full,
+    /// First chunk-write error from either channel, if any. Populated from
+    /// the writer threads (`AsyncChunkWriter::spawn`'s loop), not the audio
+    /// callback itself — silently dropping a write failure (disk full,
     /// permissions changed, rotate/flush error) would let `stop()` return a
     /// normal-looking `audio.wav` path even though part of the meeting was
     /// never actually written to disk. `stop()` checks this and fails
@@ -73,7 +80,7 @@ impl CaptureEngine {
             &mut mic,
             &mut sys,
         ) {
-            Ok(write_error) => {
+            Ok((write_error, mic_writer, sys_writer)) => {
                 let awake = keepawake::Builder::default()
                     .display(false)
                     .idle(true)
@@ -87,6 +94,8 @@ impl CaptureEngine {
                     matter_id: matter_id.to_string(),
                     mic,
                     sys,
+                    mic_writer,
+                    sys_writer,
                     started: Instant::now(),
                     _awake: awake,
                     write_error,
@@ -106,6 +115,7 @@ impl CaptureEngine {
         }
     }
 
+    #[allow(clippy::type_complexity)]
     fn start_sources_and_manifest(
         meeting_dir: &Path,
         cap: &Path,
@@ -113,7 +123,7 @@ impl CaptureEngine {
         consent: ConsentRecord,
         mic: &mut Box<dyn AudioSource>,
         sys: &mut Box<dyn AudioSource>,
-    ) -> Result<Arc<Mutex<Option<String>>>> {
+    ) -> Result<(Arc<Mutex<Option<String>>>, AsyncChunkWriter, AsyncChunkWriter)> {
         std::fs::create_dir_all(cap)?;
         SessionManifest {
             meeting_dir: meeting_dir.to_path_buf(),
@@ -123,21 +133,17 @@ impl CaptureEngine {
         }
         .save()?;
 
-        let mic_writer = Arc::new(Mutex::new(ChunkWriter::new(cap, "mic")?));
-        let sys_writer = Arc::new(Mutex::new(ChunkWriter::new(cap, "sys")?));
         let write_error: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+        // Each channel's ChunkWriter lives on its own dedicated thread — see
+        // AsyncChunkWriter's doc — so the real-time audio callback below
+        // only ever does a cheap, non-blocking channel send, never the
+        // flush+fsync disk I/O ChunkWriter::write does on every call.
+        let mic_writer = AsyncChunkWriter::spawn(cap, "mic", write_error.clone())?;
+        let sys_writer = AsyncChunkWriter::spawn(cap, "sys", write_error.clone())?;
         {
-            let w = mic_writer.clone();
-            let err = write_error.clone();
+            let tx = mic_writer.sender();
             mic.start(Box::new(move |s| {
-                if let Ok(mut w) = w.lock() {
-                    if let Err(e) = w.write(s) {
-                        let mut err = err.lock().unwrap();
-                        if err.is_none() {
-                            *err = Some(format!("mic channel: {e}"));
-                        }
-                    }
-                }
+                let _ = tx.send(s.to_vec());
             }))?;
         }
         // `AudioSource::start` doesn't return until its stream is confirmed
@@ -150,18 +156,18 @@ impl CaptureEngine {
         // systematic mic/sys channel shift equal to however long sys took
         // to start.
         //
-        // The sys callback can't write straight to `sys_writer` from the
-        // moment it's registered: cpal (and the mac sidecar's reader thread)
-        // can deliver a first callback before `sys.start()` itself returns,
-        // which — with a direct write — would land REAL audio on disk
-        // before the gap-padding silence computed below, backwards from
-        // the intended order. `SysStart` gates that: every callback that
-        // arrives before the gap is known just buffers in memory instead of
-        // touching the writer; once the gap is computed, the padding and
-        // any buffered real audio are written to `sys_writer` in the
-        // correct order in one locked step, and the gate flips open for
-        // every callback after that. No race window — this is correct
-        // regardless of how the two threads get scheduled.
+        // The sys callback can't send straight to `sys_writer`'s channel
+        // from the moment it's registered: cpal (and the mac sidecar's
+        // reader thread) can deliver a first callback before `sys.start()`
+        // itself returns, which — sent immediately — would land REAL audio
+        // ahead of the gap-padding silence computed below in the channel's
+        // FIFO order, backwards from the intended order. `SysStart` gates
+        // that: every callback that arrives before the gap is known just
+        // buffers in memory instead of sending; once the gap is computed,
+        // the padding and any buffered real audio are sent in the correct
+        // order in one locked step, and the gate flips open for every
+        // callback after that. No race window — this is correct regardless
+        // of how the two threads get scheduled.
         enum SysStart {
             Buffering(Vec<i16>),
             Open,
@@ -169,22 +175,14 @@ impl CaptureEngine {
         let sys_start: Arc<Mutex<SysStart>> = Arc::new(Mutex::new(SysStart::Buffering(Vec::new())));
         let mic_ready_at = Instant::now();
         {
-            let w = sys_writer.clone();
-            let err = write_error.clone();
+            let tx = sys_writer.sender();
             let gate = sys_start.clone();
             sys.start(Box::new(move |s| {
                 let mut g = gate.lock().unwrap();
                 match &mut *g {
                     SysStart::Buffering(buf) => buf.extend_from_slice(s),
                     SysStart::Open => {
-                        if let Ok(mut w) = w.lock() {
-                            if let Err(e) = w.write(s) {
-                                let mut err = err.lock().unwrap();
-                                if err.is_none() {
-                                    *err = Some(format!("system audio channel: {e}"));
-                                }
-                            }
-                        }
+                        let _ = tx.send(s.to_vec());
                     }
                 }
             }))?;
@@ -196,32 +194,23 @@ impl CaptureEngine {
         // wall-clock start instant — this can't be perfectly sample-
         // accurate against real wall-clock time (OS audio APIs don't offer
         // true cross-device sample sync), but it fixes the systematic
-        // whole-recording shift the naive direct-write version had.
+        // whole-recording shift the naive direct-send version had.
         let gap_ms = Instant::now().saturating_duration_since(mic_ready_at).as_millis() as u64;
         let gap_samples = (gap_ms * super::chunks::SAMPLE_RATE as u64) / 1000;
         {
             let mut g = sys_start.lock().unwrap();
             if let SysStart::Buffering(buffered) = &mut *g {
                 let buffered = std::mem::take(buffered);
-                if let Ok(mut w) = sys_writer.lock() {
-                    let mut result = Ok(());
-                    if gap_samples > 0 {
-                        result = w.write(&vec![0i16; gap_samples as usize]);
-                    }
-                    if result.is_ok() && !buffered.is_empty() {
-                        result = w.write(&buffered);
-                    }
-                    if let Err(e) = result {
-                        let mut err = write_error.lock().unwrap();
-                        if err.is_none() {
-                            *err = Some(format!("system audio channel: {e}"));
-                        }
-                    }
+                if gap_samples > 0 {
+                    sys_writer.send(vec![0i16; gap_samples as usize]);
+                }
+                if !buffered.is_empty() {
+                    sys_writer.send(buffered);
                 }
             }
             *g = SysStart::Open;
         }
-        Ok(write_error)
+        Ok((write_error, mic_writer, sys_writer))
     }
 
     pub fn elapsed_ms(&self) -> u64 {
@@ -244,7 +233,15 @@ impl CaptureEngine {
         // after that would make the reported (and audited) duration include
         // stop/finalization time instead of just the captured recording.
         let duration_ms = self.elapsed_ms();
-        // ChunkWriters finalize on drop (Task 1); finalize merges them.
+        // Explicit, ordered drop: mic/sys have already stopped (no callback
+        // can still be sending), so this closes each writer's channel and
+        // blocks until its dedicated thread has drained every queued buffer
+        // and finalized+synced its last chunk (AsyncChunkWriter's Drop impl)
+        // — BEFORE finalize_session reads the chunk files back. Dropping
+        // implicitly at the end of this function instead would run this
+        // AFTER finalize_session, too late to matter.
+        drop(self.mic_writer);
+        drop(self.sys_writer);
         let audio_path = finalize_session(&self.meeting_dir)?;
         // A chunk write failure during recording means part of the meeting
         // was never saved even though finalize_session succeeded on
@@ -252,7 +249,16 @@ impl CaptureEngine {
         // hand back a normal-looking StopResult that implies a complete
         // recording. audio.wav still exists at this path if the caller
         // wants to recover the partial audio.
-        if let Some(err) = self.write_error() {
+        //
+        // Read directly off the field (not via `self.write_error()`, which
+        // takes `&self`): `mic_writer`/`sys_writer` were partially moved out
+        // of `self` above, so a whole-`self` borrow no longer typechecks —
+        // only individual untouched fields remain accessible. Must also
+        // happen AFTER the drops above, not before: the writer threads can
+        // still record a failure while draining their last queued buffers
+        // during `drop()`'s own join.
+        let write_error = self.write_error.lock().unwrap().clone();
+        if let Some(err) = write_error {
             anyhow::bail!(
                 "recording stopped, but part of the audio failed to save ({err}); partial audio at {}",
                 audio_path.display()
