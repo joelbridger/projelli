@@ -9,10 +9,10 @@ Last updated: 2026-07-04 ~01:05 (coordinator-6 seated — sole coordinator; moni
 |---|---|---|
 | cc-lantern-benchfull | 🏁 FINISH-LINE full Wave 0-4 scripted bench pass on the Legion (tip fc82c2a2; brief w-bench-full-brief.md; freshness canary mandatory — window-creation path changed) | bench-running |
 | cc-lantern-winvm | Local Windows VM spike Phase 1 (testing-speed program #6) — KVM VM on /mnt/devcache, SSH + clean snapshot; infra only, no product code | building |
-| cc-lantern-azclone | Azure: merged-tip verify on cloud VM (also a P0 canary for the window-creation change) → bench-ready snapshot → 2 clones (program #1+#2; Jameson-authorized) | building |
 | cc-lantern-auditfix | Audit-chain fail-closed fix (lp/audit-chain-failclosed; inherited #14; Opus 4.8 xhigh — tamper-evidence is the trust story) — builds during the bench pass, merges after the verdict | building |
 
 ## Merged this session
+✅ azclone lane DONE @0bab65b7 — merged-tip verified on cloud VM (CDP fix live); bench-ready golden snapshot; clone bench-2 zero-rebuild; FIRST live 2-way sharded smoke PASS (~$0.20)
 ✅ lp/e2e-smoke-mirror @fc82c2a2 — Playwright mirror: 11/19 bench checks in ~15s on Linux (44 specs green post-merge)
 ✅ lp/azure-cdp-fix @395923fd — wry CDP env-var fix (root-caused real app bug; cloud bench is now a working 2nd smoke target)
 ✅ lp/meeting-capture — 🏁 WAVE 3, the LAST feature lane (device-verified on real hardware pre-merge; 17 worker rounds + coordinator independent review w/ 1 confirmed-fixed P2; gate 1218 cargo + bins + 5670 vitest + tsc)
