@@ -54,4 +54,33 @@ test.describe('single-writer tab gate', () => {
     await tabA.close();
     await tabB.close();
   });
+
+  test('duplicating a tab (opener-based, copies sessionStorage) does not silently share write ownership', async ({ context }) => {
+    // Real "Duplicate Tab" browser actions copy sessionStorage into the new
+    // tab via an opener relationship — context.newPage() (used above) does
+    // NOT model that (each page starts with empty sessionStorage regardless
+    // of siblings), so this uses window.open() from tabA specifically to
+    // reproduce the opener-based copy (codex-review P1, round 3: a naive
+    // "persist tabId in sessionStorage" design would let both copies believe
+    // they own the same lock).
+    const tabA = await context.newPage();
+    await tabA.goto('/');
+    await tabA.waitForLoadState('networkidle');
+    await expect(tabA.getByTestId('open-existing-workspace')).toBeVisible({ timeout: 15_000 });
+
+    const [tabB] = await Promise.all([
+      context.waitForEvent('page'),
+      tabA.evaluate((url) => window.open(url, '_blank'), await tabA.url()),
+    ]);
+    await tabB.waitForLoadState('networkidle');
+
+    // Tab B must be gated, not a silent second owner.
+    await expect(tabB.getByTestId('tab-write-guard-overlay')).toBeVisible({ timeout: 15_000 });
+    // Tab A must be completely unaffected — still the sole owner.
+    await expect(tabA.getByTestId('tab-write-guard-overlay')).toHaveCount(0);
+    await expect(tabA.getByTestId('open-existing-workspace')).toBeVisible();
+
+    await tabA.close();
+    await tabB.close();
+  });
 });

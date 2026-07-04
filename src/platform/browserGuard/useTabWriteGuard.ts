@@ -9,22 +9,36 @@ import { TabWriteGuard, type TabGuardStatus } from './tabWriteGuard';
 // call the hook.
 let sharedGuard: TabWriteGuard | null = null;
 
-/** sessionStorage (unlike localStorage) is NOT shared across tabs even on the
- *  same origin, and survives a reload of the SAME tab — exactly the "this
- *  browser tab, across its whole lifetime" scope a stable tabId needs. Used
- *  so this tab still recognizes a lock it just claimed via requestTakeover
- *  after the reload that follows (see requestTakeover below) — without this,
- *  the reload would mint a brand-new random tabId that doesn't match the
- *  record it just wrote, and the tab would see its own fresh lock as
- *  foreign and gate itself again. */
-const TAB_SESSION_ID_KEY = 'lantern:tab-session-id';
+/** ONE-SHOT handoff for the reload requestTakeover() triggers on itself (see
+ *  requestTakeover below) — NOT a general "stable tab id", on purpose.
+ *
+ *  A naive "persist the tabId in sessionStorage for the tab's whole
+ *  lifetime" is unsafe: browsers COPY sessionStorage when a tab is
+ *  duplicated (right-click "Duplicate Tab", or any opener-based new tab), so
+ *  a long-lived persisted id would be silently shared by both copies —
+ *  `TabWriteGuard` would treat `record.tabId === this._tabId` as "this is
+ *  still my own lock" in BOTH tabs, and the single-writer guarantee this
+ *  whole module exists for would be defeated by the single most common way
+ *  users make a second tab (codex-review P1, round 3).
+ *
+ *  Instead, every ordinary page load gets a fresh random tabId (via
+ *  `TabWriteGuard`'s own default) — genuinely unique per real tab, so a
+ *  duplicated tab immediately diverges. The ONE exception: right before our
+ *  own requestTakeover()-triggered reload, the current tabId is written
+ *  here, then READ AND IMMEDIATELY DELETED on the very next load. Once
+ *  consumed it can never be read again — not by a later reload of this same
+ *  tab, and not by any tab duplicated after this point — so the only way it
+ *  could ever end up in two places is a browser "duplicate tab" landing
+ *  inside the sub-millisecond window between the reload() call and this
+ *  key's synchronous consumption on the next load, which isn't a real user
+ *  action a duplicate-tab click can hit. */
+const TAB_TAKEOVER_HANDOFF_KEY = 'lantern:tab-takeover-handoff';
 
-function getOrCreateTabId(): string {
-  const existing = window.sessionStorage.getItem(TAB_SESSION_ID_KEY);
-  if (existing) return existing;
-  const created = crypto.randomUUID();
-  window.sessionStorage.setItem(TAB_SESSION_ID_KEY, created);
-  return created;
+function consumeTakeoverHandoffTabId(): string | undefined {
+  const handoff = window.sessionStorage.getItem(TAB_TAKEOVER_HANDOFF_KEY);
+  if (handoff === null) return undefined;
+  window.sessionStorage.removeItem(TAB_TAKEOVER_HANDOFF_KEY);
+  return handoff;
 }
 
 /** Constructing the guard also primes it (one synchronous checkNow()) so the
@@ -36,7 +50,8 @@ function getOrCreateTabId(): string {
  *  test mode never touch localStorage at all. */
 function getSharedGuard(): TabWriteGuard {
   if (!sharedGuard) {
-    sharedGuard = new TabWriteGuard(SK_TAB_LOCK, { tabId: getOrCreateTabId() });
+    const handoffTabId = consumeTakeoverHandoffTabId();
+    sharedGuard = new TabWriteGuard(SK_TAB_LOCK, handoffTabId ? { tabId: handoffTabId } : {});
     sharedGuard.checkNow();
   }
   return sharedGuard;
@@ -55,9 +70,21 @@ function getSharedGuard(): TabWriteGuard {
 let takingOver = false;
 
 /** Test seam: reset the shared instance (each real tab only ever gets one —
- *  this only matters for test isolation across renderHook calls in one file). */
+ *  this only matters for test isolation across renderHook calls in one file).
+ *  Releases the current guard's lock first, since in a real tab this only
+ *  ever happens because the tab is gone. */
 export function __resetTabWriteGuardForTests(): void {
   sharedGuard?.stop();
+  sharedGuard = null;
+  takingOver = false;
+}
+
+/** Test seam: simulate spawning an INDEPENDENT tab's guard within the same
+ *  test file (a fresh module realm, as a real second browser tab would have)
+ *  WITHOUT releasing the current guard's lock — unlike
+ *  __resetTabWriteGuardForTests, the "current" tab is modeled as still alive
+ *  (e.g. testing that a duplicated tab doesn't silently co-own the lock). */
+export function __forkTabWriteGuardForTests(): void {
   sharedGuard = null;
   takingOver = false;
 }
@@ -143,7 +170,12 @@ export function useTabWriteGuard(enabled: boolean): TabWriteGuardState {
       // cleanup must see this already true or they'd release the lock this
       // call is about to claim (see the `takingOver` doc comment above).
       takingOver = true;
-      getSharedGuard().requestTakeover();
+      const guard = getSharedGuard();
+      guard.requestTakeover();
+      // Hand this exact tabId to the next load (see the handoff doc comment
+      // above) so it recognizes the lock it's about to reload into as its
+      // own, instead of minting a fresh id that wouldn't match.
+      window.sessionStorage.setItem(TAB_TAKEOVER_HANDOFF_KEY, guard.tabId);
       // This blocked tab's zustand/persist stores hydrated from localStorage
       // whenever THIS tab first loaded — possibly stale relative to whatever
       // the other (real owner) tab has saved since. Mounting AppShell
