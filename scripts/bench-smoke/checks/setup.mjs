@@ -91,8 +91,16 @@ export const checkPerClientFilesVisible = withGuard(
       });
     }
 
-    const elements = await requireSnapshot(driver);
-    const anyFile = findByText(elements, /\.docx|\.pdf/i);
+    // NOT findByText(requireSnapshot(driver), ...): snapshot() only captures
+    // interactive elements ([data-testid], button, a, [role="button"], input,
+    // textarea) — confirmed live that file rows in the Documents list are
+    // plain text nodes, so this always false-negatived via the snapshot path
+    // (root-caused during the 2026-07-04 bench-full pass: manually clicking
+    // into Documents showed real files while this check still reported
+    // SETUP-BLOCKED). textPresent/driver.waitFor searches the real rendered
+    // page text instead, same pattern already used for the same reason in
+    // index-health just below.
+    const anyFile = (await textPresent(driver, '.docx', 10)) ? '.docx' : (await textPresent(driver, '.pdf', 3)) ? '.pdf' : null;
     if (!anyFile) {
       return makeResult({
         id: 'per-client-files-visible',
@@ -107,7 +115,7 @@ export const checkPerClientFilesVisible = withGuard(
       id: 'per-client-files-visible',
       section: 'Phase 1 — setup',
       status: STATUS.PASS,
-      detail: `Documents tab shows real files for the selected client (e.g. "${anyFile.text}").`,
+      detail: `Documents tab shows real files for the selected client (found "${anyFile}" text).`,
       screenshots: [shot],
     });
   }

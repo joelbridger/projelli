@@ -10,6 +10,7 @@ import {
   findByTestId,
   textPresent,
   openSmokeClientDocuments,
+  openSmokeClientDocumentsSubtab,
   openSmokeClientNote,
 } from './_util.mjs';
 import { SMOKE_CLIENT_MATTER_ID, SMOKE_NOTE_FILENAME } from './smoke-workspace.mjs';
@@ -18,12 +19,30 @@ const ID = 'wave0-draft-followup';
 const SECTION = 'Wave 0 — Draft follow-up, Client Map review tray';
 
 export const checkDraftFollowupAndReviewTray = withGuard(ID, SECTION, async ({ driver }) => {
+  // Each navigation step is tried INDEPENDENTLY, not one try/catch around
+  // all of them — same fix, and same root cause, as setup.mjs's
+  // primeClientView (see its comment for the full story). matter-launch-
+  // documents-<id> only exists in the Client Map TABLE view; if a prior
+  // check (e.g. index-health) already left a client hub open on a
+  // different sub-tab, that click throws — which used to also skip
+  // openSmokeClientNote below even though the hub's own Documents sub-tab
+  // (reachable independently via hub-subtab-documents) is all
+  // openSmokeClientNote actually needs. The docx-draft-follow-up testid
+  // check right below remains the real, honest gate either way.
   try {
     await openSmokeClientDocuments(driver, { matterId: SMOKE_CLIENT_MATTER_ID });
+  } catch {
+    // Ignored — see comment above.
+  }
+  try {
+    await openSmokeClientDocumentsSubtab(driver);
+  } catch {
+    // Ignored — see comment above.
+  }
+  try {
     await openSmokeClientNote(driver, { fileName: SMOKE_NOTE_FILENAME });
   } catch {
-    // Best-effort — the docx-draft-follow-up testid check right below is the
-    // real, honest gate (a note may already have been open from a prior check).
+    // Ignored — see comment above.
   }
 
   const elements = await requireSnapshot(driver);

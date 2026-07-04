@@ -143,8 +143,33 @@ export async function openAskSurface(driver) {
 
 /** Double-click a file-tree row by its visible filename to open it as a docx
  * editor tab — confirmed live that file rows have no data-testid/button/role
- * and open on double-click, not a single click (see click-by-text.mjs). */
+ * and open on double-click, not a single click (see click-by-text.mjs).
+ *
+ * Switches to "Tree" view first (best-effort, non-fatal): the Documents
+ * panel's Tree/Grid view-mode choice persists across navigation, and Grid
+ * view only shows the CURRENT folder's contents — if a prior session/check
+ * left it on Grid sitting at a client's root folder, the smoke note (which
+ * lives in a "Planning" subfolder) is invisible to a whole-page text search
+ * and this throws even though the file genuinely exists and opens fine.
+ * Tree view, by contrast, renders the fully-expanded hierarchy, so the
+ * filename is always findable regardless of prior UI state. Confirmed live
+ * during the 2026-07-04 bench-full pass (manual Grid-view testing during
+ * that same session had left the workspace on Grid, which silently broke
+ * this helper for every check that runs after it).
+ */
 export async function openSmokeClientNote(driver, { fileName, waitForText = 'Draft follow-up' } = {}) {
+  try {
+    await driver.clickByText('Tree');
+    // Switching view modes re-renders the panel (folders re-expand); give
+    // the filename a moment to actually land in the DOM before searching
+    // for it — confirmed live that searching immediately after the Tree
+    // click can race the re-render and miss a real, about-to-appear row.
+    await driver.waitFor(fileName, 5);
+  } catch {
+    // Ignored — not on a view with a Tree/Grid toggle, already on Tree, or
+    // the file just wasn't there yet; doubleClickByText below is the real
+    // gate either way.
+  }
   await driver.doubleClickByText(fileName);
   const wait = await driver.waitFor(waitForText, 10);
   if (!wait.found) {

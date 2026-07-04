@@ -12,19 +12,27 @@ import { clickByTextScript } from '../click-by-text.mjs';
  * no button semantics and do need a dblclick). Faking a DOM here means this
  * test would have failed against the pre-fix version of click-by-text.mjs.
  */
-function runAgainstFakeDom(js, { controlTexts = [], leafTexts = [] }) {
+function runAgainstFakeDom(js, { controlTexts = [], leafTexts = [], wrapperTexts = [] }) {
   const clicked = [];
   const dispatched = [];
-  const makeEl = (text) => ({
+  const makeEl = (text, { hasTestidDescendants = false } = {}) => ({
     children: [],
     textContent: text,
     getAttribute: () => null,
     click: () => clicked.push(text),
     dispatchEvent: (ev) => dispatched.push({ text, type: ev.type }),
     getBoundingClientRect: () => ({ x: 0, y: 0, width: 10, height: 10 }),
+    // Real Grid-view file-card buttons (and Tree-row leaves) have no nested
+    // data-testid descendants — only large structural wrappers (like
+    // app-container) do. See click-by-text.mjs for why this must be excluded.
+    querySelectorAll: () => (hasTestidDescendants ? ['fake-descendant'] : []),
   });
-  const controlEls = controlTexts.map(makeEl);
-  const leafEls = leafTexts.map(makeEl);
+  // A structural wrapper (e.g. `app-container`) whose textContent trivially
+  // includes the needle because SOME descendant renders it, but which has
+  // its own nested data-testid descendants — must never be picked as `match`.
+  const wrapperEls = wrapperTexts.map((text) => makeEl(text, { hasTestidDescendants: true }));
+  const controlEls = [...wrapperEls, ...controlTexts.map((text) => makeEl(text))];
+  const leafEls = leafTexts.map((text) => makeEl(text));
   class FakeMouseEvent {
     constructor(type, opts) {
       this.type = type;
@@ -114,6 +122,23 @@ describe('clickByTextScript', () => {
       const { clicked, dispatched } = runAgainstFakeDom(js, { leafTexts: [FILE_NAME] });
       expect(clicked).toEqual([FILE_NAME]);
       expect(dispatched).toEqual([]);
+    });
+
+    it('skips a structural wrapper (e.g. app-container) whose textContent merely contains the needle via a descendant, and falls through to the real Tree-row leaf', () => {
+      // Root-caused live on the 2026-07-04 bench-full pass: app-container is
+      // data-testid'd and is the first `[data-testid]` element in document
+      // order, so its full-page textContent trivially "contains" almost any
+      // needle. Before the fix, controls.find() picked it and issued a
+      // no-op single click on the giant wrapper, silently breaking file-open
+      // navigation for any needle matching real page content.
+      const js = clickByTextScript(FILE_NAME, { double: true });
+      const { result, clicked, dispatched } = runAgainstFakeDom(js, {
+        wrapperTexts: [FILE_NAME],
+        leafTexts: [FILE_NAME],
+      });
+      expect(result).toBe('clicked');
+      expect(clicked).toEqual([]);
+      expect(dispatched).toEqual([{ text: FILE_NAME, type: 'dblclick' }]);
     });
   });
 });
