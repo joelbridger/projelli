@@ -7,6 +7,7 @@ Last updated: 2026-07-04 ~05:45 (coordinator-6 — FEATURE-COMPLETE: final score
 ## Active lanes
 | Worker session | What | State |
 |---|---|---|
+| cc-lantern-realcall | Real Teams-CALL recording verification on the Legion (answers Zoom/Teams/Meet question with live evidence; engine-level, no UI needed) | bench-running |
 | cc-lantern-crmcard | CRM review-card fixes (lp/crm-card-visibility): P1 queue-persistence (restart loses proposals), hub-wide visibility, copy, honest harness assert (QA-1..4) | building |
 | cc-lantern-w3b | Wave-3 Phase 3b: local transcription pipeline (lp/wave3-transcription; Tasks 7-9) | building |
 | cc-lantern-w3c | Wave-3 Phases 3c+3d: meetings surface — record pill, Meetings tab, transcript viewer, notes, consent (lp/wave3-meetings-ui; Tasks 10-13) | building |
