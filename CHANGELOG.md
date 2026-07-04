@@ -31,6 +31,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Wave 3 — local meeting capture (the last feature lane).** In-process recording engine
+  (`src-tauri/src/commands/capture/`): dual-channel capture (mic + system loopback via
+  cpal/WASAPI), chunked crash-safe writes with fsync, session finalize, orphan detection +
+  recovery after a hard kill, per-OS audio sources, symlink-safe matter/meeting path guards on
+  the shared pathguard primitive, and audit entries under the plan's declared
+  `meeting_capture_started` action. Verified on real hardware (Legion + USB headset): live
+  loopback signal, crash recovery of a mid-flight recording, device-disable mid-recording
+  survived. 17 review rounds + coordinator independent review (1 confirmed P2, fixed).
+  macOS capture sidecar (`capture-mac`) is a documented follow-up. Files:
+  `capture/{engine,chunks,recovery,session,sources,mod}.rs`, `pathguard.rs` (absolute variant).
+
 ### Security
 - **Symlink-safe path containment everywhere a caller-supplied path meets a workspace root.**
   A codebase audit found five containment checks that followed symlinks (an in-workspace alias
