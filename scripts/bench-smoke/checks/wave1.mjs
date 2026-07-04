@@ -49,6 +49,35 @@ export const checkCalendarBriefExport = withGuard(ID, SECTION, async ({ driver }
     });
   }
 
+  // Root-caused live during the 2026-07-04 bench-full follow-up: the sync
+  // confirmation above is asserted from INSIDE the Account > Connections
+  // modal (that's where the Sync now button lives), but the "Today" meetings
+  // strip renders on the Client Map surface underneath it — this check was
+  // asserting "Today" against the still-open modal, which structurally never
+  // contains that text, so it FAILed on every run where sync itself actually
+  // succeeded. Close the modal and get back to the Client Map before
+  // asserting anything about the meetings strip.
+  //
+  // Dispatch Escape directly here — NOT driver.dismissBlockingOverlay().
+  // That helper's fallback clicks the FIRST <button> inside any open
+  // [role="dialog"], which was added for the Draft-follow-up modal (whose
+  // first button is its close X) but is wrong for the Account modal: its
+  // first button is "Upload photo", a real native OS file-picker trigger.
+  // Confirmed live: this silently opened a native "Open" dialog rooted at
+  // the bench operator's own home folder, which then blocked CDP from
+  // seeing the real (correctly connected) app state for the rest of the
+  // session — every subsequent check misread the Calendar connector as
+  // disconnected until the stray dialog was closed by hand.
+  try {
+    await driver.evalJs(
+      "document.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', code:'Escape', bubbles:true}));" +
+        "document.dispatchEvent(new KeyboardEvent('keyup', {key:'Escape', code:'Escape', bubbles:true}));"
+    );
+    await driver.click('spine-nav-matters');
+  } catch {
+    // Best-effort — the waitFor calls below are the real, honest gate.
+  }
+
   const todayStrip = await driver.waitFor('Today', 10);
   const briefCitation = await textPresent(driver, 'cited');
 
