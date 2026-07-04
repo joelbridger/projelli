@@ -31,6 +31,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Bench harness typing truncation.** Typed text used to travel inside the SSH command string to
+  the Windows bench, silently truncating/mangling long or multi-line text; the driver also never
+  verified what actually landed in the field. New `type-stdin` subcommand in
+  `scripts/desktop-drive.mjs` sends text over stdin and reads the field back (fails loudly on
+  mismatch); `scripts/bench-smoke/{remote,driver}.mjs` pipe stdin through SSH; class-regression
+  tests added. Root-caused and built by Codex; coordinator-reviewed. Files: `desktop-drive.mjs`,
+  `bench-smoke/remote.mjs`, `bench-smoke/driver.mjs`, `bench-smoke/__tests__/remote.test.mjs`.
+
 ### Added
 - **Within-channel speaker diarization + voiceprint naming (Wave 4 Track A).** A new standalone
   `lantern-diarize` sidecar (sherpa-onnx segmentation/embedding/clustering behind a stable
