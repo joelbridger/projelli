@@ -7,6 +7,7 @@
 // DOM and persists via docx_save.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { StrictMode } from 'react';
 import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
 
 // --- Tauri mock: a programmable invoke that dispatches by command name. ----
@@ -1550,4 +1551,98 @@ describe('DocxEditor — QA-34 save resilience', () => {
       ),
     );
   }, 20000);
+
+  // Coordinator P2 #1: the mounted-tracking effect must set the ref true in
+  // SETUP, not only false in cleanup — else React 18 StrictMode's dev
+  // setup→cleanup→setup flips it to false on the first remount and never
+  // restores it, silently DISABLING all save retries in dev/QA. Under StrictMode,
+  // a fail-once save must still self-heal via retry.
+  it('retries still work under React 18 StrictMode (mountedRef restored on setup)', async () => {
+    let saveAttempts = 0;
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'docx_open') return Promise.resolve(oneRevisionDoc());
+      if (cmd === 'docx_resolve_revision') return Promise.resolve(resolvedDoc);
+      if (cmd === 'docx_save') {
+        saveAttempts += 1;
+        return saveAttempts === 1
+          ? Promise.reject(new Error('locked once'))
+          : Promise.resolve(undefined);
+      }
+      return Promise.resolve(undefined);
+    });
+
+    render(
+      <StrictMode>
+        <TooltipProvider>
+          <DocxEditor filePath="/ws/agreement.docx" fileName="agreement.docx" />
+        </TooltipProvider>
+      </StrictMode>,
+    );
+    await triggerSaveViaAccept();
+
+    // The retry must fire despite StrictMode's dev double-mount and recover.
+    await waitFor(
+      () => expect(screen.getByTestId('auto-save-indicator')).toHaveAttribute('data-state', 'saved-recent'),
+      { timeout: 8000 },
+    );
+    expect(saveAttempts).toBeGreaterThanOrEqual(2);
+  }, 15000);
+
+  // Coordinator P2 #2: the "Save a copy elsewhere" rescue must commit a focused,
+  // un-blurred edit (and drain the op queue) BEFORE reading the doc, exactly like
+  // the export path — the rescue copy is the one that must never omit the newest
+  // text. Without the fix, the rescue writes the pre-edit doc.
+  it('the rescue "Save a copy" commits an in-progress un-blurred edit before writing', async () => {
+    const oneRunDoc: DocumentJson = {
+      formatVersion: 1,
+      body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'original text' }] }],
+      comments: {},
+    };
+    saveDialogMock.mockReset();
+    saveDialogMock.mockResolvedValue('/backup/rescued.docx');
+    invokeMock.mockImplementation((cmd: string, args?: Record<string, unknown>) => {
+      if (cmd === 'docx_open') return Promise.resolve(oneRunDoc);
+      if (cmd === 'docx_save') {
+        // Original stays locked (drives escalation); the rescue copy elsewhere works.
+        return args?.['path'] === '/ws/agreement.docx'
+          ? Promise.reject(new Error('locked'))
+          : Promise.resolve(undefined);
+      }
+      return Promise.resolve(undefined);
+    });
+
+    renderEditor();
+    const run = await screen.findByTestId('docx-run');
+    fireEvent.click(screen.getByTestId('docx-reviewing-toggle'));
+
+    // First edit + blur → commits → schedules a save that FAILS repeatedly → escalation.
+    fireEvent.focus(run);
+    run.textContent = 'original text EDIT1';
+    fireEvent.blur(run);
+
+    const rescue = await screen.findByTestId('docx-save-copy-elsewhere', undefined, { timeout: 12000 });
+
+    // Second edit — focused, NOT blurred — must be folded in by the rescue's commit.
+    fireEvent.focus(run);
+    run.textContent = 'original text EDIT1 EDIT2';
+    fireEvent.click(rescue);
+
+    await waitFor(
+      () =>
+        expect(invokeMock).toHaveBeenCalledWith(
+          'docx_save',
+          expect.objectContaining({
+            path: '/backup/rescued.docx',
+            document: expect.objectContaining({
+              body: [
+                expect.objectContaining({
+                  inlines: [expect.objectContaining({ text: expect.stringContaining('EDIT2') })],
+                }),
+              ],
+            }),
+          }),
+        ),
+      { timeout: 5000 },
+    );
+  }, 25000);
 });

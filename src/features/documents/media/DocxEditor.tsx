@@ -652,9 +652,16 @@ export function DocxEditor({
   useEffect(() => {
     attemptSaveRef.current = attemptSave;
   }, [attemptSave]);
-  // Mark unmounted so the retry loop stops (see scheduleRetry). Runs on the
-  // component's final teardown.
-  useEffect(() => () => { mountedRef.current = false; }, []);
+  // Track mounted state so the retry loop stops after teardown (see
+  // scheduleRetry). MUST set true in SETUP, not only false in cleanup: React 18
+  // StrictMode runs setup→cleanup→setup in dev, so a cleanup-only effect would
+  // flip mountedRef to false on the first dev remount and never restore it —
+  // silently disabling all .docx save retries in dev/QA. Setting it true here on
+  // (re)mount keeps retries alive.
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const scheduleSave = useCallback(
     (doc: DocumentJson) => {
@@ -823,11 +830,18 @@ export function DocxEditor({
   // The original stays dirty and keeps retrying — this is a safety copy, not a
   // "save as" that abandons the original.
   const handleSaveCopyElsewhere = useCallback(async () => {
-    const doc = currentDocRef.current;
-    if (!doc || savingCopy) return;
+    if (savingCopy) return;
     setSavingCopy(true);
     setExportNotice(null);
     try {
+      // Fold any focused, un-blurred keystrokes into the model and drain queued
+      // ops BEFORE reading the doc (mirrors flushSaveBeforeExport). The rescue
+      // copy is the one that must never omit the user's newest text, so read
+      // currentDocRef only AFTER the commit + drain land.
+      await commitActiveRunEdit();
+      await docOpQueueRef.current;
+      const doc = currentDocRef.current;
+      if (!doc) return;
       const dest = await pickSavePath(`${exportStem} (rescued copy).docx`, 'docx');
       if (!dest) return; // user cancelled
       await docxSave(dest, doc);
@@ -845,7 +859,7 @@ export function DocxEditor({
     } finally {
       setSavingCopy(false);
     }
-  }, [savingCopy, pickSavePath, exportStem, t]);
+  }, [savingCopy, pickSavePath, exportStem, t, commitActiveRunEdit]);
 
   const runExport = useCallback(
     async (work: (srcPath: string) => Promise<string | null>) => {
