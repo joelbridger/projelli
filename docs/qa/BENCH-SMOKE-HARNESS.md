@@ -50,9 +50,14 @@ live testing surfaced and fixed four real bugs in the harness itself (see
   granted/denied — read-only by design). All selectors were confirmed by
   reading the actual merged source (`BookView.tsx`, `ClientMapPanel.tsx`,
   `ScopeToggle.tsx`, `FileAccessConsentBanner.tsx`), not guessed.
-- **Track D stub added** (`wave4-retention-attestation`) — retention policy +
-  attestation `.docx` export (Task 16-17) hasn't merged; confirmed absent from
-  source before stubbing.
+- **Track D stub added** (`wave4-retention-attestation`) — at the time this
+  round was written, retention policy + attestation `.docx` export (Task
+  16-17) hadn't merged; confirmed absent from source before stubbing.
+  **Currency update (2026-07-04):** Task 16-17 has since merged (Wave 4 is
+  now fully merged — see `docs/PRODUCT-JOURNEY.md`'s 2026-07-04 entries and
+  `src/platform/privacy/ui/DataMapDialog.tsx`'s "Export attestation report"
+  action), but this stub was not promoted to a real check — same
+  out-of-round-scope situation as the `wave4-diarization` stub below.
 - **Not yet live-validated.** Round 2 is offline-verified only (unit tests,
   ESLint, `--plan`, and an unreachable-host end-to-end run) — the actual
   Windows-bench pass against the Legion is a follow-up, coordinated separately
