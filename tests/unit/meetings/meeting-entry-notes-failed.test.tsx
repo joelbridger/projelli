@@ -13,6 +13,17 @@ vi.mock('@/features/meetings/meetingStore', async (importOriginal) => {
   return { ...actual, retryMeetingNotes: retryMeetingNotesMock };
 });
 
+// MeetingEntry mounts DocxEditor via a real dynamic import(), unrelated to
+// this test's actual subject (the pending/failed/notesError copy logic — no
+// assertion here touches the rendered editor). Under full-suite parallelism
+// that real import's transform competes with hundreds of other worker
+// processes and can resolve slower than this test's waitFor window, which
+// flips the assertion below flaky (`meeting-entry-notes-pending` still
+// showing because `DocxEditorComp` hadn't loaded yet even though `hasNotes`
+// had gone true). Mocking it makes the import resolve synchronously so the
+// test only exercises the logic it's actually about.
+vi.mock('@/features/documents/media/DocxEditor', () => ({ DocxEditor: () => null }));
+
 import { MeetingEntry } from '@/features/meetings/MeetingEntry';
 
 function makeWorkspace(meetingJson: Record<string, unknown>) {

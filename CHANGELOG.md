@@ -64,6 +64,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rejects reserved names at any path level as defense-in-depth.
   Files: `src/platform/fs/WorkspaceService.ts`, `src/app/fileOps/reservedNameError.ts`,
   create dialogs in `src/app/fileOps/`, `src-tauri/src/commands/pathguard.rs`, locales.
+- **Test-infra: fixed the intermittent "chunk load failed" test flake under
+  full-suite parallelism** (tripped 3 lanes' pre-push hooks). Root cause:
+  `MeetingEntry` fires a real, un-awaited `import('@/features/documents/media/DocxEditor')`
+  on mount with no `.catch()` and no bound on how long it can take. Under
+  normal load it resolves fast enough that nothing notices; under full-suite
+  parallel-transform contention (hundreds of forked worker processes competing
+  for CPU) it can resolve slower than a test's `waitFor` window, so a test that
+  had already flipped `hasNotes` to true would still render the
+  `notes-pending` fallback because `DocxEditorComp` hadn't loaded yet —
+  reproduced twice in a row with a `--maxWorkers=40` oversubscribed stress run
+  (confirmed against the exact `meeting-entry-notes-failed` assertion the
+  brief named). Since it's never `.catch()`-ed, a genuine rejection would also
+  surface as an unhandled rejection blamed on whatever test happens to be
+  running at the time — explaining reports of "a different file each run".
+  Fix (test-infra only, no product code touched): the 3 test files that mount
+  `<MeetingEntry>` now `vi.mock` `@/features/documents/media/DocxEditor` so
+  the import resolves synchronously and deterministically — none of these
+  tests assert on the real editor's rendered output. Verified with 5/5 clean
+  runs under the same oversubscribed stress condition that reproduced the
+  flake, plus 3 consecutive clean default full-suite runs.
+  Files: `tests/unit/meetings/meeting-entry-notes-failed.test.tsx`,
+  `tests/unit/meetings/meeting-entry-transcript-failed.test.tsx`,
+  `tests/unit/meetings/meeting-entry-notice-stale.test.tsx`.
 
 ### Changed
 - **Meetings tab UX polish (2026-07-04 senior-UX review — all blockers + should-fixes).**
