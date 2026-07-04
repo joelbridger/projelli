@@ -43,6 +43,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   macOS capture sidecar (`capture-mac`) is a documented follow-up. Files:
   `capture/{engine,chunks,recovery,session,sources,mod}.rs`, `pathguard.rs` (absolute variant).
 
+### Fixed
+- **Windows verbatim-path blocker in `capture_start` (empty-path canonicalize).**
+  `pathguard::canonicalize_symlink_safe_absolute` walked components from an EMPTY `PathBuf`
+  and tried to `symlink_metadata()` the first component. On Windows the first component of a
+  verbatim path (`\\?\C:\…`, which `Path::canonicalize()` always returns, and which
+  `guard_matter_folder` produces by joining caller input onto a canonicalized root) is the
+  drive prefix `\\?\C:`, which is not statable on its own — so the walk collapsed to an empty
+  base and canonicalized `""`, producing `cannot canonicalize : The system cannot find the
+  path specified. (os error 3)` and blocking every `capture_start`. Fix: seed the walk from
+  the path's `Prefix`/`RootDir` anchors verbatim (they can never be a symlink, so no stat),
+  keep the no-follow guarantee for every `Normal` component and the missing-tail tolerance,
+  and put the actual path in the error. Audited the other three resolvers
+  (`canonicalize_symlink_safe`, `resolve_creatable`, `contained`) — safe by construction
+  (they seed from a real caller-supplied base, never stat a bare prefix). Files:
+  `src-tauri/src/commands/pathguard.rs`. Windows verbatim regression test + platform-neutral
+  root-seeding guards added; proven on a real Windows machine.
+
 ### Security
 - **Symlink-safe path containment everywhere a caller-supplied path meets a workspace root.**
   A codebase audit found five containment checks that followed symlinks (an in-workspace alias
