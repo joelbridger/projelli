@@ -18,7 +18,7 @@
  *   - All firm UI is invisible when no firm session is active.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Briefcase,
@@ -200,6 +200,15 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
   const [newName, setNewName] = useState('');
   const [newClient, setNewClient] = useState('');
   const [newPrivileged, setNewPrivileged] = useState(false);
+  // QA-24 (P1): a double/triple-clicked Create button must be idempotent.
+  // `isCreating` disables the button visually; `submittingRef` is the actual
+  // re-entrancy guard — it's a plain ref (not state) so it takes effect
+  // IMMEDIATELY, even for clicks that land in the same commit as the first
+  // one (before React has had a chance to re-render `disabled`). It's
+  // released on the next tick rather than synchronously, so it also catches
+  // clicks dispatched in the same synchronous burst as the first.
+  const [isCreating, setIsCreating] = useState(false);
+  const submittingRef = useRef(false);
 
   // Isolation UX: pending confirmation for a specific matter, and set of
   // matters that have just been isolated (show affirmation briefly).
@@ -207,11 +216,17 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
   const [isolatedAffirmationIds, setIsolatedAffirmationIds] = useState<Set<string>>(new Set());
 
   const handleCreate = () => {
+    if (submittingRef.current) return;
     if (!newName.trim() && !newClient.trim()) return;
+    submittingRef.current = true;
+    setIsCreating(true);
     // QA-5: give the new client its OWN workspace subfolder by default, so its
     // documents/imports are scoped and isolated from the very first action (the
     // seeded clients are all structured this way). Uniquify against every other
     // client's folders so two clients never share a folder (matter isolation).
+    // The store's createMatter re-verifies this against LIVE state too (see
+    // matterStore.ts's ensureUniqueFolderPaths) — this check + submittingRef
+    // together are the first line of defense; the store is the backstop.
     const takenFolderPaths = matters.flatMap((m) => m.folderPaths);
     const clientFolder = deriveNewClientFolderPath(
       newClient,
@@ -233,6 +248,10 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
     setNewName('');
     setNewClient('');
     setNewPrivileged(false);
+    setTimeout(() => {
+      submittingRef.current = false;
+      setIsCreating(false);
+    }, 0);
   };
 
   /** Called when the user confirms isolation for a specific matter. */
@@ -427,7 +446,7 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
             size="sm"
             className="mt-3 gap-2"
             onClick={handleCreate}
-            disabled={!newName.trim() && !newClient.trim()}
+            disabled={isCreating || (!newName.trim() && !newClient.trim())}
           >
             <Plus className="h-4 w-4" />
             {`Create ${entityLabel.one}`}
