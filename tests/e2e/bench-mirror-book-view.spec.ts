@@ -146,6 +146,27 @@ test.describe('Bench mirror: Wave 4 Track B — whole-book Client Map', () => {
     await expect(page.getByTestId('clientmap-ask-flag').first()).toBeVisible({ timeout: 10_000 });
   });
 
+  test('wave4-gap-sync regression: a flagged client lands directly on a resolvable gap row, no extra tab click', async ({ page }) => {
+    // Reproduces the real Windows bench finding (2026-07-04 RUN-LOG): the bench
+    // script's client-detail navigation (openSmokeClientOverview in
+    // scripts/bench-smoke/checks/_util.mjs) only switches to the "Client Map"
+    // hub sub-tab — it never clicks the inner "What I'm missing" tab
+    // (clientmap-tab-__missing) the way the test above does. Book view and
+    // client detail must agree WITHOUT that extra click: whenever the client
+    // has an unresolved gap, ClientMapPanel now defaults straight to "What I'm
+    // missing" (ClientMapPanel.tsx), so this must be visible immediately.
+    await seedGapMatterAndReload(page);
+    await openWholeBookView(page);
+
+    const row = page.getByTestId(bookRow(GAP_MATTER_ID));
+    await expect(row).toBeVisible({ timeout: 10_000 });
+    await expect(row.getByTestId('book-gap-chip')).toBeVisible();
+
+    await hardClick(row);
+    await hardClick(page.getByTestId('hub-subtab-overview'));
+    await expect(page.getByTestId('clientmap-ask-flag').first()).toBeVisible({ timeout: 10_000 });
+  });
+
   test('wave4-estate-beneficiary-gap-dismiss-live: resolving the gap clears it', async ({ page }) => {
     // Upgraded from the bench's --live gate: on the bench this mutation is
     // gated because it would permanently alter shared physical-bench demo
