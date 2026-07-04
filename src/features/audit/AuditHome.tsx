@@ -297,6 +297,7 @@ export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, 
   // what can no longer be verified and that the anomaly is recorded for good.
   const { confirm, dialogProps: confirmDialogProps } = useConfirmDialog();
   const [repairing, setRepairing] = useState(false);
+  const [repairError, setRepairError] = useState<string | null>(null);
   const canRepair = integrity?.status === 'sealMissing' && !!onRepairSeal && !embedded;
   const handleRepair = useCallback(async () => {
     if (!onRepairSeal) return;
@@ -306,11 +307,16 @@ export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, 
       variant: 'destructive',
     });
     if (!ok) return;
+    setRepairError(null);
     setRepairing(true);
     try {
       await onRepairSeal();
-    } catch {
-      // Repair failed; leave the seal-missing state visible so it can be retried.
+    } catch (err) {
+      // A failed repair in a security-critical recovery flow must never look
+      // like a no-op: surface it plainly so the user knows the log is unchanged
+      // and still needs repair, and can retry.
+      console.error('[Audit] Seal repair failed:', err);
+      setRepairError(t('common.audit-log.repair-failed'));
     } finally {
       setRepairing(false);
     }
@@ -373,6 +379,20 @@ export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, 
           >
             {t('common.audit-log.repair-action')}
           </Button>
+        )}
+        {canRepair && repairError && (
+          <div
+            data-testid="audit-repair-error"
+            role="alert"
+            style={{
+              marginTop: 8,
+              color: '#991b1b',
+              fontSize: 'var(--kp-font-xs)',
+              lineHeight: 'var(--kp-leading-snug)',
+            }}
+          >
+            {repairError}
+          </div>
         )}
       </div>
       )}

@@ -176,6 +176,21 @@ describe('AuditHome', () => {
     expect(screen.queryByTestId('audit-repair-button')).toBeNull();
   });
 
+  it('surfaces a failed repair instead of silently no-opping', async () => {
+    const onRepairSeal = vi.fn().mockRejectedValue(new Error('keychain unavailable'));
+    render(<AuditHome entries={SAMPLE} integrity={SEAL_MISSING} onRepairSeal={onRepairSeal} />);
+
+    fireEvent.click(screen.getByTestId('audit-repair-button'));
+    fireEvent.click(await screen.findByText('Repair and record the anomaly'));
+
+    // The handler ran and rejected; the user gets an honest error, not silence.
+    await waitFor(() => expect(onRepairSeal).toHaveBeenCalledTimes(1));
+    const err = await screen.findByTestId('audit-repair-error');
+    expect(err).toHaveTextContent(/repair failed/i);
+    // Still seal-missing → the Repair button remains so it can be retried.
+    expect(screen.getByTestId('audit-repair-button')).toBeTruthy();
+  });
+
   it('search filters rows by description text', () => {
     render(<AuditHome entries={SAMPLE} />);
     const search = screen.getByTestId('audit-home-search');

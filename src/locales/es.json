@@ -26,7 +26,9 @@
       "repair-confirm-body": "Falta el sello de integridad, por lo que las entradas registradas hasta ahora ya no pueden comprobarse en cuanto a su integridad. Reparar no recupera nada que se haya podido eliminar. Vuelve a sellar las entradas que quedan y registra de forma permanente una nota de que esto ocurrió. Esto no se puede deshacer. ¿Continuar?",
       "repair-confirm-body__sourceHash": "e1851dc95bfec1c2f711c05e35c8fafab03e53e4631247c4ccdbbbe2fa42ef79",
       "repair-confirm-cta": "Reparar y registrar la anomalía",
-      "repair-confirm-cta__sourceHash": "632f5b0c2228ef0e5b3e19efb8b8da94cb799aeeba55a80a247d910642694a14"
+      "repair-confirm-cta__sourceHash": "632f5b0c2228ef0e5b3e19efb8b8da94cb799aeeba55a80a247d910642694a14",
+      "repair-failed": "La reparación falló. El registro de auditoría no ha cambiado y todavía necesita reparación. Inténtalo de nuevo.",
+      "repair-failed__sourceHash": "a52ab72cfb59543b62dfb75106c63a1705448f120a866a97997cba9edae2a909"
     },
     "ai-setup-help": {
       "link": "Necesito ayuda para configurar esto",

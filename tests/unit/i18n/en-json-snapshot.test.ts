@@ -51,7 +51,7 @@ describe('en.json structure snapshot', () => {
         "audio": 1,
         "chat": 12,
         "citation": 3,
-        "common": 48,
+        "common": 49,
         "editor": 14,
         "firm": 143,
         "layout": 40,
@@ -107,7 +107,8 @@ describe('en.json structure snapshot', () => {
     //      (audit-chain fail-closed: honest surfacing of the missing-seal state).
     // +4 = common.audit-log.repair-{action,confirm-title,confirm-body,confirm-cta}
     //      (explicit acknowledged repair affordance on the seal-missing badge).
-    expect(flat.length).toBe(1015);
+    // +1 = common.audit-log.repair-failed (surface a failed repair honestly).
+    expect(flat.length).toBe(1016);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

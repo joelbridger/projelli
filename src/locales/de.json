@@ -26,7 +26,9 @@
       "repair-confirm-body": "Das Integritätssiegel fehlt, daher können die zuvor aufgezeichneten Einträge nicht mehr auf Vollständigkeit geprüft werden. Die Reparatur stellt nichts wieder her, was möglicherweise entfernt wurde. Sie versiegelt die verbleibenden Einträge neu und zeichnet dauerhaft einen Hinweis auf, dass dies geschehen ist. Dies kann nicht rückgängig gemacht werden. Fortfahren?",
       "repair-confirm-body__sourceHash": "e1851dc95bfec1c2f711c05e35c8fafab03e53e4631247c4ccdbbbe2fa42ef79",
       "repair-confirm-cta": "Reparieren und Anomalie aufzeichnen",
-      "repair-confirm-cta__sourceHash": "632f5b0c2228ef0e5b3e19efb8b8da94cb799aeeba55a80a247d910642694a14"
+      "repair-confirm-cta__sourceHash": "632f5b0c2228ef0e5b3e19efb8b8da94cb799aeeba55a80a247d910642694a14",
+      "repair-failed": "Reparatur fehlgeschlagen. Das Prüfprotokoll ist unverändert und muss weiterhin repariert werden. Bitte erneut versuchen.",
+      "repair-failed__sourceHash": "a52ab72cfb59543b62dfb75106c63a1705448f120a866a97997cba9edae2a909"
     },
     "ai-setup-help": {
       "link": "Ich brauche Hilfe bei der Einrichtung",
