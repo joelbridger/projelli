@@ -19,10 +19,15 @@ export function TabGateOverlay({ onTakeOver }: { onTakeOver: () => void }) {
     >
       <div className="max-w-sm text-center px-6">
         <AppLogo height={40} />
-        <h1 className="mt-6 text-lg font-semibold text-foreground">
+        {/* Explicit literal colors, not the text-foreground/text-muted-foreground
+            semantic tokens — those resolve to dark-theme values that would go
+            white-on-white against this overlay's always-white background
+            (codex-review). This overlay is intentionally light-only, matching
+            the existing workspace-auto-resume-loading pattern in App.tsx. */}
+        <h1 className="mt-6 text-lg font-semibold text-gray-900">
           {t('tab-guard.title')}
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
+        <p className="mt-2 text-sm text-gray-500">
           {t('tab-guard.description')}
         </p>
         <Button className="mt-6" onClick={onTakeOver} data-testid="tab-write-guard-take-over">

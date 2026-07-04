@@ -37,8 +37,12 @@ test.describe('single-writer tab gate', () => {
     // Tab A is still fine, untouched.
     await expect(tabA.getByTestId('open-existing-workspace')).toBeVisible();
 
-    // Force a takeover from the blocked tab.
+    // Force a takeover from the blocked tab. This triggers a full reload (see
+    // useTabWriteGuard.ts's requestTakeover — re-hydrates every persisted
+    // store from current localStorage so the takeover can't persist a stale
+    // snapshot over tab A's real changes), so wait out the navigation.
     await tabB.getByTestId('tab-write-guard-take-over').click();
+    await tabB.waitForLoadState('networkidle');
     await expect(tabB.getByTestId('tab-write-guard-overlay')).toHaveCount(0);
     await expect(tabB.getByTestId('open-existing-workspace')).toBeVisible({ timeout: 15_000 });
 

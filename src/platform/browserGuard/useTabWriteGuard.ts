@@ -9,6 +9,24 @@ import { TabWriteGuard, type TabGuardStatus } from './tabWriteGuard';
 // call the hook.
 let sharedGuard: TabWriteGuard | null = null;
 
+/** sessionStorage (unlike localStorage) is NOT shared across tabs even on the
+ *  same origin, and survives a reload of the SAME tab — exactly the "this
+ *  browser tab, across its whole lifetime" scope a stable tabId needs. Used
+ *  so this tab still recognizes a lock it just claimed via requestTakeover
+ *  after the reload that follows (see requestTakeover below) — without this,
+ *  the reload would mint a brand-new random tabId that doesn't match the
+ *  record it just wrote, and the tab would see its own fresh lock as
+ *  foreign and gate itself again. */
+const TAB_SESSION_ID_KEY = 'lantern:tab-session-id';
+
+function getOrCreateTabId(): string {
+  const existing = window.sessionStorage.getItem(TAB_SESSION_ID_KEY);
+  if (existing) return existing;
+  const created = crypto.randomUUID();
+  window.sessionStorage.setItem(TAB_SESSION_ID_KEY, created);
+  return created;
+}
+
 /** Constructing the guard also primes it (one synchronous checkNow()) so the
  *  very first render already reports the right status — otherwise a lone
  *  tab would flash the "blocked" gate for one frame until the mount effect
@@ -18,17 +36,30 @@ let sharedGuard: TabWriteGuard | null = null;
  *  test mode never touch localStorage at all. */
 function getSharedGuard(): TabWriteGuard {
   if (!sharedGuard) {
-    sharedGuard = new TabWriteGuard(SK_TAB_LOCK);
+    sharedGuard = new TabWriteGuard(SK_TAB_LOCK, { tabId: getOrCreateTabId() });
     sharedGuard.checkNow();
   }
   return sharedGuard;
 }
+
+/** requestTakeover() calls `window.location.reload()`, which fires a
+ *  non-persisted `pagehide` on THIS tab before the reload lands. Without
+ *  this flag, that pagehide's normal "release the lock on real close"
+ *  handling would immediately clearIfMine() the lock this tab just claimed —
+ *  opening a gap for another tab's heartbeat to reclaim it before the
+ *  reloaded page gets a chance to run its own checkNow(), so the reloaded
+ *  tab would come back seeing its own takeover as a foreign lock and gate
+ *  itself again. Set right before the reload; a fresh reload never needs it
+ *  reset (the module reloads too), but __resetTabWriteGuardForTests clears
+ *  it for test isolation within one file. */
+let takingOver = false;
 
 /** Test seam: reset the shared instance (each real tab only ever gets one —
  *  this only matters for test isolation across renderHook calls in one file). */
 export function __resetTabWriteGuardForTests(): void {
   sharedGuard?.stop();
   sharedGuard = null;
+  takingOver = false;
 }
 
 export interface TabWriteGuardState {
@@ -81,7 +112,7 @@ export function useTabWriteGuard(enabled: boolean): TabWriteGuardState {
     // correct too, but doing nothing is simpler and self-correcting: the
     // frozen tab's lock just goes stale on its own if another tab needs it.
     const handlePageHide = (event: PageTransitionEvent) => {
-      if (!event.persisted) guard.stop();
+      if (!event.persisted && !takingOver) guard.stop();
     };
     window.addEventListener('pagehide', handlePageHide);
 
@@ -99,14 +130,29 @@ export function useTabWriteGuard(enabled: boolean): TabWriteGuardState {
       window.removeEventListener('storage', handleStorageEvent);
       window.removeEventListener('pagehide', handlePageHide);
       window.removeEventListener('pageshow', handlePageShow);
-      guard.stop();
+      if (!takingOver) guard.stop();
     };
   }, [enabled]);
 
   return {
     status,
     requestTakeover: () => {
-      if (enabled) getSharedGuard().requestTakeover();
+      if (!enabled) return;
+      // Set BEFORE requestTakeover()/reload() — the reload's pagehide can
+      // fire before this call returns, and handlePageHide/the effect
+      // cleanup must see this already true or they'd release the lock this
+      // call is about to claim (see the `takingOver` doc comment above).
+      takingOver = true;
+      getSharedGuard().requestTakeover();
+      // This blocked tab's zustand/persist stores hydrated from localStorage
+      // whenever THIS tab first loaded — possibly stale relative to whatever
+      // the other (real owner) tab has saved since. Mounting AppShell
+      // straight onto that stale in-memory snapshot would let the very next
+      // write persist it, erasing the other tab's real changes — the same
+      // class of silent data loss this whole gate exists to prevent. A full
+      // reload re-hydrates every persisted store from CURRENT localStorage
+      // before this tab is allowed to write anything (codex-review P1).
+      window.location.reload();
     },
   };
 }

@@ -89,4 +89,34 @@ describe('useTabWriteGuard', () => {
 
     expect(result.current.status).toBe('blocked');
   });
+
+  it('requestTakeover survives its own reload-triggered pagehide (regression: reload() fires a non-persisted pagehide on this tab BEFORE navigating away, which used to release the lock this call just claimed)', () => {
+    localStorage.setItem(
+      SK_TAB_LOCK,
+      JSON.stringify({ tabId: 'some-other-tab', heartbeatAt: Date.now() }),
+    );
+    const { result } = renderHook(() => useTabWriteGuard(true));
+    expect(result.current.status).toBe('blocked');
+
+    act(() => {
+      result.current.requestTakeover();
+    });
+    expect(result.current.status).toBe('owner');
+
+    // Simulate the non-persisted pagehide that a real window.location.reload()
+    // fires on this same tab before the new document actually loads.
+    const reloadPagehide = new Event('pagehide') as PageTransitionEvent;
+    Object.defineProperty(reloadPagehide, 'persisted', { value: false });
+    act(() => {
+      window.dispatchEvent(reloadPagehide);
+    });
+
+    // Must still hold the lock — releasing here would let another tab's
+    // heartbeat reclaim it in the gap before the reloaded page remounts,
+    // so the reloaded tab would come back seeing its own takeover as a
+    // foreign lock and gate itself again.
+    expect(localStorage.getItem(SK_TAB_LOCK)).not.toBeNull();
+    const stored = JSON.parse(localStorage.getItem(SK_TAB_LOCK) as string) as { tabId: string };
+    expect(stored.tabId).not.toBe('some-other-tab');
+  });
 });
