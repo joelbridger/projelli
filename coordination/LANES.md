@@ -8,13 +8,13 @@ Last updated: 2026-07-04 ~05:45 (coordinator-6 — FEATURE-COMPLETE: final score
 | Worker session | What | State |
 |---|---|---|
 | cc-lantern-qafix2 | QA fix batch 2 (lp/qa-fix-batch2): QA-7 AI-hang UX + QA-8/9 onboarding overlaps | building |
-| cc-lantern-w3c | Wave-3 Meetings SURFACE (lp/wave3-meetings-ui) — rebasing onto merged w3b engine + wiring real transcribe_meeting; then merges → UX gate | rebasing |
 | cc-lantern-qafix1 | QA fix batch 1 (lp/qa-fix-batch1; Opus): QA-5 new-client folders + QA-6 Ask input collapse (first-run P1s) | building |
 | cc-lantern-w3b | Wave-3 Phase 3b: local transcription pipeline (lp/wave3-transcription; Tasks 7-9) | building |
-| cc-lantern-w3c | Wave-3 Phases 3c+3d: meetings surface — record pill, Meetings tab, transcript viewer, notes, consent (lp/wave3-meetings-ui; Tasks 10-13) | building |
 | cc-lantern-cleanup1 | Cleanup batch 1 + docs currency (lp/cleanup-batch1): 5 scoped items | building |
 
 ## Merged this session
+✅ lp/wave3-meetings-ui — 🎬 Wave-3 MEETINGS SURFACE: record pill, per-client Meetings tab (between Email & Activity), MeetingEntry (notes+transcript+audio-seek), needs-review queue, consent dialog+ledger, dictation filing. Own codex found+fixed 3 bugs; rebase caught a 4th (stopRecording overwriting Rust's authoritative meeting metadata). Gate 5755 vitest + tsc + playwright meetings 2/2
+✅ lp/qa-fix-batch1 @b0e07298 — QA-5 new clients get a scoped folder (restores isolation on first action) + QA-6 Ask responsive layout (composer never collapses); independent codex clean; 25 targeted + 5706 vitest
 ✅ lp/wave3-transcription @9661f9be — Wave-3 local transcription (Tasks 7-9): windowed queue over the sidecar, transcribe_meeting + shared types, battery-saver + import; independent review caught a COMPLIANCE P1 (fabricated one-party consent when meeting.json absent) + OOM-on-long-meetings P2 — both fixed robustly (persist-consent-before-finalize-delete + abort-on-write-failure; streaming windows ~1.6MB vs 1.8GB); gate 1243 cargo + 5696 vitest
 ✅ lp/crm-card-visibility — QA-1..4: persist CRM proposals across restart (P1), hub-wide pending banner + Review-now (P2), honest copy (P3), honest wave2 bench check (+ coordinator-review P2: navigate to Overview before asserting card). 86 touched tests green
 ✅ lp/cleanup-batch1 @020b5d5f — dead-dir + cosmetic keepance→lantern sweep; caught+fixed a CUSTOMER-FACING brand leak (docx author "Lantern AI"→"Advisor Prep Hero AI"); auto-smoke task-name; docs currency (independent review found the brand leak)
