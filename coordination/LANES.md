@@ -7,6 +7,7 @@ Last updated: 2026-07-04 ~12:15 (coordinator-7 — 6 merges landed; meetpersist+
 ## Active lanes
 | Worker session | What | State |
 |---|---|---|
+| cc-lantern-trustreview | 🔍 THE SKEPTICAL ADVISOR (lp/trust-review; ~/lp-trustreview; FABLE 5 — Jameson-directed): whole-app trust/timing/workflow critique in the real Windows app; the notice-gap CLASS hunt. Desk phase now; Legion GO after meetverify5 (brief w-trustreview-brief.md) | desk phase |
 | cc-lantern-noticecard | 🎯 THE NOTICE CARD v1+v2 (lp/notice-card; ~/lp-noticecard; OPUS 4.8): local notice participant — calendar join-URL, Teams+Zoom adapters in isolated companion webview, lifecycle supervisor, canvas-camera visual card, policy hook + 2 quick wins (brief w-noticecard-brief.md; design docs/strategy/2026-07-04-notice-participant-design.md) | building |
 | cc-lantern-qafix6 | QA fix batch 6 (lp/qa-fix-batch6; ~/lp-qafix6): QA-33 keychain-service outage → fast honest failure + degraded open; QA-32 dialog-never-opens investigation + bounded watchdog + manual-path fallback (brief w-qafix6-brief.md) | building |
 | cc-lantern-meetverify5 | 🏁 THE final fresh no-fixtures Meetings run (brief w-meetverify5-brief.md; ~/lp-bench) at tip @e4b0f30d with ALL FOUR blockers fixed. Notes land ⇒ Meetings DONE + Jameson report. Owns the Legion | verifying |
