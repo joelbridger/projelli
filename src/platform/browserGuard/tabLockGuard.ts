@@ -7,6 +7,23 @@
 // file only wires the selection so the hook never has to know which one it
 // got — same pattern as this codebase's FSBackend abstraction (WebFSBackend
 // vs TauriFSBackend behind one interface).
+//
+// KNOWN ROLLOUT-TRANSITION CAVEAT (codex-review, round 4 — flagged for
+// coordinator triage, not fixed here): the two substrates don't speak to
+// each other. If a tab already has the OLD (pre-migration, heartbeat-only)
+// bundle loaded and stays open through a deploy, then a SECOND tab opens
+// the NEW bundle, the new tab's Web Locks probe has no way to see the old
+// tab's SK_TAB_LOCK localStorage record — it only checks navigator.locks,
+// which the old tab never touches. Both tabs can end up believing they're
+// the sole writer for as long as the old tab stays open post-deploy. This
+// is a deploy-timing risk, not a defect in either substrate's own logic,
+// and bridging it properly means either (a) making Web Locks also speak
+// the heartbeat protocol during a transition window — reintroducing the
+// exact polling/staleness complexity this migration exists to eliminate —
+// or (b) a "new version available, please reload" mechanism for the
+// browser build, which is a separate, larger feature area (this app's
+// existing UpdateBanner/updaterStore only cover the Tauri desktop
+// auto-updater, not browser-tab reloads) and out of this migration's scope.
 
 import type { TabGuardStatus } from './tabWriteGuard';
 import { TabWriteGuard } from './tabWriteGuard';
