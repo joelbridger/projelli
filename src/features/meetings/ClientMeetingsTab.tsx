@@ -22,6 +22,8 @@ import { useNoticeSettings } from './noticeSettings';
 import { calendarListEvents } from '@/platform/utils/calendar-commands';
 import { useProfileStore } from '@/platform/profile/profileStore';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
+import { useActiveMatters } from '@/platform/matter/matterStore';
+import { buildCalendarMatterMap, resolveMattersForCalendarEvent } from '@/platform/rag/matterResolver';
 import { pickNoticeCardOffer, type NoticeCardOffer } from './noticeCard/pickOffer';
 import { buildDisplayName, detectPlatform } from './noticeCard/meetingPlatform';
 import { canAutoJoin, type NoticeCardPlatform } from './noticeCard/noticeCardTypes';
@@ -181,6 +183,7 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
   // native-record self-attest. Absent for phone/in-person.
   const soloName = useProfileStore((s) => s.soloName);
   const getSetting = useSettingsStore((s) => s.getSetting);
+  const activeMatters = useActiveMatters();
   const [noticeCardOffer, setNoticeCardOffer] = useState<NoticeCardOffer | null>(null);
   const [noticeCardChecked, setNoticeCardChecked] = useState(false);
   const [noticeCardZoomAttest, setNoticeCardZoomAttest] = useState(false);
@@ -241,8 +244,13 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
       }
       setMacPermissionError(false);
       setConsentError(null);
-      // Notice Card — is an online meeting happening now? Best-effort; a
-      // calendar miss simply means no card offer (never blocks recording).
+      // Notice Card — is an online meeting for THIS client happening now?
+      // Best-effort; a calendar miss simply means no auto offer (the manual
+      // paste field still lets the advisor add the card). Crucially, we filter
+      // the practice-wide calendar to events that resolve to the CURRENT client
+      // so we can never pre-check/launch the card into a different client's
+      // concurrent meeting (Codex R7 P1). No current-client match => no auto
+      // offer; the advisor explicitly pastes a link instead.
       let offer: NoticeCardOffer | null = null;
       try {
         const now = Date.now();
@@ -251,7 +259,9 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
           new Date(now - grace).toISOString(),
           new Date(now + grace).toISOString(),
         );
-        offer = pickNoticeCardOffer(events, now);
+        const map = buildCalendarMatterMap(activeMatters);
+        const mine = events.filter((e) => resolveMattersForCalendarEvent(e, map).includes(matterId));
+        offer = pickNoticeCardOffer(mine, now);
       } catch {
         offer = null;
       }
@@ -263,7 +273,7 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
       setNoticeCardManualUrl('');
       setShowConsent(true);
     })();
-  }, [matterId, matterFolder, workspaceService, getSetting]);
+  }, [matterId, matterFolder, workspaceService, getSetting, activeMatters]);
 
   const handleConsentConfirm = useCallback((opts: { note?: string }) => {
     void (async () => {
