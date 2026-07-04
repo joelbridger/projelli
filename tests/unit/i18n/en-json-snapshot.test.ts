@@ -63,7 +63,7 @@ describe('en.json structure snapshot', () => {
         "marketplace": 14,
         "matter": 206,
         "media": 81,
-        "meetings": 67,
+        "meetings": 71,
         "memory": 6,
         "model-download": 9,
         "onboarding": 67,
@@ -171,6 +171,11 @@ describe('en.json structure snapshot', () => {
     //      the delete-client confirm dialog's title/body were localized above
     //      but its own confirm/cancel BUTTONS stayed hardcoded "Remove"/
     //      "Cancel" — same mixed-language bug, one level down).
+    // +4 = meetings.entry.{transcript-failed-not-installed,transcript-failed-
+    //      timeout,transcript-failed-error,retrying-transcript} (QA-40: a
+    //      failed transcription used to vanish into a bare catch{} — these
+    //      back an honest, classified, retryable failed state, mirroring the
+    //      existing notes-failed-* keys).
     // +4 = QA-33 fix (2026-07-04): a stopped Windows credential-storage
     //      service (VaultSvc) used to leave "open this workspace" silently
     //      hung for 30s then fail with only a console.error — no message at
@@ -189,7 +194,7 @@ describe('en.json structure snapshot', () => {
     //      unresponsive-own-data,picker-unresponsive-sample} (2),
     //      file-import.{picker-unresponsive,manual-path-title,manual-path-
     //      placeholder} (3).
-    expect(flat.length).toBe(1228);
+    expect(flat.length).toBe(1232);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

@@ -152,8 +152,20 @@ impl ParakeetSidecar {
     /// Spawn a fresh subprocess against the real file-based contract: write
     /// the WAV bytes to a temp file (the engine has no stdin mode), pass its
     /// path via `-f`, and collect the transcription from stdout. The temp
-    /// file is removed when `tmp` drops at the end of this function — both
-    /// on success and on any early `?` return.
+    /// file is removed when `tmp_path` drops at the end of this function —
+    /// both on success and on any early `?` return.
+    ///
+    /// QA-40 (2026-07-04): the write handle MUST be closed via
+    /// `into_temp_path()` before the child ever opens the same path. Keeping
+    /// `NamedTempFile`'s write handle open for the child's entire run (the
+    /// original shape of this function — `tmp.path()` while `tmp` stayed
+    /// alive) let Windows' file-sharing model silently starve the child's
+    /// read: whisper-cli.exe (via miniaudio) opened the file, decoded zero
+    /// bytes, and exited 0 with empty stdout — no error, no crash, just a
+    /// silently empty transcription. Reproduced live on the Legion: the
+    /// exact same bytes, saved via a plain `std::fs::write` (closed before
+    /// any reader touches it) instead of through `ParakeetSidecar`,
+    /// transcribed perfectly via the identical binary/model/args.
     pub async fn transcribe(&self, wav_bytes: Vec<u8>, model: Option<&str>) -> Result<TranscribeOutput> {
         use crate::util::proc::hide_console_tokio;
         use tokio::process::Command;
@@ -175,8 +187,12 @@ impl ParakeetSidecar {
             .context("failed to create a temp file for voice input")?;
         tmp.write_all(&wav_bytes).context("failed to write WAV bytes to temp file")?;
         tmp.flush().context("failed to flush WAV temp file")?;
+        // Closes the write handle (still deleted on drop via TempPath) —
+        // see the doc comment above for why this is load-bearing, not
+        // cosmetic.
+        let tmp_path = tmp.into_temp_path();
 
-        let args = Self::build_args(tmp.path(), Some(&model_path));
+        let args = Self::build_args(&tmp_path, Some(&model_path));
         let started = Instant::now();
 
         let mut cmd = Command::new(&self.binary);
@@ -447,6 +463,123 @@ mod tests {
             !Path::new(reported_path).exists(),
             "temp WAV file was not cleaned up: {reported_path}"
         );
+    }
+
+    // --- transcribe(): a genuinely wedged engine (QA-40) ---
+    //
+    // meetings-verify3 (docs/evidence/meetings-verify3-20260704/RUN-LOG.md)
+    // reported a multi-minute "hang" transcribing a real recording's second
+    // (sys) channel. Root-caused (QA-40) to NOT be an engine hang at all: the
+    // Legion's models dir was staged at the pre-voicefix shim's path
+    // (binaries/whisper-engine/models/), not resources/voice/models/ where
+    // resolve_models_dir actually looks, so every real call failed in ~125ms
+    // with "no voice model bundled" — and meetingStore.ts's bare `catch {}`
+    // around transcribe_meeting silently swallowed that fast failure,
+    // making it indistinguishable from a permanent hang. That silent-catch
+    // is fixed in meetingStore.ts (QA-40) and the Legion's models dir was
+    // restaged to the correct path.
+    //
+    // Separately, THIS test proves the engine-level protection that would
+    // matter if the engine itself ever genuinely wedges (hangs mid-call,
+    // consuming no CPU, never exiting): TRANSCRIBE_TIMEOUT_SECS +
+    // kill_on_drop must turn that into a bounded, classified timeout error
+    // AND actually reap the stuck process — not just error out while leaving
+    // it running in the background forever. Confirms the fake engine is
+    // actually running (real wall-clock wait — a real subprocess, unaffected
+    // by tokio's virtual clock) BEFORE pausing time, then fast-forwards past
+    // the 30s bound without a real 30s wait. Pausing only after the child is
+    // confirmed running (rather than `#[tokio::test(start_paused = true)]`
+    // from the start) matters: on the default current-thread runtime, time
+    // only advances for a task that yields via `.await` — a real blocking
+    // wait (`std::thread::sleep`) would starve the executor and the spawned
+    // task (and therefore the child process) would never even start.
+    #[cfg(unix)]
+    const FAKE_HANG_SCRIPT: &str = "#!/bin/sh\n\
+        m=\"\"\n\
+        while [ $# -gt 0 ]; do\n\
+          case \"$1\" in\n\
+            -f) shift 2 ;;\n\
+            -m) m=\"$2\"; shift 2 ;;\n\
+            -np|-nt) shift ;;\n\
+            *) shift ;;\n\
+          esac\n\
+        done\n\
+        echo $$ > \"$m.pid\"\n\
+        exec sleep 999999\n";
+
+    // codex-review (2026-07-04): gated to Linux specifically, not the wider
+    // `#[cfg(unix)]` the rest of this file's fake-engine tests use — this one
+    // checks process liveness via `/proc/<pid>`, which doesn't exist on
+    // macOS, so `#[cfg(unix)]` alone would fail the assertion there even
+    // though the fake engine started and was killed correctly.
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn transcribe_kills_a_wedged_engine_and_returns_a_bounded_timeout_error() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempdir().unwrap();
+        let models_dir = dir.path().join("models");
+        fs::create_dir_all(&models_dir).unwrap();
+        let model_path = models_dir.join("ggml-base.en.bin");
+        fs::write(&model_path, b"m").unwrap();
+
+        let fake_engine = dir.path().join("hang-forever.sh");
+        fs::write(&fake_engine, FAKE_HANG_SCRIPT).unwrap();
+        let mut perms = fs::metadata(&fake_engine).unwrap().permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(&fake_engine, perms).unwrap();
+
+        let sidecar = ParakeetSidecar::new(fake_engine, Some(models_dir));
+        let wav = b"RIFF-fake-wav-bytes-1234".to_vec();
+
+        // Real subprocess, driven on a spawned task the runtime keeps polling
+        // concurrently with this test task — the fake engine never exits on
+        // its own, so the only way the spawned task ever resolves is the
+        // internal `tokio::time::timeout` firing.
+        let handle = tokio::spawn(async move { sidecar.transcribe(wav, Some("base")).await });
+
+        // Real-time wait (time is NOT paused yet) for the fake engine to
+        // actually be running before asserting anything about it having been
+        // killed. A normal `.await`ed sleep lets the executor keep polling
+        // the spawned task concurrently, unlike a blocking `std::thread::sleep`.
+        let pidfile = PathBuf::from(format!("{}.pid", model_path.display()));
+        let mut pid: Option<u32> = None;
+        for _ in 0..500 {
+            if let Ok(s) = fs::read_to_string(&pidfile) {
+                if let Ok(p) = s.trim().parse() {
+                    pid = Some(p);
+                    break;
+                }
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        let pid = pid.expect("fake engine never wrote its pidfile — did it start?");
+        assert!(
+            Path::new(&format!("/proc/{pid}")).exists(),
+            "fake engine (pid {pid}) should be running before the timeout fires"
+        );
+
+        // NOW pause time and fast-forward past the sidecar's own bound — the
+        // internal timeout timer was armed before the engine ever started,
+        // so it's still correctly tracked once we take over the clock.
+        tokio::time::pause();
+        tokio::time::advance(Duration::from_secs(TRANSCRIBE_TIMEOUT_SECS + 5)).await;
+
+        let result = handle.await.unwrap();
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("timed out"), "expected a timeout error, got: {err}");
+
+        // The whole point of kill_on_drop: a wedged engine must not keep
+        // running in the background after the caller has given up on it.
+        // `handle` has already resolved above, so nothing else needs polling
+        // here — a plain blocking sleep is fine.
+        for _ in 0..200 {
+            if !Path::new(&format!("/proc/{pid}")).exists() {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        panic!("fake engine (pid {pid}) is still running after the timeout — kill_on_drop did not reap it");
     }
 
     // --- Real-engine end-to-end verification (opt-in, not part of the
