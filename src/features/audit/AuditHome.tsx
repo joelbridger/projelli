@@ -21,6 +21,7 @@ import {
   useMemo,
   useCallback,
   useDeferredValue,
+  useEffect,
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -321,6 +322,14 @@ export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, 
       setRepairing(false);
     }
   }, [confirm, onRepairSeal, t]);
+
+  // Clear any stale repair error whenever the integrity verdict changes — a
+  // re-verify, a successful repair, or switching to a different workspace's log
+  // all produce a fresh verdict object. This stops a "Repair failed" message
+  // from a previous attempt/log leaking onto an unrelated seal-missing state.
+  useEffect(() => {
+    setRepairError(null);
+  }, [integrity]);
 
   return (
     <div

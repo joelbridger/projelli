@@ -191,6 +191,29 @@ describe('AuditHome', () => {
     expect(screen.getByTestId('audit-repair-button')).toBeTruthy();
   });
 
+  it('does not leak a stale repair error onto a different seal-missing log', async () => {
+    const onRepairSeal = vi.fn().mockRejectedValue(new Error('keychain unavailable'));
+    const { rerender } = render(
+      <AuditHome entries={SAMPLE} integrity={SEAL_MISSING} onRepairSeal={onRepairSeal} />,
+    );
+    fireEvent.click(screen.getByTestId('audit-repair-button'));
+    fireEvent.click(await screen.findByText('Repair and record the anomaly'));
+    await screen.findByTestId('audit-repair-error'); // failure surfaced for this log
+
+    // Integrity refreshes to a DIFFERENT seal-missing log (e.g. workspace switch).
+    rerender(
+      <AuditHome
+        entries={SAMPLE}
+        integrity={{ status: 'sealMissing', survivingRows: 5, lastTimestamp: '2026-01-01T00:00:00Z' }}
+        onRepairSeal={onRepairSeal}
+      />,
+    );
+    // The stale "Repair failed" must NOT carry over to the new log...
+    expect(screen.queryByTestId('audit-repair-error')).toBeNull();
+    // ...but the Repair affordance is still available for it.
+    expect(screen.getByTestId('audit-repair-button')).toBeTruthy();
+  });
+
   it('search filters rows by description text', () => {
     render(<AuditHome entries={SAMPLE} />);
     const search = screen.getByTestId('audit-home-search');
