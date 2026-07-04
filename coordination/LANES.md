@@ -8,6 +8,8 @@ Last updated: 2026-07-04 ~05:45 (coordinator-6 — FEATURE-COMPLETE: final score
 | Worker session | What | State |
 |---|---|---|
 | cc-lantern-benchconfirm | Cold-boot confirmation run on the Legion — convert the 3 SETUP-BLOCKED + 1 flake into honest PASSes (or precise findings); owns the Legion | bench-running |
+| cc-lantern-qa1 | QA campaign lane 1: persona-A first-run exploration on Azure bench-1 (report-only; bug DB) | exploring |
+| cc-lantern-cleanup1 | Cleanup batch 1 + docs currency (lp/cleanup-batch1): 5 scoped items | building |
 
 ## Merged this session
 🏁 FINAL SCORECARD (benchfull, 3 rounds): 11 PASS · 0 FAIL · 3 SETUP-BLOCKED (harness-sequencing, each behavior passed elsewhere) · 5 stubs — FEATURE-COMPLETE AGAINST JUMP by the real bar
