@@ -9,6 +9,7 @@ Last updated: 2026-07-04 ~01:05 (coordinator-6 seated — sole coordinator; moni
 |---|---|---|
 | cc-lantern-symfix | Symlink-hardening (lp/symlink-hardening) — apply no-follow walk to vault/mcp/diarize containment checks (audit findings; xhigh) | building |
 | cc-lantern-w3 | Wave-3 meeting capture (lp/meeting-capture) — review-capped at r17; NOW: Task 6 Legion device verification (owns the Legion, headset) | bench-verifying |
+| cc-lantern-azcdp | Azure bench CDP fix (lp/azure-cdp-fix) — make WebView2 port 9223 listen on lantern-cloud-bench-1 so the cloud VM becomes a 2nd smoke target (task #13; ≤90min VM budget) | building |
 
 ## Merged this session
 ✅ lp/retention @3d557f20 — Wave-4 Track D (16+1 review rounds; full-branch codex caught a P1 symlink isolation breach, fixed; gate 5670 vitest + 1173 cargo)
