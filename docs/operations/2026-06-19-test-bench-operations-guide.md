@@ -71,7 +71,7 @@ Everything runs over **Tailscale** (a private encrypted tunnel between the machi
 The benches hold a **copy** of the source, not a git checkout. Two ways:
 - **Tarball-over-tunnel (used for the initial seed + reliable on both OSes):**
   ```bash
-  tar czf /tmp/keepance-src.tgz -C /home/jameson/keepance \
+  tar czf /tmp/keepance-src.tgz -C /home/jameson/lantern \
     --exclude=node_modules --exclude=target --exclude=.git --exclude=dist \
     --exclude=dist-web-demo --exclude=dist-node --exclude=playwright-report --exclude=test-results .
   scp /tmp/keepance-src.tgz <bench>:keepance-src.tgz

@@ -6,7 +6,7 @@
 >
 > **Current state:** Read `~/keepance/BACKLOG.md` for the live week-by-week task list, what's done, what's in flight, and what's blocked.
 >
-> **🗺️ WHERE IS THE CURRENT CODE? Read [`docs/operations/REPO-MAP-CURRENT.md`](docs/operations/REPO-MAP-CURRENT.md) FIRST if you're unsure which folder/branch is current.** The live branch is **`keepance-3.0`**. Read/search current code in **`/home/jameson/keepance`** (pinned to the `keepance-3.0` tip). Start new work in a fresh worktree: `git -C /home/jameson/kp-coord worktree add -b <branch> /home/jameson/kp-<name> keepance-3.0`. **Do NOT trust a random `kp-*` side folder to be current** — check its branch first. (A 2026-06-29 cleanup fixed a stale-checkout problem that had caused wrong search results.)
+> **🗺️ WHERE IS THE CURRENT CODE? Read [`docs/operations/REPO-MAP-CURRENT.md`](docs/operations/REPO-MAP-CURRENT.md) FIRST if you're unsure which folder/branch is current.** The live branch is **`keepance-3.0`**. Read/search current code in **`/home/jameson/lantern`** (pinned to the `keepance-3.0` tip). Start new work in a fresh worktree: `git -C /home/jameson/kp-coord worktree add -b <branch> /home/jameson/kp-<name> keepance-3.0`. **Do NOT trust a random `kp-*` side folder to be current** — check its branch first. (A 2026-06-29 cleanup fixed a stale-checkout problem that had caused wrong search results.)
 >
 > **🧪 QA / bug-fixing (parallel engine):** Read [`docs/qa/QA_BOARD.md`](docs/qa/QA_BOARD.md) — the control doc for accelerated, PARALLEL QA (isolated worktree agents + Codex on scoped tickets; one lead reviews/gates/merges serially). It has the test/gate commands, the bug DB pointer (`docs/quality/2026-06-20-test-bug-backlog.md`), the scoped-fix ticket protocol, the merge workflow, and the coverage gap-tickets. **Verification rule:** never claim a fix done without showing the exact command you ran + its pass/fail output (`npm run gate` / scoped `vitest` / `node scripts/eslint-gate.mjs`); evidence before assertions.
 >
@@ -65,7 +65,7 @@
 
 | Item | Path | Notes |
 |---|---|---|
-| **Canonical source** | `/home/jameson/keepance/` | Server-resident, mirrors jameworld/behaviorux/portfolio pattern |
+| **Canonical source** | `/home/jameson/lantern/` | Server-resident, mirrors jameworld/behaviorux/portfolio pattern |
 | **GitHub** | `github.com/keepance/keepance` | Org owned by joelbridger account; transferred from joelbridger/keepance on 2026-04-08 |
 | **Live website** | `https://keepance.com` → `/var/www/keepance.com/index.html` | System Caddy on `:8080`, Cloudflare tunnel `d4e16129` |
 | **Deploy script** | `~/keepance/infra/deploy.sh` | rsync website/ → /var/www/keepance.com + CF cache purge |
