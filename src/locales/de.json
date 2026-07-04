@@ -18,7 +18,15 @@
       "integrity-seal-missing-detail": "Das Integritätssiegel des Prüfprotokolls fehlt. Der Verlauf bis {{timestamp}} kann nicht mehr kryptografisch verifiziert werden. Das Protokoll wurde möglicherweise gekürzt.",
       "integrity-seal-missing-detail__sourceHash": "db35d11f85fe9e3a9e5ee21f5b641f28a528c3a278744b40c9aa527d95585996",
       "integrity-seal-missing-detail-notime": "Das Integritätssiegel des Prüfprotokolls fehlt. Sein Verlauf kann nicht mehr kryptografisch verifiziert werden. Das Protokoll wurde möglicherweise gekürzt.",
-      "integrity-seal-missing-detail-notime__sourceHash": "c0a2c109411408d2506a66d2b948abf9db632f0f97c01edabd1c9b50f945dd0d"
+      "integrity-seal-missing-detail-notime__sourceHash": "c0a2c109411408d2506a66d2b948abf9db632f0f97c01edabd1c9b50f945dd0d",
+      "repair-action": "Reparieren",
+      "repair-action__sourceHash": "1196b6c538ecc61a658445255dcb19ebe23e05465acd46c4aa5d995667bd8cfe",
+      "repair-confirm-title": "Prüfprotokoll reparieren?",
+      "repair-confirm-title__sourceHash": "519e504ca9cf2a0012f2b0fd90a649b060a7ea2ebb32e55c1b44c2b9c6f1c2b1",
+      "repair-confirm-body": "Das Integritätssiegel fehlt, daher können die zuvor aufgezeichneten Einträge nicht mehr auf Vollständigkeit geprüft werden. Die Reparatur stellt nichts wieder her, was möglicherweise entfernt wurde. Sie versiegelt die verbleibenden Einträge neu und zeichnet dauerhaft einen Hinweis auf, dass dies geschehen ist. Dies kann nicht rückgängig gemacht werden. Fortfahren?",
+      "repair-confirm-body__sourceHash": "e1851dc95bfec1c2f711c05e35c8fafab03e53e4631247c4ccdbbbe2fa42ef79",
+      "repair-confirm-cta": "Reparieren und Anomalie aufzeichnen",
+      "repair-confirm-cta__sourceHash": "632f5b0c2228ef0e5b3e19efb8b8da94cb799aeeba55a80a247d910642694a14"
     },
     "ai-setup-help": {
       "link": "Ich brauche Hilfe bei der Einrichtung",

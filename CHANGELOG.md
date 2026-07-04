@@ -61,11 +61,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fresh store) is caught via SQLite's AUTOINCREMENT high-water mark (`sqlite_sequence`, survives
   deletion): a wiped log opens as SealMissing and repair chains the anomaly onto genesis. A seal
   that is present but corrupt (undecodable) is reported as `Altered` (loud), keeping the invariant
-  that SealMissing always means repairable. Files: `commands/audit/store.rs` (SealMissing +
+  that SealMissing always means repairable. The seal-missing badge carries an explicit,
+  acknowledged **Repair** action (confirmation dialog in plain language stating what can no longer
+  be verified and that the anomaly is permanently recorded) that calls `audit_repair_seal` and
+  refreshes the entries + integrity state. Files: `commands/audit/store.rs` (SealMissing +
   `repair` + high-water detection), `commands/audit/mod.rs` (`audit_repair_seal`),
-  `commands/retention/mod.rs`, `platform/utils/tauri-commands.ts`,
+  `commands/retention/mod.rs`, `platform/utils/tauri-commands.ts`, `platform/audit/AuditService.ts`
+  (`repairSeal`), `app/App.tsx` + `app/shell/AppSurfaceRouter.tsx` (repair handler wiring),
   `features/audit/{AuditHome.tsx,audit-export.ts}`, `platform/privacy/attestation.ts`,
-  `locales/{en,de,es}.json`. Reproduced red-first; store/retention/frontend tests added.
+  `locales/{en,de,es}.json`. Reproduced red-first; store/retention/service/UI-flow tests added.
 - **Symlink-safe path containment everywhere a caller-supplied path meets a workspace root.**
   A codebase audit found five containment checks that followed symlinks (an in-workspace alias
   folder could read/write/delete a DIFFERENT client's files while the audit trail named the

@@ -38,6 +38,8 @@ import {
 } from '@/features/audit/audit-export';
 import { isAuditEncrypted } from '@/platform/audit/AuditService';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
+import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
+import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import {
   Button,
@@ -68,6 +70,13 @@ export interface AuditHomeProps {
   integrity?: AuditIntegrityVerdict | undefined;
   onVerifyIntegrity?: (() => Promise<AuditIntegrityVerdict | undefined>) | undefined;
   /**
+   * Explicit, acknowledged repair of a seal-missing audit log. When set and the
+   * integrity state is `sealMissing`, the badge area shows a Repair action that
+   * (after a plain-language confirmation) calls this to re-seal the chain and
+   * permanently record the anomaly, then refresh the entries + integrity state.
+   */
+  onRepairSeal?: (() => Promise<void>) | undefined;
+  /**
    * When set, the log is pre-scoped to a single client's activity (used by the
    * per-client Activity sub-tab in the Client Map hub). Entries are filtered to
    * those whose matter scope matches this id before any in-view filtering, so
@@ -78,7 +87,7 @@ export interface AuditHomeProps {
 
 // ── Main component ─────────────────────────────────────────────────────────
 
-export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, scopeMatterId }: AuditHomeProps) {
+export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, onRepairSeal, scopeMatterId }: AuditHomeProps) {
   // Embedded as a per-client Activity tab (scopeMatterId set) → the hub header
   // already labels the surface, so hide this inner header to match Documents.
   const embedded = scopeMatterId !== undefined;
@@ -283,6 +292,29 @@ export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, 
     danger: { border: '1px solid rgba(185,28,28,0.28)', background: 'rgba(254,242,242,0.9)', color: '#991b1b' },
   }[integrityTone];
 
+  // Explicit, acknowledged repair — the ONLY user action that can re-seal a
+  // seal-missing chain, gated behind a plain-language confirmation that states
+  // what can no longer be verified and that the anomaly is recorded for good.
+  const { confirm, dialogProps: confirmDialogProps } = useConfirmDialog();
+  const [repairing, setRepairing] = useState(false);
+  const canRepair = integrity?.status === 'sealMissing' && !!onRepairSeal && !embedded;
+  const handleRepair = useCallback(async () => {
+    if (!onRepairSeal) return;
+    const ok = await confirm(t('common.audit-log.repair-confirm-body'), {
+      title: t('common.audit-log.repair-confirm-title'),
+      confirmLabel: t('common.audit-log.repair-confirm-cta'),
+      variant: 'destructive',
+    });
+    if (!ok) return;
+    setRepairing(true);
+    try {
+      await onRepairSeal();
+    } catch {
+      // Repair failed; leave the seal-missing state visible so it can be retried.
+    } finally {
+      setRepairing(false);
+    }
+  }, [confirm, onRepairSeal, t]);
 
   return (
     <div
@@ -329,9 +361,23 @@ export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, 
             {integrityLabel}
           </span>
         )}
+        {canRepair && (
+          <Button
+            variant="secondary"
+            size="sm"
+            data-testid="audit-repair-button"
+            onClick={() => void handleRepair()}
+            loading={repairing}
+            disabled={repairing}
+            style={{ marginTop: 10, marginLeft: 8, verticalAlign: 'middle' }}
+          >
+            {t('common.audit-log.repair-action')}
+          </Button>
+        )}
       </div>
       )}
       {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+      <ConfirmDialog {...confirmDialogProps} />
 
       {/* Toolbar */}
       <SurfaceToolbar>

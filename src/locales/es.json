@@ -18,7 +18,15 @@
       "integrity-seal-missing-detail": "Falta el sello de integridad del registro de auditoría. El historial hasta {{timestamp}} ya no puede verificarse criptográficamente. Es posible que el registro se haya truncado.",
       "integrity-seal-missing-detail__sourceHash": "db35d11f85fe9e3a9e5ee21f5b641f28a528c3a278744b40c9aa527d95585996",
       "integrity-seal-missing-detail-notime": "Falta el sello de integridad del registro de auditoría. Su historial ya no puede verificarse criptográficamente. Es posible que el registro se haya truncado.",
-      "integrity-seal-missing-detail-notime__sourceHash": "c0a2c109411408d2506a66d2b948abf9db632f0f97c01edabd1c9b50f945dd0d"
+      "integrity-seal-missing-detail-notime__sourceHash": "c0a2c109411408d2506a66d2b948abf9db632f0f97c01edabd1c9b50f945dd0d",
+      "repair-action": "Reparar",
+      "repair-action__sourceHash": "1196b6c538ecc61a658445255dcb19ebe23e05465acd46c4aa5d995667bd8cfe",
+      "repair-confirm-title": "¿Reparar el registro de auditoría?",
+      "repair-confirm-title__sourceHash": "519e504ca9cf2a0012f2b0fd90a649b060a7ea2ebb32e55c1b44c2b9c6f1c2b1",
+      "repair-confirm-body": "Falta el sello de integridad, por lo que las entradas registradas hasta ahora ya no pueden comprobarse en cuanto a su integridad. Reparar no recupera nada que se haya podido eliminar. Vuelve a sellar las entradas que quedan y registra de forma permanente una nota de que esto ocurrió. Esto no se puede deshacer. ¿Continuar?",
+      "repair-confirm-body__sourceHash": "e1851dc95bfec1c2f711c05e35c8fafab03e53e4631247c4ccdbbbe2fa42ef79",
+      "repair-confirm-cta": "Reparar y registrar la anomalía",
+      "repair-confirm-cta__sourceHash": "632f5b0c2228ef0e5b3e19efb8b8da94cb799aeeba55a80a247d910642694a14"
     },
     "ai-setup-help": {
       "link": "Necesito ayuda para configurar esto",

@@ -281,6 +281,16 @@ function App() {
     return verdict;
   }, []);
 
+  // Explicit, acknowledged repair of a seal-missing audit log (invoked from the
+  // AuditHome badge after the user confirms). Re-seals + records the anomaly in
+  // the backend, then refreshes the live entries AND the integrity badge so the
+  // new anomaly row appears and the amber state clears to verified.
+  const repairAuditSeal = useCallback(async (): Promise<void> => {
+    await auditServiceRef.current.repairSeal();
+    setAuditEntries(auditServiceRef.current.getAll().slice().reverse());
+    setAuditIntegrity(await auditServiceRef.current.verifyIntegrity());
+  }, []);
+
   const { theme, setTheme, effectiveTheme } = useThemeManager();
 
   // Perf (P1.2): exact-data-only selectors. These bare store-hook calls used
@@ -1464,6 +1474,7 @@ function App() {
           auditEntries={auditEntries}
           auditIntegrity={auditIntegrity}
           verifyAuditIntegrity={verifyAuditIntegrity}
+          repairAuditSeal={repairAuditSeal}
           apiKeys={apiKeys}
           rootPath={rootPath}
           trashItems={trashItems}
