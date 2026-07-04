@@ -63,6 +63,8 @@ import { useWorkflowStore } from '@/features/workflows/workflowStore';
 import { useShallow } from 'zustand/react/shallow';
 import { createWorkspaceService, type WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { createFSBackend, isTauriEnvironment } from '@/platform/fs/BackendFactory';
+import { useTabWriteGuard } from '@/platform/browserGuard/useTabWriteGuard';
+import { TabGateOverlay } from '@/platform/browserGuard/TabGateOverlay';
 import { useAiBatchReviewStore } from '@/platform/ai/aiBatchReviewStore';
 import { createWebFSBackend } from '@/platform/fs/WebFSBackend';
 import { writeSampleFiles } from '@/platform/matter/samples';
@@ -141,6 +143,13 @@ const IS_DEMO_MODE =
 function App() {
   const [showWorkspaceSelector, setShowWorkspaceSelector] = useState(!IS_TEST_MODE && !IS_DEMO_MODE);
   const [demoOpenFailed, setDemoOpenFailed] = useState(false);
+  // QA-15: the browser build has no per-workspace localStorage namespacing —
+  // two tabs on the same origin silently clobber each other's saved state
+  // (zustand/persist, last-write-wins, no cross-tab awareness). Desktop
+  // already has an OS-level single-instance guard, and IS_TEST_MODE never
+  // simulates two same-origin tabs, so the gate is disabled for both. See
+  // src/platform/browserGuard/ for the guard itself and its rationale.
+  const tabWriteGuard = useTabWriteGuard(!IS_TEST_MODE && !isTauriEnvironment());
   const {
     showCommandPalette, setShowCommandPalette,
     showShortcutsOverlay, setShowShortcutsOverlay,
@@ -1279,6 +1288,13 @@ function App() {
   // the picker off-screen entirely — otherwise it flashes before the resumed
   // workspace takes over (or, if boot data is read too early, never gets
   // dismissed at all — the bug this hook fixes).
+  // QA-15: a blocked tab never mounts the interactive shell below — no store
+  // action in this tab can run, so it can't clobber the owning tab's saved
+  // state. Checked first, ahead of every other branch.
+  if (tabWriteGuard.status === 'blocked') {
+    return <TabGateOverlay onTakeOver={tabWriteGuard.requestTakeover} />;
+  }
+
   if (!IS_TEST_MODE && isAutoResumingWorkspace) {
     return (
       <div

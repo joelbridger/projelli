@@ -25,7 +25,16 @@
 import { ProviderError } from '@/platform/providers/Provider';
 import { MODEL_NOT_READY } from '@/platform/utils/tauri-commands';
 
-export type ClientMapErrorKind = 'index' | 'provider' | 'unknown';
+export type ClientMapErrorKind = 'index' | 'provider' | 'desktopOnly' | 'unknown';
+
+/** Matches the browser build's "no Tauri backend" throw from `ragRetrieve`
+ *  (`src/platform/utils/tauri-commands.ts`'s `!isTauri()` guards ahead of
+ *  every RAG command: "RAG is only available in the desktop app."). This is
+ *  NOT a transient index/rebuild problem (QA-13) — the browser build has no
+ *  Rust/LanceDB engine at all, so it can never be resolved by retrying or
+ *  reopening the client. Checked before `INDEX_ERROR_PATTERN`, which would
+ *  otherwise also match this text. */
+const DESKTOP_ONLY_ERROR_PATTERN = /rag is only available in the desktop app/i;
 
 /** Matches the RAG/retrieval-layer failure text — every way `rag_retrieve`
  *  (`src-tauri/src/commands/rag/query.rs` + the `cached_chunks_table` helper
@@ -34,13 +43,13 @@ export type ClientMapErrorKind = 'index' | 'provider' | 'unknown';
  *  the local vector store ("open lancedb: ...", "list tables: ...", "open
  *  table: ..."), the embedding step ("embed query: ...", including the
  *  `MODEL_NOT_READY` marker for a still-downloading local model — mirrors
- *  `refusalKeyForReason` in `src/features/ask/AIChatViewer.tsx`), the vector
- *  search step ("nearest: ..."), and the browser's "no Tauri backend" throw
- *  from `ragRetrieve`. Deliberately excludes "invalid scope matter_id" —
- *  that's a caller bug, not something re-indexing fixes, so it falls to
- *  'unknown' instead. */
+ *  `refusalKeyForReason` in `src/features/ask/AIChatViewer.tsx`), and the
+ *  vector search step ("nearest: ..."). The browser's "no Tauri backend"
+ *  throw is classified separately as 'desktopOnly' (QA-13), not here.
+ *  Deliberately excludes "invalid scope matter_id" — that's a caller bug,
+ *  not something re-indexing fixes, so it falls to 'unknown' instead. */
 const INDEX_ERROR_PATTERN = new RegExp(
-  `memory integrity|re-?index|rag is only available|open lancedb|list tables|open table|embed query|nearest:|${MODEL_NOT_READY}`,
+  `memory integrity|re-?index|open lancedb|list tables|open table|embed query|nearest:|${MODEL_NOT_READY}`,
   'i',
 );
 
@@ -58,11 +67,12 @@ function errorText(error: unknown): string {
   return '';
 }
 
-/** Classify a Client Map build/update failure into one of three buckets so the
+/** Classify a Client Map build/update failure into one of four buckets so the
  *  UI can name the real problem instead of always blaming the AI connection. */
 export function classifyClientMapError(error: unknown): ClientMapErrorKind {
   if (error instanceof ProviderError) return 'provider';
   const text = errorText(error);
+  if (DESKTOP_ONLY_ERROR_PATTERN.test(text)) return 'desktopOnly';
   if (INDEX_ERROR_PATTERN.test(text)) return 'index';
   if (PROVIDER_ERROR_PATTERN.test(text)) return 'provider';
   return 'unknown';
@@ -72,10 +82,17 @@ const INDEX_ERROR_MESSAGE =
   "This client's memory needs to rebuild before the map can update. Try again in a moment — if it keeps happening, reopen this client to trigger a fresh index.";
 const PROVIDER_BUILD_MESSAGE = 'Could not build client map. Check your AI connection and try again.';
 const UNKNOWN_BUILD_MESSAGE = 'Could not build client map. Try again in a moment.';
+/** QA-13: the browser build has no Rust/LanceDB engine at all, so unlike the
+ *  other messages this must never suggest retrying — there is nothing a
+ *  retry or a reopen can fix on this seat. */
+const DESKTOP_ONLY_BUILD_MESSAGE =
+  "Client Map's cited search needs the desktop app. This browser build can't index this client's files — install the desktop app to build the map.";
 
 /** User-facing message for a `generate()` failure (first build / full rebuild). */
 export function clientMapBuildErrorMessage(error: unknown): string {
   switch (classifyClientMapError(error)) {
+    case 'desktopOnly':
+      return DESKTOP_ONLY_BUILD_MESSAGE;
     case 'index':
       return INDEX_ERROR_MESSAGE;
     case 'provider':
@@ -88,10 +105,15 @@ export function clientMapBuildErrorMessage(error: unknown): string {
 const INDEX_UPDATE_MESSAGE =
   "This client's memory needs to rebuild before updates can be checked. Try again in a moment — if it keeps happening, reopen this client to trigger a fresh index.";
 const GENERIC_UPDATE_MESSAGE = 'Could not check for client map updates. Try again in a moment.';
+const DESKTOP_ONLY_UPDATE_MESSAGE =
+  "Client Map's cited search needs the desktop app. This browser build can't check for updates — install the desktop app to keep this client's map current.";
 
 /** User-facing message for a `checkForUpdates()` failure. This message never
  *  blamed the AI connection to begin with, so 'provider' and 'unknown' keep
- *  the existing generic copy — only 'index' gets a more specific message. */
+ *  the existing generic copy — 'index' and 'desktopOnly' get specific copy. */
 export function clientMapUpdateErrorMessage(error: unknown): string {
-  return classifyClientMapError(error) === 'index' ? INDEX_UPDATE_MESSAGE : GENERIC_UPDATE_MESSAGE;
+  const kind = classifyClientMapError(error);
+  if (kind === 'desktopOnly') return DESKTOP_ONLY_UPDATE_MESSAGE;
+  if (kind === 'index') return INDEX_UPDATE_MESSAGE;
+  return GENERIC_UPDATE_MESSAGE;
 }

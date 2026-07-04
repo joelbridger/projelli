@@ -72,6 +72,7 @@ describe('en.json structure snapshot', () => {
         "search": 6,
         "settings": 167,
         "shortcuts-overlay": 2,
+        "tab-guard": 3,
         "tts": 1,
         "updater": 2,
         "vault": 53,
@@ -126,7 +127,9 @@ describe('en.json structure snapshot', () => {
     //      rows now), meetings.entry +5 (generic-title, dictated-title,
     //      delete-audio-confirm-*), meetings.consent +2
     //      (two-party-note-unknown, start-failed).
-    expect(flat.length).toBe(1070);
+    // +3 = tab-guard.* (title, description, take-over) — QA-15 browser-build
+    //      single-writer tab gate ("this workspace is open in another tab").
+    expect(flat.length).toBe(1073);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {
