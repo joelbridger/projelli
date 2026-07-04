@@ -73,7 +73,7 @@ describe('meeting note template', () => {
     const sendMessage = vi.fn(async () => ({ content: '- Wants a 529 [t:341000]' }));
     const provider = { sendMessage } as unknown as Provider;
     await meetingNoteFromTranscript.run({ transcript, clientName: 'The Hendersons', provider });
-    const [, opts] = sendMessage.mock.calls[0] as [string, Record<string, unknown>];
+    const [, opts] = sendMessage.mock.calls[0] as unknown as [string, Record<string, unknown>];
     expect('signal' in opts).toBe(false);
   });
 });
