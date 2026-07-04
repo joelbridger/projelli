@@ -65,13 +65,19 @@ pub(crate) use crate::commands::pathguard::{
 /// processing before a crash.
 type DeleteAudit<'a> = &'a mut dyn FnMut(&SweepDeletion, &[String]) -> Result<(), String>;
 
-fn remove_file(path: &Path, kind: &str, canon_ws: &Path, out: &mut SweepOutcome, rag_ids: &[String], on_delete: DeleteAudit) {
+/// Returns `true` when nothing remains at `path` afterward (it didn't exist,
+/// or was just successfully deleted+audited) — `false` when it was refused
+/// (still there) or the delete itself failed. Callers that later do a bulk
+/// `remove_dir_all` over a directory this was called on MUST check this:
+/// `remove_dir_all` doesn't know about a "refused" entry and would delete it
+/// anyway, silently, without ever calling `on_delete` — see `remove_dir`.
+fn remove_file(path: &Path, kind: &str, canon_ws: &Path, out: &mut SweepOutcome, rag_ids: &[String], on_delete: DeleteAudit) -> bool {
     if !path.exists() {
-        return;
+        return true;
     }
     if !contained(path, canon_ws) {
         out.errors.push(format!("refused (outside workspace): {}", path.display()));
-        return;
+        return false;
     }
     match std::fs::remove_file(path) {
         Ok(()) => {
@@ -83,8 +89,12 @@ fn remove_file(path: &Path, kind: &str, canon_ws: &Path, out: &mut SweepOutcome,
                 out.rag_cleanup_source_ids.extend(rag_ids.iter().cloned());
             }
             out.deleted.push(d);
+            true
         }
-        Err(e) => out.errors.push(format!("delete {}: {e}", path.display())),
+        Err(e) => {
+            out.errors.push(format!("delete {}: {e}", path.display()));
+            false
+        }
     }
 }
 
@@ -95,37 +105,44 @@ fn remove_file(path: &Path, kind: &str, canon_ws: &Path, out: &mut SweepOutcome,
 /// would mean a crash mid-delete could leave several already-gone chunks
 /// with zero audit trail, defeating the per-unlink guarantee `remove_file`
 /// otherwise provides. A symlink entry falls through to `remove_file`'s own
-/// containment check (which removes only the link, never the target) same
-/// as everywhere else in this module.
+/// containment check (which refuses it outright rather than unlinking it —
+/// same as everywhere else in this module).
+///
+/// Returns `Ok(true)` only if EVERY entry underneath was actually removed —
+/// `remove_dir` must not follow up with a bulk `remove_dir_all` otherwise,
+/// or a refused (not actually deleted) entry would get swept up by it
+/// anyway, unaudited.
 fn remove_dir_files_individually(
     dir: &Path,
     kind: &str,
     canon_ws: &Path,
     out: &mut SweepOutcome,
     on_delete: DeleteAudit,
-) -> std::io::Result<()> {
+) -> std::io::Result<bool> {
+    let mut all_removed = true;
     for entry in std::fs::read_dir(dir)? {
         let entry = entry?;
         let p = entry.path();
         if entry.file_type()?.is_dir() {
-            remove_dir_files_individually(&p, kind, canon_ws, out, on_delete)?;
+            all_removed &= remove_dir_files_individually(&p, kind, canon_ws, out, on_delete)?;
         } else {
-            remove_file(&p, kind, canon_ws, out, &[], on_delete);
+            all_removed &= remove_file(&p, kind, canon_ws, out, &[], on_delete);
         }
     }
-    Ok(())
+    Ok(all_removed)
 }
 
 fn remove_dir(path: &Path, kind: &str, canon_ws: &Path, out: &mut SweepOutcome, on_delete: DeleteAudit) {
     if !path.exists() {
         return;
     }
-    // If the directory ITSELF is a symlink, contained()'s check (which only
-    // verifies the PARENT resolves inside the workspace) would happily pass
-    // even when the symlink's TARGET is some other, unrelated in-workspace
-    // directory — walking and deleting through it could destroy a different
-    // client's files entirely. Refuse outright: never walk through a
-    // symlinked directory, no matter where it resolves to.
+    // If the directory ITSELF is a symlink, walking and deleting through it
+    // could destroy a different client's files entirely (its target might
+    // be some other, unrelated in-workspace directory). Refuse outright:
+    // never walk through a symlinked directory, no matter where it resolves
+    // to. `contained()` (now a no-follow walk in its own right) would also
+    // catch this, but checking it explicitly here — before ever touching
+    // the directory's contents — keeps the refusal message specific.
     match path.symlink_metadata() {
         Ok(m) if m.file_type().is_symlink() => {
             out.errors.push(format!("refused (symlink): {}", path.display()));
@@ -138,11 +155,23 @@ fn remove_dir(path: &Path, kind: &str, canon_ws: &Path, out: &mut SweepOutcome, 
         out.errors.push(format!("refused (outside workspace): {}", path.display()));
         return;
     }
-    if let Err(e) = remove_dir_files_individually(path, kind, canon_ws, out, on_delete) {
-        out.errors.push(format!("delete {}: {e}", path.display()));
+    let all_removed = match remove_dir_files_individually(path, kind, canon_ws, out, on_delete) {
+        Ok(all_removed) => all_removed,
+        Err(e) => {
+            out.errors.push(format!("delete {}: {e}", path.display()));
+            return;
+        }
+    };
+    if !all_removed {
+        // At least one entry underneath (e.g. a symlink `remove_file`
+        // refused) is still there. `remove_dir_all` doesn't know or care
+        // about a "refused" entry — it would delete it anyway, silently,
+        // without ever calling `on_delete`, breaking the per-unlink audit
+        // guarantee this function exists to provide. Leave the directory in
+        // place; the refusal is already reported in `out.errors`.
         return;
     }
-    // Every file inside is already gone and individually audited above —
+    // Every file inside is confirmed gone and individually audited above —
     // this only removes the now-empty directory tree structure itself (no
     // data content, so one plain filesystem call is fine here).
     if let Err(e) = std::fs::remove_dir_all(path) {
@@ -632,6 +661,54 @@ mod tests {
 
         assert!(victim_dir.join("secret.txt").exists(), "must never walk/delete through a symlinked directory");
         assert!(out.errors.iter().any(|e| e.contains("symlink")), "the refusal should be reported: {:?}", out.errors);
+    }
+
+    /// A symlink FILE planted inside a real `.capture` directory (alongside
+    /// the normal chunk files) must be refused by `remove_file`'s
+    /// containment check — and, critically, that refusal must stop the
+    /// directory's follow-up bulk `remove_dir_all` too. Otherwise the
+    /// refused symlink would still get deleted by `remove_dir_all` (which
+    /// doesn't know or care that it was "refused"), just silently, without
+    /// ever calling `on_delete` — breaking the per-unlink audit guarantee
+    /// this whole module exists to provide.
+    #[cfg(unix)]
+    #[test]
+    fn sweep_leaves_capture_dir_in_place_rather_than_silently_sweeping_an_unaudited_symlink() {
+        let ws = tempdir().unwrap();
+        let now = now_ms();
+        let outside = tempdir().unwrap();
+        let victim = outside.path().join("secret.txt");
+        std::fs::write(&victim, b"do not delete me").unwrap();
+
+        let matter = ws.path().join("Clients/Evil");
+        let meeting = make_meeting(&matter, "2026-05-01-x", 40, now, true);
+        std::os::unix::fs::symlink(&victim, meeting.join(".capture/escape.bin")).unwrap();
+
+        let mut audited_paths: Vec<String> = Vec::new();
+        let mut out = SweepOutcome::default();
+        let canon_ws = ws.path().canonicalize().unwrap();
+        sweep_matter_folder(&matter, &canon_ws, "summary-only", 30, now, &mut out, &mut |d, _ids| {
+            audited_paths.push(d.path.clone());
+            Ok(())
+        });
+
+        assert!(victim.exists(), "the symlink target outside the workspace must never be touched");
+        assert!(
+            meeting.join(".capture").exists(),
+            ".capture must not be bulk-removed while a refused symlink entry is still inside it"
+        );
+        assert!(
+            meeting.join(".capture/escape.bin").exists(),
+            "the refused symlink entry itself must still be there, not silently swept by remove_dir_all"
+        );
+        assert!(
+            !audited_paths.iter().any(|p| p.contains("escape.bin")),
+            "the symlink must never be reported as an audited deletion: {audited_paths:?}"
+        );
+        assert!(
+            out.errors.iter().any(|e| e.contains("outside workspace") || e.contains("symlink")),
+            "the refusal should be reported: {:?}", out.errors
+        );
     }
 
     /// A MEETING FOLDER ENTRY itself (not just an artifact one level deeper,
