@@ -15,6 +15,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronRight, ChevronUp, Check, AlertTriangle, CalendarDays, Pencil } from 'lucide-react';
 import { Card, Button } from '@/ui/kp';
 import { useCrmWriteQueueStore, type ProposedCrmWrite } from '@/platform/state/crmWriteQueueStore';
@@ -22,6 +23,10 @@ import { useMatterStore } from '@/platform/matter/matterStore';
 import { buildInverseCrmMap, matterLabel } from '@/platform/rag/matterResolver';
 import { crmIsConnected } from '@/platform/utils/wealthbox-commands';
 import { composeComplianceNote } from '@/features/matters/complianceNote';
+import { composeCrmProvenance } from '@/features/matters/crmProvenance';
+import { useLicense } from '@/platform/hooks/useLicense';
+import { useProfileStore } from '@/platform/profile/profileStore';
+import { getRememberedComplianceNoteChoice, setRememberedComplianceNoteChoice } from '@/features/matters/complianceNotePref';
 
 export interface CrmWriteReviewCardProps {
   matterId: string;
@@ -65,14 +70,20 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
   const dismiss = useCrmWriteQueueStore((s) => s.dismiss);
   const enqueue = useCrmWriteQueueStore((s) => s.enqueue);
   const updateFinalValue = useCrmWriteQueueStore((s) => s.updateFinalValue);
+  const setProvenanceIfUnset = useCrmWriteQueueStore((s) => s.setProvenanceIfUnset);
   const matters = useMatterStore((s) => s.matters);
+  const { t, i18n } = useTranslation();
+  // R5 (Tier B trust guard): in a firm the compliance note is supervisory and
+  // shouldn't be opt-in, so it defaults ON for the firm (practice) tier; solo
+  // advisors keep — and we remember — their own choice.
+  const isFirmTier = useLicense().tier === 'practice';
+  const defaultComplianceNote = isFirmTier || getRememberedComplianceNoteChoice();
 
   const [expanded, setExpanded] = useState(false);
   const [uncheckedIds, setUncheckedIds] = useState<Set<string>>(new Set());
   const [household, setHousehold] = useState<string | null>(null);
   const [connected, setConnected] = useState<boolean | null>(null);
-  // Task 9b: off by default, one inline toggle — never a settings page.
-  const [fileComplianceNote, setFileComplianceNote] = useState(false);
+  const [fileComplianceNote, setFileComplianceNote] = useState(defaultComplianceNote);
 
   // Codex review catch (P1): if this component instance is reused for a
   // DIFFERENT client (e.g. no `key={matterId}` upstream), the previously
@@ -87,7 +98,7 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
     setHousehold(null);
     setUncheckedIds(new Set());
     setExpanded(false);
-    setFileComplianceNote(false);
+    setFileComplianceNote(defaultComplianceNote);
   }
 
   // Coordinator review catch (P2): a stale item's finalValue gets rebuilt by
@@ -212,6 +223,25 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
     const household_ = effectiveHousehold;
     const approvedIds = selectedIds;
     const shouldFileCompliance = fileComplianceNote;
+    // E3: stamp AI-drafted notes with an honest provenance line at the moment
+    // of approval (so the "approved on" date is real), set-once so a retry
+    // keeps the exact same line. It travels into the CRM note content.
+    const approvedAtIso = new Date().toISOString();
+    const profile = useProfileStore.getState();
+    const advisor = isFirmTier ? (profile.firmName || profile.soloName) : profile.soloName;
+    for (const id of approvedIds) {
+      const it = items.find((i) => i.id === id);
+      if (it?.kind === 'note' && it.aiSource) {
+        setProvenanceIfUnset(
+          id,
+          composeCrmProvenance(
+            t,
+            { advisor, sourceKind: it.aiSource.kind, sourceDate: it.aiSource.date, approvedIso: approvedAtIso },
+            i18n.language,
+          ),
+        );
+      }
+    }
     // Codex review catch (P2): reset immediately, not after the note is
     // filed — a still-checked toggle would otherwise summarize its OWN
     // compliance note on the next approval, recursing indefinitely. The
@@ -393,7 +423,12 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
                 type="checkbox"
                 data-testid="file-compliance-note"
                 checked={fileComplianceNote}
-                onChange={(e) => { setFileComplianceNote(e.target.checked); }}
+                onChange={(e) => {
+                  setFileComplianceNote(e.target.checked);
+                  // Solo advisors' choice is remembered; the firm tier stays
+                  // defaulted ON and doesn't overwrite the shared preference.
+                  if (!isFirmTier) setRememberedComplianceNoteChoice(e.target.checked);
+                }}
                 style={{ width: 14, height: 14, cursor: 'pointer' }}
               />
               Also file a compliance note

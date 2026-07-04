@@ -223,9 +223,13 @@ export async function crmCreateNote(args: {
    *  fresh approval (even of identical content) must pass a new one. */
   requestedAt: string;
   provider?: CrmProvider;
+  /** E3 (Tier B trust guard): honest provenance line for an AI-drafted note,
+   *  appended to the note content at the Rust wire boundary. Omit for
+   *  advisor-typed notes. */
+  provenance?: string;
 }): Promise<CrmWriteReceipt> {
   if (!isTauri()) throw new Error('CRM write is only available in the desktop app.');
-  const { matterId, title, body, sourceRef, householdKey, requestedAt, provider } = args;
+  const { matterId, title, body, sourceRef, householdKey, requestedAt, provider, provenance } = args;
   return invoke<CrmWriteReceipt>('crm_create_note', {
     matterId,
     title,
@@ -234,6 +238,7 @@ export async function crmCreateNote(args: {
     householdKey,
     requestedAt,
     ...(provider ? { provider } : {}),
+    ...(provenance ? { provenance } : {}),
   });
 }
 

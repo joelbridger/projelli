@@ -59,6 +59,16 @@ import { dispatchOpenSource } from '@/features/matters/clientMap/openSource';
 import { ScopeStatusPill } from './ScopeToggle';
 import { BookAnswerPanel } from './book/BookAnswerPanel';
 import { runWholePracticeAsk } from './book/wholePracticeAsk';
+import { buildBookFactsDigest } from './book/bookFacts';
+import { getMatters } from '@/platform/matter/matterStore';
+import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
+import { buildResolvedProviderForGlance } from '@/platform/matter/matterAtAGlance';
+import {
+  decideWholePracticeSend,
+  getRememberedWholePracticeConsent,
+  setRememberedWholePracticeConsent,
+} from './book/wholePracticeSendGate';
+import { WholePracticeSendConfirm } from './book/WholePracticeSendConfirm';
 import type { BookAskResult } from './book/bookFacts';
 import { settleBookSubmission } from './book/bookSubmission';
 import { composerIsBusy } from './askHelpers';
@@ -166,34 +176,79 @@ export function Ask(props: UseAskProps) {
   // new whole-practice question is asked. React's "adjusting state when a prop
   // changes" render-time pattern (setState only, no refs, so this stays clear
   // of the no-refs-during-render rule).
+  // R6 (Tier B trust guard): a whole-practice question awaiting the advisor's
+  // one confirm before its book-wide summary leaves for the cloud provider.
+  const [bookConfirm, setBookConfirm] = useState<{ asked: string; clientCount: number; providerName: string | null } | null>(null);
   const [bookResultChatId, setBookResultChatId] = useState(chatId);
   if (chatId !== bookResultChatId) {
     setBookResultChatId(chatId);
     setBookResult(null);
     setBookLoading(false);
     setBookError(null);
+    // Drop any pending confirm too (Codex review): its client count/question
+    // were computed for the OLD workspace/client, but startBookSend rebuilds
+    // the digest from the CURRENT stores — so a stale Continue could ship a
+    // different client set than the advisor confirmed. Clearing it forces a
+    // fresh confirm for the new context.
+    setBookConfirm(null);
   }
+
+  // The actual book-wide send (extracted so it runs both directly — local-only
+  // or already-confirmed — and after the R6 confirm).
+  const startBookSend = (asked: string) => {
+    setQuestion('');
+    setBookLoading(true);
+    setBookError(null);
+    bookAbortRef.current?.abort(); // cancel any still-in-flight prior send
+    const controller = new AbortController();
+    bookAbortRef.current = controller;
+    const requestId = ++bookRequestIdRef.current;
+    const isStale = () => bookRequestIdRef.current !== requestId;
+    const opts = { signal: controller.signal, ...(props.onAuditLog ? { onAuditLog: props.onAuditLog } : {}) };
+    void settleBookSubmission(runWholePracticeAsk(asked, chatId, opts), asked, {
+      onResult: setBookResult,
+      onError: setBookError,
+      onSettle: () => { setBookLoading(false); },
+      restoreQuestion: setQuestion,
+      isStale,
+    });
+  };
 
   const submitQuestion = (q?: string) => {
     if (askScope === 'whole-practice') {
       const asked = (q ?? question).trim();
       if (!asked) return;
-      setQuestion('');
-      setBookLoading(true);
-      setBookError(null);
-      bookAbortRef.current?.abort(); // cancel any still-in-flight prior send
-      const controller = new AbortController();
-      bookAbortRef.current = controller;
-      const requestId = ++bookRequestIdRef.current;
-      const isStale = () => bookRequestIdRef.current !== requestId;
-      const opts = { signal: controller.signal, ...(props.onAuditLog ? { onAuditLog: props.onAuditLog } : {}) };
-      void settleBookSubmission(runWholePracticeAsk(asked, chatId, opts), asked, {
-        onResult: setBookResult,
-        onError: setBookError,
-        onSettle: () => { setBookLoading(false); },
-        restoreQuestion: setQuestion,
-        isStale,
-      });
+      // Decide, from the SAME digest the send uses, whether this cloud send
+      // needs the one honest confirm (real client count + real provider).
+      // An empty book or a remembered choice skip it up front.
+      const clientCount = buildBookFactsDigest(getMatters(), useClientMapStore.getState().maps).clients.length;
+      if (clientCount === 0 || getRememberedWholePracticeConsent()) {
+        startBookSend(asked);
+        return;
+      }
+      // Resolve the ACTUAL provider the send will use (respects Local-only and
+      // the no-cloud-key local fallback), NOT the cached UI value — otherwise a
+      // stale "local" display could skip the confirm while the real send goes
+      // to the cloud (Codex review). If resolution fails we can't prove it's
+      // local, so we confirm (the safe direction).
+      void (async () => {
+        let providerId: string | null = null;
+        try {
+          providerId = (await buildResolvedProviderForGlance()).providerId;
+        } catch {
+          providerId = null;
+        }
+        const decision = decideWholePracticeSend({
+          provider: providerId,
+          clientCount,
+          remembered: getRememberedWholePracticeConsent(),
+        });
+        if (decision.needsConfirm) {
+          setBookConfirm({ asked, clientCount: decision.clientCount, providerName: decision.providerName });
+        } else {
+          startBookSend(asked);
+        }
+      })();
       return;
     }
     void handleAsk(q);
@@ -613,6 +668,21 @@ export function Ask(props: UseAskProps) {
       {/* Connector-access: one-time firm-consent prompt shown before an exported
           RightCapital/Jump report is first used to answer. */}
       <ConfirmDialog {...exportConsentDialogProps} />
+
+      {/* R6: the one honest confirm before a whole-practice question ships a
+          summary of every client to the cloud provider. */}
+      <WholePracticeSendConfirm
+        open={bookConfirm !== null}
+        clientCount={bookConfirm?.clientCount ?? 0}
+        providerName={bookConfirm?.providerName ?? null}
+        onCancel={() => { setBookConfirm(null); }}
+        onConfirm={({ remember }) => {
+          if (remember) setRememberedWholePracticeConsent(true);
+          const asked = bookConfirm?.asked ?? '';
+          setBookConfirm(null);
+          if (asked) startBookSend(asked);
+        }}
+      />
     </div>
   );
 }
