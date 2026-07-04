@@ -63,7 +63,7 @@ describe('en.json structure snapshot', () => {
         "marketplace": 14,
         "matter": 206,
         "media": 88,
-        "meetings": 106,
+        "meetings": 109,
         "memory": 6,
         "model-download": 9,
         "onboarding": 67,
@@ -203,7 +203,14 @@ describe('en.json structure snapshot', () => {
     //      unresponsive-own-data,picker-unresponsive-sample} (2),
     //      file-import.{picker-unresponsive,manual-path-title,manual-path-
     //      placeholder} (3).
-    expect(flat.length).toBe(1275);
+    // +3 = QA-35 fix (2026-07-04): the recording pill's "Recording… M:SS"
+    //      timer never polled the real backend, so a disk-full chunk-write
+    //      failure was invisible to the UI. New: meetings.pill.{write-error,
+    //      write-error-dismiss} (2) — the honest "recording can't continue"
+    //      pill shown after an auto-stop — and meetings.consent.
+    //      low-disk-warning (1), a preflight warning shown in the consent
+    //      dialog when free disk space is low.
+    expect(flat.length).toBe(1278);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

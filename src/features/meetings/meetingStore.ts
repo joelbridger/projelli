@@ -91,6 +91,29 @@ export interface MeetingMeta {
    *  a permanently "queued" transcript that looks identical to a hang.
    *  Cleared (omitted) the moment transcript.json is written successfully. */
   transcriptError?: MeetingTranscriptError;
+  /** QA-35 — set when `capture_stop` itself failed (a chunk write hit
+   *  disk-full/permissions mid-recording, or the disk was still full when
+   *  Stop tried to finalize), so a truncated/incomplete meeting is visible
+   *  and auditable later instead of just a toast that vanished. Never
+   *  cleared automatically — a truncated recording stays truncated. */
+  recordingError?: MeetingRecordingError;
+}
+
+export interface MeetingRecordingError {
+  /** 'disk-full': at least one audio chunk failed to write during this
+   *  recording — Rust's `CaptureEngine::stop` (engine.rs) bails with
+   *  "...part of the audio failed to save...; partial audio at <path>" in
+   *  exactly this case, and `audio.wav` still exists with whatever was
+   *  captured before the failure (see the capture_enospc.rs integration
+   *  test). 'error': `capture_stop` failed for any other reason — most
+   *  commonly `finalize_session` itself couldn't write the merged
+   *  `audio.wav` because the disk was STILL full at Stop time; the raw
+   *  per-channel chunks under `.capture/` are never deleted on a failed
+   *  finalize, so nothing already captured is lost, but there's no viewable
+   *  meeting yet. */
+  kind: 'disk-full' | 'error';
+  at: string;
+  message: string;
 }
 
 export interface MeetingNotesError {
@@ -131,12 +154,53 @@ interface MeetingState {
    *  consent to write into meeting.json without a second lookup. */
   activeMatterId: string | null;
   activeConsent: StartOpts | null;
+  /** QA-35 — the most recent chunk-write failure that cut a recording short,
+   *  if any and not yet dismissed. Kept separate from `status` (which resets
+   *  to idle the moment the recording actually stops) so the RecordPill can
+   *  still show an honest "Recording can't continue — disk is full" pill
+   *  AFTER `status.recording` has already flipped back to false — otherwise
+   *  the pill would just disappear the instant the auto-stop completes, with
+   *  no lasting sign anything went wrong. Cleared on the next
+   *  `startRecording` and by the explicit `dismissWriteFailure` action. */
+  lastWriteFailure: { message: string; at: string } | null;
+  dismissWriteFailure: () => void;
   startRecording: (matterId: string, opts: StartOpts) => Promise<void>;
   stopRecording: (opts?: {
     resolveProvider?: () => ReturnType<typeof buildResolvedProviderForGlance>;
   }) => Promise<void>;
-  /** Advances elapsedMs by 1000ms; called by RecordPill's own timer. */
-  tick: () => void;
+  /** Polls the REAL backend recording status (elapsed time + any chunk-write
+   *  failure) every second — called by RecordPill's own timer. QA-35: this
+   *  used to just increment a local clock with no connection to the Rust
+   *  side at all, so the pill kept "counting" indefinitely even once
+   *  disk-full chunk writes were already failing — nothing ever asked the
+   *  backend whether recording was actually still healthy. Now, a newly
+   *  observed `writeError` stops the recording automatically instead of
+   *  waiting for the advisor to notice a silently-broken recording and click
+   *  Stop themselves. */
+  tick: () => Promise<void>;
+}
+
+/** QA-35 — a cheap, best-effort disk-space preflight the caller runs right
+ *  before opening the consent dialog, so a genuinely low-disk advisor is
+ *  warned ("Low disk space — long recordings may not fit") BEFORE a chunk
+ *  write ever has a chance to actually fail. 300MB is roughly 1.3 hours of
+ *  this app's raw mono 16kHz/16-bit chunk audio for BOTH channels combined
+ *  (~64KB/s) plus the eventual merged stereo audio.wav on top — comfortably
+ *  under "a typical meeting won't fit" while still leaving real headroom
+ *  before the warning fires. Returns null (no warning) if the workspace root
+ *  isn't resolvable or the check itself fails — this is advisory only, never
+ *  a blocker, so a failed check must never prevent recording. */
+const LOW_DISK_WARNING_THRESHOLD_BYTES = 300 * 1024 * 1024;
+
+export async function checkLowDiskSpaceWarning(): Promise<boolean> {
+  const workspace = resolveWorkspaceRoot();
+  if (!workspace) return false;
+  try {
+    const bytes = await invoke<number>('capture_free_disk_bytes', { path: workspace });
+    return bytes < LOW_DISK_WARNING_THRESHOLD_BYTES;
+  } catch {
+    return false;
+  }
 }
 
 const audit = new AuditService('meetings');
@@ -269,6 +333,44 @@ async function clearTranscriptError(meetingDir: string): Promise<void> {
     if (!base.transcriptError) return;
     const { transcriptError: _clearedTranscriptError, ...rest } = base;
     await writeMeetingJson(meetingDir, rest);
+  } catch {
+    // best-effort — see recordNotesError.
+  }
+}
+
+/** QA-35 — classifies a `capture_stop` failure. Matches the exact wording
+ *  Rust's `CaptureEngine::stop` (engine.rs) uses when it bails specifically
+ *  because a chunk write failed during the recording ("...part of the audio
+ *  failed to save...") — any other failure (most commonly `finalize_session`
+ *  itself failing to write the merged audio.wav because the disk was STILL
+ *  full at Stop time) falls back to the generic 'error' kind. A genuine
+ *  mid-recording chunk-write failure is realistically always disk space
+ *  (permissions are checked at file-open time, not typically failing
+ *  mid-write), so 'disk-full' is used for that whole category rather than
+ *  trying to sub-classify the underlying OS errno. */
+function classifyRecordingError(err: unknown): MeetingRecordingError['kind'] {
+  const msg = err instanceof Error ? err.message : String(err);
+  return msg.includes('part of the audio failed to save') ? 'disk-full' : 'error';
+}
+
+/** Best-effort merge-write of `recordingError` into the meeting's existing
+ *  meeting.json — mirrors recordNotesError/recordTranscriptError above. A
+ *  meeting.json that doesn't exist yet (the worst case: the disk was so full
+ *  that even `finalize_session`'s own metadata write never landed) is left
+ *  alone — there's nothing durable yet to annotate, and the raw chunks under
+ *  `.capture/` already survive untouched on that failure path (session.rs). */
+async function recordRecordingError(meetingDir: string, err: unknown): Promise<void> {
+  const ws = activeWorkspaceService;
+  if (!ws) return;
+  try {
+    const existing = await ws.readFile(`${meetingDir}/meeting.json`).catch(() => null);
+    if (!existing) return;
+    const base = JSON.parse(existing) as MeetingMeta;
+    const message = err instanceof Error ? err.message : String(err);
+    await writeMeetingJson(meetingDir, {
+      ...base,
+      recordingError: { kind: classifyRecordingError(err), at: new Date().toISOString(), message },
+    });
   } catch {
     // best-effort — see recordNotesError.
   }
@@ -661,6 +763,11 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
   processingCount: 0,
   activeMatterId: null,
   activeConsent: null,
+  lastWriteFailure: null,
+
+  dismissWriteFailure() {
+    set({ lastWriteFailure: null });
+  },
 
   async startRecording(matterId, opts) {
     if (get().status.recording) throw new Error('already recording');
@@ -685,6 +792,8 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
       },
       activeMatterId: matterId,
       activeConsent: opts,
+      // A prior recording's disk-full pill must never bleed into this new one.
+      lastWriteFailure: null,
     });
     // No TS-side audit.logDurable('meeting_capture_started', ...) here: the
     // Rust capture_start command already appends this exact audit action
@@ -721,11 +830,38 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
   async stopRecording(opts) {
     const { activeMatterId, activeConsent, status } = get();
     const startedMeetingDir = status.meetingDir;
-    const r = await invoke<{
-      meetingDir: string;
-      audioPath: string;
-      durationMs: number;
-    }>('capture_stop', {});
+    let r: { meetingDir: string; audioPath: string; durationMs: number };
+    try {
+      r = await invoke<{
+        meetingDir: string;
+        audioPath: string;
+        durationMs: number;
+      }>('capture_stop', {});
+    } catch (err) {
+      // QA-35: capture_stop can legitimately fail — a chunk write hit
+      // disk-full/permissions mid-recording (Rust's CaptureEngine::stop
+      // bails on a recorded write_error even though it already finalized
+      // whatever partial audio DID make it to disk), or the disk was still
+      // full when finalize_session tried to merge the chunks. Either way the
+      // recording is ALREADY fully stopped on the Rust side by the time this
+      // rejects: capture_stop takes the engine out of `Recording` before it
+      // ever calls `.stop()`, and `StoppingGuard`'s Drop always resets it to
+      // `Idle` regardless of the outcome (engine.rs). The old code had no
+      // catch here at all, so this reject skipped the `set({ status: ... })`
+      // below entirely — leaving the RecordPill stuck showing "Recording"
+      // forever with a dead Stop button, on EVERY capture_stop failure, not
+      // just disk-full ones. That's the QA-35 "Stop doesn't respond" symptom.
+      set({
+        status: { recording: false, meetingDir: null, elapsedMs: 0, writeError: null },
+        activeMatterId: null,
+        activeConsent: null,
+        lastWriteFailure: { message: i18n.t('meetings.pill.write-error'), at: new Date().toISOString() },
+      });
+      if (startedMeetingDir) {
+        await recordRecordingError(startedMeetingDir, err);
+      }
+      return;
+    }
     set({
       status: {
         recording: false,
@@ -824,11 +960,31 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
     }
   },
 
-  tick() {
-    set((s) =>
-      s.status.recording
-        ? { status: { ...s.status, elapsedMs: s.status.elapsedMs + 1000 } }
-        : s
-    );
+  async tick() {
+    if (!get().status.recording) return;
+    let result: CaptureStatus;
+    try {
+      result = await invoke<CaptureStatus>('capture_status');
+    } catch {
+      // A transient bridge hiccup shouldn't itself stop the recording — the
+      // elapsed clock just stalls until the next tick tries again.
+      return;
+    }
+    // The recording may have been stopped (or never started another one)
+    // while this call was in flight — never resurrect a stale status.
+    if (!get().status.recording) return;
+    const hadWriteError = get().status.writeError;
+    set({ status: result });
+    if (result.writeError && !hadWriteError) {
+      // QA-35: a chunk write just started failing (disk full, permissions,
+      // ...). Don't wait for the advisor to notice a silently-broken
+      // recording and click Stop themselves — stop now, cleanly, preserving
+      // whatever was captured before the failure (recordRecordingError,
+      // called from stopRecording's own error path, records the truncation).
+      set({
+        lastWriteFailure: { message: i18n.t('meetings.pill.write-error'), at: new Date().toISOString() },
+      });
+      void get().stopRecording();
+    }
   },
 }));

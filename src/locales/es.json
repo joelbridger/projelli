@@ -2104,7 +2104,9 @@
       "recording-label": "Grabando",
       "local": "Local",
       "local-tooltip": "Nada ha salido de este equipo. El audio se escribe directamente en su disco.",
-      "processing": "Escribiendo sus notas de la reunión… puede seguir trabajando"
+      "processing": "Escribiendo sus notas de la reunión… puede seguir trabajando",
+      "write-error": "La grabación no puede continuar. El disco está lleno.",
+      "write-error-dismiss": "Descartar"
     },
     "tab": {
       "record-button": "Grabar una reunión",
@@ -2165,7 +2167,8 @@
       "mac-permission-body": "Esto permite que la aplicación grabe lo que se reproduce en esta Mac. Se guarda solo en tu disco y en ningún otro lugar.",
       "mac-permission-button": "Abrir Preferencias del Sistema",
       "two-party-note-unknown": "Si su estado exige el consentimiento de todos, pregunte antes de grabar. Sugerencia: «Me gustaría grabar esto para mis notas. ¿Les parece bien a todos?»",
-      "start-failed": "La grabación no pudo iniciarse: {{message}}"
+      "start-failed": "La grabación no pudo iniciarse: {{message}}",
+      "low-disk-warning": "Poco espacio en disco. Es posible que las grabaciones largas no quepan."
     },
     "dictation": {
       "file-as-meeting-note": "Archivar como nota de reunión…",

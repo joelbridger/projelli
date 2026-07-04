@@ -207,3 +207,11 @@ tokio = { version = "1", features = ["full", "test-util"] }
 # HTTP mock server for M365 Graph API integration tests (added here so it compiles
 # alongside rusqlite in one pass rather than requiring a second dep-compile later).
 wiremock = "0.6"
+# Unix-only (see tests/capture_enospc.rs's `#![cfg(unix)]`): setrlimit(2) +
+# SIGXFSZ-ignore is how that test forces a REAL OS-level write failure
+# (EFBIG, same code path a real ENOSPC hits) to prove QA-35's chunk-writer
+# behavior without needing root/mount privileges for a real quota'd
+# filesystem. The main [target.cfg(macos)] libc dependency above is a
+# separate, narrower macOS-only use (MacTapSource's SIGTERM) — this one is a
+# plain dev-dependency so it resolves for `cargo test` on any unix host.
+libc = "0.2"

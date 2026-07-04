@@ -18,7 +18,7 @@
  */
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, Circle, Copy, Loader2, Square } from 'lucide-react';
+import { Check, Circle, Copy, Loader2, Square, X } from 'lucide-react';
 import { useMeetingStore, recordChatNoticeForActiveMeeting } from './meetingStore';
 import { copyText } from './noticeClipboard';
 
@@ -52,6 +52,8 @@ export function RecordPill() {
   const elapsedMs = useMeetingStore((s) => s.status.elapsedMs);
   const tick = useMeetingStore((s) => s.tick);
   const stopRecording = useMeetingStore((s) => s.stopRecording);
+  const lastWriteFailure = useMeetingStore((s) => s.lastWriteFailure);
+  const dismissWriteFailure = useMeetingStore((s) => s.dismissWriteFailure);
   const [chatCopied, setChatCopied] = useState(false);
 
   const handleCopyChatNotice = () => {
@@ -73,14 +75,57 @@ export function RecordPill() {
   useEffect(() => {
     if (!recording) return;
     const id = setInterval(() => {
-      tick();
+      void tick();
     }, 1000);
     return () => {
       clearInterval(id);
     };
   }, [recording, tick]);
 
-  if (!recording && !processing) return null;
+  if (!recording && !processing && !lastWriteFailure) return null;
+
+  // QA-35: a chunk write failed mid-recording and the app auto-stopped —
+  // this is the LASTING honest-failure state (unlike the transition through
+  // `recording -> false`, which alone would make the pill just vanish the
+  // instant the auto-stop completes, with no sign anything went wrong).
+  // Checked before the `processing` branch below: a real, actionable failure
+  // is more useful to the advisor than the generic "writing your notes"
+  // spinner for some other in-flight meeting.
+  if (!recording && lastWriteFailure) {
+    return (
+      <div data-testid="record-pill-write-error" role="alert" style={pillFrame}>
+        <Circle
+          style={{ width: 10, height: 10, color: 'var(--kp-danger)', fill: 'currentColor', flex: 'none' }}
+        />
+        <span
+          style={{
+            fontSize: 'var(--kp-font-xs)',
+            fontWeight: 'var(--kp-weight-medium)',
+            color: 'var(--kp-navy)',
+          }}
+        >
+          {lastWriteFailure.message}
+        </span>
+        <button
+          type="button"
+          data-testid="record-pill-write-error-dismiss"
+          aria-label={t('meetings.pill.write-error-dismiss')}
+          onClick={dismissWriteFailure}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            border: 'none',
+            background: 'transparent',
+            color: 'var(--kp-navy)',
+            cursor: 'pointer',
+            padding: 4,
+          }}
+        >
+          <X style={{ width: 14, height: 14 }} />
+        </button>
+      </div>
+    );
+  }
 
   if (!recording) {
     // Post-stop: transcription + notes are being written locally.

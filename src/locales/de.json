@@ -2104,7 +2104,9 @@
       "recording-label": "Aufnahme",
       "local": "Lokal",
       "local-tooltip": "Nichts hat diesen Rechner verlassen. Die Aufnahme wird direkt auf Ihre Festplatte geschrieben.",
-      "processing": "Ihre Gesprächsnotizen werden geschrieben… Sie können weiterarbeiten"
+      "processing": "Ihre Gesprächsnotizen werden geschrieben… Sie können weiterarbeiten",
+      "write-error": "Aufnahme kann nicht fortgesetzt werden. Die Festplatte ist voll.",
+      "write-error-dismiss": "Schließen"
     },
     "tab": {
       "record-button": "Besprechung aufnehmen",
@@ -2165,7 +2167,8 @@
       "mac-permission-body": "So kann die App aufnehmen, was auf diesem Mac abgespielt wird. Es wird nur auf deiner Festplatte gespeichert, sonst nirgendwo.",
       "mac-permission-button": "Systemeinstellungen öffnen",
       "two-party-note-unknown": "Falls Ihr Bundesstaat die Zustimmung aller verlangt, fragen Sie vor der Aufnahme. Vorschlag: „Ich würde das Gespräch gern für meine Notizen aufnehmen. Ist das für alle in Ordnung?“",
-      "start-failed": "Aufnahme konnte nicht starten: {{message}}"
+      "start-failed": "Aufnahme konnte nicht starten: {{message}}",
+      "low-disk-warning": "Wenig Speicherplatz. Lange Aufnahmen passen möglicherweise nicht."
     },
     "dictation": {
       "file-as-meeting-note": "Als Besprechungsnotiz ablegen…",

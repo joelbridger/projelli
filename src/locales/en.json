@@ -1520,7 +1520,9 @@
       "recording-label": "Recording",
       "local": "Local",
       "local-tooltip": "Nothing has left this machine. The audio is written straight to your disk.",
-      "processing": "Writing your meeting notes… you can keep working"
+      "processing": "Writing your meeting notes… you can keep working",
+      "write-error": "Recording can't continue. Disk is full.",
+      "write-error-dismiss": "Dismiss"
     },
     "tab": {
       "record-button": "Record a meeting",
@@ -1581,7 +1583,8 @@
       "mac-permission-body": "This lets the app record what plays on this Mac. It is saved to your disk and nowhere else.",
       "mac-permission-button": "Open System Settings",
       "two-party-note-unknown": "If your state requires everyone’s consent, ask before you record. Suggested ask: \"I’d like to record this for my notes. Is that alright with everyone?\"",
-      "start-failed": "Recording couldn’t start: {{message}}"
+      "start-failed": "Recording couldn’t start: {{message}}",
+      "low-disk-warning": "Low disk space. Long recordings may not fit."
     },
     "dictation": {
       "file-as-meeting-note": "File as meeting note…",
