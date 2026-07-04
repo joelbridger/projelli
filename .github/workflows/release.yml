@@ -192,9 +192,11 @@ jobs:
         # alsa-sys on Linux, which needs ALSA's pkg-config file (alsa.pc) to
         # build — without it, compiling the capture crate fails before any
         # release build runs.
+        # clang/libclang-dev: sherpa-rs-sys (lantern-diarize sidecar, built
+        # below) uses bindgen, which needs libclang to parse its C headers.
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev libfuse2 libasound2-dev
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev libfuse2 libasound2-dev clang libclang-dev
 
       - name: Install frontend dependencies
         run: npm ci
@@ -229,7 +231,31 @@ jobs:
           fi
           FETCH_PIPER_VOICE=1 TARGET_TRIPLE="$TARGET" bash scripts/fetch-piper-sidecar.sh
           TARGET_TRIPLE="$TARGET" bash scripts/fetch-llama-sidecar.sh
-          ls -la src-tauri/binaries/
+          # lantern-diarize (Wave 4 speaker separation): NOT externalBin, staged
+          # via the binaries/**/* and resources/**/* globs already in
+          # tauri.conf.json. Lands in binaries/diarize/ (its own subdirectory,
+          # not flat binaries/) because piper_phonemize needs a pinned,
+          # versioned libonnxruntime.so.1.14.1 while sherpa-onnx needs the
+          # bare libonnxruntime.so name — sharing one flat directory means
+          # whichever staging step runs second corrupts the other's
+          # onnxruntime file (verified live locally: `cp` writes through the
+          # existing bare-name symlink instead of replacing it). See the note
+          # in scripts/build-diarize-sidecar.sh. Must land before the macOS
+          # codesign step below, which signs every Mach-O file it finds
+          # anywhere under binaries/ (recursive find).
+          bash scripts/fetch-diarize-models.sh
+          TARGET_TRIPLE="$TARGET" bash scripts/build-diarize-sidecar.sh
+          test -s src-tauri/binaries/diarize/lantern-diarize || { echo "::error::lantern-diarize binary missing after build-diarize-sidecar.sh"; exit 1; }
+          test -s src-tauri/resources/diarize/segmentation.onnx || { echo "::error::diarize segmentation.onnx missing"; exit 1; }
+          test -s src-tauri/resources/diarize/embedding.onnx || { echo "::error::diarize embedding.onnx missing"; exit 1; }
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            test -s src-tauri/binaries/diarize/libsherpa-onnx-c-api.dylib || { echo "::error::libsherpa-onnx-c-api.dylib missing beside lantern-diarize"; exit 1; }
+            test -s src-tauri/binaries/diarize/libonnxruntime.dylib || { echo "::error::libonnxruntime.dylib missing beside lantern-diarize"; exit 1; }
+          else
+            test -s src-tauri/binaries/diarize/libsherpa-onnx-c-api.so || { echo "::error::libsherpa-onnx-c-api.so missing beside lantern-diarize"; exit 1; }
+            test -s src-tauri/binaries/diarize/libonnxruntime.so || { echo "::error::libonnxruntime.so missing beside lantern-diarize"; exit 1; }
+          fi
+          ls -la src-tauri/binaries/ src-tauri/binaries/diarize/
 
       - name: Build Lantern MCP sidecar binary (Mac/Linux)
         shell: bash
@@ -290,11 +316,15 @@ jobs:
           # Add our keychain to the search list (don't replace user's, append).
           security list-keychains -d user -s "$KEYCHAIN_PATH" \
             $(security list-keychains -d user | sed -E 's/[[:space:]]*"([^"]+)"[[:space:]]*/\1 /g')
-          # Sign every Mach-O file in binaries/ — including helper executables like
-          # piper_phonemize that don't match a simple name pattern. Apple notarization
-          # rejects the .app if ANY nested native binary is unsigned, so we detect by
-          # file type rather than by name. Dylibs are Mach-O shared libraries and are
-          # covered by the same check.
+          # Sign every Mach-O file under binaries/ — including helper executables
+          # like piper_phonemize that don't match a simple name pattern. Apple
+          # notarization rejects the .app if ANY nested native binary is
+          # unsigned, so we detect by file type rather than by name. Dylibs are
+          # Mach-O shared libraries and are covered by the same check.
+          # No -maxdepth: lantern-diarize and its own sherpa/onnxruntime dylibs
+          # live one level down in binaries/diarize/ (isolated from piper's
+          # onnxruntime — see scripts/build-diarize-sidecar.sh), so this must
+          # recurse to reach them.
           while IFS= read -r -d '' BIN; do
             if file "$BIN" | grep -q 'Mach-O'; then
               codesign --force --options runtime --timestamp \
@@ -303,7 +333,7 @@ jobs:
               codesign --verify --verbose=2 "$BIN"
               codesign -dvvv "$BIN" 2>&1 | grep -E "Authority|Timestamp|Runtime|flags" || true
             fi
-          done < <(find binaries -maxdepth 1 -type f -print0)
+          done < <(find binaries -type f -print0)
           rm -f "$CERT_PATH"
 
       # Phase 4 M6 (v1.5 Flag 4) - Fetch the voice sidecar binary
@@ -454,8 +484,11 @@ jobs:
       # windows-latest runners and ships protoc on PATH.
       - name: Install protoc (Windows)
         shell: pwsh
+        # llvm: sherpa-rs-sys (lantern-diarize sidecar, built below) uses
+        # bindgen, which needs libclang.dll to parse its C headers.
         run: |
-          choco install protoc -y --no-progress
+          choco install protoc llvm -y --no-progress
+          echo "LIBCLANG_PATH=C:\Program Files\LLVM\bin" >> $env:GITHUB_ENV
           protoc --version
 
       - name: Install frontend dependencies
@@ -470,7 +503,18 @@ jobs:
           set -euo pipefail
           FETCH_PIPER_VOICE=1 TARGET_TRIPLE=x86_64-pc-windows-msvc bash scripts/fetch-piper-sidecar.sh
           TARGET_TRIPLE=x86_64-pc-windows-msvc bash scripts/fetch-llama-sidecar.sh
-          ls -la src-tauri/binaries/
+          # lantern-diarize (Wave 4 speaker separation): NOT externalBin, staged
+          # via the binaries/**/* and resources/**/* globs already in
+          # tauri.conf.json, into its own binaries/diarize/ subdirectory (see
+          # the Mac/Linux job above for the full onnxruntime-collision note).
+          bash scripts/fetch-diarize-models.sh
+          OS=Windows_NT TARGET_TRIPLE=x86_64-pc-windows-msvc bash scripts/build-diarize-sidecar.sh
+          test -s src-tauri/binaries/diarize/lantern-diarize.exe || { echo "::error::lantern-diarize.exe missing after build-diarize-sidecar.sh"; exit 1; }
+          test -s src-tauri/resources/diarize/segmentation.onnx || { echo "::error::diarize segmentation.onnx missing"; exit 1; }
+          test -s src-tauri/resources/diarize/embedding.onnx || { echo "::error::diarize embedding.onnx missing"; exit 1; }
+          ls src-tauri/binaries/diarize/*sherpa-onnx-c-api.dll >/dev/null 2>&1 || { echo "::error::sherpa-onnx-c-api.dll missing beside lantern-diarize.exe"; exit 1; }
+          ls src-tauri/binaries/diarize/*onnxruntime*.dll >/dev/null 2>&1 || { echo "::error::onnxruntime dll missing beside lantern-diarize.exe"; exit 1; }
+          ls -la src-tauri/binaries/ src-tauri/binaries/diarize/
 
       # Build the lantern-mcp sidecar binary. See the Mac/Linux
       # job above for rationale. Windows uses the MSVC host triple.

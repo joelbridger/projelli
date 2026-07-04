@@ -35,9 +35,26 @@ else
   RELEASE_DIR="$TARGET_DIR/release"
 fi
 popd >/dev/null
-mkdir -p src-tauri/binaries
+# Stage into binaries/diarize/, NOT flat binaries/ — piper_phonemize (staged by
+# fetch-piper-sidecar.sh) links a pinned libonnxruntime.so.1.14.1 (with a bare
+# `libonnxruntime.so` symlink alongside it), while sherpa-onnx links the bare
+# `libonnxruntime.so` name directly. Both landing in the same flat directory
+# means whichever build script runs second silently overwrites the other's
+# onnxruntime file THROUGH that symlink (verified live: `cp` writes through an
+# existing symlink target rather than replacing it) — corrupting piper's
+# pinned onnxruntime with sherpa's incompatible one, or vice versa. Isolating
+# lantern-diarize's binary + its own sherpa/onnxruntime libs in their own
+# subdirectory sidesteps this on every platform: $ORIGIN/@loader_path (Linux/
+# macOS, set in .cargo/config.toml) still resolves siblings correctly since
+# the whole set moved together, and Windows' default DLL search order checks
+# the *loading exe's own directory* first, so lantern-diarize.exe's private
+# onnxruntime.dll copy takes precedence over piper's without any renaming.
+# resolve_diarize_assets() in src-tauri/src/commands/diarize/mod.rs expects
+# this exact "binaries/diarize/" layout — keep both in sync.
+DEST_DIR=src-tauri/binaries/diarize
+mkdir -p "$DEST_DIR"
 BIN="$RELEASE_DIR/lantern-diarize"
-DST=src-tauri/binaries/lantern-diarize
+DST="$DEST_DIR/lantern-diarize"
 if [[ "${OS:-}" == "Windows_NT" ]]; then BIN="$BIN.exe"; DST="$DST.exe"; fi
 cp "$BIN" "$DST"
 echo "staged $DST"
@@ -46,7 +63,7 @@ shopt -s nullglob
 LIB_PATTERNS=("$RELEASE_DIR"/libsherpa-onnx-c-api.* "$RELEASE_DIR"/libonnxruntime.* "$RELEASE_DIR"/*sherpa-onnx-c-api.dll "$RELEASE_DIR"/*onnxruntime*.dll)
 for lib in "${LIB_PATTERNS[@]}"; do
   [[ -f "$lib" ]] || continue
-  cp "$lib" "src-tauri/binaries/$(basename "$lib")"
-  echo "staged src-tauri/binaries/$(basename "$lib")"
+  cp "$lib" "$DEST_DIR/$(basename "$lib")"
+  echo "staged $DEST_DIR/$(basename "$lib")"
 done
 shopt -u nullglob
