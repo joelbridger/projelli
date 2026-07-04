@@ -8,6 +8,7 @@ import { stripBlockMarkers } from './answerBlockMarkers';
 import { stalePlanNotices, formatExportDate } from '@/platform/rag/sourceProvenance';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { EXTERNAL_EXPORT_STALE_DAYS_KEY } from '@/platform/settings/schema';
+import { ASK_ANSWER_STALL_WARNING } from './askTimeout';
 
 /* -------------------------------------------------------------------------- */
 /* TurnBlock — renders a single completed or streaming Q+A pair               */
@@ -23,6 +24,8 @@ export function TurnBlock({
   isSaving,
   isPersisted,
   isStreaming = false,
+  answerStalled = false,
+  onOpenAiStatus,
   onOpenFileAtPath,
 }: {
   turn: AskTurn;
@@ -34,6 +37,14 @@ export function TurnBlock({
   isSaving: boolean;
   isPersisted: boolean;
   isStreaming?: boolean;
+  /**
+   * QA-7 — true once the answer stage has gone a while with no token, so the
+   * spinner can say so instead of sitting silently. Only meaningful while
+   * `isStreaming && !turn.answer`.
+   */
+  answerStalled?: boolean;
+  /** QA-7 — "View AI status" link shown alongside the stalled warning. */
+  onOpenAiStatus?: () => void;
   /**
    * WS3 (Task 2): when provided, citation chip clicks open the file at
    * the cited paragraph in the editor — single-click navigation.
@@ -141,6 +152,30 @@ export function TurnBlock({
             onSelect={(n) => { onCitationSelect(turnIdx, n); }}
             {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
           />
+        )}
+
+        {/* QA-7 (P2 follow-up): the watchdog re-arms on every streamed chunk,
+            so a stream that emits SOME text and then goes silent also sets
+            answerStalled — not just the pre-first-token case above. Without
+            this, the user would stare at frozen partial text with no
+            feedback until the 45s hard timeout. Rendered once, after
+            whichever answer view is showing (spinner or partial text), so
+            it covers both the empty and the partial-answer stall. */}
+        {isStreaming && answerStalled && (
+          <div data-testid="ask-answer-stalled-warning">
+            <Callout variant="warning" icon={AlertTriangle}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span>{ASK_ANSWER_STALL_WARNING}</span>
+                {onOpenAiStatus && (
+                  <Button variant="secondary" size="sm" onClick={onOpenAiStatus}>
+                    {/* eslint-disable lantern-i18n/no-hardcoded-string */}
+                    View AI status
+                    {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+                  </Button>
+                )}
+              </div>
+            </Callout>
+          </div>
         )}
 
         {/* Privacy attestation (completed cited turns only) — FLAT path only;

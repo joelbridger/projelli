@@ -84,6 +84,7 @@ export function Ask(props: UseAskProps) {
     selectedTurnIdx,
     errorMsg,
     status,
+    answerStalled,
     savingIdx,
     displayedProvider,
     confidentialityMode,
@@ -547,6 +548,10 @@ export function Ask(props: UseAskProps) {
                       isSaving={false}
                       isPersisted={false}
                       isStreaming
+                      answerStalled={answerStalled}
+                      onOpenAiStatus={() => {
+                        window.dispatchEvent(new CustomEvent(EV_OPEN_SETTINGS, { detail: { category: 'ai' } }));
+                      }}
                       {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
                     />
                   )}

@@ -10,10 +10,11 @@
  * single, easily swappable seam.
  */
 
+import type { ReactNode } from 'react';
 import type { GuidedOnboardingProps } from './onboardingTypes';
 import { OnboardingV2 } from './v2/OnboardingV2';
 
-export function FirstRunOverlay(props: GuidedOnboardingProps) {
+export function FirstRunOverlay(props: GuidedOnboardingProps & { topBanner?: ReactNode }) {
   return <OnboardingV2 {...props} />;
 }
 
