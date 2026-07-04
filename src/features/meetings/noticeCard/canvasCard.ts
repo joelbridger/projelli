@@ -156,17 +156,19 @@ export function buildCameraScript(
         setInterval(paint, Math.max(200, Math.floor(1000 / FPS)));
         var cardStream = canvas.captureStream ? canvas.captureStream(FPS) : null;
         var md = navigator.mediaDevices;
-        if (md && md.getUserMedia && cardStream) {
-          // NEVER call the real getUserMedia — the companion window must never
-          // touch the advisor's real camera or microphone ("records nothing,
-          // sends nothing"). Video requests get the canvas card; audio requests
-          // get a locally-generated SILENT track (we join muted; v3 adds TTS
-          // through this same point). On any error we deny with an empty stream,
-          // never the real devices.
+        // Install the override UNCONDITIONALLY (not gated on cardStream). NEVER
+        // call the real getUserMedia — the companion window must never touch the
+        // advisor's real camera or microphone ("records nothing, sends
+        // nothing"). Video requests get the canvas card when available (an empty
+        // video tile otherwise — degrade visibly, never leak the real camera);
+        // audio requests get a locally-generated SILENT track (we join muted; v3
+        // adds TTS through this same point). Any error denies with an empty
+        // stream, never the real devices.
+        if (md && md.getUserMedia) {
           md.getUserMedia = function (constraints) {
             var s = new MediaStream();
             try {
-              if (constraints && constraints.video) {
+              if (constraints && constraints.video && cardStream) {
                 cardStream.getVideoTracks().forEach(function (t) { s.addTrack(t); });
               }
               if (constraints && constraints.audio) {

@@ -89,4 +89,15 @@ describe('buildCameraScript', () => {
     // Audio requests are answered with a locally-generated silent track.
     expect(src).toContain('createMediaStreamDestination');
   });
+
+  it('installs the getUserMedia override even when canvas capture is unavailable (Codex R6 P1)', () => {
+    // The override must NOT be gated on cardStream — otherwise a WebView without
+    // canvas.captureStream would let the page reach the real camera/mic.
+    const src = buildCameraScript(VISUAL, { startEpochMs: 1_000_000 });
+    expect(src).toContain('if (md && md.getUserMedia) {');
+    expect(src).not.toContain('md.getUserMedia && cardStream');
+    // The card video is only added when cardStream exists, but the override is
+    // always installed, so real devices are never handed over.
+    expect(src).toContain('constraints.video && cardStream');
+  });
 });
