@@ -62,4 +62,15 @@ describe('needsReview', () => {
     const orphaned: MeetingSummary = { ...baseMeeting, meta: null };
     expect(needsReview(orphaned, []).map((i) => i.kind)).toContain('unreadable-meta');
   });
+
+  // QA-40: a failed transcription used to be a silent dead-end (a bare
+  // catch{} around transcribe_meeting) — it must surface in the same review
+  // queue the advisor already checks, not just on the meeting's own page.
+  it('flags a meeting with a failed transcript for review', () => {
+    const failed: MeetingSummary = {
+      ...baseMeeting,
+      meta: { ...baseMeeting.meta!, transcriptError: { kind: 'not-installed', at: '2026-07-04T00:00:00Z' } },
+    };
+    expect(needsReview(failed, []).map((i) => i.kind)).toContain('transcript-failed');
+  });
 });

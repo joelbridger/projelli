@@ -62,7 +62,7 @@ describe('en.json structure snapshot', () => {
         "marketplace": 14,
         "matter": 206,
         "media": 81,
-        "meetings": 67,
+        "meetings": 71,
         "memory": 6,
         "model-download": 9,
         "onboarding": 65,
@@ -170,7 +170,12 @@ describe('en.json structure snapshot', () => {
     //      the delete-client confirm dialog's title/body were localized above
     //      but its own confirm/cancel BUTTONS stayed hardcoded "Remove"/
     //      "Cancel" — same mixed-language bug, one level down).
-    expect(flat.length).toBe(1215);
+    // +4 = meetings.entry.{transcript-failed-not-installed,transcript-failed-
+    //      timeout,transcript-failed-error,retrying-transcript} (QA-40: a
+    //      failed transcription used to vanish into a bare catch{} — these
+    //      back an honest, classified, retryable failed state, mirroring the
+    //      existing notes-failed-* keys).
+    expect(flat.length).toBe(1219);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {
