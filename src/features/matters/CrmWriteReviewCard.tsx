@@ -161,10 +161,31 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
   if (items.length === 0) return null;
 
   if (connected === false) {
+    // Codex review catch (P2): the queue now persists across restarts, so an
+    // item stuck here while disconnected must not become permanently
+    // undismissable — offer Dismiss per row even though Approve isn't
+    // reachable until Wealthbox is connected.
+    const dismissable = items.filter((i) => i.status !== 'sent');
     return (
       <div style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)', padding: '8px 0' }}>
         {/* eslint-disable lantern-i18n/no-hardcoded-string */}
         Connect Wealthbox to send updates from this client.
+        {dismissable.length > 0 && (
+          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {dismissable.map((item) => (
+              <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ flex: 1, minWidth: 0, color: 'var(--kp-navy)' }}>{item.title}</span>
+                <button
+                  type="button"
+                  onClick={() => { dismiss(item.id); }}
+                  style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)', background: 'none', border: 'none', cursor: 'pointer', padding: 2, flexShrink: 0 }}
+                >
+                  Dismiss
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         {/* eslint-enable lantern-i18n/no-hardcoded-string */}
       </div>
     );

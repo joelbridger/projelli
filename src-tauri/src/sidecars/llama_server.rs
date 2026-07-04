@@ -295,7 +295,7 @@ impl Sidecar for LlamaServerSidecar {
 }
 
 /// Default path for the llama-server log file:
-/// `<data-dir>/keepance/logs/llama-server.log`.
+/// `<data-dir>/lantern/logs/llama-server.log`.
 fn default_log_path() -> PathBuf {
     let base = dirs::data_dir().unwrap_or_else(std::env::temp_dir);
     base.join(crate::identity::OS_DATA_SUBDIR).join("logs").join("llama-server.log")

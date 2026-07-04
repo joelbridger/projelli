@@ -8,9 +8,20 @@
  *   - a VerifyPending error string maps to 'verify_pending', not 'failed'.
  *   - a hard failure maps to 'failed' and keeps the error message.
  *   - dismiss() removes an item without sending anything.
+ *   - persistence: queued proposals survive a restart (localStorage), with
+ *     honest reconciliation (interrupted sends re-open, orphaned matters
+ *     expire, corrupt entries are dropped) instead of crashing.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+const { mockMatterState } = vi.hoisted(() => ({
+  mockMatterState: { matters: [] as { id: string }[] },
+}));
+
+vi.mock('@/platform/matter/matterStore', () => ({
+  useMatterStore: { getState: () => mockMatterState },
+}));
 
 vi.mock('@/platform/utils/wealthbox-commands', () => ({
   crmCreateNote: vi.fn().mockResolvedValue({ remoteId: '555', deduped: false }),
@@ -31,6 +42,8 @@ function resetStore() {
 
 beforeEach(() => {
   resetStore();
+  localStorage.clear();
+  mockMatterState.matters = [];
   vi.mocked(crmCreateNote).mockClear();
   vi.mocked(crmCreateTask).mockClear();
   vi.mocked(crmUpdateField).mockClear();
@@ -490,5 +503,133 @@ describe('enqueueFieldUpdate (Task 9c)', () => {
     ).rejects.toThrow(/onBeforeProviderCall is required/);
     expect(sendMessage).not.toHaveBeenCalled();
     expect(useCrmWriteQueueStore.getState().items).toHaveLength(0);
+  });
+});
+
+const PERSIST_KEY = 'crm-write-queue-storage';
+
+describe('persistence (P1 — queued proposals must survive an app restart)', () => {
+  it('writes enqueued items to localStorage', () => {
+    useCrmWriteQueueStore.getState().enqueue({ kind: 'note', matterId: 'm1', title: 'T', body: 'B', sourceRef: 'doc:x' });
+    const raw = localStorage.getItem(PERSIST_KEY);
+    expect(raw).toBeTruthy();
+    const parsed = JSON.parse(raw!) as { state: { items: unknown[] } };
+    expect(parsed.state.items).toHaveLength(1);
+    expect(parsed.state.items[0]).toMatchObject({ matterId: 'm1', title: 'T', status: 'proposed' });
+  });
+
+  it('restores a pending proposal from localStorage on a fresh module load (simulated app restart)', async () => {
+    mockMatterState.matters = [{ id: 'm1' }];
+    localStorage.setItem(
+      PERSIST_KEY,
+      JSON.stringify({
+        state: {
+          items: [
+            { id: 'x1', kind: 'note', matterId: 'm1', title: 'Persisted note', body: 'B', sourceRef: 'doc:x', status: 'proposed' },
+          ],
+        },
+        version: 1,
+      }),
+    );
+    vi.resetModules();
+    const mod = await import('@/platform/state/crmWriteQueueStore');
+    expect(mod.useCrmWriteQueueStore.getState().items).toHaveLength(1);
+    expect(mod.useCrmWriteQueueStore.getState().items[0]).toMatchObject({ id: 'x1', status: 'proposed' });
+  });
+
+  it('reopens an item stuck mid-send (status "sending") as "proposed" on restart — the in-flight call died with the app', async () => {
+    mockMatterState.matters = [{ id: 'm1' }];
+    localStorage.setItem(
+      PERSIST_KEY,
+      JSON.stringify({
+        state: {
+          items: [{ id: 'x1', kind: 'note', matterId: 'm1', title: 'T', body: 'B', sourceRef: 'doc:x', status: 'sending' }],
+        },
+        version: 1,
+      }),
+    );
+    vi.resetModules();
+    const mod = await import('@/platform/state/crmWriteQueueStore');
+    expect(mod.useCrmWriteQueueStore.getState().items[0]).toMatchObject({ id: 'x1', status: 'proposed' });
+  });
+
+  // Codex review catch: an "expired" status has nowhere to be displayed —
+  // its only possible surface is that matter's own MatterHub, and a deleted
+  // matter can never be reopened. Marking it 'expired' would strand it in
+  // localStorage forever with no way to see or dismiss it. Drop it instead.
+  it('drops a restored proposal (does not strand it as "expired") when its matter no longer exists', async () => {
+    mockMatterState.matters = []; // matter m1 was deleted in a previous session
+    localStorage.setItem(
+      PERSIST_KEY,
+      JSON.stringify({
+        state: {
+          items: [{ id: 'x1', kind: 'note', matterId: 'm1', title: 'T', body: 'B', sourceRef: 'doc:x', status: 'proposed' }],
+        },
+        version: 1,
+      }),
+    );
+    vi.resetModules();
+    const mod = await import('@/platform/state/crmWriteQueueStore');
+    expect(mod.useCrmWriteQueueStore.getState().items).toEqual([]);
+  });
+
+  // Codex review catch: CrmWriteRow renders no Dismiss control for a 'sent'
+  // item (there's nothing left to act on), so a sent item that survived a
+  // restart would become a permanent, undismissable "done" card. Drop it
+  // instead — its job (confirming the send in that session) is already done.
+  it('drops an already-sent item on restart rather than letting it become a permanent undismissable card', async () => {
+    mockMatterState.matters = [{ id: 'm1' }];
+    localStorage.setItem(
+      PERSIST_KEY,
+      JSON.stringify({
+        state: {
+          items: [{ id: 'x1', kind: 'note', matterId: 'm1', title: 'T', body: 'B', sourceRef: 'doc:x', status: 'sent', remoteId: '9' }],
+        },
+        version: 1,
+      }),
+    );
+    vi.resetModules();
+    const mod = await import('@/platform/state/crmWriteQueueStore');
+    expect(mod.useCrmWriteQueueStore.getState().items).toEqual([]);
+  });
+
+  it('never writes a sent item to localStorage in the first place', () => {
+    useCrmWriteQueueStore.setState({
+      items: [
+        { id: 'x1', kind: 'note', matterId: 'm1', title: 'T', body: 'B', sourceRef: 'doc:x', status: 'sent', remoteId: '9' },
+        { id: 'x2', kind: 'note', matterId: 'm1', title: 'T2', body: 'B2', sourceRef: 'doc:y', status: 'proposed' },
+      ],
+    });
+    const raw = localStorage.getItem(PERSIST_KEY);
+    const parsed = JSON.parse(raw!) as { state: { items: { id: string }[] } };
+    expect(parsed.state.items.map((i) => i.id)).toEqual(['x2']);
+  });
+
+  it('drops structurally corrupt persisted entries instead of crashing', async () => {
+    mockMatterState.matters = [{ id: 'm1' }];
+    localStorage.setItem(
+      PERSIST_KEY,
+      JSON.stringify({
+        state: {
+          items: [
+            { id: 'x1', kind: 'note', matterId: 'm1', title: 'Good', body: 'B', sourceRef: 'doc:x', status: 'proposed' },
+            { id: 'x2', kind: 'bogus', matterId: 'm1' }, // corrupted/unknown shape
+            null,
+            'not an object',
+          ],
+        },
+        version: 1,
+      }),
+    );
+    vi.resetModules();
+    const mod = await import('@/platform/state/crmWriteQueueStore');
+    expect(mod.useCrmWriteQueueStore.getState().items).toHaveLength(1);
+    expect(mod.useCrmWriteQueueStore.getState().items[0]).toMatchObject({ id: 'x1' });
+  });
+
+  it('does not crash when localStorage holds no persisted state at all (fresh install)', async () => {
+    vi.resetModules();
+    const mod = await import('@/platform/state/crmWriteQueueStore');
+    expect(mod.useCrmWriteQueueStore.getState().items).toEqual([]);
   });
 });

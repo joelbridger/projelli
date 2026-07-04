@@ -59,7 +59,7 @@ describe('en.json structure snapshot', () => {
         "local-ai-settings": 8,
         "mail": 6,
         "marketplace": 14,
-        "matter": 134,
+        "matter": 138,
         "media": 81,
         "meetings": 47,
         "memory": 6,
@@ -114,7 +114,12 @@ describe('en.json structure snapshot', () => {
     //       meetings list + needs-review, meeting page, meeting-type chip,
     //       consent dialog).
     // +4 = meetings.dictation.* (Task 10b: "File as meeting note…" client picker).
-    expect(flat.length).toBe(1054);
+    // +1 = matter.notes.review-now (QA finding P3: actionable "Review now"
+    //      action next to the Send-to-Wealthbox confirmation).
+    // +3 = matter.crm-review.{pending-banner_one,pending-banner_other,review-now}
+    //      (QA finding P2: hub-chrome pending-review banner on non-overview
+    //      sub-tabs, since CrmWriteReviewCard only ever mounted on Overview).
+    expect(flat.length).toBe(1058);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

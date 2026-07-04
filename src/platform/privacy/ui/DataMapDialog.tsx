@@ -167,7 +167,7 @@ export function DataMapDialog({ open, onOpenChange }: DataMapDialogProps) {
     // iframe and DOM cloning (no document.write / innerHTML injection): the
     // map content is static and authored here, and cloning the live node keeps
     // it that way without any string-built HTML.
-    const node = document.getElementById('keepance-data-map-printable');
+    const node = document.getElementById('lantern-data-map-printable');
     if (!node) {
       window.print();
       return;
@@ -281,7 +281,7 @@ export function DataMapDialog({ open, onOpenChange }: DataMapDialogProps) {
 
         {/* Body — this region is what gets printed. */}
         <div className="flex-1 overflow-y-auto px-6 py-5">
-          <DataMapContent printableId="keepance-data-map-printable" />
+          <DataMapContent printableId="lantern-data-map-printable" />
         </div>
       </DialogContent>
     </Dialog>

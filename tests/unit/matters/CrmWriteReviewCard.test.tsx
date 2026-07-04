@@ -370,7 +370,7 @@ describe('CrmWriteReviewCard', () => {
     expect(crmCreateNote).toHaveBeenCalledWith(expect.objectContaining({ householdKey: '333', matterId: matterB.id }));
   });
 
-  it('shows a connect-first hint and no card body when Wealthbox is not connected', async () => {
+  it('shows a connect-first hint, and no approve/edit controls, when Wealthbox is not connected', async () => {
     vi.mocked(crmIsConnected).mockResolvedValue(false);
     const m = useMatterStore.getState().createMatter({
       name: 'Henderson',
@@ -389,7 +389,37 @@ describe('CrmWriteReviewCard', () => {
     await waitFor(() => {
       expect(screen.getByText(/connect wealthbox to send/i)).toBeInTheDocument();
     });
-    expect(screen.queryByText('Note title')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /approve/i })).not.toBeInTheDocument();
+  });
+
+  // Codex review catch (P2): now that the queue persists across restarts,
+  // an item stuck while Wealthbox is disconnected must not become
+  // permanently undismissable — the disconnected view used to render only
+  // the static hint, with no way to clear anything until reconnecting.
+  it('still offers a Dismiss action per queued item while Wealthbox is disconnected', async () => {
+    vi.mocked(crmIsConnected).mockResolvedValue(false);
+    const m = useMatterStore.getState().createMatter({
+      name: 'Henderson',
+      client: 'Henderson',
+      crmHouseholdKeys: ['12345'],
+    });
+    useCrmWriteQueueStore.getState().enqueue({
+      kind: 'note',
+      matterId: m.id,
+      title: 'Note title',
+      body: 'Note body',
+      sourceRef: 'doc:notes.docx',
+    });
+    const id = useCrmWriteQueueStore.getState().items[0]!.id;
+
+    render(<CrmWriteReviewCard matterId={m.id} />);
+    await waitFor(() => {
+      expect(screen.getByText(/connect wealthbox to send/i)).toBeInTheDocument();
+    });
+    expect(screen.getByText('Note title')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /dismiss/i }));
+    expect(useCrmWriteQueueStore.getState().items.find((i) => i.id === id)).toBeUndefined();
   });
 });
 

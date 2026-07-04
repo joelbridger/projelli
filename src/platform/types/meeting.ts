@@ -1,11 +1,8 @@
-/**
- * Wave 3 meeting-capture shared schema. Owned by lane w3b (Task 8) — this
- * file mirrors the exact shape documented in
- * docs/plans/lantern-plus/2026-07-02-wave-3-meeting-capture.md (Task 8), so
- * lane w3c (this branch) can build against it before their commit lands.
- * Reconcile with w3b's landed version when it merges; expected to be
- * identical since both lanes follow the same plan text.
- */
+// Meeting transcript wire schema. This is the ONE place this schema is
+// declared on the TS side — Rust mirrors it in
+// src-tauri/src/commands/capture/transcribe.rs and session.rs with
+// #[serde(rename_all = "camelCase")], so field names here must match those
+// serde structs exactly.
 
 export interface TranscriptSegment {
   startMs: number;
@@ -29,6 +26,9 @@ export interface TranscriptFile {
     durationMs: number;
     matterId: string;
     consent: TranscriptConsent;
+    /** Set by Task 10b's dictation-to-meeting pipeline — a dictated voice
+     *  note wrapped as a single-segment pseudo-transcript, never a real
+     *  capture (Rust's transcribe.rs/session.rs never set this field). */
     dictation?: boolean;
   };
 }
@@ -37,4 +37,5 @@ export interface CaptureStatus {
   recording: boolean;
   meetingDir: string | null;
   elapsedMs: number;
+  writeError: string | null;
 }

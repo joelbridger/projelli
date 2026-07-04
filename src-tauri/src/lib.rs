@@ -123,6 +123,9 @@ pub fn run() {
             commands::capture::engine::capture_status,
             commands::capture::recovery::capture_find_orphans,
             commands::capture::recovery::capture_recover,
+            // Wave 3b — local long-form transcription over the existing
+            // per-request STT sidecar (still local-only, still no cloud path).
+            commands::capture::transcribe::transcribe_meeting,
             // Stream B TTS (v2.0) — Piper sidecar speech synthesis.
             commands::tts::tts_sidecar_available,
             commands::tts::tts_speak,

@@ -31,6 +31,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **CRM review-card visibility + persistence (QA findings).** (1) Queued Wealthbox
+  proposals no longer vanish on app restart — `crmWriteQueueStore` now persists via
+  zustand + localStorage, with honest rehydrate reconciliation: an item stuck mid-send
+  reopens as `proposed`, an item whose matter was deleted is dropped (its only display
+  surface, that matter's Hub, can never reopen), a completed (`sent`) item is never
+  persisted forward (no Dismiss control exists for a done row), and structurally corrupt
+  entries are dropped rather than crashing the UI. (2) `CrmWriteReviewCard` only ever
+  mounted on the Client Map's Overview sub-tab — a pending proposal was invisible from
+  Documents/Email/Activity. New `CrmWritePendingBanner` renders a slim presence banner
+  in the hub chrome on every other sub-tab, with a "Review now" jump back to Overview.
+  (3) The toolbar confirmation after "Send to Wealthbox" was vague and un-actionable
+  ("Added to the Wealthbox review card on this client's map") and disconnected while
+  Wealthbox was offline — now "Queued for Wealthbox review" plus a real "Review now"
+  action (dispatches `lantern:matter-launch`) in both `MatterNotesEditor` and
+  `DocxEditor`; the disconnected-Wealthbox card state also now offers Dismiss per item
+  instead of being a dead end. (4) `scripts/bench-smoke/checks/wave2.mjs`'s
+  Send-to-Wealthbox check could false-PASS on the toolbar's own confirmation text alone
+  — now asserts the real card (`[data-testid="crm-write-card-collapsed"]`) and expands
+  it to confirm Approve is reachable. Files: `src/platform/state/crmWriteQueueStore.ts`,
+  `src/features/matters/{CrmWriteReviewCard,CrmWritePendingBanner,MatterHub,
+  MatterNotesEditor}.tsx`, `src/features/documents/media/DocxEditor.tsx`,
+  `src/app/shell/layout/MainPanel.tsx`, `scripts/bench-smoke/checks/wave2.mjs`,
+  `src/locales/{en,de,es}.json`. 3 rounds of independent Codex review (2 confirmed P2s
+  fixed: undismissable sent/orphaned items surviving forever, disconnected-state
+  dead end).
+
 ### Added
 - **Wave 3 — local meeting capture (the last feature lane).** In-process recording engine
   (`src-tauri/src/commands/capture/`): dual-channel capture (mic + system loopback via
@@ -42,6 +69,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   survived. 17 review rounds + coordinator independent review (1 confirmed P2, fixed).
   macOS capture sidecar (`capture-mac`) is a documented follow-up. Files:
   `capture/{engine,chunks,recovery,session,sources,mod}.rs`, `pathguard.rs` (absolute variant).
+- **Wave 3b — local long-form transcription pipeline (Tasks 7-9).** Windows `audio.wav` into
+  25s overlapping chunks over the existing per-request Parakeet/whisper sidecar (hard 30s cap),
+  merges into `transcript.json` with channel-attributed speakers (mic="You", sys="Them"), skips
+  silent windows, and journals progress to `.transcribe-progress.json` for crash-safe resume.
+  New `transcribe_meeting` Tauri command wires `SidecarTranscriber` to the bundled binary
+  (guarded by `guard_meeting_path` before any other filesystem work — never a cloud path) and
+  the canonical `TranscriptFile`/`TranscriptSegment`/`TranscriptConsent`/`CaptureStatus` TS
+  schema lands at `src/platform/types/meeting.ts` (the one place the frontend meetings lane
+  builds against). Mono audio (imported recordings, `src/features/meetings/importMeetingAudio.ts`)
+  is accepted and attributed entirely to sys/"Them" — imports have no mic/sys separation. New
+  `meetings.transcribeMode` setting (`live` | `batch`) for battery-saver transcription. codex-review
+  (3 rounds) also fixed: overlap-trim state wasn't reset across silent windows (could drop real
+  words after a pause), the progress journal write wasn't crash-atomic, and `engine.rs`'s
+  `slugify()` was stripping the underscore out of real `matter_<uuid>` ids, making the
+  meeting-folder-name fallback (used until Task 12's `meeting.json` lands) scope reconstructed
+  transcripts to a garbled matter id. Files: `capture/transcribe.rs`, `capture/engine.rs`
+  (`slugify`), `lib.rs`, `platform/types/meeting.ts`, `features/meetings/importMeetingAudio.ts`,
+  `platform/settings/schema.ts`.
 
 ### Fixed
 - **Windows verbatim-path blocker in `capture_start` (empty-path canonicalize).**
@@ -1276,6 +1321,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Files modified: `src/features/ask/chat/providerModelResolution.ts`, `src/features/ask/AIChatViewer.tsx`, `src/features/onboarding/ApiKeyWizard.tsx`, `src/features/settings/ApiKeyManager.tsx`
 - **A saved default model is honored even if it was set in an older version.** The new chat default now also reads the older `keepance_default_*` preference when the current setting is empty, so a previously chosen default provider/model still applies.
   - Files modified: `src/features/ask/chat/providerModelResolution.ts`, `src/features/ask/AIChatViewer.tsx`
+- **`auto-smoke.sh` restarted a hard-coded `KeepanceDev` Windows scheduled task regardless of target.** Each bench target now carries its own scheduled-task name (`legion` = `LanternPlusDev`, `azure-cloud-bench-1` = `LanternDevBench`, ad hoc default `LanternPlusDev`), threaded through the dry-run output and the real restart command.
+  - Files modified: `scripts/bench-smoke/targets.mjs`, `scripts/auto-smoke.sh`, `scripts/bench-smoke/__tests__/targets.test.mjs`
+
+### Changed
+- **Cosmetic `keepance` → `lantern` sweep across `src/` and `src-tauri/`.** The internal plumbing rename (Cargo package name, keychain services, data-dir constants) was already done; this fixes stale comments left describing values that are already `lantern`, plus a handful of non-persisted internal constants, DOM print-target ids, and test-fixture strings still named `keepance`. Real legacy-migration code, wire-format values (the `'keepance-local'` provider id serialized in saved chat files), live network/CDN URLs, CI-wired env vars, and a crypto domain-separation literal were all identified and left untouched.
+  - 73 files changed, pure 1:1 text substitutions (170 insertions / 170 deletions, no lines added or removed).
+
+### Documentation
+- **Documented the legacy `keepance_*` storage-key migration state.** `migrateLegacyLanternStorageKeys` and `migrateLocalStorageApiKeysToKeychain` are already complete, tested, and correctly ordered — no code change needed; a new SECURITY.md section records the current state and flags one pre-existing gap (`BeforeYouMeetStrip.tsx` reads a dead legacy key literal) as a follow-up.
+  - Files modified: `docs/reference/SECURITY.md`
+- **Docs currency pass on the Lantern-Plus program docs.** Marked the program feature-complete (all 5 waves merged, Windows verification passed) in `LANTERN-PLUS.md`; flagged `NEXT-SESSION-BOOTSTRAP.md` and `PARALLEL-OPERATIONS.md`'s sequencing section as historical (already executed); corrected `BENCH-SMOKE-HARNESS.md`'s claim that the retention/attestation feature (Task 16-17) hadn't merged — it has, though the harness stub itself wasn't promoted (documented as an existing out-of-scope gap, same as the diarization stub).
+  - Files modified: `LANTERN-PLUS.md`, `docs/plans/lantern-plus/NEXT-SESSION-BOOTSTRAP.md`, `docs/plans/lantern-plus/PARALLEL-OPERATIONS.md`, `docs/qa/BENCH-SMOKE-HARNESS.md`
 
 ## [3.3.5] - 2026-06-18
 

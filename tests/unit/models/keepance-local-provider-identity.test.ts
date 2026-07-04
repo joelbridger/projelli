@@ -10,7 +10,7 @@ import { describe, it, expect } from 'vitest';
 import {
   isLocalProviderId,
   createProvider,
-  KEEPANCE_LOCAL_DEFAULT_MODEL,
+  LANTERN_LOCAL_DEFAULT_MODEL,
 } from '@/platform/providers/providerFactory';
 
 describe('keepance-local provider identity (Ticket 1)', () => {
@@ -26,7 +26,7 @@ describe('keepance-local provider identity (Ticket 1)', () => {
   });
 
   it('exposes the embedded engine default model', () => {
-    expect(KEEPANCE_LOCAL_DEFAULT_MODEL).toBe('qwen3-4b-instruct-2507');
+    expect(LANTERN_LOCAL_DEFAULT_MODEL).toBe('qwen3-4b-instruct-2507');
   });
 
   it('createProvider constructs the embedded local provider (never a cloud fallback)', () => {

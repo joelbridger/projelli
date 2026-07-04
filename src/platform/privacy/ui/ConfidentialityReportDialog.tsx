@@ -26,7 +26,7 @@ export interface ConfidentialityReportDialogProps {
   report: ConfidentialityReport;
 }
 
-const PRINTABLE_ID = 'keepance-confidentiality-report-printable';
+const PRINTABLE_ID = 'lantern-confidentiality-report-printable';
 
 function modeBadgeStyle(mode: string): React.CSSProperties {
   if (mode === 'local-only') {

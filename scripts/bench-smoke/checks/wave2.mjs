@@ -17,6 +17,7 @@ import {
   openSmokeClientDocuments,
   openSmokeClientDocumentsSubtab,
   openSmokeClientNote,
+  openSmokeClientOverview,
 } from './_util.mjs';
 import { SMOKE_CLIENT_MATTER_ID, SMOKE_NOTE_FILENAME_SECONDARY } from './smoke-workspace.mjs';
 
@@ -61,13 +62,37 @@ export const checkWealthboxQueueAndReview = withGuard(ID, SECTION, async ({ driv
 
   await driver.click('docx-send-to-wealthbox');
 
-  const cardWait = await driver.waitFor('review card', 15);
-  // Fall back to the app's own review-card copy if the literal phrase differs.
-  const cardWaitFallback = cardWait.found ? cardWait : await driver.waitFor('Nothing sends until you approve', 10);
+  // Coordinator review catch (P2): CrmWritePendingBanner (QA finding P2) made
+  // CrmWriteReviewCard mount ONLY on the Overview sub-tab — Documents (where
+  // this check just clicked Send to Wealthbox, per openSmokeClientDocuments-
+  // Subtab above) now shows only the pending-review banner once a write is
+  // queued. Without jumping back to Overview, a genuinely WORKING app would
+  // false-FAIL below (the collapsed card lives on a sub-tab never visited).
+  // Prefer the banner's own Review-now action — this doubles as an
+  // end-to-end check that the jump it advertises actually works — and fall
+  // back to a direct sub-tab click (always available once a hub is open,
+  // per openSmokeClientOverview's doc comment) if the banner isn't there for
+  // any reason (e.g. a prior check already left the hub on Overview).
+  try {
+    await driver.click('hub-crm-pending-banner-review-now');
+  } catch {
+    await openSmokeClientOverview(driver);
+  }
+
+  // Harness-honesty fix: a prior version gated PASS on
+  // driver.waitFor('review card', 15) — a whole-page substring text match.
+  // The toolbar's OWN confirmation copy ("...Wealthbox review card...")
+  // satisfied that match all by itself, so this check could PASS having
+  // only ever seen the toast, never the real card. waitFor here is now
+  // purely a non-authoritative settle delay (give the re-render a moment);
+  // the actual PASS/FAIL decision below is the REAL card's own testid.
+  await driver.waitFor('Update Wealthbox', 15);
+
+  const postClick = await requireSnapshot(driver);
+  const collapsedCard = findByTestId(postClick, 'crm-write-card-collapsed');
   const shot = await driver.captureScreenshot('wave2-send-to-wealthbox-review-card');
 
-  if (!cardWaitFallback.found) {
-    const postClick = await requireSnapshot(driver);
+  if (!collapsedCard) {
     const linkPrompt = findByText(postClick, /link this client to a wealthbox household/i);
     if (linkPrompt) {
       return makeResult({
@@ -82,8 +107,25 @@ export const checkWealthboxQueueAndReview = withGuard(ID, SECTION, async ({ driv
       id: ID,
       section: SECTION,
       status: STATUS.FAIL,
-      detail: 'Clicked Send to Wealthbox but no review/queue card appeared within 15-25s.',
+      detail:
+        'Clicked Send to Wealthbox but the real review card ([data-testid="crm-write-card-collapsed"]) never appeared. ' +
+        'A confirmation toast alone does not count — this check used to false-PASS on that toast\'s own "review card" copy.',
       screenshots: [shot],
+    });
+  }
+
+  await clickElement(driver, collapsedCard);
+  const expanded = await requireSnapshot(driver);
+  const approveButton = findByText(expanded, /approve \d+ change|^approve$/i);
+  const expandedShot = await driver.captureScreenshot('wave2-send-to-wealthbox-review-card-expanded');
+
+  if (!approveButton) {
+    return makeResult({
+      id: ID,
+      section: SECTION,
+      status: STATUS.FAIL,
+      detail: 'The review card appeared and was expanded, but no Approve control was reachable inside it.',
+      screenshots: [shot, expandedShot],
     });
   }
 
@@ -91,8 +133,10 @@ export const checkWealthboxQueueAndReview = withGuard(ID, SECTION, async ({ driv
     id: ID,
     section: SECTION,
     status: STATUS.PASS,
-    detail: 'Send to Wealthbox button renders and clicking it queues a review card. Stopped here by design (read-only default) — no Approve/send.',
-    screenshots: [shot],
+    detail:
+      'Send to Wealthbox queues a REAL review card ([data-testid="crm-write-card-collapsed"]) that expands to a ' +
+      'reachable Approve control. Stopped here by design (read-only default) — no Approve/send.',
+    screenshots: [shot, expandedShot],
   });
 });
 

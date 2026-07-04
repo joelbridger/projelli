@@ -1206,7 +1206,13 @@
       "status-error": "Synchronisierungsfehler",
       "status-idle": "Nicht synchronisiert",
       "send-to-wealthbox": "An Wealthbox senden",
-      "sent-to-wealthbox": "Zur Wealthbox-Prüfkarte auf der Mandantenübersicht hinzugefügt"
+      "sent-to-wealthbox": "Für die Wealthbox-Prüfung eingereiht",
+      "review-now": "Jetzt prüfen"
+    },
+    "crm-review": {
+      "pending-banner_one": "{{count}} Wealthbox-Update zur Prüfung bereit",
+      "pending-banner_other": "{{count}} Wealthbox-Updates zur Prüfung bereit",
+      "review-now": "Jetzt prüfen"
     },
     "home": {
       "archive": "Archive",

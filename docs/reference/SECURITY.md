@@ -98,6 +98,38 @@ API keys are protected through:
 4. **HTTPS Only**: Keys are only transmitted over HTTPS
 5. **Header Only**: Keys are never included in URLs
 
+### Legacy `keepance_*` Storage Key Migration
+
+The Keepance → Lantern rename touched every browser-storage key (localStorage
+and sessionStorage flags, plus the keychain-fallback family). Two migrations
+run in sequence at app boot, before `App` is imported, so no store reads a
+legacy key at module-evaluation time:
+
+1. **`migrateLegacyLanternStorageKeys`** (`src/platform/migrations/legacyStorageKeyMigration.ts`,
+   called from `src/main.tsx`) — renames every `keepance_*` key (onboarding
+   state, license/machine/install ids, telemetry consent, per-provider
+   key-verified/invalid/model-cache flags, and the unbounded
+   `keepance_kc_fallback::<service>::<key>` family) to its `lantern_*`
+   equivalent. Read-old, write-new, delete-old; idempotent; gated behind a
+   `lantern_storage_keys_migrated_v1` sentinel so completed installs skip the
+   scan on every later launch. Covered by
+   `src/platform/migrations/legacyStorageKeyMigration.test.ts`.
+2. **`migrateLocalStorageApiKeysToKeychain`** (`src/platform/providers/KeychainService.ts`)
+   — a separate, older migration that moves the `apiKey_<provider>` family out
+   of localStorage into the OS keychain. Its own sentinel keys
+   (`keepance_apikeys_migrated_v1/2`) are themselves `keepance_`-prefixed, so
+   migration (1) renames them too — call order matters: (1) must run before
+   (2), which `main.tsx` enforces.
+
+**Current state (verified 2026-07-04):** both migrations are complete,
+tested, and wired in. No further code changes needed here. One pre-existing
+gap found during this pass but left untouched (out of scope for a cosmetic
+cleanup): `src/features/meetings/BeforeYouMeetStrip.tsx` reads the raw legacy
+literal `'keepance_firm_name'` instead of the `SK_FIRM_NAME` constant, so once
+migration (1) has run on a machine, that read always returns null. Filed as a
+follow-up rather than fixed here since it's a storage-key literal, not a
+cosmetic rename.
+
 ### File System Scoping (Tauri)
 
 Tauri's fs plugin is configured with restricted scopes:

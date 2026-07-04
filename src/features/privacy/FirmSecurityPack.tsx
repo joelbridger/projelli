@@ -65,7 +65,7 @@ interface Section {
 
 const SECTIONS: Section[] = [
   {
-    id: 'what-keepance-is',
+    id: 'what-lantern-is',
     icon: Laptop,
     tone: 'text-emerald-700 bg-emerald-50',
     heading: 'What Advisor Prep Hero is',
@@ -294,7 +294,7 @@ function usePrint(printableId: string) {
  * it directly without the page chrome.
  * ---------------------------------------------------------------------------*/
 
-const PRINTABLE_ID = 'keepance-firm-security-pack-printable';
+const PRINTABLE_ID = 'lantern-firm-security-pack-printable';
 
 export function FirmSecurityPackContent() {
   const [openSection, setOpenSection] = useState<string | null>(SECTIONS[0]?.id ?? null);

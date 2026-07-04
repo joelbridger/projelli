@@ -156,8 +156,8 @@ pub fn calendar_keychain_service(provider_id: &str) -> String {
 }
 
 /// Calendly connector namespace prefix. Covers the SQLCipher master key
-/// (`keepance-calendly-enc`) and any future Calendly-scoped secret. The bare
-/// API token slot (`keepance-calendly`) is the exact `CALENDLY_SERVICE` above.
+/// (`lantern-calendly-enc`) and any future Calendly-scoped secret. The bare
+/// API token slot (`lantern-calendly`) is the exact `CALENDLY_SERVICE` above.
 pub const CALENDLY_SERVICE_PREFIX: &str = concat!(app_ns!(), "-calendly-");
 
 // ── Per-workspace hidden data directory ──────────────────────────────────────

@@ -733,13 +733,13 @@ export async function watchWorkspace(path: string): Promise<void> {
 // --------------------------------------------------------------------
 // Phase 4 M4 (v1.5 Flag 2) — MCP sidecar bridge.
 //
-// The `keepance-mcp` binary (see `src-tauri/src/bin/mcp/`) writes approval
+// The `lantern-mcp` binary (see `src-tauri/src/bin/mcp/`) writes approval
 // requests to disk when an MCP client calls `write_workspace_file` with
 // `require_confirmation = true`. These commands let the desktop app
 // surface them to the user and return the user's decision.
 // --------------------------------------------------------------------
 
-/** One pending write approval queued by the `keepance-mcp` sidecar.
+/** One pending write approval queued by the `lantern-mcp` sidecar.
  *  Mirror of the `PendingApproval` struct in `src-tauri/src/commands/mcp.rs`
  *  (camelCase via `#[serde(rename_all = "camelCase")]`). */
 export interface McpPendingApproval {

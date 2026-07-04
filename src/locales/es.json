@@ -1206,7 +1206,13 @@
       "status-error": "Error de sincronización",
       "status-idle": "Sin sincronizar",
       "send-to-wealthbox": "Enviar a Wealthbox",
-      "sent-to-wealthbox": "Añadido a la tarjeta de revisión de Wealthbox en el mapa de este cliente"
+      "sent-to-wealthbox": "En cola para revisión de Wealthbox",
+      "review-now": "Revisar ahora"
+    },
+    "crm-review": {
+      "pending-banner_one": "{{count}} actualización de Wealthbox lista para revisar",
+      "pending-banner_other": "{{count}} actualizaciones de Wealthbox listas para revisar",
+      "review-now": "Revisar ahora"
     },
     "home": {
       "archive": "Archive",

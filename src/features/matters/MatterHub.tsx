@@ -35,6 +35,7 @@ import { BeforeYouMeetStrip } from '@/features/meetings/BeforeYouMeetStrip';
 import { GuidedInterview } from '@/features/matters/GuidedInterview';
 import { ClientMapUpdatesTray } from '@/features/matters/ClientMapUpdatesTray';
 import { CrmWriteReviewCard } from '@/features/matters/CrmWriteReviewCard';
+import { CrmWritePendingBanner } from '@/features/matters/CrmWritePendingBanner';
 import { VoiceprintsCard } from '@/features/matters/VoiceprintsCard';
 import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
@@ -375,6 +376,14 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
 
       {/* ── C. Active panel ────────────────────────────────────────────── */}
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        {/* QA finding (P2): CrmWriteReviewCard only ever mounted inside
+            Overview — a pending Wealthbox proposal was invisible from
+            Documents/Email/Activity. This slim banner surfaces it on every
+            OTHER sub-tab and jumps back to Overview (where the full card
+            lives) on click. */}
+        {subTab !== 'overview' && (
+          <CrmWritePendingBanner matterId={matterId} onReviewNow={() => { setSubTab('overview'); }} />
+        )}
         {subTab === 'overview' && (
           <div
             data-testid="hub-subtab-panel-overview"

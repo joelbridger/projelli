@@ -20,6 +20,7 @@ import type { CaptureStatus, TranscriptFile } from '@/platform/types/meeting';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { buildResolvedProviderForGlance } from '@/platform/matter/matterAtAGlance';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { meetingNoteFromTranscript } from '@/features/meetings/meetingNoteTemplate';
@@ -177,7 +178,7 @@ export async function fileDictationAsMeeting(noteText: string, matterId: string,
 }
 
 export const useMeetingStore = create<MeetingState>((set, get) => ({
-  status: { recording: false, meetingDir: null, elapsedMs: 0 },
+  status: { recording: false, meetingDir: null, elapsedMs: 0, writeError: null },
   activeMatterId: null,
   activeConsent: null,
 
@@ -193,7 +194,7 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
       consentNote: opts.consentNote ?? null,
     });
     set({
-      status: { recording: true, meetingDir: r.meetingDir, elapsedMs: 0 },
+      status: { recording: true, meetingDir: r.meetingDir, elapsedMs: 0, writeError: null },
       activeMatterId: matterId,
       activeConsent: opts,
     });
@@ -221,45 +222,61 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
     const { activeMatterId, activeConsent, status } = get();
     const startedMeetingDir = status.meetingDir;
     const r = await invoke<{ meetingDir: string; audioPath: string; durationMs: number }>('capture_stop', {});
-    set({ status: { recording: false, meetingDir: null, elapsedMs: 0 }, activeMatterId: null, activeConsent: null });
+    set({ status: { recording: false, meetingDir: null, elapsedMs: 0, writeError: null }, activeMatterId: null, activeConsent: null });
 
     const meetingDir = r.meetingDir || startedMeetingDir || '';
     const matterId = activeMatterId ?? '';
     if (meetingDir && matterId && activeConsent) {
-      const now = new Date().toISOString();
-      // Task 12c: thin type detection — a matched calendar title (when the
-      // recording started from one) plus any taught corrections decide the
-      // type; ad-hoc recordings (no title) simply get no typeId.
-      const typeId = await (async () => {
-        if (!activeConsent.calendarTitle || !activeWorkspaceService) return undefined;
-        try {
-          const { learned } = await makeMeetingTypesStore(activeWorkspaceService).load();
-          return detectMeetingType(activeConsent.calendarTitle, learned) ?? undefined;
-        } catch {
-          return undefined;
-        }
-      })();
-      await writeMeetingJson(meetingDir, {
-        matterId,
-        startedAt: now,
-        consent: {
-          mode: activeConsent.consentMode,
-          confirmedBy: 'user',
-          confirmedAt: now,
-          ...(activeConsent.consentNote ? { note: activeConsent.consentNote } : {}),
-        },
-        ...(typeId ? { typeId } : {}),
-        ...(activeConsent.calendarTitle ? { calendarTitle: activeConsent.calendarTitle } : {}),
-      }).catch(() => {});
+      // meeting.json's matterId/startedAt/consent are ALREADY written,
+      // authoritatively, by Rust's finalize_session (session.rs's
+      // MeetingMeta — landed with lane w3b) by the time capture_stop
+      // resolves here. This TS layer only EXTENDS that file with its own
+      // UI-only fields (typeId, reviewedAt, ...) — it must never
+      // reconstruct/overwrite matterId/startedAt/consent from JS-side state,
+      // which would silently replace Rust's real recorded values (e.g. the
+      // actual start time) with wrong ones (e.g. stop time).
+      const existing = await activeWorkspaceService?.readFile(`${meetingDir}/meeting.json`).catch(() => null);
+      const base = existing ? (JSON.parse(existing) as MeetingMeta) : null;
+      if (base) {
+        // Task 12c: thin type detection — a matched calendar title (when the
+        // recording started from one) plus any taught corrections decide the
+        // type; ad-hoc recordings (no title) simply get no typeId.
+        const typeId = await (async () => {
+          if (!activeConsent.calendarTitle || !activeWorkspaceService) return undefined;
+          try {
+            const { learned } = await makeMeetingTypesStore(activeWorkspaceService).load();
+            return detectMeetingType(activeConsent.calendarTitle, learned) ?? undefined;
+          } catch {
+            return undefined;
+          }
+        })();
+        await writeMeetingJson(meetingDir, {
+          ...base,
+          ...(typeId ? { typeId } : {}),
+          ...(activeConsent.calendarTitle ? { calendarTitle: activeConsent.calendarTitle } : {}),
+        }).catch(() => {});
+      }
       // No TS-side audit.logDurable('meeting_recorded', ...) here either —
       // capture_stop's Rust side already appends it (same reasoning as
       // startRecording above).
     }
 
-    try {
-      await invoke('transcribe_meeting', { meetingDir, model: null });
-    } catch {
-      // Queued until the voice engine is installed — capture never depends on it.
+    // meetings.transcribeMode (src/platform/settings/schema.ts): 'live'
+    // (default) transcribes the moment recording stops; 'battery saver'
+    // defers it (AC-power auto-trigger / a manual "Transcribe now" action
+    // are a separate follow-up, not built here — this just honors the
+    // setting by skipping the immediate call).
+    const transcribeMode = useSettingsStore.getState().getSetting<string>('meetings.transcribeMode');
+    if (meetingDir && transcribeMode !== 'batch') {
+      try {
+        await invoke('transcribe_meeting', {
+          workspaceRoot: resolveWorkspaceRoot(),
+          meetingDir,
+          model: null,
+        });
+      } catch {
+        // Queued until the voice engine is installed — capture never depends on it.
+      }
     }
 
     if (meetingDir && matterId) {

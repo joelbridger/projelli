@@ -14,7 +14,7 @@
  *   node scripts/eval/ask-nightly.mjs --no-notify         # dry run, no message
  *
  * Suggested cron (3:15am daily):
- *   15 3 * * *  cd /home/jameson/keepance && OPENAI_API_KEY=... node scripts/eval/ask-nightly.mjs >> /tmp/ask-eval.log 2>&1
+ *   15 3 * * *  cd /home/jameson/lantern && OPENAI_API_KEY=... node scripts/eval/ask-nightly.mjs >> /tmp/ask-eval.log 2>&1
  */
 
 import { spawnSync } from 'node:child_process';

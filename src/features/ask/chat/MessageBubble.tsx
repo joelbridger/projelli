@@ -85,7 +85,7 @@ function MessageBubbleImpl({
                   draggable
                   onDragStart={(e) => {
                     e.dataTransfer.effectAllowed = 'copy';
-                    e.dataTransfer.setData('application/x-keepance-chat-message', msg.content);
+                    e.dataTransfer.setData('application/x-lantern-chat-message', msg.content);
                     e.dataTransfer.setData('text/plain', msg.content);
                   }}
                   title="Drag to file tree to save as a file"

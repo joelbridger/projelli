@@ -287,7 +287,7 @@ describe('DataMapDialog', () => {
     expect(screen.queryByText(/never be used with confidential or client/i)).toBeNull();
 
     // Printable region + print control exist.
-    expect(document.getElementById('keepance-data-map-printable')).toBeTruthy();
+    expect(document.getElementById('lantern-data-map-printable')).toBeTruthy();
     expect(screen.getByTestId('data-map-print')).toBeTruthy();
   });
 });

@@ -605,6 +605,31 @@ describe('DocxEditor — accept / reject flow', () => {
       expect(screen.queryByTestId('docx-send-to-wealthbox-confirmation')).not.toBeInTheDocument();
     });
 
+    // QA finding (P3): the confirmation needs a real, actionable "Review now"
+    // jump alongside the plain copy, not just a toast that auto-clears.
+    it('shows a "Review now" action next to the confirmation that calls onReviewWealthboxQueue', async () => {
+      const onSendToWealthbox = vi.fn().mockReturnValue(true);
+      const onReviewWealthboxQueue = vi.fn();
+      render(
+        <TooltipProvider>
+          <DocxEditor
+            filePath="/ws/agreement.docx"
+            fileName="agreement.docx"
+            onSendToWealthbox={onSendToWealthbox}
+            onReviewWealthboxQueue={onReviewWealthboxQueue}
+          />
+        </TooltipProvider>,
+      );
+      await screen.findByTestId('docx-run');
+      const button = await screen.findByTestId('docx-send-to-wealthbox');
+      await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+      fireEvent.click(button);
+      await screen.findByTestId('docx-send-to-wealthbox-confirmation');
+
+      fireEvent.click(screen.getByTestId('docx-send-to-wealthbox-review-now'));
+      expect(onReviewWealthboxQueue).toHaveBeenCalledTimes(1);
+    });
+
     it('disables the action with an explanation when Wealthbox is not connected', async () => {
       invokeMock.mockImplementation((cmd: string) => {
         if (cmd === 'docx_open') return Promise.resolve(oneRunDoc);

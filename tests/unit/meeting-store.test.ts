@@ -55,6 +55,57 @@ describe('meeting store', () => {
     expect(entries.some((e) => e.action === 'meeting_recorded')).toBe(false);
   });
 
+  it('calls the real transcribe_meeting with workspaceRoot + meetingDir + model', async () => {
+    invokeMock
+      .mockResolvedValueOnce({ meetingDir: '/ws/C/Meetings/x', startedAt: 't0' })
+      .mockResolvedValueOnce({ meetingDir: '/ws/C/Meetings/x', audioPath: '/ws/C/Meetings/x/audio.wav', durationMs: 60000 })
+      .mockResolvedValueOnce({ transcriptPath: '/ws/C/Meetings/x/transcript.json', segmentCount: 4 });
+    const s = useMeetingStore.getState();
+    await s.startRecording('m-1', { consentMode: 'one-party' });
+    await useMeetingStore.getState().stopRecording();
+    const transcribeCall = invokeMock.mock.calls.find((c) => c[0] === 'transcribe_meeting');
+    expect(transcribeCall?.[1]).toEqual({ workspaceRoot: '/ws', meetingDir: '/ws/C/Meetings/x', model: null });
+  });
+
+  it('skips transcribe_meeting in battery-saver (batch) mode', async () => {
+    const { useSettingsStore } = await import('@/platform/settings/settingsStore');
+    useSettingsStore.getState().setSetting('meetings.transcribeMode', 'batch');
+    invokeMock
+      .mockResolvedValueOnce({ meetingDir: '/ws/C/Meetings/x', startedAt: 't0' })
+      .mockResolvedValueOnce({ meetingDir: '/ws/C/Meetings/x', audioPath: '/ws/C/Meetings/x/audio.wav', durationMs: 60000 });
+    const s = useMeetingStore.getState();
+    await s.startRecording('m-1', { consentMode: 'one-party' });
+    await useMeetingStore.getState().stopRecording();
+    const calls = invokeMock.mock.calls.map((c) => c[0]);
+    expect(calls).toEqual(['capture_start', 'capture_stop']);
+    useSettingsStore.getState().setSetting('meetings.transcribeMode', 'live');
+  });
+
+  it('extends the Rust-authored meeting.json rather than reconstructing/overwriting matterId/startedAt/consent', async () => {
+    // Rust's finalize_session (session.rs's MeetingMeta) already wrote this
+    // by the time capture_stop resolves — the REAL start time and consent,
+    // not what a TS-side reconstruction from stop-time state would produce.
+    const rustWritten = {
+      matterId: 'm-1',
+      startedAt: '2026-07-02T17:00:00Z', // the real recording start, not stop time
+      consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-07-02T17:00:00Z', note: '' },
+    };
+    const readFileMock = vi.fn(async (p: string) => (p.endsWith('meeting.json') ? JSON.stringify(rustWritten) : ''));
+    setMeetingsWorkspaceService({ writeFile: writeFileMock, readFile: readFileMock } as never);
+    invokeMock
+      .mockResolvedValueOnce({ meetingDir: '/ws/C/Meetings/x', startedAt: 't0' })
+      .mockResolvedValueOnce({ meetingDir: '/ws/C/Meetings/x', audioPath: '/ws/C/Meetings/x/audio.wav', durationMs: 60000 })
+      .mockResolvedValueOnce({ transcriptPath: '/ws/C/Meetings/x/transcript.json', segmentCount: 4 });
+    const s = useMeetingStore.getState();
+    await s.startRecording('m-1', { consentMode: 'one-party' });
+    await useMeetingStore.getState().stopRecording();
+    const metaWrite = writeFileMock.mock.calls.find((c) => (c[0] as string).endsWith('meeting.json'));
+    const written = JSON.parse(metaWrite?.[1] as string) as typeof rustWritten;
+    expect(written.startedAt).toBe('2026-07-02T17:00:00Z');
+    expect(written.consent).toEqual(rustWritten.consent);
+    expect(written.matterId).toBe('m-1');
+  });
+
   it('refuses to start when already recording', async () => {
     invokeMock.mockResolvedValueOnce({ meetingDir: '/x', startedAt: 't0' });
     const s = useMeetingStore.getState();

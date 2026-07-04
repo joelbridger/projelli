@@ -1047,7 +1047,13 @@
       "status-error": "Sync error",
       "status-idle": "Not synced",
       "send-to-wealthbox": "Send to Wealthbox",
-      "sent-to-wealthbox": "Added to the Wealthbox review card on this client's map"
+      "sent-to-wealthbox": "Queued for Wealthbox review",
+      "review-now": "Review now"
+    },
+    "crm-review": {
+      "pending-banner_one": "{{count}} Wealthbox update ready for review",
+      "pending-banner_other": "{{count}} Wealthbox updates ready for review",
+      "review-now": "Review now"
     },
     "home": {
       "archive": "Archive",

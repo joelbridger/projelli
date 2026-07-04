@@ -4,7 +4,7 @@
 // AI action (what was searched, which matter it was confined to, whether
 // privileged material was excluded, whether each citation checks out, and where
 // each request went). On the desktop app it lives ENCRYPTED AT REST in a
-// SQLCipher database at `<workspace>/.keepance/audit-enc.db`, keyed by a master
+// SQLCipher database at `<workspace>/.lantern/audit-enc.db`, keyed by a master
 // key held in the OS keychain. This mirrors the encrypted mail store
 // (`commands/mail/store.rs::EncryptedMailStore`) so the proven master-key-in-
 // keychain pattern is reused rather than reinvented.

@@ -1,5 +1,5 @@
 //! Accept / reject tracked changes over the typed [`Document`] DOM — the
-//! inverse of [`crate::author`], which *adds* revisions. The Keepance editor
+//! inverse of [`crate::author`], which *adds* revisions. The Lantern editor
 //! (task A3) wires its accept/reject buttons and the review pane's
 //! "accept all" / "reject all" straight to these functions: this is
 //! document-model logic, so it lives in the engine, not the UI.

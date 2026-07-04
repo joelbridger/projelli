@@ -12,15 +12,15 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   AppLocalProvider as KeepanceLocalProvider,
   parseSseChunk,
-  KEEPANCE_LOCAL_DEFAULT_MODEL,
-  KEEPANCE_LOCAL_CONTEXT_WINDOW,
+  LANTERN_LOCAL_DEFAULT_MODEL,
+  LANTERN_LOCAL_CONTEXT_WINDOW,
 } from '@/platform/providers/AppLocalProvider';
 
 const ENDPOINT = 'http://127.0.0.1:18089';
 const fakeStart = () => Promise.resolve(ENDPOINT);
 
 function provider(start = fakeStart) {
-  return new KeepanceLocalProvider({ model: KEEPANCE_LOCAL_DEFAULT_MODEL, startSidecar: start });
+  return new KeepanceLocalProvider({ model: LANTERN_LOCAL_DEFAULT_MODEL, startSidecar: start });
 }
 
 describe('KeepanceLocalProvider', () => {
@@ -33,8 +33,8 @@ describe('KeepanceLocalProvider', () => {
       expect(meta.costPerOutputToken).toBe(0);
       expect(meta.capabilities?.streaming).toBe(true);
       expect(meta.capabilities?.vision).toBe(false);
-      expect(meta.capabilities?.maxContextTokens).toBe(KEEPANCE_LOCAL_CONTEXT_WINDOW);
-      expect(meta.model).toBe(KEEPANCE_LOCAL_DEFAULT_MODEL);
+      expect(meta.capabilities?.maxContextTokens).toBe(LANTERN_LOCAL_CONTEXT_WINDOW);
+      expect(meta.model).toBe(LANTERN_LOCAL_DEFAULT_MODEL);
     });
   });
 
@@ -79,7 +79,7 @@ describe('KeepanceLocalProvider', () => {
       fetchSpy.mockResolvedValue(
         new Response(
           JSON.stringify({
-            model: KEEPANCE_LOCAL_DEFAULT_MODEL,
+            model: LANTERN_LOCAL_DEFAULT_MODEL,
             choices: [{ message: { content: 'grounded answer' }, finish_reason: 'stop' }],
             usage: { prompt_tokens: 42, completion_tokens: 7 },
           }),

@@ -17,13 +17,13 @@ import {
 import { SK_APIKEYS_MIGRATED_V1 } from '@/config/identity';
 
 const MIGRATION_SENTINEL = 'lantern_apikeys_migrated_v2';
-const KEYCHAIN_ID = 'com.keepance.app::bos_key_anthropic';
+const KEYCHAIN_ID = 'com.lantern.app::bos_key_anthropic';
 const LEGACY_KEY = 'apiKey_anthropic';
 const MATERIAL_KEY = 'bos_key_anthropic';
 const VALID_ANTHROPIC_KEY = 'sk-ant-api03-abcdefghijklmnopqrstuvwx';
 const VALID_OPENAI_KEY = 'sk-proj-abcdefghijklmnopqrstuvwx';
 const GOOGLE_LEGACY_KEY = 'apiKey_google';
-const GOOGLE_KEYCHAIN_ID = 'com.keepance.app::bos_key_google';
+const GOOGLE_KEYCHAIN_ID = 'com.lantern.app::bos_key_google';
 // Real Google AI / Gemini keys start with "AIza".
 const VALID_GOOGLE_KEY = 'AIzaSyABCDEFGHIJKLMNOPQRSTUVWXYZ012345';
 
@@ -40,7 +40,7 @@ const keychainStore = new Map<string, string>();
 
 function mockKeychainInvoke(): void {
   invokeMock.mockImplementation(async (cmd: string, args: Record<string, unknown> = {}) => {
-    const service = (args['service'] as string | undefined) ?? 'com.keepance.app';
+    const service = (args['service'] as string | undefined) ?? 'com.lantern.app';
     const key = args['key'] as string;
     const id = `${service}::${key}`;
 

@@ -38,8 +38,16 @@ pub struct CaptureEngine {
     write_error: Arc<Mutex<Option<String>>>,
 }
 
+/// Keeps `_` alongside alphanumerics and `-` (both are safe filename
+/// characters on Windows/macOS/Linux). Real matter ids are generated as
+/// `matter_<uuid>` (`src/platform/matter/matterStore.ts`'s `generateMatterId`)
+/// — dropping the underscore would make the folder-name slug a LOSSY
+/// encoding of the matter id, which `transcribe.rs::load_meta_for`'s
+/// folder-name fallback (used whenever `meeting.json` hasn't been written
+/// yet) relies on being reversible to scope a reconstructed transcript to
+/// the correct client.
 fn slugify(matter_id: &str) -> String {
-    matter_id.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-').collect()
+    matter_id.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_').collect()
 }
 
 impl CaptureEngine {
@@ -655,6 +663,18 @@ mod tests {
         assert_eq!(v["action"], "meeting_recorded");
         assert_eq!(v["metadata"]["scope"]["kind"], "matter");
         assert_eq!(v["metadata"]["scope"]["matterId"], "m-123");
+    }
+
+    /// Regression for the codex-review finding (2026-07-04): real matter ids
+    /// are `matter_<uuid>` (an underscore, not a hyphen, joins the prefix) —
+    /// `slugify` must keep that underscore so the folder-name slug remains a
+    /// lossless, reversible encoding of the matter id.
+    #[test]
+    fn slugify_preserves_underscores_in_real_matter_ids() {
+        assert_eq!(
+            slugify("matter_3fa85f64-5717-4562-b3fc-2c963f66afa6"),
+            "matter_3fa85f64-5717-4562-b3fc-2c963f66afa6"
+        );
     }
 
     #[tokio::test]
