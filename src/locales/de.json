@@ -1845,6 +1845,56 @@
       "applied": "Sprechernamen im Transkript aktualisiert.",
       "stats": "{{turns}} Wortmeldungen, {{minutes}} Min. Redezeit",
       "privacy-note": "Sprachprofile werden nur auf diesem Computer gespeichert, verschlüsselt und ausschließlich für diesen Mandanten. Du kannst sie jederzeit auf der Mandantenseite löschen."
+    },
+    "pill": {
+      "stop": "Stopp"
+    },
+    "tab": {
+      "record-button": "Besprechung aufnehmen",
+      "recording": "Aufnahme läuft…",
+      "empty-title": "Noch keine Besprechungen",
+      "empty-body": "Aufnahmen mit diesem Mandanten landen genau hier: Notizen, Transkript und Audio zusammen.",
+      "notes-pending": "Notizen ausstehend",
+      "activity-hint": "Jede Besprechung erscheint außerdem als Eintrag im Aktivitätsverlauf dieses Mandanten.",
+      "needs-review-heading": "Zu prüfen · {{count}} Einträge",
+      "review-unreviewed-note": "Ungeprüfte Notiz",
+      "review-crm-waiting": "CRM-Updates ausstehend",
+      "review-no-followup": "Kein Follow-up entworfen"
+    },
+    "entry": {
+      "breadcrumb-meetings": "Besprechungen",
+      "delete-audio": "Audio löschen · Transkript behalten",
+      "consent-noted": "Einwilligung vermerkt",
+      "consent-one-party": "einseitig",
+      "consent-two-party": "beidseitig",
+      "notes-pending": "Die Notizen werden gerade aus dem Transkript erstellt. Schau gleich noch einmal vorbei.",
+      "transcript-pending": "Die Transkription ist in der Warteschlange. Sie erscheint hier, sobald sie fertig ist.",
+      "mark-reviewed": "Als geprüft markieren",
+      "reviewed": "Geprüft",
+      "type-chip-change": "ändern"
+    },
+    "types": {
+      "annual-review": "Jahresgespräch",
+      "intake": "Erstgespräch",
+      "check-in": "Kurzabstimmung"
+    },
+    "consent": {
+      "title": "Diese Besprechung aufnehmen?",
+      "body-local": "Die Aufnahme bleibt auf diesem Computer. Es wird nichts hochgeladen.",
+      "two-party-note": "In deinem Bundesland ist die Zustimmung aller Beteiligten erforderlich. Vorschlag: „Ich würde das gern für meine Notizen aufnehmen. Ist das für alle in Ordnung?“",
+      "checkbox": "Ich habe die nötige Einwilligung",
+      "start-button": "Aufnahme starten",
+      "disclaimer": "Dies ist eine allgemeine Orientierung, keine Rechtsberatung. Kläre die Aufnahme-Vorschriften deines Bundeslands mit deiner eigenen Rechtsberatung ab.",
+      "standing-note": "Dauerhafte Einwilligung liegt vor (vom {{date}})",
+      "mac-permission-title": "macOS benötigt deine Erlaubnis, um Besprechungsaudio zu hören.",
+      "mac-permission-body": "So kann die App aufnehmen, was auf diesem Mac abgespielt wird. Es wird nur auf deiner Festplatte gespeichert, sonst nirgendwo.",
+      "mac-permission-button": "Systemeinstellungen öffnen"
+    },
+    "dictation": {
+      "file-as-meeting-note": "Als Besprechungsnotiz ablegen…",
+      "dialog-title": "Als Besprechungsnotiz ablegen",
+      "search-placeholder": "Mandanten durchsuchen",
+      "cancel": "Abbrechen"
     }
   }
 }

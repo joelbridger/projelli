@@ -14,6 +14,7 @@
 //     cited spot. This reuses the same primitives as the app's file-open
 //     pipeline (binary-aware read + editor openFile + scroll-to-paragraph).
 import type { SourceRef } from '@/platform/clientMap/types';
+import { parseMeetingRef } from '@/features/meetings/meetingSources';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useEditorStore } from '@/platform/state/editorStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
@@ -57,7 +58,7 @@ export const MATTER_LAUNCH_EVENT = EV_MATTER_LAUNCH;
 
 /** The document-source payload carried on a `lantern:matter-launch` event. */
 export interface MatterLaunchSource {
-  kind: 'document';
+  kind: 'document' | 'meeting';
   ref: string;
   snippet?: string;
 }
@@ -86,6 +87,15 @@ export function dispatchOpenSource(matterId: string, ref: SourceRef): void {
     return;
   }
   if (ref.kind === 'meeting') {
+    // Wave 3c transcript refs (`meeting:<dir>#<ms>`) route through
+    // matter-launch so the shell opens the Meetings sub-tab at the exact
+    // meeting + timestamp. Calendly's meeting refs (a different id shape)
+    // keep the existing EV_OPEN_MEETING panel.
+    if (parseMeetingRef(ref.ref)) {
+      const source: MatterLaunchSource = { kind: 'meeting', ref: ref.ref };
+      window.dispatchEvent(new CustomEvent(EV_MATTER_LAUNCH, { detail: { matterId, surface: 'meetings', source } }));
+      return;
+    }
     window.dispatchEvent(new CustomEvent(EV_OPEN_MEETING, { detail: { sourceId: ref.ref } }));
     return;
   }

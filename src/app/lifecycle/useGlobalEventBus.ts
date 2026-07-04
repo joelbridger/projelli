@@ -13,6 +13,7 @@ import { useMatterStore } from '@/platform/matter/matterStore';
 import { useMatterUiStore } from '@/platform/matter/matterUiStore';
 import { useEditorStore } from '@/platform/state/editorStore';
 import { openSourceDocument } from '@/features/matters/clientMap/openSource';
+import { parseMeetingRef } from '@/features/meetings/meetingSources';
 import { getActiveWorkspaceService } from '@/app/fileOps/flushDirtyTabs';
 import {
   EV_OPEN_MATTER_MANAGER,
@@ -121,6 +122,20 @@ export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
           ref.current.setDocumentsView(opened ? 'editor' : 'browser');
         });
         return;
+      }
+
+      // Wave 3c meeting source link -> the Meetings sub-tab, that exact
+      // meeting open and seeked (parseMeetingRef gives the dir + timestamp;
+      // MatterHub's pendingMeetingOpen one-shot mirrors pendingHubTab above).
+      if (source && source.kind === 'meeting' && typeof source.ref === 'string') {
+        const parsed = parseMeetingRef(source.ref);
+        if (parsed) {
+          useMatterStore.getState().setActiveMatter(matterId);
+          useMatterStore.getState().setClientMapHubId(matterId);
+          useMatterStore.getState().setPendingMeetingOpen(parsed);
+          ref.current.setSidebarActiveTab('matters');
+          return;
+        }
       }
 
       const hasExplicitSurface = ALLOWED_SURFACES.has(detail.surface as AllowedSurface);

@@ -1,7 +1,7 @@
 // Audio Player Component
 // Plays audio files with controls and waveform visualization
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { Button } from '@/ui/button';
 import { Play, Pause, Mic } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -13,12 +13,20 @@ interface AudioPlayerProps {
   className?: string;
 }
 
-export function AudioPlayer({
+/** Imperative seek handle — TranscriptViewer (Wave 3c) calls `.seek(ms)` when a
+ *  transcript segment or `[t:ms]` citation chip is clicked, to jump the audio
+ *  to that moment (and start playback) without threading a re-triggerable
+ *  prop through this component. */
+export interface AudioPlayerHandle {
+  seek: (ms: number) => void;
+}
+
+export const AudioPlayer = forwardRef<AudioPlayerHandle, AudioPlayerProps>(function AudioPlayer({
   audioSrc,
   filename,
   onRecordMore,
   className,
-}: AudioPlayerProps) {
+}, ref) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -140,6 +148,18 @@ export function AudioPlayer({
     }
   }, [waveformData, currentTime, duration]);
 
+  useImperativeHandle(ref, () => ({
+    seek: (ms: number) => {
+      const audio = audioRef.current;
+      if (!audio) return;
+      const seconds = ms / 1000;
+      audio.currentTime = seconds;
+      setCurrentTime(seconds);
+      void audio.play();
+      setIsPlaying(true);
+    },
+  }), []);
+
   const togglePlayPause = useCallback(() => {
     if (audioRef.current) {
       if (isPlaying) {
@@ -217,6 +237,6 @@ export function AudioPlayer({
       )}
     </div>
   );
-}
+});
 
 export default AudioPlayer;

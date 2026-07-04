@@ -26,6 +26,10 @@ export interface TranscriptFile {
     durationMs: number;
     matterId: string;
     consent: TranscriptConsent;
+    /** Set by Task 10b's dictation-to-meeting pipeline — a dictated voice
+     *  note wrapped as a single-segment pseudo-transcript, never a real
+     *  capture (Rust's transcribe.rs/session.rs never set this field). */
+    dictation?: boolean;
   };
 }
 

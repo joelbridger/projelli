@@ -1389,6 +1389,56 @@
       "applied": "Speaker names updated in the transcript.",
       "stats": "{{turns}} turns, {{minutes}} min speaking",
       "privacy-note": "Voice profiles are stored only on this computer, encrypted, and only for this client. You can delete them from the client's page at any time."
+    },
+    "pill": {
+      "stop": "Stop"
+    },
+    "tab": {
+      "record-button": "Record a meeting",
+      "recording": "Recording…",
+      "empty-title": "No meetings yet",
+      "empty-body": "Recordings you make with this client stay right here: notes, transcript, and audio together.",
+      "notes-pending": "notes pending",
+      "activity-hint": "Each meeting also shows up as an entry on this client's Activity timeline.",
+      "needs-review-heading": "Needs review · {{count}} items",
+      "review-unreviewed-note": "Unreviewed note",
+      "review-crm-waiting": "CRM updates waiting",
+      "review-no-followup": "No follow-up drafted"
+    },
+    "entry": {
+      "breadcrumb-meetings": "Meetings",
+      "delete-audio": "Delete audio · keep transcript",
+      "consent-noted": "Consent noted",
+      "consent-one-party": "one-party",
+      "consent-two-party": "two-party",
+      "notes-pending": "Notes are being written from the transcript. Check back in a moment.",
+      "transcript-pending": "Transcription is queued. It'll appear here once it's ready.",
+      "mark-reviewed": "Mark reviewed",
+      "reviewed": "Reviewed",
+      "type-chip-change": "change"
+    },
+    "types": {
+      "annual-review": "Annual review",
+      "intake": "Intake",
+      "check-in": "Check-in"
+    },
+    "consent": {
+      "title": "Record this meeting?",
+      "body-local": "Recording stays on this computer. Nothing is uploaded.",
+      "two-party-note": "Your state requires everyone's consent. Suggested ask: \"I'd like to record this for my notes. Is that alright with everyone?\"",
+      "checkbox": "I have the consent I need",
+      "start-button": "Start recording",
+      "disclaimer": "This is general guidance, not legal advice. Confirm your state's recording-consent rules with your own counsel.",
+      "standing-note": "Standing consent on file (dated {{date}})",
+      "mac-permission-title": "macOS needs your permission to hear meeting audio.",
+      "mac-permission-body": "This lets the app record what plays on this Mac. It is saved to your disk and nowhere else.",
+      "mac-permission-button": "Open System Settings"
+    },
+    "dictation": {
+      "file-as-meeting-note": "File as meeting note…",
+      "dialog-title": "File as a meeting note",
+      "search-placeholder": "Search clients",
+      "cancel": "Cancel"
     }
   }
 }

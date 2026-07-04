@@ -1845,6 +1845,56 @@
       "applied": "Los nombres de los interlocutores se actualizaron en la transcripción.",
       "stats": "{{turns}} intervenciones, {{minutes}} min hablando",
       "privacy-note": "Los perfiles de voz se guardan solo en este equipo, cifrados, y únicamente para este cliente. Puedes eliminarlos desde la página del cliente en cualquier momento."
+    },
+    "pill": {
+      "stop": "Detener"
+    },
+    "tab": {
+      "record-button": "Grabar una reunión",
+      "recording": "Grabando…",
+      "empty-title": "Aún no hay reuniones",
+      "empty-body": "Las grabaciones que hagas con este cliente quedan aquí mismo: notas, transcripción y audio juntos.",
+      "notes-pending": "notas pendientes",
+      "activity-hint": "Cada reunión también aparece como una entrada en el historial de actividad de este cliente.",
+      "needs-review-heading": "Por revisar · {{count}} elementos",
+      "review-unreviewed-note": "Nota sin revisar",
+      "review-crm-waiting": "Actualizaciones de CRM pendientes",
+      "review-no-followup": "Sin seguimiento redactado"
+    },
+    "entry": {
+      "breadcrumb-meetings": "Reuniones",
+      "delete-audio": "Eliminar audio · conservar transcripción",
+      "consent-noted": "Consentimiento registrado",
+      "consent-one-party": "una parte",
+      "consent-two-party": "todas las partes",
+      "notes-pending": "Las notas se están redactando a partir de la transcripción. Vuelve a revisar en un momento.",
+      "transcript-pending": "La transcripción está en cola. Aparecerá aquí en cuanto esté lista.",
+      "mark-reviewed": "Marcar como revisada",
+      "reviewed": "Revisada",
+      "type-chip-change": "cambiar"
+    },
+    "types": {
+      "annual-review": "Revisión anual",
+      "intake": "Primera reunión",
+      "check-in": "Seguimiento breve"
+    },
+    "consent": {
+      "title": "¿Grabar esta reunión?",
+      "body-local": "La grabación permanece en este equipo. No se sube nada.",
+      "two-party-note": "Tu estado exige el consentimiento de todas las personas. Sugerencia: «Me gustaría grabar esto para mis notas. ¿Les parece bien a todos?»",
+      "checkbox": "Tengo el consentimiento que necesito",
+      "start-button": "Iniciar grabación",
+      "disclaimer": "Esto es orientación general, no asesoría legal. Confirma las normas de consentimiento para grabar de tu estado con tu propio asesor legal.",
+      "standing-note": "Consentimiento permanente registrado (con fecha {{date}})",
+      "mac-permission-title": "macOS necesita tu permiso para escuchar el audio de la reunión.",
+      "mac-permission-body": "Esto permite que la aplicación grabe lo que se reproduce en esta Mac. Se guarda solo en tu disco y en ningún otro lugar.",
+      "mac-permission-button": "Abrir Preferencias del Sistema"
+    },
+    "dictation": {
+      "file-as-meeting-note": "Archivar como nota de reunión…",
+      "dialog-title": "Archivar como nota de reunión",
+      "search-placeholder": "Buscar clientes",
+      "cancel": "Cancelar"
     }
   }
 }

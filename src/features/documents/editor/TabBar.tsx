@@ -29,6 +29,9 @@ import { useEditorStore } from '@/platform/state/editorStore';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { TabGroupManager } from './TabGroupManager';
 import { removeExtension, pathToTestId, getTabIcon, AIContextChip } from './tabBarHelpers';
+import { FileAsMeetingDialog } from '@/features/meetings/FileAsMeetingDialog';
+
+const VOICE_NOTE_PATH_RE = /^Inbox\/note-.*\.md$/;
 
 interface TabBarProps {
   onRenameFile?: (path: string, newName: string) => Promise<void>;
@@ -110,6 +113,9 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
   // Right-click context menu on a tab. Anchored at the mouse position;
   // replaces the per-tab close X that used to take visual space.
   const [tabContextMenu, setTabContextMenu] = useState<{ path: string; x: number; y: number } | null>(null);
+  // Task 10b: a dictation voice note ("Inbox/note-<timestamp>.md") can be
+  // filed as a meeting note via a client picker.
+  const [fileAsMeetingPath, setFileAsMeetingPath] = useState<string | null>(null);
   const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // R2-P2: when a file-creation flow sets pendingRenamePath and the new tab
@@ -1237,6 +1243,20 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
             >
               Close tab
             </button>
+            {VOICE_NOTE_PATH_RE.test(tabContextMenu.path) && (
+              <button
+                type="button"
+                role="menuitem"
+                data-testid="tab-menu-file-as-meeting"
+                className="flex w-full items-center rounded-sm px-2 py-1.5 outline-none hover:bg-accent hover:text-accent-foreground"
+                onClick={() => {
+                  setFileAsMeetingPath(tabContextMenu.path);
+                  setTabContextMenu(null);
+                }}
+              >
+                {t('meetings.dictation.file-as-meeting-note')}
+              </button>
+            )}
             <button
               type="button"
               role="menuitem"
@@ -1253,6 +1273,15 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
           </div>
         </>,
         document.body,
+      )}
+
+      {fileAsMeetingPath && (
+        <FileAsMeetingDialog
+          open
+          onOpenChange={(open) => { if (!open) setFileAsMeetingPath(null); }}
+          noteContent={openTabs.find((tb) => tb.path === fileAsMeetingPath)?.content ?? ''}
+          onFiled={() => { setFileAsMeetingPath(null); }}
+        />
       )}
 
       {/* Rename / Name Group Dialog */}

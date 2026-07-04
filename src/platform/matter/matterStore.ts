@@ -73,7 +73,7 @@ export const SAMPLE_MATTER_ID = 'matter_sample_garcia_v_meridian';
 
 /** The Client Map hub's sub-tabs. A one-shot `clientMapHubTab` request lets the
  *  client-list quick-actions open the hub on a SPECIFIC sub-tab. */
-export type ClientMapHubTab = 'overview' | 'documents' | 'email' | 'activity';
+export type ClientMapHubTab = 'overview' | 'documents' | 'email' | 'meetings' | 'activity';
 
 /** Generate a stable matter id. Uses crypto.randomUUID when available. */
 function newMatterId(): string {
@@ -398,6 +398,15 @@ interface MatterState {
    */
   clientMapHubTab: ClientMapHubTab | null;
   setClientMapHubTab: (tab: ClientMapHubTab | null) => void;
+
+  /**
+   * Ephemeral one-shot request to open a SPECIFIC meeting (and seek its
+   * transcript to a timestamp) when the Meetings sub-tab next renders — set
+   * when a `meeting:<dir>#<ms>` Client Map source link or Activity entry is
+   * clicked. ClientMeetingsTab/MeetingEntry consume + clear it. Never persisted.
+   */
+  pendingMeetingOpen: { meetingDir: string; startMs: number } | null;
+  setPendingMeetingOpen: (req: { meetingDir: string; startMs: number } | null) => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -1117,6 +1126,8 @@ export const useMatterStore = create<MatterState>()(
       setClientMapHubId: (id) => set({ clientMapHubId: id }),
       clientMapHubTab: null,
       setClientMapHubTab: (tab) => set({ clientMapHubTab: tab }),
+      pendingMeetingOpen: null,
+      setPendingMeetingOpen: (req) => set({ pendingMeetingOpen: req }),
     }),
     {
       name: SK_MATTERS,

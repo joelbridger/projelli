@@ -37,9 +37,13 @@ const ALLOWED_FEATURE_EDGES = new Set<string>([
   'account->settings',    // account window opens settings sections
   'ask->matters',         // Ask is matter-scoped (active matter context)
   'documents->firm',      // file navigator shows privilege/vault affordances
+  'documents->meetings',  // TabBar's dictation voice-note context menu (Task 10b) opens
+                          // FileAsMeetingDialog to file the note into a client's Meetings/
   'firm->matters',        // solo-to-firm bridge reuses the matters promote-to-shared routine
   'matters->ask',         // Client Map reuses Ask's Sources column (SourcePanel + AnswerCitation) so the cited-sources card design is identical across both surfaces
   'matters->meetings',    // MattersHome/MatterHub host the Today's-meetings and Before-you-meet strips (Lantern-Plus Wave 1) — per-client meeting context lives on the Client Map surfaces, not a standalone tab
+  'meetings->dictation',  // MeetingEntry (Wave 3c) reuses the existing AudioPlayer for the meeting audio scrubber instead of building a second audio player
+  'meetings->documents',  // MeetingEntry (Wave 3c) reuses the existing DocxEditor to show notes.docx inline instead of a second docx renderer
   'meetings->workflows',  // generateBrief.ts runs the existing MeetingPrepAndSuitabilityNotes template headlessly via the workflow engine, instead of duplicating template-execution logic in the meetings feature
   'onboarding->firm',     // onboarding explains firm/SSO setup
   'onboarding->settings', // onboarding hands off to settings sections

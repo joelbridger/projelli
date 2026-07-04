@@ -9,6 +9,7 @@ import { useCallback, useEffect } from 'react';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useEditorStore } from '@/platform/state/editorStore';
 import { flushAllDirtyTabs, setActiveWorkspaceService } from '@/app/fileOps/flushDirtyTabs';
+import { setMeetingsWorkspaceService } from '@/features/meetings/meetingStore';
 import { useTemplatesMarketplaceStore } from '@/features/workflows/templatesMarketplaceStore';
 import {
   createTemplatesMarketplaceService,
@@ -123,6 +124,7 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
 
     workspaceServiceRef.current = service;
     setActiveWorkspaceService(service); // BUG-046: keep the flush accessor in sync
+    setMeetingsWorkspaceService(service); // Wave 3c: keep the meetings feature's accessor in sync
     setShowWorkspaceSelector(false);
 
     const newRootPath = service.getRootPath();
