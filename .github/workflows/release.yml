@@ -194,9 +194,12 @@ jobs:
         # release build runs.
         # clang/libclang-dev: sherpa-rs-sys (lantern-diarize sidecar, built
         # below) uses bindgen, which needs libclang to parse its C headers.
+        # cmake: builds the real whisper.cpp voice-transcription engine (see
+        # scripts/build-voice-sidecar.sh) — ubuntu-latest ships cmake by
+        # default, but installing it explicitly here isn't relying on that.
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev libfuse2 libasound2-dev clang libclang-dev
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev libfuse2 libasound2-dev clang libclang-dev cmake
 
       - name: Install frontend dependencies
         run: npm ci
@@ -209,11 +212,17 @@ jobs:
       # src-tauri/binaries/lantern-mcp-<target-triple> so build-mcpb.mjs
       # can find it at the expected path.
       #
-      # Phase 4 M6 voice sidecar: the `Fetch voice sidecar binary` step
-      # below stages Parakeet.cpp (or whisper.cpp as fallback) into
-      # `src-tauri/binaries/parakeet[.exe]`. Until a reliable per-platform
-      # release artifact is pinned, the step is a no-op and voice features
-      # are marked "binary required; see docs" in V1_5_RELEASE.md.
+      # Phase 4 M6 voice sidecar: stages the REAL whisper.cpp engine (built
+      # from source, statically linked — see scripts/build-voice-sidecar.sh)
+      # into `src-tauri/binaries/whisper[.exe]`, plus its pinned tiny/base
+      # ggml models into `src-tauri/resources/voice/models/` (see
+      # scripts/fetch-voice-models.sh). This replaced a `VOICE_SIDECAR_URL`-
+      # gated no-op step (2026-04, v1.5 M6) that never actually ran — voice
+      # shipped disabled in every installer until 2026-07-04, when it turned
+      # out the app's own Rust code was also speaking the wrong CLI contract
+      # (assumed a `--stdin` mode that whisper.cpp has never had). See
+      # `src-tauri/src/sidecars/parakeet.rs`'s doc comment for the verified
+      # real contract.
       #
       # Piper and llama.cpp are listed in tauri.conf.json externalBin, so
       # Tauri's build.rs validates presence on every cargo invocation. Stage
@@ -255,7 +264,16 @@ jobs:
             test -s src-tauri/binaries/diarize/libsherpa-onnx-c-api.so || { echo "::error::libsherpa-onnx-c-api.so missing beside lantern-diarize"; exit 1; }
             test -s src-tauri/binaries/diarize/libonnxruntime.so || { echo "::error::libonnxruntime.so missing beside lantern-diarize"; exit 1; }
           fi
-          ls -la src-tauri/binaries/ src-tauri/binaries/diarize/
+          # Voice (M6): whisper.cpp built statically (no sibling DLLs/dylibs/
+          # .so to stage — verified via `ldd`/`otool` on a real build, see
+          # scripts/build-voice-sidecar.sh's own comment), so it lands flat
+          # in binaries/ next to piper/llama-server with no collision risk.
+          bash scripts/fetch-voice-models.sh
+          TARGET_TRIPLE="$TARGET" bash scripts/build-voice-sidecar.sh
+          test -s src-tauri/binaries/whisper || { echo "::error::whisper binary missing after build-voice-sidecar.sh"; exit 1; }
+          test -s src-tauri/resources/voice/models/ggml-tiny.en.bin || { echo "::error::ggml-tiny.en.bin missing"; exit 1; }
+          test -s src-tauri/resources/voice/models/ggml-base.en.bin || { echo "::error::ggml-base.en.bin missing"; exit 1; }
+          ls -la src-tauri/binaries/ src-tauri/binaries/diarize/ src-tauri/resources/voice/models/
 
       - name: Build Lantern MCP sidecar binary (Mac/Linux)
         shell: bash
@@ -335,32 +353,6 @@ jobs:
             fi
           done < <(find binaries -type f -print0)
           rm -f "$CERT_PATH"
-
-      # Phase 4 M6 (v1.5 Flag 4) - Fetch the voice sidecar binary
-      # (Parakeet.cpp or whisper.cpp) and stage it at
-      # `src-tauri/binaries/parakeet[-<triple>]` so tauri build can bundle
-      # it. The step is a no-op when the upstream release URL isn't
-      # pinned yet; voice features are documented as "binary required".
-      - name: Fetch voice sidecar binary (Mac/Linux)
-        if: ${{ vars.VOICE_SIDECAR_URL != '' }}
-        shell: bash
-        working-directory: src-tauri
-        env:
-          VOICE_URL: ${{ vars.VOICE_SIDECAR_URL }}
-        run: |
-          set -euo pipefail
-          mkdir -p binaries
-          curl -fsSL "$VOICE_URL" -o /tmp/voice.tar.gz
-          tar -xzf /tmp/voice.tar.gz -C /tmp
-          # Expected layout: /tmp/<name>/parakeet (or whisper). Find and copy.
-          BIN="$(find /tmp -maxdepth 3 -type f \( -name parakeet -o -name whisper \) | head -1)"
-          if [[ -n "$BIN" ]]; then
-            cp "$BIN" "binaries/$(basename "$BIN")"
-            chmod +x "binaries/$(basename "$BIN")"
-            ls -la binaries/
-          else
-            echo "No voice sidecar binary found in archive; skipping"
-          fi
 
       # Bundle the lantern-mcp binary into a
       # `.mcpb` Desktop Extension archive. Claude Desktop installs these
@@ -514,7 +506,16 @@ jobs:
           test -s src-tauri/resources/diarize/embedding.onnx || { echo "::error::diarize embedding.onnx missing"; exit 1; }
           ls src-tauri/binaries/diarize/*sherpa-onnx-c-api.dll >/dev/null 2>&1 || { echo "::error::sherpa-onnx-c-api.dll missing beside lantern-diarize.exe"; exit 1; }
           ls src-tauri/binaries/diarize/*onnxruntime*.dll >/dev/null 2>&1 || { echo "::error::onnxruntime dll missing beside lantern-diarize.exe"; exit 1; }
-          ls -la src-tauri/binaries/ src-tauri/binaries/diarize/
+          # Voice (M6): real whisper.cpp, built statically (no sibling DLLs
+          # to stage — see scripts/build-voice-sidecar.sh's own comment), so
+          # it lands flat in binaries/ next to piper/llama-server. cmake +
+          # MSVC build tools ship preinstalled on windows-latest.
+          bash scripts/fetch-voice-models.sh
+          OS=Windows_NT TARGET_TRIPLE=x86_64-pc-windows-msvc bash scripts/build-voice-sidecar.sh
+          test -s src-tauri/binaries/whisper.exe || { echo "::error::whisper.exe missing after build-voice-sidecar.sh"; exit 1; }
+          test -s src-tauri/resources/voice/models/ggml-tiny.en.bin || { echo "::error::ggml-tiny.en.bin missing"; exit 1; }
+          test -s src-tauri/resources/voice/models/ggml-base.en.bin || { echo "::error::ggml-base.en.bin missing"; exit 1; }
+          ls -la src-tauri/binaries/ src-tauri/binaries/diarize/ src-tauri/resources/voice/models/
 
       # Build the lantern-mcp sidecar binary. See the Mac/Linux
       # job above for rationale. Windows uses the MSVC host triple.
@@ -528,26 +529,6 @@ jobs:
           Copy-Item "target/release/lantern-mcp.exe" "binaries/lantern-mcp-$host_triple.exe"
           "MCP_TARGET=$host_triple" | Out-File -FilePath $env:GITHUB_ENV -Append
           Get-ChildItem binaries
-
-      # Phase 4 M6 (v1.5 Flag 4) - Fetch Windows voice sidecar binary
-      # when pinned via the VOICE_SIDECAR_URL repo variable.
-      - name: Fetch voice sidecar binary (Windows)
-        if: ${{ vars.VOICE_SIDECAR_URL != '' }}
-        shell: pwsh
-        working-directory: src-tauri
-        env:
-          VOICE_URL: ${{ vars.VOICE_SIDECAR_URL }}
-        run: |
-          New-Item -ItemType Directory -Force -Path binaries | Out-Null
-          Invoke-WebRequest -Uri $env:VOICE_URL -OutFile "$env:TEMP\voice.zip"
-          Expand-Archive -Path "$env:TEMP\voice.zip" -DestinationPath "$env:TEMP\voice-sidecar"
-          $bin = Get-ChildItem -Path "$env:TEMP\voice-sidecar" -Recurse -Include 'parakeet.exe','whisper.exe' | Select-Object -First 1
-          if ($bin) {
-            Copy-Item $bin.FullName "binaries/$($bin.Name)"
-            Get-ChildItem binaries
-          } else {
-            Write-Host 'No voice sidecar binary found in archive; skipping'
-          }
 
       # Phase 4 M4 (v1.5 Flag 2) - Bundle the Windows keepance-mcp binary
       # into a `.mcpb` archive. See the Mac/Linux block above for rationale.
