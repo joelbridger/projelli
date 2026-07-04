@@ -7,6 +7,7 @@ Last updated: 2026-07-04 ~05:45 (coordinator-6 — FEATURE-COMPLETE: final score
 ## Active lanes
 | Worker session | What | State |
 |---|---|---|
+| cc-lantern-w3ux | 🎨 SENIOR-UX gate on the assembled Meetings tab (Fable; lp/wave3-meetings-ux) — experience it first-hand, ranked findings doc, implement blocker+should-fix polish; then live Legion verify → re-declare done | reviewing |
 | cc-lantern-qafix2 | QA fix batch 2 (lp/qa-fix-batch2): QA-7 AI-hang UX + QA-8/9 onboarding overlaps | building |
 | cc-lantern-qafix1 | QA fix batch 1 (lp/qa-fix-batch1; Opus): QA-5 new-client folders + QA-6 Ask input collapse (first-run P1s) | building |
 | cc-lantern-w3b | Wave-3 Phase 3b: local transcription pipeline (lp/wave3-transcription; Tasks 7-9) | building |
