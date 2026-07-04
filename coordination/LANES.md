@@ -7,15 +7,17 @@ Last updated: 2026-07-04 ~05:45 (coordinator-6 — FEATURE-COMPLETE: final score
 ## Active lanes
 | Worker session | What | State |
 |---|---|---|
-| cc-lantern-realcall | Real Teams-CALL recording verification on the Legion (answers Zoom/Teams/Meet question with live evidence; engine-level, no UI needed) | bench-running |
+| cc-lantern-qafix1 | QA fix batch 1 (lp/qa-fix-batch1; Opus): QA-5 new-client folders + QA-6 Ask input collapse (first-run P1s) | building |
 | cc-lantern-crmcard | CRM review-card fixes (lp/crm-card-visibility): P1 queue-persistence (restart loses proposals), hub-wide visibility, copy, honest harness assert (QA-1..4) | building |
 | cc-lantern-w3b | Wave-3 Phase 3b: local transcription pipeline (lp/wave3-transcription; Tasks 7-9) | building |
 | cc-lantern-w3c | Wave-3 Phases 3c+3d: meetings surface — record pill, Meetings tab, transcript viewer, notes, consent (lp/wave3-meetings-ui; Tasks 10-13) | building |
-| cc-lantern-qa1 | QA campaign lane 1: persona-A first-run exploration on Azure bench-1 (report-only; bug DB) | exploring |
 | cc-lantern-cleanup1 | Cleanup batch 1 + docs currency (lp/cleanup-batch1): 5 scoped items | building |
-| cc-lantern-diarelease | Diarization sidecar+models → release pipeline (lp/diarize-release-staging; #12); dry local validation only, never a real release | building |
 
 ## Merged this session
+✅ lp/cleanup-batch1 @020b5d5f — dead-dir + cosmetic keepance→lantern sweep; caught+fixed a CUSTOMER-FACING brand leak (docx author "Lantern AI"→"Advisor Prep Hero AI"); auto-smoke task-name; docs currency (independent review found the brand leak)
+✅ lp/diarize-release-staging — sidecar+models staged in release.yml; FOUND+FIXED an onnxruntime lib collision that would corrupt piper in releases; local .deb verified; mac/win notarization still needs real CI
+✅ qa1 evidence @1b45d8a0 — persona-A first-run: 12 findings incl 4 real P1s (new-client folders, Ask-input-collapse, AI-hang-no-feedback, onboarding overlaps)
+✅ realcall evidence @13931b64 — REAL Teams call recorded; far-side (system) audio strong+continuous across 2 recordings; near-side quiet (test-rig mic isolation, not an app bug) — Teams recording CONFIRMED
 ✅ lp/rename-ref-migration @e88aa715 (fork) + keepance-3.0 (main repo) — /home/jameson/keepance→/lantern path hygiene in 7 scripts/docs; frozen names left; report filed
 🏁 SCORECARD after cold-boot confirm: 12 PASS · 0 FAIL · 2 SETUP-BLOCKED · 5 stubs. ⚠️ CORRECTION (Jameson caught it): the 5 stubs = the UNBUILT Wave-3 UI (Meetings tab/record pill/transcription) — feature-complete was over-claimed; engine done, surface in build now (w3b+w3c lanes)
 ✅ lp/bench-harness-clients-tab-fix @02d153b5 — Clients-tab normalization + note-collision + wave1 modal-close (126+ harness tests)
