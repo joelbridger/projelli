@@ -35,7 +35,7 @@ import { readFile, writeFile } from "node:fs/promises";
 const FOUNDER_LAUNCH_VARIANT_ID = 1506887;
 const FOUNDER_TIER_CAP = 100;
 const STORE_ID = "340394";
-const SOURCE_PATH = "/home/jameson/keepance/website/spots-remaining.json";
+const SOURCE_PATH = "/home/jameson/lantern/website/spots-remaining.json";
 const LIVE_PATH = "/var/www/keepance.com/spots-remaining.json";
 const ENV_FILE = "/etc/license-validator.env";
 

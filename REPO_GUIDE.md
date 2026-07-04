@@ -1,6 +1,6 @@
 # Repo Guide — Orient in 60 Seconds
 
-**Advisor Prep Hero** (code-named Keepance internally; the brand config at `brand/brand.config.json` drives display names). The live branch is `keepance-3.0`; canonical checkout is `/home/jameson/keepance` on the Jameworld server.
+**Advisor Prep Hero** (code-named Keepance internally; the brand config at `brand/brand.config.json` drives display names). The live branch is `keepance-3.0`; canonical checkout is `/home/jameson/lantern` on the Jameworld server.
 
 ## Where things are
 
