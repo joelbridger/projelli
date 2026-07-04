@@ -62,7 +62,7 @@ describe('en.json structure snapshot', () => {
         "marketplace": 14,
         "matter": 206,
         "media": 81,
-        "meetings": 67,
+        "meetings": 102,
         "memory": 6,
         "model-download": 9,
         "onboarding": 65,
@@ -170,7 +170,10 @@ describe('en.json structure snapshot', () => {
     //      the delete-client confirm dialog's title/body were localized above
     //      but its own confirm/cancel BUTTONS stayed hardcoded "Remove"/
     //      "Cancel" — same mixed-language bug, one level down).
-    expect(flat.length).toBe(1215);
+    // +35 = meetings.notice.* (Recording Notice Kit: the verified-verbal-notice
+    //       consent script step, the meeting-page notice trail + resolutions,
+    //       invite/chat copy blocks, and the firm Standard/Strict policy dial).
+    expect(flat.length).toBe(1250);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

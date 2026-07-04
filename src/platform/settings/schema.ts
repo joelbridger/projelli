@@ -596,6 +596,39 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     ],
   },
 
+  // ── Recording notice (Recording Notice Kit) ──────────────────────────
+  {
+    // Firm-level notification policy. Standard: every notice step is offered
+    // and the spoken notice is verified from the transcript; a missing notice
+    // flags the meeting for review. Strict: a meeting whose spoken notice
+    // isn't verified stays quarantined (visible, notes/transcript still
+    // accessible — never destroyed) until a human resolves it.
+    key: 'meetings.noticePolicy',
+    category: 'privacy',
+    label: 'Recording notice policy',
+    description:
+      'Standard verifies the spoken recording notice and flags a meeting for review when none is detected. Strict keeps an unverified meeting quarantined until you resolve it — nothing is ever deleted or stopped automatically.',
+    type: 'select',
+    defaultValue: 'standard',
+    options: [
+      { value: 'standard', label: 'Standard — flag meetings with no detected notice' },
+      { value: 'strict', label: 'Strict — quarantine meetings until the notice is resolved' },
+    ],
+  },
+  {
+    // The firm-customizable spoken-notice script. Empty means "use the built-in
+    // localized default" (shown in the consent dialog). When set, the text is
+    // shown to the advisor to say AND fed to the transcript matcher as an
+    // expected phrase, so an atypically-worded script still verifies.
+    key: 'meetings.noticeScript',
+    category: 'privacy',
+    label: 'Spoken recording-notice script',
+    description:
+      'The exact words the consent dialog shows you to say out loud after recording starts. Leave blank to use the built-in wording. If you customize it, keep it a clear recording disclosure so the app can still verify it from the transcript.',
+    type: 'text',
+    defaultValue: '',
+  },
+
   // ── Advanced: Updates ─────────────────────────────────────────────────
   {
     key: 'autoUpdateCheck',

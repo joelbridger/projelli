@@ -17,6 +17,9 @@ import { meetingDisplayTitle, formatMeetingDate, formatMeetingDuration } from '.
 import { ConsentDialog, isMacPermissionError } from './ConsentDialog';
 import { consentModeFor } from './recordingConsentLaw';
 import { makeConsentLedger, type ConsentEntry } from './consentLedger';
+import { deriveNoticeState, type NoticeEntry, type NoticeState } from './noticeLedger';
+import { resolveNoticePolicy, customNoticeScript } from './noticeSettings';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
 
 export interface MeetingSummary {
   dir: string;
@@ -156,6 +159,13 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
   const [macPermissionError, setMacPermissionError] = useState(false);
   const [consentError, setConsentError] = useState<string | null>(null);
   const [standingConsent, setStandingConsent] = useState<ConsentEntry | null>(null);
+  // Recording Notice Kit — per-meeting notice state (keyed by meeting dir) so
+  // each row can flag a missing/quarantined notice, plus the firm policy.
+  const [noticeStates, setNoticeStates] = useState<Record<string, NoticeState>>({});
+  const getSetting = useSettingsStore((s) => s.getSetting);
+  const noticePolicy = resolveNoticePolicy(getSetting);
+  const custom = customNoticeScript(getSetting);
+  const noticeScript = custom || t('meetings.notice.default-script');
   // No per-client state on file yet (see Matter type) — consentModeFor(null)
   // is the conservative two-party default, and stateKnown={false} below keeps
   // the dialog's wording conditional rather than asserting the law.
@@ -168,6 +178,18 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
     const { meetings: list, scanFailed: failed } = await listClientMeetings(matterFolder, ws);
     setMeetings(list);
     setScanFailed(failed);
+    // Recording Notice Kit — one ledger read, grouped by meeting dir, so each
+    // row can reflect its notice state (verified / needs-review / quarantined).
+    try {
+      const notices = await makeConsentLedger(ws, () => matterFolder).allNotices();
+      const byDir: Record<string, NoticeEntry[]> = {};
+      for (const n of notices) (byDir[n.meetingDir] ??= []).push(n);
+      const states: Record<string, NoticeState> = {};
+      for (const [dir, entries] of Object.entries(byDir)) states[dir] = deriveNoticeState(entries);
+      setNoticeStates(states);
+    } catch {
+      setNoticeStates({});
+    }
     setLoading(false);
   }, [matterFolder, workspaceService]);
 
@@ -292,7 +314,14 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
       {meetings.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-xs)' }}>
           {meetings.map((m) => {
-            const reviewItems = needsReview(m, matterQueue);
+            const noticeState = noticeStates[m.dir];
+            const reviewItems = needsReview(
+              m,
+              matterQueue,
+              undefined,
+              noticeState ? { state: noticeState, policy: noticePolicy } : undefined,
+            );
+            const quarantined = reviewItems.some((i) => i.kind === 'notice-quarantined');
             const duration = formatMeetingDuration(m.meta?.durationMs, t);
             return (
               <button
@@ -338,7 +367,10 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
                   </span>
                 </span>
                 <span style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  {reviewItems.length > 0 && (
+                  {quarantined && (
+                    <Badge variant="warning" size="sm" data-testid="meeting-quarantine-badge">{t('meetings.notice.quarantine-badge')}</Badge>
+                  )}
+                  {!quarantined && reviewItems.length > 0 && (
                     <Badge variant="warning" size="sm">{t('meetings.tab.needs-review-badge')}</Badge>
                   )}
                   {reviewItems.length === 0 && m.meta?.reviewedAt && (
@@ -363,6 +395,7 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
         standingConsent={standingConsent}
         macPermissionError={macPermissionError}
         errorMessage={consentError}
+        noticeScript={noticeScript}
         onConfirm={handleConsentConfirm}
       />
     </div>

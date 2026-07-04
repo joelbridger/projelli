@@ -37,6 +37,11 @@ import { AuditService } from '@/platform/audit/AuditService';
 import { detectMeetingType, makeMeetingTypesStore } from './meetingTypes';
 import { dictationToMeeting } from './dictationToMeeting';
 import { makeConsentLedger } from './consentLedger';
+import type { NoticeState } from './noticeLedger';
+import { customNoticeScript, type NoticePolicy } from './noticeSettings';
+import { ensureNoticeVerified, type NoticeVerificationDeps } from './noticeVerification';
+import type { NoticeLocale } from './noticeMatcher';
+import i18n from '@/i18n';
 import type { MeetingSummary } from './ClientMeetingsTab';
 
 export interface StartOpts {
@@ -296,7 +301,91 @@ export async function retryMeetingNotes(
   }
 }
 
-export type ReviewItemKind = 'unreviewed-note' | 'crm-waiting' | 'no-followup' | 'unreadable-meta';
+/** Maps the app's UI language to the matcher's supported locales (de/es ship;
+ *  everything else verifies against English). */
+function noticeLocaleFromLanguage(lang: string | undefined): NoticeLocale {
+  const base = (lang ?? 'en').toLowerCase().split('-')[0];
+  return base === 'de' || base === 'es' ? base : 'en';
+}
+
+/**
+ * Recording Notice Kit — verify (once) whether the spoken recording notice was
+ * given in this meeting, stamping the outcome into the notice ledger. Wires the
+ * pure `ensureNoticeVerified` to the real WorkspaceService, the per-client
+ * ledger, the firm custom script, and the app locale. Best-effort and
+ * idempotent: safe to call from the post-stop pipeline AND when a meeting page
+ * opens (batch-transcribed or pre-existing meetings get verified on view).
+ * Fully local — reads only the on-device transcript.
+ */
+export async function ensureMeetingNoticeVerified(meetingDir: string, matterId: string): Promise<void> {
+  const ws = activeWorkspaceService;
+  if (!ws || !meetingDir || !matterId) return;
+  let matterFolder: string;
+  try {
+    matterFolder = resolveMatterFolder(matterId);
+  } catch {
+    return; // no folder on disk — nothing to verify against.
+  }
+  const custom = customNoticeScript((k) => useSettingsStore.getState().getSetting(k));
+  const deps: NoticeVerificationDeps = {
+    async readTranscript() {
+      try {
+        return JSON.parse(await ws.readFile(`${meetingDir}/transcript.json`)) as TranscriptFile;
+      } catch {
+        return null; // transcription still queued.
+      }
+    },
+    ledger: makeConsentLedger(ws, () => matterFolder),
+    locale: noticeLocaleFromLanguage(i18n.language),
+    ...(custom ? { customPhrases: [custom] } : {}),
+  };
+  try {
+    await ensureNoticeVerified(meetingDir, deps);
+  } catch {
+    // best-effort — verification never blocks capture or notes.
+  }
+}
+
+/**
+ * Recording Notice Kit — record that the advisor copied the chat notice for the
+ * currently-recording meeting (offered on the RecordPill at recording start).
+ * Best-effort ledger append bound to the active meeting; the clipboard copy
+ * itself happens in the UI. No-ops if nothing is recording.
+ */
+export async function recordChatNoticeForActiveMeeting(text: string): Promise<void> {
+  const { activeMatterId, status } = useMeetingStore.getState();
+  const meetingDir = status.meetingDir;
+  const ws = activeWorkspaceService;
+  if (!ws || !activeMatterId || !meetingDir) return;
+  let matterFolder: string;
+  try {
+    matterFolder = resolveMatterFolder(activeMatterId);
+  } catch {
+    return;
+  }
+  try {
+    await makeConsentLedger(ws, () => matterFolder).recordNotice({
+      kind: 'chat-notice-copied',
+      meetingDir,
+      at: new Date().toISOString(),
+      text,
+    });
+  } catch {
+    // best-effort — copying to the clipboard still worked.
+  }
+}
+
+export type ReviewItemKind =
+  | 'unreviewed-note'
+  | 'crm-waiting'
+  | 'no-followup'
+  | 'unreadable-meta'
+  // Recording Notice Kit: no spoken recording notice was detected in the
+  // meeting's first minutes. 'notice-unverified' is the Standard-policy flag;
+  // 'notice-quarantined' is the stronger Strict-policy state (meeting stays
+  // in-review until a human resolves it — never auto-deleted or auto-stopped).
+  | 'notice-unverified'
+  | 'notice-quarantined';
 export interface ReviewItem {
   kind: ReviewItemKind;
 }
@@ -314,7 +403,10 @@ interface CrmQueueItemLike {
 export function needsReview(
   meeting: MeetingSummary,
   crmQueue: CrmQueueItemLike[],
-  now: number = Date.now()
+  now: number = Date.now(),
+  // Recording Notice Kit: the meeting's derived notice state + the firm policy.
+  // Optional so existing callers (meeting, crmQueue) keep working unchanged.
+  notice?: { state: NoticeState; policy: NoticePolicy }
 ): ReviewItem[] {
   const items: ReviewItem[] = [];
   // A meeting folder with a missing/corrupt meeting.json is an orphaned or
@@ -338,6 +430,13 @@ export function needsReview(
     ageMs > 24 * 3_600_000
   ) {
     items.push({ kind: 'no-followup' });
+  }
+  // Recording Notice Kit: only 'unverified' (a recorded not-detected with no
+  // resolution) needs attention. 'verified', 'resolved', and 'unchecked' (not
+  // yet transcribed) never flag. Strict escalates the same condition to a
+  // quarantine state instead of a plain review flag.
+  if (notice && notice.state.status === 'unverified') {
+    items.push({ kind: notice.policy === 'strict' ? 'notice-quarantined' : 'notice-unverified' });
   }
   return items;
 }
@@ -527,6 +626,14 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
         } catch {
           // Queued until the voice engine is installed — capture never depends on it.
         }
+      }
+
+      // Recording Notice Kit: once the transcript exists, verify the spoken
+      // notice and stamp the result into the ledger. Best-effort and
+      // idempotent; if transcription was deferred (batch mode) the transcript
+      // isn't there yet and this no-ops — the meeting page verifies on open.
+      if (meetingDir && matterId) {
+        await ensureMeetingNoticeVerified(meetingDir, matterId);
       }
 
       if (meetingDir && matterId) {

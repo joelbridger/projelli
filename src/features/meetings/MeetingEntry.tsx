@@ -16,8 +16,13 @@ import { Button as DialogButton } from '@/ui/button';
 import { TranscriptViewer } from './TranscriptViewer';
 import { SpeakerNamesPanel } from './SpeakerNamesPanel';
 import { AuditService } from '@/platform/audit/AuditService';
-import { markMeetingReviewed, writeMeetingJson, retryMeetingNotes } from './meetingStore';
+import { markMeetingReviewed, writeMeetingJson, retryMeetingNotes, ensureMeetingNoticeVerified, resolveMatterFolder } from './meetingStore';
 import type { MeetingMeta } from './meetingStore';
+import { NoticeTrail } from './NoticeTrail';
+import { makeConsentLedger } from './consentLedger';
+import type { NoticeEntry } from './noticeLedger';
+import { resolveNoticePolicy } from './noticeSettings';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { meetingDisplayTitle, meetingTypeLabel, formatMeetingDate, formatMeetingDuration } from './meetingDisplay';
 import { makeMeetingTypesStore, BUILT_IN_TYPES } from './meetingTypes';
 import type { TranscriptFile } from '@/platform/types/meeting';
@@ -69,7 +74,10 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
   const [typeInput, setTypeInput] = useState('');
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [retryingNotes, setRetryingNotes] = useState(false);
+  const [notices, setNotices] = useState<NoticeEntry[]>([]);
   const audioRef = useRef<AudioPlayerHandle>(null);
+  const getSetting = useSettingsStore((s) => s.getSetting);
+  const noticePolicy = resolveNoticePolicy(getSetting);
 
   useEffect(() => {
     let cancelled = false;
@@ -110,6 +118,45 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     });
     return () => { cancelled = true; };
   }, []);
+
+  // Recording Notice Kit — the per-client ledger for this meeting's notices.
+  // matterFolder is derived from matterId (falls back to stripping the meeting
+  // dir when the matter isn't loaded, e.g. in isolated tests).
+  const matterFolder = (() => {
+    try {
+      return resolveMatterFolder(matterId);
+    } catch {
+      return meetingDir.replace(/\/Meetings\/[^/]+$/, '');
+    }
+  })();
+
+  const reloadNotices = useCallback(async () => {
+    const ws = workspaceService;
+    if (!ws) return;
+    try {
+      setNotices(await makeConsentLedger(ws, () => matterFolder).noticesForMeeting(meetingDir));
+    } catch { /* ledger unreadable — leave notices as-is */ }
+  }, [workspaceService, matterFolder, meetingDir]);
+
+  // Verify the spoken notice (idempotent; no-ops until the transcript exists)
+  // and load the notice trail whenever the meeting or its transcript changes.
+  // reloadNotices is keyed to meetingDir, so a dir change re-runs with the
+  // correct target; setNotices after unmount is a harmless no-op in React 18.
+  useEffect(() => {
+    void (async () => {
+      await ensureMeetingNoticeVerified(meetingDir, matterId);
+      await reloadNotices();
+    })();
+  }, [meetingDir, matterId, transcript, reloadNotices]);
+
+  const handleRecordNotice = useCallback(async (entry: NoticeEntry) => {
+    const ws = workspaceService;
+    if (!ws) return;
+    try {
+      await makeConsentLedger(ws, () => matterFolder).recordNotice(entry);
+      await reloadNotices();
+    } catch { /* best-effort */ }
+  }, [workspaceService, matterFolder, reloadNotices]);
 
   const handleSeek = useCallback((ms: number) => {
     setSeekMs(ms);
@@ -263,6 +310,20 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
             </span>
           )}
         </div>
+      )}
+
+      {/* Recording Notice Kit — the notice trail (verified chip / needs-review
+          / quarantine + copy actions), bound to this meeting. Hidden for
+          dictated notes, which have no meeting audio or spoken notice. */}
+      {meta && !meta.dictation && (
+        <NoticeTrail
+          meetingDir={meetingDir}
+          notices={notices}
+          policy={noticePolicy}
+          inviteDisclosure={t('meetings.notice.invite-disclosure')}
+          chatNotice={t('meetings.notice.chat-notice')}
+          onRecordNotice={handleRecordNotice}
+        />
       )}
 
       {hasAudio && audioSrc && (
