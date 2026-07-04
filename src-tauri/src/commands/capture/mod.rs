@@ -18,8 +18,10 @@ pub mod sources;
 /// Every capture command that receives a folder/dir string MUST route
 /// through one of these two guards before any create/join/delete.
 ///
-/// Built on `retention::sweep::canonicalize_symlink_safe_absolute` — the
-/// SAME no-follow-symlink walk `retention`'s own sweep/redaction guards use
+/// Built on `pathguard::canonicalize_symlink_safe_absolute` — the SAME
+/// no-follow-symlink walk `retention`'s own sweep/redaction guards, and the
+/// vault/MCP/diarize command sites, all share (the 2026-07-04 hardening pass
+/// promoted it out of `retention::sweep` into this crate-wide shared module)
 /// — not a second, independent implementation of "refuse a symlink
 /// component." An earlier version of this guard called plain
 /// `.canonicalize()` on the deepest existing ancestor, which FOLLOWS
@@ -38,7 +40,7 @@ pub(crate) fn guard_matter_folder(
         .canonicalize()
         .context("cannot canonicalize workspace")?;
     let joined = if input.is_absolute() { input.to_path_buf() } else { canon_ws.join(input) };
-    let canon = super::retention::sweep::canonicalize_symlink_safe_absolute(&joined)
+    let canon = super::pathguard::canonicalize_symlink_safe_absolute(&joined)
         .map_err(|e| anyhow!(e))?;
     if !canon.starts_with(&canon_ws) {
         bail!("path '{}' escapes workspace '{}'", canon.display(), canon_ws.display());
@@ -60,7 +62,7 @@ pub(crate) fn guard_meeting_path(
     let canon_ws = workspace
         .canonicalize()
         .context("cannot canonicalize workspace")?;
-    let canon = super::retention::sweep::canonicalize_symlink_safe_absolute(meeting_dir)
+    let canon = super::pathguard::canonicalize_symlink_safe_absolute(meeting_dir)
         .map_err(|e| anyhow!(e))?;
     if !canon.starts_with(&canon_ws) {
         bail!("path '{}' escapes workspace '{}'", canon.display(), canon_ws.display());
