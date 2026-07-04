@@ -12,8 +12,29 @@
 // when storing keys for scoped features later (e.g. `com.lantern.sync`).
 
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 use crate::identity;
+
+/// Every keychain op hits a blocking OS call (Windows Credential Manager,
+/// macOS Keychain Services, Linux Secret Service over D-Bus). If the
+/// underlying service is stopped/disabled/unreachable (e.g. Windows'
+/// `VaultSvc`), that call can hang far longer than any UI should wait instead
+/// of erroring quickly — QA-33: a stopped `VaultSvc` left workspace-open
+/// silently hung for the full 30s frontend timeout with zero user feedback.
+///
+/// Used to bound READS only (`keychain_get` below, and `vault_status`'s VMK
+/// read in `commands/vault/mod.rs`) — classifying a hang as
+/// `ServiceUnavailable` within this window rather than riding whatever
+/// timeout a caller layers on top. Kept well below the frontend's own
+/// 10s-per-key backstop (`useApiKeys.ts`) so that backstop is normally never
+/// needed. Deliberately NOT applied to `keychain_set`/`keychain_delete`
+/// (codex-review, 2026-07-04): a timeout can only stop *waiting* on the
+/// spawned blocking task, not cancel the underlying OS write/delete, so a
+/// "timed out" mutation could still complete afterward — leaving the
+/// frontend believing an op failed while the OS keychain's real state has
+/// already changed. That divergence risk doesn't exist for a read.
+pub(crate) const KEYCHAIN_OP_TIMEOUT: Duration = Duration::from_secs(3);
 
 const INTERNAL_EXACT_SERVICES: &[&str] = &[
     // Encrypted database master keys. These are Rust-owned infrastructure
@@ -104,6 +125,13 @@ pub enum KeychainError {
     NoBackend(String),
     Denied(String),
     Other(String),
+    /// The OS credential service itself didn't respond within
+    /// `KEYCHAIN_OP_TIMEOUT` — distinguishable from `NotFound` (a healthy
+    /// backend answering "no such secret") so the frontend can tell a real
+    /// service outage (e.g. Windows' Credential Manager / `VaultSvc` stopped)
+    /// apart from "key not configured" and show an honest, actionable message
+    /// instead of silently treating both the same way.
+    ServiceUnavailable(String),
 }
 
 impl std::fmt::Display for KeychainError {
@@ -113,7 +141,33 @@ impl std::fmt::Display for KeychainError {
             KeychainError::NoBackend(m) => write!(f, "no backend: {}", m),
             KeychainError::Denied(m) => write!(f, "denied: {}", m),
             KeychainError::Other(m) => write!(f, "other: {}", m),
+            KeychainError::ServiceUnavailable(m) => write!(f, "service unavailable: {}", m),
         }
+    }
+}
+
+/// Human-readable message used for every `ServiceUnavailable` classification.
+/// Kept as one constant so the wording only needs to change in one place.
+const SERVICE_UNAVAILABLE_MESSAGE: &str =
+    "the OS credential storage service did not respond in time — it may be stopped, disabled, or unreachable";
+
+/// Run a blocking keyring operation off the async runtime thread, bounded by
+/// `timeout`. A timeout here means the OS credential service itself didn't
+/// respond in time (down/disabled/unreachable) — not that the secret is
+/// missing (a healthy backend still returns `NotFound` promptly).
+pub(crate) async fn run_keychain_bounded<T, F>(timeout: Duration, op: F) -> Result<T, KeychainError>
+where
+    T: Send + 'static,
+    F: FnOnce() -> Result<T, KeychainError> + Send + 'static,
+{
+    match tokio::time::timeout(timeout, tokio::task::spawn_blocking(op)).await {
+        Ok(Ok(result)) => result,
+        Ok(Err(_join_err)) => Err(KeychainError::Other(
+            "keychain worker task panicked".to_string(),
+        )),
+        Err(_elapsed) => Err(KeychainError::ServiceUnavailable(
+            SERVICE_UNAVAILABLE_MESSAGE.to_string(),
+        )),
     }
 }
 
@@ -178,6 +232,16 @@ fn entry(service: &str, key: &str) -> Result<keyring::Entry, KeychainError> {
 }
 
 /// Store a secret under (service, key). Overwrites any existing value.
+///
+/// Deliberately NOT run through `run_keychain_bounded` (codex-review,
+/// 2026-07-04): a timeout can only stop *waiting* on the spawned blocking
+/// task — it cannot cancel the underlying OS keyring write, which keeps
+/// running to completion in the background. For a mutating op, that means a
+/// "timed out" `ServiceUnavailable` could be followed moments later by the
+/// write actually succeeding, leaving the frontend believing the save failed
+/// while the OS keychain silently now holds the new value. QA-33's fast-fail
+/// requirement was specifically about READS (`keychain_get`, which this
+/// hazard doesn't apply to — nothing is mutated if a read times out).
 #[tauri::command]
 pub async fn keychain_set(
     service: Option<String>,
@@ -197,12 +261,21 @@ pub async fn keychain_set(
 pub async fn keychain_get(service: Option<String>, key: String) -> Result<String, KeychainError> {
     let svc = resolve_service(service);
     validate_renderer_service_access(&svc)?;
-    let entry = entry(&svc, &key)?;
-    entry.get_password().map_err(|e| map_keyring_error(&e))
+    run_keychain_bounded(KEYCHAIN_OP_TIMEOUT, move || {
+        let entry = entry(&svc, &key)?;
+        entry.get_password().map_err(|e| map_keyring_error(&e))
+    })
+    .await
 }
 
 /// Delete a stored secret. Succeeds silently if the entry didn't exist, so
 /// "remove my Anthropic key" is idempotent on the frontend.
+///
+/// Deliberately NOT bounded — same reasoning as `keychain_set` above: a
+/// timeout can't cancel the underlying OS delete, so a "timed out" result
+/// here could be followed by the delete actually completing afterward,
+/// leaving the frontend's belief about whether the credential still exists
+/// out of sync with the OS keychain's real state.
 #[tauri::command]
 pub async fn keychain_delete(service: Option<String>, key: String) -> Result<(), KeychainError> {
     let svc = resolve_service(service);
@@ -443,6 +516,64 @@ mod tests {
     fn error_display_includes_message() {
         let e = KeychainError::Denied("no access".to_string());
         assert_eq!(format!("{}", e), "denied: no access");
+    }
+
+    #[test]
+    fn service_unavailable_serialization_is_stable_for_frontend() {
+        let e = KeychainError::ServiceUnavailable("stopped".to_string());
+        let s = serde_json::to_string(&e).expect("serialize");
+        assert!(s.contains("\"kind\":\"serviceUnavailable\""));
+        assert!(s.contains("\"message\":\"stopped\""));
+    }
+
+    #[test]
+    fn service_unavailable_display_includes_message() {
+        let e = KeychainError::ServiceUnavailable("stopped".to_string());
+        assert_eq!(format!("{}", e), "service unavailable: stopped");
+    }
+
+    /// QA-33: a hung keyring call (e.g. Windows' `VaultSvc` stopped) must be
+    /// classified as `ServiceUnavailable` and returned quickly — not left to
+    /// whatever timeout a caller happens to layer on top.
+    #[tokio::test]
+    async fn run_keychain_bounded_classifies_a_hang_as_service_unavailable() {
+        let started = std::time::Instant::now();
+        let result: Result<String, KeychainError> = run_keychain_bounded(
+            Duration::from_millis(50),
+            || {
+                std::thread::sleep(Duration::from_millis(500));
+                Ok("too late".to_string())
+            },
+        )
+        .await;
+        assert!(
+            matches!(result, Err(KeychainError::ServiceUnavailable(_))),
+            "expected ServiceUnavailable, got {:?}",
+            result
+        );
+        assert!(
+            started.elapsed() < Duration::from_millis(400),
+            "run_keychain_bounded must return near the bound, not wait out the hang"
+        );
+    }
+
+    #[tokio::test]
+    async fn run_keychain_bounded_returns_fast_results_untouched() {
+        let result: Result<String, KeychainError> =
+            run_keychain_bounded(KEYCHAIN_OP_TIMEOUT, || Ok("hello".to_string())).await;
+        assert_eq!(result.unwrap(), "hello");
+    }
+
+    #[tokio::test]
+    async fn run_keychain_bounded_propagates_a_fast_error_untouched() {
+        let result: Result<String, KeychainError> = run_keychain_bounded(KEYCHAIN_OP_TIMEOUT, || {
+            Err(KeychainError::NotFound("no matching entry".to_string()))
+        })
+        .await;
+        assert_eq!(
+            result,
+            Err(KeychainError::NotFound("no matching entry".to_string()))
+        );
     }
 
     /// Live keychain test. Gated behind `KEEPANCE_TEST_KEYCHAIN=1` at runtime

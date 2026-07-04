@@ -64,6 +64,11 @@
       "empty-confirm_other": "This will permanently delete all {{count}} items in the trash. This action cannot be undone."
     }
   },
+  "file-import": {
+    "picker-unresponsive": "The file picker didn't respond. Type the path of one file to add instead.",
+    "manual-path-title": "Type a file path",
+    "manual-path-placeholder": "e.g. C:\\Users\\you\\Documents\\contract.docx"
+  },
   "layout": {
     "sidebar": {
       "workspace-label": "Workspace",
@@ -316,7 +321,8 @@
       "title": "AI Account Keys",
       "description": "Configure account keys for AI model providers. Keys are stored securely and never logged.",
       "get-key-link": "Get account key",
-      "add-key": "Add account key"
+      "add-key": "Add account key",
+      "credential-service-unavailable": "Windows' credential storage service isn't running, so Advisor Prep Hero can't reach your saved AI keys right now. This does not affect your documents. Restart the \"Credential Manager\" service (services.msc), or try again shortly."
     },
     "plugins": {
       "title": "Plugins",
@@ -358,7 +364,11 @@
     "selector": {
       "browser-reselect-note": "Recent workspaces require re-selecting the folder due to browser security.",
       "tagline": "Your practice folder. Your files. Your machine.",
-      "open-existing-hint": "Select a workspace folder"
+      "open-existing-hint": "Select a workspace folder",
+      "picker-unresponsive-open": "The folder picker didn't respond. Type the folder path instead.",
+      "picker-unresponsive-create": "The folder picker didn't respond. Type the folder path where your new workspace should be created.",
+      "manual-path-title": "Type the folder path",
+      "manual-path-placeholder": "e.g. C:\\Users\\you\\Documents\\MyPractice"
     },
     "grid": {
       "empty-folder-hint": "This folder contains no files or subfolders"
@@ -366,6 +376,11 @@
     "project-manager": {
       "reselect-hint": "Re-select folder to reopen",
       "rename-description": "Enter a new name for your project. This will rename the workspace folder."
+    },
+    "open-error": {
+      "credential-service-unavailable": "Windows' credential storage service isn't running, so Advisor Prep Hero couldn't finish opening this workspace. Your files are safe. Try again, or restart the \"Credential Manager\" service (services.msc) if this keeps happening.",
+      "generic": "Could not open this workspace. Please try again.",
+      "dismiss": "Dismiss"
     }
   },
   "editor": {
@@ -599,6 +614,10 @@
     }
   },
   "onboarding": {
+    "workspace-picker": {
+      "picker-unresponsive-own-data": "The folder picker didn't respond. Type the folder path where your practice files should live.",
+      "picker-unresponsive-sample": "The folder picker didn't respond. Type the folder path where your sample practice should be created."
+    },
     "first-run": {
       "skip-for-now": "Skip for now",
       "back": "Back",

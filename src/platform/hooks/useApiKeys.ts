@@ -43,6 +43,17 @@ interface UseApiKeysReturn {
   apiKeys: APIKey[];
   handleSaveApiKey: (provider: KeyProvider, key: string) => Promise<void>;
   handleDeleteApiKey: (provider: KeyProvider) => Promise<void>;
+  /**
+   * QA-33: true when the MOST RECENT load found the OS credential service
+   * itself unavailable (e.g. a stopped Windows `VaultSvc`) for at least one
+   * provider — distinguishable from "no key configured" (a healthy backend
+   * answering NotFound). loadKeys() already degrades gracefully either way
+   * (falls back to the last known-good value, never blocks/crashes), but that
+   * silence is exactly the QA-33 gap: nothing ever told the user WHY their
+   * AI features might not have a key. Recomputed on every reload, so it
+   * clears itself once the service is healthy again.
+   */
+  credentialServiceUnavailable: boolean;
 }
 
 const PROVIDERS: KeyProvider[] = ['anthropic', 'openai', 'google'];
@@ -107,7 +118,11 @@ export function useApiKeys(keychainService?: ApiKeyKeychain): UseApiKeysReturn {
   // reload would make a working key silently vanish from a chat that was
   // using it a moment ago. An explicit removal still works: deletion goes
   // through handleDeleteApiKey, which updates state directly, not loadKeys().
-  const loadKeys = useCallback(async (): Promise<APIKey[]> => {
+  const loadKeys = useCallback(async (): Promise<{
+    keys: APIKey[];
+    credentialServiceUnavailable: boolean;
+  }> => {
+    let credentialServiceUnavailable = false;
     const results = await Promise.all(
       PROVIDERS.map(async (provider): Promise<APIKey | null> => {
         try {
@@ -119,11 +134,20 @@ export function useApiKeys(keychainService?: ApiKeyKeychain): UseApiKeysReturn {
           return key ? { provider, key, isValid: true } : null;
         } catch (err) {
           console.error(`[useApiKeys] could not read the ${provider} key from the keychain:`, err);
+          if (
+            err && typeof err === 'object' && 'kind' in err &&
+            (err as { kind?: unknown }).kind === 'serviceUnavailable'
+          ) {
+            credentialServiceUnavailable = true;
+          }
           return apiKeysRef.current.find((k) => k.provider === provider) ?? null;
         }
       }),
     );
-    return results.filter((k): k is APIKey => k !== null);
+    return {
+      keys: results.filter((k): k is APIKey => k !== null),
+      credentialServiceUnavailable,
+    };
   }, [keychain]);
 
   // Load on mount AND reload whenever the keychain changes — a key added or
@@ -136,14 +160,16 @@ export function useApiKeys(keychainService?: ApiKeyKeychain): UseApiKeysReturn {
   // A monotonic request id drops any stale in-flight read so a rapid
   // add-then-remove can't land out of order.
   const reloadIdRef = useRef(0);
+  const [credentialServiceUnavailable, setCredentialServiceUnavailable] = useState(false);
   useEffect(() => {
     let cancelled = false;
     const reload = () => {
       const id = ++reloadIdRef.current;
       void loadKeys()
-        .then((loaded) => {
+        .then(({ keys, credentialServiceUnavailable: unavailable }) => {
           if (!cancelled && id === reloadIdRef.current) {
-            setApiKeys(loaded);
+            setApiKeys(keys);
+            setCredentialServiceUnavailable(unavailable);
           }
         })
         .catch((err: unknown) => {
@@ -166,5 +192,6 @@ export function useApiKeys(keychainService?: ApiKeyKeychain): UseApiKeysReturn {
     apiKeys,
     handleSaveApiKey,
     handleDeleteApiKey,
+    credentialServiceUnavailable,
   };
 }

@@ -6,10 +6,13 @@
  * (they now come from the options object instead of App's local scope).
  */
 import { useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useEditorStore } from '@/platform/state/editorStore';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { writeDroppedFiles, importPickedFiles } from '@/platform/utils/fileDrop';
 import { MemoryService } from '@/platform/rag/MemoryService';
+import { raceDialogWithWatchdog } from '@/platform/fs/dialogWatchdog';
+import type { PromptOptions } from '@/platform/hooks/usePromptDialog';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { FileNode } from '@/platform/types/workspace';
 import type { UndoToastController } from '@/app/shell/common/UndoToast';
@@ -20,6 +23,17 @@ export interface UseFileImportOptions {
   setFileTree: (tree: FileNode[]) => void;
   handleFileOpen: (path: string, name: string) => Promise<void>;
   undoToast: UndoToastController;
+  /**
+   * QA-32: the native file picker can silently never respond on some
+   * environments (see dialogWatchdog.ts). When that happens, this shows a
+   * manual "type one file path" fallback instead of leaving "Add files"
+   * stuck forever. Reuses the app's shared prompt dialog (usePromptDialog).
+   */
+  promptForPath?: (
+    message: string,
+    defaultValue?: string,
+    options?: Omit<PromptOptions, 'defaultValue'>,
+  ) => Promise<string | null>;
 }
 
 export function useFileImport({
@@ -28,7 +42,9 @@ export function useFileImport({
   setFileTree,
   handleFileOpen,
   undoToast,
+  promptForPath,
 }: UseFileImportOptions) {
+  const { t } = useTranslation();
   // UX-19: Global drag-and-drop upload. Handles files dropped anywhere on
   // the window. Target folder resolves to the nearest `data-folder-path`
   // ancestor of the drop target, or workspace root if no folder was under
@@ -74,12 +90,30 @@ export function useFileImport({
       if (!service || !rootPath) return;
       let selected: string | string[] | null = null;
       try {
-        const { open } = await import('@tauri-apps/plugin-dialog');
-        selected = await open({
-          multiple: true,
-          directory: false,
-          title: 'Add files to your workspace',
-        });
+        const { open: openDialog } = await import('@tauri-apps/plugin-dialog');
+        const raced = await raceDialogWithWatchdog(
+          openDialog({
+            multiple: true,
+            directory: false,
+            title: 'Add files to your workspace',
+          }),
+        );
+        if (!raced.timedOut) {
+          selected = raced.value;
+        } else {
+          // QA-32: the native file picker silently never responded — fall
+          // back to a manual single-path entry instead of leaving "Add
+          // files" stuck forever.
+          console.warn(
+            '[App] Add files: native picker did not respond within the watchdog window — falling back to manual path entry.',
+          );
+          selected = promptForPath
+            ? await promptForPath(t('file-import.picker-unresponsive'), '', {
+                title: t('file-import.manual-path-title'),
+                placeholder: t('file-import.manual-path-placeholder'),
+              })
+            : null;
+        }
       } catch (err) {
         console.error('[App] Add files: native picker unavailable', err);
         return;
@@ -142,7 +176,7 @@ export function useFileImport({
         });
       }
     },
-    [rootPath, setFileTree, handleFileOpen, undoToast]
+    [rootPath, setFileTree, handleFileOpen, undoToast, promptForPath, t]
   );
 
   return { handleGlobalFileDrop, handleImportFiles };
