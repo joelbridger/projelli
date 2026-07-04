@@ -1,15 +1,36 @@
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { useState } from 'react';
 import { Button } from '@/ui/kp';
 import {
   useRetentionPolicyStore, sanitizePolicy, type RetentionMode,
 } from '@/platform/privacy/retentionPolicyStore';
 
-const MODES: Array<{ mode: RetentionMode; labelKey: string; hintKey: string }> = [
-  { mode: 'keep-everything', labelKey: 'privacy.retention.mode-keep', hintKey: 'privacy.retention.mode-keep-hint' },
-  { mode: 'delete-audio-after-days', labelKey: 'privacy.retention.mode-days', hintKey: 'privacy.retention.mode-days-hint' },
-  { mode: 'summary-only', labelKey: 'privacy.retention.mode-summary', hintKey: 'privacy.retention.mode-summary-hint' },
-];
+const MODES: RetentionMode[] = ['keep-everything', 'delete-audio-after-days', 'summary-only'];
+
+/** Label for a retention mode (literal keys per branch — the i18n extractor
+ *  can't trace a key stored in a config-array variable). */
+function modeLabel(mode: RetentionMode, count: number, t: TFunction): string {
+  switch (mode) {
+    case 'keep-everything':
+      return t('privacy.retention.mode-keep', { count });
+    case 'delete-audio-after-days':
+      return t('privacy.retention.mode-days', { count });
+    case 'summary-only':
+      return t('privacy.retention.mode-summary', { count });
+  }
+}
+
+function modeHint(mode: RetentionMode, t: (k: string) => string): string {
+  switch (mode) {
+    case 'keep-everything':
+      return t('privacy.retention.mode-keep-hint');
+    case 'delete-audio-after-days':
+      return t('privacy.retention.mode-days-hint');
+    case 'summary-only':
+      return t('privacy.retention.mode-summary-hint');
+  }
+}
 
 export function RetentionSettings({ workspaceRoot }: { workspaceRoot: string }) {
   const { t } = useTranslation();
@@ -27,14 +48,14 @@ export function RetentionSettings({ workspaceRoot }: { workspaceRoot: string }) 
     <section data-testid="retention-settings">
       <h3 className="text-base font-semibold">{t('privacy.retention.title')}</h3>
       <p style={{ fontSize: 12.5, color: 'var(--kp-text-muted, #6b7280)', margin: '4px 0 10px' }}>{t('privacy.retention.subtitle')}</p>
-      {MODES.map(({ mode, labelKey, hintKey }) => (
+      {MODES.map((mode) => (
         <label key={mode} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '5px 0', cursor: 'pointer' }}>
           <input type="radio" name="retention-mode" data-testid={`retention-mode-${mode}`}
             checked={policy.mode === mode}
             onChange={() => { setPolicy(workspaceRoot, { ...policy, mode }); }} />
           <span>
-            <span style={{ fontSize: 13, fontWeight: 600 }}>{t(labelKey, { count: policy.audioRetentionDays })}</span>
-            <span style={{ display: 'block', fontSize: 12, color: 'var(--kp-text-muted, #6b7280)' }}>{t(hintKey)}</span>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>{modeLabel(mode, policy.audioRetentionDays, t)}</span>
+            <span style={{ display: 'block', fontSize: 12, color: 'var(--kp-text-muted, #6b7280)' }}>{modeHint(mode, t)}</span>
           </span>
         </label>
       ))}

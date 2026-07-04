@@ -146,4 +146,21 @@ describe('meeting store', () => {
       useMeetingStore.getState().startRecording('m-2', { consentMode: 'one-party' }),
     ).rejects.toThrow(/already recording/i);
   });
+
+  // QA-20b: when capture_start rejects (e.g. Rust's "no microphone device"
+  // error from CpalSource::resolve_device), the rejection must propagate to
+  // the caller — not be swallowed — so ClientMeetingsTab's catch can surface
+  // it via ConsentDialog's inline error (2026-07-04 UX review, finding B6),
+  // and the store must not be left in a half-recording state.
+  it('surfaces a capture_start rejection (no microphone device) and leaves status untouched', async () => {
+    invokeMock.mockRejectedValueOnce(new Error('no microphone device'));
+    const s = useMeetingStore.getState();
+    await expect(
+      s.startRecording('m-1', { consentMode: 'one-party' }),
+    ).rejects.toThrow(/no microphone device/i);
+    const status = useMeetingStore.getState().status;
+    expect(status.recording).toBe(false);
+    expect(status.meetingDir).toBeNull();
+    expect(useMeetingStore.getState().activeMatterId).toBeNull();
+  });
 });

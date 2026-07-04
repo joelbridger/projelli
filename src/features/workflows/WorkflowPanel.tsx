@@ -252,18 +252,14 @@ export function WorkflowPanel({
           role="alert"
         >
           <p className="font-medium">
-            {t(
-              providerError === 'ollama-unreachable'
-                ? 'workflow.execution.ollama-unreachable-title'
-                : 'workflow.execution.needs-provider-title',
-            )}
+            {providerError === 'ollama-unreachable'
+              ? t('workflow.execution.ollama-unreachable-title')
+              : t('workflow.execution.needs-provider-title')}
           </p>
           <p className="mt-1 text-muted-foreground">
-            {t(
-              providerError === 'ollama-unreachable'
-                ? 'workflow.execution.ollama-unreachable-body'
-                : 'workflow.execution.needs-provider-body',
-            )}
+            {providerError === 'ollama-unreachable'
+              ? t('workflow.execution.ollama-unreachable-body')
+              : t('workflow.execution.needs-provider-body')}
           </p>
           {onOpenSettings && providerError === 'needs-provider' && (
             <Button size="sm" variant="outline" className="mt-2" onClick={onOpenSettings}>

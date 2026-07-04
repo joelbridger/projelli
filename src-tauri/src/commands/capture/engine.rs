@@ -874,6 +874,49 @@ mod tests {
         assert!(remaining.is_empty(), "expected no leftover meeting dirs, got: {remaining:?}");
     }
 
+    /// A source that fails with the exact message `CpalSource::resolve_device`
+    /// produces for `DeviceKind::DefaultInput` (see `sources.rs`) when the
+    /// host has no usable microphone — the real-world QA-20b repro (no mic
+    /// plugged in / permission denied). `failed_source_start_leaves_no_
+    /// phantom_meeting_dir` above only exercises a `sys`-side failure; mic
+    /// fails at a different point (mic.start()'s `?` propagates before
+    /// sys.start(), write_error, or sys_writer are ever touched), so this is
+    /// a distinct code path worth its own regression test rather than
+    /// assuming symmetry.
+    struct NoMicSource;
+    impl AudioSource for NoMicSource {
+        fn start(&mut self, _: Box<dyn FnMut(&[i16]) + Send>) -> anyhow::Result<()> {
+            Err(anyhow!("no microphone device"))
+        }
+        fn stop(&mut self) -> anyhow::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn failed_mic_start_leaves_no_orphan_meeting_dir_and_surfaces_the_error() {
+        let ws = tempdir().unwrap();
+        let mic = Box::new(NoMicSource) as Box<dyn AudioSource>;
+        let sys = Box::new(FakeSource::new(vec![])) as Box<dyn AudioSource>;
+        let result = CaptureEngine::start_with_sources(
+            ws.path(),
+            "m-no-mic",
+            "Clients/NoMic Household",
+            consent("one-party"),
+            mic,
+            sys,
+        );
+        let err = result.err().expect("start_with_sources must fail when the mic fails to start");
+        assert!(err.to_string().contains("no microphone device"), "got: {err}");
+
+        // QA-20b: no orphan folder under Meetings/ left behind on disk.
+        let meetings = ws.path().join("Clients/NoMic Household/Meetings");
+        let remaining: Vec<_> = std::fs::read_dir(&meetings)
+            .map(|d| d.filter_map(|e| e.ok()).collect())
+            .unwrap_or_default();
+        assert!(remaining.is_empty(), "expected no leftover meeting dirs, got: {remaining:?}");
+    }
+
     /// A source that, unlike `FakeSource`, actually keeps its callback alive
     /// on a dedicated thread until `stop()` is called — the same lifecycle
     /// `CpalSource`/`MacTapSource` really have (the closure lives inside a

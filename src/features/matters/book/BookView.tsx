@@ -11,12 +11,21 @@ import { buildBookRows, sortBookRows, type BookRow, type BookSort, type BookSort
 
 const GRID = 'minmax(220px, 2fr) 160px 110px 110px 130px';
 
-const LEVEL_KEY: Record<BookRow['level'], string> = {
-  thin: 'matter.book.level-thin',
-  'getting-there': 'matter.book.level-getting-there',
-  solid: 'matter.book.level-solid',
-  'not-built': 'matter.book.level-not-built',
-};
+/** Label for each Client Map completeness level (literal keys per branch —
+ *  `BookRow['level']` is a closed union but a record lookup isn't statically
+ *  traceable by the i18n extractor). */
+function levelLabel(level: BookRow['level'], t: (key: string) => string): string {
+  switch (level) {
+    case 'thin':
+      return t('matter.book.level-thin');
+    case 'getting-there':
+      return t('matter.book.level-getting-there');
+    case 'solid':
+      return t('matter.book.level-solid');
+    case 'not-built':
+      return t('matter.book.level-not-built');
+  }
+}
 
 function ScoreBar({ score }: { score: number }) {
   return (
@@ -89,7 +98,7 @@ export function BookView({ onOpenClient }: { onOpenClient: (matterId: string) =>
             )}
           </span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-            <Chip size="sm">{t(LEVEL_KEY[r.level])}</Chip>
+            <Chip size="sm">{levelLabel(r.level, t)}</Chip>
             {r.level !== 'not-built' && <ScoreBar score={r.score} />}
           </span>
           <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 13 }}>{r.knowCount}</span>

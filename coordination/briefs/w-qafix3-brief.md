@@ -1,0 +1,11 @@
+# Build brief — QA fix batch 3: failed-recording orphan cleanup (QA-20b) + Wealthbox tooltip location (QA-22)
+
+**Lane:** cc-lantern-qafix3 · dir `~/lp-qafix3` (own worktree, branch `lp/qa-fix-batch3`). **Model:** Sonnet 5 · high.
+**Rules:** NO-SHORTCUTS on item 1 (core capture path). TDD. Stay in your lane — do NOT touch the Meetings UI surface beyond what item 1 strictly needs (the UX-gate polish just merged; don't churn it), and skip anything another lane owns (live-index = qa19fix's; browser guard = webguard's). Self-converge via `codex-review --base origin/lantern-plus` before handoff. If Rust: `export CARGO_TARGET_DIR=$HOME/.cargo-target-lp-qafix3`, one cargo box-wide, `timeout 1200` on every cargo test. No interactive menus.
+
+## Scope
+1. **QA-20b (from persona-B, BUG-DB QA-20):** when "Start recording" fails (e.g. no usable microphone), the backend has already created the meeting's folder under `Meetings/` — and never cleans it up on failure. Orphan empty folders accumulate, visible in the user's real filesystem. Fix robustly: the failure path must clean up everything it created (or create lazily only once capture is actually running — your call, state why). NOTE: the *silent* half of QA-20 (no error shown) was likely fixed by the merged UX polish (inline consent-dialog errors, @582a32fe) — verify that in code as part of your work and state what you found; your job is the on-disk orphan, plus the error path actually firing for the no-mic case specifically (add a test: recording start failure → error surfaced + no orphan folder left).
+2. **QA-22 (P3):** the disabled "Send to Wealthbox" tooltip says "Connect Wealthbox in Settings → Connections" but the real location is the Account panel (bottom-left "Your account") → Connections tab. Fix the copy to point where the thing actually is (i18n keys, all locales — the i18n gate is at zero, keep it there).
+
+## Gate + handoff
+Red-first tests where practical. `npx tsc --noEmit` clean · `npm run i18n:check` 0 · full `npx vitest run` green · eslint-gate clean · Rust-touched ⇒ cargo test green (timeout-wrapped). Handoff: HEAD SHA, gate counts, what you found re the QA-20 silent-half, Rust yes/no, self-review rounds. Push (NOT self-merged), then exactly: `WORKER-DONE: lp/qa-fix-batch3`
