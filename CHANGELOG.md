@@ -82,6 +82,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cross-cutting,retention}.spec.ts`, `docs/qa/E2E-SMOKE-MIRROR.md`.
 
 ### Fixed
+- **Three bench-harness bugs root-caused live during the finish-line pass** (each was masking real
+  signal as false SETUP-BLOCKED): click-by-text could pick a giant structural wrapper
+  (app-container) whose page-wide text trivially contained the needle — now skips elements with
+  nested data-testid descendants; the Documents Tree/Grid view-mode persisting on Grid made files
+  in subfolders invisible to text search — note-open helper now normalizes to Tree view first
+  (best-effort); a file-visibility check used snapshot() (interactive elements only) so plain-text
+  file rows always false-negatived — now checks rendered page text. Regression tests for all
+  three (124 harness tests green). Files: `bench-smoke/{click-by-text,checks/_util,checks/setup,checks/wave0,checks/wave2}.mjs`.
+
 - **WebView2 remote-debug port never opened via the documented env var.** wry (Tauri's WebView2
   layer) always sets its own additional-browser-arguments, which per the WebView2 API silently
   overrides `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` — so the CDP port the bench harness depends
