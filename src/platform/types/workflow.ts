@@ -349,7 +349,7 @@ export interface WorkflowChainStep {
 
 /**
  * M7 — A persisted chain definition. Saved to
- * `<workspace>/.keepance/chains/<name>.json`.
+ * `<workspace>/.lantern/chains/<name>.json`.
  */
 export interface WorkflowChain {
   schemaVersion: 1;

@@ -4,6 +4,12 @@
 (internally now called **Lantern**), branched from the true `keepance-3.0` tip
 (`000060cf`, fetched fresh from GitHub) onto the branch **`lantern-plus`**.
 
+**Status (2026-07-04): feature-complete.** All five waves (0-4) of the Jump
+feature-parity program are merged, and the full real-Windows verification pass
+has run clean — see `docs/PRODUCT-JOURNEY.md`'s 2026-07-04 entries for the
+detailed story. Work in this folder now is QA, hardening, and cleanup, not new
+feature waves.
+
 ## Why it exists
 
 Two efforts run in parallel and must not collide:

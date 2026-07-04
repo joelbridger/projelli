@@ -20,6 +20,7 @@ export const TARGETS = {
     sshHost: '100.127.67.22',
     repoDir: 'C:\\lantern-plus',
     appLogPath: 'C:\\tauri-dev.log',
+    taskName: 'LanternPlusDev',
   },
   'azure-cloud-bench-1': {
     id: 'azure-cloud-bench-1',
@@ -29,10 +30,14 @@ export const TARGETS = {
     sshHost: '100.75.247.98',
     repoDir: 'C:\\lantern-plus',
     appLogPath: 'C:\\tauri-dev.log',
+    taskName: 'LanternDevBench',
   },
 };
 
 export const DEFAULT_TARGET_ID = 'legion';
+
+/** Fallback Windows scheduled-task name for an ad hoc (unregistered) target. */
+const DEFAULT_TASK_NAME = 'LanternPlusDev';
 
 /**
  * Resolve a target by id, applying optional connection overrides (--host,
@@ -54,6 +59,7 @@ export function resolveTarget(idOrUndefined, overrides = {}) {
         sshHost: overrides.host,
         repoDir: overrides.repoDir || 'C:\\lantern-plus',
         appLogPath: overrides.appLogPath || 'C:\\tauri-dev.log',
+        taskName: overrides.taskName || DEFAULT_TASK_NAME,
       };
     }
     throw new Error(
@@ -68,6 +74,7 @@ export function resolveTarget(idOrUndefined, overrides = {}) {
     sshHost: overrides.host || base.sshHost,
     repoDir: overrides.repoDir || base.repoDir,
     appLogPath: overrides.appLogPath || base.appLogPath || 'C:\\tauri-dev.log',
+    taskName: overrides.taskName || base.taskName || DEFAULT_TASK_NAME,
   };
 }
 

@@ -1,6 +1,6 @@
 // LanceDB-backed vector store for the RAG indexer.
 //
-// One dataset per workspace, living at `<workspace>/.keepance/vectors/`.
+// One dataset per workspace, living at `<workspace>/.lantern/vectors/`.
 // Schema (WS-B/C extension):
 //   id              : Utf8           — sha256(path || ":" || paragraph_index),
 //                                      computed from the PLAINTEXT path (the
@@ -57,7 +57,7 @@
 //
 // WS-VEC — chunk text is a CONFIDENTIALITY GUARANTEE at rest. The `text` column
 // is encrypted with AES-256-GCM under the dedicated vector-store master key
-// (`crypto.rs`, keychain service "keepance-vectors-enc") for EVERY source type
+// (`crypto.rs`, keychain service "lantern-vectors-enc") for EVERY source type
 // (text / pdf / mail). Reads decrypt in memory; plaintext is never persisted.
 //   - `matter_id` and `privilege` stay PLAINTEXT and queryable ON PURPOSE — the
 //     retrieval isolation guarantee depends on them running as a LanceDB
@@ -235,7 +235,7 @@ pub const UNASSIGNED_MATTER: &str = "unassigned";
 /// a way that requires a one-time re-index (e.g. adding the NON-NULL
 /// `matter_id` / `source_id` columns in 3.0, then the NON-NULL `privilege`
 /// column in WS-PRIV → version 4). Stored at
-/// `<workspace>/.keepance/vectors/.index_version`. See `needs_migration`.
+/// `<workspace>/.lantern/vectors/.index_version`. See `needs_migration`.
 ///
 /// WS-PRIV: bumped 3 → 4. A pre-WS-PRIV table has rows without the NON-NULL
 /// `privilege` column; we never back-fill (a missing privilege is a litigation-
@@ -687,7 +687,7 @@ mod tests {
     }
 
     #[test]
-    fn dataset_path_lives_under_dot_keepance() {
+    fn dataset_path_lives_under_dot_lantern() {
         let p = dataset_path(Path::new("/tmp/work"));
         assert_eq!(p, PathBuf::from(format!("/tmp/work/{}/vectors", crate::identity::WORKSPACE_DATA_DIR)));
     }

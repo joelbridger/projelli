@@ -1,6 +1,6 @@
 // Workflow chain persistence (M7)
 //
-// Chains are saved as JSON files under `<workspace>/.keepance/chains/<id>.json`
+// Chains are saved as JSON files under `<workspace>/.lantern/chains/<id>.json`
 // in Tauri builds; in the browser prototype we fall back to localStorage so
 // the same UI works without needing a workspace selected.
 //

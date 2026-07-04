@@ -1,4 +1,4 @@
-//! Campaign fixture validation — Keepance 3.0 quality campaign.
+//! Campaign fixture validation — Lantern 3.0 quality campaign.
 //!
 //! Validates that the committed corpus fixtures at
 //! `tests/fixtures/matter-corpus/` can be parsed by the production Rust

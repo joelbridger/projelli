@@ -48,7 +48,7 @@ class KeychainNotFound extends Error {
 const keychainStore = new Map<string, string>();
 function mockKeychainInvoke(): void {
   invokeMock.mockImplementation((cmd: string, args: Record<string, unknown> = {}) => {
-    const service = (args['service'] as string | undefined) ?? 'com.keepance.app';
+    const service = (args['service'] as string | undefined) ?? 'com.lantern.app';
     const key = args['key'] as string;
     const id = `${service}::${key}`;
     if (cmd === 'keychain_set') {

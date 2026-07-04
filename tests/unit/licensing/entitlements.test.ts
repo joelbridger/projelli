@@ -24,7 +24,7 @@ import {
   normalizeStatus,
   toLicenseRecord,
   entitlementMessage,
-  KEEPANCE_3_0_LAUNCH,
+  LANTERN_3_0_LAUNCH,
   OFFLINE_GRACE_DAYS,
   type LicenseRecord,
   type OfflineGraceState,
@@ -528,9 +528,9 @@ describe('entitlementMessage copy', () => {
 
 describe('the 3.0 launch cutoff constant', () => {
   it('is a real date and licenses purchased before it are old-model', () => {
-    expect(KEEPANCE_3_0_LAUNCH instanceof Date).toBe(true);
-    expect(Number.isNaN(KEEPANCE_3_0_LAUNCH.getTime())).toBe(false);
-    const before = new Date(KEEPANCE_3_0_LAUNCH.getTime() - day(1));
-    expect(isGrandfatheredLicense({ tier: 'personal', purchasedAt: before }, new Date(KEEPANCE_3_0_LAUNCH.getTime() + day(1)))).toBe(true);
+    expect(LANTERN_3_0_LAUNCH instanceof Date).toBe(true);
+    expect(Number.isNaN(LANTERN_3_0_LAUNCH.getTime())).toBe(false);
+    const before = new Date(LANTERN_3_0_LAUNCH.getTime() - day(1));
+    expect(isGrandfatheredLicense({ tier: 'personal', purchasedAt: before }, new Date(LANTERN_3_0_LAUNCH.getTime() + day(1)))).toBe(true);
   });
 });

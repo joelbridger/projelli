@@ -235,7 +235,7 @@ fn initialize_returns_server_info_and_protocol_version() {
 }
 
 #[test]
-fn tools_list_returns_five_keepance_tools() {
+fn tools_list_returns_five_lantern_tools() {
     let (mut child, _tmp) = spawn_with_workspace();
     // We can skip initialize and jump straight to tools/list — the spec
     // recommends the handshake but doesn't require it for stateless servers.
@@ -613,7 +613,7 @@ fn list_workspace_files_filters_to_granted_matter_and_audits() {
 }
 
 #[test]
-fn root_granted_matter_still_denies_keepance_internal_files() {
+fn root_granted_matter_still_denies_lantern_internal_files() {
     let (mut child, tmp) = spawn_root_granted_workspace();
     std::fs::write(tmp.path().join("visible.md"), "visible matter content").unwrap();
 

@@ -462,7 +462,7 @@ mod tests {
 
     /// REAL network download (~465 MB) into a temp dir, then a real
     /// embedder init from that cache. Run manually once per environment:
-    ///   cargo test --release -p keepance real_model_download -- --ignored --nocapture
+    ///   cargo test --release -p lantern real_model_download -- --ignored --nocapture
     /// (package name: whatever [package].name is in src-tauri/Cargo.toml)
     #[test]
     #[ignore]

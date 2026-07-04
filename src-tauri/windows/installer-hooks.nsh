@@ -1,4 +1,4 @@
-; Keepance NSIS Installer Hooks
+; Lantern NSIS Installer Hooks
 ; Customizes the MUI2 wizard appearance without replacing the full template.
 ; Hooked into Tauri's default installer.nsi via tauri.conf.json > nsis.installerHooks
 ;
@@ -21,7 +21,7 @@
 
   ; v1.6: when installing silently (double-click UX) auto-launch the
   ; app after install. Skipped in /INTERACTIVE mode because the
-  ; built-in finish page there has a "Run Keepance" checkbox.
+  ; built-in finish page there has a "Run Lantern" checkbox.
   ; Skipped in /UPDATE mode because the auto-updater handles the
   ; relaunch itself and spawning a second instance would race.
   ${If} $PassiveMode = 1

@@ -38,10 +38,10 @@ TARGET_INFO="$(
   node --input-type=module -e '
     import { resolveTarget } from "./scripts/bench-smoke/targets.mjs";
     const t = resolveTarget(process.argv[1]);
-    console.log([t.id, t.sshUser, t.sshHost, t.repoDir].join("\t"));
+    console.log([t.id, t.sshUser, t.sshHost, t.repoDir, t.taskName].join("\t"));
   ' "$TARGET_ID"
 )"
-IFS=$'\t' read -r RESOLVED_ID SSH_USER SSH_HOST REPO_DIR <<<"$TARGET_INFO"
+IFS=$'\t' read -r RESOLVED_ID SSH_USER SSH_HOST REPO_DIR TASK_NAME <<<"$TARGET_INFO"
 SSH_DEST="${SSH_USER}@${SSH_HOST}"
 SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=20 -o ServerAliveInterval=5 -o StrictHostKeyChecking=no)
 VERDICT_LOG="${AUTO_SMOKE_LOG:-docs/evidence/bench-smoke/auto-smoke.log}"
@@ -51,7 +51,7 @@ if [[ "${AUTO_SMOKE_ARMED:-0}" != "1" ]]; then
 [auto-smoke] DRY RUN. Set AUTO_SMOKE_ARMED=1 to run.
 [auto-smoke] Would target: ${RESOLVED_ID} (${SSH_DEST}, repo ${REPO_DIR})
 [auto-smoke] Would run over SSH: git fetch origin && git merge --ff-only origin/lantern-plus
-[auto-smoke] Would restart the KeepanceDev scheduled task and wait for CDP/Vite.
+[auto-smoke] Would restart the ${TASK_NAME} scheduled task and wait for CDP/Vite.
 [auto-smoke] Would run freshness canary: HEAD == origin/lantern-plus.
 [auto-smoke] Would run: node scripts/bench-smoke.mjs --target ${RESOLVED_ID}
 [auto-smoke] Would append one verdict line to: ${VERDICT_LOG}
@@ -76,7 +76,7 @@ if ! ssh "${SSH_OPTS[@]}" "$SSH_DEST" "cd '${REPO_DIR}'; git fetch origin; git m
 fi
 
 echo "[auto-smoke] restarting dev app task..."
-if ! ssh "${SSH_OPTS[@]}" "$SSH_DEST" "Stop-Process -Name node,cargo,keepance,Keepance,msedgewebview2 -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 6; Start-ScheduledTask -TaskName KeepanceDev"; then
+if ! ssh "${SSH_OPTS[@]}" "$SSH_DEST" "Stop-Process -Name node,cargo,keepance,Keepance,msedgewebview2 -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 6; Start-ScheduledTask -TaskName ${TASK_NAME}"; then
   finish 1 "rebuild-start-failed"
 fi
 

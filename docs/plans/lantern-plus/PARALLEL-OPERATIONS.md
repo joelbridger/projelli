@@ -96,6 +96,12 @@ questions still go through notify-jameson, never assumed.
 
 ## Sequencing recommendation
 
+> **Currency note (2026-07-04):** the sequencing below describes how the program
+> was kicked off on 2026-07-02. All five waves are now merged and the program is
+> feature-complete against Jump (see `docs/PRODUCT-JOURNEY.md`) — steps 2-4 have
+> already happened. Kept as a historical record; current work is tracked in
+> `~/lantern-plus/coordination/`.
+
 1. **Now:** main line finishes its bench test + standalone release undisturbed.
    Nothing about starting Lantern-Plus needs to wait for that — Waves 0–2 are
    TS/unit-heavy, browser-verifiable, and need no Legion time.

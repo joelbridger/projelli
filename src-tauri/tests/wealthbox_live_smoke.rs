@@ -4,7 +4,7 @@
 //!
 //! ```bash
 //! WEALTHBOX_TEST_TOKEN=<token> \
-//!   CARGO_TARGET_DIR=/home/jameson/keepance/src-tauri/target \
+//!   CARGO_TARGET_DIR=/home/jameson/lantern/src-tauri/target \
 //!   cargo test --test wealthbox_live_smoke -- --ignored --nocapture
 //! ```
 //!

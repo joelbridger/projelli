@@ -11,7 +11,7 @@ import { ClaudeProvider } from './ClaudeProvider';
 import { OpenAIProvider } from './OpenAIProvider';
 import { GeminiProvider } from './GeminiProvider';
 import { OllamaProvider, OLLAMA_DEFAULT_MODEL } from './OllamaProvider';
-import { AppLocalProvider, KEEPANCE_LOCAL_DEFAULT_MODEL } from './AppLocalProvider';
+import { AppLocalProvider, LANTERN_LOCAL_DEFAULT_MODEL } from './AppLocalProvider';
 import {
   getDefaultModelForTier,
   type Provider as CloudProviderId,
@@ -34,7 +34,7 @@ export type ChatProviderId = CloudProviderId | 'ollama' | 'keepance-local'; // '
 /** Default model for the embedded Advisor Prep Hero Local AI engine — defined in
  *  AppLocalProvider and re-exported here so factory callers/tests can
  *  import it from one place (mirrors OLLAMA_DEFAULT_MODEL). */
-export { KEEPANCE_LOCAL_DEFAULT_MODEL };
+export { LANTERN_LOCAL_DEFAULT_MODEL };
 
 /**
  * True when a provider id denotes a LOCAL (on-machine) model — either the
@@ -89,7 +89,7 @@ export function createProvider(opts: CreateProviderOptions): Provider {
       // Embedded llama.cpp engine ("Advisor Prep Hero Local AI"). Local, keyless, $0,
       // never assured-routed. The Rust side owns the model download + sidecar
       // lifecycle; the provider streams from the local sidecar endpoint.
-      const model = opts.model ?? KEEPANCE_LOCAL_DEFAULT_MODEL;
+      const model = opts.model ?? LANTERN_LOCAL_DEFAULT_MODEL;
       return new AppLocalProvider({ model, ...rulesOpt });
     }
     case 'openai': {

@@ -8,8 +8,8 @@
 //   - Windows : Credential Manager
 //   - Linux   : Secret Service (gnome-keyring / KWallet via D-Bus)
 //
-// Default service namespace is `com.keepance.app`. Callers may override
-// when storing keys for scoped features later (e.g. `com.keepance.sync`).
+// Default service namespace is `com.lantern.app`. Callers may override
+// when storing keys for scoped features later (e.g. `com.lantern.sync`).
 
 use serde::{Deserialize, Serialize};
 
@@ -30,16 +30,16 @@ const INTERNAL_EXACT_SERVICES: &[&str] = &[
     identity::MAIL_IMAP_SERVICE,
     identity::MAIL_GMAIL_SERVICE,
     // OneDrive connector: the Microsoft refresh token lives under this exact
-    // service (it does NOT share the `keepance-onedrive-` prefix below). The
-    // connector's SQLCipher master key uses `keepance-onedrive-enc`, covered
+    // service (it does NOT share the `lantern-onedrive-` prefix below). The
+    // connector's SQLCipher master key uses `lantern-onedrive-enc`, covered
     // by the prefix. Both are Rust-owned and read via keyring::Entry directly.
     identity::DOCS_MS_SERVICE,
-    // CRM connector legacy Wealthbox token slot (pre-`keepance-crm-` naming).
-    // The live slots all use the `keepance-crm-` prefix below.
+    // CRM connector legacy Wealthbox token slot (pre-`lantern-crm-` naming).
+    // The live slots all use the `lantern-crm-` prefix below.
     identity::WEALTHBOX_LEGACY_SERVICE,
     // Bonus connector token slots (Box / ShareFile / Jotform / Zocks / Addepar).
     // Each connector's API token / access token / dev token lives under its exact
-    // service name; the matching SQLCipher master keys (`keepance-<name>-enc`) and
+    // service name; the matching SQLCipher master keys (`lantern-<name>-enc`) and
     // any future per-connector secret are covered by the prefixes below. All are
     // Rust-owned and read via keyring::Entry directly — the renderer bridge must
     // never read, write, or delete them.
@@ -49,28 +49,28 @@ const INTERNAL_EXACT_SERVICES: &[&str] = &[
     identity::ZOCKS_SERVICE,
     identity::ADDEPAR_SERVICE,
     // Calendly connector API token slot (exact). The SQLCipher master key
-    // (`keepance-calendly-enc`) and any future Calendly-scoped secret are
+    // (`lantern-calendly-enc`) and any future Calendly-scoped secret are
     // covered by CALENDLY_SERVICE_PREFIX below.
     identity::CALENDLY_SERVICE,
 ];
 const INTERNAL_SERVICE_PREFIXES: &[&str] = &[
     // Vault VMKs are Rust-owned. Firm collaboration keys use
-    // com.keepance.matter/user/device and intentionally remain renderer-owned.
+    // com.lantern.matter/user/device and intentionally remain renderer-owned.
     identity::VAULT_KEYCHAIN_PREFIX,
     // CRM connector namespace. Covers every per-provider token slot
-    // (`keepance-crm-wealthbox` / `-salesforce` / `-redtail`, built as
+    // (`lantern-crm-wealthbox` / `-salesforce` / `-redtail`, built as
     // `identity::crm_keychain_service(id)` in crm/provider.rs) and the SQLCipher
-    // master key (`keepance-crm-enc`). Prefix-based so a future CRM provider
+    // master key (`lantern-crm-enc`). Prefix-based so a future CRM provider
     // under the same namespace is denied to the renderer by default.
     identity::CRM_SERVICE_PREFIX,
     // OneDrive connector namespace. Covers the SQLCipher master key
-    // (`keepance-onedrive-enc`) and any future OneDrive-scoped secret. The
-    // refresh token's exact service `keepance-docs-ms` is listed above.
+    // (`lantern-onedrive-enc`) and any future OneDrive-scoped secret. The
+    // refresh token's exact service `lantern-docs-ms` is listed above.
     identity::ONEDRIVE_SERVICE_PREFIX,
     // Bonus connector namespaces. Each covers the connector's SQLCipher master
-    // key (`keepance-<name>-enc`) plus any future per-connector secret. The bare
-    // token slots (`keepance-<name>`) are listed in the exact set above. These
-    // do not collide with renderer-owned services (which use the `com.keepance.*`
+    // key (`lantern-<name>-enc`) plus any future per-connector secret. The bare
+    // token slots (`lantern-<name>`) are listed in the exact set above. These
+    // do not collide with renderer-owned services (which use the `com.lantern.*`
     // namespace).
     identity::BOX_SERVICE_PREFIX,
     identity::SHAREFILE_SERVICE_PREFIX,
@@ -78,15 +78,15 @@ const INTERNAL_SERVICE_PREFIXES: &[&str] = &[
     identity::ZOCKS_SERVICE_PREFIX,
     identity::ADDEPAR_SERVICE_PREFIX,
     // Calendar connector namespace. Covers the per-provider OAuth refresh
-    // token slots (`keepance-calendar-ms` / `-google`), the secret ICS feed
-    // URL (`keepance-calendar-ics` — the URL itself commonly embeds an
-    // access token), and the SQLCipher master key (`keepance-calendar-enc`).
+    // token slots (`lantern-calendar-ms` / `-google`), the secret ICS feed
+    // URL (`lantern-calendar-ics` — the URL itself commonly embeds an
+    // access token), and the SQLCipher master key (`lantern-calendar-enc`).
     // codex-review P1 (2026-07-02): without this the generic keychain
     // bridge would let any renderer code read these directly.
     identity::CALENDAR_SERVICE_PREFIX,
     // Calendly connector namespace. Covers the SQLCipher master key
-    // (`keepance-calendly-enc`) plus any future per-connector secret. The
-    // bare API token slot (`keepance-calendly`) is listed in the exact set
+    // (`lantern-calendly-enc`) plus any future per-connector secret. The
+    // bare API token slot (`lantern-calendly`) is listed in the exact set
     // above. codex-review flagged (2026-07-02, lantern-plus 381cb64a) that
     // this connector was missing from both denylists, letting any renderer
     // code read Calendly credentials directly through the generic bridge.
@@ -150,7 +150,7 @@ fn is_internal_service(service: &str) -> bool {
     // Fail closed on control characters (NUL especially). Some OS keychain
     // backends truncate a target name at an interior NUL: on Windows, keyring
     // hands a NUL-terminated string to Credential Manager, so a renderer-
-    // supplied name like "keepance-docs-ms\0x" would NOT match the exact
+    // supplied name like "lantern-docs-ms\0x" would NOT match the exact
     // denylist below in Rust, yet resolve to the real internal entry at the OS
     // layer — a denylist bypass. Any control character makes the name suspect,
     // and no legitimate renderer-owned service (com.keepance.*) contains one,
@@ -278,7 +278,7 @@ mod tests {
         let calendar_google = identity::calendar_keychain_service("google");
         let calendar_ics = identity::calendar_keychain_service("ics");
         let future_calendar = format!("{}future-secret", identity::CALENDAR_SERVICE_PREFIX);
-        // Calendly's DB key is a dynamic prefix + suffix (`keepance-calendly-enc`),
+        // Calendly's DB key is a dynamic prefix + suffix (`lantern-calendly-enc`),
         // so build the future-secret probe the same way as the other connectors.
         let future_calendly = format!("{}future-secret", identity::CALENDLY_SERVICE_PREFIX);
         // Every connector service name that exists in the codebase today.

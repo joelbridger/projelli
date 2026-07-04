@@ -3,6 +3,14 @@
 *Recorded 2026-07-02 at Jameson's request. Paste the block below verbatim into a fresh
 Claude Code session (Opus 4.8) to start execution.*
 
+> **Currency note (2026-07-04): this bootstrap has already run.** All five waves
+> (0-4) are merged and the program is feature-complete against Jump, including the
+> full real-Windows verification pass — see `docs/PRODUCT-JOURNEY.md`'s 2026-07-04
+> entries. Do NOT paste the block below into a fresh session expecting to "begin
+> Wave 0" — there is nothing left to build from this plan. The block is kept as a
+> historical record of how the program was kicked off; current work (QA, cleanup,
+> bench confirmation) is tracked in `~/lantern-plus/coordination/`.
+
 ```
 You are the Opus 4.8 coordinator for the Lantern-Plus program. Work ONLY in
 ~/lantern-plus (branch lantern-plus). Read, in order: LANTERN-PLUS.md, then

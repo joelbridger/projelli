@@ -1,8 +1,8 @@
 // DocumentJson DOM contract (WS-A / A3)
 //
 // TypeScript mirror of the canonical JSON DOM produced by the in-house OOXML
-// engine (`keepance_docx::Document`, see
-// `src-tauri/crates/keepance-docx/src/model.rs`). The engine serializes serde
+// engine (`lantern_docx::Document`, see
+// `src-tauri/crates/lantern-docx/src/model.rs`). The engine serializes serde
 // with `rename_all = "camelCase"` and an internal `kind` tag on the inline /
 // block enums, so these types match the wire shape exactly.
 //
