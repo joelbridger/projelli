@@ -10,7 +10,9 @@ Last updated: 2026-07-04 ~01:05 (coordinator-6 seated — sole coordinator; moni
 | cc-lantern-symfix | Symlink-hardening (lp/symlink-hardening) — apply no-follow walk to vault/mcp/diarize containment checks (audit findings; xhigh) | building |
 | cc-lantern-w3 | Wave-3 meeting capture (lp/meeting-capture @e487a730) — MERGE-READY: device verification PASSED; coordinator independent review done, 1 P2 (audit action string) confirmed+fixed+verified. Waits only for symfix to land first (re-point check on rebase) | merge-queued |
 | cc-lantern-azcdp | Azure bench CDP fix (lp/azure-cdp-fix) — make WebView2 port 9223 listen on lantern-cloud-bench-1 so the cloud VM becomes a 2nd smoke target (task #13; ≤90min VM budget) | building |
-| cc-lantern-winvm | Local Windows VM spike Phase 1 (Jameson-endorsed testing-speed idea) — KVM VM on /mnt/devcache, SSH + clean snapshot; infra only, no product code | building |
+| cc-lantern-winvm | Local Windows VM spike Phase 1 (testing-speed program #6) — KVM VM on /mnt/devcache, SSH + clean snapshot; infra only, no product code | building |
+| cc-lantern-e2emirror | Linux Playwright mirror of the smoke checklist (program #7, lp/e2e-smoke-mirror) — catch UI regressions in minutes without a Windows box | building |
+| codex harness-v3 | Codex worktree job p5ylxxxx (program #3+#4): shard-across-targets + failure forensics + auto-smoke dry-run script; coordinator reviews+merges | building |
 
 ## Merged this session
 ✅ lp/retention @3d557f20 — Wave-4 Track D (16+1 review rounds; full-branch codex caught a P1 symlink isolation breach, fixed; gate 5670 vitest + 1173 cargo)
