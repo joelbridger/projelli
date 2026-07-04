@@ -68,9 +68,14 @@ ${methods}
     var everAdmitted = false;
     var loadingTicks = 0;
     function report(status) {
-      if (status === lastReported) return;
+      // Re-assert even when the status is unchanged if the meeting page has
+      // overwritten our title (Teams/Zoom rewrite document.title constantly).
+      // Otherwise the app-side poller could miss the only NC:admitted/NC:lobby
+      // title and wrongly time out a card that actually joined.
+      var desired = TITLE_PREFIX + status;
+      if (status === lastReported && document.title === desired) return;
       lastReported = status;
-      try { document.title = TITLE_PREFIX + status; } catch (e) {}
+      try { document.title = desired; } catch (e) {}
     }
     function tick() {
       try {

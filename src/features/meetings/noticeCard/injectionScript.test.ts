@@ -33,6 +33,13 @@ describe('buildInjectionScript', () => {
     expect(src).not.toContain('invoke(');
   });
 
+  it('re-asserts the status title when the meeting page overwrites document.title', () => {
+    // Guards against Teams/Zoom rewriting document.title and the poller missing
+    // the only NC:admitted/NC:lobby signal (Codex R3 P1).
+    const src = buildInjectionScript(cfg());
+    expect(src).toContain('document.title === desired');
+  });
+
   it('selects the Zoom adapter for a Zoom config', () => {
     const src = buildInjectionScript(cfg({ platform: 'zoom', joinUrl: 'https://zoom.us/j/1' }));
     expect(() => new Function(src)).not.toThrow();

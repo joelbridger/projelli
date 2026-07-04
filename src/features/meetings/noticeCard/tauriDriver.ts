@@ -32,13 +32,13 @@ export function makeTauriDriver(label: string, opts?: { cameraScript?: string })
       await invoke('notice_card_open', { label, joinUrl: config.joinUrl, initScript });
     },
     async close() {
-      // Idempotent on the Rust side; swallow errors so a teardown race never
-      // rejects the watchdog.
-      try {
-        await invoke('notice_card_close', { label });
-      } catch {
-        /* window already gone */
-      }
+      // Idempotent on the Rust side (an absent window returns Ok), so a
+      // rejection here means the close genuinely FAILED. Let it propagate: the
+      // supervisor's watchdog treats an unresolved/rejected close as unconfirmed
+      // and retries, which is exactly the case the watchdog exists for. If we
+      // swallowed it, the watchdog would think the window closed and skip the
+      // retry, leaving the card in the meeting.
+      await invoke('notice_card_close', { label });
     },
   };
 }

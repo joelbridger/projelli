@@ -43,8 +43,12 @@ class FakeDriver implements NoticeCardDriver {
   private hangNextClose = false;
   private deferNext = false;
   private pendingOpenResolve: (() => void) | null = null;
+  private rejectNextClose = false;
   makeNextCloseHang() {
     this.hangNextClose = true;
+  }
+  makeNextCloseReject() {
+    this.rejectNextClose = true;
   }
   /** The next open() stays pending until resolvePendingOpen() is called. */
   deferNextOpen() {
@@ -70,6 +74,10 @@ class FakeDriver implements NoticeCardDriver {
     if (this.hangNextClose) {
       this.hangNextClose = false;
       return new Promise<void>(() => {}); // never resolves
+    }
+    if (this.rejectNextClose) {
+      this.rejectNextClose = false;
+      return Promise.reject(new Error('close failed'));
     }
     return Promise.resolve();
   }
@@ -283,5 +291,30 @@ describe('NoticeCardSupervisor — honest full-duration evidence', () => {
     h.clock.advance(600_000); // long meeting
     await h.sup.stop();
     expect(kinds(h.ledger)).toContain('notice-card-present-for-entire-recording');
+  });
+
+  it('does NOT claim full-duration presence after a rejoin gap, even if present at stop', async () => {
+    const h = make();
+    h.sup.start(CONFIG);
+    h.sup.handleAdmitted(); // prompt first admit
+    h.sup.handleDisconnected(); // dropped → auto-rejoin (a gap in coverage)
+    h.sup.handleAdmitted(); // rejoined, present again
+    await h.sup.stop();
+    expect(kinds(h.ledger)).toContain('notice-card-left');
+    expect(kinds(h.ledger)).not.toContain('notice-card-present-for-entire-recording');
+  });
+});
+
+describe('NoticeCardSupervisor — watchdog retries a FAILED close', () => {
+  it('re-closes when the first close rejects (a real close failure must not be treated as done)', async () => {
+    const h = make();
+    h.sup.start(CONFIG);
+    h.sup.handleAdmitted();
+    h.driver.makeNextCloseReject();
+    void h.sup.stop(); // first close() rejects
+    expect(h.driver.closes).toBe(1);
+    await Promise.resolve(); // let the rejection settle
+    h.clock.advance(60_000); // watchdog fires
+    expect(h.driver.closes).toBeGreaterThanOrEqual(2); // retried
   });
 });

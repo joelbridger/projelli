@@ -273,14 +273,15 @@ export class NoticeCardSupervisor {
       const meetingDir = this.meetingDir();
       this.record({ kind: 'notice-card-left', meetingDir, at: this.nowIso() });
       // Only claim the card covered the WHOLE recording when it was admitted
-      // promptly after record-start. A late admit (slow host / lobby wait) means
-      // it missed the opening minutes, so it must NOT overstate the evidence —
-      // the honest `left` above still records that it was present at the end.
+      // promptly after record-start AND was never dropped mid-meeting. A late
+      // admit (slow host / lobby) OR a rejoin gap means it missed part of the
+      // meeting, so it must NOT overstate the evidence — the honest `left` above
+      // still records that it was present at the end.
       const admitLatency =
         this.admittedAtMs !== null && this.startedAtMs !== null
           ? this.admittedAtMs - this.startedAtMs
           : Infinity;
-      if (admitLatency <= this.fullPresenceToleranceMs) {
+      if (admitLatency <= this.fullPresenceToleranceMs && !this.rejoinUsed) {
         this.record({
           kind: 'notice-card-present-for-entire-recording',
           meetingDir,
