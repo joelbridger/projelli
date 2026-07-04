@@ -63,6 +63,9 @@ import { useWorkflowStore } from '@/features/workflows/workflowStore';
 import { useShallow } from 'zustand/react/shallow';
 import { createWorkspaceService, type WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { createFSBackend, isTauriEnvironment } from '@/platform/fs/BackendFactory';
+import { flushAllDirtyTabs } from '@/app/fileOps/flushDirtyTabs';
+import { useTabWriteGuard } from '@/platform/browserGuard/useTabWriteGuard';
+import { TabGateOverlay } from '@/platform/browserGuard/TabGateOverlay';
 import { useAiBatchReviewStore } from '@/platform/ai/aiBatchReviewStore';
 import { createWebFSBackend } from '@/platform/fs/WebFSBackend';
 import { writeSampleFiles } from '@/platform/matter/samples';
@@ -138,7 +141,52 @@ const IS_DEMO_MODE =
   ((typeof __KEEPANCE_DEMO__ !== 'undefined' && __KEEPANCE_DEMO__) ||
     (window as unknown as { __lanternDemo?: boolean }).__lanternDemo === true);
 
+/**
+ * QA-15: the browser build has no per-workspace localStorage namespacing —
+ * two tabs on the same origin silently clobber each other's saved state
+ * (zustand/persist, last-write-wins, no cross-tab awareness). Desktop
+ * already has an OS-level single-instance guard, and IS_TEST_MODE never
+ * simulates two same-origin tabs, so the gate is disabled for both.
+ *
+ * This check MUST live in a component separate from AppShell, not as an
+ * early return inside it — AppShell calls dozens of hooks, several with
+ * effects that write shared state independent of user interaction (e.g. the
+ * demo-mode auto-open effect below calls handleWorkspaceSelected on mount).
+ * An early return inside AppShell would still run every hook/effect declared
+ * above it (React runs a component's hooks unconditionally regardless of
+ * what it returns), so a blocked tab could still write. Only NOT MOUNTING
+ * AppShell at all guarantees none of its effects ever run in a blocked tab.
+ * See src/platform/browserGuard/ for the guard itself and its rationale.
+ */
 function App() {
+  // onFlushRequested (round 5 codex-review P1) is the ONLY flush trigger on
+  // this side of a handoff — deliberately NOT "flush whenever this tab
+  // becomes blocked". Those are different situations: `onFlushRequested`
+  // only ever fires while this tab is STILL 'owner', in direct response to
+  // another tab's coordinated flush-request BEFORE it claims the lock, so
+  // this tab's buffer is still the authoritative latest state at the moment
+  // it flushes. An earlier version of this also flushed unconditionally
+  // whenever status became 'blocked' — that additionally covers the
+  // AUTOMATIC/involuntary demotion path (this tab was frozen/throttled, its
+  // heartbeat went stale, and another tab reclaimed the lock on its own
+  // without asking). By the time a stale-reclaimed tab wakes up and notices
+  // it's blocked, the new owner may have already read and saved newer state
+  // — flushing this tab's now-stale buffer at that point would silently
+  // overwrite the new owner's real changes, reintroducing exactly the
+  // last-write-wins clobber this whole guard exists to prevent (coordinator
+  // P1, round 6). Losing this tab's own unsaved edits when it was the one
+  // that went stale is an honest, bounded loss; clobbering someone else's
+  // newer save is not.
+  const tabWriteGuard = useTabWriteGuard(!IS_TEST_MODE && !isTauriEnvironment(), {
+    onFlushRequested: flushAllDirtyTabs,
+  });
+  if (tabWriteGuard.status === 'blocked') {
+    return <TabGateOverlay onTakeOver={tabWriteGuard.requestTakeover} />;
+  }
+  return <AppShell />;
+}
+
+function AppShell() {
   const [showWorkspaceSelector, setShowWorkspaceSelector] = useState(!IS_TEST_MODE && !IS_DEMO_MODE);
   const [demoOpenFailed, setDemoOpenFailed] = useState(false);
   const {

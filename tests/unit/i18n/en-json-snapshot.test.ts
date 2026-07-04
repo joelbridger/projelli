@@ -62,7 +62,7 @@ describe('en.json structure snapshot', () => {
         "marketplace": 14,
         "matter": 185,
         "media": 81,
-        "meetings": 59,
+        "meetings": 62,
         "memory": 6,
         "model-download": 9,
         "onboarding": 65,
@@ -74,6 +74,7 @@ describe('en.json structure snapshot', () => {
         "settings": 167,
         "shortcuts-overlay": 2,
         "spine": 5,
+        "tab-guard": 3,
         "tts": 1,
         "updater": 2,
         "vault": 53,
@@ -136,6 +137,11 @@ describe('en.json structure snapshot', () => {
     //      onboarding-card keys), ask.scope-toggle.* (3, ScopeToggle's own
     //      "This X" / "All X" pills sat right next to ask.scope-pill.* with
     //      the same disease).
+    // +3 = meetpersist P1 fix (2026-07-04): meetings.tab gained scan-error-title/
+    //      scan-error-body/retry-button — a failed disk scan now renders a
+    //      distinct error state instead of masquerading as "No meetings yet".
+    // +3 = tab-guard.* (title, description, take-over) — QA-15 browser-build
+    //      single-writer tab gate ("this workspace is open in another tab").
     // +50 = entity-label.* (cleanup batch 2, 2026-07-04): useEntityLabel()
     //      returned hardcoded English words for the profession-pack noun
     //      (matter/client/engagement/household) regardless of locale. New:
@@ -143,7 +149,7 @@ describe('en.json structure snapshot', () => {
     //      each: one, other, one-cap, other-cap, household, households,
     //      household-cap, households-cap, confidentiality-column,
     //      confidentiality-badge).
-    expect(flat.length).toBe(1175);
+    expect(flat.length).toBe(1181);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

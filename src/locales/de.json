@@ -1817,6 +1817,11 @@
       "description__sourceHash": "56d8e688d4d66c3398e32e089f17f37d934a8c0c8d179a83becd173733e3972a"
     }
   },
+  "tab-guard": {
+    "title": "Dieser Arbeitsbereich ist in einem anderen Tab geöffnet",
+    "description": "Um Datenverlust zu vermeiden, kann jeweils nur ein Browser-Tab Änderungen speichern. Wechseln Sie zu Ihrem anderen Tab, um dort weiterzuarbeiten, oder verwenden Sie stattdessen diesen Tab.",
+    "take-over": "Stattdessen diesen Tab verwenden"
+  },
   "ask": {
     "scope-pill": {
       "this-matter": "Dieser Mandant",
@@ -2004,7 +2009,10 @@
       "loading": "Gespräche werden geladen…",
       "needs-review-badge": "Prüfung nötig",
       "reviewed-badge": "Geprüft",
-      "duration": "{{minutes}} Min."
+      "duration": "{{minutes}} Min.",
+      "scan-error-title": "Besprechungen konnten nicht geladen werden",
+      "scan-error-body": "Der Abgleich wurde gerade unterbrochen. Ihre Aufnahmen sind sicher auf diesem Computer gespeichert.",
+      "retry-button": "Erneut versuchen"
     },
     "entry": {
       "breadcrumb-meetings": "Besprechungen",

@@ -54,4 +54,12 @@ describe('needsReview', () => {
     };
     expect(needsReview(done, [])).toEqual([]);
   });
+
+  // P1 fix (2026-07): an orphaned/incomplete meeting folder (missing or
+  // corrupt meeting.json) must be surfaced honestly in the needs-review
+  // queue, never silently hidden or treated as a normal, fully-formed entry.
+  it('flags a meeting with unreadable/missing meeting.json for review', () => {
+    const orphaned: MeetingSummary = { ...baseMeeting, meta: null };
+    expect(needsReview(orphaned, []).map((i) => i.kind)).toContain('unreadable-meta');
+  });
 });
