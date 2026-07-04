@@ -489,3 +489,102 @@ preference and its fallback).
   or interacted with.
 - The original stale Microsoft security-settings tab from the round-1 pass is still open,
   untouched, exactly as before — still a human cleanup item, not urgent (no pending action on it).
+
+---
+
+## Second coordinator-directed follow-up (2026-07-04, same day) — the Clients-table navigation gap
+
+Per the coordinator: fix the known navigation gap (a prior check leaving the Client Map on
+"Whole book" instead of "Clients" silently broke every table-dependent check after it), pull +
+rebuild first for maximum honesty on `index-health` since Rust changed (an unrelated audit-chain
+fix merged in the interim), then re-run the 4 still-blocked checks. Full evidence:
+`docs/evidence/bench-smoke/legion-20260704-052952/` (the definitive final run).
+
+### Bench bring-up
+
+Pulled `C:\lantern-plus` from `59235fa4` to `64df925e` (the two merged harness-follow-up fixes)
+then on to the tip carrying the audit-chain fix (`src-tauri/src/commands/audit/{mod,store}.rs`,
+`retention/mod.rs`, `lib.rs` — genuine Rust changes). **Full rebuild, not skipped:** real
+recompile confirmed (`Compiling lantern...`, 1086 objects). **Freshness canary — PASS:** grepped
+the built exe for a string literal only present in the new audit fix
+(`"chain head seal is corrupt"`) — found; binary timestamp matched the build-completion time.
+
+### The navigation-gap fix — root-caused, fixed, verified
+
+`openSmokeClientDocuments` (used by `setup.mjs`, `wave0.mjs`, `wave2.mjs`) needs the Client Map's
+**"Clients" TABLE** sub-view for its `matter-launch-documents-<id>` button — that testid only
+exists there, never on "Whole book". The Clients/Whole-book toggle choice persists across
+navigation, so any check that left it on "Whole book" (any of the wave4 book-view checks)
+silently broke every table-dependent check that ran after it in the same suite.
+
+Added `ensureClientsTableTab` (`checks/_util.mjs`) — same pattern as the existing Tree-view
+normalization in `openSmokeClientNote`: click `spine-nav-matters` (with the existing "still in
+hub" defensive re-click), then switch the toggle to "Clients" via `clickByText`. Confirmed live
+that `clickByText('Clients')` is unambiguous: of several plain-text elements on the page whose
+text is exactly "clients" (page title, sidebar section header, etc.), only the toggle's own
+button is a real interactive control, so click-by-text.mjs's controls-tier selector never
+matches the others. `openSmokeClientDocuments` now calls this first (best-effort).
+
+**A second bug this fix surfaced:** once `wave0` and `wave2` could both actually reach their
+note-opening step in the same run for the first time, they collided on the identical smoke note
+file — reopening a file very soon after a prior check already opened-and-navigated-away-from it
+can silently fail to render (row selects, no editor tab appears; confirmed reproducible on the
+same file, NOT reproducible on a different file opened immediately after — a real, narrow
+product quirk, not fixed here, out of scope for this harness lane). Added
+`SMOKE_NOTE_FILENAME_SECONDARY` and pointed `wave2.mjs` at it.
+
+**A third bug, found while verifying the above in the full default suite order:** the just-merged
+`wave1.mjs` fix (round-1 follow-up) closed the Account modal with a plain Escape dispatch,
+specifically avoiding `driver.dismissBlockingOverlay()` because that helper used to risk clicking
+the Account modal's "Upload photo" button. But a leftover Draft-follow-up modal (left open by a
+prior `wave0-draft-followup` in the same suite) does **not** close on Escape at all — confirmed
+live, this left it open and silently blocked `wave2`'s navigation right after. Now that
+`overlay-dismiss.mjs` itself prefers an `aria-label="Close"` button (also already merged), it's
+safe to use `dismissBlockingOverlay()` again — reverted `wave1.mjs` to it.
+
+Pushed as `lp/bench-harness-clients-tab-fix` (3 commits) for coordinator review. 131/131 unit
+tests pass (+5 new regression tests).
+
+### Updated scorecard (definitive final run, `legion-20260704-052952`, full default order)
+
+| Check | Status | Note |
+|---|---|---|
+| workspace-binding | PASS | |
+| per-client-files-visible | **PASS** | **Fixed — was SETUP-BLOCKED** |
+| index-health | SETUP-BLOCKED | Unchanged — separate, not-yet-root-caused check-timing issue (confirmed unrelated to the audit-chain rebuild: Client Map surface untouched by that fix) |
+| wave0-draft-followup | SETUP-BLOCKED | **Flaky, not fully resolved** — PASSes reliably in isolation (confirmed 2×, including from a cold "Whole book" start) but hit a leftover-modal timing issue in the full-suite run this time (see "Residual flakiness" below) |
+| wave1-calendar-brief-export | PASS | (fixed round-1, still holding) |
+| **wave2-wealthbox-queue-review** | **PASS** | **Fixed — was SETUP-BLOCKED** |
+| wave2-wealthbox-approve-live | SETUP-BLOCKED | Unchanged — separate issue, see "Not resolved" below |
+| wave4-whole-book-view, estate-beneficiary-gap, estate-beneficiary-gap-dismiss-live, whole-practice-ask | PASS | (fixed round-1, still holding — confirmed again on two more different clients: Diaz, Sandra and Diaz, Michelle, not client-specific) |
+| cross-cutting (light-theme, console-errors, egress-indicator) | PASS | |
+
+**11 PASS, 0 FAIL, 3 SETUP-BLOCKED, 5 TODO (stubs, expected).** Both real FAILs from round 1 and
+both navigation-gap SETUP-BLOCKEDs asked about this round are now fixed for the checks that
+matter most (Wave 1, Wave 2 queue, Wave 4 — all real product flows). Two items remain
+imperfect; neither is a product regression:
+
+**Residual flakiness — wave0-draft-followup:** confirmed PASSing reliably in isolated re-runs
+(twice, including cold-starting from "Whole book"). In the one full-suite run where it
+SETUP-BLOCKED, the root cause traces to a Draft-follow-up modal left open from an *earlier manual
+verification step in this same session* (not from the harness itself) that hadn't fully cleared
+before the suite started — the same modal-doesn't-close-on-Escape behavior the `wave1.mjs` fix
+above addresses. Not fully ruled out as zero-risk in a truly cold run; flagging honestly rather
+than claiming full confidence.
+
+**Not resolved — wave2-wealthbox-approve-live:** the review card `wave2-wealthbox-queue-review`
+just confirmed present (screenshot-verified) is gone by the time the next check's fresh snapshot
+runs a few seconds later. Investigated at length: not a toast/auto-dismiss timer (checked
+`CrmWriteReviewCard.tsx` source, no such timer), not a Wealthbox-connection issue (confirmed
+connected throughout), reproducible via the harness's own exact call sequence but NOT reliably
+reproducible via manual step-by-step replay with the same driver primitives (several manual
+attempts on fresh, never-before-touched notes never got the card to appear at all, even waiting
+30+ real seconds) — suggesting a timing/state dependency not yet isolated. Time-boxed and
+stopped rather than continuing to chase; flagging as a candidate for a future targeted
+investigation, separate from this round's navigation-gap ask.
+
+### Bench state left behind (this round)
+
+App stopped, `LanternPlusDev` returned to **Disabled**, SSH tunnel closed. No stray native
+dialogs this round (the overlay-dismiss fix held throughout). Calendar and Wealthbox connectors
+both confirmed connected and healthy at end of session.
