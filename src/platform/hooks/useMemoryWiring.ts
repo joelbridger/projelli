@@ -1273,10 +1273,19 @@ export function useMemoryWiring(
           },
         );
         if (cancelled) {
+          // P2 (codex-review follow-up): this workspace was closed/switched
+          // WHILE essential wiring was still installing. Stop the listener
+          // we just registered and bail out immediately — falling through
+          // into the optional connector setup below would run
+          // mailSetWorkspace/crmSetWorkspace/oneDriveSetWorkspace/etc. with
+          // this closure's STALE `rootPath`, potentially racing the NEW
+          // workspace's own setup and leaving connector state on the Rust
+          // side pointing at an inactive workspace (isolation-adjacent
+          // misrouting, not just a wasted call).
           stop();
-        } else {
-          unlisten = stop;
+          return;
         }
+        unlisten = stop;
 
         // Optional connectors — every one of these is best-effort and
         // individually caught, so a failure here can never again take down
@@ -1372,8 +1381,15 @@ export function useMemoryWiring(
             }
           },
         );
-        if (cancelled) stopModelListen();
-        else stopModelListeners.push(stopModelListen);
+        if (cancelled) {
+          // P2 (codex-review follow-up): same fall-through hazard as above —
+          // falling through here would still call modelStatus() and could
+          // kick off startFullIndexOnce() (a full re-index) for a workspace
+          // that has already closed/switched.
+          stopModelListen();
+          return;
+        }
+        stopModelListeners.push(stopModelListen);
 
         const status = await modelStatus().catch(() => 'ready');
         if (status === 'ready') {
