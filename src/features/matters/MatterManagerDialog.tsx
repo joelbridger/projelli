@@ -358,7 +358,7 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
             {entityLabel.Other}
           </DialogTitle>
           <DialogDescription>
-            {`A ${entityLabel.one} groups one client's work under one or more workspace folders. Files in a ${entityLabel.one}'s folders are scoped to that ${entityLabel.one} so other clients' data never appears.`}
+            {t('matter.manager.description-entity', { entity: entityLabel.one })}
           </DialogDescription>
         </DialogHeader>
 
@@ -367,7 +367,7 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label htmlFor="matter-new-name" className="text-xs">
-                {`${entityLabel.One} name`}
+                {t('matter.manager.name-label-entity', { entity: entityLabel.One })}
               </Label>
               <Input
                 id="matter-new-name"
@@ -430,7 +430,7 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
             disabled={!newName.trim() && !newClient.trim()}
           >
             <Plus className="h-4 w-4" />
-            {`Create ${entityLabel.one}`}
+            {t('matter.manager.create-entity', { entity: entityLabel.one })}
           </Button>
         </div>
 
@@ -508,7 +508,7 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
         <div className="space-y-3" data-testid="matter-list">
           {activeMatters.length === 0 ? (
             <p className="text-sm text-muted-foreground py-2">
-              {`No ${entityLabel.other} yet. Create your first ${entityLabel.one} above.`}
+              {t('matter.manager.empty-entity', { entityOther: entityLabel.other, entityOne: entityLabel.one })}
             </p>
           ) : (
             activeMatters.map((m) => (
@@ -539,7 +539,7 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                       Sample
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {`This is the built-in training ${entityLabel.one}. Deleting it removes the demo questions.`}
+                      {t('matter.manager.sample-hint-entity', { entity: entityLabel.one })}
                     </span>
                   </div>
                 )}
@@ -551,7 +551,7 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                       renameMatter(m.id, { name: e.target.value });
                     }}
                     className="h-8 text-sm font-medium"
-                    aria-label={`${entityLabel.One} name`}
+                    aria-label={t('matter.manager.name-label-entity', { entity: entityLabel.One })}
                     disabled={m.id === SAMPLE_MATTER_ID}
                   />
                   <div className="flex items-center gap-2">
@@ -571,8 +571,8 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                       size="icon"
                       className="h-8 w-8 shrink-0 text-muted-foreground hover:bg-accent"
                       onClick={() => { setMatterArchived(m.id, true); }}
-                      aria-label={`Archive ${entityLabel.one}`}
-                      title={`Archive ${entityLabel.one}`}
+                      aria-label={t('matter.manager.archive-entity', { entity: entityLabel.one })}
+                      title={t('matter.manager.archive-entity', { entity: entityLabel.one })}
                     >
                       <Archive className="h-4 w-4" />
                     </Button>
@@ -589,11 +589,14 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                         // disk.)
                         const message =
                           m.id === SAMPLE_MATTER_ID
-                            ? `This removes the sample ${entityLabel.one}, and the demo questions will stop working. Continue?`
-                            : `Remove the ${entityLabel.one} "${m.name || m.client || `this ${entityLabel.one}`}"? Your files stay on your computer, but this ${entityLabel.one}'s folder and email mappings, notes, and saved state are cleared. This can't be undone.`;
+                            ? t('matter.manager.delete-sample-confirm-entity', { entity: entityLabel.one })
+                            : t('matter.manager.delete-confirm-entity', {
+                                entity: entityLabel.one,
+                                name: m.name || m.client || t('ask.message-scope.this-entity-fallback', { entity: entityLabel.one }),
+                              });
                         void (async () => {
                           const confirmed = await confirm(message, {
-                            title: `Remove ${entityLabel.one}`,
+                            title: t('matter.manager.delete-confirm-title-entity', { entity: entityLabel.one }),
                             confirmLabel: 'Remove',
                             variant: 'destructive',
                           });
@@ -601,8 +604,8 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                           deleteMatter(m.id);
                         })();
                       }}
-                      aria-label={`Delete ${entityLabel.one}`}
-                      title={`Delete ${entityLabel.one}`}
+                      aria-label={t('matter.manager.delete-entity', { entity: entityLabel.one })}
+                      title={t('matter.manager.delete-entity', { entity: entityLabel.one })}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -861,11 +864,11 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                 {/* Folder mapping */}
                 <div>
                   <p className="text-xs font-medium text-muted-foreground mb-1">
-                    {`Folders in this ${entityLabel.one}`}
+                    {t('matter.manager.folders-label-entity', { entity: entityLabel.one })}
                   </p>
                   {folderPaths.length === 0 ? (
                     <p className="text-xs text-muted-foreground">
-                      {`Open a workspace to map folders to this ${entityLabel.one}.`}
+                      {t('matter.manager.no-folders-entity', { entity: entityLabel.one })}
                     </p>
                   ) : (
                     <div className="max-h-40 overflow-y-auto rounded border divide-y">
@@ -916,11 +919,11 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                 {/* Email account mapping (account-level: every folder in the account) */}
                 <div>
                   <p className="text-xs font-medium text-muted-foreground mb-1">
-                    {`Email accounts in this ${entityLabel.one}`}
+                    {t('matter.manager.mail-label-entity', { entity: entityLabel.one })}
                   </p>
                   {mailAccounts.length === 0 ? (
                     <p className="text-xs text-muted-foreground">
-                      {`Connect an email account in Settings to map it to this ${entityLabel.one}.`}
+                      {t('matter.manager.no-mail-accounts-entity', { entity: entityLabel.one })}
                     </p>
                   ) : (
                     <div className="rounded border divide-y">
@@ -961,7 +964,7 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                   )}
                   {mailAccounts.length > 0 && (
                     <p className="mt-1 text-[11px] text-muted-foreground">
-                      {`Email from a mapped account is scoped to this ${entityLabel.one}.`}
+                      {t('matter.manager.mail-account-hint-entity', { entity: entityLabel.one })}
                     </p>
                   )}
                 </div>

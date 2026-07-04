@@ -166,3 +166,90 @@ export function useEntityLabel(): EntityLabel {
 export function getEntityLabel(): EntityLabel {
   return buildEntityLabel(getProfession(), i18n.t.bind(i18n));
 }
+
+/**
+ * Fixed-English escape hatch — NOT locale-aware on purpose.
+ *
+ * A number of call sites still build their surrounding sentence as a
+ * hardcoded English template literal (e.g. "No {other} yet. Create one...")
+ * instead of routing it through t(). Handing THOSE call sites the translated
+ * noun from useEntityLabel()/getEntityLabel() would ship a sentence that's
+ * part-English, part-translated — worse than the pre-i18n baseline. Until
+ * each of those call sites is migrated to a real t() key (see the cleanup2
+ * handoff for the exact list), they should use this accessor instead, so the
+ * whole sentence stays coherently English rather than mixed-language.
+ *
+ * Do NOT reach for this on a surface that's otherwise localized — it exists
+ * only to keep already-hardcoded-English strings internally consistent.
+ */
+const ENGLISH_LABELS: Record<Profession, EntityLabel> = {
+  legal: {
+    one: 'matter',
+    other: 'matters',
+    One: 'Matter',
+    Other: 'Matters',
+    household: 'matter',
+    households: 'matters',
+    Household: 'Matter',
+    Households: 'Matters',
+    confidentialityColumn: 'Privilege',
+    confidentialityBadge: 'Privileged',
+  },
+  tax: {
+    one: 'client',
+    other: 'clients',
+    One: 'Client',
+    Other: 'Clients',
+    household: 'client',
+    households: 'clients',
+    Household: 'Client',
+    Households: 'Clients',
+    confidentialityColumn: 'Confidential',
+    confidentialityBadge: 'Confidential',
+  },
+  consulting: {
+    one: 'engagement',
+    other: 'engagements',
+    One: 'Engagement',
+    Other: 'Engagements',
+    household: 'engagement',
+    households: 'engagements',
+    Household: 'Engagement',
+    Households: 'Engagements',
+    confidentialityColumn: 'Confidential',
+    confidentialityBadge: 'Confidential',
+  },
+  advisor: {
+    one: 'client',
+    other: 'clients',
+    One: 'Client',
+    Other: 'Clients',
+    household: 'household',
+    households: 'households',
+    Household: 'Household',
+    Households: 'Households',
+    confidentialityColumn: 'Sensitive',
+    confidentialityBadge: 'Sensitive',
+  },
+  other: {
+    one: 'matter',
+    other: 'matters',
+    One: 'Matter',
+    Other: 'Matters',
+    household: 'matter',
+    households: 'matters',
+    Household: 'Matter',
+    Households: 'Matters',
+    confidentialityColumn: 'Sensitive',
+    confidentialityBadge: 'Sensitive',
+  },
+};
+
+export function useEntityLabelEnglish(): EntityLabel {
+  const profession = useProfessionStore((s) => s.profession);
+  return ENGLISH_LABELS[profession];
+}
+
+export function getEntityLabelEnglish(): EntityLabel {
+  return ENGLISH_LABELS[getProfession()];
+}

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/ui/kp';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { SK_SAMPLE_BRIDGE_DISMISSED, EV_OPEN_MATTER_MANAGER } from '@/config/identity';
@@ -16,6 +17,7 @@ export const SAMPLE_BRIDGE_DISMISSED_KEY = SK_SAMPLE_BRIDGE_DISMISSED;
 
 export function SampleBridgeCallout() {
   const entityLabel = useEntityLabel();
+  const { t } = useTranslation();
   const [dismissed, setDismissed] = useState(
     () => localStorage.getItem(SAMPLE_BRIDGE_DISMISSED_KEY) === '1',
   );
@@ -54,7 +56,7 @@ export function SampleBridgeCallout() {
             margin: 0,
           }}
         >
-          {`This is sample data. When you are ready, add your first real ${entityLabel.one} to search your own files.`}
+          {t('ask.sample-bridge.body', { entity: entityLabel.one })}
         </p>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
@@ -64,7 +66,7 @@ export function SampleBridgeCallout() {
           data-testid="sample-bridge-add-matter"
           onClick={handleAddMatter}
         >
-          {`Add a ${entityLabel.one}`}
+          {t('ask.sample-bridge.add-button', { entity: entityLabel.one })}
         </Button>
         <button
           type="button"

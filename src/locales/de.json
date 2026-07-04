@@ -1116,6 +1116,16 @@
     }
   },
   "matter": {
+    "scope": {
+      "all-matters-title-entity": "Durchsucht alle {{entityOther}}. Antworten können Daten aus jedem/jeder {{entityOne}} enthalten.",
+      "all-matters-title-entity__sourceHash": "ebd790073df82a77faf428e30aa363defb5e83346e2937849c8719eff9a90af2",
+      "active-title-entity": "Aktiver {{entity}}: {{name}}. Fragen sind auf diesen {{entity}} beschränkt.",
+      "active-title-entity__sourceHash": "cc331ab90dcee849f66fc4f3614cf51a91e8c8a311812f77fc8c1131b94961a7",
+      "no-matters-entity": "Noch keine {{entityOther}}. Erstelle einen, um deine Arbeit auf einen einzigen {{entityOne}} zu beschränken.",
+      "no-matters-entity__sourceHash": "419ae5ed59f61e300b494009c69d2172265bead65bba169eba435c7d01775b5f",
+      "manage-entity": "{{entity}} verwalten...",
+      "manage-entity__sourceHash": "421e1cb1d0355e61600c16d2b8ece738c3b9256574aab5fd7377108fea4ba1c1"
+    },
     "sidebar": {
       "empty": "Noch keine Mandanten.",
       "create-first": "Ersten Mandanten erstellen",
@@ -1182,7 +1192,37 @@
       "restore": "Wiederherstellen",
       "restore__sourceHash": "a76e13b9839270eb73ed11417f7d8acca55df0ad52065799361631d0fff74f27",
       "archived-section-label": "Archiviert",
-      "archived-section-label__sourceHash": "bdb86505f8062d15f152cef71dd4ca89609d5bf8e98771dcd2c9f70d247403da"
+      "archived-section-label__sourceHash": "bdb86505f8062d15f152cef71dd4ca89609d5bf8e98771dcd2c9f70d247403da",
+      "description-entity": "Ein {{entity}} bündelt die Arbeit eines Kunden in einem oder mehreren Arbeitsbereichsordnern. Dateien in den Ordnern eines {{entity}} sind auf diesen {{entity}} beschränkt, sodass Daten anderer Kunden nie erscheinen.",
+      "description-entity__sourceHash": "68b63b1699b679a6e1aa8c162a39bef0fdd42ce4cfede8651c7bb506110d8b73",
+      "name-label-entity": "{{entity}}-Name",
+      "name-label-entity__sourceHash": "ead57446da780ba5b192b72c1adefb20ee2358acff1bca8cf86e698844825fb5",
+      "create-entity": "{{entity}} erstellen",
+      "create-entity__sourceHash": "5b360186ada974ae7e74eac0c1908541721d3882d960d21825cd790b72d15fe1",
+      "empty-entity": "Noch keine {{entityOther}}. Erstelle oben deinen ersten {{entityOne}}.",
+      "empty-entity__sourceHash": "aa0a865b6550cc555efe5ea8dd04969e63809b8318b5a5acb841e3161f2e14fa",
+      "sample-hint-entity": "Dies ist der integrierte Schulungs-{{entity}}. Beim Löschen verschwinden die Demo-Fragen.",
+      "sample-hint-entity__sourceHash": "da14fec3d973a5c46da1c8a93da4dcc9ec8efde3fcebf822946a682d0790563d",
+      "archive-entity": "{{entity}} archivieren",
+      "archive-entity__sourceHash": "5729232cf704720c484b8edceeab2042e9839b5102927edde88658267e52ecd7",
+      "delete-sample-confirm-entity": "Dadurch wird der Beispiel-{{entity}} entfernt, und die Demo-Fragen funktionieren nicht mehr. Fortfahren?",
+      "delete-sample-confirm-entity__sourceHash": "411cb7a1860932c4c70c7198f6d97e8779299092bc0472441cc5a79dee164431",
+      "delete-confirm-entity": "{{entity}} \"{{name}}\" entfernen? Deine Dateien bleiben auf deinem Computer, aber die Ordner- und E-Mail-Zuordnungen, Notizen und der gespeicherte Zustand dieses {{entity}} werden gelöscht. Dies kann nicht rückgängig gemacht werden.",
+      "delete-confirm-entity__sourceHash": "98faa8619ff82e1c89def7a00d75de82bbc2d809f57bfde08bb28b6fed799da1",
+      "delete-confirm-title-entity": "{{entity}} entfernen",
+      "delete-confirm-title-entity__sourceHash": "b243e84834692ffd05da3b4322b0c2fa7e80b451d02ba8e390c6277cdb9673ee",
+      "delete-entity": "{{entity}} löschen",
+      "delete-entity__sourceHash": "7b71350aa155b2b160f36a1e7fa3d7fdcda0131fcb538e176f21885bdffc1e96",
+      "folders-label-entity": "Ordner in diesem {{entity}}",
+      "folders-label-entity__sourceHash": "f266412c965c719f9ca9a10d5fbf875ce995071b3dfdb108758f859f8be4535e",
+      "no-folders-entity": "Öffne einen Arbeitsbereich, um Ordner diesem {{entity}} zuzuordnen.",
+      "no-folders-entity__sourceHash": "2f126521c2768c093fc2d28c89932ca9ca31666dde23b89beb1b4d21af4ca08c",
+      "mail-label-entity": "E-Mail-Konten in diesem {{entity}}",
+      "mail-label-entity__sourceHash": "2c4ec5ef960d2f81503d9d2cb0322d092dc10ca129ae01a1761b0c63de6acbaa",
+      "no-mail-accounts-entity": "Verbinde ein E-Mail-Konto in den Einstellungen, um es diesem {{entity}} zuzuordnen.",
+      "no-mail-accounts-entity__sourceHash": "8b4d26f246b4916dee190f7d5c6debd8abeb0162827e40c1ab0fb70f389af1d0",
+      "mail-account-hint-entity": "E-Mail aus einem zugeordneten Konto ist auf diesen {{entity}} beschränkt.",
+      "mail-account-hint-entity__sourceHash": "dcaa72f2161c4305981437631f7be3419a0c62b749d849b330712ccc438c0387"
     },
     "sync": {
       "live-tooltip": "Mit der Kanzlei synchronisiert",
@@ -1858,6 +1898,30 @@
       "all-entity__sourceHash": "04e69e384c954bb2d65168ec84802c70fb818fdf1e7569c9e780cf84be1cf292",
       "aria-label": "Fragebereich",
       "aria-label__sourceHash": "73524050d293328389d3fdc334b7f2d697071a2bcea1149638f6dc3e6cb24576"
+    },
+    "composer": {
+      "placeholder-all-entity": "Fragen zu allen {{entity}}…",
+      "placeholder-all-entity__sourceHash": "cbe4b2269ed12ee1198123c96422692c86d061761b2bcadc4b71c4d176f10b17",
+      "aria-label": "Fragen zu diesem {{entity}}",
+      "aria-label__sourceHash": "6ae3bc4e80f82920218ed9209cabb062388b61677113e87c2b41ee0dc45f83de"
+    },
+    "file-access": {
+      "all-entity-scope": "alle deine {{entity}}",
+      "all-entity-scope__sourceHash": "32edab7b7ca175a62a2ee0930dbd0e64b223458356d2fc56ffa3d1d606036b4a"
+    },
+    "message-scope": {
+      "all-title": "Diese Antwort hat alle {{entity}} durchsucht.",
+      "all-title__sourceHash": "fab747ad3355c6fa6d804aaea049ac74bda097bda66e78bd15c6107ed896901f",
+      "matter-title": "Diese Antwort war auf den aktuellen {{entity}} beschränkt. Daten anderer Kunden wurden nicht durchsucht.",
+      "matter-title__sourceHash": "af8a6558fdb1a7da30da97b8762a86aca22595b6d44ef4f4f162015b13166afd",
+      "this-entity-fallback": "diesen {{entity}}",
+      "this-entity-fallback__sourceHash": "0063421c930a731941f9c2b5cc809c64a009a359710899a6fee3e7e84dcc2db0"
+    },
+    "sample-bridge": {
+      "body": "Dies sind Beispieldaten. Füge deinen ersten echten {{entity}} hinzu, sobald du bereit bist, um in deinen eigenen Dateien zu suchen.",
+      "body__sourceHash": "18f0c1a2039c0b85192f24561f341fc8c0f77e924a4a979347bdad2e518088df",
+      "add-button": "{{entity}} hinzufügen",
+      "add-button__sourceHash": "c08d5b19cc06093d6961bdb33c5b96279bb3ae742c054fc67ce7e3da57a7bb8b"
     }
   },
   "privacy": {

@@ -55,7 +55,7 @@ import {
 import { deriveFilenameFromMessage } from '@/platform/utils/fileDrop';
 import { assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
 import { matterLabel } from '@/platform/rag/matterResolver';
-import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
+import { useEntityLabelEnglish } from '@/platform/hooks/useEntityLabel';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { resolveEgress } from '@/platform/privacy/egress';
 import {
@@ -148,7 +148,10 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
   const [message, setMessage] = useState<MailView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const entityLabel = useEntityLabel();
+  // Fixed-English escape hatch: the "File to {{entity}}" strings below are
+  // still hardcoded English (see the cleanup2 handoff), so the noun stays
+  // English too rather than mixing languages.
+  const entityLabel = useEntityLabelEnglish();
 
   // Privilege (WS-PRIV / VG-5c)
   const mailSourceId = privilegeSourceId(sourceId);

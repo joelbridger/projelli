@@ -153,8 +153,8 @@ function MessageBubbleImpl({
                 )}
                 title={
                   msg.scope.kind === 'allMatters'
-                    ? `This answer searched across every ${entityLabel.one}.`
-                    : `This answer was confined to the active ${entityLabel.one}. Other clients' data was not searched.`
+                    ? t('ask.message-scope.all-title', { entity: entityLabel.one })
+                    : t('ask.message-scope.matter-title', { entity: entityLabel.one })
                 }
               >
                 {msg.scope.kind === 'allMatters' ? (
@@ -163,8 +163,8 @@ function MessageBubbleImpl({
                   <Briefcase className="h-3 w-3" />
                 )}
                 {msg.scope.kind === 'allMatters'
-                  ? `All ${entityLabel.other}`
-                  : (msg.scope.matterName ?? `this ${entityLabel.one}`)}
+                  ? t('ask.scope-toggle.all-entity', { entity: entityLabel.other })
+                  : (msg.scope.matterName ?? t('ask.message-scope.this-entity-fallback', { entity: entityLabel.one }))}
               </div>
             )}
             {/* WS-B/C + BUG-065 — flag when ANY citation in this answer isn't

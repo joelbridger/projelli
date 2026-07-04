@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { getEntityLabel } from '@/platform/hooks/useEntityLabel';
+import { getEntityLabelEnglish } from '@/platform/hooks/useEntityLabel';
 import {
   History,
   FilePlus,
@@ -354,7 +354,10 @@ export function getScopeLabel(entry: AuditEntry): string | null {
     if (mode === 'assured') return 'Assured';
   }
   if (entry.action === 'scope_active' || entry.action === 'retrieval_executed') {
-    const entityLabel = getEntityLabel();
+    // English-only escape hatch: this sentence is still hardcoded English
+    // (see the cleanup2 handoff), so the noun must stay English too rather
+    // than mix a translated word into an English sentence.
+    const entityLabel = getEntityLabelEnglish();
     const scope = meta['scope'] as { kind?: string; matterName?: string } | undefined;
     if (scope?.kind === 'allMatters') return `All ${entityLabel.other}`;
     if (scope?.kind === 'matter') return scope.matterName ?? entityLabel.One;

@@ -47,7 +47,7 @@ describe('en.json structure snapshot', () => {
         "ai": 48,
         "analysis": 10,
         "app": 2,
-        "ask": 15,
+        "ask": 23,
         "audio": 1,
         "chat": 12,
         "citation": 3,
@@ -60,7 +60,7 @@ describe('en.json structure snapshot', () => {
         "local-ai-settings": 8,
         "mail": 6,
         "marketplace": 14,
-        "matter": 185,
+        "matter": 204,
         "media": 81,
         "meetings": 62,
         "memory": 6,
@@ -149,7 +149,18 @@ describe('en.json structure snapshot', () => {
     //      each: one, other, one-cap, other-cap, household, households,
     //      household-cap, households-cap, confidentiality-column,
     //      confidentiality-badge).
-    expect(flat.length).toBe(1181);
+    // +27 = cleanup2 follow-up (2026-07-04): fixed mixed-language sentences on
+    //      the primary Ask + client-manager surfaces (the entity-label noun
+    //      is now translated, but the surrounding sentence stayed hardcoded
+    //      English at ~50 call sites — a real coherence regression flagged in
+    //      review). New: ask.composer.* (2), ask.file-access.* (1),
+    //      ask.message-scope.* (3), ask.sample-bridge.* (2) = 8;
+    //      matter.manager.*-entity (15) + matter.scope.*-entity (4) = 19.
+    //      The remaining ~23 hardcoded-English call sites (audit, email,
+    //      workflows, the privacy report, and TrustBar) were left as-is and
+    //      now read via useEntityLabelEnglish() instead, so no sentence ships
+    //      mixed-language; see the cleanup2 handoff for the exact file list.
+    expect(flat.length).toBe(1208);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {
