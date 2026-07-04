@@ -96,7 +96,18 @@ describe('MeetingEntry — honest notes-failed state (QA-31)', () => {
     render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
 
     await waitFor(() => expect(screen.getByTestId('meeting-entry-notes-failed')).toBeTruthy());
-    expect(screen.getByTestId('meeting-entry-notes-failed').textContent).toMatch(/local-only/i);
+    const text = screen.getByTestId('meeting-entry-notes-failed').textContent ?? '';
+    expect(text).toMatch(/local-only/i);
+
+    // R3 (trust review): this message must not coach a confidentiality-anxious
+    // advisor to downgrade their own privacy as the FIRST suggested fix. The
+    // privacy-preserving option (connect a local model) must be offered before
+    // "turn off Local-only mode".
+    const localModelIdx = text.search(/connect a local model/i);
+    const turnOffIdx = text.search(/turn off local-only mode/i);
+    expect(localModelIdx).toBeGreaterThanOrEqual(0);
+    expect(turnOffIdx).toBeGreaterThanOrEqual(0);
+    expect(localModelIdx).toBeLessThan(turnOffIdx);
   });
 
   // Coordinator P2 (independent pass): a real notes.docx is BINARY. Reading it

@@ -109,7 +109,7 @@ export const DATA_MAP_ROWS: MapRow[] = [
     tone: 'text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950/40',
     title: 'Your Wealthbox connection runs from your machine to Wealthbox',
     body: "When you connect Wealthbox, your API key is stored in your computer's own keychain, never on a Advisor Prep Hero server. Advisor Prep Hero reads your Wealthbox data by calling Wealthbox directly from your machine with that key, so those requests never pass through Advisor Prep Hero's servers and Advisor Prep Hero never sees your CRM data. A sync imports the households and client records your Wealthbox login can see, and stores them in a local, encrypted database on your device, searched the same way your files are.",
-    caveat: 'The connection is read-only: Advisor Prep Hero never writes anything back to Wealthbox. Disconnecting deletes the imported Wealthbox data from this device.',
+    caveat: "Reading is automatic; writing is not. Advisor Prep Hero can write a note, task, or field update into Wealthbox, but only from a review card that lists exactly what will be sent, which you approve before anything goes out. Nothing is written back on its own. Disconnecting deletes the imported Wealthbox data from this device.",
   },
   {
     icon: ScanText,

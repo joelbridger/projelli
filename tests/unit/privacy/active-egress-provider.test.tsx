@@ -13,6 +13,7 @@ import {
   resolveActiveEgressProvider,
   resolveActiveEgressProviderSync,
   useActiveEgressProvider,
+  notifyEgressConfigChange,
 } from '@/platform/hooks/useActiveEgressProvider';
 import { KeychainService } from '@/platform/providers/KeychainService';
 
@@ -84,6 +85,30 @@ describe('useActiveEgressProvider — reactive to mid-session key changes', () =
     await act(async () => {
       await setKey('openai');
     });
+    await waitFor(() => expect(result.current).toBe('openai'));
+  });
+
+  // R7 (trust review): the Privacy Center's "Current mode" pill must never
+  // disagree with what a real send would use, across a genuine provider-to-
+  // provider switch (not just none -> one). Regression for the exact bug
+  // shape the review caught live: pill said "OpenAI" while real calls went
+  // to Anthropic.
+  it('flips from anthropic to openai when the saved default provider switches mid-session', async () => {
+    await setKey('anthropic');
+    await setKey('openai');
+    localStorage.setItem('lantern_default_provider', 'anthropic');
+
+    const { result, rerender } = renderHook(
+      ({ mode }) => useActiveEgressProvider(mode),
+      { initialProps: { mode: 'direct' } },
+    );
+    await waitFor(() => expect(result.current).toBe('anthropic'));
+
+    await act(async () => {
+      localStorage.setItem('lantern_default_provider', 'openai');
+      notifyEgressConfigChange();
+    });
+    rerender({ mode: 'direct' });
     await waitFor(() => expect(result.current).toBe('openai'));
   });
 });
