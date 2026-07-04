@@ -1607,6 +1607,8 @@
       "revise-with-ai": "Mit KI überarbeiten",
       "draft-follow-up": "Follow-up entwerfen",
       "draft-follow-up-title": "Eine Follow-up-E-Mail aus diesem Dokument entwerfen",
+      "send-to-wealthbox-disconnected": "Verbinden Sie Wealthbox über Ihr Konto → Verbindungen, um Notizen zu senden.",
+      "send-to-wealthbox-disconnected__sourceHash": "b84fd206166782a42864aa280391e288bbe935490b4bc5abfa2a90eb071dd4c0",
       "redline-placeholder": "Sagen Sie der KI, wie dieses Dokument überarbeitet werden soll. Zum Beispiel: „Haftungsklausel straffen\", „förmlicher machen\", „um 20 % kürzen\".",
       "redline-submit": "Änderungen vorschlagen",
       "redline-working": "Denkt nach…",

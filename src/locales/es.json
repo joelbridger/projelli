@@ -1607,6 +1607,8 @@
       "revise-with-ai": "Revisar con IA",
       "draft-follow-up": "Redactar seguimiento",
       "draft-follow-up-title": "Redactar un correo de seguimiento a partir de este documento",
+      "send-to-wealthbox-disconnected": "Conecta Wealthbox desde Tu cuenta → Conexiones para enviar notas.",
+      "send-to-wealthbox-disconnected__sourceHash": "b84fd206166782a42864aa280391e288bbe935490b4bc5abfa2a90eb071dd4c0",
       "redline-placeholder": "Indica a la IA cómo revisar este documento. Por ejemplo: \"ajustar la cláusula de indemnización\", \"hacerlo más formal\", \"acortar un 20%\".",
       "redline-submit": "Sugerir cambios",
       "redline-working": "Pensando…",
