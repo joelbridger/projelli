@@ -59,17 +59,19 @@ interface MatterNotesEditorProps {
   className?: string;
 }
 
-/** Label the sync status badge for the user (i18n key suffix). */
-function statusI18nKey(
+/** Label the sync status badge for the user (literal keys per branch — the
+ *  i18n extractor can't trace a template-literal key built from a variable). */
+function statusLabel(
   status: ReturnType<typeof useMatterSyncStatus>,
+  t: (key: string) => string,
 ): string {
   switch (status) {
-    case 'live': return 'status-live';
-    case 'connecting': return 'status-connecting';
-    case 'catching-up': return 'status-catching-up';
-    case 'offline': return 'status-offline';
-    case 'error': return 'status-error';
-    default: return 'status-idle';
+    case 'live': return t('matter.notes.status-live');
+    case 'connecting': return t('matter.notes.status-connecting');
+    case 'catching-up': return t('matter.notes.status-catching-up');
+    case 'offline': return t('matter.notes.status-offline');
+    case 'error': return t('matter.notes.status-error');
+    default: return t('matter.notes.status-idle');
   }
 }
 
@@ -285,10 +287,10 @@ export function MatterNotesEditor({
             <span
               data-testid="matter-notes-sync-badge"
               className="flex items-center gap-1 text-xs text-gray-500 shrink-0"
-              aria-label={t(`matter.notes.${statusI18nKey(syncStatus)}`)}
+              aria-label={statusLabel(syncStatus, t)}
             >
               <span className={cn('inline-block w-2 h-2 rounded-full', statusDotClass(syncStatus))} />
-              {t(`matter.notes.${statusI18nKey(syncStatus)}`)}
+              {statusLabel(syncStatus, t)}
             </span>
           </div>
           <p className="text-xs text-gray-500 mt-0.5">

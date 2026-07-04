@@ -306,18 +306,14 @@ export function WorkflowExecutionTab({
             </div>
             <div>
               <p className="font-semibold text-base">
-                {t(
-                  isOllama
-                    ? 'workflow.execution.ollama-unreachable-title'
-                    : 'workflow.execution.needs-provider-title',
-                )}
+                {isOllama
+                  ? t('workflow.execution.ollama-unreachable-title')
+                  : t('workflow.execution.needs-provider-title')}
               </p>
               <p className="text-sm text-muted-foreground mt-1">
-                {t(
-                  isOllama
-                    ? 'workflow.execution.ollama-unreachable-body'
-                    : 'workflow.execution.needs-provider-body',
-                )}
+                {isOllama
+                  ? t('workflow.execution.ollama-unreachable-body')
+                  : t('workflow.execution.needs-provider-body')}
               </p>
             </div>
             {!isOllama && onOpenSettings && (

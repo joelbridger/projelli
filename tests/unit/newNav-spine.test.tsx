@@ -26,8 +26,12 @@ describe('Spine — 3-tab shell', () => {
 
   it('relabels the tabs (Client Map / Ask) while keeping internal ids', () => {
     render(<Spine activeTab="matters" />);
-    expect(screen.getByTestId('spine-nav-matters').textContent).toMatch(/client map/i);
-    expect(screen.getByTestId('spine-nav-search').textContent).toMatch(/^ask$/i);
+    // react-i18next is mocked to `t = (key) => key` (matches the rest of this
+    // suite), so the rendered label is the i18n key itself — asserting on the
+    // key still proves the Client Map / Ask tab uses its own distinct key,
+    // and doing so through t() (not a hardcoded string) is the actual bug fix.
+    expect(screen.getByTestId('spine-nav-matters').textContent).toBe('spine.nav.client-map');
+    expect(screen.getByTestId('spine-nav-search').textContent).toBe('spine.nav.ask');
   });
 
   it('does NOT render the demoted surfaces as rail tabs (files/email/audit/privacy/settings)', () => {

@@ -31,11 +31,11 @@ export function ScopeToggle({
   // Build the available options based on context.
   // Email/Documents hidden on the sample matter so demo chips stay prominent.
   const options: ScopeOptionDef[] = [
-    ...(hasMatter ? [{ value: 'this-matter' as AskScope, label: `This ${entityLabel.one}`, Icon: FileText }] : []),
-    { value: 'all-matters' as AskScope, label: `All ${entityLabel.other}`, Icon: FolderOpen },
+    ...(hasMatter ? [{ value: 'this-matter' as AskScope, label: t('ask.scope-toggle.this-entity', { entity: entityLabel.one }), Icon: FileText }] : []),
+    { value: 'all-matters' as AskScope, label: t('ask.scope-toggle.all-entity', { entity: entityLabel.other }), Icon: FolderOpen },
     ...(!isSample ? [
-      { value: 'email' as AskScope, label: 'Email', Icon: Mail },
-      { value: 'documents' as AskScope, label: 'Documents', Icon: FileText },
+      { value: 'email' as AskScope, label: t('ask.scope-pill.email'), Icon: Mail },
+      { value: 'documents' as AskScope, label: t('ask.scope-pill.documents'), Icon: FileText },
     ] : []),
     { value: 'whole-practice' as AskScope, label: t('ask.book.option-label'), Icon: Users },
   ];
@@ -44,7 +44,7 @@ export function ScopeToggle({
     <div
       data-testid="scope-toggle"
       role="group"
-      aria-label="Ask scope"
+      aria-label={t('ask.scope-toggle.aria-label')}
       style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}
     >
       {options.map((opt) => {
@@ -76,11 +76,26 @@ export function ScopeToggle({
 /** The always-visible "Asking: ..." pill (spec: Ask always displays its
  *  current scope, one click to switch — the click target is the ScopeToggle
  *  above; this pill is a read-only status label). */
+function scopePillLabel(scope: AskScope, t: (key: string) => string): string {
+  switch (scope) {
+    case 'this-matter':
+      return t('ask.scope-pill.this-matter');
+    case 'all-matters':
+      return t('ask.scope-pill.all-matters');
+    case 'email':
+      return t('ask.scope-pill.email');
+    case 'documents':
+      return t('ask.scope-pill.documents');
+    case 'whole-practice':
+      return t('ask.scope-pill.whole-practice');
+  }
+}
+
 export function ScopeStatusPill({ scope }: { scope: AskScope }) {
   const { t } = useTranslation();
   return (
     <Chip size="sm" active data-testid="ask-scope-pill" style={{ pointerEvents: 'none' }}>
-      {t(`ask.scope-pill.${scope}`)}
+      {scopePillLabel(scope, t)}
     </Chip>
   );
 }

@@ -15,6 +15,7 @@
  */
 
 import { useState, useEffect, useCallback, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Lock, FileText, Mail, Clock, Loader2, Map, Users, Mic } from 'lucide-react';
 import { ClientMeetingsTab } from '@/features/meetings/ClientMeetingsTab';
 import { MeetingEntry } from '@/features/meetings/MeetingEntry';
@@ -83,21 +84,35 @@ export interface MatterHubProps {
 
 type HubTab = ClientMapHubTab;
 
-const HUB_TABS: { id: HubTab; label: string; Icon: typeof FileText }[] = [
-  { id: 'overview', label: 'Client Map', Icon: Map },
-  { id: 'documents', label: 'Documents', Icon: FileText },
-  { id: 'email', label: 'Email', Icon: Mail },
-  { id: 'meetings', label: 'Meetings', Icon: Mic },
-  { id: 'activity', label: 'Activity', Icon: Clock },
+const HUB_TABS: { id: HubTab; Icon: typeof FileText }[] = [
+  { id: 'overview', Icon: Map },
+  { id: 'documents', Icon: FileText },
+  { id: 'email', Icon: Mail },
+  { id: 'meetings', Icon: Mic },
+  { id: 'activity', Icon: Clock },
 ];
 
-// ── Labels ─────────────────────────────────────────────────────────────────
-
-const LABEL_YOUR_ANSWER_PROMPT = 'Your answer to:';
+/** Label for a hub sub-tab (literal keys per branch — the i18n extractor
+ *  can't trace a key stored in a config-array variable). */
+function hubTabLabel(id: HubTab, t: (key: string) => string): string {
+  switch (id) {
+    case 'overview':
+      return t('spine.nav.client-map');
+    case 'documents':
+      return t('matter.hub.tab-documents');
+    case 'email':
+      return t('matter.hub.tab-email');
+    case 'meetings':
+      return t('matter.hub.tab-meetings');
+    case 'activity':
+      return t('matter.hub.tab-activity');
+  }
+}
 
 // ── MatterHub ──────────────────────────────────────────────────────────────
 
 export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, renderEmail, renderActivity, workspaceService }: MatterHubProps) {
+  const { t } = useTranslation();
   // ── Client Map wiring ────────────────────────────────────────────────────
   // Declare client map hook at component top — must not be inside a condition.
   // autoBuild: a client's Client Map builds automatically the first time the
@@ -228,12 +243,15 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
       const current = useClientMapStore.getState().getMap(matterId);
       const existingText =
         current?.sections.find((sec) => sec.key === sectionKey)?.items.find((it) => it.id === itemId)?.text ?? '';
-      const text = await prompt('Edit item:', existingText, { title: 'Edit item', confirmLabel: 'Save' });
+      const text = await prompt(t('matter.hub.edit-item-prompt'), existingText, {
+        title: t('matter.hub.edit-item-title'),
+        confirmLabel: t('matter.hub.save-action'),
+      });
       if (text !== null && text.trim() !== '') {
         useClientMapStore.getState().editItem(matterId, sectionKey, itemId, text.trim());
       }
     })();
-  }, [matterId, prompt]);
+  }, [matterId, prompt, t]);
 
   if (!matter) {
     return (
@@ -250,7 +268,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
           fontSize: 'var(--kp-font-md)',
         }}
       >
-        {entityLabel.One} not found
+        {t('matter.hub.not-found', { entity: entityLabel.One })}
         <button
           type="button"
           onClick={onBack}
@@ -266,7 +284,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
             cursor: 'pointer',
           }}
         >
-          Back to {entityLabel.Other}
+          {t('matter.hub.back-to', { entityOther: entityLabel.Other })}
         </button>
       </div>
     );
@@ -308,8 +326,8 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-md)' }}>
               {/* Sub-tabs, inline to the right of the client name. Minimal
                   selected style: a soft demo-blue tint pill (no dark fill). */}
-              <div role="tablist" aria-label="Client sections" data-testid="hub-subtab-bar" style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                {HUB_TABS.map(({ id, label: tabLabel }) => {
+              <div role="tablist" aria-label={t('matter.hub.sections-aria')} data-testid="hub-subtab-bar" style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                {HUB_TABS.map(({ id }) => {
                   const active = subTab === id;
                   return (
                     <button
@@ -337,7 +355,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                       onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = 'var(--kp-accent-softer)'; }}
                       onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = 'transparent'; }}
                     >
-                      {tabLabel}
+                      {hubTabLabel(id, t)}
                     </button>
                   );
                 })}
@@ -347,12 +365,12 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                   Map section rail (below "+ New section"). */}
               {(isPrivileged || matter.privileged) && (
                 <span data-testid="hub-isolated-badge">
-                  <Badge variant="privilege" size="sm" icon={Lock}>Isolated</Badge>
+                  <Badge variant="privilege" size="sm" icon={Lock}>{t('matter.hub.isolated-pill')}</Badge>
                 </span>
               )}
               {matter.isSample && (
                 <span data-testid="hub-sample-pill">
-                  <Badge variant="sample" size="sm">Sample</Badge>
+                  <Badge variant="sample" size="sm">{t('matter.hub.sample-pill')}</Badge>
                 </span>
               )}
               {/* Client boundary — a persistent reminder that recall here is
@@ -361,10 +379,10 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                   making that visible is the trust story an advisor needs to see. */}
               <span
                 data-testid="hub-scope-badge"
-                title="Recall is scoped to this household. Advisor Prep Hero never mixes one client's files into another client's answers."
+                title={t('matter.hub.scope-badge-title')}
               >
                 <Badge variant="neutral" size="sm" icon={Users}>
-                  {(matter.name && matter.name.trim() ? matter.name : label)} only
+                  {t('matter.hub.scope-badge-suffix', { name: matter.name && matter.name.trim() ? matter.name : label })}
                 </Badge>
               </span>
               {/* AI-status pill — same dynamic badge as Ask / Workflows. */}
@@ -422,9 +440,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                           marginBottom: 6,
                         }}
                       >
-                        {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-                        Running on-device only. Generation uses your local model.
-                        {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+                        {t('matter.hub.local-only-notice')}
                       </div>
                     )}
 
@@ -447,9 +463,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                             strokeWidth: 2,
                           }}
                         />
-                        {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-                        Building client map...
-                        {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+                        {t('matter.hub.building')}
                       </div>
                     )}
 
@@ -458,9 +472,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                         data-testid="hub-clientmap-empty"
                         style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}
                       >
-                        {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-                        No information found yet. Add documents or email to this client first.
-                        {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+                        {t('matter.hub.empty-notice')}
                       </div>
                     )}
 
@@ -469,9 +481,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                         data-testid="hub-clientmap-error"
                         style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}
                       >
-                        {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-                        {clientMap.errorMessage ?? 'Could not build client map. Check your AI connection and try again.'}
-                        {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+                        {clientMap.errorMessage ?? t('matter.hub.error-notice')}
                       </div>
                     )}
                   </div>
@@ -515,9 +525,9 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                     onEditItem={handleEditItem}
                     onAnswerQuestion={(gap) => {
                       void (async () => {
-                        const a = await prompt(`${LABEL_YOUR_ANSWER_PROMPT} ${gap.text}`, undefined, {
-                          title: 'Your answer',
-                          confirmLabel: 'Save',
+                        const a = await prompt(`${t('matter.hub.answer-prompt')} ${gap.text}`, undefined, {
+                          title: t('matter.hub.answer-title'),
+                          confirmLabel: t('matter.hub.save-action'),
                         });
                         if (a != null && a.trim() !== '') {
                           answerQuestion(matterId, gap.sectionKey, a.trim(), gap.text);
@@ -541,13 +551,13 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
 
         {subTab === 'documents' && (
           <div data-testid="hub-subtab-panel-documents" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-            {renderDocuments ? renderDocuments(matter) : <SubTabUnavailable label="Documents" />}
+            {renderDocuments ? renderDocuments(matter) : <SubTabUnavailable label={t('matter.hub.tab-documents')} />}
           </div>
         )}
 
         {subTab === 'email' && (
           <div data-testid="hub-subtab-panel-email" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-            {renderEmail ? renderEmail() : <SubTabUnavailable label="Email" />}
+            {renderEmail ? renderEmail() : <SubTabUnavailable label={t('matter.hub.tab-email')} />}
           </div>
         )}
 
@@ -577,7 +587,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
 
         {subTab === 'activity' && (
           <div data-testid="hub-subtab-panel-activity" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-            {renderActivity ? renderActivity() : <SubTabUnavailable label="Activity" />}
+            {renderActivity ? renderActivity() : <SubTabUnavailable label={t('matter.hub.tab-activity')} />}
           </div>
         )}
       </div>

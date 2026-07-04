@@ -616,8 +616,8 @@ export function useChatSending(deps: UseChatSendingDeps) {
           const refusalKey = refusalKeyForReason(retrievalFailure);
           const refuseText =
             refusalKey === 'ai.chat.model-not-ready-refuse'
-              ? t(refusalKey)
-              : t(refusalKey, { reason });
+              ? t('ai.chat.model-not-ready-refuse')
+              : t('ai.chat.retrieval-failed-refuse', { reason });
 
           const userMsg: ChatMessage = {
             role: 'user',

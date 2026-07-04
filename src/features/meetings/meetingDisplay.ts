@@ -14,8 +14,21 @@ export function isBuiltInType(id: string): id is BuiltInMeetingType {
   return (BUILT_IN_TYPES as readonly string[]).includes(id);
 }
 
+/** Literal-key lookup for a built-in meeting type's label — the i18n
+ *  extractor can't trace a template-literal key built from `typeId`. */
+function builtInTypeLabel(typeId: BuiltInMeetingType, t: (k: string) => string): string {
+  switch (typeId) {
+    case 'annual-review':
+      return t('meetings.types.annual-review');
+    case 'intake':
+      return t('meetings.types.intake');
+    case 'check-in':
+      return t('meetings.types.check-in');
+  }
+}
+
 export function meetingTypeLabel(typeId: string, t: (k: string) => string): string {
-  return isBuiltInType(typeId) ? t(`meetings.types.${typeId}`) : typeId;
+  return isBuiltInType(typeId) ? builtInTypeLabel(typeId, t) : typeId;
 }
 
 /** The human title for a meeting — never the raw folder name. */
