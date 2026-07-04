@@ -1,6 +1,7 @@
 //! Long-form local transcription. The bundled sidecar caps a single request
 //! at 30 s (src-tauri/src/commands/voice.rs:38); we window at 25 s with 2 s
 //! overlap and merge. LOCAL ONLY: the only WindowTranscriber is the sidecar.
+use crate::commands::pathguard::display_path;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -350,7 +351,7 @@ pub async fn transcribe_meeting(
                 .and_then(|v| v["segments"].as_array().map(|a| a.len() as u32))
                 .unwrap_or(0);
             TranscribeMeetingResult {
-                transcript_path: out.to_string_lossy().into_owned(),
+                transcript_path: display_path(&out),
                 segment_count: count,
             }
         })

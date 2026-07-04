@@ -1,6 +1,7 @@
 use super::chunks::AsyncChunkWriter;
 use super::session::{finalize_session, ConsentRecord, SessionManifest};
 use super::sources::AudioSource;
+use crate::commands::pathguard::display_path;
 use anyhow::{anyhow, Result};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -566,7 +567,7 @@ pub async fn capture_start(
     )
     .await;
     Ok(CaptureStartResult {
-        meeting_dir: dir.to_string_lossy().into_owned(),
+        meeting_dir: display_path(&dir),
         started_at: chrono::Utc::now().to_rfc3339(),
     })
 }
@@ -607,13 +608,13 @@ pub async fn capture_stop() -> Result<CaptureStopResult, String> {
         format!(
             "Meeting recording saved ({} ms) at {}",
             r.duration_ms,
-            r.audio_path.display()
+            display_path(&r.audio_path)
         ),
     )
     .await;
     Ok(CaptureStopResult {
-        meeting_dir: r.meeting_dir.to_string_lossy().into_owned(),
-        audio_path: r.audio_path.to_string_lossy().into_owned(),
+        meeting_dir: display_path(&r.meeting_dir),
+        audio_path: display_path(&r.audio_path),
         duration_ms: r.duration_ms,
     })
 }
@@ -623,13 +624,13 @@ pub async fn capture_status() -> Result<CaptureStatus, String> {
     Ok(match &*STATE.lock().unwrap() {
         EngineState::Recording(e) => CaptureStatus {
             recording: true,
-            meeting_dir: Some(e.meeting_dir.to_string_lossy().into_owned()),
+            meeting_dir: Some(display_path(&e.meeting_dir)),
             elapsed_ms: e.elapsed_ms(),
             write_error: e.write_error(),
         },
         EngineState::Stopping(dir) => CaptureStatus {
             recording: true,
-            meeting_dir: Some(dir.to_string_lossy().into_owned()),
+            meeting_dir: Some(display_path(dir)),
             elapsed_ms: 0,
             write_error: None,
         },

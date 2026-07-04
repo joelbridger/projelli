@@ -1,4 +1,5 @@
 use super::session::{finalize_session, SessionManifest};
+use crate::commands::pathguard::display_path;
 use anyhow::Result;
 use std::path::{Path, PathBuf};
 
@@ -63,7 +64,7 @@ pub fn find_orphans(workspace: &Path) -> Result<Vec<OrphanSession>> {
                     // by guard_meeting_path's workspace-containment check
                     // even though the chunks are sitting right here.
                     out.push(OrphanSession {
-                        meeting_dir: scanned_meeting_dir.to_string_lossy().into_owned(),
+                        meeting_dir: display_path(scanned_meeting_dir),
                         matter_id: m.matter_id,
                         started_at: m.started_at,
                     });
@@ -132,13 +133,13 @@ pub async fn capture_recover(
             Path::new(&workspace).to_path_buf(),
             matter_id,
             "meeting_recorded",
-            format!("Meeting recording recovered after a crash and saved at {}", audio.display()),
+            format!("Meeting recording recovered after a crash and saved at {}", display_path(&audio)),
         )
         .await;
     }
     Ok(super::engine::CaptureStopResult {
-        meeting_dir: dir.to_string_lossy().into_owned(),
-        audio_path: audio.to_string_lossy().into_owned(),
+        meeting_dir: display_path(&dir),
+        audio_path: display_path(&audio),
         duration_ms: 0,
     })
 }
