@@ -71,6 +71,44 @@ fn get_vmk_b64(workspace_id: &str) -> Result<Option<String>, VaultCommandError> 
     }
 }
 
+/// Same as `get_vmk_b64`, bounded to `KEYCHAIN_OP_TIMEOUT` and run off the
+/// async runtime thread — for the one call site (`vault_status`) that sits on
+/// the workspace-OPEN critical path.
+///
+/// QA-33: `vault_status` used to call the plain, unbounded `get_vmk_b64`
+/// directly. On a machine where the OS credential service is stopped/
+/// unreachable (e.g. Windows' `VaultSvc`), the underlying blocking keyring
+/// call can hang far longer than any UI should wait — `vault_status`'s own
+/// caller in `createFSBackend` (`src/platform/fs/BackendFactory.ts`) had no
+/// timeout of its own, so the hang was only ever caught by the *outer* 30s
+/// workspace-open timeout, which then aborted the ENTIRE open attempt (not
+/// just the vault check) with nothing shown to the user. Bounding this read
+/// specifically lets `vault_status`'s existing non-fatal fallback (open the
+/// workspace unwrapped) actually run within a few seconds instead of never
+/// being reached at all.
+async fn get_vmk_b64_bounded(workspace_id: &str) -> Result<Option<String>, VaultCommandError> {
+    use crate::commands::keychain::{run_keychain_bounded, KeychainError, KEYCHAIN_OP_TIMEOUT};
+
+    let id = workspace_id.to_string();
+    run_keychain_bounded(KEYCHAIN_OP_TIMEOUT, move || {
+        get_vmk_b64(&id).map_err(|e| KeychainError::Other(e.to_string()))
+    })
+    .await
+    .map_err(keychain_error_to_vault_error)
+}
+
+/// Maps a `KeychainError` (from the shared bounded-keyring-call primitive) to
+/// the `VaultCommandError` shape the rest of this module's commands use,
+/// preserving the distinguishable "service didn't respond" message on a
+/// timeout so it's not indistinguishable from a normal keychain error.
+fn keychain_error_to_vault_error(e: crate::commands::keychain::KeychainError) -> VaultCommandError {
+    use crate::commands::keychain::KeychainError;
+    match e {
+        KeychainError::ServiceUnavailable(m) => VaultCommandError::Keychain(m),
+        other => VaultCommandError::Keychain(other.to_string()),
+    }
+}
+
 /// Delete the VMK from the OS keychain (vault disable).
 ///
 /// Succeeds silently if no entry existed (idempotent).
@@ -378,7 +416,7 @@ pub async fn vault_status(workspace: String) -> Result<VaultStatus, VaultCommand
         .map_err(|e| VaultCommandError::Io(format!("failed to read vault metadata: {e}")))?;
 
     let id = &meta.vault_id;
-    let vmk_present = get_vmk_b64(id)?.is_some();
+    let vmk_present = get_vmk_b64_bounded(id).await?.is_some();
 
     Ok(VaultStatus {
         enabled: true,
@@ -1010,6 +1048,44 @@ mod tests {
             id.chars().all(|c| c.is_ascii_hexdigit() && !c.is_uppercase()),
             "workspace_id must be lowercase hex"
         );
+    }
+
+    // ── QA-33: bounded keychain read on the vault_status/workspace-open path ──
+
+    #[test]
+    fn keychain_error_to_vault_error_preserves_service_unavailable_message() {
+        let e = crate::commands::keychain::KeychainError::ServiceUnavailable(
+            "the OS credential storage service did not respond in time".to_string(),
+        );
+        let mapped = keychain_error_to_vault_error(e);
+        match mapped {
+            VaultCommandError::Keychain(m) => {
+                assert_eq!(m, "the OS credential storage service did not respond in time");
+            }
+            other => panic!("expected Keychain, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn keychain_error_to_vault_error_stringifies_other_variants() {
+        let e = crate::commands::keychain::KeychainError::NotFound("no matching entry".to_string());
+        let mapped = keychain_error_to_vault_error(e);
+        assert!(matches!(mapped, VaultCommandError::Keychain(m) if m.contains("not found")));
+    }
+
+    /// `vault_status` on a workspace with no vault metadata must never touch
+    /// the keychain at all (no `get_vmk_b64_bounded` call), so it stays
+    /// instant regardless of OS credential-service health.
+    #[tokio::test]
+    async fn vault_status_reports_disabled_without_touching_keychain() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        let status = vault_status(root.to_string_lossy().into_owned())
+            .await
+            .expect("vault_status must succeed for a plain workspace");
+        assert!(!status.enabled);
+        assert!(!status.locked);
+        assert!(status.vault_id.is_none());
     }
 
     // ── vault_create idempotency guard ────────────────────────────────────────

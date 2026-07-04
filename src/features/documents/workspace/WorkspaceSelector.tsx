@@ -2,7 +2,7 @@
 // Replaces the old dialog-over-dark-background with a white branded page.
 // This is the first thing users see — it must look like a $49 product.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
@@ -15,6 +15,9 @@ import { DEFAULT_WORKSPACE_FOLDERS } from '@/platform/fs/types';
 import type { FSBackend } from '@/platform/fs/types';
 import { openExternal } from '@/platform/utils/openExternal';
 import { withTimeout } from '@/lib/withTimeout';
+import { raceDialogWithWatchdog } from '@/platform/fs/dialogWatchdog';
+import { describeWorkspaceOpenError, isTransientWorkspaceOpenFailure } from '@/platform/fs/workspaceOpenErrors';
+import type { PromptOptions } from '@/platform/hooks/usePromptDialog';
 import { AppLogo } from '@/ui/brand/AppLogo';
 import { GradientGlow } from '@/ui/brand/GradientGlow';
 import { VaultLockedPrompt } from '@/features/firm/vault/VaultLockedPrompt';
@@ -46,8 +49,22 @@ const PREVIEW_STRUCTURE_FOLDERS = DEFAULT_WORKSPACE_FOLDERS.filter(
 const WORKSPACE_INIT_TIMEOUT_MS = 30_000;
 const WORKSPACE_CREATE_LABEL = 'Creating the workspace';
 const WORKSPACE_OPEN_LABEL = 'Opening the workspace';
+// QA-33: this vault-locked precheck used to call vaultStatus() with NO bound
+// at all (not even the 30s below, since it runs BEFORE that block) — a
+// stopped/unreachable OS credential service (e.g. Windows' `VaultSvc`) could
+// hang this check forever with the screen stuck on a spinner. Same 5s budget
+// as the identical check in App.tsx's `isWorkspaceVaultLocked` and
+// BackendFactory's `createFSBackend`.
+const VAULT_LOCK_CHECK_TIMEOUT_MS = 5_000;
+// codex-review (2026-07-04, round 2): the data-dir migration below runs
+// BEFORE the vault-lock check above and was unbounded — a hang on a
+// disconnected/slow network share or OneDrive workspace would stop the user
+// from ever reaching either bound. It's a plain filesystem rename (no
+// keychain), already best-effort/idempotent on failure, so timing it out is
+// exactly as safe as any other failure here.
+const MIGRATION_TIMEOUT_MS = 5_000;
 
-interface WorkspaceSelectorProps {
+export interface WorkspaceSelectorProps {
   open: boolean;
   onWorkspaceSelected: (service: WorkspaceService) => void;
   /**
@@ -55,6 +72,30 @@ interface WorkspaceSelectorProps {
    * open and is switching). Leave undefined for first-run blocking mode.
    */
   onDismiss?: (() => void) | undefined;
+  /**
+   * QA-33: an honest error from a FAILED silent boot-time reopen (see
+   * useAutoResumeWorkspace / useWorkspaceLifecycle's `workspaceOpenError`),
+   * shown once via this component's own error banner instead of the user
+   * landing here with no explanation for why they weren't just dropped back
+   * into their last workspace. Absorbed into local state on change (see the
+   * effect below) and then owned by this component's normal error lifecycle.
+   */
+  externalError?: string | null;
+  /** Called once `externalError` has been absorbed, so the source resets. */
+  onExternalErrorShown?: () => void;
+  /**
+   * QA-32: the native folder picker (`@tauri-apps/plugin-dialog`'s `open()`)
+   * can silently never appear/resolve on some environments (see
+   * dialogWatchdog.ts for the root-cause investigation). When that happens,
+   * this is used to show a manual "type the folder path" fallback instead of
+   * leaving the screen stuck forever. Reuses the app's shared prompt dialog
+   * (usePromptDialog) so no new modal plumbing is needed.
+   */
+  promptForPath?: (
+    message: string,
+    defaultValue?: string,
+    options?: Omit<PromptOptions, 'defaultValue'>,
+  ) => Promise<string | null>;
 }
 
 /** Max recent workspaces to show without expanding */
@@ -151,16 +192,56 @@ function RecentWorkspacesSection({
   );
 }
 
-export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: WorkspaceSelectorProps) {
+export function WorkspaceSelector({
+  open,
+  onWorkspaceSelected,
+  onDismiss,
+  externalError,
+  onExternalErrorShown,
+  promptForPath,
+}: WorkspaceSelectorProps) {
   const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isTauri = isTauriEnvironment();
 
+  // Absorb a failed silent auto-resume into this component's own error
+  // banner, then tell the source to reset so it doesn't re-fire the same
+  // message on every re-render. From here on, `error` follows this
+  // component's normal lifecycle (cleared by the next open/create attempt).
+  useEffect(() => {
+    if (!externalError) return;
+    setError(externalError);
+    onExternalErrorShown?.();
+  }, [externalError, onExternalErrorShown]);
+
   // Vault-locked state: when a Tauri workspace has its vault locked (no key on
   // this machine), we show VaultLockedPrompt instead of proceeding.
   const [lockedWorkspacePath, setLockedWorkspacePath] = useState<string | null>(null);
   const [showEscapeHatch, setShowEscapeHatch] = useState(false);
+
+  // QA-32: opens the native folder picker, racing it against the watchdog
+  // (dialogWatchdog.ts) so an environment where the picker silently never
+  // appears (confirmed on a fresh Windows bench VM) can never leave this
+  // screen stuck forever. Falls back to a manual "type the path" prompt.
+  const pickFolderPath = async (
+    dialogTitle: string,
+    unresponsiveMessage: string,
+  ): Promise<string | null> => {
+    const { open: openDialog } = await import('@tauri-apps/plugin-dialog');
+    const raced = await raceDialogWithWatchdog(
+      openDialog({ directory: true, multiple: false, title: dialogTitle }),
+    );
+    if (!raced.timedOut) return raced.value ?? null;
+    console.warn(
+      '[WorkspaceSelector] Native folder picker did not respond within the watchdog window — falling back to manual path entry.',
+    );
+    if (!promptForPath) return null;
+    return promptForPath(unresponsiveMessage, '', {
+      title: t('workspace.selector.manual-path-title'),
+      placeholder: t('workspace.selector.manual-path-placeholder'),
+    });
+  };
 
   const { recentWorkspaces, addRecentWorkspace, removeRecentWorkspace, setRootPath, setFileTree, expandAllFolders } = useWorkspaceStore();
 
@@ -179,7 +260,11 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
     // Rust side (createFSBackend runs it again harmlessly); browser/dev no-op.
     if (isTauri) {
       try {
-        await migrateWorkspaceDataDir(workspacePath);
+        await withTimeout(
+          migrateWorkspaceDataDir(workspacePath),
+          MIGRATION_TIMEOUT_MS,
+          'Migrating workspace data folder',
+        );
       } catch {
         // Best-effort: never block opening on the migration.
       }
@@ -187,13 +272,22 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
     // Vault check — Tauri only; browser workspaces can never be vaulted.
     if (isTauri) {
       try {
-        const status = await vaultStatus(workspacePath);
+        const status = await withTimeout(
+          vaultStatus(workspacePath),
+          VAULT_LOCK_CHECK_TIMEOUT_MS,
+          'Checking vault status',
+        );
         if (status.enabled && status.locked) {
           setLockedWorkspacePath(workspacePath);
           return; // Show VaultLockedPrompt — caller resumes via handleVaultUnlocked.
         }
       } catch {
-        // vault_status failure is non-fatal (command may not be registered yet).
+        // Swallowed here ONLY because this is a non-authoritative precheck
+        // (its whole job is deciding whether to show VaultLockedPrompt
+        // instead of proceeding normally) — createFSBackend() below re-checks
+        // vault status itself and now fails closed (throws) on this exact
+        // failure (codex-review, 2026-07-04), so a real vault-enabled
+        // workspace still can't silently open unencrypted from here.
       }
     }
 
@@ -259,12 +353,10 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
 
     try {
       if (isTauri) {
-        const { open } = await import('@tauri-apps/plugin-dialog');
-        const selectedPath = await open({
-          directory: true,
-          multiple: false,
-          title: 'Select Workspace Folder',
-        });
+        const selectedPath = await pickFolderPath(
+          'Select Workspace Folder',
+          t('workspace.selector.picker-unresponsive-open'),
+        );
 
         if (!selectedPath) {
           setIsLoading(false);
@@ -324,14 +416,14 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
       let rootPath: string;
 
       if (isTauri) {
-        const { open } = await import('@tauri-apps/plugin-dialog');
-        // Interactive folder picker — deliberately NOT time-bounded (the user
-        // may take a while). Everything after this point is non-interactive.
-        const selectedPath = await open({
-          directory: true,
-          multiple: false,
-          title: 'Select Folder for New Workspace',
-        });
+        // Interactive folder picker — deliberately not time-bounded for a
+        // real, working dialog (the user may take a while); only falls back
+        // to manual entry if the dialog itself never responds at all (QA-32).
+        // Everything after this point is non-interactive.
+        const selectedPath = await pickFolderPath(
+          'Select Folder for New Workspace',
+          t('workspace.selector.picker-unresponsive-create'),
+        );
 
         if (!selectedPath) {
           setIsLoading(false);
@@ -420,8 +512,15 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
       await openWorkspacePath(workspacePath);
     } catch (err) {
       console.error('[WorkspaceSelector] Failed to open recent workspace:', err);
-      removeRecentWorkspace(workspacePath);
-      setError(err instanceof Error ? err.message : 'Failed to open workspace');
+      // codex-review (2026-07-04, round 2): a transient failure (credential-
+      // service outage, or the check simply timing out) is not evidence this
+      // workspace is bad — pruning it here would delete a perfectly good
+      // Recents entry over a temporary hiccup. Only prune for failures that
+      // actually indicate the workspace itself is the problem.
+      if (!isTransientWorkspaceOpenFailure(err)) {
+        removeRecentWorkspace(workspacePath);
+      }
+      setError(describeWorkspaceOpenError(err));
     } finally {
       setIsLoading(false);
     }

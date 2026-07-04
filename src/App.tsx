@@ -6,6 +6,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { workspacePath } from '@/platform/fs/appPath';
 import { useGlobalEventBus, type AppSurface } from '@/app/lifecycle/useGlobalEventBus';
 import { useAutosave } from '@/app/lifecycle/useAutosave';
@@ -106,6 +107,7 @@ import { useApiKeys } from '@/platform/hooks/useApiKeys';
 import { useSettingsStore, useSettingsHydrated } from '@/platform/settings/settingsStore';
 import { vaultStatus } from '@/platform/firm/vault/vaultClient';
 import { withTimeout } from '@/lib/withTimeout';
+import { raceDialogWithWatchdog } from '@/platform/fs/dialogWatchdog';
 import { useOpenFileAIContext } from '@/platform/hooks/useOpenFileAIContext';
 import { useTemplatesMarketplaceStore } from '@/features/workflows/templatesMarketplaceStore';
 import { useModelList } from '@/platform/hooks/useModelList';
@@ -116,8 +118,10 @@ import { useMailSyncAudit } from '@/platform/connectors/email/useMailSyncAudit';
 import type { MailIndexChunk } from '@/platform/utils/mail-commands';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
+import { PromptDialog } from '@/ui/PromptDialog';
 import { usePromptDialog } from '@/platform/hooks/usePromptDialog';
 import { useUndoToast } from '@/app/shell/common/UndoToast';
+import { InlineErrorBanner } from '@/app/shell/common/InlineErrorBanner';
 import { installEarlyConnectorEventBridge } from '@/app/shell/connectorEventBridge';
 
 // Nine connector citation viewers, none of which render anything until their
@@ -187,6 +191,7 @@ function App() {
 }
 
 function AppShell() {
+  const { t } = useTranslation();
   const [showWorkspaceSelector, setShowWorkspaceSelector] = useState(!IS_TEST_MODE && !IS_DEMO_MODE);
   const [demoOpenFailed, setDemoOpenFailed] = useState(false);
   const {
@@ -465,9 +470,20 @@ function AppShell() {
   const [keychainService] = useState(() => createKeychainService());
 
   // API key management — all persistence routes through the shared keychain.
-  const { apiKeys, handleSaveApiKey: rawSaveApiKey, handleDeleteApiKey } = useApiKeys(
-    keychainService
-  );
+  const {
+    apiKeys,
+    handleSaveApiKey: rawSaveApiKey,
+    handleDeleteApiKey,
+    credentialServiceUnavailable,
+  } = useApiKeys(keychainService);
+  // QA-33: dismissible until the condition clears and re-occurs — a fresh
+  // outage should be shown again even if a PRIOR one was dismissed this
+  // session (e.g. the credential service flaps: down, restarts, goes down
+  // again).
+  const [credentialBannerDismissed, setCredentialBannerDismissed] = useState(false);
+  useEffect(() => {
+    if (!credentialServiceUnavailable) setCredentialBannerDismissed(false);
+  }, [credentialServiceUnavailable]);
 
   // Model list auto-fetching
   const validKeyEntries = useMemo(
@@ -850,7 +866,12 @@ function AppShell() {
   } = useAIChatFiles({ rootPath, workspaceServiceRef, handleFileOpen, handleDelete });
 
   // Handle workspace selection and recent-project opening (extracted to hook)
-  const { handleWorkspaceSelected, handleOpenRecentProject } = useWorkspaceLifecycle({
+  const {
+    handleWorkspaceSelected,
+    handleOpenRecentProject,
+    workspaceOpenError,
+    dismissWorkspaceOpenError,
+  } = useWorkspaceLifecycle({
     workspaceServiceRef, auditServiceRef, templatesMarketplaceServiceRef, templatesMetadataReaderRef,
     setShowWorkspaceSelector, setAuditEntries, setAuditIntegrity, setRootPath,
     loadTrashMetadata, setTrashItems, setTrashStats,
@@ -912,15 +933,38 @@ function AppShell() {
           let backend;
           let chosen: string;
           if (isTauriEnvironment()) {
-            const { open } = await import('@tauri-apps/plugin-dialog');
-            const selected = await open({
-              directory: true,
-              multiple: false,
-              title:
+            const { open: openDialog } = await import('@tauri-apps/plugin-dialog');
+            const raced = await raceDialogWithWatchdog(
+              openDialog({
+                directory: true,
+                multiple: false,
+                title:
+                  mode === 'sample'
+                    ? 'Choose a folder for your sample practice'
+                    : 'Choose your practice folder',
+              }),
+            );
+            // QA-32: the native folder picker can silently never respond on
+            // some environments (see dialogWatchdog.ts) — fall back to a
+            // manual path entry instead of leaving onboarding stuck forever.
+            let selected: string | null;
+            if (!raced.timedOut) {
+              selected = raced.value;
+            } else {
+              console.warn(
+                '[App] Native folder picker did not respond within the watchdog window — falling back to manual path entry.',
+              );
+              selected = await prompt(
                 mode === 'sample'
-                  ? 'Choose a folder for your sample practice'
-                  : 'Choose your practice folder',
-            });
+                  ? t('onboarding.workspace-picker.picker-unresponsive-sample')
+                  : t('onboarding.workspace-picker.picker-unresponsive-own-data'),
+                '',
+                {
+                  title: t('workspace.selector.manual-path-title'),
+                  placeholder: t('workspace.selector.manual-path-placeholder'),
+                },
+              );
+            }
             if (!selected) return { ok: false, cancelled: true };
             backend = await createFSBackend(selected);
             chosen = selected;
@@ -986,7 +1030,7 @@ function AppShell() {
         };
       }
     },
-    [handleWorkspaceSelected]
+    [handleWorkspaceSelected, prompt, t]
   );
 
   // Demo build (keepance.com/try): auto-open the OPFS workspace that
@@ -1183,6 +1227,7 @@ function AppShell() {
     setFileTree,
     handleFileOpen,
     undoToast,
+    promptForPath: prompt,
   });
 
   const { isDragging: isFileDragging } = useGlobalFileDrop({
@@ -1366,6 +1411,9 @@ function AppShell() {
           open={true}
           onWorkspaceSelected={handleWorkspaceSelected}
           onDismiss={canDismiss ? () => setShowWorkspaceSelector(false) : undefined}
+          externalError={workspaceOpenError}
+          onExternalErrorShown={dismissWorkspaceOpenError}
+          promptForPath={prompt}
         />
         {firstRunOverlay}
         {/* The shared confirm dialog must be mounted in THIS branch too, not
@@ -1374,6 +1422,15 @@ function AppShell() {
             awaits confirm(); without the renderer here that await would hang
             (native window.confirm used to work without a mounted component). */}
         <ConfirmDialog {...confirmDialogProps} />
+        {/* QA-32: the prompt dialog must ALSO be mounted here (not only in
+            AppDialogs' main-shell branch) — onboarding's "Connect my own
+            data" folder picker (below) and WorkspaceSelector's own picker
+            calls both run their manual-path-entry fallback via `prompt()`
+            while THIS branch is what's on screen (no workspace yet). Without
+            a renderer here, that fallback would update state with nothing
+            ever shown, leaving the user just as stuck as the picker hang
+            itself. */}
+        <PromptDialog {...promptDialogProps} />
       </>
     );
   }
@@ -1402,6 +1459,24 @@ function AppShell() {
       >
         Skip to main content
       </a>
+      {/* QA-33: a failed "open a different recent project" (or a failed
+          silent boot-time reopen that fell through to the ALREADY-open
+          workspace's UI, not the picker) must never be silent. The current
+          workspace is untouched either way, so this is purely informational. */}
+      {workspaceOpenError && (
+        <InlineErrorBanner message={workspaceOpenError} onDismiss={dismissWorkspaceOpenError} />
+      )}
+      {/* QA-33: useApiKeys already degrades gracefully when the OS credential
+          service is unavailable (falls back to the last known-good key, never
+          blocks/crashes) — but that was entirely silent, so a user had no way
+          to tell "no AI features right now" apart from "I never set up a key".
+          Documents are unaffected either way, hence purely informational. */}
+      {credentialServiceUnavailable && !credentialBannerDismissed && (
+        <InlineErrorBanner
+          message={t('settings.api-keys.credential-service-unavailable')}
+          onDismiss={() => { setCredentialBannerDismissed(true); }}
+        />
+      )}
       {/* Header bar with project switcher */}
       <header className="flex items-center justify-between h-10 px-2 border-b bg-muted/30 shrink-0" data-testid="app-header">
         <div className="flex items-center gap-2">

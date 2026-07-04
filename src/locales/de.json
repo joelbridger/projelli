@@ -99,6 +99,14 @@
       "empty-confirm_other__sourceHash": "aee61d68f115ab14be7922d247ac0d5def4ee1c93018de8622f726f6402cd51a"
     }
   },
+  "file-import": {
+    "picker-unresponsive": "Die Dateiauswahl hat nicht reagiert. Gib stattdessen den Pfad einer Datei ein, die hinzugefügt werden soll.",
+    "picker-unresponsive__sourceHash": "009885d718518472c1da6a3f0b0d8fa1972a2fe71e69b56d84ee8a673917e11d",
+    "manual-path-title": "Dateipfad eingeben",
+    "manual-path-title__sourceHash": "905236c8bfe3b93653c6d8da1954b344047e07636bc80ff4b49e4eb2f51dd2d6",
+    "manual-path-placeholder": "z. B. C:\\Users\\du\\Dokumente\\vertrag.docx",
+    "manual-path-placeholder__sourceHash": "f4a2246ba1e71af1c48b5be0454303afcbedef2ce80b57779fe25a03191d9727"
+  },
   "layout": {
     "sidebar": {
       "workspace-label": "Arbeitsbereich",
@@ -518,7 +526,9 @@
       "get-key-link": "API-Schlüssel erhalten",
       "get-key-link__sourceHash": "02d7af705ed7378f98b8ab085626a18c4be25ec42f281c388dc7293d17321315",
       "add-key": "API-Schlüssel hinzufügen",
-      "add-key__sourceHash": "0d8253e382ac639b379c74e01b171ed7e24a9c8db894af6b65194af8938a152b"
+      "add-key__sourceHash": "0d8253e382ac639b379c74e01b171ed7e24a9c8db894af6b65194af8938a152b",
+      "credential-service-unavailable": "Der Windows-Dienst für die Anmeldeinformationsverwaltung läuft nicht, daher kann Advisor Prep Hero deine gespeicherten KI-Schlüssel gerade nicht erreichen. Deine Dokumente sind davon nicht betroffen. Starte den Dienst \"Anmeldeinformationsverwaltung\" (services.msc) neu, oder versuche es gleich noch einmal.",
+      "credential-service-unavailable__sourceHash": "d9f092dd6d68f0191101c49514b579f1337079fb35733b18ac6f0b11d35200a7"
     },
     "plugins": {
       "title": "Plugins",
@@ -582,7 +592,15 @@
       "tagline": "Dein KI-Arbeitsbereich. Deine Dateien. Dein Gerät.",
       "tagline__sourceHash": "d24d33330f41d3ba4668de95545a78c6cc1e04218e90cebffdc193a9ac829f31",
       "open-existing-hint": "Arbeitsbereichsordner auswählen",
-      "open-existing-hint__sourceHash": "3ce59e33acf91b2bad580aee467b251aa9927f822a43fce5bdf9fb08fe23f814"
+      "open-existing-hint__sourceHash": "3ce59e33acf91b2bad580aee467b251aa9927f822a43fce5bdf9fb08fe23f814",
+      "picker-unresponsive-open": "Die Ordnerauswahl hat nicht reagiert. Gib stattdessen den Ordnerpfad ein.",
+      "picker-unresponsive-open__sourceHash": "310f4ee3213ac4591cf5b608c7f3887540a12c2cd56adb13435b2e8228c052fe",
+      "picker-unresponsive-create": "Die Ordnerauswahl hat nicht reagiert. Gib den Ordnerpfad ein, in dem dein neuer Arbeitsbereich erstellt werden soll.",
+      "picker-unresponsive-create__sourceHash": "30bd44e1c5b6c8c1c5276bd818fccbbe76ccea7f5720311631b534c54de939e1",
+      "manual-path-title": "Ordnerpfad eingeben",
+      "manual-path-title__sourceHash": "5b3b7eab746968927f02818b9077ab9a8e381376c803cb207a7fde69112c6ea6",
+      "manual-path-placeholder": "z. B. C:\\Users\\du\\Dokumente\\MeineKanzlei",
+      "manual-path-placeholder__sourceHash": "afb471127a03ebecc1ebf8c25b1b232bd1a4d12bd086ee459ccac194e1cb5bbf"
     },
     "grid": {
       "empty-folder-hint": "Dieser Ordner enthält keine Dateien oder Unterordner",
@@ -593,6 +611,14 @@
       "reselect-hint__sourceHash": "8c2e8d4ddf4ca9a40ae6323b4e574d39147c00b946251ade0c1752c0285f048f",
       "rename-description": "Gib einen neuen Namen für dein Projekt ein. Dadurch wird der Arbeitsbereichsordner umbenannt.",
       "rename-description__sourceHash": "c053c3b074e001ad8246479c564991ac85ecd2a1527944696db9d514e2bfeef6"
+    },
+    "open-error": {
+      "credential-service-unavailable": "Der Windows-Dienst für die Anmeldeinformationsverwaltung läuft nicht, daher konnte Advisor Prep Hero diesen Arbeitsbereich nicht vollständig öffnen. Deine Dateien sind sicher. Versuche es erneut, oder starte den Dienst \"Anmeldeinformationsverwaltung\" (services.msc) neu, falls dies weiterhin auftritt.",
+      "credential-service-unavailable__sourceHash": "3a0ad4347d7ad692781cc2b89e0ae886063358c8d86a79995edc8e679380d492",
+      "generic": "Dieser Arbeitsbereich konnte nicht geöffnet werden. Bitte versuche es erneut.",
+      "generic__sourceHash": "8927cfef2d83f553f4e35ed2d47214a5e6cd97dc9c8c9f335056192c756aed90",
+      "dismiss": "Verwerfen",
+      "dismiss__sourceHash": "48845bff334a50a59aaecf499f28a7a24c3b4b891b8b18a9f1169ad8e8a6b261"
     }
   },
   "editor": {
@@ -932,6 +958,12 @@
     }
   },
   "onboarding": {
+    "workspace-picker": {
+      "picker-unresponsive-own-data": "Die Ordnerauswahl hat nicht reagiert. Gib den Ordnerpfad ein, in dem deine Kanzleidateien liegen sollen.",
+      "picker-unresponsive-own-data__sourceHash": "41465de8a1e093b4aa8e6bb148e892626899f5ed2ad5cb6272e0e5a93556d8d0",
+      "picker-unresponsive-sample": "Die Ordnerauswahl hat nicht reagiert. Gib den Ordnerpfad ein, in dem deine Beispielkanzlei erstellt werden soll.",
+      "picker-unresponsive-sample__sourceHash": "2f5e9abfbc7358fe16b1c8d4968cec220b28c17b01ed1e14a484998d9707af03"
+    },
     "first-run": {
       "skip-for-now": "Vorerst überspringen",
       "skip-for-now__sourceHash": "b58eb52c8810b97857e264ea9de45f7bd7edb754bb0edad30ffab78ff027c45e",

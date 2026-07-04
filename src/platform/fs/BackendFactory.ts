@@ -7,6 +7,30 @@ import { TauriFSBackend } from './TauriFSBackend';
 import { VaultFSBackend } from './VaultFSBackend';
 import { vaultStatus } from '@/platform/firm/vault/vaultClient';
 import { migrateWorkspaceDataDir } from '@/platform/utils/tauri-commands';
+import { withTimeout } from '@/lib/withTimeout';
+
+// QA-33: this used to be a bare, unbounded `await vaultStatus(...)`. The Rust
+// command reads the vault master key from the OS keychain, which is a
+// blocking OS call — if the underlying credential service is stopped or
+// unreachable (e.g. Windows' `VaultSvc`), that call can hang far longer than
+// this check should ever take. Without a bound here, the hang was only ever
+// caught by handleOpenRecentProject's *outer* 30s workspace-open timeout,
+// which aborted the ENTIRE open attempt instead of letting this check's own
+// existing fallback (open unwrapped) run. Bounded to the same 5s budget as
+// the sibling preflight in App.tsx's `isWorkspaceVaultLocked`, which checks
+// the identical command for the identical reason.
+const VAULT_STATUS_CHECK_TIMEOUT_MS = 5_000;
+
+// codex-review (2026-07-04, round 2): the data-dir migration below is a
+// plain filesystem rename — no keychain involved — but it's still a native
+// I/O call that runs BEFORE the vault-status bound above, so an unbounded
+// hang here (e.g. a disconnected/slow network share or OneDrive placeholder)
+// would stop the open sequence from ever reaching that bound at all. Its own
+// catch already treats any failure as best-effort ("using data in place, per
+// its own doc comment) and is idempotent/fail-safe on the Rust side, so
+// timing it out and falling through is exactly as safe as any other failure
+// here — unlike vault_status, there is no confidentiality hazard in doing so.
+const MIGRATION_TIMEOUT_MS = 5_000;
 
 /**
  * Detects if running in Tauri environment
@@ -53,25 +77,46 @@ export async function createFSBackend(
     // also migrates the data stores before audit/mail/RAG open them. Idempotent
     // + fail-safe on the Rust side; best-effort (never blocks opening).
     try {
-      const report = await migrateWorkspaceDataDir(workspacePath);
+      const report = await withTimeout(
+        migrateWorkspaceDataDir(workspacePath),
+        MIGRATION_TIMEOUT_MS,
+        'Migrating workspace data folder',
+      );
       if (report) console.log('[data-dir-migration]', report);
     } catch (err) {
       console.warn('[data-dir-migration] failed (using data in place):', err);
     }
 
     // Wrap in VaultFSBackend if the workspace has an active vault.
-    // The vault_status command is cheap (just reads .lantern-vault.json).
     // Browser/Web backend is NEVER wrapped — vault is Tauri-only.
-    try {
-      const status = await vaultStatus(workspacePath);
-      if (status.enabled) {
-        console.log('[BackendFactory] Vault enabled for workspace, wrapping with VaultFSBackend');
-        return new VaultFSBackend(backend, workspacePath);
-      }
-    } catch (err) {
-      // Non-fatal: if vault_status fails (e.g. command not registered yet),
-      // fall through and return the plain TauriFSBackend.
-      console.warn('[BackendFactory] vault_status check failed, using plain TauriFSBackend:', err);
+    //
+    // codex-review (2026-07-04, QA-33 follow-up): this used to swallow ANY
+    // vaultStatus() failure and fall through to the plain (unwrapped)
+    // backend. `vault_status`'s Rust implementation only ever touches the
+    // keychain AFTER confirming `.lantern-vault.json` exists on disk (a pure,
+    // near-instant filesystem check) — so a failure here can only
+    // realistically happen for a workspace that IS vault-enabled (a
+    // credential-service outage while reading the VMK) or a genuine plumbing
+    // bug. Falling through to "unwrapped" in either case would open an
+    // encrypted workspace with NO encryption: reads would show raw
+    // ciphertext, and — far worse — any subsequent save/import would write
+    // PLAINTEXT directly onto disk through TauriFSBackend, silently mixing
+    // unencrypted files into what's supposed to be an all-encrypted vault,
+    // with no way to detect or undo it afterward. Bounding this check (QA-33)
+    // made that reachable in ~5s instead of practically never, which raised
+    // it from a theoretical to a real risk. Fail closed instead: surface the
+    // error so the caller's existing "workspace failed to open" handling
+    // (an honest, dismissible message — see useWorkspaceLifecycle.ts /
+    // WorkspaceSelector.tsx) takes over, rather than silently degrading
+    // confidentiality.
+    const status = await withTimeout(
+      vaultStatus(workspacePath),
+      VAULT_STATUS_CHECK_TIMEOUT_MS,
+      'Checking vault status',
+    );
+    if (status.enabled) {
+      console.log('[BackendFactory] Vault enabled for workspace, wrapping with VaultFSBackend');
+      return new VaultFSBackend(backend, workspacePath);
     }
 
     return backend;

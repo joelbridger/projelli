@@ -54,6 +54,7 @@ describe('en.json structure snapshot', () => {
         "common": 49,
         "editor": 14,
         "entity-label": 50,
+        "file-import": 3,
         "firm": 143,
         "layout": 40,
         "local-ai-download": 9,
@@ -65,13 +66,13 @@ describe('en.json structure snapshot', () => {
         "meetings": 67,
         "memory": 6,
         "model-download": 9,
-        "onboarding": 65,
+        "onboarding": 67,
         "plugins": 4,
         "privacy": 31,
         "quick-open": 1,
         "research": 11,
         "search": 6,
-        "settings": 167,
+        "settings": 168,
         "shortcuts-overlay": 2,
         "spine": 5,
         "tab-guard": 3,
@@ -82,7 +83,7 @@ describe('en.json structure snapshot', () => {
         "whats-new": 4,
         "whiteboard": 1,
         "workflow": 29,
-        "workspace": 12,
+        "workspace": 19,
       }
     `);
   });
@@ -170,7 +171,25 @@ describe('en.json structure snapshot', () => {
     //      the delete-client confirm dialog's title/body were localized above
     //      but its own confirm/cancel BUTTONS stayed hardcoded "Remove"/
     //      "Cancel" — same mixed-language bug, one level down).
-    expect(flat.length).toBe(1215);
+    // +4 = QA-33 fix (2026-07-04): a stopped Windows credential-storage
+    //      service (VaultSvc) used to leave "open this workspace" silently
+    //      hung for 30s then fail with only a console.error — no message at
+    //      all. New: workspace.open-error.{credential-service-unavailable,
+    //      generic,dismiss} (3) surface an honest, dismissible banner instead;
+    //      settings.api-keys.credential-service-unavailable (1) does the same
+    //      for the (already-gracefully-degrading) AI-key read path.
+    // +9 = QA-32 fix (2026-07-04): the native folder/file picker can silently
+    //      never respond (root-caused to the modern Windows Common Item
+    //      Dialog COM component depending on shell infra a stripped VM may
+    //      lack — see dialogWatchdog.ts) — a bounded watchdog now falls back
+    //      to a manual path-entry prompt instead of leaving the screen stuck
+    //      forever. New: workspace.selector.{picker-unresponsive-open,
+    //      picker-unresponsive-create,manual-path-title,manual-path-
+    //      placeholder} (4), onboarding.workspace-picker.{picker-
+    //      unresponsive-own-data,picker-unresponsive-sample} (2),
+    //      file-import.{picker-unresponsive,manual-path-title,manual-path-
+    //      placeholder} (3).
+    expect(flat.length).toBe(1228);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

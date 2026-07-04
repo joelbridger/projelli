@@ -5,7 +5,7 @@
  * copied VERBATIM from App.tsx; only the source of the referenced values
  * changed (they now come from the options object instead of App's local scope).
  */
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useEditorStore } from '@/platform/state/editorStore';
 import { flushAllDirtyTabs, setActiveWorkspaceService } from '@/app/fileOps/flushDirtyTabs';
@@ -29,6 +29,7 @@ import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import type { SourceCard } from '@/features/ask/types/research';
 import type { AIChatFile } from '@/platform/types/ai';
 import type { ConfirmOptions } from '@/platform/hooks/useConfirmDialog';
+import { describeWorkspaceOpenError } from '@/platform/fs/workspaceOpenErrors';
 
 // Bounds only the native SETUP (backend creation + initialize) — the SAME
 // budget/label WorkspaceSelector's manual "Open Existing" flow uses for the
@@ -72,6 +73,16 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
     loadTrashMetadata, setTrashItems, setTrashStats,
     loadSourceCards, setSourceCards, loadChatFiles, setChatFiles, confirm,
   } = options;
+
+  // QA-33: "reopen a recent workspace" (the toolbar's Recent Projects menu,
+  // AND the silent boot-time auto-resume) used to swallow every failure into
+  // a bare `console.error` — a stopped OS credential service could leave the
+  // whole attempt hanging for 30s and then fail with literally nothing shown
+  // to the user. This is the one piece of UI state both call sites share so
+  // a caller (App.tsx) can render an honest, dismissible message whenever
+  // that happens, instead of a silent no-op.
+  const [workspaceOpenError, setWorkspaceOpenError] = useState<string | null>(null);
+  const dismissWorkspaceOpenError = useCallback(() => { setWorkspaceOpenError(null); }, []);
 
   const handleWorkspaceSelected = useCallback(async (service: WorkspaceService) => {
     // BUG-046: flush any dirty tabs of the OUTGOING workspace to disk BEFORE we
@@ -343,7 +354,15 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
     workspaceServiceRef,
   ]);
 
-  // Handle opening a recent project directly by path (Tauri only)
+  // Handle opening a recent project directly by path (Tauri only). Used by
+  // both the toolbar's "Recent Projects" menu (an explicit user click, while
+  // some other workspace may already be open) and useAutoResumeWorkspace's
+  // silent boot-time reopen — neither call site ever has anything destructive
+  // riding on this succeeding (the CURRENT workspace, if any, is untouched
+  // until `handleWorkspaceSelected` actually runs), so on failure it's always
+  // safe to just surface why and let the caller fall back to its own normal
+  // state (the picker, or the still-open previous workspace) rather than
+  // blocking anything.
   const handleOpenRecentProject = useCallback(async (workspacePath: string) => {
     try {
       const service = await withTimeout(
@@ -356,9 +375,11 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
         WORKSPACE_OPEN_TIMEOUT_MS,
         WORKSPACE_OPEN_LABEL,
       );
+      setWorkspaceOpenError(null);
       await handleWorkspaceSelected(service);
     } catch (err) {
       console.error('[App] Failed to open recent project:', err);
+      setWorkspaceOpenError(describeWorkspaceOpenError(err));
     }
   }, [handleWorkspaceSelected]);
 
@@ -433,5 +454,10 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
     };
   }, [setAuditEntries]);
 
-  return { handleWorkspaceSelected, handleOpenRecentProject };
+  return {
+    handleWorkspaceSelected,
+    handleOpenRecentProject,
+    workspaceOpenError,
+    dismissWorkspaceOpenError,
+  };
 }
