@@ -31,6 +31,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Within-channel speaker diarization + voiceprint naming (Wave 4 Track A).** A new standalone
+  `lantern-diarize` sidecar (sherpa-onnx segmentation/embedding/clustering behind a stable
+  CLI/JSON contract) splits the system-audio channel of a captured meeting into individual
+  speakers; extraction streams in bounded chunks with 16 kHz resampling. Advisors name speakers
+  ("Speaker 2 → Sarah Henderson"); centroids are stored per-matter, AES-256-GCM-encrypted via the
+  vault format with an OS-keychain master key. Voiceprints never leave the machine, are deletable
+  from the client page, and every enrollment/deletion writes a durable audit entry
+  (`voiceprint_enrolled`/`voiceprint_deleted`). Renderer-supplied meeting paths are
+  workspace-contained. Files: `src-tauri/sidecar-src/lantern-diarize/`,
+  `src-tauri/src/commands/{diarize,voiceprint}/`, `src/features/meetings/SpeakerNamesPanel.tsx`,
+  `src/features/matters/VoiceprintsCard.tsx` (panel mounts at Wave 3 merge).
+- **Retention policy engine + local redaction + attestation export (Wave 4 Track D).** A
+  per-workspace retention policy (TS store + Settings UI + Data Map row) enforced by a Rust sweep
+  engine over every capture location: per-deletion hash-chained audit entries written the instant
+  each artifact is unlinked (never batched), symlink-safe path resolution
+  (`canonicalize_symlink_safe`: component-wise no-follow walk refusing any symlinked component),
+  a durable pending-RAG-cleanup side-file that survives renderer crashes, whole-segment local
+  redaction (`redact_meeting_segments`) with two-phase stage/commit writes and
+  byte-scan-verify-or-fail completeness, and a one-click .docx attestation report exercised
+  end-to-end against the real OOXML engine. Files: `src-tauri/src/commands/retention/`,
+  `src/features/settings/`, `src/platform/utils/tauri-commands.ts`.
+- **Scripted bench-smoke harness (`scripts/bench-smoke.mjs`).** The manual Windows-bench smoke
+  checklist is now a repeatable script driven over CDP: 17+ checks (workspace binding, Wave 0/1/2
+  journeys, Wave 4 Book view/estate chips/whole-practice Ask, index health, console cleanliness),
+  safe-by-default (state-mutating steps require `--live`), per-check screenshots + JSON summary,
+  Legion and Azure bench targets. Live-validated on the Legion. Files: `scripts/bench-smoke/`,
+  `docs/qa/BENCH-SMOKE-HARNESS.md`.
+
 ### Fixed
 - **Wealthbox task creation allowed a missing due date, which the real API rejects** (live-probe
   Finding 1, `docs/evidence/windows-smoke-2/WEALTHBOX-PROBE.md`) — `POST /tasks` with no
