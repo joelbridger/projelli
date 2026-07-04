@@ -14,6 +14,12 @@
 | QA-10 | P1 (tentative, needs human-eyes confirm) | Onboarding splash's primary "Go!" CTA renders with opacity:1 in the DOM but is invisible in every screenshot (a transparent footer div sits on top per elementFromPoint); still clickable via test-id. Could be a real stacking bug or a CDP/WebView2 screenshot-capture quirk — flagging honestly, not confirmed either way. | lane qa1 | NEW |
 | QA-11 | P3 | "Isolated client: outside connections are blocked..." status pill is visually truncated with no verified tooltip (full text present in DOM). | lane qa1 | NEW |
 | QA-12 | P3 (possibly intentional) | 11-step product tour restarts from Step 1 on every fresh launch even after being skipped mid-tour previously. May be by design — flagging for a product call. | lane qa1 | NEW |
+| QA-13 | P2 (browser-build-specific) | Client Map's "This client's memory needs to rebuild… try again in a moment" message is **permanent on the browser build**, not transient — source confirms the classifier explicitly buckets "no Tauri backend" (i.e. no RAG engine exists in-browser) into this same retry-suggesting message. Every client shows this forever; "try again" / "reopen this client" can never fix it here. Message should say the feature needs the desktop app instead of implying a retry will help. | lane qa3, persona D (browser dev build) | NEW |
+| QA-14 | P1 | **Language switch (Settings → Deutsch/Español) does not translate the core app.** Setting persists correctly (`lantern:settings.language` survives reload) and the Settings panel itself IS fully translated, but the primary left nav ("Client Map"/"Ask"/"Workflows"), the per-client hub's own tabs, and row action buttons ("Ask") all stay hardcoded English. Root-caused to literal string labels (not `t()` calls) in `src/app/shell/layout/Spine.tsx:73-75`, `src/features/matters/MatterHub.tsx:87-89`, and `src/features/matters/MattersHome.tsx:272` — not a missing-translation-file problem (de.json has 1524 keys, more than en.json's 1058). Some other strings (e.g. the "Report a bug" aria-label) DO translate correctly, so this is a specific-components gap, not total breakage. Directly undercuts the "de/es ship" claim for the surfaces advisors actually live in daily. | lane qa3, persona D (browser dev build) | NEW |
+| QA-15 | P1 (silent data loss) | **Two browser tabs open on the same workspace can silently destroy each other's data.** Deterministically reproduced: create a client in Tab B, then (without Tab B ever seeing Tab A's or vice versa — no cross-tab reactivity) create a different client in Tab A; reload Tab B and its own new client is simply gone from `localStorage`, silently overwritten by Tab A's last-write-wins full-state save. No error, no conflict warning, no merge. Mechanism is the browser build's `zustand/persist`-to-`localStorage` pattern with no `storage`-event/BroadcastChannel sync and no optimistic-concurrency check — flagging for a desktop re-check of the analogous two-windows-same-workspace scenario, since the failure mechanism is browser-specific but the general risk shape (two writers, last-write-wins) may not be. | lane qa3, persona D (browser dev build) | NEW |
+| QA-16 | P3 (informational, held up well) | Client/file names containing `<img onerror>`/`<script>` HTML-injection payloads never execute anywhere in the UI (breadcrumb, sidebar, table, tab title, Ask composer) — confirmed via a `window.__xss` sentinel that stayed `false` through every surface. React's default escaping holds. Separately, the actual on-disk folder created for such a client has angle brackets stripped (`img src=x onerror=alert(1) Test script...`) while the UI continues to show the raw literal name — a minor, expected disk/display name mismatch for unsafe characters, not a bug. | lane qa3, persona D (browser dev build) | NEW |
+| QA-17 | P3 (unexplored past 500, needs desktop recheck for OS-level names) | 500-client workspace: bulk-creating 500 clients directly via the store took 173ms; the Client Map table and sidebar render all ~500 rows into the DOM with no virtualization, but a live search-filter keystroke still resolved in 18ms and navigation felt immediate — no felt perf problem at this scale, though not tested materially larger. Separately, zero-byte files, a 500MB (allocated) file, reserved Windows device names (`CON`, `PRN`), trailing-dot/trailing-space names, emoji, CJK/accented unicode, and a 255-char filename all rendered correctly with no crash or layout break — but this used the permissive in-memory test-mode mock FS, so Windows reserved-name rejection specifically needs a real desktop/OS recheck (a real filesystem would enforce it; the mock cannot). | lane qa3, persona D (browser dev build) | NEW |
+| QA-18 | P3 (informational) | The web build has zero URL/history integration — one static URL for the whole app, no `pushState`/hash routing, no `popstate` listener (grep-confirmed absent). Browser Back/Forward do nothing useful inside the app (can't step back through a tab switch), and if the browser tab has any prior page in its history, Back exits the entire app instantly with no warning. No deep-linking or bookmarking to a specific client/tab is possible. Likely a deliberate scope choice for now, flagging for product awareness. | lane qa3, persona D (browser dev build) | NEW |
 
 ---
 
@@ -158,3 +164,69 @@ perfectly. The privacy messaging ("nothing was uploaded," "this client is isolat
 AI choice) is clear and trustworthy, not just marketing talk. Running it twice at once was handled
 gracefully. The onboarding screens themselves are well-written and pleasant once the visual overlap
 bugs are fixed.
+
+---
+
+## Lane qa3 detail — persona D, "the edge-case hunter" (browser dev build, 2026-07-04)
+
+**Seat/setup:** server's browser dev build only (`npm run dev` in `~/lp-qa3`, port 5177,
+`--strictPort`), driven via the always-on Chrome over CDP. No VM, no Legion, no bench. Repo at branch
+tip `d3b59aeb`. The app's real "New Workspace"/"Add files" flows call the native File System Access
+API (`showDirectoryPicker`/`showOpenFilePicker`) which this session's tooling cannot drive directly
+(native OS dialog, outside the page DOM) — testing instead used the app's own sanctioned test-mode
+entry point (`?testMode=true`, the same one this repo's Playwright specs use: a real in-memory
+`WorkspaceService` + real `matterStore`, not a UI mock). Full harness notes, raw eval output, and
+source citations for every finding below are in `coordination/qa-campaign/evidence/qa3-20260704/evidence.md`;
+screenshots in the same folder. Findings: QA-13 through QA-18 (see table above).
+
+### What's GOOD (so a designer can feel the edge-case behavior, not just the bugs)
+
+- **No XSS, anywhere tried.** Client and file names containing `<img src=x onerror=alert(1)>` and
+  `<script>` payloads never executed — confirmed with a live `window.__xss` sentinel across every
+  surface (breadcrumb, sidebar, table, tab title, Ask composer, workflow search). React's default
+  escaping holds even under deliberately hostile input.
+- **New clients still get a real linked folder automatically** — the earlier QA-5 fix (from the
+  `lp/crm-card-visibility`-era work) is confirmed still in effect: a freshly created client showed
+  "1 folder" immediately, no "No documents yet" false-empty trap.
+- **State survives a full page reload.** 500+ clients and all settings were still present and correct
+  after a hard reload of the page — the browser build's `localStorage` persistence is solid for the
+  single-tab case.
+- **Filenames are genuinely robust.** Zero-byte files, a 500MB file, emoji, Chinese/accented unicode,
+  trailing dots/spaces, and a 255-character filename all rendered correctly in the Documents grid —
+  no crash, no mis-encoding, no layout break, no truncation problems beyond sensible CSS ellipsis.
+- **All the empty states are clean.** A brand-new workspace's Client Map, Ask, and Workflows tabs, and
+  a brand-new client's Documents/Email/Meetings/Activity tabs, all show honest, on-brand "nothing here
+  yet" messaging with no console errors — including a nice touch on Activity ("Stored in your browser,
+  not encrypted. Use the desktop app for confidential work.") that's honest about this specific seat's
+  limits.
+- **500 clients performs fine.** No virtualization in the client list/table, but filtering 500 rows by
+  search resolved in 18ms and the UI never felt sluggish at this scale.
+
+### Plain-language summary (for Jameson)
+
+I spent this session trying to break the web version of the app on purpose — empty workspaces, giant
+lists of fake clients, ugly file names, and multiple browser tabs open at once.
+
+**The most important thing I found:** if you have the app open in **two browser tabs at the same
+time** and add a client in each one, one of those two new clients can just **silently vanish** — no
+error message, nothing. The last tab to save "wins" and the other tab's work quietly disappears. This
+only happens in the web/browser version (the desktop app doesn't work this way, though it's worth a
+quick check there too for the same idea — two windows open on one workspace).
+
+**Second big thing:** switching the app's language to German or Spanish in Settings does save your
+choice, and the Settings screen itself really does show German — but the main screens you actually
+work in every day (the left-hand menu, the tabs on a client's page, the "Ask" buttons) stay in English
+regardless. So right now, choosing German or Spanish only changes one settings page, not the app you
+actually use.
+
+**Smaller things:** a client's overview page shows a permanent "still building, try again" message on
+this web version specifically — it can never actually finish because the web build doesn't have the
+piece that builds it (that's a desktop-only feature right now), so the message is misleading rather
+than wrong. And the browser's own Back button doesn't do anything useful inside the app — it's a
+different kind of app than a normal website, so there's nothing to step "back" through.
+
+**What held up well:** I tried to break things with fake "hacker" text in names (the kind of thing
+that can sometimes trick a website into running code) and none of it worked — the app safely showed
+the ugly text as plain text every time, never ran it. Weird file names (emoji, foreign characters,
+super long names, empty files, huge files) all displayed correctly. And even with 500 fake clients
+loaded in, everything stayed fast. Nothing I did caused a crash.
