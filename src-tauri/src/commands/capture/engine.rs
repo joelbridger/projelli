@@ -539,10 +539,21 @@ pub async fn capture_start(
     // an audit fact, not just a manifest field — append it now that the
     // engine has actually started (not before: a failed start never
     // recorded anything, so it shouldn't claim consent was acted on).
+    //
+    // Action string is "meeting_capture_started" (the plan's declared
+    // string, docs/plans/lantern-plus/2026-07-02-wave-3-meeting-capture.md
+    // ~line 2378) — NOT a bespoke "meeting_capture_consent". The frontend's
+    // RECORDING_ACTIONS set (platform/privacy/attestation.ts), the audit-log
+    // icon/label maps (features/audit/auditHomeHelpers.ts,
+    // app/shell/common/AuditLog.tsx), and the AuditActionType union
+    // (platform/types/audit.ts) only recognize "meeting_capture_started" —
+    // a different string here is invisible to attestation/compliance
+    // reporting and renders with no icon/label in the Activity Log.
+    // Consent mode is kept in the description text below, not lost.
     append_capture_audit_best_effort(
         PathBuf::from(&workspace),
         matter_id.clone(),
-        "meeting_capture_consent",
+        "meeting_capture_started",
         format!("Recording consent confirmed ({consent_mode} mode) for meeting capture"),
     )
     .await;
