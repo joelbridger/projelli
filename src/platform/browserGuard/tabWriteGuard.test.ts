@@ -126,4 +126,43 @@ describe('TabWriteGuard', () => {
 
     expect(sharedMatters).toEqual(['Created in Tab A']);
   });
+
+  it('regression (codex-review P2, round 4): does not report ownership if another tab wins the race right after this tab writes', () => {
+    // Two tabs can both observe a free/stale lock before either writes (e.g.
+    // starting at nearly the same instant). Simulate tab B's write landing in
+    // the split second between tab A's write() and tab A's own read-back, by
+    // hooking a fake Storage's setItem to inject B's write immediately after
+    // A's first write to this key.
+    const store = new Map<string, string>();
+    let injectRaceOnNextWrite = true;
+    const racyStorage: Storage = {
+      getItem: (key) => store.get(key) ?? null,
+      setItem: (key, value) => {
+        store.set(key, value);
+        if (injectRaceOnNextWrite && key === LOCK_KEY) {
+          injectRaceOnNextWrite = false;
+          store.set(key, JSON.stringify({ tabId: 'B', heartbeatAt: Date.now() }));
+        }
+      },
+      removeItem: (key) => {
+        store.delete(key);
+      },
+      clear: () => {
+        store.clear();
+      },
+      key: () => null,
+      length: 0,
+    };
+
+    const a = new TabWriteGuard(LOCK_KEY, { tabId: 'A', storage: racyStorage });
+    guards.push(a);
+
+    a.checkNow();
+
+    // A's write was immediately clobbered by B's — A must NOT believe it owns
+    // the lock, or both tabs would render as writers simultaneously.
+    expect(a.status).toBe('blocked');
+    const stored = JSON.parse(store.get(LOCK_KEY) as string) as { tabId: string };
+    expect(stored.tabId).toBe('B');
+  });
 });

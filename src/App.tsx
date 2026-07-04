@@ -63,6 +63,7 @@ import { useWorkflowStore } from '@/features/workflows/workflowStore';
 import { useShallow } from 'zustand/react/shallow';
 import { createWorkspaceService, type WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { createFSBackend, isTauriEnvironment } from '@/platform/fs/BackendFactory';
+import { flushAllDirtyTabs } from '@/app/fileOps/flushDirtyTabs';
 import { useTabWriteGuard } from '@/platform/browserGuard/useTabWriteGuard';
 import { TabGateOverlay } from '@/platform/browserGuard/TabGateOverlay';
 import { useAiBatchReviewStore } from '@/platform/ai/aiBatchReviewStore';
@@ -159,6 +160,19 @@ const IS_DEMO_MODE =
  */
 function App() {
   const tabWriteGuard = useTabWriteGuard(!IS_TEST_MODE && !isTauriEnvironment());
+  useEffect(() => {
+    if (tabWriteGuard.status !== 'blocked') return;
+    // Another tab just took over and this render is about to unmount
+    // AppShell. Unlike a real page close, that unmount fires no
+    // `pagehide`/`beforeunload` — useFlushOnExit's listeners never run — so
+    // any edit still sitting inside the 2s autosave window would be
+    // silently dropped, with tab B reloading from the older saved state
+    // (codex-review P1, round 4). flushAllDirtyTabs() reads straight from
+    // the module-level editor store / active workspace service (not from
+    // AppShell's own component state), so it works correctly even if
+    // AppShell has already unmounted by the time this effect runs.
+    void flushAllDirtyTabs();
+  }, [tabWriteGuard.status]);
   if (tabWriteGuard.status === 'blocked') {
     return <TabGateOverlay onTakeOver={tabWriteGuard.requestTakeover} />;
   }

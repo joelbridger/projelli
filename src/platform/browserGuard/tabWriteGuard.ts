@@ -151,6 +151,17 @@ export class TabWriteGuard {
       record === null || now - record.heartbeatAt >= this.staleAfterMs || record.tabId === this._tabId;
     if (isClaimable) {
       this.write();
+      // Re-read after writing (codex-review P2, round 4): two tabs can both
+      // observe the same free/stale record and both reach this branch before
+      // either writes (e.g. two tabs starting at nearly the same instant, or
+      // two blocked tabs both noticing the same stale lock on the same
+      // heartbeat tick). Without this check, both would optimistically
+      // report 'owner' even though only one write can be the one actually
+      // sitting in localStorage — reopening a two-writer window. Confirming
+      // OUR write is still the one there closes that window down to the
+      // (much narrower, and self-healing on the next check either way) gap
+      // between this read and whatever a competing tab does next.
+      if (this.read()?.tabId !== this._tabId) return;
       this.setStatus('owner');
     }
   }

@@ -14,9 +14,14 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, act } from '@testing-library/react';
 import { SK_TAB_LOCK } from '@/config/identity';
 
+const flushAllDirtyTabsSpy = vi.fn(async () => {});
+vi.mock('@/app/fileOps/flushDirtyTabs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/app/fileOps/flushDirtyTabs')>();
+  return { ...actual, flushAllDirtyTabs: (...args: unknown[]) => flushAllDirtyTabsSpy(...args) };
+});
 vi.mock('@/platform/utils/telemetry', () => ({
   sendEvent: vi.fn(async () => {}),
 }));
@@ -50,6 +55,7 @@ beforeEach(() => {
   sessionStorage.clear();
   useWorkspaceStore.setState({ recentWorkspaces: [], rootPath: null });
   __resetTabWriteGuardForTests();
+  flushAllDirtyTabsSpy.mockClear();
 });
 
 describe('App tab-write-guard wiring', () => {
@@ -74,5 +80,29 @@ describe('App tab-write-guard wiring', () => {
 
     expect(await screen.findByTestId('open-existing-workspace')).toBeInTheDocument();
     expect(screen.queryByTestId('tab-write-guard-overlay')).not.toBeInTheDocument();
+  });
+
+  it('regression (codex-review P1, round 4): flushes dirty edits before gating a tab that just lost ownership', async () => {
+    render(<App />);
+    expect(await screen.findByTestId('open-existing-workspace')).toBeInTheDocument();
+    expect(flushAllDirtyTabsSpy).not.toHaveBeenCalled();
+
+    // Simulate another tab taking over: a fresh foreign lock appears, and the
+    // `storage` event (which fires in every OTHER same-origin tab, not the
+    // one that wrote — we dispatch it manually here to simulate that) is
+    // this tab's signal to re-check and step down.
+    act(() => {
+      localStorage.setItem(
+        SK_TAB_LOCK,
+        JSON.stringify({ tabId: 'took-over-tab', heartbeatAt: Date.now() }),
+      );
+      window.dispatchEvent(new StorageEvent('storage', { key: SK_TAB_LOCK }));
+    });
+
+    expect(await screen.findByTestId('tab-write-guard-overlay')).toBeInTheDocument();
+    // AppShell just unmounted with no real page unload — the flush must have
+    // been triggered explicitly, or a dirty edit inside the 2s autosave
+    // window would be silently dropped.
+    expect(flushAllDirtyTabsSpy).toHaveBeenCalled();
   });
 });
