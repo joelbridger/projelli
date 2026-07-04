@@ -7,6 +7,7 @@ Last updated: 2026-07-04 ~05:45 (coordinator-6 — FEATURE-COMPLETE: final score
 ## Active lanes
 | Worker session | What | State |
 |---|---|---|
+| cc-lantern-benchconfirm | Cold-boot confirmation run on the Legion — convert the 3 SETUP-BLOCKED + 1 flake into honest PASSes (or precise findings); owns the Legion | bench-running |
 
 ## Merged this session
 🏁 FINAL SCORECARD (benchfull, 3 rounds): 11 PASS · 0 FAIL · 3 SETUP-BLOCKED (harness-sequencing, each behavior passed elsewhere) · 5 stubs — FEATURE-COMPLETE AGAINST JUMP by the real bar
