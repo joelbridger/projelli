@@ -18,10 +18,11 @@ function makeDeps(t: TranscriptFile | null, opts: Partial<NoticeVerificationDeps
     readTranscript: () => Promise.resolve(t),
     ledger: {
       hasVerbalNoticeCheck: (dir: string) => Promise.resolve(checks.has(dir)),
-      recordNotice: (e: NoticeEntry) => {
+      recordVerbalNoticeIfAbsent: (e: Extract<NoticeEntry, { kind: 'verbal-notice-verified' | 'verbal-notice-not-detected' }>) => {
+        if (checks.has(e.meetingDir)) return Promise.resolve(false); // atomic append-if-absent
         recorded.push(e);
-        if (e.kind === 'verbal-notice-verified' || e.kind === 'verbal-notice-not-detected') checks.add(e.meetingDir);
-        return Promise.resolve();
+        checks.add(e.meetingDir);
+        return Promise.resolve(true);
       },
     },
     now: () => '2026-07-04T10:10:00.000Z',

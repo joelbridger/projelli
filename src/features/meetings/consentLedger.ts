@@ -106,8 +106,9 @@ export function makeConsentLedger(ws: ConsentLedgerStorage, matterFolder: () => 
     },
 
     /** Whether a verbal-notice check (verified OR not-detected) already exists
-     *  for this meeting — the idempotency guard so post-transcription
-     *  verification never double-appends. */
+     *  for this meeting — a cheap fast-path so verification can skip re-running
+     *  the matcher. The AUTHORITATIVE guard is recordVerbalNoticeIfAbsent below,
+     *  which re-checks atomically inside the serialized write. */
     async hasVerbalNoticeCheck(meetingDir: string): Promise<boolean> {
       const file = await load();
       const key = meetingDirKey(meetingDir);
@@ -116,6 +117,30 @@ export function makeConsentLedger(ws: ConsentLedgerStorage, matterFolder: () => 
           meetingDirKey(n.meetingDir) === key &&
           (n.kind === 'verbal-notice-verified' || n.kind === 'verbal-notice-not-detected'),
       );
+    },
+
+    /** Append a verbal-notice check (verified/not-detected) ONLY if none exists
+     *  yet for this meeting — the check and the append run inside the SAME
+     *  serialized write, so two racing callers (post-stop verification + the
+     *  meeting page opening as transcription finishes) can never both append.
+     *  Returns true if it wrote, false if a check already existed
+     *  (codex-review R5). */
+    async recordVerbalNoticeIfAbsent(
+      entry: Extract<NoticeEntry, { kind: 'verbal-notice-verified' | 'verbal-notice-not-detected' }>,
+    ): Promise<boolean> {
+      return serializeWrite(path(), async () => {
+        const file = await load();
+        const key = meetingDirKey(entry.meetingDir);
+        const exists = file.notices.some(
+          (n) =>
+            meetingDirKey(n.meetingDir) === key &&
+            (n.kind === 'verbal-notice-verified' || n.kind === 'verbal-notice-not-detected'),
+        );
+        if (exists) return false;
+        file.notices.push(entry);
+        await ws.writeFile(path(), JSON.stringify(file, null, 2));
+        return true;
+      });
     },
   };
 }

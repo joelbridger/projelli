@@ -106,6 +106,24 @@ describe('consent ledger — notice entries', () => {
     expect(parsed.notices).toHaveLength(1); // notice survived
   });
 
+  it('recordVerbalNoticeIfAbsent writes at most once under a concurrent race (codex-review R5)', async () => {
+    // Two verification callers (post-stop + meeting open) racing on a slow
+    // store must not both append a verbal check.
+    const files: Record<string, string> = {};
+    const slow: ConsentLedgerStorage = {
+      readFile: (p) => new Promise((res) => { setTimeout(() => { res(files[p] ?? null); }, 0); }),
+      writeFile: (p, c) => new Promise((res) => { setTimeout(() => { files[p] = c; res(); }, 0); }),
+    };
+    const dir = `${MATTER}/Meetings/m1`;
+    const [w1, w2] = await Promise.all([
+      makeConsentLedger(slow, () => MATTER).recordVerbalNoticeIfAbsent({ kind: 'verbal-notice-not-detected', meetingDir: dir, at: 't1' }),
+      makeConsentLedger(slow, () => MATTER).recordVerbalNoticeIfAbsent({ kind: 'verbal-notice-verified', meetingDir: dir, at: 't2', audioMs: 1, snippet: 's', confidence: 0.6 }),
+    ]);
+    const parsed = JSON.parse(files[PATH] ?? '{}') as { notices: unknown[] };
+    expect(parsed.notices).toHaveLength(1); // only one verbal check survived
+    expect([w1, w2].filter(Boolean)).toHaveLength(1); // exactly one caller wrote
+  });
+
   it('reads notices back across a fresh ledger instance (persisted to the same file)', async () => {
     const store = memStorage();
     await makeConsentLedger(store, () => MATTER).recordNotice({

@@ -19,8 +19,15 @@ export interface NoticeVerificationDeps {
    *  can't be read (transcription still queued). */
   readTranscript(): Promise<TranscriptFile | null>;
   ledger: {
+    /** Cheap fast-path so we can skip re-running the matcher when a check
+     *  already exists. Not the authoritative guard — that is the atomic
+     *  recordVerbalNoticeIfAbsent below. */
     hasVerbalNoticeCheck(meetingDir: string): Promise<boolean>;
-    recordNotice(entry: NoticeEntry): Promise<void>;
+    /** Atomically append the verbal-notice check only if none exists yet, so
+     *  two racing verification callers can't both append (codex-review R5). */
+    recordVerbalNoticeIfAbsent(
+      entry: Extract<NoticeEntry, { kind: 'verbal-notice-verified' | 'verbal-notice-not-detected' }>,
+    ): Promise<boolean>;
   };
   /** The firm's custom notice script, fed to the matcher as expected phrases. */
   customPhrases?: string[];
@@ -76,8 +83,11 @@ export async function ensureNoticeVerified(meetingDir: string, deps: NoticeVerif
     windowMs: NOTICE_SCAN_WINDOW_MS,
   });
 
+  // Atomic append-if-absent: even if another caller (post-stop vs. meeting
+  // open) passed the fast-path check above at the same time, only one entry is
+  // ever written (codex-review R5).
   if (match) {
-    await deps.ledger.recordNotice({
+    await deps.ledger.recordVerbalNoticeIfAbsent({
       kind: 'verbal-notice-verified',
       meetingDir,
       at: now(),
@@ -86,7 +96,7 @@ export async function ensureNoticeVerified(meetingDir: string, deps: NoticeVerif
       confidence: match.confidence,
     });
   } else {
-    await deps.ledger.recordNotice({
+    await deps.ledger.recordVerbalNoticeIfAbsent({
       kind: 'verbal-notice-not-detected',
       meetingDir,
       at: now(),

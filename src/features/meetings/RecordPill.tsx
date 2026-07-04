@@ -57,7 +57,13 @@ export function RecordPill() {
   const handleCopyChatNotice = () => {
     void (async () => {
       const text = t('meetings.notice.chat-notice');
-      await copyText(text);
+      try {
+        await copyText(text); // throws if the copy wasn't confirmed
+      } catch {
+        // Don't log a chat-notice ledger entry for a copy that didn't happen
+        // (codex-review R5).
+        return;
+      }
       await recordChatNoticeForActiveMeeting(text);
       setChatCopied(true);
       window.setTimeout(() => { setChatCopied(false); }, 1500);

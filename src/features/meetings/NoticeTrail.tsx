@@ -69,7 +69,13 @@ export function NoticeTrail({ meetingDir, notices, policy, inviteDisclosure, cha
   const handleCopy = (which: 'invite' | 'chat') => {
     void (async () => {
       const text = which === 'invite' ? inviteDisclosure : chatNotice;
-      await doCopy(text);
+      try {
+        await doCopy(text); // throws if the copy wasn't confirmed
+      } catch {
+        // The copy failed — do NOT record a ledger entry or show "Copied",
+        // which would be false compliance evidence (codex-review R5).
+        return;
+      }
       await onRecordNotice(
         which === 'invite'
           ? { kind: 'invite-disclosure-copied', meetingDir, at: clock(), text }

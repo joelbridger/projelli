@@ -588,8 +588,11 @@ function AiPrivacySection(props: SectionProps) {
   // Privacy has no schema keys (rendered by PrivacySettings); treat as a match
   // unless the search clearly has nothing AI/memory either (keep it reachable).
   const privacyMatch = !props.searchActive
-    || ['privacy', 'telemetry', 'tracking', 'data', 'anonymous', 'opt', 'notice', 'recording', 'consent']
-        .some((kw) => props.searchQuery.toLowerCase().includes(kw));
+    || ['privacy', 'telemetry', 'tracking', 'data', 'anonymous', 'opt', 'notice', 'recording', 'consent', 'strict', 'standard', 'spoken', 'script', 'policy']
+        .some((kw) => props.searchQuery.toLowerCase().includes(kw))
+    // Also match the notice settings' own schema label/description text (the
+    // control is custom-rendered, so it isn't covered by renderRows) — codex-review R5.
+    || anyMatch(['meetings.noticePolicy', 'meetings.noticeScript'], props);
 
   return (
     <div data-testid="section-ai-privacy">

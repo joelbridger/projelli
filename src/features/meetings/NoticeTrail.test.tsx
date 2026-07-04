@@ -82,6 +82,14 @@ describe('NoticeTrail', () => {
     expect(((onRecordNotice as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as NoticeEntry).kind).toBe('chat-notice-copied');
   });
 
+  it('does NOT record a ledger entry when the clipboard copy fails (codex-review R5)', async () => {
+    const failingCopy = vi.fn(() => Promise.reject(new Error('clipboard blocked')));
+    const { onRecordNotice } = renderTrail([verified], { copyText: failingCopy });
+    fireEvent.click(screen.getByTestId('notice-copy-invite'));
+    await waitFor(() => { expect(failingCopy).toHaveBeenCalledTimes(1); });
+    expect(onRecordNotice).not.toHaveBeenCalled();
+  });
+
   it('renders nothing intrusive while unchecked (no transcript yet)', () => {
     renderTrail([]);
     // The copy actions still render (advisor can always disclose), but no
