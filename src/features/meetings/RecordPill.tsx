@@ -16,10 +16,11 @@
  * question and reads as a warning at exactly the wrong moment
  * (2026-07-04 UX review, finding B1).
  */
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, Circle, Loader2, Square } from 'lucide-react';
-import { useMeetingStore } from './meetingStore';
+import { Check, Circle, Copy, Loader2, Square } from 'lucide-react';
+import { useMeetingStore, recordChatNoticeForActiveMeeting } from './meetingStore';
+import { copyText } from './noticeClipboard';
 
 function formatElapsed(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
@@ -51,6 +52,23 @@ export function RecordPill() {
   const elapsedMs = useMeetingStore((s) => s.status.elapsedMs);
   const tick = useMeetingStore((s) => s.tick);
   const stopRecording = useMeetingStore((s) => s.stopRecording);
+  const [chatCopied, setChatCopied] = useState(false);
+
+  const handleCopyChatNotice = () => {
+    void (async () => {
+      const text = t('meetings.notice.chat-notice');
+      try {
+        await copyText(text); // throws if the copy wasn't confirmed
+      } catch {
+        // Don't log a chat-notice ledger entry for a copy that didn't happen
+        // (codex-review R5).
+        return;
+      }
+      await recordChatNoticeForActiveMeeting(text);
+      setChatCopied(true);
+      window.setTimeout(() => { setChatCopied(false); }, 1500);
+    })();
+  };
 
   useEffect(() => {
     if (!recording) return;
@@ -128,6 +146,30 @@ export function RecordPill() {
           {t('meetings.pill.local')}
         </span>
       </span>
+      <button
+        type="button"
+        data-testid="record-pill-copy-chat"
+        title={t('meetings.notice.pill-copy-chat')}
+        aria-label={t('meetings.notice.pill-copy-chat')}
+        onClick={handleCopyChatNotice}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 5,
+          border: '1px solid var(--kp-divider)',
+          background: 'transparent',
+          color: 'var(--kp-navy)',
+          borderRadius: 999,
+          padding: '6px 10px',
+          fontSize: 'var(--kp-font-2xs)',
+          fontWeight: 'var(--kp-weight-medium)',
+          cursor: 'pointer',
+          fontFamily: 'inherit',
+        }}
+      >
+        {chatCopied ? <Check style={{ width: 11, height: 11 }} /> : <Copy style={{ width: 11, height: 11 }} />}
+        {chatCopied ? t('meetings.notice.copied') : t('meetings.notice.pill-copy-chat')}
+      </button>
       <button
         type="button"
         data-testid="record-pill-stop"

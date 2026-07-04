@@ -80,6 +80,30 @@ describe('ConsentDialog', () => {
     expect(screen.getByText(/if your state requires/i)).toBeInTheDocument();
   });
 
+  // Recording Notice Kit: the "say this out loud" script step is a first-class
+  // part of the dialog when a script is supplied.
+  it('shows the spoken-notice script prominently when provided', () => {
+    render(
+      <ConsentDialog
+        open
+        consentMode="two-party"
+        standingConsent={null}
+        noticeScript="I'm recording this for my notes, alright?"
+        onOpenChange={() => {}}
+        onConfirm={() => {}}
+      />,
+    );
+    expect(screen.getByTestId('consent-notice-script')).toBeInTheDocument();
+    expect(screen.getByTestId('consent-notice-script-text').textContent).toContain("recording this for my notes");
+  });
+
+  it('omits the script step when no script is supplied', () => {
+    render(
+      <ConsentDialog open consentMode="one-party" standingConsent={null} onOpenChange={() => {}} onConfirm={() => {}} />,
+    );
+    expect(screen.queryByTestId('consent-notice-script')).toBeNull();
+  });
+
   it('disables Start recording until checked, then calls onConfirm', () => {
     const onConfirm = vi.fn();
     render(<ConsentDialog open consentMode="two-party" standingConsent={null} onOpenChange={() => {}} onConfirm={onConfirm} />);

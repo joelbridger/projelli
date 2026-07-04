@@ -62,7 +62,7 @@ describe('en.json structure snapshot', () => {
         "marketplace": 14,
         "matter": 206,
         "media": 81,
-        "meetings": 71,
+        "meetings": 106,
         "memory": 6,
         "model-download": 9,
         "onboarding": 65,
@@ -175,7 +175,10 @@ describe('en.json structure snapshot', () => {
     //      failed transcription used to vanish into a bare catch{} — these
     //      back an honest, classified, retryable failed state, mirroring the
     //      existing notes-failed-* keys).
-    expect(flat.length).toBe(1219);
+    // +35 = meetings.notice.* (Recording Notice Kit: the verified-verbal-notice
+    //       consent script step, the meeting-page notice trail + resolutions,
+    //       invite/chat copy blocks, and the firm Standard/Strict policy dial).
+    expect(flat.length).toBe(1254);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {
