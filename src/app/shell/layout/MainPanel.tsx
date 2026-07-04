@@ -22,6 +22,7 @@ import { resolveMatterIdForWorkspacePath } from '@/platform/hooks/useMemoryWirin
 import { UNASSIGNED_MATTER_ID } from '@/platform/types/matter';
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
 import { buildDocNoteCrmWrite } from '@/features/matters/logic/crmNoteFormat';
+import { EV_MATTER_LAUNCH } from '@/config/identity';
 
 // Heavy doc libraries and feature modules are lazy-loaded so they don't land
 // in the startup bundle. Mermaid (~700KB) and KaTeX are pulled in via
@@ -858,6 +859,11 @@ export function MainPanel({
                         if (!write) return false;
                         enqueueCrmWrite(write);
                         return true;
+                      },
+                      onReviewWealthboxQueue: () => {
+                        window.dispatchEvent(
+                          new CustomEvent(EV_MATTER_LAUNCH, { detail: { matterId: matterIdForFile, surface: 'matters' } }),
+                        );
                       },
                     };
                   })()}

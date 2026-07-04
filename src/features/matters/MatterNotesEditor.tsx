@@ -39,6 +39,7 @@ import { useMatterSyncStatus } from '@/platform/matter/matterSyncStore';
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
 import { splitNoteForCrm } from '@/features/matters/logic/crmNoteFormat';
 import { cn } from '@/lib/utils';
+import { EV_MATTER_LAUNCH } from '@/config/identity';
 
 /** How long the "added" confirmation stays visible after Send to Wealthbox. */
 const SEND_CONFIRMATION_MS = 2500;
@@ -243,6 +244,13 @@ export function MatterNotesEditor({
     setTimeout(() => { setSentConfirmation(false); }, SEND_CONFIRMATION_MS);
   }, [noteText, matter.id, enqueueCrmWrite]);
 
+  // QA finding (P3): jump straight to this client's Client Map, where the
+  // review card lives — same mechanism as every other "open this client"
+  // entry point (Ask's source chips, the client-list quick actions).
+  const handleReviewNow = useCallback(() => {
+    window.dispatchEvent(new CustomEvent(EV_MATTER_LAUNCH, { detail: { matterId: matter.id, surface: 'matters' } }));
+  }, [matter.id]);
+
   // Fail-closed: no sync client means no access.
   if (!syncClient) {
     return (
@@ -289,8 +297,16 @@ export function MatterNotesEditor({
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {sentConfirmation && (
-            <span data-testid="matter-notes-sent-confirmation" className="text-xs text-emerald-700">
-              {t('matter.notes.sent-to-wealthbox')}
+            <span className="flex items-center gap-1.5 text-xs text-emerald-700">
+              <span data-testid="matter-notes-sent-confirmation">{t('matter.notes.sent-to-wealthbox')}</span>
+              <button
+                type="button"
+                data-testid="matter-notes-review-now"
+                onClick={handleReviewNow}
+                className="font-medium underline underline-offset-2 hover:text-emerald-800"
+              >
+                {t('matter.notes.review-now')}
+              </button>
             </span>
           )}
           <button

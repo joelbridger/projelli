@@ -257,6 +257,31 @@ describe('MatterNotesEditor', () => {
     expect(items[0]).toMatchObject({ title: 'One line only', body: 'One line only' });
   });
 
+  // QA finding (P3): the confirmation used to be a vague, non-actionable
+  // toast ("Added to the Wealthbox review card on this client's map") — now
+  // plain copy plus a real "Review now" action that jumps to this client's
+  // Client Map (where the review card lives).
+  it('shows a plain confirmation with a working "Review now" action after Send to Wealthbox', async () => {
+    const matter = makeMatter();
+    const ydoc = new Y.Doc();
+    const client = makeMockClient(ydoc);
+    ydoc.getText('notes').insert(0, 'Annual review follow-up\nDiscussed 529 rollover.');
+
+    render(<MatterNotesEditor matter={matter} syncClient={client} />);
+    fireEvent.click(screen.getByTestId('matter-notes-send-to-wealthbox'));
+
+    expect(screen.getByTestId('matter-notes-sent-confirmation')).toHaveTextContent('Queued for Wealthbox review');
+
+    const events: CustomEvent[] = [];
+    const handler = (e: Event) => { events.push(e as CustomEvent); };
+    window.addEventListener('lantern:matter-launch', handler);
+    fireEvent.click(screen.getByTestId('matter-notes-review-now'));
+    window.removeEventListener('lantern:matter-launch', handler);
+
+    expect(events).toHaveLength(1);
+    expect(events[0]?.detail).toMatchObject({ matterId: matter.id, surface: 'matters' });
+  });
+
   // Codex adversarial review catch (P2): a reused editor instance switching
   // to a different client's syncClient must drop the previous client's note
   // text immediately, or "Send to Wealthbox" could queue the WRONG client's

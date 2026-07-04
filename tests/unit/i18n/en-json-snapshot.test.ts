@@ -59,7 +59,7 @@ describe('en.json structure snapshot', () => {
         "local-ai-settings": 8,
         "mail": 6,
         "marketplace": 14,
-        "matter": 134,
+        "matter": 138,
         "media": 81,
         "meetings": 9,
         "memory": 6,
@@ -108,7 +108,12 @@ describe('en.json structure snapshot', () => {
     // +4 = common.audit-log.repair-{action,confirm-title,confirm-body,confirm-cta}
     //      (explicit acknowledged repair affordance on the seal-missing badge).
     // +1 = common.audit-log.repair-failed (surface a failed repair honestly).
-    expect(flat.length).toBe(1016);
+    // +1 = matter.notes.review-now (QA finding P3: actionable "Review now"
+    //      action next to the Send-to-Wealthbox confirmation).
+    // +3 = matter.crm-review.{pending-banner_one,pending-banner_other,review-now}
+    //      (QA finding P2: hub-chrome pending-review banner on non-overview
+    //      sub-tabs, since CrmWriteReviewCard only ever mounted on Overview).
+    expect(flat.length).toBe(1020);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {
