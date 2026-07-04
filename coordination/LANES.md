@@ -12,6 +12,7 @@ Last updated: 2026-07-04 ~05:45 (coordinator-6 — FEATURE-COMPLETE: final score
 | cc-lantern-w3c | Wave-3 Phases 3c+3d: meetings surface — record pill, Meetings tab, transcript viewer, notes, consent (lp/wave3-meetings-ui; Tasks 10-13) | building |
 | cc-lantern-qa1 | QA campaign lane 1: persona-A first-run exploration on Azure bench-1 (report-only; bug DB) | exploring |
 | cc-lantern-cleanup1 | Cleanup batch 1 + docs currency (lp/cleanup-batch1): 5 scoped items | building |
+| cc-lantern-renameref | Rename reference migration (lp/rename-ref-migration): safe path/name hygiene post-Phase-2 (bridge active) | building |
 
 ## Merged this session
 🏁 SCORECARD after cold-boot confirm: 12 PASS · 0 FAIL · 2 SETUP-BLOCKED · 5 stubs. ⚠️ CORRECTION (Jameson caught it): the 5 stubs = the UNBUILT Wave-3 UI (Meetings tab/record pill/transcription) — feature-complete was over-claimed; engine done, surface in build now (w3b+w3c lanes)
