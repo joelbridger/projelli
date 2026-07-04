@@ -1,0 +1,26 @@
+{
+  "overall": "PASS",
+  "counts": {
+    "PASS": 1,
+    "FAIL": 0,
+    "SETUP-BLOCKED": 0,
+    "SKIPPED": 0,
+    "TODO": 0
+  },
+  "generatedAt": "2026-07-04T04:31:29.905Z",
+  "target": "legion",
+  "live": true,
+  "results": [
+    {
+      "id": "wave1-calendar-brief-export",
+      "section": "Wave 1 — Calendar sync, meeting matching, briefs, exports",
+      "status": "PASS",
+      "detail": "Calendar sync confirmed and Today strip populated. No brief/citation text visible yet in this snapshot — brief generation may need a matched meeting selected first (precondition, not asserted here).",
+      "screenshots": [
+        "01-wave1-calendar-sync-brief.jpeg"
+      ],
+      "forensics": null,
+      "durationMs": 21968
+    }
+  ]
+}

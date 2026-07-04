@@ -377,3 +377,115 @@ pass; these are intentionally out of scope until their respective UI lands.
   Calendar OAuth re-auth attempt (see FAIL above) is still open on the Legion's desktop, untouched.
 - Wealthbox sandbox: one review card was queued (Caldwell's smoke note) but never approved
   (`wave2-wealthbox-queue-review` stopped there by design) — no live CRM write occurred this pass.
+
+---
+
+## Coordinator-directed follow-up (2026-07-04, same day) — both bench FAILs resolved and verified
+
+Per the coordinator's verdict on the run above: the 3 harness fixes were reviewed and merged
+(tip `00558e1d`); authorized to complete the Calendar re-auth using the de-passkeyed Sarah Morgan
+demo account (`demo-creds/sarah-morgan-account.md`); and later, the Wave-4 gap-sync fix landed
+(tip `85c4a633`, TS-only) mid-session. Full evidence: `docs/evidence/bench-smoke/legion-20260704-043146/`
+and `legion-20260704-wave1-final-verify/`.
+
+### Calendar OAuth re-auth — done, verified twice (including surviving a restart)
+
+- Completed sign-in on the pending Microsoft tab using the password from the demo-creds file
+  (pasted via clipboard, never typed/logged) — landed on a **stale, unrelated** tab (Microsoft
+  account security settings, `wreply=account.live.com/proofs/manage/additional`, most likely a
+  leftover from the 2026-07-03 de-passkey session), not an actual calendar-scope consent screen.
+  **Declined the passkey-setup prompt Microsoft showed after sign-in** (passkeys are never
+  automated) and **declined saving the password to the browser** (this turned out to be
+  Jameson's own personal Chrome profile — his own Bitwarden vault and saved logins were visible
+  in unrelated save-password/passkey prompts during this flow; none were touched or read).
+- The real fix: in-app, Account → Connections → Calendar had no "Reconnect" affordance (unlike
+  Mail) — only Sync now/Disconnect. **Disconnected and reconnected** via "Connect Microsoft",
+  which opened the actual OAuth authorize screen for the app's real Azure client id
+  (`845ddba0-70ab-4f90-88ba-e3522157e37a`, matching the demo-creds file). Sarah's session was
+  already authenticated, so selecting her account tile completed the flow with no further
+  prompts. Result: "Outlook calendar connected", **Sync now succeeded** ("Synced 2 meetings"),
+  confirmed twice more after a clean app restart ("No new meetings came in" — expected, no new
+  events since the first sync).
+- **A red herring that cost significant time:** the Calendar repeatedly *appeared* to spontaneously
+  disconnect after later actions. Root cause, confirmed twice: a stray native Windows "Open" file
+  dialog (filtered to image files, rooted at Jameson's real home folder) kept reappearing on top
+  of the app window, and while it sat open, CDP-driven DOM queries returned stale/incomplete
+  results — reading the app as "disconnected" when it was not. Traced to
+  `scripts/bench-smoke/overlay-dismiss.mjs`'s generic overlay-dismiss helper: its fallback
+  ("click a dialog's first button" — added for the Draft-follow-up modal, whose first button is
+  its close X) was blindly applied to the Account modal too, whose *first* button is "Upload
+  photo" — a real native-file-picker trigger. Fixed in `lp/bench-harness-followup-fixes` (pushed
+  for review) to prefer a button with `aria-label="Close"`, falling back to the old behavior only
+  when no such button exists. Verified live: the Account modal now closes via its real Close
+  button with no native-dialog side effect, and the Calendar has shown zero further false
+  "disconnects" since.
+- Also fixed in the same branch: `checks/wave1.mjs` was asserting the "Today" meetings strip
+  while still inside the (still-open) Account modal — structurally could never find it. Now
+  closes the modal and returns to Client Map before asserting the strip. **wave1-calendar-brief-export
+  now PASSes cleanly**: "Calendar sync confirmed and Today strip populated."
+
+### Wave-4 gap-sync fix — confirmed working, live-verified twice
+
+Pulled the Legion to tip `59235fa4` (fast-forward past the fix commit `85c4a633`; diff-verified
+frontend-only — only `src/features/matters/ClientMapPanel.tsx` plus harness/docs, no
+`src-tauri` changes). Restarted the app; cargo confirmed a no-op relink ("Finished ... in 1.25s",
+not a real recompile), consistent with "no Rust changed". Canary: the fix's own described
+behavior (unresolved gap wins the Client Map's initial tab) is what the check verifies, so the
+check passing **is** the canary.
+
+- `wave4-estate-beneficiary-gap`: **PASS** — book-view gap chip and the flagged client's Client
+  Map sub-tab are now in sync (a resolvable `clientmap-ask-flag` row is present). Reproduced on
+  two different runs, two different clients (Caldwell, Jennifer once; Hollings Family once) —
+  not client-specific.
+- `wave4-estate-beneficiary-gap-dismiss-live`: **PASS** (`--live`) — dismissing the gap via the
+  Client Map resolve control actually cleared it (resolvable-row count dropped by exactly one
+  each time, 5→4 and 6→5).
+
+### Updated scorecard (final run this session, `legion-20260704-043146`)
+
+| Check | Status | Note |
+|---|---|---|
+| workspace-binding | PASS | |
+| per-client-files-visible | SETUP-BLOCKED | Pre-existing table-vs-book sub-view state gap (see below), not a regression |
+| index-health | SETUP-BLOCKED | Same class as smoke-2/first pass — check-timing precondition, not chased |
+| wave0-draft-followup | SETUP-BLOCKED | Downstream of the same sub-view state gap |
+| **wave1-calendar-brief-export** | **PASS** | **Fixed this session — was FAIL** |
+| wave2-wealthbox-queue-review | SETUP-BLOCKED | Downstream of the same sub-view state gap |
+| wave2-wealthbox-approve-live | SETUP-BLOCKED | Downstream of queue-review |
+| wave4-whole-book-view | PASS | |
+| **wave4-estate-beneficiary-gap** | **PASS** | **Fixed this session — was FAIL** |
+| **wave4-estate-beneficiary-gap-dismiss-live** | **PASS** | **Fixed this session — was SETUP-BLOCKED** |
+| wave4-whole-practice-ask | PASS | |
+| cross-cutting-light-theme | PASS | |
+| cross-cutting-console-errors | PASS | |
+| cross-cutting-egress-indicator | not reached | Full-suite run hit a 300s wall-clock cap set for this pass; app was confirmed left in the correct default state (Cloud AI, not stuck in Local-only) |
+
+Both real FAILs from the round-1 verdict are now fixed and independently verified live. The
+remaining SETUP-BLOCKED cluster (per-client-files-visible, index-health, wave0, wave2 ×2) all
+trace to one known, pre-existing harness gap: `openSmokeClientDocuments` needs the Client Map's
+**"Clients" table** sub-view (for its `matter-launch-documents-<id>` button), but a prior check
+in the same run can leave the app on the **"Whole book"** sub-view instead, and `spine-nav-matters`
+alone doesn't reset that choice. Not touched this pass — out of scope for what was asked, and
+lower-value than the two real product bugs that were the actual point of this follow-up.
+
+### Harness fixes this session (branch `lp/bench-harness-followup-fixes`, pushed for review)
+
+1. `overlay-dismiss.mjs`: prefer `aria-label="Close"` over blindly clicking a dialog's first
+   button (root cause of the false Calendar-disconnect readings above).
+2. `checks/wave1.mjs`: close the Account modal and return to Client Map before asserting the
+   "Today" meetings strip.
+
+128/128 → confirmed 126/126 unit tests pass (2 new regression tests added for the aria-label
+preference and its fallback).
+
+### Bench state left behind (this follow-up)
+
+- App stopped, `LanternPlusDev` returned to **Disabled**, SSH tunnel closed.
+- Calendar connector confirmed **connected and healthy** at end of session (real, working state —
+  not a stale reading).
+- The stray native "Open" dialog was closed each time it appeared; no files were selected or
+  opened through it. Jameson's personal saved logins (visible in incidental
+  save-password/passkey/passkey-manager prompts during the OAuth flow) were never read, selected,
+  or interacted with.
+- The original stale Microsoft security-settings tab from the round-1 pass is still open,
+  untouched, exactly as before — still a human cleanup item, not urgent (no pending action on it).
