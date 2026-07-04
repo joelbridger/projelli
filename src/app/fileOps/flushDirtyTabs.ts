@@ -15,26 +15,11 @@ import { useEditorStore } from '@/platform/state/editorStore';
 import { writeCoordinator } from '@/platform/fs/writeCoordinator';
 import { isBinaryFile, dataUrlToArrayBuffer } from '@/platform/utils/file-utils';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
-
-/**
- * The currently-active workspace service. App keeps this in sync wherever it
- * assigns `workspaceServiceRef.current` (workspace select + test-mode), so flush
- * helpers can be called from anywhere (e.g. the `closeTab` store action) without
- * threading the service through every caller. Null before a workspace is open.
- */
-let activeService: WorkspaceService | null = null;
-export function setActiveWorkspaceService(service: WorkspaceService | null): void {
-  activeService = service;
-}
-
-/**
- * The currently-active workspace service, or null before a workspace is open.
- * Lets read paths (e.g. opening a Client Map source document by path) reuse the
- * same service the flush helpers use, without threading it through every caller.
- */
-export function getActiveWorkspaceService(): WorkspaceService | null {
-  return activeService;
-}
+// The active-workspace-service holder now lives in platform/fs (so features may
+// use it too, per the layer DAG). Re-exported here so existing app-layer callers
+// that import it from this module keep working unchanged.
+import { getActiveWorkspaceService, setActiveWorkspaceService } from '@/platform/fs/activeWorkspaceService';
+export { getActiveWorkspaceService, setActiveWorkspaceService };
 
 /**
  * Binary-aware tab writer — the single place that decodes a binary editor's
@@ -56,7 +41,7 @@ export async function writeTabContentToDisk(
 
 /** Flush ONE tab by path if it is currently dirty. Best-effort. Uses the active
  *  workspace service when one isn't passed (so close handlers can call it bare). */
-export async function flushTab(path: string, service: WorkspaceService | null = activeService): Promise<void> {
+export async function flushTab(path: string, service: WorkspaceService | null = getActiveWorkspaceService()): Promise<void> {
   if (!service) return;
   const tab = useEditorStore.getState().openTabs.find((t) => t.path === path);
   if (!tab || !tab.isDirty) return;
@@ -81,7 +66,7 @@ export async function flushTab(path: string, service: WorkspaceService | null = 
  */
 export async function flushTabForClose(
   path: string,
-  service: WorkspaceService | null = activeService,
+  service: WorkspaceService | null = getActiveWorkspaceService(),
 ): Promise<void> {
   if (!service) return;
   const tab = useEditorStore.getState().openTabs.find((t) => t.path === path);
@@ -112,7 +97,7 @@ export async function flushTabForClose(
  * before a workspace switch or app close. Never throws.
  */
 export async function flushAllDirtyTabs(
-  service: WorkspaceService | null = activeService,
+  service: WorkspaceService | null = getActiveWorkspaceService(),
 ): Promise<void> {
   if (!service) return;
   const dirty = useEditorStore.getState().openTabs.filter((t) => t.isDirty);

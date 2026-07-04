@@ -89,6 +89,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `platform/settings/schema.ts`.
 
 ### Fixed
+- **QA-5 (P1) — new clients had no folders linked, so their documents looked missing.**
+  Creating a client via "+ New client" passed no `folderPaths`, so the client was scoped to
+  nothing: new documents/imports landed unscoped and the client's own Documents view showed
+  "No documents yet" even though the files existed. Now each new client gets its OWN workspace
+  subfolder by default (named for the client, uniquified so two clients never share a folder —
+  matter isolation holds), matching how seeded clients are structured. The folder is created on
+  disk immediately (best-effort) and linked via `matter.folderPaths`. Files:
+  `matterManagerDialogHelpers.ts` (new `deriveNewClientFolderPath`/`clientFolderSegment`),
+  `MatterManagerDialog.tsx` (`handleCreate`), new `platform/fs/activeWorkspaceService.ts` (the
+  active-service holder moved out of the app layer so the feature can create the folder without
+  violating the layer DAG). Tests: `newClientFolder.test.ts`, `tests/integration/newClientScoping.test.ts`,
+  `tests/e2e/bench-mirror-new-client-folder.spec.ts`.
+- **QA-6 (P1) — the Ask input collapsed to 0px at a normal laptop window.** The Ask 3-column
+  layout (conversations rail + composer + sources) had two fixed, non-shrinkable side columns, so
+  the composer's center column was squeezed until `ask-composer-input` collapsed to 0px and became
+  non-interactable at ~1028×749 (worked at 1424px); at ~600px the whole row clipped instead of
+  degrading. The layout is now responsive: as the Ask body narrows it collapses the rail, then
+  hides the sources column, and the composer column keeps a hard `minWidth` floor so the primary
+  input never collapses. Files: new `src/features/ask/askResponsive.ts` (pure breakpoint logic +
+  shared column-width constants), `Ask.tsx` (ResizeObserver-driven layout, mirroring MainPanel),
+  `ConversationsRail.tsx` (imports the shared widths). Tests: `askResponsive.test.ts`,
+  `tests/e2e/bench-mirror-ask-composer-viewport.spec.ts` (asserts a non-zero, interactable input at
+  1028px and 600px).
 - **Windows verbatim-path blocker in `capture_start` (empty-path canonicalize).**
   `pathguard::canonicalize_symlink_safe_absolute` walked components from an EMPTY `PathBuf`
   and tried to `symlink_metadata()` the first component. On Windows the first component of a

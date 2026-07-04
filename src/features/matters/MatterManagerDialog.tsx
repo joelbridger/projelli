@@ -65,13 +65,38 @@ import { promoteMatterToShared } from '@/features/matters/logic/promoteMatterToS
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
-import { collectFolderPaths, relLabel, audit, folderPathsMatch } from './matterManagerDialogHelpers';
+import {
+  collectFolderPaths,
+  relLabel,
+  audit,
+  folderPathsMatch,
+  deriveNewClientFolderPath,
+} from './matterManagerDialogHelpers';
+import { getActiveWorkspaceService } from '@/platform/fs/activeWorkspaceService';
 import { MemberRoster } from './MemberRoster';
 
 export interface MatterManagerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
+/**
+ * QA-5 — create a new client's scoped folder on disk (best-effort) and refresh
+ * the workspace tree so it's visible immediately. A no-op when the workspace
+ * service isn't ready; the client is already scoped to the folder via
+ * folderPaths, and the folder is created lazily on the first write regardless.
+ */
+async function ensureClientFolderOnDisk(absFolderPath: string): Promise<void> {
+  const svc = getActiveWorkspaceService();
+  if (!svc) return;
+  try {
+    await svc.mkdir(absFolderPath);
+    const tree = await svc.getFileTree();
+    useWorkspaceStore.getState().setFileTree(tree);
+  } catch (err) {
+    console.warn('[MatterManager] could not create client folder on disk:', err);
+  }
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Main dialog
 // ────────────────────────────────────────────────────────────────────────────
@@ -169,7 +194,28 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
 
   const handleCreate = () => {
     if (!newName.trim() && !newClient.trim()) return;
-    createMatter({ name: newName, client: newClient, privileged: newPrivileged });
+    // QA-5: give the new client its OWN workspace subfolder by default, so its
+    // documents/imports are scoped and isolated from the very first action (the
+    // seeded clients are all structured this way). Uniquify against every other
+    // client's folders so two clients never share a folder (matter isolation).
+    const takenFolderPaths = matters.flatMap((m) => m.folderPaths);
+    const clientFolder = deriveNewClientFolderPath(
+      newClient,
+      newName,
+      rootPath,
+      takenFolderPaths,
+    );
+    createMatter({
+      name: newName,
+      client: newClient,
+      privileged: newPrivileged,
+      ...(clientFolder ? { folderPaths: [clientFolder] } : {}),
+    });
+    // Best-effort: create the folder on disk now so it's visible in the file
+    // tree immediately and imports have a real target. If the workspace service
+    // isn't ready this is a no-op — the folder is created lazily on first write
+    // regardless, and the client is already scoped to it via folderPaths.
+    if (clientFolder) void ensureClientFolderOnDisk(clientFolder);
     setNewName('');
     setNewClient('');
     setNewPrivileged(false);
