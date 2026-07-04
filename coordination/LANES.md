@@ -10,6 +10,7 @@ Last updated: 2026-07-04 ~01:05 (coordinator-6 seated — sole coordinator; moni
 | cc-lantern-benchfull | 🏁 FINISH-LINE full Wave 0-4 scripted bench pass on the Legion (tip fc82c2a2; brief w-bench-full-brief.md; freshness canary mandatory — window-creation path changed) | bench-running |
 | cc-lantern-winvm | Local Windows VM spike Phase 1 (testing-speed program #6) — KVM VM on /mnt/devcache, SSH + clean snapshot; infra only, no product code | building |
 | cc-lantern-azclone | Azure: merged-tip verify on cloud VM (also a P0 canary for the window-creation change) → bench-ready snapshot → 2 clones (program #1+#2; Jameson-authorized) | building |
+| cc-lantern-auditfix | Audit-chain fail-closed fix (lp/audit-chain-failclosed; inherited #14; Opus 4.8 xhigh — tamper-evidence is the trust story) — builds during the bench pass, merges after the verdict | building |
 
 ## Merged this session
 ✅ lp/e2e-smoke-mirror @fc82c2a2 — Playwright mirror: 11/19 bench checks in ~15s on Linux (44 specs green post-merge)
