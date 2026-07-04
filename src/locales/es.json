@@ -2104,7 +2104,9 @@
       "recording-label": "Grabando",
       "local": "Local",
       "local-tooltip": "Nada ha salido de este equipo. El audio se escribe directamente en su disco.",
-      "processing": "Escribiendo sus notas de la reunión… puede seguir trabajando"
+      "processing": "Escribiendo sus notas de la reunión… puede seguir trabajando",
+      "write-error": "La grabación no puede continuar. El disco está lleno.",
+      "write-error-dismiss": "Descartar"
     },
     "tab": {
       "record-button": "Grabar una reunión",
@@ -2113,6 +2115,7 @@
       "empty-body": "Las grabaciones que hagas con este cliente quedan aquí mismo: notas, transcripción y audio juntos.",
       "notes-pending": "notas pendientes",
       "notes-failed": "no se pudieron redactar las notas",
+      "recording-incomplete": "la grabación no terminó de guardarse",
       "activity-hint": "Cada reunión también aparece como una entrada en el historial de actividad de este cliente.",
       "record-note": "Grabado en este equipo. No se sube nada.",
       "loading": "Cargando reuniones…",
@@ -2130,6 +2133,7 @@
       "consent-one-party": "una parte",
       "consent-two-party": "todas las partes",
       "notes-pending": "Las notas se están redactando a partir de la transcripción. Vuelve a revisar en un momento.",
+      "recording-incomplete": "Esta grabación no terminó de guardarse, así que no hay audio para transcribir ni para redactar notas. Esto puede pasar si el equipo se quedó sin espacio en disco durante la grabación.",
       "notes-failed-timeout": "No se pudieron redactar las notas. El proveedor de IA no respondió a tiempo. Tu grabación y transcripción están seguras.",
       "notes-failed-error": "No se pudieron redactar las notas. El proveedor de IA devolvió un error. Tu grabación y transcripción están seguras.",
       "notes-failed-blocked": "Las notas necesitan tu proveedor de IA, pero el modo Solo local lo está bloqueando. Conecta un modelo local para redactar las notas de esta reunión, o, si lo prefieres, desactiva el modo Solo local en Configuración → Privacidad.",
@@ -2165,7 +2169,8 @@
       "mac-permission-body": "Esto permite que la aplicación grabe lo que se reproduce en esta Mac. Se guarda solo en tu disco y en ningún otro lugar.",
       "mac-permission-button": "Abrir Preferencias del Sistema",
       "two-party-note-unknown": "Si su estado exige el consentimiento de todos, pregunte antes de grabar. Sugerencia: «Me gustaría grabar esto para mis notas. ¿Les parece bien a todos?»",
-      "start-failed": "La grabación no pudo iniciarse: {{message}}"
+      "start-failed": "La grabación no pudo iniciarse: {{message}}",
+      "low-disk-warning": "Poco espacio en disco. Es posible que las grabaciones largas no quepan."
     },
     "dictation": {
       "file-as-meeting-note": "Archivar como nota de reunión…",

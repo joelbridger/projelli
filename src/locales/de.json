@@ -2104,7 +2104,9 @@
       "recording-label": "Aufnahme",
       "local": "Lokal",
       "local-tooltip": "Nichts hat diesen Rechner verlassen. Die Aufnahme wird direkt auf Ihre Festplatte geschrieben.",
-      "processing": "Ihre Gesprächsnotizen werden geschrieben… Sie können weiterarbeiten"
+      "processing": "Ihre Gesprächsnotizen werden geschrieben… Sie können weiterarbeiten",
+      "write-error": "Aufnahme kann nicht fortgesetzt werden. Die Festplatte ist voll.",
+      "write-error-dismiss": "Schließen"
     },
     "tab": {
       "record-button": "Besprechung aufnehmen",
@@ -2113,6 +2115,7 @@
       "empty-body": "Aufnahmen mit diesem Mandanten landen genau hier: Notizen, Transkript und Audio zusammen.",
       "notes-pending": "Notizen ausstehend",
       "notes-failed": "Notizen konnten nicht erstellt werden",
+      "recording-incomplete": "Aufnahme wurde nicht vollständig gespeichert",
       "activity-hint": "Jede Besprechung erscheint außerdem als Eintrag im Aktivitätsverlauf dieses Mandanten.",
       "record-note": "Auf diesem Computer aufgenommen. Nichts wird hochgeladen.",
       "loading": "Gespräche werden geladen…",
@@ -2130,6 +2133,7 @@
       "consent-one-party": "einseitig",
       "consent-two-party": "beidseitig",
       "notes-pending": "Die Notizen werden gerade aus dem Transkript erstellt. Schau gleich noch einmal vorbei.",
+      "recording-incomplete": "Diese Aufnahme wurde nicht vollständig gespeichert, daher gibt es kein Audio zum Transkribieren oder für Notizen. Das kann passieren, wenn während der Aufnahme der Speicherplatz auf dem Computer ausgegangen ist.",
       "notes-failed-timeout": "Die Notizen konnten nicht erstellt werden. Der KI-Anbieter hat nicht rechtzeitig geantwortet. Ihre Aufnahme und das Transkript sind sicher.",
       "notes-failed-error": "Die Notizen konnten nicht erstellt werden. Der KI-Anbieter hat einen Fehler zurückgegeben. Ihre Aufnahme und das Transkript sind sicher.",
       "notes-failed-blocked": "Für die Notizen wird Ihr KI-Anbieter benötigt, aber der Nur-lokal-Modus blockiert ihn. Verbinden Sie ein lokales Modell, um die Notizen zu diesem Gespräch zu erstellen, oder deaktivieren Sie stattdessen den Nur-lokal-Modus unter Einstellungen → Datenschutz.",
@@ -2165,7 +2169,8 @@
       "mac-permission-body": "So kann die App aufnehmen, was auf diesem Mac abgespielt wird. Es wird nur auf deiner Festplatte gespeichert, sonst nirgendwo.",
       "mac-permission-button": "Systemeinstellungen öffnen",
       "two-party-note-unknown": "Falls Ihr Bundesstaat die Zustimmung aller verlangt, fragen Sie vor der Aufnahme. Vorschlag: „Ich würde das Gespräch gern für meine Notizen aufnehmen. Ist das für alle in Ordnung?“",
-      "start-failed": "Aufnahme konnte nicht starten: {{message}}"
+      "start-failed": "Aufnahme konnte nicht starten: {{message}}",
+      "low-disk-warning": "Wenig Speicherplatz. Lange Aufnahmen passen möglicherweise nicht."
     },
     "dictation": {
       "file-as-meeting-note": "Als Besprechungsnotiz ablegen…",

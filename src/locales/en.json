@@ -1520,7 +1520,9 @@
       "recording-label": "Recording",
       "local": "Local",
       "local-tooltip": "Nothing has left this machine. The audio is written straight to your disk.",
-      "processing": "Writing your meeting notes… you can keep working"
+      "processing": "Writing your meeting notes… you can keep working",
+      "write-error": "Recording can't continue. Disk is full.",
+      "write-error-dismiss": "Dismiss"
     },
     "tab": {
       "record-button": "Record a meeting",
@@ -1529,6 +1531,7 @@
       "empty-body": "Recordings you make with this client stay right here: notes, transcript, and audio together.",
       "notes-pending": "notes pending",
       "notes-failed": "notes couldn't be written",
+      "recording-incomplete": "recording didn't finish saving",
       "activity-hint": "Each meeting also shows up as an entry on this client's Activity timeline.",
       "record-note": "Recorded on this computer. Nothing is uploaded.",
       "loading": "Loading meetings…",
@@ -1546,6 +1549,7 @@
       "consent-one-party": "one-party",
       "consent-two-party": "two-party",
       "notes-pending": "Notes are being written from the transcript. Check back in a moment.",
+      "recording-incomplete": "This recording didn't finish saving, so there's no audio to transcribe or write notes from. This can happen if the computer ran out of disk space while recording.",
       "notes-failed-timeout": "Notes couldn't be written. The AI provider didn't respond in time. Your recording and transcript are safe.",
       "notes-failed-error": "Notes couldn't be written. The AI provider returned an error. Your recording and transcript are safe.",
       "notes-failed-blocked": "Notes need your AI provider, but Local-only mode is blocking it. Connect a local model to write this meeting's notes, or, if you'd rather, turn off Local-only mode in Settings → Privacy.",
@@ -1581,7 +1585,8 @@
       "mac-permission-body": "This lets the app record what plays on this Mac. It is saved to your disk and nowhere else.",
       "mac-permission-button": "Open System Settings",
       "two-party-note-unknown": "If your state requires everyone’s consent, ask before you record. Suggested ask: \"I’d like to record this for my notes. Is that alright with everyone?\"",
-      "start-failed": "Recording couldn’t start: {{message}}"
+      "start-failed": "Recording couldn’t start: {{message}}",
+      "low-disk-warning": "Low disk space. Long recordings may not fit."
     },
     "dictation": {
       "file-as-meeting-note": "File as meeting note…",

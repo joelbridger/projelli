@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { Info, Mic, AlertTriangle } from 'lucide-react';
 import { Badge, Button, Callout, EmptyState } from '@/ui/kp';
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
-import { useMeetingStore, needsReview } from './meetingStore';
+import { useMeetingStore, needsReview, checkLowDiskSpaceWarning } from './meetingStore';
 import type { MeetingMeta } from './meetingStore';
 import { meetingDisplayTitle, formatMeetingDate, formatMeetingDuration } from './meetingDisplay';
 import { ConsentDialog, isMacPermissionError } from './ConsentDialog';
@@ -158,6 +158,10 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
   const [macPermissionError, setMacPermissionError] = useState(false);
   const [consentError, setConsentError] = useState<string | null>(null);
   const [standingConsent, setStandingConsent] = useState<ConsentEntry | null>(null);
+  // QA-35 — a cheap disk-space preflight, checked fresh each time the consent
+  // dialog opens so the warning reflects the disk's state right before this
+  // specific recording, not whatever it was on a previous click.
+  const [lowDiskSpace, setLowDiskSpace] = useState(false);
   // Recording Notice Kit — per-meeting notice state (keyed by meeting dir) so
   // each row can flag a missing/quarantined notice, plus the firm policy.
   const [noticeStates, setNoticeStates] = useState<Record<string, NoticeState>>({});
@@ -211,6 +215,9 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
       }
       setMacPermissionError(false);
       setConsentError(null);
+      // QA-35 — cheap disk-space preflight, checked fresh on every open so
+      // the warning reflects right now, not a stale prior check.
+      setLowDiskSpace(await checkLowDiskSpaceWarning());
       setShowConsent(true);
     })();
   }, [matterId, matterFolder, workspaceService]);
@@ -369,7 +376,13 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
                     {formatMeetingDate(m.meta?.startedAt)}
                     {duration && ` · ${duration}`}
                     {!m.hasNotes &&
-                      ` · ${m.meta?.notesError ? t('meetings.tab.notes-failed') : t('meetings.tab.notes-pending')}`}
+                      ` · ${
+                        m.meta?.notesError
+                          ? t('meetings.tab.notes-failed')
+                          : m.meta?.recordingError && !m.hasAudio
+                            ? t('meetings.tab.recording-incomplete')
+                            : t('meetings.tab.notes-pending')
+                      }`}
                   </span>
                 </span>
                 <span style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -401,6 +414,7 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
         standingConsent={standingConsent}
         macPermissionError={macPermissionError}
         errorMessage={consentError}
+        lowDiskSpace={lowDiskSpace}
         noticeScript={noticeScript}
         onConfirm={handleConsentConfirm}
       />
