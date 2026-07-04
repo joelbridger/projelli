@@ -25,7 +25,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 }));
 
 import { AuditService, isAuditEncrypted } from '@/platform/audit/AuditService';
-import type { AuditEvent } from '@/platform/types/audit';
+import type { AuditActionType, AuditEvent } from '@/platform/types/audit';
 
 describe('AuditService persistence (browser, localStorage)', () => {
   beforeEach(() => {
@@ -288,7 +288,13 @@ describe('AuditService persistence (desktop, encrypted store)', () => {
 
     expect(mocks.invoke.mock.calls.some((c) => c[0] === 'audit_repair_seal')).toBe(true);
     // Re-hydrated: the permanent anomaly record is now in the live view.
-    expect(svc.getAll().some((e) => e.action === 'audit_integrity_reseal')).toBe(true);
+    // 'audit_integrity_reseal' is a real action string the Rust repair path
+    // writes (see AuditService.repairSeal's docstring), but it isn't in the
+    // AuditActionType union — the union is scoped to the UI's label/icon/
+    // category maps (see audit.ts's comment), which is a separate, pre-existing
+    // gap out of scope here. Cast to match how the source itself treats
+    // arbitrary action strings (`rec.action as AuditActionType` in AuditService).
+    expect(svc.getAll().some((e) => e.action === ('audit_integrity_reseal' as AuditActionType))).toBe(true);
   });
 
   it('a transient encrypted-store failure does not break logging (entry stays in memory)', () => {

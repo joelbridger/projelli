@@ -1,0 +1,11 @@
+# Build brief — cleanup batch 3: audit action-type gap + deterministic docx ZIP timestamps
+
+**Lane:** cc-lantern-cleanup3 · dir `~/lp-cleanup3` (own worktree, branch `lp/cleanup-batch3`). **Model:** Sonnet 5 · high.
+**Rules:** TDD. Stay in your lane: audit types/UI maps + lantern-docx zip writer ONLY. Do NOT touch the meetings note pipeline (notesfix owns) or browserGuard (weblocks owns). Codex self-review foreground/watched. PULL + reconcile before handoff. No interactive menus.
+
+## Scope
+1. **'audit_integrity_reseal' missing from the TS AuditActionType union + audit UI label/icon maps** (found by cleanup2): the Rust side writes this action on the acknowledged-repair path, but the TS union and the audit log UI's label/icon maps never learned it — a test needed a cast, and the audit UI presumably renders it unlabeled/generic. Fix: add to the union + proper label/icon (check the Rust repair flow for the honest wording — this is the tamper-evidence repair record, it should read clearly), remove the cast in audit-persistence.test.ts. Audit whether OTHER Rust-written action types are missing from the union the same way (compare the Rust action constants against the TS union — list what you find, fix the gaps).
+2. **Time-flaky docx round-trip (lantern-docx)**: `test_roundtrip_idempotent_on_commented_doc` (tests/roundtrip.rs:679) fails when the clock crosses a 2s DOS-timestamp boundary between two zip writes — the ZIP header mtime fields are the only differing bytes (proven at the merge gate today). Fix in the WRITER, not the test: make zip entry timestamps deterministic (fixed constant mtime, or preserve the source entry's timestamps on round-trip — pick the one that keeps Word compatibility, state why). The round-trip byte-idempotence guarantee should be actually true. Rust rules: CARGO_TARGET_DIR=$HOME/.cargo-target-lp-cleanup3, one cargo box-wide, timeout 1200 on cargo tests.
+
+## Gate + handoff
+`npx tsc --noEmit` · `npm run typecheck:tests` 0 · i18n 0 · full vitest · eslint-gate · cargo test (lantern-docx at minimum; workspace if time allows — state which). Handoff: HEAD SHA, gate counts, the union-audit findings list, timestamp approach + Word-compat rationale, self-review rounds. Push (NOT self-merged), then exactly: `WORKER-DONE: lp/cleanup-batch3`

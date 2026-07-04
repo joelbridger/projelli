@@ -4,7 +4,7 @@ import { SearchField, Dropdown } from '@/ui/kp';
 import { useMatters } from '@/platform/matter/matterStore';
 import { mailRetagMessageMatter } from '@/platform/utils/mail-commands';
 import { matterLabel } from '@/platform/rag/matterResolver';
-import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
+import { useEntityLabelEnglish } from '@/platform/hooks/useEntityLabel';
 
 // ── BulkMatterPicker ───────────────────────────────────────────────────────
 
@@ -16,7 +16,10 @@ export interface BulkMatterPickerProps {
 }
 
 export function BulkMatterPicker({ selectedIds, open, onOpenChange, onDone }: BulkMatterPickerProps) {
-  const entityLabel = useEntityLabel();
+  // Fixed-English escape hatch: the search placeholder/aria-label and empty
+  // states below are still hardcoded English strings (see the cleanup2
+  // handoff), so the noun stays English too rather than mixing languages.
+  const entityLabel = useEntityLabelEnglish();
   const matters = useMatters();
   const [filing, setFiling] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);

@@ -38,7 +38,7 @@ import {
   downloadAuditJSON,
 } from '@/features/audit/audit-export';
 import { isAuditEncrypted } from '@/platform/audit/AuditService';
-import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
+import { useEntityLabelEnglish } from '@/platform/hooks/useEntityLabel';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
@@ -95,7 +95,10 @@ export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, 
   const { t } = useTranslation();
   // Profession-aware entity word so the export note follows the practice
   // (advisor → "clients", legal → "matters") instead of a hardcoded "matters".
-  const entityLabel = useEntityLabel();
+  // Fixed-English escape hatch: the export note below is still a hardcoded
+  // English sentence (see the cleanup2 handoff), so the noun stays English
+  // too rather than mixing a translated word into it.
+  const entityLabel = useEntityLabelEnglish();
   // ── Filter state ──────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);

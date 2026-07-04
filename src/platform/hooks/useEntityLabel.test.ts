@@ -3,11 +3,15 @@
  *
  * Verifies that each profession gets the right user-visible words, and that
  * the new household forms are correct for advisor (and mirror one/other for
- * all other professions).
+ * all other professions). Also verifies the words are wired through i18n:
+ * they change with the active locale, and useEntityLabel() re-renders when
+ * the locale changes.
  */
-import { describe, beforeEach, it, expect } from 'vitest';
+import { describe, beforeEach, afterEach, it, expect } from 'vitest';
+import { renderHook, act } from '@testing-library/react';
 import { useProfessionStore } from '@/platform/profile/professionStore';
-import { getEntityLabel } from '@/platform/hooks/useEntityLabel';
+import { useEntityLabel, getEntityLabel } from '@/platform/hooks/useEntityLabel';
+import i18n from '@/i18n';
 
 beforeEach(() => {
   // Reset store to a known state before each test.
@@ -116,5 +120,69 @@ describe('getEntityLabel — other', () => {
     expect(label.one).toBe('matter');
     expect(label.household).toBe('matter');
     expect(label.Households).toBe('Matters');
+  });
+});
+
+describe('entity words are wired through i18n (not hardcoded English)', () => {
+  afterEach(async () => {
+    await i18n.changeLanguage('en');
+  });
+
+  it('translates the advisor noun into German', async () => {
+    useProfessionStore.setState({ profession: 'advisor' });
+    await i18n.changeLanguage('de');
+    const label = getEntityLabel();
+    expect(label.one).toBe('Kunde');
+    expect(label.other).toBe('Kunden');
+    expect(label.household).toBe('Haushalt');
+    expect(label.households).toBe('Haushalte');
+    expect(label.confidentialityColumn).toBe('Sensibel');
+  });
+
+  it('translates the legal noun into Spanish', async () => {
+    useProfessionStore.setState({ profession: 'legal' });
+    await i18n.changeLanguage('es');
+    const label = getEntityLabel();
+    expect(label.one).toBe('asunto');
+    expect(label.Other).toBe('Asuntos');
+    expect(label.confidentialityColumn).toBe('Privilegio');
+    expect(label.confidentialityBadge).toBe('Privilegiado');
+  });
+
+  it('translates the tax noun into German', async () => {
+    useProfessionStore.setState({ profession: 'tax' });
+    await i18n.changeLanguage('de');
+    const label = getEntityLabel();
+    expect(label.one).toBe('Mandant');
+    expect(label.other).toBe('Mandanten');
+    expect(label.confidentialityColumn).toBe('Vertraulich');
+  });
+
+  it('translates the consulting noun into Spanish', async () => {
+    useProfessionStore.setState({ profession: 'consulting' });
+    await i18n.changeLanguage('es');
+    const label = getEntityLabel();
+    expect(label.one).toBe('encargo');
+    expect(label.Households).toBe('Encargos');
+  });
+
+  it('useEntityLabel() re-renders with the new noun when the locale changes', async () => {
+    useProfessionStore.setState({ profession: 'advisor' });
+    await i18n.changeLanguage('en');
+    const { result } = renderHook(() => useEntityLabel());
+    expect(result.current.one).toBe('client');
+
+    await act(async () => {
+      await i18n.changeLanguage('de');
+    });
+    expect(result.current.one).toBe('Kunde');
+  });
+
+  it('falls back to English profession switching still works with a non-English locale active', async () => {
+    await i18n.changeLanguage('de');
+    useProfessionStore.setState({ profession: 'legal' });
+    expect(getEntityLabel().one).toBe('Akte');
+    useProfessionStore.setState({ profession: 'advisor' });
+    expect(getEntityLabel().one).toBe('Kunde');
   });
 });

@@ -1,0 +1,15 @@
+# Build brief — P1: meeting AI notes never finish ("Notes are being written…" forever)
+
+**Lane:** cc-lantern-notesfix · dir `~/lp-notesfix` (own worktree, branch `lp/meeting-notes-hang`). **Model:** Sonnet 5 · high.
+**Rules:** NO-SHORTCUTS. TDD — reproduce at the unit/integration level FIRST (do NOT use the Legion; the repro evidence is complete). Lane boundary: the meeting NOTE-GENERATION path (post-transcription: meetingNoteFromTranscript, its provider call, the processing state around it, notes.docx write). Do NOT touch: browserGuard (weblocks lane), voice.rs/parakeet.rs sidecar contract (voicefix lane), useEntityLabel (cleanup2). Codex self-review foreground/watched. PULL + reconcile before handoff. No interactive menus.
+
+## The bug (live on the Legion today — evidence docs/evidence/meetings-verify2-20260704/RUN-LOG.md + screenshots, lp/windows-smoke-evidence @53319877)
+Recording + transcription now work end-to-end on real hardware (Teams AND Zoom, real transcripts verified). But after transcription completes, the meeting sits at "Notes are being written…" FOREVER — reproduced on both platforms; the bench verified the Anthropic API key works (a direct provider call succeeded), ruling out setup. So the failure is in the notes step itself: the provider call never resolving, an error being swallowed without surfacing or clearing the processing state, or the pipeline never actually invoking the provider (e.g. consent/egress gating silently blocking the cloud call for meeting content, a plausible suspect given the meeting pipeline's strict local-only posture — check whether note generation is even ALLOWED to call a cloud provider under the current confidentiality mode, and what mode the bench was in).
+
+## What to build
+1. Root-cause it (state the proven cause, not suspects). Likely files: src/features/meetings/meetingStore.ts (the post-stop pipeline + processingCount), meetingNoteTemplate/meetingNoteFromTranscript, and whatever provider plumbing they use.
+2. Fix robustly, whatever the cause — AND regardless of cause, give the notes step the same honesty the Ask path just got (QA-7 pattern): a bounded watchdog (progress-based, not total-duration), an honest failure state in the Meetings UI ("Notes couldn't be written — retry") instead of an eternal spinner, a working retry, and the processing indicator always clearing. If the cause is a consent/egress gate silently blocking: the UI must SAY that ("Notes need your AI provider — blocked in Local-only mode" or equivalent honest copy) and the transcript must remain fully usable without notes.
+3. Tests: red-first repro (provider never resolves → watchdog fires → honest state + retry works; provider throws → same; gate-blocked → honest message). The meeting must never be lost or hidden by a notes failure.
+
+## Gate + handoff
+`npx tsc --noEmit` · i18n:check 0 · full `npx vitest run` · eslint-gate · Rust-touched ⇒ cargo (own CARGO_TARGET_DIR=$HOME/.cargo-target-lp-notesfix, timeout 1200, one cargo box-wide). Handoff: HEAD SHA, PROVEN root cause, gate counts, Rust yes/no, self-review rounds. Push (NOT self-merged), then exactly: `WORKER-DONE: lp/meeting-notes-hang`

@@ -194,6 +194,43 @@ function dedupeFolderPaths(paths: unknown[], workspaceRoot: string | null): stri
   return out;
 }
 
+/**
+ * QA-24 (P1) — store-level backstop against two matters silently sharing one
+ * folder. `deriveNewClientFolderPath` (matterManagerDialogHelpers.ts) already
+ * uniquifies a candidate against the caller's OWN snapshot of `matters`, but
+ * that snapshot can be stale: a double/triple-clicked "Create client" button
+ * fires its handler multiple times before React re-renders, so every
+ * invocation reads the SAME snapshot and independently derives the SAME
+ * "free" candidate. The per-call check can never catch that race — only a
+ * check against the LIVE store state, made at the moment of the actual write,
+ * can. This is that check: it re-verifies every incoming folder path against
+ * every OTHER matter's current folder paths and appends a numeric suffix on
+ * an exact collision, exactly like the dialog's own derivation does, so
+ * `createMatter` guarantees uniqueness however (and from wherever) it's
+ * called. An exact match is the only thing guarded against — a candidate
+ * NESTED inside another matter's folder (e.g. a per-client folder nested
+ * under the sample matter's whole-workspace-root folder) is a deliberate,
+ * non-colliding pattern and is left alone (see `deriveNewClientFolderPath`'s
+ * containment comment for why nesting itself is fine).
+ */
+function ensureUniqueFolderPaths(candidatePaths: string[], existingMatters: Matter[]): string[] {
+  const taken = new Set(
+    existingMatters.flatMap((m) => m.folderPaths).map((p) => p.toLowerCase()),
+  );
+  const result: string[] = [];
+  for (const candidate of candidatePaths) {
+    let unique = candidate;
+    let n = 2;
+    while (taken.has(unique.toLowerCase())) {
+      unique = `${candidate} ${String(n)}`;
+      n += 1;
+    }
+    taken.add(unique.toLowerCase());
+    result.push(unique);
+  }
+  return result;
+}
+
 /** Index `existing` folderPaths by their normalized form, so a live edit
  *  (`addFolderPath`/`setFolderPaths`) can tell whether an incoming value is
  *  genuinely NEW or just the SAME path being passed through again. */
@@ -555,11 +592,15 @@ export const useMatterStore = create<MatterState>()(
       activeMatterId: null,
 
       createMatter: (input) => {
+        const canonicalFolderPaths = dedupeFolderPaths(
+          input.folderPaths ?? [],
+          getWorkspaceRootNonReactive(),
+        );
         const matter: Matter = {
           id: input.id ?? newMatterId(),
           name: input.name.trim(),
           client: input.client.trim(),
-          folderPaths: dedupeFolderPaths(input.folderPaths ?? [], getWorkspaceRootNonReactive()),
+          folderPaths: ensureUniqueFolderPaths(canonicalFolderPaths, get().matters),
           mailFolderPaths: Array.from(
             new Set((input.mailFolderPaths ?? []).filter(Boolean))
           ),

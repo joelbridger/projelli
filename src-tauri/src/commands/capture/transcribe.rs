@@ -260,17 +260,18 @@ pub fn transcribe_meeting_audio(
     Ok(())
 }
 
-/// Wraps the bundled per-request Parakeet/whisper sidecar as a
+/// Wraps the bundled per-request whisper.cpp-family sidecar as a
 /// `WindowTranscriber`. The ONLY production impl — there is no remote impl,
 /// and none may ever be added (NO cloud transcription, ever).
 pub struct SidecarTranscriber {
     binary: std::path::PathBuf,
+    models_dir: Option<std::path::PathBuf>,
     model: Option<String>,
 }
 
 impl WindowTranscriber for SidecarTranscriber {
     fn transcribe_window(&self, wav_bytes: Vec<u8>) -> Result<String> {
-        let sidecar = crate::sidecars::ParakeetSidecar::new(self.binary.clone());
+        let sidecar = crate::sidecars::ParakeetSidecar::new(self.binary.clone(), self.models_dir.clone());
         let handle = tokio::runtime::Handle::current();
         let out = handle.block_on(sidecar.transcribe(wav_bytes, self.model.as_deref()))?;
         Ok(out.text)
@@ -333,10 +334,11 @@ pub async fn transcribe_meeting(
         .map_err(|e| e.to_string())?;
     let binary = crate::commands::voice::resolve_sidecar_path(&app)
         .ok_or_else(|| "Voice sidecar binary not bundled for this platform".to_string())?;
+    let models_dir = crate::commands::voice::resolve_models_dir(&app);
     let audio = dir.join("audio.wav");
     let out = dir.join("transcript.json");
     let meta = load_meta_for(&dir).map_err(|e| e.to_string())?;
-    let t = SidecarTranscriber { binary, model };
+    let t = SidecarTranscriber { binary, models_dir, model };
     tokio::task::spawn_blocking(move || transcribe_meeting_audio(&audio, &out, meta, &t).map(|_| out))
         .await
         .map_err(|e| e.to_string())?
