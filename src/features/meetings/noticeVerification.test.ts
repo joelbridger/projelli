@@ -99,16 +99,20 @@ describe('ensureNoticeVerified', () => {
     expect(recorded).toHaveLength(0);
   });
 
-  it('skips imported/mono transcripts (all sys, no mic) instead of false-flagging them (codex-review R2)', async () => {
-    // Imported audio marks every segment 'sys' — can't isolate the advisor, so
-    // never record not-detected (which would falsely quarantine).
+  it('records not-detected (never verified) for a no-mic transcript — never scans sys (codex-review R2/R4)', async () => {
+    // Imported/mono OR a captured meeting with a silent advisor mic: every
+    // segment is 'sys'. We must NOT scan sys (a participant's "I'm recording"
+    // could false-verify — R1), and we must NOT silently skip (Strict would
+    // pass unreviewed — R4). The compliance-safe outcome is not-detected →
+    // needs-review, which the advisor resolves in one click.
     const t = transcript([
       { startMs: 0, text: 'Welcome everyone to the session.', channel: 'sys' },
       { startMs: 5000, text: "I'm recording this for my notes.", channel: 'sys' },
     ]);
     const { deps, recorded } = makeDeps(t);
     await ensureNoticeVerified(DIR, deps);
-    expect(recorded).toHaveLength(0);
+    expect(recorded).toHaveLength(1);
+    expect(recorded[0]?.kind).toBe('verbal-notice-not-detected');
   });
 
   it('skips dictated notes (no spoken notice concept)', async () => {

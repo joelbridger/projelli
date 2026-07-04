@@ -48,20 +48,26 @@ export async function ensureNoticeVerified(meetingDir: string, deps: NoticeVerif
   if (transcript.meta.dictation) return;
 
   // The notice must be the ADVISOR's spoken words, not a participant's. The
-  // advisor speaks on the 'mic' channel; 'sys' is remote/system audio. Verify
-  // only the mic side, so a client saying "I'm recording on my end" can never
-  // stamp the advisor's notice as given (codex-review R1).
-  const micSegments = transcript.segments.filter((s) => s.channel === 'mic');
-
-  // Imported/mono audio has no mic/sys separation — every segment is attributed
-  // to 'sys' (transcribe.rs). With zero mic segments we can't isolate the
-  // advisor's voice, so we can neither verify nor honestly flag "no notice" —
-  // skip entirely (leaves the meeting 'unchecked', never a false quarantine).
-  // codex-review R2. A genuinely empty transcript (no segments at all) still
-  // falls through to a recorded not-detected below.
-  if (micSegments.length === 0 && transcript.segments.length > 0) return;
-
-  const segments: NoticeSegmentInput[] = micSegments.map((s) => ({ startMs: s.startMs, text: s.text }));
+  // advisor speaks on the 'mic' channel; 'sys' is remote/system audio. We scan
+  // ONLY the mic side, so a client saying "I'm recording on my end" can never
+  // stamp the advisor's notice as given (codex-review R1). We deliberately do
+  // NOT fall back to scanning 'sys' when mic is empty: that would reintroduce
+  // exactly that false-verify from a remote participant.
+  //
+  // Consequence (codex-review R2/R4): a transcript with no mic segments —
+  // whether an imported/mono file (all 'sys' by design) or a captured meeting
+  // whose advisor mic was silent — yields no scannable advisor speech, so no
+  // notice is detected and we record 'not-detected'. This is the compliance-safe
+  // default: it never false-VERIFIES, and it never silently lets a Strict-policy
+  // meeting pass unreviewed. The honest outcome for these meetings is
+  // needs-review, which the advisor clears in one click ("Notice was given —
+  // transcription missed it" / "Disclosed in advance"). Dictated notes are the
+  // one no-audio case that is genuinely notice-irrelevant, and they return
+  // above. (A future explicit 'imported' marker from the transcription pipeline
+  // could suppress the flag for true imports — noted in the handoff.)
+  const segments: NoticeSegmentInput[] = transcript.segments
+    .filter((s) => s.channel === 'mic')
+    .map((s) => ({ startMs: s.startMs, text: s.text }));
 
   const now = deps.now ?? (() => new Date().toISOString());
   const match = detectRecordingNotice(segments, {
