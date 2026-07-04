@@ -57,16 +57,30 @@ export function buildScpDownloadInvocation(target, remoteWinPath, localPath) {
   return { file: 'scp', args: [...SSH_OPTS, remoteSpec, localPath] };
 }
 
+export function buildFileTailCommand(remoteWinPath, lineCount = 200) {
+  const n = Number.isFinite(Number(lineCount)) ? Math.max(1, Math.floor(Number(lineCount))) : 200;
+  return (
+    `if (Test-Path ${psQuote(remoteWinPath)}) { ` +
+    `Get-Content ${psQuote(remoteWinPath)} -Tail ${n} ` +
+    `} else { Write-Error ${psQuote(`Missing log file: ${remoteWinPath}`)}; exit 2 }`
+  );
+}
+
+export function buildFileTailInvocation(target, remoteWinPath, lineCount = 200) {
+  return { file: 'ssh', args: buildSshArgs(target, buildFileTailCommand(remoteWinPath, lineCount)) };
+}
+
 /** Run a built invocation, always resolving (never rejects) with {code, stdout, stderr}. */
-export function execInvocation({ file, args }) {
+export function execInvocation({ file, args, stdinText }) {
   return new Promise((resolve) => {
     let child;
     try {
-      child = spawn(file, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+      child = spawn(file, args, { stdio: [stdinText == null ? 'ignore' : 'pipe', 'pipe', 'pipe'] });
     } catch (err) {
       resolve({ code: -1, stdout: '', stderr: String(err) });
       return;
     }
+    if (stdinText != null) child.stdin.end(stdinText);
     let stdout = '';
     let stderr = '';
     child.stdout.on('data', (d) => { stdout += d; });
@@ -81,10 +95,14 @@ export async function probeReachable(target) {
   return code === 0;
 }
 
-export async function runDesktopDrive(target, desktopDriveArgs) {
-  return execInvocation(buildDesktopDriveInvocation(target, desktopDriveArgs));
+export async function runDesktopDrive(target, desktopDriveArgs, { stdinText } = {}) {
+  return execInvocation({ ...buildDesktopDriveInvocation(target, desktopDriveArgs), stdinText });
 }
 
 export async function downloadFile(target, remoteWinPath, localPath) {
   return execInvocation(buildScpDownloadInvocation(target, remoteWinPath, localPath));
+}
+
+export async function fetchFileTail(target, remoteWinPath, lineCount = 200) {
+  return execInvocation(buildFileTailInvocation(target, remoteWinPath, lineCount));
 }

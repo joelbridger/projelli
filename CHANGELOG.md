@@ -31,6 +31,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- **Symlink-safe path containment everywhere a caller-supplied path meets a workspace root.**
+  A codebase audit found five containment checks that followed symlinks (an in-workspace alias
+  folder could read/write/delete a DIFFERENT client's files while the audit trail named the
+  alias). New shared `src-tauri/src/commands/pathguard.rs` module (no-follow component walk;
+  refuses rather than resolves; `resolve_creatable` variant for about-to-be-created paths) now
+  backs vault `resolve_and_guard`, MCP `resolve_workspace_path`/`canonicalized_workspace_child`,
+  diarize `ensure_within_workspace`, and retention `contained()`/redaction. Six adversarial
+  review rounds fixed real follow-ons (TOCTOU split of I/O vs grant paths, re-validation pinned
+  to the original canonical root, unaudited-delete gaps for refused/broken symlinks). 1187+51
+  Rust tests green. Files: `pathguard.rs`, `vault/mod.rs`, `mcp_bin/{main,access,tools}.rs`,
+  `diarize/mod.rs`, `retention/{sweep,redact}.rs`.
+
+### Added
+- **Bench harness v3: sharded multi-target smoke runs + failure forensics + auto-smoke (dry-run).**
+  `scripts/bench-smoke-shard.mjs` splits the checklist across several benches and runs them
+  concurrently, merging summaries into one verdict (state-coupled checks stay together via
+  `sameTargetGroup`); on any FAIL the harness now auto-bundles console errors, a failure
+  screenshot, and the app-log tail into the evidence dir; `scripts/auto-smoke.sh` (gated behind
+  `AUTO_SMOKE_ARMED=1`, dry-run by default) automates pull→rebuild→canary→smoke per target.
+  `--only` now accepts repeats/comma lists. Built by Codex, coordinator-reviewed; 122 harness
+  tests green. Known P3 before arming auto-smoke: per-target scheduled-task name is hard-coded.
+  Files: `bench-smoke-shard.mjs`, `bench-smoke/{shard,checklist,driver,remote,result,targets}.mjs`,
+  `auto-smoke.sh`, `docs/qa/BENCH-SMOKE-HARNESS.md`.
+
+### Fixed
+- **Bench harness typing truncation.** Typed text used to travel inside the SSH command string to
+  the Windows bench, silently truncating/mangling long or multi-line text; the driver also never
+  verified what actually landed in the field. New `type-stdin` subcommand in
+  `scripts/desktop-drive.mjs` sends text over stdin and reads the field back (fails loudly on
+  mismatch); `scripts/bench-smoke/{remote,driver}.mjs` pipe stdin through SSH; class-regression
+  tests added. Root-caused and built by Codex; coordinator-reviewed. Files: `desktop-drive.mjs`,
+  `bench-smoke/remote.mjs`, `bench-smoke/driver.mjs`, `bench-smoke/__tests__/remote.test.mjs`.
+
 ### Added
 - **Within-channel speaker diarization + voiceprint naming (Wave 4 Track A).** A new standalone
   `lantern-diarize` sidecar (sherpa-onnx segmentation/embedding/clustering behind a stable

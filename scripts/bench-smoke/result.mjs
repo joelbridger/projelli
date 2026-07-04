@@ -24,6 +24,7 @@ const VALID_STATUSES = new Set(Object.values(STATUS));
  * @param {string} fields.status - one of STATUS
  * @param {string} fields.detail - one-line human explanation of the verdict
  * @param {string[]} [fields.screenshots] - evidence file paths (relative to evidence dir)
+ * @param {object|null} [fields.forensics] - best-effort failure evidence metadata
  * @param {number} [fields.durationMs]
  */
 export function makeResult(fields) {
@@ -41,6 +42,7 @@ export function makeResult(fields) {
     status,
     detail,
     screenshots: fields.screenshots ?? [],
+    forensics: fields.forensics ?? null,
     durationMs: fields.durationMs ?? null,
   };
 }

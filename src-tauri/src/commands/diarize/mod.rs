@@ -260,22 +260,35 @@ fn resolve_diarize_assets(app: &tauri::AppHandle) -> Result<(std::path::PathBuf,
 
 /// Reject a renderer-supplied meeting folder that resolves outside the
 /// active workspace (traversal / symlink escape / wrong-workspace bug),
-/// before either command touches the filesystem inside it. Mirrors the
-/// canonicalize-and-contain check `commands::vault::resolve_and_guard` uses
-/// for workspace-relative paths, adapted for an absolute directory that
-/// must already exist (both callers require it to: `diarize_meeting` needs
-/// `audio.wav` inside it, `apply_speaker_names` needs `transcript.json`).
+/// before either command touches the filesystem inside it, adapted for an
+/// absolute directory that must already exist (both callers require it to:
+/// `diarize_meeting` needs `audio.wav` inside it, `apply_speaker_names`
+/// needs `transcript.json`).
+///
+/// Delegates to `crate::commands::pathguard`'s no-follow component walk
+/// (shared with the vault and MCP command sites) instead of a plain
+/// canonicalize+`starts_with` check, which FOLLOWS symlinks and would
+/// accept an in-workspace alias matter folder (`Clients/Alias` ->
+/// `Clients/RealClient`) as long as RealClient also sits inside the
+/// workspace — letting `diarize_meeting`/`apply_speaker_names` read/write a
+/// different client's meeting through the alias.
 fn ensure_within_workspace(workspace_root: &Path, dir: &Path) -> Result<(), String> {
     let canon_root = workspace_root
         .canonicalize()
         .map_err(|e| format!("cannot resolve the active workspace: {e}"))?;
-    let canon_dir = dir
-        .canonicalize()
-        .map_err(|e| format!("cannot resolve this meeting folder: {e}"))?;
-    if !canon_dir.starts_with(&canon_root) {
-        return Err("This meeting folder is outside the active workspace.".to_string());
+    let relative = dir
+        .strip_prefix(workspace_root)
+        .or_else(|_| dir.strip_prefix(&canon_root))
+        .map_err(|_| "This meeting folder is outside the active workspace.".to_string())?;
+    match crate::commands::pathguard::canonicalize_symlink_safe(
+        &canon_root,
+        &relative.to_string_lossy(),
+        &canon_root,
+    ) {
+        Ok(Some(_)) => Ok(()),
+        Ok(None) => Err("cannot resolve this meeting folder: it does not exist".to_string()),
+        Err(_) => Err("This meeting folder is outside the active workspace.".to_string()),
     }
-    Ok(())
 }
 
 /// Refuse to proceed if `path` already exists as a symlink (checked with
@@ -587,6 +600,26 @@ mod tests {
         let ws = tempdir().unwrap();
         let missing = ws.path().join("does-not-exist");
         assert!(ensure_within_workspace(ws.path(), &missing).is_err());
+    }
+
+    /// An IN-WORKSPACE alias (`ClientB` -> `ClientA`, both inside the
+    /// workspace) must be rejected — the old canonicalize+starts_with check
+    /// would FOLLOW the alias and accept it since ClientA is also inside
+    /// the workspace, letting `diarize_meeting`/`apply_speaker_names` read
+    /// or write a different client's meeting through the alias.
+    #[cfg(unix)]
+    #[test]
+    fn ensure_within_workspace_rejects_in_workspace_alias_symlink() {
+        let ws = tempdir().unwrap();
+        let real_meeting = ws.path().join("ClientA").join("Meetings").join("2026-07-03");
+        std::fs::create_dir_all(&real_meeting).unwrap();
+        std::os::unix::fs::symlink(ws.path().join("ClientA"), ws.path().join("ClientB")).unwrap();
+
+        let aliased_meeting = ws.path().join("ClientB").join("Meetings").join("2026-07-03");
+        assert!(
+            ensure_within_workspace(ws.path(), &aliased_meeting).is_err(),
+            "a meeting dir reached through an in-workspace alias must be rejected"
+        );
     }
 
     #[test]

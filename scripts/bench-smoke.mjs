@@ -11,6 +11,7 @@
 //   node scripts/bench-smoke.mjs --target legion             # run all checks against the Legion
 //   node scripts/bench-smoke.mjs --target azure-cloud-bench-1
 //   node scripts/bench-smoke.mjs --only wave2-wealthbox-queue-review
+//   node scripts/bench-smoke.mjs --only a,b --only c       # run several checks
 //   node scripts/bench-smoke.mjs --live                      # ALSO run the sandbox-only Approve step
 //   node scripts/bench-smoke.mjs --host 100.x.x.x --user someuser --repo-dir 'C:\lantern-plus'
 //
@@ -28,7 +29,7 @@ const __filename = fileURLToPath(import.meta.url);
 const REPO_ROOT = path.resolve(path.dirname(__filename), '..');
 
 function parseArgs(argv) {
-  const args = { target: undefined, host: undefined, user: undefined, repoDir: undefined, plan: false, live: false, only: undefined, evidenceDir: undefined };
+  const args = { target: undefined, host: undefined, user: undefined, repoDir: undefined, plan: false, live: false, onlyIds: [], evidenceDir: undefined };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--target') args.target = argv[++i];
@@ -37,7 +38,7 @@ function parseArgs(argv) {
     else if (a === '--repo-dir') args.repoDir = argv[++i];
     else if (a === '--plan') args.plan = true;
     else if (a === '--live') args.live = true;
-    else if (a === '--only') args.only = argv[++i];
+    else if (a === '--only') args.onlyIds.push(...String(argv[++i]).split(',').map((id) => id.trim()).filter(Boolean));
     else if (a === '--evidence-dir') args.evidenceDir = argv[++i];
     else if (a === '--help' || a === '-h') args.help = true;
     else throw new Error(`Unknown argument: ${a}`);
@@ -51,7 +52,7 @@ function printHelp() {
   --plan                 Print the checklist (id, section, title) and exit. Touches nothing.
   --target <id>          Bench to run against (known: ${listTargets().map((t) => t.id).join(', ')}). Default: legion.
   --host / --user / --repo-dir   Override or fully specify an ad hoc target.
-  --only <check-id>       Run a single check by id.
+  --only <check-id>       Run one or more checks by id. Repeat it or pass a comma list.
   --live                  Also run sandbox-only checks that mutate state (e.g. Wealthbox Approve).
   --evidence-dir <path>   Where to write screenshots + summary.json. Default: docs/evidence/bench-smoke/<target>-<timestamp>/
   --help                  This message.
@@ -69,6 +70,45 @@ function timestamp() {
   const d = new Date();
   const pad = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+}
+
+async function primeConsoleWatch(driver) {
+  try {
+    await driver.installConsoleWatch();
+    await driver.readConsoleErrors();
+  } catch {
+    // Best-effort evidence hook only. A console-watch setup problem should not
+    // change the result of the check that is about to run.
+  }
+}
+
+async function collectFailureForensics(result, driver) {
+  const forensics = { files: [], console: null, errors: [] };
+  const screenshots = [...(result.screenshots ?? [])];
+
+  try {
+    const consoleCapture = await driver.readConsoleErrors();
+    forensics.console = consoleCapture;
+  } catch (err) {
+    forensics.errors.push(`console capture failed: ${err.message}`);
+  }
+
+  try {
+    const shot = await driver.captureScreenshot(`failure-${result.id}`);
+    screenshots.push(shot);
+    forensics.files.push(shot);
+  } catch (err) {
+    forensics.errors.push(`failure screenshot failed: ${err.message}`);
+  }
+
+  try {
+    const log = await driver.captureAppLogTail(`failure-${result.id}-tauri-dev-tail`, { lineCount: 200 });
+    forensics.files.push(log);
+  } catch (err) {
+    forensics.errors.push(`app log tail failed: ${err.message}`);
+  }
+
+  return { ...result, screenshots, forensics };
 }
 
 async function main() {
@@ -97,11 +137,13 @@ async function main() {
     }
   }
 
-  const checksToRun = args.only ? [findCheck(args.only)].filter(Boolean) : CHECKLIST;
-  const stubsToRun = args.only ? [findCheck(args.only)].filter((c) => c && STUBS.includes(c)) : STUBS;
-  if (args.only && !findCheck(args.only)) {
-    throw new Error(`Unknown check id "${args.only}". Known ids: ${allCheckIds().join(', ')}`);
+  const selectedChecks = args.onlyIds.length > 0 ? args.onlyIds.map((id) => findCheck(id)) : CHECKLIST;
+  const unknownIds = args.onlyIds.filter((id) => !findCheck(id));
+  if (unknownIds.length > 0) {
+    throw new Error(`Unknown check id(s): ${unknownIds.join(', ')}. Known ids: ${allCheckIds().join(', ')}`);
   }
+  const checksToRun = args.onlyIds.length > 0 ? selectedChecks.filter((c) => c && CHECKLIST.includes(c)) : CHECKLIST;
+  const stubsToRun = args.onlyIds.length > 0 ? selectedChecks.filter((c) => c && STUBS.includes(c)) : STUBS;
 
   const results = [];
 
@@ -125,8 +167,12 @@ async function main() {
       // clicks — confirmed live. Dismiss before every check, not just once
       // at the very start.
       await driver.dismissBlockingOverlay();
+      await primeConsoleWatch(driver);
       console.log(`[bench-smoke] running: ${check.id}`);
-      const result = await check.run({ driver, live: args.live, target });
+      let result = await check.run({ driver, live: args.live, target });
+      if (result.status === STATUS.FAIL) {
+        result = await collectFailureForensics(result, driver);
+      }
       console.log(`[bench-smoke]   -> ${result.status}: ${result.detail}`);
       results.push(result);
     }

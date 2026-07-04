@@ -18,6 +18,7 @@
 //! Security: `vault_read_file` and `vault_write_file` validate that `rel_path`
 //! stays within the workspace root (no `..` traversal) before any disk I/O.
 
+use crate::commands::pathguard;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use lantern_vault::{
     format::encrypt_file,
@@ -187,79 +188,58 @@ pub fn workspace_id(root: &Path) -> String {
 
 // ── Path traversal guard ─────────────────────────────────────────────────────
 
-/// Resolve `workspace / rel_path` and verify it stays within `workspace`.
+/// Resolve `workspace / rel_path` and verify it stays within `workspace`,
+/// without ever following a symlink component along the way.
 ///
 /// Rejects:
 /// - Any `rel_path` that contains `..` components (traversal attempt).
-/// - Any resolved path that does not start with the canonicalized workspace root.
-///
-/// Mirrors the `PathValidator` approach used in `commands/fs.rs` and
-/// `modules/workspace/PathValidator.ts`.
+/// - Any component — intermediate directory or final target — that is a
+///   symlink. A plain canonicalize+`starts_with` check (the previous
+///   implementation) FOLLOWS symlinks and would accept an in-workspace
+///   alias directory (`Clients/Alias` -> `Clients/RealClient`) as long as
+///   its target happens to also sit inside the workspace — letting
+///   `vault_read_file`/`vault_write_file` touch a different client's files
+///   while the audit trail still names "Alias". `pathguard`'s no-follow walk
+///   refuses that outright. See `crate::commands::pathguard` for the shared
+///   implementation (also used by the MCP and diarize command sites).
 fn resolve_and_guard(workspace: &Path, rel_path: &str) -> Result<PathBuf, VaultCommandError> {
     // Strip a leading slash/backslash so `rel_path` is always relative before
     // any component inspection.
     let rel = rel_path.trim_start_matches(['/', '\\']);
 
-    // Reject traversal components before any canonicalization (defense in depth).
-    // Component-based walk so a legitimate filename like `report..2026.docx` is
-    // accepted while `../foo` or absolute paths are rejected.
-    use std::path::Component;
-    for component in Path::new(rel).components() {
-        match component {
-            Component::ParentDir => {
-                return Err(VaultCommandError::PathTraversal(format!(
-                    "rel_path '{rel_path}' contains a '..' component"
-                )));
-            }
-            // Absolute paths or Windows drive prefixes are not allowed as rel_path.
-            Component::RootDir | Component::Prefix(_) => {
-                return Err(VaultCommandError::PathTraversal(format!(
-                    "rel_path '{rel_path}' is an absolute path"
-                )));
-            }
-            _ => {}
-        }
-    }
-
-    // Build the candidate absolute path.
-    let candidate = workspace.join(rel);
-
-    // Canonicalize the workspace root (follow symlinks, resolve `.`/`..`).
+    // Canonicalize the workspace root itself (follow symlinks, resolve
+    // `.`/`..`) — the root is the trust boundary, not something we're
+    // defending against; only components strictly BELOW it are walked
+    // no-follow below.
     let canon_root = workspace
         .canonicalize()
         .map_err(|e| VaultCommandError::Io(format!("cannot canonicalize workspace: {e}")))?;
 
-    // For the candidate path the file may not exist yet (vault_write_file creates
-    // it), so we canonicalize as far as we can: if the full path exists use it;
-    // otherwise canonicalize the parent and re-attach the filename.
-    let canon_candidate = if candidate.exists() {
-        candidate
-            .canonicalize()
-            .map_err(|e| VaultCommandError::Io(format!("cannot canonicalize path: {e}")))?
-    } else {
-        // Parent must exist (we're writing into it).
-        let parent = candidate
-            .parent()
-            .ok_or_else(|| VaultCommandError::PathTraversal("no parent directory".into()))?;
-        let canon_parent = parent
-            .canonicalize()
-            .map_err(|e| VaultCommandError::Io(format!("cannot canonicalize parent: {e}")))?;
-        let file_name = candidate
-            .file_name()
-            .ok_or_else(|| VaultCommandError::PathTraversal("no file name".into()))?;
-        canon_parent.join(file_name)
-    };
-
-    // The final path must be a descendant of the workspace root.
-    if !canon_candidate.starts_with(&canon_root) {
-        return Err(VaultCommandError::PathTraversal(format!(
-            "path '{}' escapes workspace root '{}'",
-            canon_candidate.display(),
-            canon_root.display()
-        )));
+    match pathguard::canonicalize_symlink_safe(&canon_root, rel, &canon_root) {
+        Ok(Some(path)) => Ok(path),
+        Ok(None) => {
+            // The full path doesn't exist yet — e.g. vault_write_file
+            // creating a new file. Resolve as far as the parent, which must
+            // already exist (same contract as before: this never creates
+            // more than one new path segment's worth of missing directory).
+            let rel_path_obj = Path::new(rel);
+            let file_name = rel_path_obj.file_name().ok_or_else(|| {
+                VaultCommandError::PathTraversal(format!("rel_path '{rel_path}' has no file name"))
+            })?;
+            let parent_rel = rel_path_obj
+                .parent()
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            match pathguard::canonicalize_symlink_safe(&canon_root, &parent_rel, &canon_root) {
+                Ok(Some(parent_path)) => Ok(parent_path.join(file_name)),
+                Ok(None) => Err(VaultCommandError::Io(format!(
+                    "cannot canonicalize parent of '{rel_path}': parent does not exist"
+                ))),
+                Err(e) => Err(VaultCommandError::PathTraversal(e)),
+            }
+        }
+        Err(e) => Err(VaultCommandError::PathTraversal(e)),
     }
-
-    Ok(canon_candidate)
 }
 
 // ── Error type ───────────────────────────────────────────────────────────────
@@ -1138,6 +1118,60 @@ mod tests {
             matches!(result, Err(VaultCommandError::PathTraversal(_))),
             "symlink escaping workspace must be rejected, got: {result:?}"
         );
+    }
+
+    /// An IN-WORKSPACE alias (`Clients/Alias` -> `Clients/RealClient`, both
+    /// inside the workspace) must be rejected for a READ of an existing file
+    /// through it — not just an alias that escapes the workspace entirely.
+    /// The old canonicalize+starts_with check would FOLLOW the alias and
+    /// happily accept it since RealClient is also inside the workspace.
+    #[cfg(unix)]
+    #[test]
+    fn in_workspace_alias_symlink_is_rejected_for_read() {
+        let workspace = tempfile::tempdir().unwrap();
+        let real = workspace.path().join("Clients/RealClient");
+        std::fs::create_dir_all(&real).unwrap();
+        std::fs::write(real.join("secret.docx"), b"real client secret").unwrap();
+        let alias = workspace.path().join("Clients/Alias");
+        std::os::unix::fs::symlink(&real, &alias).unwrap();
+
+        let result = resolve_and_guard(workspace.path(), "Clients/Alias/secret.docx");
+        assert!(
+            matches!(result, Err(VaultCommandError::PathTraversal(_))),
+            "read through an in-workspace alias must be rejected, got: {result:?}"
+        );
+    }
+
+    /// Same alias attack, but for a WRITE creating a NEW file through the
+    /// alias (the file doesn't exist yet, exercising the "parent must
+    /// exist" fallback branch specifically). Must still be rejected.
+    #[cfg(unix)]
+    #[test]
+    fn in_workspace_alias_symlink_is_rejected_for_write() {
+        let workspace = tempfile::tempdir().unwrap();
+        let real = workspace.path().join("Clients/RealClient");
+        std::fs::create_dir_all(&real).unwrap();
+        let alias = workspace.path().join("Clients/Alias");
+        std::os::unix::fs::symlink(&real, &alias).unwrap();
+
+        let result = resolve_and_guard(workspace.path(), "Clients/Alias/new-file.docx");
+        assert!(
+            matches!(result, Err(VaultCommandError::PathTraversal(_))),
+            "write of a new file through an in-workspace alias must be rejected, got: {result:?}"
+        );
+    }
+
+    /// A brand-new file directly inside a legitimate nested directory (no
+    /// symlinks anywhere) must still be accepted — the parent-must-exist
+    /// fallback branch for legitimate callers must not regress.
+    #[test]
+    fn new_file_in_existing_nested_dir_is_accepted() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        std::fs::create_dir_all(root.join("docs")).unwrap();
+        let result = resolve_and_guard(root, "docs/brand-new.docx");
+        assert!(result.is_ok(), "new file in an existing dir must be accepted: {result:?}");
+        assert!(result.unwrap().ends_with("brand-new.docx"));
     }
 
     // ── format_iso8601 ────────────────────────────────────────────────────────

@@ -278,8 +278,8 @@ pub async fn read_workspace_file(ctx: &ServerCtx, args: Value) -> Result<Vec<Val
         }
     };
 
-    let abs = match resolve_workspace_path(&ctx.workspace_root, path) {
-        Ok(abs) => abs,
+    let resolved = match resolve_workspace_path(&ctx.workspace_root, path) {
+        Ok(resolved) => resolved,
         Err(e) => {
             append_audit_or_deny(
                 ctx,
@@ -296,8 +296,12 @@ pub async fn read_workspace_file(ctx: &ServerCtx, args: Value) -> Result<Vec<Val
             return Err(JsonRpcError::invalid_params(e));
         }
     };
+    // Grant comparison uses the LEXICAL path (matches folder_paths' original
+    // spelling); all actual disk access below uses `io_path` — see
+    // `ResolvedWorkspacePath`'s doc comment in main.rs.
+    let abs = resolved.io_path;
     let state = load_access_state(ctx, "mcp_read", Some(path))?;
-    let decision = state.decide_path(&abs);
+    let decision = state.decide_path(&resolved.lexical_path);
     deny_if_lockdown(ctx, &state, "mcp_read", Some(path), &decision.matter_id)?;
     if !decision.allowed {
         return deny_with_audit(
@@ -702,8 +706,8 @@ pub async fn write_workspace_file(
             ));
         }
     };
-    let abs = match resolve_workspace_path(&ctx.workspace_root, path) {
-        Ok(abs) => abs,
+    let resolved = match resolve_workspace_path(&ctx.workspace_root, path) {
+        Ok(resolved) => resolved,
         Err(e) => {
             append_audit_or_deny(
                 ctx,
@@ -720,8 +724,13 @@ pub async fn write_workspace_file(
             return Err(JsonRpcError::invalid_params(e));
         }
     };
+    // Grant comparison uses the LEXICAL path; `io_path` (re-validated again
+    // below, right before the actual write) is what disk operations use —
+    // see `ResolvedWorkspacePath`'s doc comment in main.rs. Cloned (not
+    // moved) so `resolved` stays intact for the `revalidate` call below.
+    let mut abs = resolved.io_path.clone();
     let state = load_access_state(ctx, "mcp_write_requested", Some(path))?;
-    let decision = state.decide_path(&abs);
+    let decision = state.decide_path(&resolved.lexical_path);
     append_audit_or_deny(
         ctx,
         "mcp_write_requested",
@@ -844,6 +853,39 @@ pub async fn write_workspace_file(
             }
         }
     }
+
+    // Re-validate the path immediately before the actual write.
+    // `approval::wait_for_response` above can block for up to 60 seconds
+    // waiting on the user — reusing the `io_path` computed BEFORE that wait
+    // would let a path component swapped for a symlink DURING the wait
+    // through undetected (the whole point of re-checking is to shrink that
+    // window from "up to 60s" to the smallest practical gap right before
+    // the real filesystem call). Uses `revalidate` (pinned to the SAME
+    // canonical root captured by the original `resolve_workspace_path`
+    // call above), NOT a fresh `resolve_workspace_path(&ctx.workspace_root, ...)`
+    // — if `ctx.workspace_root` itself is a symlink re-pointed during the
+    // wait, re-deriving the canonical root from scratch would silently
+    // redirect this write at wherever the root NOW points, a different
+    // location than the one the grant decision and user approval were
+    // actually made for.
+    abs = match resolved.revalidate(path) {
+        Ok(resolved) => resolved.io_path,
+        Err(e) => {
+            append_audit_or_deny(
+                ctx,
+                "mcp_write_denied",
+                "External AI workspace write denied",
+                json!({
+                    "path": path,
+                    "matterId": decision.matter_id,
+                    "result": "denied",
+                    "reason": "invalid_path_after_approval",
+                    "error": e
+                }),
+            )?;
+            return Err(JsonRpcError::invalid_params(e));
+        }
+    };
 
     // Ensure parent dir exists.
     if let Some(parent) = abs.parent() {
@@ -1035,8 +1077,8 @@ fn path_allowed_for_rel(
     state: &McpAccessState,
     rel: &str,
 ) -> Result<bool, String> {
-    let abs = resolve_workspace_path(&ctx.workspace_root, rel)?;
-    Ok(state.decide_path(&abs).allowed)
+    let resolved = resolve_workspace_path(&ctx.workspace_root, rel)?;
+    Ok(state.decide_path(&resolved.lexical_path).allowed)
 }
 
 struct VerifiedSearchHit {
@@ -1099,9 +1141,13 @@ fn resolve_hit_file_path(workspace: &Path, real_path: &str) -> Result<PathBuf, S
             .strip_prefix(&workspace_canon)
             .map_err(|_| "path escapes workspace root".to_string())?;
         let rel = rel.to_string_lossy().replace('\\', "/");
-        resolve_workspace_path(workspace, &rel)
+        // Read-only path (search-hit verification): `lexical_path` is what
+        // `display_workspace_path`'s strip_prefix below needs, and this has
+        // no long wait between resolving and using it the way
+        // `write_workspace_file` does.
+        resolve_workspace_path(workspace, &rel).map(|r| r.lexical_path)
     } else {
-        resolve_workspace_path(workspace, real_path)
+        resolve_workspace_path(workspace, real_path).map(|r| r.lexical_path)
     }
 }
 

@@ -5,7 +5,8 @@
 // action is a subprocess call to the real, unmodified scripts/desktop-drive.mjs
 // running on the bench.
 import path from 'node:path';
-import { runDesktopDrive, downloadFile, probeReachable } from './remote.mjs';
+import fs from 'node:fs';
+import { runDesktopDrive, downloadFile, fetchFileTail, probeReachable } from './remote.mjs';
 import { parseSnapshot, parsePages, parseEvalResult } from './parse.mjs';
 import { installScript, readAndClearScript, interpretConsoleErrors } from './console-watch.mjs';
 import { clickByTextScript } from './click-by-text.mjs';
@@ -65,9 +66,9 @@ export class Driver {
   }
 
   async type(testid, text, { submit = false } = {}) {
-    const args = ['type', testid, text];
+    const args = ['type-stdin', testid];
     if (submit) args.push('--submit');
-    const { code, stdout, stderr } = await runDesktopDrive(this.target, args);
+    const { code, stdout, stderr } = await runDesktopDrive(this.target, args, { stdinText: text });
     if (code !== 0) throw new DriverError(`type(${testid}) failed (exit ${code}): ${stderr || stdout}`);
     return stdout.trim();
   }
@@ -126,6 +127,20 @@ export class Driver {
     const dl = await downloadFile(this.target, remotePath, localPath);
     if (dl.code !== 0) throw new DriverError(`scp of screenshot failed (exit ${dl.code}): ${dl.stderr || dl.stdout}`);
 
+    return fileName;
+  }
+
+  async captureAppLogTail(name, { lineCount = 200 } = {}) {
+    if (!this.evidenceDir) throw new DriverError('captureAppLogTail requires evidenceDir to be set');
+    const safeName = String(name).replace(/[^a-zA-Z0-9._-]+/g, '-');
+    const fileName = `${safeName}.txt`;
+    const localPath = path.join(this.evidenceDir, fileName);
+    const remotePath = this.target.appLogPath ?? 'C:\\tauri-dev.log';
+
+    const tail = await fetchFileTail(this.target, remotePath, lineCount);
+    if (tail.code !== 0) throw new DriverError(`log tail failed (exit ${tail.code}): ${tail.stderr || tail.stdout}`);
+
+    fs.writeFileSync(localPath, tail.stdout || '(log tail was empty)\n', 'utf8');
     return fileName;
   }
 }
