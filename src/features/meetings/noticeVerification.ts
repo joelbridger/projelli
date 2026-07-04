@@ -47,10 +47,13 @@ export async function ensureNoticeVerified(meetingDir: string, deps: NoticeVerif
   // verify — never flag it as "notice missing".
   if (transcript.meta.dictation) return;
 
-  const segments: NoticeSegmentInput[] = transcript.segments.map((s) => ({
-    startMs: s.startMs,
-    text: s.text,
-  }));
+  // The notice must be the ADVISOR's spoken words, not a participant's. The
+  // advisor speaks on the 'mic' channel; 'sys' is remote/system audio. Verify
+  // only the mic side, so a client saying "I'm recording on my end" can never
+  // stamp the advisor's notice as given (codex-review R1).
+  const segments: NoticeSegmentInput[] = transcript.segments
+    .filter((s) => s.channel === 'mic')
+    .map((s) => ({ startMs: s.startMs, text: s.text }));
 
   const now = deps.now ?? (() => new Date().toISOString());
   const match = detectRecordingNotice(segments, {

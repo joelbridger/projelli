@@ -27,6 +27,23 @@ export interface ConsentLedgerStorage {
   writeFile(path: string, content: string): Promise<void>;
 }
 
+/**
+ * Per-path write serialization. Two callers (e.g. startRecording's consent
+ * write and RecordPill's chat-notice copy) can hit the SAME ledger file through
+ * SEPARATE makeConsentLedger instances at once; without this each would
+ * load-modify-write against a stale snapshot and the later write would drop the
+ * earlier append. Keyed by the resolved file path at module scope so it
+ * serializes across instances, not just within one (codex-review R1).
+ */
+const writeChains = new Map<string, Promise<unknown>>();
+function serializeWrite<T>(key: string, op: () => Promise<T>): Promise<T> {
+  const prev = writeChains.get(key) ?? Promise.resolve();
+  // Run op whether or not the previous op resolved or rejected.
+  const run = prev.then(op, op);
+  writeChains.set(key, run.then(() => undefined, () => undefined));
+  return run;
+}
+
 export function makeConsentLedger(ws: ConsentLedgerStorage, matterFolder: () => string) {
   function path(): string {
     return `${matterFolder()}/Meetings/.consent-ledger.json`;
@@ -48,9 +65,11 @@ export function makeConsentLedger(ws: ConsentLedgerStorage, matterFolder: () => 
      *  or per-meeting), never overwrites prior entries (append-only). Preserves
      *  the notices array untouched. */
     async recordConsent(_matterId: string, entry: ConsentEntry): Promise<void> {
-      const file = await load();
-      file.entries.push(entry);
-      await ws.writeFile(path(), JSON.stringify(file, null, 2));
+      await serializeWrite(path(), async () => {
+        const file = await load();
+        file.entries.push(entry);
+        await ws.writeFile(path(), JSON.stringify(file, null, 2));
+      });
     },
 
     /** The most recent standing-consent entry, or null if none is on file —
@@ -64,9 +83,11 @@ export function makeConsentLedger(ws: ConsentLedgerStorage, matterFolder: () => 
     /** Recording Notice Kit — append a notice event (append-only, preserves the
      *  consent entries). */
     async recordNotice(entry: NoticeEntry): Promise<void> {
-      const file = await load();
-      file.notices.push(entry);
-      await ws.writeFile(path(), JSON.stringify(file, null, 2));
+      await serializeWrite(path(), async () => {
+        const file = await load();
+        file.notices.push(entry);
+        await ws.writeFile(path(), JSON.stringify(file, null, 2));
+      });
     },
 
     /** All notice entries for one meeting, in the order they were recorded. */

@@ -84,6 +84,28 @@ describe('consent ledger — notice entries', () => {
     expect(await ledger.hasVerbalNoticeCheck(`${MATTER}/Meetings/m2`)).toBe(false);
   });
 
+  it('does not lose entries when two appends race (serialized read-modify-write)', async () => {
+    // A storage double whose reads/writes yield to the event loop, so an
+    // unserialized load-modify-write would interleave and drop one append —
+    // the exact race codex-review R1 flagged (start consent write + chat-notice
+    // copy landing together). Two *separate* ledger instances, same file path,
+    // mirroring meetingStore + RecordPill writing concurrently.
+    const files: Record<string, string> = {};
+    const slow: ConsentLedgerStorage = {
+      readFile: (p) => new Promise((res) => { setTimeout(() => { res(files[p] ?? null); }, 0); }),
+      writeFile: (p, c) => new Promise((res) => { setTimeout(() => { files[p] = c; res(); }, 0); }),
+    };
+    const a = makeConsentLedger(slow, () => MATTER);
+    const b = makeConsentLedger(slow, () => MATTER);
+    await Promise.all([
+      a.recordConsent('m', { mode: 'two-party', scope: 'per-meeting', confirmedAt: 't1', meetingDir: `${MATTER}/Meetings/m1` }),
+      b.recordNotice({ kind: 'chat-notice-copied', meetingDir: `${MATTER}/Meetings/m1`, at: 't2', text: 'notice' }),
+    ]);
+    const parsed = JSON.parse(files[PATH] ?? '{}') as { entries: unknown[]; notices: unknown[] };
+    expect(parsed.entries).toHaveLength(1); // consent survived
+    expect(parsed.notices).toHaveLength(1); // notice survived
+  });
+
   it('reads notices back across a fresh ledger instance (persisted to the same file)', async () => {
     const store = memStorage();
     await makeConsentLedger(store, () => MATTER).recordNotice({

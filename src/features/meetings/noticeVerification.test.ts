@@ -3,9 +3,9 @@ import { ensureNoticeVerified, NOTICE_SCAN_WINDOW_MS, type NoticeVerificationDep
 import type { NoticeEntry } from './noticeLedger';
 import type { TranscriptFile } from '@/platform/types/meeting';
 
-function transcript(segments: { startMs: number; text: string }[], extra: Partial<TranscriptFile['meta']> = {}): TranscriptFile {
+function transcript(segments: { startMs: number; text: string; channel?: 'mic' | 'sys' }[], extra: Partial<TranscriptFile['meta']> = {}): TranscriptFile {
   return {
-    segments: segments.map((s) => ({ startMs: s.startMs, endMs: s.startMs + 2000, channel: 'mic', speaker: 'You', text: s.text })),
+    segments: segments.map((s) => ({ startMs: s.startMs, endMs: s.startMs + 2000, channel: s.channel ?? 'mic', speaker: s.channel === 'sys' ? 'Them' : 'You', text: s.text })),
     meta: { startedAt: '2026-07-04T10:00:00.000Z', durationMs: 600000, matterId: 'm', consent: { mode: 'two-party', confirmedBy: 'advisor', confirmedAt: '2026-07-04T10:00:00.000Z' }, ...extra },
   };
 }
@@ -70,6 +70,27 @@ describe('ensureNoticeVerified', () => {
     await ensureNoticeVerified(DIR, deps);
     await ensureNoticeVerified(DIR, deps);
     expect(recorded).toHaveLength(1);
+  });
+
+  it('does NOT verify when only a remote participant (sys channel) mentions recording (codex-review R1)', async () => {
+    // A client saying "I'm recording..." must not stamp the advisor's notice.
+    const t = transcript([
+      { startMs: 2000, text: "Hi, just so you know, I'm recording this on my end.", channel: 'sys' },
+      { startMs: 8000, text: 'Sounds good, how have you been?', channel: 'mic' },
+    ]);
+    const { deps, recorded } = makeDeps(t);
+    await ensureNoticeVerified(DIR, deps);
+    expect(recorded[0]?.kind).toBe('verbal-notice-not-detected');
+  });
+
+  it('verifies when the advisor (mic channel) gives the notice even if a client also speaks', async () => {
+    const t = transcript([
+      { startMs: 1000, text: 'Nice to see you again.', channel: 'sys' },
+      { startMs: 5000, text: "Quick note — I'm recording this meeting for my notes, okay?", channel: 'mic' },
+    ]);
+    const { deps, recorded } = makeDeps(t);
+    await ensureNoticeVerified(DIR, deps);
+    expect(recorded[0]?.kind).toBe('verbal-notice-verified');
   });
 
   it('does nothing when the transcript is not available yet', async () => {

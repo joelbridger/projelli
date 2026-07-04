@@ -82,17 +82,25 @@ const LANGS: Record<NoticeLocale, LangConfig> = {
   en: {
     recordingTerms: new Set(['record', 'recording', 'recorded', 'records']),
     firstPersonTerms: new Set(),
-    firstPersonMarkers: new Set(['i', 'im', 'ill', 'id', 'ive', 'let', 'me', 'we', 'were', 'well', 'going', 'gonna', 'wanna', 'want']),
+    // Only genuine first-person SUBJECTS — not auxiliaries. "we're"/"i'm" are
+    // expanded to "we are"/"i am" in tokenize(), so the subject pronoun (we/i)
+    // is what proves first person, never a nearby "were"/"going"/"want" that
+    // could beat the real third-person subject ("they were recording").
+    firstPersonMarkers: new Set(['i', 'im', 'ive', 'ill', 'id', 'we', 'let', 'me']),
     thirdPersonMarkers: new Set(['they', 'you', 'he', 'she', 'it', 'someone', 'somebody', 'people', 'everybody', 'nobody', 'who', 'court']),
-    negations: new Set(['not', 'never', 'dont', 'wont', 'cant', 'cannot', 'no', 'without', 'stop', 'stopped', 'asked']),
-    purposeTokens: new Set(['note', 'notes', 'notetaking', 'record-keeping', 'notekeeping']),
+    negations: new Set(['not', 'never', 'no', 'cannot', 'without', 'stop', 'stopped', 'asked']),
+    purposeTokens: new Set(['note', 'notes', 'notetaking', 'notekeeping']),
     consentTokens: new Set(['everyone', 'alright', 'okay', 'ok', 'consent', 'agree', 'anyone', 'objection', 'all']),
-    stopwords: new Set(['the', 'a', 'an', 'this', 'that', 'is', 'are', 'be', 'being', 'for', 'my', 'our', 'and', 'of', 'to', 'on', 'in', 'so', 'just', 'now', 'today', 'we', 'i', 'im']),
+    stopwords: new Set(['the', 'a', 'an', 'this', 'that', 'is', 'are', 'be', 'being', 'for', 'my', 'our', 'and', 'of', 'to', 'on', 'in', 'so', 'just', 'now', 'today', 'we', 'i', 'am']),
   },
   de: {
     recordingTerms: new Set(['aufnehmen', 'aufnahme', 'aufnehme', 'aufnimmt', 'aufzeichnen', 'aufzeichnung', 'aufgezeichnet', 'aufzeichne']),
     firstPersonTerms: new Set(),
-    firstPersonMarkers: new Set(['ich', 'wir', 'lass', 'werde', 'werden', 'mochte', 'mochten', 'will']),
+    // Pure subjects only — "werde"/"werden" are ambiguous auxiliaries (werden =
+    // "they/we will"), so they must not prove first person on their own; the
+    // subject pronoun (ich/wir) does. German is verb-final, so SUBJECT_WINDOW
+    // still reaches the pronoun ahead of the recording verb.
+    firstPersonMarkers: new Set(['ich', 'wir', 'lass', 'mich']),
     thirdPersonMarkers: new Set(['sie', 'er', 'es', 'man', 'du', 'ihr', 'jemand', 'leute', 'wer']),
     negations: new Set(['nicht', 'nie', 'niemals', 'kein', 'keine', 'ohne']),
     separableStems: new Set(['nehme', 'nimmt', 'nehmen', 'zeichne', 'zeichnen']),
@@ -103,8 +111,15 @@ const LANGS: Record<NoticeLocale, LangConfig> = {
   },
   es: {
     recordingTerms: new Set(['grabar', 'grabando', 'grabacion', 'grabaciones', 'grabo', 'grabare', 'graba', 'graban', 'grabada', 'grabado', 'grabamos']),
-    firstPersonTerms: new Set(['grabo', 'grabare', 'grabando', 'grabamos']),
+    // Only true first-person conjugations. "grabando" is the gerund
+    // ("recording"), NOT inherently first-person — "ellos están grabando" is
+    // third person — so it's excluded here and must lean on a subject marker
+    // ("estoy grabando").
+    firstPersonTerms: new Set(['grabo', 'grabare', 'grabamos']),
     firstPersonMarkers: new Set(['estoy', 'voy', 'vamos', 'quiero', 'me', 'yo']),
+    // No 'esta' here — it collides with the demonstrative "esta" ("this"). A
+    // subjectless "está grabando" already fails (no first-person subject
+    // found), and explicit third-person subjects (usted/ellos) are covered.
     thirdPersonMarkers: new Set(['ellos', 'ellas', 'el', 'ella', 'usted', 'ustedes', 'alguien', 'gente', 'tu', 'quien']),
     negations: new Set(['no', 'nunca', 'jamas', 'sin']),
     purposeTokens: new Set(['notas', 'nota', 'apuntes']),
@@ -121,14 +136,46 @@ const SUBJECT_WINDOW = 8;
  *  meaning when it's close to the verb. */
 const NEGATION_LOOKBACK = 5;
 
-/** Normalize to lowercase content tokens: fold accents, drop apostrophes
- *  (so "i'm" → "im"), split on any non-letter/digit. */
+/** Contractions expanded to their subject + auxiliary/negation BEFORE
+ *  apostrophes are stripped, so "we're recording" becomes "we are recording"
+ *  (subject = "we"), and "won't" becomes "will not" (negation = "not"). This is
+ *  what keeps an auxiliary from ever standing in for a subject: only the real
+ *  pronoun proves first person, and the negation survives as its own token. */
+const CONTRACTIONS: Array<[RegExp, string]> = [
+  [/\bwon't\b/g, 'will not'],
+  [/\bcan't\b/g, 'can not'],
+  [/\bcannot\b/g, 'can not'],
+  [/\bdon't\b/g, 'do not'],
+  [/\bdoesn't\b/g, 'does not'],
+  [/\bdidn't\b/g, 'did not'],
+  [/\bisn't\b/g, 'is not'],
+  [/\baren't\b/g, 'are not'],
+  [/\bwasn't\b/g, 'was not'],
+  [/\bweren't\b/g, 'were not'],
+  [/\bhaven't\b/g, 'have not'],
+  [/\bhasn't\b/g, 'has not'],
+  [/\bi'm\b/g, 'i am'],
+  [/\bi'll\b/g, 'i will'],
+  [/\bi've\b/g, 'i have'],
+  [/\bi'd\b/g, 'i would'],
+  [/\bwe're\b/g, 'we are'],
+  [/\bwe'll\b/g, 'we will'],
+  [/\bwe've\b/g, 'we have'],
+  [/\byou're\b/g, 'you are'],
+  [/\byou'll\b/g, 'you will'],
+  [/\bthey're\b/g, 'they are'],
+  [/\blet's\b/g, 'let us'],
+];
+
+/** Normalize to lowercase content tokens: fold accents, expand contractions,
+ *  drop remaining apostrophes, split on any non-letter/digit. */
 function tokenize(text: string): string[] {
-  return text
-    .toLowerCase()
+  let s = text.toLowerCase().replace(/[’`]/g, "'"); // normalize apostrophe variants first
+  for (const [re, repl] of CONTRACTIONS) s = s.replace(re, repl);
+  return s
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '') // strip combining diacritics (ü→u, é→e)
-    .replace(/['’`]/g, '') // "i'm" → "im", "won't" → "wont"
+    .replace(/'/g, '') // any surviving apostrophe (possessives etc.)
     .split(/[^a-z0-9]+/)
     .filter(Boolean);
 }

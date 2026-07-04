@@ -48,6 +48,11 @@ describe('detectRecordingNotice — English semantic core', () => {
     'Did you record the game last night?',
     "I won't be recording anything today.",
     'The court record shows the transaction.',
+    // codex-review R1: an auxiliary near the verb must not stand in for the
+    // subject — the real third/second-person subject still governs.
+    'They were recording the webinar earlier.',
+    'You are going to record this yourself, right?',
+    'He said they record every session.',
   ];
   for (const text of fails) {
     it(`FAIL: ${text.slice(0, 40)}…`, () => {
@@ -148,6 +153,14 @@ describe('detectRecordingNotice — Spanish', () => {
   it('FAIL: tercera persona', () => {
     expect(
       detectRecordingNotice(line('Ellos graban todo hoy en día.'), { locale: 'es' }),
+    ).toBeNull();
+  });
+  it('FAIL: gerundio en tercera persona (codex-review R1)', () => {
+    expect(
+      detectRecordingNotice(line('Ellos están grabando la reunión.'), { locale: 'es' }),
+    ).toBeNull();
+    expect(
+      detectRecordingNotice(line('¿Usted está grabando esto?'), { locale: 'es' }),
     ).toBeNull();
   });
   it('FAIL: negado', () => {
