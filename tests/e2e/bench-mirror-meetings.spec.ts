@@ -32,6 +32,7 @@ test.describe('Bench mirror: Wave 3c — Meetings tab', () => {
     await openMeetingsTab(page);
     await expect(page.getByTestId('client-meetings-tab')).toBeVisible();
     await expect(page.getByTestId('client-meetings-empty')).toBeVisible({ timeout: 10_000 });
+    // 2026-07-04 UX review S6: the empty state itself carries the record CTA.
     await expect(page.getByTestId('record-meeting-button')).toBeEnabled();
   });
 
@@ -42,15 +43,35 @@ test.describe('Bench mirror: Wave 3c — Meetings tab', () => {
     const dialog = page.getByTestId('consent-dialog');
     await expect(dialog).toBeVisible({ timeout: 10_000 });
 
+    // 2026-07-04 UX review S2: with no state on file, the two-party guidance
+    // reads conditionally instead of asserting the advisor's state law.
+    await expect(page.getByTestId('consent-two-party-note-unknown')).toBeVisible();
+
     const startButton = page.getByTestId('consent-start-button');
     await expect(startButton).toBeDisabled();
 
     await hardClick(page.getByTestId('consent-checkbox'));
     await expect(startButton).toBeEnabled();
 
-    // Cancel rather than Start — capture_start is a Tauri-only command, not
-    // drivable in the browser dev build.
-    await hardClick(page.getByRole('button', { name: /cancel/i }));
+    // testid, not /cancel/i — the [de] project renders "Abbrechen" (this
+    // locator was locale-blind and failing on de since the spec landed).
+    await hardClick(page.getByTestId('consent-cancel-button'));
     await expect(dialog).not.toBeVisible();
+  });
+
+  // 2026-07-04 UX review B6: in the browser build capture_start (Tauri-only)
+  // always fails — exactly the failure shape this asserts on: the dialog must
+  // surface the error inline and stay open, never close on silence.
+  test('a failed recording start shows the error inline, never a silent close', async ({ page }) => {
+    await openMeetingsTab(page);
+    await hardClick(page.getByTestId('record-meeting-button'));
+
+    const dialog = page.getByTestId('consent-dialog');
+    await expect(dialog).toBeVisible({ timeout: 10_000 });
+    await hardClick(page.getByTestId('consent-checkbox'));
+    await hardClick(page.getByTestId('consent-start-button'));
+
+    await expect(page.getByTestId('consent-error')).toBeVisible({ timeout: 10_000 });
+    await expect(dialog).toBeVisible();
   });
 });

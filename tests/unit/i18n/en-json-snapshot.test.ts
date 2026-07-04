@@ -61,7 +61,7 @@ describe('en.json structure snapshot', () => {
         "marketplace": 14,
         "matter": 138,
         "media": 81,
-        "meetings": 47,
+        "meetings": 59,
         "memory": 6,
         "model-download": 9,
         "onboarding": 65,
@@ -119,7 +119,14 @@ describe('en.json structure snapshot', () => {
     // +3 = matter.crm-review.{pending-banner_one,pending-banner_other,review-now}
     //      (QA finding P2: hub-chrome pending-review banner on non-overview
     //      sub-tabs, since CrmWriteReviewCard only ever mounted on Overview).
-    expect(flat.length).toBe(1058);
+    // +12 net = 2026-07-04 Meetings UX review polish: meetings.pill +4
+    //      (recording-label, local, local-tooltip, processing), meetings.tab
+    //      +5/−4 (record-note, loading, needs-review-badge, reviewed-badge,
+    //      duration; removed the needs-review queue-box strings — badges on
+    //      rows now), meetings.entry +5 (generic-title, dictated-title,
+    //      delete-audio-confirm-*), meetings.consent +2
+    //      (two-party-note-unknown, start-failed).
+    expect(flat.length).toBe(1070);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

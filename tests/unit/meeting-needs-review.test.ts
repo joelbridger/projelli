@@ -35,6 +35,18 @@ describe('needsReview', () => {
     expect(needsReview(baseMeeting, q).some((i) => i.kind === 'crm-waiting')).toBe(false);
   });
 
+  // 2026-07-04 UX review S3: "no follow-up" must not nag minutes after the
+  // meeting — it only counts once the meeting is a day old.
+  it('does not flag "no follow-up" on a meeting under a day old', () => {
+    const now = Date.parse('2026-06-30T18:00:00Z'); // 3h after startedAt
+    expect(needsReview(baseMeeting, [], now).map((i) => i.kind)).toEqual(['unreviewed-note']);
+  });
+
+  it('flags "no follow-up" once the meeting is a day old', () => {
+    const now = Date.parse('2026-07-02T15:00:00Z');
+    expect(needsReview(baseMeeting, [], now).map((i) => i.kind)).toEqual(['unreviewed-note', 'no-followup']);
+  });
+
   it('clear when reviewed, drafted, and queue empty', () => {
     const done: MeetingSummary = {
       ...baseMeeting,

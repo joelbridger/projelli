@@ -11,6 +11,11 @@ interface AudioPlayerProps {
   filename: string;
   onRecordMore?: () => void;
   className?: string;
+  /** Slim one-row scrubber (small play button · waveform strip · time) for
+   *  surfaces where the audio is an accessory, not the page — e.g. the
+   *  meeting page, whose stars are the notes + transcript. The default
+   *  full-page layout stays for the dictation surface. */
+  compact?: boolean;
 }
 
 /** Imperative seek handle — TranscriptViewer (Wave 3c) calls `.seek(ms)` when a
@@ -26,6 +31,7 @@ export const AudioPlayer = forwardRef<AudioPlayerHandle, AudioPlayerProps>(funct
   filename,
   onRecordMore,
   className,
+  compact = false,
 }, ref) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -191,6 +197,33 @@ export const AudioPlayer = forwardRef<AudioPlayerHandle, AudioPlayerProps>(funct
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  if (compact) {
+    return (
+      <div className={cn('flex items-center gap-3 w-full', className)} data-testid="audio-player-compact">
+        <Button
+          onClick={togglePlayPause}
+          size="sm"
+          className="h-9 w-9 rounded-full p-0 shrink-0"
+          variant={isPlaying ? 'secondary' : 'default'}
+          aria-label={isPlaying ? 'Pause' : 'Play'}
+        >
+          {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 ml-0.5" />}
+        </Button>
+        <div className="flex-1 min-w-0">
+          <canvas
+            ref={canvasRef}
+            onClick={handleWaveformClick}
+            className="w-full h-10 rounded-md border bg-muted/20 cursor-pointer hover:bg-muted/30 transition-colors"
+            style={{ display: 'block' }}
+          />
+        </div>
+        <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap shrink-0">
+          {formatTime(currentTime)} / {formatTime(duration)}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div className={cn('flex flex-col h-full justify-center items-center p-8 gap-6', className)}>

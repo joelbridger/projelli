@@ -11,22 +11,18 @@ import { ChevronLeft, Trash2, Check } from 'lucide-react';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { arrayBufferToDataUrl } from '@/platform/utils/file-utils';
 import { AudioPlayer, type AudioPlayerHandle } from '@/features/dictation/audio/AudioPlayer';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/ui/dialog';
+import { Button as DialogButton } from '@/ui/button';
 import { TranscriptViewer } from './TranscriptViewer';
 import { SpeakerNamesPanel } from './SpeakerNamesPanel';
 import { AuditService } from '@/platform/audit/AuditService';
 import { markMeetingReviewed, writeMeetingJson } from './meetingStore';
 import type { MeetingMeta } from './meetingStore';
-import { makeMeetingTypesStore, BUILT_IN_TYPES, type BuiltInMeetingType } from './meetingTypes';
+import { meetingDisplayTitle, meetingTypeLabel, formatMeetingDate, formatMeetingDuration } from './meetingDisplay';
+import { makeMeetingTypesStore, BUILT_IN_TYPES } from './meetingTypes';
 import type { TranscriptFile } from '@/platform/types/meeting';
 import type { ComponentType } from 'react';
-
-function isBuiltInType(id: string): id is BuiltInMeetingType {
-  return (BUILT_IN_TYPES as readonly string[]).includes(id);
-}
-
-function typeLabel(typeId: string, t: (k: string) => string): string {
-  return isBuiltInType(typeId) ? t(`meetings.types.${typeId}`) : typeId;
-}
+import type { TFunction } from 'i18next';
 
 export interface MeetingEntryProps {
   matterId: string;
@@ -52,6 +48,14 @@ function consentLabel(meta: MeetingMeta | null, t: (k: string) => string): strin
   return `${t('meetings.entry.consent-noted')} · ${modeLabel}`;
 }
 
+/** "Jun 30, 2026 · 41 min" — the meta the advisor scans for, kept apart from
+ *  the human title (the raw folder name never renders; see meetingDisplay). */
+function dateDurationLine(meta: MeetingMeta | null, t: TFunction): string | null {
+  if (!meta) return null;
+  const parts = [formatMeetingDate(meta.startedAt), formatMeetingDuration(meta.durationMs, t)].filter(Boolean);
+  return parts.length ? parts.join(' · ') : null;
+}
+
 export function MeetingEntry({ matterId, meetingDir, folderName, clientName, workspaceRoot, onBack, initialSeekMs, workspaceService }: MeetingEntryProps) {
   const { t } = useTranslation();
   const [meta, setMeta] = useState<MeetingMeta | null>(null);
@@ -63,6 +67,7 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
   const [seekMs, setSeekMs] = useState<number | undefined>(initialSeekMs);
   const [editingType, setEditingType] = useState(false);
   const [typeInput, setTypeInput] = useState('');
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const audioRef = useRef<AudioPlayerHandle>(null);
 
   useEffect(() => {
@@ -136,14 +141,18 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
   }, [meetingDir, meta]);
 
   const handleSaveType = useCallback(async () => {
-    const typeId = typeInput.trim();
-    if (!typeId || !meta || !workspaceService) { setEditingType(false); return; }
+    const entered = typeInput.trim();
+    if (!entered || !meta || !workspaceService) { setEditingType(false); return; }
+    // The input shows the human label, never the internal id — map a label
+    // back to its built-in type id; anything else is saved as a custom type.
+    const typeId =
+      BUILT_IN_TYPES.find((id) => meetingTypeLabel(id, t).toLowerCase() === entered.toLowerCase()) ?? entered;
     const updated: MeetingMeta = { ...meta, typeId };
     await writeMeetingJson(meetingDir, updated);
     await makeMeetingTypesStore(workspaceService).learnCorrection(meta.calendarTitle ?? folderName, typeId);
     setMeta(updated);
     setEditingType(false);
-  }, [typeInput, meta, meetingDir, folderName, workspaceService]);
+  }, [typeInput, meta, meetingDir, folderName, workspaceService, t]);
 
   return (
     <div data-testid="meeting-entry" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -153,7 +162,10 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
             <ChevronLeft style={{ width: 18, height: 18 }} />
           </button>
           <div style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--color-muted-foreground)' }}>
-            {clientName} / {t('meetings.entry.breadcrumb-meetings')} / <span style={{ color: 'var(--kp-navy)', fontWeight: 'var(--kp-weight-semibold)' }}>{folderName}</span>
+            {clientName} / {t('meetings.entry.breadcrumb-meetings')} / <span style={{ color: 'var(--kp-navy)', fontWeight: 'var(--kp-weight-semibold)' }}>{meetingDisplayTitle(meta, t)}</span>
+            {dateDurationLine(meta, t) && (
+              <span> · {dateDurationLine(meta, t)}</span>
+            )}
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -175,7 +187,7 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
             <button
               type="button"
               data-testid="meeting-entry-delete-audio"
-              onClick={() => { void handleDeleteAudio(); }}
+              onClick={() => { setConfirmingDelete(true); }}
               style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: 'pointer', fontFamily: 'inherit' }}
             >
               <Trash2 style={{ width: 12, height: 12 }} />
@@ -190,11 +202,11 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
           {consentLabel(meta, t) && <span>{consentLabel(meta, t)}</span>}
           {meta?.typeId && !editingType && (
             <span data-testid="meeting-type-chip" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              · {typeLabel(meta.typeId, t)}
+              · {meetingTypeLabel(meta.typeId, t)}
               <button
                 type="button"
                 data-testid="meeting-type-change"
-                onClick={() => { setTypeInput(meta.typeId ?? ''); setEditingType(true); }}
+                onClick={() => { setTypeInput(meta.typeId ? meetingTypeLabel(meta.typeId, t) : ''); setEditingType(true); }}
                 style={{ border: 'none', background: 'transparent', color: 'var(--kp-accent)', cursor: 'pointer', fontSize: 'inherit', fontFamily: 'inherit', padding: 0 }}
               >
                 {t('meetings.entry.type-chip-change')}
@@ -207,7 +219,10 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
                 data-testid="meeting-type-input"
                 value={typeInput}
                 onChange={(e) => { setTypeInput(e.target.value); }}
-                onKeyDown={(e) => { if (e.key === 'Enter') void handleSaveType(); }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void handleSaveType();
+                  if (e.key === 'Escape') setEditingType(false);
+                }}
                 style={{ fontSize: 'var(--kp-font-xs)', border: '1px solid var(--kp-divider)', borderRadius: 'var(--radius-sm)', padding: '2px 6px' }}
               />
               <button type="button" data-testid="meeting-type-save" onClick={() => { void handleSaveType(); }} style={{ border: 'none', background: 'transparent', color: 'var(--kp-accent)', cursor: 'pointer', fontSize: 'inherit', fontFamily: 'inherit', padding: 0 }}>
@@ -219,8 +234,10 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
       )}
 
       {hasAudio && audioSrc && (
-        <div style={{ padding: '8px var(--kp-gutter)' }}>
-          <AudioPlayer ref={audioRef} audioSrc={audioSrc} filename={folderName} />
+        <div style={{ padding: '8px var(--kp-gutter)', borderBottom: '1px solid var(--kp-divider)' }}>
+          {/* compact: a slim scrub row — the meeting page's stars are the
+              notes + transcript below, never the player (UX review B4). */}
+          <AudioPlayer ref={audioRef} audioSrc={audioSrc} filename={meetingDisplayTitle(meta, t)} compact />
         </div>
       )}
 
@@ -249,6 +266,34 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
           )}
         </div>
       </div>
+
+      {/* Deleting the only recording of a client meeting is irreversible —
+          destructive ops always confirm (core app rule; UX review B7). */}
+      <Dialog open={confirmingDelete} onOpenChange={setConfirmingDelete}>
+        <DialogContent className="sm:max-w-[400px]" data-testid="delete-audio-confirm">
+          <DialogHeader>
+            <DialogTitle>{t('meetings.entry.delete-audio-confirm-title')}</DialogTitle>
+          </DialogHeader>
+          <p style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-navy)' }}>
+            {t('meetings.entry.delete-audio-confirm-body')}
+          </p>
+          <DialogFooter>
+            <DialogButton variant="secondary" onClick={() => { setConfirmingDelete(false); }}>
+              {t('meetings.dictation.cancel')}
+            </DialogButton>
+            <DialogButton
+              variant="destructive"
+              data-testid="delete-audio-confirm-button"
+              onClick={() => {
+                setConfirmingDelete(false);
+                void handleDeleteAudio();
+              }}
+            >
+              {t('meetings.entry.delete-audio-confirm-button')}
+            </DialogButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

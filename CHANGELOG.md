@@ -31,6 +31,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Meetings tab UX polish (2026-07-04 senior-UX review — all blockers + should-fixes).**
+  Full findings doc with before/after screenshots:
+  `docs/design/2026-07-04-meetings-tab-ux-review.md`. Highlights:
+  - **Record pill** now says "Recording" with a green "Local" reassurance
+    (tooltip: audio is written straight to this computer's disk) instead of the
+    AI-provider chip ("No AI connected") mid-recording; solid card background +
+    proper elevation (the old `--kp-surface` token didn't exist — the pill was
+    transparent); after Stop it stays up as "Writing your meeting notes…" until
+    transcription + notes finish (new `processing` store flag). `RecordPill.tsx`,
+    `meetingStore.ts`.
+  - **Advisor-facing notes** no longer end every bullet with raw `[t:724000]`
+    tokens — rendered as "(at 2:15)" at docx-generation time
+    (`formatCitationsForDisplay` in `meetingNoteTemplate.ts`).
+  - **Meeting titles are human** everywhere (type label > calendar title >
+    "Dictated note" > "Meeting") — never the machine folder name; date + new
+    persisted `durationMs` ("· 41 min") render as a separate meta line
+    (`meetingDisplay.ts`).
+  - **Meeting page**: compact one-row audio scrubber (new `AudioPlayer`
+    `compact` prop) instead of the full-page dictation player that buried the
+    notes + transcript; "Delete audio · keep transcript" now confirms first
+    (destructive-op rule); meeting-type edit shows the human label and
+    Escape cancels.
+  - **Meetings list**: rows use the `.kp-card--interactive` idiom with a mic
+    icon chip and per-row "Needs review"/"Reviewed" badges (the duplicate
+    needs-review queue box is gone; "no follow-up" only flags meetings a day
+    old); record button moved top-left beside "Recorded on this computer.
+    Nothing is uploaded."; loading state added; empty state uses the mic icon
+    and carries the record CTA.
+  - **Consent dialog**: a failed start now shows the error inline and keeps the
+    dialog open (was a silent close — the advisor could believe a failed
+    recording was running); with no state on file the two-party guidance reads
+    conditionally ("If your state requires everyone's consent…") instead of
+    asserting state law. `ConsentDialog.tsx`, `ClientMeetingsTab.tsx`.
+  - Files: `src/features/meetings/{RecordPill,ClientMeetingsTab,MeetingEntry,ConsentDialog,SpeakerNamesPanel}.tsx`,
+    `src/features/meetings/{meetingStore,meetingNoteTemplate,meetingDisplay}.ts`,
+    `src/features/dictation/audio/AudioPlayer.tsx`, locales en/de/es, tests
+    (unit + bench-mirror e2e extended).
+
 ### Fixed
 - **CRM review-card visibility + persistence (QA findings).** (1) Queued Wealthbox
   proposals no longer vanish on app restart — `crmWriteQueueStore` now persists via

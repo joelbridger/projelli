@@ -1,19 +1,25 @@
 /**
  * RecordPill — the whole recording UI (UX brainstorm rule). Idle renders
- * nothing; a "Record meeting" affordance lives on the client's Meetings tab
- * header instead. While recording, floats over every surface as a small
- * pill: elapsed time, the egress indicator ("Local. Nothing has left this
- * machine."), and Stop. Mounted once, globally, in App.tsx (not scoped to
- * any one tab) so it stays visible while the advisor switches surfaces
- * mid-meeting.
+ * nothing; a "Record a meeting" affordance lives on the client's Meetings
+ * tab instead. While recording, floats over every surface as a small pill:
+ * a "Recording" label over the elapsed time, the local-capture reassurance
+ * ("Local — nothing has left this machine"), and Stop. After Stop it stays
+ * up in a "writing your meeting notes" state until transcription + notes
+ * finish, so stopping never feels like the work vanished. Mounted once,
+ * globally, in App.tsx (not scoped to any one tab) so it stays visible
+ * while the advisor switches surfaces mid-meeting.
+ *
+ * The reassurance is deliberately NOT the AI EgressIndicator: mid-recording
+ * the advisor's question is "where is my AUDIO going?", and the honest
+ * answer is always "written straight to this computer's disk" — the AI
+ * provider chip ("No AI connected" / provider names) answers a different
+ * question and reads as a warning at exactly the wrong moment
+ * (2026-07-04 UX review, finding B1).
  */
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Circle, Square } from 'lucide-react';
+import { Check, Circle, Loader2, Square } from 'lucide-react';
 import { useMeetingStore } from './meetingStore';
-import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
-import { useActiveEgressProvider } from '@/platform/hooks/useActiveEgressProvider';
-import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 
 function formatElapsed(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
@@ -22,67 +28,128 @@ function formatElapsed(ms: number): string {
   return `${String(m)}:${String(s).padStart(2, '0')}`;
 }
 
+const pillFrame: React.CSSProperties = {
+  position: 'fixed',
+  bottom: 20,
+  right: 20,
+  zIndex: 1300, // --kp-z-toast: floats over surfaces, under tooltips
+
+  display: 'flex',
+  alignItems: 'center',
+  gap: 12,
+  padding: '10px 12px 10px 16px',
+  borderRadius: 999,
+  background: 'var(--color-card)',
+  border: '1px solid var(--kp-divider)',
+  boxShadow: 'var(--kp-shadow-3)',
+};
+
 export function RecordPill() {
   const { t } = useTranslation();
   const recording = useMeetingStore((s) => s.status.recording);
+  const processing = useMeetingStore((s) => s.processingCount > 0);
   const elapsedMs = useMeetingStore((s) => s.status.elapsedMs);
   const tick = useMeetingStore((s) => s.tick);
   const stopRecording = useMeetingStore((s) => s.stopRecording);
-  const confidentialityMode = useConfidentialityMode();
-  const egressProvider = useActiveEgressProvider(confidentialityMode);
 
   useEffect(() => {
     if (!recording) return;
-    const id = setInterval(() => { tick(); }, 1000);
-    return () => { clearInterval(id); };
+    const id = setInterval(() => {
+      tick();
+    }, 1000);
+    return () => {
+      clearInterval(id);
+    };
   }, [recording, tick]);
 
-  if (!recording) return null;
+  if (!recording && !processing) return null;
+
+  if (!recording) {
+    // Post-stop: transcription + notes are being written locally.
+    return (
+      <div data-testid="record-pill-processing" role="status" style={pillFrame}>
+        <Loader2
+          className="animate-spin"
+          style={{ width: 16, height: 16, color: 'var(--kp-accent)' }}
+        />
+        <span
+          style={{
+            fontSize: 'var(--kp-font-xs)',
+            fontWeight: 'var(--kp-weight-medium)',
+            color: 'var(--kp-navy)',
+          }}
+        >
+          {t('meetings.pill.processing')}
+        </span>
+      </div>
+    );
+  }
 
   return (
-    <div
-      data-testid="record-pill"
-      role="status"
-      style={{
-        position: 'fixed',
-        bottom: 20,
-        right: 20,
-        zIndex: 1000,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        padding: '10px 16px',
-        borderRadius: 999,
-        background: 'var(--kp-surface)',
-        border: '1px solid var(--kp-divider)',
-        boxShadow: 'var(--kp-shadow-lg, 0 8px 24px rgba(0,0,0,0.12))',
-      }}
-    >
-      <Circle data-testid="record-pill-dot" className="animate-pulse" style={{ width: 10, height: 10, color: 'var(--kp-danger, #d33)', fill: 'currentColor' }} />
-      <span style={{ fontSize: 'var(--kp-font-sm)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)', fontVariantNumeric: 'tabular-nums' }}>
-        {formatElapsed(elapsedMs)}
+    <div data-testid="record-pill" role="status" style={pillFrame}>
+      <Circle
+        data-testid="record-pill-dot"
+        className="animate-pulse"
+        style={{ width: 10, height: 10, color: 'var(--kp-danger)', fill: 'currentColor', flex: 'none' }}
+      />
+      <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.3 }}>
+        <span
+          style={{
+            fontSize: 'var(--kp-font-2xs)',
+            fontWeight: 'var(--kp-weight-bold)',
+            color: 'var(--kp-navy)',
+          }}
+        >
+          {t('meetings.pill.recording-label')}
+        </span>
+        <span
+          style={{
+            fontSize: 'var(--kp-font-md)',
+            fontWeight: 'var(--kp-weight-bold)',
+            color: 'var(--kp-navy)',
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
+          {formatElapsed(elapsedMs)}
+        </span>
+        <span
+          data-testid="record-pill-local"
+          title={t('meetings.pill.local-tooltip')}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
+            fontSize: 'var(--kp-font-2xs)',
+            color: 'var(--kp-success)',
+            cursor: 'default',
+          }}
+        >
+          <Check style={{ width: 11, height: 11 }} />
+          {t('meetings.pill.local')}
+        </span>
       </span>
-      <EgressIndicator provider={egressProvider} mode={confidentialityMode} variant="compact" />
       <button
         type="button"
         data-testid="record-pill-stop"
-        onClick={() => { void stopRecording(); }}
+        onClick={() => {
+          void stopRecording();
+        }}
         style={{
           display: 'flex',
           alignItems: 'center',
           gap: 6,
           border: 'none',
-          background: 'var(--kp-navy)',
+          background: 'var(--kp-danger)',
           color: 'white',
           borderRadius: 999,
-          padding: '5px 12px',
+          padding: '7px 13px',
           fontSize: 'var(--kp-font-xs)',
           fontWeight: 'var(--kp-weight-semibold)',
           cursor: 'pointer',
           fontFamily: 'inherit',
         }}
       >
-        <Square style={{ width: 10, height: 10 }} />
+        <Square style={{ width: 10, height: 10, fill: 'currentColor' }} />
         {t('meetings.pill.stop')}
       </button>
     </div>

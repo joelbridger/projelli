@@ -12,7 +12,7 @@
  * wave — so this uses the plan's own specified copy directly rather than
  * sourcing it from that doc.
  */
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/ui/dialog';
 import { Button } from '@/ui/button';
@@ -32,11 +32,19 @@ export interface ConsentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   consentMode: 'one-party' | 'two-party';
+  /** False when the advisor's state isn't on file — the two-party guidance
+   *  then reads conditionally ("If your state requires everyone's consent…")
+   *  instead of asserting a legal fact we don't actually know. */
+  stateKnown?: boolean;
   standingConsent: ConsentEntry | null;
   /** Set when the prior recording attempt failed with a macOS permission
    *  error — swaps the dialog body to the explainer instead of the normal
    *  consent copy. */
   macPermissionError?: boolean;
+  /** A non-permission start failure (sidecar missing, mic busy, disk full):
+   *  shown inline so the dialog never closes on silence — the advisor must
+   *  never believe a failed recording is running. */
+  errorMessage?: string | null;
   onConfirm: (opts: { note?: string }) => void;
 }
 
@@ -45,7 +53,7 @@ function formatDate(iso: string): string {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString();
 }
 
-export function ConsentDialog({ open, onOpenChange, consentMode, standingConsent, macPermissionError, onConfirm }: ConsentDialogProps) {
+export function ConsentDialog({ open, onOpenChange, consentMode, stateKnown = true, standingConsent, macPermissionError, errorMessage, onConfirm }: ConsentDialogProps) {
   const { t } = useTranslation();
   const [checked, setChecked] = useState(standingConsent !== null);
 
@@ -54,9 +62,13 @@ export function ConsentDialog({ open, onOpenChange, consentMode, standingConsent
   // confirmation would otherwise leak into the next one — re-derive the
   // checkbox from standingConsent every time the dialog opens (or once
   // standingConsent resolves after an already-open dialog's async load).
-  useEffect(() => {
+  // Done as a render-time state adjustment (not an effect) per
+  // react.dev/learn/you-might-not-need-an-effect.
+  const [prevGate, setPrevGate] = useState<{ open: boolean; sc: ConsentEntry | null }>({ open, sc: standingConsent });
+  if (open !== prevGate.open || standingConsent !== prevGate.sc) {
+    setPrevGate({ open, sc: standingConsent });
     if (open) setChecked(standingConsent !== null);
-  }, [open, standingConsent]);
+  }
 
   if (macPermissionError) {
     return (
@@ -93,8 +105,11 @@ export function ConsentDialog({ open, onOpenChange, consentMode, standingConsent
           {t('meetings.consent.body-local')}
         </p>
         {consentMode === 'two-party' && (
-          <p style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-navy)' }}>
-            {t('meetings.consent.two-party-note')}
+          <p
+            data-testid={stateKnown ? 'consent-two-party-note' : 'consent-two-party-note-unknown'}
+            style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-navy)' }}
+          >
+            {stateKnown ? t('meetings.consent.two-party-note') : t('meetings.consent.two-party-note-unknown')}
           </p>
         )}
         {standingConsent && (
@@ -114,8 +129,13 @@ export function ConsentDialog({ open, onOpenChange, consentMode, standingConsent
         <p style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
           {t('meetings.consent.disclaimer')}
         </p>
+        {errorMessage && (
+          <p data-testid="consent-error" role="alert" style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-danger)', margin: 0 }}>
+            {t('meetings.consent.start-failed', { message: errorMessage })}
+          </p>
+        )}
         <DialogFooter>
-          <Button variant="secondary" onClick={() => { onOpenChange(false); }}>
+          <Button variant="secondary" data-testid="consent-cancel-button" onClick={() => { onOpenChange(false); }}>
             {t('meetings.dictation.cancel')}
           </Button>
           <Button

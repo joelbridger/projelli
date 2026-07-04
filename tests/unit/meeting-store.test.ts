@@ -106,6 +106,38 @@ describe('meeting store', () => {
     expect(written.matterId).toBe('m-1');
   });
 
+  // 2026-07-04 UX review S1 (coordinator codex pass): processing is a JOB
+  // COUNT, not a shared boolean — meeting A's pipeline finishing must not
+  // hide the "writing your notes" indicator while meeting B's is mid-write.
+  it('keeps processingCount truthful across overlapping post-stop pipelines', async () => {
+    const deferred: Array<(v: unknown) => void> = [];
+    invokeMock.mockImplementation((cmd: unknown) => {
+      if (cmd === 'capture_start') return Promise.resolve({ meetingDir: `/ws/C/Meetings/m${String(deferred.length)}`, startedAt: 't0' });
+      if (cmd === 'capture_stop') return Promise.resolve({ meetingDir: `/ws/C/Meetings/m${String(deferred.length)}`, audioPath: 'a.wav', durationMs: 60000 });
+      // transcribe_meeting: park each pipeline until the test releases it
+      return new Promise((resolve) => deferred.push(resolve));
+    });
+
+    const s = useMeetingStore.getState();
+    await s.startRecording('m-1', { consentMode: 'one-party' });
+    const p1 = useMeetingStore.getState().stopRecording();
+    await vi.waitFor(() => { expect(useMeetingStore.getState().processingCount).toBe(1); });
+
+    // Meeting B starts + stops while A's notes are still being written.
+    await useMeetingStore.getState().startRecording('m-1', { consentMode: 'one-party' });
+    const p2 = useMeetingStore.getState().stopRecording();
+    await vi.waitFor(() => { expect(useMeetingStore.getState().processingCount).toBe(2); });
+
+    // A finishes first — the indicator must STAY up for B.
+    deferred[0]?.({ transcriptPath: 't.json', segmentCount: 1 });
+    await p1;
+    expect(useMeetingStore.getState().processingCount).toBe(1);
+
+    deferred[1]?.({ transcriptPath: 't.json', segmentCount: 1 });
+    await p2;
+    expect(useMeetingStore.getState().processingCount).toBe(0);
+  });
+
   it('refuses to start when already recording', async () => {
     invokeMock.mockResolvedValueOnce({ meetingDir: '/x', startedAt: 't0' });
     const s = useMeetingStore.getState();

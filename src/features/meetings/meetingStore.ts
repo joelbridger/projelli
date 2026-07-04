@@ -23,7 +23,10 @@ import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { buildResolvedProviderForGlance } from '@/platform/matter/matterAtAGlance';
 import { matterLabel } from '@/platform/rag/matterResolver';
-import { meetingNoteFromTranscript } from '@/features/meetings/meetingNoteTemplate';
+import {
+  meetingNoteFromTranscript,
+  formatCitationsForDisplay,
+} from '@/features/meetings/meetingNoteTemplate';
 import { AuditService } from '@/platform/audit/AuditService';
 import { detectMeetingType, makeMeetingTypesStore } from './meetingTypes';
 import { dictationToMeeting } from './dictationToMeeting';
@@ -43,7 +46,16 @@ export interface StartOpts {
 export interface MeetingMeta {
   matterId: string;
   startedAt: string;
-  consent: { mode: 'one-party' | 'two-party'; confirmedBy: string; confirmedAt: string; note?: string };
+  consent: {
+    mode: 'one-party' | 'two-party';
+    confirmedBy: string;
+    confirmedAt: string;
+    note?: string;
+  };
+  /** Recorded length in ms, persisted by the TS layer from capture_stop's
+   *  return (Rust's core meeting.json doesn't carry it). Absent for dictated
+   *  notes and meetings recorded before this field existed. */
+  durationMs?: number;
   reviewedAt?: string;
   followupDraftedAt?: string;
   typeId?: string;
@@ -55,13 +67,22 @@ export interface MeetingMeta {
 
 interface MeetingState {
   status: CaptureStatus;
+  /** Count of post-stop pipelines (transcription + notes) still running —
+   *  the RecordPill shows a "writing your notes" state while > 0, so
+   *  stopping never feels like the work silently vanished. A COUNT, not a
+   *  boolean: the advisor can legally start (and stop) meeting B while
+   *  meeting A's notes are still being written, and A's completion must not
+   *  hide the indicator while B is mid-write (codex-review P2). */
+  processingCount: number;
   /** Tracked alongside `status` (not part of the shared CaptureStatus shape,
    *  which mirrors the Rust struct) so stopRecording knows which matter/
    *  consent to write into meeting.json without a second lookup. */
   activeMatterId: string | null;
   activeConsent: StartOpts | null;
   startRecording: (matterId: string, opts: StartOpts) => Promise<void>;
-  stopRecording: (opts?: { resolveProvider?: () => ReturnType<typeof buildResolvedProviderForGlance> }) => Promise<void>;
+  stopRecording: (opts?: {
+    resolveProvider?: () => ReturnType<typeof buildResolvedProviderForGlance>;
+  }) => Promise<void>;
   /** Advances elapsedMs by 1000ms; called by RecordPill's own timer. */
   tick: () => void;
 }
@@ -77,7 +98,9 @@ const audit = new AuditService('meetings');
  * alongside `setActiveWorkspaceService` so the two stay in sync.
  */
 let activeWorkspaceService: WorkspaceService | null = null;
-export function setMeetingsWorkspaceService(service: WorkspaceService | null): void {
+export function setMeetingsWorkspaceService(
+  service: WorkspaceService | null
+): void {
   activeWorkspaceService = service;
 }
 
@@ -93,10 +116,16 @@ export function resolveWorkspaceRoot(): string {
   return useWorkspaceStore.getState().rootPath ?? '';
 }
 
-export async function writeMeetingJson(meetingDir: string, meta: MeetingMeta): Promise<void> {
+export async function writeMeetingJson(
+  meetingDir: string,
+  meta: MeetingMeta
+): Promise<void> {
   const ws = activeWorkspaceService;
   if (!ws) return;
-  await ws.writeFile(`${meetingDir}/meeting.json`, JSON.stringify(meta, null, 2));
+  await ws.writeFile(
+    `${meetingDir}/meeting.json`,
+    JSON.stringify(meta, null, 2)
+  );
 }
 
 /**
@@ -109,19 +138,32 @@ export async function writeMeetingJson(meetingDir: string, meta: MeetingMeta): P
 async function tryGenerateNotes(
   meetingDir: string,
   matterId: string,
-  resolveProvider: () => ReturnType<typeof buildResolvedProviderForGlance>,
+  resolveProvider: () => ReturnType<typeof buildResolvedProviderForGlance>
 ): Promise<void> {
   const ws = activeWorkspaceService;
   if (!ws) return;
   try {
     const raw = await ws.readFile(`${meetingDir}/transcript.json`);
     const transcript = JSON.parse(raw) as TranscriptFile;
-    const matter = useMatterStore.getState().matters.find((m) => m.id === matterId);
+    const matter = useMatterStore
+      .getState()
+      .matters.find((m) => m.id === matterId);
     const clientName = matter ? matterLabel(matter) : matterId;
     const { provider } = await resolveProvider();
-    const markdown = await meetingNoteFromTranscript.run({ transcript, clientName, provider });
-    const { markdownToDocxBytes, applyLetterheadIfConfigured } = await import('@/platform/utils/docx-io');
-    const bytes = await markdownToDocxBytes(markdown, 'notes.docx');
+    const markdown = await meetingNoteFromTranscript.run({
+      transcript,
+      clientName,
+      provider,
+    });
+    const { markdownToDocxBytes, applyLetterheadIfConfigured } =
+      await import('@/platform/utils/docx-io');
+    // The advisor reads this file — machine `[t:ms]` tokens become "(at m:ss)"
+    // text. transcript.json keeps the ms-precision record (Client Map source
+    // links are built from it, never from notes.docx).
+    const bytes = await markdownToDocxBytes(
+      formatCitationsForDisplay(markdown),
+      'notes.docx'
+    );
     const finalBytes = await applyLetterheadIfConfigured(bytes);
     await ws.writeFileBinary(`${meetingDir}/notes.docx`, finalBytes);
   } catch {
@@ -144,20 +186,42 @@ interface CrmQueueItemLike {
  * Task 12b — per-client (never practice-wide) "Needs review" flags for one
  * meeting. Pure so it's cheap to call per row in ClientMeetingsTab's list.
  */
-export function needsReview(meeting: MeetingSummary, crmQueue: CrmQueueItemLike[]): ReviewItem[] {
+export function needsReview(
+  meeting: MeetingSummary,
+  crmQueue: CrmQueueItemLike[],
+  now: number = Date.now()
+): ReviewItem[] {
   const items: ReviewItem[] = [];
-  if (meeting.hasNotes && !meeting.meta?.reviewedAt) items.push({ kind: 'unreviewed-note' });
+  if (meeting.hasNotes && !meeting.meta?.reviewedAt)
+    items.push({ kind: 'unreviewed-note' });
   const waiting = crmQueue.some(
-    (q) => q.status === 'proposed' && q.sourceRef.startsWith(`meeting:${meeting.dir}`),
+    (q) =>
+      q.status === 'proposed' &&
+      q.sourceRef.startsWith(`meeting:${meeting.dir}`)
   );
   if (waiting) items.push({ kind: 'crm-waiting' });
-  if (!meeting.meta?.followupDraftedAt) items.push({ kind: 'no-followup' });
+  // "No follow-up drafted" only nags once the meeting is a day old — flagging
+  // a meeting recorded five minutes ago is noise, not a review queue.
+  const ageMs = now - Date.parse(meeting.meta?.startedAt ?? '');
+  if (
+    !meeting.meta?.followupDraftedAt &&
+    Number.isFinite(ageMs) &&
+    ageMs > 24 * 3_600_000
+  ) {
+    items.push({ kind: 'no-followup' });
+  }
   return items;
 }
 
 /** Task 12b — set `meeting.json.reviewedAt`, marking a meeting reviewed. */
-export async function markMeetingReviewed(meetingDir: string, meta: MeetingMeta): Promise<void> {
-  await writeMeetingJson(meetingDir, { ...meta, reviewedAt: new Date().toISOString() });
+export async function markMeetingReviewed(
+  meetingDir: string,
+  meta: MeetingMeta
+): Promise<void> {
+  await writeMeetingJson(meetingDir, {
+    ...meta,
+    reviewedAt: new Date().toISOString(),
+  });
 }
 
 /**
@@ -166,19 +230,39 @@ export async function markMeetingReviewed(meetingDir: string, meta: MeetingMeta)
  * dictated meeting (no audio, no re-transcription), and logs it the same
  * way a real recording's stop does.
  */
-export async function fileDictationAsMeeting(noteText: string, matterId: string, recordedAt: string): Promise<{ meetingDir: string } | null> {
+export async function fileDictationAsMeeting(
+  noteText: string,
+  matterId: string,
+  recordedAt: string
+): Promise<{ meetingDir: string } | null> {
   const ws = activeWorkspaceService;
   if (!ws) return null;
   const matterFolder = resolveMatterFolder(matterId);
-  const { meetingDir } = await dictationToMeeting(ws, noteText, matterId, matterFolder, recordedAt);
-  void audit.logDurable('meeting_recorded', 'Dictated note filed as a meeting note', {
-    metadata: { matterId, meetingDir, dictation: true },
-  });
+  const { meetingDir } = await dictationToMeeting(
+    ws,
+    noteText,
+    matterId,
+    matterFolder,
+    recordedAt
+  );
+  void audit.logDurable(
+    'meeting_recorded',
+    'Dictated note filed as a meeting note',
+    {
+      metadata: { matterId, meetingDir, dictation: true },
+    }
+  );
   return { meetingDir };
 }
 
 export const useMeetingStore = create<MeetingState>((set, get) => ({
-  status: { recording: false, meetingDir: null, elapsedMs: 0, writeError: null },
+  status: {
+    recording: false,
+    meetingDir: null,
+    elapsedMs: 0,
+    writeError: null,
+  },
+  processingCount: 0,
   activeMatterId: null,
   activeConsent: null,
 
@@ -186,15 +270,23 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
     if (get().status.recording) throw new Error('already recording');
     const matterFolder = resolveMatterFolder(matterId);
     const workspace = resolveWorkspaceRoot();
-    const r = await invoke<{ meetingDir: string; startedAt: string }>('capture_start', {
-      workspace,
-      matterId,
-      matterFolder,
-      consentMode: opts.consentMode,
-      consentNote: opts.consentNote ?? null,
-    });
+    const r = await invoke<{ meetingDir: string; startedAt: string }>(
+      'capture_start',
+      {
+        workspace,
+        matterId,
+        matterFolder,
+        consentMode: opts.consentMode,
+        consentNote: opts.consentNote ?? null,
+      }
+    );
     set({
-      status: { recording: true, meetingDir: r.meetingDir, elapsedMs: 0, writeError: null },
+      status: {
+        recording: true,
+        meetingDir: r.meetingDir,
+        elapsedMs: 0,
+        writeError: null,
+      },
       activeMatterId: matterId,
       activeConsent: opts,
     });
@@ -221,70 +313,110 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
   async stopRecording(opts) {
     const { activeMatterId, activeConsent, status } = get();
     const startedMeetingDir = status.meetingDir;
-    const r = await invoke<{ meetingDir: string; audioPath: string; durationMs: number }>('capture_stop', {});
-    set({ status: { recording: false, meetingDir: null, elapsedMs: 0, writeError: null }, activeMatterId: null, activeConsent: null });
-
-    const meetingDir = r.meetingDir || startedMeetingDir || '';
-    const matterId = activeMatterId ?? '';
-    if (meetingDir && matterId && activeConsent) {
-      // meeting.json's matterId/startedAt/consent are ALREADY written,
-      // authoritatively, by Rust's finalize_session (session.rs's
-      // MeetingMeta — landed with lane w3b) by the time capture_stop
-      // resolves here. This TS layer only EXTENDS that file with its own
-      // UI-only fields (typeId, reviewedAt, ...) — it must never
-      // reconstruct/overwrite matterId/startedAt/consent from JS-side state,
-      // which would silently replace Rust's real recorded values (e.g. the
-      // actual start time) with wrong ones (e.g. stop time).
-      const existing = await activeWorkspaceService?.readFile(`${meetingDir}/meeting.json`).catch(() => null);
-      const base = existing ? (JSON.parse(existing) as MeetingMeta) : null;
-      if (base) {
-        // Task 12c: thin type detection — a matched calendar title (when the
-        // recording started from one) plus any taught corrections decide the
-        // type; ad-hoc recordings (no title) simply get no typeId.
-        const typeId = await (async () => {
-          if (!activeConsent.calendarTitle || !activeWorkspaceService) return undefined;
-          try {
-            const { learned } = await makeMeetingTypesStore(activeWorkspaceService).load();
-            return detectMeetingType(activeConsent.calendarTitle, learned) ?? undefined;
-          } catch {
-            return undefined;
-          }
-        })();
-        await writeMeetingJson(meetingDir, {
-          ...base,
-          ...(typeId ? { typeId } : {}),
-          ...(activeConsent.calendarTitle ? { calendarTitle: activeConsent.calendarTitle } : {}),
-        }).catch(() => {});
+    const r = await invoke<{
+      meetingDir: string;
+      audioPath: string;
+      durationMs: number;
+    }>('capture_stop', {});
+    set({
+      status: {
+        recording: false,
+        meetingDir: null,
+        elapsedMs: 0,
+        writeError: null,
+      },
+      activeMatterId: null,
+      activeConsent: null,
+    });
+    set((s) => ({ processingCount: s.processingCount + 1 }));
+    try {
+      const meetingDir = r.meetingDir || startedMeetingDir || '';
+      const matterId = activeMatterId ?? '';
+      if (meetingDir && matterId && activeConsent) {
+        // meeting.json's matterId/startedAt/consent are ALREADY written,
+        // authoritatively, by Rust's finalize_session (session.rs's
+        // MeetingMeta — landed with lane w3b) by the time capture_stop
+        // resolves here. This TS layer only EXTENDS that file with its own
+        // UI-only fields (typeId, reviewedAt, ...) — it must never
+        // reconstruct/overwrite matterId/startedAt/consent from JS-side state,
+        // which would silently replace Rust's real recorded values (e.g. the
+        // actual start time) with wrong ones (e.g. stop time).
+        const existing = await activeWorkspaceService
+          ?.readFile(`${meetingDir}/meeting.json`)
+          .catch(() => null);
+        const base = existing ? (JSON.parse(existing) as MeetingMeta) : null;
+        if (base) {
+          // Task 12c: thin type detection — a matched calendar title (when the
+          // recording started from one) plus any taught corrections decide the
+          // type; ad-hoc recordings (no title) simply get no typeId.
+          const typeId = await (async () => {
+            if (!activeConsent.calendarTitle || !activeWorkspaceService)
+              return undefined;
+            try {
+              const { learned } = await makeMeetingTypesStore(
+                activeWorkspaceService
+              ).load();
+              return (
+                detectMeetingType(activeConsent.calendarTitle, learned) ??
+                undefined
+              );
+            } catch {
+              return undefined;
+            }
+          })();
+          await writeMeetingJson(meetingDir, {
+            ...base,
+            // Duration is only known here (capture_stop's return) — persist it
+            // so the list can show "· 41 min" without opening the audio.
+            ...(r.durationMs > 0 ? { durationMs: r.durationMs } : {}),
+            ...(typeId ? { typeId } : {}),
+            ...(activeConsent.calendarTitle
+              ? { calendarTitle: activeConsent.calendarTitle }
+              : {}),
+          }).catch(() => {});
+        }
+        // No TS-side audit.logDurable('meeting_recorded', ...) here either —
+        // capture_stop's Rust side already appends it (same reasoning as
+        // startRecording above).
       }
-      // No TS-side audit.logDurable('meeting_recorded', ...) here either —
-      // capture_stop's Rust side already appends it (same reasoning as
-      // startRecording above).
-    }
 
-    // meetings.transcribeMode (src/platform/settings/schema.ts): 'live'
-    // (default) transcribes the moment recording stops; 'battery saver'
-    // defers it (AC-power auto-trigger / a manual "Transcribe now" action
-    // are a separate follow-up, not built here — this just honors the
-    // setting by skipping the immediate call).
-    const transcribeMode = useSettingsStore.getState().getSetting<string>('meetings.transcribeMode');
-    if (meetingDir && transcribeMode !== 'batch') {
-      try {
-        await invoke('transcribe_meeting', {
-          workspaceRoot: resolveWorkspaceRoot(),
+      // meetings.transcribeMode (src/platform/settings/schema.ts): 'live'
+      // (default) transcribes the moment recording stops; 'battery saver'
+      // defers it (AC-power auto-trigger / a manual "Transcribe now" action
+      // are a separate follow-up, not built here — this just honors the
+      // setting by skipping the immediate call).
+      const transcribeMode = useSettingsStore
+        .getState()
+        .getSetting<string>('meetings.transcribeMode');
+      if (meetingDir && transcribeMode !== 'batch') {
+        try {
+          await invoke('transcribe_meeting', {
+            workspaceRoot: resolveWorkspaceRoot(),
+            meetingDir,
+            model: null,
+          });
+        } catch {
+          // Queued until the voice engine is installed — capture never depends on it.
+        }
+      }
+
+      if (meetingDir && matterId) {
+        await tryGenerateNotes(
           meetingDir,
-          model: null,
-        });
-      } catch {
-        // Queued until the voice engine is installed — capture never depends on it.
+          matterId,
+          opts?.resolveProvider ?? buildResolvedProviderForGlance
+        );
       }
-    }
-
-    if (meetingDir && matterId) {
-      await tryGenerateNotes(meetingDir, matterId, opts?.resolveProvider ?? buildResolvedProviderForGlance);
+    } finally {
+      set((s) => ({ processingCount: Math.max(0, s.processingCount - 1) }));
     }
   },
 
   tick() {
-    set((s) => (s.status.recording ? { status: { ...s.status, elapsedMs: s.status.elapsedMs + 1000 } } : s));
+    set((s) =>
+      s.status.recording
+        ? { status: { ...s.status, elapsedMs: s.status.elapsedMs + 1000 } }
+        : s
+    );
   },
 }));
