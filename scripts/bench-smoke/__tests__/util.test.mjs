@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   withGuard,
   clickElement,
+  ensureClientsTableTab,
   openSmokeClientDocuments,
   openSmokeClientOverview,
   openSmokeClientDocumentsSubtab,
@@ -81,12 +82,50 @@ describe('clickElement', () => {
   });
 });
 
+describe('ensureClientsTableTab', () => {
+  it('clicks spine-nav-matters once, then switches the toggle to "Clients", when no hub is left open', async () => {
+    const driver = { click: vi.fn(), clickByText: vi.fn(), evalJs: vi.fn().mockResolvedValue(false) };
+    await ensureClientsTableTab(driver);
+    expect(driver.click).toHaveBeenCalledTimes(1);
+    expect(driver.click).toHaveBeenCalledWith('spine-nav-matters');
+    expect(driver.clickByText).toHaveBeenCalledWith('Clients');
+  });
+
+  it('clicks spine-nav-matters a second time if a client hub is still open after the first click', async () => {
+    const driver = { click: vi.fn(), clickByText: vi.fn(), evalJs: vi.fn().mockResolvedValue(true) };
+    await ensureClientsTableTab(driver);
+    expect(driver.click).toHaveBeenCalledTimes(2);
+    expect(driver.clickByText).toHaveBeenCalledWith('Clients');
+  });
+});
+
 describe('openSmokeClientDocuments', () => {
   it('clicks the matter-launch-documents testid for the given matterId, then waits for the given text', async () => {
-    const driver = { click: vi.fn(), waitFor: vi.fn().mockResolvedValue({ found: true }) };
+    const driver = { click: vi.fn(), clickByText: vi.fn(), evalJs: vi.fn().mockResolvedValue(false), waitFor: vi.fn().mockResolvedValue({ found: true }) };
     await openSmokeClientDocuments(driver, { matterId: 'matter_abc', waitForText: 'Documents' });
     expect(driver.click).toHaveBeenCalledWith('matter-launch-documents-matter_abc');
     expect(driver.waitFor).toHaveBeenCalledWith('Documents', 10);
+  });
+
+  it('normalizes to the Clients table tab first (ensureClientsTableTab), before the launch-documents click', async () => {
+    // Root-caused live (2026-07-04): a prior check leaving the toggle on
+    // "Whole book" silently broke this — matter-launch-documents-<id> only
+    // exists on the Clients table.
+    const calls = [];
+    const driver = {
+      click: vi.fn((testid) => calls.push(`click:${testid}`)),
+      clickByText: vi.fn((text) => calls.push(`clickByText:${text}`)),
+      evalJs: vi.fn().mockResolvedValue(false),
+      waitFor: vi.fn().mockResolvedValue({ found: true }),
+    };
+    await openSmokeClientDocuments(driver, { matterId: 'matter_abc' });
+    expect(calls).toEqual(['click:spine-nav-matters', 'clickByText:Clients', 'click:matter-launch-documents-matter_abc']);
+  });
+
+  it('still attempts the launch-documents click when ensureClientsTableTab throws (e.g. minimal fake driver)', async () => {
+    const driver = { click: vi.fn(), waitFor: vi.fn().mockResolvedValue({ found: true }) };
+    await openSmokeClientDocuments(driver, { matterId: 'matter_abc' });
+    expect(driver.click).toHaveBeenCalledWith('matter-launch-documents-matter_abc');
   });
 
   it('throws a DriverError when the expected text never appears', async () => {

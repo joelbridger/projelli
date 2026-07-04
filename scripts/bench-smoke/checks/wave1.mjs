@@ -58,21 +58,18 @@ export const checkCalendarBriefExport = withGuard(ID, SECTION, async ({ driver }
   // succeeded. Close the modal and get back to the Client Map before
   // asserting anything about the meetings strip.
   //
-  // Dispatch Escape directly here — NOT driver.dismissBlockingOverlay().
-  // That helper's fallback clicks the FIRST <button> inside any open
-  // [role="dialog"], which was added for the Draft-follow-up modal (whose
-  // first button is its close X) but is wrong for the Account modal: its
-  // first button is "Upload photo", a real native OS file-picker trigger.
-  // Confirmed live: this silently opened a native "Open" dialog rooted at
-  // the bench operator's own home folder, which then blocked CDP from
-  // seeing the real (correctly connected) app state for the rest of the
-  // session — every subsequent check misread the Calendar connector as
-  // disconnected until the stray dialog was closed by hand.
+  // Uses driver.dismissBlockingOverlay(), NOT a plain Escape dispatch: a
+  // leftover Draft-follow-up modal (left open by a prior wave0-draft-followup
+  // run in the same suite) does not close on Escape at all — it needs
+  // dismissBlockingOverlay's button-click fallback. An Escape-only version of
+  // this fix (tried first, same day) left that modal open, which then
+  // silently blocked wave2's navigation right after. dismissBlockingOverlay
+  // is safe to use here now that overlay-dismiss.mjs itself prefers an
+  // aria-label="Close" button over blindly clicking the first one (see that
+  // file's history) — it no longer risks hitting the Account modal's
+  // "Upload photo" button the way an earlier version of this exact fix did.
   try {
-    await driver.evalJs(
-      "document.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', code:'Escape', bubbles:true}));" +
-        "document.dispatchEvent(new KeyboardEvent('keyup', {key:'Escape', code:'Escape', bubbles:true}));"
-    );
+    await driver.dismissBlockingOverlay();
     await driver.click('spine-nav-matters');
   } catch {
     // Best-effort — the waitFor calls below are the real, honest gate.
