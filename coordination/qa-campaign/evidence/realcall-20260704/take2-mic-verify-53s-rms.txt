@@ -1,0 +1,17 @@
+channels: 2 sampleRate: 16000 bitsPerSample: 16 dataBytes: 3426176
+duration (s): 53.53
+--- overall RMS ---
+channel 0 RMS: 0.00136
+channel 1 RMS: 0.14886
+--- per-5s RMS timeline ---
+t=0-5s: ch0=0.0009  ch1=0.1191
+t=5-10s: ch0=0.0018  ch1=0.1468
+t=10-15s: ch0=0.0015  ch1=0.1886
+t=15-20s: ch0=0.0012  ch1=0.1642
+t=20-25s: ch0=0.0012  ch1=0.1764
+t=25-30s: ch0=0.0018  ch1=0.1457
+t=30-35s: ch0=0.0014  ch1=0.1224
+t=35-40s: ch0=0.0010  ch1=0.1396
+t=40-45s: ch0=0.0014  ch1=0.1451
+t=45-50s: ch0=0.0014  ch1=0.1334
+t=50-55s: ch0=0.0010  ch1=0.1373
