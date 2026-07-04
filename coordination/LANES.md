@@ -7,11 +7,12 @@ Last updated: 2026-07-04 ~01:05 (coordinator-6 seated — sole coordinator; moni
 ## Active lanes
 | Worker session | What | State |
 |---|---|---|
-| cc-lantern-azcdp | Azure bench CDP fix (lp/azure-cdp-fix @96a56628, pushed) — DONE: root cause was an app bug (wry silently overrides WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS); fixed via .additional_browser_args() (no-op when unset); harness check PASSED live on the cloud VM; snapshot clean-3; VM deallocated (33 min). Rust-touching ⇒ merges after w3 | merge-queued |
+| cc-lantern-benchfull | 🏁 FINISH-LINE full Wave 0-4 scripted bench pass on the Legion (tip fc82c2a2; brief w-bench-full-brief.md; freshness canary mandatory — window-creation path changed) | bench-running |
 | cc-lantern-winvm | Local Windows VM spike Phase 1 (testing-speed program #6) — KVM VM on /mnt/devcache, SSH + clean snapshot; infra only, no product code | building |
-| cc-lantern-e2emirror | Playwright smoke mirror (lp/e2e-smoke-mirror @73790c6a, pushed) — DONE: 11/19 checks mirrored in ~15s; 8 honestly NOT-MIRRORABLE (Tauri-only); codex clean. Merges after azcdp | merge-queued |
 
 ## Merged this session
+✅ lp/e2e-smoke-mirror @fc82c2a2 — Playwright mirror: 11/19 bench checks in ~15s on Linux (44 specs green post-merge)
+✅ lp/azure-cdp-fix @395923fd — wry CDP env-var fix (root-caused real app bug; cloud bench is now a working 2nd smoke target)
 ✅ lp/meeting-capture — 🏁 WAVE 3, the LAST feature lane (device-verified on real hardware pre-merge; 17 worker rounds + coordinator independent review w/ 1 confirmed-fixed P2; gate 1218 cargo + bins + 5670 vitest + tsc)
 ✅ lp/symlink-hardening — pathguard module + 5 containment sites hardened (6 worker codex rounds all-real-findings + coordinator manual xhigh + independent codex CLEAN; gate 1187+51 cargo, 5670 vitest, tsc)
 ✅ harness-v3 @07197316 — sharded multi-target smoke + failure forensics + auto-smoke dry-run (Codex-built, coordinator-reviewed; 122 harness tests)
