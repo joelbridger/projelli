@@ -39,6 +39,40 @@ impl SessionManifest {
     }
 }
 
+/// Durable per-meeting metadata that survives `finalize_session` deleting
+/// `.capture/` (unlike `SessionManifest`, which lives ONLY under
+/// `.capture/` and is gone once finalize completes). Written by
+/// `finalize_session` itself from the real `SessionManifest` — this is the
+/// last point at which the ACTUAL consent mode (one-party vs two-party) and
+/// original start time are still on disk anywhere. `transcribe.rs`'s
+/// `load_meta_for` reads this file and refuses to transcribe without it
+/// rather than fabricate consent — this is a compliance product, and a
+/// wrong consent record is worse than no transcript. A later meeting-store
+/// write (matterHub/Task 12) may extend this file with additional fields
+/// (title, participants, ...) but must never overwrite matterId/startedAt/
+/// consent with anything less authoritative than what's recorded here.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct MeetingMeta {
+    pub matter_id: String,
+    pub started_at: String,
+    pub consent: ConsentRecord,
+}
+
+impl MeetingMeta {
+    pub fn path_in(meeting_dir: &Path) -> PathBuf {
+        meeting_dir.join("meeting.json")
+    }
+    pub fn save(&self, meeting_dir: &Path) -> Result<()> {
+        std::fs::write(Self::path_in(meeting_dir), serde_json::to_vec_pretty(self)?)?;
+        Ok(())
+    }
+    pub fn load(meeting_dir: &Path) -> Result<Self> {
+        let bytes = std::fs::read(Self::path_in(meeting_dir))?;
+        Ok(serde_json::from_slice(&bytes)?)
+    }
+}
+
 fn sorted_channel_files(cap_dir: &Path, channel: &str) -> Result<Vec<PathBuf>> {
     let mut files: Vec<PathBuf> = std::fs::read_dir(cap_dir)?
         .filter_map(|e| e.ok().map(|e| e.path()))
@@ -101,13 +135,45 @@ impl Iterator for ChannelSampleStream {
     }
 }
 
-/// Merge chunked channels into `<meeting_dir>/audio.wav` (stereo: L=mic,
-/// R=sys), then remove `.capture/`. Idempotent-safe: if audio.wav already
-/// exists it is overwritten from chunks (chunks are the source of truth
-/// until this returns Ok). Streams both channels sample-by-sample rather
-/// than loading either into memory.
+/// Writes the durable `meeting.json` (see `MeetingMeta`), merges chunked
+/// channels into `<meeting_dir>/audio.wav` (stereo: L=mic, R=sys), then
+/// removes `.capture/`. Idempotent-safe: if audio.wav already exists it is
+/// overwritten from chunks (chunks are the source of truth until this
+/// returns Ok). Streams both channels sample-by-sample rather than loading
+/// either into memory.
 pub fn finalize_session(meeting_dir: &Path) -> Result<PathBuf> {
     let cap = meeting_dir.join(".capture");
+    // Persist the REAL consent mode + matter id + start time to a durable
+    // file BEFORE removing `.capture/` below — `SessionManifest` lives only
+    // there, and once it's gone this is the last chance to record the
+    // actual consent (one-party vs two-party) anywhere durable. Without
+    // this, transcription would have no choice but to guess "one-party"
+    // for every meeting once `.capture/` is deleted — unacceptable in a
+    // compliance product.
+    //
+    // A MISSING manifest (should never happen for a real
+    // capture_start-initiated recording, but historical/test fixtures may
+    // not have one) does not block finalize — audio.wav is still the
+    // primary artifact, and `transcribe_meeting` refuses to transcribe
+    // rather than fabricate consent when meeting.json is absent.
+    //
+    // A manifest that DOES load but FAILS to save (disk full, permissions
+    // changed) is different: propagate that error and abort BEFORE
+    // deleting `.capture/` below (codex-review, 2026-07-04) — silently
+    // continuing would destroy the only remaining copy of the real
+    // consent record with no way to ever recover it.
+    if let Ok(manifest) = SessionManifest::load(meeting_dir) {
+        MeetingMeta {
+            matter_id: manifest.matter_id,
+            started_at: manifest.started_at,
+            consent: manifest.consent,
+        }
+        .save(meeting_dir)
+        .context(
+            "failed to persist meeting consent metadata — refusing to finalize \
+             (this would destroy the only durable copy of the real consent record)",
+        )?;
+    }
     let mut mic = ChannelSampleStream::new(sorted_channel_files(&cap, "mic")?)?;
     let mut sys = ChannelSampleStream::new(sorted_channel_files(&cap, "sys")?)?;
     let spec = hound::WavSpec {
@@ -162,5 +228,86 @@ mod tests {
         let first_two: Vec<i16> = r.samples::<i16>().take(2).map(|s| s.unwrap()).collect();
         assert_eq!(first_two, vec![1000, -2000]); // L then R interleave
         assert!(!cap.exists(), ".capture/ must be removed after finalize");
+    }
+
+    /// Regression for the coordinator-review finding (2026-07-04,
+    /// COMPLIANCE-CRITICAL): a two-party-consent recording must round-trip
+    /// as two-party — never silently become "one-party" once `.capture/`
+    /// (the only prior home of the real consent mode) is deleted.
+    #[test]
+    fn finalize_preserves_the_real_consent_mode_after_capture_dir_is_deleted() {
+        let meeting = tempdir().unwrap();
+        let cap = meeting.path().join(".capture");
+        write_channel(&cap, "mic", 1, 100);
+        write_channel(&cap, "sys", 1, 100);
+        SessionManifest {
+            meeting_dir: meeting.path().to_path_buf(),
+            matter_id: "matter_two-party-case".into(),
+            started_at: "2026-07-02T17:03:00Z".into(),
+            consent: ConsentRecord {
+                mode: "two-party".into(),
+                confirmed_by: "user".into(),
+                confirmed_at: "2026-07-02T17:02:58Z".into(),
+                note: "both parties verbally confirmed".into(),
+            },
+        }
+        .save()
+        .unwrap();
+
+        finalize_session(meeting.path()).unwrap();
+
+        assert!(!cap.exists(), ".capture/ (and the SessionManifest inside it) must be gone");
+        let meta = MeetingMeta::load(meeting.path()).unwrap();
+        assert_eq!(meta.matter_id, "matter_two-party-case");
+        assert_eq!(meta.started_at, "2026-07-02T17:03:00Z");
+        assert_eq!(meta.consent.mode, "two-party", "consent mode must never silently downgrade to one-party");
+        assert_eq!(meta.consent.note, "both parties verbally confirmed");
+    }
+
+    /// Regression for the codex-review follow-up finding (2026-07-04): if
+    /// persisting the real consent record fails (disk full, permissions),
+    /// finalize must abort BEFORE deleting `.capture/` — silently
+    /// continuing would destroy the only remaining copy of the real
+    /// consent, with no way to ever recover it.
+    #[cfg(unix)]
+    #[test]
+    fn finalize_aborts_without_deleting_capture_dir_when_meeting_json_write_fails() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let meeting = tempdir().unwrap();
+        let cap = meeting.path().join(".capture");
+        write_channel(&cap, "mic", 1, 100);
+        write_channel(&cap, "sys", 1, 100);
+        SessionManifest {
+            meeting_dir: meeting.path().to_path_buf(),
+            matter_id: "matter_perm-fail-case".into(),
+            started_at: "2026-07-02T17:03:00Z".into(),
+            consent: ConsentRecord {
+                mode: "two-party".into(),
+                confirmed_by: "user".into(),
+                confirmed_at: "2026-07-02T17:02:58Z".into(),
+                note: String::new(),
+            },
+        }
+        .save()
+        .unwrap();
+
+        // Read-only meeting dir: writing meeting.json into it must fail.
+        let mut perms = std::fs::metadata(meeting.path()).unwrap().permissions();
+        perms.set_mode(0o555);
+        std::fs::set_permissions(meeting.path(), perms.clone()).unwrap();
+
+        let result = finalize_session(meeting.path());
+
+        // Restore write permission so the tempdir can clean itself up.
+        perms.set_mode(0o755);
+        std::fs::set_permissions(meeting.path(), perms).unwrap();
+
+        assert!(result.is_err(), "finalize must fail rather than silently lose the consent record");
+        assert!(cap.exists(), ".capture/ (holding the only consent record) must survive a failed finalize");
+        assert!(
+            !meeting.path().join("audio.wav").exists(),
+            "must not have proceeded to merge/finalize audio after the metadata write failed"
+        );
     }
 }

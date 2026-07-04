@@ -1,7 +1,7 @@
 //! Long-form local transcription. The bundled sidecar caps a single request
 //! at 30 s (src-tauri/src/commands/voice.rs:38); we window at 25 s with 2 s
 //! overlap and merge. LOCAL ONLY: the only WindowTranscriber is the sidecar.
-use anyhow::Result;
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -23,7 +23,7 @@ pub struct Segment {
     pub text: String,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct TranscriptMeta {
     pub started_at: String,
@@ -118,28 +118,56 @@ fn trim_overlap(prev_text: &str, text: &str) -> String {
     text.to_string()
 }
 
+/// Reads exactly the `[start_frame, end_frame)` window for one channel out
+/// of an interleaved multi-channel WAV, via seek — never reads samples
+/// outside the requested window. Generic over any `Read + Seek` source so it
+/// can be exercised directly against an in-memory buffer in tests.
+fn read_channel_window<R: std::io::Read + std::io::Seek>(
+    reader: &mut hound::WavReader<R>,
+    start_frame: u64,
+    end_frame: u64,
+    channel_index: u32,
+    channel_count: u32,
+) -> Result<Vec<i16>> {
+    reader.seek(start_frame as u32)?;
+    let frame_count = (end_frame - start_frame) as usize;
+    let mut out = Vec::with_capacity(frame_count);
+    let samples = reader.samples::<i16>().take(frame_count * channel_count as usize);
+    for (idx, s) in samples.enumerate() {
+        if idx as u32 % channel_count == channel_index {
+            out.push(s?);
+        }
+    }
+    Ok(out)
+}
+
+/// Turns `audio.wav` into `transcript.json`, one ≤25 s window at a time.
+/// Reads only the current window's samples off disk via seek (`hound`'s
+/// `WavReader` never buffers a whole channel, let alone the whole file) —
+/// peak memory is bounded by WINDOW_SECONDS regardless of meeting length. A
+/// prior version `.collect()`ed every sample into memory and duplicated
+/// both channels, which meant a 2-hour meeting (this feature's actual
+/// target use case) could approach ~1.8 GB of peak RAM before the sidecar
+/// even ran — a real freeze/OOM risk, found in coordinator review.
 pub fn transcribe_meeting_audio(
     audio: &Path,
     out: &Path,
     meta: TranscriptMeta,
     t: &dyn WindowTranscriber,
 ) -> Result<()> {
-    let mut reader = hound::WavReader::open(audio)?;
-    let spec = reader.spec();
+    let spec = hound::WavReader::open(audio)?.spec();
     anyhow::ensure!(
         (spec.channels == 1 || spec.channels == 2) && spec.sample_rate == super::chunks::SAMPLE_RATE,
         "expected 16 kHz mono or stereo audio.wav"
     );
-    let all: Vec<i16> = reader.samples::<i16>().collect::<Result<_, _>>()?;
+    let channel_count = spec.channels as u32;
     // Imported audio (single channel) has no mic/sys separation — every
     // segment is attributed to "sys"/"Them" and the UI labels the meeting
     // "imported — speakers not separated" rather than pretending it knows
     // who's speaking.
     let mono = spec.channels == 1;
-    let frames = if mono { all.len() } else { all.len() / 2 };
-    let mic: Vec<i16> = if mono { Vec::new() } else { (0..frames).map(|i| all[i * 2]).collect() };
-    let sys: Vec<i16> = if mono { all.clone() } else { (0..frames).map(|i| all[i * 2 + 1]).collect() };
-    let duration_ms = (frames as u64) * 1000 / super::chunks::SAMPLE_RATE as u64;
+    let total_frames = hound::WavReader::open(audio)?.duration() as u64;
+    let duration_ms = total_frames * 1000 / super::chunks::SAMPLE_RATE as u64;
 
     let progress_path = audio.parent().unwrap().join(".transcribe-progress.json");
     let mut progress: Progress = std::fs::read(&progress_path)
@@ -152,17 +180,22 @@ pub fn transcribe_meeting_audio(
     let step = (WINDOW_SECONDS - OVERLAP_SECONDS) as u64 * sr;
     let win = WINDOW_SECONDS as u64 * sr;
 
-    let channels: &[(&str, &str, &Vec<i16>)] =
-        if mono { &[("sys", "Them", &sys)] } else { &[("mic", "You", &mic), ("sys", "Them", &sys)] };
-    for &(channel, speaker, samples) in channels {
+    // (name, speaker, channel index within an interleaved frame)
+    let channel_defs: &[(&str, &str, u32)] =
+        if mono { &[("sys", "Them", 0)] } else { &[("mic", "You", 0), ("sys", "Them", 1)] };
+    for &(channel, speaker, channel_index) in channel_defs {
+        let mut reader = hound::WavReader::open(audio)?;
         let mut prev_text = String::new();
         let mut start = 0u64;
-        while start < samples.len() as u64 {
+        while start < total_frames {
             let start_ms = start * 1000 / sr;
             let key = format!("{channel}:{start_ms}");
-            let end = (start + win).min(samples.len() as u64);
-            let window = &samples[start as usize..end as usize];
+            let end = (start + win).min(total_frames);
             if !progress.done.contains(&key) {
+                // Only read this window off disk when it isn't already
+                // resumed from a prior run — a resumed window's samples are
+                // never needed again.
+                let window = read_channel_window(&mut reader, start, end, channel_index, channel_count)?;
                 // A silent window, or one where the sidecar recognizes no
                 // speech, is a real gap in the audio — reset the overlap
                 // state so a LATER window's leading words are never trimmed
@@ -172,8 +205,8 @@ pub fn transcribe_meeting_audio(
                 // fully consumed by `trim_overlap` (pure repeat of the
                 // previous window's tail) is NOT a gap — `prev_text` already
                 // reflects that content correctly, so it's left alone.
-                if rms(window) >= SILENCE_RMS {
-                    let raw = t.transcribe_window(wav_mono_bytes(window))?;
+                if rms(&window) >= SILENCE_RMS {
+                    let raw = t.transcribe_window(wav_mono_bytes(&window))?;
                     let raw = raw.trim();
                     if raw.is_empty() {
                         prev_text.clear();
@@ -251,78 +284,28 @@ pub struct TranscribeMeetingResult {
     pub segment_count: u32,
 }
 
-/// Loads meeting metadata for a finalized meeting dir. Prefers
-/// `<meeting_dir>/meeting.json` (written by the meeting store once that
-/// lands — matterId/startedAt/consent survive past `finalize_session`
-/// removing `.capture/`). Falls back to reconstructing from the folder name
-/// when that file doesn't exist yet.
+/// Loads meeting metadata for a finalized meeting dir from
+/// `<meeting_dir>/meeting.json` (`MeetingMeta`, written by
+/// `finalize_session` itself from the real `SessionManifest` — see
+/// `session.rs`). Deliberately has NO fallback: consent mode (one-party vs
+/// two-party) is a compliance fact, not something safe to guess from a
+/// folder name or timestamp. A meeting recorded before this file existed
+/// (or one whose write somehow failed) fails transcription with a clear
+/// error rather than silently asserting "one-party" — a wrong consent
+/// record in a compliance product is worse than a blocked transcript.
 pub fn load_meta_for(dir: &Path) -> Result<TranscriptMeta> {
-    #[derive(Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct MeetingJson {
-        matter_id: String,
-        started_at: String,
-        consent: super::session::ConsentRecord,
-    }
-    if let Ok(bytes) = std::fs::read(dir.join("meeting.json")) {
-        let m: MeetingJson = serde_json::from_slice(&bytes)?;
-        return Ok(TranscriptMeta {
-            started_at: m.started_at,
-            matter_id: m.matter_id,
-            consent: m.consent,
-        });
-    }
-    // Fallback: the Meeting Artifact Contract's folder name is
-    // `<YYYY-MM-DD>-<slugified-matter-id>[-<n>]` (engine.rs's `slugify` only
-    // ever REMOVES characters, never adds any, so for an ordinary
-    // alphanumeric+hyphen matter_id the slug IS the matter_id verbatim).
-    // Strip the fixed-width 11-char date prefix rather than splitting on the
-    // first '-' — matter_id itself commonly contains hyphens (e.g.
-    // "m-abc123"), so a first-hyphen split would truncate it.
-    let name = dir.file_name().and_then(|n| n.to_str()).unwrap_or("");
-    let mut matter_id = name
-        .get(11..)
-        .filter(|s| !s.is_empty())
-        .unwrap_or("unknown")
-        .to_string();
-    // engine.rs only ever appends a numeric "-<n>" disambiguator (starting
-    // at 2) when a second same-day meeting collides with an ALREADY-EXISTING
-    // un-suffixed sibling folder — so that un-suffixed sibling is guaranteed
-    // to exist whenever the suffix is a real collision marker. Confirm the
-    // sibling is actually there before stripping the suffix, so a matter_id
-    // that genuinely ends in "-<digits>" is never mistaken for one.
-    if let Some(pos) = matter_id.rfind('-') {
-        let (base, suffix) = matter_id.split_at(pos);
-        let digits = &suffix[1..];
-        if !digits.is_empty() && digits.chars().all(|c| c.is_ascii_digit()) {
-            let sibling = format!("{}{}", &name[..name.len().min(11)], base);
-            if dir.parent().is_some_and(|p| p.join(&sibling).is_dir()) {
-                matter_id = base.to_string();
-            }
-        }
-    }
-    // The date prefix has no time-of-day component, and this fallback only
-    // runs before meeting.json exists (Task 12) — the best available proxy
-    // for when the meeting actually happened is the meeting folder's own
-    // mtime, NOT the current instant (which would date an old
-    // imported/reconstructed meeting as happening right now). Prefer mtime
-    // over birth time: birth time isn't exposed on every filesystem this
-    // app targets (falls straight through to mtime there anyway), and if
-    // the workspace was ever copied/restored from a backup, mtime survives
-    // that more reliably than a filesystem-reported creation time can.
-    let reconstructed_at = std::fs::metadata(dir)
-        .and_then(|m| m.modified().or_else(|_| m.created()))
-        .map(|t| chrono::DateTime::<chrono::Utc>::from(t).to_rfc3339())
-        .unwrap_or_else(|_| chrono::Utc::now().to_rfc3339());
+    let meta = super::session::MeetingMeta::load(dir).with_context(|| {
+        format!(
+            "no meeting.json consent record found for {} — refusing to guess the consent mode. \
+             This meeting was recorded before finalize started writing this file, or the write \
+             failed. Confirm and record consent manually before transcribing.",
+            dir.display()
+        )
+    })?;
     Ok(TranscriptMeta {
-        started_at: reconstructed_at.clone(),
-        matter_id,
-        consent: super::session::ConsentRecord {
-            mode: "one-party".into(),
-            confirmed_by: "user".into(),
-            confirmed_at: reconstructed_at,
-            note: "meta reconstructed".into(),
-        },
+        started_at: meta.started_at,
+        matter_id: meta.matter_id,
+        consent: meta.consent,
     })
 }
 
@@ -382,6 +365,57 @@ mod tests {
             // Deterministic: text derives from byte length so windows differ.
             Ok(format!("w{}", wav_bytes.len() % 97))
         }
+    }
+
+    /// Regression for the coordinator-review finding (2026-07-04, P2 OOM
+    /// risk): the old implementation `.collect()`ed the ENTIRE file into
+    /// memory and duplicated both channels, so a 2-hour meeting (this
+    /// feature's real target use case) approached ~1.8 GB of peak RAM.
+    /// Proves the fix precisely: reading a window deep inside a
+    /// much-larger-than-any-window file pulls EXACTLY that window's bytes
+    /// off the underlying stream — not the file up to the window, not the
+    /// file after it — regardless of the recording's total length.
+    #[test]
+    fn read_channel_window_reads_exactly_the_window_not_the_whole_file() {
+        let spec = hound::WavSpec {
+            channels: 2,
+            sample_rate: 16_000,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let total_secs = 250u32; // far longer than any single 25 s window
+        let mut cursor = std::io::Cursor::new(Vec::new());
+        {
+            let mut w = hound::WavWriter::new(&mut cursor, spec).unwrap();
+            for frame in 0..(total_secs * 16_000) {
+                // Value == frame index (mic) / its negation (sys), so the
+                // returned window's contents pin down exactly which frames
+                // were read.
+                w.write_sample(frame as i16).unwrap();
+                w.write_sample((frame as i16).wrapping_neg()).unwrap();
+            }
+            w.finalize().unwrap();
+        }
+        let buf = cursor.into_inner();
+        let data_bytes = total_secs as u64 * 16_000 * 2 /* channels */ * 2 /* bytes/sample */;
+        let header_size = buf.len() as u64 - data_bytes;
+
+        let mut reader = hound::WavReader::new(std::io::Cursor::new(buf)).unwrap();
+        let start_frame = 100u64 * 16_000; // deep inside the file, not the start
+        let end_frame = start_frame + WINDOW_SECONDS as u64 * 16_000;
+        let mic_window = read_channel_window(&mut reader, start_frame, end_frame, 0, 2).unwrap();
+
+        assert_eq!(mic_window.len(), (end_frame - start_frame) as usize);
+        assert_eq!(mic_window[0], start_frame as i16, "must start exactly at start_frame");
+        assert_eq!(*mic_window.last().unwrap(), (end_frame - 1) as i16, "must end exactly at end_frame - 1");
+
+        let window_bytes = (end_frame - start_frame) * 2 * 2;
+        let expected_final_position = header_size + start_frame * 2 * 2 + window_bytes;
+        assert_eq!(
+            reader.into_inner().position(),
+            expected_final_position,
+            "must consume exactly the window's bytes off the stream, nothing more"
+        );
     }
 
     fn stereo_fixture(dir: &std::path::Path, secs: u32) -> std::path::PathBuf {
@@ -529,48 +563,22 @@ mod tests {
         assert_eq!(meta.consent.note, "recorded live");
     }
 
+    /// Regression for the coordinator-review finding (2026-07-04,
+    /// COMPLIANCE-CRITICAL): a two-party consent recording finalized without
+    /// a durable meeting.json must never silently transcribe as one-party.
+    /// The old folder-name-reconstruction fallback fabricated "one-party"
+    /// unconditionally — this proves that path no longer exists: transcribing
+    /// a meeting whose consent record is missing FAILS loudly instead.
     #[test]
-    fn load_meta_for_reconstructs_matter_id_from_folder_name_without_meeting_json() {
+    fn load_meta_for_errors_instead_of_fabricating_consent_when_meeting_json_is_missing() {
         let root = tempdir().unwrap();
-        // Meeting Artifact Contract folder name: <YYYY-MM-DD>-<slugified matter_id>.
-        let dir = root.path().join("2026-07-02-m-abc123");
+        let dir = root.path().join("2026-07-02-matter_two-party-case");
         std::fs::create_dir_all(&dir).unwrap();
-        let meta = load_meta_for(&dir).unwrap();
-        assert_eq!(meta.matter_id, "m-abc123");
-        assert_eq!(meta.consent.note, "meta reconstructed");
-    }
-
-    #[test]
-    fn load_meta_for_strips_collision_suffix_when_the_unsuffixed_sibling_exists() {
-        let root = tempdir().unwrap();
-        // engine.rs only appends "-2" when "2026-07-02-m-abc123" (no
-        // suffix) already exists — that sibling is what proves "-2" is a
-        // collision marker, not part of the matter_id.
-        std::fs::create_dir_all(root.path().join("2026-07-02-m-abc123")).unwrap();
-        let dir = root.path().join("2026-07-02-m-abc123-2");
-        std::fs::create_dir_all(&dir).unwrap();
-        let meta = load_meta_for(&dir).unwrap();
-        assert_eq!(meta.matter_id, "m-abc123");
-    }
-
-    #[test]
-    fn load_meta_for_keeps_trailing_digits_when_no_unsuffixed_sibling_exists() {
-        let root = tempdir().unwrap();
-        // No sibling "2026-07-02-m-team-2" minus its trailing "-2" exists,
-        // so a matter_id that genuinely ends in "-2" must be kept intact.
-        let dir = root.path().join("2026-07-02-m-team-2");
-        std::fs::create_dir_all(&dir).unwrap();
-        let meta = load_meta_for(&dir).unwrap();
-        assert_eq!(meta.matter_id, "m-team-2");
-    }
-
-    #[test]
-    fn load_meta_for_falls_back_to_unknown_when_folder_name_has_no_slug() {
-        let root = tempdir().unwrap();
-        let dir = root.path().join("short");
-        std::fs::create_dir_all(&dir).unwrap();
-        let meta = load_meta_for(&dir).unwrap();
-        assert_eq!(meta.matter_id, "unknown");
+        let err = load_meta_for(&dir).unwrap_err();
+        assert!(
+            err.to_string().contains("refusing to guess the consent mode"),
+            "got: {err}"
+        );
     }
 
     pub(super) fn test_meta(m: &str) -> TranscriptMeta {
