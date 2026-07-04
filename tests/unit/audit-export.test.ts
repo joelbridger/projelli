@@ -98,6 +98,21 @@ describe('audit-export / entriesToCSV', () => {
     expect(lines[5]).toBe(CSV_COLUMNS.join(','));
   });
 
+  it('renders the seal-missing state honestly in CSV comment rows (no bogus checked count)', () => {
+    const csv = entriesToCSV(
+      [makeEntry()],
+      { status: 'sealMissing', survivingRows: 2, lastTimestamp: '2026-06-09T00:00:00Z' },
+    );
+    const lines = csv.split('\r\n');
+    expect(lines[0]).toBe('# integrity_status,sealMissing');
+    expect(lines[1]).toBe('# integrity_surviving_rows,2');
+    expect(lines[2]).toBe('# integrity_last_verifiable,2026-06-09T00:00:00Z');
+    // Crucially: NO "# integrity_checked" line — a seal-missing log has no
+    // trustworthy verified count to report.
+    expect(lines.some((l) => l.startsWith('# integrity_checked'))).toBe(false);
+    expect(lines[3]).toBe(CSV_COLUMNS.join(','));
+  });
+
   it('uses CRLF line separators per RFC 4180', () => {
     const csv = entriesToCSV([makeEntry()]);
     expect(csv).toContain('\r\n');

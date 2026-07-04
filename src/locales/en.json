@@ -7,7 +7,15 @@
     "audit-log": {
       "entry-details-title": "Audit Entry Details",
       "integrity-verified": "Log verified",
-      "integrity-altered": "Log altered (entry {{seq}})"
+      "integrity-altered": "Log altered (entry {{seq}})",
+      "integrity-seal-missing": "Integrity seal missing",
+      "integrity-seal-missing-detail": "The audit log's integrity seal is missing. History up to {{timestamp}} can no longer be cryptographically verified. The log may have been truncated.",
+      "integrity-seal-missing-detail-notime": "The audit log's integrity seal is missing. Its history can no longer be cryptographically verified. The log may have been truncated.",
+      "repair-action": "Repair",
+      "repair-confirm-title": "Repair the audit log?",
+      "repair-confirm-body": "The integrity seal is missing, so the entries recorded before now can no longer be checked for completeness. Repairing does not recover anything that may have been removed. It re-seals the surviving entries and permanently records a note that this happened. This cannot be undone. Continue?",
+      "repair-confirm-cta": "Repair and record the anomaly",
+      "repair-failed": "Repair failed. The audit log is unchanged and still needs repair. Please try again."
     },
     "ai-setup-help": {
       "link": "I need help setting this up",

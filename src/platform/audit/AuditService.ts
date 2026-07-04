@@ -18,6 +18,7 @@ import type { AuditEntry, AuditActionType, AuditEvent, AuditQueryOptions } from 
 import {
   auditAppend,
   auditList,
+  auditRepairSeal,
   auditSetWorkspace,
   auditVerifyIntegrity,
   type AuditEntryRecord,
@@ -182,6 +183,20 @@ export class AuditService {
       return undefined;
     }
     return auditVerifyIntegrity();
+  }
+
+  /**
+   * Desktop only: repair a seal-missing encrypted audit log. The Rust
+   * `audit_repair_seal` command re-seals the surviving prefix AFTER writing a
+   * permanent anomaly record into the new chain (recording that the seal was
+   * missing and that prior completeness can no longer be verified). We then
+   * re-hydrate so the new anomaly entry appears in the live view. No-op in the
+   * browser (no encrypted chain there). Throws if the store is not seal-missing.
+   */
+  async repairSeal(): Promise<void> {
+    if (!this.encrypted) return;
+    await auditRepairSeal();
+    await this.hydrate();
   }
 
   /**

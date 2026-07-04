@@ -253,6 +253,44 @@ describe('AuditService persistence (desktop, encrypted store)', () => {
     });
   });
 
+  it('repairSeal() runs the repair command then re-hydrates so the anomaly appears', async () => {
+    const anomalyRecord = {
+      id: 'audit_reseal_1',
+      timestamp: '2026-07-04T00:00:00Z',
+      action: 'audit_integrity_reseal',
+      description: 'seal repaired',
+      payloadJson: JSON.stringify({
+        id: 'audit_reseal_1',
+        timestamp: '2026-07-04T00:00:00Z',
+        action: 'audit_integrity_reseal',
+        description: 'seal repaired',
+        inputs: {},
+        outputs: {},
+        metadata: { auditEventType: 'audit_integrity_reseal' },
+      }),
+    };
+    let repaired = false;
+    mocks.invoke.mockImplementation(async (cmd: string) => {
+      if (cmd === 'audit_repair_seal') {
+        repaired = true;
+        return { survivingRows: 2, anomalyId: 'audit_reseal_1', totalEntries: 3, lastVerifiableTimestamp: '2026-06-09T00:01:00Z' };
+      }
+      if (cmd === 'audit_list') {
+        return repaired ? [anomalyRecord] : []; // the anomaly only exists after repair
+      }
+      return undefined;
+    });
+    const svc = new AuditService('desktop-repair');
+    await svc.hydrate('/ws/Acme');
+    expect(svc.getCount()).toBe(0);
+
+    await svc.repairSeal();
+
+    expect(mocks.invoke.mock.calls.some((c) => c[0] === 'audit_repair_seal')).toBe(true);
+    // Re-hydrated: the permanent anomaly record is now in the live view.
+    expect(svc.getAll().some((e) => e.action === 'audit_integrity_reseal')).toBe(true);
+  });
+
   it('a transient encrypted-store failure does not break logging (entry stays in memory)', () => {
     mocks.invoke.mockRejectedValue(new Error('keychain locked'));
     const svc = new AuditService('desktop-resilient');

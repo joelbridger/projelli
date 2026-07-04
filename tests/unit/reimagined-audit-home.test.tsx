@@ -9,8 +9,8 @@
 // - Empty state renders when no entries match
 // - Detail panel opens on row click, closes on Escape
 
-import { describe, it, expect } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { AuditHome } from '@/features/audit/AuditHome';
 import type { AuditEntry } from '@/platform/types/audit';
 
@@ -93,6 +93,125 @@ describe('AuditHome', () => {
 
     const badge = screen.getByTestId('audit-integrity-badge');
     expect(badge).toHaveTextContent('Log altered (entry 2)');
+  });
+
+  it('shows a seal-missing integrity badge when the chain-head seal is gone', () => {
+    render(
+      <AuditHome
+        entries={SAMPLE}
+        integrity={{ status: 'sealMissing', survivingRows: 2, lastTimestamp: '2026-06-09T00:00:00Z' }}
+      />,
+    );
+
+    const badge = screen.getByTestId('audit-integrity-badge');
+    expect(badge).toHaveTextContent('Integrity seal missing');
+    // Distinct from the two existing tones (surfaced for tests + styling hooks).
+    expect(badge).toHaveAttribute('data-integrity-status', 'sealMissing');
+    // The honest detail (with the verifiable-up-to boundary) is in the tooltip.
+    expect(badge.getAttribute('title')).toContain('2026-06-09T00:00:00Z');
+  });
+
+  const SEAL_MISSING = {
+    status: 'sealMissing',
+    survivingRows: 2,
+    lastTimestamp: '2026-06-09T00:00:00Z',
+  } as const;
+
+  it('shows the Repair action only in the seal-missing state and only with a handler', () => {
+    const onRepairSeal = vi.fn().mockResolvedValue(undefined);
+    const { rerender } = render(
+      <AuditHome entries={SAMPLE} integrity={{ status: 'verified', checked: 3 }} onRepairSeal={onRepairSeal} />,
+    );
+    expect(screen.queryByTestId('audit-repair-button')).toBeNull();
+
+    rerender(
+      <AuditHome
+        entries={SAMPLE}
+        integrity={{ status: 'altered', seq: 1, id: 'x', reason: 'r', checked: 0 }}
+        onRepairSeal={onRepairSeal}
+      />,
+    );
+    expect(screen.queryByTestId('audit-repair-button')).toBeNull();
+
+    // Seal-missing but no handler wired → still nothing to click.
+    rerender(<AuditHome entries={SAMPLE} integrity={SEAL_MISSING} />);
+    expect(screen.queryByTestId('audit-repair-button')).toBeNull();
+
+    // Seal-missing + handler → the Repair affordance appears.
+    rerender(<AuditHome entries={SAMPLE} integrity={SEAL_MISSING} onRepairSeal={onRepairSeal} />);
+    expect(screen.getByTestId('audit-repair-button')).toHaveTextContent('Repair');
+  });
+
+  it('requires confirmation before repairing: cancel does not call the handler', async () => {
+    const onRepairSeal = vi.fn().mockResolvedValue(undefined);
+    render(<AuditHome entries={SAMPLE} integrity={SEAL_MISSING} onRepairSeal={onRepairSeal} />);
+
+    fireEvent.click(screen.getByTestId('audit-repair-button'));
+    // Plain-language confirmation, stating what happens.
+    await screen.findByText('Repair the audit log?');
+    expect(screen.getByText(/permanently records a note/i)).toBeTruthy();
+    expect(screen.getByText(/cannot be undone/i)).toBeTruthy();
+
+    fireEvent.click(screen.getByText('Cancel'));
+    await waitFor(() => expect(screen.queryByText('Repair the audit log?')).toBeNull());
+    expect(onRepairSeal).not.toHaveBeenCalled();
+  });
+
+  it('confirming the repair calls onRepairSeal; refreshed state clears the badge + button', async () => {
+    const onRepairSeal = vi.fn().mockResolvedValue(undefined);
+    const { rerender } = render(
+      <AuditHome entries={SAMPLE} integrity={SEAL_MISSING} onRepairSeal={onRepairSeal} />,
+    );
+
+    fireEvent.click(screen.getByTestId('audit-repair-button'));
+    fireEvent.click(await screen.findByText('Repair and record the anomaly'));
+    await waitFor(() => expect(onRepairSeal).toHaveBeenCalledTimes(1));
+
+    // The parent refreshes entries + integrity after repair; once the verdict
+    // flips to verified, the amber badge and the Repair button both clear.
+    rerender(
+      <AuditHome entries={SAMPLE} integrity={{ status: 'verified', checked: 3 }} onRepairSeal={onRepairSeal} />,
+    );
+    expect(screen.getByTestId('audit-integrity-badge')).toHaveTextContent('Log verified');
+    expect(screen.queryByTestId('audit-repair-button')).toBeNull();
+  });
+
+  it('surfaces a failed repair instead of silently no-opping', async () => {
+    const onRepairSeal = vi.fn().mockRejectedValue(new Error('keychain unavailable'));
+    render(<AuditHome entries={SAMPLE} integrity={SEAL_MISSING} onRepairSeal={onRepairSeal} />);
+
+    fireEvent.click(screen.getByTestId('audit-repair-button'));
+    fireEvent.click(await screen.findByText('Repair and record the anomaly'));
+
+    // The handler ran and rejected; the user gets an honest error, not silence.
+    await waitFor(() => expect(onRepairSeal).toHaveBeenCalledTimes(1));
+    const err = await screen.findByTestId('audit-repair-error');
+    expect(err).toHaveTextContent(/repair failed/i);
+    // Still seal-missing → the Repair button remains so it can be retried.
+    expect(screen.getByTestId('audit-repair-button')).toBeTruthy();
+  });
+
+  it('does not leak a stale repair error onto a different seal-missing log', async () => {
+    const onRepairSeal = vi.fn().mockRejectedValue(new Error('keychain unavailable'));
+    const { rerender } = render(
+      <AuditHome entries={SAMPLE} integrity={SEAL_MISSING} onRepairSeal={onRepairSeal} />,
+    );
+    fireEvent.click(screen.getByTestId('audit-repair-button'));
+    fireEvent.click(await screen.findByText('Repair and record the anomaly'));
+    await screen.findByTestId('audit-repair-error'); // failure surfaced for this log
+
+    // Integrity refreshes to a DIFFERENT seal-missing log (e.g. workspace switch).
+    rerender(
+      <AuditHome
+        entries={SAMPLE}
+        integrity={{ status: 'sealMissing', survivingRows: 5, lastTimestamp: '2026-01-01T00:00:00Z' }}
+        onRepairSeal={onRepairSeal}
+      />,
+    );
+    // The stale "Repair failed" must NOT carry over to the new log...
+    expect(screen.queryByTestId('audit-repair-error')).toBeNull();
+    // ...but the Repair affordance is still available for it.
+    expect(screen.getByTestId('audit-repair-button')).toBeTruthy();
   });
 
   it('search filters rows by description text', () => {

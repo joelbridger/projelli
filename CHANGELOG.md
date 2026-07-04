@@ -44,6 +44,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `capture/{engine,chunks,recovery,session,sources,mod}.rs`, `pathguard.rs` (absolute variant).
 
 ### Security
+- **Audit chain: fail-closed on a missing integrity seal (silent-reseal gap closed).** An
+  attacker (or bug) that deleted tail rows AND the `chain_head_v1` seal metadata could get
+  `EncryptedAuditStore::open()` to silently re-derive a fresh head over the surviving prefix on
+  next open — resealing a truncated log as "valid" and erasing the tamper evidence the whole
+  chain exists to provide. `open()` no longer auto-seals a headless chain. Instead the store
+  surfaces a new `AuditChainVerification::SealMissing { surviving_rows, last_timestamp }` state:
+  existing rows stay readable, new appends are refused, and retention/redaction (data-loss ops)
+  refuse to proceed on it (`reject_if_chain_altered`). Recovery is an explicit `audit_repair_seal`
+  command that FIRST writes a permanent, backend-minted anomaly record (`audit_integrity_reseal`)
+  into the new chain — recording when the seal was detected missing, how many rows survived, and
+  that prior completeness can no longer be verified — THEN re-seals over the survivors + that
+  record. The frontend surfaces the state honestly in the existing audit integrity badge (amber
+  "Integrity seal missing" with a verifiable-up-to boundary) and in the privacy attestation
+  export. The all-rows form (deleting EVERY row + the seal, which would otherwise look like a
+  fresh store) is caught via SQLite's AUTOINCREMENT high-water mark (`sqlite_sequence`, survives
+  deletion): a wiped log opens as SealMissing and repair chains the anomaly onto genesis. A seal
+  that is present but corrupt (undecodable) is reported as `Altered` (loud), keeping the invariant
+  that SealMissing always means repairable. The seal-missing badge carries an explicit,
+  acknowledged **Repair** action (confirmation dialog in plain language stating what can no longer
+  be verified and that the anomaly is permanently recorded) that calls `audit_repair_seal` and
+  refreshes the entries + integrity state. Files: `commands/audit/store.rs` (SealMissing +
+  `repair` + high-water detection), `commands/audit/mod.rs` (`audit_repair_seal`),
+  `commands/retention/mod.rs`, `platform/utils/tauri-commands.ts`, `platform/audit/AuditService.ts`
+  (`repairSeal`), `app/App.tsx` + `app/shell/AppSurfaceRouter.tsx` (repair handler wiring),
+  `features/audit/{AuditHome.tsx,audit-export.ts}`, `platform/privacy/attestation.ts`,
+  `locales/{en,de,es}.json`. Reproduced red-first; store/retention/service/UI-flow tests added.
 - **Symlink-safe path containment everywhere a caller-supplied path meets a workspace root.**
   A codebase audit found five containment checks that followed symlinks (an in-workspace alias
   folder could read/write/delete a DIFFERENT client's files while the audit trail named the

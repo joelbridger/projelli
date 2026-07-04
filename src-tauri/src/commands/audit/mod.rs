@@ -20,7 +20,9 @@
 pub mod crypto;
 pub mod store;
 
-use store::{AuditChainVerification, AuditEntryRecord, EncryptedAuditStore};
+use store::{
+    AuditChainRepairReport, AuditChainVerification, AuditEntryRecord, EncryptedAuditStore,
+};
 use tauri::{Manager, State};
 
 /// Shared state: the active workspace root the audit store opens under. `None`
@@ -120,6 +122,30 @@ pub async fn audit_verify_integrity(
     tokio::task::spawn_blocking(move || -> anyhow::Result<AuditChainVerification> {
         let store = EncryptedAuditStore::open(&workspace)?;
         store.verify_chain()
+    })
+    .await
+    .map_err(|e| format!("join: {e}"))?
+    .map_err(|e| e.to_string())
+}
+
+/// Repair a seal-missing (tamper-evident-degraded) audit log. Explicit and
+/// acknowledged: it re-seals the surviving prefix but FIRST writes a permanent
+/// anomaly record into the new chain, so the loss is recorded honestly rather
+/// than silently papered over. Returns what was re-sealed. Errors (surfaced to
+/// the renderer) if the store is not in the seal-missing state.
+#[tauri::command]
+pub async fn audit_repair_seal(
+    state: State<'_, AuditState>,
+) -> Result<AuditChainRepairReport, String> {
+    let workspace = state
+        .workspace
+        .lock()
+        .await
+        .clone()
+        .ok_or("audit workspace not set")?;
+    tokio::task::spawn_blocking(move || -> anyhow::Result<AuditChainRepairReport> {
+        let store = EncryptedAuditStore::open(&workspace)?;
+        store.repair()
     })
     .await
     .map_err(|e| format!("join: {e}"))?
