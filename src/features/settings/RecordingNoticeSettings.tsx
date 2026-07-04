@@ -24,6 +24,11 @@ export function RecordingNoticeSettings() {
   // Subscribe to the actual values so the picker + textarea reflect changes
   // immediately (codex-review R3).
   const { policy, rawScript: script } = useNoticeSettings();
+  // Notice Card settings (subscribed so the controls reflect changes live).
+  const cardEnabled = useSettingsStore((s) => s.getSetting('meetings.noticeCardEnabled')) !== false;
+  const cardNameRaw = useSettingsStore((s) => s.getSetting('meetings.noticeCardNameTemplate'));
+  const cardName = typeof cardNameRaw === 'string' ? cardNameRaw : '';
+  const evidenceRule = useSettingsStore((s) => s.getSetting('meetings.noticeEvidenceRule')) === 'both' ? 'both' : 'either';
 
   // Literal t() keys (kept out of a lookup so the i18n extractor sees them).
   const cardTitle = (value: NoticePolicy) =>
@@ -116,6 +121,71 @@ export function RecordingNoticeSettings() {
         <p style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)', margin: 0 }}>
           {t('meetings.notice.settings-script-default-label')} “{t('meetings.notice.default-script')}”
         </p>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <span style={{ fontSize: 'var(--kp-font-sm)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)' }}>
+          {t('meetings.notice-card.settings-heading')}
+        </span>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 'var(--kp-font-sm)', color: 'var(--kp-navy)' }}>
+          <input
+            type="checkbox"
+            data-testid="notice-card-enabled"
+            checked={cardEnabled}
+            onChange={(e) => { setSetting('meetings.noticeCardEnabled', e.target.checked); }}
+          />
+          {t('meetings.notice-card.settings-enabled-label')}
+        </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 'var(--kp-font-xs)', color: 'var(--kp-navy)' }}>
+          {t('meetings.notice-card.settings-name-label')}
+          <input
+            type="text"
+            data-testid="notice-card-name-template"
+            value={cardName}
+            placeholder="⏺ Recording Notice — {advisor}"
+            onChange={(e) => { setSetting('meetings.noticeCardNameTemplate', e.target.value); }}
+            style={{
+              fontSize: 'var(--kp-font-sm)',
+              fontFamily: 'inherit',
+              color: 'var(--kp-navy)',
+              border: '1px solid var(--kp-divider)',
+              borderRadius: 'var(--radius-md)',
+              padding: '6px 10px',
+            }}
+          />
+        </label>
+        <span style={{ fontSize: 'var(--kp-font-xs)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)', marginTop: 2 }}>
+          {t('meetings.notice-card.settings-evidence-label')}
+        </span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {(['either', 'both'] as const).map((value) => {
+            const selected = evidenceRule === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                data-testid={`notice-evidence-${value}`}
+                aria-pressed={selected}
+                onClick={() => { setSetting('meetings.noticeEvidenceRule', value); }}
+                style={{
+                  textAlign: 'left',
+                  border: `1px solid ${selected ? 'var(--kp-accent)' : 'var(--kp-divider)'}`,
+                  background: selected ? 'var(--kp-accent-soft)' : 'transparent',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '8px 10px',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  fontSize: 'var(--kp-font-sm)',
+                  color: 'var(--kp-navy)',
+                }}
+              >
+                {value === 'both'
+                  ? t('meetings.notice-card.settings-evidence-both')
+                  : t('meetings.notice-card.settings-evidence-either')}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

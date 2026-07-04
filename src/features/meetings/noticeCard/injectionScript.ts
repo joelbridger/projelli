@@ -56,6 +56,14 @@ export function buildInjectionScript(
 
   return `(function () {
   try {
+    // Defense in depth. The companion window is already capability-isolated (its
+    // label is in NO capability, so no Tauri command is reachable), but strip
+    // any injected IPC bridge globals too so the untrusted meeting page cannot
+    // even reference them. This runs before the page's own scripts.
+    try { delete window.__TAURI_INTERNALS__; } catch (e) {}
+    try { delete window.__TAURI__; } catch (e) {}
+    try { delete window.__TAURI_INVOKE__; } catch (e) {}
+    try { delete window.__TAURI_METADATA__; } catch (e) {}
 ${camera}
     var DISPLAY_NAME = ${displayName};
     var TITLE_PREFIX = ${prefix};

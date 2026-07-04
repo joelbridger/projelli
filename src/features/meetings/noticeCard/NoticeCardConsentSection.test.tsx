@@ -48,6 +48,12 @@ describe('NoticeCardConsentSection', () => {
     expect(screen.queryByTestId('notice-card-toggle')).toBeNull();
   });
 
+  it('shows a GENERIC fallback (not the Meet reason) for an unknown platform', () => {
+    render(<NoticeCardConsentSection offer={{ platform: 'other' }} checked onToggle={() => {}} />);
+    expect(screen.getByTestId('notice-card-unsupported-fallback')).toBeTruthy();
+    expect(screen.queryByTestId('notice-card-meet-fallback')).toBeNull();
+  });
+
   it('shows a manual paste input when there is no auto offer', () => {
     const onManual = vi.fn();
     render(<NoticeCardConsentSection checked={false} onToggle={() => {}} onManualUrlChange={onManual} />);

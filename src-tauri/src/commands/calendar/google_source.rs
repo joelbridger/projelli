@@ -56,7 +56,11 @@ impl CalendarSource for GoogleCalendarSource {
         let mut out = Vec::new();
         loop {
             let mut url = format!(
-                "{}/calendars/primary/events?singleEvents=true&maxResults=250\
+                // conferenceDataVersion=1 makes Google return the structured
+                // `conferenceData` block, so we can read the meeting join URL
+                // (e.g. Zoom added via a Google Calendar add-on) for the Notice
+                // Card, not just the legacy `hangoutLink` (Meet).
+                "{}/calendars/primary/events?singleEvents=true&maxResults=250&conferenceDataVersion=1\
                  &timeMin={}&timeMax={}",
                 self.base_url,
                 crate::commands::mail::gmail::oauth::urlencoding_encode(from_utc),

@@ -60,12 +60,16 @@ export function NoticeCardConsentSection({
 }: NoticeCardConsentSectionProps) {
   const { t } = useTranslation();
 
-  // Google Meet (or any URL we can't drive): honest fallback, no toggle.
+  // A platform we can't drive a guest join for: honest fallback, no toggle.
+  // Google Meet has its own reason (needs a signed-in account); any other
+  // unknown link (Webex, etc.) gets a generic message so we never state the
+  // wrong reason.
   if (offer && !canAutoJoin(offer.platform)) {
+    const isMeet = offer.platform === 'meet';
     return (
-      <div data-testid="notice-card-meet-fallback" style={boxStyle}>
+      <div data-testid={isMeet ? 'notice-card-meet-fallback' : 'notice-card-unsupported-fallback'} style={boxStyle}>
         <span style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-navy)' }}>
-          {t('meetings.notice-card.meet-fallback')}
+          {isMeet ? t('meetings.notice-card.meet-fallback') : t('meetings.notice-card.unsupported-fallback')}
         </span>
       </div>
     );

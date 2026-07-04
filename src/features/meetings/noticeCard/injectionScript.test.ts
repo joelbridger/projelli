@@ -25,12 +25,15 @@ describe('buildInjectionScript', () => {
     expect(src).toContain('detectPhase('); // Teams adapter method serialized in
   });
 
-  it('reports state through the document.title channel (no IPC bridge)', () => {
+  it('reports state through the document.title channel and strips the IPC bridge', () => {
     const src = buildInjectionScript(cfg());
     expect(src).toContain(NOTICE_CARD_TITLE_PREFIX);
-    // The page is never handed a Tauri/IPC handle by us.
-    expect(src).not.toContain('__TAURI__');
+    // We never CALL invoke, and we actively delete any injected IPC bridge so
+    // the untrusted meeting page cannot reference it (defense in depth on top of
+    // the capability isolation).
     expect(src).not.toContain('invoke(');
+    expect(src).toContain('delete window.__TAURI_INTERNALS__');
+    expect(src).toContain('delete window.__TAURI__');
   });
 
   it('re-asserts the status title when the meeting page overwrites document.title', () => {

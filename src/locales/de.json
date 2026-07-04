@@ -2194,7 +2194,14 @@
       "save-bg-heading": "Hintergrundbild für Aufzeichnung",
       "save-bg-help": "Speichern Sie ein virtuelles Hintergrundbild, das anzeigt, dass das Meeting aufgezeichnet wird. Laden Sie es als Teams- oder Zoom-Hintergrund für Meetings hoch, denen die Hinweiskarte nicht beitreten kann.",
       "save-bg-button": "Hintergrundbild für Aufzeichnung speichern…",
-      "bg-label": "AUFZEICHNUNG läuft"
+      "bg-label": "AUFZEICHNUNG läuft",
+      "unsupported-fallback": "Dieser Meeting-Link ist keiner, dem die Hinweiskarte beitreten kann. Sagen Sie den Aufzeichnungshinweis stattdessen laut an.",
+      "settings-heading": "Hinweiskarte",
+      "settings-enabled-label": "Die Hinweiskarte für Online-Meetings anbieten",
+      "settings-name-label": "Name der Hinweiskarte ({advisor} für Ihren Vornamen verwenden)",
+      "settings-evidence-label": "Was einen strengen Aufzeichnungshinweis erfüllt",
+      "settings-evidence-either": "Entweder ein gesprochener Hinweis oder die Karte während des gesamten Meetings",
+      "settings-evidence-both": "Sowohl ein gesprochener Hinweis als auch die Karte während des gesamten Meetings"
     }
   },
   "spine": {

@@ -62,7 +62,7 @@ describe('en.json structure snapshot', () => {
         "marketplace": 14,
         "matter": 206,
         "media": 81,
-        "meetings": 130,
+        "meetings": 137,
         "memory": 6,
         "model-download": 9,
         "onboarding": 65,
@@ -184,7 +184,12 @@ describe('en.json structure snapshot', () => {
     //       self-attest, the record-pill status line, the visual card copy
     //       (title/lines/footer/timer label), and the "save recording
     //       background image" settings action).
-    expect(flat.length).toBe(1278);
+    // +7 = Notice Card review follow-ups (Codex R5): meetings.notice-card
+    //      unsupported-fallback (generic non-Meet fallback copy) + the 6
+    //      settings-* keys wiring the Notice Card settings (enabled toggle,
+    //      name template, evidence-rule either/both) into the Privacy pane so
+    //      they're actually changeable from the UI.
+    expect(flat.length).toBe(1285);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

@@ -1623,7 +1623,14 @@
       "save-bg-heading": "Recording background image",
       "save-bg-help": "Save a virtual background image that says the meeting is being recorded. Upload it as your Teams or Zoom background for meetings where the notice card can't join.",
       "save-bg-button": "Save recording background image…",
-      "bg-label": "RECORDING in progress"
+      "bg-label": "RECORDING in progress",
+      "unsupported-fallback": "This meeting link isn't one the notice card can join, so say the recording notice aloud instead.",
+      "settings-heading": "Notice Card",
+      "settings-enabled-label": "Offer the Notice Card for online meetings",
+      "settings-name-label": "Notice Card name (use {advisor} for your first name)",
+      "settings-evidence-label": "What satisfies a Strict recording notice",
+      "settings-evidence-either": "Either a spoken notice or full-meeting card presence",
+      "settings-evidence-both": "Both a spoken notice and full-meeting card presence"
     }
   },
   "spine": {
