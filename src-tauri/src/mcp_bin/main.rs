@@ -376,10 +376,23 @@ pub fn resolve_workspace_path(workspace: &Path, relative: &str) -> Result<Resolv
     // `ResolvedWorkspacePath`'s doc comment for why callers need each one.
     let io_path = lantern_lib::commands::pathguard::resolve_creatable(&canon_ws, relative, &canon_ws)
         .map_err(|e| format!("path escapes workspace root: {relative} ({e})"))?;
-    Ok(ResolvedWorkspacePath {
-        io_path,
-        lexical_path: workspace.join(relative),
-    })
+    // Build `lexical_path` from the same NORMALIZED components `io_path`'s
+    // walk used (skipping `.` segments), not a raw `workspace.join(relative)`
+    // — a relative string like `./Clients/A/notes.md` or
+    // `Clients/./A/notes.md` is valid and resolves fine, but joining it
+    // verbatim would leave a literal `.` component in `lexical_path` that
+    // `McpAccessState`'s grant comparison (a lexical string match against
+    // matter `folder_paths`, which never contain `.` segments) would then
+    // fail to match — denying access to an otherwise legitimately granted
+    // file. `relative` is already proven `..`-free and absolute-free by the
+    // scan above, so only `Component::Normal` segments can remain here.
+    let mut lexical_path = workspace.to_path_buf();
+    for component in Path::new(relative).components() {
+        if let std::path::Component::Normal(seg) = component {
+            lexical_path.push(seg);
+        }
+    }
+    Ok(ResolvedWorkspacePath { io_path, lexical_path })
 }
 
 // Keep the embedder / store / extractor references alive so the compiler
@@ -433,6 +446,27 @@ mod tests {
         let p = resolve_workspace_path(&ws, "notes.md").expect("should resolve");
         assert!(p.lexical_path.ends_with("notes.md"));
         assert!(p.io_path.ends_with("notes.md"));
+    }
+
+    /// A `.` segment inside an otherwise-legitimate relative path (e.g.
+    /// `Clients/./A/notes.md`, which a client could produce via naive path
+    /// joining) is harmless and must resolve — and `lexical_path` must come
+    /// out with the `.` stripped, matching `io_path`'s own normalization,
+    /// so a grant comparison against matter `folder_paths` (which never
+    /// contain a literal `.` segment) still matches.
+    #[test]
+    fn lexical_path_strips_current_dir_segments_to_match_io_path_normalization() {
+        let ws = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(ws.path().join("Clients/A")).unwrap();
+        std::fs::write(ws.path().join("Clients/A/notes.md"), b"hi").unwrap();
+
+        let p = resolve_workspace_path(ws.path(), "Clients/./A/notes.md")
+            .expect("a '.' segment must not block resolution");
+        assert_eq!(p.lexical_path, ws.path().join("Clients/A/notes.md"));
+
+        let p2 = resolve_workspace_path(ws.path(), "./Clients/A/notes.md")
+            .expect("a leading './' must not block resolution");
+        assert_eq!(p2.lexical_path, ws.path().join("Clients/A/notes.md"));
     }
 
     #[test]

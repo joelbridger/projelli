@@ -72,7 +72,14 @@ type DeleteAudit<'a> = &'a mut dyn FnMut(&SweepDeletion, &[String]) -> Result<()
 /// `remove_dir_all` doesn't know about a "refused" entry and would delete it
 /// anyway, silently, without ever calling `on_delete` — see `remove_dir`.
 fn remove_file(path: &Path, kind: &str, canon_ws: &Path, out: &mut SweepOutcome, rag_ids: &[String], on_delete: DeleteAudit) -> bool {
-    if !path.exists() {
+    // `symlink_metadata` (no-follow), not `exists()` (follows): a BROKEN
+    // symlink (target doesn't exist) makes `exists()` return false even
+    // though the link itself is still a real directory entry. Treating
+    // that as "nothing here" would skip the containment check entirely and
+    // let the caller's follow-up `remove_dir_all` unlink it later, silently
+    // and unaudited — exactly the gap `contained()`'s no-follow walk and
+    // this function's bool return exist to close.
+    if path.symlink_metadata().is_err() {
         return true;
     }
     if !contained(path, canon_ws) {
@@ -704,6 +711,55 @@ mod tests {
         assert!(
             !audited_paths.iter().any(|p| p.contains("escape.bin")),
             "the symlink must never be reported as an audited deletion: {audited_paths:?}"
+        );
+        assert!(
+            out.errors.iter().any(|e| e.contains("outside workspace") || e.contains("symlink")),
+            "the refusal should be reported: {:?}", out.errors
+        );
+    }
+
+    /// A BROKEN (dangling) symlink — its target doesn't exist — inside
+    /// `.capture` must be treated the same as a live one: refused, not
+    /// silently swept by the follow-up `remove_dir_all`. `Path::exists()`
+    /// FOLLOWS symlinks and returns false for a dangling one, which would
+    /// make `remove_file`'s old `!path.exists()` early-return treat it as
+    /// "nothing here" and skip the containment check entirely, letting
+    /// `remove_dir_all` unlink it later without ever calling `on_delete`.
+    #[cfg(unix)]
+    #[test]
+    fn sweep_leaves_capture_dir_in_place_when_it_contains_a_broken_symlink() {
+        let ws = tempdir().unwrap();
+        let now = now_ms();
+
+        let matter = ws.path().join("Clients/Evil");
+        let meeting = make_meeting(&matter, "2026-05-01-x", 40, now, true);
+        // Target deliberately does not exist — a dangling symlink.
+        std::os::unix::fs::symlink(
+            ws.path().join("nonexistent-target"),
+            meeting.join(".capture/broken.bin"),
+        )
+        .unwrap();
+        assert!(!meeting.join(".capture/broken.bin").exists(), "sanity check: the symlink must be broken (exists() follows and reports false)");
+
+        let mut audited_paths: Vec<String> = Vec::new();
+        let mut out = SweepOutcome::default();
+        let canon_ws = ws.path().canonicalize().unwrap();
+        sweep_matter_folder(&matter, &canon_ws, "summary-only", 30, now, &mut out, &mut |d, _ids| {
+            audited_paths.push(d.path.clone());
+            Ok(())
+        });
+
+        assert!(
+            meeting.join(".capture").exists(),
+            ".capture must not be bulk-removed while a refused broken symlink is still inside it"
+        );
+        assert!(
+            meeting.join(".capture/broken.bin").symlink_metadata().is_ok(),
+            "the broken symlink entry itself must still be there, not silently swept by remove_dir_all"
+        );
+        assert!(
+            !audited_paths.iter().any(|p| p.contains("broken.bin")),
+            "the broken symlink must never be reported as an audited deletion: {audited_paths:?}"
         );
         assert!(
             out.errors.iter().any(|e| e.contains("outside workspace") || e.contains("symlink")),
