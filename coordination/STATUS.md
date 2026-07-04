@@ -1,5 +1,9 @@
 # Lantern-Plus Coordination STATUS
 
+## UPDATE 2026-07-04 ~09:10 — relay #7 seated
+- Coordinator-7 (Fable) seated per COORDINATOR-HANDOFF.md. All 6 monitors re-armed (fleet finish-watch, RAM+disk watchdog, bulletin diff, stale-idle, build-overtime, strategic-check). Baseline sweep done: w3ux WORKING (implementing polish, ~30m in, added consent-error inline Playwright test), qafix2 WORKING (re-verifying the QA-8 spec after the A/B routing; stale-vite-server dispute in progress — verify its re-handoff with a bare exit code, fresh server). Coordinator sessions 5+6 closed (both finished, idle). Tip 61b76e7c pushed & clean. RAM 52G avail; disk 633G(/)+1.3T(devcache) free.
+- Housekeeping: two stray untracked bench-smoke evidence dirs in the main checkout (legion-20260704-055222 + wave2-timing-probe, ~2.5M) — routing to lp/windows-smoke-evidence via ~/lp-bench.
+
 ## UPDATE 2026-07-04 ~08:40 — 🎬 MEETINGS TAB ASSEMBLED + MERGED; UX gate running (relay #6)
 - **Wave-3 Meetings tab is BUILT + merged** (tip has both): w3b transcription engine (@9661f9be) + w3c surface (record pill, per-client Meetings tab between Email/Activity, MeetingEntry notes+transcript+audio-seek, needs-review queue, consent dialog+ledger, dictation filing), wired to the real transcribe_meeting. Independent review + rebase caught 4 consent/timing metadata-integrity bugs + dup-audit + UI-timing bugs, all fixed pre-merge.
 - **Also merged:** qafix1 (QA-5 new-client scoped folder restores isolation on first action; QA-6 Ask responsive layout — composer can't collapse). Both independently codex-reviewed clean.
