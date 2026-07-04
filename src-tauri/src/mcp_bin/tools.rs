@@ -1287,11 +1287,11 @@ mod tests {
     }
 
     #[test]
-    fn search_hit_under_keepance_internal_dir_is_dropped_even_when_root_matter_is_granted() {
+    fn search_hit_under_lantern_internal_dir_is_dropped_even_when_root_matter_is_granted() {
         let tmp = tempfile::tempdir().expect("tmpdir");
-        let keepance_dir = tmp.path().join(lantern_lib::identity::WORKSPACE_DATA_DIR);
-        std::fs::create_dir_all(&keepance_dir).unwrap();
-        let scope_path = keepance_dir.join("mcp-session-scope.json");
+        let lantern_dir = tmp.path().join(lantern_lib::identity::WORKSPACE_DATA_DIR);
+        std::fs::create_dir_all(&lantern_dir).unwrap();
+        let scope_path = lantern_dir.join("mcp-session-scope.json");
         std::fs::write(&scope_path, r#"{"client":"Other Client"}"#).unwrap();
 
         let ctx = test_ctx(tmp.path().to_path_buf());

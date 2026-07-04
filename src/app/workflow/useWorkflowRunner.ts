@@ -385,7 +385,7 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
       // Provider assignment — construct the concrete Provider instance from
       // the resolution result. All blocking cases already returned above.
       let provider: Provider;
-      if (providerResolution.kind === 'keepance-local') {
+      if (providerResolution.kind === 'lantern-local') {
         // F-503 — embedded Advisor Prep Hero Local AI (private mode). Fully on-device,
         // zero cost, zero network egress. The model id is the provider's own
         // default; only AI Rules are threaded in.
@@ -459,7 +459,7 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
               : providerResolution.provider
           : providerResolution.kind === 'ollama'
             ? 'ollama'
-            : providerResolution.kind === 'keepance-local'
+            : providerResolution.kind === 'lantern-local'
               ? 'keepance-local'
               : 'mock';
       const getWorkflowAuditScope = (): AuditScope => {

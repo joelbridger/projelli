@@ -63,7 +63,7 @@ mod tests {
 
     #[test]
     fn missing_file_returns_error() {
-        let res = sha256_file_blocking("/definitely/does/not/exist/keepance-test.bin");
+        let res = sha256_file_blocking("/definitely/does/not/exist/lantern-test.bin");
         assert!(res.is_err());
     }
 }

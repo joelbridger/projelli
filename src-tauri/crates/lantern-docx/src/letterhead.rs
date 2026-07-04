@@ -952,7 +952,7 @@ mod tests {
             "7".into(),
             Comment {
                 id: "7".into(),
-                author: "Keepance AI".into(),
+                author: "Lantern AI".into(),
                 date: "2026-06-11T00:00:00Z".into(),
                 initials: None,
                 text: "Verify this clause.".into(),

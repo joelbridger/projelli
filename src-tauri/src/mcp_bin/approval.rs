@@ -15,7 +15,7 @@
 //    write (path + preview of content + old content when available).
 //
 // 2. The server emits a single-line notification on stderr:
-//      {"keepance":"approval_request","token":"<token>","path":"<rel>"}
+//      {"lantern":"approval_request","token":"<token>","path":"<rel>"}
 //    (JSON so the parent can parse without regex; one line per request so
 //    line-buffering works cleanly.)
 //

@@ -201,7 +201,7 @@ export interface Entitlement {
  * signals. A perpetual flag or an old one-time `type` grandfathers regardless
  * of date, so a missing/empty `purchasedAt` never accidentally strips anyone.
  */
-export const KEEPANCE_3_0_LAUNCH = new Date('2026-07-01T00:00:00.000Z');
+export const LANTERN_3_0_LAUNCH = new Date('2026-07-01T00:00:00.000Z');
 
 /**
  * How long we honor a last-known-good entitlement when the license server is
@@ -288,7 +288,7 @@ export function isGrandfatheredLicense(
   // Purchase-date signal: bought strictly before the 3.0 boundary. We compare
   // against `now` only to avoid treating a clearly-bogus future date as old.
   const purchased = toDate(license.purchasedAt);
-  if (purchased && purchased.getTime() < KEEPANCE_3_0_LAUNCH.getTime() && purchased.getTime() <= now.getTime()) {
+  if (purchased && purchased.getTime() < LANTERN_3_0_LAUNCH.getTime() && purchased.getTime() <= now.getTime()) {
     return true;
   }
   return false;

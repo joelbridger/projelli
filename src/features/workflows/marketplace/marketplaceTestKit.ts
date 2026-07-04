@@ -40,7 +40,7 @@ function buildService({
   const options: MarketplaceServiceOptions = {
     repoUrl: 'https://example.test',
     catalogPath: 'catalog.json',
-    cachePath: '/test-workspace/.keepance/cache/templates.json',
+    cachePath: '/test-workspace/.lantern/cache/templates.json',
     installRoot,
     fs,
     provenance: 'community',

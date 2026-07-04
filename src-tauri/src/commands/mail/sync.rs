@@ -879,9 +879,9 @@ mod tests {
         let mail_dir = dir.path().join("Mail").join("inbox");
         std::fs::create_dir_all(&mail_dir).unwrap();
         std::fs::write(mail_dir.join("m1.md"), "hello").unwrap();
-        let keepance_dir = dir.path().join(".lantern");
-        std::fs::create_dir_all(&keepance_dir).unwrap();
-        std::fs::write(keepance_dir.join("mail.db"), b"SQLite format 3\0...").unwrap();
+        let lantern_dir = dir.path().join(".lantern");
+        std::fs::create_dir_all(&lantern_dir).unwrap();
+        std::fs::write(lantern_dir.join("mail.db"), b"SQLite format 3\0...").unwrap();
         assert!(dir.path().join(".lantern/mail.db").exists());
 
         migrate_plaintext(dir.path());
@@ -898,9 +898,9 @@ mod tests {
     fn migrate_plaintext_deletes_mail_db_even_without_mail_dir() {
         let dir = tempfile::TempDir::new().unwrap();
         // No Mail/ dir, but mail.db exists (partial cleanup scenario).
-        let keepance_dir = dir.path().join(".lantern");
-        std::fs::create_dir_all(&keepance_dir).unwrap();
-        std::fs::write(keepance_dir.join("mail.db"), b"SQLite format 3\0...").unwrap();
+        let lantern_dir = dir.path().join(".lantern");
+        std::fs::create_dir_all(&lantern_dir).unwrap();
+        std::fs::write(lantern_dir.join("mail.db"), b"SQLite format 3\0...").unwrap();
 
         migrate_plaintext(dir.path());
 
@@ -921,11 +921,11 @@ mod tests {
         let mail_dir = dir.path().join("Mail");
         std::fs::create_dir_all(&mail_dir).unwrap();
         std::fs::write(mail_dir.join("m1.md"), "hello").unwrap();
-        let keepance_dir = dir.path().join(".lantern");
-        std::fs::create_dir_all(&keepance_dir).unwrap();
-        std::fs::write(keepance_dir.join("mail.db"), b"SQLite format 3\0...").unwrap();
-        std::fs::write(keepance_dir.join("mail-enc.db"), b"SQLCipher DB").unwrap();
-        let blobs_dir = keepance_dir.join("mail").join("blobs");
+        let lantern_dir = dir.path().join(".lantern");
+        std::fs::create_dir_all(&lantern_dir).unwrap();
+        std::fs::write(lantern_dir.join("mail.db"), b"SQLite format 3\0...").unwrap();
+        std::fs::write(lantern_dir.join("mail-enc.db"), b"SQLCipher DB").unwrap();
+        let blobs_dir = lantern_dir.join("mail").join("blobs");
         std::fs::create_dir_all(&blobs_dir).unwrap();
         std::fs::write(blobs_dir.join("m1.enc"), b"ciphertext").unwrap();
 
@@ -961,9 +961,9 @@ mod tests {
         let mail_dir = workspace.join("Mail");
         std::fs::create_dir_all(&mail_dir).unwrap();
         std::fs::write(mail_dir.join("m1.md"), "hello").unwrap();
-        let keepance_dir = workspace.join(".lantern");
-        std::fs::create_dir_all(&keepance_dir).unwrap();
-        std::fs::write(keepance_dir.join("mail.db"), b"SQLite format 3\0...").unwrap();
+        let lantern_dir = workspace.join(".lantern");
+        std::fs::create_dir_all(&lantern_dir).unwrap();
+        std::fs::write(lantern_dir.join("mail.db"), b"SQLite format 3\0...").unwrap();
 
         migrate_plaintext(&workspace);
 

@@ -41,7 +41,7 @@ if (!rootElement) {
 
 // Demo build: tell App to auto-open the pre-seeded OPFS workspace instead of
 // showing the folder picker. App reads this flag on mount.
-(window as unknown as { __keepanceDemo?: boolean }).__keepanceDemo = true;
+(window as unknown as { __lanternDemo?: boolean }).__lanternDemo = true;
 
 async function bootstrapLocale(): Promise<void> {
   const userLang = useSettingsStore.getState().language;

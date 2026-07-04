@@ -1,7 +1,7 @@
 // Master-key management for the encrypted vector store (chunk text at rest).
 //
 // The vector store gets its OWN 32-byte master key, stored in the OS keychain
-// under service = "keepance-vectors-enc", key = "master-key-v1". It is kept
+// under service = "lantern-vectors-enc", key = "master-key-v1". It is kept
 // cryptographically independent of the mail and audit keys (compromise or
 // rotation of one store does not touch the others). The
 // generate-store-return-on-first-use flow mirrors

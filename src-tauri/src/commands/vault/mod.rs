@@ -37,8 +37,8 @@ use zeroize::Zeroize;
 
 /// Build the keychain service name for a given workspace id.
 ///
-/// Mirrors `com.keepance.mail-enc` / `com.keepance.vectors-enc` etc., keeping
-/// all Advisor Prep Hero keychain entries under the `com.keepance.*` namespace.
+/// Mirrors `com.lantern.mail-enc` / `com.lantern.vectors-enc` etc., keeping
+/// all Advisor Prep Hero keychain entries under the `com.lantern.*` namespace.
 fn vmk_service(id: &str) -> String {
     crate::identity::vault_keychain_service(id)
 }

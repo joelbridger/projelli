@@ -77,7 +77,7 @@ fn query_cache() -> &'static Mutex<lru::LruCache<String, Arc<Vec<f32>>>> {
 /// Resolve the cache directory used by fastembed. If a bundled copy of the
 /// model exists under `src-tauri/resources/embeddings/` (Phase 4 prefetch
 /// goal), we point fastembed at it so first-launch is offline-friendly.
-/// Otherwise we fall back to the system data dir under `keepance/models`.
+/// Otherwise we fall back to the system data dir under `lantern/models`.
 pub fn resolve_cache_dir() -> PathBuf {
     // 1. Bundled copy adjacent to the executable (production). Tauri puts
     //    `bundle.resources` next to the binary — check `<exe_dir>/resources/embeddings`

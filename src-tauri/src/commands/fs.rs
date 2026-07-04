@@ -142,7 +142,7 @@ mod open_in_explorer_tests {
     /// regression in the production guard is caught here.
     #[test]
     fn nonexistent_path_returns_err_not_default() {
-        let p = std::path::Path::new("/this/path/absolutely/does/not/exist/keepance-test-9f8a");
+        let p = std::path::Path::new("/this/path/absolutely/does/not/exist/lantern-test-9f8a");
         let result = validate_explorer_path(p);
         assert!(result.is_err(), "expected Err for missing path, got Ok");
         let msg = result.unwrap_err();
@@ -153,7 +153,7 @@ mod open_in_explorer_tests {
         );
         // Must name the path.
         assert!(
-            msg.contains("keepance-test-9f8a"),
+            msg.contains("lantern-test-9f8a"),
             "error message should include the path, got: {msg}"
         );
     }
@@ -172,7 +172,7 @@ mod open_in_explorer_tests {
         // Create a real temp file so we can assert is_file == true.
         use std::io::Write;
         let mut tmp = std::env::temp_dir();
-        tmp.push("keepance-open-explorer-test.tmp");
+        tmp.push("lantern-open-explorer-test.tmp");
         {
             let mut f = std::fs::File::create(&tmp).expect("could not create temp file");
             f.write_all(b"test").expect("could not write temp file");
@@ -189,7 +189,7 @@ mod open_in_explorer_tests {
     /// path does not exist (the `validate_explorer_path` guard fires first).
     #[test]
     fn open_in_explorer_with_nonexistent_path_returns_err() {
-        let result = open_in_explorer("/this/does/not/exist/keepance-explorer-guard");
+        let result = open_in_explorer("/this/does/not/exist/lantern-explorer-guard");
         assert!(result.is_err(), "open_in_explorer must Err for missing path");
         let msg = result.unwrap_err();
         assert!(msg.contains("could not find"), "got: {msg}");
@@ -394,7 +394,7 @@ fn djb2_hash(bytes: &[u8]) -> u64 {
 ///   - Key = `<djb2(canonical_path)>_<mtime_unix_seconds>` → deterministic for
 ///     an unchanged file, automatically invalidated on edit because the mtime
 ///     moves forward.
-///   - Location = `<tempdir>/keepance-ppt-cache/<key>.pdf`
+///   - Location = `<tempdir>/lantern-ppt-cache/<key>.pdf`
 ///   - If the file already exists AND is newer than the source, skip
 ///     conversion and return the cached path immediately.
 ///

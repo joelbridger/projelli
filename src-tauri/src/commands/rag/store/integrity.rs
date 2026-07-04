@@ -16,7 +16,7 @@ fn index_version_path(workspace_root: &Path) -> PathBuf {
 /// the stale rows are still on disk, so retrieval could cite the old version.
 ///
 /// LOCATION (decorrelated from the failing dir): this file lives in the
-/// `.keepance/` PARENT dir, NOT inside `.lantern/vectors/`. The tombstone is
+/// `.lantern/` PARENT dir, NOT inside `.lantern/vectors/`. The tombstone is
 /// written precisely WHEN a LanceDB delete in the vectors dataset dir failed
 /// (lock contention / a locked or unwritable dataset). Writing the tombstone
 /// into that SAME dataset dir would likely fail for the same reason, defeating

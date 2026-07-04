@@ -424,7 +424,7 @@ mod tests {
     /// Provision the reranker into the REAL user-writable cache dir (the one
     /// `reranker::resolve_cache_dir` reads), so the retrieval-quality eval can
     /// find it. Run once locally before the eval:
-    ///   cargo test -p keepance --lib provision_reranker_into_writable_cache \
+    ///   cargo test -p lantern --lib provision_reranker_into_writable_cache \
     ///     -- --ignored --nocapture
     #[test]
     #[ignore]
@@ -450,7 +450,7 @@ mod tests {
     }
 
     /// REAL network download into a temp dir, then a real reranker init from
-    /// that cache. Manual: cargo test -p keepance --test ... -- --ignored
+    /// that cache. Manual: cargo test -p lantern --test ... -- --ignored
     #[test]
     #[ignore]
     fn real_reranker_download_roundtrip() {

@@ -1,7 +1,7 @@
 // Advisor Prep Hero Local AI provider — the embedded llama.cpp engine ("Advisor Prep Hero Local AI").
 //
 // Unlike OllamaProvider (which talks to a daemon the USER installed), this talks
-// to the `llama-server` sidecar that KEEPANCE itself bundles, downloads a model
+// to the `llama-server` sidecar that LANTERN itself bundles, downloads a model
 // for, and manages via Rust commands (see src-tauri/src/commands/local_llm/ and
 // src-tauri/src/sidecars/llama_server.rs).
 //
@@ -34,12 +34,12 @@ import { localLlmSidecarStart } from '@/platform/utils/tauri-commands';
 
 /** Default model id for the embedded engine. The llama-server serves whichever
  *  GGUF was loaded at start; this id is cosmetic (display + context-limit map). */
-export const KEEPANCE_LOCAL_DEFAULT_MODEL = 'qwen3-4b-instruct-2507';
+export const LANTERN_LOCAL_DEFAULT_MODEL = 'qwen3-4b-instruct-2507';
 
 /** The working context window the sidecar actually runs with (mirrors the Rust
  *  `--ctx-size 16384`). Reported in metadata so the UI shows the true window,
  *  not the model's theoretical 256K maximum. */
-export const KEEPANCE_LOCAL_CONTEXT_WINDOW = 16384;
+export const LANTERN_LOCAL_CONTEXT_WINDOW = 16384;
 
 export interface AppLocalProviderConfig {
   model?: string;
@@ -135,7 +135,7 @@ export class AppLocalProvider implements Provider {
   private endpoint: string | null = null;
 
   constructor(config: AppLocalProviderConfig = {}) {
-    this.model = config.model ?? KEEPANCE_LOCAL_DEFAULT_MODEL;
+    this.model = config.model ?? LANTERN_LOCAL_DEFAULT_MODEL;
     this.aiRules = config.aiRules;
     this.requestTimeoutMs = config.timeout ?? DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS;
     this.startSidecar = config.startSidecar ?? localLlmSidecarStart;
@@ -428,7 +428,7 @@ IMPORTANT: Respond ONLY with the JSON object.`;
         vision: false,
         // The sidecar is started with --ctx-size 16384; report that working
         // window (not the model's 256K theoretical max).
-        maxContextTokens: KEEPANCE_LOCAL_CONTEXT_WINDOW,
+        maxContextTokens: LANTERN_LOCAL_CONTEXT_WINDOW,
       },
     };
   }

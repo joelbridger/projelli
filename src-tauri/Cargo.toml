@@ -24,7 +24,7 @@ default-run = "lantern"
 name = "lantern_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
-# Keepance MCP server (M4, v1.5). Hand-rolled JSON-RPC 2.0 server over stdio
+# Lantern MCP server (M4, v1.5). Hand-rolled JSON-RPC 2.0 server over stdio
 # that exposes the workspace (list / read / search / write / memory facts) to
 # any MCP-compatible client — Claude Desktop, Cursor, Zed, etc. The binary
 # lives in its own sub-folder so its helper modules (`protocol`, `tools`,

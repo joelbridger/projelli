@@ -1,4 +1,4 @@
-//! In-memory document object model (DOM) for the Keepance OOXML engine.
+//! In-memory document object model (DOM) for the Lantern OOXML engine.
 //!
 //! This is the production promotion of the spike's `model.rs`, hardened for
 //! real documents. The shape is the **canonical JSON contract** the React
@@ -38,7 +38,7 @@
 //!
 //! 3. **Round-trip stability.** Combined with the deterministic serializer,
 //!    `parse -> serialize -> parse` is model-stable and (for the parts we own)
-//!    byte-stable, which plays well with Keepance's version-history feature.
+//!    byte-stable, which plays well with Lantern's version-history feature.
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;

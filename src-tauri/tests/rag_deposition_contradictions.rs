@@ -34,7 +34,7 @@
 //!
 //! NOTE: under the Option B gate the embedder NEVER downloads implicitly —
 //! pre-provision the e5-small cache exactly as rag_matter_scope.rs documents
-//! (this rig: ~/.local/share/keepance/models/e5-small is populated).
+//! (this rig: ~/.local/share/lantern/models/e5-small is populated).
 
 use lantern_lib::commands::rag::chunker::Chunk;
 use lantern_lib::commands::rag::store::{self, lookup_by_id, SourceType, PRIVILEGE_NONE};

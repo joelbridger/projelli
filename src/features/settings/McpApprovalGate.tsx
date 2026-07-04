@@ -2,7 +2,7 @@
  * McpApprovalGate: owns the MCP write-approval polling loop and renders the
  * approval modal.
  *
- * The `keepance-mcp` sidecar (spawned by an external MCP client such as Claude
+ * The `lantern-mcp` sidecar (spawned by an external MCP client such as Claude
  * Desktop) drops a JSON request on disk whenever the client tries to write a
  * workspace file with `require_confirmation = true`. This component polls for
  * those requests and surfaces them through `McpApprovalModal`.

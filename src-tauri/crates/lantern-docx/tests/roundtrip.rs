@@ -693,7 +693,7 @@ fn test_edited_comment_is_regenerated() {
         "2".to_string(),
         Comment {
             id: "2".to_string(),
-            author: "Keepance AI".to_string(),
+            author: "Lantern AI".to_string(),
             date: "2026-06-09T00:00:00Z".to_string(),
             initials: None,
             text: "Newly authored comment.".to_string(),

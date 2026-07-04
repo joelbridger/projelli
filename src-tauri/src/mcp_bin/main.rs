@@ -16,7 +16,7 @@
 // Approval channel (see `approval.rs` for the full design):
 //   - `write_workspace_file` with `require_confirmation = true` writes a JSON
 //     blob to a platform temp directory (`approval-requests/<token>.json`),
-//     prints a `keepance/approval_request` line to stderr, and polls for
+//     prints a `lantern/approval_request` line to stderr, and polls for
 //     `approval-responses/<token>.json` for up to 60s.
 //   - The Advisor Prep Hero desktop app launches the binary as a child, reads stderr
 //     line-by-line, shows the approval modal, then drops the decision file.
@@ -510,7 +510,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_keepance_internal_root_path() {
+    fn rejects_lantern_internal_root_path() {
         let ws = std::env::temp_dir();
         let scope_path = format!("{}/mcp-session-scope.json", lantern_lib::identity::WORKSPACE_DATA_DIR);
         let err = resolve_workspace_path(&ws, &scope_path).unwrap_err();
@@ -521,7 +521,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_keepance_internal_root_path_with_backslashes() {
+    fn rejects_lantern_internal_root_path_with_backslashes() {
         let ws = std::env::temp_dir();
         let scope_path = format!("{}\\mcp-session-scope.json", lantern_lib::identity::WORKSPACE_DATA_DIR);
         let err = resolve_workspace_path(&ws, &scope_path).unwrap_err();
@@ -532,7 +532,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_keepance_internal_root_path_after_current_dir_segment() {
+    fn rejects_lantern_internal_root_path_after_current_dir_segment() {
         let ws = std::env::temp_dir();
         let scope_path = format!("./{}/mcp-session-scope.json", lantern_lib::identity::WORKSPACE_DATA_DIR);
         let err = resolve_workspace_path(&ws, &scope_path).unwrap_err();

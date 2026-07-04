@@ -1,5 +1,5 @@
 //! AI authoring helpers: programmatically add NEW tracked changes to the DOM,
-//! the way the Keepance AI redliner (task A4) will. These are simple,
+//! the way the Lantern AI redliner (task A4) will. These are simple,
 //! content-addressed edits over the typed model — the ergonomic win of a DOM
 //! over raw XML string-poking.
 //!
@@ -12,7 +12,7 @@ use crate::model::{BlockContent, Document, Inline, Paragraph, RevisionMeta, Run}
 /// The author string stamped on AI-authored revisions by default. Word groups
 /// accept/reject by author + id, so a recipient can filter to review only the
 /// machine edits. Callers may override with their own author string.
-pub const AI_AUTHOR: &str = "Keepance AI";
+pub const AI_AUTHOR: &str = "Lantern AI";
 
 /// Current UTC timestamp formatted as an OOXML `w:date` value
 /// (`YYYY-MM-DDThh:mm:ssZ`). Convenience for callers (e.g. the Tauri command
@@ -869,7 +869,7 @@ mod tests {
     use super::*;
     use crate::model::{BlockContent, Document, Inline, Paragraph, Run, RevisionKind};
 
-    const AUTH: &str = "Keepance AI";
+    const AUTH: &str = "Lantern AI";
     const DATE: &str = "2026-06-09T00:00:00Z";
 
     /// A doc with two paragraphs of plain runs. Paragraph 0 has a bold-tagged
@@ -914,7 +914,7 @@ mod tests {
         }];
         let res = apply_edits(&mut doc, &edits, AUTH, DATE);
         assert!(res[0].applied);
-        // One insertion authored by Keepance AI containing the new text.
+        // One insertion authored by Lantern AI containing the new text.
         let revs = doc.revisions();
         assert_eq!(revs.len(), 1);
         assert_eq!(revs[0].0.author, AUTH);

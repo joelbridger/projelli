@@ -211,7 +211,7 @@ export async function serializeDocx(
     numbering: {
       config: [
         {
-          reference: 'keepance-ordered',
+          reference: 'lantern-ordered',
           levels: [
             {
               level: 0,
@@ -497,7 +497,7 @@ function listToParagraphs(
           })
         : new Paragraph({
             children: paragraphChildren,
-            numbering: { reference: 'keepance-ordered', level },
+            numbering: { reference: 'lantern-ordered', level },
           });
     out.push(paragraph);
 
