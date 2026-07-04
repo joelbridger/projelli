@@ -5,19 +5,22 @@ import type { NoticeEntry } from '../noticeLedger';
 
 /** A controllable fake clock: timers fire only when we advance past their due time. */
 class FakeClock {
-  now = 0;
+  private t = 0;
   private seq = 1;
   private timers = new Map<number, { at: number; fn: () => void }>();
+  now(): number {
+    return this.t;
+  }
   setTimeout(fn: () => void, ms: number): number {
     const id = this.seq++;
-    this.timers.set(id, { at: this.now + ms, fn });
+    this.timers.set(id, { at: this.t + ms, fn });
     return id;
   }
   clearTimeout(id: number): void {
     this.timers.delete(id);
   }
   advance(ms: number): void {
-    const target = this.now + ms;
+    const target = this.t + ms;
     // Fire due timers in time order until we reach the target.
     for (;;) {
       let next: [number, { at: number; fn: () => void }] | undefined;
@@ -25,24 +28,41 @@ class FakeClock {
         if (entry[1].at <= target && (!next || entry[1].at < next[1].at)) next = entry;
       }
       if (!next) break;
-      this.now = next[1].at;
+      this.t = next[1].at;
       this.timers.delete(next[0]);
       next[1].fn();
     }
-    this.now = target;
+    this.t = target;
   }
 }
 
-/** A fake driver recording open/close calls; close() can be made to hang. */
+/** A fake driver recording open/close calls; close() can hang, open() can defer. */
 class FakeDriver implements NoticeCardDriver {
   opens: NoticeCardConfig[] = [];
   closes = 0;
   private hangNextClose = false;
+  private deferNext = false;
+  private pendingOpenResolve: (() => void) | null = null;
   makeNextCloseHang() {
     this.hangNextClose = true;
   }
+  /** The next open() stays pending until resolvePendingOpen() is called. */
+  deferNextOpen() {
+    this.deferNext = true;
+  }
+  resolvePendingOpen() {
+    const r = this.pendingOpenResolve;
+    this.pendingOpenResolve = null;
+    r?.();
+  }
   open(config: NoticeCardConfig): Promise<void> {
     this.opens.push(config);
+    if (this.deferNext) {
+      this.deferNext = false;
+      return new Promise<void>((res) => {
+        this.pendingOpenResolve = res;
+      });
+    }
     return Promise.resolve();
   }
   close(): Promise<void> {
@@ -225,5 +245,43 @@ describe('NoticeCardSupervisor — watchdog (the hard leave guarantee)', () => {
     h.sup.handleDisconnected(); // stray late event
     h.sup.handleDenied();
     expect(h.sup.status.phase).toBe('left'); // unchanged
+  });
+
+  it('closes a window that finishes opening AFTER stop (stop-before-open race)', async () => {
+    const h = make();
+    h.driver.deferNextOpen(); // open() stays pending
+    h.sup.start(CONFIG);
+    expect(h.driver.opens).toHaveLength(1);
+    await h.sup.stop(); // stops before the window exists
+    const closesAfterStop = h.driver.closes;
+    h.driver.resolvePendingOpen(); // the window finishes opening now
+    await Promise.resolve();
+    await Promise.resolve(); // flush the openWindow continuation
+    // The race guard must have closed the just-opened window.
+    expect(h.driver.closes).toBeGreaterThan(closesAfterStop);
+  });
+});
+
+describe('NoticeCardSupervisor — honest full-duration evidence', () => {
+  it('does NOT claim full-duration presence when the card was admitted late', async () => {
+    const h = make();
+    h.sup.start(CONFIG);
+    h.clock.advance(40_000); // 40s of lobby/host delay (> the 30s tolerance)
+    h.sup.handleAdmitted(); // admitted late — missed the opening minutes
+    await h.sup.stop();
+    // Honest: it joined and left, but it did NOT cover the whole recording.
+    expect(kinds(h.ledger)).toContain('notice-card-joined');
+    expect(kinds(h.ledger)).toContain('notice-card-left');
+    expect(kinds(h.ledger)).not.toContain('notice-card-present-for-entire-recording');
+  });
+
+  it('claims full-duration presence when the card was admitted promptly', async () => {
+    const h = make();
+    h.sup.start(CONFIG);
+    h.clock.advance(5_000); // joined within the tolerance
+    h.sup.handleAdmitted();
+    h.clock.advance(600_000); // long meeting
+    await h.sup.stop();
+    expect(kinds(h.ledger)).toContain('notice-card-present-for-entire-recording');
   });
 });

@@ -97,11 +97,25 @@ describe('ConsentDialog', () => {
     expect(screen.getByTestId('consent-notice-script-text').textContent).toContain("recording this for my notes");
   });
 
-  it('omits the script step when no script is supplied', () => {
+  // Trust review E2 / Legion bug: the "say this out loud" step must ALWAYS
+  // render when starting a recording — it's the record-time nudge the whole
+  // Notice Kit depends on. A blank/absent script must fall back to the built-in
+  // localized wording, never vanish.
+  it('always shows the script step, falling back to the built-in wording when no script is supplied', () => {
     render(
       <ConsentDialog open consentMode="one-party" standingConsent={null} onOpenChange={() => {}} onConfirm={() => {}} />,
     );
-    expect(screen.queryByTestId('consent-notice-script')).toBeNull();
+    expect(screen.getByTestId('consent-notice-script')).toBeInTheDocument();
+    // The built-in default wording is shown (not empty).
+    expect(screen.getByTestId('consent-notice-script-text').textContent?.trim().length).toBeGreaterThan(2);
+  });
+
+  it('shows the script step even when an empty/blank script is passed', () => {
+    render(
+      <ConsentDialog open consentMode="one-party" standingConsent={null} noticeScript="   " onOpenChange={() => {}} onConfirm={() => {}} />,
+    );
+    expect(screen.getByTestId('consent-notice-script')).toBeInTheDocument();
+    expect(screen.getByTestId('consent-notice-script-text').textContent?.trim().length).toBeGreaterThan(2);
   });
 
   it('disables Start recording until checked, then calls onConfirm', () => {

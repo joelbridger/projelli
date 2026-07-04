@@ -66,6 +66,13 @@ export function ConsentDialog({ open, onOpenChange, consentMode, stateKnown = tr
   const { t } = useTranslation();
   const [checked, setChecked] = useState(standingConsent !== null);
 
+  // The "say this out loud" step is the record-time nudge the whole Notice Kit
+  // depends on, so it must ALWAYS render when starting a recording — a live
+  // Legion run found it silently absent when the caller passed an empty/blank
+  // script (trust review E2). Fall back to the built-in localized wording here
+  // so the step is never missing, regardless of what the caller supplies.
+  const sayThis = (noticeScript ?? '').trim() || t('meetings.notice.default-script');
+
   // codex-review (P2): the dialog stays mounted across opens (the parent
   // renders it unconditionally, toggling `open`), so state from a PRIOR
   // confirmation would otherwise leak into the next one — re-derive the
@@ -113,30 +120,28 @@ export function ConsentDialog({ open, onOpenChange, consentMode, stateKnown = tr
         <p style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-navy)' }}>
           {t('meetings.consent.body-local')}
         </p>
-        {noticeScript && (
-          <div
-            data-testid="consent-notice-script"
-            style={{
-              border: '1px solid var(--kp-accent-soft)',
-              background: 'var(--kp-accent-soft)',
-              borderRadius: 'var(--radius-md)',
-              padding: '10px 12px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 4,
-            }}
-          >
-            <span style={{ fontSize: 'var(--kp-font-xs)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)' }}>
-              {t('meetings.notice.consent-script-heading')}
-            </span>
-            <span data-testid="consent-notice-script-text" style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-navy)', fontStyle: 'italic' }}>
-              “{noticeScript}”
-            </span>
-            <span style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
-              {t('meetings.notice.consent-script-hint')}
-            </span>
-          </div>
-        )}
+        <div
+          data-testid="consent-notice-script"
+          style={{
+            border: '1px solid var(--kp-accent-soft)',
+            background: 'var(--kp-accent-soft)',
+            borderRadius: 'var(--radius-md)',
+            padding: '10px 12px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 4,
+          }}
+        >
+          <span style={{ fontSize: 'var(--kp-font-xs)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)' }}>
+            {t('meetings.notice.consent-script-heading')}
+          </span>
+          <span data-testid="consent-notice-script-text" style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-navy)', fontStyle: 'italic' }}>
+            “{sayThis}”
+          </span>
+          <span style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
+            {t('meetings.notice.consent-script-hint')}
+          </span>
+        </div>
         {noticeCard && <NoticeCardConsentSection {...noticeCard} />}
         {consentMode === 'two-party' && (
           <p

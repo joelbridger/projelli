@@ -44,10 +44,12 @@ export interface NoticeCardDriver {
   close(): Promise<void>;
 }
 
-/** Injectable clock so timeouts are deterministic in tests. */
+/** Injectable clock so timeouts + elapsed measurement are deterministic in tests. */
 export interface SupervisorClock {
   setTimeout(fn: () => void, ms: number): number;
   clearTimeout(handle: number): void;
+  /** Monotonic-ish milliseconds, for measuring admit latency vs record-start. */
+  now(): number;
 }
 
 const realClock: SupervisorClock = {
@@ -55,6 +57,7 @@ const realClock: SupervisorClock = {
   clearTimeout: (h) => {
     clearTimeout(h as unknown as ReturnType<typeof setTimeout>);
   },
+  now: () => Date.now(),
 };
 
 /** UI-facing status of the card for one recording. */
@@ -75,10 +78,15 @@ export interface SupervisorDeps {
   joinTimeoutMs?: number;
   /** If a close() hasn't confirmed within this, force another close. */
   watchdogMs?: number;
+  /** Max admit latency (from record-start) that still counts as the card having
+   *  covered the WHOLE recording. A late admit (slow host/lobby) means the card
+   *  missed the opening minutes, so it must NOT claim full-duration presence. */
+  fullPresenceToleranceMs?: number;
 }
 
 const DEFAULT_JOIN_TIMEOUT_MS = 120_000; // 2 min covers a slow host admit
 const DEFAULT_WATCHDOG_MS = 5_000;
+const DEFAULT_FULL_PRESENCE_TOLERANCE_MS = 30_000; // "joined promptly" window
 
 export class NoticeCardSupervisor {
   private readonly driver: NoticeCardDriver;
@@ -87,6 +95,7 @@ export class NoticeCardSupervisor {
   private readonly onStatus?: ((status: NoticeCardStatus) => void) | undefined;
   private readonly joinTimeoutMs: number;
   private readonly watchdogMs: number;
+  private readonly fullPresenceToleranceMs: number;
 
   private _status: NoticeCardStatus = { phase: 'idle' };
   private config: NoticeCardConfig | null = null;
@@ -95,6 +104,8 @@ export class NoticeCardSupervisor {
   private terminal = false;
   private joinTimer: number | null = null;
   private watchdogTimer: number | null = null;
+  private startedAtMs: number | null = null;
+  private admittedAtMs: number | null = null;
 
   constructor(deps: SupervisorDeps) {
     this.driver = deps.driver;
@@ -103,6 +114,7 @@ export class NoticeCardSupervisor {
     this.onStatus = deps.onStatus;
     this.joinTimeoutMs = deps.joinTimeoutMs ?? DEFAULT_JOIN_TIMEOUT_MS;
     this.watchdogMs = deps.watchdogMs ?? DEFAULT_WATCHDOG_MS;
+    this.fullPresenceToleranceMs = deps.fullPresenceToleranceMs ?? DEFAULT_FULL_PRESENCE_TOLERANCE_MS;
   }
 
   get status(): NoticeCardStatus {
@@ -148,6 +160,8 @@ export class NoticeCardSupervisor {
     this.everAdmitted = false;
     this.rejoinUsed = false;
     this.terminal = false;
+    this.startedAtMs = this.clock.now();
+    this.admittedAtMs = null;
     this.clearJoinTimer();
 
     if (!config.joinUrl.trim()) {
@@ -169,6 +183,12 @@ export class NoticeCardSupervisor {
     if (!this.config) return;
     try {
       await this.driver.open(this.config);
+      // Race guard: if the recording was stopped (or the card failed) while this
+      // open was in flight, the window would otherwise be left behind — close it
+      // immediately. The hard leave guarantee must survive a stop-before-open.
+      if (this.terminal) {
+        void this.driver.close();
+      }
     } catch {
       this.fail('internal');
     }
@@ -194,6 +214,7 @@ export class NoticeCardSupervisor {
     const meetingTitle = this._status.meetingTitle;
     if (!this.everAdmitted) {
       this.everAdmitted = true;
+      this.admittedAtMs = this.clock.now();
       this.record({
         kind: 'notice-card-joined',
         meetingDir: this.meetingDir(),
@@ -251,12 +272,22 @@ export class NoticeCardSupervisor {
     if (wasPresent) {
       const meetingDir = this.meetingDir();
       this.record({ kind: 'notice-card-left', meetingDir, at: this.nowIso() });
-      this.record({
-        kind: 'notice-card-present-for-entire-recording',
-        meetingDir,
-        at: this.nowIso(),
-        platform,
-      });
+      // Only claim the card covered the WHOLE recording when it was admitted
+      // promptly after record-start. A late admit (slow host / lobby wait) means
+      // it missed the opening minutes, so it must NOT overstate the evidence —
+      // the honest `left` above still records that it was present at the end.
+      const admitLatency =
+        this.admittedAtMs !== null && this.startedAtMs !== null
+          ? this.admittedAtMs - this.startedAtMs
+          : Infinity;
+      if (admitLatency <= this.fullPresenceToleranceMs) {
+        this.record({
+          kind: 'notice-card-present-for-entire-recording',
+          meetingDir,
+          at: this.nowIso(),
+          platform,
+        });
+      }
       this.setStatus({ phase: 'left' });
     } else if (this.everAdmitted) {
       // Joined earlier but dropped / mid-rejoin at stop: honest left, but NOT
