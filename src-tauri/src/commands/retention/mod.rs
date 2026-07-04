@@ -36,6 +36,9 @@ fn reject_if_chain_altered(
         Ok(crate::commands::audit::store::AuditChainVerification::Altered { seq, id, reason, .. }) => Err(format!(
             "audit chain is altered (entry {id} at seq {seq}: {reason}) — refusing to proceed without a trustworthy audit trail"
         )),
+        Ok(crate::commands::audit::store::AuditChainVerification::SealMissing { surviving_rows, .. }) => Err(format!(
+            "audit chain integrity seal is missing ({surviving_rows} surviving entries; prior completeness cannot be verified) — refusing to proceed without a trustworthy audit trail"
+        )),
         Err(e) => Err(format!("verify audit chain: {e}")),
     }
 }
@@ -443,6 +446,46 @@ mod tests {
             Ok(_) => panic!("expected a tampered chain to be rejected"),
         };
         assert!(err.contains("altered"), "got: {err}");
+    }
+
+    /// A data-loss-critical op (sweep/redact) must ALSO refuse to proceed when
+    /// the audit log is in the seal-missing state — a silently-truncated log
+    /// whose seal was deleted is exactly the trust failure this preflight
+    /// guards against. Mirrors the store-level fix at the retention boundary.
+    #[test]
+    fn reject_if_chain_altered_refuses_a_seal_missing_store() {
+        use crate::commands::audit::store::{AuditEntryRecord, EncryptedAuditStore};
+        let dir = tempfile::tempdir().unwrap();
+        let key = [0xA1u8; 32];
+        {
+            let s = EncryptedAuditStore::open_with_key(dir.path(), &key).unwrap();
+            for (i, id) in ["r1", "r2", "r3"].iter().enumerate() {
+                s.append(&AuditEntryRecord {
+                    id: (*id).into(),
+                    timestamp: format!("2026-01-0{}T00:00:00Z", i + 1),
+                    action: "retention_delete".into(),
+                    description: "d".into(),
+                    payload_json: "{}".into(),
+                })
+                .unwrap();
+            }
+        }
+        // Simulate a silent truncation: delete the tail row AND the chain-head seal.
+        {
+            let conn =
+                rusqlite::Connection::open(EncryptedAuditStore::db_path(dir.path())).unwrap();
+            conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", hex::encode(key)))
+                .unwrap();
+            conn.execute("DELETE FROM entries WHERE id = 'r3'", [])
+                .unwrap();
+            conn.execute("DELETE FROM audit_metadata", []).unwrap();
+        }
+        let s = EncryptedAuditStore::open_with_key(dir.path(), &key).unwrap();
+        let err = match reject_if_chain_altered(s) {
+            Err(e) => e,
+            Ok(_) => panic!("a seal-missing audit log must be refused for data-loss ops"),
+        };
+        assert!(err.contains("integrity seal is missing"), "got: {err}");
     }
 
     #[test]

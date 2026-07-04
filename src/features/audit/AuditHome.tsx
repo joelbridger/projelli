@@ -258,11 +258,30 @@ export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, 
   }, [filteredEntries, resolveIntegrityForExport]);
 
   const encrypted = isAuditEncrypted();
-  const integrityLabel = integrity?.status === 'altered'
-    ? t('common.audit-log.integrity-altered', { seq: integrity.seq })
-    : integrity?.status === 'verified'
-      ? t('common.audit-log.integrity-verified')
-      : null;
+  // Three honest tones: green (verified), amber (seal missing — can't prove the
+  // log is complete), red (altered — a row was actually changed/broken).
+  let integrityLabel: string | null = null;
+  let integrityTone: 'ok' | 'warning' | 'danger' = 'ok';
+  let integrityTitle: string | undefined;
+  if (integrity?.status === 'altered') {
+    integrityLabel = t('common.audit-log.integrity-altered', { seq: integrity.seq });
+    integrityTone = 'danger';
+    integrityTitle = integrity.reason;
+  } else if (integrity?.status === 'sealMissing') {
+    integrityLabel = t('common.audit-log.integrity-seal-missing');
+    integrityTone = 'warning';
+    integrityTitle = integrity.lastTimestamp
+      ? t('common.audit-log.integrity-seal-missing-detail', { timestamp: integrity.lastTimestamp })
+      : t('common.audit-log.integrity-seal-missing-detail-notime');
+  } else if (integrity?.status === 'verified') {
+    integrityLabel = t('common.audit-log.integrity-verified');
+    integrityTone = 'ok';
+  }
+  const integrityToneStyle = {
+    ok: { border: '1px solid rgba(21,128,61,0.28)', background: 'rgba(240,253,244,0.9)', color: '#166534' },
+    warning: { border: '1px solid rgba(180,83,9,0.32)', background: 'rgba(255,251,235,0.95)', color: '#92400e' },
+    danger: { border: '1px solid rgba(185,28,28,0.28)', background: 'rgba(254,242,242,0.9)', color: '#991b1b' },
+  }[integrityTone];
 
 
   return (
@@ -290,20 +309,17 @@ export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, 
         {integrityLabel !== null && (
           <span
             data-testid="audit-integrity-badge"
-            title={integrity?.status === 'altered' ? integrity.reason : undefined}
+            data-integrity-status={integrity?.status}
+            title={integrityTitle}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               marginTop: 10,
               padding: '3px 8px',
               borderRadius: 'var(--radius-sm)',
-              border: integrity?.status === 'altered'
-                ? '1px solid rgba(185,28,28,0.28)'
-                : '1px solid rgba(21,128,61,0.28)',
-              background: integrity?.status === 'altered'
-                ? 'rgba(254,242,242,0.9)'
-                : 'rgba(240,253,244,0.9)',
-              color: integrity?.status === 'altered' ? '#991b1b' : '#166534',
+              border: integrityToneStyle.border,
+              background: integrityToneStyle.background,
+              color: integrityToneStyle.color,
               fontSize: 'var(--kp-font-xs)',
               fontWeight: 'var(--kp-weight-semibold)',
               lineHeight: 'var(--kp-leading-snug)',

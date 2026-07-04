@@ -44,6 +44,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `capture/{engine,chunks,recovery,session,sources,mod}.rs`, `pathguard.rs` (absolute variant).
 
 ### Security
+- **Audit chain: fail-closed on a missing integrity seal (silent-reseal gap closed).** An
+  attacker (or bug) that deleted tail rows AND the `chain_head_v1` seal metadata could get
+  `EncryptedAuditStore::open()` to silently re-derive a fresh head over the surviving prefix on
+  next open — resealing a truncated log as "valid" and erasing the tamper evidence the whole
+  chain exists to provide. `open()` no longer auto-seals a headless chain. Instead the store
+  surfaces a new `AuditChainVerification::SealMissing { surviving_rows, last_timestamp }` state:
+  existing rows stay readable, new appends are refused, and retention/redaction (data-loss ops)
+  refuse to proceed on it (`reject_if_chain_altered`). Recovery is an explicit `audit_repair_seal`
+  command that FIRST writes a permanent, backend-minted anomaly record (`audit_integrity_reseal`)
+  into the new chain — recording when the seal was detected missing, how many rows survived, and
+  that prior completeness can no longer be verified — THEN re-seals over the survivors + that
+  record. The frontend surfaces the state honestly in the existing audit integrity badge (amber
+  "Integrity seal missing" with a verifiable-up-to boundary) and in the privacy attestation
+  export. Files: `commands/audit/store.rs` (SealMissing + `repair`), `commands/audit/mod.rs`
+  (`audit_repair_seal`), `commands/retention/mod.rs`, `platform/utils/tauri-commands.ts`,
+  `features/audit/{AuditHome.tsx,audit-export.ts}`, `platform/privacy/attestation.ts`,
+  `locales/{en,de,es}.json`. Reproduced red-first; store/retention/frontend tests added.
 - **Symlink-safe path containment everywhere a caller-supplied path meets a workspace root.**
   A codebase audit found five containment checks that followed symlinks (an in-workspace alias
   folder could read/write/delete a DIFFERENT client's files while the audit trail named the

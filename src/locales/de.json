@@ -12,7 +12,13 @@
       "integrity-verified": "Protokoll verifiziert",
       "integrity-verified__sourceHash": "caff6ec765ce9f6e3ba4e44b643f870cf3c1fd24064c9c400c1fc2c96c4967b8",
       "integrity-altered": "Protokoll verändert (Eintrag {{seq}})",
-      "integrity-altered__sourceHash": "dfe33a7aceaf60fb2cb8c227525b32eaa7419c4f90d620e222912b9ab7904ea1"
+      "integrity-altered__sourceHash": "dfe33a7aceaf60fb2cb8c227525b32eaa7419c4f90d620e222912b9ab7904ea1",
+      "integrity-seal-missing": "Integritätssiegel fehlt",
+      "integrity-seal-missing__sourceHash": "f8db01dc659156739ce061cdf8ae5e39b3295e7ae3d664c4c9b54698d0df57d1",
+      "integrity-seal-missing-detail": "Das Integritätssiegel des Prüfprotokolls fehlt. Der Verlauf bis {{timestamp}} kann nicht mehr kryptografisch verifiziert werden. Das Protokoll wurde möglicherweise gekürzt.",
+      "integrity-seal-missing-detail__sourceHash": "db35d11f85fe9e3a9e5ee21f5b641f28a528c3a278744b40c9aa527d95585996",
+      "integrity-seal-missing-detail-notime": "Das Integritätssiegel des Prüfprotokolls fehlt. Sein Verlauf kann nicht mehr kryptografisch verifiziert werden. Das Protokoll wurde möglicherweise gekürzt.",
+      "integrity-seal-missing-detail-notime__sourceHash": "c0a2c109411408d2506a66d2b948abf9db632f0f97c01edabd1c9b50f945dd0d"
     },
     "ai-setup-help": {
       "link": "Ich brauche Hilfe bei der Einrichtung",

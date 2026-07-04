@@ -910,7 +910,24 @@ export interface AuditEntryRecord {
 
 export type AuditIntegrityVerdict =
   | { status: 'verified'; checked: number }
-  | { status: 'altered'; seq: number; id: string; reason: string; checked: number };
+  | { status: 'altered'; seq: number; id: string; reason: string; checked: number }
+  // FAIL-CLOSED tamper evidence: the surviving rows still chain cleanly, but the
+  // integrity SEAL that vouched for the log's completeness is gone. History up to
+  // `lastTimestamp` can no longer be proven complete. Appends are refused until an
+  // explicit repair re-seals the log and records the anomaly permanently.
+  | { status: 'sealMissing'; survivingRows: number; lastTimestamp: string | null };
+
+/** Result of an explicit, acknowledged repair of a seal-missing audit log. */
+export interface AuditChainRepairReport {
+  /** Rows that survived and were re-sealed (excludes the anomaly record). */
+  survivingRows: number;
+  /** Id of the permanent anomaly record now embedded in the new chain. */
+  anomalyId: string;
+  /** Total entries after repair (`survivingRows` + 1 anomaly). */
+  totalEntries: number;
+  /** Boundary of previously-verifiable history, echoed back for the record. */
+  lastVerifiableTimestamp: string | null;
+}
 
 /** Point the encrypted audit store at a workspace. No-op in the browser. */
 export async function auditSetWorkspace(path: string): Promise<void> {
@@ -949,6 +966,15 @@ export async function auditCount(): Promise<number> {
 export async function auditVerifyIntegrity(): Promise<AuditIntegrityVerdict | undefined> {
   if (!isTauri()) return undefined;
   return invoke<AuditIntegrityVerdict>('audit_verify_integrity');
+}
+
+/** Repair a seal-missing audit log: re-seal the surviving prefix AND write a
+ *  permanent anomaly record into the new chain. Explicit and acknowledged —
+ *  never automatic. Rejects (throws) if the store is not seal-missing. No-op in
+ *  the browser (no encrypted chain there). */
+export async function auditRepairSeal(): Promise<AuditChainRepairReport | undefined> {
+  if (!isTauri()) return undefined;
+  return invoke<AuditChainRepairReport>('audit_repair_seal');
 }
 
 // ── Retention sweep (Wave 4 Track D) ────────────────────────────────────────

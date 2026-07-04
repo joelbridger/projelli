@@ -51,7 +51,7 @@ describe('en.json structure snapshot', () => {
         "audio": 1,
         "chat": 12,
         "citation": 3,
-        "common": 41,
+        "common": 44,
         "editor": 14,
         "firm": 143,
         "layout": 40,
@@ -103,7 +103,9 @@ describe('en.json structure snapshot', () => {
     // +17 = meetings.speakers.* (9) + matter.voiceprints.* (8) (Wave 4 Track A: speaker naming panel + voice profiles card).
     // +16 = privacy.retention.* (Wave 4 Track D: retention policy settings + Data Map row + attestation export).
     // (Tracks A and D merged independently; 975 base + 17 + 16 = 1008.)
-    expect(flat.length).toBe(1008);
+    // +3 = common.audit-log.integrity-seal-missing{,-detail,-detail-notime}
+    //      (audit-chain fail-closed: honest surfacing of the missing-seal state).
+    expect(flat.length).toBe(1011);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

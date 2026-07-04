@@ -64,6 +64,7 @@ pub fn run() {
             commands::audit::audit_list,
             commands::audit::audit_count,
             commands::audit::audit_verify_integrity,
+            commands::audit::audit_repair_seal,
             // Phase 3 M1 RAG (LanceDB + fastembed-rs + e5-small).
             commands::rag::rag_set_workspace,
             commands::rag::rag_index_file,

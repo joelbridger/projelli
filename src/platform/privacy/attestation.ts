@@ -72,7 +72,9 @@ export async function exportAttestationDocx(workspaceRoot: string): Promise<stri
     ? 'Audit log integrity: not available in this environment'
     : verdict.status === 'verified'
       ? `Audit log integrity: verified (${String(verdict.checked)} entries checked)`
-      : `Audit log integrity: ALTERED entry detected at sequence ${String(verdict.seq)} (${verdict.reason}), see the audit screen`;
+      : verdict.status === 'sealMissing'
+        ? `Audit log integrity: INTEGRITY SEAL MISSING. ${String(verdict.survivingRows)} surviving entries can no longer be cryptographically proven complete${verdict.lastTimestamp ? ` (verifiable up to ${verdict.lastTimestamp})` : ''}; the log may have been truncated, see the audit screen`
+        : `Audit log integrity: ALTERED entry detected at sequence ${String(verdict.seq)} (${verdict.reason}), see the audit screen`;
 
   const recordings: EventRow[] = [];
   const deletions: EventRow[] = [];

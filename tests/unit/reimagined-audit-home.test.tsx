@@ -95,6 +95,22 @@ describe('AuditHome', () => {
     expect(badge).toHaveTextContent('Log altered (entry 2)');
   });
 
+  it('shows a seal-missing integrity badge when the chain-head seal is gone', () => {
+    render(
+      <AuditHome
+        entries={SAMPLE}
+        integrity={{ status: 'sealMissing', survivingRows: 2, lastTimestamp: '2026-06-09T00:00:00Z' }}
+      />,
+    );
+
+    const badge = screen.getByTestId('audit-integrity-badge');
+    expect(badge).toHaveTextContent('Integrity seal missing');
+    // Distinct from the two existing tones (surfaced for tests + styling hooks).
+    expect(badge).toHaveAttribute('data-integrity-status', 'sealMissing');
+    // The honest detail (with the verifiable-up-to boundary) is in the tooltip.
+    expect(badge.getAttribute('title')).toContain('2026-06-09T00:00:00Z');
+  });
+
   it('search filters rows by description text', () => {
     render(<AuditHome entries={SAMPLE} />);
     const search = screen.getByTestId('audit-home-search');
