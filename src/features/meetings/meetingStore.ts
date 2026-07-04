@@ -85,6 +85,12 @@ export interface MeetingMeta {
    *  with a retry instead of an eternal spinner or silent nothing. Cleared
    *  (omitted) the moment notes.docx is written successfully. */
   notesError?: MeetingNotesError;
+  /** QA-40 — set when transcribe_meeting fails (a missing voice engine/model,
+   *  a wedged sidecar past its own timeout, or any other transcription
+   *  error), so the UI can show an honest failed state with retry instead of
+   *  a permanently "queued" transcript that looks identical to a hang.
+   *  Cleared (omitted) the moment transcript.json is written successfully. */
+  transcriptError?: MeetingTranscriptError;
 }
 
 export interface MeetingNotesError {
@@ -94,6 +100,20 @@ export interface MeetingNotesError {
    *  MEETING_NOTES_TIMEOUT_MS. 'error': any other provider/docx failure.
    *  Retry is offered for all three — this only changes the copy shown. */
   kind: 'gate-blocked' | 'timeout' | 'error';
+  at: string;
+}
+
+export interface MeetingTranscriptError {
+  /** 'not-installed': the bundled voice engine binary or its model file
+   *  isn't staged on this machine (see resolve_sidecar_path/resolve_models_dir
+   *  in commands/voice.rs) — reinstalling the voice engine fixes it, a blind
+   *  retry alone won't. 'timeout': a transcription window exceeded the
+   *  sidecar's own internal bound (TRANSCRIBE_TIMEOUT_SECS,
+   *  sidecars/parakeet.rs) — the engine process is killed, not left running.
+   *  'error': any other engine/subprocess failure. All three still offer
+   *  retry — transcribe_meeting resumes from .transcribe-progress.json, so a
+   *  retry only redoes the windows that never completed. */
+  kind: 'not-installed' | 'timeout' | 'error';
   at: string;
 }
 
@@ -210,6 +230,90 @@ async function clearNotesError(meetingDir: string): Promise<void> {
   }
 }
 
+/** QA-40 — classifies a transcribe_meeting failure so the UI can say
+ *  something actionable instead of leaving a permanently "queued" transcript
+ *  that's indistinguishable from a genuine hang. invoke() errors cross the
+ *  Tauri bridge as plain strings, not Error instances, so this matches on
+ *  message content the same way the Rust side words its errors
+ *  (sidecars/parakeet.rs, commands/voice.rs) rather than on error type. */
+function classifyTranscriptError(err: unknown): MeetingTranscriptError['kind'] {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (msg.includes('not bundled') || msg.includes('no voice model bundled')) return 'not-installed';
+  if (msg.includes('timed out')) return 'timeout';
+  return 'error';
+}
+
+/** Best-effort merge-write of `transcriptError` into the meeting's existing
+ *  meeting.json — mirrors recordNotesError above. */
+async function recordTranscriptError(meetingDir: string, err: unknown): Promise<void> {
+  const ws = activeWorkspaceService;
+  if (!ws) return;
+  try {
+    const base = JSON.parse(await ws.readFile(`${meetingDir}/meeting.json`)) as MeetingMeta;
+    await writeMeetingJson(meetingDir, {
+      ...base,
+      transcriptError: { kind: classifyTranscriptError(err), at: new Date().toISOString() },
+    });
+  } catch {
+    // best-effort — see recordNotesError.
+  }
+}
+
+/** Clears a previously-recorded `transcriptError` once transcript.json writes
+ *  successfully — mirrors clearNotesError above. */
+async function clearTranscriptError(meetingDir: string): Promise<void> {
+  const ws = activeWorkspaceService;
+  if (!ws) return;
+  try {
+    const base = JSON.parse(await ws.readFile(`${meetingDir}/meeting.json`)) as MeetingMeta;
+    if (!base.transcriptError) return;
+    const { transcriptError: _clearedTranscriptError, ...rest } = base;
+    await writeMeetingJson(meetingDir, rest);
+  } catch {
+    // best-effort — see recordNotesError.
+  }
+}
+
+/**
+ * Runs transcribe_meeting and always resolves (never throws) — a missing
+ * sidecar, a wedged engine past its own timeout, or any other failure is
+ * recorded as an honest, classified `transcriptError` instead of vanishing
+ * into a bare catch (QA-40: that used to make an already-failed, ~100ms
+ * invoke() call look identical to a permanent hang, since nothing ever
+ * changed on screen afterward either way).
+ */
+async function runTranscribeMeeting(
+  meetingDir: string,
+  workspaceRoot: string,
+  model: string | null
+): Promise<void> {
+  try {
+    await invoke('transcribe_meeting', { workspaceRoot, meetingDir, model });
+    await clearTranscriptError(meetingDir);
+  } catch (err) {
+    await recordTranscriptError(meetingDir, err);
+  }
+}
+
+/** Keyed in-flight map so the natural post-stop transcription and a manual
+ *  "Retry" can never race each other for the same meetingDir — same
+ *  reasoning as inFlightNotesGenerations below. */
+const inFlightTranscriptions = new Map<string, Promise<void>>();
+
+function transcribeMeetingSerialized(
+  meetingDir: string,
+  workspaceRoot: string,
+  model: string | null = null
+): Promise<void> {
+  const existing = inFlightTranscriptions.get(meetingDir);
+  if (existing) return existing;
+  const run = runTranscribeMeeting(meetingDir, workspaceRoot, model).finally(() => {
+    inFlightTranscriptions.delete(meetingDir);
+  });
+  inFlightTranscriptions.set(meetingDir, run);
+  return run;
+}
+
 /**
  * Reads the transcript, generates notes.docx via the Task 10 template, and
  * writes it into the meeting folder. Never throws (capture/transcription
@@ -307,6 +411,29 @@ export async function retryMeetingNotes(
   }
 }
 
+/**
+ * QA-40 — the "Retry" action once transcriptError is set. Re-invokes
+ * transcribe_meeting; the Rust side resumes from .transcribe-progress.json,
+ * so only the windows that never completed re-run. Chains into notes
+ * generation on the same pass (a no-op if the transcript still isn't there),
+ * mirroring the natural post-stop pipeline so a successful retry doesn't
+ * leave notes stuck waiting on a manual second click.
+ */
+export async function retryMeetingTranscript(
+  meetingDir: string,
+  workspaceRoot: string,
+  matterId: string,
+  resolveProvider: () => ReturnType<typeof buildResolvedProviderForGlance> = buildResolvedProviderForGlance
+): Promise<void> {
+  useMeetingStore.setState((s) => ({ processingCount: s.processingCount + 1 }));
+  try {
+    await transcribeMeetingSerialized(meetingDir, workspaceRoot);
+    await generateNotesSerialized(meetingDir, matterId, resolveProvider);
+  } finally {
+    useMeetingStore.setState((s) => ({ processingCount: Math.max(0, s.processingCount - 1) }));
+  }
+}
+
 /** Maps the app's UI language to the matcher's supported locales (de/es ship;
  *  everything else verifies against English). */
 function noticeLocaleFromLanguage(lang: string | undefined): NoticeLocale {
@@ -398,7 +525,10 @@ export type ReviewItemKind =
   // 'notice-quarantined' is the stronger Strict-policy state (meeting stays
   // in-review until a human resolves it — never auto-deleted or auto-stopped).
   | 'notice-unverified'
-  | 'notice-quarantined';
+  | 'notice-quarantined'
+  // QA-40: transcribe_meeting failed (missing engine/model, wedged sidecar, or
+  // other error) — surfaced honestly with a retry rather than an eternal queue.
+  | 'transcript-failed';
 export interface ReviewItem {
   kind: ReviewItemKind;
 }
@@ -426,6 +556,10 @@ export function needsReview(
   // incomplete recording — it must be surfaced honestly here, never silently
   // hidden or rendered as if it were a normal, fully-formed meeting.
   if (meeting.meta === null) items.push({ kind: 'unreadable-meta' });
+  // QA-40: a failed transcription is a silent dead-end otherwise — surface
+  // it in the same review queue the advisor already checks, not just on the
+  // meeting's own detail page.
+  if (meeting.meta?.transcriptError) items.push({ kind: 'transcript-failed' });
   if (meeting.hasNotes && !meeting.meta?.reviewedAt)
     items.push({ kind: 'unreviewed-note' });
   const waiting = crmQueue.some(
@@ -642,15 +776,11 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
         .getState()
         .getSetting<string>('meetings.transcribeMode');
       if (meetingDir && transcribeMode !== 'batch') {
-        try {
-          await invoke('transcribe_meeting', {
-            workspaceRoot: resolveWorkspaceRoot(),
-            meetingDir,
-            model: null,
-          });
-        } catch {
-          // Queued until the voice engine is installed — capture never depends on it.
-        }
+        // QA-40: was a bare try/catch that silently swallowed every failure
+        // (see runTranscribeMeeting above) — capture still never depends on
+        // this succeeding, but a failure is now recorded as an honest,
+        // retryable transcriptError instead of vanishing.
+        await transcribeMeetingSerialized(meetingDir, resolveWorkspaceRoot());
       }
 
       // Recording Notice Kit: once the transcript exists, verify the spoken

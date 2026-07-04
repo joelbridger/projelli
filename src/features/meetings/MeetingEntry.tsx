@@ -16,7 +16,7 @@ import { Button as DialogButton } from '@/ui/button';
 import { TranscriptViewer } from './TranscriptViewer';
 import { SpeakerNamesPanel } from './SpeakerNamesPanel';
 import { AuditService } from '@/platform/audit/AuditService';
-import { markMeetingReviewed, writeMeetingJson, retryMeetingNotes, ensureMeetingNoticeVerified, resolveMatterFolder } from './meetingStore';
+import { markMeetingReviewed, writeMeetingJson, retryMeetingNotes, retryMeetingTranscript, ensureMeetingNoticeVerified, resolveMatterFolder } from './meetingStore';
 import type { MeetingMeta } from './meetingStore';
 import { NoticeTrail } from './NoticeTrail';
 import { makeConsentLedger } from './consentLedger';
@@ -73,6 +73,7 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
   const [typeInput, setTypeInput] = useState('');
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [retryingNotes, setRetryingNotes] = useState(false);
+  const [retryingTranscript, setRetryingTranscript] = useState(false);
   const [notices, setNotices] = useState<NoticeEntry[]>([]);
   const audioRef = useRef<AudioPlayerHandle>(null);
   const { policy: noticePolicy } = useNoticeSettings();
@@ -216,6 +217,32 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
       setHasNotes(false);
     }
   }, [meetingDir, matterId, workspaceService]);
+
+  // QA-40 — "Retry" once transcriptError is set: re-runs transcription (Rust
+  // resumes from .transcribe-progress.json), then re-reads meeting.json and
+  // transcript.json so the pane reflects the outcome without a manual reload.
+  const handleRetryTranscript = useCallback(async () => {
+    const ws = workspaceService;
+    setRetryingTranscript(true);
+    try {
+      await retryMeetingTranscript(meetingDir, workspaceRoot, matterId);
+    } finally {
+      setRetryingTranscript(false);
+    }
+    if (!ws) return;
+    try {
+      setMeta(JSON.parse(await ws.readFile(`${meetingDir}/meeting.json`)) as MeetingMeta);
+    } catch { /* unreadable */ }
+    try {
+      const raw = await ws.readFile(`${meetingDir}/transcript.json`);
+      setTranscript(JSON.parse(raw) as TranscriptFile);
+    } catch { /* still not there */ }
+    try {
+      setHasNotes(await ws.exists(`${meetingDir}/notes.docx`));
+    } catch {
+      setHasNotes(false);
+    }
+  }, [meetingDir, matterId, workspaceRoot, workspaceService]);
 
   const handleSaveType = useCallback(async () => {
     const entered = typeInput.trim();
@@ -365,6 +392,26 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
         <div style={{ flex: 1, minWidth: 0, overflow: 'auto', padding: 'var(--kp-gutter)' }}>
           {transcript ? (
             <TranscriptViewer transcript={transcript} onSeek={handleSeek} {...(seekMs !== undefined ? { activeMs: seekMs } : {})} />
+          ) : meta?.transcriptError ? (
+            <div
+              data-testid="meeting-entry-transcript-failed"
+              style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-sm)' }}
+            >
+              <div style={{ color: 'var(--kp-navy)', fontSize: 'var(--kp-font-sm)' }}>
+                {meta.transcriptError.kind === 'not-installed' && t('meetings.entry.transcript-failed-not-installed')}
+                {meta.transcriptError.kind === 'timeout' && t('meetings.entry.transcript-failed-timeout')}
+                {meta.transcriptError.kind === 'error' && t('meetings.entry.transcript-failed-error')}
+              </div>
+              <button
+                type="button"
+                data-testid="meeting-entry-retry-transcript"
+                onClick={() => { void handleRetryTranscript(); }}
+                disabled={retryingTranscript}
+                style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                {retryingTranscript ? t('meetings.entry.retrying-transcript') : t('meetings.tab.retry-button')}
+              </button>
+            </div>
           ) : (
             <div data-testid="meeting-entry-transcript-pending" style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-sm)' }}>
               {t('meetings.entry.transcript-pending')}

@@ -30,7 +30,13 @@
 | QA-26 | P3 | **Two different "create a new document" affordances behave inconsistently.** The empty-state "+ New Word document" button (shown when a client has zero files) opens a "Create Word Document" naming dialog first. The toolbar's "New document" button (shown once a client has any files) instead creates a file immediately with a generic default name (`my-document.docx`) and no naming prompt at all. A klutz clicking the toolbar button expecting the same naming step as the empty-state button gets an unexpectedly-named file with zero confirmation. | lane qa4, persona C "the klutz" (Azure bench-1) | CLOSED @9dd18f06 (already consistent; regression test locks it) |
 | QA-30 | P1 (trust-breaking) | **Recorded meetings vanish from the Meetings tab after an app restart** — files fully intact on disk (verified by direct filesystem check on the Legion), but the tab shows "No meetings yet" for ALL meetings incl. pre-existing ones. Looks exactly like data loss to an advisor. Found during the live Legion walkthrough (real Teams call recorded; consent + zero-egress PASSED). Evidence: docs/evidence/meetings-verify-20260704/ on lp/windows-smoke-evidence. (IDs QA-24..29 reserved for lane qa4.) | lane meetverify (Legion, real hardware) | VERIFIED FIXED @cb1181c9 (live Legion re-verify: survives clean restart AND hard kill) |
 | QA-31 | P1 | **Meeting AI notes never finish** — after transcription completes (which now works end-to-end), the meeting sits at "Notes are being written…" forever. Reproduced on BOTH real Teams and real Zoom calls on the Legion; a direct provider call with the same Anthropic key succeeded, ruling out setup. Transcript itself is fine and usable. Evidence: docs/evidence/meetings-verify2-20260704/ (14-BUG-zoom-notes-also-stuck.jpeg + RUN-LOG). | lane meetverify2 (Legion, real hardware) | FIXED @b3e2efc8 (120s watchdog + honest classified errors + retry; pending scoped Legion re-check) |
-| QA-40 | P1 (blocks Meetings DONE) | **Transcript generation hangs on real recordings post-rebuild (Legion)** — mic channel completes, sys channel never starts; reproduced 2/2 on fresh short recordings; app restart does not resume. Strong suspect: contract mismatch — the voicefix merge @aa0ab3eb switched the app to real whisper.cpp CLI (temp-file, -f/-m), but the Legion still has the morning's translator SHIM staged (expects the OLD --stdin contract → blocks reading stdin forever). May ALSO reveal a product gap if an engine subprocess can hang without tripping a timeout. (IDs QA-32..39 reserved for lane qa5.) | lane meetverify3 (Legion) | FIX LANE: transfix |
+| QA-40 | P1 (blocks Meetings DONE) | **Transcript generation hangs on real recordings post-rebuild (Legion)** — mic channel completes, sys channel never starts; reproduced 2/2 on fresh short recordings; app restart does not resume. Strong suspect: contract mismatch — the voicefix merge @aa0ab3eb switched the app to real whisper.cpp CLI (temp-file, -f/-m), but the Legion still has the morning's translator SHIM staged (expects the OLD --stdin contract → blocks reading stdin forever). May ALSO reveal a product gap if an engine subprocess can hang without tripping a timeout. (IDs QA-32..39 reserved for lane qa5.) | lane meetverify3 (Legion) | FIXED @b9dc02ca (swallowed-error hole + Windows temp-WAV handle; 3 real recordings live-proven) |
+| QA-32 | P1 (real severity uncertain — see notes) | **The native folder-picker dialog (Tauri's `plugin:dialog|open`, which backs "Open Existing", "New Workspace", "Add files", and onboarding's "Connect my own data"/"Start with a sample practice") never opens and never resolves.** Confirmed at the raw IPC level: calling `window.__TAURI_INTERNALS__.invoke('plugin:dialog|open', ...)` directly neither resolves nor rejects, ever (30+ min observed) — no native picker window appears at all (confirmed via repeated top-level-window enumeration over several seconds after the click, zero dialog window found). Ruled out "native dialogs are broken on this VM in general": a plain .NET `System.Windows.Forms.FolderBrowserDialog` opened immediately in the same interactive session. Reproduced identically on a completely fresh app relaunch (rules out my own session/state corruption). Confirmed independent of QA-33 below: restarting the stopped `VaultSvc` (which fixed QA-33) did NOT fix this. **This blocks every UI path to opening or creating a workspace** — a brand-new user cannot get past the welcome screen at all without a workspace already pre-seeded some other way. | lane qa5, persona D (bench-2) | FIX LANE: lp/qa-fix-batch6 |
+| QA-33 | P1 | **Windows Credential Manager service (`VaultSvc`) was found STOPPED on this fresh VM, and its absence silently breaks opening any existing/recent workspace.** With `VaultSvc` stopped, every API-key keychain read (Anthropic/OpenAI/Google) times out at 10s each (`[useApiKeys] could not read the anthropic key from the keychain: TimeoutError... timed out after 10s`); this cascades into the "open recent workspace" code path (`handleOpenRecentProject`) hitting its own 30-second overall timeout and failing (`TimeoutError: Opening the workspace timed out after 30s`) — **with zero user-visible error**: the buttons just silently re-enable after 30 seconds, no toast, no banner, no message of any kind, leaving the user to guess what happened. Manually starting `VaultSvc` fixed workspace-opening immediately and reliably on a fresh app relaunch. Whether a stopped `VaultSvc` reflects a real-world Windows state (disabled by IT/group policy, a first-boot race, antivirus interference) or is specific to this VM's history (it had VB-CABLE installed in an earlier session per `coordination/azure-bench/VIRTUAL-AUDIO-SPIKE.md`) is unconfirmed — but regardless of root cause, a completely silent 30-second failure with no error surfaced anywhere (not even the dev console before this) is a real product gap. | lane qa5, persona D (bench-2) | FIX LANE: lp/qa-fix-batch6 |
+| QA-34 | P0/P1 (silent data loss) | **Once a document's autosave write fails one time (e.g. another process briefly holds an exclusive OS-level lock on the file, simulating antivirus/backup-software scanning), the app permanently stops persisting that document for the rest of the session — while continuing to display "Saved" the entire time, including after the lock is released and the user keeps typing new content.** Repro: opened a real `.docx`, held an exclusive lock (`FileShare.None`) on its file from another process, typed a sentence into the open document — toolbar showed "Saved," but the on-disk file's timestamp/size never changed (confirmed via direct filesystem check). Released the lock ~90s later, typed MORE new content — still showed "Saved," still zero write to disk, and the console showed **no error whatsoever**, not even a caught-and-logged one. Restarted the app: the document opened **completely empty** — every sentence typed across the whole test was gone forever, no crash-recovery/backup snapshot rescued it. This is the exact "the app said Saved, then I lost everything" failure the product's whole design (autosave, tracked-changes, `.backup-*.docx` snapshots noted by earlier lanes) is supposed to prevent. | lane qa5, persona D (bench-2) | FIX LANE: lp/qa-fix-batch5 (P0) |
+| QA-35 | P1/P2 (causation not fully isolated — see notes) | With disk space driven down to true zero free bytes during an active meeting recording, the recording kept showing a live-incrementing "Recording… M:SS" timer with no error for as long as observed (3+ minutes), and clicking "Stop" did not visibly stop the recording for at least ~10 seconds of repeated attempts (both via the UI and a direct element click) — it only succeeded once external disk space was freed up. **Flagging honestly, not fully isolated as disk-specific**: a control test finalizing a Stop on healthy disk also took ~13 seconds, so some of the apparent "stuck" behavior may just be normal (if slow) finalization latency rather than a true disk-full deadlock — I did not have time to test patience-only recovery at true zero-free without also freeing space. What IS confirmed either way: zero user-facing indication that disk space (or anything) is the problem while this is happening — a real advisor would just see a stuck recording button. | lane qa5, persona D (bench-2) | NEW |
+| QA-36 | P2 | The app allows creating a document literally named after a Windows-reserved device name (e.g. `CON.docx`) via the "New Word Document" naming dialog — no client-side validation blocks it, and the file **is actually created for real** on the NTFS filesystem (the app evidently uses extended-length `\\?\`-style paths internally, which bypass Windows' normal device-name reservation). The app itself reads/displays/edits this file fine. But standard Windows tools that don't use extended-length paths cannot: `Get-ChildItem`/`cmd dir` lists it, yet PowerShell's `Rename-Item` and `Remove-Item` **both fail** ("cannot rename/remove because item does not exist") against that exact same file. A real advisor who created such a file (a client literally named "CON," a typo, a copy-pasted company name) would be unable to rename or delete it from File Explorer, and it would likely also break for backup tools, antivirus scanners, cloud-sync clients, or opening it directly in Microsoft Word outside the app. | lane qa5, persona D (bench-2) | FIX LANE: lp/qa-fix-batch5 |
+| QA-41 | P1 (blocks Meetings DONE) | **Meeting notes never generate — CONFIRMED on a fully clean session** (rules out session-state noise): stuck on "Notes are being written" forever, no error, no retry, survives navigation + app restart. Network inspection: ZERO requests ever reach the AI provider. Code-traced lead: tryGenerateNotes() (meetingStore.ts) silently swallows a failed transcript.json READ and treats it as "still queued" — the QA-31 watchdog only guards the AI-call step, never this earlier read, so the honest-failure net never engages. Transcript itself is perfect (word-for-word) and persists. Evidence: docs/evidence/meetings-verify4-20260704/ (19 shots) @674846ae. | lane meetverify4 (Legion, fresh session) | FIX LANE: lp/notes-read-fix |
 
 ---
 
@@ -528,3 +534,186 @@ message instead of just quietly giving up.
 almost everywhere else it was rock solid — the onboarding tour, opening dialogs, hitting Cancel or the
 Escape key, even killing the app while it was mid-save. The only real casualty of my clumsiness was the
 "Create client" button.
+
+---
+
+## Lane qa5 detail — persona D, "the edge-case hunter, desktop round" (Azure bench-2, VB-CABLE, 2026-07-04)
+
+**Seat/setup:** `lantern-cloud-bench-2` (the VB-CABLE virtual-audio clone). Repo pulled to
+`origin/lantern-plus` tip (started at `521a29ed`, tip moved to `eae6d622` and beyond mid-session as
+other lanes merged — rebased clean at write-up time). ~54 changed `src-tauri` files vs. the VM's old
+pin meant a genuine ~10-minute cold-ish rebuild, not a quick relink. Driven live over CDP
+(`scripts/desktop-drive.mjs`, tunnel on local port 9455 — 9444/9448/9451 were noted as taken) plus
+direct raw-IPC `eval` calls (`window.__TAURI_INTERNALS__.invoke(...)`) and a small ad hoc
+UI-Automation PowerShell helper (run via an interactive `AtLogOn`-style scheduled task, same pattern
+as the `LanternDevBench` task) for native-window enumeration where CDP can't see native Win32 dialogs.
+Evidence: `coordination/qa-campaign/evidence/qa5-20260704/` (52 screenshots, numbered chronologically).
+
+**Big landmine hit early, worth flagging for future sessions on this exact VM:** after a fresh
+`az vm start`, Tailscale came back up but showed **"Logged out"** — the VM's Tailscale needs
+`tailscale up --authkey=... --reset` re-run after every reboot (matches the known quirk documented in
+`SETUP-LOG.md`), which cost real time before I found it via `az vm run-command invoke` (works even
+when the Tailscale-dependent SSH path is down, since it runs through the Azure VM agent instead).
+
+### Repro detail + evidence per finding
+
+**QA-32** (native folder-dialog hang, blocks ALL workspace creation): first hit trying "Connect my
+own data" during onboarding — the button went into a permanent "Opening…" spinner state with the
+whole onboarding screen disabled, forever. Root-caused down to the raw Tauri IPC layer, bypassing all
+app JS: `window.__TAURI_INTERNALS__.invoke('plugin:dialog|open', {options:{directory:true,...}})`
+called directly neither resolves nor rejects, checked over 30+ seconds. Confirmed this isn't "native
+dialogs are broken on this VM" in general: a plain `System.Windows.Forms.FolderBrowserDialog` (older
+legacy Windows dialog API) opened immediately and correctly in the same interactive session
+(evidence: window enumeration showing a real `Browse For Folder` / class `#32770` window). Confirmed
+this isn't state corruption from my own repeated testing: killed and cleanly relaunched the whole app
+(`Stop-Process` + scheduled-task restart, no code change), retried "Connect my own data" fresh — same
+hang, same zero-native-window result across 5 separate window-enumeration checks spanning ~9 seconds.
+Also confirmed the plain Workspace Selector's "Open Existing" button (a different, older, non-onboarding
+code path) hits the exact same raw dialog-invoke hang. Also confirmed independence from QA-33: retried
+the same raw invoke AFTER starting the stopped `VaultSvc` (which fixed QA-33) — still hangs identically,
+so these are two separate bugs, not one root cause. **I could not get past this at all through the UI**;
+the only way I found a workspace to test the rest of my mission was to manually seed
+`localStorage['lantern_recent_workspaces']` with a real on-disk folder path (the same shape the app's
+own `addRecentWorkspace` would have written) and use the resulting "Recent" list entry instead — a
+workaround for my own testing, not something a real user could discover. Evidence:
+`00`–`04` (onboarding "Opening…" stuck) through the direct-IPC test screenshots; window-enumeration
+output captured in-session (not screenshots, raw PowerShell output).
+
+**QA-33** (VaultSvc stopped → silent 30s workspace-open failure): found while investigating why my
+localStorage-seeded "Recent" workspace entry ALSO wouldn't open — it sat in the same "busy/disabled"
+state for 30+ seconds before silently giving up with buttons just re-enabling, no error shown anywhere
+in the UI. Captured the real browser console via a Playwright CDP listener attached before the click
+(not via the CLI driver, which doesn't surface console output): showed
+`[useApiKeys] could not read the anthropic key from the keychain: TimeoutError: Reading the anthropic
+key timed out after 10s` (×2 more for openai/google) followed 25s later by
+`[App] Failed to open recent project: TimeoutError: Opening the workspace timed out after 30s`.
+Checked the OS service directly: `Get-Service VaultSvc` (Windows' Credential Manager service) showed
+**Stopped**. `Start-Service VaultSvc` fixed it — a clean app restart afterward opened the same recent
+workspace correctly and landed in the real Client Map. Evidence: `05`–`14` (stuck busy state across
+multiple wait/retry cycles) → `console-capture3.log` (the actual error chain, quoted above) →
+`12`–`14` (successful open post-fix).
+
+**QA-34** (antivirus-style file lock → permanent silent data loss): opened a real `.docx`
+(`my-document.docx`) in the editor. From a second OS process, opened the same file with
+`FileShare.None` (an exclusive lock, the same access pattern many antivirus/backup scanners take
+briefly). Typed a sentence into the open document in the app — toolbar showed "Saved" — but
+`Get-Item` on the real file showed its `LastWriteTime`/`Length` completely unchanged from before the
+edit. Captured the live browser console for this whole window (attached before typing): **zero console
+output, not even an error** — the write failure isn't just hidden from the user, it isn't logged
+anywhere a developer would see it either. Released the lock (~90s later), typed MORE new content —
+still showed "Saved," disk file still completely unchanged. Force-killed and relaunched the app,
+reopened the same document: it was **completely empty**, as if none of the session's typing had ever
+happened. No `.backup-*.docx` snapshot or any other recovery path saved it. Evidence: `45` (doc open,
+clean) → `46` (typed, shows "Saved," lock held) → `47` (typed more post-unlock, still "Saved," disk
+still stale — `Get-Item` output confirms) → `48`–`50` (post-restart: document empty).
+
+**QA-35** (disk-full during recording, Stop unresponsive): filled the VM's disk down via `fsutil file
+createnew` to leave first ~300MB, then ~95MB, then true zero free bytes (`(Get-PSDrive C).Free` == 0),
+while an active meeting recording (VB-CABLE virtual mic) was running. The recording's timer kept
+counting past 3 minutes with the disk fully exhausted and no error/toast ever appeared. Clicking
+"Stop" (both via the CLI driver's click and a direct `element.click()` eval) did not stop the
+recording across ~10 seconds and two separate attempts. Freed disk space back to ~90MB — the very next
+"Stop" attempt succeeded within ~3 seconds, and a "Meeting … notes pending" entry appeared with a real
+audio file on disk. Honestly flagged as not fully isolated: a separate control test finalizing a Stop
+on a healthy disk also took ~13 seconds end-to-end, so I can't rule out that "more patience" alone
+(without freeing space) would have eventually worked too — I did not test that specific combination
+due to time. Evidence: `32`–`38` (consent → recording starts → disk driven to zero → still
+"Recording…" at true-zero → Stop appears to do nothing → space freed → Stop succeeds, meeting
+appears).
+
+**QA-36** (reserved Windows device name creatable, then "cursed" outside the app): created
+"CON.docx" via the New Word Document dialog inside a real client folder — no validation blocked it,
+editor opened normally, toolbar showed "Saved." Confirmed on disk via `cmd /c dir /b`: `CON.docx` is
+listed as a real file. Then, from the same folder over a plain (non-extended-path) session:
+`Rename-Item 'CON.docx' 'CON-renamed.docx'` → **"Cannot rename because item at 'CON.docx' does not
+exist"**; `Remove-Item 'CON.docx'` → **"Cannot find path ... because it does not exist"** — both against
+a file `dir` shows sitting right there. This is the classic Windows reserved-device-name behavior
+(`CON`/`PRN`/`AUX`/`NUL`/`COM1-9`/`LPT1-9` are intercepted by the Win32 API unless a path uses the
+`\\?\` extended-length prefix), meaning the app's own extended-path-aware file I/O can create/open it
+fine, but the moment a real advisor's other tools (Explorer, antivirus, backup/sync software, or Word
+itself opened directly) touch that same file using ordinary paths, it becomes untouchable. Evidence:
+`23`–`24` (naming dialog previews `CON.docx`, no warning; file created, editor opens normally) plus
+the PowerShell rename/remove-failure transcripts (not screenshots — terminal output).
+
+### What's GOOD (so a designer can feel the resilience, not just the bugs)
+
+- **Deep, unusually-nested file paths are handled correctly** once they exist. Windows' own default
+  tooling (`New-Item`/`Set-Content` without long-path opt-in) silently stopped extending a chain of
+  identically-named nested folders at ~227 characters (an OS/PowerShell fact, not an app bug) — but a
+  real file placed at that natural ~241-character depth showed up correctly in the app's Tree view,
+  with every intermediate folder expanded properly, and opened with its real content intact.
+- **Clock skew (system clock jumped forward exactly 1 day) caused zero corruption.** A meeting recorded
+  entirely under the skewed clock got a correctly-dated, correctly-sorted entry ("Jul 5, 2026," sorted
+  above the pre-skew "Jul 4" meeting) — no crash, no date-math weirdness, no consent-ledger oddity
+  observed.
+- **Single-instance handling still holds on the real compiled desktop exe**, re-verified past qa1's
+  original dev-harness-only observation: launching a second real `lantern.exe` process alongside a
+  running one resulted in exactly one window the whole time, and the second process exited cleanly on
+  its own within a couple seconds — no crash, no duplicate window, no confusing state.
+- **The app survived every deliberate abuse thrown at it structurally** — repeated forced app kills
+  mid-test, a fully-exhausted disk, a locked file, a day-skewed clock — without a single crash or wedge
+  of the whole application; only specific, narrow features (recording-stop responsiveness, one
+  document's autosave) degraded, never the app as a whole.
+
+### Not tested this session (honest, time-boxed out)
+
+- **DPI scaling change mid-session**: attempted (registry `LogPixels` 96→144 +
+  `UpdatePerUserSystemParameters` broadcast), but this VM's virtual "Basic Display Adapter" doesn't
+  propagate a live DPI change to an already-running process without a full user logoff/logon — the app
+  never visibly responded, and I couldn't tell if that's a real gap or just this VM's virtual-display
+  limitation. Reverted the registry change; genuinely inconclusive, not filed as a finding.
+- **Sleep/resume mid-index and mid-recording**: `powercfg /a` shows this Azure VM's firmware supports
+  **no sleep states at all** (S1/S2/S3/hibernate/S0-low-power/hybrid-sleep all unavailable) — there is
+  no way to test real OS sleep/resume on this seat at all, cloud VM or otherwise, without different
+  underlying hardware (the Legion would be the place to test this for real).
+- **OAuth token revoked mid-session (Wealthbox)**: had a real Wealthbox token available
+  (`~/.config/wealthbox-seed/curl.cfg`) but did not attempt this — standing up the full connect flow
+  and then revoking server-side would have cost more time than the campaign's remaining budget allowed
+  once the P0/P1s above were found; flagging as a good next-lane target with the token already in hand.
+- **QA-21 re-check (local-AI Ask reliability)**: this fresh VM only had the `e5-small` embedding model
+  already downloaded (from a prior session), no local LLM — a 2.5GB+ fresh download would have consumed
+  most of the remaining VM budget for an uncertain payoff; deferred rather than rushed.
+
+### Plain-language summary (for Jameson)
+
+I spent this session on the second cloud test computer (the one with a fake microphone plugged in, so
+it can actually test recording) trying to break things a normal person wouldn't think to try — full
+hard drives, a security-software-style file lock, a wrong clock, files with names Windows treats
+specially, and so on.
+
+**The single biggest thing I found, and it's a serious one:** if something else on your computer
+briefly holds a file open right when the app tries to save — the most common real-world cause is
+antivirus software scanning the file, which happens all the time and normally nobody notices — the app
+can get stuck in a state where it says "Saved" forever, but is actually not saving anything at all,
+even minutes later, even after whatever was holding the file lets go. I typed several sentences into a
+document under this condition; the app said "Saved" the whole time; when I closed and reopened the
+app, the document was completely empty. Nothing warned me. This is exactly the kind of silent data
+loss the app is supposed to protect against, and I could reliably make it happen.
+
+**The second biggest thing:** on this fresh test computer, I could not get past the very first screen
+of the app at all through its own "pick a folder" button — clicking it just spins forever with no
+folder-picker window ever appearing, and no error message. I had to use a workaround only someone
+digging into the app's internals would know about, just to get inside the app to test anything else.
+A real brand-new customer hitting this would be stuck on step one, forever, with the app spinning a
+"loading" icon and never telling them anything is wrong.
+
+**A related, smaller version of the same "silence" problem:** on this same test computer, one of
+Windows' own background services that stores saved passwords/keys (called the Credential Manager) had
+somehow stopped running. When that happens, opening an already-set-up copy of the app takes exactly 30
+seconds and then just... does nothing, no error, nothing — as if the button did nothing at all. Once I
+turned that Windows service back on, everything opened normally right away. I can't tell you why that
+Windows service was off to begin with on this particular test machine, but the app's total silence
+about a 30-second failure is worth fixing regardless of why it happens in the wild.
+
+**Smaller, real things:** if you fill up someone's hard drive completely while they're in the middle of
+recording a meeting, the "Stop" button can look like it's doing nothing for a while — no crash, but no
+explanation either. And the app will happily let you name a document "CON" (a special reserved word to
+Windows, left over from the MS-DOS era) — the app itself handles it fine, but that file then becomes
+impossible to rename or delete using Windows' own File Explorer or PowerShell, which would very
+confusingly trap a real user's file.
+
+**What genuinely held up well:** I could not get the whole app to crash or corrupt data no matter what
+I threw at it — full disk, locked files, a day-skewed clock, launching it twice, deeply nested folders.
+Every one of those either worked correctly or failed in a narrow, contained way (one stuck feature),
+never bringing down the whole app or corrupting other data. The meeting timestamps stayed sane even
+with the clock a day off, and running the app twice at once is still handled cleanly.
