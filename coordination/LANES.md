@@ -7,12 +7,13 @@ Last updated: 2026-07-04 ~05:45 (coordinator-6 — FEATURE-COMPLETE: final score
 ## Active lanes
 | Worker session | What | State |
 |---|---|---|
-| cc-lantern-benchconfirm | Cold-boot confirmation run on the Legion — convert the 3 SETUP-BLOCKED + 1 flake into honest PASSes (or precise findings); owns the Legion | bench-running |
+| cc-lantern-w3b | Wave-3 Phase 3b: local transcription pipeline (lp/wave3-transcription; Tasks 7-9) | building |
+| cc-lantern-w3c | Wave-3 Phases 3c+3d: meetings surface — record pill, Meetings tab, transcript viewer, notes, consent (lp/wave3-meetings-ui; Tasks 10-13) | building |
 | cc-lantern-qa1 | QA campaign lane 1: persona-A first-run exploration on Azure bench-1 (report-only; bug DB) | exploring |
 | cc-lantern-cleanup1 | Cleanup batch 1 + docs currency (lp/cleanup-batch1): 5 scoped items | building |
 
 ## Merged this session
-🏁 FINAL SCORECARD (benchfull, 3 rounds): 11 PASS · 0 FAIL · 3 SETUP-BLOCKED (harness-sequencing, each behavior passed elsewhere) · 5 stubs — FEATURE-COMPLETE AGAINST JUMP by the real bar
+🏁 SCORECARD after cold-boot confirm: 12 PASS · 0 FAIL · 2 SETUP-BLOCKED · 5 stubs. ⚠️ CORRECTION (Jameson caught it): the 5 stubs = the UNBUILT Wave-3 UI (Meetings tab/record pill/transcription) — feature-complete was over-claimed; engine done, surface in build now (w3b+w3c lanes)
 ✅ lp/bench-harness-clients-tab-fix @02d153b5 — Clients-tab normalization + note-collision + wave1 modal-close (126+ harness tests)
 ✅ lp/bench-harness-followup-fixes @64df925e — overlay-dismiss prefers Close (native-dialog trap killed) + wave1 nav
 ✅ lp/pathguard-windows-verbatim @<post-pathfix> — CONFIRMED Windows verbatim-path bug in the absolute walk (red-on-Windows proof, green after) + 2 pre-existing Windows caller bugs (.. defense layer, live-recording orphan mismatch); pathguard 10/10 + capture 26/26 ON REAL WINDOWS; gate 1233 cargo + vitest green
