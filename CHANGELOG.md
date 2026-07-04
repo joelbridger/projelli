@@ -67,6 +67,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tests green. Known P3 before arming auto-smoke: per-target scheduled-task name is hard-coded.
   Files: `bench-smoke-shard.mjs`, `bench-smoke/{shard,checklist,driver,remote,result,targets}.mjs`,
   `auto-smoke.sh`, `docs/qa/BENCH-SMOKE-HARNESS.md`.
+- **E2E smoke mirror — Linux/Playwright mirror of the Windows bench smoke checklist.** 5 new spec
+  files (11 tests, ~15s) covering the checks that are pure browser-drivable UI: Phase 1 setup
+  (Clients list, per-client Documents isolation, Client Map citation health), Wave 4 whole-book
+  view + estate/beneficiary gap detect-and-resolve, Wave 4 whole-practice Ask scope + consent gate,
+  Wave 4 retention policy + Data Map (a stub in the bench harness found to have already merged),
+  and cross-cutting checks (light theme, console errors, egress indicator). Key finding: the
+  in-house `.docx` editor's toolbar (Draft follow-up / Send to Wealthbox) and the Calendar/CRM
+  connectors only work under a real Tauri runtime, so those bench checks cannot run in this
+  Playwright setup at all — already live-verified on the real bench per
+  `docs/qa/BENCH-SMOKE-HARNESS.md`. Full check-id -> spec mapping, classifications, and the two
+  bench-script string mismatches found: `docs/qa/E2E-SMOKE-MIRROR.md`. No product source changed;
+  additive spec files only. Files: `tests/e2e/bench-mirror-{setup,book-view,ask-whole-practice,
+  cross-cutting,retention}.spec.ts`, `docs/qa/E2E-SMOKE-MIRROR.md`.
 
 ### Fixed
 - **WebView2 remote-debug port never opened via the documented env var.** wry (Tauri's WebView2
