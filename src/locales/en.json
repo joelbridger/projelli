@@ -1519,5 +1519,67 @@
       "primary-nav": "Primary"
     },
     "new-client": "+ New {{entity}}"
+  },
+  "entity-label": {
+    "legal": {
+      "one": "matter",
+      "other": "matters",
+      "one-cap": "Matter",
+      "other-cap": "Matters",
+      "household": "matter",
+      "households": "matters",
+      "household-cap": "Matter",
+      "households-cap": "Matters",
+      "confidentiality-column": "Privilege",
+      "confidentiality-badge": "Privileged"
+    },
+    "tax": {
+      "one": "client",
+      "other": "clients",
+      "one-cap": "Client",
+      "other-cap": "Clients",
+      "household": "client",
+      "households": "clients",
+      "household-cap": "Client",
+      "households-cap": "Clients",
+      "confidentiality-column": "Confidential",
+      "confidentiality-badge": "Confidential"
+    },
+    "consulting": {
+      "one": "engagement",
+      "other": "engagements",
+      "one-cap": "Engagement",
+      "other-cap": "Engagements",
+      "household": "engagement",
+      "households": "engagements",
+      "household-cap": "Engagement",
+      "households-cap": "Engagements",
+      "confidentiality-column": "Confidential",
+      "confidentiality-badge": "Confidential"
+    },
+    "advisor": {
+      "one": "client",
+      "other": "clients",
+      "one-cap": "Client",
+      "other-cap": "Clients",
+      "household": "household",
+      "households": "households",
+      "household-cap": "Household",
+      "households-cap": "Households",
+      "confidentiality-column": "Sensitive",
+      "confidentiality-badge": "Sensitive"
+    },
+    "other": {
+      "one": "matter",
+      "other": "matters",
+      "one-cap": "Matter",
+      "other-cap": "Matters",
+      "household": "matter",
+      "households": "matters",
+      "household-cap": "Matter",
+      "households-cap": "Matters",
+      "confidentiality-column": "Sensitive",
+      "confidentiality-badge": "Sensitive"
+    }
   }
 }

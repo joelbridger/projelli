@@ -53,6 +53,7 @@ describe('en.json structure snapshot', () => {
         "citation": 3,
         "common": 49,
         "editor": 14,
+        "entity-label": 50,
         "firm": 143,
         "layout": 40,
         "local-ai-download": 9,
@@ -135,7 +136,14 @@ describe('en.json structure snapshot', () => {
     //      onboarding-card keys), ask.scope-toggle.* (3, ScopeToggle's own
     //      "This X" / "All X" pills sat right next to ask.scope-pill.* with
     //      the same disease).
-    expect(flat.length).toBe(1125);
+    // +50 = entity-label.* (cleanup batch 2, 2026-07-04): useEntityLabel()
+    //      returned hardcoded English words for the profession-pack noun
+    //      (matter/client/engagement/household) regardless of locale. New:
+    //      entity-label.{legal,tax,consulting,advisor,other}.* (10 fields
+    //      each: one, other, one-cap, other-cap, household, households,
+    //      household-cap, households-cap, confidentiality-column,
+    //      confidentiality-badge).
+    expect(flat.length).toBe(1175);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const invokeMock = vi.fn();
 vi.mock('@tauri-apps/api/core', () => ({ invoke: (...a: unknown[]) => invokeMock(...a) }));
 
-const writeFileMock = vi.fn(async () => {});
+const writeFileMock = vi.fn(async (_path: string, _content: string) => {});
 
 vi.mock('@/platform/matter/matterStore', () => ({
   useMatterStore: {

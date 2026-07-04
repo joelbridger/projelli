@@ -12,6 +12,6 @@ describe('meeting transcript schema', () => {
         consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-07-02T17:02:58Z' },
       },
     } satisfies TranscriptFile;
-    expect(wire.segments[0].speaker).toBe('You');
+    expect(wire.segments[0]?.speaker).toBe('You');
   });
 });

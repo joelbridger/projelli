@@ -4,7 +4,7 @@ vi.mock('@/platform/utils/prompt-security', () => ({
   sanitizeForPrompt: vi.fn((s: string) => s),
 }));
 
-const docxMarkdownSpy = vi.fn(async (md: string) => new TextEncoder().encode(md).buffer);
+const docxMarkdownSpy = vi.fn(async (md: string, _name: string) => new TextEncoder().encode(md).buffer);
 vi.mock('@/platform/utils/docx-io', () => ({
   markdownToDocxBytes: (md: string, name: string) => docxMarkdownSpy(md, name),
   applyLetterheadIfConfigured: vi.fn(async (b: ArrayBuffer) => b),

@@ -31,6 +31,8 @@
  * Internal Matter type, ids, store names, and SAMPLE_MATTER_ID are NEVER
  * changed by this hook; only the visible words adapt.
  */
+import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
 import { useProfessionStore, getProfession } from '@/platform/profile/professionStore';
 import type { Profession } from '@/platform/profile/professionModel';
 
@@ -57,82 +59,100 @@ export interface EntityLabel {
   confidentialityBadge: string;
 }
 
-const LABELS: Record<Profession, EntityLabel> = {
-  legal: {
-    one: 'matter',
-    other: 'matters',
-    One: 'Matter',
-    Other: 'Matters',
-    household: 'matter',
-    households: 'matters',
-    Household: 'Matter',
-    Households: 'Matters',
-    confidentialityColumn: 'Privilege',
-    confidentialityBadge: 'Privileged',
-  },
-  tax: {
-    one: 'client',
-    other: 'clients',
-    One: 'Client',
-    Other: 'Clients',
-    household: 'client',
-    households: 'clients',
-    Household: 'Client',
-    Households: 'Clients',
-    confidentialityColumn: 'Confidential',
-    confidentialityBadge: 'Confidential',
-  },
-  consulting: {
-    one: 'engagement',
-    other: 'engagements',
-    One: 'Engagement',
-    Other: 'Engagements',
-    household: 'engagement',
-    households: 'engagements',
-    Household: 'Engagement',
-    Households: 'Engagements',
-    confidentialityColumn: 'Confidential',
-    confidentialityBadge: 'Confidential',
-  },
-  advisor: {
-    one: 'client',
-    other: 'clients',
-    One: 'Client',
-    Other: 'Clients',
-    household: 'household',
-    households: 'households',
-    Household: 'Household',
-    Households: 'Households',
-    confidentialityColumn: 'Sensitive',
-    confidentialityBadge: 'Sensitive',
-  },
-  other: {
-    one: 'matter',
-    other: 'matters',
-    One: 'Matter',
-    Other: 'Matters',
-    household: 'matter',
-    households: 'matters',
-    Household: 'Matter',
-    Households: 'Matters',
-    confidentialityColumn: 'Sensitive',
-    confidentialityBadge: 'Sensitive',
-  },
-};
+/**
+ * Every profession's words live under `entity-label.<profession>.<field>` in
+ * the locale files (en/es/de) — kebab-case keys, mapped here onto the
+ * PascalCase-friendly EntityLabel field names (`One`, `Household`, etc.) that
+ * dozens of call sites already depend on. Keys are looked up with literal
+ * strings (not a template built from `profession`) because the i18next-parser
+ * extractor can't trace a dynamic key — see `meetingTypeLabel` in
+ * meetingDisplay.ts for the same pattern.
+ */
+function buildEntityLabel(profession: Profession, t: (key: string) => string): EntityLabel {
+  switch (profession) {
+    case 'legal':
+      return {
+        one: t('entity-label.legal.one'),
+        other: t('entity-label.legal.other'),
+        One: t('entity-label.legal.one-cap'),
+        Other: t('entity-label.legal.other-cap'),
+        household: t('entity-label.legal.household'),
+        households: t('entity-label.legal.households'),
+        Household: t('entity-label.legal.household-cap'),
+        Households: t('entity-label.legal.households-cap'),
+        confidentialityColumn: t('entity-label.legal.confidentiality-column'),
+        confidentialityBadge: t('entity-label.legal.confidentiality-badge'),
+      };
+    case 'tax':
+      return {
+        one: t('entity-label.tax.one'),
+        other: t('entity-label.tax.other'),
+        One: t('entity-label.tax.one-cap'),
+        Other: t('entity-label.tax.other-cap'),
+        household: t('entity-label.tax.household'),
+        households: t('entity-label.tax.households'),
+        Household: t('entity-label.tax.household-cap'),
+        Households: t('entity-label.tax.households-cap'),
+        confidentialityColumn: t('entity-label.tax.confidentiality-column'),
+        confidentialityBadge: t('entity-label.tax.confidentiality-badge'),
+      };
+    case 'consulting':
+      return {
+        one: t('entity-label.consulting.one'),
+        other: t('entity-label.consulting.other'),
+        One: t('entity-label.consulting.one-cap'),
+        Other: t('entity-label.consulting.other-cap'),
+        household: t('entity-label.consulting.household'),
+        households: t('entity-label.consulting.households'),
+        Household: t('entity-label.consulting.household-cap'),
+        Households: t('entity-label.consulting.households-cap'),
+        confidentialityColumn: t('entity-label.consulting.confidentiality-column'),
+        confidentialityBadge: t('entity-label.consulting.confidentiality-badge'),
+      };
+    case 'advisor':
+      return {
+        one: t('entity-label.advisor.one'),
+        other: t('entity-label.advisor.other'),
+        One: t('entity-label.advisor.one-cap'),
+        Other: t('entity-label.advisor.other-cap'),
+        household: t('entity-label.advisor.household'),
+        households: t('entity-label.advisor.households'),
+        Household: t('entity-label.advisor.household-cap'),
+        Households: t('entity-label.advisor.households-cap'),
+        confidentialityColumn: t('entity-label.advisor.confidentiality-column'),
+        confidentialityBadge: t('entity-label.advisor.confidentiality-badge'),
+      };
+    case 'other':
+      return {
+        one: t('entity-label.other.one'),
+        other: t('entity-label.other.other'),
+        One: t('entity-label.other.one-cap'),
+        Other: t('entity-label.other.other-cap'),
+        household: t('entity-label.other.household'),
+        households: t('entity-label.other.households'),
+        Household: t('entity-label.other.household-cap'),
+        Households: t('entity-label.other.households-cap'),
+        confidentialityColumn: t('entity-label.other.confidentiality-column'),
+        confidentialityBadge: t('entity-label.other.confidentiality-badge'),
+      };
+  }
+}
 
 /**
- * Reactive React hook. Re-renders the component whenever the profession
- * changes (e.g. via settings or localStorage toggle).
+ * Reactive React hook. Re-renders the component whenever the profession or
+ * the active locale changes (e.g. via settings or localStorage toggle).
  */
 export function useEntityLabel(): EntityLabel {
   const profession = useProfessionStore((s) => s.profession);
-  return LABELS[profession];
+  const { t } = useTranslation();
+  return buildEntityLabel(profession, t);
 }
 
 /**
  * Non-reactive read for code outside React (utilities, event handlers, etc.).
- * Reads the current Zustand snapshot; does NOT subscribe to future changes.
+ * Reads the current Zustand + i18next snapshot; does NOT subscribe to future
+ * changes.
  */
 export function getEntityLabel(): EntityLabel {
-  return LABELS[getProfession()];
+  return buildEntityLabel(getProfession(), i18n.t.bind(i18n));
 }
