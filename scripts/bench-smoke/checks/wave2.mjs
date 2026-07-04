@@ -17,6 +17,7 @@ import {
   openSmokeClientDocuments,
   openSmokeClientDocumentsSubtab,
   openSmokeClientNote,
+  openSmokeClientOverview,
 } from './_util.mjs';
 import { SMOKE_CLIENT_MATTER_ID, SMOKE_NOTE_FILENAME_SECONDARY } from './smoke-workspace.mjs';
 
@@ -60,6 +61,23 @@ export const checkWealthboxQueueAndReview = withGuard(ID, SECTION, async ({ driv
   }
 
   await driver.click('docx-send-to-wealthbox');
+
+  // Coordinator review catch (P2): CrmWritePendingBanner (QA finding P2) made
+  // CrmWriteReviewCard mount ONLY on the Overview sub-tab — Documents (where
+  // this check just clicked Send to Wealthbox, per openSmokeClientDocuments-
+  // Subtab above) now shows only the pending-review banner once a write is
+  // queued. Without jumping back to Overview, a genuinely WORKING app would
+  // false-FAIL below (the collapsed card lives on a sub-tab never visited).
+  // Prefer the banner's own Review-now action — this doubles as an
+  // end-to-end check that the jump it advertises actually works — and fall
+  // back to a direct sub-tab click (always available once a hub is open,
+  // per openSmokeClientOverview's doc comment) if the banner isn't there for
+  // any reason (e.g. a prior check already left the hub on Overview).
+  try {
+    await driver.click('hub-crm-pending-banner-review-now');
+  } catch {
+    await openSmokeClientOverview(driver);
+  }
 
   // Harness-honesty fix: a prior version gated PASS on
   // driver.waitFor('review card', 15) — a whole-page substring text match.

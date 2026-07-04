@@ -65,6 +65,58 @@ describe('checkWealthboxQueueAndReview', () => {
     expect(driver.click).toHaveBeenCalledWith('crm-write-card-collapsed');
   });
 
+  // Coordinator review catch (P2): CrmWritePendingBanner (QA finding P2) made
+  // CrmWriteReviewCard mount ONLY on the Overview sub-tab — Documents (where
+  // this check clicks Send to Wealthbox, per openSmokeClientDocumentsSubtab)
+  // now shows only the pending-review banner once a write is queued. Without
+  // navigating back to Overview, a genuinely WORKING app would false-FAIL
+  // here (the collapsed card lives on a sub-tab this check never visits).
+  it('navigates back to Overview via the pending-review banner Review-now action before looking for the real card', async () => {
+    const clickOrder = [];
+    const driver = makeDriver({
+      click: vi.fn().mockImplementation(async (testid) => { clickOrder.push(testid); }),
+      snapshot: vi
+        .fn()
+        .mockResolvedValueOnce({ ok: true, elements: SEND_BUTTON })
+        .mockResolvedValueOnce({ ok: true, elements: [{ testid: 'crm-write-card-collapsed' }] })
+        .mockResolvedValueOnce({
+          ok: true,
+          elements: [{ testid: 'crm-write-card-collapsed' }, { testid: 'crm-approve-btn', text: 'Approve 1 change' }],
+        }),
+    });
+
+    const result = await checkWealthboxQueueAndReview({ driver });
+
+    expect(result.status).toBe(STATUS.PASS);
+    const sendIdx = clickOrder.indexOf('docx-send-to-wealthbox');
+    const reviewNowIdx = clickOrder.indexOf('hub-crm-pending-banner-review-now');
+    const cardIdx = clickOrder.indexOf('crm-write-card-collapsed');
+    expect(sendIdx).toBeGreaterThanOrEqual(0);
+    expect(reviewNowIdx).toBeGreaterThan(sendIdx);
+    expect(cardIdx).toBeGreaterThan(reviewNowIdx);
+  });
+
+  it('falls back to clicking the Overview sub-tab directly if the pending-review banner is not clickable', async () => {
+    const driver = makeDriver({
+      click: vi.fn().mockImplementation(async (testid) => {
+        if (testid === 'hub-crm-pending-banner-review-now') throw new Error('not found');
+      }),
+      snapshot: vi
+        .fn()
+        .mockResolvedValueOnce({ ok: true, elements: SEND_BUTTON })
+        .mockResolvedValueOnce({ ok: true, elements: [{ testid: 'crm-write-card-collapsed' }] })
+        .mockResolvedValueOnce({
+          ok: true,
+          elements: [{ testid: 'crm-write-card-collapsed' }, { testid: 'crm-approve-btn', text: 'Approve 1 change' }],
+        }),
+    });
+
+    const result = await checkWealthboxQueueAndReview({ driver });
+
+    expect(result.status).toBe(STATUS.PASS);
+    expect(driver.click).toHaveBeenCalledWith('hub-subtab-overview');
+  });
+
   it('FAILs when the card renders but expanding it never reveals an Approve control', async () => {
     const driver = makeDriver({
       snapshot: vi
