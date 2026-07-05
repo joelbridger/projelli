@@ -25,8 +25,18 @@ import { useNoticeSettings } from './noticeSettings';
 import { meetingDisplayTitle, meetingTypeLabel, formatMeetingDate, formatMeetingDuration } from './meetingDisplay';
 import { makeMeetingTypesStore, BUILT_IN_TYPES } from './meetingTypes';
 import type { TranscriptFile } from '@/platform/types/meeting';
-import type { ComponentType } from 'react';
 import type { TFunction } from 'i18next';
+import { LazyBoundary } from '@/ui/LazyBoundary';
+
+// QA-47: module-level (stable identity across renders, like MainPanel's
+// loadDocxEditor) so LazyBoundary's `loader` dependency doesn't change every
+// render. Routing the notes.docx editor through LazyBoundary — instead of a
+// bare `import().then(setState)` with no `.catch` — means a chunk-load
+// failure (flaky network mid-fetch) surfaces a real error+retry state
+// instead of silently leaving DocxEditorComp null forever, which used to
+// fall through to a false "notes pending" even when notes.docx exists.
+const loadDocxEditor = () =>
+  import('@/features/documents/media/DocxEditor').then((m) => ({ default: m.DocxEditor }));
 
 export interface MeetingEntryProps {
   matterId: string;
@@ -67,7 +77,6 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
   const [hasNotes, setHasNotes] = useState(false);
   const [audioSrc, setAudioSrc] = useState<string | null>(null);
   const [hasAudio, setHasAudio] = useState(false);
-  const [DocxEditorComp, setDocxEditorComp] = useState<ComponentType<{ filePath: string; fileName: string }> | null>(null);
   const [seekMs, setSeekMs] = useState<number | undefined>(initialSeekMs);
   const [editingType, setEditingType] = useState(false);
   const [typeInput, setTypeInput] = useState('');
@@ -109,14 +118,6 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     })();
     return () => { cancelled = true; };
   }, [meetingDir, workspaceService]);
-
-  useEffect(() => {
-    let cancelled = false;
-    void import('@/features/documents/media/DocxEditor').then((mod) => {
-      if (!cancelled) setDocxEditorComp(() => mod.DocxEditor);
-    });
-    return () => { cancelled = true; };
-  }, []);
 
   // Recording Notice Kit — the per-client ledger for this meeting's notices.
   // matterFolder is derived from matterId (falls back to stripping the meeting
@@ -375,8 +376,14 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
 
       <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
         <div style={{ flex: 1, minWidth: 0, borderRight: '1px solid var(--kp-divider)', overflow: 'auto' }}>
-          {hasNotes && DocxEditorComp ? (
-            <DocxEditorComp filePath={`${meetingDir}/notes.docx`} fileName="notes.docx" />
+          {hasNotes ? (
+            <LazyBoundary
+              loader={loadDocxEditor}
+              resetKey={meetingDir}
+              label={t('meetings.entry.docx-editor-label')}
+            >
+              {(DocxEditor) => <DocxEditor filePath={`${meetingDir}/notes.docx`} fileName="notes.docx" />}
+            </LazyBoundary>
           ) : meta?.notesError ? (
             <div
               data-testid="meeting-entry-notes-failed"
