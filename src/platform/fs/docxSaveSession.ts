@@ -206,7 +206,7 @@ export class DocxSession {
     }, delay);
   }
 
-  private async attemptSave(doc: DocumentJson): Promise<boolean> {
+  private async attemptSave(doc: DocumentJson, snapshot = true): Promise<boolean> {
     this.isSaving = true;
     this.notify();
     try {
@@ -239,7 +239,8 @@ export class DocxSession {
       this.clearRetryTimer();
       const author = this.pendingAuthor;
       this.pendingAuthor = 'user';
-      if (wasDirty) {
+      // `snapshot: false` for live-typing shadow saves — see `persistLive`.
+      if (wasDirty && snapshot) {
         try {
           await this.hooks.onAfterSave?.({ filePath: this.filePath, author });
         } catch (verr) {
@@ -261,10 +262,14 @@ export class DocxSession {
   }
 
   /** One save attempt; on failure bumps the failure count, escalates after
-   * enough consecutive failures, and schedules the next backoff retry. */
-  async persist(doc: DocumentJson): Promise<boolean> {
+   * enough consecutive failures, and schedules the next backoff retry.
+   * `snapshot: false` suppresses the version-history snapshot (live-typing
+   * shadow saves — see `persistLive`); a failed shadow save still retries with
+   * backoff exactly like any other save, so nothing is lost. */
+  async persist(doc: DocumentJson, opts: { snapshot?: boolean } = {}): Promise<boolean> {
+    const { snapshot = true } = opts;
     this.clearRetryTimer();
-    const ok = await this.attemptSave(doc);
+    const ok = await this.attemptSave(doc, snapshot);
     if (ok) {
       // QA-43 (coordinator P0): this used to self-dispose here when nobody
       // was watching and the doc was clean — a "nothing left to keep alive
@@ -312,6 +317,39 @@ export class DocxSession {
       this.saveTimer = null;
     }
     return this.persist(doc);
+  }
+
+  /**
+   * QA-81 (P0 data loss): the STEADY-STATE live-typing shadow save. The editor
+   * calls this every ~2s while a run is focused so the un-blurred keystrokes
+   * sitting in the contentEditable DOM reach disk on their own — not only when
+   * the user navigates away. Differs from `persistNow` in two deliberate ways:
+   *
+   *  1. It marks the session DIRTY before queuing the write. `doc` is not on
+   *     disk yet, and — critically for OVERLAPPING writes — if one docx_save
+   *     runs longer than the 2s cadence, an OLDER write can complete while a
+   *     NEWER shadow is still queued. `attemptSave` only clears isDirty when the
+   *     doc it just wrote is still current, so marking dirty here means that
+   *     older completion leaves the session dirty (newest text not yet saved)
+   *     instead of publishing a false "clean"/"Saved" that a close/quit guard
+   *     could act on and lose the newest keystrokes. Mirrors `scheduleSave`.
+   *
+   *  2. It does NOT take a version-history snapshot (`snapshot: false`). Those
+   *     mark meaningful, committed (blurred / accepted / redlined) edits; a
+   *     snapshot every 2s of active typing would flood the version timeline.
+   *     The eventual blur commit persists through the normal path and DOES
+   *     snapshot, so the timeline still captures the finished edit.
+   */
+  async persistLive(doc: DocumentJson): Promise<boolean> {
+    this.doc = doc;
+    this.isDirty = true;
+    this.publishState();
+    this.notify();
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = null;
+    }
+    return this.persist(doc, { snapshot: false });
   }
 
   /**

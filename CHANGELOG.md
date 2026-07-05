@@ -92,6 +92,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **R9 — biometric consent before voiceprint enrollment.** "Separate speakers" requires an explicit affirmation that the client consented to a voice profile (with an honest state-biometric-law note) before any new voiceprint is enrolled; the attestation is ledgered as a `voiceprint_consent` audit event (`SpeakerNamesPanel.tsx`).
 
 ### Fixed
+- **QA-81 (P0 silent data loss): a brand-new .docx being actively TYPED no
+  longer loses in-progress text on a crash/power-loss while the toolbar shows
+  "Saved".** A keystroke lives only in the run's editable DOM until the run
+  blurs (which is what committed it and scheduled a save); until then the
+  steady-state ~2s autosave had nothing to write, so live typing reached disk
+  ONLY when the user navigated away / closed / quit. Now a periodic autosave
+  (`LIVE_TYPING_AUTOSAVE_MS`, ~2s) folds the focused run's live text into a
+  clone of the session document and writes it via a new
+  `DocxSession.persistLive`, without touching the live editing model,
+  re-rendering, or moving the caret; a later blur authors the proper
+  tracked-change commit and supersedes the plain-text shadow on disk.
+  `persistLive` marks the session dirty before queuing (so an overlapping older
+  write can't publish a false "Saved" while newer text is still queued) and
+  skips the version-history snapshot (those are for committed edits, not every
+  2s of typing). Solo path only — co-edit is unchanged (its document is sourced
+  from the CRDT). Files: `src/features/documents/media/DocxEditor.tsx`,
+  `src/platform/fs/docxSaveSession.ts`, tests in
+  `tests/unit/DocxEditor.test.tsx`, `tests/unit/fileOps/docxSaveSession.test.ts`.
 - **QA-71 (P1/P2): deleting meeting audio before transcription now warns about
   total loss.** `MeetingEntry` now checks whether `transcript.json` actually
   loaded before choosing the delete-audio action and confirmation copy. Meetings

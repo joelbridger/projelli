@@ -1080,6 +1080,118 @@ describe('DocxEditor — accept / reject flow', () => {
   });
 });
 
+// QA-81 (P0 silent data loss): a brand-new .docx being ACTIVELY TYPED lost all
+// in-progress text on a crash/power-loss, while the toolbar showed "Saved" the
+// whole time. The steady-state periodic autosave only ever persisted content
+// that had already been COMMITTED (a run blur). Live, focused, un-blurred
+// keystrokes were folded in ONLY by the navigate-away / close / quit / unmount
+// flush — so the documented ~2s autosave wrote a doc that was MISSING whatever
+// the user was currently typing. This suite pins the fix: the periodic autosave
+// must persist the live keystroke to disk on its own cadence, with no
+// navigate-away, close, export, or unmount required.
+describe('DocxEditor — QA-81: live typing is persisted by the periodic autosave', () => {
+  beforeEach(() => {
+    invokeMock.mockReset();
+  });
+
+  it('persists a focused, un-blurred keystroke on the periodic autosave (no navigate-away needed)', async () => {
+    const oneRunDoc: DocumentJson = {
+      formatVersion: 1,
+      body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'original text' }] }],
+      comments: {},
+    };
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'docx_open') return Promise.resolve(oneRunDoc);
+      if (cmd === 'docx_save') return Promise.resolve(undefined);
+      return Promise.resolve(undefined);
+    });
+
+    renderEditor();
+    const run = await screen.findByTestId('docx-run');
+
+    // Reviewing OFF: a plain-text edit — isolates this to the periodic-save
+    // mechanism, not the tracked-changes diff path.
+    fireEvent.click(screen.getByTestId('docx-reviewing-toggle'));
+
+    // The user types (focus fires, DOM text changes) and KEEPS typing — they
+    // never blur, never switch tabs, never close, never export.
+    fireEvent.focus(run);
+    run.textContent = 'original text TYPED LIVE';
+
+    // The periodic autosave (no navigate-away) must fold in the live DOM text
+    // and write it to disk on its own — this is what "Saved" must truthfully
+    // mean while typing.
+    await waitFor(
+      () =>
+        expect(invokeMock).toHaveBeenCalledWith(
+          'docx_save',
+          expect.objectContaining({
+            path: '/ws/agreement.docx',
+            document: expect.objectContaining({
+              body: [
+                expect.objectContaining({
+                  inlines: [
+                    expect.objectContaining({ kind: 'run', text: 'original text TYPED LIVE' }),
+                  ],
+                }),
+              ],
+            }),
+          }),
+        ),
+      { timeout: 6000 },
+    );
+  }, 15000);
+
+  it('keeps persisting later keystrokes typed into the SAME still-focused run', async () => {
+    const oneRunDoc: DocumentJson = {
+      formatVersion: 1,
+      body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'seed' }] }],
+      comments: {},
+    };
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'docx_open') return Promise.resolve(oneRunDoc);
+      if (cmd === 'docx_save') return Promise.resolve(undefined);
+      return Promise.resolve(undefined);
+    });
+
+    renderEditor();
+    const run = await screen.findByTestId('docx-run');
+    fireEvent.click(screen.getByTestId('docx-reviewing-toggle'));
+
+    fireEvent.focus(run);
+    run.textContent = 'seed first';
+    await waitFor(
+      () =>
+        expect(invokeMock).toHaveBeenCalledWith(
+          'docx_save',
+          expect.objectContaining({
+            document: expect.objectContaining({
+              body: [expect.objectContaining({ inlines: [expect.objectContaining({ text: 'seed first' })] })],
+            }),
+          }),
+        ),
+      { timeout: 6000 },
+    );
+
+    // Still focused, still no blur — type MORE. The next autosave cycle must
+    // pick up the newer text (the active run must not stop being tracked after
+    // the first periodic save).
+    run.textContent = 'seed first second';
+    await waitFor(
+      () =>
+        expect(invokeMock).toHaveBeenCalledWith(
+          'docx_save',
+          expect.objectContaining({
+            document: expect.objectContaining({
+              body: [expect.objectContaining({ inlines: [expect.objectContaining({ text: 'seed first second' })] })],
+            }),
+          }),
+        ),
+      { timeout: 6000 },
+    );
+  }, 15000);
+});
+
 describe('DocxEditor — AI redline (A4)', () => {
   const VALID_KEYS = [
     { provider: 'anthropic', key: 'sk-test', isValid: true },

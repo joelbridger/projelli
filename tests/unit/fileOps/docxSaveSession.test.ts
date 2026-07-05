@@ -200,6 +200,91 @@ describe('docxSaveSession', () => {
     expect(savedDocs[1]).toEqual(docCycle2);
   });
 
+  // QA-81 (P0 silent data loss): the steady-state live-typing shadow save
+  // (`persistLive`) must write the un-blurred keystrokes to disk on its own ~2s
+  // cadence, but must NOT flood the version-history timeline with a snapshot
+  // every couple of seconds — those snapshots mark meaningful COMMITTED edits
+  // (blur / accept / redline), which still go through the normal save + DO snap.
+  it('persistLive writes the live text to disk but does NOT take a version-history snapshot (committed saves still do)', async () => {
+    mockInvoke({ save: 'ok' });
+    const onAfterSave = vi.fn();
+    const session = await openDocxSession('/ws/a.docx', { onAfterSave });
+
+    const liveDoc: DocumentJson = { ...DOC, body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'live typed, not blurred' }] }] };
+    await session.persistLive(liveDoc);
+
+    // The live keystrokes reached disk...
+    expect(invokeMock).toHaveBeenCalledWith(
+      'docx_save',
+      expect.objectContaining({ path: '/ws/a.docx', document: liveDoc }),
+    );
+    expect(session.isDirty).toBe(false);
+    // ...but a mid-typing autosave took NO version snapshot.
+    expect(onAfterSave).not.toHaveBeenCalled();
+
+    // A committed (blurred) edit DOES snapshot, so the timeline still captures
+    // the finished edit.
+    const committed: DocumentJson = { ...DOC, body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'committed on blur' }] }] };
+    session.scheduleSave(committed, 1200);
+    await vi.advanceTimersByTimeAsync(1200);
+    expect(onAfterSave).toHaveBeenCalledTimes(1);
+  });
+
+  // QA-81 (P0, Codex review catch): the live-typing autosave fires every ~2s, so
+  // if one docx_save runs longer than that, an OLDER live save can complete
+  // while a NEWER one is still queued. The older completion must NOT publish a
+  // false "Saved" (clean) — a close/quit guard would then believe the newest
+  // text is safely on disk when it isn't yet, and could lose it. `persistLive`
+  // marks the session dirty before queuing, so only the NEWEST write's own
+  // completion clears it.
+  it('an overlapping older live save completing does NOT falsely report clean while newer text is still queued', async () => {
+    const gates: Array<() => void> = [];
+    const savedDocs: DocumentJson[] = [];
+    invokeMock.mockImplementation((cmd: string, args?: Record<string, unknown>) => {
+      if (cmd === 'docx_open') return Promise.resolve(DOC);
+      if (cmd === 'docx_save') {
+        return new Promise<void>((resolve) => {
+          gates.push(() => {
+            savedDocs.push(args?.['document'] as DocumentJson);
+            resolve();
+          });
+        });
+      }
+      return Promise.resolve(undefined);
+    });
+
+    const session = await openDocxSession('/ws/a.docx', {});
+
+    const docA: DocumentJson = { ...DOC, body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'live A' }] }] };
+    void session.persistLive(docA); // write A starts, then hangs on its gate
+    await vi.advanceTimersByTimeAsync(0);
+    expect(gates).toHaveLength(1); // A's docx_save is in flight
+
+    // The user keeps typing — a NEWER live save is scheduled behind A (the write
+    // coordinator serializes it, so its docx_save hasn't been CALLED yet).
+    const docB: DocumentJson = { ...DOC, body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'live B (newest, must not be lost)' }] }] };
+    void session.persistLive(docB);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(session.doc).toEqual(docB);
+    expect(session.isDirty).toBe(true);
+    expect(gates).toHaveLength(1); // B still queued behind A — not called yet
+
+    // A lands. Its completion is STALE (doc is now docB) — it must leave the
+    // session dirty, not falsely clean.
+    gates[0]!();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(session.isDirty).toBe(true);
+    expect(isDocxUnsaved('/ws/a.docx')).toBe(true);
+    expect(gates).toHaveLength(2); // now B's write is in flight
+
+    // B lands — NOW the session is truthfully clean, with the newest text saved.
+    gates[1]!();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(session.isDirty).toBe(false);
+    expect(isDocxUnsaved('/ws/a.docx')).toBe(false);
+    expect(savedDocs.at(-1)).toEqual(docB);
+  });
+
   it('discardDocxSession stops the retry loop for good — a discarded save never lands later', async () => {
     mockInvoke({ save: 'fail' });
     const session = await openDocxSession('/ws/a.docx', {});
