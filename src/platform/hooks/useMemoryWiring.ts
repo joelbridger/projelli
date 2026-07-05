@@ -48,6 +48,7 @@ import { getMatters, resolveMatterMatchForPaths, useMatterStore } from '@/platfo
 import {
   buildMailMatterMap,
   isPathInFolder,
+  mailFolderKey,
   parseMailFolderKey,
 } from '@/platform/rag/matterResolver';
 import { UNASSIGNED_MATTER_ID } from '@/platform/types/matter';
@@ -1094,6 +1095,54 @@ export async function retagExistingMatterFolderPaths(
   }
 }
 
+/**
+ * QA-44 (Codex round 3) — the MAIL mirror of {@link retagExistingMatterFolderPaths}.
+ *
+ * A live mail folder->matter re-map re-tags that folder's already-indexed
+ * messages IN PLACE, held fail-closed by an IN-MEMORY exclusion
+ * (`excludeMailMatters`) until it lands. If that re-tag FAILS permanently and the
+ * workspace is then closed/switched, `retagScheduler.disposeAll()` drops the
+ * in-memory exclusion — and, unlike mapped FILE folders (healed every boot by
+ * `retagExistingMatterFolderPaths`), NOTHING re-applied the mail mapping on
+ * reopen. So the still-old-client-tagged mail surfaced under the WRONG client
+ * while the UI showed the new one: a cross-SESSION wrong-client mail leak.
+ *
+ * This closes it the same durable, boot-heal way files do: on every boot re-tag
+ * every MAPPED mail folder to its CURRENT matter, re-derived from the PERSISTED
+ * matter map (`matterStore.mailFolderPaths` — the durable intent, exactly like
+ * `folderPaths` for files). `mail_retag_folder_matter` is idempotent (it re-lists
+ * the folder's message ids from the encrypted store each call and honors durable
+ * per-message filings), so a tag that drifted converges back to the mapping on
+ * reopen regardless of what it drifted to.
+ *
+ * On a clean pass any failed banner a prior boot left for that folder is cleared;
+ * on failure the update is surfaced (visible, not silent) and retried next boot.
+ * Unlike the file mirror, a FAILED boot re-tag cannot ALSO content-hold the
+ * folder's mail — mail hits carry no folder path, and the pre-remap matter isn't
+ * recoverable on boot — so the every-boot idempotent heal IS the durable
+ * protection here (the transient failure that stranded the tag is almost always
+ * gone on a fresh boot). A distinct `mailboot:` id keeps this pass from ever
+ * clobbering an in-flight live `mail:<key>` scheduler entry for the same folder.
+ */
+export async function retagExistingMailFolders(): Promise<void> {
+  const entries = buildMailMatterMap(getMatters());
+  if (entries.length === 0) return;
+  const store = useScopeUpdateStore.getState();
+  for (const { provider, account, folderId, matterId } of entries) {
+    const id = `mailboot:${mailFolderKey(provider, account, folderId)}`;
+    try {
+      await mailRetagFolderMatter(provider, account, folderId, matterId);
+      // Clean pass — drop any failed banner a prior boot left for this folder.
+      store.remove(id);
+    } catch {
+      // Surface it (visible, not silent); the idempotent retag converges on the
+      // next boot once the transient failure clears.
+      store.begin({ id, kind: 'mail', label: 'Updating email search scope' });
+      store.markFailed(id);
+    }
+  }
+}
+
 export async function startFullIndex(
   workspaceService: MemoryWiringWorkspaceService | null | undefined,
 ): Promise<void> {
@@ -1115,6 +1164,11 @@ export async function startFullIndex(
       // downloading, from the local encrypted bodies. No-ops fast when the
       // backfill marker is absent (the common case).
       await mailBackfillRag(buildMailMatterMap(getMatters())).catch(() => {});
+      // QA-44 (Codex round 3): re-apply every mapped mail folder's matter on
+      // boot — the mail mirror of `retagExistingMatterFolderPaths` below. Heals a
+      // stale mail tag left by a failed live re-map whose in-memory exclusion was
+      // dropped on the previous workspace close (cross-session wrong-client leak).
+      await retagExistingMailFolders().catch(() => {});
       // Apply folder→matter scoping to the (now stable) rows, in place.
       await retagExistingMatterFolderPaths(workspaceService);
     })
