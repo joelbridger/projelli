@@ -405,6 +405,103 @@ describe('FileSystemWatcher — Tauri (event-driven)', () => {
       expect(watchWorkspaceMock.mock.calls.length).toBe(callsAtStop);
       expect(onFileTreeChange).not.toHaveBeenCalled();
     });
+
+    // Round-2 review findings: the keepalive itself introduced two new races.
+    it('a workspace switch always wins a race against a stale in-flight keepalive re-arm', async () => {
+      vi.useRealTimers();
+      const onFileTreeChangeA = vi.fn();
+      const onFileTreeChangeB = vi.fn();
+      const { FileSystemWatcher } = await importWatcher();
+
+      const watcherA = new FileSystemWatcher({ onFileTreeChange: onFileTreeChangeA, keepAliveIntervalMs: 10 });
+      await watcherA.start('/ws/A', async () => 'a1');
+      // Let A's own initial watchWorkspace('/ws/A') call settle.
+      await new Promise((r) => setTimeout(r, 0));
+
+      // Hold A's NEXT watchWorkspace call (its first keepalive re-arm) pending
+      // — this simulates stop() being called while that IPC call is already
+      // in flight and unstoppable.
+      let resolveStaleRearm: () => void = () => {};
+      watchWorkspaceMock.mockImplementationOnce(
+        () => new Promise<void>((resolve) => { resolveStaleRearm = resolve; }),
+      );
+
+      // Let A's keepalive interval fire and get stuck awaiting the pending
+      // mock above.
+      await new Promise((r) => setTimeout(r, 30));
+      const callsWhileStuck = watchWorkspaceMock.mock.calls.length;
+      expect(callsWhileStuck).toBeGreaterThanOrEqual(2);
+
+      // The user switches workspaces WHILE A's keepalive re-arm is still in
+      // flight: A is stopped, and a fresh instance for a DIFFERENT workspace
+      // starts and installs successfully.
+      watcherA.stop();
+      const watcherB = new FileSystemWatcher({ onFileTreeChange: onFileTreeChangeB, keepAliveIntervalMs: 10_000 });
+      await watcherB.start('/ws/B', async () => 'b1');
+      const callsBeforeStaleResolves = watchWorkspaceMock.mock.calls.length;
+
+      // NOW the stale re-arm (in flight since before the switch) finally
+      // completes. This is the race: without a fix, the Rust singleton
+      // (which only tracks the LAST call) would end up watching '/ws/A'
+      // again, silencing the CURRENT workspace ('/ws/B') — reproducing the
+      // exact QA-75 symptom via a switch race instead of an OS-level failure.
+      resolveStaleRearm();
+      await new Promise((r) => setTimeout(r, 0));
+      await new Promise((r) => setTimeout(r, 0));
+      await new Promise((r) => setTimeout(r, 0));
+
+      // The switch must win: something must re-assert '/ws/B' as the final
+      // word after the stale completion, not leave '/ws/A' as the last call.
+      expect(watchWorkspaceMock.mock.calls.length).toBeGreaterThan(callsBeforeStaleResolves);
+      expect(watchWorkspaceMock).toHaveBeenLastCalledWith('/ws/B');
+
+      watcherB.stop();
+    });
+
+    it('never stacks overlapping keepalive checks when a snapshot scan outlasts the interval', async () => {
+      const onFileTreeChange = vi.fn();
+      const { FileSystemWatcher } = await importWatcher();
+
+      let snapshotCallCount = 0;
+      let resolveSlowSnapshot: (v: string) => void = () => {};
+      const getFileTreeSnapshot = vi.fn(() => {
+        snapshotCallCount += 1;
+        if (snapshotCallCount === 1) return Promise.resolve('seed');
+        if (snapshotCallCount === 2) {
+          return new Promise<string>((resolve) => {
+            resolveSlowSnapshot = resolve;
+          });
+        }
+        return Promise.resolve('later');
+      });
+
+      const watcher = new FileSystemWatcher({ onFileTreeChange, keepAliveIntervalMs: 50, debounceMs: 10 });
+      await watcher.start('/ws/Acme', getFileTreeSnapshot);
+      await vi.advanceTimersByTimeAsync(0); // let the seed scan settle
+
+      const rearmCallsBefore = watchWorkspaceMock.mock.calls.length;
+
+      // First keepalive tick fires; its snapshot scan is the slow, pending one.
+      await vi.advanceTimersByTimeAsync(50);
+      expect(snapshotCallCount).toBe(2);
+
+      // A SECOND interval elapses while the first tick's scan is STILL
+      // pending. Without an overlap guard, this stacks a second concurrent
+      // scan (and a second concurrent re-arm call) — a workspace-walk storm
+      // on a slow/large/network workspace.
+      await vi.advanceTimersByTimeAsync(50);
+      expect(snapshotCallCount).toBe(2); // no third scan started while one is in flight
+      expect(watchWorkspaceMock.mock.calls.length).toBe(rearmCallsBefore + 1); // exactly one re-arm, not two
+
+      // Let the slow scan finally resolve — the next interval can now run a
+      // fresh check normally.
+      resolveSlowSnapshot('seed'); // unchanged vs the seed -> no refresh
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(50);
+      expect(snapshotCallCount).toBe(3);
+
+      watcher.stop();
+    });
   });
 });
 

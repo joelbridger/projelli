@@ -108,6 +108,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (instead of silently dropping them) and recovers from a poisoned debounce
   mutex instead of panicking. Files: `src/platform/fs/FileSystemWatcher.ts`,
   `src-tauri/src/commands/watcher.rs`.
+  - **Round-2 hardening:** independent review found the keepalive itself could
+    race a workspace switch — `stop()` can't cancel an in-flight `watchWorkspace`
+    IPC call, so an old instance's stale re-arm could resolve *after* a new
+    workspace's own install and clobber the Rust singleton back to the old
+    path, silencing the current workspace. Each `FileSystemWatcher` instance
+    now claims a module-level generation the moment its own watch installs; a
+    stale completion detects it's no longer current and self-corrects by
+    re-arming the active path instead of winning the race. Also added an
+    overlap guard so a snapshot scan slower than the keepalive interval can't
+    stack concurrent scans/re-arm calls on a large or slow workspace.
 - **QA-45 (P1): shared client notes no longer stick on "Loading" forever.**
   `MatterNotesEditorWrapper` called `ensureMatterSync(matter).then(...)` with
   no `.catch` — a rejected promise (key fetch / sync startup / crypto setup
