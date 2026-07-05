@@ -202,6 +202,15 @@ interface DocxEditorProps {
    * only when a current matter exists.
    */
   onReviewWealthboxQueue?: (() => void) | undefined;
+  /**
+   * E3 (Tier B trust guard): when set, this note is not yet cleared to leave
+   * the app (an unreviewed/errored/notice-quarantined meeting note), so both
+   * outbound toolbar actions — "Draft follow-up" and "Send to Wealthbox" —
+   * render disabled with this string as the honest explanation. The parent
+   * (MainPanel) computes it from the meeting's review + notice state. Absent
+   * for ordinary documents and for cleared notes.
+   */
+  outboundBlockedReason?: string | undefined;
 }
 
 type LoadState =
@@ -227,8 +236,11 @@ export function DocxEditor({
   onDraftFollowUp,
   onSendToWealthbox,
   onReviewWealthboxQueue,
+  outboundBlockedReason,
 }: DocxEditorProps) {
   const { t } = useTranslation();
+  // E3: a meeting note that hasn't cleared review can't leave the app.
+  const outboundBlocked = Boolean(outboundBlockedReason);
 
   const [load, setLoad] = useState<LoadState>({ status: 'loading' });
   // "Reviewing" gates whether tracked changes are shown inline (Word's "All
@@ -1469,8 +1481,11 @@ export function DocxEditor({
               data-testid="docx-draft-follow-up"
               variant="outline"
               size="sm"
+              disabled={outboundBlocked}
               className="h-7 gap-1.5 border-[rgba(var(--kp-navy-rgb),0.30)] text-[var(--kp-navy)] hover:bg-[rgba(var(--kp-navy-rgb),0.05)]"
               onClick={() => {
+                // E3: never send an unreviewed/errored/quarantined meeting note.
+                if (outboundBlocked) return;
                 // Coordinator review catch: commit any in-progress (focused,
                 // un-blurred) edit and drain any already-queued op before
                 // reading the doc, or the draft is built from a snapshot
@@ -1487,7 +1502,7 @@ export function DocxEditor({
                   onDraftFollowUp(text);
                 })();
               }}
-              title={t('media.docx-editor.draft-follow-up-title')}
+              title={outboundBlockedReason ?? t('media.docx-editor.draft-follow-up-title')}
             >
               <Mail className="h-3.5 w-3.5" />
               {t('media.docx-editor.draft-follow-up')}
@@ -1517,9 +1532,11 @@ export function DocxEditor({
                 data-testid="docx-send-to-wealthbox"
                 variant="outline"
                 size="sm"
-                disabled={!wealthboxConnected}
+                disabled={!wealthboxConnected || outboundBlocked}
                 className="h-7 gap-1.5 border-[rgba(var(--kp-navy-rgb),0.30)] text-[var(--kp-navy)] hover:bg-[rgba(var(--kp-navy-rgb),0.05)]"
                 onClick={() => {
+                  // E3: never queue an unreviewed/errored/quarantined meeting note.
+                  if (outboundBlocked) return;
                   // Same flush pattern as Draft follow-up above — the note
                   // sent to Wealthbox must include the advisor's latest
                   // in-progress edit, not a stale snapshot.
@@ -1542,15 +1559,27 @@ export function DocxEditor({
                   })();
                 }}
                 title={
-                  wealthboxConnected
+                  outboundBlockedReason ??
+                  (wealthboxConnected
                     ? t('matter.notes.send-to-wealthbox')
-                    : t('media.docx-editor.send-to-wealthbox-disconnected')
+                    : t('media.docx-editor.send-to-wealthbox-disconnected'))
                 }
               >
                 <Send className="h-3.5 w-3.5" />
                 {t('matter.notes.send-to-wealthbox')}
               </Button>
             </>
+          )}
+
+          {/* E3: the honest, visible explanation for why this note can't leave
+              yet — shown whenever an outbound action exists but is blocked. */}
+          {outboundBlocked && (onDraftFollowUp || onSendToWealthbox) && (
+            <span
+              data-testid="docx-outbound-blocked"
+              className="text-xs text-[var(--color-muted-foreground)]"
+            >
+              {outboundBlockedReason}
+            </span>
           )}
 
           {/* A6: discoverable Export — a clearly-labeled menu (not a bare icon)

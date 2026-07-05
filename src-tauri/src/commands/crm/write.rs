@@ -43,6 +43,19 @@ pub struct CrmWriteRequest {
     pub due_date: Option<String>,
     pub source_ref: String,
     pub requested_at: String,
+    /// R9→E3 (Tier B trust guard): a compact, honest provenance line for
+    /// AI-drafted notes ("Drafted by Advisor Prep Hero AI from the … meeting;
+    /// approved by … on …"), composed + localized in the renderer. When
+    /// present it is appended to the note content HERE, at the wire boundary,
+    /// so it always reaches the CRM even though the advisor can't edit a
+    /// note's body in the review card — a colleague reading the note in the
+    /// CRM always sees a machine drafted it and from what. `None` for
+    /// advisor-typed notes, tasks, and field updates. It is deliberately NOT
+    /// part of `dedup_key`: provenance is stable across retries of one
+    /// approval (composed once), and the approval event is already scoped by
+    /// `requested_at`, so leaving it out keeps the idempotency identity on the
+    /// content the advisor actually reviewed.
+    pub provenance: Option<String>,
 }
 
 /// Receipt for a completed (or deduplicated) write.
@@ -137,6 +150,19 @@ fn normalize_for_readback_compare(s: &str) -> String {
 /// feature ships, that future change needs either a migration for existing
 /// rows or a fallback lookup under the old formula — skipping that then
 /// would let a retry miss its own `sent`/`pending_verify` row and double-post.
+/// Build the note content string that actually reaches the CRM: the title as
+/// the first line, the body below it, and — for AI-drafted notes — the honest
+/// provenance line appended below that (E3 trust guard). Kept a pure function
+/// so the wire shape (does the provenance line travel?) is unit-testable
+/// without a live HTTP round-trip.
+pub fn note_content(req: &CrmWriteRequest) -> String {
+    let base = format!("{}\n\n{}", req.title.trim(), req.body.trim());
+    match req.provenance.as_deref().map(str::trim) {
+        Some(p) if !p.is_empty() => format!("{base}\n\n{p}"),
+        _ => base,
+    }
+}
+
 pub fn dedup_key(req: &CrmWriteRequest) -> String {
     let mut h = Sha256::new();
     for part in [
@@ -267,7 +293,7 @@ impl CrmWriteSource for crate::commands::crm::client::WealthboxClient {
         // Wealthbox notes have no title field: title becomes the first line.
         // VERIFY-LIVE: linked_to "type" casing ("Contact").
         let body = serde_json::json!({
-            "content": format!("{}\n\n{}", req.title.trim(), req.body.trim()),
+            "content": note_content(req),
             "linked_to": [{"id": contact_id, "type": "Contact"}],
         });
         let resp = self.post_json("/notes", &body).await.map_err(map_http_err)?;
@@ -320,7 +346,11 @@ impl CrmWriteSource for crate::commands::crm::client::WealthboxClient {
         match req.kind {
             CrmWriteKind::Note => {
                 let notes = self.list_notes(None).await.map_err(map_http_err)?;
-                let want = norm(&format!("{}\n\n{}", req.title.trim(), req.body.trim()));
+                // Match against the SAME content create_note posts (title +
+                // body + any appended provenance line), or a lost-readback
+                // retry of a provenance-bearing note would miss its own
+                // already-created note and post a duplicate (Codex review).
+                let want = norm(&note_content(req));
                 Ok(notes
                     .iter()
                     .find(|n| {
@@ -820,6 +850,12 @@ fn content_shape_key(req: &CrmWriteRequest) -> String {
         &norm(&req.title),
         &norm(&req.body),
         req.due_date.as_deref().unwrap_or(""),
+        // Include the provenance line (Codex review): it's part of the actual
+        // CRM-visible note content now, so two approvals with identical
+        // title/body but different provenance are DIFFERENT content and must
+        // not share a recovery group — otherwise recovering one could mark the
+        // other failed and let a later retry post a duplicate.
+        req.provenance.as_deref().unwrap_or(""),
     ] {
         h.update(part.as_bytes());
         h.update([0u8]);
@@ -1843,7 +1879,32 @@ mod tests {
             due_date: None,
             source_ref: "doc:Clients/Henderson/notes.docx".into(),
             requested_at: "2026-07-02T14:41:00Z".into(),
+            provenance: None,
         }
+    }
+
+    // E3 (Tier B trust guard): an AI-drafted note's provenance line must
+    // travel with the content that reaches the CRM. `note_content` is the
+    // single builder create_note uses, so testing it proves the wire shape.
+    #[test]
+    fn note_content_appends_provenance_for_ai_drafted_notes() {
+        let mut req = note_req();
+        req.provenance = Some(
+            "Drafted by Advisor Prep Hero AI from the Jul 2, 2026 meeting; approved by Dana Lee on Jul 4, 2026.".into(),
+        );
+        let content = note_content(&req);
+        assert!(content.starts_with("Q3 review follow-up\n\nDiscussed 529 rollover."));
+        assert!(content.contains("Drafted by Advisor Prep Hero AI from the Jul 2, 2026 meeting"));
+        assert!(content.contains("approved by Dana Lee on Jul 4, 2026."));
+    }
+
+    #[test]
+    fn note_content_omits_provenance_when_absent_or_blank() {
+        let plain = note_content(&note_req());
+        assert_eq!(plain, "Q3 review follow-up\n\nDiscussed 529 rollover.");
+        let mut blank = note_req();
+        blank.provenance = Some("   ".into());
+        assert_eq!(note_content(&blank), plain);
     }
 
     fn task_req() -> CrmWriteRequest {

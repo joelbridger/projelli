@@ -681,6 +681,9 @@ fn finish_vevent(
             organizer_email: raw.organizer.clone(),
             is_cancelled: raw.cancelled,
             self_declined: false, // ICS has no "self"
+            // ICS feeds carry no reliable structured join URL; the Notice Card
+            // sources join links from Outlook/Google sync (or a manual paste).
+            join_url: None,
         })
         .collect())
 }

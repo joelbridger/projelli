@@ -217,7 +217,25 @@ fn map_graph_event(
             .to_string(),
         is_cancelled: item.get("isCancelled").and_then(|x| x.as_bool()).unwrap_or(false),
         self_declined: self_response == "declined",
+        join_url: extract_graph_join_url(item),
     })
+}
+
+/// The online-meeting join URL from a Graph event, if any. Graph puts it on
+/// `onlineMeeting.joinUrl` when `isOnlineMeeting` is true (Teams and, for
+/// third-party providers configured in the tenant, other services). The older
+/// `onlineMeetingUrl` scalar is a fallback for events created before the
+/// structured `onlineMeeting` object. Blank strings are treated as absent.
+/// VERIFY-LIVE: confirm `onlineMeeting/joinUrl` against one real Teams event.
+fn extract_graph_join_url(item: &serde_json::Value) -> Option<String> {
+    let from_str = |v: Option<&serde_json::Value>| {
+        v.and_then(|x| x.as_str())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+    };
+    from_str(item.pointer("/onlineMeeting/joinUrl"))
+        .or_else(|| from_str(item.get("onlineMeetingUrl")))
 }
 
 #[cfg(test)]
@@ -263,6 +281,28 @@ mod tests {
             ],
             "@odata.nextLink": next
         })
+    }
+
+    #[test]
+    fn extracts_join_url_from_online_meeting_then_legacy_then_none() {
+        // Structured onlineMeeting.joinUrl (the modern Teams shape) wins.
+        let modern = serde_json::json!({
+            "onlineMeeting": { "joinUrl": "https://teams.microsoft.com/l/meetup-join/abc" },
+            "onlineMeetingUrl": "https://legacy.example/should-be-ignored"
+        });
+        assert_eq!(
+            extract_graph_join_url(&modern).as_deref(),
+            Some("https://teams.microsoft.com/l/meetup-join/abc")
+        );
+        // Falls back to the legacy scalar when the structured object is absent.
+        let legacy = serde_json::json!({ "onlineMeetingUrl": "https://teams.microsoft.com/legacy" });
+        assert_eq!(
+            extract_graph_join_url(&legacy).as_deref(),
+            Some("https://teams.microsoft.com/legacy")
+        );
+        // Blank strings and missing fields => None (an in-person meeting).
+        assert_eq!(extract_graph_join_url(&serde_json::json!({ "onlineMeeting": { "joinUrl": "" } })), None);
+        assert_eq!(extract_graph_join_url(&serde_json::json!({ "subject": "no link" })), None);
     }
 
     #[tokio::test]

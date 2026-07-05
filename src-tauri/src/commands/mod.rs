@@ -90,3 +90,8 @@ pub mod voiceprint;
 // Wave 4 Track D — per-workspace retention policy sweep enforcing the capture
 // location contract (audio.wav, chunk caches, transcript.json in summary-only).
 pub mod retention;
+// Notice Card — isolated companion-webview commands: open/close/status of the
+// guest-join window that shows participants the recording-notice card. The
+// window inherits NO app capabilities (label-scoped isolation); status flows
+// out one-way via document.title. See notice_card/mod.rs for the full model.
+pub mod notice_card;

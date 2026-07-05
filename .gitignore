@@ -90,3 +90,7 @@ scripts/marketing-capture/dist/
 
 # Test robot evidence bundles (screenshots/logs) — outputs, not source
 scripts/robot/_artifacts/
+scripts/*tmp*.mjs
+scripts/ask_and_watch.mjs
+scripts/click_text_tmp.mjs
+scripts/*_capture*.mjs
