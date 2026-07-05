@@ -63,7 +63,7 @@ describe('en.json structure snapshot', () => {
         "marketplace": 14,
         "matter": 209,
         "media": 92,
-        "meetings": 146,
+        "meetings": 148,
         "memory": 6,
         "model-download": 9,
         "onboarding": 67,
@@ -241,7 +241,10 @@ describe('en.json structure snapshot', () => {
     //       manual fallbacks + Zoom native-record self-attest, the
     //       record-pill status line, the visual card copy, the 3 Notice Card
     //       settings controls, and the "save recording background image" action).
-    expect(flat.length).toBe(1329); // base 1280 + 1 (QA-47) + 17 (Tier B) + 31 (Notice Card)
+    // +2 = QA-71 fix (2026-07-05): meetings.entry gained no-transcript
+    //      delete-audio button/body copy so deleting audio before transcript
+    //      exists honestly warns that the only meeting copy will be lost.
+    expect(flat.length).toBe(1331); // base 1280 + 1 (QA-47) + 17 (Tier B) + 31 (Notice Card) + 2 (QA-71)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {
