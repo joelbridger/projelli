@@ -39,6 +39,7 @@
     "version:bump": "node scripts/bump-version.mjs",
     "prepare": "bash scripts/install-git-hooks.sh || true",
     "i18n:check": "node ./node_modules/.bin/i18next --config i18next-parser.check.config.js --fail-on-warnings",
+    "i18n:completeness": "node scripts/i18n-completeness-check.mjs",
     "i18n:extract": "node ./node_modules/.bin/i18next --config i18next-parser.config.js",
     "extract-i18n": "node ./node_modules/.bin/i18next --config i18next-parser.config.js",
     "translate-i18n": "node scripts/translate-i18n.mjs",

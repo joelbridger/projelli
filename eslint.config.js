@@ -7,10 +7,12 @@ import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
 const lanternI18n = require('./packages/eslint-plugin-lantern-i18n/src/index.js');
+const lanternAsync = require('./packages/eslint-plugin-lantern-async/src/index.js');
 
 // Env-gated severity: warn locally so devs see the signal without blocking
 // every save, but error in CI so a hardcoded string can't sneak into main.
 const i18nSeverity = process.env['CI'] === 'true' ? 'error' : 'warn';
+const asyncSeverity = process.env['CI'] === 'true' ? 'error' : 'warn';
 
 export default tseslint.config(
   { ignores: ['dist', 'dist-node', 'src-tauri', 'node_modules', 'packages/*/dist'] },
@@ -46,6 +48,19 @@ export default tseslint.config(
       '@typescript-eslint/no-non-null-assertion': 'warn',
       '@typescript-eslint/no-empty-object-type': 'off',
       'lantern-i18n/no-hardcoded-string': i18nSeverity,
+    },
+  },
+  // no-silent-failure is scoped to user-facing surfaces only (features +
+  // platform), not lib/ui/app — that's where a swallowed failure turns into
+  // a wrong or stuck state a real user hits. Separate block so it layers
+  // onto the main src/**/*.{ts,tsx} block above rather than widening it.
+  {
+    files: ['src/features/**/*.{ts,tsx}', 'src/platform/**/*.{ts,tsx}'],
+    plugins: {
+      'lantern-async': lanternAsync,
+    },
+    rules: {
+      'lantern-async/no-silent-failure': asyncSeverity,
     },
   },
   // Config files - allow Node globals
