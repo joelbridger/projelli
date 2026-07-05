@@ -100,6 +100,18 @@ export class DocxSession {
    * newer committed edit arriving mid-write keeps its own pending snapshot.
    */
   private pendingSnapshot = false;
+  /**
+   * QA-81 (P2): true when live-typed content has reached disk via a shadow save
+   * (`persistLive`) that did NOT take a version snapshot, and no committed save
+   * has snapshotted it since. A leaving checkpoint (tab-switch / path-change /
+   * close / quit) reads this to promote that finished edit into version history
+   * — otherwise, because a shadow save already mirrored the text into
+   * `this.doc` (so the outgoing-teardown's fold sees no diff and the session
+   * looks "clean"), the edit would be disposed without ever being snapshotted.
+   * Set/cleared by `attemptSave` (debt incurred by a snapshot-free write,
+   * cleared by a snapshot); consumed by `ensureLeavingSnapshot`.
+   */
+  private liveSaveNeedsSnapshot = false;
   private onFirstEditFired = false;
   private unregister: (() => void) | null = null;
   private readonly listeners = new Set<() => void>();
@@ -263,6 +275,13 @@ export class DocxSession {
       if (this.doc === doc) {
         this.isDirty = false;
         this.pendingSnapshot = false;
+        // QA-81 (P2): track whether the content now on disk still owes a version
+        // snapshot. A snapshot-free live shadow save (wasDirty, !wantSnapshot)
+        // incurs the debt; a committed save (wantSnapshot) that takes the
+        // snapshot below clears it. So a later leaving checkpoint can still
+        // capture the finished edit even though this save already made the
+        // session look "clean".
+        this.liveSaveNeedsSnapshot = wasDirty && !wantSnapshot;
       }
       this.saveError = null;
       this.escalated = false;
@@ -398,6 +417,39 @@ export class DocxSession {
   }
 
   /**
+   * QA-81 (P1): mark the session dirty the INSTANT the user types into a focused
+   * run — do not wait for the periodic autosave's first tick to fold + save. A
+   * keystroke lives only in the contentEditable DOM until then, so without this
+   * the toolbar/registry read a false "Saved" while un-persisted text sits in
+   * the DOM. This ONLY flips the dirty state (and publishes it); the actual disk
+   * write is still done by `persistLive`. It does NOT mark the content
+   * snapshot-worthy — live typing alone isn't (a blur commit is; see
+   * `pendingSnapshot`). No-op when already dirty or disposed.
+   */
+  markDirty(): void {
+    if (this.disposed || this.isDirty) return;
+    this.isDirty = true;
+    this.publishState();
+    this.notify();
+  }
+
+  /**
+   * QA-81 (P2): a leaving checkpoint (tab-switch / path-change / close / quit).
+   * If live-typed content reached disk via a shadow save WITHOUT a version
+   * snapshot (`liveSaveNeedsSnapshot`), promote it to a committed checkpoint —
+   * mark dirty + snapshot-worthy — so the caller's final save records the
+   * finished edit in version history instead of disposing a session that only
+   * looks "clean" because the shadow already mirrored the text to disk.
+   */
+  ensureLeavingSnapshot(): void {
+    if (this.disposed || !this.liveSaveNeedsSnapshot) return;
+    this.isDirty = true;
+    this.pendingSnapshot = true;
+    this.publishState();
+    this.notify();
+  }
+
+  /**
    * The registry-facing flush (close-tab / quit / workspace-switch guards).
    * Commits a live view's in-progress edit + drains its op queue first (when
    * a view is attached), then saves the latest doc if it isn't already clean.
@@ -410,6 +462,12 @@ export class DocxSession {
         console.error('[DocxSession] liveFlushHook failed:', err);
       }
     }
+    // QA-81 (P2): if a shadow save already mirrored live-typed content to disk
+    // without a snapshot, this leaving checkpoint must still record it in
+    // version history (marks dirty + snapshot-worthy so the loop below persists
+    // + snapshots it). Covers the no-view background flush where liveFlushHook
+    // isn't present to commit the edit through the normal path.
+    this.ensureLeavingSnapshot();
     // A close/switch/quit is a meaningful checkpoint: if any content is still
     // unsaved at this point — including purely live-typed text that never got a
     // blur commit (e.g. a background flush with no view to run liveFlushHook) —

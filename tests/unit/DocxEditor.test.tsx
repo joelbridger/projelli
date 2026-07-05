@@ -1293,6 +1293,114 @@ describe('DocxEditor — QA-81: live typing is persisted by the periodic autosav
       { timeout: 6000 },
     );
   }, 15000);
+
+  // QA-81 (P1, review round 4): the LAST silent-loss window — BEFORE the first
+  // autosave tick. A focused run is only tracked on focus/blur, so between the
+  // first keystroke and the first periodic save nothing marked the session
+  // dirty: the toolbar/registry read a false "Saved" while the new characters
+  // lived only in the DOM, and a crash in that window lost them. Typing must
+  // flip the doc to UNSAVED immediately — no timers required.
+  it('marks the doc UNSAVED the instant the user types — no "Saved" lie before the first autosave tick', async () => {
+    const oneRunDoc: DocumentJson = {
+      formatVersion: 1,
+      body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'original text' }] }],
+      comments: {},
+    };
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'docx_open') return Promise.resolve(oneRunDoc);
+      if (cmd === 'docx_save') return Promise.resolve(undefined);
+      return Promise.resolve(undefined);
+    });
+
+    renderEditor();
+    const run = await screen.findByTestId('docx-run');
+    fireEvent.click(screen.getByTestId('docx-reviewing-toggle'));
+
+    fireEvent.focus(run);
+    // Just focusing (no typing) does not make it dirty — the toolbar honestly
+    // still reads "Saved".
+    expect(isDocxUnsaved('/ws/agreement.docx')).toBe(false);
+
+    // The user types — a real browser fires an input event on the contentEditable.
+    run.textContent = 'original text TYPED';
+    fireEvent.input(run);
+
+    // Advance NO timers. The registry must ALREADY read unsaved — never a false
+    // "Saved" while the typed characters live only in the DOM.
+    expect(isDocxUnsaved('/ws/agreement.docx')).toBe(true);
+
+    // And the crash-recovery path (the close/quit flush) captures the typed text.
+    const flushed = await flushDocx('/ws/agreement.docx');
+    expect(flushed).toBe(true);
+    expect(invokeMock).toHaveBeenCalledWith(
+      'docx_save',
+      expect.objectContaining({
+        document: expect.objectContaining({
+          body: [
+            expect.objectContaining({
+              inlines: [expect.objectContaining({ kind: 'run', text: 'original text TYPED' })],
+            }),
+          ],
+        }),
+      }),
+    );
+  }, 15000);
+
+  // QA-81 (P2, review round 4): after a shadow save has mirrored the focused
+  // run's live text into session.doc, a tab-switch/close BEFORE blur used to see
+  // a "clean" session (the outgoing fold finds no diff) and dispose it without
+  // the leaving-checkpoint snapshot — so the finished edit vanished from version
+  // history even though it was on disk. The leaving checkpoint must still record
+  // it in version history.
+  it('a tab-switch after a shadow save still records the finished edit in version history', async () => {
+    const oneRunDoc: DocumentJson = {
+      formatVersion: 1,
+      body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'original text' }] }],
+      comments: {},
+    };
+    const onAfterSave = vi.fn();
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'docx_open') return Promise.resolve(oneRunDoc);
+      if (cmd === 'docx_save') return Promise.resolve(undefined);
+      return Promise.resolve(undefined);
+    });
+
+    const { unmount } = render(
+      <TooltipProvider>
+        <DocxEditor filePath="/ws/agreement.docx" fileName="agreement.docx" onAfterSave={onAfterSave} />
+      </TooltipProvider>,
+    );
+    const run = await screen.findByTestId('docx-run');
+    fireEvent.click(screen.getByTestId('docx-reviewing-toggle'));
+
+    fireEvent.focus(run);
+    run.textContent = 'original text SHADOW SAVED';
+    fireEvent.input(run);
+
+    // The live shadow save mirrors the text to disk WITHOUT a version snapshot.
+    await waitFor(
+      () =>
+        expect(invokeMock).toHaveBeenCalledWith(
+          'docx_save',
+          expect.objectContaining({
+            document: expect.objectContaining({
+              body: [
+                expect.objectContaining({
+                  inlines: [expect.objectContaining({ text: 'original text SHADOW SAVED' })],
+                }),
+              ],
+            }),
+          }),
+        ),
+      { timeout: 6000 },
+    );
+    expect(onAfterSave).not.toHaveBeenCalled();
+
+    // Switch tabs (unmount) WITHOUT blurring — the leaving checkpoint must
+    // record the finished edit in version history, not silently drop it.
+    unmount();
+    await waitFor(() => expect(onAfterSave).toHaveBeenCalled(), { timeout: 6000 });
+  }, 15000);
 });
 
 describe('DocxEditor — AI redline (A4)', () => {

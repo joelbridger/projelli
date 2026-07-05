@@ -103,6 +103,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `DocxSession.persistLive`, without touching the live editing model,
   re-rendering, or moving the caret; a later blur authors the proper
   tracked-change commit and supersedes the plain-text shadow on disk.
+  Typing marks the doc unsaved the INSTANT a key is pressed (a per-keystroke
+  input handler on the focused run), so the toolbar never reads a false "Saved"
+  before the first autosave tick, and kicks a throttled prompt save so a crash
+  loses at most a fraction of a second of typing rather than a full autosave
+  cycle. When a shadow save has already mirrored the live text into the session
+  document, a tab-switch/close before blur still records the finished edit in
+  version history (a leaving-checkpoint promotes the un-snapshotted live content
+  instead of disposing a session that only looks "clean").
   `persistLive` marks the session dirty before queuing (so an overlapping older
   write can't publish a false "Saved" while newer text is still queued). The
   version-history snapshot decision is tied to the CONTENT, not the save call: a
