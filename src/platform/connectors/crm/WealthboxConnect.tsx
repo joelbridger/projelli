@@ -55,6 +55,7 @@ export function WealthboxConnect() {
 
   const createMatter = useMatterStore((s) => s.createMatter);
   const addCrmHouseholdKey = useMatterStore((s) => s.addCrmHouseholdKey);
+  const setMatterArchived = useMatterStore((s) => s.setMatterArchived);
 
   // Shared confirm dialog (sync + disconnect flows are mutually exclusive so
   // one instance is sufficient).
@@ -120,9 +121,11 @@ export function WealthboxConnect() {
     setLastSyncReport(null);
     setSyncing(true);
 
-    // B2: track the matter mutations we stage in Step 3 so a FAILED backend sync
-    // (Step 4) can be rolled back — otherwise a sync that errors leaves phantom
-    // Wealthbox-linked clients in local state.
+    // B2: track the matter mutations we stage in Step 3 so a failure IN STEP 3
+    // ITSELF (before anything is confirmed as imported) can be rolled back —
+    // otherwise a sync that errors while still resolving households leaves
+    // phantom Wealthbox-linked clients in local state. This must NOT cover a
+    // Step 4 (backend sync) failure — see the nested try below (QA-74).
     const createdMatterIds: string[] = [];
     const linkedKeys: Array<{ matterId: string; key: string }> = [];
     const attachedFolders: Array<{ matterId: string; folderPath: string }> = [];
@@ -169,6 +172,13 @@ export function WealthboxConnect() {
           addCrmHouseholdKey(matterId, household.id);
           linkedKeys.push({ matterId, key: household.id });
           claimedMatterIds.add(matterId);
+          // QA-74 (independent review, second code path): resolveMatterForHousehold
+          // searches ALL matters, including archived ones, so a household whose name
+          // uniquely matches an ARCHIVED file-client links to it here rather than
+          // via the 'reuse' branch below. Same fix applies: un-archive it so the
+          // Client Map shows it, or the sync reports success with an invisible client.
+          const existingLinked = currentMatters.find((m) => m.id === matterId);
+          if (existingLinked?.archived) setMatterArchived(matterId, false);
         } else if (resolution.action === 'create') {
           // No matching file-client — create a fresh matter for this household.
           // Mark it createdFromCrm so a later disconnect can scrub its imported name.
@@ -180,8 +190,16 @@ export function WealthboxConnect() {
           });
           createdMatterIds.push(created.id);
           matterId = created.id;
+        } else {
+          // action === 'reuse'. QA-74: this household was already linked to an existing matter — by
+          // a prior sync, or a disconnect that couldn't fully purge its mapping.
+          // If that matter was archived since, it must reappear on the Client
+          // Map now rather than staying permanently hidden while the sync
+          // otherwise reports full success (an advisor would never learn their
+          // data has nowhere visible to land).
+          const existing = currentMatters.find((m) => m.id === matterId);
+          if (existing?.archived) setMatterArchived(matterId, false);
         }
-        // 'reuse': already linked — buildCrmMatterMap picks it up automatically.
         if (matterId) {
           const folderPath = attachCrmHouseholdFolderIfUnmapped(
             matterId,
@@ -193,19 +211,41 @@ export function WealthboxConnect() {
       }
 
       // Step 4: Build the household → matter map from the updated store and
-      // kick off the backend sync.
-      const map = filterCrmMatterMapForProvider(
-        buildCrmMatterMap(getMatters()),
-        'wealthbox'
-      );
-      const report = await crmSyncAll(map);
-      setLastSyncReport({
-        householdsProcessed: report.householdsProcessed,
-        recordsIndexed: report.recordsIndexed,
-      });
+      // kick off the backend sync — best-effort. The Client Map population
+      // above is ALREADY COMMITTED local state: the user just confirmed
+      // importing `count` households and they now exist as real matters. A
+      // failure here (a transient Wealthbox API hiccup, RAG indexing error,
+      // etc.) must never undo that — it only means search indexing/audit may
+      // be incomplete, so it's reported honestly instead of rolled back
+      // (QA-74: a full-batch rollback over one indexing hiccup was silently
+      // erasing every Client Map entry the advisor had just confirmed, with
+      // the connector still showing "Connected").
+      try {
+        const map = filterCrmMatterMapForProvider(
+          buildCrmMatterMap(getMatters()),
+          'wealthbox'
+        );
+        const report = await crmSyncAll(map);
+        setLastSyncReport({
+          householdsProcessed: report.householdsProcessed,
+          recordsIndexed: report.recordsIndexed,
+        });
+      } catch (err) {
+        const reason =
+          typeof err === 'string'
+            ? err
+            : err instanceof Error
+              ? err.message
+              : 'an unknown error';
+        setSyncError(
+          `Imported ${String(count)} household${count === 1 ? '' : 's'} into your Client Map, but search indexing didn't finish (${reason}). Records may not be fully searchable yet — click "Sync now" to retry.`
+        );
+      }
     } catch (err) {
-      // B2 rollback: undo the staged matter changes so a failed sync leaves no
-      // phantom Wealthbox-linked clients behind.
+      // B2 rollback: Steps 1-3 failed before anything was confirmed as
+      // imported — undo whatever was staged so a failed household fetch or
+      // matter-resolution bug never leaves phantom Wealthbox-linked clients
+      // behind. Does NOT run for a Step 4 failure (see the nested try above).
       if (
         createdMatterIds.length > 0 ||
         linkedKeys.length > 0 ||
