@@ -1,6 +1,14 @@
 // tests/unit/matters/CrmWriteReviewCard.test.tsx
+import '@/i18n';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+
+// R5 (Tier B): the compliance-note default depends on the license tier — mock
+// it so we can exercise both firm (practice) and solo defaults deterministically.
+const licenseMock = vi.hoisted(() => ({ tier: 'personal' as string }));
+vi.mock('@/platform/hooks/useLicense', () => ({
+  useLicense: () => ({ tier: licenseMock.tier }),
+}));
 
 vi.mock('@/platform/utils/wealthbox-commands', async () => {
   const actual = await vi.importActual<typeof import('@/platform/utils/wealthbox-commands')>(
@@ -28,6 +36,8 @@ function resetStores() {
 
 beforeEach(() => {
   resetStores();
+  localStorage.clear(); // R5: the solo compliance-note choice persists here — isolate tests
+  licenseMock.tier = 'personal'; // default: solo (non-firm)
   vi.mocked(crmIsConnected).mockClear();
   vi.mocked(crmIsConnected).mockResolvedValue(true);
   vi.mocked(crmCreateNote).mockClear();
@@ -174,10 +184,70 @@ describe('CrmWriteReviewCard', () => {
     expect(items.some((i) => i.title.includes('Compliance summary'))).toBe(false);
   });
 
+  // R5 (Tier B): in a firm the compliance note is supervisory and shouldn't be
+  // opt-in — it defaults ON for the practice (firm) tier.
+  it('defaults the compliance note ON for the firm (practice) tier', async () => {
+    licenseMock.tier = 'practice';
+    const m = useMatterStore.getState().createMatter({ name: 'Henderson', client: 'Henderson', crmHouseholdKeys: ['12345'] });
+    useCrmWriteQueueStore.getState().enqueue({ kind: 'note', matterId: m.id, title: 'T', body: 'B', sourceRef: 'doc:notes.docx' });
+    render(<CrmWriteReviewCard matterId={m.id} />);
+    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
+    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+    expect(screen.getByTestId('file-compliance-note')).toBeChecked();
+  });
+
+  // R5: solo advisors keep their own choice, and it's remembered across mounts.
+  it('remembers a solo advisor\'s compliance-note choice across mounts', async () => {
+    const m = useMatterStore.getState().createMatter({ name: 'Henderson', client: 'Henderson', crmHouseholdKeys: ['12345'] });
+    useCrmWriteQueueStore.getState().enqueue({ kind: 'note', matterId: m.id, title: 'T', body: 'B', sourceRef: 'doc:notes.docx' });
+    const { unmount } = render(<CrmWriteReviewCard matterId={m.id} />);
+    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
+    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+    // Off by default for solo, then the advisor turns it on.
+    expect(screen.getByTestId('file-compliance-note')).not.toBeChecked();
+    fireEvent.click(screen.getByTestId('file-compliance-note'));
+    unmount();
+
+    // A fresh mount defaults to the remembered ON choice.
+    render(<CrmWriteReviewCard matterId={m.id} />);
+    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
+    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+    expect(screen.getByTestId('file-compliance-note')).toBeChecked();
+  });
+
+  // E3 (Tier B): a note AI-drafted from a meeting carries an honest provenance
+  // line into the CRM write on approve.
+  it('attaches an AI provenance line to a meeting-drafted note on approve', async () => {
+    const m = useMatterStore.getState().createMatter({ name: 'Henderson', client: 'Henderson', crmHouseholdKeys: ['12345'] });
+    useCrmWriteQueueStore.getState().enqueue({
+      kind: 'note',
+      matterId: m.id,
+      title: 'Meeting recap',
+      body: 'Discussed the rollover.',
+      sourceRef: 'doc:Clients/Henderson/Meetings/2026-07-02-x/notes.docx',
+      aiSource: { kind: 'meeting', date: '2026-07-02' },
+    });
+    render(<CrmWriteReviewCard matterId={m.id} />);
+    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
+    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+    fireEvent.click(screen.getByRole('button', { name: /approve 1 change/i }));
+    await waitFor(() => { expect(crmCreateNote).toHaveBeenCalledTimes(1); });
+    const arg = vi.mocked(crmCreateNote).mock.calls[0]![0] as { provenance?: string };
+    expect(arg.provenance).toBeTruthy();
+    expect(arg.provenance).toContain('Advisor Prep Hero AI');
+    expect(arg.provenance?.toLowerCase()).toContain('meeting');
+  });
+
   // Codex adversarial review catch (P2): a still-checked toggle must not
   // summarize its OWN compliance note on the next approval — that would
   // recurse indefinitely (a compliance note about a compliance note, forever).
-  it('resets the compliance toggle after filing, so approving the filed note does not recurse', async () => {
+  // R5 (coordinator review): in FIRM tier the compliance toggle re-defaults ON
+  // after an approval (so a SECOND update in the same card still files the
+  // supervisory note), and approving the just-filed compliance note does NOT
+  // recurse into a second one — recursion is prevented by excluding
+  // compliance-sourced items from the summary, independent of the toggle.
+  it('keeps the compliance default ON for a second firm-tier update, without recursing', async () => {
+    licenseMock.tier = 'practice';
     const m = useMatterStore.getState().createMatter({
       name: 'Henderson',
       client: 'Henderson',
@@ -195,7 +265,8 @@ describe('CrmWriteReviewCard', () => {
     await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
     fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
 
-    fireEvent.click(screen.getByTestId('file-compliance-note'));
+    // Firm tier: the toggle is already ON by default.
+    expect(screen.getByTestId('file-compliance-note')).toBeChecked();
     fireEvent.click(screen.getByRole('button', { name: /approve 1 change/i }));
 
     await waitFor(() => {
@@ -203,11 +274,12 @@ describe('CrmWriteReviewCard', () => {
       expect(items.some((i) => i.title.includes('Compliance summary'))).toBe(true);
     });
 
-    // The toggle must be OFF again — checked automatically right when the
-    // enqueue is scheduled, well before the compliance note even lands.
-    expect(screen.getByTestId('file-compliance-note')).not.toBeChecked();
+    // Coordinator fix: the toggle stays ON (re-derived from the firm default),
+    // so a second real update still gets a supervisory note — it did NOT reset
+    // to unchecked.
+    expect(screen.getByTestId('file-compliance-note')).toBeChecked();
 
-    // Approving the newly-filed compliance note (toggle now off) must NOT
+    // Approving the newly-filed compliance note (toggle still ON) must NOT
     // produce a second compliance note about the first one.
     fireEvent.click(screen.getByRole('button', { name: /approve 1 change/i }));
     await waitFor(() => { expect(crmCreateNote).toHaveBeenCalledTimes(2); });

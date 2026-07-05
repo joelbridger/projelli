@@ -63,6 +63,56 @@ describe('ConsentDialog', () => {
     expect(screen.getByTestId('consent-error').textContent).toContain('recording sidecar not found');
   });
 
+  // R1 (Tier B trust guard): in an all-party-consent (two-party) state, the
+  // attestation must stay deliberate — standing consent must NEVER pre-check
+  // the box, even when it's on file, because notice is needed every time.
+  it('does NOT pre-check from standing consent in a two-party state', () => {
+    render(
+      <ConsentDialog
+        open
+        consentMode="two-party"
+        standingConsent={{ mode: 'two-party', scope: 'standing', confirmedAt: '2026-06-12T00:00:00Z' }}
+        onOpenChange={() => {}}
+        onConfirm={() => {}}
+      />,
+    );
+    expect((screen.getByTestId('consent-checkbox') as HTMLInputElement).checked).toBe(false);
+    // The standing-consent note still renders (it's informational) — only the
+    // reflexive pre-check is withheld.
+    expect(screen.getByTestId('standing-consent-note')).toBeInTheDocument();
+  });
+
+  // R1: an unknown state resolves to the conservative two-party default, so it
+  // must behave like two-party — no pre-check from standing consent.
+  it('does NOT pre-check from standing consent when the state is unknown', () => {
+    render(
+      <ConsentDialog
+        open
+        consentMode="two-party"
+        stateKnown={false}
+        standingConsent={{ mode: 'two-party', scope: 'standing', confirmedAt: '2026-06-12T00:00:00Z' }}
+        onOpenChange={() => {}}
+        onConfirm={() => {}}
+      />,
+    );
+    expect((screen.getByTestId('consent-checkbox') as HTMLInputElement).checked).toBe(false);
+  });
+
+  // R1: one-party states keep the convenience — a single-party recording needs
+  // no every-time notice, so standing consent may still pre-check.
+  it('DOES pre-check from standing consent in a one-party state', () => {
+    render(
+      <ConsentDialog
+        open
+        consentMode="one-party"
+        standingConsent={{ mode: 'one-party', scope: 'standing', confirmedAt: '2026-06-12T00:00:00Z' }}
+        onOpenChange={() => {}}
+        onConfirm={() => {}}
+      />,
+    );
+    expect((screen.getByTestId('consent-checkbox') as HTMLInputElement).checked).toBe(true);
+  });
+
   // 2026-07-04 UX review S2: with no state on file we must not assert
   // "Your state requires everyone's consent" as fact — wording goes
   // conditional while the recorded mode stays the safe two-party default.

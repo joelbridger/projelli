@@ -94,6 +94,11 @@ export type AuditActionType =
   // defensible record, even though the voiceprint itself never leaves the
   // machine.
   | 'voiceprint_enrolled'
+  // R9 (Tier B trust guard): before ANY new voiceprint is enrolled, the
+  // advisor affirms the client consented to creating a voice profile of them.
+  // That biometric-consent attestation is its own durable, defensible record,
+  // distinct from the enrollment event it gates.
+  | 'voiceprint_consent'
   | 'voiceprint_deleted'
   // Wave 4 Track D: retention policy sweep — one row per artifact deleted,
   // plus one run summary. Written Rust-side directly into the hash-chained

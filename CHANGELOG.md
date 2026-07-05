@@ -31,6 +31,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Trust Tier B — "guard the outbound door" (the guards that stop confident-AI-wrongness from reaching a system of record).**
+  - **E3-gate — unresolved meeting notes are structurally unsendable.** A meeting note that is unreviewed, generation-errored (the "AI apology as note" case), or notice-quarantined under Strict policy has its "Send to Wealthbox" and "Draft follow-up" toolbar actions disabled with an honest, visible explanation. Pure decision in `meetingNoteOutboundGate.ts`; async state gathered in `useMeetingNoteOutboundGate.ts` + `MeetingNoteOutboundGate.tsx`; the disable + explanation added via a new `outboundBlockedReason` prop on `DocxEditor` (toolbar only — engine untouched), wired in `MainPanel.tsx`.
+  - **E3-provenance — AI-drafted CRM notes carry their origin.** A note AI-drafted from a meeting gets an appended, localized provenance line ("Drafted by Advisor Prep Hero AI from the [date] meeting; approved by [advisor] on [date]") that reaches the Wealthbox wire. Composed once at approve time (stable across retries; not part of the dedup key). New Rust `CrmWriteRequest.provenance` + `note_content()` builder appends it at the wire boundary. The firm (practice) tier defaults the compliance-note checkbox ON; solo keeps a remembered choice. Files: `crm/write.rs`, `crm/commands.rs`, `crmWriteQueueStore.ts`, `wealthbox-commands.ts`, `crmProvenance.ts`, `complianceNotePref.ts`, `CrmWriteReviewCard.tsx`, `crmNoteFormat.ts`.
+  - **R4a — no generate-on-open for the follow-up draft.** `DraftFollowUpModal` no longer sends note content or logs egress on open; it shows a preview of what will be sent (which note, which client) and the destination provider, and only sends on an explicit "Generate" click (egress logged there).
+  - **R4b — citations travel with the draft.** Saved/sent follow-up drafts append citation footnotes naming the source (note heading / note name), never internal ids (`followUpDraft.ts` `appendCitationFootnotes`).
+  - **R6 — whole-practice pre-send truth.** Before a whole-practice Ask sends in cloud mode, one confirm names the real client count and the real provider; local-only skips it; the advisor may remember the choice (default ask). Files: `wholePracticeSendGate.ts`, `WholePracticeSendConfirm.tsx`, `Ask.tsx`.
+  - **R1 — attestation stays deliberate.** The recording-consent checkbox never pre-checks from standing consent in all-party (two-party) or unknown-state defaults; one-party states keep the convenience (`ConsentDialog.tsx`).
+  - **R9 — biometric consent before voiceprint enrollment.** "Separate speakers" requires an explicit affirmation that the client consented to a voice profile (with an honest state-biometric-law note) before any new voiceprint is enrolled; the attestation is ledgered as a `voiceprint_consent` audit event (`SpeakerNamesPanel.tsx`).
+
 ### Fixed
 - **QA-45 (P1): shared client notes no longer stick on "Loading" forever.**
   `MatterNotesEditorWrapper` called `ensureMatterSync(matter).then(...)` with

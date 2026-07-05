@@ -47,7 +47,7 @@ describe('en.json structure snapshot', () => {
         "ai": 48,
         "analysis": 10,
         "app": 2,
-        "ask": 23,
+        "ask": 30,
         "audio": 1,
         "chat": 12,
         "citation": 3,
@@ -61,9 +61,9 @@ describe('en.json structure snapshot', () => {
         "local-ai-settings": 8,
         "mail": 6,
         "marketplace": 14,
-        "matter": 206,
-        "media": 88,
-        "meetings": 112,
+        "matter": 209,
+        "media": 92,
+        "meetings": 115,
         "memory": 6,
         "model-download": 9,
         "onboarding": 67,
@@ -223,7 +223,19 @@ describe('en.json structure snapshot', () => {
     //      failure surfaces a real retry state instead of a false "notes
     //      pending". New: meetings.entry.docx-editor-label (1, the
     //      LazyBoundary label).
-    expect(flat.length).toBe(1281);
+    // +17 = Tier B trust guards (2026-07-04, merged in from origin/lantern-plus):
+    //       meetings.speakers.{consent-label,consent-biometric-note} (2, R9);
+    //       ask.whole-practice-confirm.{title,body_one,body_other,provider-
+    //       fallback,remember,cancel,continue} (7, R6);
+    //       matter.crm-review.{provenance-from-meeting,provenance-drafted,
+    //       provenance-advisor-fallback} (3, E3 provenance);
+    //       media.docx-editor.{outbound-blocked-needs-review,outbound-blocked-
+    //       errored,outbound-blocked-notice-quarantined} (3, E3 outbound gate);
+    //       media.docx-editor.outbound-blocked-checking (1, E3 fail-closed: the
+    //       gate blocks a recognized meeting note while its review state loads);
+    //       meetings.speakers.consent-save-failed (1, R9 fail-closed: enrollment
+    //       aborts if the biometric-consent record didn't durably persist).
+    expect(flat.length).toBe(1298); // base 1280 + 1 (QA-47) + 17 (Tier B)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

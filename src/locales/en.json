@@ -768,6 +768,10 @@
       "draft-follow-up": "Draft follow-up",
       "draft-follow-up-title": "Draft a follow-up email from this document",
       "send-to-wealthbox-disconnected": "Connect Wealthbox from Your account → Connections to send notes.",
+      "outbound-blocked-checking": "Checking this note before it can leave...",
+      "outbound-blocked-needs-review": "Review this note first. It hasn't been checked yet.",
+      "outbound-blocked-errored": "This note couldn't be generated cleanly. Review it before it leaves.",
+      "outbound-blocked-notice-quarantined": "This meeting's recording notice needs review before this note can leave.",
       "redline-placeholder": "Tell the AI how to revise this document. For example: \"tighten the indemnity clause\", \"make this more formal\", \"shorten by 20%\".",
       "redline-submit": "Suggest changes",
       "redline-working": "Thinking…",
@@ -962,6 +966,15 @@
       "open-client": "Open client",
       "summaries-note": "Answered from each client's saved summary. Documents were not searched across clients."
     },
+    "whole-practice-confirm": {
+      "title": "Send summaries across your whole practice?",
+      "body_one": "This sends a brief summary of {{count}} client to {{provider}}. Continue?",
+      "body_other": "This sends brief summaries of {{count}} clients to {{provider}}. Continue?",
+      "provider-fallback": "your AI provider",
+      "remember": "Don't ask again before whole-practice questions",
+      "cancel": "Cancel",
+      "continue": "Continue"
+    },
     "scope-toggle": {
       "this-entity": "This {{entity}}",
       "all-entity": "All {{entity}}",
@@ -1127,7 +1140,10 @@
     "crm-review": {
       "pending-banner_one": "{{count}} Wealthbox update ready for review",
       "pending-banner_other": "{{count}} Wealthbox updates ready for review",
-      "review-now": "Review now"
+      "review-now": "Review now",
+      "provenance-from-meeting": "Drafted by {{ai}} from the {{date}} meeting; approved by {{advisor}} on {{approved}}.",
+      "provenance-drafted": "Drafted by {{ai}}; approved by {{advisor}} on {{approved}}.",
+      "provenance-advisor-fallback": "the advisor"
     },
     "home": {
       "archive": "Archive",
@@ -1513,7 +1529,10 @@
       "apply": "Apply names",
       "applied": "Speaker names updated in the transcript.",
       "stats": "{{turns}} turns, {{minutes}} min speaking",
-      "privacy-note": "Voice profiles are stored only on this computer, encrypted, and only for this client. You can delete them from the client's page at any time."
+      "privacy-note": "Voice profiles are stored only on this computer, encrypted, and only for this client. You can delete them from the client's page at any time.",
+      "consent-label": "Naming a new voice creates a voice profile of your client, stored encrypted on this computer. I confirm the client agreed to this.",
+      "consent-biometric-note": "Some states (for example Illinois, Texas, and Washington) treat a voiceprint as regulated biometric data with its own consent rules. Check your state's rules. This is general guidance, not legal advice.",
+      "consent-save-failed": "Couldn't save the consent record, so no voice profile was created. Please try again."
     },
     "pill": {
       "stop": "Stop",

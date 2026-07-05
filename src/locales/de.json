@@ -1291,7 +1291,10 @@
     "crm-review": {
       "pending-banner_one": "{{count}} Wealthbox-Update zur Prüfung bereit",
       "pending-banner_other": "{{count}} Wealthbox-Updates zur Prüfung bereit",
-      "review-now": "Jetzt prüfen"
+      "review-now": "Jetzt prüfen",
+      "provenance-from-meeting": "Erstellt von {{ai}} aus dem Meeting vom {{date}}; freigegeben von {{advisor}} am {{approved}}.",
+      "provenance-drafted": "Erstellt von {{ai}}; freigegeben von {{advisor}} am {{approved}}.",
+      "provenance-advisor-fallback": "dem Berater"
     },
     "home": {
       "archive": "Archivieren",
@@ -1685,6 +1688,10 @@
       "draft-follow-up": "Follow-up entwerfen",
       "draft-follow-up-title": "Eine Follow-up-E-Mail aus diesem Dokument entwerfen",
       "send-to-wealthbox-disconnected": "Verbinden Sie Wealthbox über Ihr Konto → Verbindungen, um Notizen zu senden.",
+      "outbound-blocked-checking": "Diese Notiz wird geprüft, bevor sie das Gerät verlassen kann...",
+      "outbound-blocked-needs-review": "Prüfe diese Notiz zuerst. Sie wurde noch nicht kontrolliert.",
+      "outbound-blocked-errored": "Diese Notiz konnte nicht sauber erstellt werden. Prüfe sie, bevor sie das Gerät verlässt.",
+      "outbound-blocked-notice-quarantined": "Der Aufnahmehinweis dieses Meetings muss geprüft werden, bevor diese Notiz das Gerät verlassen kann.",
       "send-to-wealthbox-disconnected__sourceHash": "b84fd206166782a42864aa280391e288bbe935490b4bc5abfa2a90eb071dd4c0",
       "redline-placeholder": "Sagen Sie der KI, wie dieses Dokument überarbeitet werden soll. Zum Beispiel: „Haftungsklausel straffen\", „förmlicher machen\", „um 20 % kürzen\".",
       "redline-submit": "Änderungen vorschlagen",
@@ -1935,6 +1942,15 @@
       "open-client__sourceHash": "6f59ad8c61ccc5a010b7360609618bc5884ccc1c72f2c1b2f91ae6a14d115527",
       "summaries-note__sourceHash": "e3e0e92fdc977f1bc9f870659c6ca1f4bcf8ee9b30eef0a8b409cfc8870400bd"
     },
+    "whole-practice-confirm": {
+      "title": "Zusammenfassungen deiner gesamten Praxis senden?",
+      "body_one": "Dabei wird eine kurze Zusammenfassung von {{count}} Mandanten an {{provider}} gesendet. Fortfahren?",
+      "body_other": "Dabei werden kurze Zusammenfassungen von {{count}} Mandanten an {{provider}} gesendet. Fortfahren?",
+      "provider-fallback": "deinen KI-Anbieter",
+      "remember": "Vor praxisweiten Fragen nicht erneut fragen",
+      "cancel": "Abbrechen",
+      "continue": "Fortfahren"
+    },
     "scope-toggle": {
       "this-entity": "Dieser {{entity}}",
       "this-entity__sourceHash": "28844791e4974a5aef4e2316ce8b47cce1ce12e5b634b3a5f1c1839fdefda48c",
@@ -2097,7 +2113,10 @@
       "apply": "Namen übernehmen",
       "applied": "Sprechernamen im Transkript aktualisiert.",
       "stats": "{{turns}} Wortmeldungen, {{minutes}} Min. Redezeit",
-      "privacy-note": "Sprachprofile werden nur auf diesem Computer gespeichert, verschlüsselt und ausschließlich für diesen Mandanten. Du kannst sie jederzeit auf der Mandantenseite löschen."
+      "privacy-note": "Sprachprofile werden nur auf diesem Computer gespeichert, verschlüsselt und ausschließlich für diesen Mandanten. Du kannst sie jederzeit auf der Mandantenseite löschen.",
+      "consent-label": "Eine neue Stimme zu benennen erstellt ein Sprachprofil deines Mandanten, verschlüsselt auf diesem Computer gespeichert. Ich bestätige, dass der Mandant dem zugestimmt hat.",
+      "consent-biometric-note": "Einige US-Bundesstaaten (z. B. Illinois, Texas und Washington) behandeln einen Stimmabdruck als regulierte biometrische Daten mit eigenen Einwilligungsregeln. Prüfe die Regeln deines Bundesstaats. Dies ist allgemeine Orientierung, keine Rechtsberatung.",
+      "consent-save-failed": "Der Einwilligungsnachweis konnte nicht gespeichert werden, daher wurde kein Sprachprofil erstellt. Bitte versuche es erneut."
     },
     "pill": {
       "stop": "Stopp",

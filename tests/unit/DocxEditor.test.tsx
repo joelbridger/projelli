@@ -584,6 +584,56 @@ describe('DocxEditor — accept / reject flow', () => {
       await screen.findByTestId('docx-send-to-wealthbox-confirmation');
     });
 
+    // E3 (Tier B trust guard): an unresolved meeting note is structurally
+    // unsendable — both outbound actions are disabled and the honest reason is
+    // shown; a click never queues or drafts anything.
+    it('disables both outbound actions with an explanation when outboundBlockedReason is set', async () => {
+      const onSendToWealthbox = vi.fn().mockReturnValue(true);
+      const onDraftFollowUp = vi.fn();
+      render(
+        <TooltipProvider>
+          <DocxEditor
+            filePath="/ws/agreement.docx"
+            fileName="agreement.docx"
+            onSendToWealthbox={onSendToWealthbox}
+            onDraftFollowUp={onDraftFollowUp}
+            outboundBlockedReason="Review this note first — it hasn't been checked."
+          />
+        </TooltipProvider>,
+      );
+      await screen.findByTestId('docx-run');
+      const send = await screen.findByTestId('docx-send-to-wealthbox');
+      const draft = await screen.findByTestId('docx-draft-follow-up');
+      expect((send as HTMLButtonElement).disabled).toBe(true);
+      expect((draft as HTMLButtonElement).disabled).toBe(true);
+      // The honest explanation is visible, not just a tooltip.
+      expect(screen.getByTestId('docx-outbound-blocked').textContent).toContain('Review this note first');
+      // Forcing a click does nothing — the note cannot leave.
+      fireEvent.click(send);
+      fireEvent.click(draft);
+      await new Promise((r) => setTimeout(r, 10));
+      expect(onSendToWealthbox).not.toHaveBeenCalled();
+      expect(onDraftFollowUp).not.toHaveBeenCalled();
+    });
+
+    // resolved (no reason) → the outbound actions work as normal.
+    it('leaves the outbound actions enabled when no block reason is set', async () => {
+      const onSendToWealthbox = vi.fn().mockReturnValue(true);
+      render(
+        <TooltipProvider>
+          <DocxEditor
+            filePath="/ws/agreement.docx"
+            fileName="agreement.docx"
+            onSendToWealthbox={onSendToWealthbox}
+          />
+        </TooltipProvider>,
+      );
+      await screen.findByTestId('docx-run');
+      const button = await screen.findByTestId('docx-send-to-wealthbox');
+      await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+      expect(screen.queryByTestId('docx-outbound-blocked')).not.toBeInTheDocument();
+    });
+
     // codex-review: a blank/table-only document has no extractable title, so
     // the enqueue callback reports back "nothing queued" — the toolbar must
     // not claim success for a no-op enqueue.
