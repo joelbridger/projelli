@@ -1157,7 +1157,29 @@
       "no-matters-entity": "Noch keine {{entityOther}}. Erstelle einen, um deine Arbeit auf einen einzigen {{entityOne}} zu beschränken.",
       "no-matters-entity__sourceHash": "419ae5ed59f61e300b494009c69d2172265bead65bba169eba435c7d01775b5f",
       "manage-entity": "{{entity}} verwalten...",
-      "manage-entity__sourceHash": "421e1cb1d0355e61600c16d2b8ece738c3b9256574aab5fd7377108fea4ba1c1"
+      "manage-entity__sourceHash": "421e1cb1d0355e61600c16d2b8ece738c3b9256574aab5fd7377108fea4ba1c1",
+      "active-title": "Aktiver Mandant: {{name}}. Fragen sind auf diesen Mandanten beschränkt.",
+      "all-matters": "Alle Mandanten",
+      "all-matters-title": "Durchsucht alle Mandanten. Dies ist der bewusst gewählte mandantenübergreifende Modus; Daten anderer Mandanten können erscheinen.",
+      "answer-all-matters": "Auf alle Mandanten bezogen",
+      "answer-all-matters-title": "Diese Antwort hat alle Mandanten durchsucht (mandantenübergreifender Modus).",
+      "answer-matter-title": "Diese Antwort war auf den aktiven Mandanten beschränkt. Die Daten anderer Mandanten wurden nicht durchsucht.",
+      "answer-scoped": "Auf {{name}} bezogen",
+      "manage": "Mandanten verwalten...",
+      "no-matters": "Noch keine Mandanten. Erstelle einen, um deine Arbeit auf einen einzigen Mandanten zu beschränken.",
+      "this-matter": "diesen Mandanten",
+      "menu-label": "Fragen beschränken auf",
+      "active-title__sourceHash": "73b3d72776d6b0ca88ebb04dd698d4609bc7311d4778d1b1d3b63aadd0d6cf50",
+      "all-matters__sourceHash": "b695c090980a50ae44cfb20a346e398c61e1e743a11064316614660469042c86",
+      "all-matters-title__sourceHash": "46e649a22fd8ec77f0278c25130fff57b2efa3d250b4b08c81082c02236febe7",
+      "answer-all-matters__sourceHash": "c3b0373fe128c175c4397b48f34d4864fdb8bacc004b7e2eff687dcc83e3fe69",
+      "answer-all-matters-title__sourceHash": "974d55533dc6b9524c6054224e4e9f786cf6d4c6b85f6421753c9cdf8443cdeb",
+      "answer-matter-title__sourceHash": "906abbe10232747428d5400c2f28d5adc8036c5915c2b8559e9233c01898df73",
+      "answer-scoped__sourceHash": "f16714770610a945a13f2ffa913d3c03725caf3ca6c3ad4875ff3365ab4d78fd",
+      "manage__sourceHash": "8d567f4ba6895e776ad1d6624b1d6406d0830109e27326dab994235ca79f7fbb",
+      "no-matters__sourceHash": "159f05aad8ed696115c10fb389a13aecb15763c529a2aa1aefcdd3acc02b1b6e",
+      "this-matter__sourceHash": "044855262af8456f34bd885d00e3a53254a5fd5b7fc2201b4ee8f1aed63d1c60",
+      "menu-label__sourceHash": "2d8bc58497341d25037ee172877500b736b5f7d6bce76072976abd474d6425d8"
     },
     "sidebar": {
       "empty": "Noch keine Mandanten.",
@@ -1259,7 +1281,41 @@
       "remove-action": "Entfernen",
       "remove-action__sourceHash": "c3812fc4acb861d5182fc2b8155f327f736fbe5e5eb86a7bd7afcb6dc5497282",
       "cancel-action": "Abbrechen",
-      "cancel-action__sourceHash": "19766ed6ccb2f4a32778eed80d1928d2c87a18d7c275ccb163ec6709d3eb2e27"
+      "cancel-action__sourceHash": "19766ed6ccb2f4a32778eed80d1928d2c87a18d7c275ccb163ec6709d3eb2e27",
+      "client-name-placeholder": "z. B. Acme Corp",
+      "create": "Mandant erstellen",
+      "delete": "Mandant löschen",
+      "description": "Ein Mandant bündelt die Arbeit eines Kunden in einem oder mehreren Arbeitsbereichsordnern. Dateien in den Ordnern eines Mandanten sind auf diesen Mandanten beschränkt, sodass Daten anderer Kunden nie erscheinen.",
+      "empty": "Noch keine Mandanten. Erstelle oben deinen ersten Mandanten.",
+      "folders-label": "Ordner in diesem Mandanten",
+      "isolated-affirmation": "Dieser Mandant ist jetzt isoliert. KI-Anfragen bleiben auf diesem Computer, und ausgehende Netzwerkverbindungen werden blockiert, sodass nichts diesen Mandanten verlassen kann.",
+      "isolated-badge": "Isoliert",
+      "isolated-confirm-action": "Diesen Mandanten isolieren",
+      "isolated-confirm-body": "Die Netzwerksperre blockiert alle netzwerkfähigen Plugins und MCP-Server, solange dieser Mandant aktiv ist. KI-Anfragen bleiben auf diesem Computer; nichts kann über eine Erweiterung nach außen gelangen. Du kannst dies jederzeit wieder ausschalten.",
+      "isolated-confirm-cancel": "Abbrechen",
+      "isolated-confirm-title": "Diesen Mandanten isolieren?",
+      "isolated-off-hint": "Netzwerksperre für diesen Mandanten deaktiviert.",
+      "matter-name": "Mandantenname",
+      "matter-name-placeholder": "z. B. Die Familie Hendricks",
+      "no-folders": "Öffne einen Arbeitsbereich, um Ordner diesem Mandanten zuzuordnen.",
+      "title": "Mandanten",
+      "client-name-placeholder__sourceHash": "b7ce67f3d61f2fcf66cd27416fdd4ae474ee8baffae20078abadc60d6923aa53",
+      "create__sourceHash": "cdc0e1f98b833ecbc31de0ee851b747896220ef98c5b7b611909cf9bc50daf74",
+      "delete__sourceHash": "f8b993b8dc7d0445ca13ae653c60b398bfcba6c15210a1895a8279f38ffe92a9",
+      "description__sourceHash": "77738015aa5dafc6412fb01b09099f746ef615e714d756eaf5351337d71cb1ae",
+      "empty__sourceHash": "6c20235608cfd04e44af168ef09892774f7b06593ff90787b12e40047559c85f",
+      "folders-label__sourceHash": "36aa7ed75b8f5dae98842b613fcdf88745c4e86173102a34fc9a9a1c5d4b4f5d",
+      "isolated-affirmation__sourceHash": "b324bd75037c3de71868614d699068553a561171fd63b3164c2c110962d7c5d6",
+      "isolated-badge__sourceHash": "1d183f3f10e963cae3a2e0a10a693f7895b03602715a121d984f3406e37ba2e2",
+      "isolated-confirm-action__sourceHash": "a8018304c033d45517ec9478f57ac388e10e92f68b9fa39cefdbfd14379ea946",
+      "isolated-confirm-body__sourceHash": "8f3b8518c473592ac4cb19faeaacaea02f6e499b3abffb0a60a302a91ca84321",
+      "isolated-confirm-cancel__sourceHash": "19766ed6ccb2f4a32778eed80d1928d2c87a18d7c275ccb163ec6709d3eb2e27",
+      "isolated-confirm-title__sourceHash": "ce594ee6bb9dc90ea128877abed02503592122b6ce620ef112d9195564a69692",
+      "isolated-off-hint__sourceHash": "a1083ec4a318195055ea2abef4b92ce6fecb279ec9c72bea9f2a365c6d7ecf78",
+      "matter-name__sourceHash": "b6626cd701f400820252edf4b52b53601d879272739e98bcfb9ceb9316225861",
+      "matter-name-placeholder__sourceHash": "73d0ba0fcfe73849e01287d5f7ba358efad2a0c732364d0f85595052d64c9a4d",
+      "no-folders__sourceHash": "f2ce0c8ccb22485026cf3a0a15ba575888e60f23276067e590d1ce0e012e9982",
+      "title__sourceHash": "65a7256542c30138e6f979959b13707ef238bbf5aaf8472dde584c05b0c07529"
     },
     "sync": {
       "live-tooltip": "Mit der Kanzlei synchronisiert",
@@ -1451,6 +1507,10 @@
       "empty-notice__sourceHash": "6591aae690ad0639d6123c93ff529c15026fb02adb3860d74aca635980317cd6",
       "error-notice": "Client Map konnte nicht erstellt werden. Überprüfen Sie Ihre KI-Verbindung und versuchen Sie es erneut.",
       "error-notice__sourceHash": "11c1b30791944f0f832654cdeaf2801cf57188364893856ed7674a80482b9e51"
+    },
+    "citation": {
+      "unverified-warning": "Ein oder mehrere Zitate konnten nicht anhand der Quelle verifiziert werden. Öffne die Quelle, um sie zu bestätigen, bevor du dich darauf verlässt.",
+      "unverified-warning__sourceHash": "630afe396fac5d39bfa37eff2f656e6af646cd9046dc63a6334fcddeb409decd"
     }
   },
   "firm": {
@@ -1771,7 +1831,11 @@
       "ready_one": "Speicher bereit, 1 Datei indiziert.",
       "ready_one__sourceHash": "129aeae9dc906c9d34dc5a39b350746ac2fa10cd9262f3ee87ab381a84921254",
       "ready_other": "Speicher bereit, {{count}} Dateien indiziert.",
-      "ready_other__sourceHash": "1b1eb7b9a151180c039d3ff711db127563701f4536795b705925988f6721a943"
+      "ready_other__sourceHash": "1b1eb7b9a151180c039d3ff711db127563701f4536795b705925988f6721a943",
+      "ready-with-skips_one": "Speicher bereit, 1 Datei indiziert ({{skipped}} übersprungen).",
+      "ready-with-skips_other": "Speicher bereit, {{count}} Dateien indiziert ({{skipped}} übersprungen).",
+      "ready-with-skips_one__sourceHash": "64893f61af6c39b0a5751ed5513030105334424122e7c4ce43339c2f5bf08427",
+      "ready-with-skips_other__sourceHash": "be570977191e5f08205ad17ec733feae85b1c6426e3034e009bb80d95b465ab3"
     },
     "ocr-progress": "Gescannte Seiten werden mit lokaler OCR gelesen: Seite {{page}} von {{total}}. Nichts verlässt deinen Rechner.",
     "ocr-progress__locked": true,
@@ -1999,7 +2063,19 @@
         "note": "In this online demo, messages pass through a shared Advisor Prep Hero relay. The desktop app never does this. Do not enter confidential or client information here."
       },
       "sending": "Wird an Ihren KI-Anbieter gesendet",
-      "sending__locked": true
+      "sending__locked": true,
+      "checking": {
+        "label": "KI-Ziel wird geprüft",
+        "note": "Advisor Prep Hero bestätigt, wohin diese Anfrage gesendet wird, bevor sie abgeschickt wird.",
+        "label__sourceHash": "261eafaa0ca58f57d83b98557eacc3a7e7af03830a3fa3d03bcafab252a1152b",
+        "note__sourceHash": "a3482fcc43661d2c22c4979b0d1f710fb41d0d72561574d354ffad7a11a7bac9"
+      },
+      "none": {
+        "label": "Keine KI verbunden",
+        "note": "Verbinden Sie einen KI-Anbieter, um Antworten zu erhalten.",
+        "label__sourceHash": "6b5fff4cf033eded872eff66089df78f7ec1efd252ca8545172e242a9b3c9a67",
+        "note__sourceHash": "2eabd3bbc144e51028417a87d82ba3135907fa5ae5ad6905b18035d858682ff9"
+      }
     },
     "privileged-matter": {
       "badge": "Privilegierter Mandant: externe Verbindungen sind gesperrt, damit nichts diesen Mandanten verlassen kann",
@@ -2101,6 +2177,16 @@
       "try-again": "Erneut versuchen",
       "working-button": "Wird verarbeitet...",
       "done-button": "Fertig"
+    },
+    "control": {
+      "checking": "Tresorstatus wird geprüft",
+      "locked-note": "Dieser Tresor ist gesperrt. Öffnen Sie den Arbeitsbereich erneut, um ihn mit Ihrem Wiederherstellungssatz zu entsperren.",
+      "on-body": "Die Dateien dieses Arbeitsbereichs sind im Ruhezustand verschlüsselt. Advisor Prep Hero entschlüsselt sie transparent, sodass Ihre Arbeit unverändert bleibt.",
+      "on-title": "Tresor ist aktiviert",
+      "checking__sourceHash": "f146177bb205f641cb07dd2ec8263ed0792435c106547548a2579dc62fe0f1b0",
+      "locked-note__sourceHash": "1975466ed78653f8189cc16ad9ecf64ace9c47f5bda9a279079634f264b6f0a6",
+      "on-body__sourceHash": "8b07ab5ec5628b0396563e259fda761e5a56bac02a73ef1662047e277a64004c",
+      "on-title__sourceHash": "2158c396d783d591957dd6eb3da52d19c6aa2654e4c661629de7bbd058a96a22"
     }
   },
   "meetings": {

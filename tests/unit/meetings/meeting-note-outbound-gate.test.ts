@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   meetingNoteOutboundGate,
   meetingNotesDirForPath,
-} from '@/features/meetings/meetingNoteOutboundGate';
+} from '@/features/meetings/outboundNoteGate';
 
 describe('meetingNoteOutboundGate (E3 — unresolved meeting notes are unsendable)', () => {
   const resolved = { reviewedAt: '2026-07-04T00:00:00Z', notesError: undefined, noticeStatus: 'verified' as const, policy: 'standard' as const };

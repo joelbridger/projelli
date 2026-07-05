@@ -13,6 +13,7 @@ step "Build assets"    node scripts/copy-build-assets.mjs
 step "Tauri version parity" node scripts/check-tauri-parity.mjs
 step "Provider front door" node scripts/check-provider-construction.mjs
 step "Consent-gate wiring" node scripts/check-consent-gate-wiring.mjs
+step "Case-only filename collisions" node scripts/check-case-collisions.mjs
 step "TypeScript"      npm run typecheck
 step "TypeScript (tests)" npm run typecheck:tests
 step "Brand sync"      npm run brand:check
@@ -22,6 +23,10 @@ step "Identity check"  npm run identity:check
 # i18n:extract, which is destructive).
 echo ""; echo "===== i18n key parity (report-only — KNOWN-I18N-01 deferred) ====="
 npm run i18n:check || echo "⚠️  i18n key drift (KNOWN-I18N-01, deferred) — not blocking the gate"
+# Separate from KNOWN-I18N-01 above: this checks that every key that DOES
+# exist in en.json also exists (translated, non-empty) in de.json/es.json —
+# the "ships English-only for non-English locales" class of bug. Blocking.
+step "i18n locale completeness" npm run i18n:completeness
 step "Unit tests"      npx vitest run
 step "ESLint gate"     npm run lint:gate
 # ── Connector outcome-contract reviewer check (F2.1) ─────────────────────────

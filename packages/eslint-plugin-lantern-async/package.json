@@ -1,0 +1,19 @@
+{
+  "name": "eslint-plugin-lantern-async",
+  "version": "0.1.0",
+  "description": "Custom ESLint rule that flags catch/promise patterns that turn a failure into a silent wrong/stuck state on user-facing paths.",
+  "license": "MIT",
+  "private": true,
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "src"
+  ],
+  "peerDependencies": {
+    "eslint": ">=8.0.0",
+    "@typescript-eslint/utils": ">=8.0.0",
+    "@typescript-eslint/type-utils": ">=8.0.0"
+  }
+}
