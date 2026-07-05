@@ -86,6 +86,7 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
   const [notices, setNotices] = useState<NoticeEntry[]>([]);
   const audioRef = useRef<AudioPlayerHandle>(null);
   const { policy: noticePolicy } = useNoticeSettings();
+  const hasTranscript = transcript !== null;
 
   useEffect(() => {
     let cancelled = false;
@@ -310,7 +311,7 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
               style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: 'pointer', fontFamily: 'inherit' }}
             >
               <Trash2 style={{ width: 12, height: 12 }} />
-              {t('meetings.entry.delete-audio')}
+              {t(hasTranscript ? 'meetings.entry.delete-audio' : 'meetings.entry.delete-audio-no-transcript')}
             </button>
           )}
         </div>
@@ -472,7 +473,7 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
             <DialogTitle>{t('meetings.entry.delete-audio-confirm-title')}</DialogTitle>
           </DialogHeader>
           <p style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-navy)' }}>
-            {t('meetings.entry.delete-audio-confirm-body')}
+            {t(hasTranscript ? 'meetings.entry.delete-audio-confirm-body' : 'meetings.entry.delete-audio-confirm-body-no-transcript')}
           </p>
           <DialogFooter>
             <DialogButton variant="secondary" onClick={() => { setConfirmingDelete(false); }}>

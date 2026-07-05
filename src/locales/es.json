@@ -2234,6 +2234,7 @@
     "entry": {
       "breadcrumb-meetings": "Reuniones",
       "delete-audio": "Eliminar audio · conservar transcripción",
+      "delete-audio-no-transcript": "Eliminar audio",
       "consent-noted": "Consentimiento confirmado",
       "consent-one-party": "una parte",
       "consent-two-party": "todas las partes",
@@ -2256,6 +2257,7 @@
       "dictated-title": "Nota dictada",
       "delete-audio-confirm-title": "¿Eliminar el audio de esta reunión?",
       "delete-audio-confirm-body": "El archivo de audio se elimina de este equipo. La transcripción y las notas se conservan.",
+      "delete-audio-confirm-body-no-transcript": "Todavía no hay transcripción ni notas para esta reunión. Si eliminas el audio ahora, se borra permanentemente la única copia de la reunión. Esto no se puede deshacer.",
       "delete-audio-confirm-button": "Eliminar audio"
     },
     "types": {

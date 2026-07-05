@@ -1564,6 +1564,7 @@
     "entry": {
       "breadcrumb-meetings": "Meetings",
       "delete-audio": "Delete audio · keep transcript",
+      "delete-audio-no-transcript": "Delete audio",
       "consent-noted": "Consent attested",
       "consent-one-party": "one-party",
       "consent-two-party": "two-party",
@@ -1586,6 +1587,7 @@
       "dictated-title": "Dictated note",
       "delete-audio-confirm-title": "Delete this meeting's audio?",
       "delete-audio-confirm-body": "The audio file is deleted from this computer. The transcript and notes stay.",
+      "delete-audio-confirm-body-no-transcript": "There is no transcript and no notes for this meeting yet. Deleting the audio now permanently removes the only copy of the meeting. This cannot be undone.",
       "delete-audio-confirm-button": "Delete audio"
     },
     "types": {
