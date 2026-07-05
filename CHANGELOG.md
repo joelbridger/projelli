@@ -92,6 +92,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **R9 — biometric consent before voiceprint enrollment.** "Separate speakers" requires an explicit affirmation that the client consented to a voice profile (with an honest state-biometric-law note) before any new voiceprint is enrolled; the attestation is ledgered as a `voiceprint_consent` audit event (`SpeakerNamesPanel.tsx`).
 
 ### Fixed
+- **QA-71 (P1/P2): deleting meeting audio before transcription now warns about
+  total loss.** `MeetingEntry` now checks whether `transcript.json` actually
+  loaded before choosing the delete-audio action and confirmation copy. Meetings
+  with a transcript keep the existing "transcript and notes stay" wording;
+  meetings with no transcript now say there is no transcript and no notes, and
+  that deleting audio removes the only copy permanently. Files:
+  `src/features/meetings/MeetingEntry.tsx`, `src/locales/{en,es,de}.json`,
+  `tests/unit/meetings/meeting-entry-delete-audio-no-transcript.test.tsx`.
 - **QA-45 (P1): shared client notes no longer stick on "Loading" forever.**
   `MatterNotesEditorWrapper` called `ensureMatterSync(matter).then(...)` with
   no `.catch` — a rejected promise (key fetch / sync startup / crypto setup
