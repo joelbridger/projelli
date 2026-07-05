@@ -78,8 +78,15 @@ export const RESCAN_INTERVAL_MS = 5 * 60 * 1000;
  * v2 trigger: while the app is running, rescan today's calendar every few
  * minutes so meetings added during the day get briefs too. The app must be
  * open — there is deliberately no OS-level scheduler, and the UI says so.
+ *
+ * @param onError - QA-48: called (with no payload) whenever a rescan's
+ * calendarListEvents call fails, so the caller can surface a visible
+ * "calendar check failed" state instead of the failure reading as a silent
+ * "no events this cycle" no-op (which is what happens internally here — a
+ * failed fetch skips enqueueing, same as a genuinely empty calendar, but the
+ * caller now gets told the difference).
  */
-export function useAutoprepRescan(matters: Matter[]): void {
+export function useAutoprepRescan(matters: Matter[], onError?: () => void): void {
   const matterIdsKey = matters.map((m) => m.id).join(',');
   // codex-review P2: same class of bug already fixed in useMeetingAutoprep
   // above — teaching/moving a meeting key changes no matter id, so without
@@ -94,10 +101,12 @@ export function useAutoprepRescan(matters: Matter[]): void {
     const timer = setInterval(() => {
       void (async () => {
         const { fromUtc, toUtc } = todayWindowUtc();
-        const events = await calendarListEvents(fromUtc, toUtc).catch(
-          () => []
-        );
-        if (cancelled) return;
+        const events = await calendarListEvents(fromUtc, toUtc).catch((err: unknown) => {
+          console.error('[useAutoprepRescan] calendar fetch failed:', err);
+          onError?.();
+          return null;
+        });
+        if (cancelled || events === null) return;
         if (events.length > 0) {
           enqueueBriefs(jobsForEvents(events, matters));
         }

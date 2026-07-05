@@ -32,6 +32,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **QA-45 (P1): shared client notes no longer stick on "Loading" forever.**
+  `MatterNotesEditorWrapper` called `ensureMatterSync(matter).then(...)` with
+  no `.catch` — a rejected promise (key fetch / sync startup / crypto setup
+  failure) left `loading` stuck `true` permanently instead of falling back to
+  the existing locked/no-access panel. Now a rejection sets the matter's sync
+  status to `error` and renders the same fail-closed panel a resolved `null`
+  already did. Files: `src/features/matters/MatterNotesEditorWrapper.tsx`.
+- **QA-46 (P1): live co-edit sync now reconnects after a socket drop and
+  never silently drops an edit.** `MatterSyncClient` had no reconnect loop
+  after a WebSocket close/error (or a failed ticket mint), so teammates
+  stopped receiving changes until something else happened to reopen the
+  socket; a failed local-update push was also just discarded, never retried.
+  Now the client schedules a reconnect with exponential backoff (1s→30s cap)
+  on any offline/error transition while still started, queues unsent local
+  Yjs updates in order, and flushes the queue once connectivity returns.
+  Files: `src/platform/firm/MatterSyncClient.ts`.
+- **QA-47 (P1): a DocxEditor chunk-load failure no longer shows a false
+  "notes pending".** `MeetingEntry` loaded `notes.docx`'s editor via a bare
+  `import().then(setState)` with no `.catch` — if the dynamic import
+  rejected, `DocxEditorComp` stayed `null` forever and the UI fell through to
+  "notes pending" even when the notes file genuinely exists (the same defect
+  a 2026-07-04 test-infra-only fix had papered over in tests without
+  touching the product code). Now the notes pane loads through
+  `LazyBoundary` (the same pattern already used for `.docx` tabs in
+  `MainPanel`), so a chunk-load failure surfaces a real "couldn't load"
+  state with a working retry instead of a silent false pending.
+  Files: `src/features/meetings/MeetingEntry.tsx`, `src/locales/{en,es,de}.json`.
+- **QA-48 (P1): a calendar-fetch failure no longer reads as "no meetings
+  today".** `TodaysMeetingsStrip` and `useAutoprepRescan` both converted a
+  `calendarListEvents` failure into an empty array, so the Today strip
+  silently disappeared and background auto-prep silently stopped queuing
+  briefs, indistinguishable from a genuinely empty calendar. Now a fetch
+  failure sets a visible `calendarError` state: the strip shows a retryable
+  "couldn't check today's calendar" warning (or, if it already had matched
+  meetings, keeps showing them with a small stale-data warning + retry), and
+  the periodic rescan reports failures through the same channel instead of
+  silently no-op'ing.
+  Files: `src/features/meetings/TodaysMeetingsStrip.tsx`,
+  `src/features/meetings/useMeetingAutoprep.ts`.
 - **QA-34 (P0 silent data loss): a failed `.docx` autosave no longer wedges
   persistence while the UI says "Saved".** A `.docx` is edited by `DocxEditor`,
   which saves directly to disk and never marks its editor-store tab dirty — so a

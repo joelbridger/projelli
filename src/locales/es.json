@@ -2137,6 +2137,7 @@
       "notes-failed-timeout": "No se pudieron redactar las notas. El proveedor de IA no respondió a tiempo. Tu grabación y transcripción están seguras.",
       "notes-failed-error": "No se pudieron redactar las notas. El proveedor de IA devolvió un error. Tu grabación y transcripción están seguras.",
       "notes-failed-blocked": "Las notas necesitan tu proveedor de IA, pero el modo Solo local lo está bloqueando. Conecta un modelo local para redactar las notas de esta reunión, o, si lo prefieres, desactiva el modo Solo local en Configuración → Privacidad.",
+      "docx-editor-label": "Notas de la reunión",
       "retrying-notes": "Reintentando…",
       "transcript-pending": "La transcripción está en cola. Aparecerá aquí en cuanto esté lista.",
       "transcript-failed-not-installed": "No se pudo transcribir. El motor de voz aún no está instalado en este equipo. Tu grabación está segura.",

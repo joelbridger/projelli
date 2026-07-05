@@ -63,7 +63,7 @@ describe('en.json structure snapshot', () => {
         "marketplace": 14,
         "matter": 206,
         "media": 88,
-        "meetings": 111,
+        "meetings": 112,
         "memory": 6,
         "model-download": 9,
         "onboarding": 67,
@@ -217,7 +217,13 @@ describe('en.json structure snapshot', () => {
     //      recording-incomplete (1, the meetings-list row subtitle) and
     //      meetings.entry.recording-incomplete (1, the meeting page's
     //      no-retry explanation).
-    expect(flat.length).toBe(1280);
+    // +1 = QA-47 fix (2026-07-05): MeetingEntry's notes.docx editor now loads
+    //      through LazyBoundary (same pattern as MainPanel's DocxEditor tabs)
+    //      instead of a bare import().then() with no .catch, so a chunk-load
+    //      failure surfaces a real retry state instead of a false "notes
+    //      pending". New: meetings.entry.docx-editor-label (1, the
+    //      LazyBoundary label).
+    expect(flat.length).toBe(1281);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

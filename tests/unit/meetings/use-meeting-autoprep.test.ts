@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
 
 const enqueue = vi.fn();
@@ -6,7 +6,12 @@ vi.mock('@/features/meetings/briefQueue', () => ({
   enqueueBriefs: (...a: unknown[]) => enqueue(...a),
 }));
 
-import { useMeetingAutoprep } from '@/features/meetings/useMeetingAutoprep';
+const listEvents = vi.fn();
+vi.mock('@/platform/utils/calendar-commands', () => ({
+  calendarListEvents: (...args: unknown[]) => listEvents(...args),
+}));
+
+import { useMeetingAutoprep, useAutoprepRescan, RESCAN_INTERVAL_MS } from '@/features/meetings/useMeetingAutoprep';
 import type { Matter } from '@/platform/types/matter';
 
 const matter: Matter = {
@@ -59,5 +64,45 @@ describe('useMeetingAutoprep', () => {
     expect(enqueue).toHaveBeenLastCalledWith([
       { matterId: 'm-hend', event: changedEvent },
     ]);
+  });
+});
+
+// QA-48: a calendar fetch failure during the periodic rescan must not read
+// as "nothing to do" with no signal — the caller needs to know the check
+// itself failed so it can show a "calendar refresh failed" state.
+describe('useAutoprepRescan', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    listEvents.mockReset();
+    enqueue.mockClear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('calls onError and does NOT enqueue anything when calendarListEvents rejects', async () => {
+    listEvents.mockRejectedValue(new Error('calendar backend unreachable'));
+    const onError = vi.fn();
+
+    renderHook(({ matters }) => { useAutoprepRescan(matters, onError); }, {
+      initialProps: { matters: [matter] },
+    });
+
+    await vi.advanceTimersByTimeAsync(RESCAN_INTERVAL_MS);
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(enqueue).not.toHaveBeenCalled();
+  });
+
+  it('does NOT call onError on a successful rescan', async () => {
+    listEvents.mockResolvedValue([]);
+    const onError = vi.fn();
+
+    renderHook(({ matters }) => { useAutoprepRescan(matters, onError); }, {
+      initialProps: { matters: [matter] },
+    });
+
+    await vi.advanceTimersByTimeAsync(RESCAN_INTERVAL_MS);
+    expect(onError).not.toHaveBeenCalled();
   });
 });

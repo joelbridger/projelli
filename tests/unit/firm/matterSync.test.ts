@@ -142,6 +142,37 @@ async function until(pred: () => boolean, tries = 50): Promise<void> {
   }
 }
 
+/**
+ * Wait for `pred` under `vi.useFakeTimers()`, advancing fake time in small
+ * `stepMs` increments and yielding real microtasks between each step.
+ * Needed because fake timers only control `setTimeout`/`setInterval` — real
+ * async work in the code under test (WebCrypto ops, Promise chains) still
+ * resolves on the REAL event loop, so under heavy parallel-test-run CPU
+ * contention it can take many more real yields to settle than a single
+ * `vi.advanceTimersByTimeAsync()` call provides. `maxSteps` bounds the total
+ * simulated time advanced (`maxSteps * stepMs`) — keep it under whatever
+ * fake-timer deadline (e.g. a scheduled backoff) the test must not race past.
+ */
+async function waitForFake(pred: () => boolean, maxSteps: number, stepMs: number): Promise<void> {
+  for (let i = 0; i < maxSteps; i++) {
+    if (pred()) return;
+    await vi.advanceTimersByTimeAsync(stepMs);
+    // Extra real microtask flushes per step for slow/contended test runs.
+    await Promise.resolve();
+    await Promise.resolve();
+  }
+}
+
+/** Advance `steps * stepMs` of fake time unconditionally, in small steps
+ * (same real-yield-per-step rationale as {@link waitForFake}), when a test
+ * just needs to cross a deadline rather than wait for a predicate. */
+async function advanceFake(steps: number, stepMs: number): Promise<void> {
+  for (let i = 0; i < steps; i++) {
+    await vi.advanceTimersByTimeAsync(stepMs);
+    await Promise.resolve();
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Task 7: doc_id partitioning test (MUST fail before the implementation)
 // ---------------------------------------------------------------------------
@@ -505,5 +536,275 @@ describe('MatterSyncClient E2EE convergence', () => {
     await until(() => onKeyEpochAdvanced.mock.calls.length > 0);
     expect(onKeyEpochAdvanced).toHaveBeenCalledWith(2);
     c.stop();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// QA-46: reconnect-with-backoff + queued unsent updates after a socket drop
+// ---------------------------------------------------------------------------
+describe('MatterSyncClient reconnect + queued updates (QA-46)', () => {
+  it('re-arms with a new socket after an unexpected close, while still started', async () => {
+    vi.useFakeTimers();
+    try {
+      const relay = new FakeRelay();
+      const keyB64 = await generateMatterKey();
+      const sockets: FakeSocket[] = [];
+      let socketsCreated = 0;
+
+      const c = new MatterSyncClient({
+        matterId: 'm1',
+        keyB64,
+        keyEpoch: 1,
+        seatToken: 'seat',
+        client: fakeClient(relay),
+        socketFactory: () => {
+          socketsCreated += 1;
+          const s = new FakeSocket();
+          sockets.push(s);
+          relay.connect(s);
+          return s;
+        },
+      });
+
+      await c.start();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(c.getStatus()).toBe('live');
+      expect(socketsCreated).toBe(1);
+
+      // Simulate an unexpected drop (network blip) — NOT a stop() call.
+      sockets[0]!.onclose?.({});
+      expect(c.getStatus()).toBe('offline');
+
+      // No reconnect should have happened yet — it's backed off.
+      expect(socketsCreated).toBe(1);
+
+      // Advance past the first backoff window; a new socket must be opened.
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(socketsCreated).toBe(2);
+      expect(c.getStatus()).toBe('live');
+
+      c.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not keep reconnecting after stop() is called', async () => {
+    vi.useFakeTimers();
+    try {
+      const relay = new FakeRelay();
+      const keyB64 = await generateMatterKey();
+      let socketsCreated = 0;
+
+      const c = new MatterSyncClient({
+        matterId: 'm1',
+        keyB64,
+        keyEpoch: 1,
+        seatToken: 'seat',
+        client: fakeClient(relay),
+        socketFactory: () => {
+          socketsCreated += 1;
+          const s = new FakeSocket();
+          relay.connect(s);
+          return s;
+        },
+      });
+
+      await c.start();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(socketsCreated).toBe(1);
+
+      c.stop();
+      // Advance well past any backoff window — no reconnect should fire.
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(socketsCreated).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('queues an unsent local update when the push fails and flushes it once connectivity returns', async () => {
+    vi.useFakeTimers();
+    try {
+      const relay = new FakeRelay();
+      const keyB64 = await generateMatterKey();
+      let failPush = false;
+      const client = {
+        pushUpdate: vi.fn(
+          async (_m: string, blobId: string, ct: string, _seat: string, epoch?: number) => {
+            if (failPush) throw new Error('network down');
+            return relay.push(blobId, ct, epoch ?? relay.keyEpoch);
+          },
+        ),
+        pullUpdates: vi.fn(async (_m: string, since: number) => relay.pull(since)),
+        createSyncTicket: vi.fn(async (_m: string, _seat: string) => ({
+          ticket: `tkt_${Math.random().toString(36).slice(2)}`,
+          expires_in_ms: 30_000,
+        })),
+      } as unknown as import('@/platform/firm/FirmApiClient').FirmApiClient;
+
+      const c = new MatterSyncClient({
+        matterId: 'm1',
+        keyB64,
+        keyEpoch: 1,
+        seatToken: 'seat',
+        client,
+        socketFactory: () => {
+          const s = new FakeSocket();
+          relay.connect(s);
+          return s;
+        },
+      });
+
+      await c.start();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(c.getStatus()).toBe('live');
+
+      // Local edit made while the relay is unreachable.
+      failPush = true;
+      c.doc.getMap('m').set('x', 'queued-while-offline');
+      // pushLocalUpdate awaits ensureKey()/encryptUpdate() (real WebCrypto
+      // ops) before it ever reaches the network call, so give it a few
+      // fake-timer ticks rather than asserting immediately.
+      await waitForFake(() => c.getStatus() === 'offline', 300, 1);
+      expect(c.getStatus()).toBe('offline');
+      expect(relay.blobs.length).toBe(0); // never made it out
+
+      // Connectivity returns; the backoff-scheduled reconnect should flush
+      // the queued update. Tick forward in small steps so the async
+      // flush/reopen chain (real WebCrypto + relay round-trips) settles.
+      failPush = false;
+      await waitForFake(() => relay.blobs.length > 0, 1000, 50);
+      expect(relay.blobs.length).toBe(1);
+      expect(c.getStatus()).toBe('live');
+
+      c.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // codex-review finding (P1): a queued push that keeps failing across
+  // MULTIPLE backoff cycles must keep re-arming its own retry — not just
+  // the first one — even though the socket itself reconnects/stays fine.
+  it('keeps retrying a persistently-failing push across multiple backoff cycles, not just the first', async () => {
+    vi.useFakeTimers();
+    try {
+      const relay = new FakeRelay();
+      const keyB64 = await generateMatterKey();
+      let failPush = true;
+      const client = {
+        pushUpdate: vi.fn(
+          async (_m: string, blobId: string, ct: string, _seat: string, epoch?: number) => {
+            if (failPush) throw new Error('network down');
+            return relay.push(blobId, ct, epoch ?? relay.keyEpoch);
+          },
+        ),
+        pullUpdates: vi.fn(async (_m: string, since: number) => relay.pull(since)),
+        createSyncTicket: vi.fn(async (_m: string, _seat: string) => ({
+          ticket: `tkt_${Math.random().toString(36).slice(2)}`,
+          expires_in_ms: 30_000,
+        })),
+      } as unknown as import('@/platform/firm/FirmApiClient').FirmApiClient;
+
+      const c = new MatterSyncClient({
+        matterId: 'm1',
+        keyB64,
+        keyEpoch: 1,
+        seatToken: 'seat',
+        client,
+        socketFactory: () => {
+          const s = new FakeSocket();
+          relay.connect(s);
+          return s;
+        },
+      });
+
+      await c.start();
+      await vi.advanceTimersByTimeAsync(0);
+
+      // First local edit fails to push immediately (relay unreachable from
+      // the start).
+      c.doc.getMap('m').set('x', 'attempt-1');
+      await waitForFake(() => c.getStatus() === 'offline', 300, 1);
+      expect(c.getStatus()).toBe('offline');
+
+      // First backoff (~1s) fires — the retry ALSO fails (still down). Before
+      // the fix, this second failure left nothing scheduled to try again.
+      await advanceFake(30, 50); // ~1.5s of fake time
+      expect(relay.blobs.length).toBe(0);
+
+      // NOW connectivity returns. If the client re-armed its own retry after
+      // the second failure, the next backoff cycle (~2s, exponential) will
+      // flush the still-queued update without any further local edits.
+      failPush = false;
+      await waitForFake(() => relay.blobs.length > 0, 1000, 100);
+      expect(relay.blobs.length).toBe(1);
+      expect(c.getStatus()).toBe('live');
+
+      c.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // codex-review finding (P2): a reconnect triggered by something OTHER than
+  // a real socket close (here: the push itself failing while the WebSocket
+  // stays open) must NOT stand up a second, duplicate live socket.
+  it('does not open a duplicate socket when only the push (not the socket) fails', async () => {
+    vi.useFakeTimers();
+    try {
+      const relay = new FakeRelay();
+      const keyB64 = await generateMatterKey();
+      let failPush = false;
+      let socketsCreated = 0;
+      const client = {
+        pushUpdate: vi.fn(
+          async (_m: string, blobId: string, ct: string, _seat: string, epoch?: number) => {
+            if (failPush) throw new Error('network down');
+            return relay.push(blobId, ct, epoch ?? relay.keyEpoch);
+          },
+        ),
+        pullUpdates: vi.fn(async (_m: string, since: number) => relay.pull(since)),
+        createSyncTicket: vi.fn(async (_m: string, _seat: string) => ({
+          ticket: `tkt_${Math.random().toString(36).slice(2)}`,
+          expires_in_ms: 30_000,
+        })),
+      } as unknown as import('@/platform/firm/FirmApiClient').FirmApiClient;
+
+      const c = new MatterSyncClient({
+        matterId: 'm1',
+        keyB64,
+        keyEpoch: 1,
+        seatToken: 'seat',
+        client,
+        socketFactory: () => {
+          socketsCreated += 1;
+          const s = new FakeSocket();
+          relay.connect(s);
+          return s;
+        },
+      });
+
+      await c.start();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(socketsCreated).toBe(1);
+
+      failPush = true;
+      c.doc.getMap('m').set('x', 'push-only-failure');
+      await waitForFake(() => c.getStatus() === 'offline', 300, 1);
+
+      failPush = false;
+      await waitForFake(() => relay.blobs.length > 0, 1000, 50);
+      expect(relay.blobs.length).toBe(1);
+      // The WebSocket itself was never actually disconnected — the reconnect
+      // machinery must not have opened a second one alongside it.
+      expect(socketsCreated).toBe(1);
+      expect(c.getStatus()).toBe('live');
+
+      c.stop();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
