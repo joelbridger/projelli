@@ -39,6 +39,14 @@ interface Entry {
    * clean), `false` if the write failed. Never rejects.
    */
   flush: () => Promise<boolean>;
+  /**
+   * Cleanup batch 4 (task #24): force-stop any keep-alive save/retry loop for
+   * this path — the user explicitly chose to discard unsaved changes, so
+   * nothing should keep trying to write them to disk in the background.
+   * Optional because a plain (non-session-backed) registration, like the ones
+   * tests register directly, has nothing to stop.
+   */
+  discard?: () => void;
 }
 
 const entries = new Map<string, Entry>();
@@ -70,7 +78,11 @@ export function getDocxSaveVersion(): number {
  * call on unmount. Re-registering the same path (e.g. a remount) replaces the
  * previous entry — last mount wins, which matches "the live editor owns it."
  */
-export function registerDocxSaver(path: string, flush: () => Promise<boolean>): () => void {
+export function registerDocxSaver(
+  path: string,
+  flush: () => Promise<boolean>,
+  discard?: () => void,
+): () => void {
   // PRESERVE any existing save state for this path. Re-registration can happen
   // WITHOUT an unmount (e.g. the editor's register effect re-runs because a
   // callback identity changed on a parent re-render). Resetting to "clean" here
@@ -78,7 +90,11 @@ export function registerDocxSaver(path: string, flush: () => Promise<boolean>): 
   // afterward, permanently — read as saved, defeating the whole guard. Keep the
   // prior state and only swap in the fresh flush closure.
   const prev = entries.get(path)?.state;
-  entries.set(path, { state: prev ?? { dirty: false, saving: false, error: false }, flush });
+  entries.set(path, {
+    state: prev ?? { dirty: false, saving: false, error: false },
+    flush,
+    ...(discard ? { discard } : {}),
+  });
   notify();
   return () => {
     // Only remove if we still own this slot (a newer mount may have replaced us).
@@ -148,6 +164,25 @@ export function hasFailingDocxSave(): boolean {
     if (state.error) return true;
   }
   return false;
+}
+
+/**
+ * Cleanup batch 4 (task #24): force-stop the keep-alive save/retry loop for
+ * `path` (no-op if unregistered or the registration has no discard hook) and
+ * remove its registration. Call this when the user EXPLICITLY discards a
+ * `.docx`'s unsaved changes (e.g. "Close and lose changes") so a background
+ * retry can't later succeed and silently overwrite the file with content the
+ * user chose to abandon.
+ */
+export function discardDocxSession(path: string): void {
+  const entry = entries.get(path);
+  if (!entry) return;
+  entry.discard?.();
+  // The discard hook (DocxSession.disposeForce) already unregisters itself,
+  // but fall back to removing the entry directly for a plain registration
+  // (no discard hook) so a discard always leaves the path unregistered.
+  if (entries.get(path) === entry) entries.delete(path);
+  notify();
 }
 
 /** Names/paths of every registered `.docx` with unsaved/failing work. */
@@ -227,10 +262,25 @@ export async function closeDocxTabSafely(
     // We already saved — close with `discard` so the beforeTabClose hook doesn't
     // redundantly flush again.
     ops.closeTab(path, { discard: true });
+    // Cleanup batch 4 / QA-43: the tab is genuinely closing and is confirmed
+    // clean, so tear its session down now instead of leaving it registered
+    // forever unused (a session recovering in the BACKGROUND, with no view
+    // ever re-mounting its tab, is otherwise never disposed — see
+    // docxSaveSession.ts's `persist()` for why it doesn't self-dispose).
+    // Safe even though nothing is being "discarded": there's nothing dirty
+    // left to lose.
+    discardDocxSession(path);
     return true;
   }
   const discard = await ops.confirmDiscardOnFailure();
-  if (discard) ops.closeTab(path, { discard: true });
+  if (discard) {
+    ops.closeTab(path, { discard: true });
+    // Cleanup batch 4: the user explicitly chose to lose these changes — stop
+    // any keep-alive retry loop for this path so a save can't later succeed
+    // in the background and silently overwrite the file with the content
+    // they just asked to abandon.
+    discardDocxSession(path);
+  }
   // else: keep the tab open — editor stays mounted, escalation banner + "Save a
   // copy elsewhere" remain available; nothing is lost.
   return true;

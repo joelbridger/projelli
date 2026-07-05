@@ -1,0 +1,292 @@
+/**
+ * docxSaveSession — cleanup batch 4 (task #24, QA-34 residual race).
+ *
+ * Focused unit tests of the persistent per-path save/retry session that lets
+ * a `.docx`'s dirty/failing save survive a `DocxEditor` view unmounting (a
+ * tab switch away and back). Runs against the REAL session class + a mocked
+ * `@tauri-apps/api/core` invoke (not a full React render) so timing is
+ * controlled with fake timers instead of real multi-second waits — the
+ * equivalent React-level scenarios are covered end-to-end in
+ * tests/unit/DocxEditor.test.tsx, but the explicit-discard behavior in
+ * particular doesn't need a DOM at all to verify.
+ */
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+const invokeMock = vi.fn();
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: (cmd: string, args?: unknown) => invokeMock(cmd, args),
+  isTauri: () => true,
+}));
+
+import {
+  openDocxSession,
+  getExistingDocxSession,
+  __resetDocxSaveSessions,
+} from '@/platform/fs/docxSaveSession';
+import {
+  isDocxRegistered,
+  isDocxUnsaved,
+  discardDocxSession,
+  flushDocx,
+  __resetDocxSaveRegistry,
+} from '@/platform/fs/docxSaveRegistry';
+import type { DocumentJson } from '@/platform/types/docx';
+
+const DOC: DocumentJson = {
+  formatVersion: 1,
+  body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'hello' }] }],
+  comments: {},
+};
+
+function mockInvoke(opts: { save: 'ok' | 'fail' | (() => boolean) }) {
+  invokeMock.mockImplementation((cmd: string) => {
+    if (cmd === 'docx_open') return Promise.resolve(DOC);
+    if (cmd === 'docx_save') {
+      const shouldFail = typeof opts.save === 'function' ? opts.save() : opts.save === 'fail';
+      return shouldFail ? Promise.reject(new Error('locked')) : Promise.resolve(undefined);
+    }
+    return Promise.resolve(undefined);
+  });
+}
+
+describe('docxSaveSession', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    __resetDocxSaveSessions();
+    __resetDocxSaveRegistry();
+    invokeMock.mockReset();
+  });
+
+  afterEach(() => {
+    __resetDocxSaveSessions();
+    vi.useRealTimers();
+  });
+
+  it('opens fresh via docx_open and registers with the shared save registry', async () => {
+    mockInvoke({ save: 'ok' });
+    const session = await openDocxSession('/ws/a.docx', {});
+    expect(session.doc).toEqual(DOC);
+    expect(invokeMock).toHaveBeenCalledWith('docx_open', expect.objectContaining({ path: '/ws/a.docx' }));
+    expect(isDocxRegistered('/ws/a.docx')).toBe(true);
+    expect(isDocxUnsaved('/ws/a.docx')).toBe(false);
+  });
+
+  it('resuming an existing session returns the SAME instance and never re-reads disk', async () => {
+    mockInvoke({ save: 'ok' });
+    const first = await openDocxSession('/ws/a.docx', {});
+    const second = await openDocxSession('/ws/a.docx', {});
+    expect(second).toBe(first);
+    expect(invokeMock.mock.calls.filter((c) => c[0] === 'docx_open')).toHaveLength(1);
+  });
+
+  it('scheduleSave debounces, then a successful save clears dirty — the session stays registered and reusable', async () => {
+    mockInvoke({ save: 'ok' });
+    const session = await openDocxSession('/ws/a.docx', {});
+    const edited: DocumentJson = { ...DOC, body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'edited' }] }] };
+    session.scheduleSave(edited, 1200);
+
+    expect(isDocxUnsaved('/ws/a.docx')).toBe(true);
+    expect(invokeMock).not.toHaveBeenCalledWith('docx_save', expect.anything());
+
+    await vi.advanceTimersByTimeAsync(1200);
+
+    expect(invokeMock).toHaveBeenCalledWith(
+      'docx_save',
+      expect.objectContaining({ path: '/ws/a.docx', document: edited }),
+    );
+    expect(isDocxUnsaved('/ws/a.docx')).toBe(false);
+    // QA-43 (coordinator P0): a session must NEVER self-dispose as a side
+    // effect of a successful save, even with no view currently watching it —
+    // doing so let a still-referenced session keep running with its writes
+    // silently dropped from the registry on the NEXT failure (see the
+    // "re-arms after a successful recovery" test below). It stays registered
+    // (clean) and IS the same object a later reopen resumes.
+    expect(isDocxRegistered('/ws/a.docx')).toBe(true);
+    expect(getExistingDocxSession('/ws/a.docx')).toBe(session);
+  });
+
+  it('a failing save retries with backoff and keeps running with no view attached — this is the tab-switch keep-alive fix', async () => {
+    let shouldFail = true;
+    mockInvoke({ save: () => shouldFail });
+    const session = await openDocxSession('/ws/a.docx', {});
+    session.scheduleSave(DOC, 1200);
+    await vi.advanceTimersByTimeAsync(1200);
+
+    expect(invokeMock.mock.calls.filter((c) => c[0] === 'docx_save')).toHaveLength(1);
+    expect(isDocxUnsaved('/ws/a.docx')).toBe(true);
+    // Simulate the view unmounting: nothing else touches the session, but its
+    // retry timer (a plain setTimeout, not tied to any component) keeps firing.
+    await vi.advanceTimersByTimeAsync(750);
+    expect(invokeMock.mock.calls.filter((c) => c[0] === 'docx_save')).toHaveLength(2);
+    expect(isDocxRegistered('/ws/a.docx')).toBe(true); // still registered — the guards must still see it
+
+    // A later "remount" resumes the SAME session with the SAME latest doc.
+    const resumed = await openDocxSession('/ws/a.docx', {});
+    expect(resumed).toBe(session);
+    expect(invokeMock.mock.calls.filter((c) => c[0] === 'docx_open')).toHaveLength(1);
+
+    // Let the lock clear — the retry that survived the whole round trip lands.
+    shouldFail = false;
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(isDocxUnsaved('/ws/a.docx')).toBe(false);
+  });
+
+  // QA-43 (coordinator P0, found live on a cloud bench 2026-07-04): the QA-34
+  // fix handles the FIRST lock/fail/recover cycle correctly, but a reported
+  // SECOND lock cycle on the SAME document silently stopped persisting while
+  // the UI kept calmly showing "Saved" — restart-verified permanent loss.
+  // This pins that the save/retry/escalation state machine fully RE-ARMS
+  // after a successful recovery: a second, later failure on a NEW edit must
+  // be just as visible (dirty + error, retrying) as the first, and the edit
+  // that survived it must actually land on disk, not be dropped.
+  it('re-arms after a successful recovery — a SECOND later lock cycle is just as visible and the edit survives it', async () => {
+    let shouldFail = true;
+    const savedDocs: DocumentJson[] = [];
+    invokeMock.mockImplementation((cmd: string, args?: Record<string, unknown>) => {
+      if (cmd === 'docx_open') return Promise.resolve(DOC);
+      if (cmd === 'docx_save') {
+        if (shouldFail) return Promise.reject(new Error('locked (cycle)'));
+        savedDocs.push(args?.['document'] as DocumentJson);
+        return Promise.resolve(undefined);
+      }
+      return Promise.resolve(undefined);
+    });
+
+    const session = await openDocxSession('/ws/a.docx', {});
+
+    // ---- Cycle 1: lock, escalate, recover -------------------------------
+    const docCycle1: DocumentJson = { ...DOC, body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'cycle 1 text' }] }] };
+    session.scheduleSave(docCycle1, 1200);
+    await vi.advanceTimersByTimeAsync(1200); // attempt 1: fails
+    expect(session.saveError).not.toBeNull();
+    expect(session.isDirty).toBe(true);
+    await vi.advanceTimersByTimeAsync(750); // attempt 2: fails
+    await vi.advanceTimersByTimeAsync(1500); // attempt 3: fails -> escalates
+    expect(session.escalated).toBe(true);
+
+    shouldFail = false;
+    await vi.advanceTimersByTimeAsync(3000); // attempt 4: succeeds
+    expect(session.isDirty).toBe(false);
+    expect(session.saveError).toBeNull();
+    expect(session.escalated).toBe(false);
+    expect(savedDocs).toHaveLength(1);
+    expect(savedDocs[0]).toEqual(docCycle1);
+
+    // ---- Cycle 2: a NEW edit, a SECOND (later) lock cycle ----------------
+    // This is the exact regression: after cycle 1's recovery, the state
+    // machine must behave IDENTICALLY for a fresh failure — not silently
+    // stay "clean" while the write keeps failing.
+    shouldFail = true;
+    const docCycle2: DocumentJson = { ...DOC, body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'cycle 2 text (must not be lost)' }] }] };
+    session.scheduleSave(docCycle2, 1200);
+    await vi.advanceTimersByTimeAsync(1200); // attempt 1 of cycle 2: fails
+
+    // The UI must be truthful — NOT "Saved" — the instant this fails.
+    expect(session.isDirty).toBe(true);
+    expect(session.saveError).not.toBeNull();
+    expect(isDocxUnsaved('/ws/a.docx')).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(750); // retry
+    await vi.advanceTimersByTimeAsync(1500); // retry -> escalates again
+    expect(session.escalated).toBe(true);
+
+    // The lock clears — the SAME edit that survived the second cycle must
+    // actually land on disk now, not have been silently dropped.
+    shouldFail = false;
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(session.isDirty).toBe(false);
+    expect(session.saveError).toBeNull();
+    expect(savedDocs).toHaveLength(2);
+    expect(savedDocs[1]).toEqual(docCycle2);
+  });
+
+  it('discardDocxSession stops the retry loop for good — a discarded save never lands later', async () => {
+    mockInvoke({ save: 'fail' });
+    const session = await openDocxSession('/ws/a.docx', {});
+    session.scheduleSave(DOC, 1200);
+    await vi.advanceTimersByTimeAsync(1200);
+    const attemptsAtDiscard = invokeMock.mock.calls.filter((c) => c[0] === 'docx_save').length;
+    expect(attemptsAtDiscard).toBeGreaterThanOrEqual(1);
+    expect(isDocxRegistered('/ws/a.docx')).toBe(true);
+
+    // The user explicitly chooses "close and lose changes".
+    discardDocxSession('/ws/a.docx');
+    expect(isDocxRegistered('/ws/a.docx')).toBe(false);
+    expect(session.isDisposed).toBe(true);
+
+    // Even if the lock would have cleared, nothing keeps trying — the
+    // abandoned edit must never silently land on disk later.
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(invokeMock.mock.calls.filter((c) => c[0] === 'docx_save')).toHaveLength(attemptsAtDiscard);
+    expect(getExistingDocxSession('/ws/a.docx')).toBeUndefined();
+  });
+
+  it('disposeIfClean (a view unmounting while clean) removes the session; a dirty one survives', async () => {
+    mockInvoke({ save: 'fail' });
+    const session = await openDocxSession('/ws/a.docx', {});
+    expect(session.disposeIfClean()).toBe(true);
+    expect(isDocxRegistered('/ws/a.docx')).toBe(false);
+
+    const dirtySession = await openDocxSession('/ws/b.docx', {});
+    dirtySession.scheduleSave(DOC, 1200);
+    await vi.advanceTimersByTimeAsync(1200);
+    expect(dirtySession.disposeIfClean()).toBe(false);
+    expect(isDocxRegistered('/ws/b.docx')).toBe(true);
+  });
+
+  // Codex review catch (P2): flushDocx (what closeDocxTabSafely/quit-flush
+  // actually calls) must report the SESSION's truth, not just whether one
+  // write happened to land. A write can succeed while already being STALE —
+  // a newer edit arrives via scheduleSave while the write is in flight —
+  // which correctly keeps `isDirty` true, but the underlying attempt still
+  // "succeeded". If flushDocx blindly forwarded that success, a close flow
+  // would treat a still-dirty session as safe and discard the newer edit.
+  it('flushDocx does not report success while a newer edit raced the in-flight write — it catches up and saves it', async () => {
+    const saveGate: { resolve: (() => void) | null } = { resolve: null };
+    let saveCallCount = 0;
+    const savedDocs: DocumentJson[] = [];
+    invokeMock.mockImplementation((cmd: string, args?: Record<string, unknown>) => {
+      if (cmd === 'docx_open') return Promise.resolve(DOC);
+      if (cmd === 'docx_save') {
+        saveCallCount += 1;
+        if (saveCallCount === 1) {
+          // The FIRST write hangs until the test explicitly resolves it,
+          // simulating a save that's still in flight when a newer edit lands.
+          return new Promise<void>((resolve) => {
+            saveGate.resolve = () => {
+              savedDocs.push(args?.['document'] as DocumentJson);
+              resolve();
+            };
+          });
+        }
+        savedDocs.push(args?.['document'] as DocumentJson);
+        return Promise.resolve(undefined);
+      }
+      return Promise.resolve(undefined);
+    });
+
+    const session = await openDocxSession('/ws/a.docx', {});
+    const docA: DocumentJson = { ...DOC, body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'doc A' }] }] };
+    session.scheduleSave(docA, 1200);
+    await vi.advanceTimersByTimeAsync(1200); // attemptSave(docA) starts; docx_save is now hung
+
+    // A NEWER edit lands while docA's write is still in flight.
+    const docB: DocumentJson = { ...DOC, body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'doc B (must not be lost)' }] }] };
+    session.scheduleSave(docB, 1200);
+    expect(session.doc).toEqual(docB);
+    expect(session.isDirty).toBe(true);
+
+    // Let docA's (now-stale) write land.
+    saveGate.resolve?.();
+    await vi.advanceTimersByTimeAsync(0);
+    // The stale completion must NOT have cleared isDirty (docB is still unsaved).
+    expect(session.isDirty).toBe(true);
+
+    // Something (close/quit) forces a flush right now, before docB's own
+    // debounce would have fired on its own.
+    const flushed = await flushDocx('/ws/a.docx');
+    expect(flushed).toBe(true);
+    expect(session.isDirty).toBe(false);
+    expect(savedDocs.at(-1)).toEqual(docB);
+  });
+});

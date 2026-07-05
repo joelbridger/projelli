@@ -70,6 +70,28 @@ vi.mock('@/platform/privacy/localOnlyGuard', async (orig) => {
 import { TooltipProvider } from '@/ui/tooltip';
 import { DocxEditor } from '@/features/documents/media/DocxEditor';
 import type { DocumentJson, DocxAiEdit } from '@/platform/types/docx';
+import { __resetDocxSaveSessions } from '@/platform/fs/docxSaveSession';
+import {
+  __resetDocxSaveRegistry,
+  isDocxRegistered,
+  isDocxUnsaved,
+} from '@/platform/fs/docxSaveRegistry';
+
+// Cleanup batch 4 (task #24): DocxEditor's solo save path now keeps a
+// per-path DocxSession alive across unmounts while it's dirty/failing (the
+// QA-34 keep-alive fix) instead of always tearing it down. Every test in this
+// file reuses the SAME `/ws/agreement.docx` path (see `renderEditor()`), so a
+// test that intentionally leaves a save failing (the QA-34 resilience suite)
+// would otherwise leak that dirty/escalated session into the NEXT test's
+// fresh `renderEditor()` — which then silently resumes the stale session
+// instead of exercising its own `docx_open`/`docx_save` mocks. Reset before
+// every test so each one gets a clean session for the path it opens.
+// Resetting the registry too (belt-and-suspenders) guarantees no residual
+// entry can linger even if a session's own unregister races with this reset.
+beforeEach(() => {
+  __resetDocxSaveSessions();
+  __resetDocxSaveRegistry();
+});
 
 function docWithRevisions(): DocumentJson {
   return {
@@ -118,10 +140,10 @@ function docWithRevisions(): DocumentJson {
 
 // The DOM the editor renders comes from the mocked `docx_open`, so renderEditor
 // just mounts the component; callers set up invokeMock to return their DOM.
-function renderEditor() {
+function renderEditor(filePath = '/ws/agreement.docx') {
   return render(
     <TooltipProvider>
-      <DocxEditor filePath="/ws/agreement.docx" fileName="agreement.docx" />
+      <DocxEditor filePath={filePath} fileName={filePath.split('/').pop() ?? filePath} />
     </TooltipProvider>,
   );
 }
@@ -1695,4 +1717,168 @@ describe('DocxEditor — QA-34 save resilience', () => {
       { timeout: 5000 },
     );
   }, 25000);
+
+  // Cleanup batch 4 (task #24): the QA-34 fix covered a save that fails while
+  // the user STAYS on the tab. This is the residual race it left open —
+  // switching tabs away from a still-FAILING save used to unmount the editor
+  // (killing its retry loop and its not-yet-persisted document), and
+  // switching back re-read the file from disk, silently reloading stale
+  // content over the unsaved edit. The fix: the save/retry state now lives in
+  // a DocxSession keyed by path (docxSaveSession.ts) that outlives the
+  // component, so a tab switch away no longer drops anything.
+  it('switching tabs away from a FAILING save keeps it retrying and the doc intact — switching back resumes it without rereading disk', async () => {
+    let saveAttempts = 0;
+    let openCalls = 0;
+    let saveShouldSucceed = false;
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'docx_open') {
+        openCalls += 1;
+        return Promise.resolve(oneRevisionDoc());
+      }
+      if (cmd === 'docx_resolve_revision') return Promise.resolve(resolvedDoc);
+      if (cmd === 'docx_save') {
+        saveAttempts += 1;
+        return saveShouldSucceed
+          ? Promise.resolve(undefined)
+          : Promise.reject(new Error('The process cannot access the file (locked)'));
+      }
+      return Promise.resolve(undefined);
+    });
+
+    const { unmount } = renderEditor();
+    await triggerSaveViaAccept();
+
+    // The debounce (SAVE_DEBOUNCE_MS) delays the first save attempt, so this
+    // needs a generous timeout — mirrors the other QA-34 tests above.
+    await waitFor(
+      () => expect(screen.getByTestId('auto-save-indicator')).toHaveAttribute('data-state', 'error'),
+      { timeout: 4000 },
+    );
+    expect(openCalls).toBe(1);
+    const attemptsBeforeSwitch = saveAttempts;
+    expect(attemptsBeforeSwitch).toBeGreaterThanOrEqual(1);
+
+    // Simulate switching tabs away: MainPanel stops rendering this DocxEditor
+    // instance while the save is still failing.
+    unmount();
+
+    // The retry loop is owned by the session now, not the component — it
+    // must keep firing in the background with no view mounted at all.
+    await waitFor(() => expect(saveAttempts).toBeGreaterThan(attemptsBeforeSwitch), {
+      timeout: 6000,
+    });
+    const attemptsWhileHidden = saveAttempts;
+
+    // Switch back to the tab: a brand-new DocxEditor instance mounts for the
+    // SAME path while the save is STILL failing/retrying.
+    const { unmount: unmountResumed } = renderEditor();
+    await screen.findByTestId('docx-editor');
+
+    // Must resume the SAME in-memory (post-accept) document, not re-read the
+    // file from disk — docx_open is never called a second time.
+    expect(openCalls).toBe(1);
+    // ...and it must show the truth immediately: still an error, never a
+    // false "Saved", and never a "loading" reload-from-disk flash.
+    await waitFor(() =>
+      expect(screen.getByTestId('auto-save-indicator')).toHaveAttribute('data-state', 'error'),
+    );
+    expect(screen.queryByTestId('docx-editor-loading')).toBeNull();
+
+    // The retry must still be live post-remount (it never stopped).
+    await waitFor(() => expect(saveAttempts).toBeGreaterThan(attemptsWhileHidden), {
+      timeout: 6000,
+    });
+
+    // Let the lock clear — the doc that survived the whole round trip finally
+    // saves successfully, proving nothing was lost along the way.
+    saveShouldSucceed = true;
+    await waitFor(
+      () => expect(screen.getByTestId('auto-save-indicator')).toHaveAttribute('data-state', 'saved-recent'),
+      { timeout: 8000 },
+    );
+
+    // Explicitly unmount (rather than relying on RTL's implicit end-of-test
+    // cleanup) and WAIT for its fire-and-forget disposal chain to settle
+    // before this test ends — the disposal touches the MODULE-LEVEL session
+    // registry, so leaving it racing in the background could otherwise bleed
+    // into the next test's fresh session for the same path.
+    unmountResumed();
+    await waitFor(() => expect(isDocxRegistered('/ws/agreement.docx')).toBe(false));
+  }, 20000);
+
+  // Codex review catch (P2): a PARENT can reuse the SAME DocxEditor instance
+  // for a DIFFERENT file without remounting it — no `key` tied to the path
+  // (e.g. MeetingEntry swapping which meeting's notes.docx it shows via a
+  // Client Map source-link click, with no key={meetingDir} upstream). Without
+  // detaching from the old path's session on this transition, its later
+  // background state changes would keep updating THIS view's save indicator
+  // even though it's now displaying a completely different document.
+  it('a filePath change WITHOUT unmount detaches from the old path — its state never bleeds into the new view', async () => {
+    let bOpenCalls = 0;
+    invokeMock.mockImplementation((cmd: string, args?: Record<string, unknown>) => {
+      if (cmd === 'docx_open') {
+        if (args?.['path'] === '/ws/b.docx') {
+          bOpenCalls += 1;
+          return Promise.resolve(resolvedDoc);
+        }
+        return Promise.resolve(oneRevisionDoc());
+      }
+      if (cmd === 'docx_resolve_revision') return Promise.resolve(resolvedDoc);
+      if (cmd === 'docx_save') return Promise.reject(new Error('locked'));
+      return Promise.resolve(undefined);
+    });
+
+    const { rerender } = render(
+      <TooltipProvider>
+        <DocxEditor filePath="/ws/a.docx" fileName="a.docx" />
+      </TooltipProvider>,
+    );
+    await triggerSaveViaAccept();
+    await waitFor(
+      () => expect(screen.getByTestId('auto-save-indicator')).toHaveAttribute('data-state', 'error'),
+      { timeout: 4000 },
+    );
+
+    await waitFor(() => expect(isDocxUnsaved('/ws/a.docx')).toBe(true));
+
+    // The parent swaps to a DIFFERENT path on the SAME component instance —
+    // no unmount, no new `renderEditor()`/`render()` call.
+    rerender(
+      <TooltipProvider>
+        <DocxEditor filePath="/ws/b.docx" fileName="b.docx" />
+      </TooltipProvider>,
+    );
+
+    // The view must settle on B's (clean) state — never show A's error.
+    await waitFor(
+      () => expect(screen.getByTestId('auto-save-indicator')).not.toHaveAttribute('data-state', 'error'),
+      { timeout: 4000 },
+    );
+    // A's session is untouched by the transition — still retrying
+    // independently in the background (the keep-alive contract holds); it
+    // just no longer has a live view attached to report through.
+    await waitFor(() => expect(isDocxUnsaved('/ws/a.docx')).toBe(true));
+
+    // A's eventual background state changes must NOT reach this view, which
+    // is now showing B. Give any wrongly-still-attached subscription a
+    // window to misfire before asserting B's indicator is still untouched.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.getByTestId('auto-save-indicator')).not.toHaveAttribute('data-state', 'error');
+
+    // Codex review catch (P1): B's session must still be the SAME one the
+    // view attached to — never disposed out from under it by the old
+    // cleanup's async chain racing the new load and reading stale refs
+    // (which would show up here as a second, unexpected `docx_open` for B,
+    // or B's registration disappearing).
+    expect(bOpenCalls).toBe(1);
+    expect(isDocxRegistered('/ws/b.docx')).toBe(true);
+  }, 15000);
+
+  // The explicit-discard behavior (closeDocxTabSafely's "close and lose
+  // changes" path force-stopping the session's retry loop) is covered as a
+  // focused unit test of the session module itself —
+  // tests/unit/fileOps/docxSaveSession.test.ts — rather than here, since it
+  // doesn't need a real DOM/React render to verify and a full-file run of
+  // this suite's many multi-second real-timer tests made a React-level
+  // version of it flaky in ways unrelated to the behavior under test.
 });
