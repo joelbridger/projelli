@@ -136,15 +136,37 @@ pub async fn rag_index_file(
         return Ok(());
     }
 
+    // WS-VEC: the vector-store master key — chunk text is encrypted at rest.
+    let key = crypto::get_or_create_master_key().map_err(|e| format!("vectors key: {e}"))?;
+
+    // QA-88: the meeting pipeline now explicitly indexes transcript.json and
+    // notes.docx immediately after writing them, and the file watcher may still
+    // fire for the same path moments later. If the manifest says this exact file
+    // version is already indexed under the same matter/privilege scope, the
+    // second call is a cheap no-op instead of re-extracting/re-embedding.
+    let token = crypto::path_token(&key, &file_path.to_string_lossy());
+    let tombstoned = state.unsafe_tokens.lock().await.contains(&token);
+    let fresh_for_scope = {
+        let _mg = state.manifest_lock.lock().await;
+        let manifest = manifest::load(&workspace, store::INDEX_VERSION);
+        text_manifest_entry_is_fresh_for_scope(
+            manifest.get(&token),
+            &file_path,
+            &matter,
+            &privilege,
+            tombstoned,
+        )
+    };
+    if fresh_for_scope {
+        return Ok(());
+    }
+
     let conn = store::open_connection(&workspace)
         .await
         .map_err(|e| format!("open lancedb: {e}"))?;
     let table = store::open_or_create_table(&conn)
         .await
         .map_err(|e| format!("open table: {e}"))?;
-
-    // WS-VEC: the vector-store master key — chunk text is encrypted at rest.
-    let key = crypto::get_or_create_master_key().map_err(|e| format!("vectors key: {e}"))?;
 
     // VG-6d: try to load the workspace vault master key once for this index call.
     // Returns None if the workspace is not vaulted or the vault is locked —
@@ -1250,6 +1272,28 @@ pub(crate) fn text_source_signature(
     })
 }
 
+fn text_manifest_entry_is_fresh_for_scope(
+    entry: Option<&manifest::SourceSignature>,
+    file: &Path,
+    matter: &str,
+    privilege: &str,
+    tombstoned: bool,
+) -> bool {
+    if tombstoned {
+        return false;
+    }
+    let Some(entry) = entry else {
+        return false;
+    };
+    if entry.matter_id != matter || entry.privilege != privilege {
+        return false;
+    }
+    let Some((size, mtime_ns)) = manifest::stat_signature(file) else {
+        return false;
+    };
+    entry.is_fresh(size, mtime_ns, None)
+}
+
 /// P1.1 — record/refresh a text/office source's manifest signature after a
 /// successful single-file index (watcher, matter re-index). Keeps the manifest
 /// truthful so a later reconcile can safely skip an unchanged file and re-index a
@@ -1275,6 +1319,61 @@ async fn record_text_manifest_entry(
     m.insert(token, sig);
     if let Err(e) = manifest::save(workspace, &m) {
         log::warn!("rag: failed to save manifest after single-file index: {e}");
+    }
+}
+
+#[cfg(test)]
+mod qa88_tests {
+    use super::*;
+
+    #[test]
+    fn fresh_manifest_entry_same_scope_skips_reindex() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("notes.docx");
+        std::fs::write(&file, b"docx bytes").unwrap();
+        let sig = text_source_signature(&file, "m-1", store::PRIVILEGE_NONE, 1).unwrap();
+
+        assert!(text_manifest_entry_is_fresh_for_scope(
+            Some(&sig),
+            &file,
+            "m-1",
+            store::PRIVILEGE_NONE,
+            false,
+        ));
+    }
+
+    #[test]
+    fn changed_scope_changed_file_or_tombstone_forces_reindex() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("transcript.json");
+        std::fs::write(&file, br#"{"segments":[]}"#).unwrap();
+        let sig = text_source_signature(&file, "m-1", store::PRIVILEGE_NONE, 1).unwrap();
+
+        assert!(!text_manifest_entry_is_fresh_for_scope(
+            Some(&sig),
+            &file,
+            "m-2",
+            store::PRIVILEGE_NONE,
+            false,
+        ));
+        assert!(!text_manifest_entry_is_fresh_for_scope(
+            Some(&sig),
+            &file,
+            "m-1",
+            store::PRIVILEGE_NONE,
+            true,
+        ));
+
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        std::fs::write(&file, br#"{"segments":[{"text":"changed"}]}"#).unwrap();
+
+        assert!(!text_manifest_entry_is_fresh_for_scope(
+            Some(&sig),
+            &file,
+            "m-1",
+            store::PRIVILEGE_NONE,
+            false,
+        ));
     }
 }
 
@@ -1315,4 +1414,3 @@ pub(crate) async fn update_manifest_scope(
         }
     }
 }
-

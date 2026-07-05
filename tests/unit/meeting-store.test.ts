@@ -3,6 +3,7 @@ const invokeMock = vi.fn();
 vi.mock('@tauri-apps/api/core', () => ({ invoke: (...a: unknown[]) => invokeMock(...a) }));
 
 const writeFileMock = vi.fn(async (_path: string, _content: string) => {});
+const indexFileMock = vi.fn(async (_path: string, _matterId?: string) => {});
 
 vi.mock('@/platform/matter/matterStore', () => ({
   useMatterStore: {
@@ -33,6 +34,12 @@ vi.mock('@/platform/utils/docx-io', () => ({
   applyLetterheadIfConfigured: vi.fn(async (bytes: Uint8Array) => bytes),
 }));
 
+vi.mock('@/platform/rag/MemoryService', () => ({
+  MemoryService: {
+    indexFile: (...args: unknown[]) => indexFileMock(...args),
+  },
+}));
+
 import {
   useMeetingStore,
   setMeetingsWorkspaceService,
@@ -47,6 +54,7 @@ describe('meeting store', () => {
   beforeEach(() => {
     invokeMock.mockReset();
     writeFileMock.mockReset();
+    indexFileMock.mockReset();
     useMeetingStore.setState(useMeetingStore.getInitialState());
     setMeetingsWorkspaceService({
       writeFile: writeFileMock,
@@ -108,6 +116,51 @@ describe('meeting store', () => {
     const calls = invokeMock.mock.calls.map((c) => c[0]);
     expect(calls).toEqual(['capture_start', 'capture_stop']);
     useSettingsStore.getState().setSetting('meetings.transcribeMode', 'live');
+  });
+
+  it('indexes transcript.json and notes.docx under the meeting matter as soon as the post-stop pipeline writes them (QA-88)', async () => {
+    const files = new Map<string, string>();
+    files.set(
+      '/ws/C/Meetings/x/meeting.json',
+      JSON.stringify({
+        matterId: 'm-1',
+        startedAt: 't0',
+        consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: 't0' },
+      }),
+    );
+    files.set(
+      '/ws/C/Meetings/x/transcript.json',
+      JSON.stringify({
+        segments: [{ startMs: 0, endMs: 1000, channel: 'mic', speaker: 'You', text: 'hi' }],
+      }),
+    );
+    const readFile = vi.fn(async (p: string) => {
+      if (!files.has(p)) throw new Error('ENOENT');
+      return files.get(p) as string;
+    });
+    const writeFile = vi.fn(async (p: string, content: string) => {
+      files.set(p, content);
+    });
+    const writeFileBinary = vi.fn(async () => {});
+    setMeetingsWorkspaceService({
+      readFile,
+      writeFile,
+      exists: vi.fn(async (p: string) => files.has(p)),
+      writeFileBinary,
+    } as never);
+    vi.mocked(meetingNoteFromTranscript.run).mockResolvedValueOnce('- did a thing [t:0]');
+    invokeMock
+      .mockResolvedValueOnce({ meetingDir: '/ws/C/Meetings/x', startedAt: 't0' })
+      .mockResolvedValueOnce({ meetingDir: '/ws/C/Meetings/x', audioPath: 'a.wav', durationMs: 1000 })
+      .mockResolvedValueOnce({ transcriptPath: '/ws/C/Meetings/x/transcript.json', segmentCount: 1 });
+
+    const s = useMeetingStore.getState();
+    await s.startRecording('m-1', { consentMode: 'one-party' });
+    await useMeetingStore.getState().stopRecording();
+
+    expect(writeFileBinary).toHaveBeenCalledWith('/ws/C/Meetings/x/notes.docx', expect.any(Uint8Array));
+    expect(indexFileMock).toHaveBeenCalledWith('/ws/C/Meetings/x/transcript.json', 'm-1');
+    expect(indexFileMock).toHaveBeenCalledWith('/ws/C/Meetings/x/notes.docx', 'm-1');
   });
 
   it('extends the Rust-authored meeting.json rather than reconstructing/overwriting matterId/startedAt/consent', async () => {
