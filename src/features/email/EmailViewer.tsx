@@ -22,7 +22,7 @@
  * Light theme, navy accent, lean — matches the rest of Advisor Prep Hero.
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
 import {
   Mail,
   Calendar,
@@ -148,6 +148,16 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
   const [message, setMessage] = useState<MailView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  // QA-53 (cross-client isolation): the freshest loaded message, read inside
+  // the async file/draft handlers so a late callback is DROPPED once the viewer
+  // has moved to a DIFFERENT email — otherwise A's filing/draft would land on B
+  // (marking B filed to A's client, or dropping A's draft into B's reply box).
+  // Synced in a LAYOUT effect (runs synchronously in the commit phase, before
+  // any microtask/promise callback), so the ref always reflects the currently
+  // DISPLAYED message by the time a late file/draft promise resolves — no gap
+  // where a stale callback could pass the guard against the wrong email.
+  const messageRef = useRef<MailView | null>(null);
+  useLayoutEffect(() => { messageRef.current = message; }, [message]);
   // Fixed-English escape hatch: the "File to {{entity}}" strings below are
   // still hardcoded English (see the cleanup2 handoff), so the noun stays
   // English too rather than mixing languages.
@@ -198,6 +208,15 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
     setLoading(true);
     setError(null);
     setMessage(null);
+    // QA-53: each email starts with a clean reply/filing area — never carry a
+    // draft, filing spinner, or success/error flag from the previous email.
+    setReplyMode('none');
+    setReplyDraft('');
+    setReplyDraftLoading(false);
+    setReplyDraftError(null);
+    setFilingMatter(null);
+    setFileSuccess(false);
+    setFileError(null);
     mailGetMessage(sourceId)
       .then((m) => {
         if (cancelled) return;
@@ -240,26 +259,35 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
 
   const handleFileToMatter = useCallback(async (matterId: string) => {
     if (!message) return;
+    const targetId = message.id;
     setFilingMatter(matterId);
     setFileError(null);
     setFileSuccess(false);
     try {
-      await mailRetagMessageMatter(message.id, matterId);
+      await mailRetagMessageMatter(targetId, matterId);
+      // QA-53: if the viewer moved to a different email while this filing ran,
+      // drop the result — never mark the CURRENT (different) email filed here.
+      if (messageRef.current?.id !== targetId) return;
       // BUG-013: persist the new association into the message so the viewer
       // shows "Filed to X" / the selected button immediately and after reopen —
       // not only via the transient success flag.
-      setMessage((prev) => (prev ? { ...prev, matterId } : prev));
+      setMessage((prev) => (prev && prev.id === targetId ? { ...prev, matterId } : prev));
       setFileSuccess(true);
-      setTimeout(() => { setFileSuccess(false); }, 2500);
+      setTimeout(() => {
+        if (messageRef.current?.id === targetId) setFileSuccess(false);
+      }, 2500);
     } catch (e: unknown) {
+      if (messageRef.current?.id !== targetId) return;
       setFileError(e instanceof Error ? e.message : `Failed to file email to ${entityLabel.one}.`);
     } finally {
-      setFilingMatter(null);
+      // Only clear the spinner for the email this filing belonged to.
+      if (messageRef.current?.id === targetId) setFilingMatter(null);
     }
   }, [message, entityLabel.one]);
 
   const handleDraftWithAI = useCallback(async () => {
     if (!message) return;
+    const targetId = message.id;
     setReplyMode('draft');
     setReplyDraftLoading(true);
     setReplyDraftError(null);
@@ -335,11 +363,15 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
         metadata: { ...auditEntry.metadata, messageId: message.id },
       });
       const response = await provider.sendMessage(prompt);
+      // QA-53: the viewer may have switched to a different email while the model
+      // ran — drop A's draft rather than dropping it into B's reply box.
+      if (messageRef.current?.id !== targetId) return;
       setReplyDraft(response.content);
     } catch (e: unknown) {
+      if (messageRef.current?.id !== targetId) return;
       setReplyDraftError(e instanceof Error ? e.message : 'Failed to generate reply. Check your API key in Settings.');
     } finally {
-      setReplyDraftLoading(false);
+      if (messageRef.current?.id === targetId) setReplyDraftLoading(false);
     }
   }, [message, filedMatterId, filedMatter]);
 
