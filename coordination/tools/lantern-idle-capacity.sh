@@ -9,7 +9,7 @@ while true; do
   OUT="IDLE-CAPACITY CHECK — use each idle resource or state why it's genuinely blocked (NOT 'adds to my gate'):"
 
   # 1) Legion — is a cc-lantern-* session currently driving it? (owns-Legion lanes: bench/regression/meetverify/sidecar/trustreview/transfix)
-  LEGION_DRIVER=$(tmux ls 2>/dev/null | grep -oE 'cc-lantern-(regression|meetverify[0-9]*|sidecar|trustreview|transfix|noticeverify|meetverify|legionwarm)' | head -1)
+  LEGION_DRIVER=$(tmux ls 2>/dev/null | grep -oE 'cc-lantern-(regression|meetverify[0-9]*|sidecar|trustreview|transfix|noticeverify|meetverify|legionwarm|hunt3)' | head -1)
   if [ -z "$LEGION_DRIVER" ]; then OUT="$OUT
   • LEGION: FREE — no session driving it. Real-Windows testing/verification available NOW."
   else OUT="$OUT
