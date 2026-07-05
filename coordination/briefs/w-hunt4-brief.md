@@ -1,0 +1,12 @@
+# Aggressive real-Windows hunt (bench-1) — DOCUMENT / SAVE-INTEGRITY / CONNECTOR angle
+**Lane:** cc-lantern-hunt4 · dir `~/lp-hunt4` (worktree on fresh `lp/hunt4-evidence` off lp/windows-smoke-evidence). **Model:** Sonnet 5 · high. **Seat:** Azure bench-1 (BOOTING/RUNNING). Deallocate when done. Unique tunnel port. Cloud-AI mode (working key) for fast inference.
+**Mission:** Drive Keepance like a real financial advisor doing DOCUMENT-HEAVY work, hunting bugs on real Windows that Linux unit tests can't see. Your distinct angle (do NOT re-test audio/meetings — that's hunt3; do NOT re-test RAG cross-workspace — that's ragleak): **Word/.docx engine + save integrity + connectors.**
+**Setup:** Update the VM to current origin/lantern-plus tip, rebuild, RECORD the tip SHA in your report (stale-tip findings are worthless — this bit us before). If the QA-60 case-collision still blocks boot, apply the local-only rename workaround to boot, and NOTE it.
+**Hunt these paths hard (find bugs, don't just confirm happy paths):**
+1. **Save/reopen integrity** — import a real .docx, make AI redline + tracked changes, save, close, REOPEN. Repeat 3–4 cycles. Does content survive? Any second-cycle corruption (QA-43 was exactly this — a P0)? Autosave vs manual? Kill the app mid-save — recover cleanly or corrupt?
+2. **Word engine edges** — big docx (50+ pages), tables, images, footnotes, comments, tracked-changes accept/reject, then round-trip and diff. Does anything drop or mangle?
+3. **Connectors** — Email import (Outlook/Gmail/IMAP), OneDrive, Wealthbox: connect, pull, does content land in the right client scope? Any silent failure or wrong-scope landing? Disconnect/reconnect.
+4. **Cross-cutting** — long client names, special chars/unicode in filenames, disk near-full during save, two docs open at once.
+**For EVERY bug:** reproduce it twice, screenshot, note severity (P0 data-loss/corruption/crash > P1 wrong-result > P2 annoyance), and the exact repro steps. File each to BUG-DB.md (next free QA-## — check the file, grab IDs atomically, note "hunt4/bench-1"). Evidence under docs/evidence/hunt4-<date>/.
+**Reporting:** commit+push your evidence + BUG-DB edits (branch-check: verify `git push` SUCCEEDED before done). Deallocate bench-1. Last line: `WORKER-DONE: hunt4`
+**Landmines:** NO product-code changes (findings only; boot workaround is bench-local, uncommitted). Never touch ~/lantern. No interactive menus. Don't arm a background poller and go idle — actively drive.
