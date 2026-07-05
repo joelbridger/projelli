@@ -20,9 +20,19 @@ Draft-emails is DE-SCOPED (not in the graphic). All 6 pieces EXIST in code (veri
 - **QA-81 (typing-loss data-loss) PROVEN on real Windows** — crash mid-type, text survived (evidence: docs/evidence/bench-smoke/qa81-afterfix-20260705/).
 - Both cloud benches DEALLOCATED (money). Legion in use by winsmoke.
 
-## In flight — catch + act
-1. **winsmoke** = the DEMO scorecard (running his 6 steps). THIS IS THE MAP.
-2. Watch for demo-specific gaps to fix: **Progress Screen clarity** (step 3), **Ask-as-data-comes-in** (step 4), Teams-record-+-card-live (step 5), and **QA-88** (index transcript/notes on write for reliable step-6 search).
+## 🔴 DEMO SCORECARD IS IN (winsmoke, live Windows) — TOP PRIORITY = QA-92
+Steps 1,2,3,6 PASS. Step 4 (Ask) HALF-WORKS. Step 5 recording works, card unconfirmed.
+- **🔴 QA-92 (task #30) = #1 DEMO BLOCKER:** Ask CANNOT find a client's PRE-EXISTING already-on-disk files (Word/PDF already in the linked folder at open) — only files created/imported during a live session get indexed. Breaks the core "ask about your files" promise. **Codex investigation running → `scratchpad/inv-preexisting-files.log`** (read it first). Likely cause: initial/boot index doesn't scan existing files (indexing fires from watcher CREATE events which don't fire for already-present files) and/or matter-id scoping. FIX THIS FIRST — root-cause from the investigation, TDD fix, gate, merge, then RE-VERIFY on Legion (winsmoke) that Ask finds pre-existing files.
+- **QA-91 (task #31):** in-meeting Notice Card appearance UNCONFIRMED (recording works; test had no 2nd participant). Verify with a real 2-person Teams meeting — may be test-env only, not a real bug.
+- Demo fixes already MERGED this session: QA-89 (progress screen: OneDrive row + email count) f3680f01; QA-88 (transcript index-on-write) bfe13cca. **13 fixes total merged.**
+- Still open demo polish: QA-90 (Ask "still importing" banner + ensure Local-AI model PRE-DOWNLOADED on the demo machine — ~2.5GB, never download live).
+
+## After QA-92 + demo green: two big planned phases (specs written)
+- **UI Simplification Pass** — `coordination/UI-SIMPLIFICATION-PASS.md` (audit DONE: remove gray subtext → `InfoHelp` hover-icon wrapping existing src/ui/tooltip.tsx; delete Spine.tsx:178 repeated client name + make client list collapsible). POST-DEMO.
+- **Folder cleanup + keepance→lantern rename** — `coordination/FOLDER-CLEANUP-RENAME-PLAN.md`. POST-DEMO. Reset of local dev data approved.
+
+## Prior in-flight (mostly done)
+winsmoke (demo scorecard) DONE. Demo north star = `coordination/DEMO-V1.md`.
 
 ## Gate recipe (every merge)
 Fresh backup tag at HEAD → `codex-review` from the branch's warm worktree (`--base origin/lantern-plus`, **NO prompt** — prompt+base conflicts) → verify each finding vs HEAD (proposals, not gospel) → `git merge --no-ff` → `npx tsc --noEmit` + full `npx vitest run` FOREGROUND BARE → cargo ONLY if the diff touches Rust (**sccache installed** → parallel cargo OK via separate worktrees + `CARGO_TARGET_DIR=target`) → red = `git reset --hard <backup tag>` → `git push --no-verify`. SHORTCUTS: Rust-free merge → skip cargo; Rust-only merge → skip frontend vitest.
