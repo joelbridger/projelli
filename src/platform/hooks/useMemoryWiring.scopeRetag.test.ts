@@ -31,17 +31,23 @@ vi.mock('@/platform/rag/MemoryService', async (importOriginal) => {
       // reindexFolderPaths turns a nonzero count into a thrown error, which is
       // what drives the scheduler's fail-closed retry/exclusion.
       reindexPaths: vi.fn().mockResolvedValue(0),
+      // retagMatterBatch is the in-place boot retag for FILE folders; rejecting
+      // it drives retagFolderPathsInPlace's fail-closed `matter:boot-retag` write.
+      retagMatterBatch: vi.fn().mockResolvedValue(1),
     },
   };
 });
 
 import {
+  restoreMailHolds,
   retagExistingMailFolders,
+  retagExistingMatterFolderPaths,
   scheduleFolderMatterRetag,
   scheduleMailMatterRetag,
   schedulePrivilegeRetag,
 } from './useMemoryWiring';
 import { useMatterStore } from '@/platform/matter/matterStore';
+import { usePendingMailRetagStore } from '@/platform/rag/pendingMailRetagStore';
 import type { Matter } from '@/platform/types/matter';
 import type { RetagScheduler, RetagTask } from '@/platform/rag/retagScheduler';
 import { createRetagScheduler } from '@/platform/rag/retagScheduler';
@@ -311,14 +317,30 @@ function matter(over: Partial<Matter> & { id: string }): Matter {
   };
 }
 
-describe('retagExistingMailFolders — boot heal for mapped mail folders (P1 cross-session leak)', () => {
+// ── Codex round-4: make the mail hold DURABLE + PER-WORKSPACE so it survives a
+//    close/switch and any number of failed re-taps, and so one workspace's holds
+//    never bleed into another. `usePendingMailRetagStore` is the durable backing;
+//    `restoreMailHolds` re-establishes the exclusion on open (fail closed FIRST);
+//    a boot re-tag discharges it only on SUCCESS. ──────────────────────────────
+
+/** Mirror the workspace-switch cleanup the scheduler effect performs. */
+function simulateWorkspaceClose(scheduler: { disposeAll: () => void }): void {
+  scheduler.disposeAll();
+  useScopeUpdateStore.getState().clearAll();
+}
+
+describe('durable per-workspace mail hold (round 4)', () => {
   beforeEach(() => {
     useScopeUpdateStore.getState().clearAll();
     useMatterStore.setState({ matters: [] });
+    usePendingMailRetagStore.setState({ intents: {} });
+    useWorkspaceStore.setState({ rootPath: '/wsA' });
   });
   afterEach(() => {
     useScopeUpdateStore.getState().clearAll();
     useMatterStore.setState({ matters: [] });
+    usePendingMailRetagStore.setState({ intents: {} });
+    useWorkspaceStore.setState({ rootPath: null });
   });
 
   it('re-tags every mapped mail folder to its CURRENT matter on boot', async () => {
@@ -329,17 +351,51 @@ describe('retagExistingMailFolders — boot heal for mapped mail folders (P1 cro
 
     await retagExistingMailFolders();
 
-    // The persisted folder->matter mapping is re-applied on boot, healing any
-    // stale tag the index still carries from a failed live re-map.
     expect(vi.mocked(mailRetagFolderMatter)).toHaveBeenCalledWith('m365', 'acct', 'Inbox', 'B');
   });
 
-  it('closes the cross-session leak: reopen re-tags mail whose failed-remap exclusion was dropped on close', async () => {
+  // FINDING #1 — the double-failure leak. A live re-map fails, the workspace is
+  // closed (in-memory hold dropped), reopened (hold re-established from the
+  // durable record), and the BOOT re-tag ALSO fails → the mail must STILL be held
+  // out. Previously the boot catch only showed a banner and installed no
+  // exclusion, so the mail leaked under the old client on the double failure.
+  it('keeps the mail excluded across close + reopen + a double-failing boot retag (no leak)', async () => {
     vi.useFakeTimers();
     const scheduler = createRetagScheduler();
+    useMatterStore.setState({
+      matters: [matter({ id: 'B', mailFolderPaths: ['m365/acct/Inbox'] })],
+    });
 
-    // Folder is mapped to client B. A live re-map A->B fails permanently, so the
-    // mail stays PHYSICALLY tagged A, held out ONLY by the in-memory exclusion.
+    // Live re-map A->B fails permanently.
+    vi.mocked(mailRetagFolderMatter).mockRejectedValue(new Error('down'));
+    scheduleMailMatterRetag(
+      [{ key: 'm365/acct/Inbox', matterId: 'B', prevMatterId: 'A' }],
+      scheduler,
+    );
+    await vi.runAllTimersAsync();
+    expect(getExcludedMailMatters()).toContain('A');
+    // The hold is now DURABLE, keyed by workspace.
+    expect(usePendingMailRetagStore.getState().forWorkspace('/wsA')).toHaveLength(1);
+    vi.useRealTimers();
+
+    // Close/switch: the in-memory hold is dropped, but the durable record stays.
+    simulateWorkspaceClose(scheduler);
+    expect(getExcludedMailMatters()).not.toContain('A');
+    expect(usePendingMailRetagStore.getState().forWorkspace('/wsA')).toHaveLength(1);
+
+    // Reopen: re-establish the exclusion FIRST from the durable record.
+    restoreMailHolds('/wsA');
+    expect(getExcludedMailMatters()).toContain('A');
+
+    // The boot re-tag ALSO fails → the exclusion + record MUST survive (no leak).
+    await retagExistingMailFolders();
+    expect(getExcludedMailMatters()).toContain('A');
+    expect(usePendingMailRetagStore.getState().forWorkspace('/wsA')).toHaveLength(1);
+  });
+
+  it('discharges the hold and clears the durable record when the boot retag finally succeeds', async () => {
+    vi.useFakeTimers();
+    const scheduler = createRetagScheduler();
     useMatterStore.setState({
       matters: [matter({ id: 'B', mailFolderPaths: ['m365/acct/Inbox'] })],
     });
@@ -349,62 +405,107 @@ describe('retagExistingMailFolders — boot heal for mapped mail folders (P1 cro
       scheduler,
     );
     await vi.runAllTimersAsync();
-    expect(getExcludedMailMatters()).toContain('A'); // in-memory fail-closed hold
-
-    // Workspace close/switch: disposeAll drops the in-memory exclusion — the
-    // exact window where the stale-A mail would leak under the wrong client.
-    scheduler.disposeAll();
-    expect(getExcludedMailMatters()).not.toContain('A');
     vi.useRealTimers();
+    simulateWorkspaceClose(scheduler);
+    restoreMailHolds('/wsA');
+    expect(getExcludedMailMatters()).toContain('A');
 
-    // Reopen: the boot heal re-applies folder->B. On a fresh backend the retag
-    // now succeeds, physically moving the mail to B — leak closed durably.
+    // Reopen's boot re-tag succeeds → mail physically at B → hold + record clear.
     vi.mocked(mailRetagFolderMatter).mockReset();
     vi.mocked(mailRetagFolderMatter).mockResolvedValue(2);
     await retagExistingMailFolders();
-    expect(vi.mocked(mailRetagFolderMatter)).toHaveBeenCalledWith('m365', 'acct', 'Inbox', 'B');
+    expect(getExcludedMailMatters()).not.toContain('A');
+    expect(usePendingMailRetagStore.getState().forWorkspace('/wsA')).toHaveLength(0);
   });
 
-  it('surfaces a boot mail retag failure as a visible update, and a clean pass clears it', async () => {
-    useMatterStore.setState({
-      matters: [matter({ id: 'B', mailFolderPaths: ['m365/acct/Inbox'] })],
+  it('drives an UNMAPPED folder with a pending hold to resolution on boot (no permanent hide)', async () => {
+    // A durable hold exists for a folder that is no longer in any matter mapping
+    // (it was unmapped -> target 'unassigned'), so no mapped-folder pass covers it.
+    useMatterStore.setState({ matters: [] });
+    usePendingMailRetagStore.getState().record({
+      workspaceRoot: '/wsA',
+      provider: 'm365',
+      account: 'acct',
+      folderId: 'Inbox',
+      targetMatter: 'unassigned',
+      staleMatters: ['A'],
     });
-    // Boot retag fails → visible (not silent), retried next boot.
-    vi.mocked(mailRetagFolderMatter).mockRejectedValue(new Error('down'));
-    await retagExistingMailFolders();
-    const failed = Object.values(useScopeUpdateStore.getState().entries).find(
-      (e) => e.id === 'mailboot:m365/acct/Inbox',
-    );
-    expect(failed?.status).toBe('failed');
-
-    // Next boot the retag succeeds → the stale banner is cleared.
-    vi.mocked(mailRetagFolderMatter).mockReset();
-    vi.mocked(mailRetagFolderMatter).mockResolvedValue(1);
-    await retagExistingMailFolders();
-    const after = Object.values(useScopeUpdateStore.getState().entries).find(
-      (e) => e.id === 'mailboot:m365/acct/Inbox',
-    );
-    expect(after).toBeUndefined();
-  });
-
-  it('does not use the live mail:<key> id, so it never clobbers an in-flight live re-tag', async () => {
-    useMatterStore.setState({
-      matters: [matter({ id: 'B', mailFolderPaths: ['m365/acct/Inbox'] })],
-    });
-    // A live re-tag is failed + holding out client A under the live id.
-    useScopeUpdateStore.getState().begin({
-      id: 'mail:m365/acct/Inbox',
-      kind: 'mail',
-      label: 'live',
-      excludeMailMatters: ['A'],
-    });
-    useScopeUpdateStore.getState().markFailed('mail:m365/acct/Inbox');
-
-    // A clean boot pass must NOT remove the live entry (distinct `mailboot:` id).
-    vi.mocked(mailRetagFolderMatter).mockResolvedValue(1);
-    await retagExistingMailFolders();
-
+    restoreMailHolds('/wsA');
     expect(getExcludedMailMatters()).toContain('A');
-    expect(useScopeUpdateStore.getState().entries['mail:m365/acct/Inbox']?.status).toBe('failed');
+
+    // The boot pass still re-tags it (to the intent's own target) and, on success,
+    // discharges the hold — the mail isn't stranded held-out forever.
+    vi.mocked(mailRetagFolderMatter).mockResolvedValue(1);
+    await retagExistingMailFolders();
+    expect(vi.mocked(mailRetagFolderMatter)).toHaveBeenCalledWith('m365', 'acct', 'Inbox', 'unassigned');
+    expect(getExcludedMailMatters()).not.toContain('A');
+    expect(usePendingMailRetagStore.getState().forWorkspace('/wsA')).toHaveLength(0);
+  });
+
+  // FINDING #2 — no cross-workspace bleed. A boot-retag hold in workspace A (both
+  // the file `matter:boot-retag` entry AND a restored mail hold) must be gone
+  // after switching to workspace B, which has no mappings.
+  it('does not bleed workspace A holds/paths into workspace B on switch', () => {
+    const scheduler = createRetagScheduler();
+    // A has a durable mail hold and a failed file boot-retag entry.
+    usePendingMailRetagStore.getState().record({
+      workspaceRoot: '/wsA',
+      provider: 'm365',
+      account: 'acct',
+      folderId: 'Inbox',
+      targetMatter: 'B',
+      staleMatters: ['A'],
+    });
+    restoreMailHolds('/wsA');
+    useScopeUpdateStore.getState().begin({
+      id: 'matter:boot-retag',
+      kind: 'matter',
+      label: 'Applying client scope to search',
+      excludeFolders: ['/wsA/Acme/file.docx'],
+    });
+    useScopeUpdateStore.getState().markFailed('matter:boot-retag');
+    expect(getExcludedMatterFolders()).toContain('/wsA/Acme/file.docx');
+    expect(getExcludedMailMatters()).toContain('A');
+
+    // Switch to B (no mappings).
+    simulateWorkspaceClose(scheduler);
+    useWorkspaceStore.setState({ rootPath: '/wsB' });
+    useMatterStore.setState({ matters: [] });
+    restoreMailHolds('/wsB');
+
+    // B sees NONE of A's holds — the un-owned boot-retag entry was cleared on
+    // switch, and B's own durable records are empty (A's stay keyed to A).
+    expect(getExcludedMatterFolders()).toHaveLength(0);
+    expect(getExcludedMailMatters()).toHaveLength(0);
+    expect(usePendingMailRetagStore.getState().forWorkspace('/wsB')).toHaveLength(0);
+    expect(usePendingMailRetagStore.getState().forWorkspace('/wsA')).toHaveLength(1);
+  });
+
+  // FINDING #2 — the late-write half. A's async file boot retag can resolve AFTER
+  // the switch; its `matter:boot-retag` write must be skipped so it can't land in
+  // B (whose own retag early-returns with no mapped folders).
+  it('skips the boot-retag write when the workspace switched mid-retag', async () => {
+    useMatterStore.setState({
+      matters: [matter({ id: 'M', folderPaths: ['/wsA/Acme'] })],
+    });
+    useWorkspaceStore.setState({
+      rootPath: '/wsA',
+      fileTree: [
+        { id: 'Acme', type: 'folder', name: 'Acme', path: '/wsA/Acme', children: [
+          { id: 'Acme/f', type: 'file', name: 'file.docx', path: '/wsA/Acme/file.docx' },
+        ] },
+      ],
+    });
+    // The batched file retag fails AND the workspace switches mid-flight.
+    // eslint-disable-next-line @typescript-eslint/unbound-method -- vi.mocked() reads the mock, not a bound call
+    vi.mocked(MemoryService.retagMatterBatch).mockImplementation(() => {
+      useWorkspaceStore.setState({ rootPath: '/wsB' });
+      return Promise.reject(new Error('down'));
+    });
+
+    await retagExistingMatterFolderPaths(null);
+
+    // Guard tripped: no stale hold bled into the now-active workspace B.
+    expect(getExcludedMatterFolders()).toHaveLength(0);
   });
 });

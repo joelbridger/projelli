@@ -44,6 +44,7 @@ import {
   getExcludedMailMatters,
   useScopeUpdateStore,
 } from '@/platform/rag/scopeUpdateStore';
+import { usePendingMailRetagStore } from '@/platform/rag/pendingMailRetagStore';
 import { getMatters, resolveMatterMatchForPaths, useMatterStore } from '@/platform/matter/matterStore';
 import {
   buildMailMatterMap,
@@ -1058,6 +1059,13 @@ async function retagFolderPathsInPlace(
     }
   }
 
+  // Round 4: guard the store write by the workspace this pass ran for. This
+  // async retag can resolve AFTER a workspace switch; without the guard its
+  // `matter:boot-retag` entry (excluded paths + banner) would bleed into the NEW
+  // workspace — the entry is not owned by the disposed scheduler, and the new
+  // workspace's own `retagExistingMatterFolderPaths` early-returns when it has no
+  // mapped folders, so nothing would clear the stale hold.
+  if (useWorkspaceStore.getState().rootPath !== rootPath) return;
   const store = useScopeUpdateStore.getState();
   if (failedPaths.length > 0) {
     store.begin({
@@ -1096,50 +1104,119 @@ export async function retagExistingMatterFolderPaths(
 }
 
 /**
- * QA-44 (Codex round 3) — the MAIL mirror of {@link retagExistingMatterFolderPaths}.
+ * QA-44 (round 4) — true when clearing the durable mail-retag record for
+ * `folderKey` is safe for a retag that targeted `matterId`: either no record
+ * exists, or the record's target still matches. A newer re-map with a DIFFERENT
+ * target must keep its record — an older retag's success is stale for it and must
+ * not discharge the newer hold.
+ */
+function mailIntentTargets(
+  workspaceRoot: string,
+  folderKey: string,
+  matterId: string,
+): boolean {
+  const current = usePendingMailRetagStore
+    .getState()
+    .forWorkspace(workspaceRoot)
+    .find((i) => mailFolderKey(i.provider, i.account, i.folderId) === folderKey);
+  return !current || current.targetMatter === matterId;
+}
+
+/**
+ * QA-44 (Codex round 3+4) — the MAIL mirror of {@link retagExistingMatterFolderPaths}.
  *
- * A live mail folder->matter re-map re-tags that folder's already-indexed
- * messages IN PLACE, held fail-closed by an IN-MEMORY exclusion
- * (`excludeMailMatters`) until it lands. If that re-tag FAILS permanently and the
- * workspace is then closed/switched, `retagScheduler.disposeAll()` drops the
- * in-memory exclusion — and, unlike mapped FILE folders (healed every boot by
- * `retagExistingMatterFolderPaths`), NOTHING re-applied the mail mapping on
- * reopen. So the still-old-client-tagged mail surfaced under the WRONG client
- * while the UI showed the new one: a cross-SESSION wrong-client mail leak.
+ * On every boot re-tag every MAPPED mail folder to its CURRENT matter, re-derived
+ * from the PERSISTED matter map (`matterStore.mailFolderPaths` — the durable
+ * intent, exactly like `folderPaths` for files). `mail_retag_folder_matter` is
+ * idempotent (it re-lists the folder's message ids from the encrypted store each
+ * call and honors durable per-message filings), so a tag that drifted converges
+ * back to the mapping on reopen regardless of what it drifted to.
  *
- * This closes it the same durable, boot-heal way files do: on every boot re-tag
- * every MAPPED mail folder to its CURRENT matter, re-derived from the PERSISTED
- * matter map (`matterStore.mailFolderPaths` — the durable intent, exactly like
- * `folderPaths` for files). `mail_retag_folder_matter` is idempotent (it re-lists
- * the folder's message ids from the encrypted store each call and honors durable
- * per-message filings), so a tag that drifted converges back to the mapping on
- * reopen regardless of what it drifted to.
+ * Fail-closed across sessions AND across repeated failures (round 4): the durable
+ * hold for a stale-client folder lives in {@link usePendingMailRetagStore} and is
+ * re-established as an `excludeMailMatters` exclusion on workspace open (see
+ * `restoreMailHolds`) BEFORE this runs. This pass only DISCHARGES that hold on a
+ * genuine SUCCESS — it removes the folder's `mail:<key>` exclusion and clears the
+ * persisted intent. On FAILURE it touches neither, so the exclusion + record
+ * survive to the next boot (and the boot after that), which is exactly the
+ * guarantee that was missing when a boot re-tag double-failed. It clears the same
+ * `mail:<key>` id the live reaction and `restoreMailHolds` install, so a success
+ * discharges whichever of them established the hold.
  *
- * On a clean pass any failed banner a prior boot left for that folder is cleared;
- * on failure the update is surfaced (visible, not silent) and retried next boot.
- * Unlike the file mirror, a FAILED boot re-tag cannot ALSO content-hold the
- * folder's mail — mail hits carry no folder path, and the pre-remap matter isn't
- * recoverable on boot — so the every-boot idempotent heal IS the durable
- * protection here (the transient failure that stranded the tag is almost always
- * gone on a fresh boot). A distinct `mailboot:` id keeps this pass from ever
- * clobbering an in-flight live `mail:<key>` scheduler entry for the same folder.
+ * Store writes are guarded by the captured workspace root: if the workspace
+ * switched while this async pass was in flight, we skip the write so a stale
+ * clear can't drop a DIFFERENT workspace's hold.
  */
 export async function retagExistingMailFolders(): Promise<void> {
-  const entries = buildMailMatterMap(getMatters());
-  if (entries.length === 0) return;
-  const store = useScopeUpdateStore.getState();
-  for (const { provider, account, folderId, matterId } of entries) {
-    const id = `mailboot:${mailFolderKey(provider, account, folderId)}`;
+  const capturedRoot = useWorkspaceStore.getState().rootPath;
+  // Drive to resolution every MAPPED mail folder (re-tag to its CURRENT matter)
+  // AND every folder that still has a durable pending hold but is NO LONGER mapped
+  // (re-tag to the intent's own target — e.g. 'unassigned' after an unmap). Union
+  // them so a hold is ALWAYS retried until it lands, instead of stranding a folder
+  // held out forever once it drops off the mapping.
+  const targets = new Map<
+    string,
+    { provider: string; account: string; folderId: string; matterId: string }
+  >();
+  for (const e of buildMailMatterMap(getMatters())) {
+    targets.set(mailFolderKey(e.provider, e.account, e.folderId), e);
+  }
+  if (capturedRoot) {
+    for (const intent of usePendingMailRetagStore.getState().forWorkspace(capturedRoot)) {
+      const key = mailFolderKey(intent.provider, intent.account, intent.folderId);
+      if (!targets.has(key)) {
+        targets.set(key, {
+          provider: intent.provider,
+          account: intent.account,
+          folderId: intent.folderId,
+          matterId: intent.targetMatter,
+        });
+      }
+    }
+  }
+  if (targets.size === 0) return;
+  for (const [key, { provider, account, folderId, matterId }] of targets) {
     try {
       await mailRetagFolderMatter(provider, account, folderId, matterId);
-      // Clean pass — drop any failed banner a prior boot left for this folder.
-      store.remove(id);
     } catch {
-      // Surface it (visible, not silent); the idempotent retag converges on the
-      // next boot once the transient failure clears.
-      store.begin({ id, kind: 'mail', label: 'Updating email search scope' });
-      store.markFailed(id);
+      // Failure: leave the restored exclusion + durable record in place (fail
+      // closed across sessions); the idempotent retag converges on a later boot.
+      continue;
     }
+    // Success — discharge the hold, but only if we're still the same workspace
+    // AND this retag's target is still the live intent (a newer re-map must keep
+    // its own hold).
+    if (useWorkspaceStore.getState().rootPath !== capturedRoot) continue;
+    if (capturedRoot && !mailIntentTargets(capturedRoot, key, matterId)) continue;
+    useScopeUpdateStore.getState().remove(`mail:${key}`);
+    if (capturedRoot) usePendingMailRetagStore.getState().clear(capturedRoot, key);
+  }
+}
+
+/**
+ * QA-44 (round 4) — re-establish the fail-closed mail exclusions for a workspace
+ * from the DURABLE per-workspace records, synchronously on open, BEFORE any
+ * re-tag runs. This is what makes the hold survive a close/switch: the in-memory
+ * `scopeUpdateStore` was cleared on the last close, but the persisted intent was
+ * not, so we rebuild the `excludeMailMatters` exclusion from it immediately (fail
+ * closed) and let the boot re-tag ({@link retagExistingMailFolders}) discharge it
+ * only on success. Entries use the live `mail:<key>` id so a later success (boot
+ * or live) clears the same entry.
+ */
+export function restoreMailHolds(workspaceRoot: string | null | undefined): void {
+  if (!workspaceRoot) return;
+  const intents = usePendingMailRetagStore.getState().forWorkspace(workspaceRoot);
+  const store = useScopeUpdateStore.getState();
+  for (const intent of intents) {
+    if (intent.staleMatters.length === 0) continue;
+    const id = `mail:${mailFolderKey(intent.provider, intent.account, intent.folderId)}`;
+    store.begin({
+      id,
+      kind: 'mail',
+      label: 'Updating email search scope',
+      excludeMailMatters: intent.staleMatters,
+    });
+    store.markFailed(id);
   }
 }
 
@@ -1342,27 +1419,71 @@ export function scheduleMailMatterRetag(
       continue;
     }
     const id = `mail:${key}`;
-    // Fail closed ACROSS repeated re-maps (QA-44, Codex round 2 — P1 leak). The
-    // messages in this folder stay PHYSICALLY tagged with their old matter until
-    // a re-tag actually SUCCEEDS. If the folder is re-mapped again before that
-    // lands (A->B fails, then the user maps B->C), the messages may still be
-    // tagged A — so we must keep excluding A, not just the LATEST old client.
-    // Union this re-map's old client into whatever the (now-superseded) entry
-    // was already holding out, and never exclude the CURRENT target (content
-    // correctly tagged `matterId` must surface). Only op success — which removes
-    // the entry — clears the set, and a successful re-tag physically moves every
-    // message to the new matter, so no stale tag remains to hold out.
+    const workspaceRoot = useWorkspaceStore.getState().rootPath;
+    // Fail closed ACROSS repeated re-maps (QA-44, Codex round 2 — P1 leak) AND
+    // ACROSS SESSIONS (round 4). The messages in this folder stay PHYSICALLY
+    // tagged with their old matter until a re-tag actually SUCCEEDS. If the folder
+    // is re-mapped again before that lands (A->B fails, then the user maps B->C),
+    // the messages may still be tagged A — so we keep excluding A, not just the
+    // LATEST old client. Union this re-map's old client into whatever is already
+    // held (from the live entry AND the durable per-workspace record), and never
+    // exclude the CURRENT target (content correctly tagged `matterId` must
+    // surface). A successful re-tag physically moves every message to the new
+    // matter, so only success clears the hold — the DURABLE record below.
+    const persistedStale = workspaceRoot
+      ? usePendingMailRetagStore
+          .getState()
+          .forWorkspace(workspaceRoot)
+          .find(
+            (i) => mailFolderKey(i.provider, i.account, i.folderId) === key,
+          )?.staleMatters ?? []
+      : [];
     const heldNow = useScopeUpdateStore.getState().entries[id]?.excludeMailMatters ?? [];
-    const hold = new Set(heldNow);
+    const hold = new Set([...heldNow, ...persistedStale]);
     if (prevMatterId && prevMatterId !== UNASSIGNED_MATTER_ID) hold.add(prevMatterId);
     hold.delete(matterId);
+
+    // Persist the pending intent PER WORKSPACE so the hold survives a close/switch
+    // (round 4). `record` unions/clears based on the hold; only a successful
+    // re-tag (the op below) or a hold that shrank to empty removes it.
+    if (workspaceRoot) {
+      if (hold.size > 0) {
+        usePendingMailRetagStore.getState().record({
+          workspaceRoot,
+          provider: parsed.provider,
+          account: parsed.account,
+          folderId: parsed.folderId,
+          targetMatter: matterId,
+          staleMatters: [...hold],
+        });
+      } else {
+        usePendingMailRetagStore.getState().clear(workspaceRoot, key);
+      }
+    }
+
     scheduler.run({
       id,
       kind: 'mail',
       label: 'Updating email search scope',
       ...(hold.size > 0 ? { excludeMailMatters: [...hold] } : {}),
-      op: () =>
-        mailRetagFolderMatter(parsed.provider, parsed.account, parsed.folderId, matterId),
+      op: async () => {
+        const result = await mailRetagFolderMatter(
+          parsed.provider,
+          parsed.account,
+          parsed.folderId,
+          matterId,
+        );
+        // Success: the mail is now physically tagged `matterId`, so the durable
+        // hold is discharged — BUT only if this retag's target is still the live
+        // intent. A rapid re-map (A->B then B->C) can supersede this op; the old
+        // op finishing must NOT clear the newer intent (target C, still pending),
+        // or the mail (now at B) would surface under the wrong client. (The
+        // scheduler clears the in-memory entry itself, guarded by generation.)
+        if (workspaceRoot && mailIntentTargets(workspaceRoot, key, matterId)) {
+          usePendingMailRetagStore.getState().clear(workspaceRoot, key);
+        }
+        return result;
+      },
     });
   }
 }
@@ -1479,8 +1600,21 @@ export function useMemoryWiring(
     if (!rootPath) return;
     const scheduler = createRetagScheduler();
     retagSchedulerRef.current = scheduler;
+    // Round 4 — fail closed IMMEDIATELY on open: rebuild this workspace's mail
+    // exclusions from the DURABLE per-workspace records before any retrieval can
+    // run. The boot re-tag (`retagExistingMailFolders`, after the reconcile)
+    // discharges them only on success.
+    restoreMailHolds(rootPath);
     return () => {
       scheduler.disposeAll();
+      // Round 4 — reset the transient scope-update holds on close/switch so this
+      // workspace's entries (the live scheduler's owned ones AND the un-owned
+      // boot-retag entries `matter:boot-retag` / restored `mail:<key>`) can never
+      // bleed into the NEXT workspace. Only ONE workspace is active at a time, so
+      // clearing all of them is correct; the next open re-establishes its own
+      // from its durable records. The durable records themselves are keyed by
+      // workspace root, so they are untouched.
+      useScopeUpdateStore.getState().clearAll();
       retagSchedulerRef.current = null;
     };
   }, [rootPath]);
