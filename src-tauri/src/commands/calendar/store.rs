@@ -384,6 +384,7 @@ mod tests {
             organizer_email: "adv@firm.com".into(),
             is_cancelled: false,
             self_declined: false,
+            join_url: None,
         }
     }
 

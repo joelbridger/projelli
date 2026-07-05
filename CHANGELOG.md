@@ -32,6 +32,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **The Notice Card — a local notice participant (v1 + v2).** When the advisor
+  records an online meeting, a second participant that runs entirely on the
+  advisor's own computer joins the call as "⏺ Recording Notice — <advisor>",
+  shows every participant a card saying the meeting is being recorded and that
+  the recording never leaves the advisor's machine, and leaves the moment
+  recording stops. It records nothing and sends nothing. Design:
+  `docs/strategy/2026-07-04-notice-participant-design.md`.
+  - **Calendar join-URL + platform detection.** Calendar sync now carries each
+    event's online-meeting join URL (Graph `onlineMeeting.joinUrl`; Google
+    `conferenceData` video entry point / `hangoutLink`), and the platform
+    (Teams/Zoom/Meet/other) is derived from it. Files: `commands/calendar/
+    model.rs` (`join_url`), `graph_source.rs`, `google_source.rs`, `commands.rs`,
+    `calendar-commands.ts` (`joinUrl`), `noticeCard/meetingPlatform.ts`.
+  - **Consent-dialog offer.** When an online meeting is happening now (from
+    calendar sync), the consent dialog offers the card, pre-checked per firm
+    default, tagged with the meeting title + platform. Manual link-paste and an
+    honest Google Meet "say it aloud" fallback are included. Never blocks
+    recording. Files: `noticeCard/NoticeCardConsentSection.tsx`, `ConsentDialog.tsx`,
+    `ClientMeetingsTab.tsx`, `noticeCard/pickOffer.ts`.
+  - **Guest-join adapters (Teams + Zoom).** Per-platform automation (fill name →
+    mute → join → detect admitted/lobby/denied) tested against recorded page
+    fixtures. Runs inside an isolated companion Tauri window (no IPC bridge to
+    app internals; status flows out one-way via `document.title`). Files:
+    `noticeCard/adapters/*`, `noticeCard/injectionScript.ts`,
+    `commands/notice_card/mod.rs`.
+  - **Lifecycle supervisor.** Joins on record-start, leaves on record-stop
+    (hard watchdog guarantee — a wedged window can never linger), one auto-rejoin
+    on disconnect; every transition ledgered (`notice-card-joined/left/failed` +
+    derived `notice-card-present-for-entire-recording`). Fully unit-tested with a
+    fake clock. Files: `noticeCard/supervisor.ts`, `noticeCard/tauriDriver.ts`,
+    `noticeCard/noticeCardLifecycle.ts`, `meetingStore.ts`.
+  - **Evidence-rule policy hook.** The Standard/Strict dial now accepts a
+    configurable rule: a verified spoken notice OR full-duration card presence
+    satisfies Strict (default either; firms can require both). Files:
+    `noticeCard/noticeCardEvidence.ts`, `meetingStore.ts` (`needsReview`),
+    `noticeCard/noticeCardSettings.ts`, `settings/schema.ts`.
+  - **Visual card (v2 canvas camera).** The companion webview intercepts
+    getUserMedia and supplies a locally-rendered canvas (calm light card, firm
+    branding slot, three localized lines, live "Recording · M:SS" timer, "leaves
+    when recording ends" line) — no OS-level virtual-camera driver needed. File:
+    `noticeCard/canvasCard.ts`.
+  - **Record-pill status + settings.** The pill shows "Notice card in meeting ✓"
+    / "couldn't join — say the notice aloud". New notice settings: offer default,
+    display-name template, evidence rule. Files: `RecordPill.tsx`,
+    `noticeCard/noticeCardPill.ts`, `settings/RecordingNoticeSettings.tsx`.
+  - **Quick wins.** An official "⏺ RECORDING in progress" virtual-background
+    image (Save action in notice settings) and a Zoom guided native-record
+    checklist with a ledger self-attest. Files: `noticeCard/recordingBackground.ts`,
+    `RecordingNoticeSettings.tsx`, `NoticeCardConsentSection.tsx`.
+  - i18n: 24 new `meetings.notice-card.*` keys (en/de/es).
 - **Trust Tier B — "guard the outbound door" (the guards that stop confident-AI-wrongness from reaching a system of record).**
   - **E3-gate — unresolved meeting notes are structurally unsendable.** A meeting note that is unreviewed, generation-errored (the "AI apology as note" case), or notice-quarantined under Strict policy has its "Send to Wealthbox" and "Draft follow-up" toolbar actions disabled with an honest, visible explanation. Pure decision in `meetingNoteOutboundGate.ts`; async state gathered in `useMeetingNoteOutboundGate.ts` + `MeetingNoteOutboundGate.tsx`; the disable + explanation added via a new `outboundBlockedReason` prop on `DocxEditor` (toolbar only — engine untouched), wired in `MainPanel.tsx`.
   - **E3-provenance — AI-drafted CRM notes carry their origin.** A note AI-drafted from a meeting gets an appended, localized provenance line ("Drafted by Advisor Prep Hero AI from the [date] meeting; approved by [advisor] on [date]") that reaches the Wealthbox wire. Composed once at approve time (stable across retries; not part of the dedup key). New Rust `CrmWriteRequest.provenance` + `note_content()` builder appends it at the wire boundary. The firm (practice) tier defaults the compliance-note checkbox ON; solo keeps a remembered choice. Files: `crm/write.rs`, `crm/commands.rs`, `crmWriteQueueStore.ts`, `wealthbox-commands.ts`, `crmProvenance.ts`, `complianceNotePref.ts`, `CrmWriteReviewCard.tsx`, `crmNoteFormat.ts`.

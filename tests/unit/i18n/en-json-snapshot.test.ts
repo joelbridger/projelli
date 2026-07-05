@@ -63,7 +63,7 @@ describe('en.json structure snapshot', () => {
         "marketplace": 14,
         "matter": 209,
         "media": 92,
-        "meetings": 114,
+        "meetings": 145,
         "memory": 6,
         "model-download": 9,
         "onboarding": 67,
@@ -215,7 +215,12 @@ describe('en.json structure snapshot', () => {
     //       blocks a recognized meeting note while its review state loads).
     // +1 = meetings.speakers.consent-save-failed (R9 fail-closed: enrollment
     //       aborts if the biometric-consent record didn't durably persist).
-    expect(flat.length).toBe(1297); // reconciled with origin/lantern-plus at rebase (base 1280 + 17 Tier B keys)
+    // +31 = meetings.notice-card.* (the Notice Card lane: the local notice
+    //       participant — consent-dialog offer/toggle + platform labels + Meet/
+    //       generic/manual fallbacks + Zoom native-record self-attest, the
+    //       record-pill status line, the visual card copy, the 3 Notice Card
+    //       settings controls, and the "save recording background image" action).
+    expect(flat.length).toBe(1328); // 1297 (origin/lantern-plus) + 31 Notice Card keys
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

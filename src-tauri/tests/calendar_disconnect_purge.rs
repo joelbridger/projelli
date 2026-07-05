@@ -54,6 +54,7 @@ fn seed_indexed_event(ws: &Path, event_id: &str, matter: &str) {
         organizer_email: "adv@firm.com".to_string(),
         is_cancelled: false,
         self_declined: false,
+        join_url: None,
     };
     store.upsert_event(&event, "hash1").expect("upsert event");
     store
