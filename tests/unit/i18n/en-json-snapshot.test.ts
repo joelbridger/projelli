@@ -47,7 +47,7 @@ describe('en.json structure snapshot', () => {
         "ai": 48,
         "analysis": 10,
         "app": 2,
-        "ask": 23,
+        "ask": 30,
         "audio": 1,
         "chat": 12,
         "citation": 3,
@@ -61,9 +61,9 @@ describe('en.json structure snapshot', () => {
         "local-ai-settings": 8,
         "mail": 6,
         "marketplace": 14,
-        "matter": 206,
-        "media": 88,
-        "meetings": 111,
+        "matter": 209,
+        "media": 92,
+        "meetings": 114,
         "memory": 6,
         "model-download": 9,
         "onboarding": 67,
@@ -203,21 +203,19 @@ describe('en.json structure snapshot', () => {
     //      unresponsive-own-data,picker-unresponsive-sample} (2),
     //      file-import.{picker-unresponsive,manual-path-title,manual-path-
     //      placeholder} (3).
-    // +3 = QA-35 fix (2026-07-04): the recording pill's "Recording… M:SS"
-    //      timer never polled the real backend, so a disk-full chunk-write
-    //      failure was invisible to the UI. New: meetings.pill.{write-error,
-    //      write-error-dismiss} (2) — the honest "recording can't continue"
-    //      pill shown after an auto-stop — and meetings.consent.
-    //      low-disk-warning (1), a preflight warning shown in the consent
-    //      dialog when free disk space is low.
-    // +2 = QA-35 review round 2 (2026-07-04): a disk-full capture_stop that
-    //      salvaged NO audio at all left the meeting's notes/transcript
-    //      panes stuck at "pending" forever (nothing was ever asked to
-    //      generate them) instead of an honest dead end. New: meetings.tab.
-    //      recording-incomplete (1, the meetings-list row subtitle) and
-    //      meetings.entry.recording-incomplete (1, the meeting page's
-    //      no-retry explanation).
-    expect(flat.length).toBe(1280);
+    // +15 = Tier B trust guards (2026-07-04):
+    //       meetings.speakers.{consent-label,consent-biometric-note} (2, R9);
+    //       ask.whole-practice-confirm.{title,body_one,body_other,provider-
+    //       fallback,remember,cancel,continue} (7, R6);
+    //       matter.crm-review.{provenance-from-meeting,provenance-drafted,
+    //       provenance-advisor-fallback} (3, E3 provenance);
+    //       media.docx-editor.{outbound-blocked-needs-review,outbound-blocked-
+    //       errored,outbound-blocked-notice-quarantined} (3, E3 outbound gate).
+    // +1 = media.docx-editor.outbound-blocked-checking (E3 fail-closed: the gate
+    //       blocks a recognized meeting note while its review state loads).
+    // +1 = meetings.speakers.consent-save-failed (R9 fail-closed: enrollment
+    //       aborts if the biometric-consent record didn't durably persist).
+    expect(flat.length).toBe(1297); // reconciled with origin/lantern-plus at rebase (base 1280 + 17 Tier B keys)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

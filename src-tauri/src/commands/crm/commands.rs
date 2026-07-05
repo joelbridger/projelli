@@ -650,6 +650,10 @@ pub async fn crm_create_note(
     household_key: String,
     requested_at: String,
     provider: Option<String>,
+    // E3 (Tier B trust guard): honest provenance line for AI-drafted notes,
+    // composed + localized in the renderer, appended to the note content at
+    // the wire boundary (write::note_content). `None` for advisor-typed notes.
+    provenance: Option<String>,
 ) -> Result<WriteReceipt, String> {
     crm_create_write(
         app,
@@ -663,6 +667,7 @@ pub async fn crm_create_note(
         household_key,
         requested_at,
         provider,
+        provenance,
     )
     .await
 }
@@ -695,6 +700,8 @@ pub async fn crm_create_task(
         household_key,
         requested_at,
         provider,
+        // Tasks carry no AI-drafted-content provenance line (notes only).
+        None,
     )
     .await
 }
@@ -712,6 +719,7 @@ async fn crm_create_write(
     household_key: String,
     requested_at: String,
     provider: Option<String>,
+    provenance: Option<String>,
 ) -> Result<WriteReceipt, String> {
     let provider = CrmProvider::from_optional(provider.as_deref())?;
 
@@ -772,6 +780,7 @@ async fn crm_create_write(
         due_date,
         source_ref: source_ref.clone(),
         requested_at,
+        provenance,
     };
 
     let action = provider.audit_action(match kind {

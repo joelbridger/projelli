@@ -18,6 +18,21 @@ export interface DocNoteCrmWrite {
   title: string;
   body: string;
   sourceRef: string;
+  /** E3 (Tier B trust guard): set when this note is AI-drafted from a meeting
+   *  (a meeting's notes.docx), so the review card can attach an honest
+   *  provenance line at approval. Absent for hand-written documents. */
+  aiSource?: { kind: 'meeting'; date?: string };
+}
+
+/** Recognize a meeting's AI-generated notes doc from its workspace path
+ *  (`…/Meetings/<YYYY-MM-DD…>/notes.docx`) and pull the meeting date out of
+ *  the dated folder name. Returns undefined for any other document, which
+ *  therefore carries no "drafted by AI" provenance (we never claim a machine
+ *  wrote a note it may not have). */
+export function meetingAiSourceForPath(tabPath: string): { kind: 'meeting'; date?: string } | undefined {
+  const m = /\/Meetings\/(\d{4}-\d{2}-\d{2})[^/]*\/notes\.docx$/i.exec(tabPath);
+  if (!m) return undefined;
+  return m[1] ? { kind: 'meeting', date: m[1] } : { kind: 'meeting' };
 }
 
 /**
@@ -38,5 +53,6 @@ export function buildDocNoteCrmWrite(
 ): DocNoteCrmWrite | null {
   const { title, body } = splitNoteForCrm(plainText);
   if (!title) return null;
-  return { kind: 'note', matterId, title, body, sourceRef: `doc:${tabPath}` };
+  const aiSource = meetingAiSourceForPath(tabPath);
+  return { kind: 'note', matterId, title, body, sourceRef: `doc:${tabPath}`, ...(aiSource ? { aiSource } : {}) };
 }

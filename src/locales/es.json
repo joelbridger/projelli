@@ -1291,7 +1291,10 @@
     "crm-review": {
       "pending-banner_one": "{{count}} actualización de Wealthbox lista para revisar",
       "pending-banner_other": "{{count}} actualizaciones de Wealthbox listas para revisar",
-      "review-now": "Revisar ahora"
+      "review-now": "Revisar ahora",
+      "provenance-from-meeting": "Redactado por {{ai}} a partir de la reunión del {{date}}; aprobado por {{advisor}} el {{approved}}.",
+      "provenance-drafted": "Redactado por {{ai}}; aprobado por {{advisor}} el {{approved}}.",
+      "provenance-advisor-fallback": "el asesor"
     },
     "home": {
       "archive": "Archivar",
@@ -1685,6 +1688,10 @@
       "draft-follow-up": "Redactar seguimiento",
       "draft-follow-up-title": "Redactar un correo de seguimiento a partir de este documento",
       "send-to-wealthbox-disconnected": "Conecta Wealthbox desde Tu cuenta → Conexiones para enviar notas.",
+      "outbound-blocked-checking": "Comprobando esta nota antes de que pueda salir...",
+      "outbound-blocked-needs-review": "Revisa esta nota primero: aún no se ha comprobado.",
+      "outbound-blocked-errored": "Esta nota no se pudo generar correctamente. Revísala antes de que salga.",
+      "outbound-blocked-notice-quarantined": "El aviso de grabación de esta reunión debe revisarse antes de que esta nota pueda salir.",
       "send-to-wealthbox-disconnected__sourceHash": "b84fd206166782a42864aa280391e288bbe935490b4bc5abfa2a90eb071dd4c0",
       "redline-placeholder": "Indica a la IA cómo revisar este documento. Por ejemplo: \"ajustar la cláusula de indemnización\", \"hacerlo más formal\", \"acortar un 20%\".",
       "redline-submit": "Sugerir cambios",
@@ -1935,6 +1942,15 @@
       "open-client__sourceHash": "6f59ad8c61ccc5a010b7360609618bc5884ccc1c72f2c1b2f91ae6a14d115527",
       "summaries-note__sourceHash": "e3e0e92fdc977f1bc9f870659c6ca1f4bcf8ee9b30eef0a8b409cfc8870400bd"
     },
+    "whole-practice-confirm": {
+      "title": "¿Enviar resúmenes de toda tu cartera?",
+      "body_one": "Esto envía un breve resumen de {{count}} cliente a {{provider}}. ¿Continuar?",
+      "body_other": "Esto envía breves resúmenes de {{count}} clientes a {{provider}}. ¿Continuar?",
+      "provider-fallback": "tu proveedor de IA",
+      "remember": "No volver a preguntar antes de las preguntas sobre toda la cartera",
+      "cancel": "Cancelar",
+      "continue": "Continuar"
+    },
     "scope-toggle": {
       "this-entity": "Este {{entity}}",
       "this-entity__sourceHash": "28844791e4974a5aef4e2316ce8b47cce1ce12e5b634b3a5f1c1839fdefda48c",
@@ -2097,7 +2113,10 @@
       "apply": "Aplicar nombres",
       "applied": "Los nombres de los interlocutores se actualizaron en la transcripción.",
       "stats": "{{turns}} intervenciones, {{minutes}} min hablando",
-      "privacy-note": "Los perfiles de voz se guardan solo en este equipo, cifrados, y únicamente para este cliente. Puedes eliminarlos desde la página del cliente en cualquier momento."
+      "privacy-note": "Los perfiles de voz se guardan solo en este equipo, cifrados, y únicamente para este cliente. Puedes eliminarlos desde la página del cliente en cualquier momento.",
+      "consent-label": "Nombrar una voz nueva crea un perfil de voz de tu cliente, cifrado y guardado en este equipo. Confirmo que el cliente lo aceptó.",
+      "consent-biometric-note": "Algunos estados (por ejemplo Illinois, Texas y Washington) tratan una huella de voz como dato biométrico regulado, con sus propias reglas de consentimiento. Consulta las reglas de tu estado. Esto es orientación general, no asesoramiento legal.",
+      "consent-save-failed": "No se pudo guardar el registro de consentimiento, así que no se creó ningún perfil de voz. Inténtalo de nuevo."
     },
     "pill": {
       "stop": "Detener",
