@@ -935,32 +935,37 @@ export async function indexWorkspacePdfs(
   if (pdfPaths.length === 0) return;
   const progress = usePdfIndexProgressStore.getState();
   progress.set({ processed: 0, total: pdfPaths.length, currentPath: null });
-  // P1.1 (Task 3): whether OCR is on is part of a PDF's freshness signature, so
-  // read it once and pass it to the manifest fresh-check below.
-  const ocrEnabled = isOcrScannedPdfsEnabled();
-  for (const [index, path] of pdfPaths.entries()) {
-    if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
-    const ragPath = buildWorkspaceAbsolutePath(rootPath, path);
-    progress.set({ processed: index, total: pdfPaths.length, currentPath: ragPath });
-    try {
-      // P1.1 (Task 3): skip a PDF whose size/mtime + OCR setting are unchanged
-      // since it was last indexed — PDF extraction + OCR is the single most
-      // expensive per-file cost, so this is the biggest boot win for PDF-heavy
-      // workspaces. A new/changed/tombstoned PDF returns false and re-indexes.
-      if (await ragManifestPdfFresh(ragPath, ocrEnabled)) {
+  try {
+    // P1.1 (Task 3): whether OCR is on is part of a PDF's freshness signature, so
+    // read it once and pass it to the manifest fresh-check below.
+    const ocrEnabled = isOcrScannedPdfsEnabled();
+    for (const [index, path] of pdfPaths.entries()) {
+      if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
+      const ragPath = buildWorkspaceAbsolutePath(rootPath, path);
+      progress.set({ processed: index, total: pdfPaths.length, currentPath: ragPath });
+      try {
+        // P1.1 (Task 3): skip a PDF whose size/mtime + OCR setting are unchanged
+        // since it was last indexed — PDF extraction + OCR is the single most
+        // expensive per-file cost, so this is the biggest boot win for PDF-heavy
+        // workspaces. A new/changed/tombstoned PDF returns false and re-indexes.
+        if (await ragManifestPdfFresh(ragPath, ocrEnabled)) {
+          if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
+          continue;
+        }
         if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
-        continue;
+        await MemoryService.indexPdfFile(ragPath, binaryWs);
+      } catch {
+        // Best-effort: skip individual failures, continue with the rest.
+      } finally {
+        if (isWorkspaceIdentityCurrent(workspaceIdentity)) {
+          progress.set({ processed: index + 1, total: pdfPaths.length, currentPath: ragPath });
+        }
       }
       if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
-      await MemoryService.indexPdfFile(ragPath, binaryWs);
-    } catch {
-      // Best-effort: skip individual failures, continue with the rest.
-    } finally {
-      progress.set({ processed: index + 1, total: pdfPaths.length, currentPath: ragPath });
     }
-    if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
+  } finally {
+    progress.clearSoon();
   }
-  progress.clearSoon();
 }
 
 /**

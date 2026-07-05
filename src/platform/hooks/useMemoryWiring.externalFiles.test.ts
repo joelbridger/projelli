@@ -436,6 +436,51 @@ describe('reindexFolderPaths — disk scan for externally-added files', () => {
     expect(pdfPath).toBe('C:/ws/Northcrest/Clients/Acme/statement.pdf');
   });
 
+  it('clears PDF progress when the workspace switches mid-PDF pass', async () => {
+    vi.useFakeTimers();
+    try {
+      setPdfIndexingEnabledReader(() => true);
+      useWorkspaceStore.setState({
+        rootPath: 'C:\\ws\\OldNorthcrest',
+        rootGeneration: 7,
+        fileTree: [],
+      });
+
+      const ws = {
+        readFile: vi.fn(),
+        writeFile: vi.fn(),
+        exists: vi.fn(),
+        readFileBinary: vi.fn().mockResolvedValue(new ArrayBuffer(8)),
+        getFileTree: vi.fn().mockResolvedValue([
+          makeFolder('Clients/Acme', [
+            makeFile('Clients/Acme/statement.pdf'),
+            makeFile('Clients/Acme/tax-return.pdf'),
+          ]),
+        ]),
+      };
+
+      indexPdfFile.mockImplementationOnce(() => {
+        useWorkspaceStore.setState({
+          rootPath: 'C:\\ws\\NewNorthcrest',
+          rootGeneration: 8,
+          fileTree: [],
+        });
+        return { indexed: true, pageCount: 1 };
+      });
+
+      await indexWorkspacePdfs(ws);
+
+      expect(indexPdfFile).toHaveBeenCalledTimes(1);
+      expect(usePdfIndexProgressStore.getState().current).not.toBeNull();
+
+      await vi.advanceTimersByTimeAsync(4000);
+
+      expect(usePdfIndexProgressStore.getState().current).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('skips PDFs during folder reindex when PDF indexing is disabled', async () => {
     const matterId = 'matter-acme';
     const folder = 'Clients/Acme';
