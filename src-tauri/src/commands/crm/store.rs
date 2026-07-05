@@ -13,6 +13,7 @@
 // comes in a later phase; the store is intentionally generic over object kind.
 
 use anyhow::{Context, Result};
+use crate::util::sync::lock_unpoison;
 use rusqlite::Connection;
 use std::path::{Path, PathBuf};
 
@@ -241,7 +242,7 @@ impl CrmStore {
         content_hash: &str,
         json: &str,
     ) -> Result<()> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         upsert_crm_object_row(&c, id, kind, household_id, updated_at, content_hash, json)
     }
 
@@ -259,7 +260,7 @@ impl CrmStore {
         if upserts.is_empty() && tombstone_ids.is_empty() {
             return Ok(());
         }
-        let mut c = self.conn.lock().unwrap();
+        let mut c = lock_unpoison(&self.conn);
         let tx = c.transaction()?;
         for u in upserts {
             upsert_crm_object_row(
@@ -282,7 +283,7 @@ impl CrmStore {
     /// Fetch one object by id, regardless of deleted flag.
     #[allow(dead_code)]
     pub fn get_object(&self, id: &str) -> Result<Option<CrmObjectRow>> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         Ok(c.query_row(
             "SELECT id, kind, household_id, updated_at, content_hash, json, deleted
              FROM crm_objects WHERE id = ?1",
@@ -295,7 +296,7 @@ impl CrmStore {
     /// Return all non-deleted objects for a given household.
     #[allow(dead_code)]
     pub fn list_objects_by_household(&self, household_id: &str) -> Result<Vec<CrmObjectRow>> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         let mut stmt = c.prepare(
             "SELECT id, kind, household_id, updated_at, content_hash, json, deleted
              FROM crm_objects
@@ -319,7 +320,7 @@ impl CrmStore {
         &self,
         household_id: &str,
     ) -> Result<Vec<(String, String, String)>> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         let mut stmt = c.prepare(
             "SELECT id, kind, content_hash
              FROM crm_objects
@@ -342,7 +343,7 @@ impl CrmStore {
     /// snapshot but absent from the new API response should be tombstoned.
     #[allow(dead_code)]
     pub fn list_object_ids(&self, kind: &str) -> Result<Vec<String>> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         let mut stmt = c.prepare("SELECT id FROM crm_objects WHERE kind = ?1 AND deleted = 0")?;
         let rows = stmt
             .query_map([kind], |r| r.get::<_, String>(0))?
@@ -355,7 +356,7 @@ impl CrmStore {
     /// response have been removed in Wealthbox and should be tombstoned.
     #[allow(dead_code)]
     pub fn list_all_object_ids(&self) -> Result<Vec<String>> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         let mut stmt = c.prepare("SELECT id FROM crm_objects WHERE deleted = 0")?;
         let rows = stmt
             .query_map([], |r| r.get::<_, String>(0))?
@@ -392,7 +393,7 @@ impl CrmStore {
         if marker.is_empty() || marker.contains('%') || marker.contains('_') {
             anyhow::bail!("invalid CRM provider marker");
         }
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         let like = format!("{marker}%");
         let sql = if include_deleted {
             "SELECT id, kind, household_id, updated_at, content_hash, json, deleted
@@ -414,7 +415,7 @@ impl CrmStore {
     /// owns the original unprefixed id space (`contact:10002`, `note:456`).
     #[allow(dead_code)]
     pub fn list_legacy_wealthbox_objects_including_deleted(&self) -> Result<Vec<CrmObjectRow>> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         let mut stmt = c.prepare(
             "SELECT id, kind, household_id, updated_at, content_hash, json, deleted
              FROM crm_objects
@@ -439,7 +440,7 @@ impl CrmStore {
         if marker.is_empty() || marker.contains('%') || marker.contains('_') {
             anyhow::bail!("invalid CRM provider marker");
         }
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         let like = format!("{marker}%");
 
         let mut stmt = c.prepare(
@@ -469,7 +470,7 @@ impl CrmStore {
     /// rows such as Salesforce (`sfdc:`) and Redtail (`redtail:`).
     #[allow(dead_code)]
     pub fn purge_legacy_wealthbox_objects(&self) -> Result<usize> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         let legacy_predicate = "instr(id, ':') = 0
             OR (
                 substr(id, instr(id, ':') + 1) NOT LIKE 'sfdc:%'
@@ -501,7 +502,7 @@ impl CrmStore {
 
     #[allow(dead_code)]
     pub fn has_any_objects_including_deleted(&self) -> Result<bool> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         let count = c.query_row("SELECT COUNT(*) FROM crm_objects", [], |r| {
             r.get::<_, i64>(0)
         })?;
@@ -511,7 +512,7 @@ impl CrmStore {
     /// Soft-delete an object (sets `deleted = 1`).
     #[allow(dead_code)]
     pub fn tombstone_object(&self, id: &str) -> Result<()> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         c.execute("UPDATE crm_objects SET deleted = 1 WHERE id = ?1", [id])?;
         Ok(())
     }
@@ -520,7 +521,7 @@ impl CrmStore {
     /// non-deleted object.  Used by the render/index loop.
     #[allow(dead_code)]
     pub fn list_household_ids(&self) -> Result<Vec<String>> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         let mut stmt = c.prepare(
             "SELECT DISTINCT household_id FROM crm_objects
              WHERE household_id != '' AND deleted = 0",
@@ -538,7 +539,7 @@ impl CrmStore {
     /// Persist a per-object-type delta cursor (upserts on conflict).
     #[allow(dead_code)]
     pub fn set_cursor(&self, object_type: &str, cursor: &str) -> Result<()> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         c.execute(
             "INSERT INTO crm_cursors (object_type, cursor) VALUES (?1, ?2)
              ON CONFLICT(object_type) DO UPDATE SET cursor = ?2",
@@ -550,7 +551,7 @@ impl CrmStore {
     /// Retrieve a per-object-type cursor, or `None` if not yet set.
     #[allow(dead_code)]
     pub fn get_cursor(&self, object_type: &str) -> Result<Option<String>> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         Ok(c.query_row(
             "SELECT cursor FROM crm_cursors WHERE object_type = ?1",
             [object_type],
@@ -571,7 +572,7 @@ impl CrmStore {
         render_hash: &str,
         indexed: bool,
     ) -> Result<()> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         c.execute(
             "INSERT INTO crm_render_state (household_id, render_hash, indexed)
              VALUES (?1, ?2, ?3)
@@ -586,7 +587,7 @@ impl CrmStore {
     /// Retrieve the render/index state for a household, or `None` if absent.
     #[allow(dead_code)]
     pub fn get_render_state(&self, household_id: &str) -> Result<Option<(String, bool)>> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         Ok(c.query_row(
             "SELECT render_hash, indexed FROM crm_render_state
              WHERE household_id = ?1",
@@ -608,7 +609,7 @@ impl CrmStore {
     #[allow(dead_code)]
     pub fn get_meta(&self, key: &str) -> Result<Option<String>> {
         use rusqlite::OptionalExtension;
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         Ok(
             c.query_row("SELECT value FROM meta WHERE key = ?1", [key], |r| r.get(0))
                 .optional()?,
@@ -618,7 +619,7 @@ impl CrmStore {
     /// Set (upsert) one meta value.  Idempotent; last-writer-wins.
     #[allow(dead_code)]
     pub fn set_meta(&self, key: &str, value: &str) -> Result<()> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         c.execute(
             "INSERT INTO meta (key, value) VALUES (?1, ?2)
              ON CONFLICT(key) DO UPDATE SET value = ?2",
@@ -630,7 +631,7 @@ impl CrmStore {
     /// Look up an outbound write's ledger row by its content-addressed dedup key.
     pub fn outbound_get(&self, dedup_key: &str) -> Result<Option<OutboundWrite>> {
         use rusqlite::OptionalExtension;
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         let mut stmt = c.prepare(
             "SELECT dedup_key, status, remote_id, created_at FROM crm_outbound_writes WHERE dedup_key = ?1",
         )?;
@@ -679,7 +680,7 @@ impl CrmStore {
         reset_created_at: bool,
         content_key: &str,
     ) -> Result<()> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         let now = chrono::Utc::now().to_rfc3339();
         c.execute(
             "INSERT INTO crm_outbound_writes
@@ -754,7 +755,7 @@ impl CrmStore {
         content_key: &str,
     ) -> Result<Option<OutboundWrite>> {
         use rusqlite::OptionalExtension;
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         let mut stmt = c.prepare(
             "SELECT dedup_key, status, remote_id, created_at FROM crm_outbound_writes
              WHERE provider = ?1 AND content_key = ?2 AND status IN ('pending', 'pending_verify')
@@ -781,7 +782,7 @@ impl CrmStore {
     /// `push_crm_write`'s recovery-window bound) need this escape hatch.
     #[cfg(test)]
     pub fn outbound_backdate_for_test(&self, dedup_key: &str, created_at: &str) -> Result<()> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         c.execute(
             "UPDATE crm_outbound_writes SET created_at = ?2 WHERE dedup_key = ?1",
             rusqlite::params![dedup_key, created_at],
@@ -794,7 +795,7 @@ impl CrmStore {
     /// can't reuse a stale `sent`/`pending` row to skip a write that was
     /// never actually delivered to the newly connected account.
     pub fn purge_outbound_writes_for_provider(&self, provider: &str) -> Result<usize> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         Ok(c.execute(
             "DELETE FROM crm_outbound_writes WHERE provider = ?1",
             [provider],
@@ -810,7 +811,7 @@ impl CrmStore {
     /// is connected NOW before `push_crm_write` ever trusts it as delivered
     /// again. Returns the number of rows downgraded.
     pub fn mark_sent_rows_pending_verify_for_provider(&self, provider: &str) -> Result<usize> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         Ok(c.execute(
             "UPDATE crm_outbound_writes SET status = 'pending_verify', updated_at = ?2
              WHERE provider = ?1 AND status = 'sent'",
