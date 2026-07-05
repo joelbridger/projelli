@@ -111,6 +111,7 @@ import {
   registerDocxSaver,
   updateDocxSaveState,
 } from '@/platform/fs/docxSaveRegistry';
+import { openDocxSession, type DocxSession } from '@/platform/fs/docxSaveSession';
 
 const SAVE_DEBOUNCE_MS = 1200;
 
@@ -218,6 +219,51 @@ type LoadState =
   | { status: 'ready'; doc: DocumentJson }
   | { status: 'error'; message: string }
   | { status: 'unsupported' };
+
+/**
+ * Cleanup batch 4 (task #24) — Codex review catches, 4 rounds: a filePath
+ * change (unlike a true unmount) can leave a run FOCUSED and un-blurred (a
+ * keyboard shortcut or programmatic navigation doesn't necessarily blur it
+ * first, unlike clicking elsewhere). Folding that edit in through the full
+ * `handleRunEdit` pipeline is unsafe here: that pipeline reads/writes
+ * `currentDocRef.current` and updates the live view via
+ * `applyResolvedDocument`, both of which a RACING new-path session load can
+ * reassign to the NEW document before the fold-in's queued op actually runs —
+ * so the fold-in could merge into (and save) the wrong document, or briefly
+ * flash the new view back to old content.
+ *
+ * This does a MINIMAL, self-contained plain-text merge directly against the
+ * CAPTURED outgoing session's own `doc` — it never touches `currentDocRef`,
+ * the live view, or track-changes authoring, so it cannot be affected by (or
+ * affect) whatever the new document's load is doing concurrently. It's a
+ * plain function (no closures over component state) so every dependency is
+ * an explicit parameter — nothing here can go stale.
+ *
+ * Trade-off, accepted deliberately: this loses track-changes attribution for
+ * this one last in-flight keystroke in this one narrow edge case (a plain
+ * replacement, same as `handleRunEdit`'s own non-reviewing-mode behavior) —
+ * a small, non-data-lossy simplification against the alternative of threading
+ * an override through the full rich pipeline, which still couldn't safely
+ * reuse `currentDocRef`/`applyResolvedDocument` without reintroducing the
+ * exact race this exists to close.
+ */
+function commitOutgoingRunEditIfAny(
+  active: { blockIndex: number; inlineIndex: number; element: HTMLElement } | null,
+  outgoingSession: DocxSession | null,
+): void {
+  if (!active || !outgoingSession) return;
+  const text = active.element.textContent ?? '';
+  const doc = outgoingSession.doc;
+  const block = doc.body[active.blockIndex];
+  if (!block || block.kind !== 'paragraph') return;
+  const inline = block.inlines[active.inlineIndex];
+  if (!inline || inline.kind !== 'run' || inline.text === text) return;
+  const next: DocumentJson = structuredCloneSafe(doc);
+  const nextBlock = next.body[active.blockIndex] as DocxParagraph;
+  const nextInline = nextBlock.inlines[active.inlineIndex] as DocxRun & { kind: 'run' };
+  nextInline.text = text;
+  outgoingSession.scheduleSave(next, SAVE_DEBOUNCE_MS);
+}
 
 export function DocxEditor({
   filePath,
@@ -385,12 +431,29 @@ export function DocxEditor({
   >(() => undefined);
   const onDocumentChangeRef = useRef(onDocumentChange);
   const onAfterSaveRef = useRef(onAfterSave);
+  const onFirstEditRef = useRef(onFirstEdit);
+  // Cleanup batch 4 (task #24, QA-34 residual race): the SOLO (non-coedit)
+  // path's persistent save/retry session for this filePath, once loaded. Its
+  // doc + dirty/retry state can outlive THIS component instance — see
+  // docxSaveSession.ts. `unsubscribeSessionRef` detaches this view's state
+  // mirror (isDirty/isSaving/saveError/escalated/lastSavedAt) from the
+  // session; it does NOT dispose the session itself.
+  const sessionRef = useRef<DocxSession | null>(null);
+  const unsubscribeSessionRef = useRef<(() => void) | null>(null);
+  // Codex review catch (post-merge, P2): the EXACT live-flush-hook function
+  // THIS view installed on the session, so its own (possibly delayed)
+  // teardown can prove it's still the current one before touching the
+  // session — see DocxSession.clearLiveFlushHookIfCurrent's doc comment.
+  const liveFlushHookRef = useRef<(() => Promise<void>) | null>(null);
   useEffect(() => {
     onDocumentChangeRef.current = onDocumentChange;
   }, [onDocumentChange]);
   useEffect(() => {
     onAfterSaveRef.current = onAfterSave;
   }, [onAfterSave]);
+  useEffect(() => {
+    onFirstEditRef.current = onFirstEdit;
+  }, [onFirstEdit]);
   useEffect(() => {
     isDirtyRef.current = isDirty;
   }, [isDirty]);
@@ -453,14 +516,17 @@ export function DocxEditor({
   // Export instead of clicking elsewhere first. Stable identity (empty deps)
   // via the `handleRunEditRef` indirection, so it's safe to reference from
   // effects registered before `handleRunEdit` itself exists.
-  const commitActiveRunEdit = useCallback((): Promise<void> => {
-    const active = activeRunRef.current;
-    if (!active) return Promise.resolve();
-    activeRunRef.current = null;
-    const text = active.element.textContent ?? '';
-    const result = handleRunEditRef.current(active.blockIndex, active.inlineIndex, text);
-    return result instanceof Promise ? result : Promise.resolve();
-  }, []);
+  const commitActiveRunEdit = useCallback(
+    (): Promise<void> => {
+      const active = activeRunRef.current;
+      if (!active) return Promise.resolve();
+      activeRunRef.current = null;
+      const text = active.element.textContent ?? '';
+      const result = handleRunEditRef.current(active.blockIndex, active.inlineIndex, text);
+      return result instanceof Promise ? result : Promise.resolve();
+    },
+    [],
+  );
 
   const canEdit = Boolean(filePath) && isDocxEngineAvailable();
 
@@ -473,16 +539,17 @@ export function DocxEditor({
       return;
     }
     setLoad({ status: 'loading' });
-    // This editor's own save-revision counter (docxSaveSeqRef) restarts from 0
-    // for every new session — clear the write coordinator's advisory
-    // high-water mark too, so a lingering high rev from a PREVIOUS session
-    // editing this same path can't make this session's first save read
-    // `isLatest: false` (writeCoordinator.ts).
-    writeCoordinator.resetPath(filePath);
-    docxOpen(filePath)
-      .then((doc) => {
-        if (cancelled) return;
-        if (coedit) {
+
+    if (coedit) {
+      // CO-EDIT: unchanged from before this cleanup — the CRDT (kept alive by
+      // the parent independently of this component) is the source of truth,
+      // so a remount here can never lose an edit; it just recomputes the
+      // current doc from `coedit.session`. This path does not use
+      // docxSaveSession (see the module doc comment for why it doesn't need to).
+      writeCoordinator.resetPath(filePath);
+      docxOpen(filePath)
+        .then((doc) => {
+          if (cancelled) return;
           // Capture original comments (CRDT always returns comments: {}).
           originalCommentsRef.current = doc.comments;
           // Use the CRDT's live doc for the initial render, with comments re-attached.
@@ -492,12 +559,59 @@ export function DocxEditor({
           };
           currentDocRef.current = liveDoc;
           setLoad({ status: 'ready', doc: liveDoc });
-        } else {
-          currentDocRef.current = doc;
-          setLoad({ status: 'ready', doc });
-        }
-        setIsDirty(false);
-        setSaveError(null);
+          setIsDirty(false);
+          setSaveError(null);
+        })
+        .catch((err: unknown) => {
+          if (cancelled) return;
+          const message = err instanceof Error ? err.message : String(err);
+          setLoad({ status: 'error', message });
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    // SOLO: resume an existing session for this path (a prior view may have
+    // unmounted while it was still dirty/failing — see docxSaveSession.ts)
+    // instead of unconditionally re-reading disk, so a still-retrying save
+    // and its not-yet-persisted doc are never silently dropped by a tab
+    // switch away and back.
+    openDocxSession(filePath, {
+      onFirstEdit: () => onFirstEditRef.current?.(),
+      onAfterSave: (info) => onAfterSaveRef.current?.(info),
+    })
+      .then((session) => {
+        // Deliberately NOT disposing here when `cancelled` — see
+        // openDocxSession's doc comment (React 18 StrictMode dev
+        // setup→cleanup→setup would otherwise race a still-loading session
+        // out from under the second, real mount that's about to adopt it).
+        // A genuinely abandoned CLEAN session just sits unused until reused
+        // or the tab is explicitly closed; it holds no unsaved content.
+        if (cancelled) return;
+        sessionRef.current = session;
+        currentDocRef.current = session.doc;
+        setLoad({ status: 'ready', doc: session.doc });
+        const snap = session.getSnapshot();
+        setIsDirty(snap.isDirty);
+        setIsSaving(snap.isSaving);
+        setSaveError(snap.saveError);
+        setEscalated(snap.escalated);
+        setLastSavedAt(snap.lastSavedAt);
+        const liveFlushHook = async () => {
+          await commitActiveRunEdit();
+          await docOpQueueRef.current;
+        };
+        liveFlushHookRef.current = liveFlushHook;
+        session.setLiveFlushHook(liveFlushHook);
+        unsubscribeSessionRef.current = session.subscribe(() => {
+          const s = session.getSnapshot();
+          setIsDirty(s.isDirty);
+          setIsSaving(s.isSaving);
+          setSaveError(s.saveError);
+          setEscalated(s.escalated);
+          setLastSavedAt(s.lastSavedAt);
+        });
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -507,10 +621,23 @@ export function DocxEditor({
     return () => {
       cancelled = true;
     };
-   
-  }, [canEdit, filePath, coedit]);
+  }, [canEdit, filePath, coedit, commitActiveRunEdit]);
 
-  // ---- Cleanup the debounce on unmount -----------------------------------
+  // ---- Cleanup the debounce on unmount (or filePath/coedit change) -------
+  // Codex review catch (P2): deps include `filePath`/`coedit` (not just the
+  // stable `commitActiveRunEdit`) so this ALSO runs when a PARENT reuses this
+  // same component instance for a DIFFERENT path without remounting it (e.g.
+  // MeetingEntry swapping which meeting's notes.docx it shows — no
+  // `key={meetingDir}` upstream). Without that, the OLD path's session would
+  // keep this view's subscription + live flush hook attached, so its later
+  // state changes (or a registry flush) would run against the wrong,
+  // now-stale live view. Running the FULL commit+drain+persist+dispose
+  // sequence below in both cases (not just true unmount) is deliberate: the
+  // component's rendered DOM still reflects the OLD path at the moment this
+  // cleanup runs (state — not the `filePath` prop — drives what's shown, and
+  // state only changes once the new path's async load resolves), so reading
+  // the live DOM for an in-progress edit here is exactly as safe as at a true
+  // unmount.
   useEffect(() => {
     return () => {
       const flushScheduledSave = () => {
@@ -524,31 +651,149 @@ export function DocxEditor({
       };
       // Flush whatever was ALREADY scheduled before this unmount.
       flushScheduledSave();
-      // CLUSTER-C1: THEN fold an in-progress (focused, un-blurred) edit into
-      // the document model, and — separately — wait for the ENTIRE op queue
-      // to drain before flushing whatever that produced.
+
+      if (coedit) {
+        // COEDIT: unchanged — the CRDT (kept alive by the parent
+        // independently of this component) is the source of truth, so a
+        // remount/path-change here can never lose an edit; the rich
+        // fold-in pipeline is safe to use as-is (no outgoing-session race
+        // to worry about — see docxSaveSession.ts's module doc comment).
+        commitActiveRunEdit()
+          .then(() => docOpQueueRef.current)
+          .then(flushScheduledSave)
+          .catch((err: unknown) => {
+            console.error('[DocxEditor] commitActiveRunEdit on unmount failed:', err);
+          });
+        return;
+      }
+
+      // SOLO (cleanup batch 4 / QA-34 keep-alive + Codex review catches, 4
+      // rounds): capture EVERYTHING this cleanup needs SYNCHRONOUSLY, right
+      // here at the top — before any `await` below, and before React runs
+      // this same effect's new setup (which only happens AFTER every
+      // changed effect's cleanup has run). This cleanup's own async
+      // continuation can still be in flight when a filePath change's NEW
+      // load effect finishes and reassigns `sessionRef.current`/
+      // `unsubscribeSessionRef.current` to the NEW session — a fresh
+      // `docxOpen` can resolve in a single microtask, so there's no
+      // ordering guarantee against anything read here after an await.
+      // Re-reading those refs later would silently operate on the WRONG
+      // session: detaching/disposing the NEW one (which the new view just
+      // started watching) instead of the OLD one actually being torn down
+      // here, or persisting through the old session's write path.
+      const outgoingSession = sessionRef.current;
+      const outgoingUnsubscribe = unsubscribeSessionRef.current;
+      // Codex review catch (post-merge, P2): captured for the SAME reason —
+      // if this view unmounts while it still has a queued op pending (e.g. a
+      // blur's tracked-changes op still awaiting the engine) and the SAME
+      // path is reopened before this teardown resumes, a NEWER view can
+      // reuse `outgoingSession` and install its OWN live flush hook before
+      // this delayed code below ever runs. See
+      // DocxSession.clearLiveFlushHookIfCurrent's doc comment for the full
+      // story and why this must be checked, not just nulled unconditionally.
+      const outgoingLiveFlushHook = liveFlushHookRef.current;
+      // A FOCUSED, un-blurred run CAN survive into a filePath change — not
+      // every transition is a mouse click elsewhere (which blurs it
+      // synchronously first); a keyboard shortcut or a programmatic
+      // navigation might not. Capture (and clear) it synchronously too,
+      // mirroring what `commitActiveRunEdit` itself does, so nothing else
+      // tries to process it again.
+      const activeRunAtCleanup = activeRunRef.current;
+      activeRunRef.current = null;
+      // Fold it in via a MINIMAL, self-contained merge directly against the
+      // captured session's own doc — see commitOutgoingRunEditIfAny's doc
+      // comment for why the full handleRunEdit/applyResolvedDocument
+      // pipeline (which reads/writes the SHARED `currentDocRef` and the
+      // live view) is unsafe to reuse here: by the time any of that
+      // resolves, `currentDocRef.current` may already belong to the NEWLY-
+      // loaded document.
+      commitOutgoingRunEditIfAny(activeRunAtCleanup, outgoingSession);
+
+      // CLUSTER-C1: separately, wait for the ENTIRE op queue to drain before
+      // flushing whatever that produced — if a run blurred JUST before this
+      // cleanup (via the plain `onRunEdit` callback, unrelated to
+      // `activeRunAtCleanup` above), it already enqueued a tracked-changes
+      // op via `handleRunEdit` that hasn't run yet. Read synchronously HERE
+      // (not after an await) captures exactly what's already enqueued as of
+      // this instant — nothing more, since nothing else can run between two
+      // of this cleanup's own synchronous statements.
       //
-      // Draining the queue (not just awaiting commitActiveRunEdit()) is the
-      // part that closes the last race (coordinator review): if a run blurs
-      // JUST before unmount, PlainRun has already cleared activeRunRef
-      // (nothing left to "commit"), but its blur already enqueued a
-      // tracked-changes op via handleRunEdit that hasn't run yet —
-      // commitActiveRunEdit() alone would see no active run and resolve
-      // immediately, so the flush below would fire BEFORE that already-
-      // queued edit ever reaches applyResolvedDocument/scheduleSave, and the
-      // save it eventually schedules would have nothing left watching for it.
-      // Reading `docOpQueueRef.current` AFTER commitActiveRunEdit() settles
-      // captures that op too — enqueueDocOp mutates the ref synchronously, so
-      // by the time we read it here the queue reflects everything enqueued so
-      // far, whether from this commit or an earlier blur.
-      commitActiveRunEdit()
-        .then(() => docOpQueueRef.current)
-        .then(flushScheduledSave)
+      // Residual (documented, not fixed): that already-queued op still
+      // reads `currentDocRef.current`/saves via `sessionRef.current` when it
+      // actually runs (whichever a racing new-path load has set them to by
+      // then) — it captured no override when `onRunEdit` created it, and
+      // retroactively targeting it would require knowing at ENQUEUE time
+      // that a path change might follow. This compound trigger (a blur's op
+      // still in flight AND a filePath change racing it AND the new
+      // session/doc loading faster) is narrow enough, and partially
+      // mitigated by `handleRunEdit`'s own drift guard (which refuses to
+      // apply an edit whose target run no longer matches), to accept as a
+      // known limitation.
+      const queuedOpsAtCleanup = docOpQueueRef.current;
+      queuedOpsAtCleanup
+        .then(() => {
+          // SOLO (cleanup batch 4 / QA-34 keep-alive): detach this view from
+          // the CAPTURED outgoing session and hand it its own truly-latest
+          // doc, then let the session itself decide whether it's safe to
+          // dispose. If a save is still dirty/failing, `disposeIfClean`
+          // refuses — the session's own retry timers (plain setTimeout, not
+          // tied to this component) keep running in the background, and a
+          // later remount of this same path resumes the SAME session instead
+          // of reloading stale disk content over the unsaved edit. This is
+          // the fix for the residual race: a tab switch away from a failing
+          // save no longer kills its retry loop or drops the not-yet-
+          // persisted document.
+          const session = outgoingSession;
+          // A session already force-disposed (the user explicitly discarded
+          // it — e.g. via closeDocxTabSafely — while this view was still
+          // mounted) must be left alone: acting on it here would resurrect a
+          // save attempt for content the user already asked to abandon.
+          if (!session || session.isDisposed) return;
+          // Only touch the shared refs if they STILL point at the session
+          // we're tearing down — a filePath change's new load effect may
+          // have already moved them on to a newer session (see the capture
+          // comment above), in which case those belong to the NEW view now
+          // and must not be disturbed.
+          if (sessionRef.current === session) {
+            sessionRef.current = null;
+          }
+          // Call the CAPTURED outgoing unsubscribe, not whatever
+          // `unsubscribeSessionRef.current` holds now — a filePath change's
+          // new load effect may have already overwritten it with the NEW
+          // session's unsubscribe function, and calling that here would
+          // detach the new view's live subscription instead of the old one's.
+          outgoingUnsubscribe?.();
+          if (unsubscribeSessionRef.current === outgoingUnsubscribe) {
+            unsubscribeSessionRef.current = null;
+          }
+          // Codex review catch (post-merge, P2): if a NEWER view has already
+          // reused this session and installed its OWN live flush hook (this
+          // teardown was delayed behind a queued op — see the capture
+          // comment above), `clearLiveFlushHookIfCurrent` returns `false`
+          // instead of stripping it. In that case stop here entirely — do
+          // NOT persist/dispose either: the new view now owns this session's
+          // whole lifecycle, and forcing a save or (worse) disposing it out
+          // from under an actively-attached view would be just as wrong as
+          // stripping its hook.
+          if (!session.clearLiveFlushHookIfCurrent(outgoingLiveFlushHook)) return;
+          // Read the doc off the CAPTURED session itself (kept current by
+          // every scheduleSave call against it, including
+          // commitOutgoingRunEditIfAny's above), not `currentDocRef.current`
+          // — that ref may already reflect a newer path's document.
+          const doc = session.doc;
+          // Only force a save when there's actually something unsaved — a
+          // clean doc has nothing to flush (mirrors the coedit branch's
+          // `flushScheduledSave`, which is also a no-op with no pending timer).
+          const settled = session.isDirty ? session.persistNow(doc) : Promise.resolve();
+          return settled.then(() => {
+            session.disposeIfClean();
+          });
+        })
         .catch((err: unknown) => {
-          console.error('[DocxEditor] commitActiveRunEdit on unmount failed:', err);
+          console.error('[DocxEditor] op queue drain on unmount failed:', err);
         });
     };
-  }, [commitActiveRunEdit]);
+  }, [commitActiveRunEdit, coedit, filePath]);
 
   // ---- Persist (debounced) ----------------------------------------------
   const clearRetryTimer = useCallback(() => {
@@ -677,33 +922,48 @@ export function DocxEditor({
 
   const scheduleSave = useCallback(
     (doc: DocumentJson) => {
-      setIsDirty(true);
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      // Capture a flush for the LATEST doc so an unmount before the debounce
-      // fires can still persist it (data-loss guard).
-      flushPendingSaveRef.current = () => { void persist(doc); };
-      saveTimerRef.current = setTimeout(() => {
-        flushPendingSaveRef.current = null;
-        void persist(doc);
-      }, SAVE_DEBOUNCE_MS);
+      if (coedit) {
+        setIsDirty(true);
+        if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+        // Capture a flush for the LATEST doc so an unmount before the debounce
+        // fires can still persist it (data-loss guard).
+        flushPendingSaveRef.current = () => { void persist(doc); };
+        saveTimerRef.current = setTimeout(() => {
+          flushPendingSaveRef.current = null;
+          void persist(doc);
+        }, SAVE_DEBOUNCE_MS);
+        return;
+      }
+      // SOLO: the session owns the debounce/retry loop so it survives a tab
+      // switch away (see docxSaveSession.ts). This view's isDirty/etc mirror
+      // the session's state via the subscription set up in the load effect.
+      sessionRef.current?.scheduleSave(doc, SAVE_DEBOUNCE_MS);
     },
-    [persist],
+    [coedit, persist],
   );
 
   // QA-34: clear any pending retry timer on unmount so a backoff callback never
-  // fires against a torn-down editor.
+  // fires against a torn-down editor. Only meaningful for the coedit path —
+  // the solo path's retry timer lives on the session, not this component.
   useEffect(() => clearRetryTimer, [clearRetryTimer]);
 
   // QA-34: register this editor with the shared save registry so the close/quit/
   // switch guards can see its unsaved/failing state and force a final save. The
   // registered flush attempts ONE immediate save of the latest doc and reports
   // whether it is now safely on disk (true = safe to close/switch/quit).
+  //
+  // COEDIT ONLY: the solo path's registration is owned by its DocxSession
+  // (created once per path, outliving any single mounted view) instead — see
+  // docxSaveSession.ts — so registering it here too would fight over which
+  // flush callback the registry uses, and would unregister on every unmount
+  // even while the session is still dirty/retrying in the background.
   useEffect(() => {
-    if (!filePath) return;
-    // Register ONCE per path (deps: [filePath] only). The flush calls the LATEST
-    // attemptSave through a ref, so a parent re-render that changes attemptSave's
-    // identity does NOT re-register — which would otherwise churn (and risk
-    // clearing) this path's live save state in the registry.
+    if (!filePath || !coedit) return;
+    // Register ONCE per path (deps: [filePath, coedit] only). The flush calls
+    // the LATEST attemptSave through a ref, so a parent re-render that
+    // changes attemptSave's identity does NOT re-register — which would
+    // otherwise churn (and risk clearing) this path's live save state in the
+    // registry.
     return registerDocxSaver(filePath, async () => {
       // Fold any focused, un-blurred keystrokes into the model and drain queued
       // ops FIRST (mirrors the export flush) — otherwise the newest typed text is
@@ -728,7 +988,7 @@ export function DocxEditor({
       }
       return (await attemptSaveRef.current?.(doc)) ?? false;
     });
-  }, [filePath, commitActiveRunEdit]);
+  }, [filePath, coedit, commitActiveRunEdit]);
 
   /**
    * THE A4 SEAM + the resolve choke point. Swap the in-memory DOM, notify
@@ -804,14 +1064,18 @@ export function DocxEditor({
     await docOpQueueRef.current;
     const doc = currentDocRef.current;
     if (!doc) return false;
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = null;
-    }
     // Persist synchronously so the on-disk bytes are current for the engine.
-    await persist(doc);
+    if (coedit) {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+      await persist(doc);
+    } else {
+      await sessionRef.current?.persistNow(doc);
+    }
     return true;
-  }, [filePath, persist, commitActiveRunEdit]);
+  }, [filePath, persist, commitActiveRunEdit, coedit]);
 
   /**
    * Show the OS save dialog for a chosen-location export and return the picked
@@ -1292,8 +1556,11 @@ export function DocxEditor({
         const doc = currentDocRef.current;
         if (!doc) throw new Error('Document is no longer open.');
         const outcome = await docxAuthorRevisions(doc, edits, { author: REDLINE_AUTHOR });
-        // WS-A / A5: attribute the resulting version snapshot to the AI.
+        // WS-A / A5: attribute the resulting version snapshot to the AI. Set
+        // on both — only one is ever consulted at save time (coedit reads the
+        // ref; solo reads the session), so it's harmless to set both.
         pendingSaveAuthorRef.current = 'ai';
+        sessionRef.current?.setPendingAuthor('ai');
         applyResolvedDocument(outcome.document);
         return outcome;
       });

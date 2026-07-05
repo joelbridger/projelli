@@ -76,9 +76,10 @@ describe('CrmWriteReviewCard', () => {
     });
 
     render(<CrmWriteReviewCard matterId={m.id} />);
-    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
-
-    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+    // QA-42: wait for the CARD ITSELF to render connected — not just for the
+    // `crmIsConnected` mock to have been CALLED (see the other tests' comment
+    // for the full race explanation).
+    fireEvent.click(await screen.findByTestId('crm-write-card-collapsed'));
 
     expect(screen.getByText('Annual review — retirement readiness')).toBeInTheDocument();
     expect(screen.getByText('Send Robert the Roth conversion illustration')).toBeInTheDocument();
@@ -100,8 +101,14 @@ describe('CrmWriteReviewCard', () => {
     });
 
     render(<CrmWriteReviewCard matterId={m.id} />);
-    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
-    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+    // QA-42: wait for the CARD ITSELF to render connected — not just for the
+    // `crmIsConnected` mock to have been CALLED. The mock resolves on its own
+    // microtask, so "called" can be observed before the resulting
+    // `setConnected(true)` state update has actually landed in the DOM; that
+    // race let this click occasionally fire while the card was still in its
+    // pre-connected (null-render) state. Waiting for the actual element is
+    // what guarantees the state update has already applied.
+    fireEvent.click(await screen.findByTestId('crm-write-card-collapsed'));
 
     fireEvent.click(screen.getByRole('button', { name: /approve 1 change/i }));
 
@@ -134,8 +141,14 @@ describe('CrmWriteReviewCard', () => {
     });
 
     render(<CrmWriteReviewCard matterId={m.id} />);
-    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
-    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+    // QA-42: wait for the CARD ITSELF to render connected — not just for the
+    // `crmIsConnected` mock to have been CALLED. The mock resolves on its own
+    // microtask, so "called" can be observed before the resulting
+    // `setConnected(true)` state update has actually landed in the DOM; that
+    // race let this click occasionally fire while the card was still in its
+    // pre-connected (null-render) state. Waiting for the actual element is
+    // what guarantees the state update has already applied.
+    fireEvent.click(await screen.findByTestId('crm-write-card-collapsed'));
 
     fireEvent.click(screen.getByTestId('file-compliance-note'));
     fireEvent.click(screen.getByRole('button', { name: /approve 1 change/i }));
@@ -172,8 +185,14 @@ describe('CrmWriteReviewCard', () => {
     });
 
     render(<CrmWriteReviewCard matterId={m.id} />);
-    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
-    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+    // QA-42: wait for the CARD ITSELF to render connected — not just for the
+    // `crmIsConnected` mock to have been CALLED. The mock resolves on its own
+    // microtask, so "called" can be observed before the resulting
+    // `setConnected(true)` state update has actually landed in the DOM; that
+    // race let this click occasionally fire while the card was still in its
+    // pre-connected (null-render) state. Waiting for the actual element is
+    // what guarantees the state update has already applied.
+    fireEvent.click(await screen.findByTestId('crm-write-card-collapsed'));
 
     expect(screen.getByTestId('file-compliance-note')).not.toBeChecked();
     fireEvent.click(screen.getByRole('button', { name: /approve 1 change/i }));
@@ -262,8 +281,14 @@ describe('CrmWriteReviewCard', () => {
     });
 
     render(<CrmWriteReviewCard matterId={m.id} />);
-    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
-    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+    // QA-42: wait for the CARD ITSELF to render connected — not just for the
+    // `crmIsConnected` mock to have been CALLED. The mock resolves on its own
+    // microtask, so "called" can be observed before the resulting
+    // `setConnected(true)` state update has actually landed in the DOM; that
+    // race let this click occasionally fire while the card was still in its
+    // pre-connected (null-render) state. Waiting for the actual element is
+    // what guarantees the state update has already applied.
+    fireEvent.click(await screen.findByTestId('crm-write-card-collapsed'));
 
     // Firm tier: the toggle is already ON by default.
     expect(screen.getByTestId('file-compliance-note')).toBeChecked();
@@ -300,8 +325,14 @@ describe('CrmWriteReviewCard', () => {
     });
 
     render(<CrmWriteReviewCard matterId={m.id} />);
-    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
-    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+    // QA-42: wait for the CARD ITSELF to render connected — not just for the
+    // `crmIsConnected` mock to have been CALLED. The mock resolves on its own
+    // microtask, so "called" can be observed before the resulting
+    // `setConnected(true)` state update has actually landed in the DOM; that
+    // race let this click occasionally fire while the card was still in its
+    // pre-connected (null-render) state. Waiting for the actual element is
+    // what guarantees the state update has already applied.
+    fireEvent.click(await screen.findByTestId('crm-write-card-collapsed'));
 
     expect(screen.getByText(/link this client to a wealthbox household first/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /approve/i })).not.toBeInTheDocument();
@@ -322,8 +353,14 @@ describe('CrmWriteReviewCard', () => {
     });
 
     render(<CrmWriteReviewCard matterId={m.id} />);
-    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
-    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+    // QA-42: wait for the CARD ITSELF to render connected — not just for the
+    // `crmIsConnected` mock to have been CALLED. The mock resolves on its own
+    // microtask, so "called" can be observed before the resulting
+    // `setConnected(true)` state update has actually landed in the DOM; that
+    // race let this click occasionally fire while the card was still in its
+    // pre-connected (null-render) state. Waiting for the actual element is
+    // what guarantees the state update has already applied.
+    fireEvent.click(await screen.findByTestId('crm-write-card-collapsed'));
 
     const approveBtn = screen.getByRole('button', { name: /approve 1 change/i });
     expect(approveBtn).toBeDisabled();
@@ -350,8 +387,14 @@ describe('CrmWriteReviewCard', () => {
     });
 
     render(<CrmWriteReviewCard matterId={m.id} />);
-    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
-    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+    // QA-42: wait for the CARD ITSELF to render connected — not just for the
+    // `crmIsConnected` mock to have been CALLED. The mock resolves on its own
+    // microtask, so "called" can be observed before the resulting
+    // `setConnected(true)` state update has actually landed in the DOM; that
+    // race let this click occasionally fire while the card was still in its
+    // pre-connected (null-render) state. Waiting for the actual element is
+    // what guarantees the state update has already applied.
+    fireEvent.click(await screen.findByTestId('crm-write-card-collapsed'));
 
     // Exactly one (Wealthbox) household remains, so it auto-selects and no
     // picker/empty-state renders.
@@ -423,8 +466,14 @@ describe('CrmWriteReviewCard', () => {
     });
 
     const { rerender } = render(<CrmWriteReviewCard matterId={matterA.id} />);
-    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
-    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+    // QA-42: wait for the CARD ITSELF to render connected — not just for the
+    // `crmIsConnected` mock to have been CALLED. The mock resolves on its own
+    // microtask, so "called" can be observed before the resulting
+    // `setConnected(true)` state update has actually landed in the DOM; that
+    // race let this click occasionally fire while the card was still in its
+    // pre-connected (null-render) state. Waiting for the actual element is
+    // what guarantees the state update has already applied.
+    fireEvent.click(await screen.findByTestId('crm-write-card-collapsed'));
     fireEvent.click(screen.getByTestId('crm-household-111'));
     expect(screen.getByRole('button', { name: /approve 1 change/i })).not.toBeDisabled();
 
@@ -533,9 +582,12 @@ describe('CrmWriteReviewCard — field updates (Task 9c)', () => {
     enqueueFieldItem(m.id);
 
     render(<CrmWriteReviewCard matterId={m.id} />);
-    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
-
-    expect(screen.getByText('1 field update ready for review')).toBeInTheDocument();
+    // QA-42: wait for the actual summary text, not just for the
+    // `crmIsConnected` mock to have been called — same race as the other
+    // tests' comment (the mock's resolution and the resulting `setConnected`
+    // state update aren't guaranteed to have landed just because it was
+    // invoked).
+    expect(await screen.findByText('1 field update ready for review')).toBeInTheDocument();
   });
 
   it('renders three labeled columns for a field item: Existing / From this meeting / Blended', async () => {
@@ -547,8 +599,14 @@ describe('CrmWriteReviewCard — field updates (Task 9c)', () => {
     enqueueFieldItem(m.id);
 
     render(<CrmWriteReviewCard matterId={m.id} />);
-    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
-    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+    // QA-42: wait for the CARD ITSELF to render connected — not just for the
+    // `crmIsConnected` mock to have been CALLED. The mock resolves on its own
+    // microtask, so "called" can be observed before the resulting
+    // `setConnected(true)` state update has actually landed in the DOM; that
+    // race let this click occasionally fire while the card was still in its
+    // pre-connected (null-render) state. Waiting for the actual element is
+    // what guarantees the state update has already applied.
+    fireEvent.click(await screen.findByTestId('crm-write-card-collapsed'));
 
     const item = useCrmWriteQueueStore.getState().items[0]!;
     expect(screen.getByText(/existing/i)).toBeInTheDocument();
@@ -567,8 +625,14 @@ describe('CrmWriteReviewCard — field updates (Task 9c)', () => {
     enqueueFieldItem(m.id);
 
     render(<CrmWriteReviewCard matterId={m.id} />);
-    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
-    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+    // QA-42: wait for the CARD ITSELF to render connected — not just for the
+    // `crmIsConnected` mock to have been CALLED. The mock resolves on its own
+    // microtask, so "called" can be observed before the resulting
+    // `setConnected(true)` state update has actually landed in the DOM; that
+    // race let this click occasionally fire while the card was still in its
+    // pre-connected (null-render) state. Waiting for the actual element is
+    // what guarantees the state update has already applied.
+    fireEvent.click(await screen.findByTestId('crm-write-card-collapsed'));
 
     const item = useCrmWriteQueueStore.getState().items[0]!;
     const blended = screen.getByTestId(`crm-field-blended-${item.id}`);
@@ -592,8 +656,14 @@ describe('CrmWriteReviewCard — field updates (Task 9c)', () => {
     enqueueFieldItem(m.id);
 
     render(<CrmWriteReviewCard matterId={m.id} />);
-    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
-    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+    // QA-42: wait for the CARD ITSELF to render connected — not just for the
+    // `crmIsConnected` mock to have been CALLED. The mock resolves on its own
+    // microtask, so "called" can be observed before the resulting
+    // `setConnected(true)` state update has actually landed in the DOM; that
+    // race let this click occasionally fire while the card was still in its
+    // pre-connected (null-render) state. Waiting for the actual element is
+    // what guarantees the state update has already applied.
+    fireEvent.click(await screen.findByTestId('crm-write-card-collapsed'));
 
     const item = useCrmWriteQueueStore.getState().items[0]!;
     const blended = screen.getByTestId(`crm-field-blended-${item.id}`);
@@ -611,8 +681,14 @@ describe('CrmWriteReviewCard — field updates (Task 9c)', () => {
     enqueueFieldItem(m.id, { finalValue: '' });
 
     render(<CrmWriteReviewCard matterId={m.id} />);
-    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
-    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+    // QA-42: wait for the CARD ITSELF to render connected — not just for the
+    // `crmIsConnected` mock to have been CALLED. The mock resolves on its own
+    // microtask, so "called" can be observed before the resulting
+    // `setConnected(true)` state update has actually landed in the DOM; that
+    // race let this click occasionally fire while the card was still in its
+    // pre-connected (null-render) state. Waiting for the actual element is
+    // what guarantees the state update has already applied.
+    fireEvent.click(await screen.findByTestId('crm-write-card-collapsed'));
 
     expect(screen.getByRole('button', { name: /approve 1 change/i })).toBeDisabled();
   });
@@ -626,8 +702,14 @@ describe('CrmWriteReviewCard — field updates (Task 9c)', () => {
     enqueueFieldItem(m.id, { finalValue: '' });
 
     render(<CrmWriteReviewCard matterId={m.id} />);
-    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
-    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+    // QA-42: wait for the CARD ITSELF to render connected — not just for the
+    // `crmIsConnected` mock to have been CALLED. The mock resolves on its own
+    // microtask, so "called" can be observed before the resulting
+    // `setConnected(true)` state update has actually landed in the DOM; that
+    // race let this click occasionally fire while the card was still in its
+    // pre-connected (null-render) state. Waiting for the actual element is
+    // what guarantees the state update has already applied.
+    fireEvent.click(await screen.findByTestId('crm-write-card-collapsed'));
 
     const item = useCrmWriteQueueStore.getState().items[0]!;
     fireEvent.change(screen.getByTestId(`crm-field-blended-${item.id}`), {
@@ -673,8 +755,14 @@ describe('CrmWriteReviewCard — field updates (Task 9c)', () => {
     }));
 
     render(<CrmWriteReviewCard matterId={m.id} />);
-    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
-    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+    // QA-42: wait for the CARD ITSELF to render connected — not just for the
+    // `crmIsConnected` mock to have been CALLED. The mock resolves on its own
+    // microtask, so "called" can be observed before the resulting
+    // `setConnected(true)` state update has actually landed in the DOM; that
+    // race let this click occasionally fire while the card was still in its
+    // pre-connected (null-render) state. Waiting for the actual element is
+    // what guarantees the state update has already applied.
+    fireEvent.click(await screen.findByTestId('crm-write-card-collapsed'));
 
     expect(screen.getByText(/review again/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
@@ -702,8 +790,14 @@ describe('CrmWriteReviewCard — field updates (Task 9c)', () => {
     );
 
     render(<CrmWriteReviewCard matterId={m.id} />);
-    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
-    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+    // QA-42: wait for the CARD ITSELF to render connected — not just for the
+    // `crmIsConnected` mock to have been CALLED. The mock resolves on its own
+    // microtask, so "called" can be observed before the resulting
+    // `setConnected(true)` state update has actually landed in the DOM; that
+    // race let this click occasionally fire while the card was still in its
+    // pre-connected (null-render) state. Waiting for the actual element is
+    // what guarantees the state update has already applied.
+    fireEvent.click(await screen.findByTestId('crm-write-card-collapsed'));
 
     // Both items start selected (default-checked); approving both fires the
     // rejection for the first.
@@ -742,8 +836,14 @@ describe('CrmWriteReviewCard — field updates (Task 9c)', () => {
     });
 
     render(<CrmWriteReviewCard matterId={m.id} />);
-    await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
-    fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
+    // QA-42: wait for the CARD ITSELF to render connected — not just for the
+    // `crmIsConnected` mock to have been CALLED. The mock resolves on its own
+    // microtask, so "called" can be observed before the resulting
+    // `setConnected(true)` state update has actually landed in the DOM; that
+    // race let this click occasionally fire while the card was still in its
+    // pre-connected (null-render) state. Waiting for the actual element is
+    // what guarantees the state update has already applied.
+    fireEvent.click(await screen.findByTestId('crm-write-card-collapsed'));
 
     const id = useCrmWriteQueueStore.getState().items[0]!.id;
     const existing = screen.getByTestId(`crm-field-existing-${id}`);

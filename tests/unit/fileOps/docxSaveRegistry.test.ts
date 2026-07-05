@@ -13,6 +13,7 @@ import {
   updateDocxSaveState,
   getDocxSaveState,
   isDocxUnsaved,
+  isDocxRegistered,
   hasAnyUnsavedDocx,
   hasFailingDocxSave,
   closeDocxTabSafely,
@@ -148,6 +149,26 @@ describe('docxSaveRegistry (QA-34)', () => {
       });
       expect(handled).toBe(false);
       expect(closeTab).not.toHaveBeenCalled();
+    });
+
+    // Cleanup batch 4 / QA-43: a successful close must tear the session down
+    // (not just remove the tab) — otherwise a session that recovered a save
+    // in the BACKGROUND, with its tab never re-opened, is registered forever
+    // once docxSaveSession.ts stopped self-disposing on success (that
+    // self-dispose was itself the QA-43 root cause, so it's gone for good).
+    it('a successful close disposes the session (via its discard hook), not just the tab', async () => {
+      const discard = vi.fn();
+      registerDocxSaver('/ws/a.docx', async () => true, discard);
+      updateDocxSaveState('/ws/a.docx', { dirty: false, saving: false, error: false });
+      const closeTab = vi.fn();
+      const handled = await closeDocxTabSafely('/ws/a.docx', {
+        closeTab,
+        confirmDiscardOnFailure: async () => false,
+      });
+      expect(handled).toBe(true);
+      expect(closeTab).toHaveBeenCalledWith('/ws/a.docx', { discard: true });
+      expect(discard).toHaveBeenCalledOnce();
+      expect(isDocxRegistered('/ws/a.docx')).toBe(false);
     });
   });
 
