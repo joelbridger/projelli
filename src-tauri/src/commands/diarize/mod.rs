@@ -327,6 +327,10 @@ pub struct SpeakerWire {
     pub centroid: Vec<f32>,
 }
 
+fn speaker_total_ms(turns: &[crate::sidecars::diarize::TurnMs]) -> u64 {
+    turns.iter().map(|t| t.end_ms.saturating_sub(t.start_ms)).sum()
+}
+
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DiarizeMeetingResult {
@@ -393,7 +397,7 @@ pub async fn diarize_meeting(
             .map(|s| SpeakerWire {
                 label: s.label,
                 turn_count: s.turns.len(),
-                total_ms: s.turns.iter().map(|t| t.end_ms - t.start_ms).sum(),
+                total_ms: speaker_total_ms(&s.turns),
                 centroid: s.centroid,
             })
             .collect(),
@@ -430,6 +434,19 @@ mod tests {
         assert_eq!(overlap_ms((0, 100), (50, 150)), 50);
         assert_eq!(overlap_ms((0, 100), (100, 200)), 0);
         assert_eq!(overlap_ms((10, 20), (0, 100)), 10);
+    }
+
+    #[test]
+    fn speaker_total_ms_does_not_underflow_on_bad_sidecar_turns() {
+        let turns = vec![
+            crate::sidecars::diarize::TurnMs { start_ms: 1_000, end_ms: 1_250 },
+            crate::sidecars::diarize::TurnMs { start_ms: 2_000, end_ms: 1_500 },
+        ];
+
+        let result = std::panic::catch_unwind(|| speaker_total_ms(&turns));
+
+        assert!(result.is_ok(), "bad sidecar timing must not crash duration math");
+        assert_eq!(result.unwrap(), 250, "invalid negative-duration turns should contribute 0 ms");
     }
 
     fn stereo_wav(path: &std::path::Path, left: i16, right: i16, samples: usize) {

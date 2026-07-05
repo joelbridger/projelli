@@ -16,6 +16,7 @@
 // insertion order.
 
 use anyhow::{bail, Context, Result};
+use crate::util::sync::lock_unpoison;
 use rusqlite::{Connection, OptionalExtension};
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
@@ -565,7 +566,7 @@ impl EncryptedAuditStore {
     /// retried append can never mutate history. Returns `true` if a new row was
     /// written, `false` if the id already existed.
     pub fn append(&self, rec: &AuditEntryRecord) -> Result<bool> {
-        let mut c = self.conn.lock().unwrap();
+        let mut c = lock_unpoison(&self.conn);
         let tx = c.transaction()?;
         ensure_chain_head_matches_current_rows(&tx)?;
         let previous = tx
@@ -625,7 +626,7 @@ impl EncryptedAuditStore {
     /// optional; with neither set, every entry is returned. The renderer sorts
     /// for display, but persistence order is the append order.
     pub fn list(&self, limit: Option<i64>, offset: Option<i64>) -> Result<Vec<AuditEntryRecord>> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         let lim = limit.unwrap_or(-1); // SQLite: LIMIT -1 means "no limit".
         let off = offset.unwrap_or(0);
         let mut stmt = c.prepare(
@@ -640,7 +641,7 @@ impl EncryptedAuditStore {
 
     /// Total number of audit entries (diagnostics + tests).
     pub fn count(&self) -> Result<i64> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         Ok(c.query_row("SELECT COUNT(*) FROM entries", [], |r| r.get(0))?)
     }
 
@@ -648,7 +649,7 @@ impl EncryptedAuditStore {
     /// order. The first mismatch pinpoints the earliest row whose contents or
     /// link no longer match the trusted Rust-computed seal.
     pub fn verify_chain(&self) -> Result<AuditChainVerification> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         let rows = read_chain_rows(&c)?;
         let actual = match verify_rows_and_build_head(&rows) {
             Ok(head) => head,
@@ -715,7 +716,7 @@ impl EncryptedAuditStore {
     /// if the surviving rows are not themselves a valid chain (that is a
     /// different, already-loud failure that this repair must not paper over).
     pub fn repair(&self) -> Result<AuditChainRepairReport> {
-        let mut c = self.conn.lock().unwrap();
+        let mut c = lock_unpoison(&self.conn);
         let tx = c.transaction()?;
 
         if read_chain_head(&tx)?.is_some() {
@@ -802,7 +803,7 @@ impl EncryptedAuditStore {
     /// fields. Never compiled into a non-test build.
     #[cfg(test)]
     pub(crate) fn tamper_payload_for_test(&self, id: &str, payload_json: &str) {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         c.execute("UPDATE entries SET payload_json = ?1 WHERE id = ?2", rusqlite::params![payload_json, id])
             .unwrap();
     }
