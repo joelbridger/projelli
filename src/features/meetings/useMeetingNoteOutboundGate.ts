@@ -1,8 +1,11 @@
 // E3 (Tier B trust guard) — resolve, for an open document tab, whether it is a
 // meeting note that hasn't cleared review yet, and if so the honest reason its
 // outbound actions are disabled. The pure decision lives in
-// meetingNoteOutboundGate.ts; this gathers the async inputs (meeting.json + the
-// notice ledger) and localizes the reason.
+// outboundNoteGate.ts (renamed from meetingNoteOutboundGate.ts under QA-60 —
+// that name differed only by first-letter case from the MeetingNoteOutboundGate
+// component, which collided on Windows' case-insensitive filesystem); this
+// gathers the async inputs (meeting.json + the notice ledger) and localizes
+// the reason.
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -10,7 +13,7 @@ import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { useNoticeSettings } from './noticeSettings';
 import { makeConsentLedger } from './consentLedger';
 import { deriveNoticeState, type NoticeEntry } from './noticeLedger';
-import { meetingNoteOutboundGate, meetingNotesDirForPath, type OutboundGateReason } from './meetingNoteOutboundGate';
+import { meetingNoteOutboundGate, meetingNotesDirForPath, type OutboundGateReason } from './outboundNoteGate';
 import type { MeetingMeta } from './meetingStore';
 
 /** Literal t() calls per reason — a dynamic key would trip the i18n parser's

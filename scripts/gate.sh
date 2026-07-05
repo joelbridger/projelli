@@ -13,6 +13,7 @@ step "Build assets"    node scripts/copy-build-assets.mjs
 step "Tauri version parity" node scripts/check-tauri-parity.mjs
 step "Provider front door" node scripts/check-provider-construction.mjs
 step "Consent-gate wiring" node scripts/check-consent-gate-wiring.mjs
+step "Case-only filename collisions" node scripts/check-case-collisions.mjs
 step "TypeScript"      npm run typecheck
 step "TypeScript (tests)" npm run typecheck:tests
 step "Brand sync"      npm run brand:check

@@ -83,7 +83,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `RecordingNoticeSettings.tsx`, `NoticeCardConsentSection.tsx`.
   - i18n: 24 new `meetings.notice-card.*` keys (en/de/es).
 - **Trust Tier B — "guard the outbound door" (the guards that stop confident-AI-wrongness from reaching a system of record).**
-  - **E3-gate — unresolved meeting notes are structurally unsendable.** A meeting note that is unreviewed, generation-errored (the "AI apology as note" case), or notice-quarantined under Strict policy has its "Send to Wealthbox" and "Draft follow-up" toolbar actions disabled with an honest, visible explanation. Pure decision in `meetingNoteOutboundGate.ts`; async state gathered in `useMeetingNoteOutboundGate.ts` + `MeetingNoteOutboundGate.tsx`; the disable + explanation added via a new `outboundBlockedReason` prop on `DocxEditor` (toolbar only — engine untouched), wired in `MainPanel.tsx`.
+  - **E3-gate — unresolved meeting notes are structurally unsendable.** A meeting note that is unreviewed, generation-errored (the "AI apology as note" case), or notice-quarantined under Strict policy has its "Send to Wealthbox" and "Draft follow-up" toolbar actions disabled with an honest, visible explanation. Pure decision in `outboundNoteGate.ts` (renamed from `meetingNoteOutboundGate.ts` under QA-60); async state gathered in `useMeetingNoteOutboundGate.ts` + `MeetingNoteOutboundGate.tsx`; the disable + explanation added via a new `outboundBlockedReason` prop on `DocxEditor` (toolbar only — engine untouched), wired in `MainPanel.tsx`.
   - **E3-provenance — AI-drafted CRM notes carry their origin.** A note AI-drafted from a meeting gets an appended, localized provenance line ("Drafted by Advisor Prep Hero AI from the [date] meeting; approved by [advisor] on [date]") that reaches the Wealthbox wire. Composed once at approve time (stable across retries; not part of the dedup key). New Rust `CrmWriteRequest.provenance` + `note_content()` builder appends it at the wire boundary. The firm (practice) tier defaults the compliance-note checkbox ON; solo keeps a remembered choice. Files: `crm/write.rs`, `crm/commands.rs`, `crmWriteQueueStore.ts`, `wealthbox-commands.ts`, `crmProvenance.ts`, `complianceNotePref.ts`, `CrmWriteReviewCard.tsx`, `crmNoteFormat.ts`.
   - **R4a — no generate-on-open for the follow-up draft.** `DraftFollowUpModal` no longer sends note content or logs egress on open; it shows a preview of what will be sent (which note, which client) and the destination provider, and only sends on an explicit "Generate" click (egress logged there).
   - **R4b — citations travel with the draft.** Saved/sent follow-up drafts append citation footnotes naming the source (note heading / note name), never internal ids (`followUpDraft.ts` `appendCitationFootnotes`).
@@ -147,6 +147,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Files: `tests/unit/meetings/meeting-entry-notes-failed.test.tsx`,
   `tests/unit/meetings/meeting-entry-transcript-failed.test.tsx`,
   `tests/unit/meetings/meeting-entry-notice-stale.test.tsx`.
+- **QA-60 (P0 boot-blocking): a Windows-only case-collision blank-screened the
+  whole app on launch.** `meetingNoteOutboundGate.ts` (the pure gate logic) and
+  `MeetingNoteOutboundGate.tsx` (the component that wraps it) differed only by
+  the first letter's case. Linux/CI's case-sensitive filesystem resolves them
+  fine, but on Windows/macOS's default case-insensitive filesystem an
+  extensionless import (`./meetingNoteOutboundGate`) could resolve to either
+  file depending on directory-listing order — live-verified on two separate
+  Windows benches to serve the `.tsx` component's exports where the `.ts`
+  logic was expected, leaving `MeetingNoteOutboundGate` `undefined` and
+  crashing the whole React mount (permanent blank white screen). Fix: renamed
+  the logic file to `outboundNoteGate.ts` (no longer case-collides with the
+  component) and updated its two importers. Added a new gate check,
+  `scripts/check-case-collisions.mjs`, that fails the build if any two
+  git-tracked files in the same directory are identical, or identical once
+  their extension is stripped, except for case — so this class of bug can't
+  silently ship again. Files: `src/features/meetings/outboundNoteGate.ts`
+  (renamed from `meetingNoteOutboundGate.ts`),
+  `src/features/meetings/useMeetingNoteOutboundGate.ts`,
+  `tests/unit/meetings/meeting-note-outbound-gate.test.ts`,
+  `scripts/check-case-collisions.mjs`,
+  `tests/unit/case-collisions.test.ts`, `scripts/gate.sh`.
 
 ### Changed
 - **Meetings tab UX polish (2026-07-04 senior-UX review — all blockers + should-fixes).**
