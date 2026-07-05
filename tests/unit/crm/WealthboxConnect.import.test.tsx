@@ -198,6 +198,63 @@ describe('WealthboxConnect — QA-74 regressions', () => {
     });
   });
 
+  it('un-archives a matter LINKED by unique name match to an archived file-client', async () => {
+    // A second, distinct code path to the same bug (independent review
+    // finding): `resolveMatterForHousehold` searches ALL matters, including
+    // archived ones. When a household's name uniquely matches an ARCHIVED
+    // matter that has NO crmHouseholdKeys yet, resolution is 'link' (not
+    // 'reuse') — the household key gets attached, the backend indexes it
+    // successfully, but the matter stays archived and invisible on the
+    // Client Map. Same QA-74 symptom via the 'link' branch instead of the
+    // 'reuse' branch.
+    useMatterStore.setState({
+      matters: [
+        {
+          id: 'archived-file-client-0',
+          name: 'Smith Family',
+          client: 'Smith Family',
+          folderPaths: [],
+          mailFolderPaths: [],
+          crmHouseholdKeys: [],
+          onedriveFolderKeys: [],
+          boxFolderKeys: [],
+          esignKeys: [],
+          jotformKeys: [],
+          sharefileFolderKeys: [],
+          meetingKeys: [],
+          zocksKeys: [],
+          addeparKeys: [],
+          privileged: false,
+          mcpAccessGranted: false,
+          archived: true,
+          createdAt: '2026-01-01T00:00:00Z',
+        },
+      ],
+      activeMatterId: null,
+      snapshots: {},
+      cache: {},
+      statusByMatterId: {},
+    });
+    crmMocks.crmListHouseholds.mockResolvedValue([{ id: 'wb-household-smith', name: 'Smith Family' }]);
+    crmMocks.crmSyncAll.mockResolvedValue({ householdsProcessed: 1, recordsIndexed: 10 });
+
+    render(<WealthboxConnect />);
+    const input = await screen.findByPlaceholderText(/wealthbox api key/i);
+    fireEvent.change(input, { target: { value: 'test-token-123' } });
+    fireEvent.click(screen.getByRole('button', { name: /connect wealthbox/i }));
+
+    const confirmButton = await screen.findByRole('button', { name: /^import$/i });
+    fireEvent.click(confirmButton);
+
+    await waitFor(() => expect(crmMocks.crmSyncAll).toHaveBeenCalledTimes(1));
+
+    await waitFor(() => {
+      const matter = useMatterStore.getState().matters.find((m) => m.id === 'archived-file-client-0');
+      expect(matter?.crmHouseholdKeys).toContain('wb-household-smith');
+      expect(matter?.archived).not.toBe(true);
+    });
+  });
+
   it('does not roll back already-created Client Map matters when the backend sync step fails', async () => {
     // crmSyncAll (Step 4: backend RAG indexing) fails — e.g. a transient
     // Wealthbox API hiccup over a long paginated 40-household ingest (the

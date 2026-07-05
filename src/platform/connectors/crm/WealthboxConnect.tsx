@@ -172,6 +172,13 @@ export function WealthboxConnect() {
           addCrmHouseholdKey(matterId, household.id);
           linkedKeys.push({ matterId, key: household.id });
           claimedMatterIds.add(matterId);
+          // QA-74 (independent review, second code path): resolveMatterForHousehold
+          // searches ALL matters, including archived ones, so a household whose name
+          // uniquely matches an ARCHIVED file-client links to it here rather than
+          // via the 'reuse' branch below. Same fix applies: un-archive it so the
+          // Client Map shows it, or the sync reports success with an invisible client.
+          const existingLinked = currentMatters.find((m) => m.id === matterId);
+          if (existingLinked?.archived) setMatterArchived(matterId, false);
         } else if (resolution.action === 'create') {
           // No matching file-client — create a fresh matter for this household.
           // Mark it createdFromCrm so a later disconnect can scrub its imported name.
