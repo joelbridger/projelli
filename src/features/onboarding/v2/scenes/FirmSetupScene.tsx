@@ -70,7 +70,7 @@ function aiArea(p: SetupProgress): Area {
 }
 
 function importAreas(p: SetupProgress): Area[] {
-  const { email, crm, fileIndex } = p;
+  const { email, crm, fileIndex, oneDrive } = p;
 
   const emailDone = email.connected && !email.syncing;
   const emailArea: Area = {
@@ -94,6 +94,22 @@ function importAreas(p: SetupProgress): Area[] {
     detail: crm.connected ? `${String(crm.householdsProcessed)} households` : undefined,
   };
 
+  const oneDriveDone = !oneDrive.syncing && (oneDrive.itemsImported ?? 0) > 0;
+  const oneDriveArea: Area = {
+    key: 'onedrive',
+    label: 'OneDrive',
+    pct: oneDrive.syncing ? null : oneDriveDone ? 100 : 0,
+    done: oneDriveDone,
+    active: oneDrive.syncing,
+    status: statusText(oneDriveDone, oneDrive.syncing, oneDrive.syncing ? null : oneDriveDone ? 100 : 0),
+    detail:
+      oneDrive.itemsImported != null
+        ? `${oneDrive.itemsImported.toLocaleString()} imported`
+        : oneDrive.itemsChecked != null
+          ? `${oneDrive.itemsChecked.toLocaleString()} checked`
+          : undefined,
+  };
+
   const fileDone = !fileIndex.indexing && (fileIndex.processed ?? 0) > 0;
   const filePct = fileIndex.indexing ? fileIndex.percent : fileDone ? 100 : 0;
   const fileArea: Area = {
@@ -106,7 +122,7 @@ function importAreas(p: SetupProgress): Area[] {
     detail: fileIndex.total != null ? `${String(fileIndex.processed ?? 0)}/${String(fileIndex.total)}` : undefined,
   };
 
-  return [emailArea, crmArea, fileArea];
+  return [emailArea, crmArea, oneDriveArea, fileArea];
 }
 
 export function FirmSetupScene() {

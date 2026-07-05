@@ -14,6 +14,10 @@ import { render, screen, fireEvent, act } from '@testing-library/react';
 
 // ── Module mocks ────────────────────────────────────────────────────────────
 
+const eventMock = vi.hoisted(() => ({
+  handlers: new Map<string, (event: { payload: unknown }) => void>(),
+}));
+
 vi.mock('@/platform/utils/mail-commands', () => ({
   mailListMessages: vi.fn(),
   mailGetMessage: vi.fn(),
@@ -33,7 +37,10 @@ vi.mock('@tauri-apps/api/core', () => ({
 }));
 
 vi.mock('@tauri-apps/api/event', () => ({
-  listen: vi.fn().mockResolvedValue(() => {}),
+  listen: vi.fn((eventName: string, handler: (event: { payload: unknown }) => void) => {
+    eventMock.handlers.set(eventName, handler);
+    return Promise.resolve(() => {});
+  }),
 }));
 
 vi.mock('@/platform/matter/matterStore', () => ({
@@ -91,6 +98,7 @@ const FIXTURE_ACCOUNTS = [{ provider: 'm365', account: 'default', label: 'Work' 
 beforeEach(() => {
   vi.clearAllMocks();
   vi.useFakeTimers();
+  eventMock.handlers.clear();
 
   mockMailConnectedAccounts.mockResolvedValue(FIXTURE_ACCOUNTS);
   mockMailListMessages.mockResolvedValue({ items: [], total: 0 });
@@ -256,6 +264,32 @@ describe('BUG-007: startup sync + manual Sync now', () => {
     expect(screen.getByTestId('email-sync-now')).not.toBeDisabled();
     expect(screen.getByTestId('email-sync-error')).toBeInTheDocument();
     expect(mockMailCancelSync).toHaveBeenCalled();
+  });
+
+  it('(g) shows the live imported-message count while email is syncing', async () => {
+    mockMailSyncAll.mockImplementation(() => new Promise<void>(() => {}));
+
+    render(<EmailWorkspace />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50);
+    });
+
+    const syncBtn = screen.getByTestId('email-sync-now');
+    expect(syncBtn).toBeDisabled();
+
+    await act(async () => {
+      eventMock.handlers.get('mail-sync-progress')?.({
+        payload: {
+          status: 'syncing',
+          provider: 'm365',
+          folder: null,
+          written: 42,
+          removed: 0,
+        },
+      });
+    });
+
+    expect(screen.getByTestId('email-sync-now')).toHaveTextContent('Importing… 42 messages');
   });
 
 });

@@ -6,7 +6,7 @@
  * `computeClientMapProgress` helper.
  */
 
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SetupProgress } from '@/platform/utils/setup-progress-commands';
 import {
@@ -17,7 +17,7 @@ import {
 
 // --- module-scoped test state driven into the mocks ---
 let isTauriShouldReturn = true;
-let capturedListener: (() => void) | null = null;
+let capturedListeners: Record<string, (event?: { payload: unknown }) => void> = {};
 let unlistenCalled = false;
 let getCallCount = 0;
 let lastReportArgs: unknown = null;
@@ -45,8 +45,8 @@ vi.mock('@tauri-apps/api/core', () => ({
 }));
 
 vi.mock('@tauri-apps/api/event', () => ({
-  listen: vi.fn(async (_eventName: string, handler: () => void) => {
-    capturedListener = handler;
+  listen: vi.fn(async (eventName: string, handler: (event?: { payload: unknown }) => void) => {
+    capturedListeners[eventName] = handler;
     return () => {
       unlistenCalled = true;
     };
@@ -213,7 +213,7 @@ describe('retryFailedModelDownloads', () => {
 describe('useSetupProgress', () => {
   beforeEach(() => {
     isTauriShouldReturn = true;
-    capturedListener = null;
+    capturedListeners = {};
     unlistenCalled = false;
     getCallCount = 0;
     lastReportArgs = null;
@@ -222,7 +222,7 @@ describe('useSetupProgress', () => {
   });
 
   afterEach(() => {
-    capturedListener = null;
+    capturedListeners = {};
     useMatterStore.setState({ matters: [] });
   });
 
@@ -274,18 +274,35 @@ describe('useSetupProgress', () => {
   it('refetches when a setup-progress-changed event fires', async () => {
     const { result } = renderHook(() => useSetupProgress());
     await waitFor(() => expect(result.current).not.toBeNull());
-    await waitFor(() => expect(capturedListener).not.toBeNull());
+    await waitFor(() => expect(capturedListeners['setup-progress-changed']).toBeDefined());
     expect(result.current?.overall).toBe('empty');
 
     // The next fetch returns a genuinely different (consistent) snapshot.
     snapshotToReturn = makeSnapshot({
       email: { connected: true, accounts: [], syncing: true, messagesImported: 5 },
     });
-    capturedListener?.();
+    capturedListeners['setup-progress-changed']?.();
 
     await waitFor(() => expect(result.current?.overall).toBe('inProgress'));
     expect(result.current?.email.messagesImported).toBe(5);
     expect(getCallCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it('overlays live OneDrive progress when a OneDrive sync event fires', async () => {
+    const { result } = renderHook(() => useSetupProgress());
+    await waitFor(() => expect(result.current).not.toBeNull());
+    await waitFor(() => expect(capturedListeners['onedrive-sync-progress']).toBeDefined());
+
+    act(() => {
+      capturedListeners['onedrive-sync-progress']?.({
+        payload: { status: 'syncing', seen: 42, imported: 7, indexed: 7 },
+      });
+    });
+
+    await waitFor(() => expect(result.current?.oneDrive.syncing).toBe(true));
+    expect(result.current?.oneDrive.itemsChecked).toBe(42);
+    expect(result.current?.oneDrive.itemsImported).toBe(7);
+    expect(result.current?.overall).toBe('inProgress');
   });
 
   it('returns null and does not fetch outside a Tauri context', () => {
@@ -293,12 +310,12 @@ describe('useSetupProgress', () => {
     const { result } = renderHook(() => useSetupProgress());
     expect(result.current).toBeNull();
     expect(getCallCount).toBe(0);
-    expect(capturedListener).toBeNull();
+    expect(capturedListeners).toEqual({});
   });
 
   it('unsubscribes on unmount', async () => {
     const { unmount } = renderHook(() => useSetupProgress());
-    await waitFor(() => expect(capturedListener).not.toBeNull());
+    await waitFor(() => expect(capturedListeners['setup-progress-changed']).toBeDefined());
     unmount();
     expect(unlistenCalled).toBe(true);
   });

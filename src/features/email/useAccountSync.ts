@@ -55,6 +55,7 @@ export function useAccountSync({ onNoAccounts, onSyncDone }: UseAccountSyncOptio
   syncStalled: boolean;
   /** Set when a sync hard-times-out or otherwise fails to start; cleared on the next attempt. */
   syncError: string | null;
+  syncImportedMessages: number | null;
   accounts: ConnectedAccount[];
   accountsLoaded: boolean;
   hasConnectedMail: boolean;
@@ -63,9 +64,11 @@ export function useAccountSync({ onNoAccounts, onSyncDone }: UseAccountSyncOptio
   const [syncing, setSyncing] = useState(false);
   const [syncStalled, setSyncStalled] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [syncImportedMessages, setSyncImportedMessages] = useState<number | null>(null);
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
   const [accountsLoaded, setAccountsLoaded] = useState(false);
   const hasConnectedMail = accountsLoaded && accounts.length > 0;
+  const liveWrittenByProviderRef = useRef(new Map<string, number>());
 
   // Stall watchdog: warn well before the hard timeout below forces a reset,
   // so a slow-but-alive sync doesn't look identical to a genuinely hung one.
@@ -94,6 +97,8 @@ export function useAccountSync({ onNoAccounts, onSyncDone }: UseAccountSyncOptio
   // would fail with "a sync is already in progress" even though the button
   // looks idle again.
   const runMailSync = useCallback(async () => {
+    liveWrittenByProviderRef.current.clear();
+    setSyncImportedMessages(null);
     setSyncing(true);
     setSyncError(null);
     try {
@@ -179,7 +184,21 @@ export function useAccountSync({ onNoAccounts, onSyncDone }: UseAccountSyncOptio
     let disposed = false;
     if (isTauri()) {
       listen<MailSyncProgress>(MAIL_SYNC_EVENT, (e) => {
-        if (e.payload.status === 'done') refresh();
+        const { provider, status, written } = e.payload;
+        if (provider) {
+          liveWrittenByProviderRef.current.set(provider, written);
+          const totalWritten = Array.from(liveWrittenByProviderRef.current.values()).reduce(
+            (sum, count) => sum + count,
+            0,
+          );
+          setSyncImportedMessages(totalWritten);
+        }
+        if (status === 'syncing') {
+          setSyncing(true);
+        } else {
+          setSyncing(false);
+        }
+        if (status === 'done') refresh();
       })
         .then((u) => {
           if (disposed) u();
@@ -202,5 +221,14 @@ export function useAccountSync({ onNoAccounts, onSyncDone }: UseAccountSyncOptio
     void runMailSync();
   }, [syncing, runMailSync]);
 
-  return { syncing, syncStalled, syncError, accounts, accountsLoaded, hasConnectedMail, handleSyncNow };
+  return {
+    syncing,
+    syncStalled,
+    syncError,
+    syncImportedMessages,
+    accounts,
+    accountsLoaded,
+    hasConnectedMail,
+    handleSyncNow,
+  };
 }

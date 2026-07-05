@@ -185,7 +185,16 @@ export function EmailWorkspace({
   const [askError, setAskError] = useState<string | null>(null);
 
   // Account sync: load accounts, startup auto-sync, sync-done listener, handleSyncNow
-  const { syncing, syncStalled, syncError, accounts, accountsLoaded, hasConnectedMail, handleSyncNow } = useAccountSync({
+  const {
+    syncing,
+    syncStalled,
+    syncError,
+    syncImportedMessages,
+    accounts,
+    accountsLoaded,
+    hasConnectedMail,
+    handleSyncNow,
+  } = useAccountSync({
     onNoAccounts: useCallback(() => {
       setItems([]);
       setTotal(0);
@@ -737,7 +746,11 @@ export function EmailWorkspace({
           style={syncing ? { opacity: 0.6 } : undefined}
         >
           {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-          {syncing ? 'Syncing…' : 'Sync now'}
+          {syncing
+            ? syncImportedMessages != null
+              ? `Importing… ${syncImportedMessages.toLocaleString()} messages`
+              : 'Importing…'
+            : 'Sync now'}
           {/* eslint-enable lantern-i18n/no-hardcoded-string */}
         </Button>
 
