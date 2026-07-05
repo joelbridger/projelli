@@ -16,6 +16,20 @@
  * available) this falls back to polling, but at a much longer interval than
  * the old always-on 3s poll — the browser path is a fallback, not the common
  * case, since real users run the desktop app.
+ *
+ * QA-75: the native `notify`-backed watcher can silently stop delivering
+ * events partway through a live session — an inotify queue overflow, a
+ * Windows `ReadDirectoryChangesW` handle going stale, or a panicked notify
+ * callback thread (see `src-tauri/src/commands/watcher.rs`'s debounce mutex)
+ * — without the Rust process crashing or throwing anything JS-visible.
+ * Event mode used to install the watcher exactly once per workspace mount
+ * and trust it for the rest of the session; if the native side ever went
+ * deaf, only a full app restart (a fresh process, fresh watcher) recovered.
+ * A low-frequency keepalive now re-arms the native watcher (an idempotent,
+ * cheap IPC call — the Rust side just replaces its singleton watcher for the
+ * same path) and runs a backstop snapshot diff, so any external change missed
+ * while the native side was silently dead surfaces within one keepalive
+ * interval instead of requiring a restart.
  */
 
 import { isTauriEnvironment } from './BackendFactory';
@@ -35,6 +49,12 @@ const DEFAULT_EVENT_DEBOUNCE_MS = 500;
  *  resetting the trailing debounce forever and the tree would never update. */
 const DEFAULT_EVENT_MAX_WAIT_MS = 5_000;
 
+/** QA-75: how often event mode re-arms the native watcher and runs a backstop
+ *  snapshot diff. Low-frequency by design — this is a safety net for a native
+ *  watcher that has gone silently deaf, not the primary change-detection path
+ *  (that's still the real-time `workspace-file-changed` event). */
+const DEFAULT_KEEPALIVE_INTERVAL_MS = 60_000;
+
 export interface FileSystemWatcherOptions {
   /** Browser-fallback poll interval in ms (default: 30s). Ignored on Tauri. */
   pollInterval?: number;
@@ -43,6 +63,9 @@ export interface FileSystemWatcherOptions {
   debounceMs?: number;
   /** Max time a sustained burst can defer a refresh. */
   maxWaitMs?: number;
+  /** QA-75: how often event mode re-arms the native watcher + backstop-checks
+   *  for a missed change (default: 60s). Ignored in browser poll mode. */
+  keepAliveIntervalMs?: number;
 }
 
 type WatchMode = 'events' | 'poll' | null;
@@ -51,6 +74,7 @@ export class FileSystemWatcher {
   private pollInterval: number;
   private debounceMs: number;
   private maxWaitMs: number;
+  private keepAliveIntervalMs: number;
   private onFileTreeChange: (() => void | Promise<void>) | undefined;
 
   private mode: WatchMode = null;
@@ -69,10 +93,15 @@ export class FileSystemWatcher {
   private isRefreshing = false;
   private refreshAgain = false;
 
+  // QA-75: keepalive state (Tauri event mode only).
+  private keepAliveTimer: ReturnType<typeof setInterval> | null = null;
+  private keepAliveSnapshot: string | null = null;
+
   constructor(options: FileSystemWatcherOptions = {}) {
     this.pollInterval = options.pollInterval ?? DEFAULT_BROWSER_POLL_INTERVAL_MS;
     this.debounceMs = options.debounceMs ?? DEFAULT_EVENT_DEBOUNCE_MS;
     this.maxWaitMs = options.maxWaitMs ?? DEFAULT_EVENT_MAX_WAIT_MS;
+    this.keepAliveIntervalMs = options.keepAliveIntervalMs ?? DEFAULT_KEEPALIVE_INTERVAL_MS;
     this.onFileTreeChange = options.onFileTreeChange ?? undefined;
   }
 
@@ -174,6 +203,9 @@ export class FileSystemWatcher {
       // merges for free with any real event arriving in the same window
       // instead of firing a redundant extra scan.
       this.scheduleDebouncedRefresh();
+
+      // QA-75: start the self-heal keepalive (see the class doc comment).
+      this.startKeepAlive(rootPath, getFileTreeSnapshot);
     } catch (error) {
       console.error(
         'FileSystemWatcher: failed to start the native watcher, falling back to polling:',
@@ -185,6 +217,68 @@ export class FileSystemWatcher {
       if (!this.stopped) {
         this.startPolling(getFileTreeSnapshot);
       }
+    }
+  }
+
+  /**
+   * QA-75: start the low-frequency self-heal loop for event mode. Every
+   * `keepAliveIntervalMs`, re-arms the native watcher and runs a backstop
+   * snapshot diff so a native watcher that went silently deaf gets caught
+   * (and the tree brought current) without waiting for a restart.
+   */
+  private startKeepAlive(rootPath: string, getFileTreeSnapshot: () => Promise<string>): void {
+    if (this.keepAliveTimer) return;
+    // Seed the baseline immediately, same as the poll fallback's initial
+    // snapshot (see startPolling) — without this, the first keepalive tick
+    // has nothing to diff against and can never detect a change.
+    void getFileTreeSnapshot()
+      .then((snapshot) => {
+        if (this.isStopped()) return;
+        this.keepAliveSnapshot = snapshot;
+      })
+      .catch(() => {
+        // Best-effort: leave it null; the first tick's own fetch seeds it.
+      });
+    this.keepAliveTimer = setInterval(() => {
+      void this.runKeepAliveCheck(rootPath, getFileTreeSnapshot);
+    }, this.keepAliveIntervalMs);
+  }
+
+  private async runKeepAliveCheck(
+    rootPath: string,
+    getFileTreeSnapshot: () => Promise<string>,
+  ): Promise<void> {
+    if (this.isStopped() || this.mode !== 'events') return;
+
+    // Re-arm is a cheap, idempotent IPC call — the Rust side just replaces
+    // its singleton watcher for the same path (src-tauri/src/commands/
+    // watcher.rs). Doing this periodically recovers from ANY silent native
+    // failure (queue overflow, a stale OS handle, a panicked callback
+    // thread) without needing to diagnose which one actually happened.
+    try {
+      await watchWorkspace(rootPath);
+    } catch (err) {
+      console.error('FileSystemWatcher: keepalive re-arm failed:', err);
+    }
+    if (this.isStopped()) return;
+
+    // Backstop: diff a fresh scan against the last keepalive snapshot so a
+    // change missed while the native watcher was silently dead still
+    // surfaces, closing the gap within one keepalive interval instead of
+    // leaving the tree stale for the rest of the session.
+    try {
+      const snapshot = await getFileTreeSnapshot();
+      if (this.isStopped()) return;
+      const changed = this.keepAliveSnapshot !== null && snapshot !== this.keepAliveSnapshot;
+      this.keepAliveSnapshot = snapshot;
+      if (changed) {
+        // Refresh immediately — this is a backstop for a change already
+        // missed, not a burst of live events to coalesce, so there is
+        // nothing to gain by routing it through the debounce delay.
+        void this.runRefresh();
+      }
+    } catch (err) {
+      console.error('FileSystemWatcher: keepalive snapshot check failed:', err);
     }
   }
 
@@ -298,6 +392,11 @@ export class FileSystemWatcher {
       clearTimeout(this.maxWaitTimer);
       this.maxWaitTimer = null;
     }
+    if (this.keepAliveTimer) {
+      clearInterval(this.keepAliveTimer);
+      this.keepAliveTimer = null;
+    }
+    this.keepAliveSnapshot = null;
     if (this.intervalId !== null) {
       clearInterval(this.intervalId);
       this.intervalId = null;

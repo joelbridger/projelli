@@ -92,6 +92,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **R9 — biometric consent before voiceprint enrollment.** "Separate speakers" requires an explicit affirmation that the client consented to a voice profile (with an honest state-biometric-law note) before any new voiceprint is enrolled; the attestation is ledgered as a `voiceprint_consent` audit event (`SpeakerNamesPanel.tsx`).
 
 ### Fixed
+- **QA-75 (P1/P2): the file tree no longer goes silently deaf to externally-added
+  files partway through a session.** The native OS file watcher (`notify` crate)
+  could stop delivering `workspace-file-changed` events without the app crashing
+  or showing any error — an inotify queue overflow, a Windows handle going
+  stale, or a poisoned debounce mutex panicking the watcher's callback thread
+  (`src-tauri/src/commands/watcher.rs`) could each silently kill event delivery
+  while the stored watcher handle still looked healthy. Event mode used to
+  install the watcher once per workspace open and trust it for the rest of the
+  session, so only a full app restart ever recovered (the same fragility class
+  as QA-19, but for the live session instead of just startup). `FileSystemWatcher`
+  now runs a low-frequency (60s) keepalive that re-arms the native watcher and
+  runs a backstop snapshot diff, self-healing within one interval instead of
+  requiring a restart. The Rust watcher callback also now logs native errors
+  (instead of silently dropping them) and recovers from a poisoned debounce
+  mutex instead of panicking. Files: `src/platform/fs/FileSystemWatcher.ts`,
+  `src-tauri/src/commands/watcher.rs`.
 - **QA-45 (P1): shared client notes no longer stick on "Loading" forever.**
   `MatterNotesEditorWrapper` called `ensureMatterSync(matter).then(...)` with
   no `.catch` — a rejected promise (key fetch / sync startup / crypto setup
