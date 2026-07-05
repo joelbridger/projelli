@@ -20,6 +20,9 @@ import type { CSSProperties, MouseEvent } from 'react';
 import { Plus, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { Button, IconButton, Eyebrow } from '@/ui/kp';
 import type { RecentAskSession } from './askHelpers';
+// Single source of truth for the rail widths (shared with the Ask responsive
+// breakpoints so the two never drift — QA-6).
+import { RAIL_WIDTH, RAIL_COLLAPSED_WIDTH } from './askResponsive';
 
 export interface RailGroup {
   /** Stable key for React. */
@@ -37,9 +40,6 @@ export interface ConversationsRailProps {
   collapsed: boolean;
   onToggleCollapsed: () => void;
 }
-
-const RAIL_WIDTH = 264;
-const RAIL_COLLAPSED_WIDTH = 52;
 
 const railBase: CSSProperties = {
   flexShrink: 0,

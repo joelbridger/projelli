@@ -26,7 +26,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/ui/tooltip';
-import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
+import { useEntityLabelEnglish } from '@/platform/hooks/useEntityLabel';
 import { IconButton } from '@/ui/kp';
 import { EV_OPEN_PRIVACY_CENTER } from '@/config/identity';
 
@@ -34,7 +34,10 @@ export function TrustBar() {
   const activeMatter = useActiveMatter();
   const confidentialityMode = useConfidentialityMode();
   const [dataMapOpen, setDataMapOpen] = useState(false);
-  const entityLabel = useEntityLabel();
+  // Fixed-English escape hatch: this whole component's copy is exempted from
+  // i18n (see the file-level eslint-disable above; KNOWN-I18N-01), so the
+  // noun stays English too rather than mixing languages.
+  const entityLabel = useEntityLabelEnglish();
 
   // BUG-023: this describes SCOPE (which clients' data the answer can draw on),
   // NOT egress. The old all-matters copy claimed "Nothing leaves your machine"

@@ -23,7 +23,7 @@
  * `../_archive/GuidedOnboarding.tsx`.
  */
 
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import './onboardingV2.css';
 
 import type { GuidedOnboardingProps } from '../onboardingTypes';
@@ -52,9 +52,12 @@ const AI_SCENE = 2;
  *  nothing past it may run while a sign-in is still pending. */
 const CONNECT_SCENE = 3;
 
-export type OnboardingV2Props = GuidedOnboardingProps;
+export type OnboardingV2Props = GuidedOnboardingProps & {
+  /** QA-9 — see OnboardingShell's `topBanner` doc. */
+  topBanner?: ReactNode;
+};
 
-export function OnboardingV2({ onSaveKey, onComplete, onChooseStart, hasWorkspace }: OnboardingV2Props) {
+export function OnboardingV2({ onSaveKey, onComplete, onChooseStart, hasWorkspace, topBanner }: OnboardingV2Props) {
   // Loop-proofing: if a workspace ALREADY exists when this component mounts, the
   // user has necessarily passed the intro + ChooseStart steps, so start on the
   // AI step instead of the intro. This makes the "sample practice → back to
@@ -128,6 +131,7 @@ export function OnboardingV2({ onSaveKey, onComplete, onChooseStart, hasWorkspac
 
   return (
     <OnboardingShell
+      topBanner={topBanner}
       showLogo={!isIntro}
       showBack={!isIntro}
       onBack={goBack}

@@ -25,7 +25,7 @@ import {
   useActiveMatters,
   useMatterStore,
 } from '@/platform/matter/matterStore';
-import { useMeetingAutoprep } from './useMeetingAutoprep';
+import { useMeetingAutoprep, useAutoprepRescan } from './useMeetingAutoprep';
 import { useBriefStaleness } from './useBriefStaleness';
 import { todayWindowUtc } from './todayWindow';
 
@@ -124,6 +124,7 @@ export function TodaysMeetingsStrip({
 
   useMeetingAutoprep(events, matters);
   useBriefStaleness();
+  useAutoprepRescan(matters);
 
   // Close the assign popover on an outside click.
   useEffect(() => {

@@ -18,6 +18,7 @@
 //! Security: `vault_read_file` and `vault_write_file` validate that `rel_path`
 //! stays within the workspace root (no `..` traversal) before any disk I/O.
 
+use crate::commands::pathguard;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use lantern_vault::{
     format::encrypt_file,
@@ -36,8 +37,8 @@ use zeroize::Zeroize;
 
 /// Build the keychain service name for a given workspace id.
 ///
-/// Mirrors `com.keepance.mail-enc` / `com.keepance.vectors-enc` etc., keeping
-/// all Advisor Prep Hero keychain entries under the `com.keepance.*` namespace.
+/// Mirrors `com.lantern.mail-enc` / `com.lantern.vectors-enc` etc., keeping
+/// all Advisor Prep Hero keychain entries under the `com.lantern.*` namespace.
 fn vmk_service(id: &str) -> String {
     crate::identity::vault_keychain_service(id)
 }
@@ -67,6 +68,51 @@ fn get_vmk_b64(workspace_id: &str) -> Result<Option<String>, VaultCommandError> 
         Ok(s) => Ok(Some(s)),
         Err(keyring::Error::NoEntry) => Ok(None),
         Err(e) => Err(VaultCommandError::Keychain(format!("{e}"))),
+    }
+}
+
+/// Same as `get_vmk_b64`, bounded to `KEYCHAIN_OP_TIMEOUT` and run off the
+/// async runtime thread — for the one call site (`vault_status`) that sits on
+/// the workspace-OPEN critical path.
+///
+/// QA-33: `vault_status` used to call the plain, unbounded `get_vmk_b64`
+/// directly. On a machine where the OS credential service is stopped/
+/// unreachable (e.g. Windows' `VaultSvc`), the underlying blocking keyring
+/// call can hang far longer than any UI should wait — `vault_status`'s own
+/// caller in `createFSBackend` (`src/platform/fs/BackendFactory.ts`) had no
+/// timeout of its own, so the hang was only ever caught by the *outer* 30s
+/// workspace-open timeout, which then aborted the ENTIRE open attempt (not
+/// just the vault check) with nothing shown to the user. Bounding this read
+/// specifically lets `vault_status`'s existing non-fatal fallback (open the
+/// workspace unwrapped) actually run within a few seconds instead of never
+/// being reached at all.
+async fn get_vmk_b64_bounded(workspace_id: &str) -> Result<Option<String>, VaultCommandError> {
+    use crate::commands::keychain::{run_keychain_bounded, KeychainError, KEYCHAIN_OP_TIMEOUT};
+
+    let id = workspace_id.to_string();
+    run_keychain_bounded(KEYCHAIN_OP_TIMEOUT, move || {
+        get_vmk_b64(&id).map_err(|e| KeychainError::Other(e.to_string()))
+    })
+    .await
+    .map_err(keychain_error_to_vault_error)
+}
+
+/// Maps a `KeychainError` (from the shared bounded-keyring-call primitive) to
+/// the `VaultCommandError` shape the rest of this module's commands use.
+///
+/// coordinator review (2026-07-04): this used to collapse `ServiceUnavailable`
+/// into the generic `Keychain` variant, preserving only the message text. But
+/// the flagship QA-33 repro (a stopped Windows `VaultSvc`) fails HERE, inside
+/// `vault_status` — not in `keychain_get` — so collapsing the kind meant the
+/// frontend's classifier (which matches on `kind`, not by parsing message
+/// text) fell through to the raw, non-localized Rust message instead of the
+/// polished, translated "credential service isn't running" copy. Preserving
+/// the distinct `ServiceUnavailable` kind fixes that for the actual repro.
+fn keychain_error_to_vault_error(e: crate::commands::keychain::KeychainError) -> VaultCommandError {
+    use crate::commands::keychain::KeychainError;
+    match e {
+        KeychainError::ServiceUnavailable(m) => VaultCommandError::ServiceUnavailable(m),
+        other => VaultCommandError::Keychain(other.to_string()),
     }
 }
 
@@ -187,79 +233,58 @@ pub fn workspace_id(root: &Path) -> String {
 
 // ── Path traversal guard ─────────────────────────────────────────────────────
 
-/// Resolve `workspace / rel_path` and verify it stays within `workspace`.
+/// Resolve `workspace / rel_path` and verify it stays within `workspace`,
+/// without ever following a symlink component along the way.
 ///
 /// Rejects:
 /// - Any `rel_path` that contains `..` components (traversal attempt).
-/// - Any resolved path that does not start with the canonicalized workspace root.
-///
-/// Mirrors the `PathValidator` approach used in `commands/fs.rs` and
-/// `modules/workspace/PathValidator.ts`.
+/// - Any component — intermediate directory or final target — that is a
+///   symlink. A plain canonicalize+`starts_with` check (the previous
+///   implementation) FOLLOWS symlinks and would accept an in-workspace
+///   alias directory (`Clients/Alias` -> `Clients/RealClient`) as long as
+///   its target happens to also sit inside the workspace — letting
+///   `vault_read_file`/`vault_write_file` touch a different client's files
+///   while the audit trail still names "Alias". `pathguard`'s no-follow walk
+///   refuses that outright. See `crate::commands::pathguard` for the shared
+///   implementation (also used by the MCP and diarize command sites).
 fn resolve_and_guard(workspace: &Path, rel_path: &str) -> Result<PathBuf, VaultCommandError> {
     // Strip a leading slash/backslash so `rel_path` is always relative before
     // any component inspection.
     let rel = rel_path.trim_start_matches(['/', '\\']);
 
-    // Reject traversal components before any canonicalization (defense in depth).
-    // Component-based walk so a legitimate filename like `report..2026.docx` is
-    // accepted while `../foo` or absolute paths are rejected.
-    use std::path::Component;
-    for component in Path::new(rel).components() {
-        match component {
-            Component::ParentDir => {
-                return Err(VaultCommandError::PathTraversal(format!(
-                    "rel_path '{rel_path}' contains a '..' component"
-                )));
-            }
-            // Absolute paths or Windows drive prefixes are not allowed as rel_path.
-            Component::RootDir | Component::Prefix(_) => {
-                return Err(VaultCommandError::PathTraversal(format!(
-                    "rel_path '{rel_path}' is an absolute path"
-                )));
-            }
-            _ => {}
-        }
-    }
-
-    // Build the candidate absolute path.
-    let candidate = workspace.join(rel);
-
-    // Canonicalize the workspace root (follow symlinks, resolve `.`/`..`).
+    // Canonicalize the workspace root itself (follow symlinks, resolve
+    // `.`/`..`) — the root is the trust boundary, not something we're
+    // defending against; only components strictly BELOW it are walked
+    // no-follow below.
     let canon_root = workspace
         .canonicalize()
         .map_err(|e| VaultCommandError::Io(format!("cannot canonicalize workspace: {e}")))?;
 
-    // For the candidate path the file may not exist yet (vault_write_file creates
-    // it), so we canonicalize as far as we can: if the full path exists use it;
-    // otherwise canonicalize the parent and re-attach the filename.
-    let canon_candidate = if candidate.exists() {
-        candidate
-            .canonicalize()
-            .map_err(|e| VaultCommandError::Io(format!("cannot canonicalize path: {e}")))?
-    } else {
-        // Parent must exist (we're writing into it).
-        let parent = candidate
-            .parent()
-            .ok_or_else(|| VaultCommandError::PathTraversal("no parent directory".into()))?;
-        let canon_parent = parent
-            .canonicalize()
-            .map_err(|e| VaultCommandError::Io(format!("cannot canonicalize parent: {e}")))?;
-        let file_name = candidate
-            .file_name()
-            .ok_or_else(|| VaultCommandError::PathTraversal("no file name".into()))?;
-        canon_parent.join(file_name)
-    };
-
-    // The final path must be a descendant of the workspace root.
-    if !canon_candidate.starts_with(&canon_root) {
-        return Err(VaultCommandError::PathTraversal(format!(
-            "path '{}' escapes workspace root '{}'",
-            canon_candidate.display(),
-            canon_root.display()
-        )));
+    match pathguard::canonicalize_symlink_safe(&canon_root, rel, &canon_root) {
+        Ok(Some(path)) => Ok(path),
+        Ok(None) => {
+            // The full path doesn't exist yet — e.g. vault_write_file
+            // creating a new file. Resolve as far as the parent, which must
+            // already exist (same contract as before: this never creates
+            // more than one new path segment's worth of missing directory).
+            let rel_path_obj = Path::new(rel);
+            let file_name = rel_path_obj.file_name().ok_or_else(|| {
+                VaultCommandError::PathTraversal(format!("rel_path '{rel_path}' has no file name"))
+            })?;
+            let parent_rel = rel_path_obj
+                .parent()
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            match pathguard::canonicalize_symlink_safe(&canon_root, &parent_rel, &canon_root) {
+                Ok(Some(parent_path)) => Ok(parent_path.join(file_name)),
+                Ok(None) => Err(VaultCommandError::Io(format!(
+                    "cannot canonicalize parent of '{rel_path}': parent does not exist"
+                ))),
+                Err(e) => Err(VaultCommandError::PathTraversal(e)),
+            }
+        }
+        Err(e) => Err(VaultCommandError::PathTraversal(e)),
     }
-
-    Ok(canon_candidate)
 }
 
 // ── Error type ───────────────────────────────────────────────────────────────
@@ -273,6 +298,18 @@ pub enum VaultCommandError {
     PathTraversal(String),
     /// OS keychain error.
     Keychain(String),
+    /// The OS credential service itself didn't respond in time (e.g. a
+    /// stopped Windows `VaultSvc`) — distinct from a generic `Keychain`
+    /// error so the frontend can show the honest, actionable
+    /// "credential service isn't running" message instead of raw backend
+    /// text (coordinator review, 2026-07-04: the flagship QA-33 repro fails
+    /// inside `vault_status`, not `keychain_get`, so it must carry the SAME
+    /// classification `keychain_get` uses). `#[serde(rename)]`'d to the exact
+    /// camelCase tag `KeychainError::ServiceUnavailable` uses (this enum's
+    /// other variants are snake_case) so both Rust error types produce the
+    /// identical wire string and the frontend's classifier needs only one check.
+    #[serde(rename = "serviceUnavailable")]
+    ServiceUnavailable(String),
     /// I/O error on the workspace.
     Io(String),
     /// Crypto / format error from the lantern-vault crate.
@@ -301,6 +338,7 @@ impl std::fmt::Display for VaultCommandError {
             VaultCommandError::Locked(m) => write!(f, "vault_locked: {m}"),
             VaultCommandError::PathTraversal(m) => write!(f, "path_traversal: {m}"),
             VaultCommandError::Keychain(m) => write!(f, "keychain: {m}"),
+            VaultCommandError::ServiceUnavailable(m) => write!(f, "service unavailable: {m}"),
             VaultCommandError::Io(m) => write!(f, "io: {m}"),
             VaultCommandError::Crypto(m) => write!(f, "crypto: {m}"),
             VaultCommandError::Internal(m) => write!(f, "internal: {m}"),
@@ -398,7 +436,7 @@ pub async fn vault_status(workspace: String) -> Result<VaultStatus, VaultCommand
         .map_err(|e| VaultCommandError::Io(format!("failed to read vault metadata: {e}")))?;
 
     let id = &meta.vault_id;
-    let vmk_present = get_vmk_b64(id)?.is_some();
+    let vmk_present = get_vmk_b64_bounded(id).await?.is_some();
 
     Ok(VaultStatus {
         enabled: true,
@@ -1032,6 +1070,61 @@ mod tests {
         );
     }
 
+    // ── QA-33: bounded keychain read on the vault_status/workspace-open path ──
+
+    #[test]
+    fn keychain_error_to_vault_error_preserves_service_unavailable_message() {
+        let e = crate::commands::keychain::KeychainError::ServiceUnavailable(
+            "the OS credential storage service did not respond in time".to_string(),
+        );
+        let mapped = keychain_error_to_vault_error(e);
+        match mapped {
+            VaultCommandError::ServiceUnavailable(m) => {
+                assert_eq!(m, "the OS credential storage service did not respond in time");
+            }
+            other => panic!("expected ServiceUnavailable, got {other:?}"),
+        }
+    }
+
+    /// The flagship QA-33 repro (stopped Windows `VaultSvc`) fails inside
+    /// `vault_status`, so its wire shape must carry the SAME `kind` tag
+    /// `keychain_get` uses — not be silently downgraded to a generic
+    /// `Keychain` error the frontend classifier can't recognize.
+    #[test]
+    fn service_unavailable_serializes_with_the_same_kind_tag_as_keychain_error() {
+        let vault_err = VaultCommandError::ServiceUnavailable("stopped".to_string());
+        let vault_json = serde_json::to_string(&vault_err).expect("serialize");
+        assert!(vault_json.contains("\"kind\":\"serviceUnavailable\""));
+        assert!(vault_json.contains("\"message\":\"stopped\""));
+
+        let keychain_err =
+            crate::commands::keychain::KeychainError::ServiceUnavailable("stopped".to_string());
+        let keychain_json = serde_json::to_string(&keychain_err).expect("serialize");
+        assert_eq!(vault_json, keychain_json, "both error types must produce an identical wire shape");
+    }
+
+    #[test]
+    fn keychain_error_to_vault_error_stringifies_other_variants() {
+        let e = crate::commands::keychain::KeychainError::NotFound("no matching entry".to_string());
+        let mapped = keychain_error_to_vault_error(e);
+        assert!(matches!(mapped, VaultCommandError::Keychain(m) if m.contains("not found")));
+    }
+
+    /// `vault_status` on a workspace with no vault metadata must never touch
+    /// the keychain at all (no `get_vmk_b64_bounded` call), so it stays
+    /// instant regardless of OS credential-service health.
+    #[tokio::test]
+    async fn vault_status_reports_disabled_without_touching_keychain() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        let status = vault_status(root.to_string_lossy().into_owned())
+            .await
+            .expect("vault_status must succeed for a plain workspace");
+        assert!(!status.enabled);
+        assert!(!status.locked);
+        assert!(status.vault_id.is_none());
+    }
+
     // ── vault_create idempotency guard ────────────────────────────────────────
 
     /// vault_create must refuse when a vault already exists, so it can never
@@ -1138,6 +1231,60 @@ mod tests {
             matches!(result, Err(VaultCommandError::PathTraversal(_))),
             "symlink escaping workspace must be rejected, got: {result:?}"
         );
+    }
+
+    /// An IN-WORKSPACE alias (`Clients/Alias` -> `Clients/RealClient`, both
+    /// inside the workspace) must be rejected for a READ of an existing file
+    /// through it — not just an alias that escapes the workspace entirely.
+    /// The old canonicalize+starts_with check would FOLLOW the alias and
+    /// happily accept it since RealClient is also inside the workspace.
+    #[cfg(unix)]
+    #[test]
+    fn in_workspace_alias_symlink_is_rejected_for_read() {
+        let workspace = tempfile::tempdir().unwrap();
+        let real = workspace.path().join("Clients/RealClient");
+        std::fs::create_dir_all(&real).unwrap();
+        std::fs::write(real.join("secret.docx"), b"real client secret").unwrap();
+        let alias = workspace.path().join("Clients/Alias");
+        std::os::unix::fs::symlink(&real, &alias).unwrap();
+
+        let result = resolve_and_guard(workspace.path(), "Clients/Alias/secret.docx");
+        assert!(
+            matches!(result, Err(VaultCommandError::PathTraversal(_))),
+            "read through an in-workspace alias must be rejected, got: {result:?}"
+        );
+    }
+
+    /// Same alias attack, but for a WRITE creating a NEW file through the
+    /// alias (the file doesn't exist yet, exercising the "parent must
+    /// exist" fallback branch specifically). Must still be rejected.
+    #[cfg(unix)]
+    #[test]
+    fn in_workspace_alias_symlink_is_rejected_for_write() {
+        let workspace = tempfile::tempdir().unwrap();
+        let real = workspace.path().join("Clients/RealClient");
+        std::fs::create_dir_all(&real).unwrap();
+        let alias = workspace.path().join("Clients/Alias");
+        std::os::unix::fs::symlink(&real, &alias).unwrap();
+
+        let result = resolve_and_guard(workspace.path(), "Clients/Alias/new-file.docx");
+        assert!(
+            matches!(result, Err(VaultCommandError::PathTraversal(_))),
+            "write of a new file through an in-workspace alias must be rejected, got: {result:?}"
+        );
+    }
+
+    /// A brand-new file directly inside a legitimate nested directory (no
+    /// symlinks anywhere) must still be accepted — the parent-must-exist
+    /// fallback branch for legitimate callers must not regress.
+    #[test]
+    fn new_file_in_existing_nested_dir_is_accepted() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        std::fs::create_dir_all(root.join("docs")).unwrap();
+        let result = resolve_and_guard(root, "docs/brand-new.docx");
+        assert!(result.is_ok(), "new file in an existing dir must be accepted: {result:?}");
+        assert!(result.unwrap().ends_with("brand-new.docx"));
     }
 
     // ── format_iso8601 ────────────────────────────────────────────────────────

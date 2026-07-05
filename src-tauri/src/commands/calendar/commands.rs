@@ -498,6 +498,11 @@ pub struct CalendarEventDto {
     pub end_utc: String,
     pub attendees: Vec<CalendarAttendeeDto>,
     pub organizer_email: String,
+    /// The event's online-meeting join URL, when one is known. Omitted from
+    /// the JSON when absent (`skip_serializing_if`) so the DTO stays lean and
+    /// the frontend reads `joinUrl` as optional.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub join_url: Option<String>,
 }
 
 #[derive(Serialize, Clone)]
@@ -700,6 +705,7 @@ pub async fn calendar_list_events(
                 .map(|a| CalendarAttendeeDto { email: a.email, name: a.name })
                 .collect(),
             organizer_email: e.organizer_email,
+            join_url: e.join_url,
         })
         .collect())
 }

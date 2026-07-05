@@ -31,10 +31,11 @@ vi.mock('@/platform/hooks/useConfidentialityMode', () => ({
 }));
 
 // Mock useEntityLabel (used by SurfaceHeader-related components, and
-// getEntityLabel for the confidentiality-report "All <entity>" default).
+// getEntityLabelEnglish for the confidentiality-report "All <entity>" default).
 vi.mock('@/platform/hooks/useEntityLabel', () => ({
   useEntityLabel: () => ({ one: 'matter', other: 'matters', Other: 'Matters' }),
   getEntityLabel: () => ({ one: 'matter', other: 'matters', One: 'Matter', Other: 'Matters' }),
+  getEntityLabelEnglish: () => ({ one: 'matter', other: 'matters', One: 'Matter', Other: 'Matters' }),
 }));
 
 const SAMPLE_ENTRIES: AuditEntry[] = [];

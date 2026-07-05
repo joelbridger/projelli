@@ -27,7 +27,7 @@ import {
  *     `.keepance-vault.json` recovery copy (both-metadata conflict) is never
  *     surfaced as a user file the user could delete.
  */
-const KEEPANCE_INTERNAL_NAMES = new Set([
+const LANTERN_INTERNAL_NAMES = new Set([
   WORKSPACE_DATA_DIR,
   LEGACY_WORKSPACE_DATA_DIR,
   VAULT_METADATA_FILENAME,
@@ -36,7 +36,7 @@ const KEEPANCE_INTERNAL_NAMES = new Set([
 
 /** True when a node is a Advisor Prep Hero-internal entry that must never be shown. */
 export function isHiddenNode(node: { name: string }): boolean {
-  return KEEPANCE_INTERNAL_NAMES.has(node.name);
+  return LANTERN_INTERNAL_NAMES.has(node.name);
 }
 
 /** Drop hidden (dot-prefixed) nodes from a listing, preserving order. */

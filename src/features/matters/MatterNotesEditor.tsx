@@ -37,20 +37,12 @@ import type { MatterSyncClient } from '@/platform/firm/MatterSyncClient';
 import type { Matter } from '@/platform/types/matter';
 import { useMatterSyncStatus } from '@/platform/matter/matterSyncStore';
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
+import { splitNoteForCrm } from '@/features/matters/logic/crmNoteFormat';
 import { cn } from '@/lib/utils';
+import { EV_MATTER_LAUNCH } from '@/config/identity';
 
 /** How long the "added" confirmation stays visible after Send to Wealthbox. */
 const SEND_CONFIRMATION_MS = 2500;
-
-/** Split the note text into a Wealthbox-ready (title, body) pair: title is
- *  the first non-blank line, body is everything after it (or the same text
- *  again when the note is a single line, so the body is never empty). */
-function splitNoteForCrm(text: string): { title: string; body: string } {
-  const trimmed = text.trim();
-  const newlineIdx = trimmed.indexOf('\n');
-  if (newlineIdx === -1) return { title: trimmed, body: trimmed };
-  return { title: trimmed.slice(0, newlineIdx).trim(), body: trimmed.slice(newlineIdx + 1).trim() };
-}
 
 /** How often (ms) we debounce-write the disk mirror. */
 const DISK_MIRROR_DEBOUNCE_MS = 2000;
@@ -67,17 +59,19 @@ interface MatterNotesEditorProps {
   className?: string;
 }
 
-/** Label the sync status badge for the user (i18n key suffix). */
-function statusI18nKey(
+/** Label the sync status badge for the user (literal keys per branch — the
+ *  i18n extractor can't trace a template-literal key built from a variable). */
+function statusLabel(
   status: ReturnType<typeof useMatterSyncStatus>,
+  t: (key: string) => string,
 ): string {
   switch (status) {
-    case 'live': return 'status-live';
-    case 'connecting': return 'status-connecting';
-    case 'catching-up': return 'status-catching-up';
-    case 'offline': return 'status-offline';
-    case 'error': return 'status-error';
-    default: return 'status-idle';
+    case 'live': return t('matter.notes.status-live');
+    case 'connecting': return t('matter.notes.status-connecting');
+    case 'catching-up': return t('matter.notes.status-catching-up');
+    case 'offline': return t('matter.notes.status-offline');
+    case 'error': return t('matter.notes.status-error');
+    default: return t('matter.notes.status-idle');
   }
 }
 
@@ -252,6 +246,13 @@ export function MatterNotesEditor({
     setTimeout(() => { setSentConfirmation(false); }, SEND_CONFIRMATION_MS);
   }, [noteText, matter.id, enqueueCrmWrite]);
 
+  // QA finding (P3): jump straight to this client's Client Map, where the
+  // review card lives — same mechanism as every other "open this client"
+  // entry point (Ask's source chips, the client-list quick actions).
+  const handleReviewNow = useCallback(() => {
+    window.dispatchEvent(new CustomEvent(EV_MATTER_LAUNCH, { detail: { matterId: matter.id, surface: 'matters' } }));
+  }, [matter.id]);
+
   // Fail-closed: no sync client means no access.
   if (!syncClient) {
     return (
@@ -286,10 +287,10 @@ export function MatterNotesEditor({
             <span
               data-testid="matter-notes-sync-badge"
               className="flex items-center gap-1 text-xs text-gray-500 shrink-0"
-              aria-label={t(`matter.notes.${statusI18nKey(syncStatus)}`)}
+              aria-label={statusLabel(syncStatus, t)}
             >
               <span className={cn('inline-block w-2 h-2 rounded-full', statusDotClass(syncStatus))} />
-              {t(`matter.notes.${statusI18nKey(syncStatus)}`)}
+              {statusLabel(syncStatus, t)}
             </span>
           </div>
           <p className="text-xs text-gray-500 mt-0.5">
@@ -298,8 +299,16 @@ export function MatterNotesEditor({
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {sentConfirmation && (
-            <span data-testid="matter-notes-sent-confirmation" className="text-xs text-emerald-700">
-              {t('matter.notes.sent-to-wealthbox')}
+            <span className="flex items-center gap-1.5 text-xs text-emerald-700">
+              <span data-testid="matter-notes-sent-confirmation">{t('matter.notes.sent-to-wealthbox')}</span>
+              <button
+                type="button"
+                data-testid="matter-notes-review-now"
+                onClick={handleReviewNow}
+                className="font-medium underline underline-offset-2 hover:text-emerald-800"
+              >
+                {t('matter.notes.review-now')}
+              </button>
             </span>
           )}
           <button

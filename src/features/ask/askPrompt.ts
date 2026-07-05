@@ -27,6 +27,24 @@ export const NO_EVIDENCE_DECLINE =
   "I couldn't find anything about that in your documents.";
 
 /**
+ * QA-25 (P2) — the honest record left behind when a question is still
+ * retrieving/answering and the user navigates away from its conversation
+ * before it finishes — switching to a different client, starting a new
+ * question, or loading a different saved thread all change `chatId` the same
+ * way. Persisted into the ORIGINAL conversation's own history so returning to
+ * it later shows what happened instead of nothing (the bug: switching clients
+ * mid-Ask silently discarded the question with no error, no "answering"
+ * state, and no history entry — see useAsk.ts's chatId-switch effect cleanup,
+ * which aborts the in-flight request and writes this). Deliberately worded
+ * around "this conversation" rather than "a different client" — Codex review
+ * caught that the cleanup also fires for same-client navigation (New
+ * question, loading another thread), where "you switched clients" would be
+ * inaccurate.
+ */
+export const ASK_CANCELLED_BY_NAVIGATION_MESSAGE =
+  "This question wasn't answered — you left this conversation before I finished. Ask it again here if you still need an answer.";
+
+/**
  * BUG-016 grounding contract — the fixed instruction lines that harden the
  * answer against fabrication. Exported individually so tests (and the eval)
  * can assert the contract directly rather than string-matching the whole prompt.

@@ -8,6 +8,14 @@
 pub mod fs;
 pub mod http;
 pub mod keychain;
+// Symlink-safe workspace-path containment (2026-07-04 hardening pass).
+// Every command that resolves a caller-supplied path against a workspace or
+// matter root goes through here instead of duplicating its own
+// canonicalize+starts_with check, which follows symlinks and can be tricked
+// by an in-workspace alias directory into touching a different client's
+// files. `pub` (not `pub(crate)`) so the `lantern-mcp` sidecar binary can
+// reuse it too — see the module doc comment.
+pub mod pathguard;
 // Single seam for resolving + migrating the per-workspace internal data folder
 // (`.keepance` → `.lantern`), the vault-metadata file, and the OS-level data
 // subdir. See data_dir.rs for the marker-based, fail-safe migration.
@@ -71,3 +79,19 @@ pub mod vault;
 // signals (AI/models, email, Wealthbox CRM, file indexing, Client Map) into one
 // queryable `get_setup_progress` snapshot + a `setup-progress-changed` event.
 pub mod setup_progress;
+// Lantern-Plus Wave 3a — local meeting capture (mic + system-audio loopback,
+// crash-durable chunked WAV, never a cloud path).
+pub mod capture;
+// Wave 4 Track A — within-channel speaker diarization: system-channel
+// extraction + sherpa-onnx turn assignment onto Wave 3 transcripts.
+pub mod diarize;
+// Wave 4 Track A — encrypted per-matter voiceprint store + naming commands.
+pub mod voiceprint;
+// Wave 4 Track D — per-workspace retention policy sweep enforcing the capture
+// location contract (audio.wav, chunk caches, transcript.json in summary-only).
+pub mod retention;
+// Notice Card — isolated companion-webview commands: open/close/status of the
+// guest-join window that shows participants the recording-notice card. The
+// window inherits NO app capabilities (label-scoped isolation); status flows
+// out one-way via document.title. See notice_card/mod.rs for the full model.
+pub mod notice_card;

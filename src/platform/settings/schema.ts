@@ -581,6 +581,92 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     defaultValue: 'Ctrl+Shift+R',
   },
 
+  // ── Meeting capture (Wave 3) ─────────────────────────────────────────
+  {
+    key: 'meetings.transcribeMode',
+    category: 'voice',
+    label: 'Meeting transcription',
+    description:
+      "Live starts transcribing the moment a recording stops. Battery saver waits until you're on AC power or tap \"Transcribe now\" — useful for long meetings on battery.",
+    type: 'select',
+    defaultValue: 'live',
+    options: [
+      { value: 'live', label: 'Live (transcribe as soon as recording stops)' },
+      { value: 'batch', label: 'Battery saver (transcribe on AC power, or on demand)' },
+    ],
+  },
+
+  // ── Recording notice (Recording Notice Kit) ──────────────────────────
+  {
+    // Firm-level notification policy. Standard: every notice step is offered
+    // and the spoken notice is verified from the transcript; a missing notice
+    // flags the meeting for review. Strict: a meeting whose spoken notice
+    // isn't verified stays quarantined (visible, notes/transcript still
+    // accessible — never destroyed) until a human resolves it.
+    key: 'meetings.noticePolicy',
+    category: 'privacy',
+    label: 'Recording notice policy',
+    description:
+      'Standard verifies the spoken recording notice and flags a meeting for review when none is detected. Strict keeps an unverified meeting quarantined until you resolve it — nothing is ever deleted or stopped automatically.',
+    type: 'select',
+    defaultValue: 'standard',
+    options: [
+      { value: 'standard', label: 'Standard — flag meetings with no detected notice' },
+      { value: 'strict', label: 'Strict — quarantine meetings until the notice is resolved' },
+    ],
+  },
+  {
+    // The firm-customizable spoken-notice script. Empty means "use the built-in
+    // localized default" (shown in the consent dialog). When set, the text is
+    // shown to the advisor to say AND fed to the transcript matcher as an
+    // expected phrase, so an atypically-worded script still verifies.
+    key: 'meetings.noticeScript',
+    category: 'privacy',
+    label: 'Spoken recording-notice script',
+    description:
+      'The exact words the consent dialog shows you to say out loud after recording starts. Leave blank to use the built-in wording. If you customize it, keep it a clear recording disclosure so the app can still verify it from the transcript.',
+    type: 'text',
+    defaultValue: '',
+  },
+  {
+    // Firm default for whether the Notice Card is offered (pre-checked) in the
+    // consent dialog when the meeting has a join link. Never auto-joins without
+    // the toggle; the advisor can uncheck it per meeting.
+    key: 'meetings.noticeCardEnabled',
+    category: 'privacy',
+    label: 'Offer the Notice Card for online meetings',
+    description:
+      'When a meeting has a Teams or Zoom link, offer to add the Notice Card — a participant that runs on your computer, shows everyone the meeting is being recorded, records nothing, and leaves when recording ends. You can turn it off for any single meeting.',
+    type: 'toggle',
+    defaultValue: true,
+  },
+  {
+    // The guest display name template. `{advisor}` is replaced with the
+    // advisor's first name. Kept short; per-platform length guards apply.
+    key: 'meetings.noticeCardNameTemplate',
+    category: 'privacy',
+    label: 'Notice Card name',
+    description:
+      'The name the Notice Card shows in the participant list. Use {advisor} for your first name. The leading recording symbol makes it clear at a glance, even camera-off.',
+    type: 'text',
+    defaultValue: '⏺ Recording Notice — {advisor}',
+  },
+  {
+    // What satisfies the Strict policy: verbal notice OR full-duration card
+    // presence (either), or both required. Verbal stays recommended everywhere.
+    key: 'meetings.noticeEvidenceRule',
+    category: 'privacy',
+    label: 'What satisfies a Strict recording notice',
+    description:
+      'Under Strict, decide what counts as proof a meeting was disclosed: either a verified spoken notice or the Notice Card present for the whole recording, or require both. A spoken notice is always the strongest single evidence and works on phone calls too.',
+    type: 'select',
+    defaultValue: 'either',
+    options: [
+      { value: 'either', label: 'Either — a spoken notice or full-meeting card presence' },
+      { value: 'both', label: 'Both — a spoken notice and full-meeting card presence' },
+    ],
+  },
+
   // ── Advanced: Updates ─────────────────────────────────────────────────
   {
     key: 'autoUpdateCheck',

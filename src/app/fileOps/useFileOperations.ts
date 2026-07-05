@@ -7,6 +7,7 @@
  * changed (they now come from the options object instead of App's local scope).
  */
 import { useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useEditorStore } from '@/platform/state/editorStore';
 import { writeCoordinator } from '@/platform/fs/writeCoordinator';
@@ -15,6 +16,7 @@ import { isBinaryFile } from '@/platform/utils/file-utils';
 import { writeTabContentToDisk } from '@/app/fileOps/flushDirtyTabs';
 import { createFileTreeSnapshot } from '@/platform/fs/FileSystemWatcher';
 import { findUniqueDefaultName } from './uniqueDefaultName';
+import { reservedNameError } from './reservedNameError';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { FileSystemWatcher } from '@/platform/fs/FileSystemWatcher';
 import type { FileNode } from '@/platform/types/workspace';
@@ -39,6 +41,7 @@ export interface UseFileOperationsOptions {
 }
 
 export function useFileOperations(options: UseFileOperationsOptions) {
+  const { t } = useTranslation();
   const {
     workspaceServiceRef,
     fileSystemWatcherRef,
@@ -130,7 +133,7 @@ export function useFileOperations(options: UseFileOperationsOptions) {
         // UX-15: show the user which folder they're creating into. For
         // subfolder-right-click-create this is the most useful info.
         destinationPath: `${parentPath}/`,
-        validate: (v) => (v.trim() ? undefined : 'Enter a file name.'),
+        validate: (v) => (v.trim() ? reservedNameError(v, t) : 'Enter a file name.'),
       });
       if (!name || !workspaceServiceRef.current) return;
 
@@ -145,7 +148,7 @@ export function useFileOperations(options: UseFileOperationsOptions) {
         window.alert("I couldn't create that. Try a different name.");
       }
     },
-    [setFileTree, handleFileOpen, prompt, workspaceServiceRef]
+    [setFileTree, handleFileOpen, prompt, t, workspaceServiceRef]
   );
 
   // Handle create new folder
@@ -162,7 +165,7 @@ export function useFileOperations(options: UseFileOperationsOptions) {
         placeholder: 'my-folder',
         // UX-15: also show destination for folder creation.
         destinationPath: `${targetParentPath}/`,
-        validate: (v) => (v.trim() ? undefined : 'Enter a folder name.'),
+        validate: (v) => (v.trim() ? reservedNameError(v, t) : 'Enter a folder name.'),
       });
       if (!name || !workspaceServiceRef.current) return;
 
@@ -182,7 +185,7 @@ export function useFileOperations(options: UseFileOperationsOptions) {
         window.alert("I couldn't create that. Try a different name.");
       }
     },
-    [setFileTree, prompt, workspaceServiceRef]
+    [setFileTree, prompt, t, workspaceServiceRef]
   );
 
   // Handle rename (prompts user)

@@ -156,6 +156,32 @@
   animation: kp-onbv2-indet 1.5s ease-in-out infinite;
 }
 
+/* ---- Lottie icon clipping (QA-8) ----
+   Real root cause (confirmed by direct measurement, not the "svg sized to
+   its native canvas" theory that looked plausible from the JSON assets'
+   wildly different w/h — 150x150 / 500x500 / 1920x1080 — but wasn't it:
+   lottie-web already sizes the injected <svg> to 100%/100% correctly on its
+   own). The actual bug is in LottiePlayer.tsx: React StrictMode's dev-only
+   double-invoke can race two loadAnimation() calls onto the SAME container,
+   and lottie-web APPENDS rather than replaces — so the container ends up
+   with two stacked <svg> instances. Since the container has a fixed height,
+   the second one overflows straight onto the card heading below it (this is
+   what the QA screenshots actually show: a duplicated, overlapping icon).
+   The real fix is in LottiePlayer.tsx: a closure-local cancellation flag
+   (instead of a shared ref) makes only the surviving mount ever reach
+   loadAnimation(), so a stale mount's late-resolving import can never race
+   in a second instance. `overflow: hidden` here is kept as a defensive
+   backstop only — it cannot regress anything and covers any other case
+   that ends up appending more than one child to this box. */
+.kp-onbv2-lottie {
+  overflow: hidden;
+  border-radius: 14px;
+}
+.kp-onbv2-lottie svg {
+  width: 100% !important;
+  height: 100% !important;
+}
+
 /* ---- Custom scrollbar for the question-chip area ---- */
 .kp-onbv2-scroll {
   scrollbar-width: thin;

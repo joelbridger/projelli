@@ -4,6 +4,9 @@ import {
   bindAnswerCitations,
   buildRecentAskSessions,
   sessionBelongsToWorkspace,
+  filterHitsByScope,
+  askConsentScope,
+  composerIsBusy,
 } from './askHelpers';
 
 function hit(overrides: Partial<RagHit> = {}): RagHit {
@@ -16,6 +19,41 @@ function hit(overrides: Partial<RagHit> = {}): RagHit {
     ...overrides,
   };
 }
+
+describe('filterHitsByScope', () => {
+  it('whole-practice scope passes hits through unchanged (scope never reaches retrieval anyway)', () => {
+    const hits = [hit()];
+    expect(filterHitsByScope(hits, 'whole-practice')).toEqual(hits);
+  });
+});
+
+describe('askConsentScope', () => {
+  it('an active client does NOT narrow whole-practice to a single-matter grant (book-wide send)', () => {
+    expect(askConsentScope('m1', 'whole-practice')).toEqual({ kind: 'allMatters' });
+  });
+  it('still narrows this-matter to the active client', () => {
+    expect(askConsentScope('m1', 'this-matter')).toEqual({ kind: 'matter', matterId: 'm1' });
+  });
+  it('all-matters and no active client both stay all-clients', () => {
+    expect(askConsentScope('m1', 'all-matters')).toEqual({ kind: 'allMatters' });
+    expect(askConsentScope(null, 'this-matter')).toEqual({ kind: 'allMatters' });
+  });
+});
+
+describe('composerIsBusy', () => {
+  it('a whole-practice send in flight busies the composer while that scope is active', () => {
+    expect(composerIsBusy(false, true, 'whole-practice')).toBe(true);
+  });
+  it('does NOT busy the composer after switching away from whole-practice (Coordinator review round 1)', () => {
+    expect(composerIsBusy(false, true, 'this-matter')).toBe(false);
+    expect(composerIsBusy(false, true, 'email')).toBe(false);
+    expect(composerIsBusy(false, true, 'documents')).toBe(false);
+    expect(composerIsBusy(false, true, 'all-matters')).toBe(false);
+  });
+  it('the normal turn-based isBusy still applies regardless of scope', () => {
+    expect(composerIsBusy(true, false, 'this-matter')).toBe(true);
+  });
+});
 
 describe('bindAnswerCitations', () => {
   it('attaches a GROUNDED-but-UNVERIFIED citation when the model emits no marker but a retrieved hit supports the answer (B1)', () => {

@@ -24,7 +24,7 @@ default-run = "lantern"
 name = "lantern_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
-# Keepance MCP server (M4, v1.5). Hand-rolled JSON-RPC 2.0 server over stdio
+# Lantern MCP server (M4, v1.5). Hand-rolled JSON-RPC 2.0 server over stdio
 # that exposes the workspace (list / read / search / write / memory facts) to
 # any MCP-compatible client — Claude Desktop, Cursor, Zed, etc. The binary
 # lives in its own sub-folder so its helper modules (`protocol`, `tools`,
@@ -52,8 +52,18 @@ tauri-build = { version = "2.5.3", features = [] }
 lantern-docx = { path = "crates/lantern-docx" }
 lantern-vault = { path = "crates/lantern-vault" }
 zeroize = "1"
+cpal = "0.15"
+keepawake = "0.5"
+# Wave 3a (meeting capture) and Wave 4 Track A (diarization) both read/write
+# WAV — 3.5 satisfies both (a superset of the plain "3" Wave 3a needs).
+hound = "3.5"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
+# voice.rs / sidecars/parakeet.rs need a real temp file at runtime (the real
+# whisper.cpp engine has no stdin mode — see parakeet.rs's doc comment), not
+# just in tests, so this is a real (not dev-)dependency. Already transitively
+# in the lock via lancedb + fastembed, so this adds no new build-time weight.
+tempfile = "3"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 # Wave 1 calendar connector — TZID/DST-correct ICS + Graph timezone-name expansion.
 chrono-tz = "0.10"
@@ -184,12 +194,24 @@ tauri-plugin-process = "2"
 [target."cfg(windows)".dependencies]
 windows-sys = { version = "0.59", features = ["Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_Foundation"] }
 
+# macOS-only: MacTapSource (capture::sources) sends SIGTERM to the
+# capture-mac sidecar for a graceful stop per its documented contract.
+[target."cfg(target_os = \"macos\")".dependencies]
+libc = "0.2"
+
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }
-# Integration tests for the `lantern-mcp` sidecar need a throwaway workspace
-# dir per test; `tempfile` is the de-facto standard and already transitively
-# in the lock via `lancedb` + `fastembed`, so no new build-time weight.
-tempfile = "3"
+# `tempfile` moved to [dependencies] above (voice.rs needs it outside tests
+# too now) — it's still available here for dev/test code, just not
+# re-declared.
 # HTTP mock server for M365 Graph API integration tests (added here so it compiles
 # alongside rusqlite in one pass rather than requiring a second dep-compile later).
 wiremock = "0.6"
+# Unix-only (see tests/capture_enospc.rs's `#![cfg(unix)]`): setrlimit(2) +
+# SIGXFSZ-ignore is how that test forces a REAL OS-level write failure
+# (EFBIG, same code path a real ENOSPC hits) to prove QA-35's chunk-writer
+# behavior without needing root/mount privileges for a real quota'd
+# filesystem. The main [target.cfg(macos)] libc dependency above is a
+# separate, narrower macOS-only use (MacTapSource's SIGTERM) — this one is a
+# plain dev-dependency so it resolves for `cargo test` on any unix host.
+libc = "0.2"

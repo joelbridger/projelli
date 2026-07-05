@@ -4,6 +4,12 @@
 (internally now called **Lantern**), branched from the true `keepance-3.0` tip
 (`000060cf`, fetched fresh from GitHub) onto the branch **`lantern-plus`**.
 
+**Status (2026-07-04): feature-complete.** All five waves (0-4) of the Jump
+feature-parity program are merged, and the full real-Windows verification pass
+has run clean — see `docs/PRODUCT-JOURNEY.md`'s 2026-07-04 entries for the
+detailed story. Work in this folder now is QA, hardening, and cleanup, not new
+feature waves.
+
 ## Why it exists
 
 Two efforts run in parallel and must not collide:
@@ -43,3 +49,7 @@ Two efforts run in parallel and must not collide:
   (moved here from `~/keepance-jump-feasibility`, now the canonical copy).
   Published report: https://jameworld.com/claudereports/r/2026-07-02-keepance-vs-jump-feature-parity-feasibility-assessment.html
 - [`docs/plans/lantern-plus/`](docs/plans/lantern-plus/) — the implementation plans + the binding UI-INTEGRATION-SPEC + the NEXT-SESSION-BOOTSTRAP prompt (the deliverables of the Fable planning session).
+
+## Open items (cross-lane dependencies)
+
+- `TODO(wave-3-merge)`: Wave 4 Track A's `SpeakerNamesPanel` (`src/features/meetings/SpeakerNamesPanel.tsx`) is built, tested, and exported but not yet mounted anywhere — it needs Wave 3's `MeetingEntry.tsx` transcript viewer (a separate in-flight lane) to exist first. Once Wave 3 merges into `lantern-plus`, mount `<SpeakerNamesPanel meetingDir={...} matterId={...} workspaceRoot={...} onApplied={reindex} />` in the transcript viewer per Wave 4 Track A Task 12 Step 6 (`docs/plans/lantern-plus/2026-07-02-wave-4-depth.md`).

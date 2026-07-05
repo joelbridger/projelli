@@ -207,6 +207,73 @@ describe('PathValidator - Windows-style paths on Linux', () => {
     });
   });
 
+  // QA-41: `Path::canonicalize()` on Windows ALWAYS returns the extended-
+  // length ("verbatim") form `\\?\C:\...` (or `\\?\UNC\server\share\...` for
+  // a UNC target) — see src-tauri/src/commands/pathguard.rs's
+  // `canonicalize_symlink_safe_absolute`. The meeting-capture Rust commands
+  // (capture_start/capture_stop/transcribe_meeting) run every meeting_dir
+  // through that canonicalizer internally (round-8 fix, for INTERNAL
+  // Rust-side path comparisons), so the `meetingDir` string hitting the
+  // frontend straight from a fresh recording could carry this prefix even
+  // after the Rust-side IPC-boundary strip (defense in depth for any path
+  // this validator hasn't seen stripped, and for older/other callers). A
+  // plain workspace root from a folder-picker dialog never has this prefix,
+  // so without handling it, a verbatim meetingDir compares unequal to its
+  // own workspace root and every read/write on it wrongly looks like it
+  // escapes the workspace — the exact bug that made `tryGenerateNotes`
+  // silently and permanently treat a completed transcript as "still queued"
+  // (meetingStore.ts).
+  describe('Windows verbatim (\\\\?\\) extended-length prefix', () => {
+    it('treats a \\\\?\\-prefixed absolute path the same as its plain equivalent', () => {
+      const verbatim =
+        '\\\\?\\C:\\Users\\Jane\\Keepance\\Matters\\Acme\\brief.docx';
+      expect(validator.validatePath(verbatim)).toBe(
+        'C:/Users/Jane/Keepance/Matters/Acme/brief.docx'
+      );
+      expect(validator.isWithinWorkspace(verbatim)).toBe(true);
+      expect(validator.getRelativePath(verbatim)).toBe(
+        'Matters/Acme/brief.docx'
+      );
+    });
+
+    it('treats a \\\\?\\-prefixed workspace root the same as the plain root', () => {
+      const verbatimValidator = new PathValidator(
+        '\\\\?\\C:\\Users\\Jane\\Keepance'
+      );
+      expect(verbatimValidator.getRootPath()).toBe(normalizedRoot);
+      expect(
+        verbatimValidator.validatePath(
+          'C:\\Users\\Jane\\Keepance\\Matters\\Acme\\brief.docx'
+        )
+      ).toBe('C:/Users/Jane/Keepance/Matters/Acme/brief.docx');
+    });
+
+    it('rejects a \\\\?\\-prefixed path that genuinely escapes the workspace', () => {
+      expectSecurityReason(
+        '\\\\?\\C:\\Users\\Jane\\Keepance-evil\\secret.docx',
+        'ABSOLUTE_PATH_IN_RELATIVE_CONTEXT'
+      );
+    });
+
+    it('treats a \\\\?\\UNC\\ verbatim path the same as its plain UNC equivalent for containment purposes', () => {
+      // Scoped to isWithinWorkspace/getRelativePath — NOT a full validatePath()
+      // round trip. `resolvePath`'s `..`-segment walk has a separate,
+      // pre-existing gap for double-slash (UNC) roots (it collapses `//` to
+      // a single `/`, losing the UNC marker) that predates this fix and is
+      // out of scope here: this app's real workspaces are local drive-letter
+      // paths (see pathguard.rs's "no network/OneDrive" framing), so a UNC
+      // workspace root isn't the QA-41 trigger — only documented so it isn't
+      // mistaken for something this change was meant to fix.
+      const uncValidator = new PathValidator('\\\\server\\share\\Keepance');
+      const verbatim =
+        '\\\\?\\UNC\\server\\share\\Keepance\\Matters\\Acme\\brief.docx';
+      expect(uncValidator.isWithinWorkspace(verbatim)).toBe(true);
+      expect(uncValidator.getRelativePath(verbatim)).toBe(
+        'Matters/Acme/brief.docx'
+      );
+    });
+  });
+
   describe('reserved name as a path component (not just a filename)', () => {
     // A directory named NUL or CON in the middle of a path is equally forbidden
     // on Windows. validatePath delegates to validateName for each segment only

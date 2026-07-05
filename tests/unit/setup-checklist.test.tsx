@@ -47,6 +47,7 @@ function setupMocks({
     apiKeys: aiConnected ? [{ provider: 'anthropic', key: 'sk-ant-test', isValid: true }] : [],
     handleSaveApiKey: vi.fn(),
     handleDeleteApiKey: vi.fn(),
+    credentialServiceUnavailable: false,
   });
 
   vi.mocked(useFirm).mockReturnValue({

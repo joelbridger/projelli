@@ -68,6 +68,7 @@ export interface AppSurfaceRouterProps {
   auditEntries: AuditEntry[];
   auditIntegrity: AuditIntegrityVerdict | undefined;
   verifyAuditIntegrity: () => Promise<AuditIntegrityVerdict | undefined>;
+  repairAuditSeal: () => Promise<void>;
   apiKeys: APIKey[];
   rootPath: string | null | undefined;
   trashItems: TrashedItem[];
@@ -127,6 +128,7 @@ export function AppSurfaceRouter({
   auditEntries,
   auditIntegrity,
   verifyAuditIntegrity,
+  repairAuditSeal,
   apiKeys,
   rootPath,
   trashItems,
@@ -200,6 +202,7 @@ export function AppSurfaceRouter({
               entries={auditEntries}
               integrity={auditIntegrity}
               onVerifyIntegrity={verifyAuditIntegrity}
+              onRepairSeal={repairAuditSeal}
             />
           )}
         </LazyBoundary>
@@ -358,6 +361,7 @@ export function AppSurfaceRouter({
           entries={auditEntries}
           integrity={auditIntegrity}
           onVerifyIntegrity={verifyAuditIntegrity}
+          onRepairSeal={repairAuditSeal}
           {...(opts.scopeMatterId ? { scopeMatterId: opts.scopeMatterId } : {})}
         />
       )}
@@ -386,6 +390,7 @@ export function AppSurfaceRouter({
           renderClientActivity={() =>
             buildActivity(activeMatter ? { scopeMatterId: activeMatter.id } : {})
           }
+          workspaceService={workspaceServiceRef.current}
         />
       ) : sidebarActiveTab ==='search' ? (
         <Ask

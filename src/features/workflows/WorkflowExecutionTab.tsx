@@ -33,7 +33,7 @@ import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
 import { cn } from '@/lib/utils';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import type { FileNode } from '@/platform/types/workspace';
-import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
+import { useEntityLabelEnglish } from '@/platform/hooks/useEntityLabel';
 import { SK_FIRM_NAME } from '@/config/identity';
 
 // ---------------------------------------------------------------------------
@@ -156,7 +156,10 @@ export function WorkflowExecutionTab({
   className,
 }: WorkflowExecutionTabProps) {
   const { t } = useTranslation();
-  const entityLabel = useEntityLabel();
+  // Fixed-English escape hatch: both sentences using entityLabel below are
+  // still hardcoded English (see the cleanup2 handoff), so the noun stays
+  // English too rather than mixing languages.
+  const entityLabel = useEntityLabelEnglish();
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   // Firm name persisted in localStorage — used to brand exported .docx files
@@ -306,18 +309,14 @@ export function WorkflowExecutionTab({
             </div>
             <div>
               <p className="font-semibold text-base">
-                {t(
-                  isOllama
-                    ? 'workflow.execution.ollama-unreachable-title'
-                    : 'workflow.execution.needs-provider-title',
-                )}
+                {isOllama
+                  ? t('workflow.execution.ollama-unreachable-title')
+                  : t('workflow.execution.needs-provider-title')}
               </p>
               <p className="text-sm text-muted-foreground mt-1">
-                {t(
-                  isOllama
-                    ? 'workflow.execution.ollama-unreachable-body'
-                    : 'workflow.execution.needs-provider-body',
-                )}
+                {isOllama
+                  ? t('workflow.execution.ollama-unreachable-body')
+                  : t('workflow.execution.needs-provider-body')}
               </p>
             </div>
             {!isOllama && onOpenSettings && (

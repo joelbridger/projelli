@@ -115,6 +115,9 @@ pub const ONEDRIVE_ENC_SERVICE: &str = concat!(app_ns!(), "-onedrive-enc");
 /// CRM connector DB encryption key service.
 pub const CRM_ENC_SERVICE: &str = concat!(app_ns!(), "-crm-enc");
 
+/// Keychain service holding the voiceprint-store master key (Wave 4).
+pub const VOICEPRINT_ENC_SERVICE: &str = concat!(app_ns!(), "-voiceprint-enc");
+
 // ── Keychain service prefixes ─────────────────────────────────────────────────
 
 /// CRM connector namespace prefix. Covers per-provider token slots and the DB key.
@@ -153,8 +156,8 @@ pub fn calendar_keychain_service(provider_id: &str) -> String {
 }
 
 /// Calendly connector namespace prefix. Covers the SQLCipher master key
-/// (`keepance-calendly-enc`) and any future Calendly-scoped secret. The bare
-/// API token slot (`keepance-calendly`) is the exact `CALENDLY_SERVICE` above.
+/// (`lantern-calendly-enc`) and any future Calendly-scoped secret. The bare
+/// API token slot (`lantern-calendly`) is the exact `CALENDLY_SERVICE` above.
 pub const CALENDLY_SERVICE_PREFIX: &str = concat!(app_ns!(), "-calendly-");
 
 // ── Per-workspace hidden data directory ──────────────────────────────────────

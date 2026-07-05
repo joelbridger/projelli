@@ -121,7 +121,7 @@ class DemoProxyProvider implements Provider {
   getMetadata(): ProviderMetadata {
     return {
       name: 'Advisor Prep Hero Demo (shared key)',
-      providerId: 'keepance-demo-proxy',
+      providerId: 'lantern-demo-proxy',
       model: this.modelHint,
       capabilities: { streaming: false, vision: false, functionCalling: false },
     };

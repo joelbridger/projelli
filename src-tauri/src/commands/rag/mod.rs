@@ -3,7 +3,7 @@
 // Architecture (per docs/strategy/.../06-RECOMMENDATIONS_BY_LOE.md M1):
 //   - Embeddings: fastembed-rs with `MultilingualE5Small` (intfloat/multilingual-e5-small,
 //     384-dim ONNX). Lazy singleton in `embedder.rs`.
-//   - Storage: LanceDB dataset per workspace at `<workspace>/.keepance/vectors/`,
+//   - Storage: LanceDB dataset per workspace at `<workspace>/.lantern/vectors/`,
 //     one `chunks` table. Schema lives in `store.rs`.
 //   - Chunker: paragraph-aware ~384-token windows with 64-token overlap
 //     (`chunker.rs`). Pure / unit-tested.

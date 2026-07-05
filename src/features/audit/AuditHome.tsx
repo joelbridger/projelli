@@ -21,6 +21,7 @@ import {
   useMemo,
   useCallback,
   useDeferredValue,
+  useEffect,
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -37,7 +38,9 @@ import {
   downloadAuditJSON,
 } from '@/features/audit/audit-export';
 import { isAuditEncrypted } from '@/platform/audit/AuditService';
-import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
+import { useEntityLabelEnglish } from '@/platform/hooks/useEntityLabel';
+import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
+import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import {
   Button,
@@ -68,6 +71,13 @@ export interface AuditHomeProps {
   integrity?: AuditIntegrityVerdict | undefined;
   onVerifyIntegrity?: (() => Promise<AuditIntegrityVerdict | undefined>) | undefined;
   /**
+   * Explicit, acknowledged repair of a seal-missing audit log. When set and the
+   * integrity state is `sealMissing`, the badge area shows a Repair action that
+   * (after a plain-language confirmation) calls this to re-seal the chain and
+   * permanently record the anomaly, then refresh the entries + integrity state.
+   */
+  onRepairSeal?: (() => Promise<void>) | undefined;
+  /**
    * When set, the log is pre-scoped to a single client's activity (used by the
    * per-client Activity sub-tab in the Client Map hub). Entries are filtered to
    * those whose matter scope matches this id before any in-view filtering, so
@@ -78,14 +88,17 @@ export interface AuditHomeProps {
 
 // ── Main component ─────────────────────────────────────────────────────────
 
-export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, scopeMatterId }: AuditHomeProps) {
+export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, onRepairSeal, scopeMatterId }: AuditHomeProps) {
   // Embedded as a per-client Activity tab (scopeMatterId set) → the hub header
   // already labels the surface, so hide this inner header to match Documents.
   const embedded = scopeMatterId !== undefined;
   const { t } = useTranslation();
   // Profession-aware entity word so the export note follows the practice
   // (advisor → "clients", legal → "matters") instead of a hardcoded "matters".
-  const entityLabel = useEntityLabel();
+  // Fixed-English escape hatch: the export note below is still a hardcoded
+  // English sentence (see the cleanup2 handoff), so the noun stays English
+  // too rather than mixing a translated word into it.
+  const entityLabel = useEntityLabelEnglish();
   // ── Filter state ──────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -258,12 +271,68 @@ export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, 
   }, [filteredEntries, resolveIntegrityForExport]);
 
   const encrypted = isAuditEncrypted();
-  const integrityLabel = integrity?.status === 'altered'
-    ? t('common.audit-log.integrity-altered', { seq: integrity.seq })
-    : integrity?.status === 'verified'
-      ? t('common.audit-log.integrity-verified')
-      : null;
+  // Three honest tones: green (verified), amber (seal missing — can't prove the
+  // log is complete), red (altered — a row was actually changed/broken).
+  let integrityLabel: string | null = null;
+  let integrityTone: 'ok' | 'warning' | 'danger' = 'ok';
+  let integrityTitle: string | undefined;
+  if (integrity?.status === 'altered') {
+    integrityLabel = t('common.audit-log.integrity-altered', { seq: integrity.seq });
+    integrityTone = 'danger';
+    integrityTitle = integrity.reason;
+  } else if (integrity?.status === 'sealMissing') {
+    integrityLabel = t('common.audit-log.integrity-seal-missing');
+    integrityTone = 'warning';
+    integrityTitle = integrity.lastTimestamp
+      ? t('common.audit-log.integrity-seal-missing-detail', { timestamp: integrity.lastTimestamp })
+      : t('common.audit-log.integrity-seal-missing-detail-notime');
+  } else if (integrity?.status === 'verified') {
+    integrityLabel = t('common.audit-log.integrity-verified');
+    integrityTone = 'ok';
+  }
+  const integrityToneStyle = {
+    ok: { border: '1px solid rgba(21,128,61,0.28)', background: 'rgba(240,253,244,0.9)', color: '#166534' },
+    warning: { border: '1px solid rgba(180,83,9,0.32)', background: 'rgba(255,251,235,0.95)', color: '#92400e' },
+    danger: { border: '1px solid rgba(185,28,28,0.28)', background: 'rgba(254,242,242,0.9)', color: '#991b1b' },
+  }[integrityTone];
 
+  // Explicit, acknowledged repair — the ONLY user action that can re-seal a
+  // seal-missing chain, gated behind a plain-language confirmation that states
+  // what can no longer be verified and that the anomaly is recorded for good.
+  const { confirm, dialogProps: confirmDialogProps } = useConfirmDialog();
+  const [repairing, setRepairing] = useState(false);
+  const [repairError, setRepairError] = useState<string | null>(null);
+  const canRepair = integrity?.status === 'sealMissing' && !!onRepairSeal && !embedded;
+  const handleRepair = useCallback(async () => {
+    if (!onRepairSeal) return;
+    const ok = await confirm(t('common.audit-log.repair-confirm-body'), {
+      title: t('common.audit-log.repair-confirm-title'),
+      confirmLabel: t('common.audit-log.repair-confirm-cta'),
+      variant: 'destructive',
+    });
+    if (!ok) return;
+    setRepairError(null);
+    setRepairing(true);
+    try {
+      await onRepairSeal();
+    } catch (err) {
+      // A failed repair in a security-critical recovery flow must never look
+      // like a no-op: surface it plainly so the user knows the log is unchanged
+      // and still needs repair, and can retry.
+      console.error('[Audit] Seal repair failed:', err);
+      setRepairError(t('common.audit-log.repair-failed'));
+    } finally {
+      setRepairing(false);
+    }
+  }, [confirm, onRepairSeal, t]);
+
+  // Clear any stale repair error whenever the integrity verdict changes — a
+  // re-verify, a successful repair, or switching to a different workspace's log
+  // all produce a fresh verdict object. This stops a "Repair failed" message
+  // from a previous attempt/log leaking onto an unrelated seal-missing state.
+  useEffect(() => {
+    setRepairError(null);
+  }, [integrity]);
 
   return (
     <div
@@ -290,20 +359,17 @@ export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, 
         {integrityLabel !== null && (
           <span
             data-testid="audit-integrity-badge"
-            title={integrity?.status === 'altered' ? integrity.reason : undefined}
+            data-integrity-status={integrity?.status}
+            title={integrityTitle}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               marginTop: 10,
               padding: '3px 8px',
               borderRadius: 'var(--radius-sm)',
-              border: integrity?.status === 'altered'
-                ? '1px solid rgba(185,28,28,0.28)'
-                : '1px solid rgba(21,128,61,0.28)',
-              background: integrity?.status === 'altered'
-                ? 'rgba(254,242,242,0.9)'
-                : 'rgba(240,253,244,0.9)',
-              color: integrity?.status === 'altered' ? '#991b1b' : '#166534',
+              border: integrityToneStyle.border,
+              background: integrityToneStyle.background,
+              color: integrityToneStyle.color,
               fontSize: 'var(--kp-font-xs)',
               fontWeight: 'var(--kp-weight-semibold)',
               lineHeight: 'var(--kp-leading-snug)',
@@ -313,9 +379,37 @@ export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, 
             {integrityLabel}
           </span>
         )}
+        {canRepair && (
+          <Button
+            variant="secondary"
+            size="sm"
+            data-testid="audit-repair-button"
+            onClick={() => void handleRepair()}
+            loading={repairing}
+            disabled={repairing}
+            style={{ marginTop: 10, marginLeft: 8, verticalAlign: 'middle' }}
+          >
+            {t('common.audit-log.repair-action')}
+          </Button>
+        )}
+        {canRepair && repairError && (
+          <div
+            data-testid="audit-repair-error"
+            role="alert"
+            style={{
+              marginTop: 8,
+              color: '#991b1b',
+              fontSize: 'var(--kp-font-xs)',
+              lineHeight: 'var(--kp-leading-snug)',
+            }}
+          >
+            {repairError}
+          </div>
+        )}
       </div>
       )}
       {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+      <ConfirmDialog {...confirmDialogProps} />
 
       {/* Toolbar */}
       <SurfaceToolbar>

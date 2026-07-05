@@ -13,6 +13,7 @@ import { useMatterStore } from '@/platform/matter/matterStore';
 import { useMatterUiStore } from '@/platform/matter/matterUiStore';
 import { useEditorStore } from '@/platform/state/editorStore';
 import { openSourceDocument } from '@/features/matters/clientMap/openSource';
+import { parseMeetingRef } from '@/features/meetings/meetingSources';
 import { getActiveWorkspaceService } from '@/app/fileOps/flushDirtyTabs';
 import {
   EV_OPEN_MATTER_MANAGER,
@@ -62,8 +63,8 @@ const ACCOUNT_CATEGORIES = new Set<SettingCategory>([
   'integrations',
 ]);
 
-const ALLOWED_SURFACES = new Set(['search', 'files', 'email', 'workflows', 'audit', 'privacy'] as const);
-type AllowedSurface = 'search' | 'files' | 'email' | 'workflows' | 'audit' | 'privacy';
+const ALLOWED_SURFACES = new Set(['search', 'files', 'email', 'workflows', 'audit', 'privacy', 'matters'] as const);
+type AllowedSurface = 'search' | 'files' | 'email' | 'workflows' | 'audit' | 'privacy' | 'matters';
 
 export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
   // Keep the latest handlers in a ref so the listeners below register once.
@@ -123,6 +124,20 @@ export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
         return;
       }
 
+      // Wave 3c meeting source link -> the Meetings sub-tab, that exact
+      // meeting open and seeked (parseMeetingRef gives the dir + timestamp;
+      // MatterHub's pendingMeetingOpen one-shot mirrors pendingHubTab above).
+      if (source && source.kind === 'meeting' && typeof source.ref === 'string') {
+        const parsed = parseMeetingRef(source.ref);
+        if (parsed) {
+          useMatterStore.getState().setActiveMatter(matterId);
+          useMatterStore.getState().setClientMapHubId(matterId);
+          useMatterStore.getState().setPendingMeetingOpen(parsed);
+          ref.current.setSidebarActiveTab('matters');
+          return;
+        }
+      }
+
       const hasExplicitSurface = ALLOWED_SURFACES.has(detail.surface as AllowedSurface);
       useMatterStore.getState().setActiveMatter(matterId);
 
@@ -138,6 +153,11 @@ export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
           surface === 'files' ? 'documents'
           : surface === 'email' ? 'email'
           : surface === 'audit' ? 'activity'
+          // Explicit request to open the hub itself (its default sub-tab,
+          // the Client Map overview) rather than restore a remembered
+          // surface — e.g. whole-practice Ask's "open this client" chip,
+          // which always means the Client Map, not wherever they were last.
+          : surface === 'matters' ? 'overview'
           : null;
         if (hubTab) {
           // setActiveMatter ran just above; set the hub id AFTER it (setActiveMatter

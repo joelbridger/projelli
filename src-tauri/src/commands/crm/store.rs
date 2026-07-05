@@ -3,7 +3,7 @@
 // Holds the local canonical copy that makes deletions, re-rendering, and
 // resumable sync correct.  Mirrors `EncryptedMailStore` exactly in structure:
 //
-//   crm-enc.db        — SQLCipher, key from "keepance-crm-enc" keychain service
+//   crm-enc.db        — SQLCipher, key from "lantern-crm-enc" keychain service
 //     crm_objects     — raw JSON rows for every synced Wealthbox object
 //     crm_cursors     — per-object-type delta high-water cursors
 //     crm_render_state — fetched-vs-indexed state per household

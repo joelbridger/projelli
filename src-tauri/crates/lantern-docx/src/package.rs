@@ -19,9 +19,23 @@ use std::collections::BTreeMap;
 use std::io::{Cursor, Read, Write};
 
 use zip::write::SimpleFileOptions;
-use zip::{CompressionMethod, ZipArchive, ZipWriter};
+use zip::{CompressionMethod, DateTime, ZipArchive, ZipWriter};
 
 use crate::error::{DocxError, Result};
+
+/// Fixed zip-entry modified-time stamped on every part we write, instead of
+/// `SimpleFileOptions::default()`'s wall-clock time. Word and every other OPC
+/// reader take part content from the XML inside the archive, never from the
+/// zip container's per-entry mtime, so there is no Word-compatibility reason
+/// to stamp real time here — and doing so made two writes of the identical
+/// package non-byte-identical whenever they landed on opposite sides of a 2s
+/// DOS-timestamp boundary (the zip format's mtime resolution), breaking the
+/// round-trip byte-idempotence guarantee. `DateTime::default()` is the DOS
+/// epoch (1980-01-01 00:00:00) — the same floor value the `zip` crate itself
+/// falls back to, so this is a no-op for any reader that already tolerates it.
+fn fixed_zip_mtime() -> DateTime {
+    DateTime::default()
+}
 
 // Decompression-bomb defenses for untrusted .docx input. A .docx is an
 // attacker-controllable ZIP; its per-entry uncompressed-size header is NOT
@@ -207,8 +221,9 @@ impl Package {
         let mut out = Cursor::new(Vec::new());
         {
             let mut zip = ZipWriter::new(&mut out);
-            let opts =
-                SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
+            let opts = SimpleFileOptions::default()
+                .compression_method(CompressionMethod::Deflated)
+                .last_modified_time(fixed_zip_mtime());
 
             if let Some(ct) = self.parts.get(CONTENT_TYPES_PART) {
                 zip.start_file(CONTENT_TYPES_PART, opts)
@@ -254,8 +269,9 @@ impl Package {
         let mut out = Cursor::new(Vec::new());
         {
             let mut zip = ZipWriter::new(&mut out);
-            let opts =
-                SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
+            let opts = SimpleFileOptions::default()
+                .compression_method(CompressionMethod::Deflated)
+                .last_modified_time(fixed_zip_mtime());
 
             // Content-types first (OPC spec / Word preference), exactly as
             // `write_to_bytes`.

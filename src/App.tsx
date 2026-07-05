@@ -6,6 +6,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { workspacePath } from '@/platform/fs/appPath';
 import { useGlobalEventBus, type AppSurface } from '@/app/lifecycle/useGlobalEventBus';
 import { useAutosave } from '@/app/lifecycle/useAutosave';
@@ -33,6 +34,7 @@ import { TrustBar } from '@/app/shell/layout/TrustBar';
 import { StatusBar } from '@/app/shell/layout/StatusBar';
 import { AppDialogs } from '@/app/shell/AppDialogs';
 import { AppSurfaceRouter } from '@/app/shell/AppSurfaceRouter';
+import { RecordPill } from '@/features/meetings/RecordPill';
 import { LazyBoundary } from '@/ui/LazyBoundary';
 
 import { ProjectManager } from '@/features/documents/workspace/ProjectManager';
@@ -56,12 +58,16 @@ import { RagProgressBanner } from '@/platform/rag/ui/RagProgressBanner';
 import { useMemoryWiring } from '@/platform/hooks/useMemoryWiring';
 import { useGlobalFileDrop } from '@/app/shell/common/GlobalDropOverlay';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
-import { useEditorStore, setBeforeTabClose } from '@/platform/state/editorStore';
+import { useEditorStore, setBeforeTabClose, setBeforeDocxClose } from '@/platform/state/editorStore';
+import { isDocxRegistered, closeDocxTabSafely } from '@/platform/fs/docxSaveRegistry';
 import { flushTabForClose } from '@/app/fileOps/flushDirtyTabs';
 import { useWorkflowStore } from '@/features/workflows/workflowStore';
 import { useShallow } from 'zustand/react/shallow';
 import { createWorkspaceService, type WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { createFSBackend, isTauriEnvironment } from '@/platform/fs/BackendFactory';
+import { flushAllDirtyTabs } from '@/app/fileOps/flushDirtyTabs';
+import { useTabWriteGuard } from '@/platform/browserGuard/useTabWriteGuard';
+import { TabGateOverlay } from '@/platform/browserGuard/TabGateOverlay';
 import { useAiBatchReviewStore } from '@/platform/ai/aiBatchReviewStore';
 import { createWebFSBackend } from '@/platform/fs/WebFSBackend';
 import { writeSampleFiles } from '@/platform/matter/samples';
@@ -102,6 +108,7 @@ import { useApiKeys } from '@/platform/hooks/useApiKeys';
 import { useSettingsStore, useSettingsHydrated } from '@/platform/settings/settingsStore';
 import { vaultStatus } from '@/platform/firm/vault/vaultClient';
 import { withTimeout } from '@/lib/withTimeout';
+import { raceDialogWithWatchdog } from '@/platform/fs/dialogWatchdog';
 import { useOpenFileAIContext } from '@/platform/hooks/useOpenFileAIContext';
 import { useTemplatesMarketplaceStore } from '@/features/workflows/templatesMarketplaceStore';
 import { useModelList } from '@/platform/hooks/useModelList';
@@ -112,8 +119,10 @@ import { useMailSyncAudit } from '@/platform/connectors/email/useMailSyncAudit';
 import type { MailIndexChunk } from '@/platform/utils/mail-commands';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
+import { PromptDialog } from '@/ui/PromptDialog';
 import { usePromptDialog } from '@/platform/hooks/usePromptDialog';
 import { useUndoToast } from '@/app/shell/common/UndoToast';
+import { InlineErrorBanner } from '@/app/shell/common/InlineErrorBanner';
 import { installEarlyConnectorEventBridge } from '@/app/shell/connectorEventBridge';
 
 // Nine connector citation viewers, none of which render anything until their
@@ -128,16 +137,64 @@ const IS_TEST_MODE =
   window.location.search.includes('testMode=true');
 // `__KEEPANCE_DEMO__` is substituted to `true` at build time by
 // vite.config.web-demo.ts. We must read it here (not just the runtime
-// `window.__keepanceDemo` flag) because this const is evaluated at module
+// `window.__lanternDemo` flag) because this const is evaluated at module
 // import time — which happens BEFORE web-demo/main.tsx sets the window flag,
 // so the window flag alone is always `false` in the built demo bundle.
 declare const __KEEPANCE_DEMO__: boolean | undefined;
 const IS_DEMO_MODE =
   typeof window !== 'undefined' &&
   ((typeof __KEEPANCE_DEMO__ !== 'undefined' && __KEEPANCE_DEMO__) ||
-    (window as unknown as { __keepanceDemo?: boolean }).__keepanceDemo === true);
+    (window as unknown as { __lanternDemo?: boolean }).__lanternDemo === true);
 
+/**
+ * QA-15: the browser build has no per-workspace localStorage namespacing —
+ * two tabs on the same origin silently clobber each other's saved state
+ * (zustand/persist, last-write-wins, no cross-tab awareness). Desktop
+ * already has an OS-level single-instance guard, and IS_TEST_MODE never
+ * simulates two same-origin tabs, so the gate is disabled for both.
+ *
+ * This check MUST live in a component separate from AppShell, not as an
+ * early return inside it — AppShell calls dozens of hooks, several with
+ * effects that write shared state independent of user interaction (e.g. the
+ * demo-mode auto-open effect below calls handleWorkspaceSelected on mount).
+ * An early return inside AppShell would still run every hook/effect declared
+ * above it (React runs a component's hooks unconditionally regardless of
+ * what it returns), so a blocked tab could still write. Only NOT MOUNTING
+ * AppShell at all guarantees none of its effects ever run in a blocked tab.
+ * See src/platform/browserGuard/ for the guard itself and its rationale.
+ */
 function App() {
+  // onFlushRequested (round 5 codex-review P1) is the ONLY flush trigger on
+  // this side of a handoff — deliberately NOT "flush whenever this tab
+  // becomes blocked". Those are different situations: `onFlushRequested`
+  // only ever fires while this tab is STILL 'owner', in direct response to
+  // another tab's coordinated flush-request BEFORE it claims the lock, so
+  // this tab's buffer is still the authoritative latest state at the moment
+  // it flushes. An earlier version of this also flushed unconditionally
+  // whenever status became 'blocked' — that additionally covers the
+  // AUTOMATIC/involuntary demotion path (this tab was frozen/throttled, its
+  // heartbeat went stale, and another tab reclaimed the lock on its own
+  // without asking). By the time a stale-reclaimed tab wakes up and notices
+  // it's blocked, the new owner may have already read and saved newer state
+  // — flushing this tab's now-stale buffer at that point would silently
+  // overwrite the new owner's real changes, reintroducing exactly the
+  // last-write-wins clobber this whole guard exists to prevent (coordinator
+  // P1, round 6). Losing this tab's own unsaved edits when it was the one
+  // that went stale is an honest, bounded loss; clobbering someone else's
+  // newer save is not.
+  const tabWriteGuard = useTabWriteGuard(!IS_TEST_MODE && !isTauriEnvironment(), {
+    // flushAllDirtyTabs returns the failed-.docx paths (QA-34); this guard only
+    // needs the completion, so adapt to its Promise<void> signature.
+    onFlushRequested: async () => { await flushAllDirtyTabs(); },
+  });
+  if (tabWriteGuard.status === 'blocked') {
+    return <TabGateOverlay onTakeOver={tabWriteGuard.requestTakeover} />;
+  }
+  return <AppShell />;
+}
+
+function AppShell() {
+  const { t } = useTranslation();
   const [showWorkspaceSelector, setShowWorkspaceSelector] = useState(!IS_TEST_MODE && !IS_DEMO_MODE);
   const [demoOpenFailed, setDemoOpenFailed] = useState(false);
   const {
@@ -281,6 +338,16 @@ function App() {
     return verdict;
   }, []);
 
+  // Explicit, acknowledged repair of a seal-missing audit log (invoked from the
+  // AuditHome badge after the user confirms). Re-seals + records the anomaly in
+  // the backend, then refreshes the live entries AND the integrity badge so the
+  // new anomaly row appears and the amber state clears to verified.
+  const repairAuditSeal = useCallback(async (): Promise<void> => {
+    await auditServiceRef.current.repairSeal();
+    setAuditEntries(auditServiceRef.current.getAll().slice().reverse());
+    setAuditIntegrity(await auditServiceRef.current.verifyIntegrity());
+  }, []);
+
   const { theme, setTheme, effectiveTheme } = useThemeManager();
 
   // Perf (P1.2): exact-data-only selectors. These bare store-hook calls used
@@ -406,9 +473,20 @@ function App() {
   const [keychainService] = useState(() => createKeychainService());
 
   // API key management — all persistence routes through the shared keychain.
-  const { apiKeys, handleSaveApiKey: rawSaveApiKey, handleDeleteApiKey } = useApiKeys(
-    keychainService
-  );
+  const {
+    apiKeys,
+    handleSaveApiKey: rawSaveApiKey,
+    handleDeleteApiKey,
+    credentialServiceUnavailable,
+  } = useApiKeys(keychainService);
+  // QA-33: dismissible until the condition clears and re-occurs — a fresh
+  // outage should be shown again even if a PRIOR one was dismissed this
+  // session (e.g. the credential service flaps: down, restarts, goes down
+  // again).
+  const [credentialBannerDismissed, setCredentialBannerDismissed] = useState(false);
+  useEffect(() => {
+    if (!credentialServiceUnavailable) setCredentialBannerDismissed(false);
+  }, [credentialServiceUnavailable]);
 
   // Model list auto-fetching
   const validKeyEntries = useMemo(
@@ -791,7 +869,12 @@ function App() {
   } = useAIChatFiles({ rootPath, workspaceServiceRef, handleFileOpen, handleDelete });
 
   // Handle workspace selection and recent-project opening (extracted to hook)
-  const { handleWorkspaceSelected, handleOpenRecentProject } = useWorkspaceLifecycle({
+  const {
+    handleWorkspaceSelected,
+    handleOpenRecentProject,
+    workspaceOpenError,
+    dismissWorkspaceOpenError,
+  } = useWorkspaceLifecycle({
     workspaceServiceRef, auditServiceRef, templatesMarketplaceServiceRef, templatesMetadataReaderRef,
     setShowWorkspaceSelector, setAuditEntries, setAuditIntegrity, setRootPath,
     loadTrashMetadata, setTrashItems, setTrashStats,
@@ -853,15 +936,38 @@ function App() {
           let backend;
           let chosen: string;
           if (isTauriEnvironment()) {
-            const { open } = await import('@tauri-apps/plugin-dialog');
-            const selected = await open({
-              directory: true,
-              multiple: false,
-              title:
+            const { open: openDialog } = await import('@tauri-apps/plugin-dialog');
+            const raced = await raceDialogWithWatchdog(
+              openDialog({
+                directory: true,
+                multiple: false,
+                title:
+                  mode === 'sample'
+                    ? 'Choose a folder for your sample practice'
+                    : 'Choose your practice folder',
+              }),
+            );
+            // QA-32: the native folder picker can silently never respond on
+            // some environments (see dialogWatchdog.ts) — fall back to a
+            // manual path entry instead of leaving onboarding stuck forever.
+            let selected: string | null;
+            if (!raced.timedOut) {
+              selected = raced.value;
+            } else {
+              console.warn(
+                '[App] Native folder picker did not respond within the watchdog window — falling back to manual path entry.',
+              );
+              selected = await prompt(
                 mode === 'sample'
-                  ? 'Choose a folder for your sample practice'
-                  : 'Choose your practice folder',
-            });
+                  ? t('onboarding.workspace-picker.picker-unresponsive-sample')
+                  : t('onboarding.workspace-picker.picker-unresponsive-own-data'),
+                '',
+                {
+                  title: t('workspace.selector.manual-path-title'),
+                  placeholder: t('workspace.selector.manual-path-placeholder'),
+                },
+              );
+            }
             if (!selected) return { ok: false, cancelled: true };
             backend = await createFSBackend(selected);
             chosen = selected;
@@ -927,7 +1033,7 @@ function App() {
         };
       }
     },
-    [handleWorkspaceSelected]
+    [handleWorkspaceSelected, prompt, t]
   );
 
   // Demo build (keepance.com/try): auto-open the OPFS workspace that
@@ -1124,6 +1230,7 @@ function App() {
     setFileTree,
     handleFileOpen,
     undoToast,
+    promptForPath: prompt,
   });
 
   const { isDragging: isFileDragging } = useGlobalFileDrop({
@@ -1184,6 +1291,34 @@ function App() {
     setBeforeTabClose((path) => { void flushTabForClose(path); });
     return () => { setBeforeTabClose(null); };
   }, []);
+  // QA-34: airtight .docx close for EVERY close path that calls closeTab directly
+  // (Ctrl+W, the command palette, right-click Close / Close-others, grouped-tab
+  // close). closeTab offers each non-discard close here first; for an open .docx
+  // we save it (from its still-mounted editor) before removal and only discard on
+  // an explicit user choice, so a locked file can't silently lose in-memory work.
+  // (The tab X on either strip already routes through closeDocxTabSafely itself
+  // and closes with { discard } — which skips this hook, so there's no double.)
+  useEffect(() => {
+    setBeforeDocxClose((path) => {
+      if (!isDocxRegistered(path)) return false;
+      void closeDocxTabSafely(path, {
+        closeTab: useEditorStore.getState().closeTab,
+        confirmDiscardOnFailure: () =>
+          confirm(
+            `I couldn't save this document — another program may be blocking the file. ` +
+              `Close anyway and lose your latest changes?`,
+            {
+              title: 'Unsaved changes',
+              variant: 'destructive',
+              confirmLabel: 'Close and lose changes',
+              cancelLabel: 'Keep open',
+            },
+          ),
+      });
+      return true;
+    });
+    return () => { setBeforeDocxClose(null); };
+  }, [confirm]);
 
 
   // Command-palette commands. See src/app/commands/useAppCommands.ts.
@@ -1217,6 +1352,17 @@ function App() {
       onSaveKey={handleSaveOnboardingApiKey}
       onChooseStart={handleOnboardingChooseStart}
       hasWorkspace={Boolean(rootPath)}
+      // QA-9: rendered INSIDE the onboarding shell's own flow (reserves its
+      // own height, pushes the step header down) instead of as an
+      // independent fixed layer floating above it with no reserved space —
+      // that mismatch was the actual bug (the banner painted over "2.
+      // Securely connect your data" / "3. Setting up your firm").
+      topBanner={
+        <>
+          <ModelDownloadCard />
+          <LocalAiDownloadCard />
+        </>
+      }
       {...(workspaceServiceRef.current
         ? { workspace: workspaceServiceRef.current }
         : {})}
@@ -1279,15 +1425,26 @@ function App() {
             user's download starts during onboarding rather than after it,
             and returning to the selector mid-download keeps the progress
             visible. The selector is a fixed full-viewport page (z-50), so
-            the banner needs its own fixed top-of-screen layer above it. */}
-        <div className="fixed inset-x-0 top-0 z-[60]">
-          <ModelDownloadCard />
-          <LocalAiDownloadCard />
-        </div>
+            the banner needs its own fixed top-of-screen layer above it.
+            QA-9: only while the onboarding wizard is NOT showing — once it
+            is, `firstRunOverlay` renders this same banner as its own
+            `topBanner` (in normal flow, inside the shell). Keeping this
+            fixed copy up at the same time would float back on top of the
+            wizard's step header with no reserved space, reintroducing the
+            exact overlap this fix removes. */}
+        {!showFirstRun && (
+          <div className="fixed inset-x-0 top-0 z-[60]">
+            <ModelDownloadCard />
+            <LocalAiDownloadCard />
+          </div>
+        )}
         <WorkspaceSelector
           open={true}
           onWorkspaceSelected={handleWorkspaceSelected}
           onDismiss={canDismiss ? () => setShowWorkspaceSelector(false) : undefined}
+          externalError={workspaceOpenError}
+          onExternalErrorShown={dismissWorkspaceOpenError}
+          promptForPath={prompt}
         />
         {firstRunOverlay}
         {/* The shared confirm dialog must be mounted in THIS branch too, not
@@ -1296,6 +1453,15 @@ function App() {
             awaits confirm(); without the renderer here that await would hang
             (native window.confirm used to work without a mounted component). */}
         <ConfirmDialog {...confirmDialogProps} />
+        {/* QA-32: the prompt dialog must ALSO be mounted here (not only in
+            AppDialogs' main-shell branch) — onboarding's "Connect my own
+            data" folder picker (below) and WorkspaceSelector's own picker
+            calls both run their manual-path-entry fallback via `prompt()`
+            while THIS branch is what's on screen (no workspace yet). Without
+            a renderer here, that fallback would update state with nothing
+            ever shown, leaving the user just as stuck as the picker hang
+            itself. */}
+        <PromptDialog {...promptDialogProps} />
       </>
     );
   }
@@ -1324,6 +1490,24 @@ function App() {
       >
         Skip to main content
       </a>
+      {/* QA-33: a failed "open a different recent project" (or a failed
+          silent boot-time reopen that fell through to the ALREADY-open
+          workspace's UI, not the picker) must never be silent. The current
+          workspace is untouched either way, so this is purely informational. */}
+      {workspaceOpenError && (
+        <InlineErrorBanner message={workspaceOpenError} onDismiss={dismissWorkspaceOpenError} />
+      )}
+      {/* QA-33: useApiKeys already degrades gracefully when the OS credential
+          service is unavailable (falls back to the last known-good key, never
+          blocks/crashes) — but that was entirely silent, so a user had no way
+          to tell "no AI features right now" apart from "I never set up a key".
+          Documents are unaffected either way, hence purely informational. */}
+      {credentialServiceUnavailable && !credentialBannerDismissed && (
+        <InlineErrorBanner
+          message={t('settings.api-keys.credential-service-unavailable')}
+          onDismiss={() => { setCredentialBannerDismissed(true); }}
+        />
+      )}
       {/* Header bar with project switcher */}
       <header className="flex items-center justify-between h-10 px-2 border-b bg-muted/30 shrink-0" data-testid="app-header">
         <div className="flex items-center gap-2">
@@ -1464,6 +1648,7 @@ function App() {
           auditEntries={auditEntries}
           auditIntegrity={auditIntegrity}
           verifyAuditIntegrity={verifyAuditIntegrity}
+          repairAuditSeal={repairAuditSeal}
           apiKeys={apiKeys}
           rootPath={rootPath}
           trashItems={trashItems}
@@ -1508,6 +1693,12 @@ function App() {
           activeMatter={activeMatter}
         />
       </main>
+
+      {/* Wave 3c: the whole recording UI (position: fixed, floats over every
+          surface) — mounted here at the app root, not inside MainPanel, so it
+          stays visible while the advisor switches tabs mid-meeting (Documents,
+          Email, Ask, etc.), not just while on the Documents/editor surface. */}
+      <RecordPill />
 
       {/* Status bar. showFileContext=true only on the Documents/editor surface
           (files tab) so the breadcrumb never shows stale editor context when

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { X, Loader2, Send, Save } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { X, Loader2, Send, Save, Sparkles } from 'lucide-react';
 import {
   mailConnectedAccounts,
   mailListMessagesByMatter,
@@ -11,6 +11,7 @@ import {
 import {
   resolveEmailProvider,
   assertLocalOnlyAllowsSend,
+  type ResolvedEmailProvider,
 } from '@/features/email/resolveEmailProvider';
 import {
   buildFollowUpPrompt,
@@ -18,6 +19,7 @@ import {
   suggestClientEmail,
   draftBodyToHtml,
   splitBodyWithCitations,
+  appendCitationFootnotes,
   draftStructuredOutputOptions,
   type DraftCitation,
   type RawDraftResponse,
@@ -31,7 +33,7 @@ import {
   logEmailAuditEntry,
 } from '@/features/email/emailAuditLog';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
-import { resolveEgress } from '@/platform/privacy/egress';
+import { resolveEgress, providerDisplayName } from '@/platform/privacy/egress';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { useMatters } from '@/platform/matter/matterStore';
 import { UNASSIGNED_MATTER_ID } from '@/platform/types/matter';
@@ -45,13 +47,33 @@ export interface DraftFollowUpModalProps {
   matterId: string;
 }
 
-type Status = 'idle' | 'generating' | 'saving' | 'sending' | 'saved' | 'sent' | 'error';
+type Status =
+  | 'loading'
+  | 'ready'
+  | 'generating'
+  | 'idle'
+  | 'saving'
+  | 'sending'
+  | 'saved'
+  | 'sent'
+  | 'error';
 
 /**
  * Wave 0 "Draft follow-up": AI proposes a follow-up email from the open
  * note/document; the advisor reviews and either saves it into their REAL
  * mailbox Drafts folder (default) or sends it. Recipients come ONLY from the
  * user-controlled To field — never from the note or the AI output.
+ *
+ * R4a (Tier B trust guard): opening the modal must NOT send the note content
+ * to the AI provider. Opening only loads the mailbox accounts, suggests a
+ * recipient from local mail, and names the destination — then the modal shows
+ * a preview of WHAT will be sent (which note, which client) and WHERE (the
+ * provider). The confidential content leaves — and the egress is logged —
+ * only when the advisor presses "Generate".
+ *
+ * R4b: the citations shown in the modal travel with the saved/sent draft as
+ * source-named footnotes, so the recipient and the advisor's own record keep
+ * the sourcing.
  */
 export function DraftFollowUpModal({
   open,
@@ -66,55 +88,65 @@ export function DraftFollowUpModal({
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [citations, setCitations] = useState<DraftCitation[]>([]);
-  const [status, setStatus] = useState<Status>('idle');
+  const [status, setStatus] = useState<Status>('loading');
   const [error, setError] = useState<string | null>(null);
+  // R4a: the destination provider name to show in the preview (null while
+  // loading or when nothing resolves — e.g. no cloud key, local-only).
+  const [providerName, setProviderName] = useState<string | null>(null);
+  // R4a: the provider resolved on open is stored here (identity only — nothing
+  // is sent) and reused by Generate, so the content still leaves only once.
+  const resolvedRef = useRef<ResolvedEmailProvider | null>(null);
   // Codex review catch (P2): the To-suggestion query needs the real
   // folder→matter map, or account/folder-mapped mail (the normal case) never
   // matches and only manually-filed message overrides would be found.
   const matters = useMatters();
+  // A monotonic token for the async Generate flow. Bumped whenever the modal
+  // (re)opens and on each Generate, so a generate that resolves after the modal
+  // was closed or reopened for a DIFFERENT note can't write the old note's
+  // content/egress into the new one.
+  const genTokenRef = useRef(0);
+  const clientLabel = (() => {
+    const m = matters.find((mm) => mm.id === matterId) as { client?: string; name?: string } | undefined;
+    return m?.client || m?.name || null;
+  })();
 
-  // On open: load accounts, suggest To from the client's mail, generate the draft.
+  // On open: load accounts, suggest To from the client's mail, and resolve the
+  // destination NAME for the preview. Deliberately does NOT build the prompt,
+  // call the AI provider, or log egress — that all happens on Generate.
   useEffect(() => {
     if (!open) return;
-    // Coordinator review catch: this is a controlled modal — closing it (the
-    // `open` prop flips false) does not by itself stop this in-flight async
-    // work. Without this guard, an account lookup / provider resolution that
-    // was still pending when the user dismissed the modal would carry on and
-    // still send the note content to the AI provider after dismissal — a
-    // privacy-sensitive egress happening behind the user's back. Checked
-    // after every await, and always immediately before the two things that
-    // must never fire post-close: building/logging the egress audit entry
-    // and calling provider.sendMessage.
+    // Closing the modal (the `open` prop flips false) does not by itself stop
+    // this in-flight async work, so guard every setState after an await.
     let cancelled = false;
-    setStatus('generating');
+    // Supersede any Generate still in flight from a prior open of this modal.
+    genTokenRef.current += 1;
+    setStatus('loading');
     setError(null);
     setBody('');
-    setCitations([]);
-    // Codex review catch (P2): this is a controlled modal (the `open` prop can
-    // toggle without unmounting) — reset every prior client's guess before the
-    // new client's lookup runs, or a stale To/Subject from the last open can
-    // survive alongside the newly generated body and become a follow-up sent
-    // to the wrong client.
-    setTo('');
     setSubject('');
+    setCitations([]);
+    setProviderName(null);
+    resolvedRef.current = null;
+    // Codex review catch (P2): reset every prior client's guess before the new
+    // client's lookup runs, so a stale To can't survive into the new draft.
+    setTo('');
     void (async () => {
       try {
         const accts = await mailConnectedAccounts();
         if (cancelled) return;
         setAccounts(accts);
-        setAccountIdx(0);
-        // Codex review catch (P1): with no connected mailbox this feature is
-        // unusable (there is nowhere to save/send the draft), so never send
-        // confidential note content to an AI provider for nothing. The UI
-        // shows the "connect an account" message for this case.
+        // codex-review (smoke P0 #1): default to the first DRAFT-CAPABLE account.
+        const draftCapableIdx = accts.findIndex((a) => a.provider !== 'imap');
+        setAccountIdx(draftCapableIdx === -1 ? 0 : draftCapableIdx);
+        // With no connected mailbox this feature is unusable (nowhere to
+        // save/send), so stop here — the UI shows "connect an account".
         if (accts.length === 0) {
           setStatus('idle');
           return;
         }
         try {
-          // Codex review catch (P1): an unassigned note's query would hit the
-          // SHARED unassigned-mail bucket (every client's unmatched mail), so
-          // any suggestion could belong to a completely unrelated client —
+          // An unassigned note's query would hit the SHARED unassigned-mail
+          // bucket, so any suggestion could belong to an unrelated client —
           // skip the lookup and leave To empty rather than risk it.
           if (matterId !== UNASSIGNED_MATTER_ID) {
             const page = await mailListMessagesByMatter(matterId, buildMailMatterMap(matters), {
@@ -128,20 +160,54 @@ export function DraftFollowUpModal({
             if (suggestion) setTo(suggestion);
           }
         } catch {
-          // No mail for this client (or browser mode) — To stays empty, user types it.
+          // No mail for this client (or browser mode) — To stays empty.
         }
         if (cancelled) return;
-        const { provider, providerId, assuredAvailable } = await resolveEmailProvider();
-        // Coordinator review catch: the modal may have been closed while
-        // provider resolution (keychain reads, etc.) was in flight — checked
-        // here, BEFORE building the egress audit entry or the prompt at all.
+        // Resolve the provider IDENTITY only, to name the destination in the
+        // preview and to reuse on Generate. This reads no content and sends
+        // nothing to the provider; the note only leaves on the Generate click.
+        try {
+          const resolved = await resolveEmailProvider();
+          if (cancelled) return;
+          resolvedRef.current = resolved;
+          setProviderName(providerDisplayName(resolved.providerId));
+        } catch (e) {
+          if (cancelled) return;
+          // A personal install with no confidentiality choice yet, etc. Surface
+          // it, but keep the modal open so the advisor can act.
+          setError(e instanceof Error ? e.message : String(e));
+        }
         if (cancelled) return;
+        setStatus('ready');
+      } catch (e) {
+        if (cancelled) return;
+        setError(e instanceof Error ? e.message : String(e));
+        setStatus('error');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // R4a: the only path that sends the note content to the AI provider. Egress
+  // is logged HERE (moved off open), immediately before the send.
+  const handleGenerate = () => {
+    if (status === 'generating') return;
+    setStatus('generating');
+    setError(null);
+    const token = ++genTokenRef.current;
+    const superseded = () => genTokenRef.current !== token;
+    void (async () => {
+      try {
+        const resolved = resolvedRef.current ?? (await resolveEmailProvider());
+        if (superseded()) return;
+        resolvedRef.current = resolved;
+        const { provider, providerId, assuredAvailable } = resolved;
         assertLocalOnlyAllowsSend(providerId);
-        // Codex review catch (P1): every other AI surface (Ask, redline, the
-        // reply-draft flow this modal is modeled on) records an egress audit
-        // entry BEFORE the send, so the Activity Log / confidentiality report
-        // never misses a client-data AI request. Mirrors handleDraftWithAI's
-        // exact construction in EmailViewer.tsx.
+        // Egress audit entry BEFORE the send (mirrors every other AI surface),
+        // now fired only on the deliberate Generate — not on open.
         const egress = resolveEgress({
           provider: providerId,
           mode: assuredAvailable ? 'assured' : getConfidentialityMode(),
@@ -165,40 +231,51 @@ export function DraftFollowUpModal({
           metadata: { ...auditEntry.metadata, noteName },
         });
         const prompt = buildFollowUpPrompt({ noteName, noteContent });
-        // Coordinator review catch: re-checked immediately before the actual
-        // send, the one call that must never fire after the user dismissed
-        // the modal.
-        if (cancelled) return;
+        if (superseded()) return;
         const response = await provider.structuredOutput<RawDraftResponse>(
           prompt,
           draftStructuredOutputOptions,
         );
-        if (cancelled) return;
+        if (superseded()) return;
         const applied = applyDraftResponse(noteName, response, noteContent);
         setSubject(applied.subject);
         setBody(applied.body);
         setCitations(applied.citations);
         setStatus('idle');
       } catch (e) {
-        if (cancelled) return;
+        if (superseded()) return;
         setError(e instanceof Error ? e.message : String(e));
         setStatus('error');
       }
     })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  };
 
   if (!open) return null;
   const account = accounts[accountIdx];
   const canSaveDraft = account != null && account.provider !== 'imap';
   const toArr = parseRecipients(to);
+  const generated = body.trim() !== '' || status === 'idle' || status === 'saved' || status === 'sent';
+  // Save/Send are actionable only in an editable state (idle, or after a
+  // recoverable error) with a recipient + body — NEVER while in flight
+  // ('saving'/'sending') and NEVER after a terminal action ('sent'/'saved'),
+  // so a second click can't fire a DUPLICATE real email or draft (coordinator
+  // review — this restores the terminal-state guard the original `!== 'idle'`
+  // check provided before the R4a rewrite).
+  const canAct = (status === 'idle' || status === 'error') && toArr.length > 0 && body.trim() !== '';
+  // Generate is available once the destination is resolved ('ready') AND again
+  // after a recoverable failure ('error') — otherwise a transient Generate
+  // failure would leave the advisor stuck until they close and reopen the modal
+  // (coordinator review). It's blocked only while loading or generating.
+  const canGenerate = status === 'ready' || status === 'error';
   // Recomputed from the CURRENT body on every render, not stored — an edit
   // that removes a cited phrase drops its chip automatically.
   const citationSegments = splitBodyWithCitations(body, citations);
   const activeCitationCount = citationSegments.filter((s) => s.type === 'citation').length;
+  // R4b: exactly the citations still present in the (possibly edited) body —
+  // the same set the advisor sees as chips — become the saved/sent footnotes.
+  const activeCitations = citationSegments
+    .filter((s): s is { type: 'citation'; citation: DraftCitation } => s.type === 'citation')
+    .map((s) => s.citation);
   const scopeHint = (msg: string) =>
     msg === 'scope_upgrade_required'
       ? 'Your email connection needs one more permission to save drafts. Open Settings and reconnect the account.'
@@ -208,17 +285,15 @@ export function DraftFollowUpModal({
     if (!account) return;
     setStatus('saving');
     setError(null);
+    // R4b: the citation footnotes travel into the real mailbox draft.
+    const bodyWithSources = appendCitationFootnotes(body, activeCitations, noteName);
     void mailSaveDraft(
       composeMailAccountId(account.provider, account.account),
       toArr,
       subject,
-      draftBodyToHtml(body),
+      draftBodyToHtml(bodyWithSources),
     )
       .then(() => {
-        // Codex review catch (P2): saving a draft writes client content into a
-        // REAL external mailbox (Outlook/Gmail Drafts) — a durable record is
-        // needed here exactly as it is for a direct send, or this outcome
-        // disappears from the Activity Log / confidentiality report.
         const saveScope = emailMatterScope(matterId, undefined);
         logEmailAuditEntry({
           action: 'email.draft_saved',
@@ -245,13 +320,10 @@ export function DraftFollowUpModal({
     if (!account) return;
     setStatus('sending');
     setError(null);
-    void mailSend(account.provider, account.account, toArr, [], [], subject, body, undefined)
+    // R4b: the citation footnotes travel into the sent email too.
+    const bodyWithSources = appendCitationFootnotes(body, activeCitations, noteName);
+    void mailSend(account.provider, account.account, toArr, [], [], subject, bodyWithSources, undefined)
       .then(() => {
-        // Codex review catch (P2): a durable record of the outbound send,
-        // mirroring EmailViewer's reply-send audit entry exactly (message
-        // id/subject/body never logged, only counts + provenance) so this
-        // feature's sends show up in the same Activity Log / confidentiality
-        // report as every other outbound email.
         const sendScope = emailMatterScope(matterId, undefined);
         logEmailAuditEntry({
           action: 'email.send',
@@ -364,7 +436,7 @@ export function DraftFollowUpModal({
 
         {/* Modal body (scrollable) */}
         <div style={{ flex: 1, overflowY: 'auto', padding: `var(--kp-space-sm) var(--kp-card-pad) var(--kp-card-pad)`, display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-xs)' }}>
-          {accounts.length === 0 ? (
+          {accounts.length === 0 && status !== 'loading' ? (
             <div data-testid="followup-no-accounts" style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)', padding: '8px 0' }}>
               Connect an email account in Settings to draft follow-ups.
             </div>
@@ -388,6 +460,35 @@ export function DraftFollowUpModal({
                 </div>
               )}
 
+              {/* R4a: the pre-generate preview — what WILL be sent and where.
+                  Shown until the advisor presses Generate. */}
+              {!generated && (
+                <div
+                  data-testid="followup-generate-preview"
+                  style={{
+                    border: '1px solid var(--color-input)',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--kp-bg-soft, #f8f9fb)',
+                    padding: '11px 13px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 6,
+                    fontSize: 'var(--kp-font-xs)',
+                    color: 'var(--kp-navy)',
+                    lineHeight: 1.5,
+                  }}
+                >
+                  <span style={{ fontWeight: 'var(--kp-weight-semibold)' }}>
+                    Nothing has been sent yet.
+                  </span>
+                  <span>
+                    Press Generate to send this note{clientLabel ? <> for <strong>{clientLabel}</strong></> : null} to{' '}
+                    <strong data-testid="followup-destination">{providerName ?? 'your AI provider'}</strong> and draft a follow-up.
+                    Its content leaves your machine only when you press Generate.
+                  </span>
+                </div>
+              )}
+
               {/* To */}
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -406,23 +507,22 @@ export function DraftFollowUpModal({
                 </div>
               </div>
 
-              {/* Subject */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={labelStyle}>Subject</span>
-                <input
-                  type="text"
-                  data-testid="followup-subject"
-                  value={subject}
-                  onChange={(e) => { setSubject(e.target.value); }}
-                  style={inputStyle}
-                />
-              </div>
+              {/* Subject — only once generated */}
+              {generated && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={labelStyle}>Subject</span>
+                  <input
+                    type="text"
+                    data-testid="followup-subject"
+                    value={subject}
+                    onChange={(e) => { setSubject(e.target.value); }}
+                    style={inputStyle}
+                  />
+                </div>
+              )}
 
-              {/* Citation preview — derived from the current body text, so an
-                  edit that changes a cited phrase quietly drops that chip
-                  rather than showing a citation for text that's no longer
-                  there. Hidden entirely when there's nothing to cite. */}
-              {citationSegments.some((seg) => seg.type === 'citation') && (
+              {/* Citation preview — derived from the current body text. */}
+              {generated && citationSegments.some((seg) => seg.type === 'citation') && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                   <span style={labelStyle}>Cited</span>
                   <div
@@ -454,40 +554,37 @@ export function DraftFollowUpModal({
                     )}
                   </div>
                   <span style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--kp-text-faint, var(--color-muted-foreground))' }}>
-                    {/* codex-review P2: counts the segments actually still
-                        matched against the current (possibly edited) body,
-                        not the original citations array — an edit that
-                        removes a cited phrase drops its chip above, and the
-                        count here must drop with it. */}
                     {activeCitationCount === 1
-                      ? 'One detail is cited from your notes. Hover it to see the exact line.'
-                      : `${String(activeCitationCount)} details are cited from your notes. Hover one to see the exact line.`}
+                      ? 'One detail is cited from your notes. It travels with the saved draft.'
+                      : `${String(activeCitationCount)} details are cited from your notes. They travel with the saved draft.`}
                   </span>
                 </div>
               )}
 
-              {/* Message */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                <span style={labelStyle}>Message</span>
-                <textarea
-                  data-testid="followup-body"
-                  rows={12}
-                  placeholder={status === 'generating' ? 'Drafting…' : ''}
-                  value={body}
-                  onChange={(e) => { setBody(e.target.value); }}
-                  style={{
-                    border: '1px solid var(--color-border)',
-                    borderRadius: 'var(--radius-md)',
-                    padding: '10px 12px',
-                    fontSize: 'var(--kp-font-sm)',
-                    fontFamily: 'var(--font-sans)',
-                    lineHeight: 1.6,
-                    background: '#fff',
-                    color: 'var(--color-foreground)',
-                    resize: 'vertical',
-                  }}
-                />
-              </div>
+              {/* Message — only once generated */}
+              {generated && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <span style={labelStyle}>Message</span>
+                  <textarea
+                    data-testid="followup-body"
+                    rows={12}
+                    placeholder={status === 'generating' ? 'Drafting…' : ''}
+                    value={body}
+                    onChange={(e) => { setBody(e.target.value); }}
+                    style={{
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '10px 12px',
+                      fontSize: 'var(--kp-font-sm)',
+                      fontFamily: 'var(--font-sans)',
+                      lineHeight: 1.6,
+                      background: '#fff',
+                      color: 'var(--color-foreground)',
+                      resize: 'vertical',
+                    }}
+                  />
+                </div>
+              )}
 
               {error != null && (
                 <p role="alert" style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--kp-danger, #b91c1c)' }}>
@@ -517,71 +614,114 @@ export function DraftFollowUpModal({
               borderTop: '1px solid var(--color-border)',
             }}
           >
-            <span style={{ flex: 1, fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)', lineHeight: 1.4 }}>
-              Saves as a draft in your mailbox. You send it from your own inbox.
-            </span>
-            <button
-              type="button"
-              data-testid="followup-send"
-              disabled={status !== 'idle' || toArr.length === 0 || body.trim() === ''}
-              onClick={handleSend}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '7px 14px',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 'var(--kp-font-sm)',
-                fontWeight: 'var(--kp-weight-semibold)',
-                background: '#fff',
-                color: 'var(--kp-navy)',
-                border: '1px solid var(--color-border)',
-                cursor: status !== 'idle' || toArr.length === 0 || body.trim() === '' ? 'default' : 'pointer',
-                opacity: status !== 'idle' || toArr.length === 0 || body.trim() === '' ? 0.6 : 1,
-                fontFamily: 'var(--font-sans)',
-              }}
-            >
-              {status === 'sending' ? (
-                <Loader2 style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2, animation: 'spin 1s linear infinite' }} />
-              ) : (
-                <Send style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 1.75 }} />
-              )}
-              Send
-            </button>
-            <button
-              type="button"
-              data-testid="followup-save-drafts"
-              disabled={!canSaveDraft || status !== 'idle' || toArr.length === 0 || body.trim() === ''}
-              onClick={handleSaveToDrafts}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '7px 18px',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 'var(--kp-font-sm)',
-                fontWeight: 'var(--kp-weight-semibold)',
-                background: 'var(--kp-action-bg)',
-                color: 'var(--kp-action-fg)',
-                border: 'none',
-                cursor:
-                  !canSaveDraft || status !== 'idle' || toArr.length === 0 || body.trim() === ''
-                    ? 'default'
-                    : 'pointer',
-                opacity:
-                  !canSaveDraft || status !== 'idle' || toArr.length === 0 || body.trim() === ''
-                    ? 0.6
-                    : 1,
-                fontFamily: 'var(--font-sans)',
-              }}
-            >
-              {status === 'saving' ? (
-                <Loader2 style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2, animation: 'spin 1s linear infinite' }} />
-              ) : (
-                <Save style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 1.75 }} />
-              )}
-              Save to my Drafts
-            </button>
+            {!generated ? (
+              <>
+                <span style={{ flex: 1, fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)', lineHeight: 1.4 }}>
+                  The note leaves your machine only when you press Generate.
+                </span>
+                <button
+                  type="button"
+                  data-testid="followup-generate"
+                  disabled={!canGenerate}
+                  onClick={handleGenerate}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '7px 18px',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: 'var(--kp-font-sm)',
+                    fontWeight: 'var(--kp-weight-semibold)',
+                    background: 'var(--kp-action-bg)',
+                    color: 'var(--kp-action-fg)',
+                    border: 'none',
+                    cursor: !canGenerate ? 'default' : 'pointer',
+                    opacity: !canGenerate ? 0.6 : 1,
+                    fontFamily: 'var(--font-sans)',
+                  }}
+                >
+                  {status === 'generating' ? (
+                    <Loader2 style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2, animation: 'spin 1s linear infinite' }} />
+                  ) : (
+                    <Sparkles style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 1.75 }} />
+                  )}
+                  Generate
+                </button>
+              </>
+            ) : (
+              <>
+                {canSaveDraft ? (
+                  <span style={{ flex: 1, fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)', lineHeight: 1.4 }}>
+                    Saves as a draft in your mailbox. You send it from your own inbox.
+                  </span>
+                ) : (
+                  <span
+                    data-testid="followup-save-drafts-explanation"
+                    style={{ flex: 1, fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)', lineHeight: 1.4 }}
+                  >
+                    {accounts.some((a) => a.provider !== 'imap')
+                      ? 'This account can’t save drafts. Pick your Outlook or Gmail account above to save one.'
+                      : 'This account can’t save drafts. Connect an Outlook or Gmail account in Settings to save one.'}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  data-testid="followup-send"
+                  disabled={!canAct}
+                  onClick={handleSend}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '7px 14px',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: 'var(--kp-font-sm)',
+                    fontWeight: 'var(--kp-weight-semibold)',
+                    background: '#fff',
+                    color: 'var(--kp-navy)',
+                    border: '1px solid var(--color-border)',
+                    cursor: !canAct ? 'default' : 'pointer',
+                    opacity: !canAct ? 0.6 : 1,
+                    fontFamily: 'var(--font-sans)',
+                  }}
+                >
+                  {status === 'sending' ? (
+                    <Loader2 style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2, animation: 'spin 1s linear infinite' }} />
+                  ) : (
+                    <Send style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 1.75 }} />
+                  )}
+                  Send
+                </button>
+                <button
+                  type="button"
+                  data-testid="followup-save-drafts"
+                  disabled={!canSaveDraft || !canAct}
+                  onClick={handleSaveToDrafts}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '7px 18px',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: 'var(--kp-font-sm)',
+                    fontWeight: 'var(--kp-weight-semibold)',
+                    background: 'var(--kp-action-bg)',
+                    color: 'var(--kp-action-fg)',
+                    border: 'none',
+                    cursor: !canSaveDraft || !canAct ? 'default' : 'pointer',
+                    opacity: !canSaveDraft || !canAct ? 0.6 : 1,
+                    fontFamily: 'var(--font-sans)',
+                  }}
+                >
+                  {status === 'saving' ? (
+                    <Loader2 style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2, animation: 'spin 1s linear infinite' }} />
+                  ) : (
+                    <Save style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 1.75 }} />
+                  )}
+                  Save to my Drafts
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>

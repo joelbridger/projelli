@@ -55,7 +55,7 @@ import {
 import { deriveFilenameFromMessage } from '@/platform/utils/fileDrop';
 import { assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
 import { matterLabel } from '@/platform/rag/matterResolver';
-import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
+import { useEntityLabelEnglish } from '@/platform/hooks/useEntityLabel';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { resolveEgress } from '@/platform/privacy/egress';
 import {
@@ -107,12 +107,18 @@ function privilegeSourceId(sourceId: string): string {
   return `mail:${displayId(sourceId)}`;
 }
 
-/** Locale key for each privilege action. */
-const PRIVILEGE_OPTION_KEYS: Record<Privilege, string> = {
-  'none': 'mail.viewer.privilege-clear',
-  'attorney-client': 'mail.viewer.privilege-mark-ac',
-  'work-product': 'mail.viewer.privilege-mark-wp',
-};
+/** Label for each privilege action (literal keys per branch — `Privilege`
+ *  is a closed union but the i18n extractor can't trace a record lookup). */
+function privilegeOptionLabel(privilege: Privilege, t: (key: string) => string): string {
+  switch (privilege) {
+    case 'none':
+      return t('mail.viewer.privilege-clear');
+    case 'attorney-client':
+      return t('mail.viewer.privilege-mark-ac');
+    case 'work-product':
+      return t('mail.viewer.privilege-mark-wp');
+  }
+}
 
 // Re-exported for existing callers (App.tsx registers the emitter here; a
 // few tests import it from this path too) — the implementation moved to
@@ -142,7 +148,10 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
   const [message, setMessage] = useState<MailView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const entityLabel = useEntityLabel();
+  // Fixed-English escape hatch: the "File to {{entity}}" strings below are
+  // still hardcoded English (see the cleanup2 handoff), so the noun stays
+  // English too rather than mixing languages.
+  const entityLabel = useEntityLabelEnglish();
 
   // Privilege (WS-PRIV / VG-5c)
   const mailSourceId = privilegeSourceId(sourceId);
@@ -565,7 +574,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
                       : 'bg-white text-slate-600 hover:bg-slate-50'
                   }`}
                 >
-                  {t(PRIVILEGE_OPTION_KEYS[status])}
+                  {privilegeOptionLabel(status, t)}
                 </button>
               ))}
             </div>

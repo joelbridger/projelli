@@ -43,6 +43,19 @@ pub struct CrmWriteRequest {
     pub due_date: Option<String>,
     pub source_ref: String,
     pub requested_at: String,
+    /// R9→E3 (Tier B trust guard): a compact, honest provenance line for
+    /// AI-drafted notes ("Drafted by Advisor Prep Hero AI from the … meeting;
+    /// approved by … on …"), composed + localized in the renderer. When
+    /// present it is appended to the note content HERE, at the wire boundary,
+    /// so it always reaches the CRM even though the advisor can't edit a
+    /// note's body in the review card — a colleague reading the note in the
+    /// CRM always sees a machine drafted it and from what. `None` for
+    /// advisor-typed notes, tasks, and field updates. It is deliberately NOT
+    /// part of `dedup_key`: provenance is stable across retries of one
+    /// approval (composed once), and the approval event is already scoped by
+    /// `requested_at`, so leaving it out keeps the idempotency identity on the
+    /// content the advisor actually reviewed.
+    pub provenance: Option<String>,
 }
 
 /// Receipt for a completed (or deduplicated) write.
@@ -87,10 +100,39 @@ pub enum CrmWriteError {
     StaleFieldValue(String),
     #[error("could not read the current field value from the CRM — try again")]
     ReadFailed,
+    /// Wealthbox's real `POST /tasks` rejects a task with no due date (HTTP
+    /// 422 — confirmed live, see
+    /// docs/evidence/windows-smoke-2/WEALTHBOX-PROBE.md Finding 1). Raised at
+    /// the command boundary, before any network call, instead of letting the
+    /// raw 422 surface to the ledger as an opaque HTTP error.
+    #[error("Wealthbox tasks need a due date")]
+    TaskDueDateRequired,
+    /// The write returned HTTP 200 but a post-write readback shows the field
+    /// is unchanged — a "silent no-op" (confirmed live for
+    /// `background_information`/`background_info`, see
+    /// docs/evidence/windows-smoke-2/WEALTHBOX-PROBE.md Finding 2). Never
+    /// recorded as `sent`: an advisor seeing "done" while the CRM record is
+    /// untouched is worse than a visible error.
+    #[error("the CRM accepted this write but the field did not actually change — treated as failed, not sent")]
+    WriteNotApplied,
 }
 
 fn norm(s: &str) -> String {
     s.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Normalizes line endings (CRLF/CR → LF) and trims trailing whitespace
+/// before comparing a post-write readback against the value we sent. Some
+/// CRMs plausibly normalize stored text on their end (line-ending
+/// conversion, trailing-whitespace trim) even when a write genuinely
+/// applied — without this, that normalization would read back as a
+/// permanent, visible `WriteNotApplied` for a write that actually
+/// succeeded, and an advisor would retry forever against a success.
+/// Deliberately does NOT collapse internal whitespace like `norm()` does —
+/// that would mask a REAL silent no-op (Finding 2) as a false match. Used
+/// only for readback comparison, never for dedup/audit content identity.
+fn normalize_for_readback_compare(s: &str) -> String {
+    s.replace("\r\n", "\n").replace('\r', "\n").trim_end().to_string()
 }
 
 /// Stable content-addressed key scoped to ONE approval event: identical
@@ -108,6 +150,19 @@ fn norm(s: &str) -> String {
 /// feature ships, that future change needs either a migration for existing
 /// rows or a fallback lookup under the old formula — skipping that then
 /// would let a retry miss its own `sent`/`pending_verify` row and double-post.
+/// Build the note content string that actually reaches the CRM: the title as
+/// the first line, the body below it, and — for AI-drafted notes — the honest
+/// provenance line appended below that (E3 trust guard). Kept a pure function
+/// so the wire shape (does the provenance line travel?) is unit-testable
+/// without a live HTTP round-trip.
+pub fn note_content(req: &CrmWriteRequest) -> String {
+    let base = format!("{}\n\n{}", req.title.trim(), req.body.trim());
+    match req.provenance.as_deref().map(str::trim) {
+        Some(p) if !p.is_empty() => format!("{base}\n\n{p}"),
+        _ => base,
+    }
+}
+
 pub fn dedup_key(req: &CrmWriteRequest) -> String {
     let mut h = Sha256::new();
     for part in [
@@ -238,7 +293,7 @@ impl CrmWriteSource for crate::commands::crm::client::WealthboxClient {
         // Wealthbox notes have no title field: title becomes the first line.
         // VERIFY-LIVE: linked_to "type" casing ("Contact").
         let body = serde_json::json!({
-            "content": format!("{}\n\n{}", req.title.trim(), req.body.trim()),
+            "content": note_content(req),
             "linked_to": [{"id": contact_id, "type": "Contact"}],
         });
         let resp = self.post_json("/notes", &body).await.map_err(map_http_err)?;
@@ -247,16 +302,15 @@ impl CrmWriteSource for crate::commands::crm::client::WealthboxClient {
 
     async fn create_task(&self, req: &CrmWriteRequest) -> Result<String, CrmWriteError> {
         let contact_id = wealthbox_contact_id(&req.household_key)?;
-        // VERIFY-LIVE: due_date format (plain date vs "YYYY-MM-DD hh:mm AM -0400").
-        // VERIFY-LIVE: whether Wealthbox actually REQUIRES a due_date for task
-        // creation is unconfirmed — `req.due_date` is allowed to be `None`
-        // and is simply omitted from the body in that case. Deliberately not
-        // adding a local "due_date required" validation without live-token
-        // confirmation: if Wealthbox turns out not to require it, that would
-        // incorrectly block a legitimate date-less task from ever being
-        // created. If it IS required, an unconfirmed local rule risks
-        // guessing wrong in the other direction. Confirm in Task 11's
-        // live probe (scripts/crm/wealthbox-write-probe.md).
+        // Confirmed live: Wealthbox accepts a plain "YYYY-MM-DD" `due_date`
+        // and normalizes it server-side (e.g. to "2026-07-10 12:00 AM
+        // -0400"). `due_date` IS required — a missing one gets HTTP 422 —
+        // but that's rejected earlier, at the command boundary
+        // (`validate_task_due_date`), so `req.due_date` is always `Some`
+        // here in practice. Still built conditionally: this trait method has
+        // no way to enforce that invariant itself, and omitting the key
+        // entirely (rather than sending `null`) is the correct shape either
+        // way. See docs/evidence/windows-smoke-2/WEALTHBOX-PROBE.md.
         let mut body = serde_json::json!({
             "name": req.title.trim(),
             "description": req.body.trim(),
@@ -292,7 +346,11 @@ impl CrmWriteSource for crate::commands::crm::client::WealthboxClient {
         match req.kind {
             CrmWriteKind::Note => {
                 let notes = self.list_notes(None).await.map_err(map_http_err)?;
-                let want = norm(&format!("{}\n\n{}", req.title.trim(), req.body.trim()));
+                // Match against the SAME content create_note posts (title +
+                // body + any appended provenance line), or a lost-readback
+                // retry of a provenance-bearing note would miss its own
+                // already-created note and post a duplicate (Codex review).
+                let want = norm(&note_content(req));
                 Ok(notes
                     .iter()
                     .find(|n| {
@@ -321,14 +379,13 @@ impl CrmWriteSource for crate::commands::crm::client::WealthboxClient {
     async fn update_field(&self, req: &CrmFieldUpdateRequest) -> Result<String, CrmWriteError> {
         validate_field_is_writable(&req.field)?;
         let contact_id = wealthbox_contact_id(&req.household_key)?;
-        // VERIFY-LIVE: assumed PUT /contacts/{id} with a flat body
-        // (`{"<field>": "<value>"}`), mirroring the plan's own assumption
-        // for this endpoint. Confirm the exact envelope shape in the Task 11
-        // live probe (scripts/crm/wealthbox-write-probe.md) before relying
-        // on this against a real account.
+        // Confirmed live: PUT /contacts/{id} with a flat body
+        // (`{"<field>": "<value>"}`) — but the field name is the WRITE-side
+        // wire name (the literal app-facing name), NOT the read-side one.
+        // See wealthbox_write_field_name's doc comment.
         let mut fields = serde_json::Map::new();
         fields.insert(
-            wealthbox_wire_field_name(&req.field).to_string(),
+            wealthbox_write_field_name(&req.field).to_string(),
             serde_json::Value::String(req.final_value.clone()),
         );
         let body = serde_json::Value::Object(fields);
@@ -345,16 +402,16 @@ impl CrmWriteSource for crate::commands::crm::client::WealthboxClient {
         field: &str,
     ) -> Result<String, CrmWriteError> {
         let contact_id = wealthbox_contact_id(household_key)?;
-        // VERIFY-LIVE: assumed GET /contacts/{id} returns the same flat
-        // field name at the top level that PUT accepts (i.e. the contact
-        // record's JSON has a `<field>` key directly, not nested). Confirm
-        // in the Task 11 live probe.
+        // Confirmed live: GET /contacts/{id} returns the same flat field
+        // name at the top level (the contact record's JSON has a `<field>`
+        // key directly, not nested) — using the READ-side wire name here
+        // (see wealthbox_read_field_name's doc comment).
         let resp = self
             .get_json(&format!("/contacts/{contact_id}"), &[])
             .await
             .map_err(map_http_err_for_read)?;
         Ok(resp
-            .get(wealthbox_wire_field_name(field))
+            .get(wealthbox_read_field_name(field))
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string())
@@ -603,12 +660,20 @@ impl Drop for InFlightClaim<'_> {
 /// 6. `CrmWriteError::VerifyPending` from the source → mark `pending_verify`,
 ///    propagate (the UI shows "will verify on retry").
 /// 7. any other error → mark `failed`, propagate.
+///
+/// Validates the due-date requirement (step -1, before even the ledger
+/// lookup) as a defense-in-depth backstop behind the command-boundary check
+/// in `crm_create_write` — this is the one path every real write (and every
+/// wiremock regression test) actually goes through, so it's what proves "no
+/// network call happens" for a due-date-less Wealthbox task.
 pub async fn push_crm_write(
     source: &dyn CrmWriteSource,
     store: &crate::commands::crm::store::CrmStore,
     guard: &WriteInFlightGuard,
     req: &CrmWriteRequest,
 ) -> Result<WriteReceipt, CrmWriteError> {
+    validate_task_due_date(req.kind, source.provider_id(), req.due_date.as_deref())?;
+
     let key = dedup_key(req);
 
     if !guard.claim(&key) {
@@ -785,6 +850,12 @@ fn content_shape_key(req: &CrmWriteRequest) -> String {
         &norm(&req.title),
         &norm(&req.body),
         req.due_date.as_deref().unwrap_or(""),
+        // Include the provenance line (Codex review): it's part of the actual
+        // CRM-visible note content now, so two approvals with identical
+        // title/body but different provenance are DIFFERENT content and must
+        // not share a recovery group — otherwise recovering one could mark the
+        // other failed and let a later retry post a duplicate.
+        req.provenance.as_deref().unwrap_or(""),
     ] {
         h.update(part.as_bytes());
         h.update([0u8]);
@@ -868,6 +939,14 @@ fn upsert_ledger_before_send(
 /// `req.existing_value`, flipping the ledger row to `pending_verify` instead
 /// so the review card can re-render with the fresh value rather than
 /// blindly overwriting it.
+///
+/// The OTHER thing that needs protecting: an HTTP 200 from `update_field` is
+/// not proof the write actually applied (Finding 2,
+/// docs/evidence/windows-smoke-2/WEALTHBOX-PROBE.md — Wealthbox returned 200
+/// while silently leaving a field unchanged under the wrong wire key). After
+/// a successful `update_field`, this re-reads the field and only marks
+/// `sent` if the live value now matches `final_value`; a mismatch is a real,
+/// typed [`CrmWriteError::WriteNotApplied`], never a silent success.
 pub async fn push_crm_field_update(
     source: &dyn CrmWriteSource,
     store: &crate::commands::crm::store::CrmStore,
@@ -915,8 +994,49 @@ pub async fn push_crm_field_update(
 
     match source.update_field(req).await {
         Ok(remote_id) => {
-            upsert_ledger_field(store, &key, source, req, "sent", Some(&remote_id));
-            Ok(WriteReceipt { remote_id, deduped: false })
+            // Readback verification (Finding 2, docs/evidence/windows-smoke-2/
+            // WEALTHBOX-PROBE.md): an HTTP 200 from `update_field` is NOT
+            // proof the CRM actually applied the write — Wealthbox's real API
+            // returned 200 while silently leaving `background_information`
+            // unchanged when the wrong wire key was used. Re-fetch the field
+            // and confirm it now matches `final_value` before ever marking
+            // this `sent`. This is deliberately generic (not
+            // background_information-specific): it catches the entire
+            // "200-but-ignored" bug class for ANY writable field, on this
+            // provider or a future one, not just the one bug this probe found.
+            match source.get_contact_field(&req.household_key, &req.field).await {
+                Ok(applied)
+                    if normalize_for_readback_compare(&applied)
+                        == normalize_for_readback_compare(&req.final_value) =>
+                {
+                    upsert_ledger_field(store, &key, source, req, "sent", Some(&remote_id));
+                    Ok(WriteReceipt { remote_id, deduped: false })
+                }
+                Ok(_) => {
+                    // The CRM accepted the write and returned success, but
+                    // the field genuinely did not change — a real, silent
+                    // no-op. Never recorded as `sent`: an advisor seeing
+                    // "done" while the CRM record is untouched is worse than
+                    // a visible, actionable error.
+                    upsert_ledger_field(store, &key, source, req, "failed", None);
+                    Err(CrmWriteError::WriteNotApplied)
+                }
+                Err(_) => {
+                    // The write itself may well have landed — only the
+                    // CONFIRMATION read failed (a transient GET failure right
+                    // after a successful PUT). Ambiguous, not a definite
+                    // failure: re-affirm pending_verify AND surface it as
+                    // `VerifyPending` specifically (codex-review catch,
+                    // round 1) — the command wrapper's audit trail only
+                    // special-cases `VerifyPending` to record a "may have
+                    // been applied, unconfirmed" entry; propagating the raw
+                    // read error here would fall through its catch-all and
+                    // silently skip that audit for a write that may have
+                    // genuinely landed.
+                    upsert_ledger_field(store, &key, source, req, "pending_verify", None);
+                    Err(CrmWriteError::VerifyPending)
+                }
+            }
         }
         Err(CrmWriteError::VerifyPending) => {
             upsert_ledger_field(store, &key, source, req, "pending_verify", None);
@@ -1000,22 +1120,46 @@ pub fn validate_field_is_writable(field: &str) -> Result<(), CrmWriteError> {
     }
 }
 
-/// Maps the app-facing field name (the allowlist/review-UI name) to the
-/// WIRE field name Wealthbox's REST API actually uses on the contact
-/// record. Codex round 6 (self-converge): the live API returns
+/// Maps the app-facing field name (the allowlist/review-UI name) to the WIRE
+/// field name Wealthbox's REST API uses when READING a contact record (`GET
+/// /contacts/{id}`). Codex round 6 (self-converge): the live API returns
 /// `background_information` as `background_info` — already confirmed and
 /// handled on the READ side via `CrmContact`'s serde alias (see
 /// `model.rs`'s `background_info_alias_populates_background_information`
-/// test) — but `get_contact_field`/`update_field` talk to the raw JSON
-/// directly (no serde struct), so without this mapping the stale-guard's
-/// GET would read an empty string for every real contact (the key
-/// literally isn't present under the app-facing name) and the PUT would
-/// write to a field name Wealthbox doesn't recognize.
-fn wealthbox_wire_field_name(app_field: &str) -> &str {
+/// test) — but `get_contact_field` talks to the raw JSON directly (no serde
+/// struct), so without this mapping the stale-guard's GET would read an
+/// empty string for every real contact (the key literally isn't present
+/// under the app-facing name).
+///
+/// DELIBERATELY SEPARATE from [`wealthbox_write_field_name`] — see that
+/// function's doc comment for why reusing one mapping for both directions
+/// was a live, confirmed bug (docs/evidence/windows-smoke-2/WEALTHBOX-PROBE.md
+/// Finding 2).
+fn wealthbox_read_field_name(app_field: &str) -> &str {
     match app_field {
         "background_information" => "background_info",
         other => other,
     }
+}
+
+/// Maps the app-facing field name to the WIRE field name Wealthbox's REST
+/// API wants when WRITING a contact record (`PUT /contacts/{id}`).
+///
+/// Confirmed live (docs/evidence/windows-smoke-2/WEALTHBOX-PROBE.md Finding
+/// 2) that this is NOT the same mapping as the read side: `PUT
+/// /contacts/{id}` with `{"background_info": ...}` returns HTTP 200 but
+/// silently leaves the field unchanged (`updated_at` doesn't move either —
+/// not a caching artifact, confirmed on both a Household and its underlying
+/// Person record). Only the LITERAL app-facing name
+/// (`background_information`) actually applies the write. The original bug
+/// was reusing `wealthbox_read_field_name`'s translation for writes too — a
+/// 200-but-ignored response that looked like success. For every currently
+/// writable field this happens to be the identity mapping, but it's kept as
+/// its own function (not just an alias for the read one) so this exact
+/// direction-conflation bug can't silently come back if a future writable
+/// field genuinely does need read/write translation.
+fn wealthbox_write_field_name(app_field: &str) -> &str {
+    app_field
 }
 
 /// Reject empty titles and oversize content before any network call.
@@ -1030,6 +1174,29 @@ pub fn validate_write_inputs(title: &str, body: &str) -> Result<(), CrmWriteErro
         return Err(CrmWriteError::InvalidInput("body is too long (max 20,000 characters)"));
     }
     Ok(())
+}
+
+/// Reject a Wealthbox task with no due date before any network call — the
+/// real API returns HTTP 422 for `POST /tasks` with no `due_date` (confirmed
+/// live, see docs/evidence/windows-smoke-2/WEALTHBOX-PROBE.md Finding 1).
+/// Scoped to (Task, Wealthbox) specifically via `provider_id` (matches
+/// `CrmWriteSource::provider_id`/`CrmProvider::id`, e.g. `"wealthbox"`):
+/// notes have no due date, and other providers aren't live yet and may have
+/// different real constraints. Deliberately never defaults a date — that
+/// would invent advisor data the user never provided; the caller must ask
+/// for one instead.
+pub fn validate_task_due_date(
+    kind: CrmWriteKind,
+    provider_id: &str,
+    due_date: Option<&str>,
+) -> Result<(), CrmWriteError> {
+    if kind != CrmWriteKind::Task || provider_id != "wealthbox" {
+        return Ok(());
+    }
+    match due_date.map(str::trim) {
+        Some(d) if !d.is_empty() => Ok(()),
+        _ => Err(CrmWriteError::TaskDueDateRequired),
+    }
 }
 
 /// Reject an empty or non-RFC3339 `requested_at` before it ever reaches
@@ -1712,7 +1879,32 @@ mod tests {
             due_date: None,
             source_ref: "doc:Clients/Henderson/notes.docx".into(),
             requested_at: "2026-07-02T14:41:00Z".into(),
+            provenance: None,
         }
+    }
+
+    // E3 (Tier B trust guard): an AI-drafted note's provenance line must
+    // travel with the content that reaches the CRM. `note_content` is the
+    // single builder create_note uses, so testing it proves the wire shape.
+    #[test]
+    fn note_content_appends_provenance_for_ai_drafted_notes() {
+        let mut req = note_req();
+        req.provenance = Some(
+            "Drafted by Advisor Prep Hero AI from the Jul 2, 2026 meeting; approved by Dana Lee on Jul 4, 2026.".into(),
+        );
+        let content = note_content(&req);
+        assert!(content.starts_with("Q3 review follow-up\n\nDiscussed 529 rollover."));
+        assert!(content.contains("Drafted by Advisor Prep Hero AI from the Jul 2, 2026 meeting"));
+        assert!(content.contains("approved by Dana Lee on Jul 4, 2026."));
+    }
+
+    #[test]
+    fn note_content_omits_provenance_when_absent_or_blank() {
+        let plain = note_content(&note_req());
+        assert_eq!(plain, "Q3 review follow-up\n\nDiscussed 529 rollover.");
+        let mut blank = note_req();
+        blank.provenance = Some("   ".into());
+        assert_eq!(note_content(&blank), plain);
     }
 
     fn task_req() -> CrmWriteRequest {
@@ -1765,24 +1957,36 @@ mod tests {
     }
 
     #[test]
-    fn wealthbox_wire_field_name_maps_the_only_writable_field() {
-        assert_eq!(wealthbox_wire_field_name("background_information"), "background_info");
-        assert_eq!(wealthbox_wire_field_name("something_else"), "something_else");
+    fn wealthbox_read_field_name_maps_the_only_writable_field() {
+        assert_eq!(wealthbox_read_field_name("background_information"), "background_info");
+        assert_eq!(wealthbox_read_field_name("something_else"), "something_else");
+    }
+
+    /// TDD regression for Wealthbox probe Finding 2
+    /// (docs/evidence/windows-smoke-2/WEALTHBOX-PROBE.md): writes must use
+    /// the LITERAL app-facing name, deliberately NOT the read-side
+    /// translation — `wealthbox_read_field_name` would (wrongly) translate
+    /// this to `background_info`, which the live API accepts with HTTP 200
+    /// but silently ignores.
+    #[test]
+    fn wealthbox_write_field_name_is_the_identity_not_the_read_translation() {
+        assert_eq!(wealthbox_write_field_name("background_information"), "background_information");
+        assert_ne!(wealthbox_write_field_name("background_information"), wealthbox_read_field_name("background_information"));
     }
 
     #[tokio::test]
     async fn wealthbox_update_field_puts_exact_shape() {
         use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
         let server = MockServer::start().await;
-        // VERIFY-LIVE: Wealthbox contact update endpoint + field envelope
-        // (assumed PUT /contacts/{id} with a flat field body; confirm in the
-        // Task 11 live probe, scripts/crm/wealthbox-write-probe.md). The key
-        // is the WIRE name (background_info), not the app-facing name — see
-        // wealthbox_wire_field_name's doc comment.
+        // Confirmed live (Finding 2): PUT /contacts/{id} wants the LITERAL
+        // app-facing key (background_information), NOT the read-side wire
+        // name (background_info) — see wealthbox_write_field_name's doc
+        // comment. Sending the read-side name here returns 200 but silently
+        // leaves the field unchanged.
         Mock::given(matchers::method("PUT"))
             .and(matchers::path("/contacts/12345"))
             .and(matchers::body_json(serde_json::json!({
-                "background_info": "Existing background.\n\nRetiring spring 2027; stress-test earlier exit."
+                "background_information": "Existing background.\n\nRetiring spring 2027; stress-test earlier exit."
             })))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"id": 12345})))
             .expect(1)
@@ -1791,6 +1995,73 @@ mod tests {
         let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
         let id = client.update_field(&base_field_req()).await.unwrap();
         assert_eq!(id, "12345");
+    }
+
+    /// TDD regression for Wealthbox probe Finding 2 — the exact live bug
+    /// shape: a server that accepts the WRONG wire key (`background_info`)
+    /// with HTTP 200 but echoes back the OLD value (a faithful mock of what
+    /// the real sandbox did), while the CORRECT key
+    /// (`background_information`) actually applies the write. Runs the full
+    /// `push_crm_field_update` orchestration (not just the client method) to
+    /// prove the write-path fix AND the readback-verification mechanism
+    /// both work together end-to-end against a real HTTP mock.
+    #[tokio::test]
+    async fn push_crm_field_update_uses_the_literal_write_key_against_a_server_that_ignores_the_read_key() {
+        use wiremock::{matchers, Mock, MockServer, Respond, ResponseTemplate};
+        let server = MockServer::start().await;
+        let stored = std::sync::Arc::new(std::sync::Mutex::new("Existing background.".to_string()));
+
+        // GET always returns whatever is currently "stored", under the read-side wire name.
+        struct GetStored(std::sync::Arc<std::sync::Mutex<String>>);
+        impl Respond for GetStored {
+            fn respond(&self, _: &wiremock::Request) -> ResponseTemplate {
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "id": 12345,
+                    "background_info": self.0.lock().unwrap().clone(),
+                }))
+            }
+        }
+
+        // Matches Wealthbox's real (confirmed live) behavior: 200 OK either
+        // way, but ONLY the literal `background_information` key actually
+        // moves `stored` — a PUT under the read-side wire name
+        // (`background_info`) is accepted and silently ignored, exactly
+        // Finding 2. If the code under test ever regresses to sending the
+        // read-side key, `stored` stays at its old value and the assertion
+        // below (final == req.final_value) fails.
+        struct PutOnlyAppliesLiteralKey(std::sync::Arc<std::sync::Mutex<String>>);
+        impl Respond for PutOnlyAppliesLiteralKey {
+            fn respond(&self, req: &wiremock::Request) -> ResponseTemplate {
+                let body: serde_json::Value = req.body_json().unwrap();
+                if let Some(v) = body.get("background_information").and_then(|v| v.as_str()) {
+                    *self.0.lock().unwrap() = v.to_string();
+                }
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({"id": 12345}))
+            }
+        }
+
+        Mock::given(matchers::method("GET"))
+            .and(matchers::path("/contacts/12345"))
+            .respond_with(GetStored(stored.clone()))
+            .mount(&server)
+            .await;
+        Mock::given(matchers::method("PUT"))
+            .and(matchers::path("/contacts/12345"))
+            .respond_with(PutOnlyAppliesLiteralKey(stored.clone()))
+            .mount(&server)
+            .await;
+
+        let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
+        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let req = base_field_req();
+
+        let receipt = push_crm_field_update(&client, &store, &guard, &req).await.unwrap();
+        assert_eq!(receipt.remote_id, "12345");
+        assert_eq!(*stored.lock().unwrap(), req.final_value, "the field must have actually changed on the (mock) server");
+
+        let row = store.outbound_get(&dedup_key_field(&req)).unwrap().unwrap();
+        assert_eq!(row.status, "sent");
     }
 
     /// Codex round 6 (self-converge): get_contact_field must read the WIRE
@@ -1904,6 +2175,69 @@ mod tests {
         let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
         let id = client.create_task(&task_req()).await.unwrap();
         assert_eq!(id, "556");
+    }
+
+    #[test]
+    fn validate_task_due_date_requires_a_date_for_wealthbox_tasks_only() {
+        // The one case it must actually block: a Wealthbox task with no date.
+        assert!(matches!(
+            validate_task_due_date(CrmWriteKind::Task, "wealthbox", None),
+            Err(CrmWriteError::TaskDueDateRequired)
+        ));
+        assert!(matches!(
+            validate_task_due_date(CrmWriteKind::Task, "wealthbox", Some("")),
+            Err(CrmWriteError::TaskDueDateRequired)
+        ));
+        assert!(matches!(
+            validate_task_due_date(CrmWriteKind::Task, "wealthbox", Some("   ")),
+            Err(CrmWriteError::TaskDueDateRequired)
+        ));
+        assert_eq!(
+            validate_task_due_date(CrmWriteKind::Task, "wealthbox", None).unwrap_err().to_string(),
+            "Wealthbox tasks need a due date"
+        );
+
+        // A real date passes.
+        assert!(validate_task_due_date(CrmWriteKind::Task, "wealthbox", Some("2026-07-15")).is_ok());
+
+        // Notes have no due date at all — never gated by this rule.
+        assert!(validate_task_due_date(CrmWriteKind::Note, "wealthbox", None).is_ok());
+
+        // Other providers aren't live yet and may have different real
+        // constraints — this rule is scoped to Wealthbox specifically, not a
+        // blanket "tasks always need a date".
+        assert!(validate_task_due_date(CrmWriteKind::Task, "redtail", None).is_ok());
+        assert!(validate_task_due_date(CrmWriteKind::Task, "salesforce", None).is_ok());
+    }
+
+    /// TDD regression for Wealthbox probe Finding 1 (HTTP 422 on a
+    /// due-date-less task, docs/evidence/windows-smoke-2/WEALTHBOX-PROBE.md):
+    /// `push_crm_write` — the one orchestration path every real
+    /// `crm_create_task` call and every other write test in this module goes
+    /// through — must reject before ever reaching the network. `.expect(0)`
+    /// makes wiremock itself fail the test if `POST /tasks` is ever hit.
+    #[tokio::test]
+    async fn push_crm_write_rejects_task_with_no_due_date_before_any_network_call() {
+        use wiremock::{matchers, Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(matchers::method("POST"))
+            .and(matchers::path("/tasks"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"id": 999})))
+            .expect(0)
+            .mount(&server)
+            .await;
+
+        let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
+        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let mut req = task_req();
+        req.due_date = None;
+
+        let err = push_crm_write(&client, &store, &guard, &req).await.unwrap_err();
+        assert!(matches!(err, CrmWriteError::TaskDueDateRequired));
+
+        // No ledger row either — a rejected request was never even attempted.
+        assert!(store.outbound_get(&dedup_key(&req)).unwrap().is_none());
     }
 
     #[tokio::test]
@@ -2290,6 +2624,20 @@ mod tests {
         update_results: std::sync::Mutex<Vec<Result<String, CrmWriteError>>>,
         update_calls: std::sync::atomic::AtomicUsize,
         get_calls: std::sync::atomic::AtomicUsize,
+        /// When true, a successful `update_field` does NOT actually move
+        /// `remote_value` — simulates a real "200 OK but silently ignored"
+        /// CRM response (Finding 2), so the readback verification GET
+        /// afterward sees the OLD value.
+        silently_ignores_write: bool,
+        /// When true, the SECOND `get_contact_field` call (the post-write
+        /// readback, not the pre-write stale-guard check) fails — simulates
+        /// a transient GET failure right after a successful PUT.
+        fail_readback_get: bool,
+        /// When true, the readback GET echoes `remote_value` with LF line
+        /// endings converted to CRLF plus a trailing newline appended —
+        /// simulates a CRM that normalizes stored text even on a write that
+        /// genuinely applied.
+        readback_normalizes_line_endings: bool,
     }
     #[async_trait::async_trait]
     impl CrmWriteSource for FakeFieldSource {
@@ -2312,7 +2660,7 @@ mod tests {
         async fn update_field(&self, r: &CrmFieldUpdateRequest) -> Result<String, CrmWriteError> {
             self.update_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             let result = self.update_results.lock().unwrap().remove(0);
-            if result.is_ok() {
+            if result.is_ok() && !self.silently_ignores_write {
                 // Mirror a real CRM: after a successful PUT, the field
                 // actually holds the new value — later get_contact_field
                 // calls in the same test must see it.
@@ -2321,8 +2669,15 @@ mod tests {
             result
         }
         async fn get_contact_field(&self, _household_key: &str, _field: &str) -> Result<String, CrmWriteError> {
-            self.get_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            Ok(self.remote_value.lock().unwrap().clone())
+            let call_number = self.get_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+            if self.fail_readback_get && call_number == 2 {
+                return Err(CrmWriteError::ReadFailed);
+            }
+            let value = self.remote_value.lock().unwrap().clone();
+            if self.readback_normalizes_line_endings && call_number == 2 {
+                return Ok(format!("{}\n", value.replace('\n', "\r\n")));
+            }
+            Ok(value)
         }
     }
 
@@ -2332,7 +2687,129 @@ mod tests {
             update_results: std::sync::Mutex::new(vec![update_result]),
             update_calls: std::sync::atomic::AtomicUsize::new(0),
             get_calls: std::sync::atomic::AtomicUsize::new(0),
+            silently_ignores_write: false,
+            fail_readback_get: false,
+            readback_normalizes_line_endings: false,
         }
+    }
+
+    fn fake_field_source_that_silently_ignores_writes(remote_value: &str, update_result: Result<String, CrmWriteError>) -> FakeFieldSource {
+        FakeFieldSource {
+            remote_value: std::sync::Mutex::new(remote_value.into()),
+            update_results: std::sync::Mutex::new(vec![update_result]),
+            update_calls: std::sync::atomic::AtomicUsize::new(0),
+            get_calls: std::sync::atomic::AtomicUsize::new(0),
+            silently_ignores_write: true,
+            fail_readback_get: false,
+            readback_normalizes_line_endings: false,
+        }
+    }
+
+    fn fake_field_source_with_failing_readback(remote_value: &str, update_result: Result<String, CrmWriteError>) -> FakeFieldSource {
+        FakeFieldSource {
+            remote_value: std::sync::Mutex::new(remote_value.into()),
+            update_results: std::sync::Mutex::new(vec![update_result]),
+            update_calls: std::sync::atomic::AtomicUsize::new(0),
+            get_calls: std::sync::atomic::AtomicUsize::new(0),
+            silently_ignores_write: false,
+            fail_readback_get: true,
+            readback_normalizes_line_endings: false,
+        }
+    }
+
+    fn fake_field_source_with_crlf_normalizing_readback(remote_value: &str, update_result: Result<String, CrmWriteError>) -> FakeFieldSource {
+        FakeFieldSource {
+            remote_value: std::sync::Mutex::new(remote_value.into()),
+            update_results: std::sync::Mutex::new(vec![update_result]),
+            update_calls: std::sync::atomic::AtomicUsize::new(0),
+            get_calls: std::sync::atomic::AtomicUsize::new(0),
+            silently_ignores_write: false,
+            fail_readback_get: false,
+            readback_normalizes_line_endings: true,
+        }
+    }
+
+    /// TDD regression for Wealthbox probe Finding 2
+    /// (docs/evidence/windows-smoke-2/WEALTHBOX-PROBE.md): the generic
+    /// readback-verification mechanism in `push_crm_field_update` must catch
+    /// ANY provider's "200 OK but the field didn't actually change" bug, not
+    /// just this specific field — surfaced as a real, typed error rather
+    /// than a false `sent`.
+    #[tokio::test]
+    async fn field_update_readback_mismatch_surfaces_as_an_error_not_success() {
+        let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
+        let source = fake_field_source_that_silently_ignores_writes("Existing background.", Ok("12345".into()));
+        let req = base_field_req();
+
+        let err = push_crm_field_update(&source, &store, &guard, &req).await.unwrap_err();
+        assert!(matches!(err, CrmWriteError::WriteNotApplied), "expected WriteNotApplied, got {err:?}");
+
+        // The PUT itself was attempted exactly once (it's not the update
+        // that's wrong — it's that its success is unverified), and the
+        // ledger must NOT record this as sent.
+        assert_eq!(source.update_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+        let row = store.outbound_get(&dedup_key_field(&req)).unwrap().unwrap();
+        assert_ne!(row.status, "sent", "a write that didn't actually apply must never be recorded as sent");
+    }
+
+    /// Manual-review catch (post codex-review): the readback comparison must
+    /// tolerate line-ending normalization a CRM plausibly applies to stored
+    /// text (CRLF/CR → LF, trailing whitespace) even when the write
+    /// genuinely applied — an EXACT string comparison would misreport this
+    /// as `WriteNotApplied` forever, and an advisor would retry against a
+    /// write that already succeeded. Genuinely different content (the
+    /// sibling test above) must still fail.
+    #[tokio::test]
+    async fn field_update_readback_tolerates_crm_line_ending_normalization() {
+        let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
+        let source = fake_field_source_with_crlf_normalizing_readback("Existing background.", Ok("12345".into()));
+        let req = base_field_req();
+
+        let receipt = push_crm_field_update(&source, &store, &guard, &req).await.unwrap();
+        assert_eq!(receipt.remote_id, "12345");
+        assert!(!receipt.deduped);
+
+        let row = store.outbound_get(&dedup_key_field(&req)).unwrap().unwrap();
+        assert_eq!(row.status, "sent", "CRLF + trailing-newline normalization must not be mistaken for a silent no-op");
+    }
+
+    #[test]
+    fn normalize_for_readback_compare_ignores_line_endings_and_trailing_whitespace_but_not_internal_content() {
+        assert_eq!(
+            normalize_for_readback_compare("a\r\nb\n\nc"),
+            normalize_for_readback_compare("a\nb\n\nc\n")
+        );
+        // Internal differences (not just line-ending/trailing-whitespace
+        // shape) must still be distinguished — this is what catches a real
+        // silent no-op (Finding 2).
+        assert_ne!(
+            normalize_for_readback_compare("Existing background."),
+            normalize_for_readback_compare("Existing background.\n\nRetiring spring 2027.")
+        );
+    }
+
+    /// codex-review round 1 catch: when the PUT succeeds but the CONFIRMATION
+    /// read fails (a transient GET failure right after a successful write —
+    /// genuinely ambiguous, not a definite failure), this must surface as
+    /// `VerifyPending` specifically. `crm_update_field`'s command wrapper
+    /// (commands.rs) only special-cases `VerifyPending` to record a "may have
+    /// been applied, unconfirmed" audit entry; any other error type falls
+    /// through its catch-all and silently skips that audit for a write that
+    /// may have genuinely landed.
+    #[tokio::test]
+    async fn field_update_readback_failure_after_a_successful_write_is_verify_pending() {
+        let (_dir, store) = test_store();
+        let guard = WriteInFlightGuard::new();
+        let source = fake_field_source_with_failing_readback("Existing background.", Ok("12345".into()));
+        let req = base_field_req();
+
+        let err = push_crm_field_update(&source, &store, &guard, &req).await.unwrap_err();
+        assert!(matches!(err, CrmWriteError::VerifyPending), "expected VerifyPending, got {err:?}");
+
+        let row = store.outbound_get(&dedup_key_field(&req)).unwrap().unwrap();
+        assert_eq!(row.status, "pending_verify");
     }
 
     #[tokio::test]
@@ -2345,7 +2822,9 @@ mod tests {
         let receipt = push_crm_field_update(&source, &store, &guard, &req).await.unwrap();
         assert_eq!(receipt.remote_id, "12345");
         assert!(!receipt.deduped);
-        assert_eq!(source.get_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+        // 2 GETs: the stale-guard's pre-write check, then the post-write
+        // readback verification that confirms the PUT actually applied.
+        assert_eq!(source.get_calls.load(std::sync::atomic::Ordering::SeqCst), 2);
         assert_eq!(source.update_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
 
         let row = store.outbound_get(&dedup_key_field(&req)).unwrap().unwrap();
@@ -2422,7 +2901,10 @@ mod tests {
         // row that's since drifted (e.g. edited outside the app) must not
         // silently report success without actually writing. It must NOT
         // repeat the actual PUT, since the field already holds final_value.
-        assert_eq!(source.get_calls.load(std::sync::atomic::Ordering::SeqCst), 2);
+        // 3 GETs total: first push's stale-guard check + its post-write
+        // readback verification, then the second push's stale-guard check
+        // (which now finds final_value already applied and short-circuits).
+        assert_eq!(source.get_calls.load(std::sync::atomic::Ordering::SeqCst), 3);
         assert_eq!(source.update_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
     }
 

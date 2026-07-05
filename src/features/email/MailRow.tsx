@@ -16,7 +16,7 @@ import { isPrivileged } from '@/platform/types/privilege';
 import { formatRelativeDate, slugify } from './emailWorkspaceHelpers';
 import { MatterPickerPopover } from './MatterPickerPopover';
 import { MailRowPrivilege } from './MailRowPrivilege';
-import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
+import { useEntityLabelEnglish } from '@/platform/hooks/useEntityLabel';
 import { EV_OPEN_EMAIL } from '@/config/identity';
 
 // Perf (P2.2): memoized below. `EmailWorkspace` re-renders on things that
@@ -47,7 +47,10 @@ export interface MailRowProps {
 }
 
 function MailRowImpl({ item, selected, anySelected, onToggleSelect, onSaveToWorkspace }: MailRowProps) {
-  const entityLabel = useEntityLabel();
+  // Fixed-English escape hatch: the "File this email to a {{entity}}" tooltip
+  // is still hardcoded English (see the cleanup2 handoff); keeping the badge
+  // noun English too avoids mixing languages within the same row.
+  const entityLabel = useEntityLabelEnglish();
   const [hovered, setHovered] = useState(false);
   const [focusWithin, setFocusWithin] = useState(false);
   const [privilegeOpen, setPrivilegeOpen] = useState(false);

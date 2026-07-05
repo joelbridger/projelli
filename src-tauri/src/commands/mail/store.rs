@@ -465,7 +465,7 @@ impl SqliteMailStore {
         crate::commands::data_dir::workspace_data_dir(workspace_root).join("mail.db")
     }
 
-    /// Open (or create) the database at `<workspace_root>/.keepance/mail.db`.
+    /// Open (or create) the database at `<workspace_root>/.lantern/mail.db`.
     /// Creates all required tables if they don't exist.
     pub fn open(workspace_root: &Path) -> Result<Self> {
         let p = Self::db_path(workspace_root);

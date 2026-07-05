@@ -1,12 +1,13 @@
 // Tab Bar Component
 // Displays open file tabs with close buttons, dirty indicators, drag-to-reorder, and tab groups
 
-import { useCallback, useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { useCallback, useState, useRef, useEffect, useLayoutEffect, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { X, GripVertical, MoreHorizontal, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
+import { isDocxUnsaved, subscribeDocxSaveRegistry, getDocxSaveVersion, closeDocxTabSafely } from '@/platform/fs/docxSaveRegistry';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import {
   DropdownMenu,
@@ -29,6 +30,9 @@ import { useEditorStore } from '@/platform/state/editorStore';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { TabGroupManager } from './TabGroupManager';
 import { removeExtension, pathToTestId, getTabIcon, AIContextChip } from './tabBarHelpers';
+import { FileAsMeetingDialog } from '@/features/meetings/FileAsMeetingDialog';
+
+const VOICE_NOTE_PATH_RE = /^Inbox\/note-.*\.md$/;
 
 interface TabBarProps {
   onRenameFile?: (path: string, newName: string) => Promise<void>;
@@ -51,6 +55,17 @@ function computeGroupDropZone(e: React.DragEvent): 'merge' | 'before' | 'after' 
 
 export function TabBar({ onRenameFile }: TabBarProps = {}) {
   const { t } = useTranslation();
+  // QA-34: re-render the tab strip when any .docx's save state changes, so a
+  // tab's unsaved dot reflects a .docx whose save is pending/failing (its store
+  // tab is never marked dirty). `useSyncExternalStore` keeps this in step with
+  // the registry without a store round-trip.
+  useSyncExternalStore(subscribeDocxSaveRegistry, getDocxSaveVersion, getDocxSaveVersion);
+  // A tab shows the unsaved dot if the store says it's dirty OR (for a .docx) the
+  // save registry says there is unsaved/failing work.
+  const tabHasUnsavedWork = useCallback(
+    (tab: { path: string; isDirty: boolean }) => tab.isDirty || isDocxUnsaved(tab.path),
+    [],
+  );
   const {
     openTabs,
     activeTabPath,
@@ -110,6 +125,9 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
   // Right-click context menu on a tab. Anchored at the mouse position;
   // replaces the per-tab close X that used to take visual space.
   const [tabContextMenu, setTabContextMenu] = useState<{ path: string; x: number; y: number } | null>(null);
+  // Task 10b: a dictation voice note ("Inbox/note-<timestamp>.md") can be
+  // filed as a meeting note via a client picker.
+  const [fileAsMeetingPath, setFileAsMeetingPath] = useState<string | null>(null);
   const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // R2-P2: when a file-creation flow sets pendingRenamePath and the new tab
@@ -284,6 +302,30 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
     async (e: React.MouseEvent, path: string) => {
       e.stopPropagation();
       const tab = openTabs.find((t) => t.path === path);
+
+      // QA-34: a .docx saves directly (never a store-dirty tab) and its edits live
+      // only in its still-mounted editor. Route it through the airtight close: save
+      // first, and only ask to discard if the save actually fails — so a locked
+      // file can never silently lose the in-memory doc on close.
+      if (
+        await closeDocxTabSafely(path, {
+          closeTab,
+          confirmDiscardOnFailure: () =>
+            confirm(
+              tab
+                ? `I couldn't save "${tab.name}" — another program may be blocking the file. Close anyway and lose your latest changes?`
+                : `I couldn't save this document — another program may be blocking the file. Close anyway and lose your latest changes?`,
+              {
+                title: 'Unsaved Changes',
+                variant: 'destructive',
+                confirmLabel: 'Close and lose changes',
+                cancelLabel: 'Keep Open',
+              },
+            ),
+        })
+      ) {
+        return;
+      }
 
       if (tab?.isDirty) {
         const shouldClose = await confirm(
@@ -722,7 +764,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
           <span className="truncate min-w-0 max-w-[140px]">{removeExtension(tab.name)}</span>
         )}
         <AIContextChip path={tab.path} />
-        {tab.isDirty && (
+        {tabHasUnsavedWork(tab) && (
           <span className="text-amber-700 font-bold" title="Unsaved changes">
             *
           </span>
@@ -966,7 +1008,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
                       ) : (
                         <span className="truncate flex-1">{removeExtension(tab.name)}</span>
                       )}
-                      {tab.isDirty && (
+                      {tabHasUnsavedWork(tab) && (
                         <span className="text-amber-700 font-bold" title="Unsaved changes">
                           *
                         </span>
@@ -1237,6 +1279,20 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
             >
               Close tab
             </button>
+            {VOICE_NOTE_PATH_RE.test(tabContextMenu.path) && (
+              <button
+                type="button"
+                role="menuitem"
+                data-testid="tab-menu-file-as-meeting"
+                className="flex w-full items-center rounded-sm px-2 py-1.5 outline-none hover:bg-accent hover:text-accent-foreground"
+                onClick={() => {
+                  setFileAsMeetingPath(tabContextMenu.path);
+                  setTabContextMenu(null);
+                }}
+              >
+                {t('meetings.dictation.file-as-meeting-note')}
+              </button>
+            )}
             <button
               type="button"
               role="menuitem"
@@ -1253,6 +1309,15 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
           </div>
         </>,
         document.body,
+      )}
+
+      {fileAsMeetingPath && (
+        <FileAsMeetingDialog
+          open
+          onOpenChange={(open) => { if (!open) setFileAsMeetingPath(null); }}
+          noteContent={openTabs.find((tb) => tb.path === fileAsMeetingPath)?.content ?? ''}
+          onFiled={() => { setFileAsMeetingPath(null); }}
+        />
       )}
 
       {/* Rename / Name Group Dialog */}

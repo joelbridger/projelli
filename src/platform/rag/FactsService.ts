@@ -1,6 +1,6 @@
 /**
  * FactsService — durable "facts about the user" persisted under
- * `<workspace>/.keepance/memory.json`.
+ * `<workspace>/.lantern/memory.json`.
  *
  * Part of M3 (v1.5 Flag 1). Complements `MemoryService` (M1 vector RAG) —
  * where RAG gives the AI paragraph-level recall from workspace files,
@@ -83,7 +83,7 @@ export interface Fact {
   matterId?: string;
 }
 
-/** Serialized shape of `<workspace>/.keepance/memory.json`. */
+/** Serialized shape of `<workspace>/.lantern/memory.json`. */
 export interface MemoryFacts {
   version: 1;
   facts: Fact[];

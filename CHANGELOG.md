@@ -32,6 +32,533 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **The Notice Card — a local notice participant (v1 + v2).** When the advisor
+  records an online meeting, a second participant that runs entirely on the
+  advisor's own computer joins the call as "⏺ Recording Notice — <advisor>",
+  shows every participant a card saying the meeting is being recorded and that
+  the recording never leaves the advisor's machine, and leaves the moment
+  recording stops. It records nothing and sends nothing. Design:
+  `docs/strategy/2026-07-04-notice-participant-design.md`.
+  - **Calendar join-URL + platform detection.** Calendar sync now carries each
+    event's online-meeting join URL (Graph `onlineMeeting.joinUrl`; Google
+    `conferenceData` video entry point / `hangoutLink`), and the platform
+    (Teams/Zoom/Meet/other) is derived from it. Files: `commands/calendar/
+    model.rs` (`join_url`), `graph_source.rs`, `google_source.rs`, `commands.rs`,
+    `calendar-commands.ts` (`joinUrl`), `noticeCard/meetingPlatform.ts`.
+  - **Consent-dialog offer.** When an online meeting is happening now (from
+    calendar sync), the consent dialog offers the card, pre-checked per firm
+    default, tagged with the meeting title + platform. Manual link-paste and an
+    honest Google Meet "say it aloud" fallback are included. Never blocks
+    recording. Files: `noticeCard/NoticeCardConsentSection.tsx`, `ConsentDialog.tsx`,
+    `ClientMeetingsTab.tsx`, `noticeCard/pickOffer.ts`.
+  - **Guest-join adapters (Teams + Zoom).** Per-platform automation (fill name →
+    mute → join → detect admitted/lobby/denied) tested against recorded page
+    fixtures. Runs inside an isolated companion Tauri window (no IPC bridge to
+    app internals; status flows out one-way via `document.title`). Files:
+    `noticeCard/adapters/*`, `noticeCard/injectionScript.ts`,
+    `commands/notice_card/mod.rs`.
+  - **Lifecycle supervisor.** Joins on record-start, leaves on record-stop
+    (hard watchdog guarantee — a wedged window can never linger), one auto-rejoin
+    on disconnect; every transition ledgered (`notice-card-joined/left/failed` +
+    derived `notice-card-present-for-entire-recording`). Fully unit-tested with a
+    fake clock. Files: `noticeCard/supervisor.ts`, `noticeCard/tauriDriver.ts`,
+    `noticeCard/noticeCardLifecycle.ts`, `meetingStore.ts`.
+  - **Evidence-rule policy hook.** The Standard/Strict dial now accepts a
+    configurable rule: a verified spoken notice OR full-duration card presence
+    satisfies Strict (default either; firms can require both). Files:
+    `noticeCard/noticeCardEvidence.ts`, `meetingStore.ts` (`needsReview`),
+    `noticeCard/noticeCardSettings.ts`, `settings/schema.ts`.
+  - **Visual card (v2 canvas camera).** The companion webview intercepts
+    getUserMedia and supplies a locally-rendered canvas (calm light card, firm
+    branding slot, three localized lines, live "Recording · M:SS" timer, "leaves
+    when recording ends" line) — no OS-level virtual-camera driver needed. File:
+    `noticeCard/canvasCard.ts`.
+  - **Record-pill status + settings.** The pill shows "Notice card in meeting ✓"
+    / "couldn't join — say the notice aloud". New notice settings: offer default,
+    display-name template, evidence rule. Files: `RecordPill.tsx`,
+    `noticeCard/noticeCardPill.ts`, `settings/RecordingNoticeSettings.tsx`.
+  - **Quick wins.** An official "⏺ RECORDING in progress" virtual-background
+    image (Save action in notice settings) and a Zoom guided native-record
+    checklist with a ledger self-attest. Files: `noticeCard/recordingBackground.ts`,
+    `RecordingNoticeSettings.tsx`, `NoticeCardConsentSection.tsx`.
+  - i18n: 24 new `meetings.notice-card.*` keys (en/de/es).
+- **Trust Tier B — "guard the outbound door" (the guards that stop confident-AI-wrongness from reaching a system of record).**
+  - **E3-gate — unresolved meeting notes are structurally unsendable.** A meeting note that is unreviewed, generation-errored (the "AI apology as note" case), or notice-quarantined under Strict policy has its "Send to Wealthbox" and "Draft follow-up" toolbar actions disabled with an honest, visible explanation. Pure decision in `meetingNoteOutboundGate.ts`; async state gathered in `useMeetingNoteOutboundGate.ts` + `MeetingNoteOutboundGate.tsx`; the disable + explanation added via a new `outboundBlockedReason` prop on `DocxEditor` (toolbar only — engine untouched), wired in `MainPanel.tsx`.
+  - **E3-provenance — AI-drafted CRM notes carry their origin.** A note AI-drafted from a meeting gets an appended, localized provenance line ("Drafted by Advisor Prep Hero AI from the [date] meeting; approved by [advisor] on [date]") that reaches the Wealthbox wire. Composed once at approve time (stable across retries; not part of the dedup key). New Rust `CrmWriteRequest.provenance` + `note_content()` builder appends it at the wire boundary. The firm (practice) tier defaults the compliance-note checkbox ON; solo keeps a remembered choice. Files: `crm/write.rs`, `crm/commands.rs`, `crmWriteQueueStore.ts`, `wealthbox-commands.ts`, `crmProvenance.ts`, `complianceNotePref.ts`, `CrmWriteReviewCard.tsx`, `crmNoteFormat.ts`.
+  - **R4a — no generate-on-open for the follow-up draft.** `DraftFollowUpModal` no longer sends note content or logs egress on open; it shows a preview of what will be sent (which note, which client) and the destination provider, and only sends on an explicit "Generate" click (egress logged there).
+  - **R4b — citations travel with the draft.** Saved/sent follow-up drafts append citation footnotes naming the source (note heading / note name), never internal ids (`followUpDraft.ts` `appendCitationFootnotes`).
+  - **R6 — whole-practice pre-send truth.** Before a whole-practice Ask sends in cloud mode, one confirm names the real client count and the real provider; local-only skips it; the advisor may remember the choice (default ask). Files: `wholePracticeSendGate.ts`, `WholePracticeSendConfirm.tsx`, `Ask.tsx`.
+  - **R1 — attestation stays deliberate.** The recording-consent checkbox never pre-checks from standing consent in all-party (two-party) or unknown-state defaults; one-party states keep the convenience (`ConsentDialog.tsx`).
+  - **R9 — biometric consent before voiceprint enrollment.** "Separate speakers" requires an explicit affirmation that the client consented to a voice profile (with an honest state-biometric-law note) before any new voiceprint is enrolled; the attestation is ledgered as a `voiceprint_consent` audit event (`SpeakerNamesPanel.tsx`).
+
+### Fixed
+- **QA-34 (P0 silent data loss): a failed `.docx` autosave no longer wedges
+  persistence while the UI says "Saved".** A `.docx` is edited by `DocxEditor`,
+  which saves directly to disk and never marks its editor-store tab dirty — so a
+  failing save (e.g. antivirus/backup briefly holding an exclusive OS lock) used
+  to be invisible to every save-integrity guard: the tab dot, the toolbar, the
+  close-tab / workspace-switch / quit guards all saw the doc as clean, and there
+  was no retry, so once a save failed it never wrote again for the session even
+  after the lock cleared. Now: failed saves surface truthfully (never "Saved")
+  and self-heal via automatic exponential-backoff retry of the latest content;
+  sustained failure raises a persistent, non-timeout-dismissable warning with a
+  **"Save a copy elsewhere"** rescue that writes the in-memory doc to a chosen
+  path; a new `docxSaveRegistry` bridges the editor's real save state to the tab
+  dirty-dot, status-bar "modified" badge, close-tab confirm, workspace-switch
+  guard, and quit flush (which now also flushes open `.docx` files and fires a
+  native "unsaved changes" prompt when a save is actively failing). Retries stop
+  cleanly on unmount. Rust `atomic_write` now cleans up its temp sibling on a
+  failed replace (no orphan `.kpv-tmp-*` on every failed save).
+  Files: `src/features/documents/media/DocxEditor.tsx`,
+  `src/platform/fs/docxSaveRegistry.ts`, `src/app/fileOps/flushDirtyTabs.ts`,
+  `src/app/lifecycle/useFlushOnExit.ts`, `src/app/lifecycle/useWorkspaceLifecycle.ts`,
+  `src/features/documents/editor/TabBar.tsx`, `src/app/shell/layout/StatusBar.tsx`,
+  `src-tauri/crates/lantern-vault/src/atomic.rs`.
+- **QA-36 (P2): Windows reserved device names can no longer be created.**
+  `CON.docx`, `PRN`, `NUL`, `COM1`–`9`, `LPT1`–`9`, and trailing-dot/space names
+  (which Windows silently strips, making the on-disk file un-renamable /
+  un-deletable by Explorer, Word, and backup tools) are now rejected at the
+  create layer, not just on rename: `WorkspaceService` validates every new path
+  segment (`writeFile`/`writeFileBinary`/`mkdir`), the create dialogs show a
+  localized inline error (en/de/es), and the Rust `resolve_creatable` guard
+  rejects reserved names at any path level as defense-in-depth.
+  Files: `src/platform/fs/WorkspaceService.ts`, `src/app/fileOps/reservedNameError.ts`,
+  create dialogs in `src/app/fileOps/`, `src-tauri/src/commands/pathguard.rs`, locales.
+- **Test-infra: fixed the intermittent "chunk load failed" test flake under
+  full-suite parallelism** (tripped 3 lanes' pre-push hooks). Root cause:
+  `MeetingEntry` fires a real, un-awaited `import('@/features/documents/media/DocxEditor')`
+  on mount with no `.catch()` and no bound on how long it can take. Under
+  normal load it resolves fast enough that nothing notices; under full-suite
+  parallel-transform contention (hundreds of forked worker processes competing
+  for CPU) it can resolve slower than a test's `waitFor` window, so a test that
+  had already flipped `hasNotes` to true would still render the
+  `notes-pending` fallback because `DocxEditorComp` hadn't loaded yet —
+  reproduced twice in a row with a `--maxWorkers=40` oversubscribed stress run
+  (confirmed against the exact `meeting-entry-notes-failed` assertion the
+  brief named). Since it's never `.catch()`-ed, a genuine rejection would also
+  surface as an unhandled rejection blamed on whatever test happens to be
+  running at the time — explaining reports of "a different file each run".
+  Fix (test-infra only, no product code touched): the 3 test files that mount
+  `<MeetingEntry>` now `vi.mock` `@/features/documents/media/DocxEditor` so
+  the import resolves synchronously and deterministically — none of these
+  tests assert on the real editor's rendered output. Verified with 5/5 clean
+  runs under the same oversubscribed stress condition that reproduced the
+  flake, plus 3 consecutive clean default full-suite runs.
+  Files: `tests/unit/meetings/meeting-entry-notes-failed.test.tsx`,
+  `tests/unit/meetings/meeting-entry-transcript-failed.test.tsx`,
+  `tests/unit/meetings/meeting-entry-notice-stale.test.tsx`.
+
+### Changed
+- **Meetings tab UX polish (2026-07-04 senior-UX review — all blockers + should-fixes).**
+  Full findings doc with before/after screenshots:
+  `docs/design/2026-07-04-meetings-tab-ux-review.md`. Highlights:
+  - **Record pill** now says "Recording" with a green "Local" reassurance
+    (tooltip: audio is written straight to this computer's disk) instead of the
+    AI-provider chip ("No AI connected") mid-recording; solid card background +
+    proper elevation (the old `--kp-surface` token didn't exist — the pill was
+    transparent); after Stop it stays up as "Writing your meeting notes…" until
+    transcription + notes finish (new `processing` store flag). `RecordPill.tsx`,
+    `meetingStore.ts`.
+  - **Advisor-facing notes** no longer end every bullet with raw `[t:724000]`
+    tokens — rendered as "(at 2:15)" at docx-generation time
+    (`formatCitationsForDisplay` in `meetingNoteTemplate.ts`).
+  - **Meeting titles are human** everywhere (type label > calendar title >
+    "Dictated note" > "Meeting") — never the machine folder name; date + new
+    persisted `durationMs` ("· 41 min") render as a separate meta line
+    (`meetingDisplay.ts`).
+  - **Meeting page**: compact one-row audio scrubber (new `AudioPlayer`
+    `compact` prop) instead of the full-page dictation player that buried the
+    notes + transcript; "Delete audio · keep transcript" now confirms first
+    (destructive-op rule); meeting-type edit shows the human label and
+    Escape cancels.
+  - **Meetings list**: rows use the `.kp-card--interactive` idiom with a mic
+    icon chip and per-row "Needs review"/"Reviewed" badges (the duplicate
+    needs-review queue box is gone; "no follow-up" only flags meetings a day
+    old); record button moved top-left beside "Recorded on this computer.
+    Nothing is uploaded."; loading state added; empty state uses the mic icon
+    and carries the record CTA.
+  - **Consent dialog**: a failed start now shows the error inline and keeps the
+    dialog open (was a silent close — the advisor could believe a failed
+    recording was running); with no state on file the two-party guidance reads
+    conditionally ("If your state requires everyone's consent…") instead of
+    asserting state law. `ConsentDialog.tsx`, `ClientMeetingsTab.tsx`.
+  - Files: `src/features/meetings/{RecordPill,ClientMeetingsTab,MeetingEntry,ConsentDialog,SpeakerNamesPanel}.tsx`,
+    `src/features/meetings/{meetingStore,meetingNoteTemplate,meetingDisplay}.ts`,
+    `src/features/dictation/audio/AudioPlayer.tsx`, locales en/de/es, tests
+    (unit + bench-mirror e2e extended).
+
+### Fixed
+- **Voice transcription actually works now — real engine contract + real CI staging (2026-07-04).**
+  M6 (v1.5) shipped Rust code written against an assumed `--stdin` mode that
+  a real `whisper.cpp` build has never had, and CI's binary-fetch step was a
+  documented no-op gated on an unset `VOICE_SIDECAR_URL` — so voice shipped
+  disabled in every installer since 2026-04. Fixed both halves:
+  - **Contract** (`src-tauri/src/sidecars/parakeet.rs`, `src-tauri/src/commands/voice.rs`):
+    rewrote to the real, verified contract — write WAV bytes to a temp file,
+    invoke `-f <file> -np -nt -m <model-path>` (no stdin mode exists; model is
+    a real file path, not a bare tier name). Verified by building
+    `ggml-org/whisper.cpp` from source locally, reading its actual `--help`,
+    and running a real transcription end-to-end through the production code
+    path. `resolve_model_path` maps UI tiers (tiny/base/small) to bundled
+    ggml files with an honest fallback (prefers the next-more-accurate tier,
+    not just "first in a list" — a review-caught bug that would have quietly
+    downgraded every default `small` request to `tiny`). `transcribe_meeting`
+    (Meetings feature, `commands/capture/transcribe.rs`) reuses this same
+    fixed path — it was already calling `ParakeetSidecar` directly. 16 Rust
+    tests including a temp-file-lifecycle test against a stub engine, plus 1
+    opt-in test that runs the real whisper-cli binary (not part of the
+    automated gate; run manually, see its doc comment).
+  - **CI staging** (`.github/workflows/release.yml`,
+    `scripts/fetch-voice-models.sh`, `scripts/build-voice-sidecar.sh`):
+    replaced the `VOICE_SIDECAR_URL` no-op with a real build — whisper.cpp
+    compiled from source, statically linked (no sibling DLLs to stage,
+    unlike the diarize sidecar's onnxruntime), tiny/base ggml models fetched
+    with pinned SHA256. `small` (466 MB) isn't bundled — an install-size
+    trade-off, not an oversight.
+- **i18n gate + QA-14 fix: switching to Deutsch/Español now actually translates
+  the surfaces advisors live in (2026-07-04).** `npm run i18n:check` was red
+  (18 "key is not a string literal" warnings) — every call site built its
+  translation key from a variable, template literal, or ternary instead of a
+  literal string, so the i18next static extractor couldn't see it; fixed by
+  converting each to a literal-keyed switch/ternary
+  (`useChatSending.ts`, `renderingHelpers.tsx`, `ScopeToggle.tsx`,
+  `DocxRedlineControls.tsx`, `EmailViewer.tsx`, `VaultLockedPrompt.tsx`,
+  `BookView.tsx`, `MatterManagerDialog.tsx`, `MatterNotesEditor.tsx`,
+  `meetingDisplay.ts`, `RetentionSettings.tsx`, `WorkflowExecutionTab.tsx`,
+  `WorkflowPanel.tsx`) — the gate is honestly zero now, no suppressions.
+  Root cause of QA-14 (P1): `Spine.tsx`'s primary nav ("Client Map" / "Ask" /
+  "Workflows"), `MatterHub.tsx`'s hub tab bar, and `MattersHome.tsx`'s row and
+  toolbar actions (Ask/Documents/Email, folder counts, header description,
+  the "Get started" onboarding card, sortable column headers) were plain
+  hardcoded English strings, never routed through `t()` — the language
+  switch never touched them. Wired all of it through `t()` with new locale
+  keys (`spine.*`, `matter.hub.*`, `matter.home.*`, `ask.scope-toggle.*`) in
+  en/de/es.json, and while in the neighborhood also translated ~36
+  pre-existing keys under `ask.*` and `matter.*` that were English-value
+  placeholders in de.json/es.json despite already being wired through `t()`
+  (so the key resolved but rendered English regardless of locale). Known,
+  deliberate scope limit: `useEntityLabel()` (the "client"/"matter"/
+  "household" noun) is not locale-aware — it varies by profession, not by
+  language — so that one word stays English in every locale; flagged as a
+  follow-up, not silently fixed here. Verified with a real German run:
+  screenshots in `coordination/qa-campaign/evidence/i18nfix-20260704/`.
+- **CRM review-card visibility + persistence (QA findings).** (1) Queued Wealthbox
+  proposals no longer vanish on app restart — `crmWriteQueueStore` now persists via
+  zustand + localStorage, with honest rehydrate reconciliation: an item stuck mid-send
+  reopens as `proposed`, an item whose matter was deleted is dropped (its only display
+  surface, that matter's Hub, can never reopen), a completed (`sent`) item is never
+  persisted forward (no Dismiss control exists for a done row), and structurally corrupt
+  entries are dropped rather than crashing the UI. (2) `CrmWriteReviewCard` only ever
+  mounted on the Client Map's Overview sub-tab — a pending proposal was invisible from
+  Documents/Email/Activity. New `CrmWritePendingBanner` renders a slim presence banner
+  in the hub chrome on every other sub-tab, with a "Review now" jump back to Overview.
+  (3) The toolbar confirmation after "Send to Wealthbox" was vague and un-actionable
+  ("Added to the Wealthbox review card on this client's map") and disconnected while
+  Wealthbox was offline — now "Queued for Wealthbox review" plus a real "Review now"
+  action (dispatches `lantern:matter-launch`) in both `MatterNotesEditor` and
+  `DocxEditor`; the disconnected-Wealthbox card state also now offers Dismiss per item
+  instead of being a dead end. (4) `scripts/bench-smoke/checks/wave2.mjs`'s
+  Send-to-Wealthbox check could false-PASS on the toolbar's own confirmation text alone
+  — now asserts the real card (`[data-testid="crm-write-card-collapsed"]`) and expands
+  it to confirm Approve is reachable. Files: `src/platform/state/crmWriteQueueStore.ts`,
+  `src/features/matters/{CrmWriteReviewCard,CrmWritePendingBanner,MatterHub,
+  MatterNotesEditor}.tsx`, `src/features/documents/media/DocxEditor.tsx`,
+  `src/app/shell/layout/MainPanel.tsx`, `scripts/bench-smoke/checks/wave2.mjs`,
+  `src/locales/{en,de,es}.json`. 3 rounds of independent Codex review (2 confirmed P2s
+  fixed: undismissable sent/orphaned items surviving forever, disconnected-state
+  dead end).
+
+### Added
+- **Wave 3 — local meeting capture (the last feature lane).** In-process recording engine
+  (`src-tauri/src/commands/capture/`): dual-channel capture (mic + system loopback via
+  cpal/WASAPI), chunked crash-safe writes with fsync, session finalize, orphan detection +
+  recovery after a hard kill, per-OS audio sources, symlink-safe matter/meeting path guards on
+  the shared pathguard primitive, and audit entries under the plan's declared
+  `meeting_capture_started` action. Verified on real hardware (Legion + USB headset): live
+  loopback signal, crash recovery of a mid-flight recording, device-disable mid-recording
+  survived. 17 review rounds + coordinator independent review (1 confirmed P2, fixed).
+  macOS capture sidecar (`capture-mac`) is a documented follow-up. Files:
+  `capture/{engine,chunks,recovery,session,sources,mod}.rs`, `pathguard.rs` (absolute variant).
+- **Wave 3b — local long-form transcription pipeline (Tasks 7-9).** Windows `audio.wav` into
+  25s overlapping chunks over the existing per-request Parakeet/whisper sidecar (hard 30s cap),
+  merges into `transcript.json` with channel-attributed speakers (mic="You", sys="Them"), skips
+  silent windows, and journals progress to `.transcribe-progress.json` for crash-safe resume.
+  New `transcribe_meeting` Tauri command wires `SidecarTranscriber` to the bundled binary
+  (guarded by `guard_meeting_path` before any other filesystem work — never a cloud path) and
+  the canonical `TranscriptFile`/`TranscriptSegment`/`TranscriptConsent`/`CaptureStatus` TS
+  schema lands at `src/platform/types/meeting.ts` (the one place the frontend meetings lane
+  builds against). Mono audio (imported recordings, `src/features/meetings/importMeetingAudio.ts`)
+  is accepted and attributed entirely to sys/"Them" — imports have no mic/sys separation. New
+  `meetings.transcribeMode` setting (`live` | `batch`) for battery-saver transcription. codex-review
+  (3 rounds) also fixed: overlap-trim state wasn't reset across silent windows (could drop real
+  words after a pause), the progress journal write wasn't crash-atomic, and `engine.rs`'s
+  `slugify()` was stripping the underscore out of real `matter_<uuid>` ids, making the
+  meeting-folder-name fallback (used until Task 12's `meeting.json` lands) scope reconstructed
+  transcripts to a garbled matter id. Files: `capture/transcribe.rs`, `capture/engine.rs`
+  (`slugify`), `lib.rs`, `platform/types/meeting.ts`, `features/meetings/importMeetingAudio.ts`,
+  `platform/settings/schema.ts`.
+
+### Fixed
+- **QA-5 (P1) — new clients had no folders linked, so their documents looked missing.**
+  Creating a client via "+ New client" passed no `folderPaths`, so the client was scoped to
+  nothing: new documents/imports landed unscoped and the client's own Documents view showed
+  "No documents yet" even though the files existed. Now each new client gets its OWN workspace
+  subfolder by default (named for the client, uniquified so two clients never share a folder —
+  matter isolation holds), matching how seeded clients are structured. The folder is created on
+  disk immediately (best-effort) and linked via `matter.folderPaths`. Files:
+  `matterManagerDialogHelpers.ts` (new `deriveNewClientFolderPath`/`clientFolderSegment`),
+  `MatterManagerDialog.tsx` (`handleCreate`), new `platform/fs/activeWorkspaceService.ts` (the
+  active-service holder moved out of the app layer so the feature can create the folder without
+  violating the layer DAG). Tests: `newClientFolder.test.ts`, `tests/integration/newClientScoping.test.ts`,
+  `tests/e2e/bench-mirror-new-client-folder.spec.ts`.
+- **QA-6 (P1) — the Ask input collapsed to 0px at a normal laptop window.** The Ask 3-column
+  layout (conversations rail + composer + sources) had two fixed, non-shrinkable side columns, so
+  the composer's center column was squeezed until `ask-composer-input` collapsed to 0px and became
+  non-interactable at ~1028×749 (worked at 1424px); at ~600px the whole row clipped instead of
+  degrading. The layout is now responsive: as the Ask body narrows it collapses the rail, then
+  hides the sources column, and the composer column keeps a hard `minWidth` floor so the primary
+  input never collapses. Files: new `src/features/ask/askResponsive.ts` (pure breakpoint logic +
+  shared column-width constants), `Ask.tsx` (ResizeObserver-driven layout, mirroring MainPanel),
+  `ConversationsRail.tsx` (imports the shared widths). Tests: `askResponsive.test.ts`,
+  `tests/e2e/bench-mirror-ask-composer-viewport.spec.ts` (asserts a non-zero, interactable input at
+  1028px and 600px).
+- **Windows verbatim-path blocker in `capture_start` (empty-path canonicalize).**
+  `pathguard::canonicalize_symlink_safe_absolute` walked components from an EMPTY `PathBuf`
+  and tried to `symlink_metadata()` the first component. On Windows the first component of a
+  verbatim path (`\\?\C:\…`, which `Path::canonicalize()` always returns, and which
+  `guard_matter_folder` produces by joining caller input onto a canonicalized root) is the
+  drive prefix `\\?\C:`, which is not statable on its own — so the walk collapsed to an empty
+  base and canonicalized `""`, producing `cannot canonicalize : The system cannot find the
+  path specified. (os error 3)` and blocking every `capture_start`. Fix: seed the walk from
+  the path's `Prefix`/`RootDir` anchors verbatim (they can never be a symlink, so no stat),
+  keep the no-follow guarantee for every `Normal` component and the missing-tail tolerance,
+  and put the actual path in the error. Audited the other three resolvers
+  (`canonicalize_symlink_safe`, `resolve_creatable`, `contained`) — safe by construction
+  (they seed from a real caller-supplied base, never stat a bare prefix). Files:
+  `src-tauri/src/commands/pathguard.rs`. Windows verbatim regression test + platform-neutral
+  root-seeding guards added; proven on a real Windows machine.
+- **Hardening: `canonicalize_symlink_safe_absolute` now rejects crafted verbatim inputs that hide
+  a separator or `..` inside one path component** (independent-review follow-up). A verbatim path
+  (`\\?\…`) does not split on `/` or normalize `..`, so a single `Normal` component could secretly
+  carry `Clients/../Other`; the later `join` re-parsed and re-materialized that `..`, defeating both
+  the no-`..` and no-follow-symlink guarantees. Each `Normal` segment must now re-parse to exactly
+  itself. Also enforces the resolver's already-absolute contract up front (`is_absolute()`), so a
+  degenerate relative/empty input can never walk against an empty or caller-relative base.
+- **Two pre-existing Windows-only path-form bugs in the capture guards' callers**, surfaced by running
+  the capture test module on real Windows for the first time (both failed before the verbatim fix too,
+  masked by the guards erroring on every verbatim path — neither is a regression):
+  - `guard_matter_folder` now rejects `..` in the raw matter-folder input up front. On Windows
+    `canon_ws.join("..")` normalizes the `..` away before pathguard's `ParentDir` refusal can fire, so
+    the traversal was caught only by the final containment check (secure, but one defense layer short and
+    with a misleading "escapes workspace" message). Now the `..` guarantee fires identically on every OS.
+  - `find_orphans` now canonicalizes the active-recording path before excluding it from the orphan list.
+    The scanned dirs are in `canon_workspace`'s verbatim form (`\\?\C:\…`) while `active_meeting_dir()`
+    could hold the same dir in non-verbatim `C:\…` form; the plain string compare then missed the match
+    and wrongly offered the LIVE recording as a recoverable orphan on Windows. Files:
+    `src-tauri/src/commands/capture/mod.rs`, `src-tauri/src/commands/capture/recovery.rs`.
+
+### Security
+- **Audit chain: fail-closed on a missing integrity seal (silent-reseal gap closed).** An
+  attacker (or bug) that deleted tail rows AND the `chain_head_v1` seal metadata could get
+  `EncryptedAuditStore::open()` to silently re-derive a fresh head over the surviving prefix on
+  next open — resealing a truncated log as "valid" and erasing the tamper evidence the whole
+  chain exists to provide. `open()` no longer auto-seals a headless chain. Instead the store
+  surfaces a new `AuditChainVerification::SealMissing { surviving_rows, last_timestamp }` state:
+  existing rows stay readable, new appends are refused, and retention/redaction (data-loss ops)
+  refuse to proceed on it (`reject_if_chain_altered`). Recovery is an explicit `audit_repair_seal`
+  command that FIRST writes a permanent, backend-minted anomaly record (`audit_integrity_reseal`)
+  into the new chain — recording when the seal was detected missing, how many rows survived, and
+  that prior completeness can no longer be verified — THEN re-seals over the survivors + that
+  record. The frontend surfaces the state honestly in the existing audit integrity badge (amber
+  "Integrity seal missing" with a verifiable-up-to boundary) and in the privacy attestation
+  export. The all-rows form (deleting EVERY row + the seal, which would otherwise look like a
+  fresh store) is caught via SQLite's AUTOINCREMENT high-water mark (`sqlite_sequence`, survives
+  deletion): a wiped log opens as SealMissing and repair chains the anomaly onto genesis. A seal
+  that is present but corrupt (undecodable) is reported as `Altered` (loud), keeping the invariant
+  that SealMissing always means repairable. The seal-missing badge carries an explicit,
+  acknowledged **Repair** action (confirmation dialog in plain language stating what can no longer
+  be verified and that the anomaly is permanently recorded) that calls `audit_repair_seal` and
+  refreshes the entries + integrity state. Files: `commands/audit/store.rs` (SealMissing +
+  `repair` + high-water detection), `commands/audit/mod.rs` (`audit_repair_seal`),
+  `commands/retention/mod.rs`, `platform/utils/tauri-commands.ts`, `platform/audit/AuditService.ts`
+  (`repairSeal`), `app/App.tsx` + `app/shell/AppSurfaceRouter.tsx` (repair handler wiring),
+  `features/audit/{AuditHome.tsx,audit-export.ts}`, `platform/privacy/attestation.ts`,
+  `locales/{en,de,es}.json`. Reproduced red-first; store/retention/service/UI-flow tests added.
+- **Symlink-safe path containment everywhere a caller-supplied path meets a workspace root.**
+  A codebase audit found five containment checks that followed symlinks (an in-workspace alias
+  folder could read/write/delete a DIFFERENT client's files while the audit trail named the
+  alias). New shared `src-tauri/src/commands/pathguard.rs` module (no-follow component walk;
+  refuses rather than resolves; `resolve_creatable` variant for about-to-be-created paths) now
+  backs vault `resolve_and_guard`, MCP `resolve_workspace_path`/`canonicalized_workspace_child`,
+  diarize `ensure_within_workspace`, and retention `contained()`/redaction. Six adversarial
+  review rounds fixed real follow-ons (TOCTOU split of I/O vs grant paths, re-validation pinned
+  to the original canonical root, unaudited-delete gaps for refused/broken symlinks). 1187+51
+  Rust tests green. Files: `pathguard.rs`, `vault/mod.rs`, `mcp_bin/{main,access,tools}.rs`,
+  `diarize/mod.rs`, `retention/{sweep,redact}.rs`.
+
+### Added
+- **Bench harness v3: sharded multi-target smoke runs + failure forensics + auto-smoke (dry-run).**
+  `scripts/bench-smoke-shard.mjs` splits the checklist across several benches and runs them
+  concurrently, merging summaries into one verdict (state-coupled checks stay together via
+  `sameTargetGroup`); on any FAIL the harness now auto-bundles console errors, a failure
+  screenshot, and the app-log tail into the evidence dir; `scripts/auto-smoke.sh` (gated behind
+  `AUTO_SMOKE_ARMED=1`, dry-run by default) automates pull→rebuild→canary→smoke per target.
+  `--only` now accepts repeats/comma lists. Built by Codex, coordinator-reviewed; 122 harness
+  tests green. Known P3 before arming auto-smoke: per-target scheduled-task name is hard-coded.
+  Files: `bench-smoke-shard.mjs`, `bench-smoke/{shard,checklist,driver,remote,result,targets}.mjs`,
+  `auto-smoke.sh`, `docs/qa/BENCH-SMOKE-HARNESS.md`.
+- **E2E smoke mirror — Linux/Playwright mirror of the Windows bench smoke checklist.** 5 new spec
+  files (11 tests, ~15s) covering the checks that are pure browser-drivable UI: Phase 1 setup
+  (Clients list, per-client Documents isolation, Client Map citation health), Wave 4 whole-book
+  view + estate/beneficiary gap detect-and-resolve, Wave 4 whole-practice Ask scope + consent gate,
+  Wave 4 retention policy + Data Map (a stub in the bench harness found to have already merged),
+  and cross-cutting checks (light theme, console errors, egress indicator). Key finding: the
+  in-house `.docx` editor's toolbar (Draft follow-up / Send to Wealthbox) and the Calendar/CRM
+  connectors only work under a real Tauri runtime, so those bench checks cannot run in this
+  Playwright setup at all — already live-verified on the real bench per
+  `docs/qa/BENCH-SMOKE-HARNESS.md`. Full check-id -> spec mapping, classifications, and the two
+  bench-script string mismatches found: `docs/qa/E2E-SMOKE-MIRROR.md`. No product source changed;
+  additive spec files only. Files: `tests/e2e/bench-mirror-{setup,book-view,ask-whole-practice,
+  cross-cutting,retention}.spec.ts`, `docs/qa/E2E-SMOKE-MIRROR.md`.
+
+### Fixed
+- **Client Map: an unresolved estate/beneficiary gap now wins the initial tab.** The finish-line
+  Windows pass found the "Whole book" view flagging a gap chip while the client's own detail panel
+  landed on a different (or remembered) tab, silently burying the resolvable gap control it had
+  just promised. The unresolved-gap check now precedes the stored tab preference on initial
+  render. Red-first tests + a browser-mirror regression spec (the mirror's first product-bug
+  catch). Files: `ClientMapPanel.tsx`, `book-detail-gap-sync.test.tsx`, `bench-mirror-book-view.spec.ts`.
+
+- **Three bench-harness bugs root-caused live during the finish-line pass** (each was masking real
+  signal as false SETUP-BLOCKED): click-by-text could pick a giant structural wrapper
+  (app-container) whose page-wide text trivially contained the needle — now skips elements with
+  nested data-testid descendants; the Documents Tree/Grid view-mode persisting on Grid made files
+  in subfolders invisible to text search — note-open helper now normalizes to Tree view first
+  (best-effort); a file-visibility check used snapshot() (interactive elements only) so plain-text
+  file rows always false-negatived — now checks rendered page text. Regression tests for all
+  three (124 harness tests green). Files: `bench-smoke/{click-by-text,checks/_util,checks/setup,checks/wave0,checks/wave2}.mjs`.
+
+- **WebView2 remote-debug port never opened via the documented env var.** wry (Tauri's WebView2
+  layer) always sets its own additional-browser-arguments, which per the WebView2 API silently
+  overrides `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` — so the CDP port the bench harness depends
+  on could never be enabled that way. The main window is now built explicitly in `.setup()`
+  (`tauri.conf.json` window `create: false`) forwarding the env var through wry's
+  `additional_browser_args()`, mirroring wry's default args exactly so behavior is unchanged when
+  the var is unset. Verified live end-to-end on the Azure cloud bench (harness check PASS over
+  CDP). Files: `src-tauri/src/lib.rs`, `src-tauri/tauri.conf.json`.
+
+- **Bench harness typing truncation.** Typed text used to travel inside the SSH command string to
+  the Windows bench, silently truncating/mangling long or multi-line text; the driver also never
+  verified what actually landed in the field. New `type-stdin` subcommand in
+  `scripts/desktop-drive.mjs` sends text over stdin and reads the field back (fails loudly on
+  mismatch); `scripts/bench-smoke/{remote,driver}.mjs` pipe stdin through SSH; class-regression
+  tests added. Root-caused and built by Codex; coordinator-reviewed. Files: `desktop-drive.mjs`,
+  `bench-smoke/remote.mjs`, `bench-smoke/driver.mjs`, `bench-smoke/__tests__/remote.test.mjs`.
+
+### Added
+- **Within-channel speaker diarization + voiceprint naming (Wave 4 Track A).** A new standalone
+  `lantern-diarize` sidecar (sherpa-onnx segmentation/embedding/clustering behind a stable
+  CLI/JSON contract) splits the system-audio channel of a captured meeting into individual
+  speakers; extraction streams in bounded chunks with 16 kHz resampling. Advisors name speakers
+  ("Speaker 2 → Sarah Henderson"); centroids are stored per-matter, AES-256-GCM-encrypted via the
+  vault format with an OS-keychain master key. Voiceprints never leave the machine, are deletable
+  from the client page, and every enrollment/deletion writes a durable audit entry
+  (`voiceprint_enrolled`/`voiceprint_deleted`). Renderer-supplied meeting paths are
+  workspace-contained. Files: `src-tauri/sidecar-src/lantern-diarize/`,
+  `src-tauri/src/commands/{diarize,voiceprint}/`, `src/features/meetings/SpeakerNamesPanel.tsx`,
+  `src/features/matters/VoiceprintsCard.tsx` (panel mounts at Wave 3 merge).
+- **Retention policy engine + local redaction + attestation export (Wave 4 Track D).** A
+  per-workspace retention policy (TS store + Settings UI + Data Map row) enforced by a Rust sweep
+  engine over every capture location: per-deletion hash-chained audit entries written the instant
+  each artifact is unlinked (never batched), symlink-safe path resolution
+  (`canonicalize_symlink_safe`: component-wise no-follow walk refusing any symlinked component),
+  a durable pending-RAG-cleanup side-file that survives renderer crashes, whole-segment local
+  redaction (`redact_meeting_segments`) with two-phase stage/commit writes and
+  byte-scan-verify-or-fail completeness, and a one-click .docx attestation report exercised
+  end-to-end against the real OOXML engine. Files: `src-tauri/src/commands/retention/`,
+  `src/features/settings/`, `src/platform/utils/tauri-commands.ts`.
+- **Scripted bench-smoke harness (`scripts/bench-smoke.mjs`).** The manual Windows-bench smoke
+  checklist is now a repeatable script driven over CDP: 17+ checks (workspace binding, Wave 0/1/2
+  journeys, Wave 4 Book view/estate chips/whole-practice Ask, index health, console cleanliness),
+  safe-by-default (state-mutating steps require `--live`), per-check screenshots + JSON summary,
+  Legion and Azure bench targets. Live-validated on the Legion. Files: `scripts/bench-smoke/`,
+  `docs/qa/BENCH-SMOKE-HARNESS.md`.
+
+### Fixed
+- **Wealthbox task creation allowed a missing due date, which the real API rejects** (live-probe
+  Finding 1, `docs/evidence/windows-smoke-2/WEALTHBOX-PROBE.md`) — `POST /tasks` with no
+  `due_date` returns HTTP 422 on the real Wealthbox API; the app previously let a date-less task
+  through and surfaced the raw 422 as an opaque ledger error. `validate_task_due_date` now
+  rejects before any network call, both at the command boundary (`crm_create_write`) and as a
+  defense-in-depth backstop inside the shared `push_crm_write` orchestrator, with a new typed
+  `CrmWriteError::TaskDueDateRequired` ("Wealthbox tasks need a due date"). Never invents a due
+  date. This write path is code-complete but not yet wired to any UI button, so it hasn't shipped
+  to a real user; Wave-3 wiring will light it up.
+  Files: `src-tauri/src/commands/crm/write.rs`, `src-tauri/src/commands/crm/commands.rs`
+- **`background_information` field-update writes used the wrong wire key, silently doing
+  nothing** (live-probe Finding 2, `docs/evidence/windows-smoke-2/WEALTHBOX-PROBE.md`) —
+  `PUT /contacts/{id}` with `background_info` (the read-side wire name) returns HTTP 200 on the
+  real API but leaves the field unchanged; only the literal `background_information` key
+  actually applies the write. Split `wealthbox_wire_field_name` into `wealthbox_read_field_name`
+  (unchanged) and `wealthbox_write_field_name` (now the identity mapping) so the two directions
+  can never be conflated again. Also added generic post-write readback verification in
+  `push_crm_field_update`: after any successful field-update PUT, it re-fetches the field and
+  only marks the ledger `sent` if the live value now matches; a mismatch surfaces as a new typed
+  `CrmWriteError::WriteNotApplied` instead of a false success — this catches the whole
+  "200-but-ignored" bug class for any provider/field, not just this one. The readback comparison
+  normalizes line endings (CRLF/CR → LF) and trailing whitespace before comparing (but never
+  collapses internal whitespace) so a CRM that reformats stored text on a write that genuinely
+  applied doesn't get permanently misreported as a silent no-op. This write path is code-complete
+  but not yet wired to any UI button, so it hasn't shipped to a real user.
+  Files: `src-tauri/src/commands/crm/write.rs`
+- **Client-of-an-open-document resolution failed on Windows path shapes** (Windows smoke-2 P0) —
+  two silently-diverged resolver implementations are now ONE (`resolveMatterIdForWorkspacePath`),
+  considering raw/relative/root-joined shapes of the same path together, reusing the canonical
+  `joinWorkspacePath`, and failing CLOSED (with a dev-console diagnostic) on any cross-matter
+  ambiguity. Fixes the missing Send-to-Wealthbox button and the Draft-follow-up "To" suggestion
+  on real Windows; 3 latent ambiguity bugs found and regression-tested along the way.
+  Files: `useMemoryWiring.ts`, `matterResolver.ts`, `matterStore.ts`, `useMemoryWiring.matterResolveWindows.test.ts`
+- **Save-to-Drafts stuck disabled with an IMAP-first mailbox** (Windows smoke P0 #1) — the
+  Draft follow-up modal now defaults to the first draft-capable account instead of index 0,
+  and explains the disabled state in plain language when only IMAP is connected.
+  Files: `DraftFollowUpModal.tsx`, `draft-follow-up-modal.test.tsx`
+- **No discoverable "Send to Wealthbox" on normal Word notes** (Windows smoke P0 #5) — new
+  toolbar action on the DOCX editor (hidden without a current client, disabled until
+  Wealthbox connects) queues the note into the existing approval-gated CRM write queue,
+  with provenance pinned to the document path (`doc:<path>`). Shared title/body split
+  extracted to `crmNoteFormat.ts` so the two enqueue surfaces can't drift.
+  Files: `DocxEditor.tsx`, `MainPanel.tsx`, `MatterNotesEditor.tsx`, `crmNoteFormat.ts`, `en.json`
+
+### Added
+- **Book view + whole-practice Ask (Lantern-Plus Wave 4, Tracks B/C)** — two new
+  book-level lenses on the existing 3-tab IA, no new tabs.
+  - **Book view**: a "Whole book" segment inside the Client Map tab ranking every
+    active client by a numeric 0-100 completeness score, staleness, and open gaps —
+    neediest first. Click a row to open that client's hub.
+  - **Estate/beneficiary mismatch detection**: a local, deterministic pass that
+    recognizes wills/trusts/beneficiary-designation forms/POAs among a client's
+    sources, cross-checks named beneficiaries against each other and dated life
+    events, and surfaces MISMATCH/STALE/MISSING findings through the existing gap
+    machinery (the "What I'm missing" panel + Book view gap chips). Every finding
+    carries "Flagged for your review. Not legal advice."; a dismissal is audit-logged.
+  - **Whole-practice Ask**: a new "Whole practice" scope that answers book-level
+    questions by aggregating each client's already-built Client Map summary — it
+    never calls raw cross-matter retrieval (guarded by a dedicated test). Requires
+    an all-clients file-access consent grant before a cloud send (same gate normal
+    Ask enforces); results show one chip per matching client with inline cited
+    facts, each opening that client's Client Map or the exact source passage.
+  - Files: `src/features/matters/book/{bookRanking,BookView}.ts(x)`,
+    `src/platform/clientMap/estate/{estateDocs,beneficiaryConsistency}.ts`,
+    `src/features/ask/book/{bookFacts,wholePracticeAsk,BookAnswerPanel}.ts(x)`,
+    `src/features/ask/ScopeToggle.tsx` (`ScopeStatusPill`), `src/features/ask/Ask.tsx`.
+
+- **In-app scheduled brief rescan (Wave 1 Task 19, v2 trigger)** — `useAutoprepRescan`
+  polls today's calendar every 5 minutes while Lantern is open, so a meeting added
+  mid-day gets its briefing prepared without reopening the app. No OS-level
+  scheduling; CalendarConnect now says so plainly. Mounted from `TodaysMeetingsStrip`
+  next to the existing autoprep hooks.
+  Files: `useMeetingAutoprep.ts`, `TodaysMeetingsStrip.tsx`, `CalendarConnect.tsx`,
+  `tests/unit/meetings/autoprep-rescan.test.ts`
 - **Field-level blended CRM updates (Task 9c)** — a 3-column review
   (Existing / From this meeting / Blended) folded into the existing
   Wealthbox write-back card for a single allowlisted narrative field
@@ -1027,6 +1554,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Files modified: `src/features/ask/chat/providerModelResolution.ts`, `src/features/ask/AIChatViewer.tsx`, `src/features/onboarding/ApiKeyWizard.tsx`, `src/features/settings/ApiKeyManager.tsx`
 - **A saved default model is honored even if it was set in an older version.** The new chat default now also reads the older `keepance_default_*` preference when the current setting is empty, so a previously chosen default provider/model still applies.
   - Files modified: `src/features/ask/chat/providerModelResolution.ts`, `src/features/ask/AIChatViewer.tsx`
+- **`auto-smoke.sh` restarted a hard-coded `KeepanceDev` Windows scheduled task regardless of target.** Each bench target now carries its own scheduled-task name (`legion` = `LanternPlusDev`, `azure-cloud-bench-1` = `LanternDevBench`, ad hoc default `LanternPlusDev`), threaded through the dry-run output and the real restart command.
+  - Files modified: `scripts/bench-smoke/targets.mjs`, `scripts/auto-smoke.sh`, `scripts/bench-smoke/__tests__/targets.test.mjs`
+
+### Changed
+- **Cosmetic `keepance` → `lantern` sweep across `src/` and `src-tauri/`.** The internal plumbing rename (Cargo package name, keychain services, data-dir constants) was already done; this fixes stale comments left describing values that are already `lantern`, plus a handful of non-persisted internal constants, DOM print-target ids, and test-fixture strings still named `keepance`. Real legacy-migration code, wire-format values (the `'keepance-local'` provider id serialized in saved chat files), live network/CDN URLs, CI-wired env vars, and a crypto domain-separation literal were all identified and left untouched.
+  - 73 files changed, pure 1:1 text substitutions (170 insertions / 170 deletions, no lines added or removed).
+
+### Documentation
+- **Documented the legacy `keepance_*` storage-key migration state.** `migrateLegacyLanternStorageKeys` and `migrateLocalStorageApiKeysToKeychain` are already complete, tested, and correctly ordered — no code change needed; a new SECURITY.md section records the current state and flags one pre-existing gap (`BeforeYouMeetStrip.tsx` reads a dead legacy key literal) as a follow-up.
+  - Files modified: `docs/reference/SECURITY.md`
+- **Docs currency pass on the Lantern-Plus program docs.** Marked the program feature-complete (all 5 waves merged, Windows verification passed) in `LANTERN-PLUS.md`; flagged `NEXT-SESSION-BOOTSTRAP.md` and `PARALLEL-OPERATIONS.md`'s sequencing section as historical (already executed); corrected `BENCH-SMOKE-HARNESS.md`'s claim that the retention/attestation feature (Task 16-17) hadn't merged — it has, though the harness stub itself wasn't promoted (documented as an existing out-of-scope gap, same as the diarization stub).
+  - Files modified: `LANTERN-PLUS.md`, `docs/plans/lantern-plus/NEXT-SESSION-BOOTSTRAP.md`, `docs/plans/lantern-plus/PARALLEL-OPERATIONS.md`, `docs/qa/BENCH-SMOKE-HARNESS.md`
 
 ## [3.3.5] - 2026-06-18
 

@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { getEntityLabel } from '@/platform/hooks/useEntityLabel';
+import { getEntityLabelEnglish } from '@/platform/hooks/useEntityLabel';
 import {
   History,
   FilePlus,
@@ -22,7 +22,9 @@ import {
   Search as SearchIcon,
   ShieldCheck,
   ShieldOff,
+  ShieldAlert,
   Lock,
+  Fingerprint,
   Target,
   Send,
   Share2,
@@ -30,6 +32,7 @@ import {
   KeyRound,
   UserX,
   Save,
+  Timer,
 } from 'lucide-react';
 import type { AuditEntry, AuditActionType } from '@/platform/types/audit';
 import { asRecord } from './audit-export';
@@ -125,6 +128,24 @@ export const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   template_uninstalled: FileX,
   template_updated: PenLine,
   template_install_failed: XCircle,
+  beneficiary_finding_dismissed: ShieldCheck,
+  voiceprint_enrolled: Fingerprint,
+  voiceprint_consent: Fingerprint,
+  voiceprint_deleted: Fingerprint,
+  retention_delete: Timer,
+  retention_swept: Timer,
+  meeting_redaction: Scissors,
+  meeting_capture_started: FilePlus,
+  meeting_recorded: FileText,
+  meeting_audio_deleted: FileX,
+  audit_integrity_reseal: ShieldAlert,
+  'redtail.connect': Users2,
+  'redtail.sync': Users2,
+  'redtail.disconnect': Users2,
+  'salesforce.connect_cancelled': XCircle,
+  'wealthbox.create_note': FilePlus,
+  'wealthbox.create_task': FilePlus,
+  'wealthbox.field_updated': PenLine,
 };
 
 export const ACTION_LABELS: Record<AuditActionType, string> = {
@@ -181,6 +202,24 @@ export const ACTION_LABELS: Record<AuditActionType, string> = {
   template_uninstalled: 'Template Uninstalled',
   template_updated: 'Template Updated',
   template_install_failed: 'Template Install Failed',
+  beneficiary_finding_dismissed: 'Beneficiary Check Dismissed',
+  voiceprint_enrolled: 'Voice profile saved',
+  voiceprint_consent: 'Voice profile consent confirmed',
+  voiceprint_deleted: 'Voice profile deleted',
+  retention_delete: 'Retention Removed a File',
+  retention_swept: 'Retention Sweep Finished',
+  meeting_redaction: 'Meeting Content Redacted',
+  meeting_capture_started: 'Meeting Recording Started',
+  meeting_recorded: 'Meeting Recorded',
+  meeting_audio_deleted: 'Meeting Audio Deleted',
+  audit_integrity_reseal: 'Audit Log Integrity Gap Repaired',
+  'redtail.connect': 'Redtail Connected',
+  'redtail.sync': 'Redtail Synced',
+  'redtail.disconnect': 'Redtail Disconnected',
+  'salesforce.connect_cancelled': 'Salesforce Connect Cancelled',
+  'wealthbox.create_note': 'Wealthbox Note Created',
+  'wealthbox.create_task': 'Wealthbox Task Created',
+  'wealthbox.field_updated': 'Wealthbox Field Updated',
 };
 
 /** Semantic category per action, drives colour + grouping in filters. */
@@ -240,6 +279,24 @@ export const ACTION_CATEGORY: Record<AuditActionType, ActionCategory> = {
   template_uninstalled: 'system',
   template_updated: 'system',
   template_install_failed: 'system',
+  beneficiary_finding_dismissed: 'privilege',
+  voiceprint_enrolled: 'file',
+  voiceprint_consent: 'file',
+  voiceprint_deleted: 'file',
+  retention_delete: 'file',
+  retention_swept: 'file',
+  meeting_redaction: 'file',
+  meeting_capture_started: 'system',
+  meeting_recorded: 'system',
+  meeting_audio_deleted: 'file',
+  audit_integrity_reseal: 'privilege',
+  'redtail.connect': 'system',
+  'redtail.sync': 'system',
+  'redtail.disconnect': 'system',
+  'salesforce.connect_cancelled': 'system',
+  'wealthbox.create_note': 'system',
+  'wealthbox.create_task': 'system',
+  'wealthbox.field_updated': 'system',
 };
 
 export const CATEGORY_COLOR: Record<ActionCategory, string> = {
@@ -325,7 +382,10 @@ export function getScopeLabel(entry: AuditEntry): string | null {
     if (mode === 'assured') return 'Assured';
   }
   if (entry.action === 'scope_active' || entry.action === 'retrieval_executed') {
-    const entityLabel = getEntityLabel();
+    // English-only escape hatch: this sentence is still hardcoded English
+    // (see the cleanup2 handoff), so the noun must stay English too rather
+    // than mix a translated word into an English sentence.
+    const entityLabel = getEntityLabelEnglish();
     const scope = meta['scope'] as { kind?: string; matterName?: string } | undefined;
     if (scope?.kind === 'allMatters') return `All ${entityLabel.other}`;
     if (scope?.kind === 'matter') return scope.matterName ?? entityLabel.One;

@@ -733,13 +733,13 @@ export async function watchWorkspace(path: string): Promise<void> {
 // --------------------------------------------------------------------
 // Phase 4 M4 (v1.5 Flag 2) — MCP sidecar bridge.
 //
-// The `keepance-mcp` binary (see `src-tauri/src/bin/mcp/`) writes approval
+// The `lantern-mcp` binary (see `src-tauri/src/bin/mcp/`) writes approval
 // requests to disk when an MCP client calls `write_workspace_file` with
 // `require_confirmation = true`. These commands let the desktop app
 // surface them to the user and return the user's decision.
 // --------------------------------------------------------------------
 
-/** One pending write approval queued by the `keepance-mcp` sidecar.
+/** One pending write approval queued by the `lantern-mcp` sidecar.
  *  Mirror of the `PendingApproval` struct in `src-tauri/src/commands/mcp.rs`
  *  (camelCase via `#[serde(rename_all = "camelCase")]`). */
 export interface McpPendingApproval {
@@ -828,6 +828,67 @@ export async function transcribeAudio(
 }
 
 // ---------------------------------------------------------------------------
+// Wave 4 Track A — within-channel speaker diarization + voiceprint naming.
+// Fully local: audio and embeddings never leave the machine.
+// ---------------------------------------------------------------------------
+
+export interface DiarizedSpeakerWire {
+  label: string;
+  turnCount: number;
+  totalMs: number;
+  centroid: number[];
+}
+export interface DiarizeMeetingResult {
+  speakers: DiarizedSpeakerWire[];
+  updatedSegments: number;
+  dims: number;
+}
+
+/** Separate the far-end voices of a recorded meeting (fully local). `workspaceRoot`
+ *  is required so the backend can reject a meetingDir outside the active workspace. */
+export async function diarizeMeeting(workspaceRoot: string, meetingDir: string, numSpeakers?: number): Promise<DiarizeMeetingResult> {
+  if (!isTauri()) throw new Error('Speaker separation is only available in the desktop app.');
+  return invoke<DiarizeMeetingResult>('diarize_meeting', { workspaceRoot, meetingDir, numSpeakers });
+}
+
+/** Rename diarized speakers in a meeting transcript ("Speaker 2" -> a client name). */
+export async function applySpeakerNames(workspaceRoot: string, meetingDir: string, renames: Record<string, string>): Promise<number> {
+  if (!isTauri()) throw new Error('Speaker naming is only available in the desktop app.');
+  return invoke<number>('apply_speaker_names', { workspaceRoot, meetingDir, renames });
+}
+
+export interface VoiceprintInfo { id: string; name: string; sampleCount: number; updatedAt: string }
+export interface VoiceprintMatch { id: string; name: string; confidence: number }
+
+/** List stored voice profiles for a client. Empty (not an error) in browser mode. */
+export async function voiceprintList(workspaceRoot: string, matterId: string): Promise<VoiceprintInfo[]> {
+  if (!isTauri()) return [];
+  return invoke<VoiceprintInfo[]>('voiceprint_list', { workspaceRoot, matterId });
+}
+/** Save (or merge into an existing) voiceprint for a named speaker. */
+export async function voiceprintEnroll(workspaceRoot: string, matterId: string, name: string, embedding: number[]): Promise<VoiceprintInfo> {
+  if (!isTauri()) throw new Error('Voice profiles are only available in the desktop app.');
+  return invoke<VoiceprintInfo>('voiceprint_enroll', { workspaceRoot, matterId, name, embedding });
+}
+/** Suggest a stored voice profile for an embedding, or null below the confidence threshold. */
+export async function voiceprintMatch(workspaceRoot: string, matterId: string, embedding: number[]): Promise<VoiceprintMatch | null> {
+  if (!isTauri()) return null;
+  return invoke<VoiceprintMatch | null>('voiceprint_match', { workspaceRoot, matterId, embedding });
+}
+/** Confirm an auto-suggested voice profile match, merging the new embedding in. */
+export async function voiceprintConfirm(workspaceRoot: string, matterId: string, voiceprintId: string, embedding: number[]): Promise<void> {
+  if (!isTauri()) return;
+  // `await` (not `return invoke<void>`) so we don't use `void` as a generic
+  // type arg (@typescript-eslint/no-invalid-void-type); result is discarded.
+  await invoke('voiceprint_confirm', { workspaceRoot, matterId, voiceprintId, embedding });
+}
+/** Delete a stored voice profile (biometric data) for a client. */
+export async function voiceprintDelete(workspaceRoot: string, matterId: string, voiceprintId: string): Promise<void> {
+  if (!isTauri()) throw new Error('Voice profiles are only available in the desktop app.');
+  await invoke('voiceprint_delete', { workspaceRoot, matterId, voiceprintId });
+}
+
+// ---------------------------------------------------------------------------
 // Advisor Prep Hero 3.0 — encrypted, append-only audit store (the "defense file").
 //
 // On the desktop the AuditService persists to a SQLCipher-encrypted store
@@ -849,7 +910,24 @@ export interface AuditEntryRecord {
 
 export type AuditIntegrityVerdict =
   | { status: 'verified'; checked: number }
-  | { status: 'altered'; seq: number; id: string; reason: string; checked: number };
+  | { status: 'altered'; seq: number; id: string; reason: string; checked: number }
+  // FAIL-CLOSED tamper evidence: the surviving rows still chain cleanly, but the
+  // integrity SEAL that vouched for the log's completeness is gone. History up to
+  // `lastTimestamp` can no longer be proven complete. Appends are refused until an
+  // explicit repair re-seals the log and records the anomaly permanently.
+  | { status: 'sealMissing'; survivingRows: number; lastTimestamp: string | null };
+
+/** Result of an explicit, acknowledged repair of a seal-missing audit log. */
+export interface AuditChainRepairReport {
+  /** Rows that survived and were re-sealed (excludes the anomaly record). */
+  survivingRows: number;
+  /** Id of the permanent anomaly record now embedded in the new chain. */
+  anomalyId: string;
+  /** Total entries after repair (`survivingRows` + 1 anomaly). */
+  totalEntries: number;
+  /** Boundary of previously-verifiable history, echoed back for the record. */
+  lastVerifiableTimestamp: string | null;
+}
 
 /** Point the encrypted audit store at a workspace. No-op in the browser. */
 export async function auditSetWorkspace(path: string): Promise<void> {
@@ -888,4 +966,89 @@ export async function auditCount(): Promise<number> {
 export async function auditVerifyIntegrity(): Promise<AuditIntegrityVerdict | undefined> {
   if (!isTauri()) return undefined;
   return invoke<AuditIntegrityVerdict>('audit_verify_integrity');
+}
+
+/** Repair a seal-missing audit log: re-seal the surviving prefix AND write a
+ *  permanent anomaly record into the new chain. Explicit and acknowledged —
+ *  never automatic. Rejects (throws) if the store is not seal-missing. No-op in
+ *  the browser (no encrypted chain there). */
+export async function auditRepairSeal(): Promise<AuditChainRepairReport | undefined> {
+  if (!isTauri()) return undefined;
+  return invoke<AuditChainRepairReport>('audit_repair_seal');
+}
+
+// ── Retention sweep (Wave 4 Track D) ────────────────────────────────────────
+
+export interface SweepDeletionWire { path: string; kind: string }
+export interface SweepOutcomeWire {
+  deleted: SweepDeletionWire[];
+  keptMeetings: number;
+  skippedInFlight: number;
+  errors: string[];
+  ragCleanupSourceIds: string[];
+}
+
+/** Enforce the workspace's retention policy over every matter folder given.
+ *  Rust deletes the artifacts the policy calls for and appends the
+ *  hash-chained audit trail; desktop-only, throws in the browser. */
+export async function retentionSweep(
+  workspaceRoot: string, matterFolders: string[], mode: string, audioRetentionDays: number,
+): Promise<SweepOutcomeWire> {
+  if (!isTauri()) throw new Error('Retention runs only in the desktop app.');
+  return invoke<SweepOutcomeWire>('retention_sweep', {
+    workspaceRoot, matterFolders, mode, audioRetentionDays,
+  });
+}
+
+/** Non-destructive read of the durable side-file Rust writes the INSTANT a
+ *  transcript delete or redaction produces RAG-cleanup ids — before the
+ *  native call even returns. This file is the PRIMARY durable record, not
+ *  just a one-shot recovery backstop: it is NOT cleared by reading it, so
+ *  there is no window between "Rust hands back the ids" and "the renderer
+ *  finishes acting on them" where a crash could lose anything — only
+ *  `retentionClearPendingRagCleanupId` (called once a specific id is
+ *  confirmed flushed) removes an id. Call once at workspace-open time and
+ *  merge the result into the renderer's own pending-cleanup state. */
+export async function retentionReadPendingRagCleanup(workspaceRoot: string): Promise<string[]> {
+  if (!isTauri()) return [];
+  return invoke<string[]>('retention_read_pending_rag_cleanup', { workspace: workspaceRoot });
+}
+
+/** Remove exactly one id from the durable pending-RAG-cleanup file, once the
+ *  caller has confirmed it's genuinely been cleaned up (rag_delete_path
+ *  succeeded) — the counterpart to retentionReadPendingRagCleanup. */
+export async function retentionClearPendingRagCleanupId(workspaceRoot: string, id: string): Promise<void> {
+  if (!isTauri()) return;
+  await invoke('retention_clear_pending_rag_cleanup_id', { workspace: workspaceRoot, id });
+}
+
+// ── Local redaction of meeting artifacts (Wave 4 Track D, Task 17b) ────────
+
+export interface RedactionReceiptWire {
+  redactedCount: number;
+  marker: string;
+  docxFlattened: boolean;
+  ragCleanupSourceIds: string[];
+  auditError?: string;
+  /** Set ONLY when notes.docx's commit succeeded but transcript.json's then
+   *  failed (e.g. a locked file on Windows) — the one gap the Rust side's
+   *  two-phase stage/commit write can't fully close. When present,
+   *  redactedCount is 0 (transcript.json — the source of truth this
+   *  design's retry-safety depends on — was NOT actually updated) but
+   *  notes.docx WAS mutated; the caller should surface this distinctly
+   *  (not as plain success) and prompt a retry — safe, since redacting an
+   *  already-redacted notes.docx run is a no-op. */
+  partialCommitError?: string;
+}
+
+/** Redact whole transcript segments from one meeting: rewrites
+ *  transcript.json + notes.docx (revision-safe — see redact.rs) and writes
+ *  one hash-chained audit entry. Desktop-only, throws in the browser. */
+export async function redactMeetingSegments(
+  workspace: string, matterFolder: string, meetingDir: string, segmentIndices: number[],
+): Promise<RedactionReceiptWire> {
+  if (!isTauri()) throw new Error('Redaction runs only in the desktop app.');
+  return invoke<RedactionReceiptWire>('redact_meeting_segments', {
+    workspace, matterFolder, meetingDir, segmentIndices,
+  });
 }

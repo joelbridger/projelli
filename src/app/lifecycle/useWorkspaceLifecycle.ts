@@ -5,10 +5,11 @@
  * copied VERBATIM from App.tsx; only the source of the referenced values
  * changed (they now come from the options object instead of App's local scope).
  */
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useEditorStore } from '@/platform/state/editorStore';
 import { flushAllDirtyTabs, setActiveWorkspaceService } from '@/app/fileOps/flushDirtyTabs';
+import { setMeetingsWorkspaceService } from '@/features/meetings/meetingStore';
 import { useTemplatesMarketplaceStore } from '@/features/workflows/templatesMarketplaceStore';
 import {
   createTemplatesMarketplaceService,
@@ -28,6 +29,7 @@ import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import type { SourceCard } from '@/features/ask/types/research';
 import type { AIChatFile } from '@/platform/types/ai';
 import type { ConfirmOptions } from '@/platform/hooks/useConfirmDialog';
+import { describeWorkspaceOpenError } from '@/platform/fs/workspaceOpenErrors';
 
 // Bounds only the native SETUP (backend creation + initialize) — the SAME
 // budget/label WorkspaceSelector's manual "Open Existing" flow uses for the
@@ -72,13 +74,26 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
     loadSourceCards, setSourceCards, loadChatFiles, setChatFiles, confirm,
   } = options;
 
+  // QA-33: "reopen a recent workspace" (the toolbar's Recent Projects menu,
+  // AND the silent boot-time auto-resume) used to swallow every failure into
+  // a bare `console.error` — a stopped OS credential service could leave the
+  // whole attempt hanging for 30s and then fail with literally nothing shown
+  // to the user. This is the one piece of UI state both call sites share so
+  // a caller (App.tsx) can render an honest, dismissible message whenever
+  // that happens, instead of a silent no-op.
+  const [workspaceOpenError, setWorkspaceOpenError] = useState<string | null>(null);
+  const dismissWorkspaceOpenError = useCallback(() => { setWorkspaceOpenError(null); }, []);
+
   const handleWorkspaceSelected = useCallback(async (service: WorkspaceService) => {
     // BUG-046: flush any dirty tabs of the OUTGOING workspace to disk BEFORE we
     // clear them — otherwise switching workspaces within the 2s autosave window
     // silently drops the last edits.
     const outgoing = workspaceServiceRef.current;
     if (outgoing) {
-      await flushAllDirtyTabs(outgoing);
+      // QA-34: flushAllDirtyTabs returns the .docx paths whose final save just
+      // FAILED — the authoritative signal (more reliable than re-querying the
+      // registry, whose state can lag a just-failed save that hasn't re-rendered).
+      const failedDocxPaths = await flushAllDirtyTabs(outgoing);
       // Codex review #2: a flush can FAIL (disk/permission) and leave tabs dirty.
       // Clearing them anyway would silently lose that work, so confirm first
       // instead of dropping it without warning.
@@ -86,6 +101,12 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
         .getState()
         .openTabs.filter((t) => t.isDirty)
         .map((t) => t.name);
+      // A .docx whose save failed never appears as a dirty store tab, so add its
+      // file name here or the switch would silently discard it.
+      for (const p of failedDocxPaths) {
+        const name = p.split(/[\\/]/).pop() ?? p;
+        if (!unsaved.includes(name)) unsaved.push(name);
+      }
       if (unsaved.length > 0) {
         const proceed = await confirm(
           `Some open files could not be saved (${unsaved.join(', ')}). ` +
@@ -123,6 +144,7 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
 
     workspaceServiceRef.current = service;
     setActiveWorkspaceService(service); // BUG-046: keep the flush accessor in sync
+    setMeetingsWorkspaceService(service); // Wave 3c: keep the meetings feature's accessor in sync
     setShowWorkspaceSelector(false);
 
     const newRootPath = service.getRootPath();
@@ -157,7 +179,7 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
 
     // Advisor Prep Hero 3.0 — point the encrypted audit store at this workspace and load
     // any persisted "defense file" entries. On desktop this opens the SQLCipher
-    // store under `<workspace>/.keepance/audit-enc.db`; in the browser it is a
+    // store under `<workspace>/.lantern/audit-enc.db`; in the browser it is a
     // no-op (localStorage already loaded). Seed the live view newest-first to
     // match the AuditLog's prepend ordering. Best-effort: never block workspace
     // selection on the audit store.
@@ -174,6 +196,12 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
         console.warn('[App] Audit store hydrate failed:', err);
         setAuditIntegrity(undefined);
       }
+      // Wave 4 Track D — enforce this workspace's retention policy at most once
+      // a day. Best-effort and dynamically imported so a slow/failed sweep never
+      // blocks workspace selection or grows the lifecycle hook's static graph.
+      void import('@/platform/privacy/retentionRunner')
+        .then(({ runRetentionSweep }) => runRetentionSweep(newRootPath))
+        .catch((err: unknown) => { console.warn('[App] Retention sweep failed:', err); });
     }
 
     // Stream C1 — Construct the templates marketplace service for this
@@ -335,7 +363,15 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
     workspaceServiceRef,
   ]);
 
-  // Handle opening a recent project directly by path (Tauri only)
+  // Handle opening a recent project directly by path (Tauri only). Used by
+  // both the toolbar's "Recent Projects" menu (an explicit user click, while
+  // some other workspace may already be open) and useAutoResumeWorkspace's
+  // silent boot-time reopen — neither call site ever has anything destructive
+  // riding on this succeeding (the CURRENT workspace, if any, is untouched
+  // until `handleWorkspaceSelected` actually runs), so on failure it's always
+  // safe to just surface why and let the caller fall back to its own normal
+  // state (the picker, or the still-open previous workspace) rather than
+  // blocking anything.
   const handleOpenRecentProject = useCallback(async (workspacePath: string) => {
     try {
       const service = await withTimeout(
@@ -348,9 +384,11 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
         WORKSPACE_OPEN_TIMEOUT_MS,
         WORKSPACE_OPEN_LABEL,
       );
+      setWorkspaceOpenError(null);
       await handleWorkspaceSelected(service);
     } catch (err) {
       console.error('[App] Failed to open recent project:', err);
+      setWorkspaceOpenError(describeWorkspaceOpenError(err));
     }
   }, [handleWorkspaceSelected]);
 
@@ -425,5 +463,10 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
     };
   }, [setAuditEntries]);
 
-  return { handleWorkspaceSelected, handleOpenRecentProject };
+  return {
+    handleWorkspaceSelected,
+    handleOpenRecentProject,
+    workspaceOpenError,
+    dismissWorkspaceOpenError,
+  };
 }

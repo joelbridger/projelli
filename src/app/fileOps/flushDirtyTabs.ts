@@ -13,28 +13,14 @@
  */
 import { useEditorStore } from '@/platform/state/editorStore';
 import { writeCoordinator } from '@/platform/fs/writeCoordinator';
+import { flushAllDocx, flushDocx, isDocxRegistered } from '@/platform/fs/docxSaveRegistry';
 import { isBinaryFile, dataUrlToArrayBuffer } from '@/platform/utils/file-utils';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
-
-/**
- * The currently-active workspace service. App keeps this in sync wherever it
- * assigns `workspaceServiceRef.current` (workspace select + test-mode), so flush
- * helpers can be called from anywhere (e.g. the `closeTab` store action) without
- * threading the service through every caller. Null before a workspace is open.
- */
-let activeService: WorkspaceService | null = null;
-export function setActiveWorkspaceService(service: WorkspaceService | null): void {
-  activeService = service;
-}
-
-/**
- * The currently-active workspace service, or null before a workspace is open.
- * Lets read paths (e.g. opening a Client Map source document by path) reuse the
- * same service the flush helpers use, without threading it through every caller.
- */
-export function getActiveWorkspaceService(): WorkspaceService | null {
-  return activeService;
-}
+// The active-workspace-service holder now lives in platform/fs (so features may
+// use it too, per the layer DAG). Re-exported here so existing app-layer callers
+// that import it from this module keep working unchanged.
+import { getActiveWorkspaceService, setActiveWorkspaceService } from '@/platform/fs/activeWorkspaceService';
+export { getActiveWorkspaceService, setActiveWorkspaceService };
 
 /**
  * Binary-aware tab writer — the single place that decodes a binary editor's
@@ -56,7 +42,7 @@ export async function writeTabContentToDisk(
 
 /** Flush ONE tab by path if it is currently dirty. Best-effort. Uses the active
  *  workspace service when one isn't passed (so close handlers can call it bare). */
-export async function flushTab(path: string, service: WorkspaceService | null = activeService): Promise<void> {
+export async function flushTab(path: string, service: WorkspaceService | null = getActiveWorkspaceService()): Promise<void> {
   if (!service) return;
   const tab = useEditorStore.getState().openTabs.find((t) => t.path === path);
   if (!tab || !tab.isDirty) return;
@@ -81,8 +67,34 @@ export async function flushTab(path: string, service: WorkspaceService | null = 
  */
 export async function flushTabForClose(
   path: string,
-  service: WorkspaceService | null = activeService,
+  service: WorkspaceService | null = getActiveWorkspaceService(),
 ): Promise<void> {
+  // QA-34: a `.docx` saves directly through its editor and is NEVER a store-dirty
+  // tab, so the store-tab logic below skips it. If it has unsaved/failing work,
+  // force a final save on close. This runs for EVERY close path (the TabBar strip
+  // AND the Documents surface's own tab chips both route through closeTab ->
+  // beforeTabClose -> here), so neither can silently drop an unsaved `.docx`.
+  // Kick the flush off SYNCHRONOUSLY (before any await) so the registered save
+  // dispatches while the editor is still mounted — closeTab removes the tab
+  // immediately after this returns. A `.docx` is never also a store-dirty tab.
+  //
+  // Gate on "is a registered .docx", NOT on isDocxUnsaved(): the registry's
+  // boolean state can lag a pending debounced edit (an older save cleared
+  // `isDirty` while a newer edit's debounce is still queued), so we ALWAYS call
+  // the flush for an open .docx and let it decide clean-vs-dirty (a truly clean
+  // doc's flush is a fast no-op that returns true — no spurious warning).
+  if (isDocxRegistered(path)) {
+    void flushDocx(path).then((ok) => {
+      if (!ok && typeof window !== 'undefined') {
+        const name = path.split(/[\\/]/).pop() ?? path;
+        window.alert(
+          `I couldn't save "${name}" before closing it — another program may be blocking the file. ` +
+            `Reopen it to try again, or use "Save a copy elsewhere".`,
+        );
+      }
+    });
+    return;
+  }
   if (!service) return;
   const tab = useEditorStore.getState().openTabs.find((t) => t.path === path);
   if (!tab || !tab.isDirty) return;
@@ -110,12 +122,23 @@ export async function flushTabForClose(
 /**
  * Flush ALL currently-dirty tabs and wait for every write to land. Call this
  * before a workspace switch or app close. Never throws.
+ *
+ * Returns the `.docx` paths that could NOT be saved, so a caller (workspace
+ * switch) can warn about exactly what is at risk. This authoritative result is
+ * more reliable than re-querying the registry afterward, whose boolean state can
+ * lag a just-failed save that hasn't re-rendered yet.
  */
 export async function flushAllDirtyTabs(
-  service: WorkspaceService | null = activeService,
-): Promise<void> {
-  if (!service) return;
+  service: WorkspaceService | null = getActiveWorkspaceService(),
+): Promise<string[]> {
+  if (!service) return [];
   const dirty = useEditorStore.getState().openTabs.filter((t) => t.isDirty);
   await Promise.all(dirty.map((t) => flushTab(t.path, service)));
+  // QA-34: .docx editors persist directly (their content never lives in the
+  // store as a dirty tab), so the loop above never touches them. Force each
+  // open .docx to save its latest content too, so a workspace switch / app
+  // close doesn't silently drop unsaved .docx edits.
+  const failedDocx = await flushAllDocx();
   await writeCoordinator.drain();
+  return failedDocx;
 }

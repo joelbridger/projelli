@@ -2,7 +2,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { CustomCategoryTemplate } from '@/platform/clientMap/types';
-import { buildCustomSection } from './customSection';
+import { buildCustomSection, type BuildCustomSectionOptions } from './customSection';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { SK_CLIENT_MAP_TEMPLATES } from '@/config/identity';
 
@@ -45,10 +45,14 @@ export const useTemplatesStore = create<TemplatesState>()(
   ),
 );
 
-export async function applyTemplateToMatter(templateId: string, matterId: string): Promise<void> {
+export async function applyTemplateToMatter(
+  templateId: string,
+  matterId: string,
+  options?: BuildCustomSectionOptions,
+): Promise<void> {
   const template = useTemplatesStore.getState().templates[templateId];
   if (!template) return;
   const newId = crypto.randomUUID();
-  const section = await buildCustomSection(matterId, newId, template.title, template.prompt);
+  const section = await buildCustomSection(matterId, newId, template.title, template.prompt, options);
   useClientMapStore.getState().addCustomSection(matterId, section);
 }

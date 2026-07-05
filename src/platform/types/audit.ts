@@ -85,7 +85,60 @@ export type AuditActionType =
   | 'template_installed_from_marketplace'
   | 'template_uninstalled'
   | 'template_updated'
-  | 'template_install_failed';
+  | 'template_install_failed'
+  // Wave 4 Track B: the advisor dismissed/resolved a beneficiary consistency
+  // finding (MISMATCH/STALE/MISSING) surfaced on their Client Map's gaps.
+  | 'beneficiary_finding_dismissed'
+  // Wave 4 Track A: voiceprints are biometric data — every enrollment
+  // (naming/relabeling a diarized speaker) and every deletion is a durable,
+  // defensible record, even though the voiceprint itself never leaves the
+  // machine.
+  | 'voiceprint_enrolled'
+  // R9 (Tier B trust guard): before ANY new voiceprint is enrolled, the
+  // advisor affirms the client consented to creating a voice profile of them.
+  // That biometric-consent attestation is its own durable, defensible record,
+  // distinct from the enrollment event it gates.
+  | 'voiceprint_consent'
+  | 'voiceprint_deleted'
+  // Wave 4 Track D: retention policy sweep — one row per artifact deleted,
+  // plus one run summary. Written Rust-side directly into the hash-chained
+  // store so the trail survives a renderer crash.
+  | 'retention_delete'
+  | 'retention_swept'
+  // Wave 4 Track D: local redaction of a meeting segment (transcript, notes.docx,
+  // and the RAG index all scrubbed; see redact.rs for the completeness guarantee).
+  | 'meeting_redaction'
+  // Wave 3 meeting-capture lifecycle events (declared here ahead of the Wave 3
+  // merge — DEPENDS-WAVE-3 — so Task 17's attestation report can classify them
+  // the moment Wave 3 starts writing them under these exact action strings).
+  | 'meeting_capture_started'
+  | 'meeting_recorded'
+  | 'meeting_audio_deleted'
+  // Written directly by the Rust audit-store repair path (never through
+  // AuditService) when the encrypted store's hash-chain seal was missing on
+  // open and the surviving rows were re-sealed by an explicit, acknowledged
+  // repair. See `EncryptedAuditStore::repair` / `build_anomaly_record` in
+  // `src-tauri/src/commands/audit/store.rs`.
+  | 'audit_integrity_reseal'
+  // Redtail CRM connector lifecycle — cleanup3 audit found this provider's
+  // connect/sync/disconnect actions were never added to the union even
+  // though `crm_connect`/`crm_sync_all`/`crm_disconnect` are provider-generic
+  // and already write them (src-tauri/src/commands/crm/commands.rs).
+  | 'redtail.connect'
+  | 'redtail.sync'
+  | 'redtail.disconnect'
+  // Salesforce is the only CRM provider connected via OAuth
+  // (`crm_oauth_connect`), which can be cancelled mid-flow; the compensating
+  // "cancelled after credential was briefly stored" audit entry it writes
+  // was missing from the union.
+  | 'salesforce.connect_cancelled'
+  // Wealthbox is the only CRM provider whose write-back path
+  // (`CrmWriteSource` in src-tauri/src/commands/crm/write.rs) is actually
+  // implemented rather than `NotSupported` — Redtail/Salesforce always error
+  // before an audit entry is written for these, so only Wealthbox needs them.
+  | 'wealthbox.create_note'
+  | 'wealthbox.create_task'
+  | 'wealthbox.field_updated';
 
 /**
  * The verdict from citation verification (mirrors `CitationVerdict.verdict`
@@ -393,6 +446,17 @@ export type AuditEvent =
          */
         fileToolsEnabled?: boolean;
       };
+    }
+  /**
+   * The advisor dismissed/resolved a beneficiary consistency finding
+   * (Wave 4 Track B, estate/beneficiary mismatch detection). `finding` is the
+   * gap question text (prefixed `Beneficiary check:`) so the audit log keeps
+   * a durable record of exactly what was flagged and cleared.
+   */
+  | {
+      type: 'beneficiary_finding_dismissed';
+      timestamp: string;
+      payload: { matterId: string; finding: string };
     };
 
 /**

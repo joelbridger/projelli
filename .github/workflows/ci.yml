@@ -132,7 +132,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y protobuf-compiler
       - name: Install Linux/webkit deps
-        run: sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev libfuse2
+        # libasound2-dev: cpal (Lantern-Plus Wave 3a meeting capture) links
+        # alsa-sys on Linux, which needs ALSA's pkg-config file (alsa.pc) to
+        # build — without it, compiling the capture crate fails before any
+        # test runs (codex-review round 16 caught this: WebKit deps alone
+        # don't pull ALSA in as a transitive dependency).
+        run: sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev libfuse2 libasound2-dev
       - name: Stage sidecar stubs (tauri externalBin existence check)
         # tauri's build validates bundle.externalBin (binaries/piper AND
         # binaries/llama-server) BEFORE compiling tests; on a clean runner

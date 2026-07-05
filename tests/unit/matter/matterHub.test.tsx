@@ -389,6 +389,75 @@ describe('MatterHub — sub-tab workspace', () => {
     useCrmWriteQueueStore.setState({ items: [] });
   });
 
+  // QA finding (P2): CrmWriteReviewCard only ever mounted inside the Overview
+  // sub-tab — a pending Wealthbox proposal was invisible to an advisor
+  // sitting on Documents/Email/Activity. A slim presence banner in the hub
+  // chrome, shown on every OTHER sub-tab, with a jump back to Overview to
+  // review/approve.
+  it('shows a pending-review banner on non-overview sub-tabs, which jumps back to Overview on click', async () => {
+    useMatterStore.getState().createMatter({ name: 'Pending Review Co', client: 'Pending Review Co' });
+    const matter = useMatterStore.getState().matters[0]!;
+    useCrmWriteQueueStore.setState({ items: [] });
+    useCrmWriteQueueStore.getState().enqueue({
+      kind: 'note',
+      matterId: matter.id,
+      title: 'Note title',
+      body: 'Note body',
+      sourceRef: 'note:' + matter.id,
+    });
+
+    render(
+      <MatterHub
+        matterId={matter.id}
+        onBack={() => undefined}
+        renderDocuments={() => <div data-testid="stub-documents">docs</div>}
+      />,
+    );
+
+    // Not shown on Overview — the full card already lives there.
+    expect(screen.queryByTestId('hub-crm-pending-banner')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('hub-subtab-documents'));
+    expect(screen.getByTestId('hub-crm-pending-banner')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('hub-crm-pending-banner-review-now'));
+    expect(screen.getByTestId('hub-subtab-panel-overview')).toBeInTheDocument();
+    expect(screen.queryByTestId('hub-crm-pending-banner')).toBeNull();
+
+    useCrmWriteQueueStore.setState({ items: [] });
+  });
+
+  it('does not show the pending-review banner once every queued item is sent', () => {
+    useMatterStore.getState().createMatter({ name: 'All Sent Co', client: 'All Sent Co' });
+    const matter = useMatterStore.getState().matters[0]!;
+    useCrmWriteQueueStore.setState({
+      items: [
+        {
+          id: 'x1',
+          kind: 'note',
+          matterId: matter.id,
+          title: 'T',
+          body: 'B',
+          sourceRef: 'note:' + matter.id,
+          status: 'sent',
+          remoteId: '9',
+        },
+      ],
+    });
+
+    render(
+      <MatterHub
+        matterId={matter.id}
+        onBack={() => undefined}
+        renderDocuments={() => <div data-testid="stub-documents">docs</div>}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('hub-subtab-documents'));
+    expect(screen.queryByTestId('hub-crm-pending-banner')).toBeNull();
+
+    useCrmWriteQueueStore.setState({ items: [] });
+  });
+
   it('opens directly on a requested sub-tab from the client-list quick-action signal', async () => {
     useMatterStore.getState().createMatter({ name: 'Quick Co', client: 'Quick Co' });
     const matter = useMatterStore.getState().matters[0]!;

@@ -164,6 +164,21 @@ export function RedlineComposer({
   );
 }
 
+/** Literal-key lookup for a redline op's fallback label (op is a wire string,
+ *  not a TS union, so the i18n key can't be built by interpolation). */
+function redlineOpLabel(op: string, t: (key: string) => string): string {
+  switch (op) {
+    case 'insert':
+      return t('media.docx-editor.redline-op-insert');
+    case 'delete':
+      return t('media.docx-editor.redline-op-delete');
+    case 'replace':
+      return t('media.docx-editor.redline-op-replace');
+    default:
+      return t('media.docx-editor.redline-op-edit');
+  }
+}
+
 /**
  * A compact summary of the last redline: a headline (N changes proposed) and a
  * list of the AI's reasons, marking any edit whose anchor couldn't be located.
@@ -226,7 +241,7 @@ export function RedlineSummaryPanel({
                     item.applied ? 'text-foreground/80' : 'text-amber-800',
                   )}
                 >
-                  {item.reason || t(`media.docx-editor.redline-op-${item.op}`)}
+                  {item.reason || redlineOpLabel(item.op, t)}
                   {!item.applied && item.error && (
                     <span className="ml-1 text-amber-600">({item.error})</span>
                   )}

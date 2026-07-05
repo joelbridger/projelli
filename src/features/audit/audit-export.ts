@@ -88,16 +88,22 @@ export function entriesToCSV(
 }
 
 function integrityToCsvCommentRows(integrity: AuditIntegrityVerdict): string[] {
-  const rows: Array<[string, string]> = [
-    ['# integrity_status', integrity.status],
-    ['# integrity_checked', String(integrity.checked)],
-  ];
-  if (integrity.status === 'altered') {
+  const rows: Array<[string, string]> = [['# integrity_status', integrity.status]];
+  if (integrity.status === 'sealMissing') {
+    // No "checked" count — the seal that would prove completeness is gone.
     rows.push(
-      ['# integrity_broken_entry', String(integrity.seq)],
-      ['# integrity_broken_id', integrity.id],
-      ['# integrity_reason', integrity.reason],
+      ['# integrity_surviving_rows', String(integrity.survivingRows)],
+      ['# integrity_last_verifiable', integrity.lastTimestamp ?? ''],
     );
+  } else {
+    rows.push(['# integrity_checked', String(integrity.checked)]);
+    if (integrity.status === 'altered') {
+      rows.push(
+        ['# integrity_broken_entry', String(integrity.seq)],
+        ['# integrity_broken_id', integrity.id],
+        ['# integrity_reason', integrity.reason],
+      );
+    }
   }
   return rows.map(([key, value]) => `${key},${escapeCsvField(value)}`);
 }

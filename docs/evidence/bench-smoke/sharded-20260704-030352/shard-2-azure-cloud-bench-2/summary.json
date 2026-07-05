@@ -1,0 +1,24 @@
+{
+  "overall": "PASS",
+  "counts": {
+    "PASS": 1,
+    "FAIL": 0,
+    "SETUP-BLOCKED": 0,
+    "SKIPPED": 0,
+    "TODO": 0
+  },
+  "generatedAt": "2026-07-04T03:04:13.736Z",
+  "target": "azure-cloud-bench-2",
+  "live": false,
+  "results": [
+    {
+      "id": "cross-cutting-light-theme",
+      "section": "Cross-cutting",
+      "status": "PASS",
+      "detail": "Document root has no dark-theme class/attribute.",
+      "screenshots": [],
+      "forensics": null,
+      "durationMs": 2585
+    }
+  ]
+}

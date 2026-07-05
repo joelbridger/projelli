@@ -13,6 +13,7 @@
 
 import { useEffect, useState, useMemo, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { Briefcase, Lock, Plus, FolderOpen, CheckCircle2, Circle, MessageSquare, FileText, Mail, ChevronUp, ChevronDown, Archive, ArchiveRestore } from 'lucide-react';
 import { useMatters, useActiveMatters, useArchivedMatters, useActiveMatterId, useMatterStore } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
@@ -21,10 +22,12 @@ import { TodaysMeetingsStrip } from '@/features/meetings/TodaysMeetingsStrip';
 import { useApiKeys } from '@/platform/hooks/useApiKeys';
 import { mailIsConnected, gmailIsConnected, mailImapIsConnected } from '@/platform/utils/mail-commands';
 import type { Matter } from '@/platform/types/matter';
+import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { AuditEntry } from '@/platform/types/audit';
-import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
+import { useEntityLabel, type EntityLabel } from '@/platform/hooks/useEntityLabel';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
-import { Button, SearchField, Badge, Eyebrow, Card, EmptyState, Callout, SurfaceToolbar } from '@/ui/kp';
+import { Button, SearchField, Badge, Eyebrow, Card, EmptyState, Callout, SurfaceToolbar, ToolbarSpacer, SegmentedToggle } from '@/ui/kp';
+import { BookView } from './book/BookView';
 import { SK_SETUP_CARD_DISMISSED, EV_OPEN_SETTINGS, EV_OPEN_MATTER_MANAGER, EV_MATTER_LAUNCH } from '@/config/identity';
 
 /** localStorage key for dismissing the setup card. */
@@ -48,6 +51,8 @@ export interface MattersHomeProps {
   renderClientDocuments?: (matter: Matter | null) => ReactNode;
   renderClientEmail?: () => ReactNode;
   renderClientActivity?: () => ReactNode;
+  /** Forwarded verbatim to MatterHub's Meetings sub-tab (see MatterHubProps). */
+  workspaceService?: WorkspaceService | null;
 }
 
 // ── Sort state ─────────────────────────────────────────────────────────────
@@ -77,6 +82,7 @@ function matterRowGridColumns(showConfidentialityColumn: boolean): string {
  * done.
  */
 function GetStartedCard() {
+  const { t } = useTranslation();
   const matters = useMatters();
   const { apiKeys } = useApiKeys();
   const entityLabel = useEntityLabel();
@@ -147,7 +153,7 @@ function GetStartedCard() {
       onDismiss={dismiss}
     >
       <div>
-        <Eyebrow style={{ marginBottom: 8 }}>Get started</Eyebrow>
+        <Eyebrow style={{ marginBottom: 8 }}>{t('matter.home.get-started.eyebrow')}</Eyebrow>
 
         {/* Step 1: Create first matter */}
         <div style={stepStyle}>
@@ -155,8 +161,7 @@ function GetStartedCard() {
             ? <CheckCircle2 style={iconDone} />
             : <Circle style={iconTodo} />
           }
-          {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string */}
-          <span style={stepLabel}>Create your first {entityLabel.one}</span>
+          <span style={stepLabel}>{t('matter.home.get-started.step1', { entity: entityLabel.one })}</span>
           {!hasMatter && (
             <Button
               variant="secondary"
@@ -166,7 +171,7 @@ function GetStartedCard() {
                 window.dispatchEvent(new CustomEvent(EV_OPEN_MATTER_MANAGER));
               }}
             >
-              Create
+              {t('matter.home.get-started.create-action')}
             </Button>
           )}
         </div>
@@ -177,15 +182,14 @@ function GetStartedCard() {
             ? <CheckCircle2 style={iconDone} />
             : <Circle style={iconTodo} />
           }
-          {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string */}
-          <span style={stepLabel}>Connect an AI</span>
+          <span style={stepLabel}>{t('matter.home.get-started.step2')}</span>
           {!aiConnected && (
             <Button
               variant="secondary"
               size="sm"
               onClick={() => { navigateTo('ai'); }}
             >
-              Set up
+              {t('matter.home.get-started.setup-action')}
             </Button>
           )}
         </div>
@@ -200,7 +204,7 @@ function GetStartedCard() {
             <Circle style={iconTodo} />
           )}
           <span style={{ ...stepLabel, opacity: emailConnected === null ? 0.5 : 1 }}>
-            Connect email
+            {t('matter.home.get-started.step3')}
           </span>
           {emailConnected === false && (
             <Button
@@ -208,7 +212,7 @@ function GetStartedCard() {
               size="sm"
               onClick={() => { navigateTo('integrations'); }}
             >
-              Set up
+              {t('matter.home.get-started.setup-action')}
             </Button>
           )}
         </div>
@@ -219,6 +223,22 @@ function GetStartedCard() {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+/** The "N clients open, M folders indexed. Click a row..." header description,
+ *  literal-keyed per count case (i18next plural rules for `count` handle the
+ *  1/many split; the surrounding sentence still needs one key per shape). */
+function mattersHeaderDescription(
+  openCount: number,
+  totalFolders: number,
+  entityLabel: EntityLabel,
+  t: TFunction,
+): string {
+  if (openCount === 0) return t('matter.home.header-none', { entityOther: entityLabel.other });
+  const folderSuffix = totalFolders > 0 ? t('matter.home.folder-suffix', { count: totalFolders }) : '';
+  return openCount === 1
+    ? t('matter.home.header-one', { entityOne: entityLabel.one, folderSuffix })
+    : t('matter.home.header-many', { count: openCount, entityOther: entityLabel.other, folderSuffix });
+}
 
 function formatDate(iso: string): string {
   try {
@@ -265,7 +285,7 @@ type MatterSurface = 'search' | 'files' | 'email';
 function MatterRow({ matter, isActive, showConfidentialityColumn, onSelect, onArchive }: MatterRowProps) {
   const { t } = useTranslation();
   // The search surface is "Ask"; keep this quick-action consistent.
-  const askActionLabel = 'Ask';
+  const askActionLabel = t('spine.nav.ask');
   const label = matterLabel(matter);
   const folderCount = matter.folderPaths.length;
   const [hovered, setHovered] = useState(false);
@@ -371,11 +391,7 @@ function MatterRow({ matter, isActive, showConfidentialityColumn, onSelect, onAr
           }}
         >
           <FolderOpen style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 1.75, flex: 'none' }} />
-          {folderCount === 0
-            ? 'No folders'
-            : folderCount === 1
-            ? '1 folder'
-            : `${String(folderCount)} folders`}
+          {t('matter.home.folder-count', { count: folderCount })}
         </div>
 
         {/* Created */}
@@ -415,7 +431,7 @@ function MatterRow({ matter, isActive, showConfidentialityColumn, onSelect, onAr
           variant="secondary"
           size="sm"
           data-testid={`matter-launch-ask-${matter.id}`}
-          aria-label={`${askActionLabel} ${label}`}
+          aria-label={t('matter.home.ask-aria', { name: label })}
           iconLeft={MessageSquare}
           onClick={(e) => { launchSurface('search', e); }}
         >
@@ -425,21 +441,21 @@ function MatterRow({ matter, isActive, showConfidentialityColumn, onSelect, onAr
           variant="secondary"
           size="sm"
           data-testid={`matter-launch-documents-${matter.id}`}
-          aria-label={`Open documents for ${label}`}
+          aria-label={t('matter.home.open-documents-aria', { name: label })}
           iconLeft={FileText}
           onClick={(e) => { launchSurface('files', e); }}
         >
-          Documents
+          {t('matter.hub.tab-documents')}
         </Button>
         <Button
           variant="secondary"
           size="sm"
           data-testid={`matter-launch-email-${matter.id}`}
-          aria-label={`Open email for ${label}`}
+          aria-label={t('matter.home.open-email-aria', { name: label })}
           iconLeft={Mail}
           onClick={(e) => { launchSurface('email', e); }}
         >
-          Email
+          {t('matter.hub.tab-email')}
         </Button>
         <Button
           variant="ghost"
@@ -465,6 +481,7 @@ interface MattersEmptyStateProps {
 }
 
 function MattersEmptyState({ entityOne, entityOther }: MattersEmptyStateProps) {
+  const { t } = useTranslation();
   return (
     <div
       style={{
@@ -483,8 +500,8 @@ function MattersEmptyState({ entityOne, entityOther }: MattersEmptyStateProps) {
       </div>
       <EmptyState
         icon={Briefcase}
-        title={`No ${entityOther} yet`}
-        body={`Create your first ${entityOne} to keep one client's documents and emails together.`}
+        title={t('matter.home.empty-title', { entityOther })}
+        body={t('matter.home.empty-body', { entityOne })}
         actions={
           /* Stub button — full creation requires folder-picking via MatterManagerDialog */
           <Button
@@ -498,7 +515,7 @@ function MattersEmptyState({ entityOne, entityOther }: MattersEmptyStateProps) {
               window.dispatchEvent(new CustomEvent(EV_OPEN_MATTER_MANAGER));
             }}
           >
-            New {entityOne}
+            {t('matter.home.new-client', { entity: entityOne })}
           </Button>
         }
       />
@@ -538,7 +555,17 @@ interface TableHeaderProps {
   onSort: (key: SortKey) => void;
 }
 
+/** aria-label for a sortable column header, appending the current sort
+ *  direction only when this column is the active sort key. */
+function sortByAria(column: string, active: boolean, dir: SortDir, t: TFunction): string {
+  const direction = !active ? '' : dir === 'asc' ? t('matter.home.sort-asc-suffix') : t('matter.home.sort-desc-suffix');
+  return t('matter.home.sort-by-aria', { column, direction });
+}
+
 function TableHeader({ entityOneLabel, confidentialityColumnLabel, showConfidentialityColumn, sort, onSort }: TableHeaderProps) {
+  const { t } = useTranslation();
+  const documentsLabel = t('matter.hub.tab-documents');
+  const createdLabel = t('matter.home.col-created');
   const baseColStyle: React.CSSProperties = {
     padding: '10px 20px 10px 0',
   };
@@ -566,7 +593,7 @@ function TableHeader({ entityOneLabel, confidentialityColumnLabel, showConfident
           type="button"
           style={colBtnStyle}
           onClick={() => { onSort('name'); }}
-          aria-label={`Sort by ${entityOneLabel}${sort.key === 'name' ? (sort.dir === 'asc' ? ', currently ascending' : ', currently descending') : ''}`}
+          aria-label={sortByAria(entityOneLabel, sort.key === 'name', sort.dir, t)}
         >
           <span className={`kp-eyebrow${sort.key === 'name' ? ' kp-eyebrow--primary' : ''}`}>{entityOneLabel}</span>
           <SortIndicator col="name" sort={sort} />
@@ -578,7 +605,7 @@ function TableHeader({ entityOneLabel, confidentialityColumnLabel, showConfident
             type="button"
             style={colBtnStyle}
             onClick={() => { onSort('privilege'); }}
-            aria-label={`Sort by ${confidentialityColumnLabel}${sort.key === 'privilege' ? (sort.dir === 'asc' ? ', currently ascending' : ', currently descending') : ''}`}
+            aria-label={sortByAria(confidentialityColumnLabel, sort.key === 'privilege', sort.dir, t)}
           >
             <span className={`kp-eyebrow${sort.key === 'privilege' ? ' kp-eyebrow--primary' : ''}`}>{confidentialityColumnLabel}</span>
             <SortIndicator col="privilege" sort={sort} />
@@ -590,9 +617,9 @@ function TableHeader({ entityOneLabel, confidentialityColumnLabel, showConfident
           type="button"
           style={colBtnStyle}
           onClick={() => { onSort('documents'); }}
-          aria-label={`Sort by Documents${sort.key === 'documents' ? (sort.dir === 'asc' ? ', currently ascending' : ', currently descending') : ''}`}
+          aria-label={sortByAria(documentsLabel, sort.key === 'documents', sort.dir, t)}
         >
-          <span className={`kp-eyebrow${sort.key === 'documents' ? ' kp-eyebrow--primary' : ''}`}>Documents</span>
+          <span className={`kp-eyebrow${sort.key === 'documents' ? ' kp-eyebrow--primary' : ''}`}>{documentsLabel}</span>
           <SortIndicator col="documents" sort={sort} />
         </button>
       </div>
@@ -601,9 +628,9 @@ function TableHeader({ entityOneLabel, confidentialityColumnLabel, showConfident
           type="button"
           style={colBtnStyle}
           onClick={() => { onSort('created'); }}
-          aria-label={`Sort by Created${sort.key === 'created' ? (sort.dir === 'asc' ? ', currently ascending' : ', currently descending') : ''}`}
+          aria-label={sortByAria(createdLabel, sort.key === 'created', sort.dir, t)}
         >
-          <span className={`kp-eyebrow${sort.key === 'created' ? ' kp-eyebrow--primary' : ''}`}>Created</span>
+          <span className={`kp-eyebrow${sort.key === 'created' ? ' kp-eyebrow--primary' : ''}`}>{createdLabel}</span>
           <SortIndicator col="created" sort={sort} />
         </button>
       </div>
@@ -613,7 +640,7 @@ function TableHeader({ entityOneLabel, confidentialityColumnLabel, showConfident
 
 // ── Main export ────────────────────────────────────────────────────────────
 
-export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEmail, renderClientActivity }: MattersHomeProps = {}) {
+export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEmail, renderClientActivity, workspaceService }: MattersHomeProps = {}) {
   const { t } = useTranslation();
   const activeMatters = useActiveMatters();
   const archivedMatters = useArchivedMatters();
@@ -639,6 +666,7 @@ export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEma
   };
   const entityLabel = useEntityLabel();
   const [archivedExpanded, setArchivedExpanded] = useState(false);
+  const [homeView, setHomeView] = useState<'clients' | 'book'>('clients');
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -713,7 +741,61 @@ export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEma
         {...(renderClientDocuments ? { renderDocuments: renderClientDocuments } : {})}
         {...(renderClientEmail ? { renderEmail: renderClientEmail } : {})}
         {...(renderClientActivity ? { renderActivity: renderClientActivity } : {})}
+        workspaceService={workspaceService ?? null}
       />
+    );
+  }
+
+  const header = (
+    <div style={{ padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--color-border)' }}>
+      <SurfaceHeader
+        Icon={Briefcase}
+        title={entityLabel.Other}
+        description={mattersHeaderDescription(openCount, totalFolders, entityLabel, t)}
+      />
+    </div>
+  );
+
+  const viewToggle = (
+    <>
+      <ToolbarSpacer />
+      <span style={{ fontSize: 12, color: 'var(--color-muted-foreground)', fontWeight: 600, marginRight: 2 }}>
+        {t('matter.home.view-label')}
+      </span>
+      <SegmentedToggle
+        ariaLabel={t('matter.book.view-toggle')}
+        variant="filled"
+        size="sm"
+        options={[
+          { value: 'clients', label: t('matter.book.view-clients') },
+          { value: 'book', label: t('matter.book.view-book') },
+        ]}
+        value={homeView}
+        onChange={setHomeView}
+      />
+    </>
+  );
+
+  if (homeView === 'book') {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%',
+          flex: 1,
+          minWidth: 0,
+          background: 'var(--color-background)',
+          fontFamily: 'Satoshi, sans-serif',
+          overflowY: 'auto',
+        }}
+      >
+        {header}
+        <SurfaceToolbar>{viewToggle}</SurfaceToolbar>
+        <div style={{ margin: 'var(--kp-surface-gap) var(--kp-gutter) var(--kp-gutter)' }}>
+          <BookView onOpenClient={(id) => { openHub(id); }} />
+        </div>
+      </div>
     );
   }
 
@@ -731,19 +813,7 @@ export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEma
       }}
     >
       {/* Page header */}
-      <div style={{ padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--color-border)' }}>
-        <SurfaceHeader
-          Icon={Briefcase}
-          title={entityLabel.Other}
-          description={
-            openCount === 0
-              ? `No ${entityLabel.other} open.`
-              : openCount === 1
-              ? `1 ${entityLabel.one}${totalFolders > 0 ? `, ${String(totalFolders)} ${totalFolders === 1 ? 'folder' : 'folders'} indexed` : ''}. Click a row to focus AI on that client.`
-              : `${String(openCount)} ${entityLabel.other}${totalFolders > 0 ? `, ${String(totalFolders)} ${totalFolders === 1 ? 'folder' : 'folders'} indexed` : ''}. Click a row to focus AI on that client.`
-          }
-        />
-      </div>
+      {header}
 
       <div style={{ margin: 'var(--kp-surface-gap) var(--kp-gutter) 0' }}>
         <TodaysMeetingsStrip onOpenClient={openHub} />
@@ -759,7 +829,7 @@ export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEma
             window.dispatchEvent(new CustomEvent(EV_OPEN_MATTER_MANAGER));
           }}
         >
-          New {entityLabel.one}
+          {t('matter.home.new-client', { entity: entityLabel.one })}
         </Button>
         {showSearch && (
           <SearchField
@@ -767,12 +837,13 @@ export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEma
             value={searchQuery}
             onChange={(v) => { setSearchQuery(v); }}
             onClear={() => { setSearchQuery(''); }}
-            placeholder={`Search ${entityLabel.other}...`}
-            aria-label={`Search ${entityLabel.other}`}
+            placeholder={t('matter.home.search-placeholder', { entity: entityLabel.other })}
+            aria-label={t('matter.home.search-aria', { entity: entityLabel.other })}
             size="md"
             style={{ flex: 1, minWidth: 240 }}
           />
         )}
+        {viewToggle}
       </SurfaceToolbar>
 
       {/* Table card — top gap below the header; surface gap keeps it off the divider line. */}
@@ -807,8 +878,7 @@ export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEma
                         textAlign: 'center',
                       }}
                     >
-                      {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string */}
-                      No {entityLabel.other} match your search.
+                      {t('matter.home.no-match', { entity: entityLabel.other })}
                     </div>
                   ) : (
                     sortedMatters.map((m) => (

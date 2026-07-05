@@ -64,6 +64,7 @@ pub fn run() {
             commands::audit::audit_list,
             commands::audit::audit_count,
             commands::audit::audit_verify_integrity,
+            commands::audit::audit_repair_seal,
             // Phase 3 M1 RAG (LanceDB + fastembed-rs + e5-small).
             commands::rag::rag_set_workspace,
             commands::rag::rag_index_file,
@@ -115,6 +116,17 @@ pub fn run() {
             // Parakeet/whisper.cpp sidecar.
             commands::voice::voice_sidecar_available,
             commands::voice::transcribe_audio,
+            // Lantern-Plus Wave 3a — local meeting capture (mic + system-audio
+            // loopback, crash-durable chunked WAV, never a cloud path).
+            commands::capture::engine::capture_start,
+            commands::capture::engine::capture_stop,
+            commands::capture::engine::capture_status,
+            commands::capture::engine::capture_free_disk_bytes,
+            commands::capture::recovery::capture_find_orphans,
+            commands::capture::recovery::capture_recover,
+            // Wave 3b — local long-form transcription over the existing
+            // per-request STT sidecar (still local-only, still no cloud path).
+            commands::capture::transcribe::transcribe_meeting,
             // Stream B TTS (v2.0) — Piper sidecar speech synthesis.
             commands::tts::tts_sidecar_available,
             commands::tts::tts_speak,
@@ -292,6 +304,10 @@ pub fn run() {
             commands::calendar::commands::calendar_sync_status,
             commands::calendar::commands::calendar_cancel_sync,
             commands::calendar::commands::calendar_list_events,
+            // Notice Card — isolated companion-webview lifecycle (open/close/status).
+            commands::notice_card::notice_card_open,
+            commands::notice_card::notice_card_close,
+            commands::notice_card::notice_card_status,
             // Wave 3a SSO — firm-tier OIDC desktop dance (loopback + browser).
             commands::firm::sso::firm_sso_authenticate,
             commands::firm::sso::firm_sso_cancel,
@@ -313,6 +329,20 @@ pub fn run() {
             // frontend-only Client Map build counts.
             commands::setup_progress::get_setup_progress,
             commands::setup_progress::setup_report_client_map,
+            // Wave 4 Track A — within-channel speaker diarization + naming.
+            commands::diarize::diarize_meeting,
+            commands::diarize::apply_speaker_names,
+            // Wave 4 Track A — encrypted per-matter voiceprint store.
+            commands::voiceprint::voiceprint_list,
+            commands::voiceprint::voiceprint_enroll,
+            commands::voiceprint::voiceprint_match,
+            commands::voiceprint::voiceprint_confirm,
+            commands::voiceprint::voiceprint_delete,
+            // Wave 4 Track D — per-workspace retention policy sweep.
+            commands::retention::retention_sweep,
+            commands::retention::retention_read_pending_rag_cleanup,
+            commands::retention::retention_clear_pending_rag_cleanup_id,
+            commands::retention::redact::redact_meeting_segments,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
@@ -321,6 +351,32 @@ pub fn run() {
                         .level(log::LevelFilter::Info)
                         .build(),
                 )?;
+            }
+            // The main window is created here (not via `tauri.conf.json`'s
+            // automatic `create: true` path — see `"create": false` there)
+            // so we can pass WebView2 additional browser arguments through
+            // wry's builder API. wry always calls
+            // `CoreWebView2EnvironmentOptions::set_additional_browser_arguments`
+            // with its own default string, which per the WebView2 API takes
+            // precedence over (and silently defeats) the
+            // `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` environment variable —
+            // so that env var alone can never open the CDP remote-debugging
+            // port. Reading it here and forwarding it through the builder is
+            // the only way it reaches the browser process. No-op on
+            // macOS/Linux. Default string mirrors wry's own default exactly,
+            // so behavior is unchanged when the env var is unset.
+            if let Some(window_config) = app.config().app.windows.first() {
+                let mut browser_args =
+                    String::from("--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection");
+                if let Ok(extra) = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS") {
+                    if !extra.is_empty() {
+                        browser_args.push(' ');
+                        browser_args.push_str(&extra);
+                    }
+                }
+                tauri::WebviewWindowBuilder::from_config(app.handle(), window_config)?
+                    .additional_browser_args(&browser_args)
+                    .build()?;
             }
             // Migrate the OS-level data subdir (`<data_dir>/keepance` →
             // `<data_dir>/lantern`, holding downloaded models + logs) once at

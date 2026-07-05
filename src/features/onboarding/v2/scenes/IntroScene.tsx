@@ -39,8 +39,17 @@ export function IntroScene({ onGo }: IntroSceneProps) {
               className="kp-onbv2-rise flex w-[230px] flex-col items-center rounded-[18px] border border-[rgba(var(--kp-navy-rgb),0.08)] bg-white/85 px-6 py-6 shadow-[0_10px_40px_rgba(var(--kp-navy-rgb),0.06)]"
               style={{ animationDelay: `${(0.15 + i * 0.12).toFixed(2)}s` }}
             >
-              <LottiePlayer src={FLOW_LOTTIES[i] ?? FLOW_LOTTIES[0]} size={130} />
-              <div className="mt-2 text-base font-bold leading-snug text-[var(--kp-navy)]">{title}</div>
+              <LottiePlayer
+                src={FLOW_LOTTIES[i] ?? FLOW_LOTTIES[0]}
+                size={130}
+                testId={`intro-flow-icon-${String(i)}`}
+              />
+              <div
+                className="mt-3 text-base font-bold leading-snug text-[var(--kp-navy)]"
+                data-testid={`intro-flow-heading-${String(i)}`}
+              >
+                {title}
+              </div>
             </div>
             {i < intro.flow.length - 1 ? (
               <span className="text-4xl font-light text-[var(--kp-accent)] md:text-5xl" aria-hidden="true">

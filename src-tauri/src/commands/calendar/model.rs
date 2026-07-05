@@ -44,6 +44,14 @@ pub struct CalendarEvent {
     /// The signed-in advisor declined this event (Outlook/Google only; ICS
     /// feeds carry no "self", so ICS events always report false).
     pub self_declined: bool,
+    /// The event's online-meeting join URL (Teams/Zoom/Meet), when the calendar
+    /// exposes one. Powers the Notice Card's guest join and one-click-join.
+    /// `serde(default)` so events persisted before this field existed still
+    /// decode (they simply have `None`). Platform is derived from this URL in
+    /// the frontend (`detectPlatform`), never stored, so there is one source of
+    /// truth.
+    #[serde(default)]
+    pub join_url: Option<String>,
 }
 
 fn parse_utc(s: &str) -> Option<chrono::DateTime<chrono::Utc>> {
@@ -98,6 +106,7 @@ mod tests {
             organizer_email: String::new(),
             is_cancelled: cancelled,
             self_declined: declined,
+            join_url: None,
         }
     }
 

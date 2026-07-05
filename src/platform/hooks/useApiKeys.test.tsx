@@ -48,7 +48,7 @@ class KeychainNotFound extends Error {
 const keychainStore = new Map<string, string>();
 function mockKeychainInvoke(): void {
   invokeMock.mockImplementation((cmd: string, args: Record<string, unknown> = {}) => {
-    const service = (args['service'] as string | undefined) ?? 'com.keepance.app';
+    const service = (args['service'] as string | undefined) ?? 'com.lantern.app';
     const key = args['key'] as string;
     const id = `${service}::${key}`;
     if (cmd === 'keychain_set') {
@@ -242,6 +242,80 @@ describe('useApiKeys — hung/erroring keychain reads (BUG: silently looked like
     expect(result.current.apiKeys).toEqual([
       expect.objectContaining({ provider: 'anthropic', key: VALID_KEY, isValid: true }),
     ]);
+    errorSpy.mockRestore();
+  });
+});
+
+describe('useApiKeys — QA-33: credential service unavailable', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  class ServiceUnavailable extends Error {
+    readonly kind = 'serviceUnavailable';
+    constructor() {
+      super('the OS credential storage service did not respond in time');
+    }
+  }
+
+  it('reports credentialServiceUnavailable when a provider read fails with that classification', async () => {
+    const keychain = {
+      getKey: (provider: string) => {
+        if (provider === 'anthropic') return Promise.reject(new ServiceUnavailable());
+        return Promise.resolve(null);
+      },
+      setKey: vi.fn().mockResolvedValue(undefined),
+      deleteKey: vi.fn().mockResolvedValue(undefined),
+    };
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const { result } = renderHook(() => useApiKeys(keychain));
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+
+    expect(result.current.credentialServiceUnavailable).toBe(true);
+    // Still degrades gracefully — no crash, apiKeys resolves to "none configured".
+    expect(result.current.apiKeys).toEqual([]);
+    errorSpy.mockRestore();
+  });
+
+  it('does not report credentialServiceUnavailable for an ordinary NotFound-shaped error', async () => {
+    const keychain = {
+      getKey: () => Promise.reject(new KeychainNotFound()),
+      setKey: vi.fn().mockResolvedValue(undefined),
+      deleteKey: vi.fn().mockResolvedValue(undefined),
+    };
+
+    const { result } = renderHook(() => useApiKeys(keychain));
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+
+    expect(result.current.credentialServiceUnavailable).toBe(false);
+  });
+
+  it('clears once a reload succeeds without the classification', async () => {
+    let shouldFail = true;
+    const keychain = {
+      getKey: (provider: string) => {
+        if (provider === 'anthropic' && shouldFail) return Promise.reject(new ServiceUnavailable());
+        return Promise.resolve(null);
+      },
+      setKey: vi.fn().mockResolvedValue(undefined),
+      deleteKey: vi.fn().mockResolvedValue(undefined),
+    };
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const { result } = renderHook(() => useApiKeys(keychain));
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(result.current.credentialServiceUnavailable).toBe(true);
+
+    shouldFail = false;
+    await act(async () => {
+      window.dispatchEvent(new Event('storage'));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.credentialServiceUnavailable).toBe(false);
     errorSpy.mockRestore();
   });
 });

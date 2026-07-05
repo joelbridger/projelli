@@ -1,0 +1,215 @@
+/**
+ * Task 13 — the consent dialog: opens before every recording starts.
+ * Copy is exact per the plan (see docs/plans/lantern-plus/2026-07-02-wave-3-meeting-capture.md,
+ * Task 13) — the i18n values ARE that exact English text, translated for de/es.
+ *
+ * Also carries the macOS first-run permission explainer: when `capture_start`
+ * fails with the sidecar's permission-denied error, the dialog swaps to this
+ * explainer instead of closing, with a button straight to System Settings.
+ * `docs/plans/lantern-plus/notes-macos-permission.md` (the doc meant to carry
+ * the exact on-screen OS prompt wording, captured on a live macOS bench run)
+ * doesn't exist yet on this branch — that hardware step hasn't run for this
+ * wave — so this uses the plan's own specified copy directly rather than
+ * sourcing it from that doc.
+ */
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/ui/dialog';
+import { Button } from '@/ui/button';
+import type { ConsentEntry } from './consentLedger';
+import { NoticeCardConsentSection, type NoticeCardConsentSectionProps } from './noticeCard/NoticeCardConsentSection';
+
+/** Substring match against the Rust sidecar's stderr-derived error message
+ *  for a macOS permission denial (exit code 3). Lane w3b's exact error
+ *  string isn't landed on this branch yet — this is a best-effort match to
+ *  reconcile once it is. */
+export function isMacPermissionError(message: string): boolean {
+  return /permission/i.test(message);
+}
+
+export const MAC_SYSTEM_SETTINGS_URL = 'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture';
+
+export interface ConsentDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  consentMode: 'one-party' | 'two-party';
+  /** False when the advisor's state isn't on file — the two-party guidance
+   *  then reads conditionally ("If your state requires everyone's consent…")
+   *  instead of asserting a legal fact we don't actually know. */
+  stateKnown?: boolean;
+  standingConsent: ConsentEntry | null;
+  /** Set when the prior recording attempt failed with a macOS permission
+   *  error — swaps the dialog body to the explainer instead of the normal
+   *  consent copy. */
+  macPermissionError?: boolean;
+  /** A non-permission start failure (sidecar missing, mic busy, disk full):
+   *  shown inline so the dialog never closes on silence — the advisor must
+   *  never believe a failed recording is running. */
+  errorMessage?: string | null;
+  /** QA-35 — set when a cheap disk-space preflight (checkLowDiskSpaceWarning
+   *  in meetingStore.ts) finds free space below the warning threshold.
+   *  Advisory only — never blocks starting the recording, just sets
+   *  expectations before a long meeting runs the disk out mid-recording. */
+  lowDiskSpace?: boolean;
+  /** Recording Notice Kit — the exact spoken-notice script to say out loud
+   *  (firm-customizable; the caller resolves custom-or-default). Shown as a
+   *  first-class "say this" step so the notice actually gets spoken. */
+  noticeScript?: string;
+  /** Notice Card (additive) — the offer/toggle for adding the local notice
+   *  participant to an online meeting. Absent when there is nothing to offer;
+   *  never blocks recording. */
+  noticeCard?: NoticeCardConsentSectionProps;
+  onConfirm: (opts: { note?: string }) => void;
+}
+
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString();
+}
+
+export function ConsentDialog({ open, onOpenChange, consentMode, stateKnown = true, standingConsent, macPermissionError, errorMessage, lowDiskSpace, noticeScript, noticeCard, onConfirm }: ConsentDialogProps) {
+  const { t } = useTranslation();
+  // R1 (Tier B trust guard): standing consent may only pre-check the box in a
+  // one-party-consent state, where no every-time notice is needed. In an
+  // all-party (two-party) state — and in the conservative two-party default we
+  // fall back to when the advisor's state is unknown — the attestation must
+  // stay a deliberate act every meeting, so the box always starts unchecked
+  // even when standing consent is on file. A one-party classification only
+  // ever comes from a KNOWN one-party state (see recordingConsentLaw), so this
+  // also implies stateKnown; consentMode is the single source of truth.
+  const mayPrecheck = consentMode === 'one-party';
+  const [checked, setChecked] = useState(standingConsent !== null && mayPrecheck);
+
+  // The "say this out loud" step is the record-time nudge the whole Notice Kit
+  // depends on, so it must ALWAYS render when starting a recording — a live
+  // Legion run found it silently absent when the caller passed an empty/blank
+  // script (trust review E2). Fall back to the built-in localized wording here
+  // so the step is never missing, regardless of what the caller supplies.
+  const sayThis = (noticeScript ?? '').trim() || t('meetings.notice.default-script');
+
+  // codex-review (P2): the dialog stays mounted across opens (the parent
+  // renders it unconditionally, toggling `open`), so state from a PRIOR
+  // confirmation would otherwise leak into the next one — re-derive the
+  // checkbox from standingConsent every time the dialog opens (or once
+  // standingConsent resolves after an already-open dialog's async load).
+  // Done as a render-time state adjustment (not an effect) per
+  // react.dev/learn/you-might-not-need-an-effect.
+  const [prevGate, setPrevGate] = useState<{ open: boolean; sc: ConsentEntry | null }>({ open, sc: standingConsent });
+  if (open !== prevGate.open || standingConsent !== prevGate.sc) {
+    setPrevGate({ open, sc: standingConsent });
+    if (open) setChecked(standingConsent !== null && mayPrecheck);
+  }
+
+  if (macPermissionError) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-[420px]" data-testid="mac-permission-explainer">
+          <DialogHeader>
+            <DialogTitle>{t('meetings.consent.mac-permission-title')}</DialogTitle>
+          </DialogHeader>
+          <p style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-navy)' }}>
+            {t('meetings.consent.mac-permission-body')}
+          </p>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => { onOpenChange(false); }}>
+              {t('meetings.dictation.cancel')}
+            </Button>
+            <Button asChild>
+              <a href={MAC_SYSTEM_SETTINGS_URL} data-testid="mac-open-system-settings">
+                {t('meetings.consent.mac-permission-button')}
+              </a>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[440px]" data-testid="consent-dialog">
+        <DialogHeader>
+          <DialogTitle>{t('meetings.consent.title')}</DialogTitle>
+        </DialogHeader>
+        <p style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-navy)' }}>
+          {t('meetings.consent.body-local')}
+        </p>
+        {lowDiskSpace && (
+          <p data-testid="consent-low-disk-warning" style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-warning, #b45309)', margin: 0 }}>
+            {t('meetings.consent.low-disk-warning')}
+          </p>
+        )}
+        {/* Trust review E2 / Legion bug: the "say this out loud" step ALWAYS
+            renders when starting a recording (falls back to the built-in wording
+            via `sayThis`), never gated on a possibly-empty prop. */}
+        <div
+          data-testid="consent-notice-script"
+          style={{
+            border: '1px solid var(--kp-accent-soft)',
+            background: 'var(--kp-accent-soft)',
+            borderRadius: 'var(--radius-md)',
+            padding: '10px 12px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 4,
+          }}
+        >
+          <span style={{ fontSize: 'var(--kp-font-xs)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)' }}>
+            {t('meetings.notice.consent-script-heading')}
+          </span>
+          <span data-testid="consent-notice-script-text" style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-navy)', fontStyle: 'italic' }}>
+            “{sayThis}”
+          </span>
+          <span style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
+            {t('meetings.notice.consent-script-hint')}
+          </span>
+        </div>
+        {noticeCard && <NoticeCardConsentSection {...noticeCard} />}
+        {consentMode === 'two-party' && (
+          <p
+            data-testid={stateKnown ? 'consent-two-party-note' : 'consent-two-party-note-unknown'}
+            style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-navy)' }}
+          >
+            {stateKnown ? t('meetings.consent.two-party-note') : t('meetings.consent.two-party-note-unknown')}
+          </p>
+        )}
+        {standingConsent && (
+          <p data-testid="standing-consent-note" style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
+            {t('meetings.consent.standing-note', { date: formatDate(standingConsent.confirmedAt) })}
+          </p>
+        )}
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 'var(--kp-font-sm)' }}>
+          <input
+            type="checkbox"
+            data-testid="consent-checkbox"
+            checked={checked}
+            onChange={(e) => { setChecked(e.target.checked); }}
+          />
+          {t('meetings.consent.checkbox')}
+        </label>
+        <p style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
+          {t('meetings.consent.disclaimer')}
+        </p>
+        {errorMessage && (
+          <p data-testid="consent-error" role="alert" style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-danger)', margin: 0 }}>
+            {t('meetings.consent.start-failed', { message: errorMessage })}
+          </p>
+        )}
+        <DialogFooter>
+          <Button variant="secondary" data-testid="consent-cancel-button" onClick={() => { onOpenChange(false); }}>
+            {t('meetings.dictation.cancel')}
+          </Button>
+          <Button
+            data-testid="consent-start-button"
+            disabled={!checked}
+            onClick={() => { onConfirm({}); }}
+          >
+            {t('meetings.consent.start-button')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export default ConsentDialog;

@@ -254,6 +254,25 @@ describe('generateMatterAtAGlance', () => {
     });
   });
 
+  it('logs the egress audit entry BEFORE provider.sendMessage, not only after success', async () => {
+    // Trust-fixes finding #1: a timeout/error after the send must still leave
+    // an egress record — previously egress was only logged after a
+    // successful response, so a failed send left the Activity Log silent.
+    mockRetrieve.mockResolvedValue(fakeHits);
+    const order: string[] = [];
+    mockSendMessage.mockImplementationOnce(() => {
+      order.push('send');
+      return Promise.reject(new Error('simulated timeout'));
+    });
+    const onAuditLog = (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => {
+      if (entry.action === 'egress') order.push('egress-audit');
+    };
+    await expect(
+      generateMatterAtAGlance('matter_test_123', { onAuditLog }),
+    ).rejects.toThrow('simulated timeout');
+    expect(order).toEqual(['egress-audit', 'send']);
+  });
+
   it('strips markdown fences before parsing', async () => {
     mockRetrieve.mockResolvedValue(fakeHits);
     mockSendMessage.mockResolvedValue({

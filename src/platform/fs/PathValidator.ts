@@ -35,6 +35,25 @@ export class PathValidator {
     // Normalize separators to forward slashes
     let normalized = path.replace(/\\/g, '/');
 
+    // QA-41: Rust's `Path::canonicalize()` ALWAYS returns the Windows
+    // extended-length ("verbatim") form on Windows — `\\?\C:\...`, or
+    // `\\?\UNC\server\share\...` for a UNC target (see
+    // src-tauri/src/commands/pathguard.rs's `canonicalize_symlink_safe_absolute`,
+    // used internally by every meeting-capture path guard). A workspace root
+    // picked via a folder dialog never carries this prefix, so an
+    // otherwise-identical path compares unequal and wrongly looks like it
+    // escapes the workspace — this silently broke every meetingDir-based
+    // read/write on a freshly recorded meeting (transcript.json included),
+    // which `tryGenerateNotes` then misread as "transcription still queued"
+    // forever. Stripped here (not just at the Rust IPC boundary) so this
+    // validator treats the two forms as identical regardless of which
+    // backend/command produced the string.
+    if (/^\/\/\?\/UNC\//i.test(normalized)) {
+      normalized = '//' + normalized.slice('//?/UNC/'.length);
+    } else if (/^\/\/\?\//.test(normalized)) {
+      normalized = normalized.slice('//?/'.length);
+    }
+
     // Remove trailing slash except for root
     if (normalized.length > 1 && normalized.endsWith('/')) {
       normalized = normalized.slice(0, -1);

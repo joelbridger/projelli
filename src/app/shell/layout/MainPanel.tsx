@@ -19,6 +19,11 @@ import { ImageViewer, VideoViewer, isImageFile, isVideoFile } from '@/features/d
 import { PDFViewer, isPDFFile, isSpreadsheetFile, isPresentationFile, isWordFile } from '@/features/documents/media/PDFViewer';
 import { DraftFollowUpModal } from '@/features/email/DraftFollowUpModal';
 import { resolveMatterIdForWorkspacePath } from '@/platform/hooks/useMemoryWiring';
+import { MeetingNoteOutboundGate } from '@/features/meetings/MeetingNoteOutboundGate';
+import { UNASSIGNED_MATTER_ID } from '@/platform/types/matter';
+import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
+import { buildDocNoteCrmWrite } from '@/features/matters/logic/crmNoteFormat';
+import { EV_MATTER_LAUNCH } from '@/config/identity';
 
 // Heavy doc libraries and feature modules are lazy-loaded so they don't land
 // in the startup bundle. Mermaid (~700KB) and KaTeX are pulled in via
@@ -217,6 +222,11 @@ export function MainPanel({
 
   const activeTab = openTabs.find((t) => t.path === activeTabPath);
   const secondaryTab = openTabs.find((t) => t.path === secondaryTabPath);
+
+  // Smoke P0 #5: "Send to Wealthbox" from a normal docx note enqueues into
+  // the same CRM write-back queue MatterNotesEditor's shared-matter notes
+  // use — the advisor still approves in the review card, this only queues.
+  const enqueueCrmWrite = useCrmWriteQueueStore((s) => s.enqueue);
 
   // Editor refs for formatting toolbar
   const primaryEditorRef = useRef<MarkdownEditorRef>(null);
@@ -815,36 +825,59 @@ export function MainPanel({
         // `.doc` (legacy binary) still gets the LibreOffice-convert fallback.
         if (extension?.toLowerCase() === 'docx') {
           return (
-            <LazyBoundary
-              loader={loadDocxEditor}
-              resetKey={tab.path}
-              fallback={<DocLoadingFallback fileName={tab.name} />}
-              label={tab.name}
-            >
-              {(DocxEditor) => (
-                // WS-C honesty — in Local-only mode the redline runs on the
-                // local model (Ollama) so nothing leaves the machine.
-                <DocxEditor
-                  key={`docx-${tab.path}-${docxReloadNonce}`}
-                  filePath={tab.path}
-                  src={tab.content}
-                  fileName={tab.name}
-                  onFirstEdit={() => writeBackupIfNeeded(tab.path)}
-                  onAfterSave={handleDocxAfterSave}
-                  apiKeys={apiKeys}
-                  aiProvider={redlineProvider}
-                  {...(redlineLocalOnly && redlineOllamaModel ? { aiModel: redlineOllamaModel } : {})}
-                  {...(onAuditLog ? { onAuditLog } : {})}
-                  onDraftFollowUp={(plainText) => {
-                    setFollowUpFor({
-                      name: tab.name,
-                      content: plainText,
-                      matterId: resolveMatterIdForWorkspacePath(tab.path, rootPath),
-                    });
-                  }}
-                />
+            // E3: for a meeting note, resolve whether it's cleared to leave the
+            // app; the reason (if blocked) disables the outbound toolbar actions.
+            <MeetingNoteOutboundGate tabPath={tab.path} workspaceService={workspaceServiceRef?.current ?? null}>
+              {(outboundBlockedReason) => (
+                <LazyBoundary
+                  loader={loadDocxEditor}
+                  resetKey={tab.path}
+                  fallback={<DocLoadingFallback fileName={tab.name} />}
+                  label={tab.name}
+                >
+                  {(DocxEditor) => (
+                    // WS-C honesty — in Local-only mode the redline runs on the
+                    // local model (Ollama) so nothing leaves the machine.
+                    <DocxEditor
+                      key={`docx-${tab.path}-${docxReloadNonce}`}
+                      filePath={tab.path}
+                      src={tab.content}
+                      fileName={tab.name}
+                      onFirstEdit={() => writeBackupIfNeeded(tab.path)}
+                      onAfterSave={handleDocxAfterSave}
+                      apiKeys={apiKeys}
+                      aiProvider={redlineProvider}
+                      {...(redlineLocalOnly && redlineOllamaModel ? { aiModel: redlineOllamaModel } : {})}
+                      {...(onAuditLog ? { onAuditLog } : {})}
+                      {...(outboundBlockedReason ? { outboundBlockedReason } : {})}
+                      onDraftFollowUp={(plainText) => {
+                        setFollowUpFor({
+                          name: tab.name,
+                          content: plainText,
+                          matterId: resolveMatterIdForWorkspacePath(tab.path, rootPath),
+                        });
+                      }}
+                      {...(() => {
+                        const matterIdForFile = resolveMatterIdForWorkspacePath(tab.path, rootPath);
+                        return matterIdForFile === UNASSIGNED_MATTER_ID ? {} : {
+                          onSendToWealthbox: (plainText: string) => {
+                            const write = buildDocNoteCrmWrite(tab.path, matterIdForFile, plainText);
+                            if (!write) return false;
+                            enqueueCrmWrite(write);
+                            return true;
+                          },
+                          onReviewWealthboxQueue: () => {
+                            window.dispatchEvent(
+                              new CustomEvent(EV_MATTER_LAUNCH, { detail: { matterId: matterIdForFile, surface: 'matters' } }),
+                            );
+                          },
+                        };
+                      })()}
+                    />
+                  )}
+                </LazyBoundary>
               )}
-            </LazyBoundary>
+            </MeetingNoteOutboundGate>
           );
         }
         return (

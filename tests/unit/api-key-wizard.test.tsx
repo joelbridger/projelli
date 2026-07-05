@@ -130,4 +130,21 @@ describe('ApiKeyWizard (Q20)', () => {
       expect(onSaveKey).toHaveBeenCalledWith('google', 'AIzaSyA_fake_google_key_value')
     );
   });
+
+  // Trust review E5-headline: an API key IS sent to the provider on every
+  // call (that's how the provider authenticates the request), so "never
+  // leaves your computer/machine" is a false absolute claim, not a rounding
+  // error. The honest version names where it's stored vs. where it's sent.
+  it('does not claim the key never leaves the computer/machine', () => {
+    render(
+      <ApiKeyWizard open={true} onOpenChange={vi.fn()} onSaveKey={vi.fn()} />
+    );
+    const text = document.body.textContent ?? '';
+    expect(text).not.toMatch(/key never leaves/i);
+
+    fireEvent.click(screen.getByRole('button', { name: /next/i }));
+    fireEvent.click(screen.getByRole('button', { name: /next/i }));
+    const step3Text = document.body.textContent ?? '';
+    expect(step3Text).not.toMatch(/never leaves your (computer|machine)/i);
+  });
 });

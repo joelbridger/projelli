@@ -13,7 +13,8 @@ import {
 } from 'lucide-react';
 import type { AuditEntry, AuditActionType } from '@/platform/types/audit';
 import { asRecord, type AuditMatterScopeOption } from '@/features/audit/audit-export';
-import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
+import { useEntityLabelEnglish } from '@/platform/hooks/useEntityLabel';
+import { EV_MATTER_LAUNCH } from '@/config/identity';
 import {
   Button,
   FilterPanel,
@@ -59,7 +60,10 @@ export interface DetailPanelProps {
 }
 
 export function DetailPanel({ entry, onClose }: DetailPanelProps) {
-  const entityLabel = useEntityLabel();
+  // Fixed-English escape hatch: the "Firm {{entity}}" / "Local {{entity}}"
+  // labels below are still hardcoded English strings (see the cleanup2
+  // handoff), so the noun stays English too rather than mixing languages.
+  const entityLabel = useEntityLabelEnglish();
   const category = lookupCategory(ACTION_CATEGORY, entry.action);
   const iconColor = CATEGORY_COLOR[category];
   const scopeLabel = getScopeLabel(entry);
@@ -143,6 +147,28 @@ export function DetailPanel({ entry, onClose }: DetailPanelProps) {
             </div>
           );
         })()}
+
+        {/* Wave 3c: an entry for a meeting recording links straight to that
+            meeting's page (Meetings tab), so Activity is reachable both ways. */}
+        {(entry.action === 'meeting_capture_started' || entry.action === 'meeting_recorded') &&
+          typeof metadata['meetingDir'] === 'string' && typeof metadata['matterId'] === 'string' && (
+          <Button
+            variant="secondary"
+            size="sm"
+            data-testid="audit-open-meeting"
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent(EV_MATTER_LAUNCH, {
+                detail: {
+                  matterId: metadata['matterId'],
+                  surface: 'meetings',
+                  source: { kind: 'meeting', ref: `meeting:${metadata['meetingDir'] as string}#0` },
+                },
+              }));
+            }}
+          >
+            Open meeting
+          </Button>
+        )}
 
         {/* Inputs */}
         {hasInputs && (
@@ -492,7 +518,10 @@ export function AuditFilterPanel({
   activeFilterCount,
   onReset,
 }: AuditFilterPanelProps) {
-  const entityLabel = useEntityLabel();
+  // Fixed-English escape hatch: "Filter by {{entity}}" / "All {{entity}}"
+  // below are still hardcoded English strings (see the cleanup2 handoff), so
+  // the noun stays English too rather than mixing languages.
+  const entityLabel = useEntityLabelEnglish();
   const categories: CategoryFilter[] = ['all', 'file', 'ai', 'workflow', 'privilege', 'firm', 'system'];
 
   const inputStyle: React.CSSProperties = {

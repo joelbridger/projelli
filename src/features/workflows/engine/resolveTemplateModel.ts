@@ -87,7 +87,7 @@ export function resolveTemplateModel(
  *                          NEVER fall back to cloud
  */
 export type WorkflowProviderResolution =
-  | { kind: 'keepance-local'; model: string | undefined }
+  | { kind: 'lantern-local'; model: string | undefined }
   | { kind: 'ollama'; model: string | undefined }
   | { kind: 'cloud'; provider: 'claude' | 'openai' | 'gemini'; model: string | undefined; key: string }
   | { kind: 'mock' }
@@ -178,7 +178,7 @@ export function resolveWorkflowProvider(
     if (localModelReady) {
       // Embedded model serves whichever GGUF is loaded; the model id is
       // cosmetic, so leave it undefined and let the provider use its default.
-      return { kind: 'keepance-local', model: undefined };
+      return { kind: 'lantern-local', model: undefined };
     }
     if (!ollamaReachable) {
       return { kind: 'ollama-unreachable' };

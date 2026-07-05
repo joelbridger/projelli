@@ -92,7 +92,7 @@ export const FEATURE_TOUR_STEPS: FeatureTourStep[] = [
   {
     id: 'outro',
     title: 'You are all set',
-    body: 'Start by creating a client and opening a document. The AI key setup is in Settings if you have not added one yet. Your data never leaves your machine without your knowledge. Build something good.',
+    body: 'Start by creating a client and opening a document. The AI key setup is in Settings if you have not added one yet. Your documents and prompts stay on this computer unless you choose cloud AI or connect an account, and the Data Map (Settings → Privacy) shows exactly what does leave. Build something good.',
     targetSelector: null,
     placement: 'center',
   },

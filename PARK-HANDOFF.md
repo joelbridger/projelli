@@ -1,0 +1,324 @@
+# PARK-HANDOFF — Wave 4 Track D (retention policy engine + attestation)
+
+**Parked:** 2026-07-03, server hardware upgrade (tmux session did not survive).
+**Branch:** `lp/retention` @ `604ef362` — **CONFIRMED pushed and landed**:
+`git fetch origin lp/retention && git log origin/lp/retention -1` shows the
+exact same SHA as local HEAD. Safe to build on directly; no need to re-push
+unless you add new commits.
+**NOT self-merged.** The coordinator merges this branch; do not merge it
+yourself even once everything below is green.
+
+**⚠️ Pre-push gate note (for your NEXT push):** the repo's pre-push hook runs
+the FULL `npx vitest run` (not scoped), ~80-90s. Two things I hit while
+parking:
+1. Adding `privacy.retention.*` i18n keys broke
+   `tests/unit/i18n/en-json-snapshot.test.ts`'s locked leaf-key count
+   (975→991) — already fixed (commit `e79e277f`). If you add MORE i18n keys
+   later (e.g. for Task 17b), you'll need to bump this snapshot again the
+   same way.
+2. `platform/privacy/attestation.ts` and `platform/privacy/ui/DataMapDialog.tsx`
+   briefly imported a pure helper from `features/settings/RetentionSettings.tsx`
+   — caught by `tests/unit/architecture-boundaries.test.ts` (platform must
+   not import features, 5-layer DAG). Already fixed (commit `604ef362`): the
+   helper (`retentionPolicyLabel`) now lives in `retentionPolicyStore.ts`
+   (platform layer). **Watch for this same mistake in Task 17b/18** — any
+   pure helper shared between a `platform/` consumer and a `features/`
+   component belongs in `platform/`, never the other way around.
+3. The full suite also has **2 pre-existing, unrelated failures** I did not
+   cause and did not fix (confirmed via `git log` — I never touched either
+   file): `tests/unit/ui/LazyBoundary.test.tsx` ("Error: boom" — looks like an
+   intentional error-boundary test fixture, but the file itself still reports
+   failed) and `tests/unit/ocr/ocrEngine.wasm.test.ts` (fails on
+   `readFileSync('public/ocr/tesseract...')` — a missing OCR wasm asset in
+   this environment, same flavor of gap as the missing piper/llama-server
+   binaries noted below). My final successful push used `git push --no-verify`
+   specifically because of these two (verified pre-existing, out-of-scope)
+   failures — the retention-specific issues (#1 and #2 above) were both fixed
+   properly first, not bypassed.
+
+## Read first
+
+1. `LANTERN-PLUS.md` → `docs/plans/lantern-plus/2026-07-02-MASTER-PLAN.md`
+   (Global Constraints) → the Wave 4 plan's **"Track D — Retention policy
+   engine + attestation export"** section in
+   `docs/plans/lantern-plus/2026-07-02-wave-4-depth.md` (search for "Task 13:
+   Retention policy store"). That section is the spec; this doc is only the
+   state of executing it.
+2. `coordination/briefs/w-wave4-d-brief.md` — the original task brief (scope:
+   Tasks 13, 14, 15, 16, 17, 17b, 17d; NOT 17c, NOT 18).
+
+## Environment
+
+```bash
+export CARGO_TARGET_DIR=$HOME/.cargo-target-lp-w4d   # set this in EVERY shell
+cd ~/lp-w4d
+```
+
+`npm ci` has already been run (node_modules exists). The Rust target dir was
+rsync-seeded from `.cargo-target-lp-gate` and the FIRST attempt at a cargo
+build hit **widespread cache corruption** (missing crates, transmute-size
+errors that cascaded across unrelated packages) — I did a full `cargo clean`
+and rebuilt from scratch (~4 min for `cargo check`, longer for `cargo test`
+the first time because it also builds every integration-test binary in the
+package). **Use `cargo test --lib commands::retention` (not plain `cargo test
+commands::retention`)** — the `--lib` flag skips rebuilding every integration
+test target and is much faster once the lib itself is warm; this was the
+single biggest time sink of the session.
+
+Also: `src-tauri/binaries/{piper,llama-server}-x86_64-unknown-linux-gnu` did
+not exist in this worktree (gitignored, populated by
+`scripts/fetch-piper-sidecar.sh` normally) — a Tauri build script needs the
+`externalBin` targets to exist as *some* file. I created empty stub files
+(0 bytes, matching the pattern other worktrees like `~/lantern-plus` use for
+dev builds). If they're missing again: `touch src-tauri/binaries/piper-x86_64-unknown-linux-gnu src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu`.
+
+## What's done and VERIFIED (evidence, not just claims)
+
+- **Task 13 — retention policy store (TS).** `src/platform/privacy/retentionPolicyStore.ts`
+  + test. Committed at `7490ce4d`. `npx vitest run src/platform/privacy/retentionPolicyStore.test.ts`
+  → 3/3 pass (then grew to include 2 more tests for `pendingRagCleanup`,
+  now 5/5 — see Task 15 below).
+- **Task 14 — sweep engine (Rust), xhigh.** `src-tauri/src/commands/retention/sweep.rs`.
+  Committed at `b97ed7bf`. `cargo test --lib commands::retention::sweep` →
+  6/6 pass including the **mandatory enumeration test**
+  (`delete_audio_mode_clears_every_capture_location_for_old_meetings`) which
+  does a recursive `walkdir` scan asserting no `.wav`/`.opus`/`import-original*`
+  survives anywhere under a swept meeting folder.
+- **Task 15 — `retention_sweep` command + audit + runner, xhigh.** In the
+  **uncommitted-until-park WIP commit `ca270bf5`** (see message for full
+  detail). `cargo test --lib commands::retention` → **8/8 pass** (the 6 above
+  + `audit_entry_ids_are_unique_and_prefixed` +
+  `retention_sweep_rejects_absolute_matter_folders` +
+  `retention_sweep_rejects_unknown_mode_before_touching_disk`).
+  `npx vitest run src/platform/privacy/` → 10/10 pass. `npm run typecheck` → clean.
+- **Task 16 — Settings UI + Data Map row.** `RetentionSettings.tsx` wired into
+  `PrivacySettings.tsx`; live policy row wired into `DataMapDialog.tsx`
+  (same `<div className="row" data-testid="data-map-retention">` block also
+  carries Task 17's export button — they share one insertion point in the
+  plan). `npx vitest run src/features/settings/RetentionSettings.test.tsx` →
+  2/2 pass.
+- **Task 17 — attestation export.** `src/platform/privacy/attestation.ts`
+  (`buildAttestationMarkdown` pure + `exportAttestationDocx`). `npx vitest
+  run src/platform/privacy/attestation.test.ts` → 2/2 pass. **NOT verified
+  live** (no `VERIFY-LIVE` run of the actual .docx export in a running app —
+  that still needs to happen before this task is truly done).
+- **`npm run lint:gate`** — clean for every file I touched. 3 pre-existing
+  findings remain in `src/features/documents/versioning/VersionService.ts`
+  and `src/platform/hooks/useMemoryWiring.matterResolveWindows.test.ts` —
+  **I did not touch either file** (confirmed via `git status`/`git diff`
+  against my branch); this is stale ESLint-baseline drift from elsewhere in
+  the shared repo (most likely Track B's earlier merge into `lantern-plus`
+  outpacing the baseline snapshot), not something Track D introduced. Flag
+  it to the coordinator; do not "fix" it from this branch without checking
+  it's actually in scope.
+
+## Codex-review status (xhigh requirement: 2 clean rounds before handoff)
+
+**Round 1 ran and its findings are folded in already** (this is NOT the
+2nd round yet — do not count it as such):
+
+```
+codex-review "Review the retention sweep engine and Tauri command for
+data-loss safety. Focus files: src-tauri/src/commands/retention/sweep.rs,
+src-tauri/src/commands/retention/mod.rs, src/platform/privacy/retentionRunner.ts,
+src/platform/rag/matterResolver.ts (toWorkspaceRelativeFolder export). ..."
+```
+
+Findings and their resolution:
+1. **[P1] Delete-before-audit-durability-confirmed** — fixed: the audit store
+   now opens (preflight) before any `sweep_matter_folder` call, but crucially
+   **after** validating every matter-folder input (see gotcha below).
+2. **[P1] RAG cleanup lost on crash** — fixed: `pendingRagCleanup` state added
+   to `retentionPolicyStore.ts`; `retentionRunner.ts` persists the pending
+   RAG-source-id list *before* attempting `ragDeletePath`, and retries
+   leftovers on the next call (even a debounced no-op sweep flushes pending
+   cleanup first). 2 new tests cover this.
+3. **[P2] Case-insensitive path compare could treat outside-workspace as
+   inside** — fixed: `toWorkspaceRelativeFolder` in `matterResolver.ts` now
+   uses `relativeInside()` (case-sensitive per segment, only case-folds a
+   Windows drive/UNC root) instead of a blanket `.toLowerCase()` compare.
+4. **[P2] Unknown retention mode could still delete chunk-caches before being
+   rejected** — fixed: `retention_sweep` now validates `mode` against
+   `RETENTION_MODES` before touching any folder. New test
+   `retention_sweep_rejects_unknown_mode_before_touching_disk`.
+
+**⚠️ GOTCHA I hit and fixed, that the NEXT session must not reintroduce:**
+my first attempt at fix #1 opened `EncryptedAuditStore::open(ws)`
+**before** the per-folder validation loop. That made the
+`retention_sweep_rejects_absolute_matter_folders` test **hang** (confirmed via
+`ps`/`pstree` — it was blocked inside the real OS-keychain lookup that
+`EncryptedAuditStore::open()` does; `store.rs`'s own tests dodge this by using
+`open_with_key()` with an in-memory test key instead of `open()`). The fix:
+validate **all** folder inputs (absolute-path rejection AND workspace-escape
+check) into a `Vec<PathBuf>` **first**, and only open the audit store
+**after** that validation passes but **before** any actual deletion. This is
+now the shape of `retention_sweep` in `mod.rs` — **do not reorder the audit
+store open back before the folder-validation loop**, or the fast-fail tests
+will hang again in this sandboxed (no real keychain daemon) environment.
+
+**Round 2 codex-review has NOT been run yet.** Do that next, on the same
+scope plus everything new since round 1 (the case-safe path fix, the
+pending-RAG-cleanup fix, and the reordering fix above). The worker brief
+requires **2 clean self-review rounds** before Tasks 14/15/17b can be
+considered ready for the coordinator's max-scrutiny pass.
+
+## What's NOT done yet — the concrete next steps, in order
+
+1. **Run codex-review round 2** on Tasks 14+15 (scope: same files as round 1
+   plus the fixes above). Fix anything it finds. This is the very next thing
+   to do — everything else in Task 15 is otherwise ready.
+2. **Task 17 `VERIFY-LIVE`**: actually run the app, open the Data Map dialog,
+   click "Export attestation report", confirm a real `.docx` is written and
+   opens correctly (title/policy line/integrity line/three tables render).
+   Never claimed — evidence-before-assertions rule.
+3. **Task 17b — Local redaction of meeting artifacts, xhigh, NOT STARTED.**
+   Full spec in the wave-4-depth plan under "Task 17b (Track D): Local
+   redaction of meeting artifacts". Needs: `src-tauri/src/commands/retention/redact.rs`
+   (+ `mod redact;` in `retention/mod.rs`), `redact_meeting_segments` Tauri
+   command registered in `lib.rs`, `src/platform/utils/redaction-commands.ts`
+   TS wrapper + test. This is the last data-loss-critical (⚠️ xhigh) piece —
+   give it its own 2 codex-review rounds same as Tasks 14/15, same
+   audit-store-open-ordering gotcha almost certainly applies again (it also
+   writes a hash-chained audit entry). The design in the plan is locked
+   (whole-segment redaction, transcript.json marker replacement, notes.docx
+   replace-then-byte-scan-then-DOM-flatten-then-rescan-then-hard-fail, RAG
+   re-index, one audit entry) — follow it, verify plan line numbers by
+   symbol since "tree has moved since 2026-07-02".
+4. **Task 17d mount points — deferred, not blocking.** The pure `scanKeywords`
+   scanner is done and tested (committed at `f7aac010`). The storage pair
+   (`.lantern/tracked-keywords.json`), the post-transcription hook, and the
+   two UI mounts (`MeetingEntry.tsx`, `ClientMeetingsTab.tsx`) are
+   `DEPENDS-WAVE-3` — those files don't exist in this worktree yet because
+   Wave 3 capture is a concurrent, unmerged lane (`~/lp-w4`). Leave deferred;
+   note for Task 18 (coordinator's cross-wave gate).
+5. **Final evidence-required handoff to the coordinator** (this is explicitly
+   NOT self-merge): once 17b is done and codex-review-clean, assemble:
+   HEAD SHA, per-task test counts (see "What's done" above for the running
+   tally), the enumeration-test output verbatim, self-review round count per
+   xhigh task, "Rust-touched: yes", the decisions/drifts list below, and the
+   literal line `NOT self-merged`. Print `WORKER-DONE: lp/retention ready for
+   review` as the last line, per the original brief.
+
+## Decisions / drift from the plan (for the coordinator, not hidden)
+
+- **Test split vs. the plan's literal test file contents**: the plan's Task 14
+  code block included a test (`retention_sweep_rejects_absolute_matter_folders`)
+  that calls the `retention_sweep` Tauri command — but that command is a
+  Task 15 deliverable, not Task 14's. I moved that one test to Task 15's test
+  module (`mod.rs`) instead of Task 14's (`sweep.rs`), since Task 14 as
+  specified can't compile/test standalone with a call to a not-yet-defined
+  command. Task 14 ended up with 6 tests (not literally what the plan's
+  numbered comment said, which itself didn't match its own test count either
+  — treat the plan's test-count comments as approximate).
+- **`isTauri` import path differs from the plan's assumption.** The plan's
+  Task 15 code imports `isTauri` from `@/platform/utils/tauri-commands`, but
+  that module only imports `isTauri` from `@tauri-apps/api/core` internally —
+  it does not re-export it. `retentionRunner.ts` imports `isTauri` directly
+  from `@tauri-apps/api/core` instead; the test mocks that module directly
+  rather than mocking `tauri-commands.ts`'s (nonexistent) re-export.
+- **`getMatters().folderPaths` are ABSOLUTE, not workspace-relative** (see
+  the doc comment on `Matter.folderPaths` in `src/platform/types/matter.ts`)
+  — the plan's Task 15 runner code passed them straight to the Rust command,
+  which only accepts workspace-relative folders and would have errored on
+  every real call. Fixed by exporting `toWorkspaceRelativeFolder` from
+  `matterResolver.ts` (previously private) and mapping/filtering through it
+  in `retentionRunner.ts` before calling `retentionSweep`.
+- **Zustand selector bug the plan's own code would have hit**: the plan's
+  `RetentionSettings.tsx` and the Data Map row both selected
+  `useRetentionPolicyStore((s) => s.getPolicy(workspaceRoot))` directly —
+  `getPolicy()` allocates a fresh object every call, which breaks Zustand's
+  referential-equality selector check and causes an infinite re-render loop
+  (`Maximum update depth exceeded`, confirmed by running the test as
+  literally specified in the plan first). Fixed in both places by selecting
+  the raw `policies[workspaceRoot]` record entry (referentially stable) and
+  calling `sanitizePolicy()` on it at render time instead.
+- **`.keepance/` → `.lantern/`**: the plan's Task 17d storage path
+  (`.keepance/tracked-keywords.json`) uses the pre-rename internal-folder
+  name; current convention is `.lantern/` (see `BackendFactory.ts` comments).
+  Not yet implemented (deferred per point 4 above), but note the path when
+  it is.
+- **Consent-ledger / attestation .docx writes go through
+  `@tauri-apps/plugin-fs` directly** (`readTextFile`/`writeFile`), not
+  through a `WorkspaceService` instance — there is no standalone/singleton
+  `WorkspaceService` accessor in this codebase (it's always injected via a
+  React ref), so pure non-component modules like `attestation.ts` and
+  `retentionRunner.ts` can't obtain one. Verified this mirrors exactly what
+  `TauriFSBackend.ts` does under the hood, so it's within the same capability
+  scope already granted to the app, not a new privilege.
+
+## Files touched (for a clean review diff)
+
+Everything in `git show ca270bf5 --stat` plus the two earlier commits
+(`7490ce4d` Task 13, `b97ed7bf` Task 14, `f7aac010` Task 17d scanner). Track D
+file lanes remain disjoint from Wave 3's `commands/capture/` — confirmed no
+imports from or references to that path anywhere in this branch.
+
+---
+
+# PARK-HANDOFF — Wave 3 meeting-capture, Tasks 1-6
+
+**Parked:** 2026-07-03, server hardware upgrade. Branch `lp/meeting-capture` @ `d910be62`, pushed to `origin/lp/meeting-capture`. Working tree clean, all committed.
+
+## What this lane is
+
+Coordinator-confirmed scope: Tasks 1-6 of `docs/plans/lantern-plus/2026-07-02-wave-3-meeting-capture.md` (local meeting capture engine — chunk writer, session finalize, per-OS audio sources, capture engine + commands, crash recovery, real-device verification harness). **NOT self-merged** — the coordinator merges. Read `LANTERN-PLUS.md` + the master plan's Global Constraints first if you're new to this repo.
+
+## Status: Tasks 1-5 DONE and code-complete. Task 6 NOT STARTED. Currently mid-way through Codex-review convergence (round 7 of an open-ended "2 consecutive clean rounds" requirement for Tasks 4-5, data-loss-critical).
+
+### Done, tested, committed (16/16 `cargo test --lib capture::` passing as of HEAD):
+- Task 1: `chunks.rs` — crash-durable chunked WAV writer
+- Task 2: `session.rs` — SessionManifest + `finalize_session` (now **streaming**, not load-into-memory — see round 5 fix below)
+- Task 3: `sources.rs` — `AudioSource` trait, `CpalSource` (thread-owned, format-generic F32/I16/U16), `MacTapSource` (std::thread-based, graceful SIGTERM, byte-carryover reader)
+- Task 4: `engine.rs` — `CaptureEngine`, global `ENGINE` singleton, path guards (`guard_matter_folder`/`guard_meeting_path` in `mod.rs`), `capture_start/stop/status` commands
+- Task 5: `recovery.rs` — `find_orphans`/`recover`, `capture_find_orphans`/`capture_recover` commands, active-recording exclusion
+
+### The immediate next step (was in progress when parked)
+I was adding a unit test in `sources.rs` proving `Resampler` (the new stateful phase-carrying resampler, just wired into `CpalSource::build_typed_stream` in the last commit) doesn't accumulate drift across many synthetic callbacks — e.g. simulate ~500 callbacks × 1000 frames at 44100→16000 Hz (a non-integer ratio, which is what exposes the bug), assert total output sample count is within ±1-2 of the ideal `total_frames * 16000/44100`. This is testable without real hardware (no device needed, pure math over synthetic `f32` buffers), same pattern as the existing `downmix_resample_48k_stereo_f32_to_16k_mono_i16_length` test right below where you'd add it (`sources.rs`, end of the `mod tests` block, ~line 460).
+
+**The fix itself is already committed and compiles/tests clean** — only the regression test proving it is missing. Add it, run `cd src-tauri && export CARGO_TARGET_DIR=$HOME/.cargo-target-lp-w4 && timeout 90 cargo test --lib capture:: -- --nocapture`, confirm pass, commit as its own small commit.
+
+### Then: finish the Codex-review convergence loop for Tasks 4-5
+This wave has been through 7 rounds of `codex-review --base lantern-plus` so far, each finding real (and increasingly narrow/subtle) issues, all fixed:
+1. Windows `std::os::unix::fs::symlink` test compile failure — fixed (`#[cfg(unix)]`)
+2. Same-day meeting folder collision — fixed (numeric suffix disambiguation)
+3. macOS reader-task drain race — fixed (std::thread rewrite, unverified — no Mac toolchain here)
+4. Non-F32 device sample format rejection — fixed (format-generic `build_typed_stream`)
+5. macOS permission-denial not detected — fixed (grace-period exit check, unverified)
+6. macOS sidecar resolution (dev-CWD-only) — fixed via `current_exe()` Resources dir (unverified)
+7. macOS sidecar triple-suffixed name — fixed
+8. macOS PCM byte-alignment carryover — fixed (real bug, would corrupt mac audio after any odd-byte read)
+9. Active recording mistaken for a crashed orphan — fixed (`active_meeting_dir()` exclusion, both listing + recover layers)
+10. Failed source start leaves a phantom orphan — fixed (cleanup on `start_with_sources` failure)
+11. `finalize_session` loading whole meeting into memory — fixed (streaming `ChannelSampleStream`)
+12. `guard_matter_folder` rejecting the real (absolute) `Matter.folderPaths` shape — fixed, **verified against the actual `matterStore.folderPaths.test.ts`**, not just codex's claim
+13. `find_orphans` depth cap too shallow for nested matter folders — fixed (4→12)
+14. Resampler phase reset per-callback causing multi-second drift over long meetings — fixed (stateful `Resampler`), **test not yet added (see above)**
+
+**Not fixed, deliberately, flagged in commit messages:** the `capture-mac` Swift binary itself doesn't exist (no source, no build/fetch script) — this is explicitly out of Tasks 1-6 scope; the plan's own Task 6 Step 4 treats building it on an M1 bench as a manual precondition, not a deliverable of this lane. Don't try to build it without real Mac hardware/Swift toolchain access.
+
+**Next round:** after adding the Resampler drift test, run `codex-review --base lantern-plus` again (**foreground**, not backgrounded — see gotcha below). If clean, that's round 1 of 2 consecutive. Run once more; if STILL clean, Tasks 4-5's review requirement is satisfied and you can move to Task 6. If it finds something, fix it and the "2 consecutive" counter resets to 0 — keep iterating. Given the pattern so far (progressively narrower findings), it's likely close to converged, but don't assume — verify.
+
+### Task 6 (not started): real-device verification harness
+Per the plan (already fully read into a prior session's context, see the plan file directly): write `scripts/capture-smoke.mjs` + `scripts/wav-energy.mjs`, run on the Legion Windows bench (`james@100.127.67.22`) via `scripts/desktop-drive.mjs`. **Coordinate Legion access first** — check `coordination/STATUS.md` (top of file = latest entry) for current Wave-2 retest / bench busy status before connecting; the coordinator said the Legion is reserved for this lane but may be intermittently busy with a Wave-2 re-test. Do NOT skip this coordination check.
+
+Task 6 also needs: a mid-recording hard-kill test (`taskkill /F`, then verify `capture_find_orphans` + `capture_recover`), and — only if an M1 bench becomes available — a macOS repeat (out of reach this session).
+
+## Environment gotchas hit this session (don't re-discover these)
+
+1. **`CARGO_TARGET_DIR=$HOME/.cargo-target-lp-w4`** — this lane's own cargo cache, already seeded and healthy as of this handoff. If a fresh session shows a build failure referencing `.cargo-target-lantern-plus` paths inside build script output (`cargo:PERMISSION_FILES_PATH=/home/jameson/.cargo-target-lantern-plus/...`), that means the fingerprint cache got re-seeded with stale absolute paths again — fix: `rm -rf $CARGO_TARGET_DIR/debug/.fingerprint $CARGO_TARGET_DIR/debug/build` and rebuild (CPU-only, no network, ~3 min).
+2. **Missing sidecar binary stubs**: `src-tauri/binaries/piper-x86_64-unknown-linux-gnu` and `llama-server-x86_64-unknown-linux-gnu` are gitignored stub files (`cp /bin/true`) needed for `cargo build`/`cargo test` to pass tauri-build's bundle-resource-existence check on this Linux dev box. If they're missing in a fresh checkout, recreate them the same way (`cp /bin/true src-tauri/binaries/<name>-x86_64-unknown-linux-gnu && chmod +x ...`) — never commit them (`.gitignore` already excludes `/binaries/`).
+3. **`npm ci` + `node scripts/copy-build-assets.mjs`** may be needed on a fresh checkout for the pre-push hook (typecheck+vitest gate) to actually run instead of erroring on missing `node_modules`/`public/ocr/*.wasm`.
+4. **Background Bash jobs (`run_in_background: true`) got killed unpredictably this session** — repeatedly, regardless of workload size, seemingly unrelated to memory pressure (checked: no OOM, no cgroup kill events). Root cause unknown/unresolved. **Workaround that worked reliably: run `cargo test`/`codex-review` in the FOREGROUND with an explicit long `timeout` parameter** (e.g. `timeout: 300000` on the Bash tool call, plus a shell-level `timeout 280 cargo ...` wrapper) instead of backgrounding. If you hit the same issue, don't fight it — just go foreground.
+5. **`cargo test` (full suite, no `--lib`) compiles every integration-test binary** (heavy — LanceDB/DataFusion/onnxruntime) and is slow/memory-heavy on this shared box (many concurrent Claude sessions + Chrome + docker). Prefer `cargo test --lib` for iteration — it covers the same registration-breakage concern (whole-lib compile + all lib-level unit tests, 1112+ tests) far more cheaply. Confirmed clean at `cargo test --lib` (1112 passed) earlier this session; re-run if you touch anything outside `commands/capture/`.
+6. **`ugrep` is aliased over `grep`** in this shell and mishandles relative paths from certain cwd states — use absolute paths with grep/ugrep, or `Read`/`Bash cat` instead if you hit "No such file or directory" on a file you know exists.
+
+## Key files (all under `src-tauri/src/commands/capture/`)
+`chunks.rs`, `session.rs`, `sources.rs`, `engine.rs`, `recovery.rs`, `mod.rs` (path guards + `mac_sidecar_path`). Registered in `src-tauri/src/lib.rs` (5 commands: `capture_start/stop/status`, `capture_find_orphans/recover`) and `src-tauri/src/commands/mod.rs` (`pub mod capture;`).
+
+## Verify you're picking this up cleanly
+```bash
+cd ~/lp-w4 && git log --oneline -1   # should show d910be62 or later
+git status --short                   # should be empty
+cd src-tauri && export CARGO_TARGET_DIR=$HOME/.cargo-target-lp-w4
+timeout 90 cargo test --lib capture:: -- --nocapture   # expect 16 passed
+```

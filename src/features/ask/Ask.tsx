@@ -26,6 +26,7 @@
  *   - Documents    (only non-mail: chunks)
  */
 
+import { useState, useRef, useEffect } from 'react';
 import {
   Sparkles, AlertTriangle,
 } from 'lucide-react';
@@ -37,6 +38,12 @@ import { AskComposer } from './AskComposer';
 import { FileAccessConsentBanner } from './chat/FileAccessConsentBanner';
 import type { ChatProvider } from './chat/providerModelResolution';
 import { ConversationsRail, type RailGroup } from './ConversationsRail';
+import {
+  askLayoutForWidth,
+  SOURCES_WIDTH,
+  COMPOSER_MIN_WIDTH,
+  type AskLayout,
+} from './askResponsive';
 import { SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { isMemoryEnabled } from '@/platform/rag/MemoryService';
@@ -44,9 +51,27 @@ import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import { useAsk, type UseAskProps } from './useAsk';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
+import { useTranslation } from 'react-i18next';
 import { IS_DEMO } from '@/web-demo/demoModeFlag';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
-import { EV_OPEN_SETTINGS } from '@/config/identity';
+import { EV_OPEN_SETTINGS, EV_MATTER_LAUNCH } from '@/config/identity';
+import { dispatchOpenSource } from '@/features/matters/clientMap/openSource';
+import { ScopeStatusPill } from './ScopeToggle';
+import { BookAnswerPanel } from './book/BookAnswerPanel';
+import { runWholePracticeAsk } from './book/wholePracticeAsk';
+import { buildBookFactsDigest } from './book/bookFacts';
+import { getMatters } from '@/platform/matter/matterStore';
+import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
+import { buildResolvedProviderForGlance } from '@/platform/matter/matterAtAGlance';
+import {
+  resolveWholePracticeConfirm,
+  getRememberedWholePracticeConsent,
+  setRememberedWholePracticeConsent,
+} from './book/wholePracticeSendGate';
+import { WholePracticeSendConfirm } from './book/WholePracticeSendConfirm';
+import type { BookAskResult } from './book/bookFacts';
+import { settleBookSubmission } from './book/bookSubmission';
+import { composerIsBusy } from './askHelpers';
 
 /* -------------------------------------------------------------------------- */
 /* Main component                                                               */
@@ -55,6 +80,7 @@ import { EV_OPEN_SETTINGS } from '@/config/identity';
 export function Ask(props: UseAskProps) {
   const { onSaveToDocument } = props;
   const entityLabel = useEntityLabel();
+  const { t } = useTranslation();
   // This surface is the 3-tab IA's "Ask" tab.
   const askVerb = 'Ask';
   const {
@@ -70,6 +96,7 @@ export function Ask(props: UseAskProps) {
     selectedTurnIdx,
     errorMsg,
     status,
+    answerStalled,
     savingIdx,
     displayedProvider,
     confidentialityMode,
@@ -97,6 +124,149 @@ export function Ask(props: UseAskProps) {
 
   const isSampleMatter = activeMatter?.id === SAMPLE_MATTER_ID;
 
+  // QA-6: responsive 3-column layout. Measure the BODY row (excludes the app
+  // spine) and degrade gracefully as it narrows — collapse the rail first, then
+  // hide the sources column — so the composer's thread column never gets
+  // squeezed until the input collapses to 0px. Plain ResizeObserver (not a CSS
+  // container query) for Tauri-WebView reliability, mirroring MainPanel.
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const [autoLayout, setAutoLayout] = useState<AskLayout>({ collapseRail: false, showSources: true });
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const update = () => {
+      const w = el.getBoundingClientRect().width;
+      // width 0 during unmount/hidden — don't thrash the layout to its narrowest.
+      if (w <= 0) return;
+      setAutoLayout(askLayoutForWidth(w));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => { ro.disconnect(); };
+  }, []);
+  // The rail collapses when the USER collapsed it OR the layout is too narrow.
+  const railEffectivelyCollapsed = railCollapsed || autoLayout.collapseRail;
+
+  // Whole-practice Ask (Wave 4 Track C): a separate answer path over per-client
+  // Client Map summaries only — never the turn-based retrieval flow above.
+  const [bookResult, setBookResult] = useState<(BookAskResult & { model: string }) | null>(null);
+  const [bookLoading, setBookLoading] = useState(false);
+  const [bookError, setBookError] = useState<string | null>(null);
+
+  // Stale-response guard: a workspace/client switch (chatId changes) or a
+  // second whole-practice question submitted while one is in flight must never
+  // let the OLDER response commit over the newer state. One monotonic counter
+  // covers both: every submit bumps it (in the event handler below), and every
+  // chatId change bumps it too (in the ref-only effect below — no setState
+  // there, so this doesn't trip the no-setState-in-effect rule).
+  const bookRequestIdRef = useRef(0);
+  // The abort side of the same guard: ignoring a stale response in the UI
+  // isn't enough — a workspace switch mid-flight must also cancel the
+  // in-flight send so the OLD workspace's client summaries never actually
+  // reach the provider after the user has moved on (Codex P1).
+  const bookAbortRef = useRef<AbortController | null>(null);
+  useEffect(() => {
+    bookRequestIdRef.current += 1;
+    bookAbortRef.current?.abort();
+  }, [chatId]);
+
+  // A workspace/client switch changes chatId — clear any lingering result so a
+  // stale client's facts never show under the new conversation, even when no
+  // new whole-practice question is asked. React's "adjusting state when a prop
+  // changes" render-time pattern (setState only, no refs, so this stays clear
+  // of the no-refs-during-render rule).
+  // R6 (Tier B trust guard): a whole-practice question awaiting the advisor's
+  // one confirm before its book-wide summary leaves for the cloud provider.
+  const [bookConfirm, setBookConfirm] = useState<{ asked: string; clientCount: number; providerName: string | null } | null>(null);
+  const [bookResultChatId, setBookResultChatId] = useState(chatId);
+  if (chatId !== bookResultChatId) {
+    setBookResultChatId(chatId);
+    setBookResult(null);
+    setBookLoading(false);
+    setBookError(null);
+    // Drop any pending confirm too (Codex review): its client count/question
+    // were computed for the OLD workspace/client, but startBookSend rebuilds
+    // the digest from the CURRENT stores — so a stale Continue could ship a
+    // different client set than the advisor confirmed. Clearing it forces a
+    // fresh confirm for the new context.
+    setBookConfirm(null);
+  }
+
+  // The actual book-wide send (extracted so it runs both directly — local-only
+  // or already-confirmed — and after the R6 confirm).
+  const startBookSend = (asked: string) => {
+    setQuestion('');
+    setBookLoading(true);
+    setBookError(null);
+    bookAbortRef.current?.abort(); // cancel any still-in-flight prior send
+    const controller = new AbortController();
+    bookAbortRef.current = controller;
+    const requestId = ++bookRequestIdRef.current;
+    const isStale = () => bookRequestIdRef.current !== requestId;
+    const opts = { signal: controller.signal, ...(props.onAuditLog ? { onAuditLog: props.onAuditLog } : {}) };
+    void settleBookSubmission(runWholePracticeAsk(asked, chatId, opts), asked, {
+      onResult: setBookResult,
+      onError: setBookError,
+      onSettle: () => { setBookLoading(false); },
+      restoreQuestion: setQuestion,
+      isStale,
+    });
+  };
+
+  const submitQuestion = (q?: string) => {
+    if (askScope === 'whole-practice') {
+      const asked = (q ?? question).trim();
+      if (!asked) return;
+      // Decide, from the SAME digest the send uses, whether this cloud send
+      // needs the one honest confirm (real client count + real provider).
+      // An empty book or a remembered choice skip it up front.
+      const clientCount = buildBookFactsDigest(getMatters(), useClientMapStore.getState().maps).clients.length;
+      if (clientCount === 0 || getRememberedWholePracticeConsent()) {
+        startBookSend(asked);
+        return;
+      }
+      // Resolve the ACTUAL provider the send will use (respects Local-only and
+      // the no-cloud-key local fallback), NOT the cached UI value — otherwise a
+      // stale "local" display could skip the confirm while the real send goes
+      // to the cloud. The resolution is async, so tie it to a request token:
+      // if the advisor switches chat/workspace or submits again before it
+      // settles, the stale completion is DROPPED — a superseded question must
+      // never open a confirm (or, on Continue, send) against a different client
+      // set (coordinator + Codex review). The chatId-change effect and each new
+      // submit both bump bookRequestIdRef, so the token check covers both.
+      const myToken = ++bookRequestIdRef.current;
+      void resolveWholePracticeConfirm({
+        clientCount,
+        remembered: getRememberedWholePracticeConsent(),
+        resolveProviderId: async () => {
+          try {
+            return (await buildResolvedProviderForGlance()).providerId;
+          } catch {
+            return null;
+          }
+        },
+        isCurrent: () => bookRequestIdRef.current === myToken,
+        onConfirm: (decision) => {
+          setBookConfirm({ asked, clientCount: decision.clientCount, providerName: decision.providerName });
+        },
+        onSendNow: () => { startBookSend(asked); },
+      });
+      return;
+    }
+    void handleAsk(q);
+  };
+  const composerKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (askScope === 'whole-practice') {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        submitQuestion();
+      }
+      return;
+    }
+    handleKeyDown(e);
+  };
+
   const composerPlaceholder =
     askScope === 'email'
       ? 'Ask about your imported email…'
@@ -104,8 +274,8 @@ export function Ask(props: UseAskProps) {
         ? 'Ask across your documents…'
         : activeMatter
           ? `${askVerb} ${matterLabel(activeMatter)}…`
-          : `${askVerb} across all ${entityLabel.other}…`;
-  const composerAriaLabel = `${askVerb} this ${entityLabel.one}`;
+          : t('ask.composer.placeholder-all-entity', { entity: entityLabel.other });
+  const composerAriaLabel = t('ask.composer.aria-label', { entity: entityLabel.one });
 
   // Conversations-rail grouping. A session belongs to the active client when its
   // id is exactly "ask-<matterId>" or a timestamped variant "ask-<matterId>-…";
@@ -122,7 +292,7 @@ export function Ask(props: UseAskProps) {
     ? [
         {
           key: 'this-client',
-          title: `This ${entityLabel.one}`,
+          title: t('ask.scope-toggle.this-entity', { entity: entityLabel.one }),
           items: railSessions.filter((s) => belongsToActiveClient(s.chatId)),
         },
         {
@@ -141,7 +311,7 @@ export function Ask(props: UseAskProps) {
   const fileAccessScopeLabel =
     fileAccessConsentScope.kind === 'matter' && activeMatter
       ? (activeMatter.client || activeMatter.name)
-      : `all your ${entityLabel.other}`;
+      : t('ask.file-access.all-entity-scope', { entity: entityLabel.other });
   const consentBanner = (
     <FileAccessConsentBanner
       effectiveProvider={displayedProvider as ChatProvider | 'none' | null}
@@ -161,11 +331,19 @@ export function Ask(props: UseAskProps) {
     inputRef: composerInputRef,
     question,
     onQuestionChange: (v: string) => { setQuestion(v); },
-    onKeyDown: handleKeyDown,
-    onSubmit: () => void handleAsk(),
+    onKeyDown: composerKeyDown,
+    onSubmit: () => { submitQuestion(); },
     placeholder: composerPlaceholder,
     ariaLabel: composerAriaLabel,
-    isBusy,
+    // A whole-practice send has its own loading state (bookLoading) outside
+    // useAsk's turn-based status — combine both so the input/submit button
+    // disable during EITHER kind of in-flight request (otherwise a double
+    // Enter/click could fire a second book-wide summary send). Gated to the
+    // whole-practice scope: a book-wide send running in the background must
+    // never disable the composer after the advisor has switched to a
+    // different scope (the book request is independently abortable via
+    // bookAbortRef, so switching scopes doesn't leave it uncancellable).
+    isBusy: composerIsBusy(isBusy, bookLoading, askScope),
     status,
     submitLabel: askVerb,
     egressProvider: displayedProvider,
@@ -190,7 +368,11 @@ export function Ask(props: UseAskProps) {
       : streamingTurn && streamingTurn.citations.length > 0
         ? streamingTurn
         : null;
-  const sourceCitations = sourceTurn?.citations ?? [];
+  // Whole-practice answers cite sources inline per client chip (BookAnswerPanel),
+  // never through this turn-based panel — otherwise a PRIOR cited answer's
+  // sources would linger next to the new book-wide answer, looking like its
+  // citations when they aren't.
+  const sourceCitations = askScope === 'whole-practice' ? [] : (sourceTurn?.citations ?? []);
 
   const errorBanner = status === 'error' && errorMsg ? (
     <div
@@ -257,13 +439,13 @@ export function Ask(props: UseAskProps) {
       </div>
 
       {/* Body: conversations rail (left) + conversation/composer column (right) */}
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
+      <div ref={bodyRef} style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
         <ConversationsRail
           groups={railGroups}
           activeChatId={chatId}
           onSelect={handleLoadSession}
           onNewQuestion={handleNewAsk}
-          collapsed={railCollapsed}
+          collapsed={railEffectivelyCollapsed}
           onToggleCollapsed={toggleRailCollapsed}
         />
 
@@ -273,7 +455,10 @@ export function Ask(props: UseAskProps) {
         <div
           style={{
             flex: 1,
-            minWidth: 0,
+            // QA-6: a hard floor so the composer's column (and thus the input)
+            // can never be squeezed to 0. The responsive collapse above frees
+            // the room; this guarantees the primary input stays usable.
+            minWidth: COMPOSER_MIN_WIDTH,
             minHeight: 0,
             display: 'flex',
             flexDirection: 'column',
@@ -372,47 +557,74 @@ export function Ask(props: UseAskProps) {
               </div>
             )}
 
-            {/* Conversation lives in an aria-live region so screen readers
-                announce completed answers. */}
-            <div aria-live="polite" aria-atomic="false">
-              {turns.map((turn, idx) => (
-                <TurnBlock
-                  key={idx}
-                  turn={turn}
-                  turnIdx={idx}
-                  selectedTurnIdx={selectedTurnIdx}
-                  selected={selected}
-                  onCitationSelect={handleCitationSelect}
-                  onSaveToDocument={onSaveToDocument ? handleSaveToDocument : undefined}
-                  isSaving={savingIdx === idx}
-                  isPersisted={false}
-                  {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
-                />
-              ))}
-
-              {streamingTurn && (
-                <TurnBlock
-                  key="streaming"
-                  turn={streamingTurn}
-                  turnIdx={turns.length}
-                  selectedTurnIdx={selectedTurnIdx}
-                  selected={selected}
-                  onCitationSelect={handleCitationSelect}
-                  onSaveToDocument={undefined}
-                  isSaving={false}
-                  isPersisted={false}
-                  isStreaming
-                  {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
-                />
-              )}
+            {/* The scope pill: Ask always displays its current scope, one click
+                (on the composer's ScopeToggle) to switch. */}
+            <div style={{ padding: '0 var(--kp-space-md)' }}>
+              <ScopeStatusPill scope={askScope} />
             </div>
 
-            {/* B2: bridge callout below demo answers (sample matter w/ turns). */}
-            {isSampleMatter && turns.length > 0 && !streamingTurn && (
-              <SampleBridgeCallout />
-            )}
+            {askScope === 'whole-practice' ? (
+              <BookAnswerPanel
+                result={bookResult}
+                loading={bookLoading}
+                error={bookError}
+                onOpenClient={(id) => {
+                  // Explicit 'matters' surface: always open THIS client's
+                  // Client Map, never a restored snapshot of wherever they
+                  // last were (that's the point of the chip).
+                  window.dispatchEvent(new CustomEvent(EV_MATTER_LAUNCH, { detail: { matterId: id, surface: 'matters' } }));
+                }}
+                onOpenSource={(matterId, source) => { dispatchOpenSource(matterId, source); }}
+              />
+            ) : (
+              <>
+                {/* Conversation lives in an aria-live region so screen readers
+                    announce completed answers. */}
+                <div aria-live="polite" aria-atomic="false">
+                  {turns.map((turn, idx) => (
+                    <TurnBlock
+                      key={idx}
+                      turn={turn}
+                      turnIdx={idx}
+                      selectedTurnIdx={selectedTurnIdx}
+                      selected={selected}
+                      onCitationSelect={handleCitationSelect}
+                      onSaveToDocument={onSaveToDocument ? handleSaveToDocument : undefined}
+                      isSaving={savingIdx === idx}
+                      isPersisted={false}
+                      {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
+                    />
+                  ))}
 
-            {errorBanner}
+                  {streamingTurn && (
+                    <TurnBlock
+                      key="streaming"
+                      turn={streamingTurn}
+                      turnIdx={turns.length}
+                      selectedTurnIdx={selectedTurnIdx}
+                      selected={selected}
+                      onCitationSelect={handleCitationSelect}
+                      onSaveToDocument={undefined}
+                      isSaving={false}
+                      isPersisted={false}
+                      isStreaming
+                      answerStalled={answerStalled}
+                      onOpenAiStatus={() => {
+                        window.dispatchEvent(new CustomEvent(EV_OPEN_SETTINGS, { detail: { category: 'ai' } }));
+                      }}
+                      {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
+                    />
+                  )}
+                </div>
+
+                {/* B2: bridge callout below demo answers (sample matter w/ turns). */}
+                {isSampleMatter && turns.length > 0 && !streamingTurn && (
+                  <SampleBridgeCallout />
+                )}
+
+                {errorBanner}
+              </>
+            )}
 
             <div ref={bottomRef} />
           </div>
@@ -422,12 +634,14 @@ export function Ask(props: UseAskProps) {
           <AskComposer variant="bottom" {...composerCommon} />
         </div>
 
-        {/* SOURCES column — ALWAYS visible, full height. Shows the SOURCES header
-            over an empty soft panel until an answer has citations, then fills
-            with numbered citation cards. */}
+        {/* SOURCES column — full height, shown when there's room (QA-6: hidden at
+            narrow widths so the composer keeps a usable width instead of the
+            row clipping). Shows the SOURCES header over an empty soft panel
+            until an answer has citations, then fills with numbered cards. */}
+        {autoLayout.showSources && (
         <div
           style={{
-            width: 326,
+            width: SOURCES_WIDTH,
             flex: 'none',
             borderLeft: '1px solid var(--kp-divider)',
             background: 'var(--kp-bg-soft)',
@@ -451,11 +665,27 @@ export function Ask(props: UseAskProps) {
                 })}
           />
         </div>
+        )}
       </div>
 
       {/* Connector-access: one-time firm-consent prompt shown before an exported
           RightCapital/Jump report is first used to answer. */}
       <ConfirmDialog {...exportConsentDialogProps} />
+
+      {/* R6: the one honest confirm before a whole-practice question ships a
+          summary of every client to the cloud provider. */}
+      <WholePracticeSendConfirm
+        open={bookConfirm !== null}
+        clientCount={bookConfirm?.clientCount ?? 0}
+        providerName={bookConfirm?.providerName ?? null}
+        onCancel={() => { setBookConfirm(null); }}
+        onConfirm={({ remember }) => {
+          if (remember) setRememberedWholePracticeConsent(true);
+          const asked = bookConfirm?.asked ?? '';
+          setBookConfirm(null);
+          if (asked) startBookSend(asked);
+        }}
+      />
     </div>
   );
 }

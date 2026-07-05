@@ -1,4 +1,4 @@
-# cargo-deny policy for Keepance (PROPRIETARY desktop app).
+# cargo-deny policy for Lantern (PROPRIETARY desktop app).
 #
 # Purpose: a CI gate that fails the build if a dependency introduces
 #   (1) a license that is unsafe to ship inside a closed-source product
@@ -8,7 +8,7 @@
 # Run locally from `src-tauri/`:   cargo deny check advisories licenses sources bans
 # CI runs the same command on every PR (see ../.github/workflows/ci.yml).
 #
-# This file was generated from `cargo deny init` and then TUNED to Keepance's
+# This file was generated from `cargo deny init` and then TUNED to Lantern's
 # real, fully-resolved dependency tree (986 crates.io packages, all targets).
 # Schema verified against cargo-deny 0.19.x.
 
@@ -16,7 +16,7 @@
 # Dependency graph
 # ---------------------------------------------------------------------------
 # Leave `targets` empty so the policy is enforced across EVERY platform
-# Keepance ships (Windows, macOS, Linux) and every transitive target. This is
+# Lantern ships (Windows, macOS, Linux) and every transitive target. This is
 # the conservative choice for a license gate: a copyleft crate that is only
 # pulled in on one OS is still caught.
 [graph]
@@ -49,22 +49,22 @@ yanked = "deny"
 unmaintained = "workspace"
 # Advisory IDs to ignore, each with a written reason. Add an entry ONLY for an
 # advisory consciously reviewed and accepted (e.g. a vuln in a code path
-# Keepance never executes), never casually.
+# Lantern never executes), never casually.
 ignore = [
     # --- rustls-webpki 0.101.7, pulled ONLY via the AWS SDK TLS stack ---
     # Chain: rustls-webpki 0.101.7 <- rustls 0.21 <- aws-smithy/aws-sdk-*
     #        <- lance-io <- lancedb. lancedb's AWS code is for REMOTE object
-    # stores (S3 / DynamoDB). Keepance is local-first and uses lancedb purely
-    # for an on-disk vector index under ~/.keepance; it never opens an S3/
+    # stores (S3 / DynamoDB). Lantern is local-first and uses lancedb purely
+    # for an on-disk vector index under ~/.lantern; it never opens an S3/
     # DynamoDB connection, so this rustls 0.21 TLS path is never executed and
     # these certificate-validation / CRL-parsing bugs are unreachable. There is
     # no SemVer-compatible fix (0.101 -> 0.103 is a breaking bump); the real fix
     # is lancedb upgrading its aws-sdk past rustls 0.21, or building lancedb
     # without remote-store features. Tracked for removal when either lands.
     # NOTE: the actively-used rustls-webpki 0.103.x copy IS patched (>=0.103.13).
-    { id = "RUSTSEC-2026-0098", reason = "rustls-webpki 0.101.7 reached only via lancedb's AWS S3/DynamoDB TLS path, which Keepance (local-only vector store) never executes; no SemVer fix until lancedb updates aws-sdk past rustls 0.21" },
-    { id = "RUSTSEC-2026-0099", reason = "rustls-webpki 0.101.7 reached only via lancedb's AWS S3/DynamoDB TLS path, which Keepance (local-only vector store) never executes; no SemVer fix until lancedb updates aws-sdk past rustls 0.21" },
-    { id = "RUSTSEC-2026-0104", reason = "rustls-webpki 0.101.7 reached only via lancedb's AWS S3/DynamoDB TLS path, which Keepance (local-only vector store) never executes; the actively-used 0.103.x copy is patched to >=0.103.13" },
+    { id = "RUSTSEC-2026-0098", reason = "rustls-webpki 0.101.7 reached only via lancedb's AWS S3/DynamoDB TLS path, which Lantern (local-only vector store) never executes; no SemVer fix until lancedb updates aws-sdk past rustls 0.21" },
+    { id = "RUSTSEC-2026-0099", reason = "rustls-webpki 0.101.7 reached only via lancedb's AWS S3/DynamoDB TLS path, which Lantern (local-only vector store) never executes; no SemVer fix until lancedb updates aws-sdk past rustls 0.21" },
+    { id = "RUSTSEC-2026-0104", reason = "rustls-webpki 0.101.7 reached only via lancedb's AWS S3/DynamoDB TLS path, which Lantern (local-only vector store) never executes; the actively-used 0.103.x copy is patched to >=0.103.13" },
 
     # --- quick-xml 0.38.4 / 0.39.4: fixed to >=0.41.0 on the load-bearing path ---
     # The path that actually parses UNTRUSTED input — client .docx/.xlsx/.pptx via
@@ -77,14 +77,14 @@ ignore = [
     #   - quick-xml 0.38.4 <- opendal/object_store <- lance-io <- lancedb. This
     #     copy is only used to parse XML LIST responses from S3/GCS/Azure cloud
     #     object-store APIs (object_store's optional "quick-xml" feature, gated
-    #     behind its cloud backends). Keepance's lancedb connection always opens
+    #     behind its cloud backends). Lantern's lancedb connection always opens
     #     a plain local filesystem path (`rag::store::open_connection` ->
-    #     `dataset_path` = workspace_root/.keepance/vectors, never an s3://,
+    #     `dataset_path` = workspace_root/.lantern/vectors, never an s3://,
     #     gs://, or az:// URI) — same reasoning as RUSTSEC-2026-0098/99/104 above.
     #   - quick-xml 0.39.4 <- plist 1.9.0 (latest release; no newer plist exists)
     #     <- tauri-utils. Used only to build/merge the macOS/iOS Info.plist
     #     bundle metadata (`tauri_utils::config::file_associations_plist`) from
-    #     Keepance's OWN build-time tauri.conf.json / Info.plist inputs — never
+    #     Lantern's OWN build-time tauri.conf.json / Info.plist inputs — never
     #     from attacker-controlled or network-delivered XML.
     # Both advisories are quadratic-time / unbounded-allocation DoS bugs that
     # require a crafted, attacker-supplied XML document to trigger; neither
@@ -104,12 +104,12 @@ ignore = [
 # it can ship inside this closed-source app.
 #
 # Every entry below is a permissive (or public-domain-equivalent) license that
-# is ACTUALLY present in Keepance's resolved tree today and is safe to ship in
+# is ACTUALLY present in Lantern's resolved tree today and is safe to ship in
 # a proprietary binary. Two notes on weak copyleft and dual licensing:
 #
 #   * MPL-2.0 is allowed. It is FILE-LEVEL (weak) copyleft: using or linking
 #     the unmodified crates (cssparser, selectors, option-ext, dtoa-short,
-#     cssparser-macros) imposes NO obligation to open-source Keepance. Only
+#     cssparser-macros) imposes NO obligation to open-source Lantern. Only
 #     direct modifications to those specific MPL files would need sharing.
 #
 #   * Crates dual-licensed as "<permissive> OR <copyleft>" (e.g. self_cell is
@@ -152,7 +152,7 @@ exceptions = [
 unused-allowed-license = "allow"
 
 [licenses.private]
-# Keepance's own workspace crates are unpublished; never license-check them.
+# Lantern's own workspace crates are unpublished; never license-check them.
 ignore = true
 
 # ---------------------------------------------------------------------------
@@ -172,7 +172,7 @@ deny = [
 # ---------------------------------------------------------------------------
 # Sources  (cargo deny check sources)
 # ---------------------------------------------------------------------------
-# Every external dependency must come from crates.io. Keepance uses no git or
+# Every external dependency must come from crates.io. Lantern uses no git or
 # alternate-registry dependencies (verified: 986/986 external crates are
 # crates.io). A new git/unknown-registry source will fail CI — a supply-chain
 # guard against an unvetted dependency slipping in.

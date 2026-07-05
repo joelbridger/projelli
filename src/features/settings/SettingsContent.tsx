@@ -57,6 +57,7 @@ import {
 import { TemplateModelSettings } from '@/features/settings/TemplateModelSettings';
 import { PrivacySettings } from '@/features/settings/PrivacySettings';
 import { ConfidentialityModeSettings } from '@/features/settings/ConfidentialityModeSettings';
+import { RecordingNoticeSettings } from '@/features/settings/RecordingNoticeSettings';
 import { LocalAiSettingsControl } from '@/features/settings/LocalAiSettingsControl';
 import { MemoryFactsSettings } from '@/features/settings/MemoryFactsSettings';
 import { MarketplaceTab } from '@/features/workflows/marketplace/MarketplaceTab';
@@ -587,8 +588,11 @@ function AiPrivacySection(props: SectionProps) {
   // Privacy has no schema keys (rendered by PrivacySettings); treat as a match
   // unless the search clearly has nothing AI/memory either (keep it reachable).
   const privacyMatch = !props.searchActive
-    || ['privacy', 'telemetry', 'tracking', 'data', 'anonymous', 'opt']
-        .some((kw) => props.searchQuery.toLowerCase().includes(kw));
+    || ['privacy', 'telemetry', 'tracking', 'data', 'anonymous', 'opt', 'notice', 'recording', 'consent', 'strict', 'standard', 'spoken', 'script', 'policy']
+        .some((kw) => props.searchQuery.toLowerCase().includes(kw))
+    // Also match the notice settings' own schema label/description text (the
+    // control is custom-rendered, so it isn't covered by renderRows) — codex-review R5.
+    || anyMatch(['meetings.noticePolicy', 'meetings.noticeScript'], props);
 
   return (
     <div data-testid="section-ai-privacy">
@@ -645,6 +649,9 @@ function AiPrivacySection(props: SectionProps) {
           containsMatch={privacyMatch}
         >
           <PrivacySettings />
+          <div style={{ marginTop: 24 }}>
+            <RecordingNoticeSettings />
+          </div>
         </SubSection>
       </AccordionSection>
     </div>
@@ -961,7 +968,7 @@ export function SettingsContent({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'keepance-settings.json';
+    a.download = 'advisor-prep-hero-settings.json';
     a.click();
     URL.revokeObjectURL(url);
   }, [exportSettings]);

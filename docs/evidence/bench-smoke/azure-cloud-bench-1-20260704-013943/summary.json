@@ -1,0 +1,23 @@
+{
+  "overall": "SETUP-BLOCKED",
+  "counts": {
+    "PASS": 0,
+    "FAIL": 0,
+    "SETUP-BLOCKED": 1,
+    "SKIPPED": 0,
+    "TODO": 0
+  },
+  "generatedAt": "2026-07-04T01:39:49.973Z",
+  "target": "azure-cloud-bench-1",
+  "live": false,
+  "results": [
+    {
+      "id": "index-health",
+      "section": "Phase 1 — setup",
+      "status": "SETUP-BLOCKED",
+      "detail": "No \"Client Map\" surface appeared within 10s: The filename, directory name, or volume label syntax is incorrect.\r\n",
+      "screenshots": [],
+      "durationMs": 3013
+    }
+  ]
+}

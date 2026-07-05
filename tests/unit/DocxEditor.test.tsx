@@ -7,6 +7,7 @@
 // DOM and persists via docx_save.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { StrictMode } from 'react';
 import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
 
 // --- Tauri mock: a programmable invoke that dispatches by command name. ----
@@ -531,6 +532,178 @@ describe('DocxEditor — accept / reject flow', () => {
 
     await waitFor(() => expect(onDraftFollowUp).toHaveBeenCalled());
     expect(onDraftFollowUp.mock.calls[0]![0] as string).toContain('original text EDITED');
+  });
+
+  // Smoke P0 #5: normal Word notes had no discoverable "Send to Wealthbox"
+  // action at all — the only enqueue button lived in the shared-matter-only
+  // MatterNotesEditor. This adds the fold into the toolbar every other docx
+  // note already uses (beside Draft follow-up / Export).
+  describe('Send to Wealthbox (smoke P0 #5)', () => {
+    const oneRunDoc: DocumentJson = {
+      formatVersion: 1,
+      body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'Client wants a Roth conversion review.' }] }],
+      comments: {},
+    };
+
+    beforeEach(() => {
+      invokeMock.mockImplementation((cmd: string) => {
+        if (cmd === 'docx_open') return Promise.resolve(oneRunDoc);
+        if (cmd === 'docx_save') return Promise.resolve(undefined);
+        if (cmd === 'crm_is_connected') return Promise.resolve(true);
+        return Promise.resolve(undefined);
+      });
+    });
+
+    it('is hidden when there is no current matter (no onSendToWealthbox handler passed)', async () => {
+      render(
+        <TooltipProvider>
+          <DocxEditor filePath="/ws/agreement.docx" fileName="agreement.docx" />
+        </TooltipProvider>,
+      );
+      await screen.findByTestId('docx-run');
+      expect(screen.queryByTestId('docx-send-to-wealthbox')).not.toBeInTheDocument();
+    });
+
+    it('queues the note for CRM review when Wealthbox is connected, and shows a confirmation', async () => {
+      const onSendToWealthbox = vi.fn().mockReturnValue(true);
+      render(
+        <TooltipProvider>
+          <DocxEditor
+            filePath="/ws/agreement.docx"
+            fileName="agreement.docx"
+            onSendToWealthbox={onSendToWealthbox}
+          />
+        </TooltipProvider>,
+      );
+      await screen.findByTestId('docx-run');
+      const button = await screen.findByTestId('docx-send-to-wealthbox');
+      await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+      fireEvent.click(button);
+      await waitFor(() => expect(onSendToWealthbox).toHaveBeenCalled());
+      expect(onSendToWealthbox.mock.calls[0]![0] as string).toContain('Client wants a Roth conversion review.');
+      await screen.findByTestId('docx-send-to-wealthbox-confirmation');
+    });
+
+    // E3 (Tier B trust guard): an unresolved meeting note is structurally
+    // unsendable — both outbound actions are disabled and the honest reason is
+    // shown; a click never queues or drafts anything.
+    it('disables both outbound actions with an explanation when outboundBlockedReason is set', async () => {
+      const onSendToWealthbox = vi.fn().mockReturnValue(true);
+      const onDraftFollowUp = vi.fn();
+      render(
+        <TooltipProvider>
+          <DocxEditor
+            filePath="/ws/agreement.docx"
+            fileName="agreement.docx"
+            onSendToWealthbox={onSendToWealthbox}
+            onDraftFollowUp={onDraftFollowUp}
+            outboundBlockedReason="Review this note first — it hasn't been checked."
+          />
+        </TooltipProvider>,
+      );
+      await screen.findByTestId('docx-run');
+      const send = await screen.findByTestId('docx-send-to-wealthbox');
+      const draft = await screen.findByTestId('docx-draft-follow-up');
+      expect((send as HTMLButtonElement).disabled).toBe(true);
+      expect((draft as HTMLButtonElement).disabled).toBe(true);
+      // The honest explanation is visible, not just a tooltip.
+      expect(screen.getByTestId('docx-outbound-blocked').textContent).toContain('Review this note first');
+      // Forcing a click does nothing — the note cannot leave.
+      fireEvent.click(send);
+      fireEvent.click(draft);
+      await new Promise((r) => setTimeout(r, 10));
+      expect(onSendToWealthbox).not.toHaveBeenCalled();
+      expect(onDraftFollowUp).not.toHaveBeenCalled();
+    });
+
+    // resolved (no reason) → the outbound actions work as normal.
+    it('leaves the outbound actions enabled when no block reason is set', async () => {
+      const onSendToWealthbox = vi.fn().mockReturnValue(true);
+      render(
+        <TooltipProvider>
+          <DocxEditor
+            filePath="/ws/agreement.docx"
+            fileName="agreement.docx"
+            onSendToWealthbox={onSendToWealthbox}
+          />
+        </TooltipProvider>,
+      );
+      await screen.findByTestId('docx-run');
+      const button = await screen.findByTestId('docx-send-to-wealthbox');
+      await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+      expect(screen.queryByTestId('docx-outbound-blocked')).not.toBeInTheDocument();
+    });
+
+    // codex-review: a blank/table-only document has no extractable title, so
+    // the enqueue callback reports back "nothing queued" — the toolbar must
+    // not claim success for a no-op enqueue.
+    it('does not show a confirmation when the callback reports nothing was queued', async () => {
+      const onSendToWealthbox = vi.fn().mockReturnValue(false);
+      render(
+        <TooltipProvider>
+          <DocxEditor
+            filePath="/ws/agreement.docx"
+            fileName="agreement.docx"
+            onSendToWealthbox={onSendToWealthbox}
+          />
+        </TooltipProvider>,
+      );
+      await screen.findByTestId('docx-run');
+      const button = await screen.findByTestId('docx-send-to-wealthbox');
+      await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+      fireEvent.click(button);
+      await waitFor(() => expect(onSendToWealthbox).toHaveBeenCalled());
+      expect(screen.queryByTestId('docx-send-to-wealthbox-confirmation')).not.toBeInTheDocument();
+    });
+
+    // QA finding (P3): the confirmation needs a real, actionable "Review now"
+    // jump alongside the plain copy, not just a toast that auto-clears.
+    it('shows a "Review now" action next to the confirmation that calls onReviewWealthboxQueue', async () => {
+      const onSendToWealthbox = vi.fn().mockReturnValue(true);
+      const onReviewWealthboxQueue = vi.fn();
+      render(
+        <TooltipProvider>
+          <DocxEditor
+            filePath="/ws/agreement.docx"
+            fileName="agreement.docx"
+            onSendToWealthbox={onSendToWealthbox}
+            onReviewWealthboxQueue={onReviewWealthboxQueue}
+          />
+        </TooltipProvider>,
+      );
+      await screen.findByTestId('docx-run');
+      const button = await screen.findByTestId('docx-send-to-wealthbox');
+      await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+      fireEvent.click(button);
+      await screen.findByTestId('docx-send-to-wealthbox-confirmation');
+
+      fireEvent.click(screen.getByTestId('docx-send-to-wealthbox-review-now'));
+      expect(onReviewWealthboxQueue).toHaveBeenCalledTimes(1);
+    });
+
+    it('disables the action with an explanation when Wealthbox is not connected', async () => {
+      invokeMock.mockImplementation((cmd: string) => {
+        if (cmd === 'docx_open') return Promise.resolve(oneRunDoc);
+        if (cmd === 'crm_is_connected') return Promise.resolve(false);
+        return Promise.resolve(undefined);
+      });
+      const onSendToWealthbox = vi.fn();
+      render(
+        <TooltipProvider>
+          <DocxEditor
+            filePath="/ws/agreement.docx"
+            fileName="agreement.docx"
+            onSendToWealthbox={onSendToWealthbox}
+          />
+        </TooltipProvider>,
+      );
+      await screen.findByTestId('docx-run');
+      const button = await screen.findByTestId('docx-send-to-wealthbox') as HTMLButtonElement;
+      await waitFor(() => expect(button.disabled).toBe(true));
+      expect(button.title.toLowerCase()).toContain('connect');
+      fireEvent.click(button);
+      expect(onSendToWealthbox).not.toHaveBeenCalled();
+    });
   });
 
   // CLUSTER-C1 (data loss, coordinator review): a run that blurs JUST before
@@ -1294,4 +1467,232 @@ describe('DocxEditor — Export (A6)', () => {
       expect.anything(),
     );
   });
+});
+
+// ── QA-34 (P0): silent data loss when a .docx autosave write fails ──────────
+//
+// Repro (bench-2): an antivirus/backup process briefly holds an exclusive OS
+// lock on the file. The app's save write fails ONCE and then never retries and
+// never writes again for that document — while the UI keeps saying "Saved."
+// These tests pin the robust behaviour: a failed save is TRUTHFUL (error state,
+// never "Saved"), self-heals with automatic retry once the lock clears, and a
+// PERSISTENT failure escalates to a non-timeout-dismissable warning with a
+// "Save a copy elsewhere" escape hatch — the user's typing is never lost.
+describe('DocxEditor — QA-34 save resilience', () => {
+  beforeEach(() => {
+    invokeMock.mockReset();
+    saveDialogMock.mockReset();
+  });
+
+  // A doc with exactly one insertion revision (id 100). Accepting it schedules a
+  // save, which is the observable seam we drive these tests through.
+  function oneRevisionDoc(): DocumentJson {
+    return {
+      formatVersion: 1,
+      body: [
+        {
+          kind: 'paragraph',
+          inlines: [
+            { kind: 'run', text: 'The party ' },
+            {
+              kind: 'insertion',
+              meta: { id: '100', author: 'Alice', date: '2026-01-02T09:00:00Z' },
+              runs: [{ text: 'hereby ' }],
+            },
+            { kind: 'run', text: 'agrees.' },
+          ],
+        },
+      ],
+      comments: {},
+    };
+  }
+  const resolvedDoc: DocumentJson = {
+    formatVersion: 1,
+    body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'The party hereby agrees.' }] }],
+    comments: {},
+  };
+
+  async function triggerSaveViaAccept() {
+    const list = await screen.findByTestId('docx-revision-list');
+    const insRow = within(list)
+      .getAllByTestId('docx-revision-row')
+      .find((r) => r.getAttribute('data-revision-id') === '100')!;
+    fireEvent.click(within(insRow).getByTestId('docx-accept-one'));
+  }
+
+  it('a failed save is shown as an error (never "Saved") and self-heals via automatic retry', async () => {
+    let saveAttempts = 0;
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'docx_open') return Promise.resolve(oneRevisionDoc());
+      if (cmd === 'docx_resolve_revision') return Promise.resolve(resolvedDoc);
+      if (cmd === 'docx_save') {
+        saveAttempts += 1;
+        // Fail the FIRST write (lock held), then succeed (lock released).
+        return saveAttempts === 1
+          ? Promise.reject(new Error('The process cannot access the file (locked)'))
+          : Promise.resolve(undefined);
+      }
+      return Promise.resolve(undefined);
+    });
+
+    renderEditor();
+    await triggerSaveViaAccept();
+
+    // The failed write must surface as an error — NOT a false "Saved".
+    await waitFor(
+      () => expect(screen.getByTestId('auto-save-indicator')).toHaveAttribute('data-state', 'error'),
+      { timeout: 4000 },
+    );
+
+    // With NO further user action, the retry lands after the lock clears and the
+    // indicator returns to a truthful saved state — and the content is persisted.
+    await waitFor(
+      () => expect(screen.getByTestId('auto-save-indicator')).toHaveAttribute('data-state', 'saved-recent'),
+      { timeout: 8000 },
+    );
+    expect(saveAttempts).toBeGreaterThanOrEqual(2);
+  }, 15000);
+
+  it('a persistent save failure escalates to a non-dismissable warning and never shows "Saved"', async () => {
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'docx_open') return Promise.resolve(oneRevisionDoc());
+      if (cmd === 'docx_resolve_revision') return Promise.resolve(resolvedDoc);
+      if (cmd === 'docx_save') return Promise.reject(new Error('locked — persistent'));
+      return Promise.resolve(undefined);
+    });
+
+    renderEditor();
+    await triggerSaveViaAccept();
+
+    // After sustained failure, a visible warning appears with the escape hatch.
+    await waitFor(
+      () => expect(screen.getByTestId('docx-save-escalation')).toBeInTheDocument(),
+      { timeout: 12000 },
+    );
+    expect(screen.getByTestId('docx-save-copy-elsewhere')).toBeInTheDocument();
+    // The save indicator must still read as an error — never "Saved".
+    expect(screen.getByTestId('auto-save-indicator')).toHaveAttribute('data-state', 'error');
+  }, 20000);
+
+  it('"Save a copy elsewhere" writes the current document to a user-chosen path', async () => {
+    saveDialogMock.mockResolvedValue('/backup/agreement-rescued.docx');
+    invokeMock.mockImplementation((cmd: string, args?: Record<string, unknown>) => {
+      if (cmd === 'docx_open') return Promise.resolve(oneRevisionDoc());
+      if (cmd === 'docx_resolve_revision') return Promise.resolve(resolvedDoc);
+      if (cmd === 'docx_save') {
+        // The ORIGINAL path stays locked; the rescue copy goes elsewhere and works.
+        return args?.['path'] === '/ws/agreement.docx'
+          ? Promise.reject(new Error('locked'))
+          : Promise.resolve(undefined);
+      }
+      return Promise.resolve(undefined);
+    });
+
+    renderEditor();
+    await triggerSaveViaAccept();
+
+    const rescue = await screen.findByTestId('docx-save-copy-elsewhere', undefined, { timeout: 12000 });
+    fireEvent.click(rescue);
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith(
+        'docx_save',
+        expect.objectContaining({ path: '/backup/agreement-rescued.docx' }),
+      ),
+    );
+  }, 20000);
+
+  // Coordinator P2 #1: the mounted-tracking effect must set the ref true in
+  // SETUP, not only false in cleanup — else React 18 StrictMode's dev
+  // setup→cleanup→setup flips it to false on the first remount and never
+  // restores it, silently DISABLING all save retries in dev/QA. Under StrictMode,
+  // a fail-once save must still self-heal via retry.
+  it('retries still work under React 18 StrictMode (mountedRef restored on setup)', async () => {
+    let saveAttempts = 0;
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'docx_open') return Promise.resolve(oneRevisionDoc());
+      if (cmd === 'docx_resolve_revision') return Promise.resolve(resolvedDoc);
+      if (cmd === 'docx_save') {
+        saveAttempts += 1;
+        return saveAttempts === 1
+          ? Promise.reject(new Error('locked once'))
+          : Promise.resolve(undefined);
+      }
+      return Promise.resolve(undefined);
+    });
+
+    render(
+      <StrictMode>
+        <TooltipProvider>
+          <DocxEditor filePath="/ws/agreement.docx" fileName="agreement.docx" />
+        </TooltipProvider>
+      </StrictMode>,
+    );
+    await triggerSaveViaAccept();
+
+    // The retry must fire despite StrictMode's dev double-mount and recover.
+    await waitFor(
+      () => expect(screen.getByTestId('auto-save-indicator')).toHaveAttribute('data-state', 'saved-recent'),
+      { timeout: 8000 },
+    );
+    expect(saveAttempts).toBeGreaterThanOrEqual(2);
+  }, 15000);
+
+  // Coordinator P2 #2: the "Save a copy elsewhere" rescue must commit a focused,
+  // un-blurred edit (and drain the op queue) BEFORE reading the doc, exactly like
+  // the export path — the rescue copy is the one that must never omit the newest
+  // text. Without the fix, the rescue writes the pre-edit doc.
+  it('the rescue "Save a copy" commits an in-progress un-blurred edit before writing', async () => {
+    const oneRunDoc: DocumentJson = {
+      formatVersion: 1,
+      body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'original text' }] }],
+      comments: {},
+    };
+    saveDialogMock.mockReset();
+    saveDialogMock.mockResolvedValue('/backup/rescued.docx');
+    invokeMock.mockImplementation((cmd: string, args?: Record<string, unknown>) => {
+      if (cmd === 'docx_open') return Promise.resolve(oneRunDoc);
+      if (cmd === 'docx_save') {
+        // Original stays locked (drives escalation); the rescue copy elsewhere works.
+        return args?.['path'] === '/ws/agreement.docx'
+          ? Promise.reject(new Error('locked'))
+          : Promise.resolve(undefined);
+      }
+      return Promise.resolve(undefined);
+    });
+
+    renderEditor();
+    const run = await screen.findByTestId('docx-run');
+    fireEvent.click(screen.getByTestId('docx-reviewing-toggle'));
+
+    // First edit + blur → commits → schedules a save that FAILS repeatedly → escalation.
+    fireEvent.focus(run);
+    run.textContent = 'original text EDIT1';
+    fireEvent.blur(run);
+
+    const rescue = await screen.findByTestId('docx-save-copy-elsewhere', undefined, { timeout: 12000 });
+
+    // Second edit — focused, NOT blurred — must be folded in by the rescue's commit.
+    fireEvent.focus(run);
+    run.textContent = 'original text EDIT1 EDIT2';
+    fireEvent.click(rescue);
+
+    await waitFor(
+      () =>
+        expect(invokeMock).toHaveBeenCalledWith(
+          'docx_save',
+          expect.objectContaining({
+            path: '/backup/rescued.docx',
+            document: expect.objectContaining({
+              body: [
+                expect.objectContaining({
+                  inlines: [expect.objectContaining({ text: expect.stringContaining('EDIT2') })],
+                }),
+              ],
+            }),
+          }),
+        ),
+      { timeout: 5000 },
+    );
+  }, 25000);
 });

@@ -1,0 +1,20 @@
+ROLE: Windows bench worker — CORRECTED re-smoke of Lantern-Plus Waves 0-2 (smoke-2). You ran smoke-1 (evidence: coordination/smoke-1/RUN-LOG.md); triage showed 3 of your 5 P0s were bench-SETUP artifacts, not code bugs, and the other 2 were real and are now FIXED on the tip. This run must produce a trustworthy verdict on whether Waves 0-2 actually work end-to-end.
+
+BASE: everything in w-bench-smoke-brief.md still binds (bench access, fork rules, read-only-except-evidence, main-line handover conditions: C:\bench-backups\ and C:\KeepanceWorkspaces\ untouched). Evidence dir for THIS run: docs/evidence/windows-smoke-2/ on branch lp/windows-smoke-evidence.
+
+PHASING (run as two phases so prep parallelizes with the fix merge):
+- PHASE 1 — START IMMEDIATELY on the CURRENT lantern-plus tip (none of this depends on the pending fixes, and all of it survives a later git pull): bench prep (pull tip, sidecars gotcha below, npm install, app running); the 3 setup corrections below INCLUDING their VERIFY steps for #1 and #2 (folderPaths rebind + re-index are setup artifacts, testable now); and the calendar OAuth (#3) including the Jameson passkey ask — the stored token survives the pull. Report "PHASE-1 PREP COMPLETE" (plain text, not the sentinel) with what verified.
+- PHASE 2 — ONLY after the coordinator messages you that lp/smoke-p0-fixes is merged: git pull the final tip, restart the app, then run the full smoke script + the 2 fix re-tests below.
+
+Fresh-checkout gotcha from smoke-1: copy src-tauri/binaries/* Windows sidecars from an existing checkout (e.g. C:\keepance\src-tauri\binaries\) before the first build.
+
+THE 3 SETUP CORRECTIONS (the whole point of this run — each smoke-1 artifact, corrected):
+1. WORKSPACE (fixes smoke-1 #2, per-client Files empty + docs-to-root): after copying/placing the demo workspace at C:\lantern-plus-smoke\, the matter→folder bindings (`folderPaths`) MUST point at real folders under the NEW path before you test. Do it the way an advisor would if possible (re-associate the client folders in the app UI); if there's no UI path, rebind the stored matter folderPaths for the new root (you have the code: AppSurfaceRouter.tsx:377 / scopeFileTree.ts:193 show what's read). VERIFY before proceeding: per-client Files tab shows the client's real files, and a new doc created from a client lands in that client's folder, not root docs/.
+2. RE-INDEX (fixes smoke-1 #3, Client Map "check your AI connection"): after the workspace is in place, RE-INDEX the workspace memory (the RAG store threw "memory integrity uncertain; re-index this workspace" on the copied path). VERIFY: per-client Client Map builds without the AI-connection error.
+3. CALENDAR OAUTH (fixes smoke-1 #4): start the in-app Connect Microsoft flow ONCE and DO NOT CANCEL IT — the backend fail-closed rollback discards the token on cancel (that's correct behavior, not a bug). When the sign-in needs Jameson's passkey: notify-jameson (--level critical, NEED YOU, plain language: "tap the passkey for the calendar sign-in on the test laptop") and WAIT with the flow pending, polling until it completes. If it somehow dies, start a FRESH connect flow — never resume a cancelled one.
+
+THEN the full smoke script from w-bench-smoke-brief.md steps 2-5, PLUS explicit re-tests of the 2 fixed bugs:
+- Save-to-Drafts: in Draft follow-up, the account selector must default to a draft-capable account and Save must be enabled + actually land the draft in the real mailbox (smoke-1 #1 fix).
+- Send to Wealthbox: from a NORMAL client Word note (not shared-matter notes), the toolbar must offer Send to Wealthbox → queues into the review card → Approve → note appears in the bench Wealthbox test account (smoke-1 #5 fix).
+
+HANDOFF BAR: RUN-LOG.md in docs/evidence/windows-smoke-2/ with per-step PASS/FAIL + screenshots + exact repro for failures + severity; commit+push the evidence branch; restore the bench quiet (remove any scheduled task you add; KeepanceDev untouched); print the sentinel as the very LAST line: WORKER-DONE: windows-smoke-2 ready for review

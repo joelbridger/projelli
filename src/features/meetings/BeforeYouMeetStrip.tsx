@@ -97,6 +97,7 @@ export function BeforeYouMeetStrip({ matterId }: { matterId: string }) {
       const md = await agendaMarkdownFromBrief(brief, {
         clientLabel,
         eventTitle: brief.eventTitle,
+        matterId,
       });
       const { markdownToDocxBytes } = await import('@/platform/utils/docx-io');
       const { saveFile } = await import('@/platform/utils/saveFile');

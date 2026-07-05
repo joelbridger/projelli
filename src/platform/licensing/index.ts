@@ -9,7 +9,7 @@ export {
   normalizeStatus,
   toLicenseRecord,
   entitlementMessage,
-  KEEPANCE_3_0_LAUNCH,
+  LANTERN_3_0_LAUNCH,
   OFFLINE_GRACE_DAYS,
   type Entitlement,
   type EntitlementState,

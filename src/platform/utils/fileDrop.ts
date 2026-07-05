@@ -73,7 +73,7 @@ export interface WriteDroppedFilesOptions {
  * the DOM drag-and-drop DataTransfer pipe. Export so consumers don't have
  * to type the literal everywhere.
  */
-export const AI_MESSAGE_MIME = 'application/x-keepance-chat-message';
+export const AI_MESSAGE_MIME = 'application/x-lantern-chat-message';
 
 /**
  * UX-28: Derive a reasonable filename from arbitrary AI chat content.

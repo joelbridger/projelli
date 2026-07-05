@@ -12,3 +12,19 @@
 # To populate locally: cd src-tauri && cargo run --bin prefetch_model
 # The .gitkeep files inside are committed; the model blobs are not.
 /resources/embeddings/models--intfloat--multilingual-e5-small/
+
+# Diarization models (populated by scripts/fetch-diarize-models.sh, never committed).
+/resources/diarize/*.onnx
+
+# Voice transcription models (populated by scripts/fetch-voice-models.sh, never committed).
+/resources/voice/models/*.bin
+
+# lantern-diarize is a standalone crate (own [workspace] table, own target dir
+# unless CARGO_TARGET_DIR is set) — never linked into this workspace's target.
+/sidecar-src/lantern-diarize/target/
+
+# Real whisper.cpp source, cloned + built by scripts/build-voice-sidecar.sh.
+# Unlike sidecar-src/lantern-diarize/ (our own crate, committed), this is a
+# third-party upstream clone used purely as a local build cache — never
+# committed.
+/sidecar-src/whisper-cpp/

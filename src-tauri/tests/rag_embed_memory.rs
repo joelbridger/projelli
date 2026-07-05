@@ -5,7 +5,7 @@
 //! chunks through the production batched path and asserts completion plus
 //! (on Linux) a sane process peak RSS.
 //!
-//! Needs the e5-small cache (this rig: ~/.local/share/keepance/models/
+//! Needs the e5-small cache (this rig: ~/.local/share/lantern/models/
 //! e5-small — same prerequisite as rag_matter_scope.rs / leg 1). Heavy:
 //! run explicitly with `-- --ignored`.
 

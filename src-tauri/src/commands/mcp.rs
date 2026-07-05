@@ -6,7 +6,7 @@
 // own, so when a client calls `write_workspace_file` with
 // `require_confirmation = true` it writes an approval request JSON to
 // `<temp>/lantern-mcp/approval-requests/<token>.json` and emits a single
-// `keepance/approval_request` line on stderr.
+// `lantern/approval_request` line on stderr.
 //
 // This module gives the Advisor Prep Hero desktop app the three commands it needs to
 // surface that request to the user and ship the decision back:
@@ -147,8 +147,8 @@ pub async fn mcp_approve_write(token: String, approved: bool) -> Result<(), Stri
 /// Resolve the path to the `.mcpb` bundle for the current platform.
 ///
 /// Build order:
-///   1. `<resource_dir>/mcpb/keepance-<target>.mcpb`  (production Tauri)
-///   2. `<repo_root>/dist/keepance-<target>.mcpb`     (local dev build)
+///   1. `<resource_dir>/mcpb/lantern-<target>.mcpb`  (production Tauri)
+///   2. `<repo_root>/dist/lantern-<target>.mcpb`     (local dev build)
 ///
 /// Returns `None` when neither file is found so the UI can show a "run
 /// `npm run build:mcpb` first" hint instead of a scary error.
@@ -174,7 +174,7 @@ pub async fn mcp_bundle_path(
     if let Ok(cwd) = std::env::current_dir() {
         // Walk up to find repo root (has a `package.json` and a `src-tauri`
         // sibling). Two levels up usually lands us at the repo root from
-        // `src-tauri/target/debug/keepance`.
+        // `src-tauri/target/debug/lantern`.
         for candidate in [cwd.clone(), cwd.join(".."), cwd.join("..").join("..")] {
             let p = candidate.join("dist").join(&candidate_name);
             if p.exists() {

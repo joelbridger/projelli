@@ -45,9 +45,11 @@ import type { Matter, MatterScope } from '@/platform/types/matter';
 import type { AuditEntry } from '@/platform/types/audit';
 import {
   resolveMatterId,
+  resolveMatterMatchAcrossForms,
   findMatter,
   normalize as normalizeMatterPath,
   normalizeMeetingKey,
+  type MatterMatch,
 } from '@/platform/rag/matterResolver';
 import { isAbsolutePath, joinWorkspacePath } from '@/platform/fs/appPath';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
@@ -71,7 +73,7 @@ export const SAMPLE_MATTER_ID = 'matter_sample_garcia_v_meridian';
 
 /** The Client Map hub's sub-tabs. A one-shot `clientMapHubTab` request lets the
  *  client-list quick-actions open the hub on a SPECIFIC sub-tab. */
-export type ClientMapHubTab = 'overview' | 'documents' | 'email' | 'activity';
+export type ClientMapHubTab = 'overview' | 'documents' | 'email' | 'meetings' | 'activity';
 
 /** Generate a stable matter id. Uses crypto.randomUUID when available. */
 function newMatterId(): string {
@@ -190,6 +192,43 @@ function dedupeFolderPaths(paths: unknown[], workspaceRoot: string | null): stri
     out.push(canonical);
   }
   return out;
+}
+
+/**
+ * QA-24 (P1) — store-level backstop against two matters silently sharing one
+ * folder. `deriveNewClientFolderPath` (matterManagerDialogHelpers.ts) already
+ * uniquifies a candidate against the caller's OWN snapshot of `matters`, but
+ * that snapshot can be stale: a double/triple-clicked "Create client" button
+ * fires its handler multiple times before React re-renders, so every
+ * invocation reads the SAME snapshot and independently derives the SAME
+ * "free" candidate. The per-call check can never catch that race — only a
+ * check against the LIVE store state, made at the moment of the actual write,
+ * can. This is that check: it re-verifies every incoming folder path against
+ * every OTHER matter's current folder paths and appends a numeric suffix on
+ * an exact collision, exactly like the dialog's own derivation does, so
+ * `createMatter` guarantees uniqueness however (and from wherever) it's
+ * called. An exact match is the only thing guarded against — a candidate
+ * NESTED inside another matter's folder (e.g. a per-client folder nested
+ * under the sample matter's whole-workspace-root folder) is a deliberate,
+ * non-colliding pattern and is left alone (see `deriveNewClientFolderPath`'s
+ * containment comment for why nesting itself is fine).
+ */
+function ensureUniqueFolderPaths(candidatePaths: string[], existingMatters: Matter[]): string[] {
+  const taken = new Set(
+    existingMatters.flatMap((m) => m.folderPaths).map((p) => p.toLowerCase()),
+  );
+  const result: string[] = [];
+  for (const candidate of candidatePaths) {
+    let unique = candidate;
+    let n = 2;
+    while (taken.has(unique.toLowerCase())) {
+      unique = `${candidate} ${String(n)}`;
+      n += 1;
+    }
+    taken.add(unique.toLowerCase());
+    result.push(unique);
+  }
+  return result;
 }
 
 /** Index `existing` folderPaths by their normalized form, so a live edit
@@ -396,6 +435,15 @@ interface MatterState {
    */
   clientMapHubTab: ClientMapHubTab | null;
   setClientMapHubTab: (tab: ClientMapHubTab | null) => void;
+
+  /**
+   * Ephemeral one-shot request to open a SPECIFIC meeting (and seek its
+   * transcript to a timestamp) when the Meetings sub-tab next renders — set
+   * when a `meeting:<dir>#<ms>` Client Map source link or Activity entry is
+   * clicked. ClientMeetingsTab/MeetingEntry consume + clear it. Never persisted.
+   */
+  pendingMeetingOpen: { meetingDir: string; startMs: number } | null;
+  setPendingMeetingOpen: (req: { meetingDir: string; startMs: number } | null) => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -428,6 +476,12 @@ export function setMatterAuditEmitter(
   emitter: MatterAuditEmitter | null
 ): void {
   activeMatterAuditEmitter = emitter;
+}
+
+/** Non-reactive accessor so other platform modules (e.g. clientMapStore) can
+ *  emit to the live Activity Log without threading a callback prop through. */
+export function getMatterAuditEmitter(): MatterAuditEmitter | null {
+  return activeMatterAuditEmitter;
 }
 
 function auditMatterMcpAccess(matter: Matter, granted: boolean): void {
@@ -538,11 +592,15 @@ export const useMatterStore = create<MatterState>()(
       activeMatterId: null,
 
       createMatter: (input) => {
+        const canonicalFolderPaths = dedupeFolderPaths(
+          input.folderPaths ?? [],
+          getWorkspaceRootNonReactive(),
+        );
         const matter: Matter = {
           id: input.id ?? newMatterId(),
           name: input.name.trim(),
           client: input.client.trim(),
-          folderPaths: dedupeFolderPaths(input.folderPaths ?? [], getWorkspaceRootNonReactive()),
+          folderPaths: ensureUniqueFolderPaths(canonicalFolderPaths, get().matters),
           mailFolderPaths: Array.from(
             new Set((input.mailFolderPaths ?? []).filter(Boolean))
           ),
@@ -1109,6 +1167,8 @@ export const useMatterStore = create<MatterState>()(
       setClientMapHubId: (id) => set({ clientMapHubId: id }),
       clientMapHubTab: null,
       setClientMapHubTab: (tab) => set({ clientMapHubTab: tab }),
+      pendingMeetingOpen: null,
+      setPendingMeetingOpen: (req) => set({ pendingMeetingOpen: req }),
     }),
     {
       name: SK_MATTERS,
@@ -1351,6 +1411,25 @@ export function isActiveMatterPrivileged(): boolean {
  */
 export function resolveMatterIdForPath(path: string): string {
   return resolveMatterId(path, useMatterStore.getState().matters);
+}
+
+/**
+ * Resolve every equivalent SHAPE of the same underlying file (e.g. its
+ * workspace-relative form and its `rootPath`-joined absolute form) TOGETHER,
+ * reporting whether an unassigned result was a genuine identity conflict
+ * (two matters claim overlapping folders, in any shape) rather than a plain
+ * non-match. Callers that need to resolve a workspace path to its matter
+ * (e.g. `resolveMatterIdForWorkspacePath`) must use this rather than trying
+ * shapes one at a time, so a stale/legacy folder entry that matches ONE
+ * shape cleanly can never paper over a real ambiguity found via another
+ * shape of the identical file. Pass `rootPath` (when known) so each matter's
+ * folders are ALSO canonicalized to absolute before comparing — otherwise a
+ * legacy-relative folder claim and an absolute claim for the SAME physical
+ * folder tie at different raw string lengths and the absolute one silently
+ * "wins" instead of the genuine ambiguity failing closed.
+ */
+export function resolveMatterMatchForPaths(paths: string[], rootPath?: string | null): MatterMatch {
+  return resolveMatterMatchAcrossForms(paths, useMatterStore.getState().matters, rootPath);
 }
 
 /**

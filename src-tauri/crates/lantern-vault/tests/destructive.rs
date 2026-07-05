@@ -11,7 +11,7 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use lantern_vault::vault::*;
 use std::fs;
 
-const TEST_ESCROW_AAD_PREFIX: &str = "keepance-vault-test-admin-escrow:v1:epoch:";
+const TEST_ESCROW_AAD_PREFIX: &str = "lantern-vault-test-admin-escrow:v1:epoch:";
 const TEST_ESCROW_NONCE_LEN: usize = 12;
 const TEST_ESCROW_TAG_LEN: usize = 16;
 
@@ -79,7 +79,7 @@ fn unwrap_vmk_from_test_admin_escrow(
 /// store dir (LanceDB index, SQLCipher mail/audit DBs, encrypted mail blobs) — those are
 /// read raw by other subsystems and KPV1-wrapping them would corrupt them irrecoverably.
 #[test]
-fn walk_never_touches_keepance_internal_dir() {
+fn walk_never_touches_lantern_internal_dir() {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path();
     fs::create_dir_all(root.join(".lantern/vectors")).unwrap();

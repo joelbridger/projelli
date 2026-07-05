@@ -1,0 +1,90 @@
+/**
+ * P1 fix (2026-07): a failed disk scan must never render identically to a
+ * genuinely empty client (docs/evidence/meetings-verify-20260704/RUN-LOG.md,
+ * finding #6 — "No meetings yet" is exactly what an advisor saw after a
+ * transient scan failure, indistinguishable from real emptiness).
+ */
+import { render, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { ClientMeetingsTab } from '@/features/meetings/ClientMeetingsTab';
+
+function makeWorkspace(overrides: {
+  list: (path: string) => Promise<{ name: string; path: string; type: 'file' | 'folder' }[]>;
+  exists?: (path: string) => Promise<boolean>;
+}) {
+  return {
+    list: overrides.list,
+    exists: overrides.exists ?? (async () => true),
+    readFile: async () => { throw new Error('not used'); },
+    writeFile: async () => {},
+  };
+}
+
+describe('ClientMeetingsTab — scan failure vs genuine empty', () => {
+  it('shows the real "No meetings yet" empty state when the Meetings folder genuinely has none', async () => {
+    const ws = makeWorkspace({
+      exists: async () => false,
+      list: async () => { throw new Error('should not be called — exists() already said no'); },
+    });
+
+    render(
+      <ClientMeetingsTab
+        matterId="m1"
+        matterFolder="C:/WS/Clients/Acme"
+        onOpenMeeting={() => {}}
+        workspaceService={ws}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('client-meetings-empty')).toBeTruthy());
+    expect(screen.queryByTestId('client-meetings-scan-error')).toBeNull();
+  });
+
+  it('shows a distinct scan-error state (with a retry action) instead of "No meetings yet" when the scan keeps failing', async () => {
+    const ws = makeWorkspace({
+      exists: async () => true,
+      list: async () => { throw new Error('permanently broken backend'); },
+    });
+
+    render(
+      <ClientMeetingsTab
+        matterId="m1"
+        matterFolder="C:/WS/Clients/Acme"
+        onOpenMeeting={() => {}}
+        workspaceService={ws}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('client-meetings-scan-error')).toBeTruthy());
+    expect(screen.queryByTestId('client-meetings-empty')).toBeNull();
+    expect(screen.getByTestId('client-meetings-retry-button')).toBeTruthy();
+  });
+
+  it('retry button re-runs the scan and recovers once the backend is healthy again', async () => {
+    let healthy = false;
+    const list = vi.fn(async (path: string) => {
+      if (!healthy) throw new Error('still broken');
+      return path.endsWith('/Meetings')
+        ? [{ name: '2026-07-04-a', path: 'C:/WS/Clients/Acme/Meetings/2026-07-04-a', type: 'folder' as const }]
+        : [];
+    });
+    const ws = makeWorkspace({ exists: async () => true, list });
+
+    render(
+      <ClientMeetingsTab
+        matterId="m1"
+        matterFolder="C:/WS/Clients/Acme"
+        onOpenMeeting={() => {}}
+        workspaceService={ws}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('client-meetings-scan-error')).toBeTruthy());
+
+    healthy = true;
+    screen.getByTestId('client-meetings-retry-button').click();
+
+    await waitFor(() => expect(screen.queryAllByTestId('meeting-row')).toHaveLength(1));
+    expect(screen.queryByTestId('client-meetings-scan-error')).toBeNull();
+  });
+});

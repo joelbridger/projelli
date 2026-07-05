@@ -154,6 +154,34 @@ describe('buildClientMap', () => {
     expect(sendMock).not.toHaveBeenCalled();
   });
 
+  it('logs an egress audit entry BEFORE provider.sendMessage, not only after success', async () => {
+    // Trust-fixes finding #1: egress must be recorded even if the send never
+    // resolves successfully (timeout/error), so the Activity Log never
+    // silently misses that client data left the machine.
+    retrieveMock.mockResolvedValue([hit('/a.docx', 'fact')]);
+    const order: string[] = [];
+    sendMock.mockImplementation(() => {
+      order.push('send');
+      return Promise.reject(new Error('simulated timeout'));
+    });
+    const onAuditLog = vi.fn((entry: { action?: string }) => {
+      if (entry.action === 'egress') order.push('egress-audit');
+    });
+    await expect(buildClientMap('m1', { onAuditLog })).rejects.toThrow('simulated timeout');
+    expect(order).toEqual(['egress-audit', 'send']);
+  });
+
+  it('logs a model_call audit entry after a successful send (existing behavior preserved)', async () => {
+    retrieveMock.mockResolvedValue([hit('/a.docx', 'fact')]);
+    sendMock.mockResolvedValue({ content: JSON.stringify({ items: [] }) });
+    const onAuditLog = vi.fn();
+    await buildClientMap('m1', { onAuditLog });
+    const modelCallEntries = onAuditLog.mock.calls
+      .map((c) => c[0] as { action?: string })
+      .filter((e) => e.action === 'model_call');
+    expect(modelCallEntries.length).toBeGreaterThan(0);
+  });
+
   it('still accepts a plain list of gap question strings (defaults them to standing)', async () => {
     retrieveMock.mockResolvedValue([hit('/a.docx', 'fact')]);
     sendMock.mockImplementation((msg: string, opts?: { systemPrompt?: string }) => {

@@ -22,7 +22,7 @@
 //! MODEL: like the other RAG integration tests this SKIPS when the e5-small
 //! cache is absent (CI), and `REQUIRE_RAG_MODEL=1` turns a missing model into a
 //! hard failure instead of a silent skip. Run it for real with:
-//!   REQUIRE_RAG_MODEL=1 cargo test -p keepance --test rag_retrieval_quality -- --nocapture
+//!   REQUIRE_RAG_MODEL=1 cargo test -p lantern --test rag_retrieval_quality -- --nocapture
 
 use lantern_lib::commands::rag::chunker::Chunk;
 use lantern_lib::commands::rag::store::{self, SourceType, PRIVILEGE_NONE};
@@ -416,7 +416,7 @@ async fn retrieval_reranker_off_vs_on() {
         if std::env::var("REQUIRE_RERANKER_MODEL").ok().filter(|v| !v.is_empty()).is_some() {
             panic!(
                 "REQUIRE_RERANKER_MODEL set but the reranker model is not provisioned — \
-                 run: cargo test -p keepance --lib provision_reranker_into_writable_cache -- --ignored"
+                 run: cargo test -p lantern --lib provision_reranker_into_writable_cache -- --ignored"
             );
         }
         eprintln!("SKIP retrieval_reranker_off_vs_on: reranker model not provisioned");

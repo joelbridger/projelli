@@ -6,6 +6,7 @@ import { computeSourceFingerprint, proposeUpdates, mergePendingUpdates } from '@
 import type { ClientMap } from '@/platform/clientMap/types';
 import type { AuditEntry } from '@/platform/types/audit';
 import { isConfidentialityChoiceRequiredError } from '@/platform/privacy/localOnlyGuard';
+import { clientMapBuildErrorMessage, clientMapUpdateErrorMessage } from '@/features/matters/clientMap/errorClassification';
 
 export type ClientMapStatus = 'idle' | 'generating' | 'ready' | 'empty' | 'error';
 
@@ -120,7 +121,7 @@ export function useClientMap(
       setErrorMessage(
         isConfidentialityChoiceRequiredError(error)
           ? error.message
-          : 'Could not build client map. Check your AI connection and try again.',
+          : clientMapBuildErrorMessage(error),
       );
       setStatus('error');
     } finally {
@@ -171,7 +172,7 @@ export function useClientMap(
       setErrorMessage(
         isConfidentialityChoiceRequiredError(error)
           ? error.message
-          : 'Could not check for client map updates. Try again in a moment.',
+          : clientMapUpdateErrorMessage(error),
       );
       setStatus('error');
     } finally {

@@ -22,7 +22,7 @@ import {
   isFileOpenInEditor,
   hasOpenDescendant,
 } from '@/platform/state/editorStore';
-import { getEntityLabel } from '@/platform/hooks/useEntityLabel';
+import { getEntityLabelEnglish } from '@/platform/hooks/useEntityLabel';
 
 /**
  * BUG-036 — true when `absPath` is allowed under the active matter scope.
@@ -62,8 +62,8 @@ export function assertInActiveMatter(
     throw new Error(`Access denied: path "${relativePath}" must not contain "..".`);
   }
   throw new Error(
-    `Access denied: "${relativePath}" is outside the active ${getEntityLabel().one} (${activeMatterName ?? 'none'}). ` +
-      `Switch the chat scope to "All ${getEntityLabel().other}" to work across ${getEntityLabel().other}.`,
+    `Access denied: "${relativePath}" is outside the active ${getEntityLabelEnglish().one} (${activeMatterName ?? 'none'}). ` +
+      `Switch the chat scope to "All ${getEntityLabelEnglish().other}" to work across ${getEntityLabelEnglish().other}.`,
   );
 }
 
@@ -111,8 +111,8 @@ export function assertDirInActiveMatter(
   if (activeMatterFolders.some((f) => sameOrInside(absDir, f))) return;
   // Otherwise it's a sibling / other-matter directory — refuse before listing it.
   throw new Error(
-    `Access denied: "${relativePath}" is outside the active ${getEntityLabel().one} (${activeMatterName ?? 'none'}). ` +
-      `Switch the chat scope to "All ${getEntityLabel().other}" to work across ${getEntityLabel().other}.`,
+    `Access denied: "${relativePath}" is outside the active ${getEntityLabelEnglish().one} (${activeMatterName ?? 'none'}). ` +
+      `Switch the chat scope to "All ${getEntityLabelEnglish().other}" to work across ${getEntityLabelEnglish().other}.`,
   );
 }
 

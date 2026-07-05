@@ -41,6 +41,10 @@ export const KC_DEVICE_META_SERVICE = `${KC_DEVICE_PREFIX}meta`;
 // ── localStorage / Zustand persist names ─────────────────────────────────────
 
 export const SK_SETTINGS                     = `${APP_NS}:settings`;
+/** QA-15 browser-build single-writer tab lock (src/platform/browserGuard/). Not a
+ *  zustand persist key — a heartbeat record `{tabId, heartbeatAt}` written by
+ *  whichever tab currently owns write access to this origin's localStorage. */
+export const SK_TAB_LOCK                     = `${APP_NS}:tab-lock`;
 export const SK_TAB_OVERFLOW                 = `${APP_NS}:tabOverflow`;
 export const SK_FIRM_SESSION                 = `${APP_NS}:firm-session`;
 export const SK_PRIVILEGE                    = `${APP_NS}:privilege`;
@@ -51,6 +55,7 @@ export const SK_MATTER_AT_A_GLANCE           = `${APP_NS}:matter-at-a-glance`;
 export const SK_MEETING_BRIEFS               = `${APP_NS}:meeting-briefs`;
 export const SK_CLIENT_MAPS                  = `${APP_NS}:client-maps`;
 export const SK_CLIENT_MAP_TEMPLATES         = `${APP_NS}:client-map-templates`;
+export const SK_RETENTION_POLICIES           = `${APP_NS}:retention-policies`;
 export const SK_WORKFLOW_CHAINS              = `${APP_NS}:workflowChains`;
 export const SK_USER_WORKFLOW_TEMPLATES      = `${APP_NS}:userWorkflowTemplates`;
 export const SK_SETUP_CARD_DISMISSED         = `${APP_NS}:setup-card-dismissed`;

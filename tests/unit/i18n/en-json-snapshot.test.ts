@@ -47,29 +47,35 @@ describe('en.json structure snapshot', () => {
         "ai": 48,
         "analysis": 10,
         "app": 2,
+        "ask": 30,
         "audio": 1,
         "chat": 12,
         "citation": 3,
-        "common": 41,
+        "common": 49,
         "editor": 14,
+        "entity-label": 50,
+        "file-import": 3,
         "firm": 143,
         "layout": 40,
         "local-ai-download": 9,
         "local-ai-settings": 8,
         "mail": 6,
         "marketplace": 14,
-        "matter": 108,
-        "media": 80,
+        "matter": 209,
+        "media": 92,
+        "meetings": 145,
         "memory": 6,
         "model-download": 9,
-        "onboarding": 65,
+        "onboarding": 67,
         "plugins": 4,
-        "privacy": 15,
+        "privacy": 31,
         "quick-open": 1,
         "research": 11,
         "search": 6,
-        "settings": 167,
+        "settings": 168,
         "shortcuts-overlay": 2,
+        "spine": 5,
+        "tab-guard": 3,
         "tts": 1,
         "updater": 2,
         "vault": 53,
@@ -77,7 +83,7 @@ describe('en.json structure snapshot', () => {
         "whats-new": 4,
         "whiteboard": 1,
         "workflow": 29,
-        "workspace": 12,
+        "workspace": 20,
       }
     `);
   });
@@ -94,7 +100,127 @@ describe('en.json structure snapshot', () => {
     // +1 = media.docx-editor.concurrent-edit-conflict (CLUSTER-C2 drift guard).
     // +2 = media.docx-editor.draft-follow-up{,-title} (Wave 0 draft-follow-up button).
     // +2 = matter.notes.{send-to-wealthbox,sent-to-wealthbox} (Wave 2 CRM write-back enqueue action).
-    expect(flat.length).toBe(944);
+    // +1 = media.docx-editor.send-to-wealthbox-disconnected (smoke P0 #5 fix: discoverable
+    //      Send to Wealthbox action on normal docx notes, disabled-with-explanation state).
+    // +18 = matter.book.* (14) + matter.beneficiary.* (2) (Wave 4 Track B: Book view + estate/beneficiary gap chips).
+    // +12 = ask.scope-pill.* (5) + ask.book.* (7) (Wave 4 Track C: whole-practice Ask).
+    // +17 = meetings.speakers.* (9) + matter.voiceprints.* (8) (Wave 4 Track A: speaker naming panel + voice profiles card).
+    // +16 = privacy.retention.* (Wave 4 Track D: retention policy settings + Data Map row + attestation export).
+    // (Tracks A and D merged independently; 975 base + 17 + 16 = 1008.)
+    // +3 = common.audit-log.integrity-seal-missing{,-detail,-detail-notime}
+    //      (audit-chain fail-closed: honest surfacing of the missing-seal state).
+    // +4 = common.audit-log.repair-{action,confirm-title,confirm-body,confirm-cta}
+    //      (explicit acknowledged repair affordance on the seal-missing badge).
+    // +1 = common.audit-log.repair-failed (surface a failed repair honestly).
+    // +34 = meetings.pill.* (1) + meetings.tab.* (10) + meetings.entry.* (9) +
+    //       meetings.types.* (3) + meetings.consent.* (11) (Wave 3c: the
+    //       user-facing Meetings tab surface — record pill, per-client
+    //       meetings list + needs-review, meeting page, meeting-type chip,
+    //       consent dialog).
+    // +4 = meetings.dictation.* (Task 10b: "File as meeting note…" client picker).
+    // +1 = matter.notes.review-now (QA finding P3: actionable "Review now"
+    //      action next to the Send-to-Wealthbox confirmation).
+    // +3 = matter.crm-review.{pending-banner_one,pending-banner_other,review-now}
+    //      (QA finding P2: hub-chrome pending-review banner on non-overview
+    //      sub-tabs, since CrmWriteReviewCard only ever mounted on Overview).
+    // +12 net = 2026-07-04 Meetings UX review polish: meetings.pill +4
+    //      (recording-label, local, local-tooltip, processing), meetings.tab
+    //      +5/−4 (record-note, loading, needs-review-badge, reviewed-badge,
+    //      duration; removed the needs-review queue-box strings — badges on
+    //      rows now), meetings.entry +5 (generic-title, dictated-title,
+    //      delete-audio-confirm-*), meetings.consent +2
+    //      (two-party-note-unknown, start-failed).
+    // +55 = QA-14 i18n fix (2026-07-04): Spine's primary nav, MatterHub's hub
+    //      tabs, and MattersHome's row/toolbar actions used literal strings
+    //      instead of t(), so switching locale never touched them. New:
+    //      spine.* (5), matter.hub.* (17), matter.home.* (23, including the
+    //      folder-count and folder-suffix plural pairs and the get-started
+    //      onboarding-card keys), ask.scope-toggle.* (3, ScopeToggle's own
+    //      "This X" / "All X" pills sat right next to ask.scope-pill.* with
+    //      the same disease).
+    // +3 = meetpersist P1 fix (2026-07-04): meetings.tab gained scan-error-title/
+    //      scan-error-body/retry-button — a failed disk scan now renders a
+    //      distinct error state instead of masquerading as "No meetings yet".
+    // +3 = tab-guard.* (title, description, take-over) — QA-15 browser-build
+    //      single-writer tab gate ("this workspace is open in another tab").
+    // +5 = QA-31 P1 fix: meetings.tab.notes-failed + meetings.entry.{notes-
+    //      failed-timeout,notes-failed-error,notes-failed-blocked,retrying-
+    //      notes} — an honest failure/retry state for the notes-generation
+    //      step, which used to hang forever or fail silently (codex-review
+    //      round 2 split the original single generic-failure copy into
+    //      distinct timeout vs. error messages).
+    // +50 = entity-label.* (cleanup batch 2, 2026-07-04): useEntityLabel()
+    //      returned hardcoded English words for the profession-pack noun
+    //      (matter/client/engagement/household) regardless of locale. New:
+    //      entity-label.{legal,tax,consulting,advisor,other}.* (10 fields
+    //      each: one, other, one-cap, other-cap, household, households,
+    //      household-cap, households-cap, confidentiality-column,
+    //      confidentiality-badge).
+    // +27 = cleanup2 follow-up (2026-07-04): fixed mixed-language sentences on
+    //      the primary Ask + client-manager surfaces (the entity-label noun
+    //      is now translated, but the surrounding sentence stayed hardcoded
+    //      English at ~50 call sites — a real coherence regression flagged in
+    //      review). New: ask.composer.* (2), ask.file-access.* (1),
+    //      ask.message-scope.* (3), ask.sample-bridge.* (2) = 8;
+    //      matter.manager.*-entity (15) + matter.scope.*-entity (4) = 19.
+    //      The remaining ~23 hardcoded-English call sites (audit, email,
+    //      workflows, the privacy report, and TrustBar) were left as-is and
+    //      now read via useEntityLabelEnglish() instead, so no sentence ships
+    //      mixed-language; see the cleanup2 handoff for the exact file list.
+    // +2 = matter.manager.{remove-action,cancel-action} (codex-review finding:
+    //      the delete-client confirm dialog's title/body were localized above
+    //      but its own confirm/cancel BUTTONS stayed hardcoded "Remove"/
+    //      "Cancel" — same mixed-language bug, one level down).
+    // +4 = meetings.entry.{transcript-failed-not-installed,transcript-failed-
+    //      timeout,transcript-failed-error,retrying-transcript} (QA-40: a
+    //      failed transcription used to vanish into a bare catch{} — these
+    //      back an honest, classified, retryable failed state, mirroring the
+    //      existing notes-failed-* keys).
+    // +35 = meetings.notice.* (Recording Notice Kit: the verified-verbal-notice
+    //       consent script step, the meeting-page notice trail + resolutions,
+    //       invite/chat copy blocks, and the firm Standard/Strict policy dial).
+    // +1 = QA-36 client-side create-name guard: workspace.file-tree.reserved-name-error
+    //      is the localized inline warning for Windows-reserved/trailing-dot names.
+    // +7 = QA-34 .docx save-resilience UI: media.docx-editor.{save-blocked-title,
+    //      save-blocked-body,save-retry-now,save-copy-elsewhere,save-copy-saving,
+    //      save-copy-success,save-copy-failed} — the sustained-save-failure warning
+    //      + "Save a copy elsewhere" escape hatch (P0 silent-data-loss fix).
+    // +4 = QA-33 fix (2026-07-04): a stopped Windows credential-storage
+    //      service (VaultSvc) used to leave "open this workspace" silently
+    //      hung for 30s then fail with only a console.error — no message at
+    //      all. New: workspace.open-error.{credential-service-unavailable,
+    //      generic,dismiss} (3) surface an honest, dismissible banner instead;
+    //      settings.api-keys.credential-service-unavailable (1) does the same
+    //      for the (already-gracefully-degrading) AI-key read path.
+    // +9 = QA-32 fix (2026-07-04): the native folder/file picker can silently
+    //      never respond (root-caused to the modern Windows Common Item
+    //      Dialog COM component depending on shell infra a stripped VM may
+    //      lack — see dialogWatchdog.ts) — a bounded watchdog now falls back
+    //      to a manual path-entry prompt instead of leaving the screen stuck
+    //      forever. New: workspace.selector.{picker-unresponsive-open,
+    //      picker-unresponsive-create,manual-path-title,manual-path-
+    //      placeholder} (4), onboarding.workspace-picker.{picker-
+    //      unresponsive-own-data,picker-unresponsive-sample} (2),
+    //      file-import.{picker-unresponsive,manual-path-title,manual-path-
+    //      placeholder} (3).
+    // +15 = Tier B trust guards (2026-07-04):
+    //       meetings.speakers.{consent-label,consent-biometric-note} (2, R9);
+    //       ask.whole-practice-confirm.{title,body_one,body_other,provider-
+    //       fallback,remember,cancel,continue} (7, R6);
+    //       matter.crm-review.{provenance-from-meeting,provenance-drafted,
+    //       provenance-advisor-fallback} (3, E3 provenance);
+    //       media.docx-editor.{outbound-blocked-needs-review,outbound-blocked-
+    //       errored,outbound-blocked-notice-quarantined} (3, E3 outbound gate).
+    // +1 = media.docx-editor.outbound-blocked-checking (E3 fail-closed: the gate
+    //       blocks a recognized meeting note while its review state loads).
+    // +1 = meetings.speakers.consent-save-failed (R9 fail-closed: enrollment
+    //       aborts if the biometric-consent record didn't durably persist).
+    // +31 = meetings.notice-card.* (the Notice Card lane: the local notice
+    //       participant — consent-dialog offer/toggle + platform labels + Meet/
+    //       generic/manual fallbacks + Zoom native-record self-attest, the
+    //       record-pill status line, the visual card copy, the 3 Notice Card
+    //       settings controls, and the "save recording background image" action).
+    expect(flat.length).toBe(1328); // 1297 (origin/lantern-plus) + 31 Notice Card keys
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

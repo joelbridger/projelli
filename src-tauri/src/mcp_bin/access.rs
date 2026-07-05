@@ -138,16 +138,21 @@ impl McpAccessState {
     }
 }
 
-pub fn nearest_existing_ancestor(path: &Path) -> Option<PathBuf> {
-    let mut cursor = path;
-    loop {
-        if cursor.exists() {
-            return Some(cursor.to_path_buf());
-        }
-        cursor = cursor.parent()?;
-    }
-}
-
+/// Validate that an absolute `candidate` path resolves inside `workspace`
+/// and return the canonical, symlink-free result.
+///
+/// Previously this walked UP from `candidate` to its nearest EXISTING
+/// ancestor and canonicalized (i.e. FOLLOWED symlinks through) only that
+/// ancestor — an in-workspace alias directory (`Clients/Alias` ->
+/// `Clients/RealClient`) would pass the `starts_with` check since
+/// RealClient also sits inside the workspace, and the function then
+/// returned `candidate` VERBATIM (the non-canonical, alias-containing
+/// path), so a caller resolving it further would walk straight through the
+/// alias. Delegates to the shared no-follow walk instead — see
+/// `crate::commands::pathguard` (also used by the vault and diarize
+/// command sites) — which refuses the moment ANY component, not just the
+/// nearest existing one, turns out to be a symlink, and returns the
+/// genuinely resolved canonical path rather than the raw candidate.
 pub fn canonicalized_workspace_child(
     workspace: &Path,
     candidate: &Path,
@@ -155,15 +160,15 @@ pub fn canonicalized_workspace_child(
     let workspace_canon = workspace
         .canonicalize()
         .map_err(|_| "workspace root cannot be canonicalised".to_string())?;
-    let ancestor = nearest_existing_ancestor(candidate)
-        .ok_or_else(|| "path has no existing ancestor inside workspace".to_string())?;
-    let ancestor_canon = ancestor
-        .canonicalize()
-        .map_err(|e| format!("path ancestor cannot be canonicalised: {e}"))?;
-    if !ancestor_canon.starts_with(&workspace_canon) {
-        return Err("path escapes workspace root".to_string());
-    }
-    Ok(candidate.to_path_buf())
+    let relative = candidate
+        .strip_prefix(workspace)
+        .or_else(|_| candidate.strip_prefix(&workspace_canon))
+        .map_err(|_| "path has no existing ancestor inside workspace".to_string())?;
+    lantern_lib::commands::pathguard::resolve_creatable(
+        &workspace_canon,
+        &relative.to_string_lossy(),
+        &workspace_canon,
+    )
 }
 
 fn normalize_path(path: &Path) -> String {
@@ -184,6 +189,45 @@ fn is_path_in_folder(path: &str, folder: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn canonicalized_workspace_child_accepts_plain_nested_absolute_path() {
+        let ws = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(ws.path().join("Clients/A")).unwrap();
+        std::fs::write(ws.path().join("Clients/A/notes.md"), b"hi").unwrap();
+        let candidate = ws.path().join("Clients/A/notes.md");
+        let result = canonicalized_workspace_child(ws.path(), &candidate);
+        assert!(result.is_ok(), "plain nested absolute path must be accepted: {result:?}");
+        assert!(result.unwrap().ends_with("Clients/A/notes.md"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn canonicalized_workspace_child_rejects_in_workspace_alias_symlink() {
+        let ws = tempfile::tempdir().unwrap();
+        let real = ws.path().join("Clients/RealClient");
+        std::fs::create_dir_all(&real).unwrap();
+        std::fs::write(real.join("secret.docx"), b"secret").unwrap();
+        let alias = ws.path().join("Clients/Alias");
+        std::os::unix::fs::symlink(&real, &alias).unwrap();
+
+        let candidate = ws.path().join("Clients/Alias/secret.docx");
+        let err = canonicalized_workspace_child(ws.path(), &candidate).unwrap_err();
+        assert!(err.contains("symlink"), "got: {err}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn canonicalized_workspace_child_rejects_out_of_workspace_symlink() {
+        let ws = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::write(outside.path().join("secret.txt"), b"secret").unwrap();
+        std::os::unix::fs::symlink(outside.path(), ws.path().join("escape")).unwrap();
+
+        let candidate = ws.path().join("escape/secret.txt");
+        let err = canonicalized_workspace_child(ws.path(), &candidate).unwrap_err();
+        assert!(err.contains("symlink"), "got: {err}");
+    }
 
     #[test]
     fn longest_matter_folder_wins() {
