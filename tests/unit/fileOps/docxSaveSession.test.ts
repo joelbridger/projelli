@@ -289,4 +289,59 @@ describe('docxSaveSession', () => {
     expect(session.isDirty).toBe(false);
     expect(savedDocs.at(-1)).toEqual(docB);
   });
+
+  // Codex review catch (post-merge, P2): flush()'s retry loop used to require
+  // `saveError === null` just to ENTER the loop at all — meaning a
+  // close/switch/quit flush called while the session was ALREADY in a failed
+  // state (saveError set from a prior attempt) would skip trying again
+  // entirely and report failure immediately, even if the underlying lock had
+  // JUST cleared. The old (pre-session) registry flush always attempted one
+  // more save in this situation; this pins that a final flush must too, so a
+  // recoverable transient failure never causes a false "can't save" that
+  // could lead the user to discard changes that would actually persist fine.
+  it('flush() still attempts a fresh save when called while ALREADY in a failed state — a cleared lock is not falsely reported as unsaveable', async () => {
+    let shouldFail = true;
+    mockInvoke({ save: () => shouldFail });
+    const session = await openDocxSession('/ws/a.docx', {});
+    const edited: DocumentJson = { ...DOC, body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'edited while locked' }] }] };
+    session.scheduleSave(edited, 1200);
+    await vi.advanceTimersByTimeAsync(1200); // attempt 1: fails
+    expect(session.saveError).not.toBeNull();
+    expect(session.isDirty).toBe(true);
+    const attemptsBeforeFlush = invokeMock.mock.calls.filter((c) => c[0] === 'docx_save').length;
+
+    // The lock clears RIGHT NOW, before the natural backoff retry timer
+    // fires — the user closes/switches/quits at this exact moment.
+    shouldFail = false;
+    const flushed = await flushDocx('/ws/a.docx');
+
+    // A fresh attempt MUST have been made (not just "no, still failing from
+    // before") — the lock is clear now, so the flush must succeed.
+    const attemptsAfterFlush = invokeMock.mock.calls.filter((c) => c[0] === 'docx_save').length;
+    expect(attemptsAfterFlush).toBeGreaterThan(attemptsBeforeFlush);
+    expect(flushed).toBe(true);
+    expect(session.isDirty).toBe(false);
+    expect(session.saveError).toBeNull();
+  });
+
+  // Companion case: if the lock genuinely never clears, flush() must still
+  // give an HONEST failure (not spin forever) — the retry-when-already-
+  // failing fix above must stay bounded.
+  it('flush() reports honest failure (bounded retries) when the lock genuinely never clears', async () => {
+    mockInvoke({ save: 'fail' });
+    const session = await openDocxSession('/ws/a.docx', {});
+    session.scheduleSave(DOC, 1200);
+    await vi.advanceTimersByTimeAsync(1200);
+    expect(session.saveError).not.toBeNull();
+    const attemptsBeforeFlush = invokeMock.mock.calls.filter((c) => c[0] === 'docx_save').length;
+
+    const flushed = await flushDocx('/ws/a.docx');
+
+    expect(flushed).toBe(false);
+    expect(session.isDirty).toBe(true);
+    expect(session.saveError).not.toBeNull();
+    const attemptsAfterFlush = invokeMock.mock.calls.filter((c) => c[0] === 'docx_save').length;
+    // It DID try again (bounded), it just never succeeded.
+    expect(attemptsAfterFlush).toBeGreaterThan(attemptsBeforeFlush);
+  });
 });

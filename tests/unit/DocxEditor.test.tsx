@@ -75,6 +75,7 @@ import {
   __resetDocxSaveRegistry,
   isDocxRegistered,
   isDocxUnsaved,
+  flushDocx,
 } from '@/platform/fs/docxSaveRegistry';
 
 // Cleanup batch 4 (task #24): DocxEditor's solo save path now keeps a
@@ -816,6 +817,106 @@ describe('DocxEditor — accept / reject flow', () => {
         expect.objectContaining({ path: '/ws/x.docx', document: authored }),
       ),
     );
+  });
+
+  // Cleanup batch 4 — Codex review catch (post-merge, P2): if a solo view
+  // unmounts while it STILL has a queued op pending (e.g. a blur that
+  // triggered an in-flight engine call), the DELAYED teardown that only runs
+  // once that op finishes must not blindly strip/dispose a session a NEWER
+  // view has ALREADY reused in the meantime — i.e. the SAME path reopened
+  // (tab switched back to) before the old view's teardown got a chance to
+  // run. Without an identity guard, the old view's belated cleanup can strip
+  // the NEW view's live-flush hook (so a later close/quit on the new view
+  // never folds in its own focused, un-blurred edit — silent data loss for
+  // the very last keystrokes) and/or wrongly dispose the session out from
+  // under the new view entirely.
+  it('a delayed teardown from a view that unmounted mid-op does not strip or dispose a session a NEWER view has since reused', async () => {
+    const baseDoc: DocumentJson = {
+      formatVersion: 1,
+      body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'original text' }] }],
+      comments: {},
+    };
+
+    // View A's blur-triggered engine call stays pending until the test
+    // resolves it manually — long enough for View B to reopen the SAME path
+    // in the meantime. It ultimately REJECTS (a benign engine hiccup) so it
+    // never mutates the document — isolating this test to the identity-
+    // guarding bug rather than any content-merge behavior.
+    let rejectAuthor: ((err: Error) => void) | undefined;
+    const authorPromise = new Promise((_resolve, reject) => {
+      rejectAuthor = reject;
+    });
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'docx_open') return Promise.resolve(baseDoc);
+      if (cmd === 'docx_author_revisions') return authorPromise;
+      if (cmd === 'docx_save') return Promise.resolve(undefined);
+      return Promise.resolve(undefined);
+    });
+
+    const { unmount: unmountA } = render(
+      <TooltipProvider>
+        <DocxEditor filePath="/ws/reuse.docx" fileName="reuse.docx" authorName="You" />
+      </TooltipProvider>,
+    );
+    const runA = await screen.findByTestId('docx-run');
+    // Reviewing is ON by default: blurring with changed text enqueues the
+    // ASYNC docx_author_revisions op (not a synchronous plain-text write).
+    runA.textContent = 'original TEXT CHANGED';
+    fireEvent.blur(runA);
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith('docx_author_revisions', expect.anything()),
+    );
+
+    // Switch tabs away WHILE that op is still pending.
+    unmountA();
+
+    // The registry must still see this path as an open (reuse-eligible)
+    // .docx the whole time — View A's teardown can't have run yet (it's
+    // still awaiting the pending op).
+    expect(isDocxRegistered('/ws/reuse.docx')).toBe(true);
+
+    // Switch back to the SAME path — a genuinely fresh DocxEditor instance
+    // that resumes the SAME (not-yet-disposed) session.
+    const openCallsBefore = invokeMock.mock.calls.filter((c) => c[0] === 'docx_open').length;
+    render(
+      <TooltipProvider>
+        <DocxEditor filePath="/ws/reuse.docx" fileName="reuse.docx" authorName="You" />
+      </TooltipProvider>,
+    );
+    await screen.findByTestId('docx-editor');
+    const openCallsAfter = invokeMock.mock.calls.filter((c) => c[0] === 'docx_open').length;
+    expect(openCallsAfter).toBe(openCallsBefore); // reused — no fresh disk read
+
+    // View B has its own focused, un-blurred edit in progress.
+    const runB = await screen.findByTestId('docx-run');
+    fireEvent.click(screen.getByTestId('docx-reviewing-toggle')); // plain replacement — simpler to assert
+    fireEvent.focus(runB);
+    runB.textContent = 'original text edited by VIEW B';
+
+    const saveCallsBeforeAResolves = invokeMock.mock.calls.filter((c) => c[0] === 'docx_save').length;
+
+    // NOW let View A's stale, long-pending op land — it fails harmlessly (the
+    // document is never touched by it), but View A's delayed teardown still
+    // runs its "detach the live-flush hook, maybe dispose" sequence against
+    // the REUSED session object.
+    rejectAuthor?.(new Error('transient engine hiccup'));
+    // Give the whole promise chain (catch handler -> queue settles -> the
+    // cleanup's own .then()) time to fully run before asserting anything —
+    // a `waitFor` checking a condition that's ALREADY true would return
+    // immediately without proving a later async disposal didn't happen.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // The session must still be registered — View A's belated teardown must
+    // not have disposed a session View B is actively attached to.
+    expect(isDocxRegistered('/ws/reuse.docx')).toBe(true);
+
+    // View B's own close/quit flush must still fold in its focused edit —
+    // the live-flush hook View B installed must not have been stripped by
+    // View A's belated teardown.
+    const flushed = await flushDocx('/ws/reuse.docx');
+    expect(flushed).toBe(true);
+    const saveCallsAfter = invokeMock.mock.calls.filter((c) => c[0] === 'docx_save').length;
+    expect(saveCallsAfter).toBeGreaterThan(saveCallsBeforeAResolves);
   });
 
   // CLUSTER-C2 (data loss): two document-mutating ops started close together

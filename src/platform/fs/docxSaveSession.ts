@@ -120,6 +120,30 @@ export class DocxSession {
     this.liveFlushHook = hook;
   }
 
+  /**
+   * Clear the live flush hook ONLY if `hook` is still the CURRENT one —
+   * i.e. no NEWER view has replaced it since the caller set it.
+   *
+   * Why this exists: a session can be REUSED — a view unmounts while dirty/
+   * failing (or, rarer, while it still has a queued op in flight), the
+   * session survives, and a later remount of the SAME path picks up this
+   * SAME session object and installs its OWN live flush hook. If the FIRST
+   * view's teardown is delayed (e.g. waiting on that queued op to settle)
+   * and only runs AFTER the second view has already attached, blindly
+   * nulling the hook here would strip the SECOND view's hook instead of the
+   * first's — so a later close/quit on the second view would never fold in
+   * its own focused, un-blurred edit before saving (silent loss of the very
+   * last keystrokes). Returns `false` when a newer view has already taken
+   * over, so the caller knows NOT to proceed with dispose either (see
+   * `disposeIfClean` — the same reused-session hazard applies to actually
+   * tearing the session down while someone else still owns it).
+   */
+  clearLiveFlushHookIfCurrent(hook: (() => Promise<void>) | null): boolean {
+    if (this.liveFlushHook !== hook) return false;
+    this.liveFlushHook = null;
+    return true;
+  }
+
   setPendingAuthor(author: 'user' | 'ai'): void {
     this.pendingAuthor = author;
   }
@@ -303,16 +327,23 @@ export class DocxSession {
         console.error('[DocxSession] liveFlushHook failed:', err);
       }
     }
-    // Loop while there's something to save and no REAL failure — a write can
-    // succeed yet be immediately stale if a newer edit lands mid-flight (see
-    // attemptSave's staleness guard), e.g. the user types right up to the
-    // moment they click close. Retry against whatever is now current instead
-    // of reporting a false "can't save" for a timing gap, not a lock/
-    // permission failure. Bounded so a pathological continuous-edit stream
-    // can't wedge a close/quit flush forever — a caller here
-    // (closeDocxTabSafely, quit/switch flush) needs to know whether it's
-    // ACTUALLY safe to close/discard now, not just whether one write landed.
-    for (let attempt = 0; attempt < 3 && this.isDirty && this.saveError === null; attempt++) {
+    // Loop while there's still something unresolved — either genuinely dirty
+    // (a write can succeed yet be immediately stale if a newer edit lands
+    // mid-flight, see attemptSave's staleness guard, e.g. the user types
+    // right up to the moment they click close) OR already sitting in a
+    // FAILED state from a prior attempt. That second case matters just as
+    // much: a close/switch/quit flush called while the session is already
+    // failing (e.g. mid-backoff after a transient file lock) must still try
+    // again NOW rather than reporting failure purely because the LAST
+    // attempt didn't work — the lock may have cleared since. The pre-session
+    // registry flush always attempted one more save in this situation;
+    // requiring `saveError === null` just to ENTER this loop silently
+    // regressed that guarantee, letting a recoverable error masquerade as
+    // permanent data loss. Bounded so a pathological continuous-edit stream
+    // (or a lock that truly never clears) can't wedge a close/quit flush
+    // forever — a caller here (closeDocxTabSafely, quit/switch flush) needs
+    // an HONEST answer either way: is it actually safe to close/discard now.
+    for (let attempt = 0; attempt < 3 && (this.isDirty || this.saveError !== null); attempt++) {
       if (this.saveTimer) {
         clearTimeout(this.saveTimer);
         this.saveTimer = null;

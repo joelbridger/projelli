@@ -440,6 +440,11 @@ export function DocxEditor({
   // session; it does NOT dispose the session itself.
   const sessionRef = useRef<DocxSession | null>(null);
   const unsubscribeSessionRef = useRef<(() => void) | null>(null);
+  // Codex review catch (post-merge, P2): the EXACT live-flush-hook function
+  // THIS view installed on the session, so its own (possibly delayed)
+  // teardown can prove it's still the current one before touching the
+  // session — see DocxSession.clearLiveFlushHookIfCurrent's doc comment.
+  const liveFlushHookRef = useRef<(() => Promise<void>) | null>(null);
   useEffect(() => {
     onDocumentChangeRef.current = onDocumentChange;
   }, [onDocumentChange]);
@@ -593,10 +598,12 @@ export function DocxEditor({
         setSaveError(snap.saveError);
         setEscalated(snap.escalated);
         setLastSavedAt(snap.lastSavedAt);
-        session.setLiveFlushHook(async () => {
+        const liveFlushHook = async () => {
           await commitActiveRunEdit();
           await docOpQueueRef.current;
-        });
+        };
+        liveFlushHookRef.current = liveFlushHook;
+        session.setLiveFlushHook(liveFlushHook);
         unsubscribeSessionRef.current = session.subscribe(() => {
           const s = session.getSnapshot();
           setIsDirty(s.isDirty);
@@ -676,6 +683,15 @@ export function DocxEditor({
       // here, or persisting through the old session's write path.
       const outgoingSession = sessionRef.current;
       const outgoingUnsubscribe = unsubscribeSessionRef.current;
+      // Codex review catch (post-merge, P2): captured for the SAME reason —
+      // if this view unmounts while it still has a queued op pending (e.g. a
+      // blur's tracked-changes op still awaiting the engine) and the SAME
+      // path is reopened before this teardown resumes, a NEWER view can
+      // reuse `outgoingSession` and install its OWN live flush hook before
+      // this delayed code below ever runs. See
+      // DocxSession.clearLiveFlushHookIfCurrent's doc comment for the full
+      // story and why this must be checked, not just nulled unconditionally.
+      const outgoingLiveFlushHook = liveFlushHookRef.current;
       // A FOCUSED, un-blurred run CAN survive into a filePath change — not
       // every transition is a mouse click elsewhere (which blurs it
       // synchronously first); a keyboard shortcut or a programmatic
@@ -750,7 +766,16 @@ export function DocxEditor({
           if (unsubscribeSessionRef.current === outgoingUnsubscribe) {
             unsubscribeSessionRef.current = null;
           }
-          session.setLiveFlushHook(null);
+          // Codex review catch (post-merge, P2): if a NEWER view has already
+          // reused this session and installed its OWN live flush hook (this
+          // teardown was delayed behind a queued op — see the capture
+          // comment above), `clearLiveFlushHookIfCurrent` returns `false`
+          // instead of stripping it. In that case stop here entirely — do
+          // NOT persist/dispose either: the new view now owns this session's
+          // whole lifecycle, and forcing a save or (worse) disposing it out
+          // from under an actively-attached view would be just as wrong as
+          // stripping its hook.
+          if (!session.clearLiveFlushHookIfCurrent(outgoingLiveFlushHook)) return;
           // Read the doc off the CAPTURED session itself (kept current by
           // every scheduleSave call against it, including
           // commitOutgoingRunEditIfAny's above), not `currentDocRef.current`
