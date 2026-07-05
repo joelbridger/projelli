@@ -150,6 +150,22 @@ ANTHROPIC_API_KEY=sk-ant-... npm run translate-i18n
 
 Re-running with no English changes is a no-op (zero API calls, zero diff).
 
+## Completeness gate
+
+`npm run i18n:completeness` (`scripts/i18n-completeness-check.mjs`) fails the
+build if `de.json` or `es.json` is missing (or has an empty value for) any
+leaf key present in `en.json`. It runs as a blocking step in `npm run gate` —
+separate from the report-only `i18n:check` (which only verifies keys used in
+code exist in `en.json`, per KNOWN-I18N-01; it says nothing about whether
+de/es actually translated them). This is what stops the "a new feature ships
+English-only for German/Spanish users" class of bug: forgetting step 3 above
+now fails the gate instead of shipping silently.
+
+If a key is genuinely meant to stay English in every locale (a fixed brand
+name, a legal term), list it in `src/locales/i18n-completeness-allowlist.json`
+(create the file if it doesn't exist) as `{ "the.dotted.key": "one-line reason" }`.
+There is no allowlist by default — every key is required in every locale.
+
 ## Cost cap
 
 The translation script aborts before sending if estimated total tokens

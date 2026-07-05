@@ -23,6 +23,10 @@ step "Identity check"  npm run identity:check
 # i18n:extract, which is destructive).
 echo ""; echo "===== i18n key parity (report-only — KNOWN-I18N-01 deferred) ====="
 npm run i18n:check || echo "⚠️  i18n key drift (KNOWN-I18N-01, deferred) — not blocking the gate"
+# Separate from KNOWN-I18N-01 above: this checks that every key that DOES
+# exist in en.json also exists (translated, non-empty) in de.json/es.json —
+# the "ships English-only for non-English locales" class of bug. Blocking.
+step "i18n locale completeness" npm run i18n:completeness
 step "Unit tests"      npx vitest run
 step "ESLint gate"     npm run lint:gate
 # ── Connector outcome-contract reviewer check (F2.1) ─────────────────────────
