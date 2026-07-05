@@ -9,9 +9,16 @@ vi.mock('@/platform/utils/calendar-commands', () => ({
   CALENDAR_SYNC_EVENT: 'calendar-sync-progress',
   calendarListEvents: (...args: unknown[]) => listEvents(...args),
 }));
-// Tauri event listener: no-op unsubscribe in jsdom.
+// Tauri event listener: capture handlers PER EVENT NAME (useBriefStaleness
+// also calls `listen`, for 'workspace-file-changed' — a single shared
+// variable would get clobbered by whichever listener registers last) so
+// tests can simulate a calendar-sync event firing. No-op unsubscribe.
+const eventHandlers = new Map<string, (ev: unknown) => void>();
 vi.mock('@tauri-apps/api/event', () => ({
-  listen: vi.fn(async () => () => {}),
+  listen: vi.fn(async (eventName: string, cb: (ev: unknown) => void) => {
+    eventHandlers.set(eventName, cb);
+    return () => {};
+  }),
 }));
 
 function seedMatters() {
@@ -96,6 +103,8 @@ describe('todayWindowUtc', () => {
 describe('TodaysMeetingsStrip', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    listEvents.mockReset();
+    eventHandlers.clear();
     seedMatters();
   });
 
@@ -108,6 +117,42 @@ describe('TodaysMeetingsStrip', () => {
     expect(
       container.querySelector('[data-testid="todays-meetings-strip"]')
     ).toBeNull();
+  });
+
+  // QA-48: calendarListEvents FAILING must not read the same as "no meetings
+  // today" — the advisor needs to know their calendar check itself broke.
+  it('shows a retryable calendar-error banner (NOT silent nothing) when calendarListEvents rejects', async () => {
+    listEvents.mockRejectedValue(new Error('calendar backend unreachable'));
+    render(<TodaysMeetingsStrip onOpenClient={() => {}} />);
+
+    await waitFor(() => expect(listEvents).toHaveBeenCalled());
+    expect(
+      await screen.findByTestId('todays-meetings-strip-error')
+    ).toBeInTheDocument();
+
+    // Retry re-invokes the calendar fetch, and success clears the error and
+    // shows the real strip.
+    listEvents.mockResolvedValueOnce([matched]);
+    fireEvent.click(screen.getByTestId('today-strip-calendar-retry'));
+    await screen.findByTestId('meeting-chip-outlook:e1');
+    expect(
+      screen.queryByTestId('todays-meetings-strip-error')
+    ).not.toBeInTheDocument();
+  });
+
+  it('keeps showing already-matched meetings (with a stale warning) when a LATER refresh fails, instead of wiping the strip', async () => {
+    listEvents.mockResolvedValueOnce([matched]);
+    render(<TodaysMeetingsStrip onOpenClient={() => {}} />);
+    await screen.findByTestId('meeting-chip-outlook:e1');
+    await waitFor(() => expect(eventHandlers.has('calendar-sync-progress')).toBe(true));
+
+    // A background refresh (triggered by the calendar-sync Tauri event) now
+    // fails — the chip from the last successful fetch must survive.
+    listEvents.mockRejectedValueOnce(new Error('network blip'));
+    eventHandlers.get('calendar-sync-progress')?.({});
+
+    await screen.findByTestId('today-strip-calendar-stale-warning');
+    expect(screen.getByTestId('meeting-chip-outlook:e1')).toBeInTheDocument();
   });
 
   it('shows matched meetings with client name and navigates on click', async () => {

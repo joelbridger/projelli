@@ -14,7 +14,7 @@
  * (desktop only; the browser demo gets an honest "runs in the desktop app"
  * note). The diff itself is pure — see `summarizePrivilegeDiff`.
  */
-import { useCallback, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Info } from 'lucide-react';
 import { Button } from '@/ui/button';
@@ -68,9 +68,30 @@ export function PrivilegeExclusionExplainer({
   const [demo, setDemo] = useState<DemoState>({ kind: 'idle' });
 
   const trimmedQuery = query.trim();
+  const serializedScope = JSON.stringify(scope);
+
+  // QA-57: the demo runs retrieval for the CURRENT question + scope. Both can
+  // change while it's in flight (the user edits the chat input or switches
+  // client). `demoKey` identifies the question+scope a run belongs to.
+  const demoKey = JSON.stringify([trimmedQuery, serializedScope]);
+
+  // The freshest question+scope, read inside the async demo so a late result is
+  // DROPPED once the user has moved on — wrong-context "proof" can never render.
+  const latestKeyRef = useRef(demoKey);
+  useLayoutEffect(() => { latestKeyRef.current = demoKey; }, [demoKey]);
+
+  // When the question or scope changes, clear any shown result immediately so a
+  // prior demo can't linger as if it applied to the NEW context (render-time
+  // reset — React re-renders without painting the stale result).
+  const [shownKey, setShownKey] = useState(demoKey);
+  if (shownKey !== demoKey) {
+    setShownKey(demoKey);
+    setDemo({ kind: 'idle' });
+  }
 
   const runDemo = useCallback(async () => {
     if (trimmedQuery.length === 0) return;
+    const runKey = demoKey;
     setDemo({ kind: 'running' });
     try {
       // Same question, same scope, both ways. The set difference is exactly
@@ -79,13 +100,15 @@ export function PrivilegeExclusionExplainer({
         retrieve(trimmedQuery, DEMO_TOP_K, scope, false),
         retrieve(trimmedQuery, DEMO_TOP_K, scope, true),
       ]);
+      if (latestKeyRef.current !== runKey) return; // superseded — drop stale result
       setDemo({ kind: 'result', ...summarizePrivilegeDiff(excluded, included) });
     } catch {
+      if (latestKeyRef.current !== runKey) return; // superseded — drop stale result
       // Outside the desktop app `ragRetrieve` throws — say so honestly
       // instead of pretending the check ran.
       setDemo({ kind: 'desktop-only' });
     }
-  }, [trimmedQuery, scope, retrieve]);
+  }, [trimmedQuery, scope, retrieve, demoKey]);
 
   const handleOpenChange = useCallback((next: boolean) => {
     setOpen(next);
