@@ -14,10 +14,19 @@ The app must look **extremely clean, intuitive, and easy**. A user should usuall
    a. It repeats each client's **name underneath in light-gray subtext**, which adds no value → **remove that repeated subtext entirely**; clean up the client rows.
    b. The client list **fills up the whole left bar** → make it **auto-collapse into its own section** (a collapsible section, not an always-expanded list hogging the sidebar).
 
-## Prep started now (safe, read-only — no code changes)
-- **Audit**: Codex is inventorying EVERY place the app renders gray explanatory subtext (the muted/secondary paragraph text under titles/cards/settings) → produces the full work-list of spots to convert to info-icons.
-- **Component check**: does a reusable info-icon/tooltip primitive already exist in `src/ui/`? (reuse, don't reinvent).
-- **Client-list scope**: identify the left-sidebar client-list component + the repeated-name subtext + how to make it a collapsible section.
+## Audit DONE (2026-07-05) — concrete work-list
+
+**Primitive: mostly exists.** `src/ui/tooltip.tsx` is a Radix tooltip wrapper (`@radix-ui/react-tooltip` installed), already used (ChatCostChip, AIContextIndicator, DocxDocumentView). → Just build a small **`InfoHelp`** wrapper = an "i" icon + this existing tooltip. Tiny.
+
+**Gray-subtext inventory (a repeating pattern — mechanical once InfoHelp exists):** the common shape is `<p className="text-xs text-muted-foreground ...">{description}</p>` → replace with `<InfoHelp content={description} />` next to the title. Locations found:
+- **Settings** — incl. AI & Privacy cards ("On This Computer Only", "Cloud AI").
+- **Onboarding** — ChooseStartScene (73/94/129), AiScene (359/451), ConnectScene (95/96), ApiKeySetupCard (111/131), ApiKeyWizard (634).
+- **Connectors** — MailConnect:115, CalendarConnect:254, OneDriveConnect:299, WealthboxConnect:391 — **and the same card-description pattern repeats across Gmail, IMAP, Salesforce, Redtail, Calendly, Box, ShareFile, Addepar, DocuSign, Jotform, Zocks** (~dozens of spots, one pattern).
+- **Rule:** keep WARNING/STATUS text visible (something is wrong/in-progress); only hide the passive *explanatory* gray text behind the "i".
+
+**Client list — precise (one file: `src/app/shell/layout/Spine.tsx`):**
+- Rows render ~line 166; main name line 177 (`matterLabel(m)`); **the redundant repeated light-gray name = line 178 (`m.client`) → DELETE it** (matterLabel already often includes the name).
+- Layout: 212px sidebar; the list takes remaining height (`flex:1; overflowY:auto`). **Make it collapsible/auto-collapsing:** wrap in a `<section>` with a "Clients" toggle button + conditional render (audit gives the exact diff). Do it in `Spine` (no separate component exists; extract `ClientSwitcherSection` only if it grows).
 
 ## Execution plan (AFTER demo proven)
 1. Land the InfoIcon/tooltip primitive (or confirm the existing one).
