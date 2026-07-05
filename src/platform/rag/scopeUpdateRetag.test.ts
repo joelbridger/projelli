@@ -147,6 +147,86 @@ describe('createRetagScheduler', () => {
     expect(getExcludedMatterFolders()).not.toContain('/ws/Acme');
   });
 
+  it('superseding a pending re-tag cancels the old scheduled retry so only the newer scope applies', async () => {
+    const scheduler = createRetagScheduler();
+    const applied: string[] = [];
+
+    // First run: op1 fails once, capturing the OLD scope in its retry closure.
+    const op1 = vi.fn(async () => {
+      applied.push('OLD');
+      throw new Error('old transient');
+    });
+    scheduler.run({ id: 'privilege:/ws/s', kind: 'privilege', label: 'old', op: op1 });
+
+    // Let op1's first attempt fail and SCHEDULE a retry (old closure armed).
+    await vi.advanceTimersByTimeAsync(0);
+    expect(op1).toHaveBeenCalledTimes(1);
+    expect(entries()[0]?.label).toBe('old');
+
+    // The SAME scope changes again before the old retry fires: supersede it.
+    const op2 = vi.fn(async () => {
+      applied.push('NEW');
+    });
+    scheduler.run({ id: 'privilege:/ws/s', kind: 'privilege', label: 'new', op: op2 });
+    // The newer intent is now the visible entry.
+    expect(entries()[0]?.label).toBe('new');
+
+    await vi.runAllTimersAsync();
+
+    // The OLD op's retry never fired — its stale scope is never re-applied.
+    expect(op1).toHaveBeenCalledTimes(1);
+    expect(op2).toHaveBeenCalledTimes(1);
+    // Only the newer scope was applied, and it was applied last.
+    expect(applied).toEqual(['OLD', 'NEW']);
+    // The newer op succeeded → the visible state is cleared, not left stale.
+    expect(entries()).toHaveLength(0);
+  });
+
+  it('a superseded (stale) success does not clear the newer entry or its exclusion (fail closed)', async () => {
+    const scheduler = createRetagScheduler();
+
+    // First run: op1 stays in flight; we settle it manually LATER to simulate an
+    // old re-tag that resolves only after a newer one has superseded it.
+    let resolveOld!: () => void;
+    const op1 = vi.fn(
+      () =>
+        new Promise<void>((res) => {
+          resolveOld = res;
+        }),
+    );
+    scheduler.run({
+      id: 'matter:/ws/c',
+      kind: 'matter',
+      label: 'old',
+      op: op1,
+      excludeFolders: ['/ws/OLD'],
+    });
+
+    // The folder is re-scoped to a DIFFERENT client before op1 settles. This
+    // newer re-tag stays pending (never resolves in this test) and is the live
+    // intent now, holding out its own folder.
+    const op2 = vi.fn(() => new Promise<void>(() => {}));
+    scheduler.run({
+      id: 'matter:/ws/c',
+      kind: 'matter',
+      label: 'new',
+      op: op2,
+      excludeFolders: ['/ws/NEW'],
+    });
+    expect(getExcludedMatterFolders()).toContain('/ws/NEW');
+
+    // The OLD attempt finally settles as a SUCCESS. Unguarded it would call
+    // store().remove(id), wiping the newer entry and dropping the exclusion —
+    // re-opening the wrong-client exposure QA-44 closes. It must no-op instead.
+    resolveOld();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(entries()).toHaveLength(1);
+    expect(entries()[0]?.label).toBe('new');
+    expect(entries()[0]?.status).toBe('retrying');
+    expect(getExcludedMatterFolders()).toContain('/ws/NEW');
+  });
+
   it('disposeAll cancels pending retries and clears its own entries (workspace switch safety)', async () => {
     const scheduler = createRetagScheduler();
     const op = vi.fn().mockRejectedValue(new Error('down'));
