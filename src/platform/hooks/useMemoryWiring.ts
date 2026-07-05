@@ -1244,18 +1244,24 @@ export function scheduleFolderMatterRetag(
     void reindexFolderPaths(folders, workspaceService).catch(() => {});
     return;
   }
-  scheduler.run({
-    id: `matter:${[...folders].sort().join('|')}`,
-    kind: 'matter',
-    label:
-      folders.length === 1
-        ? 'Updating search scope for 1 folder'
-        : `Updating search scope for ${String(folders.length)} folders`,
-    // Fail closed: hold these folders' files out of retrieval until the
-    // re-index lands, so stale chunks can't surface under the wrong client.
-    excludeFolders: folders,
-    op: () => reindexFolderPaths(folders, workspaceService),
-  });
+  // Key ONE task PER FOLDER, not one per changed-folder SET (QA-44, Codex round 2
+  // — P2). A grouped id like `matter:A|B` never supersedes a later single-folder
+  // `matter:A`, so a folder caught in an earlier FAILED group would stay excluded
+  // from retrieval even after its own re-index succeeds — stranded (content
+  // wrongly hidden) until the next boot reconcile. Per-folder ids make a later
+  // `matter:A` supersede exactly its own hold and clear it on success, while
+  // every other folder keeps its independent fail-closed hold.
+  for (const folder of folders) {
+    scheduler.run({
+      id: `matter:${folder}`,
+      kind: 'matter',
+      label: 'Updating search scope for 1 folder',
+      // Fail closed: hold this folder's files out of retrieval until its
+      // re-index lands, so stale chunks can't surface under the wrong client.
+      excludeFolders: [folder],
+      op: () => reindexFolderPaths([folder], workspaceService),
+    });
+  }
 }
 
 /** Re-tag synced mail whose folder->matter mapping changed, durable + visible.
@@ -1281,14 +1287,26 @@ export function scheduleMailMatterRetag(
       ).catch(() => {});
       continue;
     }
-    // Hold out the OLD client's mail only on a real client->client re-map.
-    const holdOldClientMail =
-      Boolean(prevMatterId) && prevMatterId !== UNASSIGNED_MATTER_ID && prevMatterId !== matterId;
+    const id = `mail:${key}`;
+    // Fail closed ACROSS repeated re-maps (QA-44, Codex round 2 — P1 leak). The
+    // messages in this folder stay PHYSICALLY tagged with their old matter until
+    // a re-tag actually SUCCEEDS. If the folder is re-mapped again before that
+    // lands (A->B fails, then the user maps B->C), the messages may still be
+    // tagged A — so we must keep excluding A, not just the LATEST old client.
+    // Union this re-map's old client into whatever the (now-superseded) entry
+    // was already holding out, and never exclude the CURRENT target (content
+    // correctly tagged `matterId` must surface). Only op success — which removes
+    // the entry — clears the set, and a successful re-tag physically moves every
+    // message to the new matter, so no stale tag remains to hold out.
+    const heldNow = useScopeUpdateStore.getState().entries[id]?.excludeMailMatters ?? [];
+    const hold = new Set(heldNow);
+    if (prevMatterId && prevMatterId !== UNASSIGNED_MATTER_ID) hold.add(prevMatterId);
+    hold.delete(matterId);
     scheduler.run({
-      id: `mail:${key}`,
+      id,
       kind: 'mail',
       label: 'Updating email search scope',
-      ...(holdOldClientMail ? { excludeMailMatters: [prevMatterId] } : {}),
+      ...(hold.size > 0 ? { excludeMailMatters: [...hold] } : {}),
       op: () =>
         mailRetagFolderMatter(parsed.provider, parsed.account, parsed.folderId, matterId),
     });

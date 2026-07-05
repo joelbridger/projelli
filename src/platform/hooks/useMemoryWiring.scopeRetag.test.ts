@@ -24,7 +24,14 @@ vi.mock('@/platform/rag/MemoryService', async (importOriginal) => {
   const original = await importOriginal<typeof import('@/platform/rag/MemoryService')>();
   return {
     ...original,
-    MemoryService: { ...original.MemoryService, retagPrivilege: vi.fn().mockResolvedValue(1) },
+    MemoryService: {
+      ...original.MemoryService,
+      retagPrivilege: vi.fn().mockResolvedValue(1),
+      // reindexPaths returns the count of files that FAILED (never throws);
+      // reindexFolderPaths turns a nonzero count into a thrown error, which is
+      // what drives the scheduler's fail-closed retry/exclusion.
+      reindexPaths: vi.fn().mockResolvedValue(0),
+    },
   };
 });
 
@@ -34,7 +41,14 @@ import {
   schedulePrivilegeRetag,
 } from './useMemoryWiring';
 import type { RetagScheduler, RetagTask } from '@/platform/rag/retagScheduler';
+import { createRetagScheduler } from '@/platform/rag/retagScheduler';
 import { MemoryService } from '@/platform/rag/MemoryService';
+import {
+  getExcludedMailMatters,
+  getExcludedMatterFolders,
+  useScopeUpdateStore,
+} from '@/platform/rag/scopeUpdateStore';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { mailRetagFolderMatter } from '@/platform/utils/mail-commands';
 import { usePrivilegeStore } from '@/platform/firm/privilegeStore';
 
@@ -63,6 +77,7 @@ function onlyTask(tasks: RetagTask[]): RetagTask {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  useScopeUpdateStore.getState().clearAll();
   usePrivilegeStore.setState({ privilegeBySource: {}, includePrivileged: false });
 });
 
@@ -71,16 +86,19 @@ afterEach(() => {
 });
 
 describe('scheduleFolderMatterRetag', () => {
-  it('schedules a fail-closed matter task that excludes the changed folders', () => {
+  it('schedules ONE fail-closed matter task per folder (per-folder keying)', () => {
     const { scheduler, tasks } = recordingScheduler();
 
     scheduleFolderMatterRetag(['/ws/Beta', '/ws/Acme'], null, scheduler);
 
-    const task = onlyTask(tasks);
-    expect(task.kind).toBe('matter');
-    // Id is order-independent (sorted) so the same change dedupes to one entry.
-    expect(task.id).toBe('matter:/ws/Acme|/ws/Beta');
-    expect(task.excludeFolders).toEqual(['/ws/Beta', '/ws/Acme']);
+    // One task per folder, each keyed by (and excluding) only its own folder — so
+    // a later single-folder re-tag supersedes exactly its own hold rather than
+    // colliding with a grouped id that would strand the folder excluded.
+    expect(tasks).toHaveLength(2);
+    for (const task of tasks) expect(task.kind).toBe('matter');
+    const byId = new Map(tasks.map((t) => [t.id, t]));
+    expect(byId.get('matter:/ws/Beta')?.excludeFolders).toEqual(['/ws/Beta']);
+    expect(byId.get('matter:/ws/Acme')?.excludeFolders).toEqual(['/ws/Acme']);
   });
 
   it('does nothing when no folders changed', () => {
@@ -157,5 +175,119 @@ describe('null-scheduler fallback (still best-effort, never dropped)', () => {
 
     // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(vi.mocked(MemoryService.retagPrivilege)).toHaveBeenCalledWith('/ws/x', 'work-product');
+  });
+});
+
+// ── Codex round-2 lifecycle repros: the exclusion set must track the ACTUAL
+//    index state across REPEATED remaps, driven through the REAL scheduler +
+//    scopeUpdateStore (not the recording stub). ────────────────────────────────
+
+describe('scheduleMailMatterRetag — stale-matter hold survives a second re-map (P1 leak)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    useScopeUpdateStore.getState().clearAll();
+  });
+  afterEach(() => {
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
+    useScopeUpdateStore.getState().clearAll();
+  });
+
+  it('keeps holding out the ORIGINAL client after re-mapping again before the first re-tag succeeds', async () => {
+    const scheduler = createRetagScheduler();
+    // Inbox A->B: the re-tag fails permanently. Messages stay physically tagged A.
+    vi.mocked(mailRetagFolderMatter).mockRejectedValue(new Error('down'));
+
+    scheduleMailMatterRetag(
+      [{ key: 'm365/acct/Inbox', matterId: 'B', prevMatterId: 'A' }],
+      scheduler,
+    );
+    await vi.runAllTimersAsync();
+    expect(getExcludedMailMatters()).toContain('A'); // fail-closed on A
+
+    // User re-maps the SAME folder B->C before A->B ever landed. The old code
+    // superseded the hold with [B] and DROPPED A — but the messages are still
+    // physically tagged A, so A would surface under the wrong client.
+    scheduleMailMatterRetag(
+      [{ key: 'm365/acct/Inbox', matterId: 'C', prevMatterId: 'B' }],
+      scheduler,
+    );
+    await vi.runAllTimersAsync();
+
+    const held = getExcludedMailMatters();
+    expect(held).toContain('A'); // ORIGINAL client still held out — no leak
+    expect(held).toContain('B'); // and the intermediate client too
+    expect(held).not.toContain('C'); // never hold out the current (correct) target
+  });
+
+  it('clears the whole accumulated hold once a re-tag finally succeeds', async () => {
+    const scheduler = createRetagScheduler();
+    vi.mocked(mailRetagFolderMatter).mockRejectedValue(new Error('down'));
+    scheduleMailMatterRetag(
+      [{ key: 'm365/acct/Inbox', matterId: 'B', prevMatterId: 'A' }],
+      scheduler,
+    );
+    await vi.runAllTimersAsync();
+    expect(getExcludedMailMatters()).toContain('A');
+
+    // The next re-map succeeds — the folder is physically re-tagged, so NO stale
+    // tag remains and the entire hold (A included) must clear.
+    vi.mocked(mailRetagFolderMatter).mockReset();
+    vi.mocked(mailRetagFolderMatter).mockResolvedValue(1);
+    scheduleMailMatterRetag(
+      [{ key: 'm365/acct/Inbox', matterId: 'C', prevMatterId: 'B' }],
+      scheduler,
+    );
+    await vi.runAllTimersAsync();
+
+    expect(getExcludedMailMatters()).toHaveLength(0);
+  });
+});
+
+describe('scheduleFolderMatterRetag — a later single-folder success clears its own hold (P2 stranding)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    useScopeUpdateStore.getState().clearAll();
+    useWorkspaceStore.setState({
+      rootPath: '/ws',
+      fileTree: [
+        { id: 'A', type: 'folder', name: 'A', path: '/ws/A', children: [
+          { id: 'A/a', type: 'file', name: 'a.docx', path: '/ws/A/a.docx' },
+        ] },
+        { id: 'B', type: 'folder', name: 'B', path: '/ws/B', children: [
+          { id: 'B/b', type: 'file', name: 'b.docx', path: '/ws/B/b.docx' },
+        ] },
+      ],
+    });
+  });
+  afterEach(() => {
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
+    useScopeUpdateStore.getState().clearAll();
+  });
+
+  it('does not strand folder A excluded after A re-indexes, when an earlier grouped A+B re-tag failed', async () => {
+    const scheduler = createRetagScheduler();
+
+    // Folders A and B change TOGETHER and the re-index fails (reindexPaths reports
+    // a failure) → both folders held out, fail-closed.
+    vi.mocked(MemoryService.reindexPaths).mockResolvedValue(1);
+    scheduleFolderMatterRetag(['/ws/A', '/ws/B'], null, scheduler);
+    await vi.runAllTimersAsync();
+    expect(getExcludedMatterFolders()).toEqual(
+      expect.arrayContaining(['/ws/A', '/ws/B']),
+    );
+
+    // Later, ONLY folder A changes and its re-index succeeds. With per-folder
+    // keying this supersedes A's own hold and clears it; B stays held. The old
+    // grouped-id code left an untouched `matter:/ws/A|/ws/B` entry, so A stayed
+    // wrongly excluded from search until the next boot reconcile.
+    vi.mocked(MemoryService.reindexPaths).mockResolvedValue(0);
+    scheduleFolderMatterRetag(['/ws/A'], null, scheduler);
+    await vi.runAllTimersAsync();
+
+    const excluded = getExcludedMatterFolders();
+    expect(excluded).not.toContain('/ws/A'); // A's success cleared its own hold
+    expect(excluded).toContain('/ws/B'); // B still fail-closed until it re-tags
   });
 });
