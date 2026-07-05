@@ -357,6 +357,43 @@ describe('MatterNotesEditor', () => {
     expect(screen.getByTestId('matter-notes-editor')).toBeInTheDocument();
   });
 
+  // ── QA-45: ensureMatterSync REJECTING must not leave the wrapper loading forever ──
+  it('MatterNotesEditorWrapper renders the fail-closed panel (not a permanent spinner) when ensureMatterSync rejects', async () => {
+    const matter = makeMatter();
+    useMatterStore.getState().createMatter({
+      name: matter.name,
+      client: matter.client,
+      folderPaths: matter.folderPaths,
+      firmMatterId: matter.firmMatterId!,
+      orgId: matter.orgId!,
+      role: matter.role!,
+      shared: matter.shared!,
+    });
+    const createdMatter = useMatterStore.getState().matters[0]!;
+
+    // Simulate a key-fetch/sync/crypto failure: the promise REJECTS rather
+    // than resolving to null. Persistent (not "once"): setting the sync
+    // status to 'error' in the catch handler changes the `syncStatus` effect
+    // dependency, which — by existing design (see the wrapper's eviction-
+    // detection comment) — re-triggers ensureMatterSync once more; a
+    // persistently-failing key fetch means that retry fails too.
+    mockEnsureMatterSync.mockRejectedValue(new Error('key fetch failed'));
+
+    render(<MatterNotesEditorWrapper localMatterId={createdMatter.id} />);
+
+    // Must NOT stay on the loading spinner forever.
+    await waitFor(() => {
+      expect(screen.queryByText(/loading/i)).not.toBeInTheDocument();
+    });
+
+    // Must render the existing fail-closed / no-access panel, not a blank or
+    // stuck state.
+    expect(screen.getByTestId('matter-notes-no-access')).toBeInTheDocument();
+
+    // The sync status should reflect the failure so the badge/UI is honest.
+    expect(useMatterSyncStore.getState().statusByMatterId[createdMatter.id]).toBe('error');
+  });
+
   // ── Test 7: openMatterNotes opens a new tab ─────────────────────────────────
   it('openMatterNotes opens a new tab for a shared matter', () => {
     const matter = useMatterStore.getState().createMatter({

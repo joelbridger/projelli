@@ -13,7 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { ensureMatterSync, getMatterSyncClient } from '@/features/matters/logic/matterNotesSync';
 import { MatterNotesEditor } from '@/features/matters/MatterNotesEditor';
-import { useMatterSyncStatus } from '@/platform/matter/matterSyncStore';
+import { useMatterSyncStatus, useMatterSyncStore } from '@/platform/matter/matterSyncStore';
 import type { MatterSyncClient } from '@/platform/firm/MatterSyncClient';
 
 interface MatterNotesEditorWrapperProps {
@@ -49,11 +49,23 @@ export function MatterNotesEditorWrapper({
     if (!cachedClient) {
       setLoading(true);
     }
-    void ensureMatterSync(matter).then((client) => {
-      if (cancelled) return;
-      setSyncClient(client);
-      setLoading(false);
-    });
+    void ensureMatterSync(matter).then(
+      (client) => {
+        if (cancelled) return;
+        setSyncClient(client);
+        setLoading(false);
+      },
+      (err: unknown) => {
+        if (cancelled) return;
+        // A rejected promise (key fetch / sync startup / crypto setup failure)
+        // must fail closed the same as a resolved null, not leave the spinner
+        // spinning forever.
+        console.error('[MatterNotesEditorWrapper] ensureMatterSync failed:', err);
+        useMatterSyncStore.getState().setStatus(matter.id, 'error');
+        setSyncClient(null);
+        setLoading(false);
+      },
+    );
     return () => {
       cancelled = true;
       // Do NOT stop the client on unmount — the notes tab can be closed and

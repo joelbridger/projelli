@@ -2156,6 +2156,7 @@
       "notes-failed-timeout": "Die Notizen konnten nicht erstellt werden. Der KI-Anbieter hat nicht rechtzeitig geantwortet. Ihre Aufnahme und das Transkript sind sicher.",
       "notes-failed-error": "Die Notizen konnten nicht erstellt werden. Der KI-Anbieter hat einen Fehler zurückgegeben. Ihre Aufnahme und das Transkript sind sicher.",
       "notes-failed-blocked": "Für die Notizen wird Ihr KI-Anbieter benötigt, aber der Nur-lokal-Modus blockiert ihn. Verbinden Sie ein lokales Modell, um die Notizen zu diesem Gespräch zu erstellen, oder deaktivieren Sie stattdessen den Nur-lokal-Modus unter Einstellungen → Datenschutz.",
+      "docx-editor-label": "Besprechungsnotizen",
       "retrying-notes": "Wird erneut versucht…",
       "transcript-pending": "Die Transkription ist in der Warteschlange. Sie erscheint hier, sobald sie fertig ist.",
       "transcript-failed-not-installed": "Die Transkription konnte nicht ausgeführt werden. Die Sprach-Engine ist auf diesem Computer noch nicht installiert. Ihre Aufnahme ist sicher.",

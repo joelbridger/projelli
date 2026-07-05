@@ -64,10 +64,16 @@ export function MemoryFactsSettings({
     }
     try {
       const current = await svc.listFacts();
+      // QA-58 (cross-workspace isolation): listFacts is async. If the workspace
+      // switched while we awaited (the singleton now points at a DIFFERENT
+      // service), drop this stale result — never render workspace A's memory
+      // facts inside workspace B's settings.
+      if (getFactsService() !== svc) return;
       // Newest first — the JSON stores append-order, so reverse.
       setFacts([...current].reverse());
       setLoadError(null);
     } catch (err) {
+      if (getFactsService() !== svc) return;
       setLoadError(err instanceof Error ? err.message : 'Failed to load facts');
     }
   }, [initialFacts]);

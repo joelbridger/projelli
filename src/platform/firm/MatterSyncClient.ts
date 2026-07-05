@@ -129,6 +129,13 @@ export class MatterSyncClient {
   private status: SyncStatus = 'idle';
   private socket: WebSocketLike | null = null;
   private started = false;
+  /** Local Yjs updates that failed to push, queued (in order) for retry. */
+  private readonly pendingUpdates: Uint8Array[] = [];
+  /** Backoff reconnect timer; non-null while a reconnect attempt is pending. */
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Current backoff delay (ms). 0 means "not yet backed off" — the first
+   *  scheduled reconnect uses 1s, then doubles up to a 30s cap. */
+  private reconnectDelayMs = 0;
   /** Blob ids we originated, so we don't re-apply our own echoes wastefully. */
   private readonly ownBlobIds = new Set<string>();
   private updateHandler: ((update: Uint8Array, origin: unknown) => void) | null = null;
@@ -204,7 +211,18 @@ export class MatterSyncClient {
     // Broadcast local Yjs updates (skip ones we applied from remote).
     this.updateHandler = (update: Uint8Array, origin: unknown) => {
       if (origin === this.remoteOrigin) return;
-      void this.pushLocalUpdate(update);
+      // If there's already a backlog, queue behind it rather than racing a
+      // fresh push ahead of updates still waiting to be sent.
+      if (this.pendingUpdates.length > 0) {
+        this.pendingUpdates.push(update);
+        return;
+      }
+      void this.pushLocalUpdate(update).then((ok) => {
+        if (!ok) {
+          this.pendingUpdates.push(update);
+          this.scheduleReconnect();
+        }
+      });
     };
     this.doc.on('update', this.updateHandler);
 
@@ -266,8 +284,12 @@ export class MatterSyncClient {
     }
   }
 
-  /** Encrypt a local Yjs update and push it to the relay under this.docId. */
-  private async pushLocalUpdate(update: Uint8Array): Promise<void> {
+  /**
+   * Encrypt a local Yjs update and push it to the relay under this.docId.
+   * Returns false (and sets `offline`) on failure so callers can queue the
+   * update for retry instead of silently dropping it.
+   */
+  private async pushLocalUpdate(update: Uint8Array): Promise<boolean> {
     try {
       const key = await this.ensureKey();
       const ciphertext = await encryptUpdate(key, update, this.keyEpoch);
@@ -285,12 +307,71 @@ export class MatterSyncClient {
       if (res.key_epoch > this.keyEpoch) {
         this.callbacks.onKeyEpochAdvanced?.(res.key_epoch);
       }
+      return true;
     } catch {
       this.setStatus('offline');
+      return false;
     }
   }
 
+  /**
+   * Retry queued local updates in order (FIFO). Stops at the first failure
+   * and leaves the remainder queued, re-arming a reconnect/retry timer so a
+   * push that keeps failing (independent of the WebSocket's own health)
+   * doesn't strand the queue with nothing left to wake it back up.
+   */
+  private async flushPendingUpdates(): Promise<void> {
+    while (this.pendingUpdates.length > 0) {
+      const next = this.pendingUpdates[0];
+      if (next === undefined) return;
+      const ok = await this.pushLocalUpdate(next);
+      if (!ok) {
+        this.scheduleReconnect();
+        return;
+      }
+      this.pendingUpdates.shift();
+    }
+    // Drained cleanly. If the socket itself was never actually disconnected
+    // (this was a push-only failure — openSocket()'s reconnect guard means it
+    // never ran again), `pushLocalUpdate`'s earlier failure left `status`
+    // stuck on 'offline' with nothing else left to correct it — restore it
+    // now that pushes are working again.
+    if (this.socket) this.setStatus('live');
+  }
+
+  private clearReconnectTimer(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+  }
+
+  /**
+   * Schedule a reconnect + pending-update flush with exponential backoff
+   * (1s, 2s, 4s, ... capped at 30s) while the client remains started. A
+   * no-op if a reconnect is already scheduled.
+   */
+  private scheduleReconnect(): void {
+    if (!this.started || this.reconnectTimer) return;
+    this.reconnectDelayMs = this.reconnectDelayMs === 0 ? 1000 : Math.min(this.reconnectDelayMs * 2, 30_000);
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      if (this.started) void this.reconnectNow();
+    }, this.reconnectDelayMs);
+  }
+
+  private async reconnectNow(): Promise<void> {
+    await this.flushPendingUpdates();
+    await this.openSocket();
+  }
+
   private async openSocket(): Promise<void> {
+    // A socket is already open or in flight — never open a second one. Without
+    // this, a reconnect triggered by something OTHER than a real socket close
+    // (a failed HTTP push, or `onerror` firing before `onclose`) could stand
+    // up a duplicate live WebSocket subscription alongside the still-live one.
+    if (this.socket) return;
+
     this.setStatus('connecting');
 
     // Mint a single-use WS ticket over the authed HTTP API. The access + seat
@@ -301,8 +382,10 @@ export class MatterSyncClient {
       const res = await this.client.createSyncTicket(this.matterId, this.seatToken);
       ticket = res.ticket;
     } catch {
-      // Couldn't get a ticket (offline / auth lapsed): stay in catch-up-only mode.
+      // Couldn't get a ticket (offline / auth lapsed): stay in catch-up-only
+      // mode, but keep trying — otherwise the client is stuck offline forever.
       this.setStatus('offline');
+      if (this.started) this.scheduleReconnect();
       return;
     }
     // A stop() during the await must not then open a socket.
@@ -318,25 +401,52 @@ export class MatterSyncClient {
       } else {
         // No WebSocket (SSR/test without a factory): stay in catch-up-only mode.
         this.setStatus('offline');
+        // scheduleReconnect() itself no-ops if `started` has flipped false;
+        // no need to re-check it here (nothing async intervenes since the
+        // `!this.started` guard above).
+        this.scheduleReconnect();
         return;
       }
     } catch {
       this.setStatus('error');
+      this.scheduleReconnect();
       return;
     }
     this.socket = ws;
 
+    // Every handler below is identity-checked against `ws` — with the
+    // openSocket() re-entrancy guard above, `this.socket` only ever points at
+    // the CURRENT socket, so a stale/late event from a socket that's already
+    // been superseded (or explicitly stopped) is a no-op instead of
+    // clobbering the newer connection's state.
     ws.onopen = () => {
+      if (this.socket !== ws) return;
+      // Connectivity is back — reset backoff and flush anything queued while
+      // we were offline so teammates aren't silently missing changes.
+      this.reconnectDelayMs = 0;
       this.setStatus('live');
+      void this.flushPendingUpdates();
     };
     ws.onmessage = (ev: { data: unknown }) => {
+      if (this.socket !== ws) return;
       void this.handleFrame(ev.data);
     };
     ws.onerror = () => {
+      if (this.socket !== ws) return;
+      // Treat an error as dead-and-gone immediately (rather than waiting on a
+      // possibly-delayed `close`) so openSocket()'s re-entrancy guard doesn't
+      // block the reconnect this schedules.
+      this.socket = null;
       this.setStatus('error');
+      if (this.started) this.scheduleReconnect();
     };
     ws.onclose = () => {
-      if (this.started) this.setStatus('offline');
+      if (this.socket !== ws) return;
+      this.socket = null;
+      if (this.started) {
+        this.setStatus('offline');
+        this.scheduleReconnect();
+      }
     };
   }
 
@@ -382,6 +492,8 @@ export class MatterSyncClient {
   /** Stop sync and detach the Yjs listener. Idempotent. The Yjs doc is kept. */
   stop(): void {
     this.started = false;
+    this.clearReconnectTimer();
+    this.reconnectDelayMs = 0;
     if (this.updateHandler) {
       this.doc.off('update', this.updateHandler);
       this.updateHandler = null;
