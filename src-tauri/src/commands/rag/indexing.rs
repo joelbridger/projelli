@@ -146,20 +146,20 @@ pub async fn rag_index_file(
     // second call is a cheap no-op instead of re-extracting/re-embedding.
     let token = crypto::path_token(&key, &file_path.to_string_lossy());
     let tombstoned = state.unsafe_tokens.lock().await.contains(&token);
-    let fresh_for_scope = {
+    let manifest_fresh_for_scope = {
         let _mg = state.manifest_lock.lock().await;
         let manifest = manifest::load(&workspace, store::INDEX_VERSION);
-        text_manifest_entry_is_fresh_for_scope(
-            manifest.get(&token),
-            &file_path,
-            &matter,
-            &privilege,
-            tombstoned,
-        )
+        manifest.get(&token).and_then(|entry| {
+            text_manifest_entry_is_fresh_for_scope(
+                Some(entry),
+                &file_path,
+                &matter,
+                &privilege,
+                tombstoned,
+            )
+            .then_some(entry.row_count)
+        })
     };
-    if fresh_for_scope {
-        return Ok(());
-    }
 
     let conn = store::open_connection(&workspace)
         .await
@@ -167,6 +167,20 @@ pub async fn rag_index_file(
     let table = store::open_or_create_table(&conn)
         .await
         .map_err(|e| format!("open table: {e}"))?;
+
+    if text_manifest_fast_path_can_skip(
+        &table,
+        manifest_fresh_for_scope,
+        &file_path,
+        &matter,
+        &privilege,
+        &key,
+    )
+    .await
+    .map_err(|e| format!("check indexed rows: {e}"))?
+    {
+        return Ok(());
+    }
 
     // VG-6d: try to load the workspace vault master key once for this index call.
     // Returns None if the workspace is not vaulted or the vault is locked —
@@ -197,8 +211,31 @@ pub async fn rag_index_file(
             // unreadable / too-large / unparseable file, `indexed == false`) records
             // NO signature, so it is retried next boot instead of cached as fresh.
             if indexed {
-                record_text_manifest_entry(&state, &workspace, &file_path, &matter, &privilege, 0, &key)
-                    .await;
+                let row_count = store::path_row_count_for_scope(
+                    &table,
+                    &file_path.to_string_lossy(),
+                    &matter,
+                    &privilege,
+                    &key,
+                )
+                .await
+                .unwrap_or_else(|e| {
+                    log::warn!(
+                        "rag: failed to count rows after single-file index for {}: {e:#}",
+                        file_path.display()
+                    );
+                    0
+                });
+                record_text_manifest_entry(
+                    &state,
+                    &workspace,
+                    &file_path,
+                    &matter,
+                    &privilege,
+                    row_count as u32,
+                    &key,
+                )
+                .await;
             }
             Ok(())
         }
@@ -1294,6 +1331,28 @@ fn text_manifest_entry_is_fresh_for_scope(
     entry.is_fresh(size, mtime_ns, None)
 }
 
+async fn text_manifest_fast_path_can_skip(
+    table: &lancedb::Table,
+    expected_rows_if_fresh: Option<u32>,
+    file: &Path,
+    matter: &str,
+    privilege: &str,
+    key: &[u8; 32],
+) -> anyhow::Result<bool> {
+    let Some(expected_rows) = expected_rows_if_fresh else {
+        return Ok(false);
+    };
+    store::path_has_expected_rows_for_scope(
+        table,
+        &file.to_string_lossy(),
+        matter,
+        privilege,
+        expected_rows,
+        key,
+    )
+    .await
+}
+
 /// P1.1 — record/refresh a text/office source's manifest signature after a
 /// successful single-file index (watcher, matter re-index). Keeps the manifest
 /// truthful so a later reconcile can safely skip an unchanged file and re-index a
@@ -1325,6 +1384,8 @@ async fn record_text_manifest_entry(
 #[cfg(test)]
 mod qa88_tests {
     use super::*;
+
+    const TEST_KEY: [u8; 32] = [0x42u8; 32];
 
     #[test]
     fn fresh_manifest_entry_same_scope_skips_reindex() {
@@ -1374,6 +1435,197 @@ mod qa88_tests {
             store::PRIVILEGE_NONE,
             false,
         ));
+    }
+
+    #[tokio::test]
+    async fn fresh_manifest_entry_without_vector_rows_does_not_skip() {
+        let dir = tempfile::tempdir().unwrap();
+        let workspace = dir.path();
+        let file = workspace.join("transcript.json");
+        std::fs::write(
+            &file,
+            br#"{"schemaVersion":1,"segments":[{"speaker":"Advisor","text":"portfolio review"}]}"#,
+        )
+        .unwrap();
+
+        let conn = store::open_connection(workspace).await.unwrap();
+        let table = store::open_or_create_table(&conn).await.unwrap();
+
+        assert!(
+            !text_manifest_fast_path_can_skip(
+                &table,
+                Some(1),
+                &file,
+                "m-1",
+                store::PRIVILEGE_NONE,
+                &TEST_KEY,
+            )
+                .await
+                .unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn fresh_manifest_entry_with_partial_vector_rows_does_not_skip() {
+        let dir = tempfile::tempdir().unwrap();
+        let workspace = dir.path();
+        let file = workspace.join("transcript.json");
+        std::fs::write(
+            &file,
+            br#"{"schemaVersion":1,"segments":[{"speaker":"Advisor","text":"portfolio review"}]}"#,
+        )
+        .unwrap();
+
+        let conn = store::open_connection(workspace).await.unwrap();
+        let table = store::open_or_create_table(&conn).await.unwrap();
+        let path = file.to_string_lossy().to_string();
+        store::upsert_chunks_for_path(
+            &table,
+            &path,
+            vec![(
+                chunker::Chunk {
+                    path: path.clone(),
+                    paragraph_index: 0,
+                    text: "portfolio review".to_string(),
+                    start_offset: 0,
+                    end_offset: 16,
+                    locator: None,
+                },
+                vec![0.1; embedder::EMBEDDING_DIM],
+            )],
+            store::SourceType::Text,
+            "m-1",
+            store::PRIVILEGE_NONE,
+            &TEST_KEY,
+        )
+        .await
+        .unwrap();
+
+        assert!(
+            !text_manifest_fast_path_can_skip(
+                &table,
+                Some(2),
+                &file,
+                "m-1",
+                store::PRIVILEGE_NONE,
+                &TEST_KEY,
+            )
+                .await
+                .unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn fresh_manifest_entry_with_unknown_row_count_does_not_skip() {
+        let dir = tempfile::tempdir().unwrap();
+        let workspace = dir.path();
+        let file = workspace.join("transcript.json");
+        std::fs::write(
+            &file,
+            br#"{"schemaVersion":1,"segments":[{"speaker":"Advisor","text":"portfolio review"}]}"#,
+        )
+        .unwrap();
+
+        let conn = store::open_connection(workspace).await.unwrap();
+        let table = store::open_or_create_table(&conn).await.unwrap();
+        let path = file.to_string_lossy().to_string();
+        store::upsert_chunks_for_path(
+            &table,
+            &path,
+            vec![(
+                chunker::Chunk {
+                    path: path.clone(),
+                    paragraph_index: 0,
+                    text: "portfolio review".to_string(),
+                    start_offset: 0,
+                    end_offset: 16,
+                    locator: None,
+                },
+                vec![0.1; embedder::EMBEDDING_DIM],
+            )],
+            store::SourceType::Text,
+            "m-1",
+            store::PRIVILEGE_NONE,
+            &TEST_KEY,
+        )
+        .await
+        .unwrap();
+
+        assert!(
+            !text_manifest_fast_path_can_skip(
+                &table,
+                Some(0),
+                &file,
+                "m-1",
+                store::PRIVILEGE_NONE,
+                &TEST_KEY,
+            )
+                .await
+                .unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn fresh_manifest_entry_with_vector_rows_can_skip() {
+        let dir = tempfile::tempdir().unwrap();
+        let workspace = dir.path();
+        let file = workspace.join("transcript.json");
+        std::fs::write(
+            &file,
+            br#"{"schemaVersion":1,"segments":[{"speaker":"Advisor","text":"portfolio review"}]}"#,
+        )
+        .unwrap();
+
+        let conn = store::open_connection(workspace).await.unwrap();
+        let table = store::open_or_create_table(&conn).await.unwrap();
+        let path = file.to_string_lossy().to_string();
+        store::upsert_chunks_for_path(
+            &table,
+            &path,
+            vec![
+                (
+                    chunker::Chunk {
+                        path: path.clone(),
+                        paragraph_index: 0,
+                        text: "portfolio review".to_string(),
+                        start_offset: 0,
+                        end_offset: 16,
+                        locator: None,
+                    },
+                    vec![0.1; embedder::EMBEDDING_DIM],
+                ),
+                (
+                    chunker::Chunk {
+                        path: path.clone(),
+                        paragraph_index: 1,
+                        text: "tax planning".to_string(),
+                        start_offset: 17,
+                        end_offset: 29,
+                        locator: None,
+                    },
+                    vec![0.2; embedder::EMBEDDING_DIM],
+                ),
+            ],
+            store::SourceType::Text,
+            "m-1",
+            store::PRIVILEGE_NONE,
+            &TEST_KEY,
+        )
+        .await
+        .unwrap();
+
+        assert!(
+            text_manifest_fast_path_can_skip(
+                &table,
+                Some(2),
+                &file,
+                "m-1",
+                store::PRIVILEGE_NONE,
+                &TEST_KEY,
+            )
+                .await
+                .unwrap()
+        );
     }
 }
 
