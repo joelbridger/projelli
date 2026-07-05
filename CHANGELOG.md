@@ -92,6 +92,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **R9 — biometric consent before voiceprint enrollment.** "Separate speakers" requires an explicit affirmation that the client consented to a voice profile (with an honest state-biometric-law note) before any new voiceprint is enrolled; the attestation is ledgered as a `voiceprint_consent` audit event (`SpeakerNamesPanel.tsx`).
 
 ### Fixed
+- **QA-81 (P0 silent data loss): a brand-new .docx being actively TYPED no
+  longer loses in-progress text on a crash/power-loss while the toolbar shows
+  "Saved".** A keystroke lives only in the run's editable DOM until the run
+  blurs (which is what committed it and scheduled a save); until then the
+  steady-state ~2s autosave had nothing to write, so live typing reached disk
+  ONLY when the user navigated away / closed / quit. Now a periodic autosave
+  (`LIVE_TYPING_AUTOSAVE_MS`, ~2s) folds the focused run's live text into a
+  clone of the session document and writes it via a new
+  `DocxSession.persistLive`, without touching the live editing model,
+  re-rendering, or moving the caret; a later blur authors the proper
+  tracked-change commit and supersedes the plain-text shadow on disk.
+  Typing marks the doc unsaved the INSTANT a key is pressed (a per-keystroke
+  input handler on the focused run), so the toolbar never reads a false "Saved"
+  before the first autosave tick, and kicks a throttled prompt save so a crash
+  loses at most a fraction of a second of typing rather than a full autosave
+  cycle. When a shadow save has already mirrored the live text into the session
+  document, a tab-switch/close before blur still records the finished edit in
+  version history (a leaving-checkpoint promotes the un-snapshotted live content
+  instead of disposing a session that only looks "clean").
+  `persistLive` marks the session dirty before queuing (so an overlapping older
+  write can't publish a false "Saved" while newer text is still queued). The
+  version-history snapshot decision is tied to the CONTENT, not the save call: a
+  committed edit (blur / accept / reject / redline / export / a leaving-
+  checkpoint flush) marks the dirty content snapshot-worthy (`pendingSnapshot`),
+  a live shadow save leaves that flag untouched, and the write that actually
+  persists the content consumes it. So pure live typing never floods the version
+  timeline, but a committed edit ALWAYS gets its snapshot even when a live save —
+  or its backoff retry — is what physically wrote it to disk (e.g. a live save
+  absorbing a blurred edit's still-pending debounce, or a retry that fires after
+  the user blurred). Live text is read via `textContent` (verbatim — the same
+  extraction the blur commit uses), so whitespace and line breaks are preserved
+  exactly; an IME (half-composed) run is persisted-then-healed on the
+  composition-end blur and never corrupts run structure. Solo path only —
+  co-edit is unchanged (its document is sourced from the CRDT). Files:
+  `src/features/documents/media/DocxEditor.tsx`,
+  `src/platform/fs/docxSaveSession.ts`, tests in
+  `tests/unit/DocxEditor.test.tsx`, `tests/unit/fileOps/docxSaveSession.test.ts`.
 - **QA-71 (P1/P2): deleting meeting audio before transcription now warns about
   total loss.** `MeetingEntry` now checks whether `transcript.json` actually
   loaded before choosing the delete-audio action and confirmation copy. Meetings

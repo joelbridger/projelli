@@ -84,6 +84,34 @@ export class DocxSession {
   private consecutiveFailures = 0;
   private saveSeq = 0;
   private pendingAuthor: 'user' | 'ai' = 'user';
+  /**
+   * QA-81 (P2): whether the CURRENT unsaved content includes a real, COMMITTED
+   * edit (blur / accept / reject / redline / export / a leaving-checkpoint
+   * flush) that must produce a version-history snapshot (`onAfterSave`) when it
+   * lands. Snapshot-worthiness is a property of the dirty CONTENT, not of the
+   * particular save call or timer that happens to flush it — a live-typing
+   * shadow save (`persistLive`) can absorb a pending committed save's debounce,
+   * or a live retry can end up writing a doc that has since become a committed
+   * edit; in both cases the committed content still deserves its snapshot. So a
+   * committed edit SETS this flag, `persistLive` leaves it untouched, and the
+   * write that actually persists the current doc consumes it — the snapshot
+   * rides with the content regardless of which timer wins. Reset only when the
+   * doc that just landed is still current (mirrors the `isDirty` clear), so a
+   * newer committed edit arriving mid-write keeps its own pending snapshot.
+   */
+  private pendingSnapshot = false;
+  /**
+   * QA-81 (P2): true when live-typed content has reached disk via a shadow save
+   * (`persistLive`) that did NOT take a version snapshot, and no committed save
+   * has snapshotted it since. A leaving checkpoint (tab-switch / path-change /
+   * close / quit) reads this to promote that finished edit into version history
+   * — otherwise, because a shadow save already mirrored the text into
+   * `this.doc` (so the outgoing-teardown's fold sees no diff and the session
+   * looks "clean"), the edit would be disposed without ever being snapshotted.
+   * Set/cleared by `attemptSave` (debt incurred by a snapshot-free write,
+   * cleared by a snapshot); consumed by `ensureLeavingSnapshot`.
+   */
+  private liveSaveNeedsSnapshot = false;
   private onFirstEditFired = false;
   private unregister: (() => void) | null = null;
   private readonly listeners = new Set<() => void>();
@@ -193,7 +221,11 @@ export class DocxSession {
 
   // Mirrors DocxEditor's original QA-34 backoff: retry the LATEST doc (the
   // user, or a background scheduleSave, may have moved on since the last
-  // failure), so when the lock clears everything since is persisted.
+  // failure), so when the lock clears everything since is persisted. The
+  // snapshot decision is NOT captured here: the retry re-reads `pendingSnapshot`
+  // at save time, so if the user blurred (committing an edit) between the
+  // failure and the retry, the retry correctly snapshots that committed edit —
+  // and if it was pure live typing all along, it still doesn't (QA-81 P2).
   private scheduleRetry(): void {
     this.clearRetryTimer();
     if (this.disposed) return;
@@ -219,6 +251,14 @@ export class DocxSession {
         }
       }
       const wasDirty = this.isDirty;
+      // Capture snapshot-worthiness of the content being written NOW, before the
+      // await — `doc` is the current dirty content at this point, and its
+      // provenance (a committed edit set `pendingSnapshot`; a pure live-typing
+      // shadow did not) is what decides whether this write feeds version
+      // history. Reading it here (not from a per-call flag) is what makes the
+      // snapshot ride with the CONTENT even when a live save/retry absorbs or
+      // supersedes a committed save's timer (QA-81 P2).
+      const wantSnapshot = this.pendingSnapshot;
       const rev = (this.saveSeq += 1);
       await writeCoordinator.enqueue(this.filePath, rev, () => docxSave(this.filePath, doc));
       this.lastSavedAt = Date.now();
@@ -229,8 +269,19 @@ export class DocxSession {
       // the current one; otherwise a quick tab-switch/close right after this
       // stale completion (and before the newer doc's own debounce fires)
       // could see a falsely-clean session and drop the newer edit entirely.
+      // The pending snapshot is consumed on the same condition: a newer
+      // committed edit that raced in keeps ITS own pending snapshot for its
+      // own save.
       if (this.doc === doc) {
         this.isDirty = false;
+        this.pendingSnapshot = false;
+        // QA-81 (P2): track whether the content now on disk still owes a version
+        // snapshot. A snapshot-free live shadow save (wasDirty, !wantSnapshot)
+        // incurs the debt; a committed save (wantSnapshot) that takes the
+        // snapshot below clears it. So a later leaving checkpoint can still
+        // capture the finished edit even though this save already made the
+        // session look "clean".
+        this.liveSaveNeedsSnapshot = wasDirty && !wantSnapshot;
       }
       this.saveError = null;
       this.escalated = false;
@@ -239,7 +290,11 @@ export class DocxSession {
       this.clearRetryTimer();
       const author = this.pendingAuthor;
       this.pendingAuthor = 'user';
-      if (wasDirty) {
+      // Snapshot only when this write carried committed content (see
+      // `pendingSnapshot`) — a pure live-typing shadow save does not flood the
+      // version timeline, but a committed edit ALWAYS gets its snapshot even if
+      // a live save/retry is what physically wrote it to disk.
+      if (wasDirty && wantSnapshot) {
         try {
           await this.hooks.onAfterSave?.({ filePath: this.filePath, author });
         } catch (verr) {
@@ -261,7 +316,11 @@ export class DocxSession {
   }
 
   /** One save attempt; on failure bumps the failure count, escalates after
-   * enough consecutive failures, and schedules the next backoff retry. */
+   * enough consecutive failures, and schedules the next backoff retry. Whether
+   * this write feeds version history is decided by `pendingSnapshot` (the
+   * provenance of the current dirty content), not by the caller — see
+   * `attemptSave`. A failed shadow save still retries with backoff exactly like
+   * any other save, so nothing is lost. */
   async persist(doc: DocumentJson): Promise<boolean> {
     this.clearRetryTimer();
     const ok = await this.attemptSave(doc);
@@ -291,10 +350,15 @@ export class DocxSession {
     return false;
   }
 
-  /** Update the in-memory doc and (re)schedule a debounced save of it. */
+  /** Update the in-memory doc and (re)schedule a debounced save of it. Called
+   * for COMMITTED edits (blur / accept / reject / redline via
+   * `applyResolvedDocument`), so it marks the content snapshot-worthy — that
+   * intent then rides with the content even if a live shadow save or its retry
+   * is what physically writes it first (QA-81 P2). */
   scheduleSave(doc: DocumentJson, debounceMs: number): void {
     this.doc = doc;
     this.isDirty = true;
+    this.pendingSnapshot = true;
     this.publishState();
     this.notify();
     if (this.saveTimer) clearTimeout(this.saveTimer);
@@ -304,14 +368,85 @@ export class DocxSession {
     }, debounceMs);
   }
 
-  /** Save `doc` immediately, bypassing any pending debounce (export / rescue-copy flush). */
+  /** Save `doc` immediately, bypassing any pending debounce (export / rescue-copy
+   * flush) — a committed/meaningful save, so it too is snapshot-worthy. */
   async persistNow(doc: DocumentJson): Promise<boolean> {
     this.doc = doc;
+    this.pendingSnapshot = true;
     if (this.saveTimer) {
       clearTimeout(this.saveTimer);
       this.saveTimer = null;
     }
     return this.persist(doc);
+  }
+
+  /**
+   * QA-81 (P0 data loss): the STEADY-STATE live-typing shadow save. The editor
+   * calls this every ~2s while a run is focused so the un-blurred keystrokes
+   * sitting in the contentEditable DOM reach disk on their own — not only when
+   * the user navigates away. Differs from `persistNow` in two deliberate ways:
+   *
+   *  1. It marks the session DIRTY before queuing the write. `doc` is not on
+   *     disk yet, and — critically for OVERLAPPING writes — if one docx_save
+   *     runs longer than the 2s cadence, an OLDER write can complete while a
+   *     NEWER shadow is still queued. `attemptSave` only clears isDirty when the
+   *     doc it just wrote is still current, so marking dirty here means that
+   *     older completion leaves the session dirty (newest text not yet saved)
+   *     instead of publishing a false "clean"/"Saved" that a close/quit guard
+   *     could act on and lose the newest keystrokes. Mirrors `scheduleSave`.
+   *
+   *  2. It does NOT itself mark the content snapshot-worthy — a snapshot every
+   *     2s of active typing would flood the version timeline. It leaves
+   *     `pendingSnapshot` UNTOUCHED: if a committed edit is already pending
+   *     (e.g. this shadow save absorbed a blurred edit's debounce, or folded a
+   *     committed run into `doc`), that committed content STILL snapshots when
+   *     this write lands; if the only unsaved content is live typing, it
+   *     doesn't. The eventual blur commit sets `pendingSnapshot`, so the
+   *     finished edit is always captured.
+   */
+  async persistLive(doc: DocumentJson): Promise<boolean> {
+    this.doc = doc;
+    this.isDirty = true;
+    this.publishState();
+    this.notify();
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = null;
+    }
+    return this.persist(doc);
+  }
+
+  /**
+   * QA-81 (P1): mark the session dirty the INSTANT the user types into a focused
+   * run — do not wait for the periodic autosave's first tick to fold + save. A
+   * keystroke lives only in the contentEditable DOM until then, so without this
+   * the toolbar/registry read a false "Saved" while un-persisted text sits in
+   * the DOM. This ONLY flips the dirty state (and publishes it); the actual disk
+   * write is still done by `persistLive`. It does NOT mark the content
+   * snapshot-worthy — live typing alone isn't (a blur commit is; see
+   * `pendingSnapshot`). No-op when already dirty or disposed.
+   */
+  markDirty(): void {
+    if (this.disposed || this.isDirty) return;
+    this.isDirty = true;
+    this.publishState();
+    this.notify();
+  }
+
+  /**
+   * QA-81 (P2): a leaving checkpoint (tab-switch / path-change / close / quit).
+   * If live-typed content reached disk via a shadow save WITHOUT a version
+   * snapshot (`liveSaveNeedsSnapshot`), promote it to a committed checkpoint —
+   * mark dirty + snapshot-worthy — so the caller's final save records the
+   * finished edit in version history instead of disposing a session that only
+   * looks "clean" because the shadow already mirrored the text to disk.
+   */
+  ensureLeavingSnapshot(): void {
+    if (this.disposed || !this.liveSaveNeedsSnapshot) return;
+    this.isDirty = true;
+    this.pendingSnapshot = true;
+    this.publishState();
+    this.notify();
   }
 
   /**
@@ -327,6 +462,18 @@ export class DocxSession {
         console.error('[DocxSession] liveFlushHook failed:', err);
       }
     }
+    // QA-81 (P2): if a shadow save already mirrored live-typed content to disk
+    // without a snapshot, this leaving checkpoint must still record it in
+    // version history (marks dirty + snapshot-worthy so the loop below persists
+    // + snapshots it). Covers the no-view background flush where liveFlushHook
+    // isn't present to commit the edit through the normal path.
+    this.ensureLeavingSnapshot();
+    // A close/switch/quit is a meaningful checkpoint: if any content is still
+    // unsaved at this point — including purely live-typed text that never got a
+    // blur commit (e.g. a background flush with no view to run liveFlushHook) —
+    // it deserves a version-history snapshot, matching the pre-QA-81 flush which
+    // always saved with a snapshot. (Ordinary committed edits already set this.)
+    if (this.isDirty || this.saveError !== null) this.pendingSnapshot = true;
     // Loop while there's still something unresolved — either genuinely dirty
     // (a write can succeed yet be immediately stale if a newer edit lands
     // mid-flight, see attemptSave's staleness guard, e.g. the user types

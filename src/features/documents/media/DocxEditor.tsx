@@ -115,6 +115,28 @@ import { openDocxSession, type DocxSession } from '@/platform/fs/docxSaveSession
 
 const SAVE_DEBOUNCE_MS = 1200;
 
+// QA-81 (P0 silent data loss): a brand-new .docx being ACTIVELY TYPED lost all
+// in-progress text on a crash/power-loss, while the toolbar showed "Saved". A
+// keystroke lives in the run's contentEditable DOM until the run BLURS (which
+// commits it and schedules a save); until then no save is scheduled at all, so
+// the steady-state autosave wrote a doc MISSING whatever was being typed. Only
+// the navigate-away / close / quit / unmount flush ever folded the live text
+// in. This periodic cadence closes that gap: every ~2s while a run is focused,
+// its live DOM text is folded into a clone of the session doc and written to
+// disk — WITHOUT touching the live editing model or re-rendering (so the caret
+// is never disturbed). A later blur authors the proper (tracked-change) commit
+// and supersedes this plain-text shadow on disk. So "Saved" now truthfully
+// means the live keystroke is on disk, not just the last blurred edit.
+const LIVE_TYPING_AUTOSAVE_MS = 2000;
+
+// QA-81 (P1): the instant the user types into a focused run we mark the doc
+// unsaved (so the toolbar never lies "Saved" while un-persisted text is only in
+// the DOM) AND kick a prompt disk write — but THROTTLED to at most one write per
+// this interval so fast typing doesn't thrash the disk with a full .docx save
+// per keystroke. Shorter than the periodic tick above so a crash loses at most
+// a fraction of a second of typing, not a full autosave cycle.
+const LIVE_TYPING_SAVE_THROTTLE_MS = 500;
+
 // QA-34 (P0 silent data loss): when a save write fails (e.g. antivirus/backup
 // briefly holds an exclusive OS lock on the file) the doc stays dirty and we
 // RETRY automatically with exponential backoff — most such locks clear within
@@ -221,6 +243,37 @@ type LoadState =
   | { status: 'unsupported' };
 
 /**
+ * Fold a run's LIVE contentEditable text into a fresh clone of `doc` as a plain-
+ * text replacement, returning the clone — or `null` when there is nothing to do
+ * (the target isn't a plain run any more, or its text already matches). It never
+ * mutates `doc`, never touches the live view / `currentDocRef` / track-changes
+ * authoring, and closes over no component state, so it's safe to call from a
+ * racing outgoing-session merge OR the steady-state periodic autosave without
+ * disturbing the caret or whatever else is editing concurrently.
+ *
+ * The blockIndex/inlineIndex are best-effort: if a concurrent structural change
+ * (a tracked-change commit) moved the run, the kind guards below simply no-op
+ * rather than corrupting the wrong content — the authoritative blur commit
+ * handles correctness.
+ */
+function foldLiveRunTextIntoDoc(
+  doc: DocumentJson,
+  blockIndex: number,
+  inlineIndex: number,
+  text: string,
+): DocumentJson | null {
+  const block = doc.body[blockIndex];
+  if (!block || block.kind !== 'paragraph') return null;
+  const inline = block.inlines[inlineIndex];
+  if (!inline || inline.kind !== 'run' || inline.text === text) return null;
+  const next: DocumentJson = structuredCloneSafe(doc);
+  const nextBlock = next.body[blockIndex] as DocxParagraph;
+  const nextInline = nextBlock.inlines[inlineIndex] as DocxRun & { kind: 'run' };
+  nextInline.text = text;
+  return next;
+}
+
+/**
  * Cleanup batch 4 (task #24) — Codex review catches, 4 rounds: a filePath
  * change (unlike a true unmount) can leave a run FOCUSED and un-blurred (a
  * keyboard shortcut or programmatic navigation doesn't necessarily blur it
@@ -232,12 +285,11 @@ type LoadState =
  * so the fold-in could merge into (and save) the wrong document, or briefly
  * flash the new view back to old content.
  *
- * This does a MINIMAL, self-contained plain-text merge directly against the
- * CAPTURED outgoing session's own `doc` — it never touches `currentDocRef`,
- * the live view, or track-changes authoring, so it cannot be affected by (or
- * affect) whatever the new document's load is doing concurrently. It's a
- * plain function (no closures over component state) so every dependency is
- * an explicit parameter — nothing here can go stale.
+ * This does a MINIMAL, self-contained plain-text merge (via
+ * `foldLiveRunTextIntoDoc`) directly against the CAPTURED outgoing session's
+ * own `doc` — it never touches `currentDocRef`, the live view, or track-changes
+ * authoring, so it cannot be affected by (or affect) whatever the new
+ * document's load is doing concurrently.
  *
  * Trade-off, accepted deliberately: this loses track-changes attribution for
  * this one last in-flight keystroke in this one narrow edge case (a plain
@@ -253,16 +305,8 @@ function commitOutgoingRunEditIfAny(
 ): void {
   if (!active || !outgoingSession) return;
   const text = active.element.textContent ?? '';
-  const doc = outgoingSession.doc;
-  const block = doc.body[active.blockIndex];
-  if (!block || block.kind !== 'paragraph') return;
-  const inline = block.inlines[active.inlineIndex];
-  if (!inline || inline.kind !== 'run' || inline.text === text) return;
-  const next: DocumentJson = structuredCloneSafe(doc);
-  const nextBlock = next.body[active.blockIndex] as DocxParagraph;
-  const nextInline = nextBlock.inlines[active.inlineIndex] as DocxRun & { kind: 'run' };
-  nextInline.text = text;
-  outgoingSession.scheduleSave(next, SAVE_DEBOUNCE_MS);
+  const next = foldLiveRunTextIntoDoc(outgoingSession.doc, active.blockIndex, active.inlineIndex, text);
+  if (next) outgoingSession.scheduleSave(next, SAVE_DEBOUNCE_MS);
 }
 
 export function DocxEditor({
@@ -509,6 +553,49 @@ export function DocxEditor({
     [],
   );
 
+  // QA-81 (P1): a throttle timer for the prompt live save kicked on input (see
+  // `onActiveRunInput`). Held in a ref so it survives re-renders and can be
+  // cleared on unmount.
+  const liveSaveThrottleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // QA-81 (P1): called by `PlainRun` on EVERY keystroke into a focused run.
+  // Marks the doc unsaved IMMEDIATELY (so the toolbar/registry never read a
+  // false "Saved" while the new characters live only in the DOM), and kicks a
+  // THROTTLED disk write so the crash-loss window is a fraction of a second, not
+  // a full autosave cycle. Solo path only — co-edit routes through the CRDT and
+  // has no DocxSession here. The 2s periodic autosave still runs as a backstop.
+  const onActiveRunInput = useCallback(
+    (blockIndex: number, inlineIndex: number, element: HTMLElement) => {
+      activeRunRef.current = { blockIndex, inlineIndex, element };
+      if (coedit) return;
+      const session = sessionRef.current;
+      if (!session || session.isDisposed) return;
+      // Instant honesty — flip to unsaved synchronously.
+      session.markDirty();
+      // Throttle the actual write: if one is already scheduled, this keystroke
+      // rides it (trailing save captures the latest DOM text when it fires).
+      if (liveSaveThrottleRef.current) return;
+      liveSaveThrottleRef.current = setTimeout(() => {
+        liveSaveThrottleRef.current = null;
+        const active = activeRunRef.current;
+        const liveSession = sessionRef.current;
+        if (!active || !liveSession || liveSession.isDisposed) return;
+        const next = foldLiveRunTextIntoDoc(
+          liveSession.doc,
+          active.blockIndex,
+          active.inlineIndex,
+          active.element.textContent ?? '',
+        );
+        if (next) {
+          liveSession.persistLive(next).catch((err: unknown) => {
+            console.error('[DocxEditor] live-typing autosave (input) failed:', err);
+          });
+        }
+      }, LIVE_TYPING_SAVE_THROTTLE_MS);
+    },
+    [coedit],
+  );
+
   // CLUSTER-C1: fold whatever the user is CURRENTLY typing (focused, not yet
   // blurred) into the document model, exactly as if they had clicked away.
   // Called before unmount and before export so an in-progress keystroke can
@@ -622,6 +709,62 @@ export function DocxEditor({
       cancelled = true;
     };
   }, [canEdit, filePath, coedit, commitActiveRunEdit]);
+
+  // ---- QA-81: steady-state periodic autosave of LIVE (un-blurred) typing ---
+  // A focused keystroke lives only in the run's contentEditable DOM until the
+  // run blurs (the blur is what commits it + schedules a save). Until then the
+  // steady-state autosave has nothing scheduled, so a crash/power-loss while
+  // actively typing a brand-new .docx silently loses everything typed since
+  // focus — even though the toolbar reads "Saved". This interval closes that
+  // gap for the SOLO path: every ~2s, if a run is focused with un-persisted
+  // text, fold that live DOM text into a clone of the session doc and write it
+  // to disk. It deliberately does NOT clear `activeRunRef`, touch
+  // `currentDocRef`, re-render the live view, or author a tracked change — so
+  // the caret is never disturbed and continued typing stays tracked. The
+  // eventual blur authors the proper (tracked-change) commit and supersedes
+  // this plain-text shadow on disk. COEDIT is excluded because it has no
+  // DocxSession at all — its document is sourced from the CRDT, so this
+  // persistLive/session machinery simply doesn't apply. (Co-edit run text is
+  // likewise only folded into the CRDT on blur, so it has its OWN un-blurred-
+  // typing gap; closing that is a separate, CRDT-native change — deliberately
+  // out of scope here to avoid touching the E2EE co-edit path.)
+  useEffect(() => {
+    if (coedit || !filePath) return;
+    const id = setInterval(() => {
+      const active = activeRunRef.current;
+      const session = sessionRef.current;
+      if (!active || !session || session.isDisposed) return;
+      const text = active.element.textContent ?? '';
+      const next = foldLiveRunTextIntoDoc(
+        session.doc,
+        active.blockIndex,
+        active.inlineIndex,
+        text,
+      );
+      // `null` → nothing new to persist (text unchanged, or the run moved under
+      // a concurrent structural edit). `persistLive` routes through the same
+      // write-coordinator/rev serialization as every other save of this path,
+      // keeps the session dirty until the write lands (so an overlapping older
+      // write can't publish a false "Saved"), and skips the version snapshot.
+      // It surfaces any failure as the session's own save-error/retry state
+      // rather than throwing — the `.catch` is a defensive backstop for that
+      // already-handled promise.
+      if (next) {
+        session.persistLive(next).catch((err: unknown) => {
+          console.error('[DocxEditor] live-typing autosave failed:', err);
+        });
+      }
+    }, LIVE_TYPING_AUTOSAVE_MS);
+    return () => {
+      clearInterval(id);
+      // Also drop any pending input-throttled save timer (its work, if any, is
+      // handled by the unmount/path-change teardown's own commit + flush).
+      if (liveSaveThrottleRef.current) {
+        clearTimeout(liveSaveThrottleRef.current);
+        liveSaveThrottleRef.current = null;
+      }
+    };
+  }, [coedit, filePath]);
 
   // ---- Cleanup the debounce on unmount (or filePath/coedit change) -------
   // Codex review catch (P2): deps include `filePath`/`coedit` (not just the
@@ -776,6 +919,14 @@ export function DocxEditor({
           // from under an actively-attached view would be just as wrong as
           // stripping its hook.
           if (!session.clearLiveFlushHookIfCurrent(outgoingLiveFlushHook)) return;
+          // QA-81 (P2): if a shadow save already mirrored the focused run's live
+          // text into `session.doc`, `commitOutgoingRunEditIfAny` above saw no
+          // diff and did nothing — so without this the session looks "clean" and
+          // gets disposed WITHOUT recording the finished edit in version history.
+          // This promotes that un-snapshotted live content to a committed
+          // checkpoint (dirty + snapshot-worthy) so the persistNow below saves +
+          // snapshots it. No-op when there's no such debt.
+          session.ensureLeavingSnapshot();
           // Read the doc off the CAPTURED session itself (kept current by
           // every scheduleSave call against it, including
           // commitOutgoingRunEditIfAny's above), not `currentDocRef.current`
@@ -2111,6 +2262,7 @@ export function DocxEditor({
               activeCommentId={activeCommentId}
               onRunEdit={(blockIndex, inlineIndex, text) => { void handleRunEdit(blockIndex, inlineIndex, text); }}
               onActiveRunChange={onActiveRunChange}
+              onActiveRunInput={onActiveRunInput}
               onCommentAnchorClick={setActiveCommentId}
             />
           </div>
