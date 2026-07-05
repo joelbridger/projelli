@@ -69,7 +69,16 @@ function formatDate(iso: string): string {
 
 export function ConsentDialog({ open, onOpenChange, consentMode, stateKnown = true, standingConsent, macPermissionError, errorMessage, lowDiskSpace, noticeScript, noticeCard, onConfirm }: ConsentDialogProps) {
   const { t } = useTranslation();
-  const [checked, setChecked] = useState(standingConsent !== null);
+  // R1 (Tier B trust guard): standing consent may only pre-check the box in a
+  // one-party-consent state, where no every-time notice is needed. In an
+  // all-party (two-party) state — and in the conservative two-party default we
+  // fall back to when the advisor's state is unknown — the attestation must
+  // stay a deliberate act every meeting, so the box always starts unchecked
+  // even when standing consent is on file. A one-party classification only
+  // ever comes from a KNOWN one-party state (see recordingConsentLaw), so this
+  // also implies stateKnown; consentMode is the single source of truth.
+  const mayPrecheck = consentMode === 'one-party';
+  const [checked, setChecked] = useState(standingConsent !== null && mayPrecheck);
 
   // The "say this out loud" step is the record-time nudge the whole Notice Kit
   // depends on, so it must ALWAYS render when starting a recording — a live
@@ -88,7 +97,7 @@ export function ConsentDialog({ open, onOpenChange, consentMode, stateKnown = tr
   const [prevGate, setPrevGate] = useState<{ open: boolean; sc: ConsentEntry | null }>({ open, sc: standingConsent });
   if (open !== prevGate.open || standingConsent !== prevGate.sc) {
     setPrevGate({ open, sc: standingConsent });
-    if (open) setChecked(standingConsent !== null);
+    if (open) setChecked(standingConsent !== null && mayPrecheck);
   }
 
   if (macPermissionError) {

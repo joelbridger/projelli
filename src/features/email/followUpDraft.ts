@@ -266,6 +266,31 @@ export function suggestClientEmail(items: MailListItem[]): string | null {
   return best;
 }
 
+/**
+ * R4b (Tier B trust guard) — build the citation footnotes that travel with a
+ * saved/sent follow-up draft. The citations that make a draft trustworthy are
+ * shown in the modal but were dropped on save/send, so the recipient and the
+ * advisor's own record lost the sourcing. This renders each still-present
+ * citation as a numbered footnote naming its SOURCE (the note heading, or the
+ * note name when the citation has no heading) and quoting the exact line —
+ * never an internal citation id. Returns '' when there's nothing cited.
+ */
+export function buildCitationFootnotes(citations: DraftCitation[], noteName: string): string {
+  if (citations.length === 0) return '';
+  const lines = citations.map((c, i) => {
+    const source = c.label ?? noteName;
+    return `${String(i + 1)}. ${source}: "${c.quote}"`;
+  });
+  return `Sources\n${lines.join('\n')}`;
+}
+
+/** Append the citation footnotes below the (advisor-reviewed) body, so what
+ *  they saw in the modal is what lands in the saved/sent artifact. */
+export function appendCitationFootnotes(body: string, citations: DraftCitation[], noteName: string): string {
+  const footnotes = buildCitationFootnotes(citations, noteName);
+  return footnotes ? `${body}\n\n${footnotes}` : body;
+}
+
 /** Escape + paragraphize plain text for mail_save_draft's HTML body. */
 export function draftBodyToHtml(text: string): string {
   const esc = text

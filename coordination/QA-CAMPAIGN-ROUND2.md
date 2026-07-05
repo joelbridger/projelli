@@ -24,3 +24,10 @@ Explorers TEST + REPORT, never fix. Findings → coordination/qa-campaign/BUG-DB
 
 ## Standing cadence (Jameson's intent: "we'll need to do that again")
 After Round 2: a comprehensive campaign becomes a RECURRING gate before any release candidate and after any large feature wave — not a one-off. The trigger pattern (stabilize → full campaign → fix to zero → re-verify) repeats.
+
+## Added hunt items (from bench2fresh + the swallow-sweep, 2026-07-04 night)
+- **Transcription-can-never-run → honest error, not eternal pending?** bench2fresh saw notes stuck on "Notes are being written…" forever because the ASR engine never ran (bench-2 sidecar setup gap, not a product bug there). BUT the real edge to verify on a properly-staged machine: if TRANSCRIPTION itself can't run/complete (vs the notes provider call, which QA-31/41 already guards), does the meeting show an honest error + retry, or stick on "pending" forever? Force it and check.
+- **The 8 swallow-sweep findings (QA-44..51)** are targeted hunt areas — verify each live: the privilege/isolation leak (QA-44) especially, plus stuck-loading, no-reconnect sync, calendar-fail-as-empty.
+
+## ⚠️ Bench discipline lesson (enforce in Round 2)
+bench2fresh rebuilt on a PRE-Tier-A tip and reported the (already-fixed) false Data Map claim as a finding. **Every Round-2 bench MUST confirm and RECORD its exact tip SHA and rebuild AFTER the stability trigger** — a bench on a stale tip produces false findings. This is why the "stable tip" trigger matters.
