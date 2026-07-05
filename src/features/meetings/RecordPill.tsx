@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next';
 import { Check, Circle, Copy, Loader2, Square, X } from 'lucide-react';
 import { useMeetingStore, recordChatNoticeForActiveMeeting } from './meetingStore';
 import { copyText } from './noticeClipboard';
+import { noticeCardPillView } from './noticeCard/noticeCardPill';
 
 function formatElapsed(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
@@ -52,9 +53,11 @@ export function RecordPill() {
   const elapsedMs = useMeetingStore((s) => s.status.elapsedMs);
   const tick = useMeetingStore((s) => s.tick);
   const stopRecording = useMeetingStore((s) => s.stopRecording);
+  const noticeCardStatus = useMeetingStore((s) => s.noticeCardStatus);
   const lastWriteFailure = useMeetingStore((s) => s.lastWriteFailure);
   const dismissWriteFailure = useMeetingStore((s) => s.dismissWriteFailure);
   const [chatCopied, setChatCopied] = useState(false);
+  const noticeCardPill = noticeCardPillView(noticeCardStatus);
 
   const handleCopyChatNotice = () => {
     void (async () => {
@@ -190,6 +193,25 @@ export function RecordPill() {
           <Check style={{ width: 11, height: 11 }} />
           {t('meetings.pill.local')}
         </span>
+        {noticeCardPill && (
+          <span
+            data-testid="record-pill-notice-card"
+            style={{
+              fontSize: 'var(--kp-font-2xs)',
+              color:
+                noticeCardPill.tone === 'ok'
+                  ? 'var(--kp-success)'
+                  : noticeCardPill.tone === 'warn'
+                    ? 'var(--kp-danger)'
+                    : 'var(--color-muted-foreground)',
+            }}
+          >
+            {noticeCardPill.kind === 'joining' && t('meetings.notice-card.pill-joining')}
+            {noticeCardPill.kind === 'lobby' && t('meetings.notice-card.pill-lobby')}
+            {noticeCardPill.kind === 'present' && t('meetings.notice-card.pill-present')}
+            {noticeCardPill.kind === 'failed' && t('meetings.notice-card.pill-failed')}
+          </span>
+        )}
       </span>
       <button
         type="button"

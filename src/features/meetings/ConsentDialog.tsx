@@ -17,6 +17,7 @@ import { useTranslation } from 'react-i18next';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/ui/dialog';
 import { Button } from '@/ui/button';
 import type { ConsentEntry } from './consentLedger';
+import { NoticeCardConsentSection, type NoticeCardConsentSectionProps } from './noticeCard/NoticeCardConsentSection';
 
 /** Substring match against the Rust sidecar's stderr-derived error message
  *  for a macOS permission denial (exit code 3). Lane w3b's exact error
@@ -54,6 +55,10 @@ export interface ConsentDialogProps {
    *  (firm-customizable; the caller resolves custom-or-default). Shown as a
    *  first-class "say this" step so the notice actually gets spoken. */
   noticeScript?: string;
+  /** Notice Card (additive) — the offer/toggle for adding the local notice
+   *  participant to an online meeting. Absent when there is nothing to offer;
+   *  never blocks recording. */
+  noticeCard?: NoticeCardConsentSectionProps;
   onConfirm: (opts: { note?: string }) => void;
 }
 
@@ -62,7 +67,7 @@ function formatDate(iso: string): string {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString();
 }
 
-export function ConsentDialog({ open, onOpenChange, consentMode, stateKnown = true, standingConsent, macPermissionError, errorMessage, lowDiskSpace, noticeScript, onConfirm }: ConsentDialogProps) {
+export function ConsentDialog({ open, onOpenChange, consentMode, stateKnown = true, standingConsent, macPermissionError, errorMessage, lowDiskSpace, noticeScript, noticeCard, onConfirm }: ConsentDialogProps) {
   const { t } = useTranslation();
   // R1 (Tier B trust guard): standing consent may only pre-check the box in a
   // one-party-consent state, where no every-time notice is needed. In an
@@ -74,6 +79,13 @@ export function ConsentDialog({ open, onOpenChange, consentMode, stateKnown = tr
   // also implies stateKnown; consentMode is the single source of truth.
   const mayPrecheck = consentMode === 'one-party';
   const [checked, setChecked] = useState(standingConsent !== null && mayPrecheck);
+
+  // The "say this out loud" step is the record-time nudge the whole Notice Kit
+  // depends on, so it must ALWAYS render when starting a recording — a live
+  // Legion run found it silently absent when the caller passed an empty/blank
+  // script (trust review E2). Fall back to the built-in localized wording here
+  // so the step is never missing, regardless of what the caller supplies.
+  const sayThis = (noticeScript ?? '').trim() || t('meetings.notice.default-script');
 
   // codex-review (P2): the dialog stays mounted across opens (the parent
   // renders it unconditionally, toggling `open`), so state from a PRIOR
@@ -127,30 +139,32 @@ export function ConsentDialog({ open, onOpenChange, consentMode, stateKnown = tr
             {t('meetings.consent.low-disk-warning')}
           </p>
         )}
-        {noticeScript && (
-          <div
-            data-testid="consent-notice-script"
-            style={{
-              border: '1px solid var(--kp-accent-soft)',
-              background: 'var(--kp-accent-soft)',
-              borderRadius: 'var(--radius-md)',
-              padding: '10px 12px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 4,
-            }}
-          >
-            <span style={{ fontSize: 'var(--kp-font-xs)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)' }}>
-              {t('meetings.notice.consent-script-heading')}
-            </span>
-            <span data-testid="consent-notice-script-text" style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-navy)', fontStyle: 'italic' }}>
-              “{noticeScript}”
-            </span>
-            <span style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
-              {t('meetings.notice.consent-script-hint')}
-            </span>
-          </div>
-        )}
+        {/* Trust review E2 / Legion bug: the "say this out loud" step ALWAYS
+            renders when starting a recording (falls back to the built-in wording
+            via `sayThis`), never gated on a possibly-empty prop. */}
+        <div
+          data-testid="consent-notice-script"
+          style={{
+            border: '1px solid var(--kp-accent-soft)',
+            background: 'var(--kp-accent-soft)',
+            borderRadius: 'var(--radius-md)',
+            padding: '10px 12px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 4,
+          }}
+        >
+          <span style={{ fontSize: 'var(--kp-font-xs)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)' }}>
+            {t('meetings.notice.consent-script-heading')}
+          </span>
+          <span data-testid="consent-notice-script-text" style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-navy)', fontStyle: 'italic' }}>
+            “{sayThis}”
+          </span>
+          <span style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
+            {t('meetings.notice.consent-script-hint')}
+          </span>
+        </div>
+        {noticeCard && <NoticeCardConsentSection {...noticeCard} />}
         {consentMode === 'two-party' && (
           <p
             data-testid={stateKnown ? 'consent-two-party-note' : 'consent-two-party-note-unknown'}

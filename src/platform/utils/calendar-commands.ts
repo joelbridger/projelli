@@ -20,6 +20,13 @@ export interface CalendarEventDto {
   endUtc: string;
   attendees: CalendarAttendeeDto[];
   organizerEmail: string;
+  /**
+   * The event's online-meeting join URL (Teams/Zoom/Meet), when the calendar
+   * exposes one. Absent for in-person events and ICS feeds. The Notice Card
+   * derives the platform from this URL (`detectPlatform`) rather than storing
+   * it separately.
+   */
+  joinUrl?: string;
 }
 
 export interface CalendarSyncReport {

@@ -628,6 +628,44 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     type: 'text',
     defaultValue: '',
   },
+  {
+    // Firm default for whether the Notice Card is offered (pre-checked) in the
+    // consent dialog when the meeting has a join link. Never auto-joins without
+    // the toggle; the advisor can uncheck it per meeting.
+    key: 'meetings.noticeCardEnabled',
+    category: 'privacy',
+    label: 'Offer the Notice Card for online meetings',
+    description:
+      'When a meeting has a Teams or Zoom link, offer to add the Notice Card — a participant that runs on your computer, shows everyone the meeting is being recorded, records nothing, and leaves when recording ends. You can turn it off for any single meeting.',
+    type: 'toggle',
+    defaultValue: true,
+  },
+  {
+    // The guest display name template. `{advisor}` is replaced with the
+    // advisor's first name. Kept short; per-platform length guards apply.
+    key: 'meetings.noticeCardNameTemplate',
+    category: 'privacy',
+    label: 'Notice Card name',
+    description:
+      'The name the Notice Card shows in the participant list. Use {advisor} for your first name. The leading recording symbol makes it clear at a glance, even camera-off.',
+    type: 'text',
+    defaultValue: '⏺ Recording Notice — {advisor}',
+  },
+  {
+    // What satisfies the Strict policy: verbal notice OR full-duration card
+    // presence (either), or both required. Verbal stays recommended everywhere.
+    key: 'meetings.noticeEvidenceRule',
+    category: 'privacy',
+    label: 'What satisfies a Strict recording notice',
+    description:
+      'Under Strict, decide what counts as proof a meeting was disclosed: either a verified spoken notice or the Notice Card present for the whole recording, or require both. A spoken notice is always the strongest single evidence and works on phone calls too.',
+    type: 'select',
+    defaultValue: 'either',
+    options: [
+      { value: 'either', label: 'Either — a spoken notice or full-meeting card presence' },
+      { value: 'both', label: 'Both — a spoken notice and full-meeting card presence' },
+    ],
+  },
 
   // ── Advanced: Updates ─────────────────────────────────────────────────
   {

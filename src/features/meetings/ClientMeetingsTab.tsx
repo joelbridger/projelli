@@ -19,6 +19,20 @@ import { consentModeFor } from './recordingConsentLaw';
 import { makeConsentLedger, type ConsentEntry } from './consentLedger';
 import { deriveNoticeState, meetingDirKey, type NoticeEntry, type NoticeState } from './noticeLedger';
 import { useNoticeSettings } from './noticeSettings';
+import { calendarListEvents } from '@/platform/utils/calendar-commands';
+import { useProfileStore } from '@/platform/profile/profileStore';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
+import { useActiveMatters } from '@/platform/matter/matterStore';
+import { buildCalendarMatterMap, resolveMattersForCalendarEvent } from '@/platform/rag/matterResolver';
+import { pickNoticeCardOffer, type NoticeCardOffer } from './noticeCard/pickOffer';
+import { buildDisplayName, detectPlatform } from './noticeCard/meetingPlatform';
+import { canAutoJoin, type NoticeCardPlatform } from './noticeCard/noticeCardTypes';
+import {
+  resolveNoticeCardEnabled,
+  resolveNoticeCardNameTemplate,
+  resolveNoticeEvidenceRule,
+} from './noticeCard/noticeCardSettings';
+import { deriveNoticeCardEvidence, type NoticeCardEvidence } from './noticeCard/noticeCardEvidence';
 
 export interface MeetingSummary {
   dir: string;
@@ -165,8 +179,21 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
   // Recording Notice Kit — per-meeting notice state (keyed by meeting dir) so
   // each row can flag a missing/quarantined notice, plus the firm policy.
   const [noticeStates, setNoticeStates] = useState<Record<string, NoticeState>>({});
+  const [noticeCardEvidenceStates, setNoticeCardEvidence] = useState<Record<string, NoticeCardEvidence>>({});
   const { policy: noticePolicy, customScript: custom } = useNoticeSettings();
   const noticeScript = custom || t('meetings.notice.default-script');
+  // Notice Card — the offer for an online meeting happening now (from calendar
+  // sync), the toggle state (pre-checked per firm default), and the Zoom
+  // native-record self-attest. Absent for phone/in-person.
+  const soloName = useProfileStore((s) => s.soloName);
+  const getSetting = useSettingsStore((s) => s.getSetting);
+  const activeMatters = useActiveMatters();
+  const [noticeCardOffer, setNoticeCardOffer] = useState<NoticeCardOffer | null>(null);
+  const [noticeCardChecked, setNoticeCardChecked] = useState(false);
+  const [noticeCardZoomAttest, setNoticeCardZoomAttest] = useState(false);
+  // Manual paste fallback when calendar sync found no online meeting: lets the
+  // advisor add the card to a non-calendar (or not-yet-synced) Teams/Zoom call.
+  const [noticeCardManualUrl, setNoticeCardManualUrl] = useState('');
   // No per-client state on file yet (see Matter type) — consentModeFor(null)
   // is the conservative two-party default, and stateKnown={false} below keeps
   // the dialog's wording conditional rather than asserting the law.
@@ -189,10 +216,16 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
       const byDir: Record<string, NoticeEntry[]> = {};
       for (const n of notices) (byDir[meetingDirKey(n.meetingDir)] ??= []).push(n);
       const states: Record<string, NoticeState> = {};
-      for (const [key, entries] of Object.entries(byDir)) states[key] = deriveNoticeState(entries);
+      const cardEvidence: Record<string, NoticeCardEvidence> = {};
+      for (const [key, entries] of Object.entries(byDir)) {
+        states[key] = deriveNoticeState(entries);
+        cardEvidence[key] = deriveNoticeCardEvidence(entries);
+      }
       setNoticeStates(states);
+      setNoticeCardEvidence(cardEvidence);
     } catch {
       setNoticeStates({});
+      setNoticeCardEvidence({});
     }
     setLoading(false);
   }, [matterFolder, workspaceService]);
@@ -215,22 +248,77 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
       }
       setMacPermissionError(false);
       setConsentError(null);
+      // Notice Card — is an online meeting for THIS client happening now?
+      // Best-effort; a calendar miss simply means no auto offer (the manual
+      // paste field still lets the advisor add the card). Crucially, we filter
+      // the practice-wide calendar to events that resolve to the CURRENT client
+      // so we can never pre-check/launch the card into a different client's
+      // concurrent meeting (Codex R7 P1). No current-client match => no auto
+      // offer; the advisor explicitly pastes a link instead.
+      let offer: NoticeCardOffer | null = null;
+      try {
+        const now = Date.now();
+        const grace = 5 * 60 * 1000;
+        const events = await calendarListEvents(
+          new Date(now - grace).toISOString(),
+          new Date(now + grace).toISOString(),
+        );
+        const map = buildCalendarMatterMap(activeMatters);
+        const mine = events.filter((e) => resolveMattersForCalendarEvent(e, map).includes(matterId));
+        offer = pickNoticeCardOffer(mine, now);
+      } catch {
+        offer = null;
+      }
+      setNoticeCardOffer(offer);
+      // Pre-check per firm default, but only for a platform we can actually
+      // drive (Teams/Zoom). Meet shows an honest fallback, never a checked box.
+      setNoticeCardChecked(!!offer && canAutoJoin(offer.platform) && resolveNoticeCardEnabled(getSetting));
+      setNoticeCardZoomAttest(false);
+      setNoticeCardManualUrl('');
       // QA-35 — cheap disk-space preflight, checked fresh on every open so
       // the warning reflects right now, not a stale prior check.
       setLowDiskSpace(await checkLowDiskSpaceWarning());
       setShowConsent(true);
     })();
-  }, [matterId, matterFolder, workspaceService]);
+  }, [matterId, matterFolder, workspaceService, getSetting, activeMatters]);
 
   const handleConsentConfirm = useCallback((opts: { note?: string }) => {
     void (async () => {
       try {
+        // Notice Card — from the calendar offer (if kept checked) OR a manually
+        // pasted link when calendar sync found nothing. Only when we can drive
+        // the platform (Teams/Zoom). Build the guest name from the firm template.
+        const buildCard = () => {
+          let joinUrl: string | undefined;
+          let platform: NoticeCardPlatform | undefined;
+          let meetingTitle: string | undefined;
+          if (noticeCardOffer && noticeCardChecked) {
+            joinUrl = noticeCardOffer.joinUrl;
+            platform = noticeCardOffer.platform;
+            meetingTitle = noticeCardOffer.meetingTitle;
+          } else if (!noticeCardOffer && noticeCardManualUrl.trim()) {
+            joinUrl = noticeCardManualUrl.trim();
+            platform = detectPlatform(joinUrl);
+          }
+          if (!joinUrl || !platform || !canAutoJoin(platform)) return undefined;
+          const advisorName = (soloName.trim().split(/\s+/)[0] || '').trim();
+          return {
+            joinUrl,
+            platform,
+            displayName: buildDisplayName(resolveNoticeCardNameTemplate(getSetting), advisorName, platform),
+            ...(meetingTitle ? { meetingTitle } : {}),
+            advisorName,
+            ...(platform === 'zoom' && noticeCardZoomAttest ? { zoomNativeRecordAttested: true } : {}),
+          };
+        };
+        const card = buildCard();
         await startRecording(matterId, {
           consentMode,
           ...(opts.note ? { consentNote: opts.note } : {}),
           // Capture the script/locale shown for this recording (codex-review R6).
           noticeCustomScript: custom,
           noticeLanguage: i18n.language,
+          ...(card ? { noticeCard: card } : {}),
         });
         setShowConsent(false);
       } catch (err) {
@@ -244,7 +332,19 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
         }
       }
     })();
-  }, [matterId, consentMode, startRecording, custom, i18n.language]);
+  }, [
+    matterId,
+    consentMode,
+    startRecording,
+    custom,
+    i18n.language,
+    noticeCardOffer,
+    noticeCardChecked,
+    noticeCardZoomAttest,
+    noticeCardManualUrl,
+    soloName,
+    getSetting,
+  ]);
 
   // Task 12b — per-client (never practice-wide) review flags, shown as a
   // badge on each row (the meeting page's "Mark reviewed" clears it).
@@ -328,11 +428,19 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-xs)' }}>
           {meetings.map((m) => {
             const noticeState = noticeStates[meetingDirKey(m.dir)];
+            const cardEvidence = noticeCardEvidenceStates[meetingDirKey(m.dir)];
             const reviewItems = needsReview(
               m,
               matterQueue,
               undefined,
-              noticeState ? { state: noticeState, policy: noticePolicy } : undefined,
+              noticeState
+                ? {
+                    state: noticeState,
+                    policy: noticePolicy,
+                    ...(cardEvidence ? { cardEvidence } : {}),
+                    evidenceRule: resolveNoticeEvidenceRule(getSetting),
+                  }
+                : undefined,
             );
             const quarantined = reviewItems.some((i) => i.kind === 'notice-quarantined');
             const duration = formatMeetingDuration(m.meta?.durationMs, t);
@@ -416,6 +524,25 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
         errorMessage={consentError}
         lowDiskSpace={lowDiskSpace}
         noticeScript={noticeScript}
+        noticeCard={
+          noticeCardOffer
+            ? {
+                offer: { platform: noticeCardOffer.platform, meetingTitle: noticeCardOffer.meetingTitle },
+                checked: noticeCardChecked,
+                onToggle: setNoticeCardChecked,
+                ...(noticeCardOffer.platform === 'zoom'
+                  ? { zoomNativeRecord: { checked: noticeCardZoomAttest, onToggle: setNoticeCardZoomAttest } }
+                  : {}),
+              }
+            : {
+                // No calendar offer: the small manual paste-a-link affordance so
+                // a non-calendar Teams/Zoom call can still get the Notice Card.
+                checked: false,
+                onToggle: setNoticeCardChecked,
+                manualUrl: noticeCardManualUrl,
+                onManualUrlChange: setNoticeCardManualUrl,
+              }
+        }
         onConfirm={handleConsentConfirm}
       />
     </div>
