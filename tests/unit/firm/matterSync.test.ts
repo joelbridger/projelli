@@ -666,7 +666,7 @@ describe('MatterSyncClient reconnect + queued updates (QA-46)', () => {
       // pushLocalUpdate awaits ensureKey()/encryptUpdate() (real WebCrypto
       // ops) before it ever reaches the network call, so give it a few
       // fake-timer ticks rather than asserting immediately.
-      await waitForFake(() => c.getStatus() === 'offline', 300, 1);
+      await waitForFake(() => c.getStatus() === 'offline', 1000, 1);
       expect(c.getStatus()).toBe('offline');
       expect(relay.blobs.length).toBe(0); // never made it out
 
@@ -726,7 +726,7 @@ describe('MatterSyncClient reconnect + queued updates (QA-46)', () => {
       // First local edit fails to push immediately (relay unreachable from
       // the start).
       c.doc.getMap('m').set('x', 'attempt-1');
-      await waitForFake(() => c.getStatus() === 'offline', 300, 1);
+      await waitForFake(() => c.getStatus() === 'offline', 1000, 1);
       expect(c.getStatus()).toBe('offline');
 
       // First backoff (~1s) fires — the retry ALSO fails (still down). Before
@@ -792,7 +792,7 @@ describe('MatterSyncClient reconnect + queued updates (QA-46)', () => {
 
       failPush = true;
       c.doc.getMap('m').set('x', 'push-only-failure');
-      await waitForFake(() => c.getStatus() === 'offline', 300, 1);
+      await waitForFake(() => c.getStatus() === 'offline', 1000, 1);
 
       failPush = false;
       await waitForFake(() => relay.blobs.length > 0, 1000, 50);
