@@ -15,7 +15,7 @@
  * struct on merge if it turns out to reject unknown fields.
  */
 import { create } from 'zustand';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke, isTauri } from '@tauri-apps/api/core';
 import type { CaptureStatus, TranscriptFile } from '@/platform/types/meeting';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { useMatterStore } from '@/platform/matter/matterStore';
@@ -39,6 +39,15 @@ import { dictationToMeeting } from './dictationToMeeting';
 import { makeConsentLedger } from './consentLedger';
 import type { NoticeState } from './noticeLedger';
 import { customNoticeScript, type NoticePolicy } from './noticeSettings';
+import {
+  noticeEvidenceSatisfied,
+  type NoticeCardEvidence,
+  type NoticeEvidenceRule,
+} from './noticeCard/noticeCardEvidence';
+import { startNoticeCard, stopNoticeCard } from './noticeCard/noticeCardLifecycle';
+import type { NoticeCardStatus } from './noticeCard/supervisor';
+import type { NoticeCardPlatform } from './noticeCard/noticeCardTypes';
+import type { NoticeCardVisual } from './noticeCard/canvasCard';
 import { ensureNoticeVerified, type NoticeVerificationDeps } from './noticeVerification';
 import type { NoticeLocale } from './noticeMatcher';
 import i18n from '@/i18n';
@@ -57,6 +66,21 @@ export interface StartOpts {
    *  the firm edits the setting afterward (codex-review R6). */
   noticeCustomScript?: string;
   noticeLanguage?: string;
+  /** Notice Card — when set (and on desktop), the local notice participant
+   *  joins the online meeting on record-start and leaves on record-stop.
+   *  Absent for phone/in-person or when the advisor unchecked the offer.
+   *  Never gates recording. */
+  noticeCard?: {
+    joinUrl: string;
+    platform: NoticeCardPlatform;
+    /** Guest display name (already resolved from the firm template + advisor). */
+    displayName: string;
+    meetingTitle?: string;
+    /** Advisor first name, for the visual card's headline. */
+    advisorName: string;
+    /** The advisor attested they will also use Zoom's native Record. */
+    zoomNativeRecordAttested?: boolean;
+  };
 }
 
 /** The on-disk `meeting.json` shape this lane reads/writes. */
@@ -154,6 +178,8 @@ interface MeetingState {
    *  consent to write into meeting.json without a second lookup. */
   activeMatterId: string | null;
   activeConsent: StartOpts | null;
+  /** Notice Card status for the record pill (null when no card is running). */
+  noticeCardStatus: NoticeCardStatus | null;
   /** QA-35 — the most recent chunk-write failure that cut a recording short,
    *  if any and not yet dismissed. Kept separate from `status` (which resets
    *  to idle the moment the recording actually stops) so the RecordPill can
@@ -693,7 +719,14 @@ export function needsReview(
   now: number = Date.now(),
   // Recording Notice Kit: the meeting's derived notice state + the firm policy.
   // Optional so existing callers (meeting, crmQueue) keep working unchanged.
-  notice?: { state: NoticeState; policy: NoticePolicy }
+  // Notice Card (additive): full-duration card presence + the firm evidence
+  // rule. When absent, behavior is identical to before (verbal-only, 'either').
+  notice?: {
+    state: NoticeState;
+    policy: NoticePolicy;
+    cardEvidence?: NoticeCardEvidence;
+    evidenceRule?: NoticeEvidenceRule;
+  }
 ): ReviewItem[] {
   const items: ReviewItem[] = [];
   // A meeting folder with a missing/corrupt meeting.json is an orphaned or
@@ -730,12 +763,19 @@ export function needsReview(
   ) {
     items.push({ kind: 'no-followup' });
   }
-  // Recording Notice Kit: only 'unverified' (a recorded not-detected with no
-  // resolution) needs attention. 'verified', 'resolved', and 'unchecked' (not
-  // yet transcribed) never flag. Strict escalates the same condition to a
-  // quarantine state instead of a plain review flag.
-  if (notice && notice.state.status === 'unverified') {
-    items.push({ kind: notice.policy === 'strict' ? 'notice-quarantined' : 'notice-unverified' });
+  // Recording Notice Kit + Notice Card: a meeting needs attention when its
+  // notice is NOT satisfied by the firm's evidence rule. By default ('either'),
+  // a verified spoken notice OR the card present for the whole recording
+  // satisfies it; a firm can require both. 'unchecked' (not yet transcribed)
+  // never flags. Strict escalates the same condition to a quarantine state
+  // instead of a plain review flag. With no card evidence + the default rule,
+  // this is identical to the verbal-only behavior it replaces.
+  if (notice && notice.state.status !== 'unchecked') {
+    const cardEvidence: NoticeCardEvidence = notice.cardEvidence ?? { presentForEntireRecording: false };
+    const rule: NoticeEvidenceRule = notice.evidenceRule ?? 'either';
+    if (!noticeEvidenceSatisfied(notice.state, cardEvidence, rule)) {
+      items.push({ kind: notice.policy === 'strict' ? 'notice-quarantined' : 'notice-unverified' });
+    }
   }
   return items;
 }
@@ -921,6 +961,7 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
   processingCount: 0,
   activeMatterId: null,
   activeConsent: null,
+  noticeCardStatus: null,
   lastWriteFailure: null,
 
   dismissWriteFailure() {
@@ -982,6 +1023,48 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
           locale: noticeLocaleFromLanguage(opts.noticeLanguage ?? i18n.language),
         })
         .catch(() => {});
+      // Notice Card — join the online meeting as the local notice participant.
+      // Desktop-only; NEVER gates the recording (already running above). All
+      // transitions are ledgered by the supervisor via this same ledger.
+      if (opts.noticeCard && isTauri()) {
+        const nc = opts.noticeCard;
+        const cameraVisual: NoticeCardVisual = {
+          title: i18n.t('meetings.notice-card.card-title', { name: nc.advisorName }),
+          lines: [
+            i18n.t('meetings.notice-card.card-line-1'),
+            i18n.t('meetings.notice-card.card-line-2'),
+            i18n.t('meetings.notice-card.card-line-3'),
+          ],
+          footer: i18n.t('meetings.notice-card.card-footer'),
+          recordingLabel: i18n.t('meetings.notice-card.card-recording-label'),
+        };
+        startNoticeCard({
+          config: {
+            joinUrl: nc.joinUrl,
+            platform: nc.platform,
+            displayName: nc.displayName,
+            meetingDir: r.meetingDir,
+            meetingTitle: nc.meetingTitle,
+          },
+          cameraVisual,
+          startEpochMs: Date.now(),
+          record: (event) => {
+            void ledger.recordNotice(event).catch(() => {});
+          },
+          onStatus: (noticeCardStatus) => {
+            set({ noticeCardStatus });
+          },
+        });
+        if (nc.zoomNativeRecordAttested) {
+          void ledger
+            .recordNotice({
+              kind: 'zoom-native-record-attested',
+              meetingDir: r.meetingDir,
+              at: new Date().toISOString(),
+            })
+            .catch(() => {});
+        }
+      }
     }
   },
 
@@ -1009,6 +1092,12 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
     } | null> => {
       const { activeMatterId, activeConsent, status } = get();
       const startedMeetingDir = status.meetingDir;
+      // Notice Card — leave the meeting the moment the advisor hits Stop, BEFORE
+      // capture_stop and independently of its outcome, so the companion window
+      // can never linger in the call even if capture_stop rejects
+      // (supervisor.stop() always closes the window, with a watchdog). Its
+      // departure is the honest "recording has ended" signal.
+      void stopNoticeCard();
       let r: { meetingDir: string; audioPath: string; durationMs: number };
       try {
         r = await invoke<{
@@ -1030,6 +1119,7 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
                   status: { recording: false, meetingDir: null, elapsedMs: 0, writeError: null },
                   activeMatterId: null,
                   activeConsent: null,
+                  noticeCardStatus: null,
                 }
               : s
           );
@@ -1053,6 +1143,7 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
           activeMatterId: null,
           activeConsent: null,
           lastWriteFailure: { message: i18n.t('meetings.pill.write-error'), at: new Date().toISOString() },
+          noticeCardStatus: null,
         });
         const matterId = activeMatterId ?? '';
         if (startedMeetingDir) {
@@ -1085,6 +1176,7 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
         // proof nothing is currently wrong — clear any stale disk-full pill
         // left over rather than requiring the advisor to dismiss it by hand.
         lastWriteFailure: null,
+        noticeCardStatus: null,
       });
       const meetingDir = r.meetingDir || startedMeetingDir || '';
       const matterId = activeMatterId ?? '';

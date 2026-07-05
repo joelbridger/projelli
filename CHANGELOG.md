@@ -31,7 +31,106 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **The Notice Card — a local notice participant (v1 + v2).** When the advisor
+  records an online meeting, a second participant that runs entirely on the
+  advisor's own computer joins the call as "⏺ Recording Notice — <advisor>",
+  shows every participant a card saying the meeting is being recorded and that
+  the recording never leaves the advisor's machine, and leaves the moment
+  recording stops. It records nothing and sends nothing. Design:
+  `docs/strategy/2026-07-04-notice-participant-design.md`.
+  - **Calendar join-URL + platform detection.** Calendar sync now carries each
+    event's online-meeting join URL (Graph `onlineMeeting.joinUrl`; Google
+    `conferenceData` video entry point / `hangoutLink`), and the platform
+    (Teams/Zoom/Meet/other) is derived from it. Files: `commands/calendar/
+    model.rs` (`join_url`), `graph_source.rs`, `google_source.rs`, `commands.rs`,
+    `calendar-commands.ts` (`joinUrl`), `noticeCard/meetingPlatform.ts`.
+  - **Consent-dialog offer.** When an online meeting is happening now (from
+    calendar sync), the consent dialog offers the card, pre-checked per firm
+    default, tagged with the meeting title + platform. Manual link-paste and an
+    honest Google Meet "say it aloud" fallback are included. Never blocks
+    recording. Files: `noticeCard/NoticeCardConsentSection.tsx`, `ConsentDialog.tsx`,
+    `ClientMeetingsTab.tsx`, `noticeCard/pickOffer.ts`.
+  - **Guest-join adapters (Teams + Zoom).** Per-platform automation (fill name →
+    mute → join → detect admitted/lobby/denied) tested against recorded page
+    fixtures. Runs inside an isolated companion Tauri window (no IPC bridge to
+    app internals; status flows out one-way via `document.title`). Files:
+    `noticeCard/adapters/*`, `noticeCard/injectionScript.ts`,
+    `commands/notice_card/mod.rs`.
+  - **Lifecycle supervisor.** Joins on record-start, leaves on record-stop
+    (hard watchdog guarantee — a wedged window can never linger), one auto-rejoin
+    on disconnect; every transition ledgered (`notice-card-joined/left/failed` +
+    derived `notice-card-present-for-entire-recording`). Fully unit-tested with a
+    fake clock. Files: `noticeCard/supervisor.ts`, `noticeCard/tauriDriver.ts`,
+    `noticeCard/noticeCardLifecycle.ts`, `meetingStore.ts`.
+  - **Evidence-rule policy hook.** The Standard/Strict dial now accepts a
+    configurable rule: a verified spoken notice OR full-duration card presence
+    satisfies Strict (default either; firms can require both). Files:
+    `noticeCard/noticeCardEvidence.ts`, `meetingStore.ts` (`needsReview`),
+    `noticeCard/noticeCardSettings.ts`, `settings/schema.ts`.
+  - **Visual card (v2 canvas camera).** The companion webview intercepts
+    getUserMedia and supplies a locally-rendered canvas (calm light card, firm
+    branding slot, three localized lines, live "Recording · M:SS" timer, "leaves
+    when recording ends" line) — no OS-level virtual-camera driver needed. File:
+    `noticeCard/canvasCard.ts`.
+  - **Record-pill status + settings.** The pill shows "Notice card in meeting ✓"
+    / "couldn't join — say the notice aloud". New notice settings: offer default,
+    display-name template, evidence rule. Files: `RecordPill.tsx`,
+    `noticeCard/noticeCardPill.ts`, `settings/RecordingNoticeSettings.tsx`.
+  - **Quick wins.** An official "⏺ RECORDING in progress" virtual-background
+    image (Save action in notice settings) and a Zoom guided native-record
+    checklist with a ledger self-attest. Files: `noticeCard/recordingBackground.ts`,
+    `RecordingNoticeSettings.tsx`, `NoticeCardConsentSection.tsx`.
+  - i18n: 24 new `meetings.notice-card.*` keys (en/de/es).
+- **Trust Tier B — "guard the outbound door" (the guards that stop confident-AI-wrongness from reaching a system of record).**
+  - **E3-gate — unresolved meeting notes are structurally unsendable.** A meeting note that is unreviewed, generation-errored (the "AI apology as note" case), or notice-quarantined under Strict policy has its "Send to Wealthbox" and "Draft follow-up" toolbar actions disabled with an honest, visible explanation. Pure decision in `meetingNoteOutboundGate.ts`; async state gathered in `useMeetingNoteOutboundGate.ts` + `MeetingNoteOutboundGate.tsx`; the disable + explanation added via a new `outboundBlockedReason` prop on `DocxEditor` (toolbar only — engine untouched), wired in `MainPanel.tsx`.
+  - **E3-provenance — AI-drafted CRM notes carry their origin.** A note AI-drafted from a meeting gets an appended, localized provenance line ("Drafted by Advisor Prep Hero AI from the [date] meeting; approved by [advisor] on [date]") that reaches the Wealthbox wire. Composed once at approve time (stable across retries; not part of the dedup key). New Rust `CrmWriteRequest.provenance` + `note_content()` builder appends it at the wire boundary. The firm (practice) tier defaults the compliance-note checkbox ON; solo keeps a remembered choice. Files: `crm/write.rs`, `crm/commands.rs`, `crmWriteQueueStore.ts`, `wealthbox-commands.ts`, `crmProvenance.ts`, `complianceNotePref.ts`, `CrmWriteReviewCard.tsx`, `crmNoteFormat.ts`.
+  - **R4a — no generate-on-open for the follow-up draft.** `DraftFollowUpModal` no longer sends note content or logs egress on open; it shows a preview of what will be sent (which note, which client) and the destination provider, and only sends on an explicit "Generate" click (egress logged there).
+  - **R4b — citations travel with the draft.** Saved/sent follow-up drafts append citation footnotes naming the source (note heading / note name), never internal ids (`followUpDraft.ts` `appendCitationFootnotes`).
+  - **R6 — whole-practice pre-send truth.** Before a whole-practice Ask sends in cloud mode, one confirm names the real client count and the real provider; local-only skips it; the advisor may remember the choice (default ask). Files: `wholePracticeSendGate.ts`, `WholePracticeSendConfirm.tsx`, `Ask.tsx`.
+  - **R1 — attestation stays deliberate.** The recording-consent checkbox never pre-checks from standing consent in all-party (two-party) or unknown-state defaults; one-party states keep the convenience (`ConsentDialog.tsx`).
+  - **R9 — biometric consent before voiceprint enrollment.** "Separate speakers" requires an explicit affirmation that the client consented to a voice profile (with an honest state-biometric-law note) before any new voiceprint is enrolled; the attestation is ledgered as a `voiceprint_consent` audit event (`SpeakerNamesPanel.tsx`).
+
 ### Fixed
+- **QA-45 (P1): shared client notes no longer stick on "Loading" forever.**
+  `MatterNotesEditorWrapper` called `ensureMatterSync(matter).then(...)` with
+  no `.catch` — a rejected promise (key fetch / sync startup / crypto setup
+  failure) left `loading` stuck `true` permanently instead of falling back to
+  the existing locked/no-access panel. Now a rejection sets the matter's sync
+  status to `error` and renders the same fail-closed panel a resolved `null`
+  already did. Files: `src/features/matters/MatterNotesEditorWrapper.tsx`.
+- **QA-46 (P1): live co-edit sync now reconnects after a socket drop and
+  never silently drops an edit.** `MatterSyncClient` had no reconnect loop
+  after a WebSocket close/error (or a failed ticket mint), so teammates
+  stopped receiving changes until something else happened to reopen the
+  socket; a failed local-update push was also just discarded, never retried.
+  Now the client schedules a reconnect with exponential backoff (1s→30s cap)
+  on any offline/error transition while still started, queues unsent local
+  Yjs updates in order, and flushes the queue once connectivity returns.
+  Files: `src/platform/firm/MatterSyncClient.ts`.
+- **QA-47 (P1): a DocxEditor chunk-load failure no longer shows a false
+  "notes pending".** `MeetingEntry` loaded `notes.docx`'s editor via a bare
+  `import().then(setState)` with no `.catch` — if the dynamic import
+  rejected, `DocxEditorComp` stayed `null` forever and the UI fell through to
+  "notes pending" even when the notes file genuinely exists (the same defect
+  a 2026-07-04 test-infra-only fix had papered over in tests without
+  touching the product code). Now the notes pane loads through
+  `LazyBoundary` (the same pattern already used for `.docx` tabs in
+  `MainPanel`), so a chunk-load failure surfaces a real "couldn't load"
+  state with a working retry instead of a silent false pending.
+  Files: `src/features/meetings/MeetingEntry.tsx`, `src/locales/{en,es,de}.json`.
+- **QA-48 (P1): a calendar-fetch failure no longer reads as "no meetings
+  today".** `TodaysMeetingsStrip` and `useAutoprepRescan` both converted a
+  `calendarListEvents` failure into an empty array, so the Today strip
+  silently disappeared and background auto-prep silently stopped queuing
+  briefs, indistinguishable from a genuinely empty calendar. Now a fetch
+  failure sets a visible `calendarError` state: the strip shows a retryable
+  "couldn't check today's calendar" warning (or, if it already had matched
+  meetings, keeps showing them with a small stale-data warning + retry), and
+  the periodic rescan reports failures through the same channel instead of
+  silently no-op'ing.
+  Files: `src/features/meetings/TodaysMeetingsStrip.tsx`,
+  `src/features/meetings/useMeetingAutoprep.ts`.
 - **QA-34 (P0 silent data loss): a failed `.docx` autosave no longer wedges
   persistence while the UI says "Saved".** A `.docx` is edited by `DocxEditor`,
   which saves directly to disk and never marks its editor-store tab dirty — so a

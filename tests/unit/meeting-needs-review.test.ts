@@ -73,4 +73,38 @@ describe('needsReview', () => {
     };
     expect(needsReview(failed, []).map((i) => i.kind)).toContain('transcript-failed');
   });
+
+  // ── Notice Card evidence rule (additive) ─────────────────────────────────
+  const reviewed: MeetingSummary = {
+    ...baseMeeting,
+    meta: { ...baseMeeting.meta!, reviewedAt: '2026-07-01T00:00:00Z', followupDraftedAt: '2026-07-01T00:00:00Z' },
+  };
+
+  it('under the default rule, full-duration card presence rescues an unverified meeting from quarantine', () => {
+    const notice = {
+      state: { status: 'unverified' as const, at: 'x' },
+      policy: 'strict' as const,
+      cardEvidence: { presentForEntireRecording: true, platform: 'teams' as const },
+      evidenceRule: 'either' as const,
+    };
+    const kinds = needsReview(reviewed, [], Date.parse('2026-07-01T00:00:00Z'), notice).map((i) => i.kind);
+    expect(kinds).not.toContain('notice-quarantined');
+  });
+
+  it('with no card evidence, an unverified Strict meeting is still quarantined', () => {
+    const notice = { state: { status: 'unverified' as const, at: 'x' }, policy: 'strict' as const };
+    const kinds = needsReview(reviewed, [], Date.parse('2026-07-01T00:00:00Z'), notice).map((i) => i.kind);
+    expect(kinds).toContain('notice-quarantined');
+  });
+
+  it('under the "both" rule, a verified verbal notice without card presence is still flagged', () => {
+    const notice = {
+      state: { status: 'verified' as const, atMs: 14000, snippet: 'recording', confidence: 0.9 },
+      policy: 'standard' as const,
+      cardEvidence: { presentForEntireRecording: false },
+      evidenceRule: 'both' as const,
+    };
+    const kinds = needsReview(reviewed, [], Date.parse('2026-07-01T00:00:00Z'), notice).map((i) => i.kind);
+    expect(kinds).toContain('notice-unverified');
+  });
 });

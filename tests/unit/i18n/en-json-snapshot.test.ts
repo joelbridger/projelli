@@ -47,7 +47,7 @@ describe('en.json structure snapshot', () => {
         "ai": 48,
         "analysis": 10,
         "app": 2,
-        "ask": 23,
+        "ask": 30,
         "audio": 1,
         "chat": 12,
         "citation": 3,
@@ -61,9 +61,9 @@ describe('en.json structure snapshot', () => {
         "local-ai-settings": 8,
         "mail": 6,
         "marketplace": 14,
-        "matter": 206,
-        "media": 88,
-        "meetings": 111,
+        "matter": 209,
+        "media": 92,
+        "meetings": 146,
         "memory": 6,
         "model-download": 9,
         "onboarding": 67,
@@ -217,7 +217,31 @@ describe('en.json structure snapshot', () => {
     //      recording-incomplete (1, the meetings-list row subtitle) and
     //      meetings.entry.recording-incomplete (1, the meeting page's
     //      no-retry explanation).
-    expect(flat.length).toBe(1280);
+    // +1 = QA-47 fix (2026-07-05): MeetingEntry's notes.docx editor now loads
+    //      through LazyBoundary (same pattern as MainPanel's DocxEditor tabs)
+    //      instead of a bare import().then() with no .catch, so a chunk-load
+    //      failure surfaces a real retry state instead of a false "notes
+    //      pending". New: meetings.entry.docx-editor-label (1, the
+    //      LazyBoundary label).
+    // +17 = Tier B trust guards (2026-07-04, merged in from origin/lantern-plus):
+    //       meetings.speakers.{consent-label,consent-biometric-note} (2, R9);
+    //       ask.whole-practice-confirm.{title,body_one,body_other,provider-
+    //       fallback,remember,cancel,continue} (7, R6);
+    //       matter.crm-review.{provenance-from-meeting,provenance-drafted,
+    //       provenance-advisor-fallback} (3, E3 provenance);
+    //       media.docx-editor.{outbound-blocked-needs-review,outbound-blocked-
+    //       errored,outbound-blocked-notice-quarantined} (3, E3 outbound gate);
+    //       media.docx-editor.outbound-blocked-checking (1, E3 fail-closed: the
+    //       gate blocks a recognized meeting note while its review state loads);
+    //       meetings.speakers.consent-save-failed (1, R9 fail-closed: enrollment
+    //       aborts if the biometric-consent record didn't durably persist).
+    // +31 = meetings.notice-card.* (the Notice Card lane, merged in from
+    //       origin/lantern-plus: the local notice participant —
+    //       consent-dialog offer/toggle + platform labels + Meet/generic/
+    //       manual fallbacks + Zoom native-record self-attest, the
+    //       record-pill status line, the visual card copy, the 3 Notice Card
+    //       settings controls, and the "save recording background image" action).
+    expect(flat.length).toBe(1329); // base 1280 + 1 (QA-47) + 17 (Tier B) + 31 (Notice Card)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

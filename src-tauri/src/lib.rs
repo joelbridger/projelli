@@ -304,6 +304,10 @@ pub fn run() {
             commands::calendar::commands::calendar_sync_status,
             commands::calendar::commands::calendar_cancel_sync,
             commands::calendar::commands::calendar_list_events,
+            // Notice Card — isolated companion-webview lifecycle (open/close/status).
+            commands::notice_card::notice_card_open,
+            commands::notice_card::notice_card_close,
+            commands::notice_card::notice_card_status,
             // Wave 3a SSO — firm-tier OIDC desktop dance (loopback + browser).
             commands::firm::sso::firm_sso_authenticate,
             commands::firm::sso::firm_sso_cancel,

@@ -66,6 +66,20 @@ export interface ProposedCrmWrite {
   existingValue?: string;
   newValue?: string;
   finalValue?: string;
+  /**
+   * E3 (Tier B trust guard) — set on notes drafted BY the AI (today: a
+   * meeting's notes.docx sent to the CRM). Carries just enough for the review
+   * card to compose the honest provenance line at approve time; absent on
+   * advisor-typed notes, tasks, and field updates.
+   */
+  aiSource?: { kind: 'meeting' | 'document'; date?: string };
+  /**
+   * The composed, localized provenance line, set ONCE at first approval and
+   * reused verbatim on every retry (like `requestedAt`) so it stays stable and
+   * the note content the advisor reviewed doesn't shift between attempts. Sent
+   * to the backend, which appends it to the note content at the wire boundary.
+   */
+  provenance?: string;
 }
 
 interface CrmWriteQueueState {
@@ -76,6 +90,10 @@ interface CrmWriteQueueState {
   /** Task 9c: the advisor editing a field item's Blended column. `kind:
    *  'field'` items only — a no-op on any other item. */
   updateFinalValue: (id: string, finalValue: string) => void;
+  /** E3: set the composed provenance line on an AI-drafted note, but only if
+   *  not already set — so a retry keeps the exact line from the first approval
+   *  (stable content). No-op once present. */
+  setProvenanceIfUnset: (id: string, provenance: string) => void;
   /**
    * Task 9c: the ONLY way to enqueue a field-level blended update — computes
    * `finalValue` via `composeFieldBlend` (scalar replace / narrative merge /
@@ -169,6 +187,8 @@ async function sendOne(item: ProposedCrmWrite, householdKey: string): Promise<vo
             sourceRef: item.sourceRef,
             householdKey,
             requestedAt,
+            // E3: the honest provenance line travels with an AI-drafted note.
+            ...(item.provenance ? { provenance: item.provenance } : {}),
           })
         : item.kind === 'task'
           ? await crmCreateTask({
@@ -318,6 +338,11 @@ export const useCrmWriteQueueStore = create<CrmWriteQueueState>()(
 
   updateFinalValue: (id, finalValue) => {
     setItem(id, { finalValue });
+  },
+
+  setProvenanceIfUnset: (id, provenance) => {
+    const item = get().items.find((i) => i.id === id);
+    if (item && !item.provenance) setItem(id, { provenance });
   },
 
   enqueueFieldUpdate: async (args) => {

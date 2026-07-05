@@ -76,6 +76,10 @@ export function TodaysMeetingsStrip({
   const matters = useActiveMatters();
   const addMeetingKey = useMatterStore((s) => s.addMeetingKey);
   const [events, setEvents] = useState<CalendarEventDto[]>([]);
+  // QA-48: a calendarListEvents failure must read as "couldn't check the
+  // calendar", never as "genuinely no meetings today" — those are different
+  // facts and the advisor needs to know which one happened.
+  const [calendarError, setCalendarError] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const [assigning, setAssigning] = useState<string | null>(null); // event id with popover open
   const [confirmed, setConfirmed] = useState<Record<string, string>>({}); // eventId -> client label
@@ -98,9 +102,14 @@ export function TodaysMeetingsStrip({
   const refresh = useCallback(async () => {
     const { fromUtc, toUtc } = todayWindowUtc();
     try {
-      setEvents(await calendarListEvents(fromUtc, toUtc));
-    } catch {
-      setEvents([]);
+      const fetched = await calendarListEvents(fromUtc, toUtc);
+      setEvents(fetched);
+      setCalendarError(false);
+    } catch (err) {
+      console.error('[TodaysMeetingsStrip] calendar fetch failed:', err);
+      // Keep whatever events we already had — a transient fetch failure must
+      // not erase an already-matched Today strip.
+      setCalendarError(true);
     }
   }, []);
 
@@ -124,7 +133,9 @@ export function TodaysMeetingsStrip({
 
   useMeetingAutoprep(events, matters);
   useBriefStaleness();
-  useAutoprepRescan(matters);
+  useAutoprepRescan(matters, () => {
+    setCalendarError(true);
+  });
 
   // Close the assign popover on an outside click.
   useEffect(() => {
@@ -144,7 +155,44 @@ export function TodaysMeetingsStrip({
     };
   }, [assigning]);
 
-  if (dismissed || events.length === 0) return null;
+  if (dismissed) return null;
+  if (events.length === 0 && !calendarError) return null;
+
+  // No events AND the last fetch failed: we genuinely don't know whether
+  // there are meetings today, so show a small retryable warning instead of
+  // either a false "nothing today" (silent) or a misleading "0 meetings
+  // matched" strip.
+  if (events.length === 0 && calendarError) {
+    return (
+      <div
+        data-testid="todays-meetings-strip-error"
+        className="mb-5 flex items-center gap-2.5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 shadow-sm"
+      >
+        <Calendar className="h-4 w-4 text-amber-600" aria-hidden="true" />
+        <span>Couldn&apos;t check today&apos;s calendar. It might be a connection hiccup.</span>
+        <button
+          type="button"
+          data-testid="today-strip-calendar-retry"
+          onClick={() => {
+            void refresh();
+          }}
+          className="ml-auto font-semibold underline"
+        >
+          Retry
+        </button>
+        <button
+          type="button"
+          data-testid="today-strip-dismiss"
+          onClick={() => {
+            setDismissed(true);
+          }}
+          className="font-medium text-amber-600 hover:underline"
+        >
+          Hide for today
+        </button>
+      </div>
+    );
+  }
 
   const map = buildCalendarMatterMap(matters);
   const resolved = events.map((event) => ({
@@ -179,6 +227,24 @@ export function TodaysMeetingsStrip({
           })}
         </span>
         <span className="ml-auto text-xs text-slate-400">{metaText}</span>
+        {calendarError && (
+          <span
+            data-testid="today-strip-calendar-stale-warning"
+            className="inline-flex items-center gap-1 text-xs font-medium text-amber-600"
+          >
+            Calendar refresh failed — showing last known meetings.
+            <button
+              type="button"
+              data-testid="today-strip-calendar-retry"
+              onClick={() => {
+                void refresh();
+              }}
+              className="underline"
+            >
+              Retry
+            </button>
+          </span>
+        )}
         <button
           type="button"
           data-testid="today-strip-dismiss"

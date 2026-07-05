@@ -29,6 +29,19 @@ export function SpeakerNamesPanel({ meetingDir, matterId, workspaceRoot, onAppli
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // R9 (Tier B trust guard): the advisor's affirmation that the client
+  // consented to a voice profile being created of them. Required before ANY
+  // new voiceprint is enrolled (biometric data), not merely confirmed.
+  const [biometricConsent, setBiometricConsent] = useState(false);
+
+  // A row ENROLLS a new voiceprint (creates biometric data) when it has a name
+  // that isn't just re-confirming its own existing suggestion — the exact
+  // condition the enroll branch in apply() uses. Pure blanks and confirms of
+  // an already-stored profile create nothing new.
+  const willEnroll = (rows ?? []).some((r) => {
+    const name = r.name.trim();
+    return name !== '' && !(r.suggestion && r.suggestion.name === name);
+  });
 
   const run = async () => {
     setBusy(true); setError(null);
@@ -49,8 +62,28 @@ export function SpeakerNamesPanel({ meetingDir, matterId, workspaceRoot, onAppli
 
   const apply = async () => {
     if (!rows) return;
+    // R9: never create a voiceprint without the advisor's affirmation that the
+    // client consented. Defense-in-depth alongside the disabled Apply button —
+    // the network enrollment must not fire even if that guard were bypassed.
+    if (willEnroll && !biometricConsent) return;
     setBusy(true); setError(null);
     try {
+      // Ledger the biometric-consent attestation once, before any enrollment,
+      // as its own durable record (distinct from the enrollment events). AWAIT
+      // it AND check it actually persisted (Codex review): logDurable resolves
+      // with auditPersistenceStatus 'failed' rather than throwing, so a bare
+      // await wouldn't catch a failed encrypted append. If the consent record
+      // didn't save, abort — a biometric profile must never exist without it.
+      if (willEnroll) {
+        const consentEntry = await audit.logDurable(
+          'voiceprint_consent',
+          'Advisor affirmed client consent to create a voice profile',
+          { metadata: { matterId, meetingDir } },
+        );
+        if (consentEntry.metadata['auditPersistenceStatus'] !== 'saved') {
+          throw new Error(t('meetings.speakers.consent-save-failed'));
+        }
+      }
       const renames: Record<string, string> = {};
       for (const r of rows) {
         const name = r.name.trim();
@@ -107,7 +140,29 @@ export function SpeakerNamesPanel({ meetingDir, matterId, workspaceRoot, onAppli
               )}
             </div>
           ))}
-          <Button data-testid="speakers-apply" disabled={busy} onClick={() => { void apply(); }} style={{ alignSelf: 'flex-start' }}>
+          {willEnroll && (
+            <div data-testid="voiceprint-consent-section" style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '10px 12px', border: '1px solid var(--kp-divider-strong, #d1d5db)', borderRadius: 8, background: 'var(--kp-bg-soft, #f8f9fb)' }}>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12.5, color: 'var(--kp-navy, #1e3a5f)', cursor: 'pointer' }}>
+                <input
+                  data-testid="voiceprint-consent"
+                  type="checkbox"
+                  checked={biometricConsent}
+                  onChange={(e) => { setBiometricConsent(e.target.checked); }}
+                  style={{ marginTop: 2, flexShrink: 0 }}
+                />
+                <span>{t('meetings.speakers.consent-label')}</span>
+              </label>
+              <p style={{ fontSize: 11, color: 'var(--kp-text-muted, #6b7280)', margin: 0 }}>
+                {t('meetings.speakers.consent-biometric-note')}
+              </p>
+            </div>
+          )}
+          <Button
+            data-testid="speakers-apply"
+            disabled={busy || (willEnroll && !biometricConsent)}
+            onClick={() => { void apply(); }}
+            style={{ alignSelf: 'flex-start' }}
+          >
             {t('meetings.speakers.apply')}
           </Button>
         </>
