@@ -228,6 +228,65 @@ describe('createRetagScheduler', () => {
     expect(getExcludedMatterFolders()).toContain('/ws/NEW');
   });
 
+  it('serializes ops per id so a slow superseded op never overwrites a newer one (mutation ordering)', async () => {
+    const scheduler = createRetagScheduler();
+    // `physical` models the on-disk tag the backend op writes for this id.
+    let physical = 'A';
+
+    // op A->B is SLOW: its promise settles only when we call resolveSlow().
+    let resolveSlow!: () => void;
+    const opB = vi.fn(
+      () =>
+        new Promise<void>((res) => {
+          resolveSlow = () => {
+            physical = 'B';
+            res();
+          };
+        }),
+    );
+    // op B->C is FAST.
+    const opC = vi.fn(async () => {
+      physical = 'C';
+    });
+
+    scheduler.run({
+      id: 'mail:folder',
+      kind: 'mail',
+      label: 'A->B',
+      op: opB,
+      excludeMailMatters: ['A'],
+    });
+    // The mapping changes again (B->C) BEFORE the slow A->B op settles.
+    scheduler.run({
+      id: 'mail:folder',
+      kind: 'mail',
+      label: 'B->C',
+      op: opC,
+      excludeMailMatters: ['A', 'B'],
+    });
+
+    // Let the microtask chain START the slow op (its executor captures resolveSlow).
+    await vi.advanceTimersByTimeAsync(0);
+    expect(opB).toHaveBeenCalledTimes(1);
+    // The newer op has NOT run yet — it is serialized behind the still-pending op.
+    expect(opC).not.toHaveBeenCalled();
+    expect(physical).toBe('A');
+
+    // The slow A->B op finally settles LAST (writes B). Without serialization this
+    // stale write would land after C succeeded, leaving the mail tagged B under
+    // the wrong client.
+    resolveSlow();
+    await vi.runAllTimersAsync();
+
+    // Because ops are serialized per id, C ran AFTER B — the final on-disk tag is
+    // C (the current mapping), never the superseded B.
+    expect(opC).toHaveBeenCalledTimes(1);
+    expect(physical).toBe('C');
+    // The hold cleared only on the current (C) op's success — no wrong-client hold.
+    expect(getExcludedMailMatters()).toHaveLength(0);
+    expect(entries()).toHaveLength(0);
+  });
+
   it('disposeAll cancels pending retries and clears its own entries (workspace switch safety)', async () => {
     const scheduler = createRetagScheduler();
     const op = vi.fn().mockRejectedValue(new Error('down'));

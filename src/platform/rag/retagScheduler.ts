@@ -32,6 +32,19 @@
  * represents the NEWER intent — clearing the newer entry or dropping its
  * fail-closed exclusion while rows are still tagged old, re-opening the exact
  * wrong-client exposure this scheduler exists to close.
+ *
+ * Mutation ordering (Codex round 6): the generation guard protects only the
+ * STATUS cleanup, NOT the physical backend side effect. A superseded op's
+ * `op()` still runs to completion, so a SLOW stale op could re-tag rows AFTER a
+ * newer op already succeeded — e.g. mail A->B (slow) then B->C (fast, clears the
+ * hold); the late A->B write lands last and leaves the mail physically tagged B
+ * while the mapping is C (visible under the wrong client until the next boot
+ * reconcile). To make that impossible, each id's ops are SERIALIZED: a newer
+ * `run()`'s op does not start until the prior op for that id has SETTLED, so the
+ * physical writes for one id always land in `run()` order and the final on-disk
+ * tag is always the newest generation's. The invariant: after ALL in-flight ops
+ * for an id settle in ANY arrival order, the rows are tagged to the CURRENT
+ * mapping, never a superseded one.
  */
 
 import { useScopeUpdateStore, type ScopeUpdateKind } from '@/platform/rag/scopeUpdateStore';
@@ -79,9 +92,35 @@ export function createRetagScheduler(): RetagScheduler {
   // Per-id pending retry timers, so a fresh `run()` for the same id can cancel
   // exactly that id's armed retry (and `disposeAll()` can cancel every id's).
   const timersById = new Map<string, Set<ReturnType<typeof setTimeout>>>();
+  // Per-id "op tail": a promise that settles when the id's last-started op has
+  // settled. A newer op chains after it so physical writes for one id land in
+  // run() order (see the module doc's "Mutation ordering").
+  const opTails = new Map<string, Promise<unknown>>();
   let disposed = false;
 
   const store = () => useScopeUpdateStore.getState();
+
+  /**
+   * Run `op` SERIALIZED per id: start it only AFTER any prior op for the same id
+   * has SETTLED, so a superseded slow op can never overwrite a newer one's tag.
+   * The tail tracks settlement (success OR failure) so the chain never stalls on
+   * a rejection.
+   */
+  const runSerialized = (id: string, op: () => Promise<unknown>): Promise<unknown> => {
+    const prior = opTails.get(id);
+    // No in-flight op for this id → start immediately (synchronously, as before).
+    // Otherwise chain AFTER the prior op settles so its physical write can't land
+    // after ours.
+    const run = prior ? prior.then(() => op()) : op();
+    opTails.set(
+      id,
+      run.then(
+        () => undefined,
+        () => undefined,
+      ),
+    );
+    return run;
+  };
 
   /** Cancel and forget every pending retry timer for one id. */
   const clearTimersFor = (id: string): void => {
@@ -99,17 +138,19 @@ export function createRetagScheduler(): RetagScheduler {
     disposed || generations.get(id) !== generation;
 
   const attempt = (task: RetagTask, retryCount: number, generation: number): void => {
-    task
-      .op()
+    runSerialized(task.id, task.op)
       .then(() => {
         // A superseded attempt must NOT clear the entry — a newer run() has
         // re-registered this id, and removing it would drop the newer intent
-        // (and its fail-closed exclusion).
+        // (and its fail-closed exclusion). Serialization guarantees this
+        // (current) op ran AFTER any superseded one, so the on-disk tag it just
+        // wrote is the newest — safe to clear the hold.
         if (superseded(task.id, generation)) return;
         store().remove(task.id);
         owned.delete(task.id);
         generations.delete(task.id);
         clearTimersFor(task.id);
+        opTails.delete(task.id);
       })
       .catch((err: unknown) => {
         // A superseded failing attempt must NOT schedule a retry (its closure
@@ -176,6 +217,7 @@ export function createRetagScheduler(): RetagScheduler {
       });
       timersById.clear();
       generations.clear();
+      opTails.clear();
       // Remove only THIS scheduler's entries so a stale failure banner (and its
       // folder exclusion) from a closed workspace can't bleed into the next one.
       store().removeMany(Array.from(owned));
