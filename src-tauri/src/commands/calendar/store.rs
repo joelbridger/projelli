@@ -4,6 +4,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
+use crate::util::sync::lock_unpoison;
 use rusqlite::Connection;
 
 use super::model::CalendarEvent;
@@ -134,7 +135,7 @@ impl CalendarStore {
     pub fn upsert_event(&self, event: &CalendarEvent, content_hash: &str) -> Result<bool> {
         let json = serde_json::to_string(event)?;
         let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-        let conn = self.conn.lock().unwrap();
+        let conn = lock_unpoison(&self.conn);
         let existing: Option<(String, bool)> = conn
             .query_row(
                 "SELECT content_hash, deleted FROM calendar_events WHERE id = ?1",
@@ -173,7 +174,7 @@ impl CalendarStore {
     }
 
     pub fn list_to_index(&self) -> Result<Vec<CalendarEventRow>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = lock_unpoison(&self.conn);
         let mut stmt = conn.prepare(
             "SELECT id, content_hash, json, indexed_hash, matter_ids, deleted
              FROM calendar_events WHERE deleted = 0 AND indexed_hash != content_hash",
@@ -185,7 +186,7 @@ impl CalendarStore {
     }
 
     pub fn list_in_window(&self, from_utc: &str, to_utc: &str) -> Result<Vec<CalendarEvent>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = lock_unpoison(&self.conn);
         let mut stmt = conn.prepare(
             "SELECT json FROM calendar_events
              WHERE deleted = 0 AND start_utc < ?2 AND end_utc > ?1
@@ -200,7 +201,7 @@ impl CalendarStore {
     }
 
     pub fn mark_indexed(&self, id: &str, content_hash: &str, matter_ids_csv: &str) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = lock_unpoison(&self.conn);
         conn.execute(
             "UPDATE calendar_events SET indexed_hash = ?2, matter_ids = ?3 WHERE id = ?1",
             rusqlite::params![id, content_hash, matter_ids_csv],
@@ -217,7 +218,7 @@ impl CalendarStore {
         to_utc: &str,
         seen_ids: &[String],
     ) -> Result<Vec<CalendarEventRow>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = lock_unpoison(&self.conn);
         let mut stmt = conn.prepare(
             "SELECT id, content_hash, json, indexed_hash, matter_ids, deleted
              FROM calendar_events
@@ -242,7 +243,7 @@ impl CalendarStore {
     }
 
     pub fn set_cursor(&self, key: &str, cursor: &str) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = lock_unpoison(&self.conn);
         conn.execute(
             "INSERT INTO calendar_cursors (key, cursor) VALUES (?1, ?2)
              ON CONFLICT(key) DO UPDATE SET cursor = excluded.cursor",
@@ -252,7 +253,7 @@ impl CalendarStore {
     }
 
     pub fn get_cursor(&self, key: &str) -> Result<Option<String>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = lock_unpoison(&self.conn);
         Ok(conn
             .query_row("SELECT cursor FROM calendar_cursors WHERE key = ?1", [key], |r| {
                 r.get(0)
@@ -266,7 +267,7 @@ impl CalendarStore {
     /// matter the event no longer resolves to (a reassignment/re-teaching
     /// must not leave the meeting indexed under its old client forever).
     pub fn get_matter_ids(&self, id: &str) -> Result<Option<String>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = lock_unpoison(&self.conn);
         Ok(conn
             .query_row("SELECT matter_ids FROM calendar_events WHERE id = ?1", [id], |r| {
                 r.get(0)
@@ -283,7 +284,7 @@ impl CalendarStore {
     /// the row silently stuck: the next sync sees an unchanged content
     /// hash and skips it forever).
     pub fn is_stale(&self, id: &str) -> Result<bool> {
-        let conn = self.conn.lock().unwrap();
+        let conn = lock_unpoison(&self.conn);
         let hashes: Option<(String, String)> = conn
             .query_row(
                 "SELECT content_hash, indexed_hash FROM calendar_events WHERE id = ?1",
@@ -300,7 +301,7 @@ impl CalendarStore {
     /// Every RAG source id this store has indexed: `calendar:<id>:<matter>`
     /// per matter in the row's csv. Used by disconnect/purge.
     pub fn list_indexed_rag_source_ids(&self) -> Result<Vec<String>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = lock_unpoison(&self.conn);
         let mut stmt = conn.prepare(
             "SELECT id, matter_ids FROM calendar_events WHERE indexed_hash != '' AND matter_ids != ''",
         )?;
@@ -323,7 +324,7 @@ impl CalendarStore {
     /// a disconnected provider's events silently persist in the local store
     /// and can resurface via `list_in_window` / a later indexing pass.
     pub fn delete_provider_rows(&self, provider: &str) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = lock_unpoison(&self.conn);
         conn.execute("DELETE FROM calendar_events WHERE provider = ?1", [provider])?;
         conn.execute(
             "DELETE FROM calendar_cursors WHERE key = ?1 OR key LIKE ?2",
@@ -386,6 +387,29 @@ mod tests {
             self_declined: false,
             join_url: None,
         }
+    }
+
+    #[test]
+    fn poisoned_connection_mutex_recovers_instead_of_panicking() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = CalendarStore::open_with_key(dir.path(), &STORE_KEY).unwrap();
+
+        let poison = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _conn = store.conn.lock().unwrap();
+            panic!("simulate panic while calendar store lock is held");
+        }));
+        assert!(poison.is_err(), "test must poison the mutex first");
+
+        let after_poison = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            store.set_cursor("outlook:delta", "cursor-after-poison")
+        }));
+
+        assert!(after_poison.is_ok(), "a poisoned store lock must not cascade into another panic");
+        assert!(after_poison.unwrap().is_ok(), "the recovered store should still be usable");
+        assert_eq!(
+            store.get_cursor("outlook:delta").unwrap(),
+            Some("cursor-after-poison".to_string())
+        );
     }
 
     #[test]

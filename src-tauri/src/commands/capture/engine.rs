@@ -2,6 +2,7 @@ use super::chunks::AsyncChunkWriter;
 use super::session::{finalize_session, ConsentRecord, SessionManifest};
 use super::sources::AudioSource;
 use crate::commands::pathguard::display_path;
+use crate::util::sync::lock_unpoison;
 use anyhow::{anyhow, Result};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -187,7 +188,7 @@ impl CaptureEngine {
             let tx = sys_writer.sender();
             let gate = sys_start.clone();
             if let Err(e) = sys.start(Box::new(move |s| {
-                let mut g = gate.lock().unwrap();
+                let mut g = lock_unpoison(&gate);
                 match &mut *g {
                     SysStart::Buffering(buf) => buf.extend_from_slice(s),
                     SysStart::Open => {
@@ -221,7 +222,7 @@ impl CaptureEngine {
         let gap_ms = Instant::now().saturating_duration_since(mic_ready_at).as_millis() as u64;
         let gap_samples = (gap_ms * super::chunks::SAMPLE_RATE as u64) / 1000;
         {
-            let mut g = sys_start.lock().unwrap();
+            let mut g = lock_unpoison(&sys_start);
             if let SysStart::Buffering(buffered) = &mut *g {
                 let buffered = std::mem::take(buffered);
                 if gap_samples > 0 {
@@ -244,7 +245,7 @@ impl CaptureEngine {
     /// `capture_status` so the UI can warn mid-recording, not just after
     /// the fact.
     pub fn write_error(&self) -> Option<String> {
-        self.write_error.lock().unwrap().clone()
+        lock_unpoison(&self.write_error).clone()
     }
 
     pub fn stop(mut self) -> Result<StopResult> {
@@ -280,7 +281,7 @@ impl CaptureEngine {
         // happen AFTER the drops above, not before: the writer threads can
         // still record a failure while draining their last queued buffers
         // during `drop()`'s own join.
-        let write_error = self.write_error.lock().unwrap().clone();
+        let write_error = lock_unpoison(&self.write_error).clone();
         if let Some(err) = write_error {
             anyhow::bail!(
                 "recording stopped, but part of the audio failed to save ({err}); partial audio at {}",
@@ -325,7 +326,7 @@ struct StoppingGuard;
 
 impl Drop for StoppingGuard {
     fn drop(&mut self) {
-        *STATE.lock().unwrap() = EngineState::Idle;
+        *lock_unpoison(&STATE) = EngineState::Idle;
     }
 }
 
@@ -351,7 +352,7 @@ fn begin_global_with_sources(
     mic: Box<dyn AudioSource>,
     sys: Box<dyn AudioSource>,
 ) -> Result<PathBuf, String> {
-    let mut state = STATE.lock().unwrap();
+    let mut state = lock_unpoison(&STATE);
     match &*state {
         EngineState::Recording(_) => return Err("already recording".into()),
         EngineState::Stopping(_) => {
@@ -380,7 +381,7 @@ pub fn try_begin_global(
 
 #[cfg(test)]
 pub fn end_global_for_tests() {
-    *STATE.lock().unwrap() = EngineState::Idle;
+    *lock_unpoison(&STATE) = EngineState::Idle;
 }
 
 /// Test-only cross-module hook: drives the same global-engine path as
@@ -405,7 +406,7 @@ pub fn begin_global_with_sources_for_tests(
 /// and finalizing it while it's live (or while the real stop path is
 /// already finalizing it) would corrupt or truncate the meeting.
 pub fn active_meeting_dir() -> Option<PathBuf> {
-    match &*STATE.lock().unwrap() {
+    match &*lock_unpoison(&STATE) {
         EngineState::Recording(e) => Some(e.meeting_dir.clone()),
         EngineState::Stopping(dir) => Some(dir.clone()),
         EngineState::Idle => None,
@@ -579,7 +580,7 @@ pub async fn capture_stop() -> Result<CaptureStopResult, String> {
     // design above is that no other thread can observe a gap where neither
     // state holds true.
     let engine = {
-        let mut state = STATE.lock().unwrap();
+        let mut state = lock_unpoison(&STATE);
         match std::mem::replace(&mut *state, EngineState::Idle) {
             EngineState::Recording(engine) => {
                 *state = EngineState::Stopping(engine.meeting_dir.clone());
@@ -636,7 +637,7 @@ pub fn capture_free_disk_bytes(path: String) -> Result<u64, String> {
 
 #[tauri::command]
 pub async fn capture_status() -> Result<CaptureStatus, String> {
-    Ok(match &*STATE.lock().unwrap() {
+    Ok(match &*lock_unpoison(&STATE) {
         EngineState::Recording(e) => CaptureStatus {
             recording: true,
             meeting_dir: Some(display_path(&e.meeting_dir)),
@@ -854,7 +855,7 @@ mod tests {
             sys,
         )
         .unwrap();
-        *engine.write_error.lock().unwrap() = Some("mic channel: simulated disk full".into());
+        *lock_unpoison(&engine.write_error) = Some("mic channel: simulated disk full".into());
         let err = match engine.stop() {
             Err(e) => e,
             Ok(_) => panic!("stop() must fail when a chunk write error occurred"),
@@ -1073,7 +1074,7 @@ mod tests {
         // with FakeSource so this doesn't depend on real audio hardware.
         // Serialized against other ENGINE-touching tests (cargo test runs
         // tests concurrently by default) — see ENGINE_TEST_LOCK's doc.
-        let _guard = ENGINE_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = lock_unpoison(&ENGINE_TEST_LOCK);
         let ws = tempdir().unwrap();
         let fake = || Box::new(FakeSource::new(vec![])) as Box<dyn AudioSource>;
         let ok = begin_global_with_sources(
@@ -1106,12 +1107,12 @@ mod tests {
     /// (deterministic, no timing dependency on a slow fake stop()).
     #[test]
     fn active_meeting_dir_reports_stopping_session_and_resets_on_guard_drop() {
-        let _guard = ENGINE_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        assert!(matches!(&*STATE.lock().unwrap(), EngineState::Idle));
+        let _guard = lock_unpoison(&ENGINE_TEST_LOCK);
+        assert!(matches!(&*lock_unpoison(&STATE), EngineState::Idle));
         assert_eq!(active_meeting_dir(), None);
 
         let dir = PathBuf::from("/tmp/lp-w4-test-stopping-meeting");
-        *STATE.lock().unwrap() = EngineState::Stopping(dir.clone());
+        *lock_unpoison(&STATE) = EngineState::Stopping(dir.clone());
         let stopping_guard = StoppingGuard;
         assert_eq!(
             active_meeting_dir(),
@@ -1131,8 +1132,8 @@ mod tests {
     /// that `begin_global_with_sources` refuses to start over.
     #[test]
     fn start_is_rejected_while_a_previous_recording_is_still_stopping() {
-        let _guard = ENGINE_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        *STATE.lock().unwrap() = EngineState::Stopping(PathBuf::from("/tmp/lp-w4-test-stopping"));
+        let _guard = lock_unpoison(&ENGINE_TEST_LOCK);
+        *lock_unpoison(&STATE) = EngineState::Stopping(PathBuf::from("/tmp/lp-w4-test-stopping"));
 
         let ws = tempdir().unwrap();
         let fake = || Box::new(FakeSource::new(vec![])) as Box<dyn AudioSource>;
@@ -1166,7 +1167,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn active_meeting_dir_matches_a_canonicalized_recover_lookup_through_a_symlinked_workspace() {
-        let _guard = ENGINE_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = lock_unpoison(&ENGINE_TEST_LOCK);
         let real_ws = tempdir().unwrap();
         std::fs::create_dir_all(real_ws.path().join("Clients/Sym Household")).unwrap();
         let link_root = tempdir().unwrap();

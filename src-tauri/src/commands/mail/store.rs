@@ -10,6 +10,7 @@
 // implement the same trait and drop in without touching the sync engine.
 
 use anyhow::{Context, Result};
+use crate::util::sync::lock_unpoison;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -589,7 +590,7 @@ fn upsert_batch_txn(conn: &std::sync::Mutex<rusqlite::Connection>, recs: &[MailR
     if recs.is_empty() {
         return Ok(());
     }
-    let mut c = conn.lock().unwrap();
+    let mut c = lock_unpoison(conn);
     let tx = c.transaction()?;
     for rec in recs {
         upsert_message_row(&tx, rec)?;
@@ -600,7 +601,7 @@ fn upsert_batch_txn(conn: &std::sync::Mutex<rusqlite::Connection>, recs: &[MailR
 
 impl MailStore for SqliteMailStore {
     fn upsert(&self, rec: &MailRecord) -> Result<()> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         upsert_message_row(&c, rec)
     }
 
@@ -609,7 +610,7 @@ impl MailStore for SqliteMailStore {
     }
 
     fn tombstone(&self, id: &str) -> Result<Option<String>> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         let path: Option<String> = c
             .query_row(
                 "SELECT relative_path FROM messages WHERE id = ?1",
@@ -624,7 +625,7 @@ impl MailStore for SqliteMailStore {
     }
 
     fn contains(&self, id: &str) -> Result<bool> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         Ok(c.query_row(
             "SELECT 1 FROM messages WHERE id = ?1",
             [id],
@@ -634,7 +635,7 @@ impl MailStore for SqliteMailStore {
     }
 
     fn get_record(&self, id: &str) -> Result<Option<MailRecord>> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         let rec = c
             .query_row(
                 "SELECT id, folder_id, internet_message_id, relative_path, received_date_time,
@@ -653,17 +654,17 @@ impl MailStore for SqliteMailStore {
         account: &str,
         folder_id: &str,
     ) -> Result<Vec<String>> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         query_ids_in_folder(&c, provider, account, folder_id)
     }
 
     fn count(&self) -> Result<i64> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         Ok(c.query_row("SELECT COUNT(*) FROM messages", [], |r| r.get(0))?)
     }
 
     fn get_cursor(&self, folder_id: &str) -> Result<Option<String>> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         Ok(c.query_row(
             "SELECT cursor FROM folder_cursors WHERE folder_id = ?1",
             [folder_id],
@@ -673,7 +674,7 @@ impl MailStore for SqliteMailStore {
     }
 
     fn set_cursor(&self, folder_id: &str, cursor: &str) -> Result<()> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         c.execute(
             "INSERT INTO folder_cursors (folder_id, cursor)
              VALUES (?1, ?2)
@@ -684,7 +685,7 @@ impl MailStore for SqliteMailStore {
     }
 
     fn list_messages(&self, q: &MailListQuery) -> Result<MailListPage> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         query_list_messages(&c, q, None)
     }
 }
@@ -844,13 +845,13 @@ impl EncryptedMailStore {
     /// read "the DB is broken" as "the marker is absent" — the backfill probe
     /// skips its pass on Err instead of wrongly concluding there is no work.
     pub fn get_meta(&self, key: &str) -> Result<Option<String>> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         get_meta_conn(&c, key)
     }
 
     /// Set (upsert) one meta value. Idempotent.
     pub fn set_meta(&self, key: &str, value: &str) -> Result<()> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         c.execute(
             "INSERT INTO meta (key, value) VALUES (?1, ?2)
              ON CONFLICT(key) DO UPDATE SET value = ?2",
@@ -861,7 +862,7 @@ impl EncryptedMailStore {
 
     /// Remove one meta value. No-op when absent.
     pub fn delete_meta(&self, key: &str) -> Result<()> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         c.execute("DELETE FROM meta WHERE key = ?1", [key])?;
         Ok(())
     }
@@ -897,7 +898,7 @@ impl EncryptedMailStore {
     /// (`message_matter_key`) whose value is this matter id — never any other
     /// `meta` row.
     pub fn clear_message_matter_for_matter(&self, matter_id: &str) -> Result<usize> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         let changed = c.execute(
             "UPDATE meta SET value = ?2 WHERE key LIKE 'matter:%' AND value = ?1",
             rusqlite::params![matter_id, crate::commands::rag::store::UNASSIGNED_MATTER],
@@ -909,12 +910,12 @@ impl EncryptedMailStore {
 impl MailStore for EncryptedMailStore {
     /// BUG-013: read the durable per-message matter override from `meta`.
     fn get_message_matter(&self, id: &str) -> Result<Option<String>> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         read_message_matter_override(&c, id)
     }
 
     fn upsert(&self, rec: &MailRecord) -> Result<()> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         upsert_message_row(&c, rec)
     }
 
@@ -923,7 +924,7 @@ impl MailStore for EncryptedMailStore {
     }
 
     fn tombstone(&self, id: &str) -> Result<Option<String>> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         let path: Option<String> = c
             .query_row(
                 "SELECT relative_path FROM messages WHERE id = ?1",
@@ -941,7 +942,7 @@ impl MailStore for EncryptedMailStore {
     }
 
     fn contains(&self, id: &str) -> Result<bool> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         Ok(c.query_row(
             "SELECT 1 FROM messages WHERE id = ?1",
             [id],
@@ -951,7 +952,7 @@ impl MailStore for EncryptedMailStore {
     }
 
     fn get_record(&self, id: &str) -> Result<Option<MailRecord>> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         let rec = c
             .query_row(
                 "SELECT id, folder_id, internet_message_id, relative_path, received_date_time,
@@ -970,17 +971,17 @@ impl MailStore for EncryptedMailStore {
         account: &str,
         folder_id: &str,
     ) -> Result<Vec<String>> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         query_ids_in_folder(&c, provider, account, folder_id)
     }
 
     fn count(&self) -> Result<i64> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         Ok(c.query_row("SELECT COUNT(*) FROM messages", [], |r| r.get(0))?)
     }
 
     fn get_cursor(&self, folder_id: &str) -> Result<Option<String>> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         Ok(c.query_row(
             "SELECT cursor FROM folder_cursors WHERE folder_id = ?1",
             [folder_id],
@@ -990,7 +991,7 @@ impl MailStore for EncryptedMailStore {
     }
 
     fn set_cursor(&self, folder_id: &str, cursor: &str) -> Result<()> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         c.execute(
             "INSERT INTO folder_cursors (folder_id, cursor) VALUES (?1, ?2)
              ON CONFLICT(folder_id) DO UPDATE SET cursor = ?2",
@@ -1000,7 +1001,7 @@ impl MailStore for EncryptedMailStore {
     }
 
     fn list_messages(&self, q: &MailListQuery) -> Result<MailListPage> {
-        let c = self.conn.lock().unwrap();
+        let c = lock_unpoison(&self.conn);
         query_list_messages(&c, q, None)
     }
 }
@@ -1022,7 +1023,7 @@ impl EncryptedMailStore {
         matter_id: &str,
         effective_matter: impl Fn(Option<&str>, &MailFolderKey) -> String,
     ) -> Result<MailListPage> {
-        let mut c = self.conn.lock().unwrap();
+        let mut c = lock_unpoison(&self.conn);
         // A single read transaction = a consistent snapshot for BOTH reads below.
         let tx = c.transaction()?;
         let keys = query_all_folder_keys(&tx)?;

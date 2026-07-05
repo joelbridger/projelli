@@ -198,8 +198,8 @@ pub fn meeting_started_ms(meeting_dir: &Path) -> Option<u64> {
         }
     }
     let name = meeting_dir.file_name()?.to_string_lossy().into_owned();
-    if name.len() >= 10 {
-        if let Ok(date) = chrono::NaiveDate::parse_from_str(&name[..10], "%Y-%m-%d") {
+    if let Some(prefix) = name.get(..10) {
+        if let Ok(date) = chrono::NaiveDate::parse_from_str(prefix, "%Y-%m-%d") {
             return Some(date.and_hms_opt(0, 0, 0)?.and_utc().timestamp_millis() as u64);
         }
     }
@@ -594,6 +594,18 @@ mod tests {
     #[cfg(unix)]
     fn scopeguard(p: &std::path::Path) -> RestorePerms<'_> {
         RestorePerms(p)
+    }
+
+    #[test]
+    fn meeting_started_ms_does_not_panic_when_folder_name_prefix_splits_unicode() {
+        let dir = tempdir().unwrap();
+        let meeting = dir.path().join("123456789😀bad");
+        std::fs::create_dir_all(&meeting).unwrap();
+
+        let result = std::panic::catch_unwind(|| meeting_started_ms(&meeting));
+
+        assert!(result.is_ok(), "unicode folder names must never crash retention cleanup");
+        assert!(result.unwrap().is_some(), "mtime fallback should still identify a start time");
     }
 
     #[test]
