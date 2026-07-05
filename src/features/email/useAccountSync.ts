@@ -69,6 +69,7 @@ export function useAccountSync({ onNoAccounts, onSyncDone }: UseAccountSyncOptio
   const [accountsLoaded, setAccountsLoaded] = useState(false);
   const hasConnectedMail = accountsLoaded && accounts.length > 0;
   const liveWrittenByProviderRef = useRef(new Map<string, number>());
+  const activeAllProviderSyncRef = useRef(false);
 
   // Stall watchdog: warn well before the hard timeout below forces a reset,
   // so a slow-but-alive sync doesn't look identical to a genuinely hung one.
@@ -98,6 +99,7 @@ export function useAccountSync({ onNoAccounts, onSyncDone }: UseAccountSyncOptio
   // looks idle again.
   const runMailSync = useCallback(async () => {
     liveWrittenByProviderRef.current.clear();
+    activeAllProviderSyncRef.current = true;
     setSyncImportedMessages(null);
     setSyncing(true);
     setSyncError(null);
@@ -116,6 +118,7 @@ export function useAccountSync({ onNoAccounts, onSyncDone }: UseAccountSyncOptio
         void mailCancelSync().catch(() => { /* best-effort */ });
       }
     } finally {
+      activeAllProviderSyncRef.current = false;
       setSyncing(false);
     }
   }, []);
@@ -195,7 +198,7 @@ export function useAccountSync({ onNoAccounts, onSyncDone }: UseAccountSyncOptio
         }
         if (status === 'syncing') {
           setSyncing(true);
-        } else {
+        } else if (!activeAllProviderSyncRef.current) {
           setSyncing(false);
         }
         if (status === 'done') refresh();

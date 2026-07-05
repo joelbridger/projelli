@@ -24,6 +24,7 @@ import {
 } from '@/platform/utils/setup-progress-commands';
 import { ONEDRIVE_SYNC_EVENT, type OneDriveSyncProgress } from '@/platform/utils/onedrive-commands';
 import { useOneDriveStore } from '@/platform/connectors/onedrive/onedriveStore';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import type { Matter } from '@/platform/types/matter';
@@ -76,7 +77,10 @@ export function useSetupProgress(): SetupProgress | null {
   const maps = useClientMapStore((s) => s.maps);
   const clientMap = useMemo(() => computeClientMapProgress(matters, maps), [matters, maps]);
   const oneDriveEventProgress = useOneDriveStore((s) => s.progress);
+  const oneDriveProgressWorkspaceRoot = useOneDriveStore((s) => s.progressWorkspaceRoot);
   const setOneDriveProgress = useOneDriveStore((s) => s.setProgress);
+  const clearOneDriveProgress = useOneDriveStore((s) => s.clearProgress);
+  const workspaceRoot = useWorkspaceStore((s) => s.rootPath);
 
   // Fetch the backend snapshot once, then refetch (debounced) on every change.
   useEffect(() => {
@@ -140,6 +144,12 @@ export function useSetupProgress(): SetupProgress | null {
     };
   }, [setOneDriveProgress]);
 
+  useEffect(() => {
+    if (oneDriveEventProgress && oneDriveProgressWorkspaceRoot !== workspaceRoot) {
+      clearOneDriveProgress();
+    }
+  }, [clearOneDriveProgress, oneDriveEventProgress, oneDriveProgressWorkspaceRoot, workspaceRoot]);
+
   // Push the frontend-only Client Map counts down so a backend snapshot is
   // complete for consumers that don't use this hook.
   useEffect(() => {
@@ -155,11 +165,16 @@ export function useSetupProgress(): SetupProgress | null {
   // predate the latest Client Map state until a round-trip lands).
   return useMemo(() => {
     if (!snapshot) return null;
+    const liveOneDriveProgress =
+      oneDriveEventProgress?.status === 'syncing' &&
+      oneDriveProgressWorkspaceRoot === workspaceRoot
+        ? oneDriveEventProgress
+        : null;
     const merged = {
       ...snapshot,
-      oneDrive: oneDriveEventProgress ? oneDriveSetupProgress(oneDriveEventProgress) : snapshot.oneDrive,
+      oneDrive: liveOneDriveProgress ? oneDriveSetupProgress(liveOneDriveProgress) : snapshot.oneDrive,
       clientMap,
     };
     return { ...merged, overall: deriveOverall(merged) };
-  }, [snapshot, clientMap, oneDriveEventProgress]);
+  }, [snapshot, clientMap, oneDriveEventProgress, oneDriveProgressWorkspaceRoot, workspaceRoot]);
 }

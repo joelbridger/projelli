@@ -54,6 +54,8 @@ vi.mock('@tauri-apps/api/event', () => ({
 }));
 
 import { useSetupProgress, computeClientMapProgress } from '@/platform/hooks/useSetupProgress';
+import { useOneDriveStore } from '@/platform/connectors/onedrive/onedriveStore';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import type { Matter } from '@/platform/types/matter';
 import type { ClientMap } from '@/platform/clientMap/types';
@@ -224,6 +226,8 @@ describe('useSetupProgress', () => {
   afterEach(() => {
     capturedListeners = {};
     useMatterStore.setState({ matters: [] });
+    useOneDriveStore.setState({ progress: null });
+    useWorkspaceStore.setState({ rootPath: null, rootGeneration: 0 });
   });
 
   it('recomputes overall after overlaying Client Map counts (empty -> partial)', async () => {
@@ -289,6 +293,7 @@ describe('useSetupProgress', () => {
   });
 
   it('overlays live OneDrive progress when a OneDrive sync event fires', async () => {
+    useWorkspaceStore.setState({ rootPath: '/workspace-a' });
     const { result } = renderHook(() => useSetupProgress());
     await waitFor(() => expect(result.current).not.toBeNull());
     await waitFor(() => expect(capturedListeners['onedrive-sync-progress']).toBeDefined());
@@ -303,6 +308,49 @@ describe('useSetupProgress', () => {
     expect(result.current?.oneDrive.itemsChecked).toBe(42);
     expect(result.current?.oneDrive.itemsImported).toBe(7);
     expect(result.current?.overall).toBe('inProgress');
+  });
+
+  it('does not let an old terminal OneDrive event override a fresh backend snapshot', async () => {
+    useWorkspaceStore.setState({ rootPath: '/workspace-a' });
+    snapshotToReturn = makeSnapshot({
+      oneDrive: { syncing: false, status: 'idle', itemsChecked: 1, itemsImported: 1 },
+    });
+    useOneDriveStore.setState({
+      progress: { status: 'done', seen: 99, imported: 44, indexed: 44 },
+    });
+
+    const { result } = renderHook(() => useSetupProgress());
+
+    await waitFor(() => expect(result.current).not.toBeNull());
+    expect(result.current?.oneDrive).toEqual({
+      syncing: false,
+      status: 'idle',
+      itemsChecked: 1,
+      itemsImported: 1,
+    });
+  });
+
+  it('does not show OneDrive progress from a different workspace', async () => {
+    useWorkspaceStore.setState({ rootPath: '/workspace-a' });
+    const { result } = renderHook(() => useSetupProgress());
+    await waitFor(() => expect(result.current).not.toBeNull());
+    await waitFor(() => expect(capturedListeners['onedrive-sync-progress']).toBeDefined());
+
+    act(() => {
+      capturedListeners['onedrive-sync-progress']?.({
+        payload: { status: 'syncing', seen: 42, imported: 7, indexed: 7 },
+      });
+    });
+
+    await waitFor(() => expect(result.current?.oneDrive.syncing).toBe(true));
+
+    act(() => {
+      useWorkspaceStore.setState({ rootPath: '/workspace-b', rootGeneration: 1 });
+    });
+
+    await waitFor(() => expect(result.current?.oneDrive.syncing).toBe(false));
+    expect(result.current?.oneDrive.itemsChecked).toBeNull();
+    expect(result.current?.oneDrive.itemsImported).toBeNull();
   });
 
   it('returns null and does not fetch outside a Tauri context', () => {

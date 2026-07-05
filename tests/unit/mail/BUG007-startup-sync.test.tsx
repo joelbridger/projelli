@@ -292,4 +292,44 @@ describe('BUG-007: startup sync + manual Sync now', () => {
     expect(screen.getByTestId('email-sync-now')).toHaveTextContent('Importing… 42 messages');
   });
 
+  it('(h) keeps Sync now disabled until the whole all-provider sync finishes', async () => {
+    mockMailConnectedAccounts.mockResolvedValue([
+      { provider: 'm365', account: 'default', label: 'Work' },
+      { provider: 'gmail', account: 'personal', label: 'Personal' },
+    ]);
+
+    let resolveSync!: () => void;
+    mockMailSyncAll.mockImplementation(
+      () => new Promise<void>((res) => { resolveSync = res; }),
+    );
+
+    render(<EmailWorkspace />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50);
+    });
+
+    expect(screen.getByTestId('email-sync-now')).toBeDisabled();
+
+    await act(async () => {
+      eventMock.handlers.get('mail-sync-progress')?.({
+        payload: {
+          status: 'done',
+          provider: 'm365',
+          folder: null,
+          written: 12,
+          removed: 0,
+        },
+      });
+    });
+
+    expect(screen.getByTestId('email-sync-now')).toBeDisabled();
+
+    await act(async () => {
+      resolveSync();
+      await vi.advanceTimersByTimeAsync(50);
+    });
+
+    expect(screen.getByTestId('email-sync-now')).not.toBeDisabled();
+  });
+
 });
