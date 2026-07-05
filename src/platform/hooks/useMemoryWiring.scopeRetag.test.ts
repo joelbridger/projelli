@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method -- vi.mocked(Service.method) reads the mock registry; the method is never called unbound, so `this` binding is irrelevant in these tests */
 /**
  * QA-44 — wiring test for the three scope-update reactions.
  *
@@ -168,7 +169,6 @@ describe('schedulePrivilegeRetag', () => {
     expect(task.id).toBe('privilege:/ws/secret.docx');
 
     await task.op();
-    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(vi.mocked(MemoryService.retagPrivilege)).toHaveBeenCalledWith(
       '/ws/secret.docx',
       'attorney-client',
@@ -182,7 +182,6 @@ describe('null-scheduler fallback (still best-effort, never dropped)', () => {
 
     schedulePrivilegeRetag(['/ws/x'], null);
 
-    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(vi.mocked(MemoryService.retagPrivilege)).toHaveBeenCalledWith('/ws/x', 'work-product');
   });
 });
@@ -497,7 +496,6 @@ describe('durable per-workspace mail hold (round 4)', () => {
       ],
     });
     // The batched file retag fails AND the workspace switches mid-flight.
-    // eslint-disable-next-line @typescript-eslint/unbound-method -- vi.mocked() reads the mock, not a bound call
     vi.mocked(MemoryService.retagMatterBatch).mockImplementation(() => {
       useWorkspaceStore.setState({ rootPath: '/wsB' });
       return Promise.reject(new Error('down'));
@@ -507,5 +505,73 @@ describe('durable per-workspace mail hold (round 4)', () => {
 
     // Guard tripped: no stale hold bled into the now-active workspace B.
     expect(getExcludedMatterFolders()).toHaveLength(0);
+  });
+});
+
+// ── Final round P2: a boot-time `matter:boot-retag` hold (a DIFFERENT id from the
+//    live per-folder `matter:<folder>` entries) must be discharged when a later
+//    LIVE folder retag succeeds in the same session — otherwise its files stay
+//    HIDDEN from search until a clean boot. ─────────────────────────────────────
+
+describe('scheduleFolderMatterRetag — live success discharges the boot-retag hold', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    useScopeUpdateStore.getState().clearAll();
+    useWorkspaceStore.setState({
+      rootPath: '/ws',
+      fileTree: [
+        { id: 'A', type: 'folder', name: 'A', path: '/ws/A', children: [
+          { id: 'A/f', type: 'file', name: 'file.docx', path: '/ws/A/file.docx' },
+        ] },
+      ],
+    });
+  });
+  afterEach(() => {
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
+    useScopeUpdateStore.getState().clearAll();
+    useWorkspaceStore.setState({ rootPath: null });
+  });
+
+  it('makes boot-retag-held files under a folder visible once its LIVE retag succeeds', async () => {
+    // A boot-time in-place retag FAILED on a file under /ws/A: the aggregate
+    // `matter:boot-retag` hold keeps it excluded from search.
+    useScopeUpdateStore.getState().begin({
+      id: 'matter:boot-retag',
+      kind: 'matter',
+      label: 'Applying client scope to search',
+      excludeFolders: ['/ws/A/file.docx'],
+    });
+    useScopeUpdateStore.getState().markFailed('matter:boot-retag');
+    expect(getExcludedMatterFolders()).toContain('/ws/A/file.docx');
+
+    // A LIVE folder retag of /ws/A now SUCCEEDS (different id `matter:/ws/A`).
+    const scheduler = createRetagScheduler();
+    vi.mocked(MemoryService.reindexPaths).mockResolvedValue(0);
+    scheduleFolderMatterRetag(['/ws/A'], null, scheduler);
+    await vi.runAllTimersAsync();
+
+    // The file was re-tagged by the live success, so it is discharged from the
+    // boot hold and VISIBLE again — not stranded until a clean boot.
+    expect(getExcludedMatterFolders()).not.toContain('/ws/A/file.docx');
+  });
+
+  it('leaves boot-retag paths OUTSIDE the retagged folder still held', async () => {
+    useScopeUpdateStore.getState().begin({
+      id: 'matter:boot-retag',
+      kind: 'matter',
+      label: 'Applying client scope to search',
+      excludeFolders: ['/ws/A/file.docx', '/ws/B/other.docx'],
+    });
+    useScopeUpdateStore.getState().markFailed('matter:boot-retag');
+
+    const scheduler = createRetagScheduler();
+    vi.mocked(MemoryService.reindexPaths).mockResolvedValue(0);
+    scheduleFolderMatterRetag(['/ws/A'], null, scheduler);
+    await vi.runAllTimersAsync();
+
+    // Only /ws/A's file is discharged; /ws/B's still-failed file stays held.
+    expect(getExcludedMatterFolders()).not.toContain('/ws/A/file.docx');
+    expect(getExcludedMatterFolders()).toContain('/ws/B/other.docx');
   });
 });

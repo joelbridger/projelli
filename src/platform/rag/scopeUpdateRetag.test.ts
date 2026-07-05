@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/require-await -- test op mocks are `async () => { throw }` on purpose: the scheduler consumes a rejecting Promise, so the async wrapper is intentional even without an await */
 /**
  * QA-44 — durable, visible re-tag scheduler + scope-update status store.
  *

@@ -989,6 +989,40 @@ export async function indexWorkspacePdfs(
   progress.clearSoon();
 }
 
+/** Fail-closed hold for the boot-time in-place matter retag (see
+ *  {@link retagFolderPathsInPlace}). Holds the exact FILE paths that failed. */
+const BOOT_RETAG_ID = 'matter:boot-retag';
+
+/**
+ * QA-44 (final round, P2) — when a LIVE per-folder retag of `folder` succeeds, it
+ * has just re-tagged that folder's files, INCLUDING any the boot-time retag had
+ * failed on and left held out under {@link BOOT_RETAG_ID}. That boot entry has a
+ * DIFFERENT id (a single aggregate, not `matter:<folder>`), so the live success
+ * never discharged it — leaving those files HIDDEN from search until a clean boot.
+ * Prune the just-retagged folder's paths from the boot hold (removing it entirely
+ * once empty) so a live success makes its files visible immediately.
+ */
+function dischargeBootRetagForFolder(folder: string): void {
+  const store = useScopeUpdateStore.getState();
+  const entry = store.entries[BOOT_RETAG_ID];
+  if (!entry) return;
+  const root = useWorkspaceStore.getState().rootPath;
+  const remaining = entry.excludeFolders.filter((p) => !pathInAnyFolder(p, [folder], root));
+  if (remaining.length === entry.excludeFolders.length) return; // nothing overlapped
+  if (remaining.length === 0) {
+    store.remove(BOOT_RETAG_ID);
+    return;
+  }
+  store.begin({
+    id: BOOT_RETAG_ID,
+    kind: entry.kind,
+    label: entry.label,
+    excludeFolders: remaining,
+    excludeMailMatters: entry.excludeMailMatters,
+  });
+  store.markFailed(BOOT_RETAG_ID);
+}
+
 /**
  * P1.1 — apply each mapped folder's matter (and privilege) to its files' EXISTING
  * rows IN PLACE, WITHOUT re-embedding. A cheap SQL column update per file.
@@ -1038,7 +1072,6 @@ async function retagFolderPathsInPlace(
   // is known), so there is no window where a prior failure's exclusion is lost.
   // Privilege failures need no exclusion — the retrieval privilege re-check
   // already fails closed durably.
-  const BOOT_RETAG_ID = 'matter:boot-retag';
 
   const failedPaths: string[] = [];
   for (const [matterId, paths] of byMatter) {
@@ -1181,6 +1214,7 @@ export async function retagExistingMailFolders(): Promise<void> {
     } catch {
       // Failure: leave the restored exclusion + durable record in place (fail
       // closed across sessions); the idempotent retag converges on a later boot.
+      // eslint-disable-next-line lantern-async/no-silent-failure -- fail-closed by design: KEEP the restored exclusion + durable record so the mail stays held out until a retag succeeds
       continue;
     }
     // Success — discharge the hold, but only if we're still the same workspace
@@ -1372,7 +1406,12 @@ export function scheduleFolderMatterRetag(
 ): void {
   if (folders.length === 0) return;
   if (!scheduler) {
-    void reindexFolderPaths(folders, workspaceService).catch(() => {});
+    void reindexFolderPaths(folders, workspaceService)
+      .then(() => {
+        for (const folder of folders) dischargeBootRetagForFolder(folder);
+      })
+      // eslint-disable-next-line lantern-async/no-silent-failure -- best-effort pre-mount fallback; a failed re-index stays held out and the next boot reconcile re-tags it
+      .catch(() => {});
     return;
   }
   // Key ONE task PER FOLDER, not one per changed-folder SET (QA-44, Codex round 2
@@ -1390,7 +1429,13 @@ export function scheduleFolderMatterRetag(
       // Fail closed: hold this folder's files out of retrieval until its
       // re-index lands, so stale chunks can't surface under the wrong client.
       excludeFolders: [folder],
-      op: () => reindexFolderPaths([folder], workspaceService),
+      op: async () => {
+        await reindexFolderPaths([folder], workspaceService);
+        // A live success also re-tagged any of this folder's files the boot
+        // retag had failed on — discharge them from the boot hold so they don't
+        // stay hidden until a clean boot (final round P2).
+        dischargeBootRetagForFolder(folder);
+      },
     });
   }
 }
