@@ -194,7 +194,16 @@ export class DocxSession {
   // Mirrors DocxEditor's original QA-34 backoff: retry the LATEST doc (the
   // user, or a background scheduleSave, may have moved on since the last
   // failure), so when the lock clears everything since is persisted.
-  private scheduleRetry(): void {
+  //
+  // `snapshot` carries the version-snapshot mode of the persist that failed, so
+  // a RETRY of a live-typing shadow save (snapshot:false) stays snapshot:false
+  // too — otherwise a retry that lands before the run blurs would create a
+  // version-history snapshot of uncommitted live typing, exactly what
+  // `persistLive` suppresses (QA-81 P2). A newer persist() call clears this
+  // retry timer and reschedules with ITS own mode, so the retry chain always
+  // reflects the latest intent (e.g. a real blur commit supersedes a pending
+  // live-save retry with snapshot:true).
+  private scheduleRetry(snapshot: boolean): void {
     this.clearRetryTimer();
     if (this.disposed) return;
     const delay = this.retryDelay;
@@ -202,7 +211,7 @@ export class DocxSession {
     this.retryTimer = setTimeout(() => {
       this.retryTimer = null;
       if (this.disposed) return;
-      void this.persist(this.doc);
+      void this.persist(this.doc, { snapshot });
     }, delay);
   }
 
@@ -292,7 +301,7 @@ export class DocxSession {
     if (this.consecutiveFailures >= ESCALATE_AFTER_FAILURES) this.escalated = true;
     this.publishState();
     this.notify();
-    this.scheduleRetry();
+    this.scheduleRetry(snapshot);
     return false;
   }
 

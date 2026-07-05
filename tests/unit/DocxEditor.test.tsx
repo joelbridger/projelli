@@ -1190,6 +1190,109 @@ describe('DocxEditor — QA-81: live typing is persisted by the periodic autosav
       { timeout: 6000 },
     );
   }, 15000);
+
+  // QA-81 (fidelity, review catch): the shadow save must persist the live text
+  // EXACTLY — leading/trailing spaces, runs of multiple spaces, and line breaks
+  // intact. If it collapsed whitespace, a crash would restore garbled spacing
+  // (wrong, not just lost). It reads via `textContent` (verbatim), the SAME
+  // extraction the authoritative blur commit uses, so the shadow can't diverge
+  // from what a blur would save.
+  it('persists live text with whitespace and line breaks intact (no collapsing)', async () => {
+    const oneRunDoc: DocumentJson = {
+      formatVersion: 1,
+      body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'x' }] }],
+      comments: {},
+    };
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'docx_open') return Promise.resolve(oneRunDoc);
+      if (cmd === 'docx_save') return Promise.resolve(undefined);
+      return Promise.resolve(undefined);
+    });
+
+    renderEditor();
+    const run = await screen.findByTestId('docx-run');
+    fireEvent.click(screen.getByTestId('docx-reviewing-toggle'));
+
+    // Deliberately awkward spacing: leading + trailing spaces, a double space,
+    // and a newline. This must round-trip byte-for-byte.
+    const typed = '  lead   spaces  and\nsecond line ';
+    fireEvent.focus(run);
+    run.textContent = typed;
+
+    await waitFor(
+      () =>
+        expect(invokeMock).toHaveBeenCalledWith(
+          'docx_save',
+          expect.objectContaining({
+            document: expect.objectContaining({
+              body: [
+                expect.objectContaining({
+                  inlines: [expect.objectContaining({ kind: 'run', text: typed })],
+                }),
+              ],
+            }),
+          }),
+        ),
+      { timeout: 6000 },
+    );
+  }, 15000);
+
+  // QA-81 (IME, review catch): a 2s shadow save landing DURING an IME
+  // composition (CJK) may persist a half-composed run — that's acceptable
+  // (persist-then-heal-on-commit), but it must NOT corrupt the document
+  // structure. Because the shadow save only assigns a string to one run's text
+  // in a clone (never re-renders / never touches the live composing element),
+  // the structure stays a single paragraph with a single run, and the eventual
+  // composition-end blur commits the final text.
+  it('persisting a half-composed (IME) run keeps the document structure intact and heals on blur commit', async () => {
+    const oneRunDoc: DocumentJson = {
+      formatVersion: 1,
+      body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: '' }] }],
+      comments: {},
+    };
+    const saved: DocumentJson[] = [];
+    invokeMock.mockImplementation((cmd: string, args?: Record<string, unknown>) => {
+      if (cmd === 'docx_open') return Promise.resolve(oneRunDoc);
+      if (cmd === 'docx_save') {
+        saved.push(args?.['document'] as DocumentJson);
+        return Promise.resolve(undefined);
+      }
+      return Promise.resolve(undefined);
+    });
+
+    renderEditor();
+    const run = await screen.findByTestId('docx-run');
+    fireEvent.click(screen.getByTestId('docx-reviewing-toggle'));
+
+    // Mid-composition: the DOM holds a half-composed romaji/pinyin buffer.
+    fireEvent.focus(run);
+    run.textContent = 'nih';
+
+    // The shadow save persists the half-composed text WITHOUT corrupting the
+    // run structure (still exactly one paragraph with one run).
+    await waitFor(
+      () => {
+        const half = saved.find(
+          (d) =>
+            d.body.length === 1 &&
+            d.body[0]?.kind === 'paragraph' &&
+            (d.body[0] as { inlines: { kind: string; text?: string }[] }).inlines.length === 1 &&
+            (d.body[0] as { inlines: { kind: string; text?: string }[] }).inlines[0]?.text === 'nih',
+        );
+        expect(half).toBeTruthy();
+      },
+      { timeout: 6000 },
+    );
+
+    // Composition ends → the run commits the final text on blur, which heals it.
+    run.textContent = '你好';
+    fireEvent.blur(run);
+    await waitFor(
+      () =>
+        expect(saved.some((d) => (d.body[0] as { inlines: { text?: string }[] }).inlines[0]?.text === '你好')).toBe(true),
+      { timeout: 6000 },
+    );
+  }, 15000);
 });
 
 describe('DocxEditor — AI redline (A4)', () => {

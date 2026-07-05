@@ -106,8 +106,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `persistLive` marks the session dirty before queuing (so an overlapping older
   write can't publish a false "Saved" while newer text is still queued) and
   skips the version-history snapshot (those are for committed edits, not every
-  2s of typing). Solo path only — co-edit is unchanged (its document is sourced
-  from the CRDT). Files: `src/features/documents/media/DocxEditor.tsx`,
+  2s of typing) — the snapshot mode is carried through the backoff RETRY path
+  too, so a retried shadow save can't snapshot uncommitted typing either. Live
+  text is read via `textContent` (verbatim — the same extraction the blur commit
+  uses), so whitespace and line breaks are preserved exactly; an IME
+  (half-composed) run is persisted-then-healed on the composition-end blur and
+  never corrupts run structure. Solo path only — co-edit is unchanged (its
+  document is sourced from the CRDT). Files:
+  `src/features/documents/media/DocxEditor.tsx`,
   `src/platform/fs/docxSaveSession.ts`, tests in
   `tests/unit/DocxEditor.test.tsx`, `tests/unit/fileOps/docxSaveSession.test.ts`.
 - **QA-71 (P1/P2): deleting meeting audio before transcription now warns about

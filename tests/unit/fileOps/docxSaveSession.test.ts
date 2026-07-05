@@ -230,6 +230,43 @@ describe('docxSaveSession', () => {
     expect(onAfterSave).toHaveBeenCalledTimes(1);
   });
 
+  // QA-81 (P2, review catch): snapshot suppression must survive a RETRY. A live
+  // shadow save starts snapshot:false, but if it fails transiently and the
+  // backoff retry lands BEFORE the run blurs, that retry must still NOT create a
+  // version-history snapshot of uncommitted live typing — otherwise the timeline
+  // fills with half-typed shadows. The retry has to carry the snapshot mode
+  // through, not fall back to the default (snapshot:true).
+  it('a retried live shadow save stays snapshot-free (the retry must not snapshot uncommitted typing)', async () => {
+    let shouldFail = true;
+    const onAfterSave = vi.fn();
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'docx_open') return Promise.resolve(DOC);
+      if (cmd === 'docx_save') return shouldFail ? Promise.reject(new Error('locked')) : Promise.resolve(undefined);
+      return Promise.resolve(undefined);
+    });
+    const session = await openDocxSession('/ws/a.docx', { onAfterSave });
+
+    const liveDoc: DocumentJson = { ...DOC, body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'live typing, not blurred' }] }] };
+    void session.persistLive(liveDoc); // attempt 1: fails
+    await vi.advanceTimersByTimeAsync(0);
+    expect(session.saveError).not.toBeNull();
+    expect(session.isDirty).toBe(true);
+
+    // The lock clears; the backoff retry (RETRY_BASE_MS = 750) lands the save.
+    shouldFail = false;
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(session.isDirty).toBe(false);
+    expect(session.saveError).toBeNull();
+    // The live text is on disk...
+    expect(invokeMock).toHaveBeenCalledWith(
+      'docx_save',
+      expect.objectContaining({ path: '/ws/a.docx', document: liveDoc }),
+    );
+    // ...but the RETRY must have carried snapshot:false — no version snapshot of
+    // still-uncommitted typing.
+    expect(onAfterSave).not.toHaveBeenCalled();
+  });
+
   // QA-81 (P0, Codex review catch): the live-typing autosave fires every ~2s, so
   // if one docx_save runs longer than that, an OLDER live save can complete
   // while a NEWER one is still queued. The older completion must NOT publish a
