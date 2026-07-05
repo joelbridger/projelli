@@ -260,7 +260,8 @@ export class FileSystemWatcher {
         this.keepAliveSnapshot = snapshot;
       })
       .catch((err: unknown) => {
-        console.warn('FileSystemWatcher: initial keepalive snapshot failed:', err);
+        // Best-effort: leave it null; the first tick's own fetch seeds it.
+        console.error('FileSystemWatcher: keepalive initial snapshot failed:', err);
       });
     this.keepAliveTimer = setInterval(() => {
       void this.runKeepAliveCheck(rootPath, getFileTreeSnapshot).catch((err: unknown) => {
@@ -397,7 +398,9 @@ export class FileSystemWatcher {
       this.isRefreshing = false;
       if (this.refreshAgain) {
         this.refreshAgain = false;
-        void this.runRefresh();
+        void this.runRefresh().catch((err: unknown) => {
+          console.error('FileSystemWatcher: queued refresh failed:', err);
+        });
       }
     }
   }
@@ -407,9 +410,13 @@ export class FileSystemWatcher {
     console.log(`FileSystemWatcher: no OS file-change events available, polling every ${String(this.pollInterval)}ms`);
 
     // Initial snapshot.
-    void getFileTreeSnapshot().then((snapshot) => {
-      this.lastFileTreeSnapshot = snapshot;
-    });
+    void getFileTreeSnapshot()
+      .then((snapshot) => {
+        this.lastFileTreeSnapshot = snapshot;
+      })
+      .catch((err: unknown) => {
+        console.error('FileSystemWatcher: initial poll snapshot failed:', err);
+      });
 
     this.intervalId = window.setInterval(() => {
       void (async () => {
@@ -431,7 +438,9 @@ export class FileSystemWatcher {
         } finally {
           this.isPolling = false;
         }
-      })();
+      })().catch((err: unknown) => {
+        console.error('FileSystemWatcher: poll loop failed:', err);
+      });
     }, this.pollInterval);
   }
 

@@ -73,6 +73,52 @@ pub async fn ensure_vector_index_after_bulk(table: &Table) -> Result<bool> {
     Ok(true)
 }
 
+/// Return how many vector rows currently exist for `path` under the given scope.
+///
+/// The manifest is only a saved receipt. Before a caller skips indexing from
+/// that receipt, it must also prove the actual vector rows are still present
+/// for the same matter/privilege scope.
+pub async fn path_row_count_for_scope(
+    table: &Table,
+    path: &str,
+    matter_id: &str,
+    privilege: &str,
+    key: &[u8; 32],
+) -> Result<usize> {
+    let matter_id = validate_matter_id(matter_id)?;
+    let privilege = validate_privilege(privilege)?;
+    let predicate = format!(
+        "path = '{}' AND matter_id = '{}' AND privilege = '{}'",
+        sql_escape(&super::super::crypto::path_token(key, path)),
+        sql_escape(matter_id),
+        sql_escape(privilege),
+    );
+    table
+        .count_rows(Some(predicate))
+        .await
+        .with_context(|| format!("count rows for {}", path))
+}
+
+/// Return whether the vector table has enough rows to trust a fresh manifest.
+///
+/// `expected_rows == 0` is treated as unknown, not trusted: older single-file
+/// manifest writes stored 0 for non-empty files, so a zero-count receipt cannot
+/// prove that all rows survived. Re-index instead of silently missing chunks.
+pub async fn path_has_expected_rows_for_scope(
+    table: &Table,
+    path: &str,
+    matter_id: &str,
+    privilege: &str,
+    expected_rows: u32,
+    key: &[u8; 32],
+) -> Result<bool> {
+    let rows = path_row_count_for_scope(table, path, matter_id, privilege, key).await?;
+    if expected_rows == 0 {
+        return Ok(false);
+    }
+    Ok(rows >= expected_rows as usize)
+}
+
 /// WS-PRIV — re-tag the privilege of every already-indexed chunk for `path`
 /// IN PLACE, without re-embedding. Used when the user toggles a source's
 /// privilege: the chunk text + vectors are unchanged, only the `privilege`
@@ -249,4 +295,3 @@ pub async fn matter_for_path(table: &Table, path: &str, key: &[u8; 32]) -> Resul
     }
     Ok(found)
 }
-

@@ -1,8 +1,8 @@
 /**
  * useMeetingStore — drives the local meeting-capture pipeline end to end:
  * startRecording -> consent -> capture_start; stopRecording -> capture_stop
- * -> meeting.json -> transcribe per setting -> notes template -> (Task 14
- * indexing, out of this lane's scope).
+ * -> meeting.json -> transcribe per setting -> notes template -> explicit
+ * meeting-file indexing.
  *
  * Kept free of React (no hooks) so it's plain-testable; components own
  * timers/effects (RecordPill ticks elapsedMs; ClientMeetingsTab/MeetingEntry
@@ -23,6 +23,7 @@ import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { buildResolvedProviderForGlance } from '@/platform/matter/matterAtAGlance';
 import { matterLabel } from '@/platform/rag/matterResolver';
+import { MemoryService } from '@/platform/rag/MemoryService';
 import {
   meetingNoteFromTranscript,
   formatCitationsForDisplay,
@@ -428,25 +429,27 @@ async function runTranscribeMeeting(
   meetingDir: string,
   workspaceRoot: string,
   model: string | null
-): Promise<void> {
+): Promise<boolean> {
   try {
     await invoke('transcribe_meeting', { workspaceRoot, meetingDir, model });
     await clearTranscriptError(meetingDir);
+    return true;
   } catch (err) {
     await recordTranscriptError(meetingDir, err);
+    return false;
   }
 }
 
 /** Keyed in-flight map so the natural post-stop transcription and a manual
  *  "Retry" can never race each other for the same meetingDir — same
  *  reasoning as inFlightNotesGenerations below. */
-const inFlightTranscriptions = new Map<string, Promise<void>>();
+const inFlightTranscriptions = new Map<string, Promise<boolean>>();
 
 function transcribeMeetingSerialized(
   meetingDir: string,
   workspaceRoot: string,
   model: string | null = null
-): Promise<void> {
+): Promise<boolean> {
   const existing = inFlightTranscriptions.get(meetingDir);
   if (existing) return existing;
   const run = runTranscribeMeeting(meetingDir, workspaceRoot, model).finally(() => {
@@ -454,6 +457,18 @@ function transcribeMeetingSerialized(
   });
   inFlightTranscriptions.set(meetingDir, run);
   return run;
+}
+
+async function indexMeetingFile(
+  meetingDir: string,
+  filename: 'transcript.json' | 'notes.docx',
+  matterId: string
+): Promise<void> {
+  try {
+    await MemoryService.indexFile(`${meetingDir}/${filename}`, matterId);
+  } catch (err) {
+    console.warn(`[meetings] failed to index ${filename} for ${meetingDir}:`, err);
+  }
 }
 
 /**
@@ -524,6 +539,7 @@ async function tryGenerateNotes(
     );
     const finalBytes = await applyLetterheadIfConfigured(bytes);
     await ws.writeFileBinary(`${meetingDir}/notes.docx`, finalBytes);
+    await indexMeetingFile(meetingDir, 'notes.docx', matterId);
     await clearNotesError(meetingDir);
   } catch (err) {
     await recordNotesError(meetingDir, err);
@@ -590,7 +606,10 @@ export async function retryMeetingTranscript(
 ): Promise<void> {
   useMeetingStore.setState((s) => ({ processingCount: s.processingCount + 1 }));
   try {
-    await transcribeMeetingSerialized(meetingDir, workspaceRoot);
+    const transcribed = await transcribeMeetingSerialized(meetingDir, workspaceRoot);
+    if (transcribed) {
+      await indexMeetingFile(meetingDir, 'transcript.json', matterId);
+    }
     await generateNotesSerialized(meetingDir, matterId, resolveProvider);
   } finally {
     useMeetingStore.setState((s) => ({ processingCount: Math.max(0, s.processingCount - 1) }));
@@ -913,12 +932,16 @@ async function runPostStopPipeline(
     const transcribeMode = useSettingsStore
       .getState()
       .getSetting<string>('meetings.transcribeMode');
+    let transcribed = false;
     if (meetingDir && transcribeMode !== 'batch') {
       // QA-40: was a bare try/catch that silently swallowed every failure
       // (see runTranscribeMeeting above) — capture still never depends on
       // this succeeding, but a failure is now recorded as an honest,
       // retryable transcriptError instead of vanishing.
-      await transcribeMeetingSerialized(meetingDir, resolveWorkspaceRoot());
+      transcribed = await transcribeMeetingSerialized(meetingDir, resolveWorkspaceRoot());
+      if (transcribed && matterId) {
+        await indexMeetingFile(meetingDir, 'transcript.json', matterId);
+      }
     }
 
     // Recording Notice Kit: once the transcript exists, verify the spoken

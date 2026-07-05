@@ -171,6 +171,16 @@ describe('MemoryService toggle', () => {
     expect(tauri.ragIndexFile).toHaveBeenCalledWith('/w/a.md', 'unassigned', 'none');
   });
 
+  it('uses an explicit matter id for indexFile when the caller already knows the scope', async () => {
+    setMemoryEnabledReader(() => true);
+    await MemoryService.indexFile('/w/Clients/Henderson/Meetings/x/notes.docx', 'm-1');
+    expect(tauri.ragIndexFile).toHaveBeenCalledWith(
+      '/w/Clients/Henderson/Meetings/x/notes.docx',
+      'm-1',
+      'none'
+    );
+  });
+
   it('short-circuits indexFile when disabled', async () => {
     setMemoryEnabledReader(() => false);
     await MemoryService.indexFile('/w/a.md');
