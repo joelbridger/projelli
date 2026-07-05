@@ -104,15 +104,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   re-rendering, or moving the caret; a later blur authors the proper
   tracked-change commit and supersedes the plain-text shadow on disk.
   `persistLive` marks the session dirty before queuing (so an overlapping older
-  write can't publish a false "Saved" while newer text is still queued) and
-  skips the version-history snapshot (those are for committed edits, not every
-  2s of typing) — the snapshot mode is carried through the backoff RETRY path
-  too, so a retried shadow save can't snapshot uncommitted typing either. Live
-  text is read via `textContent` (verbatim — the same extraction the blur commit
-  uses), so whitespace and line breaks are preserved exactly; an IME
-  (half-composed) run is persisted-then-healed on the composition-end blur and
-  never corrupts run structure. Solo path only — co-edit is unchanged (its
-  document is sourced from the CRDT). Files:
+  write can't publish a false "Saved" while newer text is still queued). The
+  version-history snapshot decision is tied to the CONTENT, not the save call: a
+  committed edit (blur / accept / reject / redline / export / a leaving-
+  checkpoint flush) marks the dirty content snapshot-worthy (`pendingSnapshot`),
+  a live shadow save leaves that flag untouched, and the write that actually
+  persists the content consumes it. So pure live typing never floods the version
+  timeline, but a committed edit ALWAYS gets its snapshot even when a live save —
+  or its backoff retry — is what physically wrote it to disk (e.g. a live save
+  absorbing a blurred edit's still-pending debounce, or a retry that fires after
+  the user blurred). Live text is read via `textContent` (verbatim — the same
+  extraction the blur commit uses), so whitespace and line breaks are preserved
+  exactly; an IME (half-composed) run is persisted-then-healed on the
+  composition-end blur and never corrupts run structure. Solo path only —
+  co-edit is unchanged (its document is sourced from the CRDT). Files:
   `src/features/documents/media/DocxEditor.tsx`,
   `src/platform/fs/docxSaveSession.ts`, tests in
   `tests/unit/DocxEditor.test.tsx`, `tests/unit/fileOps/docxSaveSession.test.ts`.

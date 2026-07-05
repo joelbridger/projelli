@@ -84,6 +84,22 @@ export class DocxSession {
   private consecutiveFailures = 0;
   private saveSeq = 0;
   private pendingAuthor: 'user' | 'ai' = 'user';
+  /**
+   * QA-81 (P2): whether the CURRENT unsaved content includes a real, COMMITTED
+   * edit (blur / accept / reject / redline / export / a leaving-checkpoint
+   * flush) that must produce a version-history snapshot (`onAfterSave`) when it
+   * lands. Snapshot-worthiness is a property of the dirty CONTENT, not of the
+   * particular save call or timer that happens to flush it — a live-typing
+   * shadow save (`persistLive`) can absorb a pending committed save's debounce,
+   * or a live retry can end up writing a doc that has since become a committed
+   * edit; in both cases the committed content still deserves its snapshot. So a
+   * committed edit SETS this flag, `persistLive` leaves it untouched, and the
+   * write that actually persists the current doc consumes it — the snapshot
+   * rides with the content regardless of which timer wins. Reset only when the
+   * doc that just landed is still current (mirrors the `isDirty` clear), so a
+   * newer committed edit arriving mid-write keeps its own pending snapshot.
+   */
+  private pendingSnapshot = false;
   private onFirstEditFired = false;
   private unregister: (() => void) | null = null;
   private readonly listeners = new Set<() => void>();
@@ -193,17 +209,12 @@ export class DocxSession {
 
   // Mirrors DocxEditor's original QA-34 backoff: retry the LATEST doc (the
   // user, or a background scheduleSave, may have moved on since the last
-  // failure), so when the lock clears everything since is persisted.
-  //
-  // `snapshot` carries the version-snapshot mode of the persist that failed, so
-  // a RETRY of a live-typing shadow save (snapshot:false) stays snapshot:false
-  // too — otherwise a retry that lands before the run blurs would create a
-  // version-history snapshot of uncommitted live typing, exactly what
-  // `persistLive` suppresses (QA-81 P2). A newer persist() call clears this
-  // retry timer and reschedules with ITS own mode, so the retry chain always
-  // reflects the latest intent (e.g. a real blur commit supersedes a pending
-  // live-save retry with snapshot:true).
-  private scheduleRetry(snapshot: boolean): void {
+  // failure), so when the lock clears everything since is persisted. The
+  // snapshot decision is NOT captured here: the retry re-reads `pendingSnapshot`
+  // at save time, so if the user blurred (committing an edit) between the
+  // failure and the retry, the retry correctly snapshots that committed edit —
+  // and if it was pure live typing all along, it still doesn't (QA-81 P2).
+  private scheduleRetry(): void {
     this.clearRetryTimer();
     if (this.disposed) return;
     const delay = this.retryDelay;
@@ -211,11 +222,11 @@ export class DocxSession {
     this.retryTimer = setTimeout(() => {
       this.retryTimer = null;
       if (this.disposed) return;
-      void this.persist(this.doc, { snapshot });
+      void this.persist(this.doc);
     }, delay);
   }
 
-  private async attemptSave(doc: DocumentJson, snapshot = true): Promise<boolean> {
+  private async attemptSave(doc: DocumentJson): Promise<boolean> {
     this.isSaving = true;
     this.notify();
     try {
@@ -228,6 +239,14 @@ export class DocxSession {
         }
       }
       const wasDirty = this.isDirty;
+      // Capture snapshot-worthiness of the content being written NOW, before the
+      // await — `doc` is the current dirty content at this point, and its
+      // provenance (a committed edit set `pendingSnapshot`; a pure live-typing
+      // shadow did not) is what decides whether this write feeds version
+      // history. Reading it here (not from a per-call flag) is what makes the
+      // snapshot ride with the CONTENT even when a live save/retry absorbs or
+      // supersedes a committed save's timer (QA-81 P2).
+      const wantSnapshot = this.pendingSnapshot;
       const rev = (this.saveSeq += 1);
       await writeCoordinator.enqueue(this.filePath, rev, () => docxSave(this.filePath, doc));
       this.lastSavedAt = Date.now();
@@ -238,8 +257,12 @@ export class DocxSession {
       // the current one; otherwise a quick tab-switch/close right after this
       // stale completion (and before the newer doc's own debounce fires)
       // could see a falsely-clean session and drop the newer edit entirely.
+      // The pending snapshot is consumed on the same condition: a newer
+      // committed edit that raced in keeps ITS own pending snapshot for its
+      // own save.
       if (this.doc === doc) {
         this.isDirty = false;
+        this.pendingSnapshot = false;
       }
       this.saveError = null;
       this.escalated = false;
@@ -248,8 +271,11 @@ export class DocxSession {
       this.clearRetryTimer();
       const author = this.pendingAuthor;
       this.pendingAuthor = 'user';
-      // `snapshot: false` for live-typing shadow saves — see `persistLive`.
-      if (wasDirty && snapshot) {
+      // Snapshot only when this write carried committed content (see
+      // `pendingSnapshot`) — a pure live-typing shadow save does not flood the
+      // version timeline, but a committed edit ALWAYS gets its snapshot even if
+      // a live save/retry is what physically wrote it to disk.
+      if (wasDirty && wantSnapshot) {
         try {
           await this.hooks.onAfterSave?.({ filePath: this.filePath, author });
         } catch (verr) {
@@ -271,14 +297,14 @@ export class DocxSession {
   }
 
   /** One save attempt; on failure bumps the failure count, escalates after
-   * enough consecutive failures, and schedules the next backoff retry.
-   * `snapshot: false` suppresses the version-history snapshot (live-typing
-   * shadow saves — see `persistLive`); a failed shadow save still retries with
-   * backoff exactly like any other save, so nothing is lost. */
-  async persist(doc: DocumentJson, opts: { snapshot?: boolean } = {}): Promise<boolean> {
-    const { snapshot = true } = opts;
+   * enough consecutive failures, and schedules the next backoff retry. Whether
+   * this write feeds version history is decided by `pendingSnapshot` (the
+   * provenance of the current dirty content), not by the caller — see
+   * `attemptSave`. A failed shadow save still retries with backoff exactly like
+   * any other save, so nothing is lost. */
+  async persist(doc: DocumentJson): Promise<boolean> {
     this.clearRetryTimer();
-    const ok = await this.attemptSave(doc, snapshot);
+    const ok = await this.attemptSave(doc);
     if (ok) {
       // QA-43 (coordinator P0): this used to self-dispose here when nobody
       // was watching and the doc was clean — a "nothing left to keep alive
@@ -301,14 +327,19 @@ export class DocxSession {
     if (this.consecutiveFailures >= ESCALATE_AFTER_FAILURES) this.escalated = true;
     this.publishState();
     this.notify();
-    this.scheduleRetry(snapshot);
+    this.scheduleRetry();
     return false;
   }
 
-  /** Update the in-memory doc and (re)schedule a debounced save of it. */
+  /** Update the in-memory doc and (re)schedule a debounced save of it. Called
+   * for COMMITTED edits (blur / accept / reject / redline via
+   * `applyResolvedDocument`), so it marks the content snapshot-worthy — that
+   * intent then rides with the content even if a live shadow save or its retry
+   * is what physically writes it first (QA-81 P2). */
   scheduleSave(doc: DocumentJson, debounceMs: number): void {
     this.doc = doc;
     this.isDirty = true;
+    this.pendingSnapshot = true;
     this.publishState();
     this.notify();
     if (this.saveTimer) clearTimeout(this.saveTimer);
@@ -318,9 +349,11 @@ export class DocxSession {
     }, debounceMs);
   }
 
-  /** Save `doc` immediately, bypassing any pending debounce (export / rescue-copy flush). */
+  /** Save `doc` immediately, bypassing any pending debounce (export / rescue-copy
+   * flush) — a committed/meaningful save, so it too is snapshot-worthy. */
   async persistNow(doc: DocumentJson): Promise<boolean> {
     this.doc = doc;
+    this.pendingSnapshot = true;
     if (this.saveTimer) {
       clearTimeout(this.saveTimer);
       this.saveTimer = null;
@@ -343,11 +376,14 @@ export class DocxSession {
    *     instead of publishing a false "clean"/"Saved" that a close/quit guard
    *     could act on and lose the newest keystrokes. Mirrors `scheduleSave`.
    *
-   *  2. It does NOT take a version-history snapshot (`snapshot: false`). Those
-   *     mark meaningful, committed (blurred / accepted / redlined) edits; a
-   *     snapshot every 2s of active typing would flood the version timeline.
-   *     The eventual blur commit persists through the normal path and DOES
-   *     snapshot, so the timeline still captures the finished edit.
+   *  2. It does NOT itself mark the content snapshot-worthy — a snapshot every
+   *     2s of active typing would flood the version timeline. It leaves
+   *     `pendingSnapshot` UNTOUCHED: if a committed edit is already pending
+   *     (e.g. this shadow save absorbed a blurred edit's debounce, or folded a
+   *     committed run into `doc`), that committed content STILL snapshots when
+   *     this write lands; if the only unsaved content is live typing, it
+   *     doesn't. The eventual blur commit sets `pendingSnapshot`, so the
+   *     finished edit is always captured.
    */
   async persistLive(doc: DocumentJson): Promise<boolean> {
     this.doc = doc;
@@ -358,7 +394,7 @@ export class DocxSession {
       clearTimeout(this.saveTimer);
       this.saveTimer = null;
     }
-    return this.persist(doc, { snapshot: false });
+    return this.persist(doc);
   }
 
   /**
@@ -374,6 +410,12 @@ export class DocxSession {
         console.error('[DocxSession] liveFlushHook failed:', err);
       }
     }
+    // A close/switch/quit is a meaningful checkpoint: if any content is still
+    // unsaved at this point — including purely live-typed text that never got a
+    // blur commit (e.g. a background flush with no view to run liveFlushHook) —
+    // it deserves a version-history snapshot, matching the pre-QA-81 flush which
+    // always saved with a snapshot. (Ordinary committed edits already set this.)
+    if (this.isDirty || this.saveError !== null) this.pendingSnapshot = true;
     // Loop while there's still something unresolved — either genuinely dirty
     // (a write can succeed yet be immediately stale if a newer edit lands
     // mid-flight, see attemptSave's staleness guard, e.g. the user types
