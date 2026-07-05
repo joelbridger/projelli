@@ -1,5 +1,13 @@
 # Trust-Breaker Lockdown — the road to the first real advisor
 
+> ## 🎯 CURRENT GOAL (Jameson, 2026-07-05 late): a TESTABLE, SAFE version where the whole CORE FLOW works — drive every step to GREEN.
+> Jameson's exact test chain (get ALL to PASS): **connect AI key → connect files → connect email → AI search with clickable citations → record a meeting (AND the in-meeting Notice Card shows "recording") → transcript + AI summary complete → search the meeting TRANSCRIPT via Ask → draft a follow-up email with AI.**
+> **The instrument:** cc-lantern-winsmoke is running this EXACT chain on the Legion right now → produces a PASS/BROKEN/CANT-TEST scorecard per step (task #24). **The loop:** get scorecard → for every BROKEN/unknown step spawn a fix immediately → re-test that step → repeat until all green.
+> All the pieces EXIST (verified by code presence: email connectors, DraftFollowUpModal, noticeCard/, providers, transcription). The unknown being checked in parallel: **do meeting transcripts get indexed into Ask search?** (Codex investigation running.)
+> Comms rule changed 2026-07-05: explain to Jameson like he's **10** (was 16) — codified in ~/.claude/CLAUDE.md + coordinator PLAYBOOK.md §8. THIRD correction; go noticeably simpler.
+> **11 fixes merged; current tip 81e35ca7.** swallow-p0 PARKED (off this critical path — rare mail-remap edge, needs a Fable comprehensive close before merge). Second-wave findings logged: QA-84 (Calendly re-map leak), QA-85 (citation "verified" badge overstates — CORE trust, prioritize), QA-86 (vault key-missing silent orphan), QA-87 (cosmetic falsely-dirty), meetings-hardening (QA-70/83), QA-82 (co-edit typing). bench-1 running the QA-81 crash-acid-test.
+
+
 **Decision (Jameson, 2026-07-05): STOP broad bug-hunting. Lock down the handful of
 "trust-breaker" bugs, PROVE the app is stable, and get it in front of ONE real advisor.**
 
