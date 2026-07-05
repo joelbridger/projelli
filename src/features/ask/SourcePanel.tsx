@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import type { KeyboardEvent, MouseEvent, ReactNode } from 'react';
 import { FileText, ShieldCheck, CheckCircle2, AlertTriangle, Loader2, Clock, ExternalLink } from 'lucide-react';
 import type { AnswerCitation } from './askHelpers';
@@ -117,6 +117,16 @@ function SourceCard({
 }) {
   const [verdict, setVerdict] = useState<CitationVerdict | 'loading' | null>(null);
   const canVerify = Boolean(cite.id && cite.matterId);
+  // QA-56: cards are keyed by citation identity (id + matterId) so an
+  // identity change remounts with fresh state. This ref closes the residual
+  // gap: while a verify is in flight, the SAME card's cite can change in place
+  // (same id/matterId, different quoted excerpt). Compare the freshest cite
+  // after the async check so a verdict computed for the OLD quote never paints
+  // onto a new one.
+  // Synced in a LAYOUT effect (commit phase, before any promise callback) so a
+  // late verify always compares against the currently-rendered quote — no gap.
+  const citeRef = useRef(cite);
+  useLayoutEffect(() => { citeRef.current = cite; }, [cite]);
   // When the host supplies its own opener (e.g. the Client Map, whose sources
   // include CRM / OneDrive / e-sign / meeting kinds the built-in path opener
   // can't route), every card is openable and routes there. Otherwise fall back
@@ -130,9 +140,18 @@ function SourceCard({
   async function runVerify(e: MouseEvent<HTMLButtonElement>): Promise<void> {
     e.stopPropagation();
     if (!cite.id || !cite.matterId) return;
+    const verified = { id: cite.id, matterId: cite.matterId, excerpt: cite.excerpt };
     setVerdict('loading');
     try {
-      const r = await ragVerifyCitation(cite.id, cite.matterId, cite.excerpt);
+      const r = await ragVerifyCitation(verified.id, verified.matterId, verified.excerpt);
+      // Drop the result if this card now represents a different citation/quote.
+      // Reset to unverified (not the stale verdict, not a stuck 'loading') so the
+      // NEW quote shows an actionable verify button rather than a frozen spinner.
+      const now = citeRef.current;
+      if (now.id !== verified.id || now.matterId !== verified.matterId || now.excerpt !== verified.excerpt) {
+        setVerdict(null);
+        return;
+      }
       setVerdict(r);
       onAuditLog?.(
         auditEventToEntry({
@@ -143,6 +162,8 @@ function SourceCard({
       );
     } catch {
       // ragVerifyCitation throws in browser/test mode — treat as "not run".
+      // Same either way (stale or current): reset to unverified so the button is
+      // actionable again and never stuck on 'loading'.
       setVerdict(null);
     }
   }

@@ -12,7 +12,7 @@
 //   - Requires 2+ DIFFERENT providers configured (Ollama-only setups are
 //     disallowed per the Phase 5 spec).
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   assertCloudGenerationAllowed,
   ConfidentialityChoiceRequiredError,
@@ -72,6 +72,12 @@ export function RunOnAllButton({
   const [results, setResults] = useState<PerProviderResult[] | null>(null);
   const [analysis, setAnalysis] = useState<ContradictionAnalysis | null>(null);
   const [isRunning, setIsRunning] = useState(false);
+  // QA-59: the contradiction analysis fires AFTER results render (a slower,
+  // second cloud call). If the user starts a new comparison before an earlier
+  // analysis returns, its late setAnalysis would attach to the WRONG (current)
+  // comparison. A per-run token, bumped at the start of every run, lets us drop
+  // any analysis whose run has since been superseded.
+  const runTokenRef = useRef(0);
 
   const hasComparison = tierHasFeature(tier, 'multi-model-comparison');
   // Local-only kill-switch: "Run on all" is inherently a CLOUD fan-out (it
@@ -85,6 +91,7 @@ export function RunOnAllButton({
   const canRun = hasComparison && distinctProviderIds.size >= 2 && prompt.trim().length > 0 && !localOnly;
 
   const runAll = useCallback(async () => {
+    const token = ++runTokenRef.current;
     setIsRunning(true);
     setAnalysis(null);
     setResults(null);
@@ -165,6 +172,9 @@ export function RunOnAllButton({
           const [a, b] = outputs;
           if (a && b) {
             const analysis = await detector.detect(a.text, a.source, b.text, b.source);
+            // Drop if a newer comparison has since started (QA-59) — never
+            // attach this run's analysis to a later comparison's results.
+            if (token !== runTokenRef.current) return;
             setAnalysis(analysis);
           }
         } catch {

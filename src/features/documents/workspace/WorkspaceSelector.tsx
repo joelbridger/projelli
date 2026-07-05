@@ -2,7 +2,7 @@
 // Replaces the old dialog-over-dark-background with a white branded page.
 // This is the first thing users see — it must look like a $49 product.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
@@ -197,6 +197,12 @@ export function WorkspaceSelector({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isTauri = isTauriEnvironment();
+  // QA-52 (cross-workspace isolation): opening a workspace is async. If the user
+  // opens A then quickly opens B, a slower A finishing LAST must NOT still call
+  // setRootPath / setFileTree / onWorkspaceSelected — that would land the app on
+  // the WRONG workspace. Each open/create stamps a monotonic token at its start;
+  // a commit is dropped unless its token is still the latest.
+  const openTokenRef = useRef(0);
 
   // Absorb a failed silent auto-resume into this component's own error
   // banner, then tell the source to reset so it doesn't re-fire the same
@@ -244,7 +250,7 @@ export function WorkspaceSelector({
    * locked, stores the path in `lockedWorkspacePath` and surfaces
    * VaultLockedPrompt instead of opening normally.
    */
-  const openWorkspacePath = async (workspacePath: string) => {
+  const openWorkspacePath = async (workspacePath: string, token: number = ++openTokenRef.current) => {
     // Data-folder rename migration (`.keepance` → `.lantern`) must run BEFORE the
     // vault check below: a legacy vaulted workspace still stores its metadata at
     // `.keepance-vault.json`, so without migrating first, vaultStatus would read
@@ -276,6 +282,9 @@ export function WorkspaceSelector({
           'Checking vault status',
         );
         if (status.enabled && status.locked) {
+          // QA-52: a slow/locked A must not raise its vault prompt over a
+          // newer B — drop if this open has been superseded.
+          if (token !== openTokenRef.current) return;
           setLockedWorkspacePath(workspacePath);
           return; // Show VaultLockedPrompt — caller resumes via handleVaultUnlocked.
         }
@@ -317,6 +326,9 @@ export function WorkspaceSelector({
     );
     const fileTree = await service.getFileTree();
 
+    // QA-52: a newer open/create started while this one's async load ran — drop
+    // this stale result rather than landing the app on the wrong workspace.
+    if (token !== openTokenRef.current) return;
     setRootPath(workspace.rootPath);
     setFileTree(fileTree);
     expandAllFolders();
@@ -332,11 +344,12 @@ export function WorkspaceSelector({
   const handleVaultUnlocked = async () => {
     if (!lockedWorkspacePath) return;
     const path = lockedWorkspacePath;
+    const token = ++openTokenRef.current;
     setLockedWorkspacePath(null);
     setIsLoading(true);
     setError(null);
     try {
-      await openWorkspacePath(path);
+      await openWorkspacePath(path, token);
     } catch (err) {
       console.error('[WorkspaceSelector] Failed to open workspace after vault unlock:', err);
       setError(err instanceof Error ? err.message : 'Failed to open workspace');
@@ -346,6 +359,7 @@ export function WorkspaceSelector({
   };
 
   const handleSelectFolder = async () => {
+    const token = ++openTokenRef.current;
     setIsLoading(true);
     setError(null);
 
@@ -362,7 +376,7 @@ export function WorkspaceSelector({
         }
 
         console.log('[WorkspaceSelector] Selected path from dialog:', selectedPath);
-        await openWorkspacePath(selectedPath as string);
+        await openWorkspacePath(selectedPath as string, token);
       } else {
         if (!WebFSBackend.isSupported()) {
           setError(
@@ -379,9 +393,11 @@ export function WorkspaceSelector({
 
         const service = createWorkspaceService();
         const workspace = await service.initialize(webBackend, rootPath);
-
-        setRootPath(workspace.rootPath);
         const fileTree = await service.getFileTree();
+
+        // QA-52: drop a superseded open (see openWorkspacePath).
+        if (token !== openTokenRef.current) return;
+        setRootPath(workspace.rootPath);
         setFileTree(fileTree);
         expandAllFolders();
 
@@ -406,6 +422,7 @@ export function WorkspaceSelector({
   };
 
   const handleCreateWorkspace = async () => {
+    const token = ++openTokenRef.current;
     setIsLoading(true);
     setError(null);
 
@@ -473,6 +490,8 @@ export function WorkspaceSelector({
       );
       const fileTree = await service.getFileTree();
 
+      // QA-52: drop a superseded create/open (see openWorkspacePath).
+      if (token !== openTokenRef.current) return;
       setRootPath(workspace.rootPath);
       setFileTree(fileTree);
       expandAllFolders();
@@ -503,11 +522,12 @@ export function WorkspaceSelector({
 
   const handleOpenRecent = async (workspacePath: string) => {
     if (!isTauri) return;
+    const token = ++openTokenRef.current;
     setIsLoading(true);
     setError(null);
 
     try {
-      await openWorkspacePath(workspacePath);
+      await openWorkspacePath(workspacePath, token);
     } catch (err) {
       console.error('[WorkspaceSelector] Failed to open recent workspace:', err);
       // codex-review (2026-07-04, round 2): a transient failure (credential-
