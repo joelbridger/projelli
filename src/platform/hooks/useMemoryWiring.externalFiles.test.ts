@@ -37,6 +37,7 @@ import {
   changedFolderPaths,
   indexWorkspacePdfs,
   reindexFolderPaths,
+  retagExistingMatterFolderPaths,
   startFullIndex,
 } from './useMemoryWiring';
 import {
@@ -124,7 +125,7 @@ describe('reindexFolderPaths — disk scan for externally-added files', () => {
     retagMatter = vi.mocked(MemoryService.retagMatterBatch);
     resetPdfIndexingEnabledReader();
     // Start with a stale/empty in-memory file tree to simulate the bug scenario.
-    useWorkspaceStore.setState({ rootPath: null, fileTree: [] });
+    useWorkspaceStore.setState({ rootPath: null, rootGeneration: 0, fileTree: [] });
     // Clear matters so each test sets its own state.
     useMatterStore.setState({ matters: [], activeMatterId: null });
     usePdfIndexProgressStore.getState().clear();
@@ -180,6 +181,40 @@ describe('reindexFolderPaths — disk scan for externally-added files', () => {
       ]),
     );
     expect(calledPaths).toHaveLength(2);
+  });
+
+  it('bails instead of reindexing folder paths when the workspace switches during the fresh file scan', async () => {
+    const folder = 'Clients/Acme';
+    let resolveTree!: (tree: FileNode[]) => void;
+
+    useWorkspaceStore.getState().setRootPath('/ws/A');
+    useMatterStore.setState({
+      matters: [makeMatter('matter-acme', [folder])],
+      activeMatterId: null,
+    });
+
+    const ws = {
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      exists: vi.fn(),
+      getFileTree: vi.fn().mockImplementation(
+        () =>
+          new Promise<FileNode[]>((resolve) => {
+            resolveTree = resolve;
+          }),
+      ),
+    };
+
+    const reindexPromise = reindexFolderPaths([folder], ws);
+
+    useWorkspaceStore.getState().setRootPath('/ws/B');
+    resolveTree([
+      makeFolder(folder, [makeFile('Clients/Acme/plan.docx')]),
+    ]);
+    await reindexPromise;
+
+    expect(reindexPaths).not.toHaveBeenCalled();
+    expect(indexPdfFile).not.toHaveBeenCalled();
   });
 
   it('falls back to the cached fileTree when getFileTree is not available', async () => {
@@ -467,6 +502,40 @@ describe('reindexFolderPaths — disk scan for externally-added files', () => {
       ['/ws/Northcrest/Clients/Acme/plan.docx'],
       matterId,
     );
+  });
+
+  it('bails instead of retagging folder paths when the workspace switches during the fresh file scan', async () => {
+    const folder = 'Clients/Acme';
+    let resolveTree!: (tree: FileNode[]) => void;
+
+    useWorkspaceStore.getState().setRootPath('/ws/A');
+    useMatterStore.setState({
+      matters: [makeMatter('matter-acme', [folder])],
+      activeMatterId: null,
+    });
+
+    const ws = {
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      exists: vi.fn(),
+      getFileTree: vi.fn().mockImplementation(
+        () =>
+          new Promise<FileNode[]>((resolve) => {
+            resolveTree = resolve;
+          }),
+      ),
+    };
+
+    const retagPromise = retagExistingMatterFolderPaths(ws);
+
+    useWorkspaceStore.getState().setRootPath('/ws/B');
+    resolveTree([
+      makeFolder(folder, [makeFile('Clients/Acme/plan.docx')]),
+    ]);
+    await retagPromise;
+
+    expect(retagMatter).not.toHaveBeenCalled();
+    expect(reindexPaths).not.toHaveBeenCalled();
   });
 
   it('retags an initial import when matter folders are absolute but the fresh tree is relative', async () => {
