@@ -55,6 +55,7 @@ import { useFeatureTour } from '@/platform/hooks/useFeatureTour';
 import { ModelDownloadCard } from '@/platform/rag/ui/ModelDownloadCard';
 import { LocalAiDownloadCard } from '@/platform/rag/ui/LocalAiDownloadCard';
 import { RagProgressBanner } from '@/platform/rag/ui/RagProgressBanner';
+import { ScopeUpdateBanner } from '@/platform/rag/ui/ScopeUpdateBanner';
 import { useMemoryWiring } from '@/platform/hooks/useMemoryWiring';
 import { useGlobalFileDrop } from '@/app/shell/common/GlobalDropOverlay';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
@@ -1592,6 +1593,9 @@ function AppShell() {
       <ModelDownloadCard />
       <LocalAiDownloadCard />
       <RagProgressBanner />
+      {/* QA-44: shows when a privilege / client scope change has not yet
+          applied to search (renders null otherwise). */}
+      <ScopeUpdateBanner />
 
       {/* Trial countdown banner — only renders during the final week of
           the free trial (or once expired) and when no license is active.

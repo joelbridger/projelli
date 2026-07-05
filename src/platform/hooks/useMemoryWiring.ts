@@ -17,7 +17,7 @@
  * no-op so this hook is safe to mount unconditionally.
  */
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { workspacePath, isAbsolutePath, joinWorkspacePath } from '@/platform/fs/appPath';
 import { WORKSPACE_DATA_DIR, LEGACY_WORKSPACE_DATA_DIR } from '@/config/identity';
@@ -30,7 +30,20 @@ import {
   setMatterResolver,
   setPdfIndexingEnabledReader,
   setPrivilegeResolver,
+  setRetrievalHitExclusion,
+  resetRetrievalHitExclusion,
+  setSourceIdForms,
+  resetSourceIdForms,
 } from '@/platform/rag/MemoryService';
+import {
+  createRetagScheduler,
+  type RetagScheduler,
+} from '@/platform/rag/retagScheduler';
+import {
+  getExcludedMatterFolders,
+  getExcludedMailMatters,
+  useScopeUpdateStore,
+} from '@/platform/rag/scopeUpdateStore';
 import { getMatters, resolveMatterMatchForPaths, useMatterStore } from '@/platform/matter/matterStore';
 import {
   buildMailMatterMap,
@@ -812,20 +825,27 @@ export function changedFolderPaths(
 export function changedMailFolderPaths(
   prev: Array<{ id: string; mailFolderPaths?: string[] }>,
   next: Array<{ id: string; mailFolderPaths?: string[] }>,
-): Array<{ key: string; matterId: string }> {
+): Array<{ key: string; matterId: string; prevMatterId: string }> {
   const before = new Map<string, string>(); // key -> matterId
   for (const m of prev) for (const k of m.mailFolderPaths ?? []) before.set(k, m.id);
   const after = new Map<string, string>();
   for (const m of next) for (const k of m.mailFolderPaths ?? []) after.set(k, m.id);
 
-  const changed = new Map<string, string>(); // key -> resolved matterId after change
+  // key -> resolved matterId after change. `prevMatterId` (the matter it was
+  // filed under BEFORE the change, or unassigned) rides along (QA-44) so a
+  // re-map that fails can hold out the OLD client's mail from retrieval.
+  const changed = new Map<string, string>();
   for (const [key, id] of after) {
     if (before.get(key) !== id) changed.set(key, id);
   }
   for (const [key] of before) {
     if (!after.has(key)) changed.set(key, UNASSIGNED_MATTER_ID); // unmapped -> unassigned
   }
-  return Array.from(changed, ([key, matterId]) => ({ key, matterId }));
+  return Array.from(changed, ([key, matterId]) => ({
+    key,
+    matterId,
+    prevMatterId: before.get(key) ?? UNASSIGNED_MATTER_ID,
+  }));
 }
 
 /**
@@ -858,6 +878,14 @@ export function changedPrivilegeSources(
  * Groups the affected paths by their resolved matter id and submits each
  * group to `MemoryService.reindexPaths`, which handles per-file privilege
  * preservation internally.
+ *
+ * QA-44 (Codex round 1): THROWS if any affected file could not be re-tagged, so
+ * the caller (the re-tag scheduler) keeps the folders excluded from retrieval
+ * and retries, rather than treating a partial re-tag as a clean success. For
+ * PDFs the matter tag is corrected IN PLACE first (reliable — an in-place retag
+ * cannot "skip" the way a re-embed can for scanned/encrypted/OCR-off files),
+ * then a best-effort re-embed refreshes content; a re-embed skip therefore never
+ * leaves a stale wrong-client matter tag behind.
  */
 export async function reindexFolderPaths(
   folders: string[],
@@ -871,6 +899,8 @@ export async function reindexFolderPaths(
   const pdfPaths = affected.filter(isPdfPath);
   const officeAndTextPaths = affected.filter((p) => !isPdfPath(p));
 
+  let failures = 0;
+
   // Group by resolved matter id so we re-index in matter batches. Matter
   // resolution uses the workspace-relative path, then the backend receives the
   // absolute path shape the Rust full-workspace walk stores.
@@ -882,18 +912,40 @@ export async function reindexFolderPaths(
     byMatter.set(id, list);
   }
   for (const [matterId, paths] of byMatter) {
-    await MemoryService.reindexPaths(paths, matterId);
+    // reindexPaths returns the count of files that failed (it never throws).
+    failures += await MemoryService.reindexPaths(paths, matterId);
   }
 
-  if (!isPdfIndexingEnabled() || !workspaceService) return;
-  const binaryWs = buildBinaryWorkspace(workspaceService);
-  if (!binaryWs) return;
-  for (const path of pdfPaths) {
-    try {
-      await MemoryService.indexPdfFile(buildWorkspaceAbsolutePath(rootPath, path), binaryWs);
-    } catch {
-      // Best-effort: skip individual failures, continue with the rest.
+  // PDFs: correct the matter tag in place (cannot skip), THEN best-effort
+  // re-embed for content freshness. Only the in-place retag failing is a
+  // fail-closed-relevant failure — a re-embed skip/failure leaves the (already
+  // corrected) matter tag intact.
+  if (isPdfIndexingEnabled() && workspaceService && pdfPaths.length > 0) {
+    const binaryWs = buildBinaryWorkspace(workspaceService);
+    if (binaryWs) {
+      for (const path of pdfPaths) {
+        const abs = buildWorkspaceAbsolutePath(rootPath, path);
+        const matterId = resolveMatterIdForWorkspacePath(path, rootPath);
+        try {
+          await MemoryService.retagMatter(abs, matterId);
+        } catch {
+          // Could not correct the matter tag — keep the folder excluded + retry.
+          failures += 1;
+        }
+        try {
+          await MemoryService.indexPdfFile(abs, binaryWs);
+        } catch {
+          // Content refresh only; the matter tag was already corrected above.
+        }
+      }
     }
+  }
+
+  if (failures > 0) {
+    throw new Error(
+      `reindexFolderPaths: ${String(failures)} file(s) failed to re-tag; ` +
+        'folders stay excluded from retrieval until a clean re-tag',
+    );
   }
 }
 
@@ -973,13 +1025,28 @@ async function retagFolderPathsInPlace(
     const privilege = resolvePrivilegeForSource(abs);
     if (privilege !== 'none') privileged.push({ abs, privilege });
   }
+  // QA-44 (Codex round 1): the reactive matter exclusion lives only in memory,
+  // so a reload/crash drops it while the index can still hold OLD matter tags. On
+  // boot this in-place retag is what re-applies the correct matter — but its
+  // failures used to be swallowed, leaving stale wrong-client tags with NO
+  // exclusion. Now, if a matter batch fails here, hold exactly those files out of
+  // retrieval (fail closed) until a later boot's retag succeeds; a clean pass
+  // clears any exclusion a prior pass left. We only touch the store AFTER the
+  // retag resolves (never dropping an existing exclusion before its replacement
+  // is known), so there is no window where a prior failure's exclusion is lost.
+  // Privilege failures need no exclusion — the retrieval privilege re-check
+  // already fails closed durably.
+  const BOOT_RETAG_ID = 'matter:boot-retag';
+
+  const failedPaths: string[] = [];
   for (const [matterId, paths] of byMatter) {
     try {
       // In-place, batched — no re-extract / re-embed. Files with no rows yet are
       // a no-op; the reconcile/watcher indexes them.
       await MemoryService.retagMatterBatch(paths, matterId);
     } catch {
-      // Best-effort: skip and continue with the next matter.
+      // Hold these files out of retrieval; a later boot retries the retag.
+      failedPaths.push(...paths);
     }
   }
   for (const { abs, privilege } of privileged) {
@@ -988,6 +1055,22 @@ async function retagFolderPathsInPlace(
     } catch {
       // Best-effort.
     }
+  }
+
+  const store = useScopeUpdateStore.getState();
+  if (failedPaths.length > 0) {
+    store.begin({
+      id: BOOT_RETAG_ID,
+      kind: 'matter',
+      label: 'Applying client scope to search',
+      // Exact absolute file paths that failed to retag — matched at retrieval by
+      // path containment, so only those files are held out (not whole folders).
+      excludeFolders: failedPaths,
+    });
+    store.markFailed(BOOT_RETAG_ID);
+  } else {
+    // A clean pass — clear any exclusion a prior failed pass left behind.
+    store.remove(BOOT_RETAG_ID);
   }
 }
 
@@ -1136,6 +1219,107 @@ export async function installEssentialWorkspaceWiring(
   });
 }
 
+// ── QA-44: durable, visible, fail-closed scope-update scheduling ────────────
+//
+// The three RAG re-tag reactions below used to swallow their failures with a
+// `.catch(() => {})`. A failed re-tag then left the search index on the OLD tag
+// while the UI implied the new rule was live — a privilege leak (a source stays
+// retrievable in normal Ask) or a wrong-client leak (content stays scoped to the
+// old matter). These helpers route each re-tag through the retry scheduler
+// (durable + visible) and, for folder->matter, keep the affected folders
+// excluded from retrieval until the re-tag lands. Extracted from the hook's
+// effects so the wiring is unit-testable without mounting the whole hook, the
+// same way `handleWorkspaceFileChangedEvent` is. `scheduler` is null only in the
+// unusual window before the per-workspace scheduler mounts; the fallback keeps
+// the old best-effort behaviour rather than dropping the update entirely.
+
+/** Re-index files whose folder->matter mapping changed, fail-closed. */
+export function scheduleFolderMatterRetag(
+  folders: string[],
+  workspaceService: MemoryWiringWorkspaceService | null | undefined,
+  scheduler: RetagScheduler | null,
+): void {
+  if (folders.length === 0) return;
+  if (!scheduler) {
+    void reindexFolderPaths(folders, workspaceService).catch(() => {});
+    return;
+  }
+  scheduler.run({
+    id: `matter:${[...folders].sort().join('|')}`,
+    kind: 'matter',
+    label:
+      folders.length === 1
+        ? 'Updating search scope for 1 folder'
+        : `Updating search scope for ${String(folders.length)} folders`,
+    // Fail closed: hold these folders' files out of retrieval until the
+    // re-index lands, so stale chunks can't surface under the wrong client.
+    excludeFolders: folders,
+    op: () => reindexFolderPaths(folders, workspaceService),
+  });
+}
+
+/** Re-tag synced mail whose folder->matter mapping changed, durable + visible.
+ *  Mail hits carry no folder path, so there is no path-prefix to exclude by like
+ *  files. Instead, when a folder is RE-MAPPED from one real client to another and
+ *  the re-tag is pending/failed, the OLD client's mail (by its stale matter id)
+ *  is held out of retrieval so it can't surface under the wrong client mid-retag
+ *  (QA-44, Codex round 1). A fresh mapping (previously unassigned) needs no such
+ *  hold — unassigned mail surfacing is not a wrong-CLIENT exposure. */
+export function scheduleMailMatterRetag(
+  changed: Array<{ key: string; matterId: string; prevMatterId: string }>,
+  scheduler: RetagScheduler | null,
+): void {
+  for (const { key, matterId, prevMatterId } of changed) {
+    const parsed = parseMailFolderKey(key);
+    if (!parsed) continue;
+    if (!scheduler) {
+      void mailRetagFolderMatter(
+        parsed.provider,
+        parsed.account,
+        parsed.folderId,
+        matterId,
+      ).catch(() => {});
+      continue;
+    }
+    // Hold out the OLD client's mail only on a real client->client re-map.
+    const holdOldClientMail =
+      Boolean(prevMatterId) && prevMatterId !== UNASSIGNED_MATTER_ID && prevMatterId !== matterId;
+    scheduler.run({
+      id: `mail:${key}`,
+      kind: 'mail',
+      label: 'Updating email search scope',
+      ...(holdOldClientMail ? { excludeMailMatters: [prevMatterId] } : {}),
+      op: () =>
+        mailRetagFolderMatter(parsed.provider, parsed.account, parsed.folderId, matterId),
+    });
+  }
+}
+
+/** Re-tag sources whose privilege changed, durable + visible. The leak itself is
+ *  closed independently by `MemoryService.retrieve` (which re-checks every hit
+ *  against the live privilege store), so this only keeps the index consistent
+ *  and tells the user the rule isn't fully applied yet. */
+export function schedulePrivilegeRetag(
+  sources: string[],
+  scheduler: RetagScheduler | null,
+): void {
+  for (const sourceId of sources) {
+    // resolvePrivilegeForSource reflects the latest store (a cleared entry
+    // resolves to "none", which re-tags the chunks back to non-privileged).
+    const privilege = resolvePrivilegeForSource(sourceId);
+    if (!scheduler) {
+      void MemoryService.retagPrivilege(sourceId, privilege).catch(() => {});
+      continue;
+    }
+    scheduler.run({
+      id: `privilege:${sourceId}`,
+      kind: 'privilege',
+      label: 'Updating privilege scope',
+      op: () => MemoryService.retagPrivilege(sourceId, privilege),
+    });
+  }
+}
+
 export function useMemoryWiring(
   rootPath: string | null,
   workspaceService?: MemoryWiringWorkspaceService | null,
@@ -1174,7 +1358,60 @@ export function useMemoryWiring(
     // with its source's privilege (or "none"), keeping privileged content
     // excluded from default retrieval even after a re-index.
     setPrivilegeResolver((sourceId) => resolvePrivilegeForSource(sourceId));
+    // QA-44 — install the retrieval exclusion predicate so a file whose
+    // folder->matter re-tag is pending or failed is dropped from retrieval (fail
+    // closed) until the re-tag lands, instead of surfacing under the wrong
+    // client. Reads live state each call, so a `[]`-deps install is correct.
+    setRetrievalHitExclusion((hit) => {
+      // Mail whose folder is being re-mapped between clients: hold out any mail
+      // hit still carrying the OLD client's matter id until the re-tag lands.
+      const isMail = hit.sourceType === 'mail' || (hit.sourceId ?? '').startsWith('mail:');
+      if (isMail && hit.matterId) {
+        const mailMatters = getExcludedMailMatters();
+        if (mailMatters.includes(hit.matterId)) return true;
+      }
+      // Files under a folder whose matter re-tag is pending/failed.
+      const folders = getExcludedMatterFolders();
+      if (folders.length === 0) return false;
+      const { rootPath: liveRoot } = useWorkspaceStore.getState();
+      return pathInAnyFolder(hit.sourceId ?? hit.path, folders, liveRoot);
+    });
+    // QA-44 (Codex round 1): the privilege UI marks a file by its workspace-
+    // RELATIVE path while RAG hits carry the ABSOLUTE path, so the privilege
+    // re-check must try every equivalent form (as-is, relative, absolute) and
+    // fail closed if ANY is privileged. Mirrors resolveMatterIdForWorkspacePath's
+    // multi-form logic.
+    setSourceIdForms((id) => {
+      // `mail:<id>` ids are not filesystem paths — leave them as-is.
+      if (id.startsWith('mail:')) return [id];
+      const { rootPath: liveRoot } = useWorkspaceStore.getState();
+      const forms = new Set<string>([id]);
+      const relative = workspaceRelativePath(id, liveRoot);
+      if (relative) forms.add(relative);
+      if (liveRoot && !isAbsolutePath(id)) forms.add(buildWorkspaceAbsolutePath(liveRoot, id));
+      return Array.from(forms);
+    });
+    return () => {
+      resetRetrievalHitExclusion();
+      resetSourceIdForms();
+    };
   }, []);
+
+  // QA-44 — one re-tag scheduler per workspace mount, shared by the three
+  // scope-update reactions below (folder->matter, mail folder->matter, source
+  // privilege). Created on open, disposed on close/switch so no retry can fire
+  // against a workspace that is no longer active (a cross-client hazard — see
+  // `retagScheduler`).
+  const retagSchedulerRef = useRef<RetagScheduler | null>(null);
+  useEffect(() => {
+    if (!rootPath) return;
+    const scheduler = createRetagScheduler();
+    retagSchedulerRef.current = scheduler;
+    return () => {
+      scheduler.disposeAll();
+      retagSchedulerRef.current = null;
+    };
+  }, [rootPath]);
 
   // M3 — wire the facts service once the workspace is open so the
   // Settings panel and chat viewer can both read/write `memory.json`.
@@ -1479,14 +1716,10 @@ export function useMemoryWiring(
       }));
       const folders = changedFolderPaths(prevMatters, nextMatters);
       prevMatters = nextMatters;
-      if (folders.length === 0) return;
-
-      // Re-index the affected files from the current source of truth. Uses a
-      // live disk scan (via workspaceService.getFileTree) when available so
-      // externally-added files — not yet reflected in the cached in-memory
-      // tree — are picked up immediately. Falls back to the cached tree in
-      // browser mode or when the scan fails. Best-effort: errors are swallowed.
-      void reindexFolderPaths(folders, workspaceService).catch(() => {});
+      // QA-44: durable + visible + fail-closed. A swallowed failure here used to
+      // leave the files tagged to the OLD client, so they surfaced under the
+      // wrong scope while the UI claimed the new mapping was live.
+      scheduleFolderMatterRetag(folders, workspaceService, retagSchedulerRef.current);
     });
     return unsubscribe;
   }, [rootPath, workspaceService]);
@@ -1512,17 +1745,9 @@ export function useMemoryWiring(
       }));
       const changed = changedMailFolderPaths(prevMatters, nextMatters);
       prevMatters = nextMatters;
-      if (changed.length === 0) return;
-      for (const { key, matterId } of changed) {
-        const parsed = parseMailFolderKey(key);
-        if (!parsed) continue;
-        void mailRetagFolderMatter(
-          parsed.provider,
-          parsed.account,
-          parsed.folderId,
-          matterId,
-        ).catch(() => {});
-      }
+      // QA-44: durable retry + visible state instead of a swallowed failure, so
+      // a failed re-tag no longer silently claims the new mail mapping is live.
+      scheduleMailMatterRetag(changed, retagSchedulerRef.current);
     });
     return unsubscribe;
   }, [rootPath]);
@@ -1541,13 +1766,13 @@ export function useMemoryWiring(
       const nextMap = { ...state.privilegeBySource };
       const sources = changedPrivilegeSources(prevMap, nextMap);
       prevMap = nextMap;
-      if (sources.length === 0) return;
-      for (const sourceId of sources) {
-        // resolvePrivilegeForSource reflects the latest store (a cleared entry
-        // resolves to "none", which re-tags the chunks back to non-privileged).
-        const privilege = resolvePrivilegeForSource(sourceId);
-        void MemoryService.retagPrivilege(sourceId, privilege).catch(() => {});
-      }
+      // QA-44: durable retry + visible state instead of a swallowed failure. The
+      // leak itself is already closed independently by `MemoryService.retrieve`
+      // (it re-checks every hit against the live privilege store), so a source
+      // the user marked privileged is excluded from normal Ask even if THIS
+      // re-tag never lands; this keeps the index consistent and surfaces that
+      // the rule isn't fully applied yet.
+      schedulePrivilegeRetag(sources, retagSchedulerRef.current);
     });
     return unsubscribe;
   }, [rootPath]);

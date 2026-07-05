@@ -64,7 +64,7 @@ vi.mock('@/platform/rag/MemoryService', async (importOriginal) => {
       ...original.MemoryService,
       indexPdfFile: vi.fn().mockResolvedValue({ indexed: true, pageCount: 1 }),
       indexWorkspace: vi.fn().mockResolvedValue(undefined),
-      reindexPaths: vi.fn().mockResolvedValue(undefined),
+      reindexPaths: vi.fn().mockResolvedValue(0),
       // P1.1: the boot retag now moves rows IN PLACE (batched) instead of re-embedding.
       retagMatter: vi.fn().mockResolvedValue(1),
       retagMatterBatch: vi.fn().mockResolvedValue(1),
@@ -180,6 +180,23 @@ describe('reindexFolderPaths — disk scan for externally-added files', () => {
       ]),
     );
     expect(calledPaths).toHaveLength(2);
+  });
+
+  it('QA-44: throws when a file fails to re-tag, so the caller keeps folders excluded and retries', async () => {
+    const matterId = 'matter-fail';
+    const folder = '/workspace/FailFolder';
+    const cachedTree = [
+      makeFolder('/workspace/FailFolder', [makeFile('/workspace/FailFolder/doc.docx')]),
+    ];
+    useWorkspaceStore.setState({ fileTree: cachedTree });
+    useMatterStore.setState({ matters: [makeMatter(matterId, [folder])], activeMatterId: null });
+
+    // reindexPaths reports 1 file failed to re-tag (it never throws itself).
+    reindexPaths.mockResolvedValueOnce(1);
+
+    const ws = { readFile: vi.fn(), writeFile: vi.fn(), exists: vi.fn() };
+
+    await expect(reindexFolderPaths([folder], ws)).rejects.toThrow(/failed to re-tag/);
   });
 
   it('falls back to the cached fileTree when getFileTree is not available', async () => {
