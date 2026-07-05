@@ -73,6 +73,16 @@ export interface FileIndexProgress {
   percent: number | null;
 }
 
+/** OneDrive / SharePoint file import progress. */
+export interface OneDriveSetupProgress {
+  syncing: boolean;
+  status: 'idle' | 'syncing' | 'done' | 'cancelled' | 'error';
+  /** Cloud items checked this run. */
+  itemsChecked: number | null;
+  /** Files imported into client folders this run. */
+  itemsImported: number | null;
+}
+
 /** Client Map build progress (truth lives in the frontend stores). */
 export interface ClientMapProgress {
   total: number;
@@ -87,6 +97,7 @@ export interface SetupProgress {
   email: EmailProgress;
   crm: CrmProgress;
   fileIndex: FileIndexProgress;
+  oneDrive: OneDriveSetupProgress;
   clientMap: ClientMapProgress;
   overall: OverallState;
 }
@@ -105,6 +116,7 @@ export const EMPTY_SETUP_PROGRESS: SetupProgress = {
   email: { connected: false, accounts: [], syncing: false, messagesImported: null },
   crm: { connected: false, syncing: false, householdsProcessed: 0, recordsIndexed: 0 },
   fileIndex: { indexing: false, processed: null, total: null, percent: null },
+  oneDrive: { syncing: false, status: 'idle', itemsChecked: null, itemsImported: null },
   clientMap: { total: 0, built: 0, building: 0, pending: 0 },
   overall: 'empty',
 };
@@ -126,6 +138,7 @@ export function deriveOverall(s: SetupProgress): OverallState {
     s.email.syncing ||
     s.crm.syncing ||
     s.fileIndex.indexing ||
+    s.oneDrive.syncing ||
     s.clientMap.building > 0;
 
   const anyConfigured =
@@ -135,6 +148,8 @@ export function deriveOverall(s: SetupProgress): OverallState {
     s.email.connected ||
     s.crm.connected ||
     s.clientMap.total > 0 ||
+    (s.oneDrive.itemsChecked ?? 0) > 0 ||
+    (s.oneDrive.itemsImported ?? 0) > 0 ||
     (s.fileIndex.processed ?? 0) > 0 ||
     (s.fileIndex.total ?? 0) > 0;
 
@@ -147,7 +162,17 @@ export function deriveOverall(s: SetupProgress): OverallState {
 /** Read a fresh unified setup-progress snapshot from the native backend. */
 export async function getSetupProgress(): Promise<SetupProgress> {
   if (!isTauri()) return EMPTY_SETUP_PROGRESS;
-  return invoke<SetupProgress>('get_setup_progress');
+  const snapshot = await invoke<Partial<SetupProgress>>('get_setup_progress');
+  return {
+    ...EMPTY_SETUP_PROGRESS,
+    ...snapshot,
+    ai: { ...EMPTY_SETUP_PROGRESS.ai, ...snapshot.ai },
+    email: { ...EMPTY_SETUP_PROGRESS.email, ...snapshot.email },
+    crm: { ...EMPTY_SETUP_PROGRESS.crm, ...snapshot.crm },
+    fileIndex: { ...EMPTY_SETUP_PROGRESS.fileIndex, ...snapshot.fileIndex },
+    oneDrive: { ...EMPTY_SETUP_PROGRESS.oneDrive, ...snapshot.oneDrive },
+    clientMap: { ...EMPTY_SETUP_PROGRESS.clientMap, ...snapshot.clientMap },
+  };
 }
 
 /** Report the frontend-only Client Map build counts down to the backend so a

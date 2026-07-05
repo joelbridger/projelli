@@ -259,11 +259,13 @@ export class FileSystemWatcher {
         if (this.isStopped()) return;
         this.keepAliveSnapshot = snapshot;
       })
-      .catch(() => {
-        // Best-effort: leave it null; the first tick's own fetch seeds it.
+      .catch((err: unknown) => {
+        console.warn('FileSystemWatcher: initial keepalive snapshot failed:', err);
       });
     this.keepAliveTimer = setInterval(() => {
-      void this.runKeepAliveCheck(rootPath, getFileTreeSnapshot);
+      void this.runKeepAliveCheck(rootPath, getFileTreeSnapshot).catch((err: unknown) => {
+        console.error('FileSystemWatcher: keepalive check failed:', err);
+      });
     }, this.keepAliveIntervalMs);
   }
 
@@ -328,7 +330,9 @@ export class FileSystemWatcher {
           // Refresh immediately — this is a backstop for a change already
           // missed, not a burst of live events to coalesce, so there is
           // nothing to gain by routing it through the debounce delay.
-          void this.runRefresh();
+          void this.runRefresh().catch((err: unknown) => {
+            console.error('FileSystemWatcher: keepalive refresh failed:', err);
+          });
         }
       } catch (err) {
         console.error('FileSystemWatcher: keepalive snapshot check failed:', err);
@@ -365,7 +369,9 @@ export class FileSystemWatcher {
       clearTimeout(this.maxWaitTimer);
       this.maxWaitTimer = null;
     }
-    void this.runRefresh();
+    void this.runRefresh().catch((err: unknown) => {
+      console.error('FileSystemWatcher: debounced refresh failed:', err);
+    });
   }
 
   /**
