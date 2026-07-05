@@ -1942,6 +1942,15 @@
       "open-client__sourceHash": "6f59ad8c61ccc5a010b7360609618bc5884ccc1c72f2c1b2f91ae6a14d115527",
       "summaries-note__sourceHash": "e3e0e92fdc977f1bc9f870659c6ca1f4bcf8ee9b30eef0a8b409cfc8870400bd"
     },
+    "whole-practice-confirm": {
+      "title": "¿Enviar resúmenes de toda tu cartera?",
+      "body_one": "Esto envía un breve resumen de {{count}} cliente a {{provider}}. ¿Continuar?",
+      "body_other": "Esto envía breves resúmenes de {{count}} clientes a {{provider}}. ¿Continuar?",
+      "provider-fallback": "tu proveedor de IA",
+      "remember": "No volver a preguntar antes de las preguntas sobre toda la cartera",
+      "cancel": "Cancelar",
+      "continue": "Continuar"
+    },
     "scope-toggle": {
       "this-entity": "Este {{entity}}",
       "this-entity__sourceHash": "28844791e4974a5aef4e2316ce8b47cce1ce12e5b634b3a5f1c1839fdefda48c",
