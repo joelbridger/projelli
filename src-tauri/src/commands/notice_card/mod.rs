@@ -61,6 +61,19 @@ pub async fn notice_card_open(
         .title("Recording Notice")
         .inner_size(520.0, 400.0)
         .initialization_script(&init_script)
+        // CRITICAL for the status channel: the injected script reports the join
+        // phase by writing `NC:<phase>` into the PAGE's `document.title`, but
+        // `notice_card_status` reads the NATIVE window title (`title()`), and
+        // Tauri/wry do NOT mirror the page title into the native title on their
+        // own. Without this, on a real Teams/Zoom join the poller would only
+        // ever see the static "Recording Notice" native title, never the NC:
+        // tokens — so the supervisor would time out and close a card that had
+        // actually joined. Mirroring the page title here into the native title
+        // makes `notice_card_status`'s `title()` observe the channel. (Setting
+        // the native title does not change `document.title`, so this can't loop.)
+        .on_document_title_changed(|window, title| {
+            let _ = window.set_title(&title);
+        })
         .build()
         .map_err(|e| format!("open notice card window: {e}"))?;
     Ok(())
@@ -76,9 +89,16 @@ pub fn notice_card_close(app: AppHandle, label: String) -> Result<(), String> {
     Ok(())
 }
 
-/// Read the companion window's current title — the one-way status channel the
-/// injected script writes (`NC:<phase>`). Returns `None` when the window is
-/// gone, which the caller treats as closed/disconnected.
+/// Read the companion window's current title — the one-way status channel.
+///
+/// Channel path: the injected script writes `NC:<phase>` into the PAGE's
+/// `document.title`; `notice_card_open`'s `on_document_title_changed` mirror
+/// copies that into the NATIVE window title; this reads the native title via
+/// `title()`. (Reading the page's `document.title` directly isn't possible here
+/// — `eval()` is fire-and-forget with no return value — hence the mirror.)
+/// Returns `None` when the window is gone, which the caller treats as
+/// closed/disconnected. VERIFY-LIVE: the mirror + poll round-trip is confirmed
+/// on the bench against a real Teams/Zoom join.
 #[tauri::command]
 pub fn notice_card_status(app: AppHandle, label: String) -> Result<Option<String>, String> {
     match app.get_webview_window(&label) {

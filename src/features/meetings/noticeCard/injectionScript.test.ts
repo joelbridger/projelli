@@ -43,6 +43,17 @@ describe('buildInjectionScript', () => {
     expect(src).toContain('document.title === desired');
   });
 
+  it('writes status to document.title (the channel the native-title mirror carries)', () => {
+    // The status channel is the PAGE's document.title (NC:<phase>). The Rust
+    // side mirrors this into the native window title via
+    // on_document_title_changed so notice_card_status's title() can read it —
+    // reading document.title directly from Rust isn't possible (eval is
+    // fire-and-forget). This asserts the source of that channel is document.title,
+    // never a native-only mechanism.
+    const src = buildInjectionScript(cfg());
+    expect(src).toContain('document.title = desired');
+  });
+
   it('selects the Zoom adapter for a Zoom config', () => {
     const src = buildInjectionScript(cfg({ platform: 'zoom', joinUrl: 'https://zoom.us/j/1' }));
     expect(() => new Function(src)).not.toThrow();
