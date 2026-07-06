@@ -491,6 +491,13 @@
   }
 }
 
+/* Theme light-lock: the app renders light unless the theme manager explicitly
+   applies the .dark class. color-scheme keeps native surfaces (scrollbars,
+   form controls, the WebView's default background before first paint) light
+   even when the OS is in dark mode — no OS-driven dark flash at launch. */
+:root { color-scheme: light; }
+:root.dark { color-scheme: dark; }
+
 /* Dark mode */
 .dark {
   --color-background: hsl(222.2 84% 4.9%);

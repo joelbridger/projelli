@@ -11,6 +11,7 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
+import { isTauriEnvironment } from '@/platform/fs/BackendFactory';
 
 /** The user's stored theme preference — may be 'system' to follow the OS. */
 export type ThemePreference = 'light' | 'dark' | 'system';
@@ -33,10 +34,13 @@ export function useThemeManager(): ThemeManager {
   // Now reads from settingsStore as the canonical source. The local
   // `theme` / `setTheme` pair wraps the store so existing callers
   // keep working without refactoring every `setTheme` call.
+  // Theme light-lock: anything unexpected resolves to 'light', never to
+  // 'system' — the OS must never decide the theme unless the user explicitly
+  // picked System in Settings (the store normalizes unstamped values at boot).
   const settingsTheme = useSettingsStore((s) => s.getSetting<string>('theme')) as ThemePreference;
   const theme = (settingsTheme === 'light' || settingsTheme === 'dark' || settingsTheme === 'system')
     ? settingsTheme
-    : 'system';
+    : 'light';
   const setTheme = useCallback((valueOrFn: ThemePreference | ((prev: ThemePreference) => ThemePreference)) => {
     const next = typeof valueOrFn === 'function' ? valueOrFn(theme) : valueOrFn;
     useSettingsStore.getState().setSetting('theme', next);
@@ -67,9 +71,10 @@ export function useThemeManager(): ThemeManager {
     ? (systemPrefersDark ? 'dark' : 'light')
     : theme;
 
-  // UX-25: Theme — apply effective theme (light/dark) as class and persist
-  // the user's *preference* (which may be 'system'). The effective theme
-  // can be different from the preference if the user is in 'system' mode.
+  // UX-25: Theme — apply effective theme (light/dark) as class. The
+  // preference itself lives ONLY in settingsStore; the old echo into the raw
+  // localStorage 'theme' key is gone — that key fed a legacy import that
+  // could resurrect a stale OS-following theme on a later boot.
   useEffect(() => {
     const htmlElement = document.documentElement;
     if (effectiveTheme === 'dark') {
@@ -77,8 +82,22 @@ export function useThemeManager(): ThemeManager {
     } else {
       htmlElement.classList.remove('dark');
     }
-    localStorage.setItem('theme', theme);
-  }, [theme, effectiveTheme]);
+  }, [effectiveTheme]);
+
+  // Desktop: keep the native window chrome (titlebar) on the same theme as
+  // the app. tauri.conf.json pins the window to light at launch; this is the
+  // one place that may move it off light, and only for an explicit choice.
+  useEffect(() => {
+    if (!isTauriEnvironment()) return;
+    let cancelled = false;
+    import('@tauri-apps/api/window')
+      .then(({ getCurrentWindow }) => {
+        if (cancelled) return;
+        return getCurrentWindow().setTheme(effectiveTheme);
+      })
+      .catch(() => { /* best-effort; the in-app theme is already applied */ });
+    return () => { cancelled = true; };
+  }, [effectiveTheme]);
 
   return { theme, setTheme, effectiveTheme };
 }

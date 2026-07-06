@@ -97,6 +97,7 @@ function migratePersistedSettings(persisted: unknown): PersistedSettingsState {
       _migrated: false,
       featuresTourCompleted: false,
       language: null,
+      themeExplicitlyChosen: false,
     };
   }
   const state = persisted as Partial<SettingsState>;
@@ -104,8 +105,25 @@ function migratePersistedSettings(persisted: unknown): PersistedSettingsState {
     _migrated: state._migrated ?? false,
     featuresTourCompleted: state.featuresTourCompleted ?? false,
     language: state.language ?? null,
+    themeExplicitlyChosen: state.themeExplicitlyChosen === true,
     values: sanitizePersistedValues(state.values),
   };
+}
+
+/**
+ * Theme light-lock: a persisted non-light theme is only honored when the
+ * explicit-choice stamp proves a user set it. Anything else — however it got
+ * into storage — resolves to 'light'. Runs on EVERY hydration (via the
+ * persist `merge` hook, which unlike `migrate` is not gated on a version
+ * bump), so the guarantee holds even against state written by older builds
+ * or resurrected by a lost/partial storage flush.
+ */
+function enforceStartupThemePolicy(state: PersistedSettingsState): PersistedSettingsState {
+  const theme = state.values['theme'];
+  if (theme === undefined || theme === 'light' || state.themeExplicitlyChosen) {
+    return state;
+  }
+  return { ...state, values: { ...state.values, theme: 'light' } };
 }
 
 // ---------------------------------------------------------------------------
@@ -120,6 +138,13 @@ interface PersistedSettingsState {
   _migrated: boolean;
   featuresTourCompleted: boolean;
   language: Language;
+  /** Theme light-lock: true only once a REAL runtime write set the theme
+   *  (Settings dropdown / toolbar toggle / settings import). A theme value
+   *  that reaches storage any other way (stale state resurrected by a lost
+   *  write, a stray/legacy import) has no stamp and is normalized back to
+   *  'light' on the next hydration — the app must never come up dark
+   *  unprompted (Legion demo dry-run Run 2, 2026-07-06). */
+  themeExplicitlyChosen: boolean;
 }
 
 interface SettingsState {
@@ -133,6 +158,9 @@ interface SettingsState {
 
   // v2.0: explicit language override (null = follow OS locale)
   language: Language;
+
+  /** See PersistedSettingsState.themeExplicitlyChosen. */
+  themeExplicitlyChosen: boolean;
 
   getSetting: <T = unknown>(key: string) => T;
   setSetting: (key: string, value: unknown) => void;
@@ -167,6 +195,7 @@ export const useSettingsStore = create<SettingsState>()(
       featuresTourCompleted: false,
       featuresTourSkippedThisSession: false,
       language: null,
+      themeExplicitlyChosen: false,
 
       markFeatureTourCompleted: () => set({ featuresTourCompleted: true }),
       skipFeatureTourThisSession: () => set({ featuresTourSkippedThisSession: true }),
@@ -187,11 +216,18 @@ export const useSettingsStore = create<SettingsState>()(
       setSetting: (key, value) => {
         set((state) => ({
           values: { ...state.values, [key]: value },
+          // Theme light-lock: every runtime write to 'theme' comes from a
+          // user-facing control (Settings dropdown, toolbar toggle), so it
+          // stamps the choice as explicit. Values that arrive any other way
+          // stay unstamped and are normalized to 'light' at next boot.
+          ...(key === 'theme' && (value === 'light' || value === 'dark' || value === 'system')
+            ? { themeExplicitlyChosen: true }
+            : {}),
         }));
       },
 
       resetAll: () => {
-        set({ values: {} });
+        set({ values: {}, themeExplicitlyChosen: false });
       },
 
       exportSettings: () => {
@@ -228,7 +264,12 @@ export const useSettingsStore = create<SettingsState>()(
               cleaned[k] = sanitized.value;
             }
           }
-          set({ values: { ...get().values, ...cleaned } });
+          set({
+            values: { ...get().values, ...cleaned },
+            // A settings-file import is a deliberate user action; a theme it
+            // carries counts as an explicit choice.
+            ...(cleaned['theme'] !== undefined ? { themeExplicitlyChosen: true } : {}),
+          });
           return true;
         } catch {
           return false;
@@ -239,12 +280,20 @@ export const useSettingsStore = create<SettingsState>()(
       name: SK_SETTINGS,
       version: SETTINGS_PERSIST_VERSION,
       migrate: (persisted) => migratePersistedSettings(persisted),
+      // `migrate` only runs on a version bump; `merge` runs on EVERY
+      // hydration. Sanitization (BUG-026) and the theme light-lock must hold
+      // against same-version blobs too, so both run here.
+      merge: (persisted, current) => ({
+        ...current,
+        ...enforceStartupThemePolicy(migratePersistedSettings(persisted)),
+      }),
       // Only persist `values` and the migration flag.
       partialize: (state) => ({
         values: state.values,
         _migrated: state._migrated,
         featuresTourCompleted: state.featuresTourCompleted,
         language: state.language,
+        themeExplicitlyChosen: state.themeExplicitlyChosen,
         // featuresTourSkippedThisSession is intentionally session-only
       }),
     }
@@ -256,20 +305,20 @@ export const useSettingsStore = create<SettingsState>()(
 // ---------------------------------------------------------------------------
 
 function migrateLegacySettings(): void {
+  // Theme light-lock: the legacy raw "theme" key is deliberately NOT
+  // migrated, and is deleted outright. Every old session echoed its current
+  // preference into that key ('system' on most historical installs), so its
+  // value can never prove an explicit user choice — importing it is exactly
+  // how a clean install could come up dark/OS-following unprompted. Users who
+  // genuinely want dark re-pick it once in Settings, which stamps the choice.
+  try {
+    localStorage.removeItem('theme');
+  } catch { /* noop */ }
+
   const state = useSettingsStore.getState();
   if (state._migrated) return;
 
   const updates: Record<string, unknown> = {};
-
-  // theme -- was stored at localStorage key "theme"
-  try {
-    const oldTheme = localStorage.getItem('theme');
-    if (oldTheme && (oldTheme === 'light' || oldTheme === 'dark' || oldTheme === 'system')) {
-      if (state.values['theme'] === undefined) {
-        updates['theme'] = oldTheme;
-      }
-    }
-  } catch { /* noop */ }
 
   // tabOverflow -- was at "lantern:tabOverflow"
   try {
@@ -291,13 +340,20 @@ function migrateLegacySettings(): void {
   }
 }
 
-// Run migration after the persist middleware has rehydrated.
-// Zustand persist fires the `onRehydrateStorage` listener on the `persist` API,
-// but the simpler approach is to subscribe and run once:
-const unsub = useSettingsStore.persist.onFinishHydration(() => {
+// Run migration after the persist middleware has rehydrated. With the
+// synchronous localStorage backend, hydration completes DURING create() —
+// before this module-level code runs — so an onFinishHydration subscription
+// alone never fires (proven live 2026-07-06: a long-lived install still had
+// `_migrated: false` persisted). Run immediately when already hydrated;
+// subscribe only for the async-storage case.
+if (useSettingsStore.persist.hasHydrated()) {
   migrateLegacySettings();
-  unsub();
-});
+} else {
+  const unsub = useSettingsStore.persist.onFinishHydration(() => {
+    migrateLegacySettings();
+    unsub();
+  });
+}
 
 /**
  * Reactive "has the persisted settings blob finished loading" flag. Reading
