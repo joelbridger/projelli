@@ -36,7 +36,6 @@ import {
   isMicrosoftSignInExpiredError,
   MICROSOFT_SIGNIN_EXPIRED_MESSAGE,
 } from '@/platform/connectors/microsoft/microsoftAuthError';
-import { clearCitationVerificationCache } from '@/features/ask/citationVerification';
 import type { Matter } from '@/platform/types/matter';
 
 // Durable, append-only audit trail for connector activity, so a OneDrive sync
@@ -315,8 +314,11 @@ export function OneDriveConnect() {
     setDisconnecting(true);
     try {
       await oneDriveCancel();
+      // A purge that removed RAG rows announces itself from the BACKEND on the
+      // standard rag-indexing-progress channel (deleted > 0), which the
+      // citation-verification cache already subscribes to — platform must not
+      // import features (architecture DAG).
       const result: OneDriveDisconnectResult = await oneDriveDisconnect(deleteFiles);
-      if (result.ragPurged) clearCitationVerificationCache();
 
       // A clean disconnect: the connection + search index were removed. When the
       // user did NOT opt in to deleting files, those files staying is expected
