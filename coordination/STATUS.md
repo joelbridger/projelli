@@ -1,5 +1,14 @@
 # Lantern-Plus Coordination STATUS
 
+## UPDATE 2026-07-06 ~08:00 — endgame: 17 merges, all 4 notice-card layers fixed, retest-4 running (coordinator-9)
+
+- **Since the 04:15 entry:** QA-91 layers 3+4 merged (launcher /v2/ side-door + click-through @bb3d68a1; admitted-detection grounded in real in-meeting DOM + admission-latch-with-honest-disconnects @658dbf13 — review caught the latch silencing real exits, fixed). Local-AI cold start ROOT-CAUSED (readiness was HTTP-health, not can-generate) and fixed with a warm-up generation probe @931639ce. Dress-rehearsal fixes merged (persistent ✓Working state @c754a286). Runbook content-complete @c0d8a399 (PDF-kit step 3, exact clicks, warm-up habit, honest fallbacks).
+- **Dress rehearsal pass 1 DONE** (legion-dressrun1): found 7 real findings incl. 2 product bugs (both fixed+merged) + the step-3 reliability gap (solved: staged 30-PDF Practice Reference Library kit, proven live "Indexing PDFs: 17/36").
+- **RUNNING NOW:** Legion rebuild → QA-91 live retest ROUND 4 (the step-5 decider; a PASS = all six steps green) → then the 3× dry-run (brief pre-written: coordination/briefs/w-dryrun-brief.md).
+- **Post-demo merge queue (7 built branches):** swallow-p0 r7 @cffd7717 (merge-verify incl. live remap-restart check) · ui-simplification @b2bbc6ac (needs Jameson's gallery OK — https://claude.ai/code/artifact/1602775a-18bf-4171-a5fb-8b5a765f9954) · reindex-swap @33c7accb · connector-parity @2ef8a417 · localai-trimming @f5f88ef5 · then QA-93, then folder-rename.
+- **NEED-JAMESON (tiny, non-blocking):** Microsoft security code to finish Outlook on the Legion (notified via email+telegram; outlook CLI expired, mailbox not in server Chrome, phone bridge down).
+- Review-gate tally this shift: 10 real catches / 10 branches. Live-test tally: 4 meeting rounds, each peeling exactly one layer.
+
 ## UPDATE 2026-07-06 ~04:15 — 🎯 DEMO PUSH: 11 merges, QA-92 KILLED+verified 2×, QA-91 peeled to layer 3 retest (coordinator-9)
 
 - **QA-92 (#1 demo blocker: Ask couldn't find pre-existing files) FIXED + VERIFIED on BOTH Windows machines.** Root cause: boot reconcile trusted the manifest without proving vector rows exist (+ PDF path + per-path retag misses). Merged @5b4deaf6 after review round 2 (mixed-batch aggregate-count hole caught + fixed). Verified: bench-1 (QA92-VERIFY.md, 32 shots — 3 households cited fresh-open AND after true app restart) + Legion (incl. Local-AI cited answer). Task DONE.
