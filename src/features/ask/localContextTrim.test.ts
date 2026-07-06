@@ -201,6 +201,84 @@ describe('trimForLocalContext', () => {
     expect(result.historyTurns).toHaveLength(0);
   });
 
+  it('drops an oversized top hit and keeps the next best hit that fits', () => {
+    // Round-3 finding: the #1-ranked chunk busts the budget all by itself, but
+    // the #2-ranked chunk fits comfortably. The old lowest-first loop dropped
+    // the usable #2 chunk before failing on #1 — usable evidence thrown away.
+    const hits = [
+      makeHit('oversized.md', 0.99, 'x'.repeat(100_000)),
+      makeHit('usable.md', 0.9, 'short usable evidence'),
+    ];
+    const result = trimForLocalContext(baseInput({ hits, mode: 'files-only' }), 16384);
+
+    expect(result.fits).toBe(true);
+    expect(result.trimmed).toBe(true);
+    expect(result.hits.map((h) => h.path)).toEqual(['usable.md']);
+    // The surviving chunk is whole, never sliced.
+    expect(result.hits[0]?.chunkText).toBe('short usable evidence');
+  });
+
+  it('smart mode: drops an oversized top hit and keeps the fitting hit plus history', () => {
+    const hits = [
+      makeHit('oversized.md', 0.99, 'x'.repeat(100_000)),
+      makeHit('usable.md', 0.9, 'short usable evidence'),
+    ];
+    const history = [makeTurn('earlier q', 'earlier a')];
+    const result = trimForLocalContext(
+      baseInput({ hits, historyTurns: history, mode: 'smart' }),
+      16384,
+    );
+
+    expect(result.fits).toBe(true);
+    expect(result.trimmed).toBe(true);
+    expect(result.hits.map((h) => h.path)).toEqual(['usable.md']);
+    expect(result.historyTurns).toHaveLength(1);
+  });
+
+  it('skips an oversized mid-ranked chunk while keeping fitting chunks around it', () => {
+    const hits = [
+      makeHit('high.md', 0.9, 'small chunk that fits'),
+      makeHit('huge-mid.md', 0.5, 'x'.repeat(100_000)),
+      makeHit('low.md', 0.1, 'another small chunk'),
+    ];
+    const result = trimForLocalContext(baseInput({ hits }), 16384);
+
+    expect(result.fits).toBe(true);
+    expect(result.trimmed).toBe(true);
+    // Best-ranked subset that can actually fit — the unsendable middle chunk
+    // does not drag the lower-ranked (but fitting) chunk down with it.
+    expect(result.hits.map((h) => h.path)).toEqual(['high.md', 'low.md']);
+  });
+
+  it('files-only mode: still declines honestly when every chunk is individually oversized', () => {
+    const hits = [
+      makeHit('huge1.md', 0.99, 'x'.repeat(100_000)),
+      makeHit('huge2.md', 0.9, 'y'.repeat(100_000)),
+    ];
+    const result = trimForLocalContext(baseInput({ hits, mode: 'files-only' }), 16384);
+
+    expect(result.fits).toBe(false);
+    // Keeps the top chunk (unsent — the caller declines on fits=false).
+    expect(result.hits.map((h) => h.path)).toEqual(['huge1.md']);
+    expect(result.historyTurns).toHaveLength(0);
+  });
+
+  it('smart mode: still answers from history when every chunk is individually oversized', () => {
+    const hits = [
+      makeHit('huge1.md', 0.99, 'x'.repeat(100_000)),
+      makeHit('huge2.md', 0.9, 'y'.repeat(100_000)),
+    ];
+    const history = [makeTurn('what did we cover?', 'We covered the rebalance plan.')];
+    const result = trimForLocalContext(
+      baseInput({ hits, historyTurns: history, mode: 'smart' }),
+      16384,
+    );
+
+    expect(result.fits).toBe(true);
+    expect(result.hits).toHaveLength(0);
+    expect(result.historyTurns.map((t) => t.question)).toEqual(['what did we cover?']);
+  });
+
   it('does not trim history when there are no chunks and it already fits', () => {
     const history = [makeTurn('q1', 'a1'), makeTurn('q2', 'a2')];
     const result = trimForLocalContext(baseInput({ historyTurns: history }), 16384);

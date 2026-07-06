@@ -81,6 +81,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the longer no-evidence hint so it stays an upper bound either way. Files:
   `localContextTrim.ts`, `useAsk.ts`. Tests: `localContextTrim.test.ts`,
   `useAsk.localTrim.test.ts` (follow-up-from-history scenario, both modes).
+- **An oversized top-ranked chunk no longer throws away smaller chunks that
+  would have fit.** Round-3 review: the trim loop always dropped the
+  LOWEST-ranked chunk first, so when the #1-ranked chunk was too big to ever
+  fit by itself, every fitting lower-ranked chunk got dropped before it —
+  ending at zero file evidence (smart mode) or an honest-but-needless decline
+  (files-only) even when the #2-ranked chunk alone fit comfortably. Now any
+  chunk that can never fit alone (question + that one chunk, no history) is
+  excluded up front regardless of rank, and both modes end at the best-ranked
+  SUBSET of chunks that actually fits. Round-2 contracts intact: smart mode
+  still answers from history when NO chunk fits; files-only still declines
+  honestly when no usable file context remains. Files: `localContextTrim.ts`.
+  Tests: `localContextTrim.test.ts` (oversized-top, oversized-mid, and
+  all-oversized scenarios, both modes).
 - **Local-AI context trimming now also covers the local Ollama route, not
   just the embedded model.** Pre-merge review (P2) found the trim check at
   `useAsk.ts` gated only on `providerId === 'keepance-local'`, so when the

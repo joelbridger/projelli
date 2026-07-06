@@ -14,21 +14,27 @@
  * `estimateTokens` in ./compression — ~4 chars/token) and, when the estimate
  * is over budget, trims deterministically in priority order:
  *   1. The system prompt and the user's question are never touched.
- *   2. Retrieved chunks are dropped lowest-relevance first, one whole chunk at
+ *   2. A chunk that busts the budget all by itself (question + that one chunk,
+ *      no history) can never be sent whole, so it is excluded up front — no
+ *      matter how highly it ranks. Otherwise an oversized #1 would drag every
+ *      lower-ranked (but fitting) chunk down with it before failing anyway
+ *      (round-3 finding); both modes end at the best-ranked SUBSET of chunks
+ *      that can actually fit.
+ *   3. Remaining chunks are dropped lowest-relevance first, one whole chunk at
  *      a time — never a partial chunk, so a surviving citation can never
  *      point at truncated text.
- *   3. Once only the single highest-relevance chunk remains, oldest history
+ *   4. Once only the single highest-relevance chunk remains, oldest history
  *      turns are dropped next.
- * When even the question plus that one top chunk (no history) doesn't fit,
- * the two Ask modes diverge (round-2 review, F2):
+ * When NO chunk can fit even alone, the two Ask modes diverge (round-2
+ * review, F2):
  *   - 'files-only' answers ONLY from file evidence, so it reports fits=false
  *     and the caller declines honestly instead of sending a prompt doomed to
  *     overflow — it must never answer a files question without the files.
  *   - 'smart' can answer honestly with zero file evidence (its no-evidence
- *     prompt leads with a nothing-found block), so the unusable chunk is
- *     dropped too and history is re-admitted, newest-first as much as fits —
- *     a follow-up like "summarize what you just said" answers from history
- *     instead of being refused because one oversized chunk erased it.
+ *     prompt leads with a nothing-found block), so all chunks are excluded
+ *     and history is kept, newest-first as much as fits — a follow-up like
+ *     "summarize what you just said" answers from history instead of being
+ *     refused because one oversized chunk erased it.
  *
  * Only used for the local provider; cloud providers never call this.
  */
@@ -54,11 +60,12 @@ export interface LocalTrimInput {
   hits: RagHit[];
   /** Conversation history turns available for the prompt, oldest first. */
   historyTurns: AskTurn[];
-  /** Which Ask mode this send is for — decides what happens when the single
-   *  top-relevance chunk alone can't fit (see the module comment):
-   *  'files-only' keeps it and reports fits=false (honest decline);
-   *  'smart' drops it and keeps as much history as fits (zero fresh
-   *  evidence — the caller's no-evidence prompt handles honest wording). */
+  /** Which Ask mode this send is for — decides what happens when NO chunk
+   *  can fit even alone (see the module comment):
+   *  'files-only' keeps the top-relevance chunk and reports fits=false
+   *  (honest decline); 'smart' excludes every chunk and keeps as much history
+   *  as fits (zero fresh evidence — the caller's no-evidence prompt handles
+   *  honest wording). */
   mode: 'files-only' | 'smart';
   /** Builds the `<workspace_context>` block from a hit subset — pass the real
    *  app builder so the estimate matches exactly what would be sent. */
@@ -76,9 +83,9 @@ export interface LocalTrimResult {
   trimmed: boolean;
   /** False when nothing sendable fits the budget — the caller should decline
    *  with LOCAL_CONTEXT_TOO_LONG_MESSAGE instead of sending. In 'files-only'
-   *  mode that means the question + the single top-relevance chunk (no
-   *  history) can't fit; in 'smart' mode only the fixed text alone (question
-   *  + system prompt) exceeding the budget can make this false. */
+   *  mode that means NO retrieved chunk fits alongside the question even by
+   *  itself (with no history); in 'smart' mode only the fixed text alone
+   *  (question + system prompt) exceeding the budget can make this false. */
   fits: boolean;
 }
 
@@ -93,10 +100,35 @@ export function trimForLocalContext(
   const budget = Math.max(0, maxContextTokens - LOCAL_TRIM_OUTPUT_RESERVE_TOKENS);
   const fixedTokens = estimateTokens(input.fixedText);
 
-  let hits = [...input.hits].sort((a, b) => b.score - a.score);
+  const ranked = [...input.hits].sort((a, b) => b.score - a.score);
+  const emptyHistoryTokens = estimateTokens(input.buildHistoryBlock([]));
+  // A chunk that busts the budget even alone (question + that one chunk, no
+  // history) has no sendable form — whole chunks only, partial never allowed.
+  // Exclude those up front so the relevance-first loop below trims among
+  // sendable chunks only; otherwise an oversized #1 would drag every
+  // lower-ranked (but fitting) chunk down with it before failing anyway
+  // (round-3 finding). Both modes end at the best-ranked subset that fits.
+  const sendable = ranked.filter(
+    (hit) =>
+      fixedTokens + estimateTokens(input.buildWorkspaceBlock([hit])) + emptyHistoryTokens <=
+      budget,
+  );
+
+  const [topRanked] = ranked;
+  if (input.mode === 'files-only' && topRanked !== undefined && sendable.length === 0) {
+    // Chunks were retrieved but none can ever fit. Files-only answers ONLY
+    // from file evidence, so decline honestly (fits=false) — the top chunk is
+    // kept for the caller's benefit but is never sent.
+    return {
+      hits: [topRanked],
+      historyTurns: [],
+      trimmed: ranked.length !== 1 || input.historyTurns.length > 0,
+      fits: false,
+    };
+  }
+
+  let hits = sendable;
   let history = [...input.historyTurns];
-  const originalHitCount = hits.length;
-  const originalHistoryCount = history.length;
 
   const currentTokens = (): number =>
     fixedTokens +
@@ -115,22 +147,14 @@ export function trimForLocalContext(
       history = history.slice(1); // drop the oldest remaining turn
       continue;
     }
-    if (input.mode === 'smart' && hits.length === 1) {
-      // Even alone (all history already dropped) the top chunk busts the
-      // budget — it can never be sent whole, and partial is never allowed.
-      // Smart mode can answer honestly with zero file evidence, so drop the
-      // chunk and re-admit the history it displaced; the loop then trims
-      // oldest turns again until what remains fits (round-2 review, F2).
-      // Files-only mode instead keeps the chunk and falls through to
-      // fits=false: an Ask about your documents must not answer without them.
-      hits = [];
-      history = [...input.historyTurns];
-      continue;
-    }
-    break; // nothing left this mode is allowed to cut
+    // A sendable chunk fits alone by construction, so reaching here with no
+    // history left means zero chunks survived AND the fixed text alone busts
+    // the budget — nothing left to cut in either mode.
+    break;
   }
 
   const fits = currentTokens() <= budget;
-  const trimmed = hits.length !== originalHitCount || history.length !== originalHistoryCount;
+  const trimmed =
+    hits.length !== input.hits.length || history.length !== input.historyTurns.length;
   return { hits, historyTurns: history, trimmed, fits };
 }
