@@ -30,6 +30,7 @@ import { useState, useRef } from 'react';
 import { Laptop, Cloud, ShieldCheck, ShieldOff, MapPin, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/ui/button';
+import { InfoHelp } from '@/ui/InfoHelp';
 import {
   useConfidentialityMode,
   useRecordConfidentialityChoice,
@@ -118,11 +119,9 @@ export function ConfidentialityModeSettings() {
       data-active-mode={active}
       className="py-3 border-b border-border/50"
     >
-      <div className="mb-3">
+      <div className="mb-3 flex items-center gap-1.5">
         <h3 className="text-sm font-medium">Where AI requests go</h3>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          Choose whether AI requests stay on your computer or are sent to a cloud provider you control.
-        </p>
+        <InfoHelp content="Choose whether AI requests stay on your computer or are sent to a cloud provider you control." />
       </div>
 
       <div className={cn('grid gap-2', isFirmUser ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
@@ -164,6 +163,7 @@ export function ConfidentialityModeSettings() {
                 >
                   <Icon className="h-4 w-4 shrink-0" aria-hidden />
                   {card.title}
+                  <InfoHelp as="span" content={card.blurb} label={`About ${card.title}`} />
                 </span>
                 <span className="flex items-center gap-1.5 shrink-0">
                   {card.tag && (
@@ -184,7 +184,6 @@ export function ConfidentialityModeSettings() {
                   )}
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground leading-relaxed">{card.blurb}</p>
             </button>
           );
         })}
@@ -224,12 +223,8 @@ export function ConfidentialityModeSettings() {
             <span className="inline-flex items-center gap-1.5 text-sm font-medium">
               <ShieldOff className="h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400" aria-hidden />
               Network lockdown
+              <InfoHelp content="Turns off network-capable extensions so confidential work cannot leave your machine through one. Network plugins are blocked and MCP servers are disabled. Everything else keeps working." />
             </span>
-            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-              Turns off network-capable extensions so confidential work cannot
-              leave your machine through one. Network plugins are blocked and MCP
-              servers are disabled. Everything else keeps working.
-            </p>
           </div>
           <button
             type="button"

@@ -4,7 +4,7 @@
 // tooltip so nothing shows until the user asks for it.
 import * as React from 'react';
 import { Info } from 'lucide-react';
-import { Tooltip, TooltipTrigger, TooltipContent } from '@/ui/tooltip';
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 interface InfoHelpProps {
@@ -62,12 +62,18 @@ export function InfoHelp({ content, label = 'More info', className, as = 'button
     );
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>{trigger}</TooltipTrigger>
-      <TooltipContent {...(side ? { side } : {})} className="max-w-xs text-left font-normal">
-        {content}
-      </TooltipContent>
-    </Tooltip>
+    // Self-contained provider: InfoHelp is dropped into dozens of call sites
+    // (and their tests) that shouldn't each need to know Radix's Tooltip.Root
+    // requires a TooltipProvider ancestor. The app root (main.tsx) also mounts
+    // one with these same values, so this nested provider is a no-op there.
+    <TooltipProvider delayDuration={300} skipDelayDuration={100}>
+      <Tooltip>
+        <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+        <TooltipContent {...(side ? { side } : {})} className="max-w-xs text-left font-normal">
+          {content}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
