@@ -30,6 +30,12 @@ const h = vi.hoisted(() => {
     defaultModel: '',
     // Embedded Keepance Local AI status as local_llm_model_status() would report.
     localStatus: 'absent' as string,
+    // Fix 2 (demo readiness): Local-only mode now falls back to Ollama ONLY
+    // when it's provably reachable (detectOllama), never blindly — see
+    // resolveLocalOnlyAskProvider. Tests that want the Ollama-fallback path
+    // set this true; the default (false) proves the honest "still setting
+    // up" failure instead of a guaranteed-broken OllamaProvider.
+    ollamaReachable: false,
     keys: {
       anthropic: 'sk-ant-test' as string | null,
       openai: null as string | null,
@@ -90,6 +96,9 @@ vi.mock('@/platform/providers/OllamaProvider', () => ({
     kind = 'ollama';
     getMetadata() { return { model: 'ollama-test' }; }
   },
+  // Fix 2: resolveAvailableLocalGenerationProvider only falls back to Ollama
+  // when it's provably reachable — drive that via h.ollamaReachable.
+  detectOllama: () => Promise.resolve({ reachable: h.ollamaReachable, models: [] }),
 }));
 vi.mock('@/platform/providers/AppLocalProvider', () => ({
   AppLocalProvider: class {
@@ -178,12 +187,14 @@ describe('Ask buildProviderAsync honours local-only (A1)', () => {
     h.defaultProvider = '';
     h.defaultModel = '';
     h.localStatus = 'absent';
+    h.ollamaReachable = false;
     h.keys = { anthropic: 'sk-ant-test', openai: null, google: null };
     localStorage.clear();
   });
 
   it('returns the LOCAL provider in local-only mode even when a cloud key exists', async () => {
     h.mode = 'local-only';
+    h.ollamaReachable = true;
     const provider = (await buildProviderAsync()) as unknown as { kind: string };
     expect(provider.kind).toBe('ollama');
   });
@@ -199,11 +210,28 @@ describe('Ask buildProviderAsync honours local-only (A1)', () => {
     expect((resolved.provider as unknown as { kind: string }).kind).toBe('keepance-local');
   });
 
-  it('falls back to Ollama in local-only mode ONLY when the embedded model is absent', async () => {
+  it('falls back to Ollama in local-only mode ONLY when the embedded model is absent AND Ollama is provably reachable', async () => {
     h.mode = 'local-only';
+    h.ollamaReachable = true;
     h.localStatus = 'absent';
     const resolved = await buildResolvedAskProvider();
     expect(resolved.providerId).toBe('ollama');
+  });
+
+  /**
+   * Fix 2 (demo readiness) — the bug this test guards against: a fresh
+   * install with the embedded model still downloading and NO Ollama running
+   * used to silently construct an OllamaProvider anyway, guaranteeing a
+   * confusing failure deep inside the send. It must instead fail honestly,
+   * up front, with actionable copy — never a broken provider.
+   */
+  it('throws an honest "still setting up" error in local-only mode when neither the embedded model nor Ollama is available', async () => {
+    h.mode = 'local-only';
+    h.localStatus = 'absent';
+    h.ollamaReachable = false;
+    await expect(buildResolvedAskProvider()).rejects.toThrow(
+      /Advisor Prep Hero Local AI is still downloading or setting up/,
+    );
   });
 
   it('prefers the embedded model on a personal install with no cloud key (not local-only)', async () => {

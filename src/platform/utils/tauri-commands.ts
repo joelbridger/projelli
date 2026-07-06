@@ -701,8 +701,12 @@ export async function localLlmModelEnsure(): Promise<string> {
 }
 
 /** Start (lazily) the llama-server sidecar and return its local endpoint
- *  (e.g. http://127.0.0.1:18089). Errors if the model isn't downloaded yet. */
+ *  (e.g. http://127.0.0.1:18089). Errors if the model isn't downloaded yet.
+ *  @throws if we're in the browser — the sidecar only exists in the desktop app. */
 export async function localLlmSidecarStart(): Promise<string> {
+  if (!isTauri()) {
+    throw new Error('Advisor Prep Hero Local AI is only available in the desktop app.');
+  }
   return invoke<string>('local_llm_sidecar_start');
 }
 

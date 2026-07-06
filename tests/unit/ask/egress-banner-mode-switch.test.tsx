@@ -53,7 +53,7 @@ const h = vi.hoisted(() => ({
   // Number of times each provider's send was actually invoked. The send-side
   // privacy test asserts the CLOUD send is never called once Local-only is on.
   sendCalled: 0, // cloud provider (from buildResolvedAskProvider)
-  localSendCalled: 0, // on-device provider (from resolveLocalAskProvider re-resolve)
+  localSendCalled: 0, // on-device provider (from resolveLocalOnlyAskProvider re-resolve)
   // Optional hook run INSIDE buildResolvedAskProvider to model the user flipping
   // the confidentiality mode DURING the resolver's keychain await.
   onBuildResolve: null as (() => void) | null,
@@ -148,7 +148,7 @@ vi.mock('@/platform/privacy/egress', async (orig) => {
 // Keep the REAL resolveActiveAskProviderId (what drives the badge). Override the
 // SEND path: buildResolvedAskProvider returns a CLOUD spy provider (and can flip
 // the mode mid-resolve via h.onBuildResolve to model the race), and
-// resolveLocalAskProvider returns an on-device spy. The send-side guard in
+// resolveLocalOnlyAskProvider returns an on-device spy. The send-side guard in
 // useAsk must route to the local spy (never the cloud spy) once Local-only is on.
 vi.mock('@/features/ask/askHelpers', async (orig) => {
   const actual = await orig<typeof import('@/features/ask/askHelpers')>();
@@ -172,7 +172,7 @@ vi.mock('@/features/ask/askHelpers', async (orig) => {
         model: 'gpt-4o',
       };
     }),
-    resolveLocalAskProvider: vi.fn(async () => ({
+    resolveLocalOnlyAskProvider: vi.fn(async () => ({
       provider: {
         sendMessageStreaming: async () => {
           h.localSendCalled += 1;

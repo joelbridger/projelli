@@ -456,23 +456,13 @@ export class OpenAIProvider implements Provider {
     };
     if (this.organization) headers['OpenAI-Organization'] = this.organization;
 
-    const controlled = composeRequestSignal(signal, this.requestTimeoutMs);
-    const safeFetch = await getCorsSafeFetch();
-    const routed = applyAssuredRoute(this.assured, `${this.baseUrl}/v1/chat/completions`, headers);
-    const response = await safeFetch(routed.url, {
-      method: 'POST',
-      headers: routed.headers,
-      body: JSON.stringify(request),
-      signal: controlled.signal,
-    });
-
-    if (!response.ok) {
-      const errorBody = await safeJsonParse<OpenAIError>(response);
-      throw new Error(`OpenAI API error: ${errorBody.error?.message ?? `HTTP ${response.status}`}`);
-    }
+    const { response, controlled } = await this.connectStreaming(request, headers, signal);
 
     const reader = response.body?.getReader();
-    if (!reader) throw new Error('No response body');
+    if (!reader) {
+      controlled.cleanup();
+      throw new Error('No response body');
+    }
 
     const decoder = new TextDecoder();
     let fullContent = '';
@@ -529,6 +519,61 @@ export class OpenAIProvider implements Provider {
       model: this.model,
       stopReason,
     };
+  }
+
+  /** HTTP statuses worth retrying BEFORE any token has streamed: 429 (rate
+   *  limit) and the 5xx family a load balancer / edge returns while OpenAI is
+   *  overloaded or briefly unavailable. Never used once a chunk has reached
+   *  the caller — see `connectStreaming`. */
+  private static readonly STREAM_RETRY_STATUSES: ReadonlySet<number> = new Set([
+    429, 500, 502, 503, 504,
+  ]);
+
+  /**
+   * Establish the streaming HTTP response, retrying a bounded number of times
+   * (this.maxRetries, same knob as the non-streaming path) when the response
+   * status is in STREAM_RETRY_STATUSES — honoring `retry-after` when present,
+   * else exponential backoff. This ONLY covers the connect phase: the retry
+   * loop returns as soon as a response comes back `ok`, before the body is
+   * ever read, so nothing here can fire again after `sendMessageStreaming`
+   * starts pulling tokens out of the stream. A connection that drops mid-answer
+   * (after real tokens already reached the caller) is therefore always a real,
+   * surfaced error — never silently restarted, which would risk duplicating
+   * partial output the user already saw.
+   */
+  private async connectStreaming(
+    request: OpenAIRequest & { stream: boolean },
+    headers: Record<string, string>,
+    signal: AbortSignal | undefined,
+  ): Promise<{ response: Response; controlled: ReturnType<typeof composeRequestSignal> }> {
+    const safeFetch = await getCorsSafeFetch();
+    for (let attempt = 0; ; attempt++) {
+      const controlled = composeRequestSignal(signal, this.requestTimeoutMs);
+      const routed = applyAssuredRoute(this.assured, `${this.baseUrl}/v1/chat/completions`, headers);
+      const response = await safeFetch(routed.url, {
+        method: 'POST',
+        headers: routed.headers,
+        body: JSON.stringify(request),
+        signal: controlled.signal,
+      });
+
+      if (response.ok) return { response, controlled };
+
+      const retryable =
+        OpenAIProvider.STREAM_RETRY_STATUSES.has(response.status) && attempt < this.maxRetries;
+      if (!retryable) {
+        const errorBody = await safeJsonParse<OpenAIError>(response);
+        controlled.cleanup();
+        throw new Error(`OpenAI API error: ${errorBody.error?.message ?? `HTTP ${String(response.status)}`}`);
+      }
+
+      // eslint-disable-next-line lantern-async/no-silent-failure -- best-effort release of a body we're discarding anyway before retrying; nothing to surface.
+      await response.body?.cancel().catch(() => undefined);
+      const retryAfter = response.headers.get('retry-after');
+      const waitMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : Math.pow(2, attempt) * 1000;
+      controlled.cleanup();
+      await this.sleep(waitMs, signal);
+    }
   }
 
   /**

@@ -16,6 +16,7 @@ import {
   CONFIDENTIALITY_MODES,
 } from '@/platform/privacy/egress';
 import { CONFIDENTIALITY_CHOICE_MADE_KEY } from '@/platform/privacy/resolvePersonalEgressDefault';
+import { preStartLocalAi } from '@/platform/providers/localAiPreStart';
 
 const SAFE_CONFIDENTIALITY_MODE: ConfidentialityMode = 'local-only';
 
@@ -58,12 +59,18 @@ export function useSetConfidentialityMode(): (mode: ConfidentialityMode) => void
  * Firm installs are not affected — they bypass the choice gate entirely in
  * `resolveEffectiveEgress` — but calling this setter for a firm user is
  * harmless (the marker is simply stored and ignored).
+ *
+ * Fix 1 (demo readiness): selecting "On this computer only" is the clearest
+ * signal a user gives that they intend to use Local AI, so this is one of the
+ * two triggers (the other is app boot, see usePreStartLocalAi) that kicks off
+ * the llama-server sidecar early instead of waiting for the first question.
  */
 export function useRecordConfidentialityChoice(): (mode: ConfidentialityMode) => void {
   const setSetting = useSettingsStore((s) => s.setSetting);
   return (mode: ConfidentialityMode) => {
     setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, mode);
     setSetting(CONFIDENTIALITY_CHOICE_MADE_KEY, true);
+    if (mode === 'local-only') preStartLocalAi();
   };
 }
 

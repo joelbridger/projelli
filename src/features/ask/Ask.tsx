@@ -98,6 +98,7 @@ export function Ask(props: UseAskProps) {
     errorMsg,
     status,
     answerStalled,
+    localAiStarting,
     savingIdx,
     displayedProvider,
     confidentialityMode,
@@ -611,6 +612,7 @@ export function Ask(props: UseAskProps) {
                       isPersisted={false}
                       isStreaming
                       answerStalled={answerStalled}
+                      localAiStarting={localAiStarting}
                       onOpenAiStatus={() => {
                         window.dispatchEvent(new CustomEvent(EV_OPEN_SETTINGS, { detail: { category: 'ai' } }));
                       }}

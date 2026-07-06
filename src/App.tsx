@@ -14,6 +14,7 @@ import { useFlushOnExit } from '@/app/lifecycle/useFlushOnExit';
 import { useThemeManager } from '@/app/lifecycle/useThemeManager';
 import { useWorkspaceLifecycle } from '@/app/lifecycle/useWorkspaceLifecycle';
 import { useAutoResumeWorkspace } from '@/app/lifecycle/useAutoResumeWorkspace';
+import { usePreStartLocalAi } from '@/app/lifecycle/usePreStartLocalAi';
 import { useTestModeWorkspace } from '@/app/lifecycle/useTestModeWorkspace';
 import { useKeyboardShortcuts } from '@/app/commands/useKeyboardShortcuts';
 import { useAppCommands } from '@/app/commands/useAppCommands';
@@ -888,6 +889,10 @@ function AppShell() {
   // flags rather than reading the stores synchronously at mount, and for the
   // hang- and vault-safety guarantees below.
   const settingsHydrated = useSettingsHydrated();
+  // Fix 1 (demo readiness): if Local-only is already the persisted mode, warm
+  // up the llama-server sidecar now instead of waiting for the first
+  // post-launch question. See usePreStartLocalAi for the hydration-race note.
+  usePreStartLocalAi(settingsHydrated);
   const startupBehavior = useSettingsStore((s) => s.getSetting<string>('startupBehavior'));
   // A locked vault needs WorkspaceSelector's own VaultLockedPrompt UI to
   // unlock, so auto-resume must never silently open one — it preflights with

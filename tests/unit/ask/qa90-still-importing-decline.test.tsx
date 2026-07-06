@@ -30,7 +30,10 @@ const h = vi.hoisted(() => ({
   initSession: vi.fn(),
   addMessage: vi.fn(),
   sessions: {} as Record<string, unknown>,
-  stillImporting: { value: false },
+  // Tri-state (QA-90 round 3): 'idle' | 'importing' | 'unknown'. Tests below
+  // only ever need 'idle'/'importing' — 'unknown' is exercised by
+  // useStillImporting's own unit tests.
+  stillImporting: { value: 'idle' as 'idle' | 'importing' | 'unknown' },
 }));
 
 vi.mock('@/i18n', () => ({ default: { t: (k: string) => k } }));
@@ -79,10 +82,16 @@ vi.mock('@/platform/rag/MemoryService', () => ({
 }));
 
 // QA-90: the signal this fix is built on — stubbed so each test controls it
-// directly instead of standing up real Tauri events/backend state.
-vi.mock('@/features/ask/useStillImporting', () => ({
-  useStillImporting: () => h.stillImporting.value,
-}));
+// directly instead of standing up real Tauri events/backend state. Keeps the
+// REAL isImportStatusUnsettled (SourcePanel/useAsk both call it) so this mock
+// can't drift from the tri-state contract those consumers actually use.
+vi.mock('@/features/ask/useStillImporting', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/features/ask/useStillImporting')>();
+  return {
+    ...actual,
+    useStillImporting: () => h.stillImporting.value,
+  };
+});
 
 vi.mock('@/platform/providers/ClaudeProvider', () => {
   class StubProvider {
@@ -131,7 +140,7 @@ describe('QA-90 — still-importing decline on zero hits', () => {
     h.initSession.mockReset();
     h.addMessage.mockReset();
     h.answer.text = '';
-    h.stillImporting.value = false;
+    h.stillImporting.value = 'idle';
     localStorage.removeItem('lantern:ask-files-only');
   });
   afterEach(() => {
@@ -141,7 +150,7 @@ describe('QA-90 — still-importing decline on zero hits', () => {
   it('files-only: zero hits + importing → the still-importing decline, no model call', async () => {
     localStorage.setItem('lantern:ask-files-only', '1');
     h.retrieve.mockResolvedValue([]);
-    h.stillImporting.value = true;
+    h.stillImporting.value = 'importing';
     // If the gate failed to short-circuit, this fabricated text would appear.
     h.answer.text = 'A confident but made-up answer.';
 
@@ -161,7 +170,7 @@ describe('QA-90 — still-importing decline on zero hits', () => {
 
   it('smart mode (default): zero hits + importing → the still-importing decline, no model call', async () => {
     h.retrieve.mockResolvedValue([]);
-    h.stillImporting.value = true;
+    h.stillImporting.value = 'importing';
     h.answer.text = 'A confident but made-up general answer.';
 
     await ask('What is the current retainer balance?');
@@ -177,7 +186,7 @@ describe('QA-90 — still-importing decline on zero hits', () => {
   it('regression: zero hits + NOT importing (files-only) → the plain no-evidence decline, unchanged', async () => {
     localStorage.setItem('lantern:ask-files-only', '1');
     h.retrieve.mockResolvedValue([]);
-    h.stillImporting.value = false;
+    h.stillImporting.value = 'idle';
 
     await ask('What is the current retainer balance?');
 
@@ -199,7 +208,7 @@ describe('QA-90 — still-importing decline on zero hits', () => {
         sourceType: 'docx',
       } as RagHit,
     ]);
-    h.stillImporting.value = true;
+    h.stillImporting.value = 'importing';
     h.answer.text = 'The Garcia matter concerns a slip-and-fall [garcia-complaint.docx paragraph 1].';
 
     await ask('What is the Garcia matter about?');
