@@ -492,12 +492,13 @@ function buildDemoAskProvider(): ResolvedAskProvider {
  *              file-search/index stage, not the AI/key).
  */
 /**
- * True when `raw` looks like a genuine provider auth rejection (401/bad key)
- * rather than a rate limit, context-length, or search/index failure. Shared
- * by {@link friendlyErrorMessage} (which turns this into the "key was
- * rejected" copy) and useAsk's send-failure handler (which uses the SAME
- * check to decide whether to call `markKeyInvalid` on the resolved provider),
- * so the displayed message and the key-status marker can never disagree.
+ * True when `raw` looks like a genuine provider auth rejection (401/403 —
+ * bad, disabled, revoked, or permission-denied key) rather than a rate
+ * limit, context-length, or search/index failure. Shared by
+ * {@link friendlyErrorMessage} (which turns this into the "key was rejected"
+ * copy) and useAsk's send-failure handler (which uses the SAME check to
+ * decide whether to call `markKeyInvalid` on the resolved provider), so the
+ * displayed message and the key-status marker can never disagree.
  *
  * Never true in Local-only mode (there is no key to check there), and never
  * when the AI was not even reached (`reachedProvider === false` means the
@@ -514,7 +515,9 @@ export function isAuthRejectionError(
     !localOnly &&
     opts?.reachedProvider !== false &&
     (lower.includes('401') ||
+      lower.includes('403') ||
       lower.includes('unauthorized') ||
+      lower.includes('forbidden') ||
       lower.includes('invalid_api_key') ||
       lower.includes('authentication'))
   );

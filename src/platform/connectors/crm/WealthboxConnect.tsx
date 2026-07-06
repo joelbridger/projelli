@@ -1,5 +1,5 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { isTauri } from '@tauri-apps/api/core';
 import {
   crmConnect,
@@ -15,7 +15,9 @@ import { useCrmSync } from '@/platform/connectors/crm/useCrmSync';
 import { useCrmStore } from '@/platform/connectors/crm/crmStore';
 import {
   CRM_LIST_HOUSEHOLDS_TIMEOUT_MS,
+  CrmCancelledError,
   CrmTimeoutError,
+  createCrmCancelGate,
   withCrmTimeout,
 } from '@/platform/connectors/crm/crmTimeout';
 import { getMatters } from '@/platform/matter/matterStore';
@@ -52,6 +54,13 @@ export function WealthboxConnect() {
   // sustained 429 (client.rs retries with exponential backoff up to 64s).
   const [networkBusy, setNetworkBusy] = useState(false);
   const [syncStalled, setSyncStalled] = useState(false);
+  // Real cancellation for the household-list phase only: crm_cancel_sync sets
+  // a backend flag that engine::backfill polls between households during
+  // crm_sync_all, but crm_list_households has no cancellation awareness at
+  // all (a single paginated GET loop, no access to that flag) — so without
+  // this, clicking Stop during that phase was a no-op. Set right before
+  // racing the household-list call, cleared right after (see crmTimeout.ts).
+  const cancelHouseholdListRef = useRef<(() => void) | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [lastSyncReport, setLastSyncReport] = useState<{
@@ -163,16 +172,24 @@ export function WealthboxConnect() {
       // No local data is written until the user confirms in Step 2.
       // Bounded by a frontend timeout (crmTimeout.ts): the Rust client retries a
       // 429 with backoff up to 64s per attempt, so a sustained rate limit can
-      // otherwise hold this await for minutes with no way to fail cleanly.
+      // otherwise hold this await for minutes with no way to fail cleanly. Also
+      // raced against a real cancel gate: crm_list_households has no
+      // cancellation awareness on the backend, so Stop must give up the wait
+      // itself rather than rely on a flag Rust will never check here.
       setNetworkBusy(true);
       let households;
+      const cancelGate = createCrmCancelGate('household list');
+      cancelHouseholdListRef.current = cancelGate.cancel;
       try {
-        households = await withCrmTimeout(
-          crmListHouseholds(),
-          'household list',
-          CRM_LIST_HOUSEHOLDS_TIMEOUT_MS
+        households = await cancelGate.race(
+          withCrmTimeout(
+            crmListHouseholds(),
+            'household list',
+            CRM_LIST_HOUSEHOLDS_TIMEOUT_MS
+          )
         );
       } finally {
+        cancelHouseholdListRef.current = null;
         setNetworkBusy(false);
       }
 
@@ -285,6 +302,17 @@ export function WealthboxConnect() {
         setNetworkBusy(false);
       }
     } catch (err) {
+      // The user clicked Stop during the household-list phase — an
+      // intentional exit, not a failure. Nothing is staged yet at this point
+      // (cancellation can only fire before Step 3 creates/links anything), so
+      // there is nothing to roll back. No backend crm-sync-progress event is
+      // coming for this frontend-only cancel (crm_list_households never
+      // observes the cancel flag), so set the terminal state directly here —
+      // mirrors OneDriveConnect's own folder-discovery-phase cancel handling.
+      if (err instanceof CrmCancelledError) {
+        useCrmStore.getState().setProgress({ status: 'cancelled' });
+        return;
+      }
       // B2 rollback: Steps 1-3 failed before anything was confirmed as
       // imported — undo whatever was staged so a failed household fetch or
       // matter-resolution bug never leaves phantom Wealthbox-linked clients
@@ -414,7 +442,12 @@ export function WealthboxConnect() {
   }
 
   function stopSync() {
+    // Real effect during Step 4 (crm_sync_all polls this flag between
+    // households). During the Step 1 household-list phase this backend call
+    // is a no-op (see cancelHouseholdListRef above), so also fire the local
+    // cancel gate — null there once Step 1 is over, so this is a no-op then.
     crmCancelSync().catch(() => {});
+    cancelHouseholdListRef.current?.();
   }
 
   // Non-Tauri: show a disabled placeholder.

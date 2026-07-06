@@ -173,6 +173,16 @@ describe('Ask keeps key-verification markers honest on send', () => {
     expect(isKeyVerified('anthropic')).toBe(false);
   });
 
+  it('marks the provider INVALID after a 403 rejection (disabled/revoked/permission-denied key)', async () => {
+    h.sendMessage.mockRejectedValue(new Error('403 Forbidden: PERMISSION_DENIED'));
+
+    await askQuestion();
+    await waitFor(() => expect(h.sendMessage).toHaveBeenCalledTimes(1));
+
+    await waitFor(() => expect(isKeyInvalid('anthropic')).toBe(true));
+    expect(isKeyVerified('anthropic')).toBe(false);
+  });
+
   it('does NOT mark the provider invalid on a non-auth failure (e.g. a rate limit)', async () => {
     h.sendMessage.mockRejectedValue(new Error('429 rate limited'));
 

@@ -102,7 +102,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     trying…" warning appears after ~20s of no progress; and the Stop button
     now stays visible for the whole sync, including the household-list phase
     before any `crm-sync-progress` event arrives (it used to only show once
-    the backend's own progress events started).
+    the backend's own progress events started) — and clicking it during that
+    phase now genuinely ends the wait (`createCrmCancelGate` races the
+    frontend await itself, since `crm_cancel_sync`'s backend flag is only
+    polled by `engine::backfill` during `crm_sync_all`, never by
+    `crm_list_households`).
   - **A 429 while testing an API key is no longer shown as a valid key.**
     `apiKeyValidation.ts` now returns a distinct `rate_limited` outcome
     ("This key is real, but the account is over its limit right now") instead

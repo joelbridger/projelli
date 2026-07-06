@@ -88,6 +88,27 @@ describe('WealthboxConnect — connect/sync stall UX', () => {
     expect(await screen.findByRole('button', { name: /stop/i })).toBeInTheDocument();
   });
 
+  it('clicking Stop during the household-list phase actually ends the wait (Round 2 P2 fix) — no need to wait out the 90s timeout', async () => {
+    // Round 2 review finding: crm_cancel_sync only sets a flag engine::backfill
+    // polls between households during crm_sync_all — crm_list_households never
+    // observes it, so the OLD Stop button did nothing during this phase. The
+    // mock below never resolves, simulating a stuck/rate-limited household
+    // list call; if Stop were still a no-op here, the UI would stay on
+    // "Connecting to Wealthbox..." until the real assertion below times out.
+    crmMocks.crmListHouseholds.mockReturnValue(new Promise(() => {}));
+
+    await connectAndStartSync();
+
+    const stopButton = await screen.findByRole('button', { name: /stop/i });
+    fireEvent.click(stopButton);
+
+    // Settles to "stopped" almost immediately (real timers, well under the
+    // 90s CRM_LIST_HOUSEHOLDS_TIMEOUT_MS ceiling) — proof Stop is now real,
+    // not merely "eventually times out anyway".
+    expect(await screen.findByText(/sync stopped/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /stop/i })).not.toBeInTheDocument();
+  });
+
   it('shows a "taking longer than usual" warning after ~20s of no progress', async () => {
     crmMocks.crmListHouseholds.mockReturnValue(new Promise(() => {}));
 

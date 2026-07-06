@@ -29,6 +29,49 @@ export class CrmTimeoutError extends Error {
 }
 
 /**
+ * Thrown when the user clicks Stop while a step this gate covers is in
+ * flight. Distinct from `CrmTimeoutError` (a stall) — this is an intentional
+ * exit, so callers should treat it like OneDriveConnect treats its own
+ * folder-discovery-phase cancel (a "stopped", not an error).
+ */
+export class CrmCancelledError extends Error {
+  constructor(stage: string) {
+    super(`Wealthbox ${stage} was cancelled`);
+    this.name = 'CrmCancelledError';
+  }
+}
+
+/**
+ * A one-shot cancel gate for a step `crm_cancel_sync` CANNOT reach.
+ *
+ * `crm_cancel_sync` only sets a backend flag that `engine::backfill` polls
+ * between households during `crm_sync_all` — it has no effect on
+ * `crm_list_households`, which has no cancellation awareness at all (a single
+ * paginated GET loop with no access to that flag). Tauri's `invoke()` itself
+ * offers no cancellation (same constraint documented in
+ * `onedriveTimeout.ts`), so a real "Stop" during that phase can only come
+ * from the frontend giving up on the wait. `race()` lets the UI do exactly
+ * that: as soon as `cancel()` fires, the awaited call rejects with
+ * `CrmCancelledError` and the UI moves on immediately. The orphaned
+ * `crmListHouseholds()` call keeps running server-side until it resolves or
+ * hits `CRM_LIST_HOUSEHOLDS_TIMEOUT_MS` above — safe to abandon because
+ * nothing further reads its result once this has fired.
+ */
+export function createCrmCancelGate(stage: string): {
+  cancel: () => void;
+  race: <T>(promise: Promise<T>) => Promise<T>;
+} {
+  let reject: ((err: Error) => void) | undefined;
+  const cancelled = new Promise<never>((_resolve, rej) => {
+    reject = rej;
+  });
+  return {
+    cancel: () => { reject?.(new CrmCancelledError(stage)); },
+    race: (promise) => Promise.race([promise, cancelled]),
+  };
+}
+
+/**
  * Race `promise` against a hard timeout. If it does not settle within `ms`,
  * reject with `CrmTimeoutError(stage)`. The timer is always cleared, so a
  * promise that settles in time never leaves a dangling timer.

@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   withCrmTimeout,
   CrmTimeoutError,
+  CrmCancelledError,
+  createCrmCancelGate,
   CRM_LIST_HOUSEHOLDS_TIMEOUT_MS,
 } from '@/platform/connectors/crm/crmTimeout';
 
@@ -46,5 +48,36 @@ describe('withCrmTimeout', () => {
     const err = new CrmTimeoutError('household list', 90_000);
     expect(err.name).toBe('CrmTimeoutError');
     expect(err.message).toContain('household list');
+  });
+});
+
+describe('createCrmCancelGate', () => {
+  it('race() stays pending until cancel() fires, even though the underlying promise never settles', async () => {
+    const gate = createCrmCancelGate('household list');
+    const neverSettles = new Promise<string[]>(() => {});
+    const raced = gate.race(neverSettles);
+
+    // Real timers here — no fake-timer involvement needed for this gate.
+    let settled = false;
+    void raced.then(
+      () => { settled = true; },
+      () => { settled = true; },
+    );
+    await new Promise((r) => setTimeout(r, 10));
+    expect(settled).toBe(false);
+
+    gate.cancel();
+    await expect(raced).rejects.toMatchObject({ name: 'CrmCancelledError' });
+  });
+
+  it('CrmCancelledError carries the stage in its message', () => {
+    const err = new CrmCancelledError('household list');
+    expect(err.name).toBe('CrmCancelledError');
+    expect(err.message).toContain('household list');
+  });
+
+  it('does not reject when the underlying promise wins the race (cancel never called)', async () => {
+    const gate = createCrmCancelGate('household list');
+    await expect(gate.race(Promise.resolve('households'))).resolves.toBe('households');
   });
 });
