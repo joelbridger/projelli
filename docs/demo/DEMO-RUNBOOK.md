@@ -12,9 +12,11 @@ Think of this like a stage play. You know your lines, you know what might go wro
 
 Do all of this **before** anyone is watching. None of it should happen live.
 
-- [ ] **Use one client folder only, and set it up ahead of time.** Right now the app can only really work well with one client list at a time — think of it like one filing cabinet. If you try to switch to a different filing cabinet in the middle of the demo, the app gets confused about which clients belong where. So pick your demo filing cabinet in advance and don't touch any others.
+- [ ] **Use one demo workspace only, and set it up ahead of time.** Right now the app can only really work well with one client list at a time — think of it like one filing cabinet. If you try to switch to a different filing cabinet in the middle of the demo, the app gets confused about which clients belong where. So pick your demo workspace (your one filing cabinet) in advance and don't touch any others.
 - [ ] **Make sure your example clients are already loaded in.** The app comes with a pretend example client set (three made-up families with a made-up financial advisor firm). Have this loaded in and sitting there before you start.
-- [ ] **Make sure all the files are already "read" by the app.** The app needs a little time to read through documents and understand them, kind of like a person skimming a stack of papers before a meeting. Do that skimming ahead of time, so when you're live, the answers come back instantly instead of you sitting there waiting.
+- [ ] **Clean up the client sidebar.** Old test clients from earlier rehearsals can stick around. Before you start, make sure the sidebar shows only the three demo families you expect — nothing else. Hide or ignore anything left over from testing.
+- [ ] **Make sure all the files are already "read" by the app.** The app needs a little time to read through documents and understand them, kind of like a person skimming a stack of papers before a meeting. Do that skimming ahead of time, so when you're live, the answers come back instantly instead of you sitting there waiting. This preloaded set is what you'll use for Step 4 (Ask) — keep it separate from the small, live import you'll trigger just for Step 3 (Progress Screen).
+- [ ] **Have the prepared Q&A sheet open and ready** (`docs/demo/DEMO-QA-CRIB.md` — the presenter's crib sheet of demo questions), so you're not hunting for it live.
 - [ ] **Download the on-device AI brain ahead of time.** The app can answer questions two ways: using an AI that lives out on the internet (like ChatGPT), or using a smaller AI "brain" that lives right inside the app on the computer, so nothing ever has to leave the machine. That second one is a big file (about the size of half a movie) and takes a while to download. Get it downloaded the night before — never make people watch a download bar during the show.
 - [ ] **Connect and test your ChatGPT key ahead of time.** The app needs a password-like key to talk to ChatGPT. Plug that in beforehand and ask it one test question to make sure it says "yes, working."
 - [ ] **Fully restart the app once, then ask one warm-up question, before anyone arrives.** Computers (and this app) sometimes run a little slow or stiff the very first time they wake up. Restarting once and asking a throwaway question first is like stretching before a run — it wakes everything up so the real demo answers come back fast and smooth.
@@ -40,11 +42,11 @@ If you skip this checklist, the risk is: long boring waits, a download bar nobod
 
 ### Step 2 — Connect Data
 
-**What you're showing:** the app can pull in real client information from the tools advisors already use — email, cloud file storage, and their client-relationship software.
+**What you're showing:** the app can pull in real client information from the tools advisors already use — Outlook (email), OneDrive (cloud file storage), and Wealthbox (their client-relationship software).
 
 **What to do:**
-1. Show the three example connections already made: email inbox, cloud file storage, and the client-relationship tool.
-2. Point out the client count growing when data comes in (e.g. "went from 13 clients to 53 clients" after one real import).
+1. Show the three example connections already made: Outlook, OneDrive, and Wealthbox.
+2. Point out the client count only if it visibly changes while everyone's watching — during a live import, the number can climb within a few seconds as records come in. Don't quote specific numbers unless you're actually watching it happen live in front of people.
 
 **What to say:** "You just point the app at the tools you already use, and it goes and gets your real client information — it doesn't make you retype anything."
 
@@ -55,8 +57,8 @@ If you skip this checklist, the risk is: long boring waits, a download bar nobod
 **What you're showing:** while data is coming in, the app is honest and clear about what it's doing — it doesn't just sit there with a spinning wheel and no explanation.
 
 **What to do:**
-1. Trigger an import (or point at one already mid-way through).
-2. Point at the on-screen message, something like: *"Indexing PDFs: 6 of 6. Nothing leaves your machine."*
+1. Trigger a small, separate live import just for this step (or point at one already mid-way through) — don't reuse your preloaded Step 4 files for this.
+2. Point at whatever progress message is actually on screen — it'll look something like: *"Indexing PDFs: 6 of 6. Nothing leaves your machine."*
 3. Call out that this message updates live as it works.
 
 **What to say:** "Notice it tells you exactly what it's doing and how far along it is — like a loading bar with real words instead of just a spinner."
@@ -68,10 +70,10 @@ If you skip this checklist, the risk is: long boring waits, a download bar nobod
 **What you're showing:** you can ask the app plain-English questions about a client, and it answers using the real documents, with both AI brains.
 
 **What to do:**
-1. Open the ready-made question sheet (`docs/demo/DEMO-QA-CRIB.md`) and pick one question for one of the three example families.
+1. Open the prepared Q&A sheet you already have ready, and pick one question about a family whose files are already fully read — from your preloaded set, not from anything still importing.
 2. Ask it first with **ChatGPT** selected. Read the answer out loud, and point at the little citation/source note showing which document it came from.
 3. Switch to **Local AI** and ask the **same** or a **different short one-fact question** for the same family. Keep it short — the Local AI brain has a much smaller "working memory" than ChatGPT (like the difference between a sticky note and a whiteboard), so long or multi-part questions can come back muddled. Stick to the pre-written short questions.
-4. If the on-screen answer mentions that data is "still importing," don't panic — **say that out loud as a feature**: *"See how it's honest that it's still catching up on some files, instead of guessing? That's on purpose."* Then either wait a moment or re-ask.
+4. If an answer ever mentions that data is "still importing," don't wait it out live — switch straight to a different pre-written question about a family you know is already fully loaded, and move on.
 
 **What to say:** "Ask it something in plain English, like you'd ask a colleague. Watch — it tells you exactly which document the answer came from, so you can always double check it."
 
@@ -98,9 +100,10 @@ If you skip this checklist, the risk is: long boring waits, a download bar nobod
 **What you're showing:** after the meeting, you can ask questions about what was actually said, the same simple way you asked about documents in Step 4.
 
 **What to do:**
-1. Go back to the same Ask box you used in Step 4.
-2. Ask a plain-English question about something that was actually said during the recorded meeting (e.g. "What did we decide about the Roth conversion?").
-3. Point out that the answer is pulled straight from the meeting transcript, with a source note.
+1. Give it a few seconds after the meeting ends — the transcript needs a short moment to finish saving and become searchable, kind of like waiting for a photo to finish printing before you look at it.
+2. Go back to the same Ask box you used in Step 4.
+3. Ask a plain-English question about something that was actually said during the recorded meeting (e.g. "What did we decide about the Roth conversion?").
+4. Point out that the answer is pulled straight from the meeting transcript, with a source note.
 
 **What to say:** "Same Ask box as before — except now it can also search everything that was said out loud in the meeting we just recorded."
 
@@ -117,7 +120,7 @@ Calm, honest narration beats pretending nothing happened. Here's what to say and
 | 3. Progress Screen | Import looks stuck or finishes instantly (no visible progress) | Say: *"This one was quick — most of the heavy lifting already happened before today."* Move on; don't wait around for a bar to move. |
 | 4. Ask | Answer looks thin, vague, or says it can't find anything | Say: *"That file might still be catching up — let's give it a second and ask again,"* then re-ask the same question once. If it's still thin, pick a different pre-written question from the crib sheet instead of improvising a new one. |
 | 5. Record Meeting | The "Recording Notice" guest is slow to knock (up to ~2 minutes is normal) | Keep talking normally — don't go quiet and stare at the screen. When it appears, calmly let it in and narrate it, same as if it had shown up right away. |
-| 5. Record Meeting | The notice guest never knocks at all | Say: *"We'll come back to this one after the call — the recording itself is still running fine."* Keep recording and move on; don't restart the meeting live. |
+| 5. Record Meeting | The notice guest never knocks at all | Say: *"We'll keep going and check the recording after the call."* Keep recording and move on; don't restart the meeting live. |
 | 6. Search Transcript | Answer doesn't seem to include anything from the meeting | Say: *"Let's give the transcript a second to finish saving,"* wait briefly, then re-ask once. If still thin, fall back to a Step-4-style document question instead. |
 
 **General rule for any hiccup, anywhere:** narrate calmly, don't apologize repeatedly, and have a backup question or client ready so you're never standing there in silence.
