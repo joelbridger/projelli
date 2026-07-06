@@ -67,8 +67,9 @@ vi.mock('@/platform/rag/MemoryService', async (importOriginal) => {
       indexWorkspace: vi.fn().mockResolvedValue(undefined),
       reindexPaths: vi.fn().mockResolvedValue(undefined),
       // P1.1: the boot retag now moves rows IN PLACE (batched) instead of re-embedding.
+      // QA-92: retagMatterBatch resolves the PER-PATH misses ([] = all retagged).
       retagMatter: vi.fn().mockResolvedValue(1),
-      retagMatterBatch: vi.fn().mockResolvedValue(1),
+      retagMatterBatch: vi.fn().mockResolvedValue([]),
       retagPrivilege: vi.fn().mockResolvedValue(1),
     },
   };
@@ -547,6 +548,89 @@ describe('reindexFolderPaths — disk scan for externally-added files', () => {
       ['/ws/Northcrest/Clients/Acme/plan.docx'],
       matterId,
     );
+  });
+
+  it('QA-92: falls back to a real index when the in-place retag matches zero rows', async () => {
+    const matterId = 'matter-acme';
+    const folder = 'Clients/Acme';
+
+    useWorkspaceStore.setState({
+      rootPath: '/ws/Northcrest',
+      fileTree: [],
+    });
+    useMatterStore.setState({
+      matters: [makeMatter(matterId, [folder])],
+      activeMatterId: null,
+    });
+
+    const ws = {
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      exists: vi.fn(),
+      getFileTree: vi.fn().mockResolvedValue([
+        makeFolder(folder, [makeFile('Clients/Acme/plan.docx')]),
+      ]),
+    };
+
+    // The in-place retag reported the file as a MISS (the QA-92 hole: it never
+    // got vector rows to re-tag, or a path-form mismatch) — left as-is it stays
+    // UNASSIGNED and is invisible to client-scoped Ask. The fallback must re-index
+    // that miss under the target matter so it becomes searchable this session.
+    // (Once, so this override doesn't leak into later tests — beforeEach's
+    // clearAllMocks resets call history but not the implementation.)
+    retagMatter.mockResolvedValueOnce(['/ws/Northcrest/Clients/Acme/plan.docx']);
+
+    await startFullIndex(ws);
+
+    expect(retagMatter).toHaveBeenCalledWith(
+      ['/ws/Northcrest/Clients/Acme/plan.docx'],
+      matterId,
+    );
+    expect(reindexPaths).toHaveBeenCalledWith(
+      ['/ws/Northcrest/Clients/Acme/plan.docx'],
+      matterId,
+    );
+  });
+
+  it('QA-92 round 2: a MIXED batch re-indexes ONLY the per-path misses, not the retagged sibling', async () => {
+    const matterId = 'matter-acme';
+    const folder = 'Clients/Acme';
+
+    useWorkspaceStore.setState({
+      rootPath: '/ws/Northcrest',
+      fileTree: [],
+    });
+    useMatterStore.setState({
+      matters: [makeMatter(matterId, [folder])],
+      activeMatterId: null,
+    });
+
+    const planAbs = '/ws/Northcrest/Clients/Acme/plan.docx';
+    const statementAbs = '/ws/Northcrest/Clients/Acme/statement.pdf';
+
+    const ws = {
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      exists: vi.fn(),
+      getFileTree: vi.fn().mockResolvedValue([
+        makeFolder(folder, [
+          makeFile('Clients/Acme/plan.docx'),
+          makeFile('Clients/Acme/statement.pdf'),
+        ]),
+      ]),
+    };
+
+    // plan.docx retagged fine; statement.pdf had zero rows → reported as the only
+    // miss. The aggregate count would have been > 0 and hidden this.
+    retagMatter.mockResolvedValueOnce([statementAbs]);
+
+    await retagExistingMatterFolderPaths(ws);
+
+    // One batched retag with BOTH files.
+    expect(retagMatter).toHaveBeenCalledWith([planAbs, statementAbs], matterId);
+    // Only the miss is re-indexed — never the sibling that retagged fine.
+    expect(reindexPaths).toHaveBeenCalledTimes(1);
+    expect(reindexPaths).toHaveBeenCalledWith([statementAbs], matterId);
   });
 
   it('bails instead of retagging folder paths when the workspace switches during the fresh file scan', async () => {

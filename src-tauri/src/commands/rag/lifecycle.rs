@@ -238,17 +238,25 @@ pub async fn rag_retag_matter(
 /// LanceDB UPDATE (per 512-path chunk). The boot retag of a mapped client folder
 /// calls this once per matter instead of re-embedding — or per-file retagging,
 /// which LanceDB makes ~as slow as re-embedding (one data rewrite per UPDATE).
-/// Also syncs each path's manifest scope. Returns rows updated (0 when the table
-/// or the paths aren't indexed).
+/// Also syncs each path's manifest scope.
+///
+/// QA-92 (round 2): returns the PER-PATH MISSES — the paths that STILL have no
+/// rows under `matter_id` after the retag (never-indexed files, or a path-form
+/// mismatch). The caller re-indexes exactly those. Returning per-path misses
+/// (not the single aggregate rows-updated count) is what catches a MIXED batch:
+/// a client folder holding a retaggable `plan.docx` plus a zero-row
+/// `statement.pdf` has a non-zero count, so the aggregate would hide the pdf and
+/// leave it invisible to client-scoped Ask. When the table is absent nothing is
+/// indexed yet, so EVERY path is a miss (the caller indexes them all).
 #[tauri::command]
 pub async fn rag_retag_matter_batch(
     state: State<'_, RagState>,
     paths: Vec<String>,
     matter_id: String,
-) -> Result<u32, String> {
+) -> Result<Vec<String>, String> {
     store::validate_matter_id(&matter_id).map_err(|e| format!("invalid matter id: {e}"))?;
     if paths.is_empty() {
-        return Ok(0);
+        return Ok(Vec::new());
     }
     let workspace = require_workspace(&state).await?;
     let conn = store::open_connection(&workspace)
@@ -260,7 +268,8 @@ pub async fn rag_retag_matter_batch(
         .await
         .map_err(|e| format!("list tables: {e}"))?;
     if !names.iter().any(|n| n == store::TABLE_NAME) {
-        return Ok(0);
+        // No vector table yet → nothing is indexed → every path is a miss.
+        return Ok(paths);
     }
     let table = conn
         .open_table(store::TABLE_NAME)
@@ -274,7 +283,19 @@ pub async fn rag_retag_matter_batch(
     // Keep the manifest's recorded scope in sync for every retagged source, in a
     // SINGLE load→modify→save (a per-path loop would defeat the batching).
     update_manifest_matter_many(&state, &workspace, &paths, &matter_id, &key).await;
-    Ok(updated as u32)
+    // QA-92: verify PER PATH which files actually landed rows under the target
+    // matter; the rest are misses the caller must (re)index.
+    let missing = store::paths_missing_rows_under_matter(&table, &paths, &matter_id, &key)
+        .await
+        .map_err(|e| format!("verify retag rows: {e}"))?;
+    log::debug!(
+        "rag retag batch: {} paths, {} rows updated, {} miss(es) under {}",
+        paths.len(),
+        updated,
+        missing.len(),
+        matter_id,
+    );
+    Ok(missing)
 }
 
 /// P1.1 — set the recorded matter of MANY manifest entries in one
@@ -303,6 +324,18 @@ async fn update_manifest_matter_many(
             log::warn!("rag: failed to save manifest after batched retag: {e}");
         }
     }
+}
+
+/// QA-92 — a PDF may be SKIPPED on boot only when its manifest signature is
+/// stat-fresh AND it still has at least one vector row under its recorded scope.
+/// PDF manifest entries record `row_count = 0` (the frontend indexes PDF chunks
+/// on a separate path), so — unlike text/office — we can't compare an expected
+/// count; ROW PRESENCE is the signal. A manifest-fresh PDF whose rows vanished
+/// (vectors cache lost/rebuilt, or a prior partial OCR) must re-index, or it
+/// stays unsearchable forever (the QA-92 pre-existing-files bug). Pure so the
+/// decision is unit-tested without a live store.
+pub(crate) fn pdf_can_skip(stat_fresh: bool, rows_present: usize) -> bool {
+    stat_fresh && rows_present > 0
 }
 
 /// P1.1 (Task 3) — is this PDF already indexed at its current version + OCR
@@ -364,9 +397,29 @@ pub async fn rag_manifest_pdf_fresh(
         return Ok(false);
     }
     let now = manifest::PdfInputs::current(ocr_enabled);
-    Ok(m.get(&token)
-        .map(|s| s.is_fresh(size, mtime, Some(&now)))
-        .unwrap_or(false))
+    let Some(sig) = m.get(&token) else {
+        return Ok(false);
+    };
+    if !sig.is_fresh(size, mtime, Some(&now)) {
+        return Ok(false);
+    }
+    // QA-92: a stat-fresh signature is not enough — prove the PDF's rows are
+    // actually present under its recorded scope before skipping. PDF manifest
+    // entries record row_count=0, so gate on PRESENCE (any row), not an expected
+    // count, or every unchanged PDF would needlessly re-OCR on each boot.
+    let conn = store::open_connection(&workspace)
+        .await
+        .map_err(|e| format!("open lancedb: {e}"))?;
+    let table = conn
+        .open_table(store::TABLE_NAME)
+        .execute()
+        .await
+        .map_err(|e| format!("open table: {e}"))?;
+    let rows =
+        store::path_row_count_for_scope(&table, &path, &sig.matter_id, &sig.privilege, &key)
+            .await
+            .map_err(|e| format!("count pdf rows: {e}"))?;
+    Ok(pdf_can_skip(true, rows))
 }
 
 /// P1.1 (Task 3) — record a PDF's signature after the frontend has successfully
@@ -433,4 +486,30 @@ pub async fn rag_manifest_forget_pdfs(state: State<'_, RagState>) -> Result<(), 
         manifest::save(&workspace, &m).map_err(|e| format!("save manifest: {e}"))?;
     }
     Ok(())
+}
+
+// ── QA-92: a manifest-"fresh" PDF whose vector rows are gone must re-index, not
+//    be skipped on boot (the pre-existing-files-invisible bug, PDF path) ──
+#[cfg(test)]
+mod qa92_pdf_tests {
+    use super::*;
+
+    // RED before the fix: the pre-fix path skipped a stat-fresh PDF even with
+    // zero surviving rows, leaving it unsearchable forever.
+    #[test]
+    fn manifest_fresh_pdf_with_zero_rows_must_not_skip() {
+        assert!(!pdf_can_skip(true, 0));
+    }
+
+    // A genuinely-indexed PDF must still skip (no needless re-OCR every boot).
+    #[test]
+    fn manifest_fresh_pdf_with_rows_may_skip() {
+        assert!(pdf_can_skip(true, 4));
+    }
+
+    // A changed/stale PDF never skips, rows or not.
+    #[test]
+    fn stale_pdf_never_skips_regardless_of_rows() {
+        assert!(!pdf_can_skip(false, 10));
+    }
 }

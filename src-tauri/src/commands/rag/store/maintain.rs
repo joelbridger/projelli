@@ -119,6 +119,120 @@ pub async fn path_has_expected_rows_for_scope(
     Ok(rows >= expected_rows as usize)
 }
 
+/// QA-92 — one column-only scan returning, per `(path-token, matter_id,
+/// privilege)`, how many vector rows currently exist. The boot reconcile uses
+/// this to prove a manifest "fresh" entry's rows REALLY exist under its recorded
+/// scope before it SKIPS the file — WITHOUT firing a per-file `count_rows` query
+/// for every unchanged file (which, on a warm boot of a large workspace, is a
+/// per-file full-table scan flood). `path` stores the HMAC path token (the same
+/// value a manifest key carries); `matter_id`/`privilege` are the plaintext
+/// scope columns. Pre-computed once, it turns each skip's row-proof into an O(1)
+/// in-memory lookup.
+pub async fn scoped_row_counts(
+    table: &Table,
+) -> Result<std::collections::HashMap<(String, String, String), usize>> {
+    use futures_util::TryStreamExt;
+    let mut stream = table
+        .query()
+        .select(Select::columns(&["path", "matter_id", "privilege"]))
+        .execute()
+        .await
+        .context("scoped_row_counts query execute failed")?;
+
+    let mut counts: std::collections::HashMap<(String, String, String), usize> =
+        std::collections::HashMap::new();
+    while let Some(batch) = stream
+        .try_next()
+        .await
+        .context("scoped_row_counts stream try_next failed")?
+    {
+        let path = batch
+            .column_by_name("path")
+            .context("missing path column")?
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .context("path column is not StringArray")?;
+        let matter = batch
+            .column_by_name("matter_id")
+            .context("missing matter_id column")?
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .context("matter_id column is not StringArray")?;
+        let privilege = batch
+            .column_by_name("privilege")
+            .context("missing privilege column")?
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .context("privilege column is not StringArray")?;
+        for i in 0..path.len() {
+            if path.is_null(i) || matter.is_null(i) || privilege.is_null(i) {
+                continue;
+            }
+            *counts
+                .entry((
+                    path.value(i).to_string(),
+                    matter.value(i).to_string(),
+                    privilege.value(i).to_string(),
+                ))
+                .or_insert(0) += 1;
+        }
+    }
+    Ok(counts)
+}
+
+/// QA-92 (round 2) — return which of `paths` have NO vector rows under
+/// `matter_id` right now (any privilege). Called right after a batched matter
+/// retag to find the files whose rows did NOT move to the target scope — a
+/// never-indexed file, or a path-form mismatch — so the caller can re-index
+/// EXACTLY those. The single aggregate rows-updated count from the batch cannot
+/// reveal this: in a MIXED batch (e.g. a client folder holding a retaggable
+/// `plan.docx` plus a zero-row `statement.pdf`) the count is > 0, so the miss
+/// hides and that one file stays unassigned and invisible to client-scoped Ask.
+/// ONE column scan filtered to the target matter → O(1) membership per path.
+pub async fn paths_missing_rows_under_matter(
+    table: &Table,
+    paths: &[String],
+    matter_id: &str,
+    key: &[u8; 32],
+) -> Result<Vec<String>> {
+    use futures_util::TryStreamExt;
+    let matter_id = validate_matter_id(matter_id)?;
+    // ONE column-only scan of the rows currently under the target matter,
+    // projecting the tokenized `path` column into a membership set.
+    let predicate = format!("matter_id = '{}'", sql_escape(matter_id));
+    let mut stream = table
+        .query()
+        .only_if(predicate)
+        .select(Select::columns(&["path"]))
+        .execute()
+        .await
+        .context("paths_missing_rows_under_matter query execute failed")?;
+    let mut present: HashSet<String> = HashSet::new();
+    while let Some(batch) = stream
+        .try_next()
+        .await
+        .context("paths_missing_rows_under_matter stream try_next failed")?
+    {
+        let col = batch
+            .column_by_name("path")
+            .context("missing path column")?
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .context("path column is not StringArray")?;
+        for i in 0..col.len() {
+            if !col.is_null(i) {
+                present.insert(col.value(i).to_string());
+            }
+        }
+    }
+    // A path is a miss iff NONE of its rows are present under the target matter.
+    Ok(paths
+        .iter()
+        .filter(|p| !present.contains(&super::super::crypto::path_token(key, p)))
+        .cloned()
+        .collect())
+}
+
 /// WS-PRIV — re-tag the privilege of every already-indexed chunk for `path`
 /// IN PLACE, without re-embedding. Used when the user toggles a source's
 /// privilege: the chunk text + vectors are unchanged, only the `privilege`

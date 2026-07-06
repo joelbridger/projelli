@@ -133,6 +133,40 @@ pub(crate) fn needs_drop_and_rebuild(
     migrating || stale_key_format || rebuild_required
 }
 
+/// QA-92 — given a stat-fresh manifest entry, its path token, and the per-scope
+/// row counts pre-scanned from the live table, decide whether a boot reconcile
+/// may SKIP the file. The manifest is only a receipt: a file can look "already
+/// indexed" on paper while its actual vector rows are gone — a partial prior
+/// index, a lost/rebuilt vectors cache, or a retag that flipped the recorded
+/// scope without moving rows. Skipping such a file leaves a pre-existing file
+/// silently unsearchable forever (the QA-92 demo blocker). Skip ONLY when the
+/// entry claims a non-zero row count AND at least that many rows actually exist
+/// under the entry's RECORDED scope; otherwise re-index.
+///
+/// `row_count == 0` is treated as "unknown, not trusted" — mirrors the
+/// single-file fast-path guard `path_has_expected_rows_for_scope`. Pure so the
+/// decision is unit-tested without a live store.
+pub(crate) fn reconcile_skip_is_row_backed(
+    entry: &manifest::SourceSignature,
+    token: &str,
+    scoped_counts: &std::collections::HashMap<(String, String, String), usize>,
+) -> bool {
+    // A receipt that recorded 0 rows can't prove anything is searchable (legacy
+    // single-file writes stored 0 for non-empty files) — re-index to be sure.
+    if entry.row_count == 0 {
+        return false;
+    }
+    let present = scoped_counts
+        .get(&(
+            token.to_string(),
+            entry.matter_id.clone(),
+            entry.privilege.clone(),
+        ))
+        .copied()
+        .unwrap_or(0);
+    present >= entry.row_count as usize
+}
+
 /// P1.1 — shared engine behind `rag_index_workspace` (Full) and
 /// `rag_reconcile_workspace` (Reconcile). See `IndexMode`.
 pub(crate) async fn run_workspace_index(
@@ -396,6 +430,27 @@ pub(crate) async fn run_workspace_index(
     let mut next_sources: std::collections::BTreeMap<String, manifest::SourceSignature> =
         std::collections::BTreeMap::new();
 
+    // QA-92: pre-scan the live table ONCE so every SKIP below can PROVE its rows
+    // still exist under the recorded scope in O(1) — a manifest "fresh" receipt
+    // whose vector rows are missing (partial prior index, lost/rebuilt cache, or
+    // a retag that flipped the recorded scope without moving rows) must NOT be
+    // skipped, or the pre-existing file stays permanently unsearchable. Only a
+    // reconcile skips files (a full walk re-indexes everything), so the scan is
+    // needless there. If the scan itself fails, an empty map makes every skip
+    // look unproven → re-index — the correct fail-safe (never skip a stale file).
+    let scoped_counts: std::collections::HashMap<(String, String, String), usize> =
+        if effective_full {
+            std::collections::HashMap::new()
+        } else {
+            store::scoped_row_counts(&table).await.unwrap_or_else(|e| {
+                log::warn!(
+                    "rag reconcile: scoped_row_counts failed ({e:#}); treating all \
+                     skips as unproven → re-index (fail safe)"
+                );
+                std::collections::HashMap::new()
+            })
+        };
+
     for file in &all_files {
         if effective_full {
             // Full walk: (re)index everything under the workspace-default scope
@@ -421,12 +476,31 @@ pub(crate) async fn run_workspace_index(
             manifest::stat_signature(file),
             tombstoned,
         ) {
-            manifest::FileDecision::Skip => {
-                if let Some(entry) = manifest.get(&token) {
+            manifest::FileDecision::Skip => match manifest.get(&token) {
+                Some(entry) if reconcile_skip_is_row_backed(entry, &token, &scoped_counts) => {
                     next_sources.insert(token, entry.clone());
+                    reused += 1;
                 }
-                reused += 1;
-            }
+                Some(entry) => {
+                    // QA-92: stat-fresh, but its vector rows are missing/short
+                    // under the recorded scope — re-index under that SAME scope
+                    // (never widened) so the pre-existing file becomes searchable.
+                    work.push(WorkItem {
+                        file: file.clone(),
+                        matter: entry.matter_id.clone(),
+                        privilege: entry.privilege.clone(),
+                    });
+                }
+                None => {
+                    // decide_file only returns Skip for a present entry; re-index
+                    // defensively rather than skip a file we can't prove is indexed.
+                    work.push(WorkItem {
+                        file: file.clone(),
+                        matter: store::UNASSIGNED_MATTER.to_string(),
+                        privilege: store::PRIVILEGE_NONE.to_string(),
+                    });
+                }
+            },
             manifest::FileDecision::Reindex { prior_scope } => {
                 let (m, p) = prior_scope.unwrap_or_else(|| {
                     (
@@ -916,5 +990,249 @@ mod flood_proofing_tests {
             !latch.load(Ordering::SeqCst),
             "a completed setup must not re-arm behind finalize_walk"
         );
+    }
+}
+
+// ── QA-92: a boot reconcile must never SKIP a manifest-"fresh" file whose
+//    vector rows are actually missing (the pre-existing-files-invisible bug) ──
+#[cfg(test)]
+mod qa92_tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    const TEST_KEY: [u8; 32] = [0x51u8; 32];
+
+    fn entry(matter: &str, privilege: &str, row_count: u32) -> manifest::SourceSignature {
+        manifest::SourceSignature {
+            size: 100,
+            mtime_ns: 42,
+            hash: None,
+            extractor_version: 0,
+            chunker_version: 0,
+            embedder_version: String::new(),
+            pdf: None,
+            matter_id: matter.to_string(),
+            privilege: privilege.to_string(),
+            row_count,
+            indexed_at: 0,
+        }
+    }
+
+    fn counts(
+        pairs: &[(&str, &str, &str, usize)],
+    ) -> HashMap<(String, String, String), usize> {
+        pairs
+            .iter()
+            .map(|(tok, m, p, n)| ((tok.to_string(), m.to_string(), p.to_string()), *n))
+            .collect()
+    }
+
+    // RED before the fix: the pre-fix reconcile skips this file, leaving it
+    // unsearchable forever. After the fix, a fresh entry with NO rows must be
+    // re-indexed (not row-backed).
+    #[test]
+    fn fresh_entry_without_any_rows_is_not_row_backed() {
+        let e = entry("m-1", store::PRIVILEGE_NONE, 3);
+        assert!(!reconcile_skip_is_row_backed(&e, "tok-A", &counts(&[])));
+    }
+
+    // RED before the fix: only SOME of the expected rows survived (a partial
+    // index / interrupted write). Must re-index.
+    #[test]
+    fn fresh_entry_with_partial_rows_is_not_row_backed() {
+        let e = entry("m-1", store::PRIVILEGE_NONE, 3);
+        let c = counts(&[("tok-A", "m-1", store::PRIVILEGE_NONE, 2)]);
+        assert!(!reconcile_skip_is_row_backed(&e, "tok-A", &c));
+    }
+
+    // RED before the fix: a receipt that recorded 0 rows for a real file can't
+    // prove anything (legacy single-file writes stored 0). Re-index.
+    #[test]
+    fn zero_row_count_entry_is_not_row_backed() {
+        let e = entry("m-1", store::PRIVILEGE_NONE, 0);
+        let c = counts(&[("tok-A", "m-1", store::PRIVILEGE_NONE, 5)]);
+        assert!(!reconcile_skip_is_row_backed(&e, "tok-A", &c));
+    }
+
+    // RED before the fix: rows exist for this path but under a DIFFERENT matter
+    // (the retag-divergence case — manifest flipped to m-2 while rows stayed
+    // under m-1). Skipping would leave the file invisible under m-2. Re-index.
+    #[test]
+    fn rows_under_a_different_scope_do_not_back_skip() {
+        let e = entry("m-2", store::PRIVILEGE_NONE, 2);
+        let c = counts(&[("tok-A", "m-1", store::PRIVILEGE_NONE, 2)]);
+        assert!(!reconcile_skip_is_row_backed(&e, "tok-A", &c));
+    }
+
+    // GREEN both before and after (a genuinely row-backed file must still skip —
+    // the fix must not force a needless re-embed of every unchanged file).
+    #[test]
+    fn fresh_entry_with_enough_rows_under_scope_is_row_backed() {
+        let e = entry("m-1", store::PRIVILEGE_NONE, 2);
+        let c = counts(&[("tok-A", "m-1", store::PRIVILEGE_NONE, 2)]);
+        assert!(reconcile_skip_is_row_backed(&e, "tok-A", &c));
+    }
+
+    // Near-end-to-end: prove `scoped_row_counts` reflects the real table and
+    // that the skip decision it feeds is correct. pathA is truly indexed (2
+    // rows) → skip; pathB has a fresh manifest entry but ZERO rows → re-index.
+    #[tokio::test]
+    async fn scoped_counts_gate_skip_end_to_end() {
+        let dir = tempfile::tempdir().unwrap();
+        let workspace = dir.path();
+        let conn = store::open_connection(workspace).await.unwrap();
+        let table = store::open_or_create_table(&conn).await.unwrap();
+
+        let path_a = workspace.join("indexed.docx").to_string_lossy().to_string();
+        let tok_a = crypto::path_token(&TEST_KEY, &path_a);
+        store::upsert_chunks_for_path(
+            &table,
+            &path_a,
+            vec![
+                (
+                    chunker::Chunk {
+                        path: path_a.clone(),
+                        paragraph_index: 0,
+                        text: "portfolio review".to_string(),
+                        start_offset: 0,
+                        end_offset: 16,
+                        locator: None,
+                    },
+                    vec![0.1; embedder::EMBEDDING_DIM],
+                ),
+                (
+                    chunker::Chunk {
+                        path: path_a.clone(),
+                        paragraph_index: 1,
+                        text: "tax planning".to_string(),
+                        start_offset: 17,
+                        end_offset: 29,
+                        locator: None,
+                    },
+                    vec![0.2; embedder::EMBEDDING_DIM],
+                ),
+            ],
+            store::SourceType::Text,
+            "m-1",
+            store::PRIVILEGE_NONE,
+            &TEST_KEY,
+        )
+        .await
+        .unwrap();
+
+        // pathB is on disk with a "fresh" manifest entry but was never written
+        // to the vector table (the QA-92 symptom).
+        let path_b = workspace.join("preexisting.docx").to_string_lossy().to_string();
+        let tok_b = crypto::path_token(&TEST_KEY, &path_b);
+
+        let scoped = store::scoped_row_counts(&table).await.unwrap();
+        assert_eq!(
+            scoped.get(&(tok_a.clone(), "m-1".to_string(), store::PRIVILEGE_NONE.to_string())),
+            Some(&2),
+            "the truly-indexed file must show its 2 rows under (m-1, none)"
+        );
+
+        let entry_a = entry("m-1", store::PRIVILEGE_NONE, 2);
+        let entry_b = entry("m-1", store::PRIVILEGE_NONE, 2);
+        assert!(
+            reconcile_skip_is_row_backed(&entry_a, &tok_a, &scoped),
+            "a file whose rows are present must skip"
+        );
+        assert!(
+            !reconcile_skip_is_row_backed(&entry_b, &tok_b, &scoped),
+            "a pre-existing file with a fresh receipt but NO rows must re-index"
+        );
+    }
+
+    // QA-92 round 2: a MIXED batch retag must be checked PER PATH — the file
+    // with rows under the target matter is fine, but the sibling with zero rows
+    // (never indexed / path-form mismatch) is a miss and must be reported so the
+    // caller re-indexes only it. The aggregate rows-updated count hides this.
+    #[tokio::test]
+    async fn paths_missing_rows_under_matter_flags_only_the_zero_row_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let workspace = dir.path();
+        let conn = store::open_connection(workspace).await.unwrap();
+        let table = store::open_or_create_table(&conn).await.unwrap();
+
+        // plan.docx has rows under matter m-acme; statement.pdf has none.
+        let has_rows = workspace.join("Acme/plan.docx").to_string_lossy().to_string();
+        let no_rows = workspace.join("Acme/statement.pdf").to_string_lossy().to_string();
+        store::upsert_chunks_for_path(
+            &table,
+            &has_rows,
+            vec![(
+                chunker::Chunk {
+                    path: has_rows.clone(),
+                    paragraph_index: 0,
+                    text: "retirement plan".to_string(),
+                    start_offset: 0,
+                    end_offset: 15,
+                    locator: None,
+                },
+                vec![0.1; embedder::EMBEDDING_DIM],
+            )],
+            store::SourceType::Text,
+            "m-acme",
+            store::PRIVILEGE_NONE,
+            &TEST_KEY,
+        )
+        .await
+        .unwrap();
+
+        let misses = store::paths_missing_rows_under_matter(
+            &table,
+            &[has_rows.clone(), no_rows.clone()],
+            "m-acme",
+            &TEST_KEY,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            misses,
+            vec![no_rows],
+            "only the zero-row sibling must be reported as a miss"
+        );
+    }
+
+    // A path whose rows live under a DIFFERENT matter is a miss for the target
+    // matter (it needs (re)indexing/retag under the target), and it must NOT be
+    // wrongly treated as present just because it has rows somewhere.
+    #[tokio::test]
+    async fn paths_under_a_different_matter_are_misses_for_the_target() {
+        let dir = tempfile::tempdir().unwrap();
+        let workspace = dir.path();
+        let conn = store::open_connection(workspace).await.unwrap();
+        let table = store::open_or_create_table(&conn).await.unwrap();
+
+        let path = workspace.join("doc.docx").to_string_lossy().to_string();
+        store::upsert_chunks_for_path(
+            &table,
+            &path,
+            vec![(
+                chunker::Chunk {
+                    path: path.clone(),
+                    paragraph_index: 0,
+                    text: "held elsewhere".to_string(),
+                    start_offset: 0,
+                    end_offset: 14,
+                    locator: None,
+                },
+                vec![0.3; embedder::EMBEDDING_DIM],
+            )],
+            store::SourceType::Text,
+            "m-other",
+            store::PRIVILEGE_NONE,
+            &TEST_KEY,
+        )
+        .await
+        .unwrap();
+
+        let misses =
+            store::paths_missing_rows_under_matter(&table, &[path.clone()], "m-acme", &TEST_KEY)
+                .await
+                .unwrap();
+        assert_eq!(misses, vec![path], "rows under another matter don't count");
     }
 }

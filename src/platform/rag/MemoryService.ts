@@ -355,9 +355,13 @@ export const MemoryService = {
    * P1.1 — BATCHED matter retag: re-tag many sources' chunks to `matterId` in one
    * LanceDB UPDATE per chunk. The boot retag of a mapped client folder uses this
    * (grouped per matter) so a warm boot of a mapped workspace stays cheap.
+   *
+   * QA-92: returns the paths that STILL have no rows under `matterId` after the
+   * retag (never-indexed / path-form mismatch), so the caller re-indexes exactly
+   * those. Empty when memory is off or there are no paths.
    */
-  async retagMatterBatch(sourceIds: string[], matterId: string): Promise<number> {
-    if (!isMemoryEnabled() || sourceIds.length === 0) return 0;
+  async retagMatterBatch(sourceIds: string[], matterId: string): Promise<string[]> {
+    if (!isMemoryEnabled() || sourceIds.length === 0) return [];
     return ragRetagMatterBatch(sourceIds, matterId);
   },
 
