@@ -1,6 +1,7 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useEffect, useRef, useState } from 'react';
 import { isTauri } from '@tauri-apps/api/core';
+import { InfoHelp } from '@/ui/InfoHelp';
 import {
   crmConnect,
   crmIsConnected,
@@ -454,11 +455,10 @@ export function WealthboxConnect() {
   if (!isTauri()) {
     return (
       <section className="rounded-lg border border-slate-200 bg-white p-4">
-        <h3 className="text-sm font-semibold text-slate-900">Wealthbox</h3>
-        <p className="mt-1 text-sm text-slate-600">
-          Connect your Wealthbox account to bring client household data into
-          your Client Maps. Requires the Advisor Prep Hero desktop app.
-        </p>
+        <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
+          Wealthbox
+          <InfoHelp content="Connect your Wealthbox account to bring client household data into your Client Maps. Requires the Advisor Prep Hero desktop app." />
+        </h3>
         <p className="mt-3 text-xs text-slate-400 italic">
           Available in the desktop app only.
         </p>
@@ -469,11 +469,10 @@ export function WealthboxConnect() {
   return (
     <>
       <section className="rounded-lg border border-slate-200 bg-white p-4">
-        <h3 className="text-sm font-semibold text-slate-900">Wealthbox</h3>
-        <p className="mt-1 text-sm text-slate-600">
-          Connect your Wealthbox account to bring client household data into
-          your Client Maps. Advisor Prep Hero imports what this Wealthbox login can see.
-        </p>
+        <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
+          Wealthbox
+          <InfoHelp content="Connect your Wealthbox account to bring client household data into your Client Maps. Advisor Prep Hero imports what this Wealthbox login can see." />
+        </h3>
 
         {/* B3: disconnect didn't fully remove the data/key — keep a visible retry
             regardless of connection state, so the user is never stuck with data

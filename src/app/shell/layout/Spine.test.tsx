@@ -19,9 +19,13 @@ describe('Spine sidebar client list', () => {
 
   it('lists active clients but excludes archived ones', () => {
     render(<Spine />);
-    expect(screen.getByText('Alvarez')).toBeTruthy();
-    expect(screen.getByText('Bishop')).toBeTruthy();
-    expect(screen.queryByText('Carver')).toBeNull();
+    // Rule: the client name is never repeated as a separate subtext line —
+    // matterLabel() folds it into the one-line label ("Client - Name" when
+    // the internal name differs from the client, or just the name/client
+    // when they match), so the client's name is still visible right here.
+    expect(screen.getByText(/Alvarez/)).toBeTruthy();
+    expect(screen.getByText(/Bishop/)).toBeTruthy();
+    expect(screen.queryByText(/Carver/)).toBeNull();
   });
 
   it('falls back to the "+ New client" empty state once every client is archived', () => {
@@ -32,7 +36,7 @@ describe('Spine sidebar client list', () => {
       activeMatterId: null,
     });
     render(<Spine />);
-    expect(screen.queryByText('Alvarez')).toBeNull();
+    expect(screen.queryByText(/Alvarez/)).toBeNull();
     expect(screen.getAllByTestId('spine-new-client').length).toBeGreaterThan(0);
   });
 });

@@ -27,6 +27,7 @@ import {
 } from '@/platform/rag/matterResolver';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
+import { InfoHelp } from '@/ui/InfoHelp';
 
 const PROVIDER = 'salesforce' as const;
 const SALESFORCE_KEY_PREFIX = 'sfdc:';
@@ -278,14 +279,10 @@ export function SalesforceConnect() {
   if (!isTauri()) {
     return (
       <section className="rounded-lg border border-slate-200 bg-white p-4">
-        <h3 className="text-sm font-semibold text-slate-900">Salesforce FSC</h3>
-        <p className="mt-1 text-sm text-slate-600">
-          Connect Salesforce Financial Services Cloud to bring household and
-          contact data into Client Maps. Requires the Advisor Prep Hero desktop app.
-        </p>
-        <p className="mt-3 text-xs text-slate-400 italic">
-          Available in the desktop app only.
-        </p>
+        <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
+          Salesforce FSC
+          <InfoHelp content="Connect Salesforce Financial Services Cloud to bring household and contact data into Client Maps. Requires the Advisor Prep Hero desktop app." />
+        </h3>
       </section>
     );
   }
@@ -293,11 +290,10 @@ export function SalesforceConnect() {
   return (
     <>
       <section className="rounded-lg border border-slate-200 bg-white p-4">
-        <h3 className="text-sm font-semibold text-slate-900">Salesforce FSC</h3>
-        <p className="mt-1 text-sm text-slate-600">
-          Connect Salesforce Financial Services Cloud to import the households
-          and contacts this login can read. This connector is read-only.
-        </p>
+        <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
+          Salesforce FSC
+          <InfoHelp content="Connect Salesforce Financial Services Cloud to import the households and contacts this login can read. This connector is read-only." />
+        </h3>
 
         {!connected && (
           <div className="mt-3 space-y-3">

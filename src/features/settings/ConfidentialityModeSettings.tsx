@@ -30,6 +30,7 @@ import { useState, useRef } from 'react';
 import { Laptop, Cloud, ShieldCheck, ShieldOff, MapPin, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/ui/button';
+import { InfoHelp } from '@/ui/InfoHelp';
 import {
   useConfidentialityMode,
   useRecordConfidentialityChoice,
@@ -118,11 +119,9 @@ export function ConfidentialityModeSettings() {
       data-active-mode={active}
       className="py-3 border-b border-border/50"
     >
-      <div className="mb-3">
+      <div className="mb-3 flex items-center gap-1.5">
         <h3 className="text-sm font-medium">Where AI requests go</h3>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          Choose whether AI requests stay on your computer or are sent to a cloud provider you control.
-        </p>
+        <InfoHelp content="Choose whether AI requests stay on your computer or are sent to a cloud provider you control." />
       </div>
 
       <div className={cn('grid gap-2', isFirmUser ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
@@ -133,29 +132,46 @@ export function ConfidentialityModeSettings() {
           const disabled =
             (!!card.comingSoon && card.mode !== 'assured') ||
             modeNeedsManagedKey(card.mode, assuredAvailable);
+          // The card is a NON-interactive container. Selection happens through
+          // an invisible "stretched" button covering the whole card, and the
+          // per-card InfoHelp is a real sibling button layered above it — so no
+          // focusable control is ever nested inside another (which broke
+          // keyboard/screen-reader behavior and made the help unreachable on
+          // disabled cards). The rendered pixels are identical to the old
+          // single-<button> card.
           return (
-            <button
+            <div
               key={card.mode}
-              type="button"
-              data-testid={`confidentiality-mode-${card.mode}`}
+              data-testid={`confidentiality-mode-card-${card.mode}`}
               data-selected={selected ? 'true' : 'false'}
               data-disabled={disabled ? 'true' : 'false'}
-              disabled={disabled}
-              aria-pressed={selected}
-              onClick={() => {
-                if (!disabled) setMode(card.mode);
-              }}
               className={cn(
                 'relative text-left rounded-lg border p-3 transition-colors',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 disabled
-                  ? 'opacity-60 cursor-not-allowed border-border bg-muted/20'
+                  ? 'opacity-60 border-border bg-muted/20'
                   : selected
                     ? cn('bg-background shadow-sm', card.accent)
                     : 'border-border hover:bg-muted/30',
               )}
             >
-              <div className="flex items-center justify-between gap-2 mb-1">
+              <button
+                type="button"
+                data-testid={`confidentiality-mode-${card.mode}`}
+                disabled={disabled}
+                aria-pressed={selected}
+                aria-label={card.title}
+                onClick={() => {
+                  if (!disabled) setMode(card.mode);
+                }}
+                className={cn(
+                  // -inset-px stretches over the card's 1px border so the
+                  // clickable area and focus ring match the old full-card button.
+                  'absolute -inset-px rounded-lg',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  disabled && 'cursor-not-allowed',
+                )}
+              />
+              <div className="pointer-events-none relative flex items-center justify-between gap-2 mb-1">
                 <span
                   className={cn(
                     'inline-flex items-center gap-1.5 font-medium text-sm',
@@ -164,6 +180,11 @@ export function ConfidentialityModeSettings() {
                 >
                   <Icon className="h-4 w-4 shrink-0" aria-hidden />
                   {card.title}
+                  <InfoHelp
+                    className="pointer-events-auto"
+                    content={card.blurb}
+                    label={`About ${card.title}`}
+                  />
                 </span>
                 <span className="flex items-center gap-1.5 shrink-0">
                   {card.tag && (
@@ -184,8 +205,7 @@ export function ConfidentialityModeSettings() {
                   )}
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground leading-relaxed">{card.blurb}</p>
-            </button>
+            </div>
           );
         })}
       </div>
@@ -224,12 +244,8 @@ export function ConfidentialityModeSettings() {
             <span className="inline-flex items-center gap-1.5 text-sm font-medium">
               <ShieldOff className="h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400" aria-hidden />
               Network lockdown
+              <InfoHelp content="Turns off network-capable extensions so confidential work cannot leave your machine through one. Network plugins are blocked and MCP servers are disabled. Everything else keeps working." />
             </span>
-            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-              Turns off network-capable extensions so confidential work cannot
-              leave your machine through one. Network plugins are blocked and MCP
-              servers are disabled. Everything else keeps working.
-            </p>
           </div>
           <button
             type="button"

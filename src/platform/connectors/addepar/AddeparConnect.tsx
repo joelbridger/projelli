@@ -23,6 +23,7 @@ import {
   normalizeClientName,
 } from '@/platform/rag/matterResolver';
 import { Button } from '@/ui/kp';
+import { InfoHelp } from '@/ui/InfoHelp';
 import { withTimeout } from '@/lib/withTimeout';
 import { AuditService } from '@/platform/audit/AuditService';
 import { sanitizeSyncError } from '@/platform/connectors/syncAuditError';
@@ -207,8 +208,10 @@ export function AddeparConnect() {
   if (!isTauri()) {
     return (
       <section className="rounded-lg border border-slate-200 bg-white p-4">
-        <h3 className="text-sm font-semibold text-slate-900">Addepar</h3>
-        <p className="mt-1 text-xs text-slate-500">Addepar sync is available in the desktop app.</p>
+        <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
+          Addepar
+          <InfoHelp content="Addepar sync is available in the desktop app." />
+        </h3>
       </section>
     );
   }
@@ -221,10 +224,10 @@ export function AddeparConnect() {
             <Landmark className="h-4 w-4" aria-hidden="true" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-slate-900">Addepar</h3>
-            <p className="mt-1 max-w-xl text-xs text-slate-500">
-              Import household holdings, asset allocation, accounts, and performance summaries. Advisor Prep Hero only reads Addepar data.
-            </p>
+            <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
+              Addepar
+              <InfoHelp content="Import household holdings, asset allocation, accounts, and performance summaries. Advisor Prep Hero only reads Addepar data." />
+            </h3>
           </div>
         </div>
         <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">

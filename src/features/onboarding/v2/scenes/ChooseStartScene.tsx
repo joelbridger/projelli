@@ -25,6 +25,7 @@ import { useState } from 'react';
 import { Check, FolderPlus, Sparkles, Loader2 } from 'lucide-react';
 
 import type { OnboardingStartMode, OnboardingStartResult } from '../../onboardingTypes';
+import { InfoHelp } from '@/ui/InfoHelp';
 
 export interface ChooseStartSceneProps {
   /** Establish the workspace (and seed the sample for 'sample'); resolves with
@@ -67,13 +68,10 @@ export function ChooseStartScene({ onChooseStart, onReady }: ChooseStartScenePro
 
   return (
     <div className="flex w-full flex-col items-center" data-testid="onboarding-v2-choose-start">
-      <h1 className="text-3xl font-extrabold tracking-[-0.01em] text-[var(--kp-navy)] md:text-4xl">
+      <h1 className="inline-flex items-center gap-2 text-3xl font-extrabold tracking-[-0.01em] text-[var(--kp-navy)] md:text-4xl">
         How do you want to start?
+        <InfoHelp content="You can explore a ready-made sample practice right now, or point Advisor Prep Hero at your own data. You can always switch later." />
       </h1>
-      <p className="mt-3 max-w-[46ch] text-base text-[rgba(var(--kp-navy-rgb),0.70)]">
-        You can explore a ready-made sample practice right now, or point Advisor Prep Hero
-        at your own data. You can always switch later.
-      </p>
 
       <div className="mt-10 grid w-full max-w-[920px] grid-cols-1 gap-6 text-left md:grid-cols-2">
         {/* ---- Sample practice (recommended / default) ---- */}
@@ -90,11 +88,13 @@ export function ChooseStartScene({ onChooseStart, onReady }: ChooseStartScenePro
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--kp-accent)]/10">
             <Sparkles className="h-5 w-5 text-[var(--kp-accent)]" strokeWidth={2} aria-hidden="true" />
           </div>
-          <h2 className="mt-4 text-xl font-bold text-[var(--kp-navy)]">Start with a sample practice</h2>
-          <p className="mt-2 text-sm leading-relaxed text-[#41506a]">
-            Land in a populated practice — the Hendricks Household, with real documents and a
-            ready Client Map — so you can ask a cited question in your first minute.
-          </p>
+          <h2 className="inline-flex items-center gap-1.5 mt-4 text-xl font-bold text-[var(--kp-navy)]">
+            Start with a sample practice
+            <InfoHelp
+              as="span"
+              content="Land in a populated practice — the Hendricks Household, with real documents and a ready Client Map — so you can ask a cited question in your first minute."
+            />
+          </h2>
           <ul className="mt-4 space-y-2">
             {['A worked household you can explore', 'A filled, cited Client Map', 'Nothing leaves your computer'].map((b) => (
               <li key={b} className="flex items-start gap-2.5 text-sm text-[var(--kp-navy)]">
@@ -125,11 +125,13 @@ export function ChooseStartScene({ onChooseStart, onReady }: ChooseStartScenePro
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[rgba(var(--kp-navy-rgb),0.06)]">
             <FolderPlus className="h-5 w-5 text-[var(--kp-navy)]" strokeWidth={2} aria-hidden="true" />
           </div>
-          <h2 className="mt-4 text-xl font-bold text-[var(--kp-navy)]">Connect my own data</h2>
-          <p className="mt-2 text-sm leading-relaxed text-[#41506a]">
-            Choose a folder for your practice. In the next steps you can connect your email,
-            files, and Wealthbox so Advisor Prep Hero builds Client Maps from your real clients.
-          </p>
+          <h2 className="inline-flex items-center gap-1.5 mt-4 text-xl font-bold text-[var(--kp-navy)]">
+            Connect my own data
+            <InfoHelp
+              as="span"
+              content="Choose a folder for your practice. In the next steps you can connect your email, files, and Wealthbox so Advisor Prep Hero builds Client Maps from your real clients."
+            />
+          </h2>
           <ul className="mt-4 space-y-2">
             {['Pick where your practice lives', 'Import email, files & Wealthbox next', 'Your data stays on your machine'].map((b) => (
               <li key={b} className="flex items-start gap-2.5 text-sm text-[var(--kp-navy)]">

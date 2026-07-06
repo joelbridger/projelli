@@ -20,6 +20,7 @@ import { getMatters } from '@/platform/matter/matterStore';
 import { buildZocksMatterMap } from '@/platform/rag/matterResolver';
 import { isPersistedLocalOnly } from '@/platform/privacy/localOnlyGuard';
 import { Button } from '@/ui/kp';
+import { InfoHelp } from '@/ui/InfoHelp';
 
 export function ZocksConnect() {
   const [apiKey, setApiKey] = useState('');
@@ -122,8 +123,10 @@ export function ZocksConnect() {
   if (!isTauri()) {
     return (
       <section className="rounded-lg border border-slate-200 bg-white p-4">
-        <h3 className="text-sm font-semibold text-slate-900">Zocks</h3>
-        <p className="mt-1 text-xs text-slate-500">Zocks sync is available in the desktop app.</p>
+        <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
+          Zocks
+          <InfoHelp content="Zocks sync is available in the desktop app." />
+        </h3>
       </section>
     );
   }
@@ -136,10 +139,10 @@ export function ZocksConnect() {
             <MessageSquareText className="h-4 w-4" aria-hidden="true" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-slate-900">Zocks</h3>
-            <p className="mt-1 max-w-xl text-xs text-slate-500">
-              Import meeting notes, action items, and transcript excerpts as read-only client memory.
-            </p>
+            <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
+              Zocks
+              <InfoHelp content="Import meeting notes, action items, and transcript excerpts as read-only client memory." />
+            </h3>
             <p className="mt-1 max-w-xl text-xs text-amber-700">
               Beta - endpoints pending Zocks confirmation.
             </p>

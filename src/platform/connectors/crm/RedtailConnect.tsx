@@ -26,6 +26,7 @@ import {
 } from '@/platform/rag/matterResolver';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
+import { InfoHelp } from '@/ui/InfoHelp';
 
 const PROVIDER = 'redtail' as const;
 const REDTAIL_KEY_PREFIX = 'redtail:';
@@ -225,11 +226,10 @@ export function RedtailConnect() {
   if (!isTauri()) {
     return (
       <section className="rounded-lg border border-slate-200 bg-white p-4">
-        <h3 className="text-sm font-semibold text-slate-900">Redtail CRM</h3>
-        <p className="mt-1 text-sm text-slate-600">
-          Connect Redtail CRM to bring families, contacts, notes, and activities into Client Maps. Requires the Advisor Prep Hero desktop app.
-        </p>
-        <p className="mt-3 text-xs text-slate-400 italic">Available in the desktop app only.</p>
+        <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
+          Redtail CRM
+          <InfoHelp content="Connect Redtail CRM to bring families, contacts, notes, and activities into Client Maps. Requires the Advisor Prep Hero desktop app." />
+        </h3>
       </section>
     );
   }
@@ -237,10 +237,10 @@ export function RedtailConnect() {
   return (
     <>
       <section className="rounded-lg border border-slate-200 bg-white p-4">
-        <h3 className="text-sm font-semibold text-slate-900">Redtail CRM</h3>
-        <p className="mt-1 text-sm text-slate-600">
-          Read-only import for Redtail families, contacts, notes, and activities. Your password is used once to get a Redtail UserKey; Advisor Prep Hero stores the UserKey, not the password.
-        </p>
+        <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
+          Redtail CRM
+          <InfoHelp content="Read-only import for Redtail families, contacts, notes, and activities. Your password is used once to get a Redtail UserKey; Advisor Prep Hero stores the UserKey, not the password." />
+        </h3>
 
         {!connected && (
           <div className="mt-3 space-y-3">

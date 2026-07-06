@@ -22,6 +22,10 @@ import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { useFirmStore } from '@/platform/firm/firmStore';
 
+function renderSettings() {
+  return render(<ConfidentialityModeSettings />);
+}
+
 beforeEach(() => {
   useSettingsStore.setState({ values: {} });
   useFirmStore.setState({ assuredProviders: [] });
@@ -94,31 +98,35 @@ describe('ConfidentialityModeSettings — Assured selectability', () => {
   it('gates Assured behind a managed key with a "Needs admin key" hint (never "coming soon")', () => {
     // Firm user with no managed key yet: card should appear but be disabled.
     useFirmStore.setState({ assuredProviders: [], session: FIRM_SESSION_STUB });
-    render(<ConfidentialityModeSettings />);
-    const card = screen.getByTestId('confidentiality-mode-assured');
+    renderSettings();
+    const card = screen.getByTestId('confidentiality-mode-card-assured');
     expect(card).toHaveAttribute('data-disabled', 'true');
-    expect(card).toBeDisabled();
+    // The card is a non-interactive container; the disabled state lives on
+    // its stretched select control.
+    expect(screen.getByTestId('confidentiality-mode-assured')).toBeDisabled();
     expect(card.textContent).toContain('Needs admin key');
     expect(card.textContent).not.toMatch(/coming soon/i);
   });
 
   it('makes Assured selectable when the firm has a managed key', () => {
     useFirmStore.setState({ assuredProviders: ['anthropic'], session: FIRM_SESSION_STUB });
-    render(<ConfidentialityModeSettings />);
-    const card = screen.getByTestId('confidentiality-mode-assured');
+    renderSettings();
+    const card = screen.getByTestId('confidentiality-mode-card-assured');
     expect(card).toHaveAttribute('data-disabled', 'false');
-    expect(card).not.toBeDisabled();
+    const select = screen.getByTestId('confidentiality-mode-assured');
+    expect(select).not.toBeDisabled();
     expect(card.textContent).not.toContain('Needs admin key');
 
-    fireEvent.click(card);
+    fireEvent.click(select);
     expect(useSettingsStore.getState().getSetting(CONFIDENTIALITY_MODE_SETTING_KEY)).toBe('assured');
   });
 
   it('does NOT show the Assured card to solo (non-firm) users', () => {
     // No firm session: Assured card must be absent entirely.
     useFirmStore.setState({ assuredProviders: [], session: null });
-    render(<ConfidentialityModeSettings />);
+    renderSettings();
     expect(screen.queryByTestId('confidentiality-mode-assured')).toBeNull();
+    expect(screen.queryByTestId('confidentiality-mode-card-assured')).toBeNull();
   });
 });
 
@@ -132,23 +140,23 @@ describe('ConfidentialityModeSettings — Assured selectability', () => {
 describe('ConfidentialityModeSettings — honest per-card tags, not a bare Recommended badge (P6)', () => {
   it('tags the Direct (cloud) card "Most capable", not "Recommended"', () => {
     useFirmStore.setState({ assuredProviders: [], session: null });
-    render(<ConfidentialityModeSettings />);
-    const directCard = screen.getByTestId('confidentiality-mode-direct');
+    renderSettings();
+    const directCard = screen.getByTestId('confidentiality-mode-card-direct');
     expect(directCard.textContent).toMatch(/Most capable/i);
     expect(directCard.textContent).not.toMatch(/Recommended/i);
   });
 
   it('tags the Local-only card "Most private"', () => {
     useFirmStore.setState({ assuredProviders: [], session: null });
-    render(<ConfidentialityModeSettings />);
-    const localCard = screen.getByTestId('confidentiality-mode-local-only');
+    renderSettings();
+    const localCard = screen.getByTestId('confidentiality-mode-card-local-only');
     expect(localCard.textContent).toMatch(/Most private/i);
     expect(localCard.textContent).not.toMatch(/Recommended/i);
   });
 
   it('no card anywhere shows a bare "Recommended" badge', () => {
     useFirmStore.setState({ assuredProviders: [], session: null });
-    render(<ConfidentialityModeSettings />);
+    renderSettings();
     expect(screen.queryByText(/^Recommended$/i)).toBeNull();
   });
 });

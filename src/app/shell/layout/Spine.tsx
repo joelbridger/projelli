@@ -5,11 +5,11 @@
  * filter, and Client Map quick actions — they stay routable content surfaces,
  * just not rail tabs. The binder spine of the case file.
  */
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Sparkles, ListChecks,
-  Map as MapIcon, Plus, ChevronLeft, ChevronRight, type LucideIcon,
+  Map as MapIcon, Plus, ChevronDown, ChevronLeft, ChevronRight, type LucideIcon,
 } from 'lucide-react';
 import { useActiveMatters, useActiveMatterId } from '@/platform/matter/matterStore';
 import { AccountIdentity } from './AccountIdentity';
@@ -61,6 +61,10 @@ export function Spine({
 }: SpineProps) {
   const { t } = useTranslation();
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  // Collapsible "Clients" section: open by default (the active client should
+  // still be visible without an extra click), but no longer force-stretched
+  // to fill the rest of the rail — it sizes to its own content/cap instead.
+  const [clientsOpen, setClientsOpen] = useState(true);
   // Archived clients stay reachable via the Client Map's archived section
   // (MattersHome) and the Clients management dialog — the rail switcher
   // only ever lists the active roster, so archiving a client actually
@@ -155,41 +159,49 @@ export function Spine({
           })}
         </div>
         {matters.length > 0 ? (
-          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 'var(--kp-space-2xs) 10px var(--kp-space-xs)', borderTop: '1px solid var(--kp-side-border)' }}>
-            {/* Header row carries the "+ New client" affordance. */}
+          <div style={{ flex: 'none', minHeight: 0, borderTop: '1px solid var(--kp-side-border)' }}>
+            {/* Header row toggles the section and carries the "+ New client" affordance. */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--kp-space-xs)', padding: 'var(--kp-space-xs) 10px 6px' }}>
-              <span style={{ fontSize: 10, fontWeight: 'var(--kp-weight-bold)', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--kp-side-fg-faint)' }}>
-                {entityLabel.Other}
-              </span>
+              <button type="button" onClick={() => { setClientsOpen((v) => !v); }}
+                aria-expanded={clientsOpen} data-testid="spine-clients-toggle"
+                style={{ display: 'flex', alignItems: 'center', gap: 6, border: 0, background: 'transparent', cursor: 'pointer', padding: 0, color: 'var(--kp-side-fg-faint)' }}>
+                <ChevronDown size={12} strokeWidth={2.5} style={{ transform: clientsOpen ? undefined : 'rotate(-90deg)', transition: 'transform 0.15s', flex: 'none' }} />
+                <span style={{ fontSize: 10, fontWeight: 'var(--kp-weight-bold)', letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+                  {entityLabel.Other}
+                </span>
+              </button>
               <button type="button" data-testid="spine-new-client" title={newClientLabel} aria-label={newClientLabel}
                 onClick={() => { window.dispatchEvent(new CustomEvent(EV_OPEN_MATTER_MANAGER)); }}
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 'var(--radius-md)', border: 0, background: 'transparent', color: 'var(--kp-side-fg-dim)', cursor: 'pointer', flex: 'none' }}>
                 <Plus size={15} strokeWidth={2} />
               </button>
             </div>
-            {matters.map((m) => {
-              const on = m.id === activeMatterId;
-              return (
-                <button key={m.id} type="button"
-                  data-testid={`spine-client-row-${m.id}`}
-                  onClick={() => {
-                    // Return to this matter: App restores its last working
-                    // surface + focused document (no explicit surface here).
-                    window.dispatchEvent(new CustomEvent(EV_MATTER_LAUNCH, { detail: { matterId: m.id } }));
-                  }}
-                  style={{ display: 'block', width: '100%', textAlign: 'left', border: 0, cursor: 'pointer', background: on ? 'var(--kp-side-active-bg)' : 'transparent', color: 'var(--kp-side-fg)', padding: 'var(--kp-space-xs) var(--kp-space-sm)', borderRadius: 'var(--radius-md)', position: 'relative' }}>
-                  {on && <span style={{ position: 'absolute', left: 3, top: 8, bottom: 8, width: 3, borderRadius: 3, background: 'var(--kp-side-accent)' }} />}
-                  <div style={{ fontSize: 'var(--kp-font-sm)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-side-fg)', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{matterLabel(m)}</div>
-                  <div style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--kp-side-fg-faint)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.client}</div>
-                </button>
-              );
-            })}
+            {clientsOpen && (
+              <div style={{ maxHeight: 280, overflowY: 'auto', padding: '0 10px var(--kp-space-xs)' }}>
+                {matters.map((m) => {
+                  const on = m.id === activeMatterId;
+                  return (
+                    <button key={m.id} type="button"
+                      data-testid={`spine-client-row-${m.id}`}
+                      onClick={() => {
+                        // Return to this matter: App restores its last working
+                        // surface + focused document (no explicit surface here).
+                        window.dispatchEvent(new CustomEvent(EV_MATTER_LAUNCH, { detail: { matterId: m.id } }));
+                      }}
+                      style={{ display: 'block', width: '100%', textAlign: 'left', border: 0, cursor: 'pointer', background: on ? 'var(--kp-side-active-bg)' : 'transparent', color: 'var(--kp-side-fg)', padding: 'var(--kp-space-xs) var(--kp-space-sm)', borderRadius: 'var(--radius-md)', position: 'relative' }}>
+                      {on && <span style={{ position: 'absolute', left: 3, top: 8, bottom: 8, width: 3, borderRadius: 3, background: 'var(--kp-side-accent)' }} />}
+                      <div style={{ fontSize: 'var(--kp-font-sm)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-side-fg)', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{matterLabel(m)}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         ) : (
           // Empty state: the rail still offers "+ New client" so the client
           // switcher is never a dead end (Client Map's no-selection state
           // handles the main canvas).
-          <div style={{ flex: 1, minHeight: 0, padding: 'var(--kp-space-md) 12px', borderTop: '1px solid var(--kp-side-border)' }}>
+          <div style={{ flex: 'none', padding: 'var(--kp-space-md) 12px', borderTop: '1px solid var(--kp-side-border)' }}>
             <button type="button" data-testid="spine-new-client" title={newClientLabel} aria-label={newClientLabel}
               onClick={() => { window.dispatchEvent(new CustomEvent(EV_OPEN_MATTER_MANAGER)); }}
               style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-xs)', width: '100%', padding: 'var(--kp-space-sm)', border: '1px dashed var(--kp-side-border)', borderRadius: 'var(--radius-md)', background: 'transparent', color: 'var(--kp-side-fg-dim)', cursor: 'pointer', fontSize: 'var(--kp-font-sm)', fontWeight: 'var(--kp-weight-medium)' }}>
@@ -198,6 +210,7 @@ export function Spine({
             </button>
           </div>
         )}
+        <div style={{ flex: 1, minHeight: 0 }} />
         <div style={{ display: 'flex', alignItems: 'stretch', borderTop: '1px solid var(--kp-side-border)', flex: 'none' }}>
           <AccountIdentity onOpen={() => { window.dispatchEvent(new CustomEvent(EV_OPEN_ACCOUNT)); }} />
           <button type="button" onClick={() => onCollapsedChange?.(true)} title={t('layout.sidebar.collapse-aria')} aria-label={t('layout.sidebar.collapse-aria')}

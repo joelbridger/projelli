@@ -22,6 +22,7 @@ import { getMatters } from '@/platform/matter/matterStore';
 import { buildJotformMatterMap } from '@/platform/rag/matterResolver';
 import { isPersistedLocalOnly } from '@/platform/privacy/localOnlyGuard';
 import { Button } from '@/ui/kp';
+import { InfoHelp } from '@/ui/InfoHelp';
 
 export function JotformConnect() {
   const [progress, setProgress] = useState<JotformSyncProgress | null>(null);
@@ -136,8 +137,10 @@ export function JotformConnect() {
   if (!isTauri()) {
     return (
       <section className="rounded-lg border border-slate-200 bg-white p-4">
-        <h3 className="text-sm font-semibold text-slate-900">Jotform</h3>
-        <p className="mt-1 text-xs text-slate-500">Jotform sync is available in the desktop app.</p>
+        <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
+          Jotform
+          <InfoHelp content="Jotform sync is available in the desktop app." />
+        </h3>
       </section>
     );
   }
@@ -150,10 +153,10 @@ export function JotformConnect() {
             <ClipboardList className="h-4 w-4" aria-hidden="true" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-slate-900">Jotform</h3>
-            <p className="mt-1 max-w-xl text-xs text-slate-500">
-              Import intake and KYC form submissions as read-only client records. Advisor Prep Hero indexes the submitted answers, not files.
-            </p>
+            <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
+              Jotform
+              <InfoHelp content="Import intake and KYC form submissions as read-only client records. Advisor Prep Hero indexes the submitted answers, not files." />
+            </h3>
           </div>
         </div>
         <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">

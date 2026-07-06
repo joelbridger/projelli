@@ -32,6 +32,7 @@ import { sanitizeSyncError } from '@/platform/connectors/syncAuditError';
 import { Button } from '@/ui/kp';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
+import { InfoHelp } from '@/ui/InfoHelp';
 
 // Durable, append-only audit trail for connector activity, so a calendar
 // sync (including one that indexed zero meetings or failed) always leaves a
@@ -225,10 +226,10 @@ export function CalendarConnect() {
   if (!isTauri()) {
     return (
       <section className="rounded-lg border border-slate-200 bg-white p-4">
-        <h3 className="text-sm font-semibold text-slate-900">Calendar</h3>
-        <p className="mt-1 text-sm text-slate-600">
-          Requires the Advisor Prep Hero desktop app.
-        </p>
+        <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
+          Calendar
+          <InfoHelp content="Requires the Advisor Prep Hero desktop app." />
+        </h3>
       </section>
     );
   }
@@ -247,16 +248,13 @@ export function CalendarConnect() {
         className="rounded-lg border border-slate-200 bg-white p-4"
         data-testid="calendar-connect"
       >
-        <h3 className="text-sm font-semibold text-slate-900">Calendar</h3>
+        <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
+          Calendar
+          <InfoHelp content="Connect your calendar so Advisor Prep Hero can match today’s meetings to the right client and prep you before each one. It reads meetings only, never writes to your calendar." />
+        </h3>
 
         {!anyConnected && (
           <>
-            <p className="mt-1 text-sm text-slate-600">
-              Connect your calendar so Advisor Prep Hero can match today’s
-              meetings to the right client and prep you before each one. It
-              reads meetings only, never writes to your calendar.
-            </p>
-
             <div className="mt-3 flex flex-wrap gap-2">
               <Button
                 size="sm"

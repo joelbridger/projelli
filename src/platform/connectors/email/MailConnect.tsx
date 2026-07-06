@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { InfoHelp } from '@/ui/InfoHelp';
 import { outlookConnect, outlookConnectCancel, mailIsConnected, mailDisconnect, mailSyncAll, mailCancelSync, mailFdeStatus } from '@/platform/utils/mail-commands';
 import { useMailSync } from '@/platform/connectors/email/useMailSync';
 import { useMailStore } from '@/platform/connectors/email/mailStore';
@@ -115,10 +116,10 @@ export function MailConnect() {
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-4">
-      <h3 className="text-sm font-semibold text-slate-900">Microsoft 365 email</h3>
-      <p className="mt-1 text-sm text-slate-600">
-        Bring your Outlook mail into Advisor Prep Hero so you can actually find it. Your mail is encrypted and stays on this machine. Requires the Advisor Prep Hero desktop app.
-      </p>
+      <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
+        Microsoft 365 email
+        <InfoHelp content="Bring your Outlook mail into Advisor Prep Hero so you can actually find it. Your mail is encrypted and stays on this machine. Requires the Advisor Prep Hero desktop app." />
+      </h3>
       {fdeStatus === 'off' && (
         <p className="mt-2 text-xs text-amber-700 bg-amber-50 rounded px-2 py-1">
           Full-disk encryption is off on this machine. Advisor Prep Hero encrypts your mail, but enabling
