@@ -685,10 +685,29 @@ where
 /// `onedrive_disconnect_logic`.
 #[tauri::command]
 pub async fn onedrive_disconnect(
+    app: AppHandle,
     state: State<'_, OneDriveState>,
     delete_files: bool,
 ) -> Result<OneDriveDisconnectResult, String> {
-    onedrive_disconnect_logic(&state, delete_files).await
+    let result = onedrive_disconnect_logic(&state, delete_files).await;
+    // A successful purge removed RAG rows, so any cached citation verdicts may
+    // now point at deleted content. Announce it on the standard indexing
+    // progress channel: the frontend's citation-verification cache subscribes
+    // and invalidates on `deleted > 0`. The exact row count is unknown at this
+    // boundary; consumers only test `deleted > 0` ("content changed").
+    if let Ok(r) = &result {
+        if r.rag_purged {
+            let _ = app.emit(
+                crate::commands::rag::PROGRESS_EVENT,
+                crate::commands::rag::IndexingProgress {
+                    status: crate::commands::rag::IndexingStatus::Done,
+                    deleted: 1,
+                    ..Default::default()
+                },
+            );
+        }
+    }
+    result
 }
 
 #[tauri::command]
