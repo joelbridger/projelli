@@ -7,6 +7,7 @@ vi.mock('react-i18next', () => ({
 }));
 vi.mock('@/platform/matter/matterStore', () => ({
   useMatters: () => [],
+  useActiveMatters: () => [],
   useActiveMatterId: () => null,
   useMatterStore: (selector: (s: { setActiveMatter: () => void }) => unknown) =>
     selector({ setActiveMatter: vi.fn() }),
