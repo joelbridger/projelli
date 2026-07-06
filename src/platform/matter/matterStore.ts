@@ -62,6 +62,8 @@ import {
   purgeDeletedMatterForWorkspace,
   usePendingDeletedMatterStore,
 } from '@/platform/rag/pendingDeletedMatterStore';
+import { ragDeleteMatter } from '@/platform/utils/tauri-commands';
+import { mailClearMatterFilings } from '@/platform/utils/mail-commands';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { getProfession } from '@/platform/profile/professionStore';
 import { getSampleMatterName } from '@/platform/matter/samples/sampleMatterDemo';
@@ -1117,7 +1119,20 @@ export const useMatterStore = create<MatterState>()(
         //      their folder happens to map to — content filed to one matter must
         //      never cross into another (legal invariant; Codex review #1).
         // To make content truly disappear the user deletes the files themselves.
-        if (workspaceRoot) void purgeDeletedMatterForWorkspace(workspaceRoot, id);
+        if (workspaceRoot) {
+          void purgeDeletedMatterForWorkspace(workspaceRoot, id);
+        } else {
+          // No workspace identity to key a durable hold on (browser mode /
+          // pre-open edge). Still attempt the immediate purge — the pre-existing
+          // behavior — rather than silently skipping the AI-memory wipe; there
+          // is just no boot-retry safety net in this state.
+          void ragDeleteMatter(id).catch((err: unknown) =>
+            console.warn('[matterStore] RAG purge for deleted matter failed (no workspace hold):', err),
+          );
+          void mailClearMatterFilings(id).catch((err: unknown) =>
+            console.warn('[matterStore] mail-filings purge for deleted matter failed (no workspace hold):', err),
+          );
+        }
       },
 
       setFolderPaths: (id, folderPaths) => {
