@@ -119,6 +119,67 @@ pub async fn path_has_expected_rows_for_scope(
     Ok(rows >= expected_rows as usize)
 }
 
+/// QA-92 — one column-only scan returning, per `(path-token, matter_id,
+/// privilege)`, how many vector rows currently exist. The boot reconcile uses
+/// this to prove a manifest "fresh" entry's rows REALLY exist under its recorded
+/// scope before it SKIPS the file — WITHOUT firing a per-file `count_rows` query
+/// for every unchanged file (which, on a warm boot of a large workspace, is a
+/// per-file full-table scan flood). `path` stores the HMAC path token (the same
+/// value a manifest key carries); `matter_id`/`privilege` are the plaintext
+/// scope columns. Pre-computed once, it turns each skip's row-proof into an O(1)
+/// in-memory lookup.
+pub async fn scoped_row_counts(
+    table: &Table,
+) -> Result<std::collections::HashMap<(String, String, String), usize>> {
+    use futures_util::TryStreamExt;
+    let mut stream = table
+        .query()
+        .select(Select::columns(&["path", "matter_id", "privilege"]))
+        .execute()
+        .await
+        .context("scoped_row_counts query execute failed")?;
+
+    let mut counts: std::collections::HashMap<(String, String, String), usize> =
+        std::collections::HashMap::new();
+    while let Some(batch) = stream
+        .try_next()
+        .await
+        .context("scoped_row_counts stream try_next failed")?
+    {
+        let path = batch
+            .column_by_name("path")
+            .context("missing path column")?
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .context("path column is not StringArray")?;
+        let matter = batch
+            .column_by_name("matter_id")
+            .context("missing matter_id column")?
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .context("matter_id column is not StringArray")?;
+        let privilege = batch
+            .column_by_name("privilege")
+            .context("missing privilege column")?
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .context("privilege column is not StringArray")?;
+        for i in 0..path.len() {
+            if path.is_null(i) || matter.is_null(i) || privilege.is_null(i) {
+                continue;
+            }
+            *counts
+                .entry((
+                    path.value(i).to_string(),
+                    matter.value(i).to_string(),
+                    privilege.value(i).to_string(),
+                ))
+                .or_insert(0) += 1;
+        }
+    }
+    Ok(counts)
+}
+
 /// WS-PRIV — re-tag the privilege of every already-indexed chunk for `path`
 /// IN PLACE, without re-embedding. Used when the user toggles a source's
 /// privilege: the chunk text + vectors are unchanged, only the `privilege`

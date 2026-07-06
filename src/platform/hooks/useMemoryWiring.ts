@@ -1012,9 +1012,18 @@ async function retagFolderPathsInPlace(
   for (const [matterId, paths] of byMatter) {
     if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
     try {
-      // In-place, batched — no re-extract / re-embed. Files with no rows yet are
-      // a no-op; the reconcile/watcher indexes them.
-      await MemoryService.retagMatterBatch(paths, matterId);
+      // In-place, batched — no re-extract / re-embed. Returns rows updated.
+      const updated = await MemoryService.retagMatterBatch(paths, matterId);
+      // QA-92: a retag that matched ZERO rows means those files never got vector
+      // rows to re-tag (a timing gap, or a path-form mismatch). Left as-is they
+      // stay UNASSIGNED and are invisible to client-scoped Ask this session. Fall
+      // back to a real index under the target matter so they become searchable
+      // now — not only after the next boot's row-verified reconcile heals them.
+      // (`updated` counts rows MATCHED by the path predicate, so an already-tagged
+      // folder returns > 0 and never triggers this — no per-boot re-embed.)
+      if (updated === 0) {
+        await MemoryService.reindexPaths(paths, matterId);
+      }
     } catch {
       // Best-effort: skip and continue with the next matter.
     }

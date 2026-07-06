@@ -305,6 +305,18 @@ async fn update_manifest_matter_many(
     }
 }
 
+/// QA-92 — a PDF may be SKIPPED on boot only when its manifest signature is
+/// stat-fresh AND it still has at least one vector row under its recorded scope.
+/// PDF manifest entries record `row_count = 0` (the frontend indexes PDF chunks
+/// on a separate path), so — unlike text/office — we can't compare an expected
+/// count; ROW PRESENCE is the signal. A manifest-fresh PDF whose rows vanished
+/// (vectors cache lost/rebuilt, or a prior partial OCR) must re-index, or it
+/// stays unsearchable forever (the QA-92 pre-existing-files bug). Pure so the
+/// decision is unit-tested without a live store.
+pub(crate) fn pdf_can_skip(stat_fresh: bool, rows_present: usize) -> bool {
+    stat_fresh && rows_present > 0
+}
+
 /// P1.1 (Task 3) — is this PDF already indexed at its current version + OCR
 /// settings? The frontend PDF-index loop calls this BEFORE re-extracting a PDF so
 /// an unchanged PDF (the expensive, often-OCR'd case) is skipped on boot. Returns
@@ -364,9 +376,29 @@ pub async fn rag_manifest_pdf_fresh(
         return Ok(false);
     }
     let now = manifest::PdfInputs::current(ocr_enabled);
-    Ok(m.get(&token)
-        .map(|s| s.is_fresh(size, mtime, Some(&now)))
-        .unwrap_or(false))
+    let Some(sig) = m.get(&token) else {
+        return Ok(false);
+    };
+    if !sig.is_fresh(size, mtime, Some(&now)) {
+        return Ok(false);
+    }
+    // QA-92: a stat-fresh signature is not enough — prove the PDF's rows are
+    // actually present under its recorded scope before skipping. PDF manifest
+    // entries record row_count=0, so gate on PRESENCE (any row), not an expected
+    // count, or every unchanged PDF would needlessly re-OCR on each boot.
+    let conn = store::open_connection(&workspace)
+        .await
+        .map_err(|e| format!("open lancedb: {e}"))?;
+    let table = conn
+        .open_table(store::TABLE_NAME)
+        .execute()
+        .await
+        .map_err(|e| format!("open table: {e}"))?;
+    let rows =
+        store::path_row_count_for_scope(&table, &path, &sig.matter_id, &sig.privilege, &key)
+            .await
+            .map_err(|e| format!("count pdf rows: {e}"))?;
+    Ok(pdf_can_skip(true, rows))
 }
 
 /// P1.1 (Task 3) — record a PDF's signature after the frontend has successfully
@@ -433,4 +465,30 @@ pub async fn rag_manifest_forget_pdfs(state: State<'_, RagState>) -> Result<(), 
         manifest::save(&workspace, &m).map_err(|e| format!("save manifest: {e}"))?;
     }
     Ok(())
+}
+
+// ── QA-92: a manifest-"fresh" PDF whose vector rows are gone must re-index, not
+//    be skipped on boot (the pre-existing-files-invisible bug, PDF path) ──
+#[cfg(test)]
+mod qa92_pdf_tests {
+    use super::*;
+
+    // RED before the fix: the pre-fix path skipped a stat-fresh PDF even with
+    // zero surviving rows, leaving it unsearchable forever.
+    #[test]
+    fn manifest_fresh_pdf_with_zero_rows_must_not_skip() {
+        assert!(!pdf_can_skip(true, 0));
+    }
+
+    // A genuinely-indexed PDF must still skip (no needless re-OCR every boot).
+    #[test]
+    fn manifest_fresh_pdf_with_rows_may_skip() {
+        assert!(pdf_can_skip(true, 4));
+    }
+
+    // A changed/stale PDF never skips, rows or not.
+    #[test]
+    fn stale_pdf_never_skips_regardless_of_rows() {
+        assert!(!pdf_can_skip(false, 10));
+    }
 }

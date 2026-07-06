@@ -549,6 +549,48 @@ describe('reindexFolderPaths — disk scan for externally-added files', () => {
     );
   });
 
+  it('QA-92: falls back to a real index when the in-place retag matches zero rows', async () => {
+    const matterId = 'matter-acme';
+    const folder = 'Clients/Acme';
+
+    useWorkspaceStore.setState({
+      rootPath: '/ws/Northcrest',
+      fileTree: [],
+    });
+    useMatterStore.setState({
+      matters: [makeMatter(matterId, [folder])],
+      activeMatterId: null,
+    });
+
+    const ws = {
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      exists: vi.fn(),
+      getFileTree: vi.fn().mockResolvedValue([
+        makeFolder(folder, [makeFile('Clients/Acme/plan.docx')]),
+      ]),
+    };
+
+    // The in-place retag matched NO rows (the QA-92 hole: the files never got
+    // vector rows to re-tag, or a path-form mismatch) — left as-is the file stays
+    // UNASSIGNED and is invisible to client-scoped Ask. The fallback must re-index
+    // it under the target matter so it becomes searchable this session.
+    // (Once, so this override doesn't leak into later tests — beforeEach's
+    // clearAllMocks resets call history but not the implementation.)
+    retagMatter.mockResolvedValueOnce(0);
+
+    await startFullIndex(ws);
+
+    expect(retagMatter).toHaveBeenCalledWith(
+      ['/ws/Northcrest/Clients/Acme/plan.docx'],
+      matterId,
+    );
+    expect(reindexPaths).toHaveBeenCalledWith(
+      ['/ws/Northcrest/Clients/Acme/plan.docx'],
+      matterId,
+    );
+  });
+
   it('bails instead of retagging folder paths when the workspace switches during the fresh file scan', async () => {
     const folder = 'Clients/Acme';
     let resolveTree!: (tree: FileNode[]) => void;

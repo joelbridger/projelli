@@ -92,6 +92,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **R9 — biometric consent before voiceprint enrollment.** "Separate speakers" requires an explicit affirmation that the client consented to a voice profile (with an honest state-biometric-law note) before any new voiceprint is enrolled; the attestation is ledgered as a `voiceprint_consent` audit event (`SpeakerNamesPanel.tsx`).
 
 ### Fixed
+- **QA-92 (P0 demo blocker): a client's files that were already on disk when the
+  workspace opened are now found by Ask.** Ask could answer about files created
+  or imported during a live session but silently could NOT find pre-existing
+  Word/PDF files sitting in the linked folder — breaking the core "ask about your
+  files" promise. Root cause: the boot reconcile trusted the search manifest (a
+  saved receipt of what was indexed) without proving the actual vector rows still
+  existed. A manifest entry that said "fresh" with zero surviving rows made a file
+  look indexed while it was invisible to search, forever. This extends commit
+  860b6f3c (which fixed the single-file watcher path) to the two remaining holes.
+  - **Boot reconcile now proves rows before skipping a file.** A stat-fresh
+    manifest entry is skipped ONLY when at least its recorded number of vector
+    rows actually exist under the entry's recorded client/privilege scope;
+    otherwise the file is re-indexed under that same scope (never widened). One
+    upfront column-scan (`store::scoped_row_counts`) makes the per-file proof an
+    O(1) lookup — no per-file query flood on a warm boot. A scan failure fails
+    safe toward re-indexing. Files: `commands/rag/reconcile.rs`
+    (`reconcile_skip_is_row_backed`, `FileDecision::Skip`),
+    `commands/rag/store/maintain.rs` (`scoped_row_counts`).
+  - **PDF freshness now requires surviving rows.** `rag_manifest_pdf_fresh`
+    returns not-fresh (→ re-index) when a manifest-fresh PDF has zero rows under
+    its scope. PDF entries record `row_count = 0`, so this gates on row PRESENCE,
+    not count — an unchanged, still-indexed PDF is not re-OCR'd. Files:
+    `commands/rag/lifecycle.rs` (`pdf_can_skip`, `rag_manifest_pdf_fresh`).
+  - **Boot retag falls back to real indexing when it matches zero rows.** If the
+    in-place folder→client retag updates no rows (a timing gap or path-form
+    mismatch), those files would stay unassigned and invisible to client-scoped
+    Ask this session; they are now re-indexed under the target client. Files:
+    `platform/hooks/useMemoryWiring.ts` (`retagFolderPathsInPlace`).
 - **QA-81 (P0 silent data loss): a brand-new .docx being actively TYPED no
   longer loses in-progress text on a crash/power-loss while the toolbar shows
   "Saved".** A keystroke lives only in the run's editable DOM until the run
