@@ -55,6 +55,11 @@ import {
   usePendingFolderRetagStore,
   pendingFolderRetagHydrationSuspect,
 } from '@/platform/rag/pendingFolderRetagStore';
+import {
+  pendingDeletedMatterHydrationSuspect,
+  purgePendingDeletedMattersForWorkspace,
+  usePendingDeletedMatterStore,
+} from '@/platform/rag/pendingDeletedMatterStore';
 import { getMatters, resolveMatterMatchForPaths, useMatterStore } from '@/platform/matter/matterStore';
 import {
   buildMailMatterMap,
@@ -1170,6 +1175,15 @@ export function restoreFolderHolds(workspaceRoot: string | null | undefined): vo
  * files, and a FOLDER-store suspicion never hides mail.
  */
 export function shouldExcludeHitFromRetrieval(hit: RagHit): boolean {
+  if (pendingDeletedMatterHydrationSuspect()) return true;
+  const { rootPath: liveRoot } = useWorkspaceStore.getState();
+  if (
+    liveRoot &&
+    hit.matterId &&
+    usePendingDeletedMatterStore.getState().forWorkspace(liveRoot).includes(hit.matterId)
+  ) {
+    return true;
+  }
   // Detect mail across every id form a row might carry: the typed `sourceType`, the
   // `mail:`-prefixed `sourceId`, AND (R8 hardening) the `mail:`-prefixed `path` —
   // older/odd rows can lack `sourceType`/`sourceId` but still key by `path`, and
@@ -1192,7 +1206,6 @@ export function shouldExcludeHitFromRetrieval(hit: RagHit): boolean {
   // Files under a folder whose matter re-tag is pending/failed.
   const folders = getExcludedMatterFolders();
   if (folders.length === 0) return false;
-  const { rootPath: liveRoot } = useWorkspaceStore.getState();
   return pathInAnyFolder(hit.sourceId ?? hit.path, folders, liveRoot);
 }
 
@@ -2137,6 +2150,7 @@ export function useMemoryWiring(
         } catch (err) {
           console.warn('mailSetWorkspace failed; continuing workspace setup:', err);
         }
+        await purgePendingDeletedMattersForWorkspace(rootPath);
         // Best-effort: tell the CRM backend which workspace to use so
         // crm_sync_all and crm_disconnect know where to read/write. The CRM
         // connector is optional; a failure here must NOT break the rest of

@@ -704,18 +704,16 @@ pub async fn onedrive_disconnect(
 ) -> Result<OneDriveDisconnectResult, String> {
     let result = onedrive_disconnect_logic(&state, delete_files).await;
     // A successful purge removed RAG rows, so any cached citation verdicts may
-    // now point at deleted content. Announce it on the standard indexing
-    // progress channel: the frontend's citation-verification cache subscribes
-    // and invalidates on `deleted > 0`. The exact row count is unknown at this
-    // boundary; consumers only test `deleted > 0` ("content changed").
+    // now point at deleted content. Announce that on a dedicated invalidation
+    // event, not the indexing-progress channel: a purge is not an authoritative
+    // snapshot of the live indexer state.
     if let Ok(r) = &result {
         if r.rag_purged {
             let _ = app.emit(
-                crate::commands::rag::PROGRESS_EVENT,
-                crate::commands::rag::IndexingProgress {
-                    status: crate::commands::rag::IndexingStatus::Done,
+                crate::commands::rag::CONTENT_INVALIDATED_EVENT,
+                crate::commands::rag::ContentInvalidated {
+                    source: "onedrive".to_string(),
                     deleted: 1,
-                    ..Default::default()
                 },
             );
         }

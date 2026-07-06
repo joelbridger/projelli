@@ -267,6 +267,16 @@ export interface RagIndexingProgress {
 /** Tauri event name. Mirror of `PROGRESS_EVENT` in mod.rs. */
 export const RAG_PROGRESS_EVENT = 'rag-indexing-progress';
 
+/** Payload emitted when indexed content is invalidated without representing a
+ *  full indexing-status snapshot. */
+export interface RagContentInvalidated {
+  source: string;
+  deleted: number;
+}
+
+/** Tauri event name. Mirror of `CONTENT_INVALIDATED_EVENT` in mod.rs. */
+export const RAG_CONTENT_INVALIDATED_EVENT = 'rag-content-invalidated';
+
 /** Simplified change kind emitted on the `workspace-file-changed` event. */
 export type WorkspaceChangeKind = 'create' | 'modify' | 'delete' | 'rename';
 
