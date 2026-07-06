@@ -65,15 +65,28 @@ function useCitationVerification(
   const signature = eligible.map((c) => verifyKey(c.id, c.matterId, c.excerpt)).join('|');
 
   useEffect(() => {
-    const toFetch = eligible.filter((c) => !requested.current.has(verifyKey(c.id, c.matterId, c.excerpt)));
+    // Copy the ref's Set (a single, stable instance across renders — never
+    // reassigned) to a local so the effect and its cleanup share the exact
+    // same reference without re-reading `requested.current` inside cleanup.
+    const requestedKeys = requested.current;
+    const toFetch = eligible.filter((c) => !requestedKeys.has(verifyKey(c.id, c.matterId, c.excerpt)));
     if (toFetch.length === 0) return;
-    toFetch.forEach((c) => requested.current.add(verifyKey(c.id, c.matterId, c.excerpt)));
+    const keys = toFetch.map((c) => verifyKey(c.id, c.matterId, c.excerpt));
+    keys.forEach((k) => requestedKeys.add(k));
     let cancelled = false;
+    // QA-85 round 2: distinct from `cancelled` — tracks whether THIS batch
+    // ever reached a result (stored or not). If the effect is torn down
+    // before that happens (citations changed mid-flight), the cleanup below
+    // un-marks these keys so a LATER reappearance of the SAME citation (same
+    // id/matterId/excerpt) gets re-fetched instead of staying "pending"
+    // forever with no result and no audit entry.
+    let settled = false;
     const run = async () => {
       try {
         const results = await ragVerifyCitationsBatch(
           toFetch.map((c) => ({ id: c.id, claimedMatterId: c.matterId, quotedText: c.excerpt })),
         );
+        settled = true;
         if (!cancelled) {
           setVerdicts((prev) => {
             const next = new Map(prev);
@@ -100,6 +113,7 @@ function useCitationVerification(
         // Browser/dev mode (no Tauri backend) or a verifier error — never
         // fake-verify. Mark 'unavailable' so these exact keys are not
         // endlessly retried; the card stays neutral "Source found".
+        settled = true;
         if (!cancelled) {
           setVerdicts((prev) => {
             const next = new Map(prev);
@@ -112,6 +126,9 @@ function useCitationVerification(
     void run();
     return () => {
       cancelled = true;
+      if (!settled) {
+        keys.forEach((k) => requestedKeys.delete(k));
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch is keyed by `signature` (content), not by the `eligible`/`onAuditLog` references which are recreated every render.
   }, [signature]);
