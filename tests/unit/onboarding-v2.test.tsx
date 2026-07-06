@@ -338,6 +338,17 @@ describe('FirmSetupScene drives bars from useSetupProgress', () => {
     expect(emailRow.querySelector('[data-testid="progress-status"]')?.textContent).toBe('Working...');
   });
 
+  it('shows OneDrive import progress in the shared setup progress list', () => {
+    h.progress = makeProgress({
+      oneDrive: { syncing: true, status: 'syncing', itemsChecked: 42, itemsImported: 7 },
+    });
+    gotoFirm();
+    const oneDriveRow = screen.getByTestId('firm-row-onedrive');
+    expect(oneDriveRow.textContent).toContain('OneDrive');
+    expect(oneDriveRow.textContent).toContain('7 imported');
+    expect(oneDriveRow.querySelector('[data-testid="progress-status"]')?.textContent).toBe('Working...');
+  });
+
   it('shows "not verified" for a cloud key that was saved but never live-checked', () => {
     // No verified marker in localStorage: cloudKeyPresent but unverified (e.g.
     // saved while the provider was unreachable). We must NOT claim "ready".

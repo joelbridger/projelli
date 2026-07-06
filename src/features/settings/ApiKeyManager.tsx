@@ -29,7 +29,7 @@ import {
   DialogDescription,
 } from '@/ui/dialog';
 import { Button } from '@/ui/button';
-import { Key, Plus, Trash2, CheckCircle, XCircle, Loader2, ShieldQuestion } from 'lucide-react';
+import { Key, Plus, Trash2, CheckCircle, XCircle, Loader2, ShieldQuestion, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { withTimeout } from '@/lib/withTimeout';
 import type { KeyProvider, StoredKey } from '@/platform/providers/KeychainService';
@@ -80,7 +80,7 @@ const PROVIDER_NAMES: Record<KeyProvider, string> = {
 // element) sees it on a statement instead of inline button text.
 const ADD_KEY_LABEL = 'Add a provider key';
 
-type RowStatus = 'unverified' | 'checking' | 'working' | 'invalid';
+type RowStatus = 'unverified' | 'checking' | 'working' | 'invalid' | 'rate_limited';
 
 interface KeyRow {
   provider: KeyProvider;
@@ -190,8 +190,12 @@ export function ApiKeyManager({
         abortRefs.current.delete(provider);
 
         // 'rejected'/'malformed' = the key does not work. 'ok' = working.
-        // 'network' = couldn't reach the provider, so we can't claim either way:
-        // leave it unverified rather than mislabel a possibly-good key as invalid.
+        // 'rate_limited' = the key IS real (it authenticated) but the account
+        // is over its limit right now — a distinct warning, not an invalid
+        // key and not a proven-working one, so it neither marks verified nor
+        // invalid. 'network' = couldn't reach the provider, so we can't claim
+        // either way: leave it unverified rather than mislabel a possibly-good
+        // key as invalid.
         if (result.outcome === 'ok') {
           setRowStatus(provider, 'working');
           // Remember this provider is verified so a new chat prefers it.
@@ -200,6 +204,8 @@ export function ApiKeyManager({
           setRowStatus(provider, 'invalid');
           // The stored key is bad, so a new chat must never default to it.
           markKeyInvalid(provider);
+        } else if (result.outcome === 'rate_limited') {
+          setRowStatus(provider, 'rate_limited', result.message);
         } else {
           setRowStatus(provider, 'unverified');
         }
@@ -305,7 +311,10 @@ export function ApiKeyManager({
                     {row.checkError && (
                       <p
                         data-testid={`api-key-manager-check-error-${row.provider}`}
-                        className="mt-1 text-xs text-destructive"
+                        className={cn(
+                          'mt-1 text-xs',
+                          row.status === 'rate_limited' ? 'text-amber-700' : 'text-destructive',
+                        )}
                       >
                         {row.checkError}
                       </p>
@@ -394,6 +403,17 @@ function StatusBadge({ status }: { status: RowStatus }) {
       <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
         <Loader2 className="h-3 w-3 animate-spin" />
         Checking
+      </span>
+    );
+  }
+  if (status === 'rate_limited') {
+    return (
+      <span
+        data-testid="api-key-manager-status-rate_limited"
+        className="inline-flex items-center gap-1 text-xs text-amber-700 font-medium"
+      >
+        <AlertCircle className="h-3 w-3" />
+        Rate limited
       </span>
     );
   }

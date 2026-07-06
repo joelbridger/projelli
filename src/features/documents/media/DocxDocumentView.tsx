@@ -36,6 +36,7 @@ export function DocumentBody({
   activeCommentId,
   onRunEdit,
   onActiveRunChange,
+  onActiveRunInput,
   onCommentAnchorClick,
 }: {
   doc: DocumentJson;
@@ -51,6 +52,13 @@ export function DocumentBody({
    * before unmount/export, exactly as a blur would.
    */
   onActiveRunChange: (blockIndex: number, inlineIndex: number, element: HTMLElement | null) => void;
+  /**
+   * QA-81 (P1): fired by `PlainRun` on EVERY input (keystroke) into a focused
+   * run so the editor can mark the doc unsaved and kick a prompt save the
+   * instant the user types — instead of waiting up to a full autosave tick,
+   * during which the toolbar would falsely read "Saved".
+   */
+  onActiveRunInput: (blockIndex: number, inlineIndex: number, element: HTMLElement) => void;
   onCommentAnchorClick: (id: string) => void;
 }) {
   return (
@@ -65,6 +73,7 @@ export function DocumentBody({
           activeCommentId={activeCommentId}
           onRunEdit={onRunEdit}
           onActiveRunChange={onActiveRunChange}
+          onActiveRunInput={onActiveRunInput}
           onCommentAnchorClick={onCommentAnchorClick}
         />
       ))}
@@ -80,6 +89,7 @@ export function BlockView({
   activeCommentId,
   onRunEdit,
   onActiveRunChange,
+  onActiveRunInput,
   onCommentAnchorClick,
 }: {
   block: DocxBlock;
@@ -89,6 +99,7 @@ export function BlockView({
   activeCommentId: string | null;
   onRunEdit: (blockIndex: number, inlineIndex: number, text: string) => void;
   onActiveRunChange: (blockIndex: number, inlineIndex: number, element: HTMLElement | null) => void;
+  onActiveRunInput: (blockIndex: number, inlineIndex: number, element: HTMLElement) => void;
   onCommentAnchorClick: (id: string) => void;
 }) {
   const { t } = useTranslation();
@@ -121,6 +132,7 @@ export function BlockView({
       activeCommentId={activeCommentId}
       onRunEdit={onRunEdit}
       onActiveRunChange={onActiveRunChange}
+      onActiveRunInput={onActiveRunInput}
       onCommentAnchorClick={onCommentAnchorClick}
     />
   ));
@@ -175,6 +187,7 @@ export function InlineView({
   activeCommentId,
   onRunEdit,
   onActiveRunChange,
+  onActiveRunInput,
   onCommentAnchorClick,
 }: {
   inline: DocxInline;
@@ -185,6 +198,7 @@ export function InlineView({
   activeCommentId: string | null;
   onRunEdit: (blockIndex: number, inlineIndex: number, text: string) => void;
   onActiveRunChange: (blockIndex: number, inlineIndex: number, element: HTMLElement | null) => void;
+  onActiveRunInput: (blockIndex: number, inlineIndex: number, element: HTMLElement) => void;
   onCommentAnchorClick: (id: string) => void;
 }) {
   switch (inline.kind) {
@@ -197,6 +211,7 @@ export function InlineView({
           editable={editable}
           onRunEdit={onRunEdit}
           onActiveRunChange={onActiveRunChange}
+          onActiveRunInput={onActiveRunInput}
         />
       );
 
@@ -271,6 +286,7 @@ export function PlainRun({
   editable,
   onRunEdit,
   onActiveRunChange,
+  onActiveRunInput,
 }: {
   run: DocxRun;
   blockIndex: number;
@@ -278,6 +294,7 @@ export function PlainRun({
   editable: boolean;
   onRunEdit: (blockIndex: number, inlineIndex: number, text: string) => void;
   onActiveRunChange: (blockIndex: number, inlineIndex: number, element: HTMLElement | null) => void;
+  onActiveRunInput: (blockIndex: number, inlineIndex: number, element: HTMLElement) => void;
 }) {
   const fmt = useMemo(() => parseRunFormat(run.propertiesXml), [run.propertiesXml]);
   const { style, underline, strike } = runFormatToStyle(fmt);
@@ -308,6 +325,18 @@ export function PlainRun({
     [blockIndex, inlineIndex, onActiveRunChange],
   );
 
+  // QA-81 (P1): fire on every keystroke so the editor marks the doc unsaved and
+  // kicks a prompt save immediately — the text is otherwise only in this DOM
+  // node (never committed until blur), so without this the toolbar would read a
+  // false "Saved" until the next autosave tick, and a crash in that window would
+  // lose the typing.
+  const handleInput = useCallback(
+    (e: React.FormEvent<HTMLSpanElement>) => {
+      onActiveRunInput(blockIndex, inlineIndex, e.currentTarget);
+    },
+    [blockIndex, inlineIndex, onActiveRunInput],
+  );
+
   return (
     <span
       data-testid="docx-run"
@@ -319,6 +348,7 @@ export function PlainRun({
       suppressContentEditableWarning
       spellCheck={editable}
       onFocus={editable ? handleFocus : undefined}
+      onInput={editable ? handleInput : undefined}
       onBlur={editable ? handleBlur : undefined}
       style={{
         ...style,

@@ -1,14 +1,14 @@
-import { Quote, Loader2, ShieldCheck, Save, AlertTriangle, Info, Clock } from 'lucide-react';
+import { Quote, Loader2, ShieldCheck, Save, AlertTriangle, Info, Clock, Download } from 'lucide-react';
 import { Button, Callout } from '@/ui/kp';
 import type { AskTurn } from './askHelpers';
 import { CitationText } from './CitationText';
-import { NO_EVIDENCE_DECLINE } from './askPrompt';
+import { NO_EVIDENCE_DECLINE, STILL_IMPORTING_DECLINE } from './askPrompt';
 import { AnswerBlocks } from './AnswerBlocks';
 import { stripBlockMarkers } from './answerBlockMarkers';
 import { stalePlanNotices, formatExportDate } from '@/platform/rag/sourceProvenance';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { EXTERNAL_EXPORT_STALE_DAYS_KEY } from '@/platform/settings/schema';
-import { ASK_ANSWER_STALL_WARNING } from './askTimeout';
+import { ASK_ANSWER_STALL_WARNING, ASK_LOCAL_AI_STARTING_MESSAGE } from './askTimeout';
 
 /* -------------------------------------------------------------------------- */
 /* TurnBlock — renders a single completed or streaming Q+A pair               */
@@ -25,6 +25,7 @@ export function TurnBlock({
   isPersisted,
   isStreaming = false,
   answerStalled = false,
+  localAiStarting = false,
   onOpenAiStatus,
   onOpenFileAtPath,
 }: {
@@ -43,6 +44,15 @@ export function TurnBlock({
    * `isStreaming && !turn.answer`.
    */
   answerStalled?: boolean;
+  /**
+   * Fix 1b — true while THIS send is waiting for the embedded llama-server
+   * sidecar to become healthy, before the no-token watchdog is even armed.
+   * Takes over the pre-first-token spinner with an honest "Local AI is
+   * starting…" message instead of the generic "Answering…" (this is an
+   * expected wait, not a stall, so `answerStalled`'s warning copy never
+   * applies at the same time).
+   */
+  localAiStarting?: boolean;
   /** QA-7 — "View AI status" link shown alongside the stalled warning. */
   onOpenAiStatus?: () => void;
   /**
@@ -85,6 +95,10 @@ export function TurnBlock({
   // claim — it's the trust behaviour working. Show a calm "this is on purpose"
   // note instead of the red "verify this" warning the uncited path uses.
   const isDecline = turn.answer.trim() === NO_EVIDENCE_DECLINE;
+  // QA-90: same idea, for the "zero hits while an import is active" decline —
+  // a calm, reassuring note (data may just not be in yet), never the red
+  // uncited-claim warning.
+  const isStillImportingDecline = turn.answer.trim() === STILL_IMPORTING_DECLINE;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-sm)' }}>
@@ -126,7 +140,7 @@ export function TurnBlock({
         {isStreaming && !turn.answer ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--kp-text-dim)', fontSize: '14.5px' }}>
             <Loader2 size={14} strokeWidth={2} className="animate-spin" />
-            <span>Answering…</span>
+            <span>{localAiStarting ? ASK_LOCAL_AI_STARTING_MESSAGE : 'Answering…'}</span>
           </div>
         ) : usingBlocks ? (
           // Source-aware agent: labelled provenance blocks + per-answer tally.
@@ -201,7 +215,7 @@ export function TurnBlock({
           >
             <ShieldCheck size={14} strokeWidth={2} style={{ flex: 'none', color: '#16654a' }} />
             {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-            Answered over your own files. Every cited claim can be checked against the source.
+            Answered over your own files. Every cited claim has a source you can open and check.
             {/* eslint-enable lantern-i18n/no-hardcoded-string */}
           </div>
         )}
@@ -234,6 +248,31 @@ export function TurnBlock({
           </div>
         )}
 
+        {/* QA-90: same idea as the decline note above, for the "zero hits while
+            an active import" case — a calm, reassuring note that data may just
+            not be indexed yet, never the red uncited-claim warning below. */}
+        {!usingBlocks && !isStreaming && isStillImportingDecline && (
+          <div
+            data-testid="ask-still-importing-decline-note"
+            style={{
+              padding: '9px 12px',
+              borderRadius: 10,
+              background: '#eef2f7',
+              border: '1px solid #c3ccd6',
+              display: 'flex',
+              gap: 8,
+              alignItems: 'center',
+              fontSize: '12.5px',
+              color: 'var(--kp-text-dim)',
+            }}
+          >
+            <Download size={14} strokeWidth={2} style={{ flex: 'none', color: 'var(--kp-text-dim)' }} />
+            {/* eslint-disable lantern-i18n/no-hardcoded-string */}
+            Your files and email are still being imported, so this may just not be indexed yet — try again once that finishes.
+            {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+          </div>
+        )}
+
         {/* WS3 (Task 3): uncited warning — upgraded from a muted one-liner to a
             visible Callout so an uncited answer looks clearly LESS trustworthy
             than a cited one. Mutually exclusive with the attestation above.
@@ -241,7 +280,7 @@ export function TurnBlock({
             deliberate decline is excluded — it has its own calm note above.
             FLAT path only — a smart-mode answer is self-labelling by block, so
             the blanket "not cited" warning would be wrong over a general/draft. */}
-        {!usingBlocks && !isStreaming && !hasGroundedCitation && turn.answer && !isDecline && (
+        {!usingBlocks && !isStreaming && !hasGroundedCitation && turn.answer && !isDecline && !isStillImportingDecline && (
           <div data-testid="ask-uncited-warning">
             <Callout variant="warning" icon={AlertTriangle}>
               {/* eslint-disable lantern-i18n/no-hardcoded-string */}

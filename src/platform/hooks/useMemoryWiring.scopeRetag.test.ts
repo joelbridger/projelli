@@ -575,3 +575,122 @@ describe('scheduleFolderMatterRetag — live success discharges the boot-retag h
     expect(getExcludedMatterFolders()).toContain('/ws/B/other.docx');
   });
 });
+
+// ── R7-1 · the semantic half of the merge with origin's workspace-identity guards:
+//    an identity-abort (workspace switch / in-place reload) mid-re-tag must be a
+//    DISTINCT outcome that NEVER reads as a clean success. Origin's guards make
+//    `reindexFolderPaths` return quietly on a switch; the scheduler op therefore
+//    must re-check identity after it resolves and KEEP the fail-closed hold rather
+//    than discharge it, or a stale wrong-client tag becomes retrievable. ─────────
+describe('scheduleFolderMatterRetag — a mid-flight workspace switch never clears a fail-closed hold (R7-1)', () => {
+  beforeEach(() => {
+    useScopeUpdateStore.getState().clearAll();
+    useWorkspaceStore.setState({ rootPath: '/ws/A', rootGeneration: 1, fileTree: [] });
+  });
+  afterEach(() => {
+    useScopeUpdateStore.getState().clearAll();
+    useWorkspaceStore.setState({ rootPath: null });
+  });
+
+  it('does NOT discharge the boot-retag hold when the workspace switches while a folder re-tag is in flight', async () => {
+    // A boot-time in-place retag FAILED on a file under /ws/A — held out of search.
+    useScopeUpdateStore.getState().begin({
+      id: 'matter:boot-retag',
+      kind: 'matter',
+      label: 'Applying client scope to search',
+      excludeFolders: ['/ws/A/file.docx'],
+    });
+    useScopeUpdateStore.getState().markFailed('matter:boot-retag');
+    expect(getExcludedMatterFolders()).toContain('/ws/A/file.docx');
+
+    // A controllable fresh-scan lets us switch the workspace WHILE the op is in
+    // flight (before reindexFolderPaths' first identity check).
+    let resolveTree!: (tree: never[]) => void;
+    const ws = {
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+      exists: vi.fn(),
+      getFileTree: vi.fn().mockImplementation(
+        () =>
+          new Promise<never[]>((resolve) => {
+            resolveTree = resolve;
+          }),
+      ),
+    };
+
+    const { scheduler, tasks } = recordingScheduler();
+    scheduleFolderMatterRetag(['/ws/A'], ws as never, scheduler);
+    const task = onlyTask(tasks);
+
+    // Op captures identity {/ws/A, gen1} and awaits the fresh scan…
+    const opPromise = task.op();
+    // …then the user switches workspace before the scan resolves.
+    useWorkspaceStore.getState().setRootPath('/ws/B');
+    resolveTree([]);
+    // A bail rejects (the op throws a sentinel so the scheduler keeps the hold);
+    // we assert on the store state below, so intentionally ignore it here.
+    // eslint-disable-next-line lantern-async/no-silent-failure -- test deliberately swallows the sentinel rejection; the fail-closed assertions below are the real check
+    await opPromise.catch(() => undefined);
+
+    // Nothing was re-tagged (identity-abort), so the boot hold for /ws/A MUST
+    // survive — an aborted op is NOT a clean success.
+    expect(vi.mocked(MemoryService.reindexPaths)).not.toHaveBeenCalled();
+    expect(getExcludedMatterFolders()).toContain('/ws/A/file.docx');
+  });
+});
+
+// ── R7-1 · the other half of the merge with origin's per-path-misses retag API:
+//    a MISS returned by `retagMatterBatch` is a never-indexed file, NOT a failure,
+//    so it is re-indexed — but if that RE-INDEX itself fails, the file may still
+//    carry the OLD matter tag and MUST join the fail-closed hold (the auto-merge
+//    dropped `reindexPaths`' failure count, which would have silently leaked). ────
+describe('retagExistingMatterFolderPaths — a MISS that fails to re-index joins the fail-closed hold (R7-1)', () => {
+  const treeWithMiss = [
+    {
+      id: 'Acme',
+      type: 'folder' as const,
+      name: 'Acme',
+      path: '/wsA/Acme',
+      children: [
+        { id: 'Acme/f', type: 'file' as const, name: 'miss.docx', path: '/wsA/Acme/miss.docx' },
+      ],
+    },
+  ];
+
+  beforeEach(() => {
+    useScopeUpdateStore.getState().clearAll();
+    useMatterStore.setState({
+      matters: [matter({ id: 'M', folderPaths: ['/wsA/Acme'] })],
+      activeMatterId: null,
+    });
+    useWorkspaceStore.setState({ rootPath: '/wsA', rootGeneration: 1, fileTree: treeWithMiss });
+    // The in-place batch reports the file as a per-path MISS (it never got rows).
+    vi.mocked(MemoryService.retagMatterBatch).mockImplementation((paths: string[]) =>
+      Promise.resolve(paths),
+    );
+  });
+  afterEach(() => {
+    useScopeUpdateStore.getState().clearAll();
+    useWorkspaceStore.setState({ rootPath: null });
+    useMatterStore.setState({ matters: [], activeMatterId: null });
+  });
+
+  it('holds a never-indexed miss out of retrieval when RE-INDEXING it also fails', async () => {
+    // Re-indexing the miss FAILS (non-zero failure count).
+    vi.mocked(MemoryService.reindexPaths).mockResolvedValue(1);
+
+    await retagExistingMatterFolderPaths(null);
+
+    const held = getExcludedMatterFolders();
+    expect(held.some((p) => p.includes('miss.docx'))).toBe(true);
+  });
+
+  it('does NOT hold a miss that re-indexes cleanly', async () => {
+    // Re-indexing the miss SUCCEEDS (0 failures) → now correctly tagged → NOT held.
+    vi.mocked(MemoryService.reindexPaths).mockResolvedValue(0);
+
+    await retagExistingMatterFolderPaths(null);
+
+    expect(getExcludedMatterFolders()).toHaveLength(0);
+  });
+});

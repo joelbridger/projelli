@@ -31,7 +31,85 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **QA-91c: Notice Card now clicks through Teams' "browser or app?" launcher
+  (the real reason it never joined).** Proven live (evidence `cca5e1a4`): the
+  recording companion's hidden window always landed on Teams' launcher chooser —
+  *"Join your Teams meeting / Continue on this browser / Join on the Teams app"* —
+  and never clicked through it, so it never reached the prejoin screen the QA-91b
+  fix targets. `detectPhase` sat in `loading` and the runner soft-failed
+  `page-unrecognized` at ~29s (6/6 across two Legion rounds). The companion is a
+  fresh, cookieless WebView2 (desktop-style UA), so Teams shows the chooser every
+  time; the QA-91b DOM capture used a warmed browser that had long since dismissed
+  it, which is why it never saw this page. Fixed in three layers so a private-route
+  change can't break it:
+  - **Layer A (URL rewrite, primary):** before the webview opens, Teams
+    `…/meet/<id>` and `…/l/meetup-join/…` links are rewritten to the direct web
+    route `…/v2/?meetingjoin=true#/<route>?…&anon=true&webjoin=true`, which loads
+    the web client with **no chooser**. Verified live: the rewritten URL (same
+    WebView2 UA) goes straight to the prejoin.
+  - **Layer B:** `webjoin=true` is carried inside the meeting URL (the launcher
+    script honors it if any redirect still bounces through the launcher).
+  - **Layer C (click-through, safety net):** a new adapter phase `launcher` is
+    detected before the prejoin (grounded on `[data-tid="joinOnWeb"]` = "Continue
+    on this browser", with text/aria fallbacks) and a new `dismissLauncher` method
+    clicks it — never the "Join on the Teams app" control. Recognized and acted on
+    within a poll or two, so it can't drift into the ~29s give-up.
+  - Files: `adapters/teamsAdapter.ts` (+`adapterTypes.ts`, `zoomAdapter.ts`),
+    `injectionScript.ts`, `meetingPlatform.ts` (`rewriteTeamsJoinUrl`),
+    `tauriDriver.ts`; tests: `adapters/teamsAdapter.test.ts` (launcher fixtures
+    from the real capture), `meetingPlatform.test.ts` (URL-rewrite cases),
+    `injectionScript.test.ts`. Evidence:
+    `coordination/qa-campaign/evidence/qa91c-teams-launcher/`.
+- **QA-91b: Notice Card now recognizes today's Teams web join page (selector
+  drift).** On a real live Teams meeting the recording companion opened its
+  window but soft-failed with `page-unrecognized` after ~29s (3/3), never
+  knocking on the host's lobby. Root cause: Teams web moved its prejoin under a
+  new `[data-tid="calling-prejoin-screen"]` region and turned the mic control
+  into a `role="switch"` checkbox (state in `data-cid="toggle-mute-<bool>"` /
+  `aria-checked`), so the adapter's old selectors matched nothing and
+  `detectPhase` sat in `loading` forever. Selectors are re-grounded in a real
+  DOM capture of the current page (evidence:
+  `coordination/qa-campaign/evidence/qa91b-teams-adapter/`): the prejoin is now
+  recognized by its container (so a name-field drift degrades to `ready-to-join`
+  and still clicks Join, instead of a hard `page-unrecognized`); `ensureMuted`
+  handles the switch toggle and never clicks a disabled one; the join button
+  (`prejoin-join-button`) is unchanged. Old selectors are kept as secondary
+  fallbacks, and lobby/admitted/denied use multi-signal (tid + aria-label +
+  text) detection pending the Legion live retest.
+  - Files: `adapters/teamsAdapter.ts`, `adapters/teamsAdapter.test.ts`
+    (current + legacy DOM fixtures, 29 tests).
+  - Review round 2: `detectPhase` now uses the *same* name-field lookup as
+    `fillGuestName` (identical inline `findNameField` helper — kept inline, not
+    module-scope, because the methods are serialized standalone into the
+    webview). Previously a drifted name `data-tid` with a still-labeled name box
+    read as `ready-to-join`, so the runner (which only fills the name during
+    `name-entry`) would have joined with a nameless card. Now a labeled empty
+    box → `name-entry` → fill → `ready-to-join`.
+
 ### Added
+- **QA-90: "still importing" banner + honest zero-hit decline on Ask.** While
+  email, OneDrive, Wealthbox CRM, or workspace file indexing is actively
+  importing, Ask shows a small, non-blocking note above the composer ("Still
+  bringing in your files and email — answers may be incomplete.") so a
+  half-empty answer during that window reads as still-importing, not broken.
+  Auto-hides the instant every source finishes; reads the same backend
+  setup-progress signal the setup screen uses (QA-89), via a new
+  `useStillImporting` hook, rather than tracking sync state a second way.
+  - Adversarial-review follow-up: a zero-retrieval-hit answer during an active
+    import used to get the generic "nothing found" treatment (or, in smart
+    mode, a confident general answer) — actively misleading, since the real
+    cause may just be "not indexed yet." `handleAsk`'s retrieval-evidence gate
+    now checks for this case FIRST (in both files-only and smart mode) and
+    answers with a new deterministic `STILL_IMPORTING_DECLINE` (no model
+    call, so the message never depends on the model remembering to mention
+    the import), rendered with the same calm "this is on purpose" styling as
+    the existing no-evidence decline rather than the red uncited-claim
+    warning.
+  - Files: `StillImportingBanner.tsx`, `useStillImporting.ts` (new),
+    `isImportingContent` selector in `setup-progress-commands.ts`, wired into
+    `Ask.tsx`; `STILL_IMPORTING_DECLINE` in `askPrompt.ts`, the new gate in
+    `useAsk.ts`, and the calm-note rendering in `TurnBlock.tsx`.
 - **The Notice Card — a local notice participant (v1 + v2).** When the advisor
   records an online meeting, a second participant that runs entirely on the
   advisor's own computer joins the call as "⏺ Recording Notice — <advisor>",
@@ -92,6 +170,192 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **R9 — biometric consent before voiceprint enrollment.** "Separate speakers" requires an explicit affirmation that the client consented to a voice profile (with an honest state-biometric-law note) before any new voiceprint is enrolled; the attestation is ledgered as a `voiceprint_consent` audit event (`SpeakerNamesPanel.tsx`).
 
 ### Fixed
+- **Archived clients no longer linger in the rail's client switcher.** The
+  sidebar's compact client list (`Spine.tsx`) read the full matter list
+  (`useMatters`, which intentionally includes archived matters for RAG path
+  resolution) instead of the active-only selector, so archiving a client never
+  actually removed it from the switcher — found live on the Legion pre-flight.
+  Now reads `useActiveMatters()`, matching the Client Map's default view and
+  the Clients management dialog, both of which already filtered correctly.
+  Archived clients remain reachable via the Client Map's "Archived" section and
+  the Clients management dialog. Files: `src/app/shell/layout/Spine.tsx`.
+  Tests: `Spine.test.tsx` (new).
+- **The welcome feature tour reappeared on every app restart after being
+  skipped.** "Skip tour" (and Escape / clicking outside) only set a
+  session-only flag, so unless a user clicked through all 5 steps to
+  "Finish," the tour auto-showed again on the very next launch, forever —
+  found live on the Legion pre-flight. Skipping now persists the same
+  "seen it" flag Finish uses, so any dismissal is one-time; "Reset Feature
+  Tour" in Settings still brings it back on request. Files:
+  `src/platform/hooks/useFeatureTour.ts`. Tests: `useFeatureTour.test.ts`
+  (new).
+- **QA-91 (demo P0): the Notice Card now actually joins the meeting under
+  CDP-driven Windows testing — fixed a WebView2 `0x8007139F`
+  (ERROR_INVALID_STATE) crash creating the companion window.** wry creates a
+  separate `CoreWebView2Environment` per webview window, and WebView2 rejects a
+  second environment on the same user-data-folder whose additional browser args
+  differ. The main window passed `--disable-features=…` **plus** anything in
+  `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` (e.g. `--remote-debugging-port=…` when
+  driven over CDP), while the Notice Card companion window passed no args and got
+  wry's bare default — so whenever that env var was set the two strings differed
+  and the companion webview failed to create, leaving the recording-notice guest
+  unable to join (the recorder widget eventually fell back to "say the notice
+  aloud"). Both window builders now source the identical args string from one
+  place. The shared string reproduces every extra wry adds by default for our
+  windows — notably `--autoplay-policy=no-user-gesture-required`, which the
+  companion window needs to play meeting media without a user gesture — so the
+  windows match without losing autoplay. Files: `src-tauri/src/webview_env.rs`
+  (new, shared + unit-tested), `src-tauri/src/lib.rs` (main window),
+  `src-tauri/src/commands/notice_card/mod.rs` (companion window).
+- **QA-92 (P0 demo blocker): a client's files that were already on disk when the
+  workspace opened are now found by Ask.** Ask could answer about files created
+  or imported during a live session but silently could NOT find pre-existing
+  Word/PDF files sitting in the linked folder — breaking the core "ask about your
+  files" promise. Root cause: the boot reconcile trusted the search manifest (a
+  saved receipt of what was indexed) without proving the actual vector rows still
+  existed. A manifest entry that said "fresh" with zero surviving rows made a file
+  look indexed while it was invisible to search, forever. This extends commit
+  860b6f3c (which fixed the single-file watcher path) to the two remaining holes.
+  - **Boot reconcile now proves rows before skipping a file.** A stat-fresh
+    manifest entry is skipped ONLY when at least its recorded number of vector
+    rows actually exist under the entry's recorded client/privilege scope;
+    otherwise the file is re-indexed under that same scope (never widened). One
+    upfront column-scan (`store::scoped_row_counts`) makes the per-file proof an
+    O(1) lookup — no per-file query flood on a warm boot. A scan failure fails
+    safe toward re-indexing. Files: `commands/rag/reconcile.rs`
+    (`reconcile_skip_is_row_backed`, `FileDecision::Skip`),
+    `commands/rag/store/maintain.rs` (`scoped_row_counts`).
+  - **PDF freshness now requires surviving rows.** `rag_manifest_pdf_fresh`
+    returns not-fresh (→ re-index) when a manifest-fresh PDF has zero rows under
+    its scope. PDF entries record `row_count = 0`, so this gates on row PRESENCE,
+    not count — an unchanged, still-indexed PDF is not re-OCR'd. Files:
+    `commands/rag/lifecycle.rs` (`pdf_can_skip`, `rag_manifest_pdf_fresh`).
+  - **Boot retag re-indexes the exact per-path misses.** The in-place folder→
+    client retag now reports, per path, which files still have no rows under the
+    target client after the retag (never-indexed / path-form mismatch); those —
+    and only those — are re-indexed under the client. Checking per path (not the
+    batch's aggregate updated-count) is what catches a MIXED folder where one file
+    retags fine but a sibling silently misses and would otherwise stay unassigned
+    and invisible to client-scoped Ask. Files: `commands/rag/lifecycle.rs`
+    (`rag_retag_matter_batch` now returns the miss list),
+    `commands/rag/store/maintain.rs` (`paths_missing_rows_under_matter`),
+    `platform/hooks/useMemoryWiring.ts` (`retagFolderPathsInPlace`),
+    `platform/rag/MemoryService.ts`, `platform/utils/tauri-commands.ts`.
+- **QA-92 round 2: two timing gaps between the boot-reconcile fix above and the
+  still-importing/citation-verification UI, surfaced by cross-branch review.**
+  - **A negative citation verdict during active re-indexing no longer sticks
+    forever.** `SourcePanel`'s automatic citation check is keyed by
+    (id, matterId, excerpt) and never retried. If the real backend check ran
+    while boot repair/re-indexing was still in flight, a genuinely correct
+    source could transiently come back `notFound`/`matterMismatch` and then
+    stay falsely red until the panel remounted. A negative verdict that lands
+    while a content import is unsettled is now held back — the card stays
+    "pending" — and is released for one retry the moment indexing settles to
+    idle. Files: `SourcePanel.tsx`.
+  - **"Still importing" is now a tri-state, not a boolean that defaults to
+    false.** `useStillImporting` used to return `false` during the brief async
+    window between mount and the first status fetch resolving, so a question
+    asked the instant Ask opened could get the generic "nothing found" decline
+    instead of the honest still-importing one. `useStillImporting` now returns
+    `'unknown' | 'importing' | 'idle'`; `useAsk.ts`'s retrieval-evidence gate
+    treats `'unknown'` the same as `'importing'` via the new
+    `isImportStatusUnsettled` predicate. The still-importing banner is
+    unaffected (it only lights up on confirmed `'importing'`, so it never
+    flashes on mount). Files: `useStillImporting.ts`, `useAsk.ts`.
+  - **Round 2 (coordinator review): fixed the same read-at-the-wrong-moment
+    bug in two more places.** (1) The citation-hold decision above used to
+    check the LIVE import status when the batch's *result* landed — so a
+    batch issued while unsettled that resolved AFTER indexing flipped to idle
+    would skip the hold and stick red anyway. It now captures whether
+    indexing was unsettled at the moment the batch was *issued*, and holds
+    negatives from any batch issued during that window (retrying immediately
+    if indexing has already finished by the time the result arrives, rather
+    than waiting on a transition that already happened). (2) `handleAsk`
+    closed over `importStatus` at send time; since retrieval can still be
+    awaiting when the gate runs, a status that resolved to idle mid-retrieval
+    was invisible to the gate, which kept using the stale unsettled snapshot.
+    The gate now reads a ref updated every render, so it always sees the
+    freshest known status. Files: `SourcePanel.tsx`, `useAsk.ts`.
+- **Connect-flow demo hardening: four honesty/clarity fixes on the connect
+  screens surfaced by adversarial review.**
+  - **Wealthbox connect/sync no longer looks frozen.** The first
+    `crmListHouseholds()` call is now bounded by a frontend timeout
+    (`crmTimeout.ts`, 90s) so a sustained Wealthbox 429 retry storm
+    (`client.rs` retries with backoff up to 64s/attempt) fails cleanly instead
+    of hanging forever; a "Wealthbox is taking longer than usual — still
+    trying…" warning appears after ~20s of no progress; and the Stop button
+    now stays visible for the whole sync, including the household-list phase
+    before any `crm-sync-progress` event arrives (it used to only show once
+    the backend's own progress events started) — and clicking it during that
+    phase now genuinely ends the wait (`createCrmCancelGate` races the
+    frontend await itself, since `crm_cancel_sync`'s backend flag is only
+    polled by `engine::backfill` during `crm_sync_all`, never by
+    `crm_list_households`).
+  - **A 429 while testing an API key is no longer shown as a valid key.**
+    `apiKeyValidation.ts` now returns a distinct `rate_limited` outcome
+    ("This key is real, but the account is over its limit right now") instead
+    of folding 429 into `ok`. `ApiKeyManager`, `ApiKeyWizard`, and
+    `ApiKeyTester` show it as a warning, not "Working" or "Invalid" — the key
+    is neither marked verified nor invalid.
+  - **A bad AI key used in Ask is now marked invalid.** A 401/403 from the
+    resolved cloud provider during an Ask send now calls
+    `markKeyInvalid(provider)` (previously only the Settings "Check" button
+    and the key wizard did this), and a successful send marks the provider
+    `markKeyVerified`, so a new chat no longer silently defaults back to a
+    dead key. `isAuthRejectionError` in `askHelpers.ts` is shared by the
+    error-copy path and this new marking so the two can never disagree.
+  - **An expired Microsoft sign-in shows plain language, not engineer-speak.**
+    `invalid_grant` / `scope_upgrade_required` / `refresh failed` / `not
+    connected` from `graph.rs` / `connect.rs` / `onedrive/commands.rs` now map
+    to "Your Microsoft sign-in expired. Click Reconnect." in both
+    `MailConnect` and `OneDriveConnect` (new shared
+    `microsoft/microsoftAuthError.ts`), and OneDriveConnect gained a
+    Reconnect action next to the message (Mail already had one).
+  - Files: `src/platform/connectors/crm/{WealthboxConnect.tsx,crmTimeout.ts}`,
+    `src/platform/providers/{apiKeyValidation.ts,keyVerification.ts}`,
+    `src/features/onboarding/{ApiKeyWizard.tsx,ApiKeyTester.tsx}`,
+    `src/features/settings/ApiKeyManager.tsx`,
+    `src/features/ask/{askHelpers.ts,useAsk.ts}`,
+    `src/platform/connectors/microsoft/microsoftAuthError.ts`,
+    `src/platform/connectors/email/MailConnect.tsx`,
+    `src/platform/connectors/onedrive/OneDriveConnect.tsx`.
+- **QA-81 (P0 silent data loss): a brand-new .docx being actively TYPED no
+  longer loses in-progress text on a crash/power-loss while the toolbar shows
+  "Saved".** A keystroke lives only in the run's editable DOM until the run
+  blurs (which is what committed it and scheduled a save); until then the
+  steady-state ~2s autosave had nothing to write, so live typing reached disk
+  ONLY when the user navigated away / closed / quit. Now a periodic autosave
+  (`LIVE_TYPING_AUTOSAVE_MS`, ~2s) folds the focused run's live text into a
+  clone of the session document and writes it via a new
+  `DocxSession.persistLive`, without touching the live editing model,
+  re-rendering, or moving the caret; a later blur authors the proper
+  tracked-change commit and supersedes the plain-text shadow on disk.
+  Typing marks the doc unsaved the INSTANT a key is pressed (a per-keystroke
+  input handler on the focused run), so the toolbar never reads a false "Saved"
+  before the first autosave tick, and kicks a throttled prompt save so a crash
+  loses at most a fraction of a second of typing rather than a full autosave
+  cycle. When a shadow save has already mirrored the live text into the session
+  document, a tab-switch/close before blur still records the finished edit in
+  version history (a leaving-checkpoint promotes the un-snapshotted live content
+  instead of disposing a session that only looks "clean").
+  `persistLive` marks the session dirty before queuing (so an overlapping older
+  write can't publish a false "Saved" while newer text is still queued). The
+  version-history snapshot decision is tied to the CONTENT, not the save call: a
+  committed edit (blur / accept / reject / redline / export / a leaving-
+  checkpoint flush) marks the dirty content snapshot-worthy (`pendingSnapshot`),
+  a live shadow save leaves that flag untouched, and the write that actually
+  persists the content consumes it. So pure live typing never floods the version
+  timeline, but a committed edit ALWAYS gets its snapshot even when a live save —
+  or its backoff retry — is what physically wrote it to disk (e.g. a live save
+  absorbing a blurred edit's still-pending debounce, or a retry that fires after
+  the user blurred). Live text is read via `textContent` (verbatim — the same
+  extraction the blur commit uses), so whitespace and line breaks are preserved
+  exactly; an IME (half-composed) run is persisted-then-healed on the
+  composition-end blur and never corrupts run structure. Solo path only —
+  co-edit is unchanged (its document is sourced from the CRDT). Files:
+  `src/features/documents/media/DocxEditor.tsx`,
+  `src/platform/fs/docxSaveSession.ts`, tests in
+  `tests/unit/DocxEditor.test.tsx`, `tests/unit/fileOps/docxSaveSession.test.ts`.
 - **QA-71 (P1/P2): deleting meeting audio before transcription now warns about
   total loss.** `MeetingEntry` now checks whether `transcript.json` actually
   loaded before choosing the delete-audio action and confirmation copy. Meetings
@@ -100,6 +364,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that deleting audio removes the only copy permanently. Files:
   `src/features/meetings/MeetingEntry.tsx`, `src/locales/{en,es,de}.json`,
   `tests/unit/meetings/meeting-entry-delete-audio-no-transcript.test.tsx`.
+- **QA-75 (P1/P2): the file tree no longer goes silently deaf to externally-added
+  files partway through a session.** The native OS file watcher (`notify` crate)
+  could stop delivering `workspace-file-changed` events without the app crashing
+  or showing any error — an inotify queue overflow, a Windows handle going
+  stale, or a poisoned debounce mutex panicking the watcher's callback thread
+  (`src-tauri/src/commands/watcher.rs`) could each silently kill event delivery
+  while the stored watcher handle still looked healthy. Event mode used to
+  install the watcher once per workspace open and trust it for the rest of the
+  session, so only a full app restart ever recovered (the same fragility class
+  as QA-19, but for the live session instead of just startup). `FileSystemWatcher`
+  now runs a low-frequency (60s) keepalive that re-arms the native watcher and
+  runs a backstop snapshot diff, self-healing within one interval instead of
+  requiring a restart. The Rust watcher callback also now logs native errors
+  (instead of silently dropping them) and recovers from a poisoned debounce
+  mutex instead of panicking. Files: `src/platform/fs/FileSystemWatcher.ts`,
+  `src-tauri/src/commands/watcher.rs`.
+  - **Round-2 hardening:** independent review found the keepalive itself could
+    race a workspace switch — `stop()` can't cancel an in-flight `watchWorkspace`
+    IPC call, so an old instance's stale re-arm could resolve *after* a new
+    workspace's own install and clobber the Rust singleton back to the old
+    path, silencing the current workspace. Each `FileSystemWatcher` instance
+    now claims a module-level generation the moment its own watch installs; a
+    stale completion detects it's no longer current and self-corrects by
+    re-arming the active path instead of winning the race. Also added an
+    overlap guard so a snapshot scan slower than the keepalive interval can't
+    stack concurrent scans/re-arm calls on a large or slow workspace.
 - **QA-45 (P1): shared client notes no longer stick on "Loading" forever.**
   `MatterNotesEditorWrapper` called `ensureMatterSync(matter).then(...)` with
   no `.catch` — a rejected promise (key fetch / sync startup / crypto setup

@@ -20,6 +20,7 @@ import {
   buildWorkspaceContextBlock,
 } from '@/platform/rag/workspaceCommand';
 import type { RagHit, RetrievalScope } from '@/platform/utils/tauri-commands';
+import { localLlmSidecarHealth, localLlmSidecarStart } from '@/platform/utils/tauri-commands';
 import {
   useAIChatStore,
   useFileAccessConsent,
@@ -46,10 +47,12 @@ import type { AnswerBlock, AnswerCitation, AskFailureStage, AskScope, AskTurn } 
 import {
   ASK_CANCELLED_BY_NAVIGATION_MESSAGE,
   NO_EVIDENCE_DECLINE,
+  STILL_IMPORTING_DECLINE,
   buildAskSystemPrompt,
   buildSmartAskSystemPrompt,
   scopeHintForMatter,
 } from './askPrompt';
+import { useStillImporting, isImportStatusUnsettled } from './useStillImporting';
 import { bindAnswerBlocks } from './answerBlockHelpers';
 import {
   withAskTimeout,
@@ -59,15 +62,17 @@ import {
   AskTimeoutError,
   createAnswerStallWatchdog,
   isAskTimeoutError,
+  waitForLocalAiSidecarReady,
 } from './askTimeout';
 import {
   hasCloudKey,
   buildResolvedAskProvider,
-  resolveLocalAskProvider,
+  resolveLocalOnlyAskProvider,
   resolveActiveAskProviderId,
   askConsentScope,
   resolveEmailCitationLabels,
   friendlyErrorMessage,
+  isAuthRejectionError,
   buildHistoryBlock,
   reconstructTurns,
   filterHitsByScope,
@@ -78,6 +83,7 @@ import {
   dedupeRecognizedHits,
   recognizeHit,
 } from './askHelpers';
+import { markKeyInvalid, markKeyVerified, isVerifiableProvider } from '@/platform/providers/keyVerification';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import {
   isExternalExportConsentGiven,
@@ -233,6 +239,13 @@ export function useAsk({
   // token/progress, so the "Answering…" spinner can say so instead of sitting
   // silent. Cleared the instant a token arrives, on completion, and on error.
   const [answerStalled, setAnswerStalled] = useState(false);
+  // Fix 1b (demo readiness) — true only while THIS send is waiting for the
+  // embedded llama-server sidecar to become healthy, before the no-token
+  // watchdog is even armed (see the pre-flight block in handleAsk). Distinct
+  // from `answerStalled`: that's "the model is generating but silent";
+  // this is "the engine hasn't come up yet", an honest, expected state on
+  // the first Local-only question after switching modes or launching the app.
+  const [localAiStarting, setLocalAiStarting] = useState(false);
   const [savingIdx, setSavingIdx] = useState<number | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
@@ -321,6 +334,31 @@ export function useAsk({
     }
   }, []);
 
+  // QA-90 — whether a content import (email/CRM/OneDrive/file indexing) is
+  // active right now. Read fresh inside handleAsk's retrieval-evidence gate so
+  // a zero-hit answer during an active import says so, instead of reading as
+  // "nothing exists" (see STILL_IMPORTING_DECLINE).
+  //
+  // QA-90 round 3 — `importStatus` is a tri-state (`unknown` covers the brief
+  // window before the first status fetch resolves). The retrieval-evidence
+  // gate treats `unknown` the same as `importing` via `isImportStatusUnsettled`
+  // — a question asked the instant Ask opens must not read as a confident
+  // "nothing found" just because we haven't heard back yet. `stillImporting`
+  // (the banner-facing boolean) stays strictly "confirmed importing" so the
+  // banner doesn't flash on every mount.
+  const importStatus = useStillImporting();
+  const stillImporting = importStatus === 'importing';
+  // Round 2 (coordinator review): `handleAsk` is a long-running async closure
+  // — retrieval alone can await a real search. Reading the closed-over
+  // `importStatus` const at the gate would use whatever it was at the moment
+  // THIS call of handleAsk was CREATED, not the CURRENT status by the time
+  // retrieval finishes and the gate actually runs. A ref updated every render
+  // (mirrors `statusRef` above) always reflects the latest known status.
+  const importStatusRef = useRef(importStatus);
+  useEffect(() => {
+    importStatusRef.current = importStatus;
+  }, [importStatus]);
+
   // On mount / chatId change: init session and reconstruct turns from persisted messages.
   // Fix #1: read getState() instead of the closed-over `sessions` selector so we always
   // see the post-initSession state, not a stale snapshot captured at render time.
@@ -343,6 +381,7 @@ export function useAsk({
     setErrorMsg(null);
     setStatus('idle');
     setAnswerStalled(false);
+    setLocalAiStarting(false);
 
     // QA-25 (P2) — this effect's cleanup runs right before `chatId` changes
     // again, i.e. the instant the user switches to a different client/
@@ -481,6 +520,7 @@ export function useAsk({
     setErrorMsg(null);
     setStatus('idle');
     setAnswerStalled(false);
+    setLocalAiStarting(false);
   }, [activeMatter, rootPath]);
 
   const handleLoadSession = useCallback((sid: string) => {
@@ -526,6 +566,7 @@ export function useAsk({
     setErrorMsg(null);
     setStatus('retrieving');
     setAnswerStalled(false);
+    setLocalAiStarting(false);
 
     // Add user message to stream placeholder
     const newStreamingTurn: AskTurn = {
@@ -742,10 +783,10 @@ export function useAsk({
        * binds citations ONLY inside files blocks against real retrieved chunks,
        * so an empty context can never produce a green, fake-cited claim.
        */
-      const emitNoEvidenceDecline = (): void => {
+      const emitDecline = (answer: string): void => {
         const declineTurn: AskTurn = {
           question: q,
-          answer: NO_EVIDENCE_DECLINE,
+          answer,
           citations: [],
           sources: [],
           // A "couldn't find this" decline carries NO file content — mark it
@@ -755,17 +796,33 @@ export function useAsk({
         };
         const nowDecline = new Date().toISOString();
         addMessage(chatId, { role: 'user', content: q, timestamp: nowDecline });
-        addMessage(chatId, { role: 'assistant', content: NO_EVIDENCE_DECLINE, timestamp: nowDecline, askGroundedFromFiles: false });
+        addMessage(chatId, { role: 'assistant', content: answer, timestamp: nowDecline, askGroundedFromFiles: false });
         setTurns((prev) => [...prev, declineTurn]);
         setStreamingTurn(null);
         setStatus('done');
         pendingQuestionRef.current = null;
       };
 
+      // QA-90: zero hits WHILE a content import is actively running (or we
+      // simply don't know yet, round 3) is ambiguous — "nothing exists" vs.
+      // "just not indexed yet" — so it gets its own, more reassuring decline,
+      // in BOTH files-only and smart mode (a confident "nothing found, here's
+      // general advice" would be actively misleading mid-import). Checked
+      // before the files-only gate below so it takes priority whenever both
+      // would otherwise apply. Reads `importStatusRef` (round 2 coordinator
+      // review), NOT the closed-over `importStatus`, so a status that resolves
+      // to idle WHILE retrieval above was still awaiting is seen fresh here —
+      // otherwise a stale "unsettled" snapshot from send time would emit the
+      // still-importing decline even though nothing is importing anymore.
+      if (memoryEnabled && hits.length === 0 && isImportStatusUnsettled(importStatusRef.current)) {
+        emitDecline(STILL_IMPORTING_DECLINE);
+        return;
+      }
+
       // Ask-smart (Decision 3): only files-only mode dead-ends on no evidence;
       // smart mode proceeds and leads with an honest nothing-found block.
       if (filesOnly && memoryEnabled && hits.length === 0) {
-        emitNoEvidenceDecline();
+        emitDecline(NO_EVIDENCE_DECLINE);
         return;
       }
 
@@ -807,10 +864,16 @@ export function useAsk({
           } else {
             // Fail closed: drop the recognized exports from this answer.
             hits = hits.filter((h) => recognizeHit(h) === null);
+            // QA-90: same still-importing gate as above, now that filtering
+            // may have newly emptied the evidence.
+            if (memoryEnabled && hits.length === 0 && isImportStatusUnsettled(importStatusRef.current)) {
+              emitDecline(STILL_IMPORTING_DECLINE);
+              return;
+            }
             // Only files-only mode dead-ends when that empties the evidence;
             // smart mode proceeds (leads with an honest nothing-found block).
             if (filesOnly && memoryEnabled && hits.length === 0) {
-              emitNoEvidenceDecline();
+              emitDecline(NO_EVIDENCE_DECLINE);
               return;
             }
           }
@@ -848,9 +911,12 @@ export function useAsk({
       // await: if Local-only is now on and the resolved provider is NOT local,
       // re-resolve to the on-device engine so the user still gets a private answer
       // instead of a failed query (local sends are always safe, whatever the mode
-      // does next).
+      // does next). resolveLocalOnlyAskProvider throws an honest "still setting
+      // up" message rather than silently constructing an unreachable Ollama
+      // provider (Fix 2) — that throw is caught by this function's outer catch,
+      // same as any other resolution failure.
       if (isLocalOnlyMode() && !isLocalProvider(resolvedProvider.providerId)) {
-        resolvedProvider = await resolveLocalAskProvider();
+        resolvedProvider = await resolveLocalOnlyAskProvider();
         // QA-25 (P2, Codex review) — same re-check as above: this branch adds
         // its OWN await, so a navigation-triggered abort during THIS one must
         // be caught here too, not just after the first resolution.
@@ -1008,6 +1074,12 @@ export function useAsk({
             fileToolsEnabled,
           },
         }));
+        // A real response came back from a cloud provider's key, so it is
+        // proven to work — prefer it for future chats (mirrors the "Check"
+        // button in ApiKeyManager and the Wizard's on-save verification).
+        if (isVerifiableProvider(providerAudit.providerId)) {
+          markKeyVerified(providerAudit.providerId);
+        }
       };
 
       const emitModelCall = (contentLength: number, usage?: { inputTokens?: number; outputTokens?: number }, cost?: number) => {
@@ -1026,6 +1098,25 @@ export function useAsk({
           provider: providerAudit.providerId,
         });
       };
+
+      // Fix 1b (demo readiness) — see waitForLocalAiSidecarReady's doc comment
+      // in askTimeout.ts: a Local-only send must not let the 45s no-token
+      // watchdog below start counting while the sidecar is still legitimately
+      // cold-starting (which can take up to two minutes).
+      await waitForLocalAiSidecarReady({
+        providerId: providerAudit.providerId,
+        checkHealth: localLlmSidecarHealth,
+        startSidecar: localLlmSidecarStart,
+        onStarting: (starting) => {
+          if (starting) {
+            failedStage = 'provider-send';
+            providerCallStarted = true;
+          }
+          setLocalAiStarting(starting);
+        },
+      });
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- abort.signal flips via an external AbortController across the await (ESLint can't see it; same async pattern baselined elsewhere in this file).
+      if (abort.signal.aborted) return;
 
       // QA-7 — the "Answering…" spinner had no ceiling: a stalled provider call
       // (most often the embedded local model still mid-download/load) left it
@@ -1243,6 +1334,20 @@ export function useAsk({
         });
       }
       const raw = err instanceof Error ? err.message : '';
+      // Fix 3 (connect-flow demo hardening): a genuine auth rejection from the
+      // resolved cloud provider means the stored key is bad — record it so a
+      // new chat never defaults back to it (mirrors the "Check" button in
+      // ApiKeyManager). Uses the SAME classification friendlyErrorMessage uses
+      // below, so the "your key was rejected" copy and this marker can never
+      // disagree about what counts as an auth failure.
+      if (
+        providerCallStarted &&
+        providerAudit &&
+        isVerifiableProvider(providerAudit.providerId) &&
+        isAuthRejectionError(raw, { mode: getConfidentialityMode(), reachedProvider: providerCallStarted })
+      ) {
+        markKeyInvalid(providerAudit.providerId);
+      }
       // Fix #4 / UX-29: plain-language copy that is mode- and stage-aware.
       // `providerCallStarted === false` means the failure was in the file-search
       // stage (not the AI/key), so the message must not blame a key.
@@ -1261,6 +1366,7 @@ export function useAsk({
               }),
       );
       setAnswerStalled(false);
+      setLocalAiStarting(false);
       setStreamingTurn(null);
       setStatus('error');
       pendingQuestionRef.current = null;
@@ -1309,6 +1415,7 @@ export function useAsk({
     errorMsg,
     status,
     answerStalled,
+    localAiStarting,
     savingIdx,
     displayedProvider,
     confidentialityMode,
@@ -1319,6 +1426,7 @@ export function useAsk({
     toggleRailCollapsed,
     filesOnly,
     setFilesOnly,
+    stillImporting,
     selectedCite,
     anyHasCitations,
     handleCitationSelect,

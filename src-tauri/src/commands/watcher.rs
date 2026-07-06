@@ -125,7 +125,24 @@ pub async fn watch_workspace(app: AppHandle, path: String) -> Result<(), String>
     let app_handle = app.clone();
 
     let mut watcher = notify::recommended_watcher(move |res: notify::Result<Event>| {
-        let Ok(ev) = res else { return };
+        // QA-75: this used to silently drop `Err` (a native-level failure —
+        // e.g. an inotify queue overflow or a Windows buffer/handle error —
+        // that the OS reports through the SAME callback as real events).
+        // Silently returning gave no signal that anything went wrong, and
+        // paired with the frontend never re-checking watcher health, meant a
+        // native-level hiccup could leave the watcher degraded for the rest
+        // of the session with zero visibility. Logging doesn't fix the OS
+        // condition itself, but the frontend's periodic keepalive
+        // (FileSystemWatcher.ts) re-arms the watcher regardless of whether
+        // this branch ever logs anything, so recovery does not depend on the
+        // error being diagnosable — only on it being visible.
+        let ev = match res {
+            Ok(ev) => ev,
+            Err(err) => {
+                eprintln!("[watcher] native watch error (will self-heal via periodic re-arm): {}", err);
+                return;
+            }
+        };
         let Some(kind) = map_event_kind(&ev.kind) else {
             return;
         };
@@ -133,7 +150,19 @@ pub async fn watch_workspace(app: AppHandle, path: String) -> Result<(), String>
         for p in ev.paths.iter() {
             let p_str = p.to_string_lossy().to_string();
             let emit = {
-                let mut d = debouncer_for_closure.lock().expect("debouncer poisoned");
+                // QA-75: recover from a poisoned lock instead of panicking.
+                // `Debouncer::should_emit` cannot itself panic in normal
+                // operation, so a poisoned lock here would only ever come
+                // from an unrelated earlier panic on this thread — treating
+                // the recovered (still logically consistent) inner state as
+                // usable is safe, and keeps this dedicated watcher-callback
+                // thread alive. Before this fix, a poisoned lock would panic
+                // and silently kill the thread that pumps native filesystem
+                // events, leaving the stored watcher handle looking "alive"
+                // while nothing was left to read from it.
+                let mut d = debouncer_for_closure
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
                 d.should_emit(&p_str, now)
             };
             if !emit {
@@ -143,7 +172,9 @@ pub async fn watch_workspace(app: AppHandle, path: String) -> Result<(), String>
                 path: p_str,
                 kind: kind.clone(),
             };
-            let _ = app_handle.emit(EVENT_NAME, payload);
+            if let Err(err) = app_handle.emit(EVENT_NAME, payload) {
+                eprintln!("[watcher] failed to emit {}: {}", EVENT_NAME, err);
+            }
         }
     })
     .map_err(|e| format!("failed to create watcher: {}", e))?;

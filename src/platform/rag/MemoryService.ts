@@ -342,14 +342,16 @@ export const MemoryService = {
     await ragSetWorkspace(path);
   },
 
-  async indexFile(path: string): Promise<void> {
+  async indexFile(path: string, matterId?: string): Promise<void> {
     if (!isMemoryEnabled()) return;
     // WS-B/C: tag the chunk with the matter this file belongs to so retrieval
     // can prefilter by matter. Resolves to "unassigned" when the file is not
-    // under any matter's mapped folders.
+    // under any matter's mapped folders. Callers that already know the matter
+    // (meeting post-processing, for example) can pass it directly so indexing
+    // does not depend on folder-watcher timing or folder inference.
     // WS-PRIV: also tag with the source's privilege so privileged content is
     // excluded from default retrieval. Resolves to "none" when not tagged.
-    await ragIndexFile(path, resolveMatterForPath(path), resolvePrivilegeForPath(path));
+    await ragIndexFile(path, matterId ?? resolveMatterForPath(path), resolvePrivilegeForPath(path));
   },
 
   /**
@@ -444,9 +446,13 @@ export const MemoryService = {
    * P1.1 — BATCHED matter retag: re-tag many sources' chunks to `matterId` in one
    * LanceDB UPDATE per chunk. The boot retag of a mapped client folder uses this
    * (grouped per matter) so a warm boot of a mapped workspace stays cheap.
+   *
+   * QA-92: returns the paths that STILL have no rows under `matterId` after the
+   * retag (never-indexed / path-form mismatch), so the caller re-indexes exactly
+   * those. Empty when memory is off or there are no paths.
    */
-  async retagMatterBatch(sourceIds: string[], matterId: string): Promise<number> {
-    if (!isMemoryEnabled() || sourceIds.length === 0) return 0;
+  async retagMatterBatch(sourceIds: string[], matterId: string): Promise<string[]> {
+    if (!isMemoryEnabled() || sourceIds.length === 0) return [];
     return ragRetagMatterBatch(sourceIds, matterId);
   },
 

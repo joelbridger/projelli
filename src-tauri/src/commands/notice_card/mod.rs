@@ -61,6 +61,18 @@ pub async fn notice_card_open(
         .title("Recording Notice")
         .inner_size(520.0, 400.0)
         .initialization_script(&init_script)
+        // MUST match the main window's WebView2 additional-browser-args exactly.
+        // wry creates a fresh CoreWebView2Environment per window; WebView2
+        // rejects a second environment on the same user-data-folder whose args
+        // differ with ERROR_INVALID_STATE (HRESULT 0x8007139F). Without this the
+        // companion window failed to open whenever the main window carried extra
+        // args (e.g. `--remote-debugging-port=…` under CDP-driven testing), and
+        // the recording-notice guest never joined the meeting (QA-91). The shared
+        // string reproduces every extra wry would add on its own (notably
+        // `--autoplay-policy=no-user-gesture-required`, which this window needs to
+        // play meeting media without a user gesture), so the two windows stay
+        // byte-for-byte identical without losing any behavior.
+        .additional_browser_args(&crate::webview_env::webview_browser_args())
         // CRITICAL for the status channel: the injected script reports the join
         // phase by writing `NC:<phase>` into the PAGE's `document.title`, but
         // `notice_card_status` reads the NATIVE window title (`title()`), and

@@ -46,6 +46,14 @@ export const zoomAdapter: JoinAdapter = {
     return 'loading';
   },
 
+  dismissLauncher() {
+    // Zoom's web client has its own "Launch Meeting / Join from your browser" step,
+    // but it is not captured/grounded here (QA-91c scope is Teams). No-op for now so
+    // the shared JoinAdapter contract is satisfied; detectPhase never returns
+    // 'launcher' for Zoom, so the runner never calls this.
+    return false;
+  },
+
   fillGuestName(doc, displayName) {
     const input = doc.querySelector('#input-for-name, #inputname');
     if (!(input instanceof HTMLInputElement)) return false;

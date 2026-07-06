@@ -12,14 +12,19 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { isTauri } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import {
   SETUP_PROGRESS_CHANGED_EVENT,
   deriveOverall,
   getSetupProgress,
   reportClientMap,
   type ClientMapProgress,
+  type OneDriveSetupProgress,
   type SetupProgress,
 } from '@/platform/utils/setup-progress-commands';
+import { ONEDRIVE_SYNC_EVENT, type OneDriveSyncProgress } from '@/platform/utils/onedrive-commands';
+import { useOneDriveStore } from '@/platform/connectors/onedrive/onedriveStore';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import type { Matter } from '@/platform/types/matter';
@@ -48,6 +53,18 @@ export function computeClientMapProgress(
   return { total, built, building: 0, pending: Math.max(0, total - built) };
 }
 
+function oneDriveSetupProgress(progress: OneDriveSyncProgress | null): OneDriveSetupProgress {
+  if (!progress) {
+    return { syncing: false, status: 'idle', itemsChecked: null, itemsImported: null };
+  }
+  return {
+    syncing: progress.status === 'syncing',
+    status: progress.status,
+    itemsChecked: progress.seen ?? null,
+    itemsImported: progress.imported ?? null,
+  };
+}
+
 /**
  * Returns the unified `SetupProgress`, or `null` before the first snapshot
  * arrives (browser/test mode also yields `null`).
@@ -59,6 +76,11 @@ export function useSetupProgress(): SetupProgress | null {
   const matters = useMatterStore((s) => s.matters);
   const maps = useClientMapStore((s) => s.maps);
   const clientMap = useMemo(() => computeClientMapProgress(matters, maps), [matters, maps]);
+  const oneDriveEventProgress = useOneDriveStore((s) => s.progress);
+  const oneDriveProgressWorkspaceRoot = useOneDriveStore((s) => s.progressWorkspaceRoot);
+  const setOneDriveProgress = useOneDriveStore((s) => s.setProgress);
+  const clearOneDriveProgress = useOneDriveStore((s) => s.clearProgress);
+  const workspaceRoot = useWorkspaceStore((s) => s.rootPath);
 
   // Fetch the backend snapshot once, then refetch (debounced) on every change.
   useEffect(() => {
@@ -80,19 +102,17 @@ export function useSetupProgress(): SetupProgress | null {
 
     void refetch();
 
-    void (async () => {
-      try {
-        const { listen } = await import('@tauri-apps/api/event');
-        const stop = await listen(SETUP_PROGRESS_CHANGED_EVENT, () => {
-          if (timer) clearTimeout(timer);
-          timer = setTimeout(() => void refetch(), REFETCH_DEBOUNCE_MS);
-        });
+    void listen(SETUP_PROGRESS_CHANGED_EVENT, () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => void refetch(), REFETCH_DEBOUNCE_MS);
+    })
+      .then((stop) => {
         if (guard.cancelled) stop();
         else unlisten = stop;
-      } catch {
-        // Event API unavailable (browser/test) — the initial fetch still ran.
-      }
-    })();
+      })
+      .catch(() => {
+        console.warn('useSetupProgress: setup-progress listener unavailable.');
+      });
 
     return () => {
       guard.cancelled = true;
@@ -100,6 +120,35 @@ export function useSetupProgress(): SetupProgress | null {
       if (unlisten) unlisten();
     };
   }, []);
+
+  // OneDrive emits its own real sync-progress event. Keep a tiny frontend
+  // overlay so the shared setup screen can show its live checked/imported
+  // counts using the same row UI as email and Wealthbox.
+  useEffect(() => {
+    if (!isTauri()) return;
+    let unlisten: (() => void) | undefined;
+    let disposed = false;
+    void listen<OneDriveSyncProgress>(ONEDRIVE_SYNC_EVENT, (event) => {
+      setOneDriveProgress(event.payload);
+    })
+      .then((stop) => {
+        if (disposed) stop();
+        else unlisten = stop;
+      })
+      .catch(() => {
+        console.warn('useSetupProgress: OneDrive progress listener unavailable.');
+      });
+    return () => {
+      disposed = true;
+      if (unlisten) unlisten();
+    };
+  }, [setOneDriveProgress]);
+
+  useEffect(() => {
+    if (oneDriveEventProgress && oneDriveProgressWorkspaceRoot !== workspaceRoot) {
+      clearOneDriveProgress();
+    }
+  }, [clearOneDriveProgress, oneDriveEventProgress, oneDriveProgressWorkspaceRoot, workspaceRoot]);
 
   // Push the frontend-only Client Map counts down so a backend snapshot is
   // complete for consumers that don't use this hook.
@@ -116,7 +165,16 @@ export function useSetupProgress(): SetupProgress | null {
   // predate the latest Client Map state until a round-trip lands).
   return useMemo(() => {
     if (!snapshot) return null;
-    const merged = { ...snapshot, clientMap };
+    const liveOneDriveProgress =
+      oneDriveEventProgress?.status === 'syncing' &&
+      oneDriveProgressWorkspaceRoot === workspaceRoot
+        ? oneDriveEventProgress
+        : null;
+    const merged = {
+      ...snapshot,
+      oneDrive: liveOneDriveProgress ? oneDriveSetupProgress(liveOneDriveProgress) : snapshot.oneDrive,
+      clientMap,
+    };
     return { ...merged, overall: deriveOverall(merged) };
-  }, [snapshot, clientMap]);
+  }, [snapshot, clientMap, oneDriveEventProgress, oneDriveProgressWorkspaceRoot, workspaceRoot]);
 }

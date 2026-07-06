@@ -200,6 +200,205 @@ describe('docxSaveSession', () => {
     expect(savedDocs[1]).toEqual(docCycle2);
   });
 
+  // QA-81 (P0 silent data loss): the steady-state live-typing shadow save
+  // (`persistLive`) must write the un-blurred keystrokes to disk on its own ~2s
+  // cadence, but must NOT flood the version-history timeline with a snapshot
+  // every couple of seconds — those snapshots mark meaningful COMMITTED edits
+  // (blur / accept / redline), which still go through the normal save + DO snap.
+  it('persistLive writes the live text to disk but does NOT take a version-history snapshot (committed saves still do)', async () => {
+    mockInvoke({ save: 'ok' });
+    const onAfterSave = vi.fn();
+    const session = await openDocxSession('/ws/a.docx', { onAfterSave });
+
+    const liveDoc: DocumentJson = { ...DOC, body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'live typed, not blurred' }] }] };
+    await session.persistLive(liveDoc);
+
+    // The live keystrokes reached disk...
+    expect(invokeMock).toHaveBeenCalledWith(
+      'docx_save',
+      expect.objectContaining({ path: '/ws/a.docx', document: liveDoc }),
+    );
+    expect(session.isDirty).toBe(false);
+    // ...but a mid-typing autosave took NO version snapshot.
+    expect(onAfterSave).not.toHaveBeenCalled();
+
+    // A committed (blurred) edit DOES snapshot, so the timeline still captures
+    // the finished edit.
+    const committed: DocumentJson = { ...DOC, body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'committed on blur' }] }] };
+    session.scheduleSave(committed, 1200);
+    await vi.advanceTimersByTimeAsync(1200);
+    expect(onAfterSave).toHaveBeenCalledTimes(1);
+  });
+
+  // QA-81 (P2, review catch): snapshot suppression must survive a RETRY. A live
+  // shadow save starts snapshot:false, but if it fails transiently and the
+  // backoff retry lands BEFORE the run blurs, that retry must still NOT create a
+  // version-history snapshot of uncommitted live typing — otherwise the timeline
+  // fills with half-typed shadows. The retry has to carry the snapshot mode
+  // through, not fall back to the default (snapshot:true).
+  it('a retried live shadow save stays snapshot-free (the retry must not snapshot uncommitted typing)', async () => {
+    let shouldFail = true;
+    const onAfterSave = vi.fn();
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'docx_open') return Promise.resolve(DOC);
+      if (cmd === 'docx_save') return shouldFail ? Promise.reject(new Error('locked')) : Promise.resolve(undefined);
+      return Promise.resolve(undefined);
+    });
+    const session = await openDocxSession('/ws/a.docx', { onAfterSave });
+
+    const liveDoc: DocumentJson = { ...DOC, body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'live typing, not blurred' }] }] };
+    void session.persistLive(liveDoc); // attempt 1: fails
+    await vi.advanceTimersByTimeAsync(0);
+    expect(session.saveError).not.toBeNull();
+    expect(session.isDirty).toBe(true);
+
+    // The lock clears; the backoff retry (RETRY_BASE_MS = 750) lands the save.
+    shouldFail = false;
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(session.isDirty).toBe(false);
+    expect(session.saveError).toBeNull();
+    // The live text is on disk...
+    expect(invokeMock).toHaveBeenCalledWith(
+      'docx_save',
+      expect.objectContaining({ path: '/ws/a.docx', document: liveDoc }),
+    );
+    // ...but the RETRY must have carried snapshot:false — no version snapshot of
+    // still-uncommitted typing.
+    expect(onAfterSave).not.toHaveBeenCalled();
+  });
+
+  // QA-81 (P2, review catch): a live shadow save can fire DURING a committed
+  // edit's 1.2s debounce window (e.g. the user blurred run A, then focused run B
+  // and keeps typing). persistLive clears that pending committed save's timer
+  // and physically writes the content itself. The committed edit still lands on
+  // disk — but its version-history snapshot (onAfterSave) must NOT be lost just
+  // because a snapshot-free live save is what wrote it. The snapshot rides with
+  // the content (pendingSnapshot), not with the timer.
+  it('a live shadow save that absorbs a pending committed edit\'s debounce still takes the committed snapshot', async () => {
+    mockInvoke({ save: 'ok' });
+    const onAfterSave = vi.fn();
+    const session = await openDocxSession('/ws/a.docx', { onAfterSave });
+
+    // A committed edit (blur) is scheduled; its 1.2s debounce has NOT fired yet.
+    const committed: DocumentJson = { ...DOC, body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'committed edit' }] }] };
+    session.scheduleSave(committed, 1200);
+    expect(onAfterSave).not.toHaveBeenCalled();
+
+    // The live autosave fires inside that window — folding the focused run's
+    // live text onto the committed content — and shadow-saves, absorbing the
+    // committed debounce.
+    const shadow: DocumentJson = { ...DOC, body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'committed edit + live' }] }] };
+    await session.persistLive(shadow);
+
+    // The content reached disk...
+    expect(invokeMock).toHaveBeenCalledWith('docx_save', expect.objectContaining({ path: '/ws/a.docx', document: shadow }));
+    expect(session.isDirty).toBe(false);
+    // ...and the committed edit's version snapshot was NOT lost.
+    expect(onAfterSave).toHaveBeenCalledTimes(1);
+
+    // The absorbed committed debounce must not fire a second save/snapshot later.
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(onAfterSave).toHaveBeenCalledTimes(1);
+    expect(invokeMock.mock.calls.filter((c) => c[0] === 'docx_save')).toHaveLength(1);
+  });
+
+  // QA-81 (P2, review catch): a live shadow save FAILS (transient lock) and
+  // queues a retry. Before the retry fires, the user BLURS — scheduleSave
+  // replaces this.doc with the COMMITTED edit and marks it snapshot-worthy. The
+  // retry (which reads the latest doc) must snapshot that committed edit, and
+  // the later debounced save must not then find the session clean and skip the
+  // snapshot — i.e. the blur commit must keep its version snapshot.
+  it('a live-save retry that becomes a committed edit before it fires still snapshots the committed edit', async () => {
+    let shouldFail = true;
+    const onAfterSave = vi.fn();
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'docx_open') return Promise.resolve(DOC);
+      if (cmd === 'docx_save') return shouldFail ? Promise.reject(new Error('locked')) : Promise.resolve(undefined);
+      return Promise.resolve(undefined);
+    });
+    const session = await openDocxSession('/ws/a.docx', { onAfterSave });
+
+    // Live typing shadow-saves and fails → a retry is queued (snapshot-free).
+    const liveDoc: DocumentJson = { ...DOC, body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'live typing' }] }] };
+    void session.persistLive(liveDoc);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(session.saveError).not.toBeNull();
+    expect(onAfterSave).not.toHaveBeenCalled();
+
+    // Before the retry fires, the user BLURS — committing the edit. this.doc is
+    // now the committed edit, which the pending retry will write.
+    const committed: DocumentJson = { ...DOC, body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'live typing, committed' }] }] };
+    session.scheduleSave(committed, 1200);
+
+    // The lock clears; the backoff retry (RETRY_BASE_MS = 750) writes committed.
+    shouldFail = false;
+    await vi.advanceTimersByTimeAsync(800);
+    expect(session.isDirty).toBe(false);
+    expect(invokeMock).toHaveBeenCalledWith('docx_save', expect.objectContaining({ document: committed }));
+    // The committed edit's snapshot must NOT be lost.
+    expect(onAfterSave).toHaveBeenCalledTimes(1);
+
+    // The later debounced save sees a clean session and neither double-snapshots
+    // nor re-snapshots — the count stays exactly 1.
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(onAfterSave).toHaveBeenCalledTimes(1);
+  });
+
+  // QA-81 (P0, Codex review catch): the live-typing autosave fires every ~2s, so
+  // if one docx_save runs longer than that, an OLDER live save can complete
+  // while a NEWER one is still queued. The older completion must NOT publish a
+  // false "Saved" (clean) — a close/quit guard would then believe the newest
+  // text is safely on disk when it isn't yet, and could lose it. `persistLive`
+  // marks the session dirty before queuing, so only the NEWEST write's own
+  // completion clears it.
+  it('an overlapping older live save completing does NOT falsely report clean while newer text is still queued', async () => {
+    const gates: Array<() => void> = [];
+    const savedDocs: DocumentJson[] = [];
+    invokeMock.mockImplementation((cmd: string, args?: Record<string, unknown>) => {
+      if (cmd === 'docx_open') return Promise.resolve(DOC);
+      if (cmd === 'docx_save') {
+        return new Promise<void>((resolve) => {
+          gates.push(() => {
+            savedDocs.push(args?.['document'] as DocumentJson);
+            resolve();
+          });
+        });
+      }
+      return Promise.resolve(undefined);
+    });
+
+    const session = await openDocxSession('/ws/a.docx', {});
+
+    const docA: DocumentJson = { ...DOC, body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'live A' }] }] };
+    void session.persistLive(docA); // write A starts, then hangs on its gate
+    await vi.advanceTimersByTimeAsync(0);
+    expect(gates).toHaveLength(1); // A's docx_save is in flight
+
+    // The user keeps typing — a NEWER live save is scheduled behind A (the write
+    // coordinator serializes it, so its docx_save hasn't been CALLED yet).
+    const docB: DocumentJson = { ...DOC, body: [{ kind: 'paragraph', inlines: [{ kind: 'run', text: 'live B (newest, must not be lost)' }] }] };
+    void session.persistLive(docB);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(session.doc).toEqual(docB);
+    expect(session.isDirty).toBe(true);
+    expect(gates).toHaveLength(1); // B still queued behind A — not called yet
+
+    // A lands. Its completion is STALE (doc is now docB) — it must leave the
+    // session dirty, not falsely clean.
+    gates[0]!();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(session.isDirty).toBe(true);
+    expect(isDocxUnsaved('/ws/a.docx')).toBe(true);
+    expect(gates).toHaveLength(2); // now B's write is in flight
+
+    // B lands — NOW the session is truthfully clean, with the newest text saved.
+    gates[1]!();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(session.isDirty).toBe(false);
+    expect(isDocxUnsaved('/ws/a.docx')).toBe(false);
+    expect(savedDocs.at(-1)).toEqual(docB);
+  });
+
   it('discardDocxSession stops the retry loop for good — a discarded save never lands later', async () => {
     mockInvoke({ save: 'fail' });
     const session = await openDocxSession('/ws/a.docx', {});

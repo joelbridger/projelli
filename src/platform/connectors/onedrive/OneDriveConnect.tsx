@@ -31,6 +31,10 @@ import {
 import { isPersistedLocalOnly } from '@/platform/privacy/localOnlyGuard';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { beginOAuth, endOAuth } from '@/platform/connectors/oauthPending';
+import {
+  isMicrosoftSignInExpiredError,
+  MICROSOFT_SIGNIN_EXPIRED_MESSAGE,
+} from '@/platform/connectors/microsoft/microsoftAuthError';
 import type { Matter } from '@/platform/types/matter';
 
 // Durable, append-only audit trail for connector activity, so a OneDrive sync
@@ -163,6 +167,16 @@ export function OneDriveConnect() {
   async function syncNow() {
     setError(null);
     await runSync();
+  }
+
+  // Reconnect: an expired Microsoft sign-in (scope_upgrade_required /
+  // invalid_grant / refresh failed / not connected — see
+  // microsoftAuthError.ts) leaves OneDrive "Connected" but every sync failing,
+  // with no way out short of Disconnect + Connect again. Cancel any stuck
+  // sync first, then re-run the same OAuth flow connect() already uses.
+  async function reconnect() {
+    try { await oneDriveCancel(); } catch { /* best-effort */ }
+    await connect();
   }
 
   /**
@@ -386,7 +400,13 @@ export function OneDriveConnect() {
           {!syncing && progress?.status === 'cancelled' && (
             <p className="mt-1 text-slate-500">Import stopped.</p>
           )}
-          {error && <p className="mt-1 text-red-700">OneDrive sync ran into a problem: {error}</p>}
+          {error && (
+            <p className="mt-1 text-red-700">
+              {isMicrosoftSignInExpiredError(error)
+                ? MICROSOFT_SIGNIN_EXPIRED_MESSAGE
+                : `OneDrive sync ran into a problem: ${error}`}
+            </p>
+          )}
           <div className="mt-2 flex items-center gap-2">
             <button
               type="button"
@@ -398,6 +418,19 @@ export function OneDriveConnect() {
             >
               {syncing ? 'Syncing...' : 'Sync now'}
             </button>
+            {error && isMicrosoftSignInExpiredError(error) && (
+              <button
+                type="button"
+                data-testid="onedrive-reconnect"
+                disabled={connecting}
+                onClick={() => {
+                  void reconnect();
+                }}
+                className="rounded-md bg-[var(--kp-navy)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
+              >
+                {connecting ? 'Reconnecting...' : 'Reconnect'}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {

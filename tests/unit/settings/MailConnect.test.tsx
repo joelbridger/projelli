@@ -22,7 +22,7 @@ vi.mock('@/platform/utils/mail-commands', () => ({
 vi.mock('@/platform/connectors/email/useMailSync', () => ({ useMailSync: () => {} }));
 
 // useMailStore is a Zustand store — mock it so we can control progress in tests.
-let mockProgress: { status: string; written: number; provider?: string } | undefined = undefined;
+let mockProgress: { status: string; written: number; provider?: string; error?: string } | undefined = undefined;
 vi.mock('@/platform/connectors/email/mailStore', () => ({
   useMailStore: (selector: (s: { progressByProvider: Record<string, unknown> }) => unknown) =>
     selector({ progressByProvider: mockProgress ? { m365: mockProgress } : {} }),
@@ -269,5 +269,46 @@ describe('MailConnect — BUG-008 stall watchdog', () => {
     await act(async () => { await Promise.resolve(); });
     act(() => { vi.advanceTimersByTime(90_000); });
     expect(screen.queryByTestId('mail-m365-stalled')).not.toBeInTheDocument();
+  });
+});
+
+// Fix 4 (connect-flow demo hardening): an expired Microsoft sign-in used to
+// surface as a raw Rust sentinel string ("scope_upgrade_required", "refresh
+// failed: invalid_grant", "not connected") next to "Mail sync ran into a
+// problem:". It now shows one plain message; the existing Reconnect button
+// (BUG-008, above) already sits right below it.
+describe('MailConnect — expired Microsoft sign-in error mapping (Fix 4)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockMailIsConnected.mockResolvedValue(true);
+    mockOutlookConnect.mockResolvedValue(undefined);
+    mockMailSyncAll.mockResolvedValue(undefined);
+    mockMailCancelSync.mockResolvedValue(undefined);
+    mockMailFdeStatus.mockResolvedValue({ status: 'unknown', platform: 'Linux', detail: null });
+  });
+
+  it('shows the plain "sign-in expired" message for a scope_upgrade_required sync error', async () => {
+    mockProgress = { status: 'error', written: 10, provider: 'm365', error: 'scope_upgrade_required' };
+    render(<MailConnect />);
+    await waitFor(() => expect(mockMailIsConnected).toHaveBeenCalled());
+
+    expect(await screen.findByText(/your microsoft sign-in expired/i)).toBeInTheDocument();
+    expect(screen.queryByText(/scope_upgrade_required/i)).not.toBeInTheDocument();
+  });
+
+  it('shows the plain message for a "refresh failed: ..." sync error too', async () => {
+    mockProgress = { status: 'error', written: 10, provider: 'm365', error: 'refresh failed: invalid_grant' };
+    render(<MailConnect />);
+    await waitFor(() => expect(mockMailIsConnected).toHaveBeenCalled());
+
+    expect(await screen.findByText(/your microsoft sign-in expired/i)).toBeInTheDocument();
+  });
+
+  it('leaves an ordinary sync error untouched', async () => {
+    mockProgress = { status: 'error', written: 10, provider: 'm365', error: 'graph 500' };
+    render(<MailConnect />);
+    await waitFor(() => expect(mockMailIsConnected).toHaveBeenCalled());
+
+    expect(await screen.findByText(/mail sync ran into a problem: graph 500/i)).toBeInTheDocument();
   });
 });

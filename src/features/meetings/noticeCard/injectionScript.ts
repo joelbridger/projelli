@@ -43,8 +43,15 @@ export function buildInjectionScript(
   // `toString()` yields `name(args){...}`, which is valid inside `{ ... }`.
   // These references are only stringified (never invoked here), so `this`
   // binding is irrelevant — the unbound-method rule doesn't apply.
-  // eslint-disable-next-line @typescript-eslint/unbound-method
-  const methods = [adapter.detectPhase, adapter.fillGuestName, adapter.ensureMuted, adapter.clickJoin]
+  /* eslint-disable @typescript-eslint/unbound-method */
+  const methods = [
+    adapter.detectPhase,
+    adapter.dismissLauncher,
+    adapter.fillGuestName,
+    adapter.ensureMuted,
+    adapter.clickJoin,
+  ]
+    /* eslint-enable @typescript-eslint/unbound-method */
     .map((fn) => fn.toString())
     .join(',\n');
 
@@ -88,7 +95,24 @@ ${methods}
     function tick() {
       try {
         var phase = adapter.detectPhase(document);
-        if (phase === 'name-entry') {
+        if (phase === 'launcher') {
+          // "Continue on this browser" vs "Open the Teams app" chooser: click
+          // through it so the page advances to the real prejoin. A SUCCESSFUL
+          // click reports 'joining' (like name-entry) and doesn't count toward the
+          // give-up clock. But if dismissLauncher can't act — the continue-in-
+          // browser control is absent/disabled/renamed (drift), yet the page still
+          // reads as the launcher (e.g. by URL) — we must NOT sit on 'joining'
+          // forever. Count each failed attempt toward the SAME unrecognized give-up
+          // as the loading path, so the card fast-fails to page-unrecognized (and
+          // the honest say-the-notice-aloud fallback) instead of hanging until the
+          // long supervisor timeout.
+          if (adapter.dismissLauncher(document)) {
+            report('joining');
+          } else {
+            loadingTicks++;
+            if (loadingTicks > UNRECOGNIZED_TICKS) report('unrecognized');
+          }
+        } else if (phase === 'name-entry') {
           adapter.fillGuestName(document, DISPLAY_NAME);
           adapter.ensureMuted(document);
           report('joining');

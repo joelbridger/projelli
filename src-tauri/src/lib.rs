@@ -18,6 +18,11 @@ pub mod identity;
 pub mod sidecars;
 // Cross-cutting utilities (process helpers, etc.).
 pub mod util;
+// Shared WebView2 additional-browser-args string used by EVERY webview window
+// (main + Notice Card companion). Centralized so the windows are byte-identical,
+// which is what prevents the 0x8007139F (ERROR_INVALID_STATE) crash when a
+// second webview is created with mismatched options. See the module docs.
+pub mod webview_env;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -366,14 +371,12 @@ pub fn run() {
             // macOS/Linux. Default string mirrors wry's own default exactly,
             // so behavior is unchanged when the env var is unset.
             if let Some(window_config) = app.config().app.windows.first() {
-                let mut browser_args =
-                    String::from("--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection");
-                if let Ok(extra) = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS") {
-                    if !extra.is_empty() {
-                        browser_args.push(' ');
-                        browser_args.push_str(&extra);
-                    }
-                }
+                // The SAME string the Notice Card companion window uses (see
+                // `commands::notice_card`). Both windows MUST pass an identical
+                // args string or the second webview to be created fails with
+                // WebView2 0x8007139F (ERROR_INVALID_STATE). Single source of
+                // truth: `crate::webview_env::webview_browser_args`.
+                let browser_args = crate::webview_env::webview_browser_args();
                 tauri::WebviewWindowBuilder::from_config(app.handle(), window_config)?
                     .additional_browser_args(&browser_args)
                     .build()?;

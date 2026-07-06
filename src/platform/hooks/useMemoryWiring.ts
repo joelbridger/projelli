@@ -127,6 +127,38 @@ export type MemoryWiringWorkspaceService = {
   getFileTree?: (opts?: { fresh?: boolean }) => Promise<FileNode[]>;
 };
 
+type WorkspaceIdentitySnapshot = Readonly<{
+  rootPath: string | null;
+  rootGeneration: number;
+}>;
+
+function captureWorkspaceIdentity(): WorkspaceIdentitySnapshot {
+  const { rootPath, rootGeneration } = useWorkspaceStore.getState();
+  return { rootPath, rootGeneration };
+}
+
+function isWorkspaceIdentityCurrent(snapshot: WorkspaceIdentitySnapshot): boolean {
+  const { rootPath, rootGeneration } = useWorkspaceStore.getState();
+  return rootPath === snapshot.rootPath && rootGeneration === snapshot.rootGeneration;
+}
+
+/**
+ * QA-44 (R7-1) — thrown by a scheduler re-tag op when the workspace identity
+ * changed WHILE the op was in flight (a switch, or an in-place reload that bumps
+ * the generation). Origin's identity guards make the underlying re-tag return
+ * QUIETLY on such an abort; that bare resolution would otherwise read as a CLEAN
+ * SUCCESS to the caller and clear a fail-closed hold without having re-tagged
+ * anything. Throwing this makes the abort a DISTINCT outcome: the scheduler's
+ * catch keeps the hold (and, if not disposed, retries under the new identity),
+ * and no discharge path runs.
+ */
+class WorkspaceIdentityChangedError extends Error {
+  constructor() {
+    super('workspace identity changed during re-tag; fail-closed hold kept');
+    this.name = 'WorkspaceIdentityChangedError';
+  }
+}
+
 /** Collect all .pdf paths from a FileNode tree recursively. */
 function collectPdfPaths(nodes: FileNode[]): string[] {
   const out: string[] = [];
@@ -892,10 +924,12 @@ export function changedPrivilegeSources(
 export async function reindexFolderPaths(
   folders: string[],
   workspaceService: MemoryWiringWorkspaceService | null | undefined,
+  workspaceIdentity: WorkspaceIdentitySnapshot = captureWorkspaceIdentity(),
 ): Promise<void> {
+  const { rootPath } = workspaceIdentity;
   const allPaths = collectAllFilePaths(await getFreshOrCachedFileTree(workspaceService));
+  if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
 
-  const { rootPath } = useWorkspaceStore.getState();
   const affected = allPaths.filter((p) => pathInAnyFolder(p, folders, rootPath));
 
   const pdfPaths = affected.filter(isPdfPath);
@@ -915,7 +949,14 @@ export async function reindexFolderPaths(
   }
   for (const [matterId, paths] of byMatter) {
     // reindexPaths returns the count of files that failed (it never throws).
+    // Identity guards: if the workspace switched/reloaded mid-pass, BAIL (return)
+    // without throwing the failure error below — a stale pass must neither re-tag
+    // the new workspace nor report a partial re-tag as a clean success. The caller
+    // (the scheduler op / pre-mount fallback) re-checks identity after we resolve
+    // and keeps the fail-closed hold when we bailed (QA-44 R7-1).
+    if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
     failures += await MemoryService.reindexPaths(paths, matterId);
+    if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
   }
 
   // PDFs: correct the matter tag in place (cannot skip), THEN best-effort
@@ -926,6 +967,7 @@ export async function reindexFolderPaths(
     const binaryWs = buildBinaryWorkspace(workspaceService);
     if (binaryWs) {
       for (const path of pdfPaths) {
+        if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
         const abs = buildWorkspaceAbsolutePath(rootPath, path);
         const matterId = resolveMatterIdForWorkspacePath(path, rootPath);
         try {
@@ -939,6 +981,7 @@ export async function reindexFolderPaths(
         } catch {
           // Content refresh only; the matter tag was already corrected above.
         }
+        if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
       }
     }
   }
@@ -954,39 +997,50 @@ export async function reindexFolderPaths(
 /** Walk all .pdf files in the workspace and index them via MemoryService. */
 export async function indexWorkspacePdfs(
   workspaceService: MemoryWiringWorkspaceService,
+  workspaceIdentity: WorkspaceIdentitySnapshot = captureWorkspaceIdentity(),
 ): Promise<void> {
   const binaryWs = buildBinaryWorkspace(workspaceService);
   if (!binaryWs) return;
-  const { rootPath } = useWorkspaceStore.getState();
+  const { rootPath } = workspaceIdentity;
   // Retry the FRESH scan until the workspace backend is initialized and the tree
   // is loaded, so PDFs index reliably even when the index fires immediately on
   // open (the empty-cached-tree race that previously dropped ~80% of files).
   const pdfPaths = collectPdfPaths(await getFreshTreeWithRetry(workspaceService));
+  if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
   if (pdfPaths.length === 0) return;
   const progress = usePdfIndexProgressStore.getState();
   progress.set({ processed: 0, total: pdfPaths.length, currentPath: null });
-  // P1.1 (Task 3): whether OCR is on is part of a PDF's freshness signature, so
-  // read it once and pass it to the manifest fresh-check below.
-  const ocrEnabled = isOcrScannedPdfsEnabled();
-  for (const [index, path] of pdfPaths.entries()) {
-    const ragPath = buildWorkspaceAbsolutePath(rootPath, path);
-    progress.set({ processed: index, total: pdfPaths.length, currentPath: ragPath });
-    try {
-      // P1.1 (Task 3): skip a PDF whose size/mtime + OCR setting are unchanged
-      // since it was last indexed — PDF extraction + OCR is the single most
-      // expensive per-file cost, so this is the biggest boot win for PDF-heavy
-      // workspaces. A new/changed/tombstoned PDF returns false and re-indexes.
-      if (await ragManifestPdfFresh(ragPath, ocrEnabled)) {
-        continue;
+  try {
+    // P1.1 (Task 3): whether OCR is on is part of a PDF's freshness signature, so
+    // read it once and pass it to the manifest fresh-check below.
+    const ocrEnabled = isOcrScannedPdfsEnabled();
+    for (const [index, path] of pdfPaths.entries()) {
+      if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
+      const ragPath = buildWorkspaceAbsolutePath(rootPath, path);
+      progress.set({ processed: index, total: pdfPaths.length, currentPath: ragPath });
+      try {
+        // P1.1 (Task 3): skip a PDF whose size/mtime + OCR setting are unchanged
+        // since it was last indexed — PDF extraction + OCR is the single most
+        // expensive per-file cost, so this is the biggest boot win for PDF-heavy
+        // workspaces. A new/changed/tombstoned PDF returns false and re-indexes.
+        if (await ragManifestPdfFresh(ragPath, ocrEnabled)) {
+          if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
+          continue;
+        }
+        if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
+        await MemoryService.indexPdfFile(ragPath, binaryWs);
+      } catch {
+        // Best-effort: skip individual failures, continue with the rest.
+      } finally {
+        if (isWorkspaceIdentityCurrent(workspaceIdentity)) {
+          progress.set({ processed: index + 1, total: pdfPaths.length, currentPath: ragPath });
+        }
       }
-      await MemoryService.indexPdfFile(ragPath, binaryWs);
-    } catch {
-      // Best-effort: skip individual failures, continue with the rest.
-    } finally {
-      progress.set({ processed: index + 1, total: pdfPaths.length, currentPath: ragPath });
+      if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
     }
+  } finally {
+    progress.clearSoon();
   }
-  progress.clearSoon();
 }
 
 /** Fail-closed hold for the boot-time in-place matter retag (see
@@ -1040,9 +1094,12 @@ function dischargeBootRetagForFolder(folder: string): void {
 async function retagFolderPathsInPlace(
   folders: string[],
   workspaceService: MemoryWiringWorkspaceService | null | undefined,
+  workspaceIdentity: WorkspaceIdentitySnapshot = captureWorkspaceIdentity(),
 ): Promise<void> {
+  const { rootPath } = workspaceIdentity;
   const allPaths = collectAllFilePaths(await getFreshOrCachedFileTree(workspaceService));
-  const { rootPath } = useWorkspaceStore.getState();
+  if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
+
   const affected = allPaths.filter((p) => pathInAnyFolder(p, folders, rootPath));
 
   // Group by resolved matter so each matter's files retag in ONE batched UPDATE.
@@ -1075,30 +1132,54 @@ async function retagFolderPathsInPlace(
 
   const failedPaths: string[] = [];
   for (const [matterId, paths] of byMatter) {
+    if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
     try {
-      // In-place, batched — no re-extract / re-embed. Files with no rows yet are
-      // a no-op; the reconcile/watcher indexes them.
-      await MemoryService.retagMatterBatch(paths, matterId);
+      // In-place, batched — no re-extract / re-embed. Returns the PER-PATH
+      // misses: files that still have no rows under `matterId` after the retag.
+      const missing = await MemoryService.retagMatterBatch(paths, matterId);
+      // QA-92: those files never got vector rows to re-tag (a timing gap, or a
+      // path-form mismatch). Left as-is they stay UNASSIGNED and are invisible to
+      // client-scoped Ask this session. Re-index EXACTLY the misses under the
+      // target matter so they become searchable now — not only after the next
+      // boot's row-verified reconcile heals them. Checking per-path (not the
+      // aggregate count) is what catches a MIXED batch where a sibling retagged
+      // fine but this one silently missed.
+      //
+      // QA-44 (R7-1): a MISS is not a failure — but if RE-INDEXING a miss FAILS,
+      // that file may still carry the OLD (wrong-client) matter tag, so it must
+      // join the fail-closed hold. `reindexPaths` returns how many failed (it
+      // never throws); when >0, hold the misses out until a later boot re-tags
+      // them cleanly. (Never-indexed misses that re-index fine are NOT held.)
+      if (missing.length > 0) {
+        const missReindexFailures = await MemoryService.reindexPaths(missing, matterId);
+        if (missReindexFailures > 0) failedPaths.push(...missing);
+      }
     } catch {
-      // Hold these files out of retrieval; a later boot retries the retag.
+      // The batched UPDATE itself threw — the whole batch may still carry the OLD
+      // matter tag, so hold every file in it out of retrieval; a later boot retries.
       failedPaths.push(...paths);
     }
+    if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
   }
   for (const { abs, privilege } of privileged) {
+    if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
     try {
       await MemoryService.retagPrivilege(abs, privilege);
     } catch {
       // Best-effort.
     }
+    if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
   }
 
-  // Round 4: guard the store write by the workspace this pass ran for. This
-  // async retag can resolve AFTER a workspace switch; without the guard its
+  // Round 4 + R7-1: guard the store write by the workspace IDENTITY this pass ran
+  // for (root path AND generation). This async retag can resolve AFTER a workspace
+  // switch OR an in-place reload of the same path; without the guard its
   // `matter:boot-retag` entry (excluded paths + banner) would bleed into the NEW
-  // workspace — the entry is not owned by the disposed scheduler, and the new
-  // workspace's own `retagExistingMatterFolderPaths` early-returns when it has no
-  // mapped folders, so nothing would clear the stale hold.
-  if (useWorkspaceStore.getState().rootPath !== rootPath) return;
+  // workspace, OR — worse — a stale pass could CLEAR (`store.remove`) the boot hold
+  // the current workspace still needs. The entry is not owned by the disposed
+  // scheduler, and the new workspace's own `retagExistingMatterFolderPaths`
+  // early-returns when it has no mapped folders, so nothing would clear a bled hold.
+  if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
   const store = useScopeUpdateStore.getState();
   if (failedPaths.length > 0) {
     store.begin({
@@ -1118,6 +1199,7 @@ async function retagFolderPathsInPlace(
 
 export async function retagExistingMatterFolderPaths(
   workspaceService: MemoryWiringWorkspaceService | null | undefined,
+  workspaceIdentity: WorkspaceIdentitySnapshot = captureWorkspaceIdentity(),
 ): Promise<void> {
   const folders = Array.from(
     new Set(
@@ -1130,7 +1212,7 @@ export async function retagExistingMatterFolderPaths(
   try {
     // P1.1: retag IN PLACE (no re-embed) so a warm boot of a mapped workspace
     // stays cheap. (Was `reindexFolderPaths`, which re-embedded every file.)
-    await retagFolderPathsInPlace(folders, workspaceService);
+    await retagFolderPathsInPlace(folders, workspaceService, workspaceIdentity);
   } catch {
     // Best-effort: the initial index already completed; do not block startup.
   }
@@ -1176,12 +1258,15 @@ function mailIntentTargets(
  * `mail:<key>` id the live reaction and `restoreMailHolds` install, so a success
  * discharges whichever of them established the hold.
  *
- * Store writes are guarded by the captured workspace root: if the workspace
- * switched while this async pass was in flight, we skip the write so a stale
- * clear can't drop a DIFFERENT workspace's hold.
+ * Store writes are guarded by the captured workspace IDENTITY (root + generation):
+ * if the workspace switched OR reloaded-in-place while this async pass was in
+ * flight, we skip the write so a stale clear can't drop a DIFFERENT workspace's
+ * hold (R7-1 tightens the round-4 root-only guard to the full identity).
  */
-export async function retagExistingMailFolders(): Promise<void> {
-  const capturedRoot = useWorkspaceStore.getState().rootPath;
+export async function retagExistingMailFolders(
+  workspaceIdentity: WorkspaceIdentitySnapshot = captureWorkspaceIdentity(),
+): Promise<void> {
+  const capturedRoot = workspaceIdentity.rootPath;
   // Drive to resolution every MAPPED mail folder (re-tag to its CURRENT matter)
   // AND every folder that still has a durable pending hold but is NO LONGER mapped
   // (re-tag to the intent's own target — e.g. 'unassigned' after an unmap). Union
@@ -1218,9 +1303,9 @@ export async function retagExistingMailFolders(): Promise<void> {
       continue;
     }
     // Success — discharge the hold, but only if we're still the same workspace
-    // AND this retag's target is still the live intent (a newer re-map must keep
-    // its own hold).
-    if (useWorkspaceStore.getState().rootPath !== capturedRoot) continue;
+    // IDENTITY AND this retag's target is still the live intent (a newer re-map
+    // must keep its own hold).
+    if (!isWorkspaceIdentityCurrent(workspaceIdentity)) continue;
     if (capturedRoot && !mailIntentTargets(capturedRoot, key, matterId)) continue;
     useScopeUpdateStore.getState().remove(`mail:${key}`);
     if (capturedRoot) usePendingMailRetagStore.getState().clear(capturedRoot, key);
@@ -1256,6 +1341,7 @@ export function restoreMailHolds(workspaceRoot: string | null | undefined): void
 
 export async function startFullIndex(
   workspaceService: MemoryWiringWorkspaceService | null | undefined,
+  workspaceIdentity: WorkspaceIdentitySnapshot = captureWorkspaceIdentity(),
 ): Promise<void> {
   // P1.1: everything that WRITES the vector table runs AFTER the reconcile
   // completes — never concurrently with it. The reconcile may DROP + rebuild the
@@ -1267,21 +1353,25 @@ export async function startFullIndex(
   // is still all background work (the shell is already interactive).
   const indexAndRetag = MemoryService.indexWorkspace()
     .then(async () => {
+      if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
       // A3: index PDF files (skips unchanged via the manifest fresh-check).
       if (isPdfIndexingEnabled() && workspaceService) {
-        await indexWorkspacePdfs(workspaceService).catch(() => {});
+        await indexWorkspacePdfs(workspaceService, workspaceIdentity).catch(() => {});
       }
+      if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
       // Option B healing: re-index any mail imported while the model was still
       // downloading, from the local encrypted bodies. No-ops fast when the
       // backfill marker is absent (the common case).
       await mailBackfillRag(buildMailMatterMap(getMatters())).catch(() => {});
+      if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
       // QA-44 (Codex round 3): re-apply every mapped mail folder's matter on
       // boot — the mail mirror of `retagExistingMatterFolderPaths` below. Heals a
       // stale mail tag left by a failed live re-map whose in-memory exclusion was
       // dropped on the previous workspace close (cross-session wrong-client leak).
-      await retagExistingMailFolders().catch(() => {});
+      await retagExistingMailFolders(workspaceIdentity).catch(() => {});
+      if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
       // Apply folder→matter scoping to the (now stable) rows, in place.
-      await retagExistingMatterFolderPaths(workspaceService);
+      await retagExistingMatterFolderPaths(workspaceService, workspaceIdentity);
     })
     .catch(() => {
       /* errors are surfaced via the progress event with status: error */
@@ -1406,8 +1496,13 @@ export function scheduleFolderMatterRetag(
 ): void {
   if (folders.length === 0) return;
   if (!scheduler) {
-    void reindexFolderPaths(folders, workspaceService)
+    // Pre-mount fallback (no scheduler yet). Pin the identity so a switch/reload
+    // mid-scan does NOT read as a clean success: only discharge the boot hold if
+    // the workspace is still the one this re-index ran for (R7-1).
+    const identity = captureWorkspaceIdentity();
+    void reindexFolderPaths(folders, workspaceService, identity)
       .then(() => {
+        if (!isWorkspaceIdentityCurrent(identity)) return;
         for (const folder of folders) dischargeBootRetagForFolder(folder);
       })
       // eslint-disable-next-line lantern-async/no-silent-failure -- best-effort pre-mount fallback; a failed re-index stays held out and the next boot reconcile re-tags it
@@ -1430,7 +1525,18 @@ export function scheduleFolderMatterRetag(
       // re-index lands, so stale chunks can't surface under the wrong client.
       excludeFolders: [folder],
       op: async () => {
-        await reindexFolderPaths([folder], workspaceService);
+        // Pin the workspace identity for this attempt. Origin's guards make
+        // reindexFolderPaths return QUIETLY if the workspace switches/reloads
+        // mid-flight; a bare resolution would then look like a clean success and
+        // clear this folder's fail-closed hold + discharge the boot hold without
+        // having re-tagged anything. Re-check after it resolves and THROW on an
+        // abort so the scheduler keeps the hold (and retries under the new
+        // identity if still live) instead of clearing it (QA-44 R7-1).
+        const identity = captureWorkspaceIdentity();
+        await reindexFolderPaths([folder], workspaceService, identity);
+        if (!isWorkspaceIdentityCurrent(identity)) {
+          throw new WorkspaceIdentityChangedError();
+        }
         // A live success also re-tagged any of this folder's files the boot
         // retag had failed on — discharge them from the boot hold so they don't
         // stay hidden until a clean boot (final round P2).
@@ -1702,6 +1808,7 @@ export function useMemoryWiring(
   useEffect(() => {
     if (!rootPath) return;
 
+    const workspaceIdentity = captureWorkspaceIdentity();
     let unlisten: (() => void) | null = null;
     const stopModelListeners: Array<() => void> = [];
     let cancelled = false;
@@ -1858,7 +1965,7 @@ export function useMemoryWiring(
         const startFullIndexOnce = () => {
           if (fullIndexStarted) return;
           fullIndexStarted = true;
-          void startFullIndex(workspaceService);
+          void startFullIndex(workspaceService, workspaceIdentity);
         };
         const stopModelListen = await listen<ModelDownloadProgress>(
           MODEL_DOWNLOAD_EVENT,
@@ -1926,6 +2033,7 @@ export function useMemoryWiring(
   // When turned ON, trigger PDF indexing. When turned OFF, remove PDF chunks.
   useEffect(() => {
     if (!rootPath || !workspaceService) return;
+    const workspaceIdentity = captureWorkspaceIdentity();
 
     let prevEnabled = Boolean(
       useSettingsStore.getState().getSetting<boolean>('includePdfsInWorkspaceIndex'),
@@ -1936,7 +2044,7 @@ export function useMemoryWiring(
       if (enabled === prevEnabled) return;
       prevEnabled = enabled;
       if (enabled) {
-        void indexWorkspacePdfs(workspaceService).catch(() => {});
+        void indexWorkspacePdfs(workspaceService, workspaceIdentity).catch(() => {});
       } else {
         // Remove PDF chunks. Collect .pdf paths from the current file tree.
         const { fileTree } = useWorkspaceStore.getState();
@@ -1969,7 +2077,10 @@ export function useMemoryWiring(
       prevMatters = nextMatters;
       // QA-44: durable + visible + fail-closed. A swallowed failure here used to
       // leave the files tagged to the OLD client, so they surfaced under the
-      // wrong scope while the UI claimed the new mapping was live.
+      // wrong scope while the UI claimed the new mapping was live. The scheduler
+      // op captures a FRESH workspace identity at execution time (see
+      // `scheduleFolderMatterRetag`), so a switch mid-flight bails + keeps the hold
+      // rather than re-tagging the new workspace.
       scheduleFolderMatterRetag(folders, workspaceService, retagSchedulerRef.current);
     });
     return unsubscribe;

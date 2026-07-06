@@ -36,6 +36,7 @@ import { SampleBridgeCallout } from './SampleBridgeCallout';
 import { TurnBlock } from './TurnBlock';
 import { AskComposer } from './AskComposer';
 import { FileAccessConsentBanner } from './chat/FileAccessConsentBanner';
+import { StillImportingBanner } from './StillImportingBanner';
 import type { ChatProvider } from './chat/providerModelResolution';
 import { ConversationsRail, type RailGroup } from './ConversationsRail';
 import {
@@ -97,6 +98,7 @@ export function Ask(props: UseAskProps) {
     errorMsg,
     status,
     answerStalled,
+    localAiStarting,
     savingIdx,
     displayedProvider,
     confidentialityMode,
@@ -107,6 +109,7 @@ export function Ask(props: UseAskProps) {
     toggleRailCollapsed,
     filesOnly,
     setFilesOnly,
+    stillImporting,
     handleCitationSelect,
     handleNewAsk,
     handleLoadSession,
@@ -609,6 +612,7 @@ export function Ask(props: UseAskProps) {
                       isPersisted={false}
                       isStreaming
                       answerStalled={answerStalled}
+                      localAiStarting={localAiStarting}
                       onOpenAiStatus={() => {
                         window.dispatchEvent(new CustomEvent(EV_OPEN_SETTINGS, { detail: { category: 'ai' } }));
                       }}
@@ -627,6 +631,12 @@ export function Ask(props: UseAskProps) {
             )}
 
             <div ref={bottomRef} />
+          </div>
+
+          {/* QA-90: still-importing notice, directly above the composer so it's
+              visible without scrolling while a demo answer might be incomplete. */}
+          <div style={{ padding: '0 var(--kp-gutter)' }}>
+            <StillImportingBanner importing={stillImporting} />
           </div>
 
           {/* The composer — ONLY the scope filters + the search bar (the egress

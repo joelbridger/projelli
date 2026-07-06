@@ -7,10 +7,12 @@ import { useCallback, useMemo } from 'react';
  * Single source of truth for "should the feature tour render right now?".
  *
  * Rules:
- *   - If completed before (persistent flag): never auto-show. User can
- *     manually re-trigger via Settings, Onboarding, "Reset Feature Tour".
- *   - If skipped this session (session-only flag): don't show for the
- *     rest of this app session. Next launch, re-evaluate.
+ *   - If completed OR skipped before (both persist the same "seen it" flag):
+ *     never auto-show again. User can manually re-trigger via Settings,
+ *     Onboarding, "Reset Feature Tour". (Skipping used to set only a
+ *     session-only flag, so the tour reappeared on every subsequent app
+ *     launch until a user clicked all the way through to "Finish" — found
+ *     live on the Legion pre-flight. Skip now persists too.)
  *   - Otherwise: yes, show.
  */
 export function useFeatureTour() {
@@ -31,7 +33,10 @@ export function useFeatureTour() {
 
   const skipForNow = useCallback(() => {
     skipThisSession();
-  }, [skipThisSession]);
+    // Persist the same "seen it" flag Finish uses — a skip must not
+    // auto-show again next launch either.
+    markCompleted();
+  }, [skipThisSession, markCompleted]);
 
   const restart = useCallback(() => {
     resetTour();

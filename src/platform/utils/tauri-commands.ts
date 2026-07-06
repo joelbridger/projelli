@@ -574,13 +574,15 @@ export async function ragRetagMatter(
  *  LanceDB UPDATE per chunk. The boot retag of a mapped client folder uses this
  *  (grouped per matter) so a warm boot of a mapped workspace stays cheap instead
  *  of re-embedding (or per-file retagging, which LanceDB makes ~as slow as
- *  re-embedding). Returns rows updated. */
+ *  re-embedding). Returns the paths that STILL have no rows under `matterId`
+ *  after the retag (never-indexed files, or a path-form mismatch) so the caller
+ *  can re-index exactly those — QA-92. */
 export async function ragRetagMatterBatch(
   paths: string[],
   matterId: string,
-): Promise<number> {
-  if (!isTauri()) return 0;
-  return invoke<number>('rag_retag_matter_batch', { paths, matterId });
+): Promise<string[]> {
+  if (!isTauri()) return [];
+  return invoke<string[]>('rag_retag_matter_batch', { paths, matterId });
 }
 
 /** WS-B/C — verify a citation against the local store so the app can REFUSE to
@@ -699,8 +701,12 @@ export async function localLlmModelEnsure(): Promise<string> {
 }
 
 /** Start (lazily) the llama-server sidecar and return its local endpoint
- *  (e.g. http://127.0.0.1:18089). Errors if the model isn't downloaded yet. */
+ *  (e.g. http://127.0.0.1:18089). Errors if the model isn't downloaded yet.
+ *  @throws if we're in the browser — the sidecar only exists in the desktop app. */
 export async function localLlmSidecarStart(): Promise<string> {
+  if (!isTauri()) {
+    throw new Error('Advisor Prep Hero Local AI is only available in the desktop app.');
+  }
   return invoke<string>('local_llm_sidecar_start');
 }
 
