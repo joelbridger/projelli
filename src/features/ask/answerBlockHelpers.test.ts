@@ -3,11 +3,18 @@ import type { RagHit } from '@/platform/utils/tauri-commands';
 import {
   BLOCK_MARKERS,
   bindAnswerBlocks,
-  isFilesBlockVerified,
+  filesBlockTrustState,
   splitRawBlocks,
   stripBlockMarkers,
   tallyBlocks,
+  tallyCitationTrust,
+  type CitationTrustState,
 } from './answerBlockHelpers';
+import type { AnswerCitation } from './askHelpers';
+
+/** The bind-time fallback rule (checker unavailable): the static flag decides. */
+const staticTrust = (c: AnswerCitation): CitationTrustState =>
+  c.verified ? 'verified' : 'unverified';
 
 function hit(overrides: Partial<RagHit> = {}): RagHit {
   return {
@@ -502,7 +509,7 @@ describe('B1 — a post-hoc-grounded files block is kept but NOT verified', () =
     expect(filesBlock.citations[0]?.grounded).toBe(true);
     expect(filesBlock.citations[0]?.verified).toBe(false);
     // The block-level green "From your files" trust label is NOT earned.
-    expect(isFilesBlockVerified(filesBlock)).toBe(false);
+    expect(filesBlockTrustState(filesBlock, staticTrust)).toBe('unverified');
   });
 
   it('tallies it as a found-but-unverified source, not a verified cited claim', () => {
@@ -520,8 +527,37 @@ describe('B1 — a post-hoc-grounded files block is kept but NOT verified', () =
     );
     const filesBlock = result.blocks.find((b) => b.kind === 'files');
     if (!filesBlock) throw new Error('expected a files block');
-    expect(isFilesBlockVerified(filesBlock)).toBe(true);
+    expect(filesBlockTrustState(filesBlock, staticTrust)).toBe('verified');
     expect(tallyBlocks(result.blocks).verifiedClaims).toBe(1);
+  });
+});
+
+describe('live citation trust aggregation (lp/badge-consistency)', () => {
+  const explicitAnswer = [
+    BLOCK_MARKERS.files,
+    'Beneficiary is Jessica Reyes [beneficiary.docx paragraph 3].',
+  ].join('\n');
+
+  function boundFilesBlock() {
+    const result = bindAnswerBlocks(explicitAnswer, [hit()], 'webb');
+    const filesBlock = result.blocks.find((b) => b.kind === 'files');
+    if (!filesBlock) throw new Error('expected a files block');
+    return { blocks: result.blocks, filesBlock };
+  }
+
+  it('a block is only green when every citation is live-verified; unverified wins over checking', () => {
+    const { filesBlock } = boundFilesBlock();
+    expect(filesBlockTrustState(filesBlock, () => 'verified')).toBe('verified');
+    expect(filesBlockTrustState(filesBlock, () => 'checking')).toBe('checking');
+    // A real negative verdict downgrades even a bind-time-verified citation.
+    expect(filesBlockTrustState(filesBlock, () => 'unverified')).toBe('unverified');
+  });
+
+  it('tallies distinct claims into the live trust buckets the header pills render', () => {
+    const { blocks } = boundFilesBlock();
+    expect(tallyCitationTrust(blocks, () => 'verified')).toEqual({ verified: 1, checking: 0, unverified: 0 });
+    expect(tallyCitationTrust(blocks, () => 'checking')).toEqual({ verified: 0, checking: 1, unverified: 0 });
+    expect(tallyCitationTrust(blocks, () => 'unverified')).toEqual({ verified: 0, checking: 0, unverified: 1 });
   });
 });
 

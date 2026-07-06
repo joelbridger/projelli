@@ -20,6 +20,7 @@ vi.mock('@/platform/utils/tauri-commands', async (importOriginal) => {
 });
 
 import { SourcePanel } from '@/features/ask/SourcePanel';
+import { resetCitationVerificationForTests } from '@/features/ask/citationVerification';
 
 type Deferred<T> = { promise: Promise<T>; resolve: (v: T) => void };
 function deferred<T>(): Deferred<T> {
@@ -29,6 +30,9 @@ function deferred<T>(): Deferred<T> {
 }
 
 beforeEach(() => {
+  // The verdict store is app-global and content-addressed (shared with the
+  // answer header, lp/badge-consistency) — clear it between tests.
+  resetCitationVerificationForTests();
   mockRagVerifyCitationsBatch.mockReset();
 });
 
@@ -82,13 +86,15 @@ describe('SourcePanel — QA-56/QA-85 stale citation-verify isolation', () => {
     expect(screen.getByTestId('verify-verdict')).toHaveAttribute('data-verdict', 'notFound');
   });
 
-  it('re-fetches a citation whose verify was cancelled mid-batch when it reappears later (QA-85 round 2)', async () => {
-    // P2 fix: a citation's key was marked "requested" BEFORE its batch
-    // resolved. If the effect tore down mid-flight (the citation disappeared,
-    // e.g. the user switched Ask turns), the result was dropped but the key
-    // stayed marked — so if the SAME citation reappeared later it would never
-    // be re-checked and would sit "pending" forever. The fix un-marks a
-    // batch's keys on cleanup UNLESS it already settled a result for them.
+  it('a citation whose verify was in flight when it disappeared upgrades from that SAME batch when it reappears (QA-85 round 2, reworked for the shared store)', async () => {
+    // QA-85 round 2 guaranteed a citation that vanished mid-verify and then
+    // reappeared never sat "pending" forever. The original mechanism dropped
+    // the abandoned batch's result and RE-FETCHED on reappearance (2 backend
+    // calls + 2 audit entries). lp/badge-consistency moved verdicts into a
+    // shared, content-addressed store: an in-flight batch's result now ALWAYS
+    // lands (verdicts are keyed by id+matterId+excerpt, so they are valid for
+    // whoever shows the citation next), and the reappearing citation upgrades
+    // from the FIRST call — same user-visible guarantee, no duplicate fetch.
     const deferreds: Deferred<{ verdict: string }[]>[] = [];
     mockRagVerifyCitationsBatch.mockImplementation(() => {
       const d = deferred<{ verdict: string }[]>();
@@ -108,35 +114,25 @@ describe('SourcePanel — QA-56/QA-85 stale citation-verify isolation', () => {
     await waitFor(() => expect(mockRagVerifyCitationsBatch).toHaveBeenCalledTimes(1));
 
     // The citation disappears (e.g. the user switches away) BEFORE the first
-    // batch resolves — the effect is torn down mid-flight, abandoning it.
+    // batch resolves...
     rerender(<SourcePanel citations={[]} selectedN={null} onSelect={() => {}} />);
 
-    // ...then the SAME citation (same id/matterId/excerpt) reappears. Without
-    // the round-2 fix its key would still be marked "requested" from the
-    // abandoned first fetch, so it would never be re-checked.
+    // ...then the SAME citation (same id/matterId/excerpt) reappears. The
+    // first batch is still in flight — single-flight dedup means NO second
+    // backend call is issued for the same content key.
     rerender(<SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />);
-
-    await waitFor(() => expect(mockRagVerifyCitationsBatch).toHaveBeenCalledTimes(2));
+    expect(mockRagVerifyCitationsBatch).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId('verify-status').textContent).toMatch(/source found/i);
 
-    // The SECOND (live) batch resolves — the card must upgrade normally,
-    // proving the citation was genuinely re-checked, not stuck pending.
+    // The in-flight batch resolves — its result lands in the shared store and
+    // the reappeared card upgrades normally: never stuck pending.
     await act(async () => {
-      deferreds[1]!.resolve([{ verdict: 'verified' }]);
+      deferreds[0]!.resolve([{ verdict: 'verified' }]);
       await Promise.resolve();
       await Promise.resolve();
     });
     await waitFor(() =>
       expect(screen.getByTestId('verify-status').textContent).toMatch(/verified against source/i),
     );
-
-    // The abandoned first batch resolving late (if it ever does) must not
-    // matter — nothing reads it anymore.
-    await act(async () => {
-      deferreds[0]!.resolve([{ verdict: 'notFound' }]);
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-    expect(screen.getByTestId('verify-status').textContent).toMatch(/verified against source/i);
   });
 });

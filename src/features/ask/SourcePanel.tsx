@@ -1,15 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
 import { FileText, ShieldCheck, CheckCircle2, AlertTriangle, Loader2, Clock, ExternalLink } from 'lucide-react';
 import type { AnswerCitation } from './askHelpers';
-import { ragVerifyCitationsBatch, type CitationVerdict } from '@/platform/utils/tauri-commands';
-import { auditEventToEntry } from '@/platform/audit/AuditService';
 import type { AuditEntry } from '@/platform/types/audit';
 import { provenanceBadgeLabel, isStalePlan } from '@/platform/rag/sourceProvenance';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { EXTERNAL_EXPORT_STALE_DAYS_KEY } from '@/platform/settings/schema';
 import { EV_OPEN_EMAIL, EV_MATTER_LAUNCH } from '@/config/identity';
-import { useStillImporting, isImportStatusUnsettled } from './useStillImporting';
+import { useCitationVerification, verifyKey, type RealVerdict } from './citationVerification';
 
 /* -------------------------------------------------------------------------- */
 /* SourcePanel — the SOURCES column. A list of clean white numbered cards,     */
@@ -28,172 +25,9 @@ const LABEL_SOURCES = 'Sources';
 const LABEL_VERIFIED = 'Verified against source';
 const LABEL_SOURCE_FOUND = 'Source found';
 
-/**
- * QA-85 — the real check's outcome for one citation. Extends the backend's
- * four verdicts with `'unavailable'`: thrown when the verifier can't run at
- * all (browser/dev mode has no Tauri backend). `'unavailable'` is NEVER
- * treated as verified — the card just stays in the neutral "Source found"
- * state, same as while the check is still pending.
- */
-type RealVerdict = CitationVerdict['verdict'] | 'unavailable';
-
-/** Content-addressed key: (id, matterId, excerpt). Keying by the QUOTED TEXT,
- *  not just citation identity, means a citation whose excerpt changes in
- *  place (same card, new quote) can never show a verdict computed for the old
- *  quote — the old key's late-arriving result lands under a key nobody reads
- *  anymore (QA-56's stale-async guard, now structural instead of ref-based). */
-function verifyKey(id: string, matterId: string, excerpt: string): string {
-  return `${id} ${matterId} ${excerpt}`;
-}
-
-/**
- * QA-85 — automatically runs the real backend citation check for every
- * eligible citation (id + matterId present) the moment it appears, batched in
- * one `rag_verify_citations_batch` call per new set of citations. No user
- * action required. A citation without `id`/`matterId` (pre-3.0 persisted
- * data) is simply never fetched — it stays "Source found" forever, honestly.
- */
-function useCitationVerification(
-  citations: AnswerCitation[],
-  onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void,
-): Map<string, RealVerdict> {
-  const [verdicts, setVerdicts] = useState<Map<string, RealVerdict>>(new Map());
-  const requested = useRef<Set<string>>(new Set());
-
-  // QA-92 round 2 — a negative verdict (notFound/textMismatch/matterMismatch)
-  // that arrives while a content import (email/CRM/OneDrive/file indexing) is
-  // still unsettled must not stick: a re-index in flight can transiently make
-  // a real source look missing or mismatched. Keys held here stay absent from
-  // `verdicts` (so the card reads "pending", never a false red) and are
-  // released for exactly one retry the moment indexing settles to idle.
-  const importStatus = useStillImporting();
-  const importUnsettled = isImportStatusUnsettled(importStatus);
-  const importUnsettledRef = useRef(importUnsettled);
-  importUnsettledRef.current = importUnsettled;
-  const heldForRetry = useRef<Set<string>>(new Set());
-  const wasUnsettled = useRef(importUnsettled);
-  const [retryTick, setRetryTick] = useState(0);
-
-  useEffect(() => {
-    if (wasUnsettled.current && !importUnsettled && heldForRetry.current.size > 0) {
-      heldForRetry.current.forEach((key) => requested.current.delete(key));
-      heldForRetry.current.clear();
-      setRetryTick((t) => t + 1);
-    }
-    wasUnsettled.current = importUnsettled;
-  }, [importUnsettled]);
-
-  const eligible = citations.filter(
-    (c): c is AnswerCitation & { id: string; matterId: string } => Boolean(c.id && c.matterId),
-  );
-  const signature = eligible.map((c) => verifyKey(c.id, c.matterId, c.excerpt)).join('|');
-
-  useEffect(() => {
-    // Copy the ref's Set (a single, stable instance across renders — never
-    // reassigned) to a local so the effect and its cleanup share the exact
-    // same reference without re-reading `requested.current` inside cleanup.
-    const requestedKeys = requested.current;
-    const toFetch = eligible.filter((c) => !requestedKeys.has(verifyKey(c.id, c.matterId, c.excerpt)));
-    if (toFetch.length === 0) return;
-    const keys = toFetch.map((c) => verifyKey(c.id, c.matterId, c.excerpt));
-    keys.forEach((k) => requestedKeys.add(k));
-    let cancelled = false;
-    // QA-92 round 2 (coordinator review round 2): capture whether indexing
-    // was unsettled at the moment THIS batch was ISSUED, not whatever
-    // `importUnsettledRef.current` happens to read once the result lands. A
-    // batch issued while unsettled can still race a re-index that started
-    // just before it and finished before the result comes back — reading the
-    // ref only at result time would miss exactly that case and let a
-    // transient negative stick.
-    const importUnsettledAtStart = importUnsettledRef.current;
-    // QA-85 round 2: distinct from `cancelled` — tracks whether THIS batch
-    // ever reached a result (stored or not). If the effect is torn down
-    // before that happens (citations changed mid-flight), the cleanup below
-    // un-marks these keys so a LATER reappearance of the SAME citation (same
-    // id/matterId/excerpt) gets re-fetched instead of staying "pending"
-    // forever with no result and no audit entry.
-    let settled = false;
-    const run = async () => {
-      try {
-        const results = await ragVerifyCitationsBatch(
-          toFetch.map((c) => ({ id: c.id, claimedMatterId: c.matterId, quotedText: c.excerpt })),
-        );
-        settled = true;
-        if (!cancelled) {
-          const newlyHeld: string[] = [];
-          setVerdicts((prev) => {
-            const next = new Map(prev);
-            toFetch.forEach((c, i) => {
-              const r = results[i];
-              if (!r) return;
-              const key = verifyKey(c.id, c.matterId, c.excerpt);
-              // QA-92 round 2: a negative verdict from a batch ISSUED while
-              // indexing was unsettled is held back — it never enters
-              // `verdicts`, so the card stays "pending" rather than falsely
-              // turning red. It's released for one retry the moment indexing
-              // settles to idle (see the `importUnsettled` effect above) — or
-              // immediately below, if indexing already settled while this
-              // batch was in flight.
-              if (r.verdict !== 'verified' && importUnsettledAtStart) {
-                heldForRetry.current.add(key);
-                newlyHeld.push(key);
-                return;
-              }
-              next.set(key, r.verdict);
-            });
-            return next;
-          });
-          toFetch.forEach((c, i) => {
-            const r = results[i];
-            if (r && !heldForRetry.current.has(verifyKey(c.id, c.matterId, c.excerpt))) {
-              onAuditLog?.(
-                auditEventToEntry({
-                  type: 'citation_verified',
-                  timestamp: new Date().toISOString(),
-                  payload: { citationId: c.id, verdict: r.verdict },
-                }),
-              );
-            }
-          });
-          // Indexing already settled to idle by the time this result landed
-          // (the transition-watching effect above would have already fired,
-          // with nothing yet held then — so it won't fire again on its own).
-          // Retry these specific keys right away instead of waiting for a
-          // future unsettled→idle transition that isn't coming.
-          if (newlyHeld.length > 0 && !importUnsettledRef.current) {
-            newlyHeld.forEach((key) => {
-              requested.current.delete(key);
-              heldForRetry.current.delete(key);
-            });
-            setRetryTick((t) => t + 1);
-          }
-        }
-      } catch {
-        // Browser/dev mode (no Tauri backend) or a verifier error — never
-        // fake-verify. Mark 'unavailable' so these exact keys are not
-        // endlessly retried; the card stays neutral "Source found".
-        settled = true;
-        if (!cancelled) {
-          setVerdicts((prev) => {
-            const next = new Map(prev);
-            toFetch.forEach((c) => next.set(verifyKey(c.id, c.matterId, c.excerpt), 'unavailable'));
-            return next;
-          });
-        }
-      }
-    };
-    void run();
-    return () => {
-      cancelled = true;
-      if (!settled) {
-        keys.forEach((k) => requestedKeys.delete(k));
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch is keyed by `signature` (content) and `retryTick` (QA-92 round 2 retry trigger), not by the `eligible`/`onAuditLog` references which are recreated every render.
-  }, [signature, retryTick]);
-
-  return verdicts;
-}
+// The QA-85/QA-92 verification hook (and its verdict store) moved to
+// ./citationVerification so the answer header aggregates the SAME live
+// per-citation verdicts these cards render (lp/badge-consistency).
 
 /** Open the cited source (document → contextual editor; email → reading view). */
 function openCitation(cite: AnswerCitation): void {

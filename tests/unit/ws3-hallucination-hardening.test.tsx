@@ -290,7 +290,12 @@ describe('Task 3b — CitationText data-verified attribute', () => {
 /* source" once that real check comes back verified.                         */
 /* -------------------------------------------------------------------------- */
 describe('Task 4 (QA-85) — SourcePanel automatic real-verification', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    // The verdict store is app-global and content-addressed (shared with the
+    // answer header, lp/badge-consistency) - clear it so a citation checked
+    // in one test is re-fetched (and re-audited) in the next.
+    const { resetCitationVerificationForTests } = await import('@/features/ask/citationVerification');
+    resetCitationVerificationForTests();
     mockRagVerifyCitation.mockReset();
     mockRagVerifyCitationsBatch.mockReset();
     mockAuditLog.mockReset();

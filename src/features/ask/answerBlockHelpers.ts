@@ -308,6 +308,14 @@ export interface AnswerProvenanceTally {
   hasNothingFound: boolean;
 }
 
+/**
+ * NOTE (lp/badge-consistency): `verifiedClaims` here is the STATIC bind-time
+ * count (explicit citation resolving to a retrieved chunk in scope). The
+ * rendered header/blocks do NOT use it for the verified/unverified split any
+ * more — they aggregate the LIVE backend verifier's per-citation results via
+ * {@link tallyCitationTrust} + `citationTrustState` (citationVerification.ts),
+ * the same signal the Sources cards show, so the two can never disagree.
+ */
 export function tallyBlocks(blocks: AnswerBlock[]): AnswerProvenanceTally {
   const citedNumbers = new Set<number>();
   const verifiedNumbers = new Set<number>();
@@ -334,16 +342,69 @@ export function tallyBlocks(blocks: AnswerBlock[]): AnswerProvenanceTally {
   };
 }
 
+/* -------------------------------------------------------------------------- */
+/* Live citation trust (lp/badge-consistency). The header pills and per-block   */
+/* labels aggregate the SAME live per-citation verifier state the Sources       */
+/* cards show. These helpers are pure: the caller supplies `stateOf` (in the    */
+/* app, `citationTrustState` bound to the shared verdict store).                */
+/* -------------------------------------------------------------------------- */
+
 /**
- * B1: whether a files block's citations are ALL verified (explicit, in-scope).
- * Drives the green "From your files" trust label vs the amber "From your files
- * — not verified" label. A files block always has ≥1 citation (block-keep
- * requires a grounded citation), so an empty list is treated as not-verified.
+ * A citation's displayed trust state, derived from the live backend verifier:
+ * `'verified'` (real check confirmed the quote — card is green), `'checking'`
+ * (check still in flight — card shows a spinner), `'unverified'` (check
+ * refuted it, or it never earned verification — card is red or neutral).
  */
-export function isFilesBlockVerified(block: AnswerBlock): boolean {
-  return (
-    block.kind === 'files' &&
-    block.citations.length > 0 &&
-    block.citations.every((c) => c.verified)
-  );
+export type CitationTrustState = 'verified' | 'checking' | 'unverified';
+
+export interface CitationTrustTally {
+  /** Distinct cited claims the LIVE check confirmed. */
+  verified: number;
+  /** Distinct cited claims whose live check is still in flight. */
+  checking: number;
+  /** Distinct cited claims that are grounded but not (or no longer) verified. */
+  unverified: number;
+}
+
+/**
+ * Tally distinct cited claims (by chip number, matching {@link tallyBlocks})
+ * into live trust buckets. Drives the per-answer footer pills so the header
+ * count is, by construction, an aggregate of exactly what the cards display.
+ */
+export function tallyCitationTrust(
+  blocks: AnswerBlock[],
+  stateOf: (c: AnswerCitation) => CitationTrustState,
+): CitationTrustTally {
+  const seen = new Set<number>();
+  const tally: CitationTrustTally = { verified: 0, checking: 0, unverified: 0 };
+  for (const b of blocks) {
+    if (b.kind !== 'files') continue;
+    for (const c of b.citations) {
+      if (seen.has(c.n)) continue;
+      seen.add(c.n);
+      tally[stateOf(c)] += 1;
+    }
+  }
+  return tally;
+}
+
+/**
+ * B1 (rewired to the live verifier): the trust state a files block's label
+ * wears. Green "From your files" only when EVERY citation in the block is
+ * live-verified; amber "not verified" the moment any citation is settled
+ * unverified (honest tri-state — a genuinely-unverified citation must show
+ * amber here AND on its card); a quiet "checking" while the only unresolved
+ * citations are still being checked. A files block always has ≥1 citation
+ * (block-keep requires a grounded citation), so an empty list — and any
+ * non-files kind — is treated as not-verified.
+ */
+export function filesBlockTrustState(
+  block: AnswerBlock,
+  stateOf: (c: AnswerCitation) => CitationTrustState,
+): CitationTrustState {
+  if (block.kind !== 'files' || block.citations.length === 0) return 'unverified';
+  const states = block.citations.map(stateOf);
+  if (states.includes('unverified')) return 'unverified';
+  if (states.includes('checking')) return 'checking';
+  return 'verified';
 }
