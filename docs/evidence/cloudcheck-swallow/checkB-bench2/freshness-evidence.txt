@@ -1,0 +1,67 @@
+RAW FRESHNESS-PROBE EVIDENCE — bench-2, lp/swallow-p0-r8 @ 2efa2e05
+====================================================================
+(webview = WebView2 CDP eval; VM = Invoke-WebRequest on the VM. Same server, same URL.)
+
+DISK / GIT TRUTH
+  git rev-parse HEAD                = 2efa2e05add7396546a826bce28252be7b52d88e   (exact target)
+  tree status                      = clean (0 modified)
+  pendingFolderRetagStore.ts       = present, contains 'pendingFolderRetagHydrationSuspect' = True
+  useMemoryWiring.ts (disk)        = 114723 bytes (NEW R8 version)
+  npm run build                    = built in 40.55s, content-hashed dist/
+  R8 marker in built dist bundle   = FOUND in dist/assets/App-COHHWgTG.js
+                                     (string 'lantern:pending-folder-retag')
+
+SMOKING GUN #1 — DEV Vite on [::1]:5173, same file, cache-busted, {cache:'no-store'}
+  VM  Invoke-WebRequest /src/platform/rag/pendingFolderRetagStore.ts
+        -> content-type text/javascript, len 17254, hasR8Symbol = True     [FRESH]
+  webview fetch(/src/platform/rag/pendingFolderRetagStore.ts?x=<t>, no-store)
+        -> content-type text/html, len 931 (SPA fallback), hasR8Symbol = False   [STALE]
+  webview fetch(/src/platform/hooks/useMemoryWiring.ts)
+        -> len 157157, scheduleFolderMatterRetag = absent,
+           recordDurableFolderHold = absent, restoreFolderHolds = absent   [OLD pre-R7-3 code]
+           (disk is the 114723-byte NEW version)
+  webview import('/src/platform/rag/pendingFolderRetagStore.ts')
+        -> "Failed to fetch dynamically imported module"
+
+SMOKING GUN #2 — production Vite PREVIEW (content-hashed dist) on [::1]:5173
+  VM  Invoke-WebRequest http://[::1]:5173/
+        -> PROD index, 942 bytes, references /assets/index-DdIj3-BH.js     [FRESH]
+  webview document.scripts
+        -> ["/@vite/client","/src/main.tsx"]  (DEV index w/ React-Refresh preamble)  [STALE]
+     A static preview server cannot emit /@react-refresh or /src/main.tsx — proving the
+     webview response is NOT coming from the server that VM-curl reaches.
+
+WEBVIEW NETWORK IS DECOUPLED (ruling out the usual culprits)
+  navigator.serviceWorker.getRegistrations() = []      (no service worker)
+  caches.keys()                               = []      (no CacheStorage)
+  cache-busting query + {cache:'no-store'}    = ineffective (still stale)
+  WinINET ProxyEnable                          = 0
+  netsh winhttp show proxy                     = Direct access (no proxy server)
+  hosts file                                   = Tailscale MagicDNS entries only (no localhost/tauri redirect)
+  HKLM\...\Policies\Microsoft\Edge\WebView2    = none
+
+FROZEN URL ACROSS ALL RELAUNCHES (incl. build-mode binary AND reboot)
+  /json/list (CDP) page url = http://[::1]:5173/?fresh=1783358744  (a cache-bust token set
+     by this worker hours earlier) — identical after: dev mode, preview@5173, preview@5273,
+     profile wipe, data-folder rename, tauri build --debug binary, and a FULL VM REBOOT.
+  rendered page body = "Cannot access the workspace folder: C:/Users/james/Documents/Beacon
+     Ridge Demo" + "Recent (1)" — a user ('james') and workspace that do NOT exist on bench-2
+     (only 'lpbench' exists) => stale app state from an old snapshot session.
+
+BUILD-MODE / tauri.localhost CHARACTERIZATION
+  tauri build --debug --no-bundle -> Built C:\lantern-plus\src-tauri\target\debug\lantern.exe
+     (mtime matches the build; 252 MB)
+  run standalone -> webview STILL loads http://[::1]:5173/?fresh (the poisoned devUrl origin)
+  CDP-navigate webview to http://tauri.localhost/          -> "asset not found: index.html" (500)
+  fetch http://tauri.localhost/assets/index-DdIj3-BH.js    -> "asset not found: ..." (500)
+  fetch http://tauri.localhost/assets/App-COHHWgTG.js      -> "asset not found: ..." (500)
+     => the build-mode binary embeds NO frontend assets, AND tauri.localhost is a CLEAN
+        (un-poisoned) origin that simply has nothing to serve. The poison is bound to [::1]:5173.
+
+POST-REBOOT FINAL TEST
+  reboot (LastBootUpTime 2026-07-06 17:59:04) + AutoAdminLogon(lpbench) session active
+  + wiped EBWebView + build-mode app + PROD preview started on 5173 (VM-curl / => PROD 942)
+  + CDP-navigate webview to http://localhost:5173/?boot=<new-t>
+     -> webview scripts = ["/@vite/client","/src/main.tsx"], R8 marker absent   [STILL STALE]
+
+VERDICT: CHECK-B BLOCKED — bench/WebView2 pathology, NOT a branch defect.
