@@ -18,6 +18,7 @@ import type { NoticeCardPlatform } from '../noticeCardTypes';
 /** Where a guest join currently stands, as read off the page DOM. */
 export type AdapterPhase =
   | 'loading' // page still initializing; nothing actionable recognized yet
+  | 'launcher' // a "join in browser vs. open the app?" chooser is up (must click through)
   | 'name-entry' // a guest-name field is present (and needs filling)
   | 'ready-to-join' // name is set; a join / continue control is available
   | 'lobby' // admitted request sent; waiting for the host to let us in
@@ -29,6 +30,12 @@ export interface JoinAdapter {
   readonly platform: NoticeCardPlatform;
   /** Classify the current page. Pure read; no side effects. */
   detectPhase(doc: Document): AdapterPhase;
+  /**
+   * If the page is a "join in the browser vs. open the desktop app?" chooser
+   * (shown BEFORE the real prejoin), click the continue-in-browser control so the
+   * join can proceed. Returns true if it clicked one. No-op (false) otherwise.
+   */
+  dismissLauncher(doc: Document): boolean;
   /** Fill the guest display-name field. Returns true if it found + set one. */
   fillGuestName(doc: Document, name: string): boolean;
   /** Ensure the mic is muted before joining. Returns true if muted/already. */

@@ -58,6 +58,63 @@ export function detectPlatform(joinUrl: string | undefined | null): NoticeCardPl
   return 'other';
 }
 
+/**
+ * Rewrite a Teams meeting join URL to the direct web-client route so the
+ * companion webview skips Teams' "Continue on this browser / Join on the Teams
+ * app?" launcher chooser entirely (QA-91c, layered fix — this is layer A).
+ *
+ * The cookieless companion webview (a desktop-style WebView2 UA) always lands on
+ * `teams.live.com/dl/launcher/launcher.html` and never clicks through it, so the
+ * join stalls. The launcher only appears for the "open the app?" entry routes
+ * (`/meet/<id>` on teams.live.com, `/l/meetup-join/...` on teams.microsoft.com).
+ * The `/v2/?meetingjoin=true#/...` route loads the web client directly and does
+ * not show the chooser. We also carry `anon=true` (anonymous guest join) and
+ * `webjoin=true` (layer B — the launcher script honors it if any redirect still
+ * bounces through the launcher) inside the hash route.
+ *
+ * Confidence per the pre-fix research: medium-high, but it relies on a private
+ * Teams route, so it is a best-effort PRE-STEP — the adapter's launcher
+ * click-through (layer C) remains the guaranteed safety net. Anything this can't
+ * confidently rewrite (already-`/v2/`, non-Teams, unparseable, unknown Teams
+ * path) is returned UNCHANGED so we never produce a worse URL than we got.
+ */
+export function rewriteTeamsJoinUrl(joinUrl: string | undefined | null): string {
+  const raw = (joinUrl ?? '').trim();
+  if (!raw) return raw;
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    return raw; // not a URL — leave it exactly as-is
+  }
+  const host = u.hostname.toLowerCase();
+  const isLive = host === 'teams.live.com' || host.endsWith('.teams.live.com');
+  const isBiz =
+    host === 'teams.microsoft.com' ||
+    host.endsWith('.teams.microsoft.com') ||
+    host === 'teams.microsoft.us' ||
+    host.endsWith('.teams.microsoft.us');
+  if (!isLive && !isBiz) return raw; // Zoom / Meet / anything else — untouched
+
+  // Already on the direct web route (with or without a hash) — nothing to do.
+  if (u.pathname === '/v2/' || u.pathname === '/v2' || u.pathname.startsWith('/v2/')) {
+    return raw;
+  }
+
+  // Only the two known launcher-triggering entry routes are rewritten.
+  const isLiveMeet = isLive && u.pathname.startsWith('/meet/');
+  const isBizMeetup = isBiz && u.pathname.startsWith('/l/meetup-join/');
+  if (!isLiveMeet && !isBizMeetup) return raw;
+
+  // Merge the original query values into the hash route and add anon/webjoin.
+  const params = new URLSearchParams(u.search);
+  if (!params.has('anon')) params.set('anon', 'true');
+  if (!params.has('webjoin')) params.set('webjoin', 'true');
+  const query = params.toString();
+  const route = query ? `${u.pathname}?${query}` : u.pathname;
+  return `${u.origin}/v2/?meetingjoin=true#${route}`;
+}
+
 const DEFAULT_NAME_TEMPLATE = '⏺ Recording Notice — {advisor}';
 
 /**

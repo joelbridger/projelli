@@ -25,6 +25,53 @@ describe('buildInjectionScript', () => {
     expect(src).toContain('detectPhase('); // Teams adapter method serialized in
   });
 
+  it('serializes the launcher-dismiss method and drives it on the launcher phase (QA-91c)', () => {
+    // The "Continue on this browser" chooser must be clicked through before the
+    // prejoin is ever reached, or the card soft-fails page-unrecognized at ~29s.
+    const src = buildInjectionScript(cfg());
+    expect(src).toContain('dismissLauncher('); // method serialized into the runner
+    expect(src).toContain("phase === 'launcher'"); // runner acts on the launcher phase
+    expect(src).toContain('adapter.dismissLauncher(document)');
+    // (the "produces a syntactically valid IIFE" test already compile-checks the
+    // full script, including this newly-serialized method.)
+  });
+
+  it('fast-fails to page-unrecognized when stuck on the launcher with no clickable control (QA-91c round 2)', () => {
+    // Drift: the page still reads as the launcher (by URL) but the continue-in-
+    // browser control is gone/disabled, so dismissLauncher can't act. The runner
+    // must count each failed attempt toward the unrecognized give-up and fast-fail
+    // — never hang on 'joining' until the long supervisor timeout.
+    const src = buildInjectionScript(cfg());
+    const driftDoc = new DOMParser().parseFromString(
+      '<html><body><div class="mainActionsContent"><h1>Join your Teams meeting</h1></div></body></html>',
+      'text/html',
+    );
+    Object.defineProperty(driftDoc, 'URL', {
+      value: 'https://teams.live.com/dl/launcher/launcher.html?url=%2Fmeet%2F1',
+      configurable: true,
+    });
+    let tick: (() => void) | undefined;
+    const setIntervalStub = (fn: () => void): number => {
+      tick = fn;
+      return 1;
+    };
+    // Execute the runner WE just generated (src is our own trusted code, never
+    // user input) in a sandbox with a controlled document/window/setInterval so we
+    // can drive its tick loop and observe the give-up behavior.
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval -- runs our own generated runner to assert its give-up path
+    const runRunner = new Function('document', 'window', 'setInterval', src) as (
+      d: Document,
+      w: object,
+      si: (fn: () => void) => number,
+    ) => void;
+    runRunner(driftDoc, {}, setIntervalStub);
+    // The IIFE ran one tick immediately — not enough to give up yet.
+    expect(driftDoc.title).not.toContain('unrecognized');
+    // Drive past the ~40-tick (~28s) give-up threshold.
+    for (let i = 0; i < 45; i++) tick?.();
+    expect(driftDoc.title).toBe(NOTICE_CARD_TITLE_PREFIX + 'unrecognized');
+  });
+
   it('reports state through the document.title channel and strips the IPC bridge', () => {
     const src = buildInjectionScript(cfg());
     expect(src).toContain(NOTICE_CARD_TITLE_PREFIX);

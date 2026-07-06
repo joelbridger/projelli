@@ -13,6 +13,7 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { buildInjectionScript } from './injectionScript';
 import { parseNoticeCardTitle } from './injectionScript';
+import { rewriteTeamsJoinUrl } from './meetingPlatform';
 import type { NoticeCardDriver } from './supervisor';
 
 /** The subset of the supervisor the poller drives. */
@@ -29,7 +30,12 @@ export function makeTauriDriver(label: string, opts?: { cameraScript?: string })
   return {
     async open(config) {
       const initScript = buildInjectionScript(config, opts);
-      await invoke('notice_card_open', { label, joinUrl: config.joinUrl, initScript });
+      // Rewrite Teams links to the direct web route so the webview skips the
+      // "browser or app?" launcher chooser (QA-91c layer A). Non-Teams / already
+      // -direct / unparseable URLs pass through unchanged. The adapter's launcher
+      // click-through is the safety net if this route ever stops skipping it.
+      const joinUrl = rewriteTeamsJoinUrl(config.joinUrl);
+      await invoke('notice_card_open', { label, joinUrl, initScript });
     },
     async close() {
       // Idempotent on the Rust side (an absent window returns Ok), so a
