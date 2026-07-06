@@ -14,11 +14,13 @@ import type { OneDriveSyncProgress } from '@/platform/utils/onedrive-commands';
 let isTauriShouldReturn = true;
 let capturedListeners: Record<string, (event?: { payload: unknown }) => void> = {};
 let snapshotToReturn: SetupProgress = { ...EMPTY_SETUP_PROGRESS };
+let oneDriveStatusToReturn: { isSyncing: boolean; lastReport: null } = { isSyncing: false, lastReport: null };
 
 vi.mock('@tauri-apps/api/core', () => ({
   isTauri: () => isTauriShouldReturn,
   invoke: async (cmd: string) => {
     if (cmd === 'get_setup_progress') return snapshotToReturn;
+    if (cmd === 'onedrive_status') return oneDriveStatusToReturn;
     return undefined;
   },
 }));
@@ -43,6 +45,7 @@ describe('useStillImporting — QA-90', () => {
     isTauriShouldReturn = true;
     capturedListeners = {};
     snapshotToReturn = { ...EMPTY_SETUP_PROGRESS };
+    oneDriveStatusToReturn = { isSyncing: false, lastReport: null };
   });
 
   afterEach(() => {
@@ -98,5 +101,19 @@ describe('useStillImporting — QA-90', () => {
       fireOneDrive({ status: 'done', seen: 5, imported: 5 });
     });
     await waitFor(() => { expect(result.current).toBe(false); });
+  });
+
+  /**
+   * QA-90 round 2 (coordinator review) — a OneDrive sync already running
+   * BEFORE Ask mounts (or one that emits no further progress after mount)
+   * must still be reflected: the event listener alone would miss it, since
+   * it only reports transitions after it attaches. The hook must seed its
+   * initial value from the backend's own live status.
+   */
+  it('reflects a OneDrive sync that was ALREADY running before mount, with no event fired', async () => {
+    oneDriveStatusToReturn = { isSyncing: true, lastReport: null };
+    const { result } = renderHook(() => useStillImporting());
+    await waitFor(() => { expect(result.current).toBe(true); });
+    // No fireOneDrive(...) call in this test — proves the seed, not the listener.
   });
 });

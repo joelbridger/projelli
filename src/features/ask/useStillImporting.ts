@@ -15,7 +15,7 @@ import {
   getSetupProgress,
   isImportingContent,
 } from '@/platform/utils/setup-progress-commands';
-import { ONEDRIVE_SYNC_EVENT, type OneDriveSyncProgress } from '@/platform/utils/onedrive-commands';
+import { ONEDRIVE_SYNC_EVENT, oneDriveStatus, type OneDriveSyncProgress } from '@/platform/utils/onedrive-commands';
 
 /** Coalesce bursts of source events — mirrors useSetupProgress's debounce. */
 const REFETCH_DEBOUNCE_MS = 150;
@@ -68,10 +68,24 @@ export function useStillImporting(): boolean {
   // OneDrive import progress has no field in the backend snapshot — its
   // truth is this live event (same as the setup screen's overlay) — so it's
   // read directly instead of pulling in useSetupProgress's onedriveStore.
+  // QA-90 round 2: a live event alone misses a sync that was ALREADY running
+  // before this hook mounted (Ask opened mid-import) or that emits no further
+  // progress after mount — so seed the initial value from the backend's own
+  // live status (onedrive_status, the same atomic flag the sync loop itself
+  // sets) before falling back to listening for updates.
   useEffect(() => {
     if (!isTauri()) return;
-    let unlisten: (() => void) | undefined;
     let disposed = false;
+
+    void oneDriveStatus()
+      .then((status) => {
+        if (!disposed) setOneDriveSyncing(status.isSyncing);
+      })
+      .catch((err: unknown) => {
+        console.warn('useStillImporting: initial OneDrive status check failed.', err);
+      });
+
+    let unlisten: (() => void) | undefined;
     void listen<OneDriveSyncProgress>(ONEDRIVE_SYNC_EVENT, (event) => {
       setOneDriveSyncing(event.payload.status === 'syncing');
     })
