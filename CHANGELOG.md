@@ -32,6 +32,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **QA-90: "still importing" banner on Ask.** While email, OneDrive, Wealthbox
+  CRM, or workspace file indexing is actively importing, Ask shows a small,
+  non-blocking note above the composer ("Still bringing in your files and
+  email — answers may be incomplete.") so a half-empty answer during that
+  window reads as still-importing, not broken. Auto-hides the instant every
+  source finishes; reuses the existing `useSetupProgress` signal (QA-89)
+  rather than tracking sync state a second way.
+  - Files: `StillImportingBanner.tsx` (new), `isImportingContent` selector in
+    `setup-progress-commands.ts`, wired into `Ask.tsx`.
 - **The Notice Card — a local notice participant (v1 + v2).** When the advisor
   records an online meeting, a second participant that runs entirely on the
   advisor's own computer joins the call as "⏺ Recording Notice — <advisor>",

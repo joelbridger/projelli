@@ -159,6 +159,17 @@ export function deriveOverall(s: SetupProgress): OverallState {
   return 'empty';
 }
 
+/**
+ * True while any content source — email, Wealthbox CRM, OneDrive, or workspace
+ * file indexing — is actively importing. Excludes AI model downloads: those
+ * affect whether the AI can answer at all, not whether an already-working
+ * answer might be missing recently-imported content, which is what this
+ * signal is for (the Ask "still importing" banner).
+ */
+export function isImportingContent(s: SetupProgress): boolean {
+  return s.email.syncing || s.crm.syncing || s.oneDrive.syncing || s.fileIndex.indexing;
+}
+
 /** Read a fresh unified setup-progress snapshot from the native backend. */
 export async function getSetupProgress(): Promise<SetupProgress> {
   if (!isTauri()) return EMPTY_SETUP_PROGRESS;

@@ -36,6 +36,7 @@ import { SampleBridgeCallout } from './SampleBridgeCallout';
 import { TurnBlock } from './TurnBlock';
 import { AskComposer } from './AskComposer';
 import { FileAccessConsentBanner } from './chat/FileAccessConsentBanner';
+import { StillImportingBanner } from './StillImportingBanner';
 import type { ChatProvider } from './chat/providerModelResolution';
 import { ConversationsRail, type RailGroup } from './ConversationsRail';
 import {
@@ -627,6 +628,12 @@ export function Ask(props: UseAskProps) {
             )}
 
             <div ref={bottomRef} />
+          </div>
+
+          {/* QA-90: still-importing notice, directly above the composer so it's
+              visible without scrolling while a demo answer might be incomplete. */}
+          <div style={{ padding: '0 var(--kp-gutter)' }}>
+            <StillImportingBanner />
           </div>
 
           {/* The composer — ONLY the scope filters + the search bar (the egress
