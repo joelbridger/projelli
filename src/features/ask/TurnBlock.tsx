@@ -201,7 +201,7 @@ export function TurnBlock({
           >
             <ShieldCheck size={14} strokeWidth={2} style={{ flex: 'none', color: '#16654a' }} />
             {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-            Answered over your own files. Every cited claim can be checked against the source.
+            Answered over your own files. Every cited claim has a source you can open and check.
             {/* eslint-enable lantern-i18n/no-hardcoded-string */}
           </div>
         )}

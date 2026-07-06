@@ -164,7 +164,7 @@ export function AnswerBlocks({
       {pureFiles ? (
         <div data-testid="ask-cited-attestation" style={{ ...footerBoxStyle(FILES), fontWeight: 600 }}>
           <ShieldCheck size={14} strokeWidth={2} style={{ flex: 'none', marginTop: 1 }} />
-          <span>Answered over your own files. Every cited claim can be checked against the source.</span>
+          <span>Answered over your own files. Every cited claim has a source you can open and check.</span>
         </div>
       ) : (
         (tally.citedClaims > 0 || tally.hasGeneral || tally.hasNothingFound) && (
