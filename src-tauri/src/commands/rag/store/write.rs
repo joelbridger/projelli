@@ -1,4 +1,120 @@
 use super::*;
+use arrow_array::UInt64Array;
+use futures_util::TryStreamExt;
+
+/// BEFORE the atomic `merge_insert` runs, collapse any rows that are ALREADY
+/// duplicated under the same `id` on disk (P2 finding: LanceDB documents
+/// `merge_insert` behavior on multiple matches as undefined — when a pre-existing
+/// duplicate `id` matches the join, `when_matched_update_all` updates EVERY
+/// matching row instead of collapsing them, so a corrupt id stays duplicated
+/// forever across every future re-index).
+///
+/// ORDERING (F1): this runs BEFORE the merge, never after. Any fallible work
+/// AFTER a committed merge turns a SUCCEEDED content swap into a hidden file — a
+/// transient failure would make the whole command return Err, and the caller's
+/// fail-closed path (indexing.rs) would durably tombstone the freshly-written
+/// path, making the file vanish from search until a later re-index. Recreating
+/// exactly the disappearing-file symptom this branch exists to kill. Run here
+/// instead: if the cleanup fails, the content is UNTOUCHED (old rows still
+/// serve retrieval) and the error is honest — a genuine, complete failure, not
+/// a partial success. Combined with the incoming-id uniqueness check, no
+/// post-merge dedup is needed: a deduped table plus a unique incoming batch
+/// cannot produce a duplicate id.
+///
+/// Scoped to `path_predicate` — the same token-scoped predicate the caller
+/// already builds — so this only ever scans/touches the one file's rows.
+///
+/// No retrieval gap: the duplicated rows all hold the CURRENT (pre-swap)
+/// content, so deleting the N-1 excess copies by `_rowid` (never by `id`) in a
+/// SINGLE delete commit always leaves at least one row for the id alive holding
+/// that content — a reader can never land on a version where the id is missing.
+/// The subsequent atomic merge then swaps the surviving row to the new content.
+async fn dedup_duplicate_ids_for_path(table: &Table, path_predicate: &str) -> Result<()> {
+    let mut stream = table
+        .query()
+        .only_if(path_predicate)
+        .with_row_id()
+        .select(Select::columns(&["id"]))
+        .execute()
+        .await
+        .context("dedup scan failed")?;
+
+    let mut seen: HashSet<String> = HashSet::new();
+    let mut extra_row_ids: Vec<u64> = Vec::new();
+    while let Some(batch) = stream
+        .try_next()
+        .await
+        .context("dedup scan stream failed")?
+    {
+        let id_col = batch
+            .column_by_name("id")
+            .context("dedup scan missing id column")?
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .context("dedup scan id column is not StringArray")?;
+        let rowid_col = batch
+            .column_by_name("_rowid")
+            .context("dedup scan missing _rowid column")?
+            .as_any()
+            .downcast_ref::<UInt64Array>()
+            .context("dedup scan _rowid column is not UInt64Array")?;
+        for i in 0..batch.num_rows() {
+            let id = id_col.value(i).to_string();
+            let row_id = rowid_col.value(i);
+            if !seen.insert(id) {
+                extra_row_ids.push(row_id);
+            }
+        }
+    }
+
+    if extra_row_ids.is_empty() {
+        return Ok(());
+    }
+
+    let list = extra_row_ids
+        .iter()
+        .map(|r| r.to_string())
+        .collect::<Vec<_>>()
+        .join(", ");
+    table
+        .delete(&format!("_rowid IN ({list})"))
+        .await
+        .context("dedup delete of duplicate rows failed")?;
+    Ok(())
+}
+
+/// F2 defense-in-depth: the atomic `merge_insert` keys on `id`, and LanceDB's
+/// behavior on duplicate SOURCE ids is undefined — the merge would then update
+/// in place and the pre-merge dedup can't help (it only collapses rows already
+/// on disk, not duplicates arriving IN the batch), so all-but-one incoming copy
+/// is silently lost. Chunk-id generation upstream (chunk_id = path +
+/// paragraph_index band) is supposed to make in-batch collisions impossible,
+/// but a bug there (e.g. a PDF page overflowing its band) must fail LOUDLY here
+/// rather than silently drop a chunk. Validates the exact `id` column the merge
+/// will key on, across every batch of the incoming source.
+fn ensure_unique_incoming_ids(batches: &[RecordBatch], path: &str) -> Result<()> {
+    let mut seen: HashSet<String> = HashSet::new();
+    for batch in batches {
+        let id_col = batch
+            .column_by_name("id")
+            .context("id-uniqueness check: batch missing id column")?
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .context("id-uniqueness check: id column is not StringArray")?;
+        for i in 0..id_col.len() {
+            let id = id_col.value(i);
+            if !seen.insert(id.to_string()) {
+                anyhow::bail!(
+                    "duplicate incoming chunk id for {} — refusing merge_insert \
+                     (undefined on duplicate source ids); this indicates a chunk-id \
+                     banding overflow upstream",
+                    path
+                );
+            }
+        }
+    }
+    Ok(())
+}
 
 pub fn build_batch(
     rows: &[(Chunk, Vec<f32>)],
@@ -460,35 +576,72 @@ pub async fn upsert_chunks_for_path(
     privilege: &str,
     key: &[u8; 32],
 ) -> Result<()> {
-    // Always delete first — even if `rows` is empty (the file may have
-    // been emptied by the user) we want to drop stale chunks.
-    // VG-6e: the column holds the keyed token, so the predicate matches on
-    // the token computed from the same plaintext path + key. (The predicate
-    // string lands in LanceDB's transaction log — tokenizing it is part of
-    // the no-plaintext-paths-on-disk guarantee.)
+    // VG-6e: the `path` column holds the keyed token, so every predicate matches
+    // on the token computed from the same plaintext path + key. (The predicate
+    // string lands in LanceDB's transaction log — tokenizing it is part of the
+    // no-plaintext-paths-on-disk guarantee.)
     let predicate = format!(
         "path = '{}'",
         sql_escape(&super::super::crypto::path_token(key, path))
     );
-    table
-        .delete(&predicate)
-        .await
-        .with_context(|| format!("delete failed for {}", path))?;
 
+    // Empty `rows` means the file was emptied by the user — there is nothing to
+    // swap IN, so a plain delete is correct and exposes no gap (a reader
+    // correctly sees the source disappear because it genuinely has). The atomic
+    // path below only matters when we are REPLACING content.
     if rows.is_empty() {
+        table
+            .delete(&predicate)
+            .await
+            .with_context(|| format!("delete failed for {}", path))?;
         return Ok(());
     }
 
+    // SWAP-1 (atomic re-index): do NOT delete-then-add. Those are two separate
+    // LanceDB commits, and with a zero read-consistency interval a concurrent
+    // Ask can land on the briefly-committed post-delete version and miss this
+    // file entirely (demo step-4 finding 4). Instead perform the whole replace
+    // as ONE `merge_insert` transaction so readers only ever see the OLD content
+    // or the NEW content, never a gap:
+    //   - join on `id` (= chunk_id(path, paragraph_index), unique per source);
+    //   - when_matched_update_all: a paragraph that survives re-index is updated
+    //     in place (new text/vector/timestamp);
+    //   - when_not_matched_insert_all: brand-new paragraphs are inserted;
+    //   - when_not_matched_by_source_delete SCOPED to this path's token: stale
+    //     paragraphs that no longer exist (the file shrank) are dropped — and the
+    //     `path = '<token>'` filter guarantees rows for OTHER files/matters are
+    //     never touched, so matter/privilege scoping semantics are unchanged.
+    // Row-count outcome is identical to the old delete-then-add, so QA-92's
+    // reconcile row-count proofs still hold; only the atomicity changes.
+    //
     // WS-VEC: build_batch encrypts the text column under the vector-store key.
     // VG-2: this path serves native text extraction only — never OCR.
     let batch = build_batch(&rows, source_type, matter_id, privilege, None, key)?;
+
+    // F2: reject a batch with duplicate incoming ids BEFORE touching the table —
+    // merge_insert on duplicate source ids is undefined and silently loses rows.
+    ensure_unique_incoming_ids(std::slice::from_ref(&batch), path)?;
+
+    // F1 + P2: collapse any pre-existing on-disk duplicate ids BEFORE the merge
+    // (never after). If it fails, content is untouched and the error is honest;
+    // running it after a committed merge would turn a succeeded swap into a
+    // tombstoned, vanished file. See dedup_duplicate_ids_for_path.
+    dedup_duplicate_ids_for_path(table, &predicate)
+        .await
+        .with_context(|| format!("pre-merge dedup failed for {}", path))?;
+
     let schema = batch.schema();
     let iter = RecordBatchIterator::new(vec![Ok(batch)], schema);
-    table
-        .add(Box::new(iter))
-        .execute()
+
+    let mut merge = table.merge_insert(&["id"]);
+    merge
+        .when_matched_update_all(None)
+        .when_not_matched_insert_all()
+        .when_not_matched_by_source_delete(Some(predicate.clone()));
+    merge
+        .execute(Box::new(iter))
         .await
-        .context("add chunks batch failed")?;
+        .with_context(|| format!("atomic re-index merge_insert failed for {}", path))?;
     Ok(())
 }
 
@@ -520,14 +673,10 @@ pub async fn upsert_grouped(
         "path = '{}'",
         sql_escape(&super::super::crypto::path_token(key, path))
     );
-    table
-        .delete(&predicate)
-        .await
-        .with_context(|| format!("delete failed for {}", path))?;
 
     use arrow_schema::ArrowError;
     let mut count = 0usize;
-    let mut batches: Vec<std::result::Result<RecordBatch, ArrowError>> = Vec::new();
+    let mut batches: Vec<RecordBatch> = Vec::new();
     for (source_type, extraction, rows) in &groups {
         if rows.is_empty() {
             continue;
@@ -535,17 +684,59 @@ pub async fn upsert_grouped(
         count += rows.len();
         let batch = build_batch(rows, *source_type, matter_id, privilege, *extraction, key)
             .map_err(|e| anyhow::anyhow!("build grouped batch for {}: {e}", path))?;
-        batches.push(Ok(batch));
+        batches.push(batch);
     }
-    if !batches.is_empty() {
-        let schema = build_schema();
-        let iter = RecordBatchIterator::new(batches.into_iter(), schema);
+
+    if batches.is_empty() {
+        // Every group was empty — the sectioned file emptied. A plain delete is
+        // correct (nothing to swap in) and exposes no retrieval gap. See
+        // upsert_chunks_for_path for the same empty-source reasoning.
         table
-            .add(Box::new(iter))
-            .execute()
+            .delete(&predicate)
             .await
-            .context("add grouped chunks batch failed")?;
+            .with_context(|| format!("delete failed for {}", path))?;
+        return Ok(count);
     }
+
+    // SWAP-1 (atomic re-index): replace all of this path's rows across every
+    // section (PDF pages / xlsx sheets / pptx slides) in ONE `merge_insert`
+    // transaction — never delete-then-add — so a concurrent Ask can't land on a
+    // committed post-delete version and miss the file. Same three clauses as
+    // upsert_chunks_for_path; the `when_not_matched_by_source_delete` filter is
+    // scoped to this path's token so stale sections are dropped while rows for
+    // other files/matters are untouched (scoping semantics unchanged, QA-92
+    // row-count proofs preserved). Merging on `id` across the multi-batch source
+    // is fine: chunk_id is unique per (path, paragraph_index), so page/sheet
+    // groups never collide.
+    // F2: reject duplicate incoming ids ACROSS every group's batch BEFORE
+    // touching the table — chunk_id is unique per (path, paragraph_index), so a
+    // collision here means a banding overflow (a long PDF page spilling into the
+    // next page's id band). merge_insert on duplicate source ids is undefined
+    // and would silently drop content; fail loudly instead.
+    ensure_unique_incoming_ids(&batches, path)?;
+
+    // F1 + P2: collapse any pre-existing on-disk duplicate ids BEFORE the merge
+    // (never after) — a post-merge failure would tombstone the freshly-swapped
+    // file. See dedup_duplicate_ids_for_path.
+    dedup_duplicate_ids_for_path(table, &predicate)
+        .await
+        .with_context(|| format!("pre-merge grouped dedup failed for {}", path))?;
+
+    let schema = build_schema();
+    let iter = RecordBatchIterator::new(
+        batches.into_iter().map(Ok::<RecordBatch, ArrowError>),
+        schema,
+    );
+
+    let mut merge = table.merge_insert(&["id"]);
+    merge
+        .when_matched_update_all(None)
+        .when_not_matched_insert_all()
+        .when_not_matched_by_source_delete(Some(predicate.clone()));
+    merge
+        .execute(Box::new(iter))
+        .await
+        .with_context(|| format!("atomic grouped re-index merge_insert failed for {}", path))?;
     Ok(count)
 }
 

@@ -2852,6 +2852,375 @@ mod tests {
         );
     }
 
+    /// SWAP-1 (re-index atomicity): re-indexing a file must be an ATOMIC swap —
+    /// a retrieval that lands on ANY committed table version during the re-index
+    /// still finds the file.
+    ///
+    /// The bug (demo step-4 finding 4): the old write path DELETED a path's
+    /// chunks, then ADDED the new ones as TWO separate LanceDB commits. Between
+    /// those commits there was a briefly-committed version in which the file had
+    /// ZERO rows — an Ask that retrieved in that window missed the file entirely
+    /// (a silent, brief disappearance of a source mid-write).
+    ///
+    /// This test reconstructs, via `checkout`, EXACTLY what a concurrent reader
+    /// would have seen at every committed version from just-after-the-first-index
+    /// through the final version, and proves the file is retrievable at each one —
+    /// the literal "a retrieval interleaved between the write phases still finds
+    /// the file" property.
+    ///
+    /// Deterministic RED→GREEN: with delete-then-add the re-index bumps the table
+    /// version by TWO and the intermediate (post-delete) version has the file gone
+    /// (RED). With the merge_insert atomic swap it bumps by exactly ONE and no gap
+    /// version exists (GREEN).
+    #[tokio::test]
+    async fn reindex_is_atomic_no_retrieval_gap() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let conn = open_connection(dir.path()).await.expect("open conn");
+        let table = open_or_create_table(&conn).await.expect("open table");
+
+        let path = "/ws/clients/acme/engagement.md";
+        let matter = "matter_acme";
+        let q = vec![0.11f32; EMBEDDING_DIM];
+        let mk_rows = |texts: &[&str]| {
+            texts
+                .iter()
+                .enumerate()
+                .map(|(i, t)| {
+                    (
+                        Chunk {
+                            path: path.into(),
+                            paragraph_index: i as u32,
+                            text: (*t).into(),
+                            start_offset: 0,
+                            end_offset: t.len(),
+                            locator: None,
+                        },
+                        vec![0.11f32; EMBEDDING_DIM],
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+
+        // v1: index the file with 3 chunks. This is the state a reader sees
+        // BEFORE the re-index begins.
+        upsert_chunks_for_path(
+            &table,
+            path,
+            mk_rows(&["a1", "a2", "a3"]),
+            SourceType::Text,
+            matter,
+            PRIVILEGE_NONE,
+            &TEST_KEY,
+        )
+        .await
+        .expect("v1 upsert");
+        let version_before = table.version().await.expect("version before re-index");
+        assert!(
+            !nearest(&table, &q, 10, Some(matter), false, &[])
+                .await
+                .unwrap()
+                .is_empty(),
+            "file must be retrievable after the initial index"
+        );
+
+        // Re-index the SAME path with new content and a DIFFERENT chunk count
+        // (3 → 2), exercising update + insert + stale-delete in one swap.
+        upsert_chunks_for_path(
+            &table,
+            path,
+            mk_rows(&["b1", "b2"]),
+            SourceType::Text,
+            matter,
+            PRIVILEGE_NONE,
+            &TEST_KEY,
+        )
+        .await
+        .expect("re-index upsert");
+        let version_after = table.version().await.expect("version after re-index");
+
+        // (1) The swap is a SINGLE commit — there is no briefly-committed
+        // in-between state a reader could land on. delete-then-add would be +2.
+        assert_eq!(
+            version_after,
+            version_before + 1,
+            "re-index must be ONE atomic commit (delete-then-add is +2, exposing a gap)"
+        );
+
+        // (2) The literal interleaving proof: for EVERY committed version a
+        // reader could have landed on from just-after-v1 through the final
+        // version, the file stays retrievable. Old code's post-delete/pre-add
+        // version has the file gone → this fails deterministically.
+        let reader = conn
+            .open_table(TABLE_NAME)
+            .execute()
+            .await
+            .expect("reader handle");
+        for v in (version_before + 1)..=version_after {
+            reader
+                .checkout(v)
+                .await
+                .unwrap_or_else(|e| panic!("checkout v{v}: {e}"));
+            let hits = nearest(&reader, &q, 10, Some(matter), false, &[])
+                .await
+                .unwrap_or_else(|e| panic!("nearest at v{v}: {e}"));
+            assert!(
+                hits.iter().any(|h| stored_path(h) == path),
+                "file disappeared at committed version {v} during re-index — a \
+                 retrieval interleaved with the write would miss it"
+            );
+        }
+
+        // (3) After the swap, retrieval returns exactly the 2 NEW chunks — no
+        // orphaned v1 rows, no dupes (guards QA-92's row-count contract).
+        reader.checkout_latest().await.expect("checkout latest");
+        let final_hits = nearest(&reader, &q, 10, Some(matter), false, &[])
+            .await
+            .unwrap();
+        assert_eq!(
+            final_hits
+                .iter()
+                .filter(|h| stored_path(h) == path)
+                .count(),
+            2,
+            "after re-index exactly the 2 new chunks are present (no orphans/dupes)"
+        );
+    }
+
+    /// P2 (adversarial review of SWAP-1): a pre-existing duplicate `id` — two
+    /// physical rows already sharing the same chunk id under one path, however
+    /// they got there (corruption, a stale race, migrated data) — must COLLAPSE
+    /// back to exactly one row on the next re-index. `merge_insert`'s join on
+    /// `id` documents behavior on multiple matches as undefined; the reviewer's
+    /// repro showed `when_matched_update_all` updating BOTH duplicates in place
+    /// (row count stays 2) instead of collapsing them. The old delete-then-add
+    /// path cleaned such dupes for free (a fresh `add` after a full delete can
+    /// never duplicate) — the atomic merge_insert swap needs its own dedup pass
+    /// to keep that guarantee.
+    ///
+    /// Also proves the fix stays gap-free: every committed version from just
+    /// before the re-index through the final (deduped) version still has the
+    /// row retrievable — the collapse never passes through a "row missing"
+    /// state, only a possibly-briefly-duplicated one.
+    #[tokio::test]
+    async fn reindex_collapses_preexisting_duplicate_id_rows() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let conn = open_connection(dir.path()).await.expect("open conn");
+        let table = open_or_create_table(&conn).await.expect("open table");
+
+        let path = "/ws/clients/acme/dup.md";
+        let matter = "matter_dup";
+        let q = vec![0.33f32; EMBEDDING_DIM];
+        let mk_rows = |text: &str| {
+            vec![(
+                Chunk {
+                    path: path.into(),
+                    paragraph_index: 0,
+                    text: text.into(),
+                    start_offset: 0,
+                    end_offset: text.len(),
+                    locator: None,
+                },
+                vec![0.33f32; EMBEDDING_DIM],
+            )]
+        };
+
+        // Seed a pre-existing DUPLICATE: two physical rows sharing the same id
+        // (sha256(path, 0)), written directly via `add` (bypassing merge_insert
+        // entirely) to reconstruct exactly the corruption the reviewer's repro
+        // found — a state that must never happen going forward once this fix
+        // ships, but must be recoverable if it's already on disk.
+        for _ in 0..2 {
+            let batch = build_batch(
+                &mk_rows("stale"),
+                SourceType::Text,
+                matter,
+                PRIVILEGE_NONE,
+                None,
+                &TEST_KEY,
+            )
+            .expect("build stale batch");
+            let schema = batch.schema();
+            table
+                .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
+                .execute()
+                .await
+                .expect("seed duplicate row");
+        }
+
+        let token = super::super::crypto::path_token(&TEST_KEY, path);
+        let path_predicate = format!("path = '{}'", sql_escape(&token));
+        let precondition = table
+            .count_rows(Some(path_predicate.clone()))
+            .await
+            .expect("count rows before re-index");
+        assert_eq!(
+            precondition, 2,
+            "test setup must seed exactly 2 duplicate rows"
+        );
+        let version_before = table.version().await.expect("version before re-index");
+
+        // Re-index the SAME single-chunk file. This drives merge_insert's `id`
+        // join straight into the pre-existing duplicate — the exact repro.
+        upsert_chunks_for_path(
+            &table,
+            path,
+            mk_rows("fresh"),
+            SourceType::Text,
+            matter,
+            PRIVILEGE_NONE,
+            &TEST_KEY,
+        )
+        .await
+        .expect("re-index over duplicate rows");
+        let version_after = table.version().await.expect("version after re-index");
+
+        let after = table
+            .count_rows(Some(path_predicate))
+            .await
+            .expect("count rows after re-index");
+        assert_eq!(
+            after, 1,
+            "re-index must collapse the pre-existing duplicate to exactly ONE row"
+        );
+
+        // Gap-free proof: at every committed version from just-before the
+        // re-index through the final (deduped) version, the row stays
+        // retrievable — the collapse never passes through "row missing".
+        let reader = conn
+            .open_table(TABLE_NAME)
+            .execute()
+            .await
+            .expect("reader handle");
+        for v in version_before..=version_after {
+            reader
+                .checkout(v)
+                .await
+                .unwrap_or_else(|e| panic!("checkout v{v}: {e}"));
+            let hits = nearest(&reader, &q, 10, Some(matter), false, &[])
+                .await
+                .unwrap_or_else(|e| panic!("nearest at v{v}: {e}"));
+            assert!(
+                hits.iter().any(|h| stored_path(h) == path),
+                "row disappeared at committed version {v} while collapsing the \
+                 pre-existing duplicate — a retrieval interleaved with the \
+                 dedup pass would miss it"
+            );
+        }
+
+        let hits = nearest(&table, &q, 10, Some(matter), false, &[])
+            .await
+            .unwrap();
+        let matches: Vec<_> = hits.iter().filter(|h| stored_path(h) == path).collect();
+        assert_eq!(
+            matches.len(),
+            1,
+            "retrieval must see exactly one row post-collapse"
+        );
+        let text = {
+            use crate::commands::mail::crypto::decrypt_with_key;
+            let blob = hex::decode(&matches[0].text).expect("hex text");
+            String::from_utf8(decrypt_with_key(&blob, &TEST_KEY).expect("decrypt text"))
+                .expect("utf8")
+        };
+        assert_eq!(
+            text, "fresh",
+            "surviving row must carry the NEW content, not the stale duplicate"
+        );
+    }
+
+    /// F2 defense-in-depth: an incoming batch whose rows share a chunk `id`
+    /// (same path + paragraph_index — the shape a PDF band overflow would
+    /// produce) must be REJECTED before the merge, not silently collapsed to
+    /// one row by undefined `merge_insert` behavior. An honest indexing failure
+    /// beats silent content loss.
+    #[tokio::test]
+    async fn duplicate_incoming_ids_are_rejected_single_path() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let conn = open_connection(dir.path()).await.expect("open conn");
+        let table = open_or_create_table(&conn).await.expect("open table");
+
+        let path = "/ws/clients/acme/collide.md";
+        // Two rows with the SAME paragraph_index -> the SAME chunk_id.
+        let rows = vec![
+            (
+                Chunk {
+                    path: path.into(),
+                    paragraph_index: 0,
+                    text: "first".into(),
+                    start_offset: 0,
+                    end_offset: 5,
+                    locator: None,
+                },
+                vec![0.5f32; EMBEDDING_DIM],
+            ),
+            (
+                Chunk {
+                    path: path.into(),
+                    paragraph_index: 0,
+                    text: "second".into(),
+                    start_offset: 0,
+                    end_offset: 6,
+                    locator: None,
+                },
+                vec![0.5f32; EMBEDDING_DIM],
+            ),
+        ];
+
+        let err = upsert_chunks_for_path(
+            &table,
+            path,
+            rows,
+            SourceType::Text,
+            "matter_x",
+            PRIVILEGE_NONE,
+            &TEST_KEY,
+        )
+        .await
+        .expect_err("duplicate incoming ids must be rejected");
+        assert!(
+            format!("{err:#}").contains("duplicate incoming chunk id"),
+            "error must name the duplicate-id cause, got: {err:#}"
+        );
+    }
+
+    /// F2 defense-in-depth, grouped (sectioned) path: two page/sheet groups
+    /// carrying a colliding chunk `id` (what a band overflow produces across
+    /// PDF pages) must be rejected before the merge.
+    #[tokio::test]
+    async fn duplicate_incoming_ids_are_rejected_grouped_path() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let conn = open_connection(dir.path()).await.expect("open conn");
+        let table = open_or_create_table(&conn).await.expect("open table");
+
+        let path = "/ws/clients/acme/collide.pdf";
+        let mk = |pi: u32, text: &str| {
+            (
+                Chunk {
+                    path: path.into(),
+                    paragraph_index: pi,
+                    text: text.into(),
+                    start_offset: 0,
+                    end_offset: text.len(),
+                    locator: None,
+                },
+                vec![0.5f32; EMBEDDING_DIM],
+            )
+        };
+        // Two groups (different pages) whose rows collide on paragraph_index 0.
+        let groups: Vec<(SourceType, Option<(&str, f32)>, Vec<(Chunk, Vec<f32>)>)> = vec![
+            (SourceType::Pdf { page_number: 1 }, None, vec![mk(0, "p1")]),
+            (SourceType::Pdf { page_number: 2 }, None, vec![mk(0, "p2")]),
+        ];
+
+        let err = upsert_grouped(&table, path, groups, "matter_x", PRIVILEGE_NONE, &TEST_KEY)
+            .await
+            .expect_err("duplicate incoming ids across groups must be rejected");
+        assert!(
+            format!("{err:#}").contains("duplicate incoming chunk id"),
+            "error must name the duplicate-id cause, got: {err:#}"
+        );
+    }
+
     /// P1.1 (Windows regression): rows written under the NATIVE backslash path
     /// (what the Rust WalkDir/reconcile sees on Windows) must be reachable by a
     /// delete/retag issued with the FORWARD-SLASH form (what the TS side builds
