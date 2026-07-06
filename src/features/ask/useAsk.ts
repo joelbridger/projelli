@@ -53,6 +53,8 @@ import {
   scopeHintForMatter,
 } from './askPrompt';
 import { useStillImporting, isImportStatusUnsettled } from './useStillImporting';
+import { trimForLocalContext, LOCAL_CONTEXT_TOO_LONG_MESSAGE } from './localContextTrim';
+import { LANTERN_LOCAL_CONTEXT_WINDOW } from '@/platform/providers/AppLocalProvider';
 import { bindAnswerBlocks } from './answerBlockHelpers';
 import {
   withAskTimeout,
@@ -988,10 +990,8 @@ export function useAsk({
         isCloudProvider: providerIsCloud,
         fileAccessGranted: currentFileAccessGranted,
       }).shouldRetrieve;
-      const groundingHits: RagHit[] = fileContentPermitted ? hits : [];
+      let groundingHits: RagHit[] = fileContentPermitted ? hits : [];
 
-      const workspaceBlock =
-        groundingHits.length > 0 ? buildWorkspaceContextBlock(groundingHits) : '';
       // B4 (audit honesty): build the prompt scope from the SAME retrievalScope
       // the retrieval actually used — NOT from activeMatter. Otherwise, when a
       // matter is active but the user picked the "All matters" scope, the prompt
@@ -1013,7 +1013,48 @@ export function useAsk({
       // (Codex final review P2): an older file-grounded turn OUTSIDE the window
       // never reaches the model, so it must not mark this answer file-derived (a
       // misleading fileToolsEnabled=true audit + needless future redaction).
-      const historyInPrompt = historyTurnsForSend.slice(-HISTORY_WINDOW);
+      let historyInPrompt = historyTurnsForSend.slice(-HISTORY_WINDOW);
+
+      // Local-AI context trimming (step-4 adversarial review, finding 6) — the
+      // embedded on-device model runs with a small, fixed context window (see
+      // LANTERN_LOCAL_CONTEXT_WINDOW), unlike cloud providers, which tolerate an
+      // oversized prompt. Estimate the assembled prompt against the model's OWN
+      // reported window (never a hard-coded number) and, if it's over budget,
+      // drop retrieved chunks lowest-relevance-first (whole chunks only, so a
+      // surviving citation never points at truncated text), then oldest history.
+      // Cloud providers never take this path — no behavior change for them.
+      if (resolvedProvider.providerId === 'keepance-local') {
+        const maxContextTokens =
+          resolvedProvider.provider.getMetadata().capabilities?.maxContextTokens ??
+          LANTERN_LOCAL_CONTEXT_WINDOW;
+        const staticSystemPrompt = filesOnly
+          ? buildAskSystemPrompt({ scopeHint: matterHint, workspaceBlock: '', historyBlock: '' })
+          : buildSmartAskSystemPrompt({
+              scopeHint: matterHint,
+              workspaceBlock: '',
+              historyBlock: '',
+              hasEvidence: groundingHits.length > 0,
+            });
+        const trimResult = trimForLocalContext(
+          {
+            fixedText: `${staticSystemPrompt}\n\n${q}`,
+            hits: groundingHits,
+            historyTurns: historyInPrompt,
+            buildWorkspaceBlock: buildWorkspaceContextBlock,
+            buildHistoryBlock: (turnsForBlock) => buildHistoryBlock(turnsForBlock, HISTORY_WINDOW),
+          },
+          maxContextTokens,
+        );
+        if (!trimResult.fits) {
+          emitDecline(LOCAL_CONTEXT_TOO_LONG_MESSAGE);
+          return;
+        }
+        groundingHits = trimResult.hits;
+        historyInPrompt = trimResult.historyTurns;
+      }
+
+      const workspaceBlock =
+        groundingHits.length > 0 ? buildWorkspaceContextBlock(groundingHits) : '';
       const historyBlock = buildHistoryBlock(historyInPrompt, HISTORY_WINDOW);
       // F2.5b (Codex round-4) — grounding is TRANSITIVE: this answer draws on
       // client file content from fresh hits AND from any file-grounded history in

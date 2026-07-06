@@ -31,6 +31,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Local-AI context trimming — Ask no longer overflows the on-device model's
+  context window.** The embedded Advisor Prep Hero Local AI reports a
+  ~16k-token working window (`AppLocalProvider.LANTERN_LOCAL_CONTEXT_WINDOW`),
+  but Ask always sent up to 8 retrieved chunks + conversation history with no
+  local-specific size check — a long question on a well-indexed workspace
+  could overflow it and come back truncated or garbled (step-4 adversarial
+  review, finding 6). Fixed by estimating the assembled prompt with a
+  conservative ~4-chars/token heuristic against the resolved provider's OWN
+  reported `maxContextTokens` (never a hard-coded number), and — only when
+  the resolved provider is `keepance-local` — trimming deterministically:
+  retrieved chunks are dropped lowest-relevance-first (whole chunks only, so a
+  surviving citation can never point at truncated text), then oldest
+  conversation history. When even the question plus the single
+  highest-relevance chunk can't fit, Ask declines honestly ("This question is
+  too long for the on-device AI — shorten it or switch to a cloud model.")
+  instead of sending a doomed-to-garble request. Cloud providers are
+  completely unaffected — no behavior change. Files:
+  `localContextTrim.ts` (new), `useAsk.ts`. Tests: `localContextTrim.test.ts`,
+  `useAsk.localTrim.test.ts`.
+
 ### Fixed
 - **Demo dress-rehearsal fixes: persisted key-verify status + Local AI
   mode-switch pre-start now cover the ConfidentialityModeSettings path.**
