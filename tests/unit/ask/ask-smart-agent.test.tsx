@@ -213,12 +213,14 @@ describe('Ask-smart (source-aware advisor agent)', () => {
     await ask('What did GEICO tender and what does it mean?');
 
     await waitFor(() => {
-      expect(screen.getByTestId('ask-block-label-files')).toBeInTheDocument();
+      // lp/badge-consistency tri-state: with no settled verdict (jsdom never
+      // verifies), the grounding label renders its 'checking' variant.
+      expect(screen.getByTestId(/^ask-block-label-files(-checking)?$/)).toBeInTheDocument();
     });
     expect(screen.getByTestId('ask-block-label-general')).toBeInTheDocument();
     // Cited claim chip in the files block; tally pills below.
     expect(screen.getByTestId('ask-citation-chip-1')).toBeInTheDocument();
-    expect(screen.getByTestId('ask-tally-cited')).toBeInTheDocument();
+    expect(screen.getByTestId(/^ask-tally-(cited|checking)$/)).toBeInTheDocument();
     expect(screen.getByTestId('ask-tally-general')).toBeInTheDocument();
     expect(document.body.textContent).toContain('$100.65');
   });
@@ -234,7 +236,9 @@ describe('Ask-smart (source-aware advisor agent)', () => {
     await ask('What did GEICO tender?');
 
     await waitFor(() => {
-      expect(screen.getByTestId('ask-block-label-files')).toBeInTheDocument();
+      // lp/badge-consistency tri-state: with no settled verdict (jsdom never
+      // verifies), the grounding label renders its 'checking' variant.
+      expect(screen.getByTestId(/^ask-block-label-files(-checking)?$/)).toBeInTheDocument();
     });
     // The trailing general claim is demoted to its own general block.
     expect(screen.getByTestId('ask-block-label-general')).toBeInTheDocument();
