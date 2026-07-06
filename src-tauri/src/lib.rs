@@ -367,9 +367,13 @@ pub fn run() {
             // `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` environment variable —
             // so that env var alone can never open the CDP remote-debugging
             // port. Reading it here and forwarding it through the builder is
-            // the only way it reaches the browser process. No-op on
-            // macOS/Linux. Default string mirrors wry's own default exactly,
-            // so behavior is unchanged when the env var is unset.
+            // the only way it reaches the browser process. This forwarding is
+            // debug-build-only inside `webview_env::webview_browser_args`: the
+            // cloud/Legion benches run `tauri:dev`, but production builds must
+            // ignore machine-level env vars that could redirect a real user's
+            // WebView2 profile/cache. No-op on macOS/Linux. Default string
+            // mirrors wry's own default exactly, so behavior is unchanged when
+            // the env var is unset.
             if let Some(window_config) = app.config().app.windows.first() {
                 // The SAME string the Notice Card companion window uses (see
                 // `commands::notice_card`). Both windows MUST pass an identical
