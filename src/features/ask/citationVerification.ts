@@ -23,7 +23,12 @@
 
 import { useEffect, useRef } from 'react';
 import { create } from 'zustand';
-import { ragVerifyCitationsBatch, type CitationVerdict } from '@/platform/utils/tauri-commands';
+import {
+  RAG_PROGRESS_EVENT,
+  ragVerifyCitationsBatch,
+  type CitationVerdict,
+  type RagIndexingProgress,
+} from '@/platform/utils/tauri-commands';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import type { AuditEntry } from '@/platform/types/audit';
 import type { AnswerCitation } from './askHelpers';
@@ -48,6 +53,8 @@ export function verifyKey(id: string, matterId: string, excerpt: string): string
   return `${id} ${matterId} ${excerpt}`;
 }
 
+export const CITATION_VERDICT_CACHE_MAX_ENTRIES = 500;
+
 interface CitationVerdictsStore {
   /** Every settled verdict, shared across all consumers. Replaced (new Map)
    *  on each update so subscribers re-render on reference change. */
@@ -69,17 +76,117 @@ const requested = new Set<string>();
  *  unsettled. They stay absent from the store (cards read "pending") and are
  *  released for exactly one retry when indexing settles to idle. */
 const heldForRetry = new Set<string>();
+const lruKeys = new Map<string, true>();
+let cacheEpoch = 0;
+let ragProgressListenerStarted = false;
+let ragProgressUnlisten: (() => void) | null = null;
 
 /** Test-only: clear all module/store state between tests (verdicts are
  *  content-addressed and would otherwise leak across test cases). */
 export function resetCitationVerificationForTests(): void {
+  ragProgressUnlisten?.();
+  ragProgressUnlisten = null;
+  ragProgressListenerStarted = false;
   requested.clear();
   heldForRetry.clear();
+  lruKeys.clear();
+  cacheEpoch = 0;
   useCitationVerdictsStore.setState({ verdicts: new Map<string, RealVerdict>(), retryTick: 0 });
+}
+
+/** Test-only: inspect all three bounded cache buckets together. */
+export function getCitationVerificationCacheSnapshotForTests(): {
+  verdictKeys: string[];
+  requestedKeys: string[];
+  heldForRetryKeys: string[];
+  lruKeys: string[];
+} {
+  return {
+    verdictKeys: Array.from(useCitationVerdictsStore.getState().verdicts.keys()),
+    requestedKeys: Array.from(requested),
+    heldForRetryKeys: Array.from(heldForRetry),
+    lruKeys: Array.from(lruKeys.keys()),
+  };
 }
 
 function bumpRetryTick(): void {
   useCitationVerdictsStore.setState((s) => ({ retryTick: s.retryTick + 1 }));
+}
+
+function touchCacheKey(key: string): void {
+  lruKeys.delete(key);
+  lruKeys.set(key, true);
+}
+
+function evictOverflowKeys(): string[] {
+  const evicted: string[] = [];
+  while (lruKeys.size > CITATION_VERDICT_CACHE_MAX_ENTRIES) {
+    const oldest = lruKeys.keys().next().value;
+    if (typeof oldest !== 'string') break;
+    lruKeys.delete(oldest);
+    requested.delete(oldest);
+    heldForRetry.delete(oldest);
+    evicted.push(oldest);
+  }
+  return evicted;
+}
+
+function pruneStoreVerdicts(evicted: string[]): void {
+  if (evicted.length === 0) return;
+  useCitationVerdictsStore.setState((s) => {
+    const next = new Map(s.verdicts);
+    evicted.forEach((key) => next.delete(key));
+    return { verdicts: next };
+  });
+}
+
+function markRequested(key: string): void {
+  requested.add(key);
+  touchCacheKey(key);
+  pruneStoreVerdicts(evictOverflowKeys());
+}
+
+function clearCitationVerificationCache(): void {
+  if (
+    requested.size === 0 &&
+    heldForRetry.size === 0 &&
+    lruKeys.size === 0 &&
+    useCitationVerdictsStore.getState().verdicts.size === 0
+  ) {
+    return;
+  }
+  requested.clear();
+  heldForRetry.clear();
+  lruKeys.clear();
+  cacheEpoch += 1;
+  useCitationVerdictsStore.setState((s) => ({
+    verdicts: new Map<string, RealVerdict>(),
+    retryTick: s.retryTick + 1,
+  }));
+}
+
+export function handleRagIndexingProgressForCitationVerification(payload: RagIndexingProgress): void {
+  const contentChanged =
+    payload.status === 'indexing' ||
+    (payload.status === 'done' && ((payload.reindexed ?? 0) > 0 || (payload.deleted ?? 0) > 0));
+  if (contentChanged) clearCitationVerificationCache();
+}
+
+function installRagProgressInvalidationListener(): void {
+  if (ragProgressListenerStarted) return;
+  ragProgressListenerStarted = true;
+  void (async () => {
+    try {
+      const core = await import('@tauri-apps/api/core');
+      if (!core.isTauri()) return;
+      const { listen } = await import('@tauri-apps/api/event');
+      ragProgressUnlisten = await listen<RagIndexingProgress>(RAG_PROGRESS_EVENT, (event) => {
+        handleRagIndexingProgressForCitationVerification(event.payload);
+      });
+    } catch {
+      // Browser/test mode: no native indexing event to subscribe to.
+    }
+  })();
 }
 
 /**
@@ -113,6 +220,10 @@ export function useCitationVerification(
   const wasUnsettled = useRef(importUnsettled);
 
   useEffect(() => {
+    installRagProgressInvalidationListener();
+  }, []);
+
+  useEffect(() => {
     // Idempotent across multiple mounted hook instances: the first effect to
     // observe the unsettled→idle transition drains the held set and bumps the
     // shared retry tick; later ones find it empty and do nothing.
@@ -132,7 +243,7 @@ export function useCitationVerification(
   useEffect(() => {
     const toFetch = eligible.filter((c) => !requested.has(verifyKey(c.id, c.matterId, c.excerpt)));
     if (toFetch.length === 0) return;
-    toFetch.forEach((c) => requested.add(verifyKey(c.id, c.matterId, c.excerpt)));
+    toFetch.forEach((c) => markRequested(verifyKey(c.id, c.matterId, c.excerpt)));
     // QA-92 round 2 (coordinator review round 2): capture whether indexing
     // was unsettled at the moment THIS batch was ISSUED, not whatever
     // `importUnsettledRef.current` happens to read once the result lands. A
@@ -141,11 +252,13 @@ export function useCitationVerification(
     // ref only at result time would miss exactly that case and let a
     // transient negative stick.
     const importUnsettledAtStart = importUnsettledRef.current;
+    const epochAtStart = cacheEpoch;
     const run = async () => {
       try {
         const results = await ragVerifyCitationsBatch(
           toFetch.map((c) => ({ id: c.id, claimedMatterId: c.matterId, quotedText: c.excerpt })),
         );
+        if (epochAtStart !== cacheEpoch) return;
         // Results land in the SHARED store even if this component unmounted
         // mid-flight — verdicts are content-addressed, so they are valid for
         // whichever consumer shows these citations next (this replaces the
@@ -157,6 +270,7 @@ export function useCitationVerification(
             const r = results[i];
             if (!r) return;
             const key = verifyKey(c.id, c.matterId, c.excerpt);
+            touchCacheKey(key);
             // QA-92 round 2: a negative verdict from a batch ISSUED while
             // indexing was unsettled is held back — it never enters the
             // store, so the card stays "pending" rather than falsely turning
@@ -170,6 +284,7 @@ export function useCitationVerification(
             }
             next.set(key, r.verdict);
           });
+          evictOverflowKeys().forEach((key) => next.delete(key));
           return { verdicts: next };
         });
         toFetch.forEach((c, i) => {
@@ -197,12 +312,18 @@ export function useCitationVerification(
           bumpRetryTick();
         }
       } catch {
+        if (epochAtStart !== cacheEpoch) return;
         // Browser/dev mode (no Tauri backend) or a verifier error — never
         // fake-verify. Mark 'unavailable' so these exact keys are not
         // endlessly retried; the card stays neutral "Source found".
         useCitationVerdictsStore.setState((s) => {
           const next = new Map(s.verdicts);
-          toFetch.forEach((c) => next.set(verifyKey(c.id, c.matterId, c.excerpt), 'unavailable'));
+          toFetch.forEach((c) => {
+            const key = verifyKey(c.id, c.matterId, c.excerpt);
+            touchCacheKey(key);
+            next.set(key, 'unavailable');
+          });
+          evictOverflowKeys().forEach((key) => next.delete(key));
           return { verdicts: next };
         });
       }
@@ -225,19 +346,18 @@ export function useCitationVerification(
  *    refutation ALWAYS downgrades, even a bind-time-verified citation;
  *  - check still pending        → `'checking'`  (card: spinner);
  *  - checker can't run at all (`'unavailable'`, or a pre-3.0 citation with no
- *    id/matterId — card: neutral "Source found") → fall back to the bind-time
- *    `verified` flag. That flag claims grounding ("cited from your files"),
- *    not quote-verification, so it never contradicts the card's neutral
- *    state — and a post-hoc match honestly stays `'unverified'`.
+ *    id/matterId — card: neutral "Source found") → `'checking'`, the header's
+ *    neutral state. It must never earn the green live-verified badge from the
+ *    old bind-time flag.
  */
 export function citationTrustState(
   cite: AnswerCitation,
   verdicts: ReadonlyMap<string, RealVerdict>,
 ): CitationTrustState {
-  if (!cite.id || !cite.matterId) return cite.verified ? 'verified' : 'unverified';
+  if (!cite.id || !cite.matterId) return 'checking';
   const v = verdicts.get(verifyKey(cite.id, cite.matterId, cite.excerpt));
   if (v === undefined) return 'checking';
   if (v === 'verified') return 'verified';
-  if (v === 'unavailable') return cite.verified ? 'verified' : 'unverified';
+  if (v === 'unavailable') return 'checking';
   return 'unverified';
 }

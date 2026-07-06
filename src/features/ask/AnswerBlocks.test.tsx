@@ -161,10 +161,10 @@ describe('AnswerBlocks — header badge agrees with the live citation verifier (
     expect(screen.queryByTestId('ask-tally-checking')).toBeNull();
   });
 
-  it('falls back to the bind-time flag when the checker cannot run at all (browser/dev)', async () => {
+  it('keeps the header neutral when the checker cannot run at all (browser/dev)', async () => {
     // Two citations, one bind-time verified and one post-hoc; the real check
-    // is unavailable (no backend). The header keeps the honest bind-time
-    // split — it never fakes a live verification that did not run.
+    // is unavailable (no backend). Neither one may turn the header green,
+    // because no live quote check actually ran.
     const explicit = makeCitation({ n: 1, verified: true });
     const postHoc = makeCitation({ n: 2, verified: false });
     ragVerifyCitationsBatchMock.mockRejectedValue(new Error('no tauri backend'));
@@ -172,13 +172,11 @@ describe('AnswerBlocks — header badge agrees with the live citation verifier (
     renderBlocks([filesBlock([explicit]), filesBlock([postHoc]), generalBlock]);
 
     await waitFor(() => {
-      expect(screen.getByTestId('ask-tally-cited')).toBeTruthy();
+      expect(screen.getByTestId('ask-tally-checking')).toBeTruthy();
     });
-    await waitFor(() => {
-      expect(screen.getByTestId('ask-tally-unverified')).toBeTruthy();
-    });
-    expect(screen.getByTestId('ask-block-label-files')).toBeTruthy();
-    expect(screen.getByTestId('ask-block-label-files-unverified')).toBeTruthy();
+    expect(screen.queryByTestId('ask-tally-cited')).toBeNull();
+    expect(screen.queryByTestId('ask-tally-unverified')).toBeNull();
+    expect(screen.getAllByTestId('ask-block-label-files-checking')).toHaveLength(2);
   });
 
   it('a pure-files answer earns the attestation only after live verification completes', async () => {

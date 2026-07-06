@@ -16,7 +16,13 @@ import '@/i18n';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { SourcePanel } from './SourcePanel';
-import { resetCitationVerificationForTests } from './citationVerification';
+import {
+  CITATION_VERDICT_CACHE_MAX_ENTRIES,
+  getCitationVerificationCacheSnapshotForTests,
+  handleRagIndexingProgressForCitationVerification,
+  resetCitationVerificationForTests,
+  verifyKey,
+} from './citationVerification';
 import type { AnswerCitation } from './askHelpers';
 import type { CitationVerdict } from '@/platform/utils/tauri-commands';
 import type { ImportStatus } from './useStillImporting';
@@ -166,5 +172,97 @@ describe('SourcePanel — negative verdicts during an active import (QA-92 round
     });
     expect(screen.queryByTestId('verify-verdict')).toBeNull();
     expect(screen.getByTestId('verify-status').dataset['state']).toBe('pending');
+  });
+});
+
+describe('SourcePanel — shared citation verdict cache hardening', () => {
+  it('bounds the shared verdict cache and evicts the same oldest keys from requested tracking', async () => {
+    ragVerifyCitationsBatchMock.mockImplementation((batch: Array<{ quotedText: string }>) =>
+      Promise.resolve(batch.map(() => ({ verdict: 'verified' } satisfies CitationVerdict))),
+    );
+
+    const citations = Array.from({ length: CITATION_VERDICT_CACHE_MAX_ENTRIES + 1 }, (_, i) =>
+      makeCitation({
+        n: i + 1,
+        id: `chunk-lru-${String(i)}`,
+        excerpt: `LRU quote ${String(i)}.`,
+      }),
+    );
+    render(<SourcePanel citations={citations} selectedN={null} onSelect={() => {}} />);
+
+    await waitFor(() => {
+      expect(getCitationVerificationCacheSnapshotForTests().verdictKeys).toHaveLength(
+        CITATION_VERDICT_CACHE_MAX_ENTRIES,
+      );
+    });
+
+    const firstKey = verifyKey('chunk-lru-0', 'matter-1', 'LRU quote 0.');
+    const snapshot = getCitationVerificationCacheSnapshotForTests();
+    expect(snapshot.verdictKeys).not.toContain(firstKey);
+    expect(snapshot.requestedKeys).not.toContain(firstKey);
+    expect(snapshot.lruKeys).not.toContain(firstKey);
+    expect(snapshot.requestedKeys).toHaveLength(CITATION_VERDICT_CACHE_MAX_ENTRIES);
+    expect(snapshot.lruKeys).toHaveLength(CITATION_VERDICT_CACHE_MAX_ENTRIES);
+  });
+
+  it('bounds held-for-retry keys together with requested tracking while indexing is unsettled', async () => {
+    useStillImportingMock.mockReturnValue('importing');
+    ragVerifyCitationsBatchMock.mockImplementation((batch: Array<{ quotedText: string }>) =>
+      Promise.resolve(batch.map(() => ({ verdict: 'notFound' } satisfies CitationVerdict))),
+    );
+
+    const citations = Array.from({ length: CITATION_VERDICT_CACHE_MAX_ENTRIES + 1 }, (_, i) =>
+      makeCitation({
+        n: i + 1,
+        id: `chunk-held-${String(i)}`,
+        excerpt: `Held quote ${String(i)}.`,
+      }),
+    );
+    render(<SourcePanel citations={citations} selectedN={null} onSelect={() => {}} />);
+
+    await waitFor(() => {
+      expect(getCitationVerificationCacheSnapshotForTests().heldForRetryKeys).toHaveLength(
+        CITATION_VERDICT_CACHE_MAX_ENTRIES,
+      );
+    });
+
+    const firstKey = verifyKey('chunk-held-0', 'matter-1', 'Held quote 0.');
+    const snapshot = getCitationVerificationCacheSnapshotForTests();
+    expect(snapshot.heldForRetryKeys).not.toContain(firstKey);
+    expect(snapshot.requestedKeys).not.toContain(firstKey);
+    expect(snapshot.lruKeys).not.toContain(firstKey);
+  });
+
+  it('clears old verdicts on RAG indexing progress so changed source content gets checked again', async () => {
+    const cite = makeCitation({ id: 'chunk-stale', excerpt: 'The old cached quote.' });
+    ragVerifyCitationsBatchMock.mockResolvedValueOnce([
+      { verdict: 'verified' } satisfies CitationVerdict,
+    ]);
+
+    const { rerender } = render(<SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('verify-status').dataset['state']).toBe('verified');
+    });
+    expect(ragVerifyCitationsBatchMock).toHaveBeenCalledTimes(1);
+
+    ragVerifyCitationsBatchMock.mockResolvedValueOnce([
+      { verdict: 'textMismatch' } satisfies CitationVerdict,
+    ]);
+    handleRagIndexingProgressForCitationVerification({
+      status: 'done',
+      processed: 1,
+      total: 1,
+      currentPath: 'clients/jane/plan.docx',
+      reindexed: 1,
+    });
+    rerender(<SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />);
+
+    await waitFor(() => {
+      expect(ragVerifyCitationsBatchMock).toHaveBeenCalledTimes(2);
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('verify-verdict').dataset['verdict']).toBe('textMismatch');
+    });
   });
 });
